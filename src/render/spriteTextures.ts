@@ -7,7 +7,10 @@ import * as THREE from 'three';
  * gradients, zero photorealism.
  */
 
-function canvasTexture(size: number, draw: (ctx: CanvasRenderingContext2D) => void): THREE.Texture {
+export function canvasTexture(
+  size: number,
+  draw: (ctx: CanvasRenderingContext2D) => void,
+): THREE.Texture {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
