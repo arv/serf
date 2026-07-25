@@ -236,16 +236,94 @@ function workshopBase(opts: {
   return g;
 }
 
+/**
+ * An organic blob: a cylinder whose rim is radius-jittered per angular
+ * segment (walls stay vertical). Every instance rolls its own outline.
+ */
+function blobGeometry(radius: number, height: number, jitter: number): THREE.BufferGeometry {
+  const segments = 14;
+  const geo = new THREE.CylinderGeometry(1, 1, height, segments);
+  const factors: number[] = [];
+  for (let s = 0; s <= segments; s++) {
+    factors.push(s === segments ? factors[0]! : 1 + (Math.random() - 0.5) * jitter);
+  }
+  const pos = geo.attributes.position!;
+  for (let v = 0; v < pos.count; v++) {
+    const x = pos.getX(v);
+    const z = pos.getZ(v);
+    const len = Math.hypot(x, z);
+    if (len < 1e-4) continue; // cap centers
+    const angle = Math.atan2(z, x) + Math.PI;
+    const s = Math.round((angle / (Math.PI * 2)) * segments) % segments;
+    const f = radius * factors[s]!;
+    pos.setX(v, (x / len) * len * f);
+    pos.setZ(v, (z / len) * len * f);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
 function makeQuarry(): THREE.Group {
-  const g = workshopBase({ wall: TEX.plank(), roofTex: TEX.roofSlate() });
-  const pile = mesh(new THREE.DodecahedronGeometry(0.28), palette.rock);
-  pile.position.set(0.85, 0.2, 0.4);
-  pile.scale.y = 0.7;
-  g.add(pile);
-  const chiselBlock = tmesh(new THREE.BoxGeometry(0.34, 0.26, 0.34), TEX.stone());
-  chiselBlock.position.set(-0.85, 0.13, 0.55);
-  chiselBlock.rotation.y = 0.4;
-  g.add(chiselBlock);
+  // An open working yard — no house. Rock face, cut blocks, timber hoist.
+  const g = new THREE.Group();
+
+  // Gravel apron settles the yard into the meadow.
+  const apron = mesh(blobGeometry(1.15, 0.5, 0.3), palette.rockDark);
+  apron.position.y = -0.17;
+  g.add(apron);
+
+  // The rock face being worked: a shoulder of big flat-shaded boulders.
+  for (const [x, z, s, ry] of [
+    [-0.55, -0.55, 1.15, 0.3],
+    [-0.05, -0.75, 0.8, 1.2],
+    [-0.85, -0.05, 0.7, 2.1],
+  ] as const) {
+    const rock = mesh(new THREE.DodecahedronGeometry(0.4), palette.rock);
+    rock.scale.set(s, s * 0.8, s);
+    rock.rotation.y = ry;
+    rock.position.set(x, 0.28 * s, z);
+    g.add(rock);
+  }
+
+  // Stacked cut blocks, ready for hauling.
+  for (const [x, y, z, ry] of [
+    [0.55, 0.14, 0.45, 0.15],
+    [0.85, 0.14, 0.15, -0.2],
+    [0.68, 0.4, 0.32, 0.4],
+  ] as const) {
+    const block = tmesh(new THREE.BoxGeometry(0.4, 0.26, 0.3), TEX.stone());
+    block.position.set(x, y, z);
+    block.rotation.y = ry;
+    g.add(block);
+  }
+
+  // Timber shear-legs hoist leaning over the blocks.
+  for (const sx of [-1, 1]) {
+    const leg = mesh(new THREE.CylinderGeometry(0.045, 0.05, 1.5, 5), palette.wood);
+    leg.position.set(0.55 + sx * 0.32, 0.68, 0.28);
+    leg.rotation.z = -sx * 0.35;
+    leg.rotation.x = 0.12;
+    g.add(leg);
+  }
+  const crossbar = mesh(new THREE.BoxGeometry(0.5, 0.06, 0.06), palette.wood);
+  crossbar.position.set(0.55, 1.32, 0.2);
+  g.add(crossbar);
+  const rope = mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.55, 4), 0x2a2018);
+  rope.position.set(0.55, 1.02, 0.2);
+  rope.castShadow = false;
+  g.add(rope);
+  const sling = tmesh(new THREE.BoxGeometry(0.26, 0.18, 0.22), TEX.stone());
+  sling.position.set(0.55, 0.68, 0.2);
+  g.add(sling);
+
+  // Rubble scatter.
+  for (let i = 0; i < 5; i++) {
+    const chip = mesh(new THREE.DodecahedronGeometry(0.07 + Math.random() * 0.06), palette.rockDark);
+    chip.position.set(-0.2 + Math.random() * 1.0, 0.06, 0.55 + Math.random() * 0.35);
+    chip.rotation.y = Math.random() * Math.PI;
+    g.add(chip);
+  }
+
   return g;
 }
 
@@ -276,30 +354,52 @@ function makeWell(): THREE.Group {
 }
 
 function makeRicePaddy(): THREE.Group {
+  // A flooded pond dug into the meadow: organic outline, earthen skirt that
+  // sinks below grade (so sloped terrain never shows a gap), soft bund lip.
   const g = new THREE.Group();
-  const water = mesh(new THREE.BoxGeometry(2.85, 0.12, 2.85), palette.water);
-  water.position.y = 0.06;
+
+  // The field is DUG IN, not built up: almost all of the earth skirt lies
+  // below grade (it only exists to hide terrain seams on slopes), and the
+  // water sits barely above the grass like a flooded cut. Colors stay close
+  // to the meadow — murky green flood water, olive-earth bund — so the
+  // paddy melts into the terrain instead of contrasting against it.
+  const muddyEarth = 0x6d603a;
+  const floodWater = 0x42583f;
+  const basin = mesh(blobGeometry(1.55, 0.8, 0.24), muddyEarth);
+  basin.position.y = -0.33; // top face at +0.07
+  g.add(basin);
+
+  const water = mesh(blobGeometry(1.38, 0.04, 0.22), floodWater);
+  water.position.y = 0.08;
   g.add(water);
-  // Rows of seedlings.
-  for (let row = -1; row <= 1; row++) {
+
+  // Hand-piled bund: irregular earth mounds around the waterline instead of
+  // a geometric lip.
+  const mounds = 12;
+  for (let i = 0; i < mounds; i++) {
+    const a = (i / mounds) * Math.PI * 2 + (Math.random() - 0.5) * 0.25;
+    const r = 1.42 + (Math.random() - 0.5) * 0.16;
+    const s = 0.16 + Math.random() * 0.12;
+    const mound = mesh(new THREE.SphereGeometry(s, 6, 5), muddyEarth);
+    mound.scale.y = 0.45;
+    mound.position.set(Math.cos(a) * r, 0.075, Math.sin(a) * r);
+    g.add(mound);
+  }
+
+  // Seedlings in loose, hand-planted rows, poking out of the shallow water.
+  for (let row = -2; row <= 2; row++) {
     for (let col = -2; col <= 2; col++) {
-      const sprout = mesh(new THREE.ConeGeometry(0.09, 0.3, 4), palette.bambooLeaf);
-      sprout.position.set(col * 0.5, 0.24, row * 0.8);
+      const x = col * 0.42 + (Math.random() - 0.5) * 0.14;
+      const z = row * 0.42 + (Math.random() - 0.5) * 0.14;
+      if (Math.hypot(x, z) > 1.15) continue; // stay inside the pond
+      const sprout = mesh(
+        new THREE.ConeGeometry(0.07, 0.26 + Math.random() * 0.12, 4),
+        Math.random() < 0.3 ? palette.bambooLeafDark : palette.bambooLeaf,
+      );
+      sprout.position.set(x, 0.2, z);
+      sprout.rotation.y = Math.random() * Math.PI;
       g.add(sprout);
     }
-  }
-  // Low earthen bund around the field.
-  const bund = mesh(new THREE.BoxGeometry(3, 0.1, 0.18), palette.earthTrail);
-  for (const sz of [-1.45, 1.45]) {
-    const bb = bund.clone();
-    bb.position.set(0, 0.1, sz);
-    g.add(bb);
-  }
-  const bundEW = mesh(new THREE.BoxGeometry(0.18, 0.1, 3), palette.earthTrail);
-  for (const sx of [-1.45, 1.45]) {
-    const bb = bundEW.clone();
-    bb.position.set(sx, 0.1, 0);
-    g.add(bb);
   }
   return g;
 }
@@ -688,10 +788,151 @@ export function makeUnitModel(kindCode: number): THREE.Group {
   return proto.clone();
 }
 
-/** The visible good on a carrier's shoulders — the core fantasy, in one box. */
-export function makeCarryBox(colorHex: number): THREE.Mesh {
-  const box = mesh(new THREE.BoxGeometry(0.22, 0.16, 0.22), colorHex);
-  box.position.y = 0.92;
-  box.castShadow = false;
-  return box;
+// ---------------------------------------------------------------------------
+// Carried goods — the core fantasy. Each good is a distinct little prop on
+// the carrier's shoulders, readable at gameplay zoom.
+
+import { GOODS, type GoodId } from '../sim/defs/goods';
+
+function carryProto(good: GoodId): THREE.Group {
+  const g = new THREE.Group();
+  const add = (m: THREE.Mesh): void => {
+    m.castShadow = false;
+    g.add(m);
+  };
+
+  switch (good) {
+    case 'water': {
+      // Tenbin-bo: a shoulder pole with a pail swinging at each end.
+      const pole = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.78, 5), palette.woodLight);
+      pole.rotation.z = Math.PI / 2;
+      add(pole);
+      for (const sx of [-0.36, 0.36]) {
+        const rope = mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.16, 3), 0x2a2018);
+        rope.position.set(sx, -0.09, 0);
+        add(rope);
+        const pail = mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.09, 7), palette.wood);
+        pail.position.set(sx, -0.2, 0);
+        add(pail);
+        const waterTop = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.012, 7), 0x4a708c);
+        waterTop.position.set(sx, -0.155, 0);
+        add(waterTop);
+      }
+      g.position.y = 0.88;
+      break;
+    }
+    case 'rice': {
+      // Tawara: a straw bale with rope bindings.
+      const bale = mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.32, 8), 0xd8c288);
+      bale.rotation.z = Math.PI / 2;
+      add(bale);
+      for (const sx of [-0.09, 0.09]) {
+        const band = mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.025, 8), 0x8a6c3c);
+        band.rotation.z = Math.PI / 2;
+        band.position.x = sx;
+        add(band);
+      }
+      g.position.y = 0.92;
+      break;
+    }
+    case 'bamboo': {
+      // A bundle of culms over the shoulder.
+      for (const [dy, dz, r] of [
+        [0, 0, 0.032],
+        [0.05, 0.03, 0.028],
+        [0.04, -0.04, 0.03],
+      ] as const) {
+        const culm = mesh(new THREE.CylinderGeometry(r, r, 0.95, 5), palette.bambooCulm);
+        culm.rotation.z = Math.PI / 2;
+        culm.rotation.y = 0.12;
+        culm.position.set(0, dy, dz);
+        add(culm);
+      }
+      g.position.y = 0.9;
+      break;
+    }
+    case 'stone': {
+      const chunk = mesh(new THREE.DodecahedronGeometry(0.14), palette.rock);
+      chunk.scale.y = 0.8;
+      add(chunk);
+      g.position.y = 0.92;
+      break;
+    }
+    case 'iron':
+    case 'silver':
+    case 'gold': {
+      const tone = good === 'iron' ? 0x5a5350 : good === 'silver' ? 0xc4cad2 : 0xe0b44a;
+      const a = mesh(new THREE.BoxGeometry(0.24, 0.07, 0.1), tone);
+      add(a);
+      const b = mesh(new THREE.BoxGeometry(0.24, 0.07, 0.1), tone);
+      b.position.set(0, 0.07, 0.02);
+      b.rotation.y = 0.35;
+      add(b);
+      g.position.y = 0.9;
+      break;
+    }
+    case 'katana': {
+      // Sheathed blade carried flat.
+      const saya = mesh(new THREE.BoxGeometry(0.55, 0.045, 0.07), 0x2a2233);
+      saya.rotation.y = 0.35;
+      saya.rotation.z = 0.1;
+      add(saya);
+      const tsuba = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 8), 0xc8a84a);
+      tsuba.rotation.z = Math.PI / 2;
+      tsuba.position.set(0.2, 0.02, -0.07);
+      tsuba.rotation.y = 0.35;
+      add(tsuba);
+      g.position.y = 0.92;
+      break;
+    }
+    case 'yari': {
+      const shaft = mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.05, 5), goodColorsLocal.yari);
+      shaft.rotation.z = Math.PI / 2;
+      shaft.rotation.y = 0.25;
+      add(shaft);
+      const tip = mesh(new THREE.ConeGeometry(0.045, 0.14, 5), 0xd8dde3);
+      tip.rotation.z = -Math.PI / 2;
+      tip.position.set(0.57, 0, -0.14);
+      tip.rotation.y = 0.25;
+      add(tip);
+      g.position.y = 0.92;
+      break;
+    }
+    case 'yumi': {
+      const bow = mesh(new THREE.TorusGeometry(0.26, 0.022, 5, 10, Math.PI), goodColorsLocal.yumi);
+      bow.rotation.z = Math.PI / 2;
+      add(bow);
+      g.position.y = 0.85;
+      break;
+    }
+    case 'sake': {
+      // A cream tokkuri jug with a vermillion collar.
+      const body = mesh(new THREE.SphereGeometry(0.12, 8, 6), 0xece2d0);
+      body.scale.y = 1.1;
+      add(body);
+      const neck = mesh(new THREE.CylinderGeometry(0.04, 0.055, 0.1, 7), 0xece2d0);
+      neck.position.y = 0.14;
+      add(neck);
+      const collar = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.025, 7), palette.vermillion);
+      collar.position.y = 0.1;
+      add(collar);
+      g.position.y = 0.94;
+      break;
+    }
+  }
+  return g;
+}
+
+const carryPrototypes = new Map<GoodId, THREE.Group>();
+
+/** The visible good on a carrier's shoulders, by SAB carry code. */
+export function makeCarryProp(carryCode: number): THREE.Group | null {
+  const good = GOODS[carryCode - 1];
+  if (!good) return null;
+  let proto = carryPrototypes.get(good);
+  if (!proto) {
+    proto = carryProto(good);
+    carryPrototypes.set(good, proto);
+  }
+  return proto.clone();
 }

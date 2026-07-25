@@ -1,15 +1,14 @@
 import * as THREE from 'three';
 import { PUBLISH_INTERVAL_MS, type SabReader } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
-import { GOODS } from '../sim/defs/goods';
-import { goodColors, makeCarryBox, makeUnitModel } from './models';
+import { makeCarryProp, makeUnitModel } from './models';
 import type { HeightField } from './heightField';
 
 interface UnitVisual {
   group: THREE.Group;
   kind: number;
   carrying: number;
-  carryBox: THREE.Mesh | null;
+  carryBox: THREE.Object3D | null;
   hpBar: THREE.Mesh | null;
 }
 
@@ -107,7 +106,8 @@ export class SceneSync {
         visual.hpBar = null;
       }
 
-      // Visible carried good — the core fantasy in one little box.
+      // Visible carried good — the core fantasy, as the actual object:
+      // shoulder-pole pails, rice bales, bamboo bundles, ingots, jugs.
       const carrying = latest.aux[i * 4 + 3]!;
       if (carrying !== visual.carrying) {
         if (visual.carryBox) {
@@ -115,9 +115,8 @@ export class SceneSync {
           visual.carryBox = null;
         }
         if (carrying > 0) {
-          const good = GOODS[carrying - 1];
-          visual.carryBox = makeCarryBox(goodColors[good ?? 'bamboo'] ?? 0xffffff);
-          visual.group.add(visual.carryBox);
+          visual.carryBox = makeCarryProp(carrying);
+          if (visual.carryBox) visual.group.add(visual.carryBox);
         }
         visual.carrying = carrying;
       }
