@@ -75,6 +75,22 @@ describe('dojo training', () => {
     expect(dojo.trainQueue?.length).toBe(1);
   });
 
+  it('a stuck head does not block trainable units behind it (skip-ahead)', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, { rice: 10, yari: 2 }); // yari, but no katana
+    world.techs.researched.push('bushido');
+    const dojo = placeBuiltBuilding(world, 'dojo', 'player', 36, 30);
+    addSerf(world, 34, 34);
+    tickWorld(world, [{ kind: 'trainUnit', buildingId: dojo.id, unit: 'samurai' }]);
+    tickWorld(world, [{ kind: 'trainUnit', buildingId: dojo.id, unit: 'ashigaru' }]);
+    run(world, 20 * 90);
+
+    // The samurai still waits for its katana; the ashigaru trained anyway.
+    expect([...world.units.values()].some((u) => u.kind === 'ashigaru')).toBe(true);
+    expect(dojo.trainQueue?.some((q) => q.unit === 'samurai' && !q.started)).toBe(true);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
   it('applies militaryHp modifiers at spawn', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { rice: 10, yari: 2 });

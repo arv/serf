@@ -71,8 +71,13 @@ describe('the campaign is winnable', () => {
     const baseY = sh.y + 1;
 
     const researchOrder: TechId[] = ['bushido', 'strawSandals', 'ironworking'];
-    const placed = new Set<BuildingTypeId>();
     let lastAttackTick = -10_000;
+    let lastRallyTick = 0;
+    let attacking = false;
+
+    /** Standing count incl. construction sites — the bot rebuilds losses. */
+    const countOf = (type: BuildingTypeId): number =>
+      buildings(world).filter((b) => b.type === type).length;
 
     const MAX_TICKS = 45_000; // ~37 minutes of game time
     for (let t = 0; t < MAX_TICKS; t++) {
@@ -81,55 +86,46 @@ describe('the campaign is winnable', () => {
       if (t % 20 === 0 && world.outcome === 'playing') {
         const stock = storehouse(world).stock;
 
-        // --- Build order (each placed once, when affordable) ---------------
-        const wantOrder: [BuildingTypeId, { x: number; y: number } | null][] = [];
-        if (!placed.has('bambooHut')) {
-          const grove = nearestResource(world, TileResource.Bamboo, baseX, baseY);
-          if (grove >= 0) {
-            wantOrder.push([
-              'bambooHut',
-              findSpot(world, 'bambooHut', tileX(grove), tileY(grove), 6),
-            ]);
-          }
+        // --- Build order: desired counts vs standing counts ----------------
+        // Rebuilds anything raiders destroy; a 2nd bamboo hut joins once the
+        // smith economy starts drinking bamboo.
+        const iron = world.techs.researched.includes('ironworking');
+        const wants: [BuildingTypeId, number, { x: number; y: number } | null][] = [];
+        const grove = nearestResource(world, TileResource.Bamboo, baseX, baseY);
+        if (grove >= 0) {
+          wants.push([
+            'bambooHut',
+            iron ? 2 : 1,
+            findSpot(world, 'bambooHut', tileX(grove), tileY(grove), 6),
+          ]);
         }
-        if (!placed.has('quarry')) {
-          const rocks = nearestResource(world, TileResource.Rock, baseX, baseY);
-          if (rocks >= 0) {
-            wantOrder.push(['quarry', findSpot(world, 'quarry', tileX(rocks), tileY(rocks), 6)]);
-          }
+        const rocks = nearestResource(world, TileResource.Rock, baseX, baseY);
+        if (rocks >= 0) {
+          wants.push(['quarry', 1, findSpot(world, 'quarry', tileX(rocks), tileY(rocks), 6)]);
         }
-        if (!placed.has('terakoya')) {
-          wantOrder.push(['terakoya', findSpot(world, 'terakoya', baseX, baseY)]);
+        wants.push(['terakoya', 1, findSpot(world, 'terakoya', baseX, baseY)]);
+        wants.push(['well', 1, findSpot(world, 'well', baseX, baseY)]);
+        wants.push(['ricePaddy', 1, findSpot(world, 'ricePaddy', baseX, baseY)]);
+        if (world.techs.researched.includes('bushido')) {
+          wants.push(['dojo', 1, findSpot(world, 'dojo', baseX, baseY)]);
         }
-        if (!placed.has('well')) wantOrder.push(['well', findSpot(world, 'well', baseX, baseY)]);
-        if (!placed.has('ricePaddy')) {
-          wantOrder.push(['ricePaddy', findSpot(world, 'ricePaddy', baseX, baseY)]);
-        }
-        if (!placed.has('dojo') && world.techs.researched.includes('bushido')) {
-          wantOrder.push(['dojo', findSpot(world, 'dojo', baseX, baseY)]);
-        }
-        if (!placed.has('ironMine') && world.techs.researched.includes('ironworking')) {
+        if (iron) {
           const seam = nearestResource(world, TileResource.IronDep, baseX, baseY);
           if (seam >= 0) {
-            wantOrder.push(['ironMine', findSpot(world, 'ironMine', tileX(seam), tileY(seam), 4)]);
+            wants.push(['ironMine', 1, findSpot(world, 'ironMine', tileX(seam), tileY(seam), 4)]);
           }
-        }
-        if (!placed.has('swordsmith') && world.techs.researched.includes('ironworking')) {
-          wantOrder.push(['swordsmith', findSpot(world, 'swordsmith', baseX, baseY)]);
-        }
-        if (!placed.has('spearmaker') && world.techs.researched.includes('ironworking')) {
-          wantOrder.push(['spearmaker', findSpot(world, 'spearmaker', baseX, baseY)]);
+          wants.push(['spearmaker', 1, findSpot(world, 'spearmaker', baseX, baseY)]);
+          wants.push(['swordsmith', 1, findSpot(world, 'swordsmith', baseX, baseY)]);
         }
 
-        for (const [type, spot] of wantOrder) {
-          if (!spot) continue;
+        for (const [type, desired, spot] of wants) {
+          if (!spot || countOf(type) >= desired) continue;
           const cost = requireCost(type);
           const ok = Object.entries(cost).every(
             ([good, n]) => ((stock as Record<string, number>)[good] ?? 0) >= n,
           );
           if (ok) {
             commands.push({ kind: 'placeBuilding', building: type, x: spot.x, y: spot.y });
-            placed.add(type);
             break; // one placement per decision to keep hauling focused
           }
         }
@@ -147,24 +143,28 @@ describe('the campaign is winnable', () => {
         }
 
         // --- Keep the dojo queue warm --------------------------------------
+        // Train what the weapon economy can actually feed: samurai only when
+        // a katana exists somewhere; spears otherwise.
         const dojo = buildings(world).find((b) => b.type === 'dojo' && b.state === 'built');
         if (dojo && (dojo.trainQueue?.length ?? 0) < 2) {
-          // Alternate spears and swords; the queue simply waits for weapons.
+          const katanaAround =
+            (stock.katana ?? 0) + (dojo.inputs.katana ?? 0) + (dojo.inbound.katana ?? 0) > 0;
           commands.push({
             kind: 'trainUnit',
             buildingId: dojo.id,
-            unit: t % 40 === 0 ? 'ashigaru' : 'samurai',
+            unit: katanaAround ? 'samurai' : 'ashigaru',
           });
         }
 
-        // --- March on the camp when the squad is ready ---------------------
+        // --- Army: rally at home until strong, then raze the camp ----------
         const army = [...world.units.values()].filter(
           (u) => !u.dead && u.owner === 'player' && MILITARY.has(u.kind),
         );
         const camp = [...world.buildings.values()].find(
           (b) => !b.dead && b.type === 'banditCamp',
         );
-        if (camp && army.length >= 6 && t - lastAttackTick > 600) {
+        if (camp && army.length >= 7 && t - lastAttackTick > 900) {
+          attacking = true;
           lastAttackTick = t;
           commands.push({
             kind: 'moveUnits',
@@ -172,6 +172,18 @@ describe('the campaign is winnable', () => {
             x: camp.x + 1,
             y: camp.y + 1,
           });
+        } else if (!attacking && army.length > 0 && t - lastRallyTick > 400) {
+          // Garrison duty: stand by the storehouse so auto-acquire covers it.
+          lastRallyTick = t;
+          const idle = army.filter((u) => u.task.t === 'idle');
+          if (idle.length > 0) {
+            commands.push({
+              kind: 'moveUnits',
+              unitIds: idle.map((u) => u.id),
+              x: baseX,
+              y: baseY + 4,
+            });
+          }
         }
       }
 

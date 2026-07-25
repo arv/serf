@@ -22,7 +22,27 @@ export function trainingSystem(world: World): void {
     const def = buildingDef(b.type);
     if (!def.trains || !b.trainQueue || b.trainQueue.length === 0) continue;
 
-    const head = b.trainQueue[0]!;
+    let head = b.trainQueue[0]!;
+    if (!head.started) {
+      // Start the FIRST item whose ingredients are on hand — a samurai
+      // waiting on a katana must not block ashigaru whose yari sit ready
+      // (head-of-line starvation found by the winnability playtest).
+      const readyIdx = b.trainQueue.findIndex((item) => {
+        if (item.started) return false;
+        const opt = def.trains!.find((o) => o.unit === item.unit);
+        if (!opt) return true; // stale entry; surfaces below for removal
+        return (Object.entries(opt.cost) as [GoodId, number][]).every(
+          ([good, n]) => (b.inputs[good] ?? 0) >= n,
+        );
+      });
+      if (readyIdx < 0) continue; // all waiting on hauls
+      if (readyIdx > 0) {
+        const [item] = b.trainQueue.splice(readyIdx, 1);
+        b.trainQueue.unshift(item!);
+      }
+      head = b.trainQueue[0]!;
+    }
+
     const option = def.trains.find((o) => o.unit === head.unit);
     if (!option) {
       b.trainQueue.shift();
@@ -30,10 +50,6 @@ export function trainingSystem(world: World): void {
     }
 
     if (!head.started) {
-      const affordable = (Object.entries(option.cost) as [GoodId, number][]).every(
-        ([good, n]) => (b.inputs[good] ?? 0) >= n,
-      );
-      if (!affordable) continue; // demands are in flight
       for (const [good, n] of Object.entries(option.cost) as [GoodId, number][]) {
         b.inputs[good] = (b.inputs[good] ?? 0) - n;
         world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
