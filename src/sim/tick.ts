@@ -13,6 +13,7 @@ import { GOODS } from './defs/goods';
 import { findStorehouse } from './systems/logistics';
 import { researchSystem } from './systems/research';
 import { trainingSystem, enqueueTraining } from './systems/training';
+import { staffingSystem } from './systems/staffing';
 import { combatSystem } from './systems/combat';
 import { banditsSystem } from './systems/bandits';
 import { victorySystem } from './systems/victory';
@@ -40,6 +41,7 @@ export function tickWorld(world: World, commands: readonly SimCommand[]): void {
   productionSystem(world, rng);
   logisticsSystem(world);
   constructionSystem(world);
+  staffingSystem(world);
   trainingSystem(world);
   wanderSystem(world, rng);
   movementSystem(world);

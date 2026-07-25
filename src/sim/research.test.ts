@@ -4,7 +4,7 @@ import { placeBuiltBuilding, type World } from './world';
 import { TECH_DEFS } from './defs/techs';
 import { FESTIVAL_DURATION } from './defs/balance';
 import { getModifier, isBuildingUnlocked } from './techHelpers';
-import { addStorehouse, bareWorld } from './testUtils';
+import { addStorehouse, bareWorld, staffBuilding } from './testUtils';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -97,6 +97,7 @@ describe('research', () => {
   it('modifiers speed up production batches', () => {
     const world = bareWorld();
     const paddy = placeBuiltBuilding(world, 'ricePaddy', 'player', 30, 30);
+    staffBuilding(world, paddy);
     paddy.inputs.water = 2;
     world.techs.researched.push('irrigation');
     run(world, 2); // batch starts with the modifier applied

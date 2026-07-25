@@ -1,0 +1,132 @@
+import { buildingDef } from '../defs/buildings';
+import { GOODS, type GoodId } from '../defs/goods';
+import { findPathToAdjacent } from '../path';
+import { bindWorker } from './production';
+import type { Building } from '../entities';
+import type { Unit } from '../units';
+import type { World } from '../world';
+
+const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
+
+/**
+ * The population economy: every production building draws its resident
+ * worker from the serf pool — an idle serf walks over and *becomes* the
+ * worker — and the dojo consumes an arriving serf as each soldier's recruit.
+ * People, not buildings, are the limiting resource.
+ */
+export function staffingSystem(world: World): void {
+  handleArrivals(world);
+  if (world.tick % REQUEST_INTERVAL === 0) requestRecruits(world);
+}
+
+function liveWorker(world: World, b: Building): Unit | undefined {
+  const w = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+  return w && !w.dead ? w : undefined;
+}
+
+/** First unstarted training item whose ingredients sit in the building. */
+export function firstReadyTraining(b: Building): number {
+  const def = buildingDef(b.type);
+  if (!def.trains || !b.trainQueue) return -1;
+  return b.trainQueue.findIndex((item) => {
+    if (item.started) return false;
+    const opt = def.trains!.find((o) => o.unit === item.unit);
+    if (!opt) return false;
+    return (Object.entries(opt.cost) as [GoodId, number][]).every(
+      ([good, n]) => (b.inputs[good] ?? 0) >= n,
+    );
+  });
+}
+
+function handleArrivals(world: World): void {
+  for (const unit of world.units.values()) {
+    if (unit.dead || unit.task.t !== 'staff' || unit.path !== null) continue;
+    const b = world.buildings.get(unit.task.buildingId);
+    if (b?.recruitId === unit.id) b.recruitId = undefined;
+    unit.task = { t: 'idle', until: world.tick };
+    if (!b || b.dead || b.state !== 'built') continue;
+
+    const def = buildingDef(b.type);
+    if (def.trains) {
+      // Dojo recruit: the serf enlists — consumed into the training queue.
+      const idx = firstReadyTraining(b);
+      if (idx < 0) continue; // ingredients were lost meanwhile; stand down
+      if (idx > 0) {
+        const [item] = b.trainQueue!.splice(idx, 1);
+        b.trainQueue!.unshift(item!);
+      }
+      const head = b.trainQueue![0]!;
+      const option = def.trains.find((o) => o.unit === head.unit)!;
+      for (const [good, n] of Object.entries(option.cost) as [GoodId, number][]) {
+        b.inputs[good] = (b.inputs[good] ?? 0) - n;
+        world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
+      }
+      head.started = true;
+      head.ticksLeft = option.durationTicks;
+      unit.dead = true; // the person is now inside, training
+    } else if (def.workerKind && !liveWorker(world, b)) {
+      // The serf takes up the post and becomes this building's worker.
+      unit.kind = def.workerKind;
+      bindWorker(b, unit);
+    }
+  }
+}
+
+function requestRecruits(world: World): void {
+  // Idle serfs available for recruitment this pass.
+  const idle: Unit[] = [];
+  for (const u of world.units.values()) {
+    if (u.dead || u.kind !== 'serf' || u.owner !== 'player' || u.jobId !== undefined) continue;
+    if (u.task.t === 'idle' || u.task.t === 'move') idle.push(u);
+  }
+
+  for (const b of world.buildings.values()) {
+    if (b.dead || b.owner !== 'player' || b.state !== 'built') continue;
+    const def = buildingDef(b.type);
+
+    // Validate any recruit en route.
+    if (b.recruitId !== undefined) {
+      const r = world.units.get(b.recruitId);
+      if (!r || r.dead || r.task.t !== 'staff' || r.task.buildingId !== b.id) {
+        b.recruitId = undefined;
+      } else {
+        continue; // someone is on the way
+      }
+    }
+
+    const wantsWorker = def.workerKind !== undefined && !liveWorker(world, b);
+    const wantsRecruit = def.trains !== undefined && firstReadyTraining(b) >= 0;
+    if (!wantsWorker && !wantsRecruit) continue;
+    if (idle.length === 0) return; // nobody left to recruit this pass
+
+    // Nearest idle serf walks over.
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    let bestIdx = -1;
+    let bestDist = Infinity;
+    for (let i = 0; i < idle.length; i++) {
+      const s = idle[i]!;
+      const dist = Math.abs(s.x - cx) + Math.abs(s.y - cy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIdx = i;
+      }
+    }
+    const serf = idle[bestIdx]!;
+    const path = findPathToAdjacent(
+      world.map,
+      Math.floor(serf.x),
+      Math.floor(serf.y),
+      b.x,
+      b.y,
+      b.w,
+      b.h,
+    );
+    if (!path) continue;
+    idle.splice(bestIdx, 1);
+    serf.path = path;
+    serf.pathIdx = 0;
+    serf.task = { t: 'staff', buildingId: b.id };
+    b.recruitId = serf.id;
+  }
+}

@@ -63,3 +63,10 @@ export function addSite(world: World, x: number, y: number): Building {
 export function addSerf(world: World, x: number, y: number): Unit {
   return spawnUnit(world, 'serf', 'player', x + 0.5, y + 0.5);
 }
+
+/** Staff a building directly (tests that don't exercise recruitment). */
+export function staffBuilding(world: World, b: Building): Unit {
+  const worker = spawnUnit(world, 'worker', 'player', b.x + b.w / 2, b.y + b.h + 0.5);
+  bindWorker(b, worker);
+  return worker;
+}

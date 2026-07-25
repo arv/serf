@@ -7,11 +7,13 @@ import type { GoodAmounts } from './goods';
 export const TICKS_PER_SECOND = 20;
 export const TICK_MS = 1000 / TICKS_PER_SECOND;
 
-export const START_SERFS = 6;
+// Population economy: serfs staff every production building and become
+// soldiers, so the starting pool is bigger and hiring cheaper.
+export const START_SERFS = 9;
 // The village armory holds a few old weapons so a Bushidō rush can field
 // defenders before the first raid without the full iron chain.
 export const START_STOCK: GoodAmounts = {
-  bamboo: 30,
+  bamboo: 36,
   stone: 15,
   rice: 12,
   silver: 20,
@@ -37,15 +39,16 @@ export const PAVE_WEAR_THRESHOLD = 20; // sustained wear before a trail is paved
 export const MAX_CONCURRENT_PAVING = 4; // road sites in flight (never starves construction)
 
 // Hiring
-export const HIRE_SERF_COST = 5; // silver
+export const HIRE_SERF_COST = 4; // silver
 
 // Festivals (sake -> global work-speed buff)
 export const FESTIVAL_DURATION = 60 * TICKS_PER_SECOND;
 export const TERAKOYA_SAKE_CAP = 2;
 
-// Raids
-export const FIRST_RAID_TICK = 300 * TICKS_PER_SECOND; // 5 minutes of peace
-export const RAID_INTERVAL = 120 * TICKS_PER_SECOND;
+// Raids — paced for the population economy's slower ramp (staffing every
+// building and mustering an army both consume people).
+export const FIRST_RAID_TICK = 420 * TICKS_PER_SECOND; // 7 minutes of peace
+export const RAID_INTERVAL = 150 * TICKS_PER_SECOND;
 export const RAID_CAP = 8;
 
 // Training

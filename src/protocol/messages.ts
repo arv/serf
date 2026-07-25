@@ -35,6 +35,8 @@ export interface BuildingSnap {
   reservedOut: GoodAmounts;
   maxHp: number;
   trainQueue?: { unit: string; started: boolean }[];
+  /** Staffing state (undefined = building needs no worker). */
+  staffing?: 'staffed' | 'recruiting' | 'needed';
 }
 
 /** Debug-overlay row for a haul job. */

@@ -37,8 +37,16 @@ export interface Building {
   reservedOut: GoodAmounts;
   /** First tick each good's unmet demand appeared (FIFO anti-starvation). */
   demandSince: GoodAmounts;
-  /** Resident worker (gather/convert buildings). */
+  /**
+   * Per-good tick until which this building's demand is suspended — set when
+   * hauls to it keep failing to path (e.g. its doorway got walled in), so
+   * reservations stop pinning supply that other demands could use.
+   */
+  demandBackoff?: GoodAmounts;
+  /** Resident worker (staffed production buildings). */
   workerId?: EntityId;
+  /** Serf currently walking here to staff the building / enlist. */
+  recruitId?: EntityId;
   /** Convert recipe: ticks left on the current batch (undefined = not running). */
   prodTicksLeft?: number;
   /** Military training queue (dojo). */

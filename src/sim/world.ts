@@ -28,6 +28,8 @@ export interface HaulJob {
   phase: 'open' | 'toPickup' | 'toDropoff';
   serfId?: EntityId;
   blockedUntil?: number;
+  /** Consecutive pathing failures; too many aborts the job + backs off the demand. */
+  blockedCount?: number;
 }
 
 /** A tile whose render-relevant state changed; drained into the structural message. */

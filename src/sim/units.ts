@@ -15,6 +15,8 @@ export type UnitTask =
   | { t: 'gatherOut'; tile: number }
   | { t: 'gatherWork'; tile: number; until: number }
   | { t: 'gatherHome' }
+  // Serf walking to a building to become its worker (or a dojo recruit).
+  | { t: 'staff'; buildingId: EntityId }
   // Bandit strategic objective: march on a player building.
   | { t: 'raid'; buildingId: EntityId };
 

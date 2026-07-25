@@ -6,7 +6,7 @@ import { canPlace, placeBuiltBuilding, spawnUnit, type World } from './world';
 import { PAVE_WEAR_THRESHOLD } from './defs/balance';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants';
 import { bindWorker } from './systems/production';
-import { addSerf, addStorehouse, bareWorld } from './testUtils';
+import { addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -16,6 +16,7 @@ describe('convert chains', () => {
   it('well produces water on a pure timer', () => {
     const world = bareWorld();
     const well = placeBuiltBuilding(world, 'well', 'player', 30, 30);
+    staffBuilding(world, well);
     run(world, 20 * 13); // durationTicks = 120
     expect(well.stock.water ?? 0).toBeGreaterThan(0);
   });
@@ -23,8 +24,8 @@ describe('convert chains', () => {
   it('paddy consumes hauled water and yields rice (well -> paddy -> storehouse)', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});
-    placeBuiltBuilding(world, 'well', 'player', 26, 30);
-    placeBuiltBuilding(world, 'ricePaddy', 'player', 34, 29);
+    staffBuilding(world, placeBuiltBuilding(world, 'well', 'player', 26, 30));
+    staffBuilding(world, placeBuiltBuilding(world, 'ricePaddy', 'player', 34, 29));
     addSerf(world, 29, 34);
     addSerf(world, 33, 34);
     const initial = countGoods(world);
@@ -38,6 +39,7 @@ describe('convert chains', () => {
   it('two-input recipe waits for both ingredients (brewery)', () => {
     const world = bareWorld();
     const brewery = placeBuiltBuilding(world, 'sakeBrewery', 'player', 30, 30);
+    staffBuilding(world, brewery);
     brewery.inputs.rice = 1; // no water yet
     run(world, 100);
     expect(brewery.stock.sake ?? 0).toBe(0);
@@ -53,6 +55,7 @@ describe('convert chains', () => {
   it('weapon chain: swordsmith turns iron+bamboo into katana', () => {
     const world = bareWorld();
     const smith = placeBuiltBuilding(world, 'swordsmith', 'player', 30, 30);
+    staffBuilding(world, smith);
     smith.inputs.iron = 2;
     smith.inputs.bamboo = 1;
     run(world, 20 * 15);

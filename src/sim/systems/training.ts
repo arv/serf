@@ -1,63 +1,32 @@
-import { TRAIN_QUEUE_CAP, WORKER_RESPAWN_TICKS } from '../defs/balance';
 import { buildingDef } from '../defs/buildings';
 import { UNIT_DEFS } from '../defs/units';
 import { getModifier, isUnitUnlocked } from '../techHelpers';
+import { TRAIN_QUEUE_CAP } from '../defs/balance';
 import { spawnUnit, type World } from '../world';
-import { bindWorker } from './production';
 import { nearestWalkable } from '../path';
 import { tileX, tileY } from '../../shared/grid';
 import type { GoodId } from '../defs/goods';
 import type { Building } from '../entities';
 
 /**
- * Dojo training: queue items wait for their weapon+rice inputs (hauled by
- * the ordinary demand system), then a timer pops a fresh unit at the door.
- * militaryHp modifiers apply at spawn time. Also handles respawning lost
- * resident workers for producers.
+ * Dojo training. A queue item starts when its ingredients are in the input
+ * buffer AND a serf recruit walks in (the staffing system delivers both the
+ * skip-ahead pick and the person — soldiers consume population). This system
+ * ticks the started item and pops the finished soldier at the door.
  */
 export function trainingSystem(world: World): void {
   for (const b of world.buildings.values()) {
     if (b.dead || b.state !== 'built') continue;
-    respawnLostWorker(world, b);
     const def = buildingDef(b.type);
     if (!def.trains || !b.trainQueue || b.trainQueue.length === 0) continue;
 
-    let head = b.trainQueue[0]!;
-    if (!head.started) {
-      // Start the FIRST item whose ingredients are on hand — a samurai
-      // waiting on a katana must not block ashigaru whose yari sit ready
-      // (head-of-line starvation found by the winnability playtest).
-      const readyIdx = b.trainQueue.findIndex((item) => {
-        if (item.started) return false;
-        const opt = def.trains!.find((o) => o.unit === item.unit);
-        if (!opt) return true; // stale entry; surfaces below for removal
-        return (Object.entries(opt.cost) as [GoodId, number][]).every(
-          ([good, n]) => (b.inputs[good] ?? 0) >= n,
-        );
-      });
-      if (readyIdx < 0) continue; // all waiting on hauls
-      if (readyIdx > 0) {
-        const [item] = b.trainQueue.splice(readyIdx, 1);
-        b.trainQueue.unshift(item!);
-      }
-      head = b.trainQueue[0]!;
-    }
-
+    const head = b.trainQueue[0]!;
     const option = def.trains.find((o) => o.unit === head.unit);
     if (!option) {
       b.trainQueue.shift();
       continue;
     }
-
-    if (!head.started) {
-      for (const [good, n] of Object.entries(option.cost) as [GoodId, number][]) {
-        b.inputs[good] = (b.inputs[good] ?? 0) - n;
-        world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
-      }
-      head.started = true;
-      head.ticksLeft = option.durationTicks;
-      continue;
-    }
+    if (!head.started) continue; // waiting on ingredients + a recruit
 
     head.ticksLeft--;
     if (head.ticksLeft <= 0) {
@@ -93,24 +62,6 @@ export function enqueueTraining(world: World, b: Building, unit: string): void {
   b.trainQueue ??= [];
   if (b.trainQueue.length >= TRAIN_QUEUE_CAP) return;
   b.trainQueue.push({ unit: option.unit, ticksLeft: 0, started: false });
-}
-
-function respawnLostWorker(world: World, b: Building): void {
-  const def = buildingDef(b.type);
-  if (!def.workerKind) return;
-  const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
-  if (worker && !worker.dead) {
-    b.workerRespawnAt = undefined;
-    return;
-  }
-  if (b.workerRespawnAt === undefined) {
-    b.workerRespawnAt = world.tick + WORKER_RESPAWN_TICKS;
-  } else if (world.tick >= b.workerRespawnAt) {
-    const door = doorOf(world, b);
-    const fresh = spawnUnit(world, def.workerKind, b.owner, door.x, door.y);
-    bindWorker(b, fresh);
-    b.workerRespawnAt = undefined;
-  }
 }
 
 function doorOf(world: World, b: Building): { x: number; y: number } {

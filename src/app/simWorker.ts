@@ -56,7 +56,13 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
 
 function snapBuilding(b: Building): BuildingSnap {
   const def = buildingDef(b.type);
+  let staffing: BuildingSnap['staffing'];
+  if (def.workerKind !== undefined && b.state === 'built') {
+    const worker = b.workerId !== undefined ? world?.units.get(b.workerId) : undefined;
+    staffing = worker && !worker.dead ? 'staffed' : b.recruitId !== undefined ? 'recruiting' : 'needed';
+  }
   return {
+    staffing,
     id: b.id,
     type: b.type,
     owner: b.owner,

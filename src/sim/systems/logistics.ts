@@ -87,6 +87,11 @@ function availableOut(b: Building, good: GoodId): number {
   return (b.stock[good] ?? 0) - (b.reservedOut[good] ?? 0);
 }
 
+/** Demand suspended after repeated unreachable hauls (see dispatch). */
+function suspended(world: World, b: Building, good: GoodId): boolean {
+  return (b.demandBackoff?.[good] ?? 0) > world.tick;
+}
+
 function match(world: World): void {
   const demands: DemandFull[] = [];
 
@@ -97,8 +102,11 @@ function match(world: World): void {
     if (b.state === 'site' && b.siteNeeds) {
       for (const good of GOODS) {
         const want = (b.siteNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
-        if (want > 0) demands.push(demandOf(world, b, good, want, 1));
-        else delete b.demandSince[good];
+        if (want > 0 && !suspended(world, b, good)) {
+          demands.push(demandOf(world, b, good, want, 1));
+        } else if (want <= 0) {
+          delete b.demandSince[good];
+        }
       }
       continue;
     }
@@ -109,8 +117,11 @@ function match(world: World): void {
     if (def.recipe?.kind === 'convert') {
       for (const good of Object.keys(def.recipe.inputs) as GoodId[]) {
         const want = INPUT_CAP - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
-        if (want > 0) demands.push(demandOf(world, b, good, want, 2));
-        else delete b.demandSince[good];
+        if (want > 0 && !suspended(world, b, good)) {
+          demands.push(demandOf(world, b, good, want, 2));
+        } else if (want <= 0) {
+          delete b.demandSince[good];
+        }
       }
     }
 
@@ -285,8 +296,21 @@ function dispatch(world: World): void {
     );
     if (!path) {
       job.blockedUntil = world.tick + JOB_BLOCKED_BACKOFF;
+      job.blockedCount = (job.blockedCount ?? 0) + 1;
+      if (job.blockedCount >= 4) {
+        // Persistently unreachable (a walled-in doorway, say): stop pinning
+        // the source's stock and suspend this demand so other consumers —
+        // like storehouse evacuation — can have the goods.
+        const dest = world.buildings.get(job.to);
+        if (dest) {
+          dest.demandBackoff ??= {};
+          dest.demandBackoff[job.good] = world.tick + 600;
+        }
+        abortJob(world, job, 'unreachable after repeated attempts');
+      }
       continue;
     }
+    job.blockedCount = 0;
 
     idle.splice(bestIdx, 1);
     job.phase = 'toPickup';

@@ -5,6 +5,7 @@ import { tickWorld } from './tick';
 import { TileResource } from './map';
 import { TECH_DEFS, type TechId } from './defs/techs';
 import { BUILDING_DEFS, type BuildingTypeId } from './defs/buildings';
+import { HIRE_SERF_COST } from './defs/balance';
 import type { SimCommand } from './commands';
 import type { Building } from './entities';
 
@@ -33,15 +34,29 @@ function requireCost(type: BuildingTypeId): Record<string, number> {
   return BUILDING_DEFS[type].cost as Record<string, number>;
 }
 
-/** Nearest placeable footprint origin around a point (spiral search). */
+/**
+ * Nearest placeable footprint origin around a point (spiral search) that
+ * also keeps a one-tile gap from every other building — packing tighter can
+ * seal a neighbor's doorway and strangle its deliveries.
+ */
 function findSpot(world: World, type: BuildingTypeId, cx: number, cy: number, maxR = 14) {
+  const def = BUILDING_DEFS[type];
+  const spaced = (x: number, y: number): boolean => {
+    for (let ty = y - 1; ty < y + def.h + 1; ty++) {
+      for (let tx = x - 1; tx < x + def.w + 1; tx++) {
+        if (tx < 0 || ty < 0 || tx >= 64 || ty >= 64) continue;
+        if (world.map.buildingAt[ty * 64 + tx]! >= 0) return false;
+      }
+    }
+    return true;
+  };
   for (let r = 1; r <= maxR; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const x = cx + dx;
         const y = cy + dy;
-        if (canPlace(world.map, type, x, y)) return { x, y };
+        if (canPlace(world.map, type, x, y) && spaced(x, y)) return { x, y };
       }
     }
   }
@@ -104,10 +119,22 @@ describe('the campaign is winnable', () => {
           wants.push(['quarry', 1, findSpot(world, 'quarry', tileX(rocks), tileY(rocks), 6)]);
         }
         wants.push(['terakoya', 1, findSpot(world, 'terakoya', baseX, baseY)]);
-        wants.push(['well', 1, findSpot(world, 'well', baseX, baseY)]);
-        wants.push(['ricePaddy', 1, findSpot(world, 'ricePaddy', baseX, baseY)]);
+        // Defense before economic width: dojo the moment Bushidō lands.
         if (world.techs.researched.includes('bushido')) {
           wants.push(['dojo', 1, findSpot(world, 'dojo', baseX, baseY)]);
+        }
+        wants.push(['well', 1, findSpot(world, 'well', baseX, baseY)]);
+        wants.push(['ricePaddy', 1, findSpot(world, 'ricePaddy', baseX, baseY)]);
+        // Silver funds hires + late research; build it after the army core.
+        if (has(world, 'dojo')) {
+          const silverSeam = nearestResource(world, TileResource.SilverDep, baseX, baseY);
+          if (silverSeam >= 0) {
+            wants.push([
+              'silverMine',
+              1,
+              findSpot(world, 'silverMine', tileX(silverSeam), tileY(silverSeam), 4),
+            ]);
+          }
         }
         if (iron) {
           const seam = nearestResource(world, TileResource.IronDep, baseX, baseY);
@@ -128,6 +155,23 @@ describe('the campaign is winnable', () => {
             commands.push({ kind: 'placeBuilding', building: type, x: spot.x, y: spot.y });
             break; // one placement per decision to keep hauling focused
           }
+        }
+
+        // --- Population: keep loose serfs around ---------------------------
+        // Staffing and soldiering both consume serfs, but research bills come
+        // first: no hiring until Bushidō is in, then hire with a reserve.
+        const serfCount = [...world.units.values()].filter(
+          (u) => !u.dead && u.kind === 'serf',
+        ).length;
+        const researchPending = researchOrder.some(
+          (id) => !world.techs.researched.includes(id),
+        );
+        if (
+          world.techs.researched.includes('bushido') &&
+          serfCount < 8 &&
+          (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? 10 : 0)
+        ) {
+          commands.push({ kind: 'hireSerf' });
         }
 
         // --- Research queue -------------------------------------------------

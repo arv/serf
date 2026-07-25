@@ -26,8 +26,16 @@ const RESOURCE_CODE: Record<string, TileResourceKind> = {
 export function productionSystem(world: World, rng: Rng): void {
   for (const b of world.buildings.values()) {
     if (b.dead || b.state !== 'built') continue;
-    const recipe = buildingDef(b.type).recipe;
+    const def = buildingDef(b.type);
+    const recipe = def.recipe;
     if (!recipe) continue;
+    // Population economy: no worker at the post, no production. (Gather
+    // recipes are inherently worker-driven; converts pause too, mid-batch
+    // included, until the staffing system delivers a replacement.)
+    if (def.workerKind !== undefined) {
+      const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+      if (!worker || worker.dead) continue;
+    }
     if (recipe.kind === 'gather') gatherStep(world, b, recipe);
     else convertStep(world, b, recipe);
   }

@@ -1,17 +1,13 @@
 import { buildingDef } from '../defs/buildings';
 import { GOODS } from '../defs/goods';
 import { PathLevel } from '../map';
-import { destroyBuilding, spawnUnit, type World } from '../world';
-import { bindWorker } from './production';
-import { findStorehouse } from './logistics';
-import { nearestWalkable } from '../path';
-import { tileIdx, tileX, tileY } from '../../shared/grid';
-import { centerOf } from '../entities';
+import { destroyBuilding, type World } from '../world';
+import { tileIdx } from '../../shared/grid';
 
 /**
  * Sites whose materials are fully delivered tick a build timer, then become
- * real buildings (no builder units — Settlers-style materials + time). A
- * completed producer spawns its resident worker at the door.
+ * real buildings (no builder units — Settlers-style materials + time).
+ * Staffing them is the staffing system's job.
  */
 export function constructionSystem(world: World): void {
   for (const b of world.buildings.values()) {
@@ -42,30 +38,7 @@ export function constructionSystem(world: World): void {
     b.hp = def.hp;
     delete b.siteNeeds;
     delete b.buildProgress;
-
-    if (def.workerKind) {
-      const door = doorTile(world, b.x, b.y, b.w, b.h);
-      const worker = spawnUnit(world, def.workerKind, b.owner, door.x + 0.5, door.y + 0.5);
-      bindWorker(b, worker);
-    }
+    // No free workers: the staffing system recruits an idle serf who walks
+    // over and takes the post (the population economy).
   }
-}
-
-function doorTile(
-  world: World,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-): { x: number; y: number } {
-  // Prefer the tile south of the footprint center; fall back to any walkable
-  // tile near the building, then to the storehouse door as a last resort.
-  const idx = nearestWalkable(world.map, Math.floor(x + w / 2), y + h, 6);
-  if (idx >= 0) return { x: tileX(idx), y: tileY(idx) };
-  const sh = findStorehouse(world);
-  if (sh) {
-    const c = centerOf(sh);
-    return { x: Math.floor(c.x), y: sh.y + sh.h };
-  }
-  return { x, y };
 }

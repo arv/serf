@@ -83,6 +83,13 @@ export class SceneSync {
       const id = latest.ids[i]!;
       const kind = latest.aux[i * 4]!;
       let visual = this.#visuals.get(id);
+      if (visual && visual.kind !== kind) {
+        // Population economy: a serf can become a worker (or a recruit a
+        // soldier) in place — swap the model, keep the entity.
+        this.#scene.remove(visual.group);
+        this.#visuals.delete(id);
+        visual = undefined;
+      }
       if (!visual) {
         visual = { group: makeUnitModel(kind), kind, carrying: 0, carryBox: null, hpBar: null };
         this.#visuals.set(id, visual);

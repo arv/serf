@@ -66,6 +66,20 @@ export function SelectionPanel(props: { onTrain: (buildingId: number, unit: Unit
                   </span>
                 </span>
               </Show>
+              <Show when={b().staffing}>
+                <span
+                  style={{
+                    'margin-left': '10px',
+                    color: b().staffing === 'staffed' ? '#9fb06a' : '#d98a6a',
+                  }}
+                >
+                  {b().staffing === 'staffed'
+                    ? 'worker at post'
+                    : b().staffing === 'recruiting'
+                      ? 'worker on the way'
+                      : 'needs a worker!'}
+                </span>
+              </Show>
               <Show when={def().trains && b().state === 'built'}>
                 <div style={{ 'margin-top': '6px', display: 'flex', gap: '6px' }}>
                   <For each={def().trains!}>

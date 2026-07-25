@@ -130,6 +130,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 4 },
     buildTicks: 8 * S,
     hp: 80,
+    workerKind: 'worker',
     recipe: { kind: 'convert', inputs: {}, outputs: { water: 1 }, durationTicks: 6 * S },
   },
   ricePaddy: {
@@ -140,6 +141,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 8 },
     buildTicks: 15 * S,
     hp: 100,
+    workerKind: 'worker',
     recipe: { kind: 'convert', inputs: { water: 1 }, outputs: { rice: 1 }, durationTicks: 10 * S },
   },
   sakeBrewery: {
@@ -151,6 +153,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 10, stone: 4 },
     buildTicks: 20 * S,
     hp: 160,
+    workerKind: 'worker',
     recipe: {
       kind: 'convert',
       inputs: { rice: 1, water: 1 },
@@ -205,6 +208,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 10, stone: 6 },
     buildTicks: 20 * S,
     hp: 180,
+    workerKind: 'worker',
     recipe: {
       kind: 'convert',
       inputs: { iron: 2, bamboo: 1 },
@@ -221,6 +225,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 8, stone: 4 },
     buildTicks: 18 * S,
     hp: 160,
+    workerKind: 'worker',
     recipe: {
       kind: 'convert',
       inputs: { iron: 1, bamboo: 2 },
@@ -237,6 +242,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 8 },
     buildTicks: 18 * S,
     hp: 140,
+    workerKind: 'worker',
     recipe: {
       kind: 'convert',
       inputs: { bamboo: 3 },
