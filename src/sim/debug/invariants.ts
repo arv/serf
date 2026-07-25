@@ -1,0 +1,121 @@
+import { GOODS, type GoodAmounts } from '../defs/goods';
+import type { World } from '../world';
+
+/**
+ * Dev-only consistency checks over the logistics bookkeeping. Violations mean
+ * a reservation leak or a broken serf<->job link — the bugs that silently
+ * deadlock Settlers-like economies. Run every ~20 ticks in dev builds; the
+ * result also feeds the debug overlay's red banner.
+ */
+export interface InvariantReport {
+  tick: number;
+  violations: string[];
+}
+
+export function checkInvariants(world: World): InvariantReport {
+  const violations: string[] = [];
+
+  // Expected reservations derived from live jobs.
+  const expectOut = new Map<number, GoodAmounts>();
+  const expectIn = new Map<number, GoodAmounts>();
+  for (const job of world.jobs.values()) {
+    if (job.phase !== 'toDropoff') {
+      const m = expectOut.get(job.from) ?? {};
+      m[job.good] = (m[job.good] ?? 0) + 1;
+      expectOut.set(job.from, m);
+    }
+    const m = expectIn.get(job.to) ?? {};
+    m[job.good] = (m[job.good] ?? 0) + 1;
+    expectIn.set(job.to, m);
+
+    if (job.phase !== 'open') {
+      const serf = job.serfId !== undefined ? world.units.get(job.serfId) : undefined;
+      if (!serf) violations.push(`job ${job.id}: assigned serf ${job.serfId} missing`);
+      else if (serf.jobId !== job.id) {
+        violations.push(`job ${job.id}: serf ${serf.id} jobId=${serf.jobId} (link broken)`);
+      } else if (job.phase === 'toDropoff' && serf.carrying !== job.good) {
+        violations.push(`job ${job.id}: serf carrying ${serf.carrying}, expected ${job.good}`);
+      }
+    }
+  }
+
+  for (const b of world.buildings.values()) {
+    if (b.dead) continue;
+    for (const good of GOODS) {
+      const stock = b.stock[good] ?? 0;
+      const rOut = b.reservedOut[good] ?? 0;
+      const inb = b.inbound[good] ?? 0;
+      if (rOut < 0 || inb < 0 || stock < 0) {
+        violations.push(`building ${b.id} ${b.type}: negative ${good} bookkeeping`);
+      }
+      if (rOut > stock) {
+        violations.push(`building ${b.id} ${b.type}: reservedOut[${good}]=${rOut} > stock=${stock}`);
+      }
+      const expOut = expectOut.get(b.id)?.[good] ?? 0;
+      if (rOut !== expOut) {
+        violations.push(
+          `building ${b.id} ${b.type}: reservedOut[${good}]=${rOut}, jobs expect ${expOut}`,
+        );
+      }
+      const expIn = expectIn.get(b.id)?.[good] ?? 0;
+      if (inb !== expIn) {
+        violations.push(
+          `building ${b.id} ${b.type}: inbound[${good}]=${inb}, jobs expect ${expIn}`,
+        );
+      }
+    }
+  }
+
+  // Serf-side link + carrying consistency.
+  for (const u of world.units.values()) {
+    if (u.dead) continue;
+    if (u.jobId !== undefined) {
+      const job = world.jobs.get(u.jobId);
+      if (!job) violations.push(`serf ${u.id}: jobId=${u.jobId} but job missing`);
+      else if (job.serfId !== u.id) violations.push(`serf ${u.id}: job ${job.id} names serf ${job.serfId}`);
+      if (u.kind === 'serf' && u.carrying !== undefined && job && job.phase !== 'toDropoff') {
+        violations.push(`serf ${u.id}: carrying ${u.carrying} in phase ${job.phase}`);
+      }
+    } else if (u.kind === 'serf' && u.carrying !== undefined) {
+      violations.push(`serf ${u.id}: carrying ${u.carrying} with no job`);
+    }
+  }
+
+  return { tick: world.tick, violations };
+}
+
+/**
+ * Goods conservation: sum of all stocks + carried == initial + produced -
+ * consumed. `initial` is captured once at world creation by the caller.
+ */
+export function countGoods(world: World): GoodAmounts {
+  const total: GoodAmounts = {};
+  for (const b of world.buildings.values()) {
+    if (b.dead) continue;
+    for (const good of GOODS) {
+      const n = (b.stock[good] ?? 0) + (b.inputs[good] ?? 0);
+      if (n) total[good] = (total[good] ?? 0) + n;
+    }
+  }
+  for (const u of world.units.values()) {
+    if (!u.dead && u.carrying !== undefined) {
+      total[u.carrying] = (total[u.carrying] ?? 0) + 1;
+    }
+  }
+  return total;
+}
+
+export function checkLedger(world: World, initial: GoodAmounts): string[] {
+  const now = countGoods(world);
+  const violations: string[] = [];
+  for (const good of GOODS) {
+    const expected =
+      (initial[good] ?? 0) +
+      (world.ledger.produced[good] ?? 0) -
+      (world.ledger.consumed[good] ?? 0);
+    if ((now[good] ?? 0) !== expected) {
+      violations.push(`ledger: ${good} count=${now[good] ?? 0}, expected ${expected}`);
+    }
+  }
+  return violations;
+}

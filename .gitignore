@@ -1,0 +1,10 @@
+node_modules/
+dist/
+
+# build artifacts — sources are TypeScript only
+*.js
+*.js.map
+*.map
+*.tsbuildinfo
+
+.DS_Store

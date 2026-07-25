@@ -1,0 +1,59 @@
+import { describe, expect, it } from 'vitest';
+import { createWorld, type World } from './world';
+import { deserializeWorld, serializeWorld } from './save';
+import { tickWorld } from './tick';
+import { checkInvariants } from './debug/invariants';
+import type { SimCommand } from './commands';
+
+function commandScript(tick: number): SimCommand[] {
+  if (tick === 50) return [{ kind: 'placeBuilding', building: 'bambooHut', x: 26, y: 36 }];
+  if (tick === 60) return [{ kind: 'placeBuilding', building: 'well', x: 38, y: 36 }];
+  if (tick === 800) return [{ kind: 'placeBuilding', building: 'ricePaddy', x: 40, y: 30 }];
+  return [];
+}
+
+function digest(world: World) {
+  return {
+    tick: world.tick,
+    rngState: world.rngState,
+    nextId: world.nextId,
+    units: [...world.units.values()],
+    buildings: [...world.buildings.values()],
+    jobs: [...world.jobs.values()],
+    blocked: [...world.map.blocked],
+    wear: [...world.map.wear],
+    pathLevel: [...world.map.pathLevel],
+    ledger: world.ledger,
+    techs: world.techs,
+  };
+}
+
+describe('save/load', () => {
+  it('round-trip at tick N + resume == uninterrupted run', () => {
+    const a = createWorld(777);
+    for (let t = 0; t < 1500; t++) tickWorld(a, commandScript(t));
+
+    // Snapshot mid-flight (serfs mid-haul, workers mid-chop).
+    const saved = serializeWorld(a);
+    const b = deserializeWorld(saved);
+
+    for (let t = 1500; t < 3000; t++) {
+      tickWorld(a, commandScript(t));
+      tickWorld(b, commandScript(t));
+    }
+
+    expect(digest(b)).toEqual(digest(a));
+    expect(checkInvariants(b).violations).toEqual([]);
+  });
+
+  it('rejects unknown versions', () => {
+    expect(() => deserializeWorld('{"version":99,"world":{}}')).toThrow();
+  });
+
+  it('save size stays localStorage-friendly', () => {
+    const world = createWorld(1);
+    for (let t = 0; t < 500; t++) tickWorld(world, commandScript(t));
+    const size = serializeWorld(world).length;
+    expect(size).toBeLessThan(1_500_000); // well under the ~5MB quota
+  });
+});
