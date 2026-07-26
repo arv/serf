@@ -682,90 +682,103 @@ interface PersonStyle {
 }
 
 /**
- * A rigged villager: legs pivot at the hips, arms at the shoulders. Total
- * height ~0.95 world units, chunky comic proportions.
+ * A rigged villager sculpted Battle-Realms style: rounded organic forms —
+ * flared hakama trousers, a kimono that widens at the hem, sphere head with
+ * a hair cap — no boxes. Legs pivot at the hips, arms at the shoulders.
+ * Total height ~0.95 world units.
  */
 function person(style: PersonStyle): THREE.Group {
   const g = new THREE.Group();
-  const robeDark = new THREE.Color(style.robe).multiplyScalar(0.82).getHex();
+  const robeDark = new THREE.Color(style.robe).multiplyScalar(0.8).getHex();
 
-  // Legs: pivot groups at hip height; geometry hangs below the pivot.
+  // Legs: wide hakama trousers — tapered cylinders flaring toward the ankle.
   for (const side of [-1, 1] as const) {
     const leg = new THREE.Group();
     leg.name = side < 0 ? 'legL' : 'legR';
-    leg.position.set(side * 0.07, 0.42, 0);
-    const limb = mesh(new THREE.BoxGeometry(0.095, 0.4, 0.12), robeDark);
-    limb.position.y = -0.21;
-    leg.add(limb);
-    const foot = mesh(new THREE.BoxGeometry(0.1, 0.05, 0.17), HAIR);
-    foot.position.set(0, -0.4, 0.03);
+    leg.position.set(side * 0.065, 0.42, 0);
+    const trouser = mesh(new THREE.CylinderGeometry(0.052, 0.088, 0.38, 7), robeDark);
+    trouser.position.y = -0.19;
+    trouser.rotation.z = side * -0.04; // slight outward splay
+    leg.add(trouser);
+    const foot = mesh(new THREE.SphereGeometry(0.05, 7, 5), HAIR);
+    foot.scale.set(1, 0.55, 1.5);
+    foot.position.set(0, -0.39, 0.03);
     leg.add(foot);
     g.add(leg);
   }
 
-  // Torso (kimono wrap, slight skirt flare) with head on top.
+  // Torso: kimono robe, narrow at the shoulders, flaring at the hem.
   const torso = new THREE.Group();
   torso.name = 'torso';
   torso.position.y = 0.42;
-  const chest = mesh(
-    new THREE.BoxGeometry(style.armored ? 0.34 : 0.28, 0.34, style.armored ? 0.22 : 0.18),
+  const robe = mesh(
+    new THREE.CylinderGeometry(style.armored ? 0.125 : 0.105, 0.155, 0.4, 8),
     style.robe,
   );
-  chest.position.y = 0.17;
+  robe.position.y = 0.15;
+  torso.add(robe);
+  // Chest/shoulder mass rounds the top off.
+  const chest = mesh(new THREE.SphereGeometry(style.armored ? 0.135 : 0.115, 8, 6), style.robe);
+  chest.scale.set(1.15, 0.8, 0.95);
+  chest.position.y = 0.32;
   torso.add(chest);
-  const skirt = mesh(new THREE.BoxGeometry(0.3, 0.14, 0.2), robeDark);
-  skirt.position.y = -0.02;
-  torso.add(skirt);
   if (style.sash !== undefined) {
-    const sash = mesh(new THREE.BoxGeometry(0.3, 0.07, 0.2), style.sash);
+    const sash = mesh(new THREE.CylinderGeometry(0.138, 0.148, 0.09, 8), style.sash);
     sash.position.y = 0.06;
     torso.add(sash);
   }
   if (style.armored) {
+    // Sode shoulder guards: squashed spheres riding the shoulders.
     for (const side of [-1, 1] as const) {
-      const plate = mesh(new THREE.BoxGeometry(0.1, 0.07, 0.2), robeDark);
-      plate.position.set(side * 0.21, 0.3, 0);
-      torso.add(plate);
+      const sode = mesh(new THREE.SphereGeometry(0.085, 7, 5), robeDark);
+      sode.scale.set(1, 0.65, 1);
+      sode.position.set(side * 0.17, 0.36, 0);
+      torso.add(sode);
     }
   }
 
   const head = new THREE.Group();
   head.name = 'head';
-  head.position.y = 0.42;
-  const skull = mesh(new THREE.BoxGeometry(0.16, 0.16, 0.15), SKIN);
-  skull.position.y = 0.07;
+  head.position.y = 0.44;
+  const skull = mesh(new THREE.SphereGeometry(0.088, 9, 7), SKIN);
+  skull.position.y = 0.05;
   head.add(skull);
-  const hairCap = mesh(new THREE.BoxGeometry(0.17, 0.06, 0.16), HAIR);
-  hairCap.position.y = 0.15;
-  head.add(hairCap);
+  // Hair: a cap hugging the back of the skull.
+  const hair = mesh(new THREE.SphereGeometry(0.092, 9, 7), HAIR);
+  hair.scale.set(1, 0.82, 1);
+  hair.position.set(0, 0.085, -0.018);
+  head.add(hair);
   if (style.topknot) {
-    const knot = mesh(new THREE.BoxGeometry(0.05, 0.07, 0.05), HAIR);
-    knot.position.y = 0.2;
+    const knot = mesh(new THREE.SphereGeometry(0.032, 6, 5), HAIR);
+    knot.scale.y = 1.5;
+    knot.position.y = 0.17;
     head.add(knot);
   }
   if (style.kasa) {
-    const hat = mesh(new THREE.ConeGeometry(0.22, 0.11, 8), palette.grassDry);
-    hat.position.y = 0.19;
+    const hat = mesh(new THREE.ConeGeometry(0.21, 0.1, 9), palette.grassDry);
+    hat.position.y = 0.16;
     head.add(hat);
   }
   if (style.headband !== undefined) {
-    const band = mesh(new THREE.BoxGeometry(0.175, 0.035, 0.165), style.headband);
-    band.position.y = 0.11;
+    const band = mesh(new THREE.TorusGeometry(0.085, 0.016, 5, 10), style.headband);
+    band.rotation.x = Math.PI / 2;
+    band.position.y = 0.09;
     head.add(band);
   }
   torso.add(head);
 
-  // Arms: pivot at the shoulders; the right hand may hold a tool/weapon.
+  // Arms: tapered sleeves ending in skin hands; right hand may hold a tool.
   for (const side of [-1, 1] as const) {
     const arm = new THREE.Group();
     arm.name = side < 0 ? 'armL' : 'armR';
-    arm.position.set(side * (style.armored ? 0.21 : 0.18), 0.31, 0);
-    const limb = mesh(new THREE.BoxGeometry(0.075, 0.32, 0.09), style.robe);
-    limb.position.y = -0.14;
-    arm.add(limb);
+    arm.position.set(side * (style.armored ? 0.17 : 0.145), 0.32, 0);
+    const sleeve = mesh(new THREE.CylinderGeometry(0.048, 0.034, 0.3, 7), robeDark);
+    sleeve.position.y = -0.13;
+    sleeve.rotation.z = side * -0.08;
+    arm.add(sleeve);
     const hand = new THREE.Group();
-    hand.position.y = -0.3;
-    const fist = mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06), SKIN);
+    hand.position.set(side * -0.02, -0.29, 0);
+    const fist = mesh(new THREE.SphereGeometry(0.038, 6, 5), SKIN);
     hand.add(fist);
     arm.add(hand);
     if (side > 0 && style.tool) style.tool(hand);
@@ -837,8 +850,8 @@ function quiver(torso: THREE.Group): void {
 }
 
 const unitFactories = new Map<number, () => THREE.Group>([
-  // Serf: washi-cream kimono, indigo sash — bright like BR peasants.
-  [1, () => person({ robe: 0xe6d9b5, sash: 0x4a5f8e })],
+  // Serf: washi-cream kimono, burnt-orange obi — the BR peasant read.
+  [1, () => person({ robe: 0xe6d9b5, sash: 0xc86428 })],
   // Worker: warm tan kimono, straw kasa, hatchet in hand.
   [2, () => person({ robe: 0xd8a868, sash: 0x6b8f3f, kasa: true, tool: hatchet })],
   // Samurai: bright indigo armor, topknot, katana.
