@@ -659,121 +659,220 @@ export function makeSiteFrame(w: number, h: number): THREE.Group {
 }
 
 // ---------------------------------------------------------------------------
-// Units — built once per kind, cloned per entity. Origin at feet.
+// Units — articulated little people, built once per kind and cloned per
+// entity. Origin at feet. Limbs are named groups pivoted at hip/shoulder so
+// the renderer can swing them: 'legL', 'legR', 'armL', 'armR', 'torso'.
+// Tools/weapons are parented to the right hand and swing with the arm.
 
-function makeSerf(): THREE.Group {
+const SKIN = 0xd9b38c;
+const HAIR = 0x241a12;
+
+interface PersonStyle {
+  robe: number; // kimono / armor color
+  sash?: number;
+  kasa?: boolean; // straw hat
+  headband?: number;
+  topknot?: boolean;
+  armored?: boolean; // broader torso + shoulder plates
+  scale?: number;
+  /** Built into the right hand; swings with work/fight animations. */
+  tool?: (hand: THREE.Group) => void;
+  /** Extras attached to the torso (quivers, back-banners...). */
+  back?: (torso: THREE.Group) => void;
+}
+
+/**
+ * A rigged villager: legs pivot at the hips, arms at the shoulders. Total
+ * height ~0.95 world units, chunky comic proportions.
+ */
+function person(style: PersonStyle): THREE.Group {
   const g = new THREE.Group();
-  const body = mesh(new THREE.CapsuleGeometry(0.16, 0.28, 3, 8), palette.paper);
-  body.position.y = 0.36;
-  g.add(body);
-  const head = mesh(new THREE.SphereGeometry(0.11, 8, 6), 0xd9b38c);
-  head.position.y = 0.72;
-  g.add(head);
-  // Straw kasa.
-  const hat = mesh(new THREE.ConeGeometry(0.17, 0.09, 8), palette.grassDry);
-  hat.position.y = 0.82;
-  g.add(hat);
-  return g;
-}
+  const robeDark = new THREE.Color(style.robe).multiplyScalar(0.82).getHex();
 
-function makeWorker(): THREE.Group {
-  const g = makeSerf();
-  // Bamboo-green sash marks a resident worker.
-  const sash = mesh(new THREE.BoxGeometry(0.34, 0.08, 0.2), palette.bambooLeafDark);
-  sash.position.y = 0.45;
-  sash.rotation.z = 0.5;
-  g.add(sash);
-  return g;
-}
-
-/** Military read by silhouette: body color, headgear, weapon sliver. */
-function soldier(bodyColor: number, opts: { kasa?: boolean; headband?: number }): THREE.Group {
-  const g = new THREE.Group();
-  const body = mesh(new THREE.CapsuleGeometry(0.17, 0.3, 3, 8), bodyColor);
-  body.position.y = 0.38;
-  g.add(body);
-  const head = mesh(new THREE.SphereGeometry(0.11, 8, 6), 0xd9b38c);
-  head.position.y = 0.76;
-  g.add(head);
-  if (opts.kasa) {
-    const hat = mesh(new THREE.ConeGeometry(0.24, 0.1, 8), palette.grassDry);
-    hat.position.y = 0.88;
-    g.add(hat);
+  // Legs: pivot groups at hip height; geometry hangs below the pivot.
+  for (const side of [-1, 1] as const) {
+    const leg = new THREE.Group();
+    leg.name = side < 0 ? 'legL' : 'legR';
+    leg.position.set(side * 0.07, 0.42, 0);
+    const limb = mesh(new THREE.BoxGeometry(0.095, 0.4, 0.12), robeDark);
+    limb.position.y = -0.21;
+    leg.add(limb);
+    const foot = mesh(new THREE.BoxGeometry(0.1, 0.05, 0.17), HAIR);
+    foot.position.set(0, -0.4, 0.03);
+    leg.add(foot);
+    g.add(leg);
   }
-  if (opts.headband !== undefined) {
-    const band = mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.04, 8), opts.headband);
-    band.position.y = 0.8;
-    g.add(band);
+
+  // Torso (kimono wrap, slight skirt flare) with head on top.
+  const torso = new THREE.Group();
+  torso.name = 'torso';
+  torso.position.y = 0.42;
+  const chest = mesh(
+    new THREE.BoxGeometry(style.armored ? 0.34 : 0.28, 0.34, style.armored ? 0.22 : 0.18),
+    style.robe,
+  );
+  chest.position.y = 0.17;
+  torso.add(chest);
+  const skirt = mesh(new THREE.BoxGeometry(0.3, 0.14, 0.2), robeDark);
+  skirt.position.y = -0.02;
+  torso.add(skirt);
+  if (style.sash !== undefined) {
+    const sash = mesh(new THREE.BoxGeometry(0.3, 0.07, 0.2), style.sash);
+    sash.position.y = 0.06;
+    torso.add(sash);
   }
+  if (style.armored) {
+    for (const side of [-1, 1] as const) {
+      const plate = mesh(new THREE.BoxGeometry(0.1, 0.07, 0.2), robeDark);
+      plate.position.set(side * 0.21, 0.3, 0);
+      torso.add(plate);
+    }
+  }
+
+  const head = new THREE.Group();
+  head.name = 'head';
+  head.position.y = 0.42;
+  const skull = mesh(new THREE.BoxGeometry(0.16, 0.16, 0.15), SKIN);
+  skull.position.y = 0.07;
+  head.add(skull);
+  const hairCap = mesh(new THREE.BoxGeometry(0.17, 0.06, 0.16), HAIR);
+  hairCap.position.y = 0.15;
+  head.add(hairCap);
+  if (style.topknot) {
+    const knot = mesh(new THREE.BoxGeometry(0.05, 0.07, 0.05), HAIR);
+    knot.position.y = 0.2;
+    head.add(knot);
+  }
+  if (style.kasa) {
+    const hat = mesh(new THREE.ConeGeometry(0.22, 0.11, 8), palette.grassDry);
+    hat.position.y = 0.19;
+    head.add(hat);
+  }
+  if (style.headband !== undefined) {
+    const band = mesh(new THREE.BoxGeometry(0.175, 0.035, 0.165), style.headband);
+    band.position.y = 0.11;
+    head.add(band);
+  }
+  torso.add(head);
+
+  // Arms: pivot at the shoulders; the right hand may hold a tool/weapon.
+  for (const side of [-1, 1] as const) {
+    const arm = new THREE.Group();
+    arm.name = side < 0 ? 'armL' : 'armR';
+    arm.position.set(side * (style.armored ? 0.21 : 0.18), 0.31, 0);
+    const limb = mesh(new THREE.BoxGeometry(0.075, 0.32, 0.09), style.robe);
+    limb.position.y = -0.14;
+    arm.add(limb);
+    const hand = new THREE.Group();
+    hand.position.y = -0.3;
+    const fist = mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06), SKIN);
+    hand.add(fist);
+    arm.add(hand);
+    if (side > 0 && style.tool) style.tool(hand);
+    torso.add(arm);
+  }
+
+  if (style.back) style.back(torso);
+
+  g.add(torso);
+  if (style.scale) g.scale.setScalar(style.scale);
   return g;
 }
 
-function makeSamurai(): THREE.Group {
-  const g = soldier(palette.indigo, { kasa: true });
-  const katana = mesh(new THREE.BoxGeometry(0.04, 0.5, 0.07), goodColorsLocal.katana);
-  katana.position.set(0.22, 0.5, -0.05);
-  katana.rotation.z = 0.4;
-  g.add(katana);
-  return g;
+// Hand tools/weapons (positioned relative to the fist).
+function hatchet(hand: THREE.Group): void {
+  const haft = mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.34, 5), palette.woodLight);
+  haft.position.y = 0.1;
+  hand.add(haft);
+  const headM = mesh(new THREE.BoxGeometry(0.11, 0.07, 0.03), 0x8a8f96);
+  headM.position.set(0.05, 0.24, 0);
+  hand.add(headM);
 }
 
-function makeAshigaru(): THREE.Group {
-  const g = soldier(palette.paper, { headband: palette.indigo });
-  const yari = mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.3, 5), goodColorsLocal.yari);
-  yari.position.set(0.2, 0.65, 0);
-  g.add(yari);
-  const tip = mesh(new THREE.ConeGeometry(0.05, 0.15, 5), goodColorsLocal.katana);
-  tip.position.set(0.2, 1.35, 0);
-  g.add(tip);
-  return g;
+function katanaBlade(hand: THREE.Group, big = false): void {
+  const blade = mesh(
+    new THREE.BoxGeometry(0.035, big ? 0.6 : 0.5, 0.05),
+    goodColorsLocal.katana,
+  );
+  blade.position.y = big ? 0.32 : 0.27;
+  hand.add(blade);
+  const guard = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 8), 0xc8a84a);
+  guard.position.y = 0.06;
+  hand.add(guard);
 }
 
-function makeArcher(): THREE.Group {
-  const g = soldier(palette.bambooLeafDark, { kasa: true });
-  const bow = mesh(new THREE.TorusGeometry(0.3, 0.025, 6, 12, Math.PI), goodColorsLocal.yumi);
-  bow.position.set(0.22, 0.5, 0);
-  bow.rotation.z = Math.PI / 2;
-  g.add(bow);
-  return g;
+function yariSpear(hand: THREE.Group): void {
+  const shaft = mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.15, 5), goodColorsLocal.yari);
+  shaft.position.y = 0.3;
+  hand.add(shaft);
+  const tip = mesh(new THREE.ConeGeometry(0.045, 0.16, 5), goodColorsLocal.katana);
+  tip.position.y = 0.94;
+  hand.add(tip);
 }
 
-function makeBandit(): THREE.Group {
-  const g = soldier(palette.roofDark, { headband: palette.vermillion });
-  const blade = mesh(new THREE.BoxGeometry(0.04, 0.4, 0.06), palette.rockDark);
-  blade.position.set(0.2, 0.45, 0);
-  blade.rotation.z = 0.5;
-  g.add(blade);
-  return g;
+function crudeBlade(hand: THREE.Group): void {
+  const blade = mesh(new THREE.BoxGeometry(0.04, 0.42, 0.05), palette.rockDark);
+  blade.position.y = 0.22;
+  hand.add(blade);
 }
 
-function makeBanditArcher(): THREE.Group {
-  const g = soldier(palette.roofDark, { headband: palette.vermillion });
-  const bow = mesh(new THREE.TorusGeometry(0.28, 0.025, 6, 12, Math.PI), palette.wood);
-  bow.position.set(0.2, 0.5, 0);
-  bow.rotation.z = Math.PI / 2;
-  g.add(bow);
-  return g;
+function bowInHand(color: number): (hand: THREE.Group) => void {
+  return (hand) => {
+    const bow = mesh(new THREE.TorusGeometry(0.3, 0.022, 5, 12, Math.PI), color);
+    bow.rotation.z = Math.PI / 2;
+    hand.add(bow);
+  };
 }
 
-function makeRonin(): THREE.Group {
-  const g = soldier(0x2a2f3a, { kasa: true });
-  g.scale.setScalar(1.15); // reads as the heavy
-  const katana = mesh(new THREE.BoxGeometry(0.05, 0.55, 0.08), goodColorsLocal.katana);
-  katana.position.set(0.22, 0.5, -0.05);
-  katana.rotation.z = 0.4;
-  g.add(katana);
-  return g;
+function quiver(torso: THREE.Group): void {
+  const q = mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.28, 6), palette.wood);
+  q.position.set(-0.08, 0.22, -0.13);
+  q.rotation.z = 0.3;
+  torso.add(q);
+  for (let i = 0; i < 3; i++) {
+    const fletch = mesh(new THREE.BoxGeometry(0.025, 0.05, 0.012), palette.paper);
+    fletch.position.set(-0.13 + i * 0.04, 0.4, -0.13);
+    torso.add(fletch);
+  }
 }
 
 const unitFactories = new Map<number, () => THREE.Group>([
-  [1, makeSerf],
-  [2, makeWorker],
-  [3, makeSamurai],
-  [4, makeAshigaru],
-  [5, makeArcher],
-  [6, makeBandit],
-  [7, makeBanditArcher],
-  [8, makeRonin],
+  // Serf: washi-cream kimono, indigo sash — bright like BR peasants.
+  [1, () => person({ robe: 0xe6d9b5, sash: 0x4a5f8e })],
+  // Worker: warm tan kimono, straw kasa, hatchet in hand.
+  [2, () => person({ robe: 0xd8a868, sash: 0x6b8f3f, kasa: true, tool: hatchet })],
+  // Samurai: bright indigo armor, topknot, katana.
+  [3, () =>
+    person({ robe: 0x5a72b8, armored: true, topknot: true, tool: (h) => katanaBlade(h) })],
+  // Ashigaru: paper tunic, indigo headband, yari.
+  [4, () => person({ robe: 0xefe3cc, headband: 0x4a5f8e, tool: yariSpear })],
+  // Archer: leaf-green garb, kasa, bow + quiver.
+  [5, () =>
+    person({
+      robe: 0x7fae4a,
+      kasa: true,
+      tool: bowInHand(goodColorsLocal.yumi),
+      back: quiver,
+    })],
+  // Bandit: charcoal rags, vermillion headband, crude blade.
+  [6, () => person({ robe: 0x5d636e, headband: 0xd85a4a, tool: crudeBlade })],
+  // Bandit archer: same rags, bow + quiver.
+  [7, () =>
+    person({
+      robe: 0x5d636e,
+      headband: 0xd85a4a,
+      tool: bowInHand(palette.wood),
+      back: quiver,
+    })],
+  // Rōnin: gunmetal armor, big frame, long katana.
+  [8, () =>
+    person({
+      robe: 0x4a5364,
+      armored: true,
+      topknot: true,
+      scale: 1.15,
+      tool: (h) => katanaBlade(h, true),
+    })],
 ]);
 
 const unitPrototypes = new Map<number, THREE.Group>();
@@ -782,7 +881,7 @@ const unitPrototypes = new Map<number, THREE.Group>();
 export function makeUnitModel(kindCode: number): THREE.Group {
   let proto = unitPrototypes.get(kindCode);
   if (!proto) {
-    proto = (unitFactories.get(kindCode) ?? makeSerf)();
+    proto = (unitFactories.get(kindCode) ?? unitFactories.get(1)!)();
     unitPrototypes.set(kindCode, proto);
   }
   return proto.clone();

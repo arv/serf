@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { SAB_BYTES, SabReader, SabWriter, type UnitSnapshot } from './sabLayout';
+import { AUX_STRIDE, SAB_BYTES, SabReader, SabWriter, type UnitSnapshot } from './sabLayout';
 
 function unit(id: number, x: number, y: number): UnitSnapshot {
-  return { id, x, y, kind: 1, owner: 0, hpPct: 255, carrying: 0 };
+  return { id, x, y, kind: 1, owner: 0, hpPct: 255, carrying: 0, action: 0 };
 }
 
 describe('SAB slot protocol', () => {
@@ -17,7 +17,7 @@ describe('SAB slot protocol', () => {
     const i1 = reader.latest.index.get(1)!;
     expect(reader.latest.xs[i1]).toBeCloseTo(1.5);
     expect(reader.latest.ys[i1]).toBeCloseTo(2.5);
-    expect(reader.latest.aux[i1 * 4]).toBe(1); // kind
+    expect(reader.latest.aux[i1 * AUX_STRIDE]).toBe(1); // kind
   });
 
   it('keeps the previous publish for interpolation', () => {

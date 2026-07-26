@@ -11,12 +11,14 @@ import { findStorehouse } from '../sim/systems/logistics';
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { SimCommand } from '../sim/commands';
 import {
+  ACTION,
   PUBLISH_INTERVAL_MS,
   SAB_BYTES,
   SabWriter,
   type UnitSnapshot,
 } from '../protocol/sabLayout';
 import type { Building } from '../sim/entities';
+import type { Unit } from '../sim/units';
 import type { BuildingSnap, MainToWorker, WorkerToMain } from '../protocol/messages';
 
 /**
@@ -178,6 +180,20 @@ function postStructural(): void {
   });
 }
 
+/** What is this unit visibly doing? Drives limb animation in the renderer. */
+function actionOf(w: World, u: Unit): number {
+  // Engaged fighters swing (the renderer overrides with a walk while moving).
+  if (UNIT_DEFS[u.kind].combat && u.targetId !== undefined) return ACTION.fight;
+  // Gather workers swinging at a resource tile.
+  if (u.task.t === 'gatherWork') return ACTION.work;
+  // Resident workers of convert buildings mid-batch: hoeing, hammering...
+  if (u.kind === 'worker' && u.homeId !== undefined && u.task.t === 'idle') {
+    const home = w.buildings.get(u.homeId);
+    if (home && !home.dead && home.prodTicksLeft !== undefined) return ACTION.work;
+  }
+  return ACTION.idle;
+}
+
 function* unitSnapshots(w: World): Generator<UnitSnapshot> {
   for (const u of w.units.values()) {
     if (u.dead) continue;
@@ -189,6 +205,7 @@ function* unitSnapshots(w: World): Generator<UnitSnapshot> {
       owner: OWNER_CODE[u.owner],
       hpPct: Math.max(0, Math.min(255, Math.round((u.hp / UNIT_DEFS[u.kind].hp) * 255))),
       carrying: carryingCode(u.carrying),
+      action: actionOf(w, u),
     };
   }
 }

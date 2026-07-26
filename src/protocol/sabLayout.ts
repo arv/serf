@@ -23,7 +23,12 @@ const COUNT_BYTES = 4;
 const IDS_BYTES = 4 * MAX_UNITS;
 const XS_BYTES = 4 * MAX_UNITS;
 const YS_BYTES = 4 * MAX_UNITS;
-const AUX_BYTES = 4 * MAX_UNITS; // kind, owner, hpPct, carrying per unit
+/** Bytes of per-unit auxiliary state: kind, owner, hpPct, carrying, action, 3 spare. */
+export const AUX_STRIDE = 8;
+const AUX_BYTES = AUX_STRIDE * MAX_UNITS;
+
+/** What a unit is visibly doing — drives limb animation in the renderer. */
+export const ACTION = { idle: 0, work: 1, fight: 2 } as const;
 export const SLOT_BYTES = COUNT_BYTES + IDS_BYTES + XS_BYTES + YS_BYTES + AUX_BYTES;
 export const SAB_BYTES = HEADER_INTS * 4 + SLOT_COUNT * SLOT_BYTES;
 
@@ -58,6 +63,8 @@ export interface UnitSnapshot {
   owner: number;
   hpPct: number;
   carrying: number;
+  /** ACTION.idle / ACTION.work / ACTION.fight — animation intent. */
+  action: number;
 }
 
 export class SabWriter {
@@ -84,11 +91,12 @@ export class SabWriter {
       slot.ids[n] = u.id;
       slot.xs[n] = u.x;
       slot.ys[n] = u.y;
-      const a = n * 4;
+      const a = n * AUX_STRIDE;
       slot.aux[a] = u.kind;
       slot.aux[a + 1] = u.owner;
       slot.aux[a + 2] = u.hpPct;
       slot.aux[a + 3] = u.carrying;
+      slot.aux[a + 4] = u.action;
       n++;
     }
     slot.count[0] = n;
