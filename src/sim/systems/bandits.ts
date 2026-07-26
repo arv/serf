@@ -47,7 +47,7 @@ export function banditsSystem(world: World, rng: Rng): void {
   const names: Record<string, string> = {
     bandit: 'bandits',
     banditArcher: 'bandit archers',
-    ronin: 'rōnin',
+    ronin: 'marauders', // theme-neutral read for the heavy raider
   };
   const text = [...counts.entries()].map(([k, n]) => `${n} ${names[k] ?? k}`).join(', ');
   world.pendingEvents.push({ kind: 'raidIncoming', text: `${text} approaching!` });

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { makeBuildingModel, makeGhostModel, makeSiteFrame } from './models';
+import { makeMedievalBuilding } from './medieval';
 import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
 
@@ -63,7 +64,7 @@ export class BuildingSync {
       model.scale.setScalar(0.22);
       root.add(model);
     } else {
-      model = makeBuildingModel(b.type);
+      model = makeMedievalBuilding(b.type) ?? makeBuildingModel(b.type);
       root.add(model);
     }
 

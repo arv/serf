@@ -10,6 +10,7 @@ import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
 import { GhostPlacement } from '../render/ghost';
 import { loadCharacterAssets } from '../render/characters';
+import { loadMedievalAssets } from '../render/medieval';
 import { Controls } from '../input/controls';
 import { mountHud } from '../ui/mount';
 import {
@@ -57,9 +58,13 @@ async function boot(): Promise<void> {
   localStorage.removeItem('serf-load-pending');
 
   const host = new WorkerSimHost();
-  // Character GLBs load while the worker generates the world; if they fail,
-  // sceneSync falls back to the procedural people.
-  const [init] = await Promise.all([host.start(seed, loadData), loadCharacterAssets()]);
+  // Character/building GLBs load while the worker generates the world; if
+  // they fail, the renderer falls back to the procedural models.
+  const [init] = await Promise.all([
+    host.start(seed, loadData),
+    loadCharacterAssets(),
+    loadMedievalAssets(),
+  ]);
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   const renderer = new GameRenderer(canvas);
