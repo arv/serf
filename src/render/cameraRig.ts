@@ -5,7 +5,7 @@ import { clamp } from '../shared/math';
 const YAW = Math.PI / 4; // fixed 45° — models only need to read from one angle
 const PITCH = (35 * Math.PI) / 180;
 const DISTANCE = 90;
-const MIN_VIEW = 10;
+const MIN_VIEW = 5;
 const MAX_VIEW = 52;
 const PAN_MARGIN = 4;
 

@@ -681,107 +681,214 @@ interface PersonStyle {
   back?: (torso: THREE.Group) => void;
 }
 
+/** Smooth surface of revolution from a (radius, height) profile. */
+function lathe(profile: [number, number][], color: number, segments = 10): THREE.Mesh {
+  const points = profile.map(([r, y]) => new THREE.Vector2(r, y));
+  return mesh(new THREE.LatheGeometry(points, segments), color);
+}
+
 /**
- * A rigged villager sculpted Battle-Realms style: rounded organic forms —
- * flared hakama trousers, a kimono that widens at the hem, sphere head with
- * a hair cap — no boxes. Legs pivot at the hips, arms at the shoulders.
- * Total height ~0.95 world units.
+ * A rigged villager with professional game-character anatomy: a smooth
+ * lathe-turned kimono body (one continuous surface, hem to collar), and
+ * TWO-BONE limbs — thighs with knee-jointed shins, upper arms with
+ * elbow-jointed forearms — so gaits and swings articulate like real
+ * characters instead of stick figures. Rig group names:
+ * hips, legL/legR (hip), shinL/shinR (knee), torso, armL/armR (shoulder),
+ * foreL/foreR (elbow), head. Total height ~0.98 world units.
  */
 function person(style: PersonStyle): THREE.Group {
   const g = new THREE.Group();
-  const robeDark = new THREE.Color(style.robe).multiplyScalar(0.8).getHex();
+  const robeDark = new THREE.Color(style.robe).multiplyScalar(0.78).getHex();
+  const shoulderW = style.armored ? 0.155 : 0.135;
 
-  // Legs: wide hakama trousers — tapered cylinders flaring toward the ankle.
+  // --- Pelvis + two-bone legs --------------------------------------------
+  const hips = new THREE.Group();
+  hips.name = 'hips';
+  hips.position.y = 0.5;
+  const pelvis = mesh(new THREE.SphereGeometry(0.11, 9, 7), robeDark);
+  pelvis.scale.set(1.15, 0.62, 0.95);
+  pelvis.position.y = -0.01;
+  hips.add(pelvis);
+
   for (const side of [-1, 1] as const) {
     const leg = new THREE.Group();
     leg.name = side < 0 ? 'legL' : 'legR';
-    leg.position.set(side * 0.065, 0.42, 0);
-    const trouser = mesh(new THREE.CylinderGeometry(0.052, 0.088, 0.38, 7), robeDark);
-    trouser.position.y = -0.19;
-    trouser.rotation.z = side * -0.04; // slight outward splay
-    leg.add(trouser);
-    const foot = mesh(new THREE.SphereGeometry(0.05, 7, 5), HAIR);
-    foot.scale.set(1, 0.55, 1.5);
-    foot.position.set(0, -0.39, 0.03);
-    leg.add(foot);
-    g.add(leg);
-  }
+    leg.position.set(side * 0.062, -0.02, 0);
 
-  // Torso: kimono robe, narrow at the shoulders, flaring at the hem.
+    // Thigh: hakama volume, widest at the hip.
+    const thigh = lathe(
+      [
+        [0.045, -0.26],
+        [0.062, -0.18],
+        [0.07, -0.08],
+        [0.06, 0.02],
+      ],
+      robeDark,
+      8,
+    );
+    leg.add(thigh);
+
+    // Shin pivots at the knee; hakama cuff flares over the ankle.
+    const shin = new THREE.Group();
+    shin.name = side < 0 ? 'shinL' : 'shinR';
+    shin.position.y = -0.25;
+    const calf = lathe(
+      [
+        [0.052, -0.23],
+        [0.058, -0.12],
+        [0.044, -0.02],
+        [0.04, 0.03],
+      ],
+      robeDark,
+      8,
+    );
+    shin.add(calf);
+    const foot = mesh(new THREE.SphereGeometry(0.045, 7, 5), HAIR);
+    foot.scale.set(1, 0.5, 1.6);
+    foot.position.set(0, -0.235, 0.035);
+    shin.add(foot);
+    leg.add(shin);
+    hips.add(leg);
+  }
+  g.add(hips);
+
+  // --- Torso: one continuous kimono surface, hem to collar ---------------
   const torso = new THREE.Group();
   torso.name = 'torso';
-  torso.position.y = 0.42;
-  const robe = mesh(
-    new THREE.CylinderGeometry(style.armored ? 0.125 : 0.105, 0.155, 0.4, 8),
+  torso.position.y = 0.48;
+  const robe = lathe(
+    [
+      [0.148, 0.0], // hem, flared over the pelvis
+      [0.135, 0.06],
+      [0.118, 0.12], // waist pinch under the obi
+      [0.126, 0.2],
+      [shoulderW, 0.3], // chest spread
+      [shoulderW * 0.92, 0.36], // shoulder roll-off
+      [0.075, 0.41], // collar
+      [0.05, 0.43],
+    ],
     style.robe,
+    12,
   );
-  robe.position.y = 0.15;
   torso.add(robe);
-  // Chest/shoulder mass rounds the top off.
-  const chest = mesh(new THREE.SphereGeometry(style.armored ? 0.135 : 0.115, 8, 6), style.robe);
-  chest.scale.set(1.15, 0.8, 0.95);
-  chest.position.y = 0.32;
-  torso.add(chest);
   if (style.sash !== undefined) {
-    const sash = mesh(new THREE.CylinderGeometry(0.138, 0.148, 0.09, 8), style.sash);
-    sash.position.y = 0.06;
+    const sash = mesh(new THREE.CylinderGeometry(0.124, 0.134, 0.075, 12), style.sash);
+    sash.position.y = 0.125;
     torso.add(sash);
+    // Obi knot at the back.
+    const knot = mesh(new THREE.SphereGeometry(0.045, 6, 5), style.sash);
+    knot.scale.set(1.4, 0.8, 0.7);
+    knot.position.set(0, 0.13, -0.135);
+    torso.add(knot);
   }
   if (style.armored) {
-    // Sode shoulder guards: squashed spheres riding the shoulders.
+    // Layered dō plates + sode shoulder guards.
+    const plate = mesh(new THREE.CylinderGeometry(0.145, 0.16, 0.05, 12), robeDark);
+    plate.position.y = 0.2;
+    torso.add(plate);
+    const plate2 = mesh(new THREE.CylinderGeometry(0.15, 0.165, 0.05, 12), robeDark);
+    plate2.position.y = 0.15;
+    torso.add(plate2);
     for (const side of [-1, 1] as const) {
-      const sode = mesh(new THREE.SphereGeometry(0.085, 7, 5), robeDark);
-      sode.scale.set(1, 0.65, 1);
-      sode.position.set(side * 0.17, 0.36, 0);
+      const sode = lathe(
+        [
+          [0.09, -0.07],
+          [0.075, -0.02],
+          [0.045, 0.02],
+        ],
+        robeDark,
+        8,
+      );
+      sode.position.set(side * 0.175, 0.37, 0);
+      sode.rotation.z = side * 0.35;
       torso.add(sode);
     }
   }
 
+  // --- Head with a face plane and shaped hair ----------------------------
   const head = new THREE.Group();
   head.name = 'head';
-  head.position.y = 0.44;
-  const skull = mesh(new THREE.SphereGeometry(0.088, 9, 7), SKIN);
-  skull.position.y = 0.05;
+  head.position.y = 0.46;
+  const skull = mesh(new THREE.SphereGeometry(0.085, 10, 8), SKIN);
+  skull.scale.set(0.92, 1, 0.95);
+  skull.position.y = 0.055;
   head.add(skull);
-  // Hair: a cap hugging the back of the skull.
-  const hair = mesh(new THREE.SphereGeometry(0.092, 9, 7), HAIR);
-  hair.scale.set(1, 0.82, 1);
-  hair.position.set(0, 0.085, -0.018);
+  const nose = mesh(new THREE.SphereGeometry(0.018, 5, 4), SKIN);
+  nose.position.set(0, 0.045, 0.082);
+  head.add(nose);
+  // Hair: swept cap with a fringe line, leaving the face open.
+  const hair = mesh(new THREE.SphereGeometry(0.09, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), HAIR);
+  hair.scale.set(1.02, 1, 1.05);
+  hair.position.set(0, 0.052, -0.012);
   head.add(hair);
   if (style.topknot) {
-    const knot = mesh(new THREE.SphereGeometry(0.032, 6, 5), HAIR);
-    knot.scale.y = 1.5;
-    knot.position.y = 0.17;
-    head.add(knot);
+    const tail = mesh(new THREE.CylinderGeometry(0.02, 0.028, 0.07, 6), HAIR);
+    tail.position.set(0, 0.165, -0.01);
+    tail.rotation.x = -0.3;
+    head.add(tail);
   }
   if (style.kasa) {
-    const hat = mesh(new THREE.ConeGeometry(0.21, 0.1, 9), palette.grassDry);
-    hat.position.y = 0.16;
+    const hat = lathe(
+      [
+        [0.215, 0],
+        [0.13, 0.045],
+        [0.04, 0.085],
+        [0.0, 0.095],
+      ],
+      palette.grassDry,
+      12,
+    );
+    hat.position.y = 0.115;
     head.add(hat);
   }
   if (style.headband !== undefined) {
-    const band = mesh(new THREE.TorusGeometry(0.085, 0.016, 5, 10), style.headband);
+    const band = mesh(new THREE.TorusGeometry(0.082, 0.015, 5, 12), style.headband);
     band.rotation.x = Math.PI / 2;
-    band.position.y = 0.09;
+    band.position.y = 0.088;
     head.add(band);
   }
   torso.add(head);
 
-  // Arms: tapered sleeves ending in skin hands; right hand may hold a tool.
+  // --- Two-bone arms: shoulder + elbow, kimono sleeves --------------------
   for (const side of [-1, 1] as const) {
     const arm = new THREE.Group();
     arm.name = side < 0 ? 'armL' : 'armR';
-    arm.position.set(side * (style.armored ? 0.17 : 0.145), 0.32, 0);
-    const sleeve = mesh(new THREE.CylinderGeometry(0.048, 0.034, 0.3, 7), robeDark);
-    sleeve.position.y = -0.13;
-    sleeve.rotation.z = side * -0.08;
-    arm.add(sleeve);
+    arm.position.set(side * (shoulderW + 0.015), 0.35, 0);
+    const shoulder = mesh(new THREE.SphereGeometry(0.052, 7, 5), style.robe);
+    arm.add(shoulder);
+    const upper = lathe(
+      [
+        [0.036, -0.16],
+        [0.046, -0.06],
+        [0.05, 0.0],
+      ],
+      style.robe,
+      7,
+    );
+    arm.add(upper);
+
+    const fore = new THREE.Group();
+    fore.name = side < 0 ? 'foreL' : 'foreR';
+    fore.position.y = -0.16;
+    // Forearm with a draped sleeve cuff widening at the wrist.
+    const sleeve = lathe(
+      [
+        [0.05, -0.15],
+        [0.034, -0.1],
+        [0.03, -0.02],
+        [0.034, 0.01],
+      ],
+      robeDark,
+      7,
+    );
+    fore.add(sleeve);
     const hand = new THREE.Group();
-    hand.position.set(side * -0.02, -0.29, 0);
-    const fist = mesh(new THREE.SphereGeometry(0.038, 6, 5), SKIN);
+    hand.position.y = -0.165;
+    const fist = mesh(new THREE.SphereGeometry(0.035, 6, 5), SKIN);
     hand.add(fist);
-    arm.add(hand);
+    fore.add(hand);
     if (side > 0 && style.tool) style.tool(hand);
+    arm.add(fore);
     torso.add(arm);
   }
 
