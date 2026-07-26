@@ -18,7 +18,7 @@ const DIR = '/models/medieval/';
 
 /** Which pack model plays each (still Japanese-named) building. */
 const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
-  storehouse: 'TownCenter_SecondAge_Level2',
+  storehouse: 'Storage_FirstAge_Level2',
   bambooHut: 'Houses_FirstAge_1_Level1',
   quarry: 'Mine',
   ricePaddy: 'Farm_FirstAge_Level2_Wheat',
@@ -44,7 +44,8 @@ const MINE_TINTS: Partial<Record<BuildingTypeId, number>> = {
 
 interface Assets {
   buildings: Map<BuildingTypeId, THREE.Group>;
-  treeGeometry: THREE.BufferGeometry;
+  /** Distinct tree species geometries (normalized: feet at 0, height 1). */
+  trees: THREE.BufferGeometry[];
   treeMaterial: THREE.Material;
 }
 
@@ -100,9 +101,10 @@ export async function loadMedievalAssets(): Promise<boolean> {
   try {
     const loader = new GLTFLoader();
     const files = new Set(Object.values(BUILDING_FILES));
+    const TREE_FILES = ['Resource_Tree1', 'Resource_Tree2', 'Resource_PineTree'];
     const loaded = new Map<string, THREE.Group>();
     await Promise.all(
-      [...files, 'Resource_Tree_Group'].map(async (f) => {
+      [...files, ...TREE_FILES].map(async (f) => {
         const gltf = await loader.loadAsync(`${DIR}${f}.gltf`);
         gltf.scene.traverse((o) => {
           if (o instanceof THREE.Mesh) {
@@ -135,16 +137,20 @@ export async function loadMedievalAssets(): Promise<boolean> {
       buildings.set(type, normalize(scene));
     }
 
-    const treeGeo = bakeToGeometry(loaded.get('Resource_Tree_Group')!);
-    // Normalize the tree clump: feet at 0, height 1.
-    treeGeo.computeBoundingBox();
-    const tb = treeGeo.boundingBox!;
-    treeGeo.translate(-(tb.min.x + tb.max.x) / 2, -tb.min.y, -(tb.min.z + tb.max.z) / 2);
-    treeGeo.scale(1 / (tb.max.y - tb.min.y), 1 / (tb.max.y - tb.min.y), 1 / (tb.max.y - tb.min.y));
+    const trees = TREE_FILES.map((f) => {
+      const geo = bakeToGeometry(loaded.get(f)!);
+      // Normalize each species: trunk base at 0, height 1.
+      geo.computeBoundingBox();
+      const tb = geo.boundingBox!;
+      geo.translate(-(tb.min.x + tb.max.x) / 2, -tb.min.y, -(tb.min.z + tb.max.z) / 2);
+      const s = 1 / (tb.max.y - tb.min.y);
+      geo.scale(s, s, s);
+      return geo;
+    });
 
     assets = {
       buildings,
-      treeGeometry: treeGeo,
+      trees,
       treeMaterial: new THREE.MeshLambertMaterial({ vertexColors: true }),
     };
     return true;
@@ -169,8 +175,11 @@ export function makeMedievalBuilding(type: BuildingTypeId): THREE.Group | null {
   return group;
 }
 
-/** Vertex-colored tree-clump geometry for the scatter system, or null. */
-export function medievalTree(): { geometry: THREE.BufferGeometry; material: THREE.Material } | null {
+/** Vertex-colored tree-species geometries for the scatter system, or null. */
+export function medievalTrees(): {
+  geometries: THREE.BufferGeometry[];
+  material: THREE.Material;
+} | null {
   if (!assets) return null;
-  return { geometry: assets.treeGeometry, material: assets.treeMaterial };
+  return { geometries: assets.trees, material: assets.treeMaterial };
 }

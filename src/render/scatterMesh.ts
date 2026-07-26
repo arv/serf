@@ -5,7 +5,7 @@ import { hash2 } from '../shared/math';
 import { Terrain, TileResource, type MapView } from '../sim/map';
 import { palette } from './palette';
 import { foliageMaterial, makeBambooCulmTexture, makeBambooLeafSprite } from './spriteTextures';
-import { medievalTree } from './medieval';
+import { medievalTrees } from './medieval';
 import type { HeightField } from './heightField';
 
 /**
@@ -54,6 +54,7 @@ const dummy = new THREE.Object3D();
 const tmpColor = new THREE.Color();
 
 const CULMS_PER_TILE = 5;
+const TREES_PER_TILE = 2;
 
 /**
  * All standing scatter (bamboo culms, boulders, ore markers) as a handful of
@@ -88,14 +89,16 @@ export class ScatterMesh {
     const flat = (color: number) =>
       new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.95 });
 
-    // Groves: on the medieval branch a vertex-colored fantasy tree clump per
-    // tile; otherwise bamboo — tall whip-thin culms (5 per tile) wearing a
-    // painted node-ring texture with alpha-tested leaf-spray sprites.
-    this.#trees = medievalTree() !== null;
-    if (this.#trees) {
-      const tree = medievalTree()!;
-      this.#addArchetype('culm', tree.geometry, tree.material, bambooTiles, {
-        receiveShadow: false,
+    // Groves: on the medieval branch a mixed wood of three vertex-colored
+    // tree species; otherwise bamboo — tall whip-thin culms (5 per tile)
+    // wearing a painted node-ring texture with alpha-tested leaf sprites.
+    const trees = medievalTrees();
+    this.#trees = trees !== null;
+    if (trees) {
+      trees.geometries.forEach((geo, i) => {
+        this.#addArchetype(`tree${i}`, geo, trees.material, bambooTiles * TREES_PER_TILE, {
+          receiveShadow: false,
+        });
       });
     } else {
       const culmTexture = makeBambooCulmTexture();
@@ -208,23 +211,31 @@ export class ScatterMesh {
     const tx = tileX(tile);
     const ty = tileY(tile);
     if (this.#trees) {
-      // One clump per tile, jittered and size-varied like a real copse.
-      const jx = 0.3 + hash2(tile, 1) * 0.4;
-      const jz = 0.3 + hash2(tile, 2) * 0.4;
-      const h = 1.7 + hash2(tile, 3) * 0.8;
-      this.#put(
-        'culm',
-        tile,
-        tx + jx,
-        this.#heights.at(tx + jx, ty + jz),
-        ty + jz,
-        h,
-        h * (0.85 + hash2(tile, 5) * 0.3),
-        hash2(tile, 4) * Math.PI * 2,
-        0xffffff,
-        hash2(tile, 6) * 0.25,
-        0xc8d878,
-      );
+      // A mixed stand: two trees per tile, species/size/lean/tint all
+      // hash-varied so no two copses repeat.
+      for (let k = 0; k < TREES_PER_TILE; k++) {
+        const seed = tile * TREES_PER_TILE + k;
+        const species = (hash2(seed, 11) * 3) | 0;
+        const jx = 0.18 + hash2(seed, 1) * 0.64;
+        const jz = 0.18 + hash2(seed, 2) * 0.64;
+        const h = (k === 0 ? 1.5 : 1.0) + hash2(seed, 3) * 0.8;
+        // Autumn-tinged variation: most stay green, a few go ochre.
+        const warm = hash2(seed, 6);
+        this.#put(
+          `tree${species}`,
+          tile,
+          tx + jx,
+          this.#heights.at(tx + jx, ty + jz),
+          ty + jz,
+          h,
+          h * (0.8 + hash2(seed, 5) * 0.35),
+          hash2(seed, 4) * Math.PI * 2,
+          0xffffff,
+          warm > 0.8 ? 0.5 : warm * 0.3,
+          warm > 0.8 ? 0xc8a050 : 0x486830,
+          (hash2(seed, 7) - 0.5) * 0.1,
+        );
+      }
       return;
     }
     for (let k = 0; k < CULMS_PER_TILE; k++) {

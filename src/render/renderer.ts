@@ -46,10 +46,18 @@ export class GameRenderer {
     sun.shadow.bias = -0.0004;
     this.scene.add(sun, sun.target);
 
+    // ResizeObserver over a window listener: it fires whenever the canvas
+    // box actually changes — including viewport changes that never dispatch
+    // a window resize event (devtools panes, embedded previews).
     const resize = (): void => {
-      this.#webgl.setSize(canvas.clientWidth, canvas.clientHeight, false);
-      this.rig.resize();
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (w > 0 && h > 0) {
+        this.#webgl.setSize(w, h, false);
+        this.rig.resize();
+      }
     };
+    new ResizeObserver(resize).observe(canvas);
     window.addEventListener('resize', resize);
     resize();
   }
