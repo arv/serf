@@ -12,6 +12,7 @@ import {
   yariSpear,
 } from './models';
 import { palette } from './palette';
+import { THEME } from './medieval';
 
 /**
  * Skinned-character pipeline: Quaternius Universal Base Characters (CC0)
@@ -209,6 +210,22 @@ function clothMaterial(color: number): THREE.MeshStandardMaterial {
 
 function kasaHat(): THREE.Group {
   const g = new THREE.Group();
+  if (THEME === 'medieval') {
+    // Round-brimmed peasant hat instead of the conical kasa.
+    const hat = lathe(
+      [
+        [0.16, 0.0],
+        [0.15, 0.025],
+        [0.09, 0.035],
+        [0.075, 0.09],
+        [0.0, 0.105],
+      ],
+      0x9a7748,
+      12,
+    );
+    g.add(hat);
+    return g;
+  }
   const hat = lathe(
     [
       [0.19, 0.0],
@@ -400,7 +417,10 @@ export function makeCharacter(
     attachToBone(root, 'hand_r', hand, s, [0, 0.05, 0.02]);
   }
   if (wardrobe.kasa) attachToBone(root, 'Head', kasaHat(), s, [0, 0.14, 0]);
-  if (wardrobe.topknot) attachToBone(root, 'Head', topknotHair(), s, [0, 0.15, -0.02]);
+  // Topknots are a Japan-theme read; medieval soldiers go bareheaded.
+  if (wardrobe.topknot && THEME !== 'medieval') {
+    attachToBone(root, 'Head', topknotHair(), s, [0, 0.15, -0.02]);
+  }
   if (wardrobe.headband) {
     attachToBone(root, 'Head', headbandProp(wardrobe.headband), s, [0, 0.035, 0]);
   }

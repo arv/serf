@@ -5,6 +5,7 @@ import { hash2 } from '../shared/math';
 import { Terrain, TileResource, type MapView } from '../sim/map';
 import { palette } from './palette';
 import { foliageMaterial, makeBambooCulmTexture, makeBambooLeafSprite } from './spriteTextures';
+import { medievalTree } from './medieval';
 import type { HeightField } from './heightField';
 
 /**
@@ -63,6 +64,7 @@ export class ScatterMesh {
   readonly group = new THREE.Group();
   #archetypes = new Map<string, Archetype>();
   #heights: HeightField;
+  #trees = false;
 
   constructor(map: MapView, heights: HeightField) {
     this.#heights = heights;
@@ -86,27 +88,35 @@ export class ScatterMesh {
     const flat = (color: number) =>
       new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.95 });
 
-    // Bamboo: tall whip-thin culms (5 per tile) wearing a painted node-ring
-    // texture, with alpha-tested leaf-spray sprites hung off the upper third
-    // — realistic silhouette, comic-book surfaces.
-    const culmTexture = makeBambooCulmTexture();
-    culmTexture.wrapS = THREE.RepeatWrapping;
-    culmTexture.wrapT = THREE.RepeatWrapping;
-    culmTexture.repeat.set(1, 2.5);
-    this.#addArchetype(
-      'culm',
-      new THREE.CylinderGeometry(0.03, 0.045, 1, 6),
-      new THREE.MeshLambertMaterial({ map: culmTexture }),
-      bambooTiles * CULMS_PER_TILE,
-      { receiveShadow: false }, // dense groves would shadow-spam themselves
-    );
-    this.#addArchetype(
-      'spray',
-      crossedQuads(1.5, 1.1),
-      foliageMaterial(makeBambooLeafSprite()),
-      bambooTiles * CULMS_PER_TILE * 3,
-      { castShadow: false, receiveShadow: false },
-    );
+    // Groves: on the medieval branch a vertex-colored fantasy tree clump per
+    // tile; otherwise bamboo — tall whip-thin culms (5 per tile) wearing a
+    // painted node-ring texture with alpha-tested leaf-spray sprites.
+    this.#trees = medievalTree() !== null;
+    if (this.#trees) {
+      const tree = medievalTree()!;
+      this.#addArchetype('culm', tree.geometry, tree.material, bambooTiles, {
+        receiveShadow: false,
+      });
+    } else {
+      const culmTexture = makeBambooCulmTexture();
+      culmTexture.wrapS = THREE.RepeatWrapping;
+      culmTexture.wrapT = THREE.RepeatWrapping;
+      culmTexture.repeat.set(1, 2.5);
+      this.#addArchetype(
+        'culm',
+        new THREE.CylinderGeometry(0.03, 0.045, 1, 6),
+        new THREE.MeshLambertMaterial({ map: culmTexture }),
+        bambooTiles * CULMS_PER_TILE,
+        { receiveShadow: false }, // dense groves would shadow-spam themselves
+      );
+      this.#addArchetype(
+        'spray',
+        crossedQuads(1.5, 1.1),
+        foliageMaterial(makeBambooLeafSprite()),
+        bambooTiles * CULMS_PER_TILE * 3,
+        { castShadow: false, receiveShadow: false },
+      );
+    }
     this.#addArchetype(
       'rock',
       new THREE.DodecahedronGeometry(0.32),
@@ -197,6 +207,26 @@ export class ScatterMesh {
   #placeBamboo(tile: number): void {
     const tx = tileX(tile);
     const ty = tileY(tile);
+    if (this.#trees) {
+      // One clump per tile, jittered and size-varied like a real copse.
+      const jx = 0.3 + hash2(tile, 1) * 0.4;
+      const jz = 0.3 + hash2(tile, 2) * 0.4;
+      const h = 1.7 + hash2(tile, 3) * 0.8;
+      this.#put(
+        'culm',
+        tile,
+        tx + jx,
+        this.#heights.at(tx + jx, ty + jz),
+        ty + jz,
+        h,
+        h * (0.85 + hash2(tile, 5) * 0.3),
+        hash2(tile, 4) * Math.PI * 2,
+        0xffffff,
+        hash2(tile, 6) * 0.25,
+        0xc8d878,
+      );
+      return;
+    }
     for (let k = 0; k < CULMS_PER_TILE; k++) {
       const seed = tile * CULMS_PER_TILE + k;
       // Culms bunch toward the tile center like a real grove clump.
