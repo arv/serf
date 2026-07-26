@@ -22,4 +22,5 @@ export type AdminAction =
   | 'clearBandits'
   | 'grantGoods'
   | 'toggleInstantBuild'
-  | 'finishResearch';
+  | 'finishResearch'
+  | 'spawnParade';

@@ -74,6 +74,17 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
       >
         Finish research
       </button>
+      <button
+        {...tooltip(() => (
+          <TextTip
+            title="Spawn parade"
+            body="One of each unit kind by the storehouse — for eyeballing models and animations."
+          />
+        ))}
+        onClick={() => props.onAdmin('spawnParade')}
+      >
+        Spawn parade
+      </button>
     </div>
   );
 }

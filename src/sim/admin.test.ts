@@ -62,6 +62,19 @@ describe('admin sandbox', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
+  it('spawnParade lines up one of each unit kind, all player-owned', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const before = world.units.size;
+    tickWorld(world, [{ kind: 'admin', action: 'spawnParade' }]);
+
+    const spawned = [...world.units.values()].slice(before);
+    expect(spawned).toHaveLength(8);
+    expect(new Set(spawned.map((u) => u.kind)).size).toBe(8);
+    expect(spawned.every((u) => u.owner === 'player')).toBe(true);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
   it('finishResearch completes the active tech immediately', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { rice: 20, silver: 20 });

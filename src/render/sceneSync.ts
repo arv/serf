@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ACTION, AUX_STRIDE, PUBLISH_INTERVAL_MS, type SabReader } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
 import { makeCarryProp, makeUnitModel } from './models';
+import { makeCharacter, playAnimation, type AnimKey, type CharacterVisual } from './characters';
 import type { HeightField } from './heightField';
 
 /** Named joint pivots of an articulated person (see models.ts person()). */
@@ -25,7 +26,10 @@ interface UnitVisual {
   carrying: number;
   carryBox: THREE.Object3D | null;
   hpBar: THREE.Mesh | null;
-  rig: Rig;
+  /** Skinned GLB character when assets are loaded... */
+  char: CharacterVisual | null;
+  /** ...else the procedural articulated person. */
+  rig: Rig | null;
 }
 
 function rigOf(group: THREE.Group): Rig {
@@ -209,6 +213,7 @@ export class SceneSync {
   #reader: SabReader;
   #heights: HeightField;
   #visuals = new Map<number, UnitVisual>();
+  #lastNow = 0;
 
   constructor(scene: THREE.Scene, reader: SabReader, heights: HeightField) {
     this.#scene = scene;
@@ -249,6 +254,8 @@ export class SceneSync {
     this.#reader.poll(now);
     const { latest, prev } = this.#reader;
     const alpha = this.#alpha(now);
+    const dt = this.#lastNow > 0 ? Math.min((now - this.#lastNow) / 1000, 0.1) : 1 / 60;
+    this.#lastNow = now;
 
     for (let i = 0; i < latest.count; i++) {
       const id = latest.ids[i]!;
@@ -263,8 +270,29 @@ export class SceneSync {
         visual = undefined;
       }
       if (!visual) {
-        const group = makeUnitModel(kind);
-        visual = { group, kind, carrying: 0, carryBox: null, hpBar: null, rig: rigOf(group) };
+        const skinned = makeCharacter(kind);
+        if (skinned) {
+          visual = {
+            group: skinned.group,
+            kind,
+            carrying: 0,
+            carryBox: null,
+            hpBar: null,
+            char: skinned.visual,
+            rig: null,
+          };
+        } else {
+          const group = makeUnitModel(kind);
+          visual = {
+            group,
+            kind,
+            carrying: 0,
+            carryBox: null,
+            hpBar: null,
+            char: null,
+            rig: rigOf(group),
+          };
+        }
         this.#visuals.set(id, visual);
         this.#scene.add(visual.group);
       }
@@ -314,11 +342,25 @@ export class SceneSync {
           visual.group.rotation.y = Math.atan2(dx, dy);
         }
       }
-      // Limb animation from what the unit is doing.
-      animate(visual.rig, id, now, moving, latest.aux[a + 4]!, carrying > 0);
+      // Animation from what the unit is doing: skinned clips when the GLB
+      // assets are loaded, the procedural gait engine otherwise.
+      const action = latest.aux[a + 4]!;
+      if (visual.char) {
+        let key: AnimKey;
+        if (moving) key = visual.char.jog && carrying === 0 ? 'jog' : 'walk';
+        else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
+        else if (action === ACTION.work) key = 'work';
+        else key = 'idle';
+        playAnimation(visual.char, key, hash2(id, 3));
+        visual.char.mixer.update(dt);
+      } else if (visual.rig) {
+        animate(visual.rig, id, now, moving, action, carrying > 0);
+      }
 
       // Body bob synced to the gait: high at mid-stance, low at heel-strike.
-      const bob = moving ? Math.abs(Math.cos(now * 0.012 + id * 2.1)) * 0.025 : 0;
+      // (Skinned clips carry their own bob.)
+      const bob =
+        moving && !visual.char ? Math.abs(Math.cos(now * 0.012 + id * 2.1)) * 0.025 : 0;
       const nudgeX = moving ? 0 : (hash2(id, 1) - 0.5) * 0.24;
       const nudgeY = moving ? 0 : (hash2(id, 2) - 0.5) * 0.24;
       const px = x + nudgeX;

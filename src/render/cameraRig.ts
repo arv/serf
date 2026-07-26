@@ -24,6 +24,11 @@ export class CameraRig {
   constructor(canvas: HTMLCanvasElement) {
     this.#canvas = canvas;
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
+    // ?zoom=6 boots close-in — handy for inspecting people and props.
+    const zoom = Number(new URLSearchParams(location.search).get('zoom'));
+    if (Number.isFinite(zoom) && zoom > 0) {
+      this.#viewHeight = clamp(zoom, MIN_VIEW, MAX_VIEW);
+    }
     this.resize();
     this.#apply();
 

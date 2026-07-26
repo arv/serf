@@ -131,6 +131,26 @@ function applyAdmin(world: World, action: AdminAction): void {
     case 'finishResearch':
       if (world.techs.active) world.techs.active.ticksLeft = 1;
       break;
+    case 'spawnParade': {
+      // One of each unit kind by the storehouse door — a visual test rig for
+      // wardrobe and animation work. Player-owned so nobody starts a war.
+      const sh = findStorehouse(world);
+      if (!sh) break;
+      const kinds = [
+        'serf',
+        'worker',
+        'samurai',
+        'ashigaru',
+        'archer',
+        'bandit',
+        'banditArcher',
+        'ronin',
+      ] as const;
+      kinds.forEach((k, i) => {
+        spawnUnit(world, k, 'player', sh.x - 2.5 + i, sh.y + sh.h + 2.5);
+      });
+      break;
+    }
   }
 }
 

@@ -13,7 +13,7 @@ export { goodColors } from './palette';
  * footprint center at ground level.
  */
 
-function mesh(geo: THREE.BufferGeometry, color: number): THREE.Mesh {
+export function mesh(geo: THREE.BufferGeometry, color: number): THREE.Mesh {
   const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
   m.castShadow = true;
   m.receiveShadow = true;
@@ -682,7 +682,7 @@ interface PersonStyle {
 }
 
 /** Smooth surface of revolution from a (radius, height) profile. */
-function lathe(profile: [number, number][], color: number, segments = 10): THREE.Mesh {
+export function lathe(profile: [number, number][], color: number, segments = 10): THREE.Mesh {
   const points = profile.map(([r, y]) => new THREE.Vector2(r, y));
   return mesh(new THREE.LatheGeometry(points, segments), color);
 }
@@ -899,8 +899,9 @@ function person(style: PersonStyle): THREE.Group {
   return g;
 }
 
-// Hand tools/weapons (positioned relative to the fist).
-function hatchet(hand: THREE.Group): void {
+// Hand tools/weapons (positioned relative to the fist). Exported so the
+// skinned-character pipeline can bolt the same props onto GLB hand bones.
+export function hatchet(hand: THREE.Group): void {
   const haft = mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.34, 5), palette.woodLight);
   haft.position.y = 0.1;
   hand.add(haft);
@@ -909,7 +910,7 @@ function hatchet(hand: THREE.Group): void {
   hand.add(headM);
 }
 
-function katanaBlade(hand: THREE.Group, big = false): void {
+export function katanaBlade(hand: THREE.Group, big = false): void {
   const blade = mesh(
     new THREE.BoxGeometry(0.035, big ? 0.6 : 0.5, 0.05),
     goodColorsLocal.katana,
@@ -921,7 +922,7 @@ function katanaBlade(hand: THREE.Group, big = false): void {
   hand.add(guard);
 }
 
-function yariSpear(hand: THREE.Group): void {
+export function yariSpear(hand: THREE.Group): void {
   const shaft = mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.15, 5), goodColorsLocal.yari);
   shaft.position.y = 0.3;
   hand.add(shaft);
@@ -930,13 +931,13 @@ function yariSpear(hand: THREE.Group): void {
   hand.add(tip);
 }
 
-function crudeBlade(hand: THREE.Group): void {
+export function crudeBlade(hand: THREE.Group): void {
   const blade = mesh(new THREE.BoxGeometry(0.04, 0.42, 0.05), palette.rockDark);
   blade.position.y = 0.22;
   hand.add(blade);
 }
 
-function bowInHand(color: number): (hand: THREE.Group) => void {
+export function bowInHand(color: number): (hand: THREE.Group) => void {
   return (hand) => {
     const bow = mesh(new THREE.TorusGeometry(0.3, 0.022, 5, 12, Math.PI), color);
     bow.rotation.z = Math.PI / 2;
@@ -944,7 +945,7 @@ function bowInHand(color: number): (hand: THREE.Group) => void {
   };
 }
 
-function quiver(torso: THREE.Group): void {
+export function quiver(torso: THREE.Group): void {
   const q = mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.28, 6), palette.wood);
   q.position.set(-0.08, 0.22, -0.13);
   q.rotation.z = 0.3;
