@@ -3,6 +3,7 @@ import { TECH_BRANCHES, TECH_DEFS, type TechId } from '../sim/defs/techs';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { GoodIcon } from './icons';
 import { TechTip, tooltip } from './tooltip';
+import { buildingName, techName } from './names';
 import { stock, techs } from './store';
 
 const BRANCH_LABELS: Record<string, string> = {
@@ -66,7 +67,7 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
         .tech-note { font-size: 11px; opacity: 0.75; margin-top: 6px; }
       `}</style>
       <Show when={!techs().hasTerakoya}>
-        <div class="tech-note">Build a Terakoya to begin research.</div>
+        <div class="tech-note">Build a {buildingName('terakoya')} to begin research.</div>
       </Show>
       <For each={TECH_BRANCHES}>
         {(branch) => (
@@ -87,7 +88,7 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
                 >
                   <b>
                     {state(id) === 'done' ? '✓ ' : ''}
-                    {TECH_DEFS[id].name}
+                    {techName(id)}
                   </b>
                   <span class="cost">
                     <For each={Object.entries(TECH_DEFS[id].cost) as [GoodId, number][]}>

@@ -7,11 +7,7 @@ import { GoodIcon, LockIcon } from './icons';
 import { TipWrap, UnitTip } from './tooltip';
 import { selectedBuilding, selection, techs } from './store';
 
-const UNIT_LABELS: Record<string, string> = {
-  samurai: 'Samurai',
-  ashigaru: 'Ashigaru',
-  archer: 'Archer',
-};
+import { buildingName, techName, unitName } from './names';
 
 /** Which tech gates a trainable unit (mirrors unlockUnit effects). */
 function unitTechGate(unit: UnitTypeId): TechId | undefined {
@@ -49,7 +45,9 @@ export function SelectionPanel(props: { onTrain: (buildingId: number, unit: Unit
           const def = () => BUILDING_DEFS[b().type];
           return (
             <div class="hud-selection panel">
-              <b style={{ 'font-family': "Georgia, 'Times New Roman', serif" }}>{def().name}</b>
+              <b style={{ 'font-family': "Georgia, 'Times New Roman', serif" }}>
+                {buildingName(b().type)}
+              </b>
               <span style={{ 'margin-left': '10px', opacity: 0.8 }}>
                 HP {b().hp}/{b().maxHp}
               </span>
@@ -92,7 +90,7 @@ export function SelectionPanel(props: { onTrain: (buildingId: number, unit: Unit
                             <UnitTip
                               unit={option.unit}
                               cost={option.cost}
-                              lockedBy={locked() ? TECH_DEFS[gate!].name : null}
+                              lockedBy={locked() ? techName(gate!) : null}
                             />
                           )}
                         >
@@ -103,7 +101,7 @@ export function SelectionPanel(props: { onTrain: (buildingId: number, unit: Unit
                             <Show when={locked()}>
                               <LockIcon />{' '}
                             </Show>
-                            {UNIT_LABELS[option.unit] ?? option.unit}
+                            {unitName(option.unit)}
                             <span class="cost">
                               <GoodsLine amounts={option.cost} />
                             </span>

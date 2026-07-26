@@ -30,6 +30,8 @@ import {
   techs,
   toasts,
 } from './store';
+import { buildingName } from './names';
+import { THEME } from '../render/medieval';
 
 const SPEEDS = [
   { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },
@@ -37,15 +39,20 @@ const SPEEDS = [
   { value: 3, icon: FastIcon, label: 'Fast forward', hint: 'Runs the village at 3× speed.' },
 ];
 
-/** Build menu grouped the way a daimyo thinks. */
+/** Build menu grouped the way a lord thinks. Chips follow the theme. */
+const MEDIEVAL = THEME === 'medieval';
 const BUILD_GROUPS: { label: string; kanji: string; types: BuildingTypeId[] }[] = [
-  { label: 'Village', kanji: '村', types: ['bambooHut', 'quarry', 'well', 'ricePaddy', 'terakoya'] },
+  {
+    label: 'Village',
+    kanji: MEDIEVAL ? '⌂' : '村',
+    types: ['bambooHut', 'quarry', 'well', 'ricePaddy', 'terakoya'],
+  },
   {
     label: 'Industry',
-    kanji: '工',
+    kanji: MEDIEVAL ? '⚒' : '工',
     types: ['sakeBrewery', 'ironMine', 'silverMine', 'goldMine', 'swordsmith', 'spearmaker', 'bowyer'],
   },
-  { label: 'War', kanji: '戦', types: ['dojo'] },
+  { label: 'War', kanji: MEDIEVAL ? '⚔' : '戦', types: ['dojo'] },
 ];
 
 export function Hud(props: {
@@ -286,7 +293,7 @@ export function Hud(props: {
                       when={unlocked(type)}
                       fallback={
                         <button disabled>
-                          <LockIcon /> {BUILDING_DEFS[type].name}
+                          <LockIcon /> {buildingName(type)}
                         </button>
                       }
                     >
@@ -295,7 +302,7 @@ export function Hud(props: {
                         disabled={!affordable(type) && placing() !== type}
                         onClick={() => props.onPlace(placing() === type ? null : type)}
                       >
-                        {BUILDING_DEFS[type].name}
+                        {buildingName(type)}
                         <span class="cost">
                           <For each={cost(type)}>
                             {([good, n]) => (
