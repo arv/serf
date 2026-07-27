@@ -258,6 +258,13 @@ export interface CharacterVisual {
   /** World-unit holder on the chest bone: carried goods parented here ride
    * the walk animation (bob, sway) instead of floating rigidly. */
   carryAnchor?: THREE.Group;
+  /** World-unit holder in the right hand for swappable work tools. */
+  toolAnchor?: THREE.Group;
+  /** The wardrobe's own hand prop (axe, sword...), hidden while a work
+   * tool is swapped in. */
+  defaultTool?: THREE.Object3D;
+  /** WORK.* currently equipped via setWorkTool (0 = the default prop). */
+  toolKind: number;
 }
 
 let assets: CharacterAssets | null = null;
@@ -466,6 +473,76 @@ async function loadKayKitCharacters(): Promise<boolean> {
 
 const kkTintMaterials = new Map<string, THREE.MeshStandardMaterial>();
 
+// --- Swappable work tools (the free packs ship no hammer/pickaxe) --------
+// Authored in world units: grip at the origin, handle up +Y, head at the
+// top — the same frame the pack's axe sits in after its fix-up.
+
+const toolMesh = (geo: THREE.BufferGeometry, color: number): THREE.Mesh => {
+  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
+  m.castShadow = true;
+  return m;
+};
+
+function malletProp(): THREE.Group {
+  const g = new THREE.Group();
+  const handle = toolMesh(new THREE.CylinderGeometry(0.016, 0.02, 0.3, 6), 0x8a6a42);
+  handle.position.y = 0.12;
+  const head = toolMesh(new THREE.CylinderGeometry(0.05, 0.05, 0.13, 8), 0x6b4e2e);
+  head.rotation.z = Math.PI / 2;
+  head.position.y = 0.27;
+  g.add(handle, head);
+  return g;
+}
+
+function pickaxeProp(): THREE.Group {
+  const g = new THREE.Group();
+  const handle = toolMesh(new THREE.CylinderGeometry(0.016, 0.02, 0.34, 6), 0x8a6a42);
+  handle.position.y = 0.14;
+  for (const side of [-1, 1]) {
+    const spike = toolMesh(new THREE.ConeGeometry(0.028, 0.17, 6), 0x77848e);
+    spike.rotation.x = (side * Math.PI) / 2;
+    spike.rotation.z = side * 0.22;
+    spike.position.set(0, 0.3, side * 0.08);
+    g.add(spike);
+  }
+  return g;
+}
+
+function spadeProp(): THREE.Group {
+  const g = new THREE.Group();
+  const handle = toolMesh(new THREE.CylinderGeometry(0.014, 0.016, 0.34, 6), 0x8a6a42);
+  handle.position.y = 0.14;
+  const blade = toolMesh(new THREE.BoxGeometry(0.09, 0.12, 0.015), 0x8b95a0);
+  blade.position.y = 0.34;
+  g.add(handle, blade);
+  return g;
+}
+
+const WORK_TOOLS: Record<number, () => THREE.Group> = {
+  3: malletProp, // WORK.hammer
+  2: pickaxeProp, // WORK.pickaxe
+  4: spadeProp, // WORK.dig
+};
+
+/**
+ * Equip the right tool for a work animation: mallet for building and
+ * smithing, pickaxe at the rock faces, spade in the fields. Kind 0 (or an
+ * unmapped kind) restores the wardrobe's own prop. No-op for characters
+ * without a tool anchor (the procedural fallback).
+ */
+export function setWorkTool(visual: CharacterVisual, workKind: number): void {
+  if (!visual.toolAnchor || visual.toolKind === workKind) return;
+  visual.toolKind = workKind;
+  visual.toolAnchor.clear();
+  const make = WORK_TOOLS[workKind];
+  if (make) {
+    visual.toolAnchor.add(make());
+    if (visual.defaultTool) visual.defaultTool.visible = false;
+  } else if (visual.defaultTool) {
+    visual.defaultTool.visible = true;
+  }
+}
+
 function makeKayKitCharacter(
   kindCode: number,
 ): { group: THREE.Group; visual: CharacterVisual } | null {
@@ -512,8 +589,9 @@ function makeKayKitCharacter(
     if (offset) inst.position.set(...offset);
     if (rot) inst.rotation.set(...rot);
     anchor.add(inst);
+    return { inst, anchor };
   };
-  slot('handslot.r', spec.right, undefined, spec.rightRot);
+  const rightHand = slot('handslot.r', spec.right, undefined, spec.rightRot);
   slot('handslot.l', spec.left);
   slot('chest', spec.back, [0, 0, -0.14]);
 
@@ -529,6 +607,17 @@ function makeKayKitCharacter(
     carryAnchor.scale.setScalar(1 / s);
     carryAnchor.position.set(0, 0.02, 0.22);
     chest.add(carryAnchor);
+  }
+
+  // Work-tool anchor in the right hand, counter-scaled to world units so
+  // the procedural mallet/pickaxe/spade drop in at their authored size.
+  let toolAnchor: THREE.Group | undefined;
+  const hand =
+    root.getObjectByName('handslot.r') ?? root.getObjectByName('handslotr');
+  if (hand) {
+    toolAnchor = new THREE.Group();
+    toolAnchor.scale.setScalar(1 / s);
+    hand.add(toolAnchor);
   }
 
   const inner = new THREE.Group();
@@ -561,6 +650,9 @@ function makeKayKitCharacter(
       jog: spec.jog ?? false,
       ranged: spec.ranged ?? false,
       carryAnchor,
+      toolAnchor,
+      defaultTool: rightHand?.inst,
+      toolKind: 0,
     },
   };
 }
@@ -738,6 +830,7 @@ export function makeCharacter(
       current: null,
       jog: wardrobe.jog ?? false,
       ranged: wardrobe.ranged ?? false,
+      toolKind: 0,
     },
   };
 }

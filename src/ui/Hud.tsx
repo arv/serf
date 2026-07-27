@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from 'solid-js';
+import { For, Show } from 'solid-js';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { TechId } from '../sim/defs/techs';
@@ -23,6 +23,8 @@ import {
   invariantViolations,
   outcome,
   placing,
+  openPanel,
+  setOpenPanel,
   setTechPanelOpen,
   speed,
   stock,
@@ -65,8 +67,15 @@ export function Hud(props: {
   onAdmin: (action: AdminAction) => void;
 }) {
   const adminMode = new URLSearchParams(location.search).has('admin');
-  const [menuOpen, setMenuOpen] = createSignal(false);
-  const [buildOpen, setBuildOpen] = createSignal(false);
+  // All popups share one slot in the store: opening one closes the rest.
+  const menuOpen = (): boolean => openPanel() === 'menu';
+  const setMenuOpen = (open: boolean): void => {
+    setOpenPanel(open ? 'menu' : null);
+  };
+  const buildOpen = (): boolean => openPanel() === 'build';
+  const setBuildOpen = (open: boolean): void => {
+    setOpenPanel(open ? 'build' : null);
+  };
   const cost = (type: BuildingTypeId) => Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
   const affordable = (type: BuildingTypeId): boolean => {
     const s = stock();

@@ -40,6 +40,8 @@ export class Controls {
   #dragStart: { x: number; y: number } | null = null;
   #dragging = false;
   #bandEl: HTMLDivElement;
+  #hoverUnit = -1;
+  #hoverBuilding = -1;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -102,6 +104,16 @@ export class Controls {
     return this.#selection;
   }
 
+  /** Unit under the cursor (any owner), for hover hp bars. -1 when none. */
+  get hoverUnit(): number {
+    return this.#hoverUnit;
+  }
+
+  /** Building under the cursor, for hover hp bars. -1 when none. */
+  get hoverBuilding(): number {
+    return this.#hoverBuilding;
+  }
+
   /** Drop ids that no longer exist (deaths); call once per frame. */
   prune(): void {
     let changed = false;
@@ -144,6 +156,7 @@ export class Controls {
   };
 
   #onMove = (e: PointerEvent): void => {
+    this.#updateHover(e.clientX, e.clientY);
     const type = placing();
     if (type) {
       const origin = this.#placementOrigin(e.clientX, e.clientY);
@@ -185,6 +198,39 @@ export class Controls {
       this.#selectAtPoint(e.clientX, e.clientY, e.shiftKey);
     }
   };
+
+  /** Track what's under the cursor — any owner; hp is interesting on foes. */
+  #updateHover(px: number, py: number): void {
+    const now = performance.now();
+    let bestId = -1;
+    let bestDist = CLICK_RADIUS_PX * CLICK_RADIUS_PX;
+    for (const id of this.#sync.latestIds.keys()) {
+      const pos = this.#sync.positionOf(id, now);
+      if (!pos) continue;
+      const groundY = this.#heights.at(pos.x, pos.y);
+      const screen = worldToScreen(this.#camera, this.#canvas, pos.x, groundY + 0.4, pos.y);
+      if (!screen) continue;
+      const dx = screen.x - px;
+      const dy = screen.y - py;
+      const d = dx * dx + dy * dy;
+      if (d < bestDist) {
+        bestDist = d;
+        bestId = id;
+      }
+    }
+    this.#hoverUnit = bestId;
+    this.#hoverBuilding = -1;
+    if (bestId < 0) {
+      const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
+      if (ground) {
+        const tx = Math.floor(ground.x);
+        const ty = Math.floor(ground.z);
+        if (inBounds(tx, ty)) {
+          this.#hoverBuilding = this.#mirror.map.buildingAt[tileIdx(tx, ty)]!;
+        }
+      }
+    }
+  }
 
   #playerUnitScreenPos(id: number, now: number): { x: number; y: number } | null {
     if (this.#sync.ownerOf(id) !== OWNER_CODE.player) return null;

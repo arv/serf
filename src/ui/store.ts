@@ -31,7 +31,13 @@ export const [techs, setTechs] = createSignal<TechSnap>({
   pavingUnlocked: false,
   hasTerakoya: false,
 });
-export const [techPanelOpen, setTechPanelOpen] = createSignal(false);
+/** At most one HUD popup at a time — opening any closes the others. */
+export type HudPanel = 'build' | 'menu' | 'tech';
+export const [openPanel, setOpenPanel] = createSignal<HudPanel | null>(null);
+export const techPanelOpen = (): boolean => openPanel() === 'tech';
+export const setTechPanelOpen = (open: boolean): void => {
+  setOpenPanel(open ? 'tech' : null);
+};
 
 /** Selected building (mutually exclusive with unit selection). */
 export const [selectedBuilding, setSelectedBuilding] = createSignal<BuildingSnap | null>(null);

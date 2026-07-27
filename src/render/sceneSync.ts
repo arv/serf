@@ -8,7 +8,13 @@ import {
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
 import { makeCarryProp, makeUnitModel } from './models';
-import { makeCharacter, playAnimation, type AnimKey, type CharacterVisual } from './characters';
+import {
+  makeCharacter,
+  playAnimation,
+  setWorkTool,
+  type AnimKey,
+  type CharacterVisual,
+} from './characters';
 import type { HeightField } from './heightField';
 
 /** Named joint pivots of an articulated person (see models.ts person()). */
@@ -277,7 +283,7 @@ export class SceneSync {
     return clamp((now - this.#reader.latestObservedAt) / PUBLISH_INTERVAL_MS, 0, 1);
   }
 
-  update(now: number): void {
+  update(now: number, hoverId = -1, selected?: ReadonlySet<number>): void {
     this.#reader.poll(now);
     const { latest, prev } = this.#reader;
     const alpha = this.#alpha(now);
@@ -324,9 +330,10 @@ export class SceneSync {
         this.#scene.add(visual.group);
       }
 
-      // Health bar when damaged.
+      // Health bar when damaged, hovered, or selected.
       const hpPct = latest.aux[a + 2]! / 255;
-      if (hpPct < 0.995) {
+      const highlighted = id === hoverId || (selected?.has(id) ?? false);
+      if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead) {
         if (!visual.hpBar) {
           visual.hpBar = new THREE.Mesh(hpBarGeometry, hpBarMaterial(hpPct));
           visual.hpBar.position.y = 1.15;
@@ -391,6 +398,8 @@ export class SceneSync {
         else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
         else if (action === ACTION.work) key = workAnimKey(workKind);
         else key = 'idle';
+        // Right tool for the job: mallet on sites, pickaxe at rock faces.
+        setWorkTool(visual.char, !moving && action === ACTION.work ? workKind : 0);
         if (dead && !visual.char.actions.has('death')) {
           // No death clip in this library: tip the body over instead.
           tipOver(visual.group, dt);

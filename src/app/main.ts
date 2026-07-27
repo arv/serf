@@ -127,7 +127,8 @@ async function boot(): Promise<void> {
 
   function loop(): void {
     const now = performance.now();
-    sync.update(now);
+    sync.update(now, controls.hoverUnit, controls.selected);
+    buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
     controls.prune();
     selectionFx.update(controls.selected, sync, now);
     water.update(now);

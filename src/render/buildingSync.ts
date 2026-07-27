@@ -15,6 +15,8 @@ interface BuildingVisual {
   /** Model height above ground, for floating the hp bar. */
   topY: number;
   hpBar?: { group: THREE.Group; fg: THREE.Mesh };
+  /** Latest hp fraction, for hover bars on healthy buildings. */
+  pct: number;
 }
 
 const HP_BAR_W = 1.1;
@@ -82,18 +84,13 @@ export class BuildingSync {
         }
       }
 
-      // Damage bar: appears once hurt, refills toward green as if repaired.
-      const pct = b.maxHp > 0 ? b.hp / b.maxHp : 1;
-      if (pct < 1 && !v.hpBar) {
+      // Damage bar: appears once hurt (hover() shows it on healthy ones).
+      v.pct = b.maxHp > 0 ? b.hp / b.maxHp : 1;
+      if (v.pct < 1 && !v.hpBar) {
         v.hpBar = makeHpBar(v.topY);
         v.root.add(v.hpBar.group);
       }
-      if (v.hpBar) {
-        const fg = v.hpBar.fg;
-        fg.scale.x = Math.max(pct, 0.02);
-        fg.position.x = (-(HP_BAR_W - 0.06) * (1 - fg.scale.x)) / 2;
-        (fg.material as THREE.MeshBasicMaterial).color.copy(hpColor(pct));
-      }
+      this.#styleBar(v, b.id === this.#hoverId || b.id === this.#selectedId);
     }
     for (const id of [...this.#visuals.keys()]) {
       if (!seen.has(id)) this.#dispose(id);
@@ -147,7 +144,34 @@ export class BuildingSync {
 
     const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
     this.#scene.add(root);
-    return { root, state: b.state, frame, model, clip, topY };
+    return { root, state: b.state, frame, model, clip, topY, pct: 1 };
+  }
+
+  #hoverId = -1;
+  #selectedId = -1;
+
+  #styleBar(v: BuildingVisual, highlighted: boolean): void {
+    if (!v.hpBar) return;
+    v.hpBar.group.visible = v.pct < 1 || highlighted;
+    const fg = v.hpBar.fg;
+    fg.scale.x = Math.max(v.pct, 0.02);
+    fg.position.x = (-(HP_BAR_W - 0.06) * (1 - fg.scale.x)) / 2;
+    (fg.material as THREE.MeshBasicMaterial).color.copy(hpColor(v.pct));
+  }
+
+  /** Hovered or selected buildings show their hp bar even at full health. */
+  highlight(hover: number, selected: number): void {
+    if (hover === this.#hoverId && selected === this.#selectedId) return;
+    this.#hoverId = hover;
+    this.#selectedId = selected;
+    for (const [id, v] of this.#visuals) {
+      const lit = id === hover || id === selected;
+      if (lit && !v.hpBar) {
+        v.hpBar = makeHpBar(v.topY);
+        v.root.add(v.hpBar.group);
+      }
+      this.#styleBar(v, lit);
+    }
   }
 
   #dispose(id: number): void {
