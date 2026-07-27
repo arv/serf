@@ -40,6 +40,95 @@ const CLIP_NAMES: Record<AnimKey, string> = {
   work: 'Sword_Attack', // with a hatchet in hand it reads as the chop
 };
 
+// --- KayKit path (medieval theme) ------------------------------------------
+// Adventurers 2.0 characters + Character Animations 1.1 (both CC0, both on
+// the same Rig_Medium skeleton, so library clips drive every character
+// directly). Weapons are pack props dropped into the rig's handslot bones.
+
+const KK_DIR = '/models/kaykit/';
+const KK_CHARACTER_FILES = ['Knight', 'Barbarian', 'Rogue', 'Rogue_Hooded', 'Mage', 'Ranger'];
+const KK_ANIMATION_FILES = ['MovementBasic', 'General', 'CombatMelee', 'CombatRanged', 'Tools'];
+const KK_PROP_FILES = [
+  'sword_1handed',
+  'shield_badge',
+  'axe_1handed',
+  'axe_2handed',
+  'staff',
+  'bow_withString',
+  'dagger',
+  'quiver',
+];
+
+const KK_CLIP_NAMES: Record<AnimKey, string> = {
+  idle: 'Idle_A',
+  walk: 'Walking_A',
+  jog: 'Running_A',
+  attack: 'Melee_1H_Attack_Chop',
+  shoot: 'Ranged_Bow_Draw',
+  work: 'Chopping', // a real woodcutting loop, at last
+};
+
+interface KKSpec {
+  file: string;
+  /** Mesh names to hide (capes, hats) so kinds read apart. */
+  hide?: string[];
+  right?: string;
+  left?: string;
+  /** Prop strapped to the chest (quivers). */
+  back?: string;
+  /** Multiplies the texture — bandits go grim. */
+  tint?: number;
+  scale?: number;
+  jog?: boolean;
+  ranged?: boolean;
+  attackClip?: string;
+}
+
+const KK_SPECS = new Map<number, KKSpec>([
+  [1, { file: 'Rogue', hide: ['Rogue_Cape'] }],
+  [2, { file: 'Barbarian', hide: ['Barbarian_BearHat'], right: 'axe_1handed' }],
+  [3, { file: 'Knight', right: 'sword_1handed', left: 'shield_badge', jog: true }],
+  [4, {
+    file: 'Knight',
+    hide: ['Knight_Cape', 'Knight_HelmetVisor'],
+    right: 'staff',
+    jog: true,
+    attackClip: 'Melee_1H_Attack_Stab',
+  }],
+  [5, { file: 'Ranger', right: 'bow_withString', jog: true, ranged: true }],
+  [6, { file: 'Rogue', tint: 0x7c8290, right: 'dagger', jog: true }],
+  [7, {
+    file: 'Rogue_Hooded',
+    tint: 0x7c8290,
+    right: 'bow_withString',
+    back: 'quiver',
+    jog: true,
+    ranged: true,
+  }],
+  [8, {
+    file: 'Barbarian',
+    tint: 0x94848c,
+    right: 'axe_2handed',
+    scale: 1.18,
+    jog: true,
+    attackClip: 'Melee_2H_Attack_Chop',
+  }],
+]);
+
+interface KKCharacter {
+  scene: THREE.Group;
+  scale: number;
+  footY: number;
+}
+
+interface KKAssets {
+  chars: Map<string, KKCharacter>;
+  clips: Map<string, THREE.AnimationClip>;
+  props: Map<string, THREE.Group>;
+}
+
+let kkAssets: KKAssets | null = null;
+
 /** Bones whose triangles make up the kimono shell (knee-length, sleeved). */
 const ROBE_BONES = new Set([
   'pelvis',
@@ -291,11 +380,131 @@ function armorPlates(robe: number): THREE.Group {
   return g;
 }
 
+/** Matte, shadow-casting setup shared by every loaded KayKit scene. */
+function prepKayKitScene(scene: THREE.Group): void {
+  scene.traverse((o) => {
+    if (o instanceof THREE.Mesh || o instanceof THREE.SkinnedMesh) {
+      o.castShadow = true;
+      const m = o.material as THREE.MeshStandardMaterial;
+      if (m?.isMeshStandardMaterial) {
+        m.roughness = 0.95;
+        m.metalness = 0;
+      }
+    }
+  });
+}
+
+async function loadKayKitCharacters(): Promise<boolean> {
+  try {
+    const loader = new GLTFLoader();
+    const chars = new Map<string, KKCharacter>();
+    const clips = new Map<string, THREE.AnimationClip>();
+    const props = new Map<string, THREE.Group>();
+    await Promise.all([
+      ...KK_CHARACTER_FILES.map(async (f) => {
+        const gltf = await loader.loadAsync(`${KK_DIR}${f}.glb`);
+        prepKayKitScene(gltf.scene);
+        const bbox = new THREE.Box3().setFromObject(gltf.scene);
+        const height = bbox.max.y - bbox.min.y;
+        chars.set(f, {
+          scene: gltf.scene,
+          scale: TARGET_HEIGHT / height,
+          footY: -bbox.min.y,
+        });
+      }),
+      ...KK_ANIMATION_FILES.map(async (f) => {
+        const gltf = await loader.loadAsync(`${KK_DIR}Rig_Medium_${f}.glb`);
+        for (const clip of gltf.animations) clips.set(clip.name, clip);
+      }),
+      ...KK_PROP_FILES.map(async (f) => {
+        const gltf = await loader.loadAsync(`${KK_DIR}${f}.gltf`);
+        prepKayKitScene(gltf.scene);
+        props.set(f, gltf.scene);
+      }),
+    ]);
+    kkAssets = { chars, clips, props };
+    return true;
+  } catch (err) {
+    console.warn('[characters] KayKit assets failed; procedural people:', err);
+    return false;
+  }
+}
+
+const kkTintMaterials = new Map<string, THREE.MeshStandardMaterial>();
+
+function makeKayKitCharacter(
+  kindCode: number,
+): { group: THREE.Group; visual: CharacterVisual } | null {
+  if (!kkAssets) return null;
+  const spec = KK_SPECS.get(kindCode) ?? KK_SPECS.get(1)!;
+  const char = kkAssets.chars.get(spec.file);
+  if (!char) return null;
+  const root = skeletonClone(char.scene);
+
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh) && !(o instanceof THREE.SkinnedMesh)) return;
+    if (spec.hide?.includes(o.name)) o.visible = false;
+    if (spec.tint !== undefined) {
+      const m = o.material as THREE.MeshStandardMaterial;
+      const key = `${spec.file}:${o.name}:${spec.tint}`;
+      let tinted = kkTintMaterials.get(key);
+      if (!tinted) {
+        tinted = m.clone();
+        tinted.color.set(spec.tint);
+        kkTintMaterials.set(key, tinted);
+      }
+      o.material = tinted;
+    }
+  });
+
+  // Pack props are authored for the rig's handslot bones — identity drop-in.
+  const slot = (bone: string, file: string | undefined, offset?: [number, number, number]) => {
+    if (!file) return;
+    const prop = kkAssets!.props.get(file);
+    const anchor = root.getObjectByName(bone);
+    if (!prop || !anchor) return;
+    const inst = prop.clone();
+    if (offset) inst.position.set(...offset);
+    anchor.add(inst);
+  };
+  slot('handslot.r', spec.right);
+  slot('handslot.l', spec.left);
+  slot('chest', spec.back, [0, 0, -0.14]);
+
+  const s = char.scale * (spec.scale ?? 1);
+  const inner = new THREE.Group();
+  inner.position.y = char.footY * s;
+  inner.scale.setScalar(s);
+  inner.add(root);
+  const group = new THREE.Group();
+  group.add(inner);
+
+  const mixer = new THREE.AnimationMixer(root);
+  const actions = new Map<AnimKey, THREE.AnimationAction>();
+  for (const key of Object.keys(KK_CLIP_NAMES) as AnimKey[]) {
+    const name = key === 'attack' && spec.attackClip ? spec.attackClip : KK_CLIP_NAMES[key];
+    const clip = kkAssets.clips.get(name);
+    if (clip) actions.set(key, mixer.clipAction(clip));
+  }
+
+  return {
+    group,
+    visual: {
+      mixer,
+      actions,
+      current: null,
+      jog: spec.jog ?? false,
+      ranged: spec.ranged ?? false,
+    },
+  };
+}
+
 /**
  * Load the character + animation library once. Returns null (and the
  * renderer falls back to procedural people) if the assets can't load.
  */
 export async function loadCharacterAssets(): Promise<boolean> {
+  if (THEME === 'medieval') return loadKayKitCharacters();
   try {
     const loader = new GLTFLoader();
     const [charGltf, animGltf] = await Promise.all([
@@ -369,7 +578,7 @@ export async function loadCharacterAssets(): Promise<boolean> {
 }
 
 export function charactersReady(): boolean {
-  return assets !== null;
+  return assets !== null || kkAssets !== null;
 }
 
 function attachToBone(
@@ -398,6 +607,7 @@ function attachToBone(
 export function makeCharacter(
   kindCode: number,
 ): { group: THREE.Group; visual: CharacterVisual } | null {
+  if (kkAssets) return makeKayKitCharacter(kindCode);
   if (!assets) return null;
   const wardrobe = WARDROBES.get(kindCode) ?? WARDROBES.get(1)!;
   const root = skeletonClone(assets.base);
