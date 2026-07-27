@@ -96,6 +96,8 @@ interface KKSpec {
   /** Mesh names to hide (capes, hats) so kinds read apart. */
   hide?: string[];
   right?: string;
+  /** Euler fix-up for right-hand props that load facing the wrong way. */
+  rightRot?: [number, number, number];
   left?: string;
   /** Prop strapped to the chest (quivers). */
   back?: string;
@@ -109,7 +111,13 @@ interface KKSpec {
 
 const KK_SPECS = new Map<number, KKSpec>([
   [1, { file: 'Rogue', hide: ['Rogue_Cape'] }],
-  [2, { file: 'Barbarian', hide: ['Barbarian_BearHat'], right: 'axe_1handed' }],
+  [2, {
+    file: 'Barbarian',
+    hide: ['Barbarian_BearHat'],
+    right: 'axe_1handed',
+    // The axe loads blade-backwards in the grip; spin it to face the swing.
+    rightRot: [0, Math.PI, 0],
+  }],
   [3, { file: 'Knight', right: 'sword_1handed', left: 'shield_badge', jog: true }],
   [4, {
     file: 'Knight',
@@ -484,7 +492,12 @@ function makeKayKitCharacter(
   });
 
   // Pack props are authored for the rig's handslot bones — identity drop-in.
-  const slot = (bone: string, file: string | undefined, offset?: [number, number, number]) => {
+  const slot = (
+    bone: string,
+    file: string | undefined,
+    offset?: [number, number, number],
+    rot?: [number, number, number],
+  ) => {
     if (!file) return;
     const prop = kkAssets!.props.get(file);
     // GLTFLoader sanitizes node names ('handslot.r' loads as 'handslotr'),
@@ -497,9 +510,10 @@ function makeKayKitCharacter(
     }
     const inst = prop.clone();
     if (offset) inst.position.set(...offset);
+    if (rot) inst.rotation.set(...rot);
     anchor.add(inst);
   };
-  slot('handslot.r', spec.right);
+  slot('handslot.r', spec.right, undefined, spec.rightRot);
   slot('handslot.l', spec.left);
   slot('chest', spec.back, [0, 0, -0.14]);
 

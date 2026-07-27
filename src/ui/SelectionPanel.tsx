@@ -5,7 +5,7 @@ import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
 import { TipWrap, UnitTip } from './tooltip';
-import { selectedBuilding, selection, techs } from './store';
+import { selectedBuilding, selection, setTechPanelOpen, techs } from './store';
 
 import { buildingName, techName, unitName } from './names';
 
@@ -83,6 +83,19 @@ export function SelectionPanel(props: { onTrain: (buildingId: number, unit: Unit
                         ? 'worker on the way'
                         : 'needs a worker!'}
                 </span>
+              </Show>
+              <Show when={b().type === 'terakoya' && b().state === 'built'}>
+                <div style={{ 'margin-top': '6px', display: 'flex', gap: '8px', 'align-items': 'center' }}>
+                  <button onClick={() => setTechPanelOpen(true)}>Research…</button>
+                  <Show when={techs().active}>
+                    {(a) => (
+                      <span style={{ opacity: 0.85 }}>
+                        {techName(a().tech)}{' '}
+                        {Math.round((1 - a().ticksLeft / a().totalTicks) * 100)}%
+                      </span>
+                    )}
+                  </Show>
+                </div>
               </Show>
               <Show when={def().trains && b().state === 'built'}>
                 <div style={{ 'margin-top': '6px', display: 'flex', gap: '6px' }}>

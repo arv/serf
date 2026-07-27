@@ -4,7 +4,7 @@ import { GOODS, type GoodId } from '../sim/defs/goods';
 import { GoodIcon } from './icons';
 import { TechTip, tooltip } from './tooltip';
 import { buildingName, techName } from './names';
-import { stock, techs } from './store';
+import { setTechPanelOpen, stock, techs } from './store';
 
 const BRANCH_LABELS: Record<string, string> = {
   agriculture: 'Agriculture',
@@ -41,6 +41,9 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
           display: flex; gap: 18px; padding: 14px 18px; pointer-events: auto;
           max-width: 90vw; overflow-x: auto;
         }
+        .tech-close {
+          position: absolute; top: 8px; right: 8px; min-width: 0; padding: 2px 8px;
+        }
         .tech-branch { min-width: 195px; }
         .tech-branch h3 {
           margin: 0 0 8px; font-size: 14px; color: #c8a15a;
@@ -66,6 +69,9 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
         .tech-node .bar { height: 3px; background: #dfb670; margin-top: 4px; border-radius: 2px; }
         .tech-note { font-size: 11px; opacity: 0.75; margin-top: 6px; }
       `}</style>
+      <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
+        ✕
+      </button>
       <Show when={!techs().hasTerakoya}>
         <div class="tech-note">Build a {buildingName('terakoya')} to begin research.</div>
       </Show>

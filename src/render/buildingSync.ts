@@ -12,6 +12,34 @@ interface BuildingVisual {
   /** Warcraft-style rise: a world-space clip plane reveals the model
    * bottom-up as materials arrive and progress ticks. */
   clip?: { plane: THREE.Plane; height: number; baseY: number };
+  /** Model height above ground, for floating the hp bar. */
+  topY: number;
+  hpBar?: { group: THREE.Group; fg: THREE.Mesh };
+}
+
+const HP_BAR_W = 1.1;
+
+function hpColor(pct: number): THREE.Color {
+  return new THREE.Color().setHSL(0.33 * Math.max(0, Math.min(1, pct)), 0.8, 0.45);
+}
+
+/** Damage bar floating over a building, angled to the fixed camera yaw. */
+function makeHpBar(topY: number): { group: THREE.Group; fg: THREE.Mesh } {
+  const group = new THREE.Group();
+  const bg = new THREE.Mesh(
+    new THREE.PlaneGeometry(HP_BAR_W, 0.13),
+    new THREE.MeshBasicMaterial({ color: 0x140f0a, depthTest: false }),
+  );
+  const fg = new THREE.Mesh(
+    new THREE.PlaneGeometry(HP_BAR_W - 0.06, 0.07),
+    new THREE.MeshBasicMaterial({ color: 0x3faf46, depthTest: false }),
+  );
+  bg.renderOrder = 90;
+  fg.renderOrder = 91;
+  group.add(bg, fg);
+  group.rotation.y = Math.PI / 4;
+  group.position.y = topY + 0.45;
+  return { group, fg };
 }
 
 /**
@@ -53,6 +81,19 @@ export class BuildingSync {
           v.model.scale.setScalar(0.22 + 0.78 * p);
         }
       }
+
+      // Damage bar: appears once hurt, refills toward green as if repaired.
+      const pct = b.maxHp > 0 ? b.hp / b.maxHp : 1;
+      if (pct < 1 && !v.hpBar) {
+        v.hpBar = makeHpBar(v.topY);
+        v.root.add(v.hpBar.group);
+      }
+      if (v.hpBar) {
+        const fg = v.hpBar.fg;
+        fg.scale.x = Math.max(pct, 0.02);
+        fg.position.x = (-(HP_BAR_W - 0.06) * (1 - fg.scale.x)) / 2;
+        (fg.material as THREE.MeshBasicMaterial).color.copy(hpColor(pct));
+      }
     }
     for (const id of [...this.#visuals.keys()]) {
       if (!seen.has(id)) this.#dispose(id);
@@ -85,8 +126,10 @@ export class BuildingSync {
             o.material = m;
           }
         });
+        // Note: root isn't in the scene yet, so this bbox is root-local —
+        // max.y IS the model height above its own base.
         const bbox = new THREE.Box3().setFromObject(model);
-        clip = { plane, height: bbox.max.y - root.position.y, baseY: root.position.y };
+        clip = { plane, height: bbox.max.y, baseY: root.position.y };
         plane.constant = root.position.y + 0.08;
         root.add(model);
         // No cosmetic builder here: the staffing system sends a real serf
@@ -102,8 +145,9 @@ export class BuildingSync {
       root.add(model);
     }
 
+    const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
     this.#scene.add(root);
-    return { root, state: b.state, frame, model, clip };
+    return { root, state: b.state, frame, model, clip, topY };
   }
 
   #dispose(id: number): void {

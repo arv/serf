@@ -1,7 +1,7 @@
-import { For, Show } from 'solid-js';
+import { For, Show, createSignal } from 'solid-js';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
-import { TECH_DEFS, type TechId } from '../sim/defs/techs';
+import type { TechId } from '../sim/defs/techs';
 import type { UnitTypeId } from '../sim/defs/units';
 import type { AdminAction } from '../sim/commands';
 import { TechTreePanel } from './TechTreePanel';
@@ -30,7 +30,7 @@ import {
   techs,
   toasts,
 } from './store';
-import { buildingName } from './names';
+import { buildingName, techName } from './names';
 import { THEME } from '../render/medieval';
 
 const SPEEDS = [
@@ -65,6 +65,7 @@ export function Hud(props: {
   onAdmin: (action: AdminAction) => void;
 }) {
   const adminMode = new URLSearchParams(location.search).has('admin');
+  const [menuOpen, setMenuOpen] = createSignal(false);
   const cost = (type: BuildingTypeId) => Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
   const affordable = (type: BuildingTypeId): boolean => {
     const s = stock();
@@ -159,6 +160,28 @@ export function Hud(props: {
         }
         .hud-speed button { min-width: 38px; padding: 6px 8px; letter-spacing: 0.08em; }
 
+        .hud-menu {
+          position: absolute; top: 52px; right: 10px; width: 190px;
+          display: flex; flex-direction: column; gap: 6px;
+          padding: 10px 12px; pointer-events: auto;
+        }
+        .hud-menu .menu-head {
+          display: flex; justify-content: space-between; align-items: center;
+          margin-bottom: 2px;
+        }
+        .hud-menu .menu-close { min-width: 0; padding: 2px 8px; }
+
+        .research-chip {
+          position: relative; overflow: hidden; padding: 4px 12px;
+          font-size: 12px;
+        }
+        .research-chip .fill {
+          position: absolute; inset: 0 auto 0 0;
+          background: linear-gradient(180deg, rgba(217, 180, 90, 0.5), rgba(166, 110, 36, 0.45));
+          transition: width 0.4s;
+        }
+        .research-chip .label { position: relative; }
+
         .hud-build {
           position: absolute; bottom: 12px; left: 12px;
           display: flex; flex-direction: column; gap: 8px;
@@ -231,44 +254,36 @@ export function Hud(props: {
             </span>
           )}
         </For>
+        <Show when={techs().active}>
+          {(a) => (
+            <button
+              class="research-chip"
+              {...tooltip(() => (
+                <TextTip
+                  title={techName(a().tech)}
+                  body="Being researched — click to open the tech tree."
+                />
+              ))}
+              onClick={() => setTechPanelOpen(true)}
+            >
+              <span
+                class="fill"
+                style={{ width: `${Math.round((1 - a().ticksLeft / a().totalTicks) * 100)}%` }}
+              />
+              <span class="label">⚗ {techName(a().tech)}</span>
+            </button>
+          )}
+        </Show>
       </div>
 
       <div class="hud-speed">
         <button
-          {...tooltip(() => (
-            <TextTip title="Save" body="Snapshot the whole village to browser storage." />
-          ))}
-          onClick={() => props.onSave()}
+          classList={{ active: menuOpen() }}
+          {...tooltip(() => <TextTip title="Menu" body="Save and load the village." />)}
+          onClick={() => setMenuOpen(!menuOpen())}
         >
-          Save
+          ☰
         </button>
-        <TipWrap
-          tip={() => (
-            <TextTip
-              title="Load"
-              body={
-                localStorage.getItem('serf-save')
-                  ? 'Return to your last save.'
-                  : 'No save yet — nothing to load.'
-              }
-            />
-          )}
-        >
-          <button
-            disabled={!localStorage.getItem('serf-save')}
-            onClick={() => {
-              const data = localStorage.getItem('serf-save');
-              if (data) {
-                // sessionStorage: survives this tab's reload but is invisible
-                // to other tabs — two open tabs must never race for it.
-                sessionStorage.setItem('serf-load-pending', data);
-                location.reload();
-              }
-            }}
-          >
-            Load
-          </button>
-        </TipWrap>
         <For each={SPEEDS}>
           {(s) => (
             <button
@@ -281,6 +296,39 @@ export function Hud(props: {
           )}
         </For>
       </div>
+
+      <Show when={menuOpen()}>
+        <div class="hud-menu panel">
+          <div class="menu-head">
+            <b>Menu</b>
+            <button class="menu-close" onClick={() => setMenuOpen(false)}>
+              ✕
+            </button>
+          </div>
+          <button
+            onClick={() => {
+              props.onSave();
+              setMenuOpen(false);
+            }}
+          >
+            Save village
+          </button>
+          <button
+            disabled={!localStorage.getItem('serf-save')}
+            onClick={() => {
+              const data = localStorage.getItem('serf-save');
+              if (data) {
+                // sessionStorage: survives this tab's reload but is invisible
+                // to other tabs — two open tabs must never race for it.
+                sessionStorage.setItem('serf-load-pending', data);
+                location.reload();
+              }
+            }}
+          >
+            Load last save
+          </button>
+        </div>
+      </Show>
 
       <div class="hud-build panel">
         <For each={BUILD_GROUPS}>
@@ -339,25 +387,6 @@ export function Hud(props: {
                     </span>
                   </button>
                 </TipWrap>
-                <button
-                  classList={{ active: techPanelOpen() }}
-                  {...tooltip(() => (
-                    <TextTip
-                      title="Research"
-                      body={
-                        techs().hasTerakoya
-                          ? 'Open the tech tree.'
-                          : 'Open the tech tree. Research needs a built Terakoya.'
-                      }
-                    />
-                  ))}
-                  onClick={() => setTechPanelOpen(!techPanelOpen())}
-                >
-                  Research
-                  <Show when={techs().active}>
-                    <span class="cost">{TECH_DEFS[techs().active!.tech].name}…</span>
-                  </Show>
-                </button>
               </Show>
             </div>
           )}
