@@ -1,4 +1,5 @@
 import type { GoodId } from '../sim/defs/goods';
+import { THEME } from './medieval';
 
 /**
  * The feudal-Japan palette, tuned for the Battle Realms look: saturated
@@ -6,7 +7,7 @@ import type { GoodId } from '../sim/defs/goods';
  * glow. Every color in the game comes from here so the scene stays in key.
  * (Values are pre-tone-mapping; the renderer applies ACES filmic.)
  */
-export const palette = {
+const japan = {
   // World
   grass: 0x53912e, // saturated valley green
   grassDry: 0x87973e, // olive meadow patches
@@ -50,6 +51,35 @@ export const palette = {
   background: 0x0c1410, // near-black forest edge
   fog: 0x18271e, // deep green haze
 } as const;
+
+type Palette = { [K in keyof typeof japan]: number };
+
+/**
+ * Daylight overrides for the medieval look — the Warcraft/Settlers key:
+ * bright saturated meadow, clear water, high warm sun, gentle blue haze.
+ */
+const medieval: Palette = {
+  ...japan,
+  grass: 0x55a02a,
+  grassDry: 0x8ba342,
+  grassDark: 0x357522,
+  water: 0x2f7e96,
+  waterShore: 0x5fa8b4,
+  grassLush: 0x5bb02f,
+  grassOlive: 0x7a9e44,
+  grassGold: 0xaaa04e,
+  trampledEarth: 0x8d7146,
+  bankMoss: 0x3f6030,
+  riverbed: 0x3c5638,
+  rock: 0x8b8375,
+  rockDark: 0x666055,
+  skyLight: 0xcfe4f7,
+  groundBounce: 0x7f9a50,
+  background: 0x223526,
+  fog: 0x9cc0a8,
+};
+
+export const palette: Palette = THEME === 'medieval' ? medieval : japan;
 
 /** Color of a good when carried on a serf's shoulders (and in UI accents). */
 export const goodColors: Record<GoodId, number> = {

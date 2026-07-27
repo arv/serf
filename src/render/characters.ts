@@ -115,7 +115,9 @@ const WARDROBES = new Map<number, Wardrobe>([
 ]);
 
 /** World-space height of a villager; matches the old procedural people. */
-const TARGET_HEIGHT = 1.0;
+// Oversized on purpose — RTS readability: Warcraft-style units read at
+// village zoom, true-scale people vanish.
+const TARGET_HEIGHT = 1.22;
 
 interface CharacterAssets {
   /** Dressed template scene per unit kind, cloned per unit. */

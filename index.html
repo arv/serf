@@ -63,6 +63,28 @@
           rgba(4, 8, 4, 0.62) 100%
         );
       }
+      /* Daylight grade (html.day, set for the medieval theme): the gloom
+         stack above is swapped for a light warm polish — sunny stylized
+         RTS, not midnight forest. */
+      html.day body {
+        background: #16241a;
+      }
+      html.day #grade-mult {
+        background: linear-gradient(155deg, rgba(180, 195, 150, 0.1) 0%, rgba(95, 130, 125, 0.16) 100%);
+      }
+      html.day #grade-soft {
+        background: linear-gradient(200deg, rgba(255, 224, 156, 0.5) 0%, rgba(110, 150, 165, 0.3) 85%);
+      }
+      html.day #grade-glow {
+        background: radial-gradient(ellipse 62% 52% at 52% 40%, rgba(255, 234, 175, 0.32), transparent 70%);
+      }
+      html.day #vignette {
+        background: radial-gradient(
+          ellipse 80% 72% at 50% 44%,
+          transparent 62%,
+          rgba(10, 18, 12, 0.3) 100%
+        );
+      }
       #fatal {
         position: fixed;
         inset: 0;

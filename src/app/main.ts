@@ -10,7 +10,10 @@ import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
 import { GhostPlacement } from '../render/ghost';
 import { loadCharacterAssets } from '../render/characters';
-import { loadMedievalAssets } from '../render/medieval';
+import { THEME, loadMedievalAssets } from '../render/medieval';
+
+// The daylight CSS grade keys off this class (see index.html).
+if (THEME === 'medieval') document.documentElement.classList.add('day');
 import { Controls } from '../input/controls';
 import { mountHud } from '../ui/mount';
 import {

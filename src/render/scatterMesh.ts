@@ -231,8 +231,8 @@ export class ScatterMesh {
           h * (0.8 + hash2(seed, 5) * 0.35),
           hash2(seed, 4) * Math.PI * 2,
           0xffffff,
-          warm > 0.8 ? 0.5 : warm * 0.3,
-          warm > 0.8 ? 0xc8a050 : 0x486830,
+          warm > 0.8 ? 0.5 : warm * 0.35,
+          warm > 0.8 ? 0xc8a050 : 0x3c7226,
           (hash2(seed, 7) - 0.5) * 0.1,
         );
       }
