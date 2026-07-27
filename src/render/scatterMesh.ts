@@ -130,8 +130,9 @@ export class ScatterMesh {
         { castShadow: false, receiveShadow: false },
       );
     }
-    // Rocks: KayKit boulder variants on the medieval branch, procedural
-    // dodecahedra otherwise. Ore chunks stay procedural crystals.
+    // Rocks: KayKit boulder variants on the medieval branch (ore deposits
+    // become metal-tinted boulders too), procedural dodecahedra + crystal
+    // octahedra otherwise.
     const rocks = medievalRocks();
     this.#rockSpecies = rocks?.geometries.length ?? 0;
     if (rocks) {
@@ -140,7 +141,7 @@ export class ScatterMesh {
           i === 0 ? 'rock' : `rock${i}`,
           geo,
           rocks.material,
-          rockTiles * 2 + shoreTiles.length * 2,
+          rockTiles * 2 + shoreTiles.length * 2 + oreTiles * 4,
         );
       });
     } else {
@@ -150,8 +151,8 @@ export class ScatterMesh {
         flat(0xffffff),
         rockTiles * 2 + shoreTiles.length * 2,
       );
+      this.#addArchetype('ore', new THREE.OctahedronGeometry(0.16), flat(0xffffff), oreTiles * 4);
     }
-    this.#addArchetype('ore', new THREE.OctahedronGeometry(0.16), flat(0xffffff), oreTiles * 4);
 
     for (let i = 0; i < TILE_COUNT; i++) {
       const res = map.resource[i];
@@ -366,27 +367,34 @@ export class ScatterMesh {
   #placeOre(tile: number, res: number): void {
     const tx = tileX(tile);
     const ty = tileY(tile);
+    const tex = this.#rockSpecies > 0;
     const color =
       res === TileResource.IronDep
-        ? palette.ironOre
+        ? tex
+          ? 0x9a5f42 // brighter over the texture so the metal reads
+          : palette.ironOre
         : res === TileResource.SilverDep
-          ? palette.silverOre
-          : palette.goldOre;
+          ? tex
+            ? 0xdbe4ee
+            : palette.silverOre
+          : tex
+            ? 0xf0bc42
+            : palette.goldOre;
     for (let k = 0; k < 4; k++) {
       const jx = 0.15 + hash2(tile * 4 + k, 31) * 0.7;
       const jz = 0.15 + hash2(tile * 4 + k, 32) * 0.7;
       const s = 0.5 + hash2(tile * 4 + k, 33) * 0.8;
       this.#put(
-        'ore',
+        tex ? this.#rockName(tile * 4 + k + 29) : 'ore',
         tile,
         tx + jx,
-        this.#heights.at(tx + jx, ty + jz) + 0.08 * s,
+        this.#heights.at(tx + jx, ty + jz) + (tex ? -0.01 : 0.08 * s),
         ty + jz,
-        s,
-        s,
+        tex ? s * 0.28 : s,
+        tex ? s * 0.5 : s,
         hash2(tile * 4 + k, 34) * Math.PI,
         color,
-        hash2(tile * 4 + k, 35) * 0.25,
+        tex ? 0.1 : hash2(tile * 4 + k, 35) * 0.25,
         palette.rockDark,
       );
     }

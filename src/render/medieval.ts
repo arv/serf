@@ -27,9 +27,10 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   well: 'building_well_green.gltf',
   ricePaddy: 'farm_plot.glb',
   sakeBrewery: 'building_tavern_green.gltf',
-  ironMine: 'building_mine_green.gltf',
-  silverMine: 'building_mine_green.gltf',
-  goldMine: 'building_mine_green.gltf',
+  // Each metal mine is its own faction-colored variant, dressed differently.
+  ironMine: 'building_mine_red.gltf',
+  silverMine: 'building_mine_blue.gltf',
+  goldMine: 'building_mine_yellow.gltf',
   swordsmith: 'building_blacksmith_green.gltf',
   spearmaker: 'building_blacksmith_green.gltf',
   bowyer: 'building_archeryrange_green.gltf',
@@ -38,12 +39,42 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   banditCamp: 'building_tower_B_red.gltf',
 };
 
-/** Tints so buildings sharing a model read apart (mines by ore; smiths). */
+/** Tints so buildings sharing a model read apart (the two smiths). */
 const TINTS: Partial<Record<BuildingTypeId, number>> = {
-  ironMine: 0x8a7a72,
-  silverMine: 0xcdd4dc,
-  goldMine: 0xe0b44a,
   spearmaker: 0x9a7a4e,
+};
+
+/** Prop dressing placed around a building, in its unit-square space. */
+interface Decor {
+  /** A pack prop scene by file stem... */
+  prop?: string;
+  /** ...or an ore-tinted boulder. */
+  rock?: number;
+  at: [number, number];
+  size: number;
+  rot?: number;
+}
+
+const DECOR_PROP_FILES = ['wheelbarrow', 'sack', 'resource_stone', 'resource_lumber'];
+
+const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
+  bambooHut: [{ prop: 'resource_lumber', at: [0.36, 0.28], size: 0.12, rot: 0.3 }],
+  quarry: [
+    { prop: 'resource_stone', at: [0.34, 0.3], size: 0.14 },
+    { prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 },
+  ],
+  ironMine: [
+    { rock: 0x9a5f42, at: [0.35, 0.3], size: 0.2 },
+    { prop: 'wheelbarrow', at: [-0.35, 0.32], size: 0.15, rot: -0.5 },
+  ],
+  silverMine: [
+    { rock: 0xdbe4ee, at: [0.35, 0.3], size: 0.2 },
+    { prop: 'sack', at: [-0.33, 0.33], size: 0.11 },
+  ],
+  goldMine: [
+    { rock: 0xf0bc42, at: [0.35, 0.3], size: 0.2 },
+    { prop: 'sack', at: [-0.33, 0.33], size: 0.11, rot: 1.1 },
+  ],
 };
 
 interface Assets {
@@ -110,7 +141,8 @@ export async function loadMedievalAssets(): Promise<boolean> {
     const ROCK_FILES = ['rock_single_A.gltf', 'rock_single_B.gltf', 'rock_single_C.gltf'];
     const loaded = new Map<string, THREE.Group>();
     await Promise.all(
-      [...files, ...TREE_FILES, ...ROCK_FILES].map(async (f) => {
+      [...files, ...TREE_FILES, ...ROCK_FILES, ...DECOR_PROP_FILES.map((p) => `${p}.gltf`)].map(
+        async (f) => {
         const gltf = await loader.loadAsync(`${DIR}${f}`);
         gltf.scene.traverse((o) => {
           if (o instanceof THREE.Mesh) {
@@ -127,22 +159,6 @@ export async function loadMedievalAssets(): Promise<boolean> {
       }),
     );
 
-    const buildings = new Map<BuildingTypeId, THREE.Group>();
-    for (const [type, file] of Object.entries(BUILDING_FILES) as [BuildingTypeId, string][]) {
-      const scene = loaded.get(file)!.clone();
-      const tint = TINTS[type];
-      if (tint !== undefined) {
-        scene.traverse((o) => {
-          if (o instanceof THREE.Mesh) {
-            const m = (o.material as THREE.MeshStandardMaterial).clone();
-            m.color.lerp(new THREE.Color(tint), 0.45);
-            o.material = m;
-          }
-        });
-      }
-      buildings.set(type, normalize(scene));
-    }
-
     let natureMap: THREE.Texture | null = null;
     const bakeNormalized = (f: string): THREE.BufferGeometry => {
       const { geometry: geo, map } = bakeToGeometry(loaded.get(f)!);
@@ -157,13 +173,60 @@ export async function loadMedievalAssets(): Promise<boolean> {
     };
     const trees = TREE_FILES.map(bakeNormalized);
     const rocks = ROCK_FILES.map(bakeNormalized);
+    const natureMaterial = new THREE.MeshLambertMaterial({ map: natureMap });
 
-    assets = {
-      buildings,
-      trees,
-      rocks,
-      natureMaterial: new THREE.MeshLambertMaterial({ map: natureMap }),
+    /** A prop clone normalized to `size` tall, feet on the ground. */
+    const propOfSize = (src: THREE.Group, size: number): THREE.Group => {
+      const c = src.clone();
+      const bb = new THREE.Box3().setFromObject(c);
+      const h = Math.max(bb.max.y - bb.min.y, 1e-6);
+      c.position.set(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+      const g = new THREE.Group();
+      g.scale.setScalar(size / h);
+      g.add(c);
+      return g;
     };
+
+    const buildings = new Map<BuildingTypeId, THREE.Group>();
+    for (const [type, file] of Object.entries(BUILDING_FILES) as [BuildingTypeId, string][]) {
+      const scene = loaded.get(file)!.clone();
+      const tint = TINTS[type];
+      if (tint !== undefined) {
+        scene.traverse((o) => {
+          if (o instanceof THREE.Mesh) {
+            const m = (o.material as THREE.MeshStandardMaterial).clone();
+            m.color.lerp(new THREE.Color(tint), 0.45);
+            o.material = m;
+          }
+        });
+      }
+      const group = normalize(scene);
+      // Dress the yard: ore boulders, carts, sacks — the mines in
+      // particular read apart by their spoil, not just their roof color.
+      for (const d of BUILDING_DECOR[type] ?? []) {
+        let obj: THREE.Object3D | undefined;
+        if (d.prop !== undefined) {
+          const src = loaded.get(`${d.prop}.gltf`);
+          if (src) obj = propOfSize(src, d.size);
+        } else if (d.rock !== undefined && rocks[0]) {
+          const mat = natureMaterial.clone();
+          mat.color.set(d.rock);
+          const boulder = new THREE.Mesh(rocks[0], mat);
+          boulder.castShadow = true;
+          const g = new THREE.Group();
+          g.scale.setScalar(d.size);
+          g.add(boulder);
+          obj = g;
+        }
+        if (!obj) continue;
+        obj.position.set(d.at[0], 0, d.at[1]);
+        obj.rotation.y = d.rot ?? 0;
+        group.add(obj);
+      }
+      buildings.set(type, group);
+    }
+
+    assets = { buildings, trees, rocks, natureMaterial };
     return true;
   } catch (err) {
     console.warn('[medieval] falling back to the Japan look:', err);
