@@ -66,6 +66,7 @@ export class ScatterMesh {
   #archetypes = new Map<string, Archetype>();
   #heights: HeightField;
   #trees = false;
+  #treeSpecies = 0;
 
   constructor(map: MapView, heights: HeightField) {
     this.#heights = heights;
@@ -94,6 +95,7 @@ export class ScatterMesh {
     // wearing a painted node-ring texture with alpha-tested leaf sprites.
     const trees = medievalTrees();
     this.#trees = trees !== null;
+    this.#treeSpecies = trees?.geometries.length ?? 0;
     if (trees) {
       trees.geometries.forEach((geo, i) => {
         this.#addArchetype(`tree${i}`, geo, trees.material, bambooTiles * TREES_PER_TILE, {
@@ -215,11 +217,12 @@ export class ScatterMesh {
       // hash-varied so no two copses repeat.
       for (let k = 0; k < TREES_PER_TILE; k++) {
         const seed = tile * TREES_PER_TILE + k;
-        const species = (hash2(seed, 11) * 3) | 0;
+        const species = (hash2(seed, 11) * this.#treeSpecies) | 0;
         const jx = 0.18 + hash2(seed, 1) * 0.64;
         const jz = 0.18 + hash2(seed, 2) * 0.64;
         const h = (k === 0 ? 1.5 : 1.0) + hash2(seed, 3) * 0.8;
-        // Autumn-tinged variation: most stay green, a few go ochre.
+        // Gentle hue variation over the painted texture: mostly green
+        // shifts, the odd tree going ochre.
         const warm = hash2(seed, 6);
         this.#put(
           `tree${species}`,
@@ -231,8 +234,8 @@ export class ScatterMesh {
           h * (0.8 + hash2(seed, 5) * 0.35),
           hash2(seed, 4) * Math.PI * 2,
           0xffffff,
-          warm > 0.8 ? 0.5 : warm * 0.35,
-          warm > 0.8 ? 0xc8a050 : 0x3c7226,
+          warm > 0.85 ? 0.35 : warm * 0.22,
+          warm > 0.85 ? 0xc8a050 : 0x6a8f4a,
           (hash2(seed, 7) - 0.5) * 0.1,
         );
       }

@@ -14,32 +14,36 @@ import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 export const THEME: 'medieval' | 'japan' =
   new URLSearchParams(location.search).get('theme') === 'japan' ? 'japan' : 'medieval';
 
-const DIR = '/models/medieval/';
+const DIR = '/models/kaykit/';
 
-/** Which pack model plays each (still Japanese-named) building. */
+/**
+ * Which KayKit Medieval Hexagon model (CC0, Kay Lousberg) plays each (still
+ * Japanese-named) building. Green is the player faction; red the bandits.
+ */
 const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
-  storehouse: 'Storage_FirstAge_Level2',
-  bambooHut: 'Houses_FirstAge_1_Level1',
-  quarry: 'Mine',
-  ricePaddy: 'Farm_FirstAge_Level2_Wheat',
-  sakeBrewery: 'Windmill_FirstAge',
-  ironMine: 'Mine',
-  silverMine: 'Mine',
-  goldMine: 'Mine',
-  swordsmith: 'TowerHouse_SecondAge',
-  spearmaker: 'Houses_SecondAge_2_Level1',
-  bowyer: 'Archery_FirstAge_Level2',
-  dojo: 'Barracks_FirstAge_Level2',
-  terakoya: 'Temple_FirstAge_Level2',
-  banditCamp: 'WatchTower_FirstAge_Level2',
-  // well keeps its hand-built model — the pack has no well.
+  storehouse: 'building_castle_green.gltf',
+  bambooHut: 'building_lumbermill_green.gltf',
+  quarry: 'building_mine_green.gltf',
+  well: 'building_well_green.gltf',
+  ricePaddy: 'farm_plot.glb',
+  sakeBrewery: 'building_tavern_green.gltf',
+  ironMine: 'building_mine_green.gltf',
+  silverMine: 'building_mine_green.gltf',
+  goldMine: 'building_mine_green.gltf',
+  swordsmith: 'building_blacksmith_green.gltf',
+  spearmaker: 'building_blacksmith_green.gltf',
+  bowyer: 'building_archeryrange_green.gltf',
+  dojo: 'building_barracks_green.gltf',
+  terakoya: 'building_church_green.gltf',
+  banditCamp: 'building_tower_B_red.gltf',
 };
 
-/** Ore-tinted copies of the Mine so the three metal mines read apart. */
-const MINE_TINTS: Partial<Record<BuildingTypeId, number>> = {
+/** Tints so buildings sharing a model read apart (mines by ore; smiths). */
+const TINTS: Partial<Record<BuildingTypeId, number>> = {
   ironMine: 0x8a7a72,
   silverMine: 0xcdd4dc,
   goldMine: 0xe0b44a,
+  spearmaker: 0x9a7a4e,
 };
 
 interface Assets {
@@ -52,29 +56,27 @@ interface Assets {
 let assets: Assets | null = null;
 
 /**
- * Flatten a gltf scene into one vertex-colored geometry (material base
- * colors baked per vertex) so it can drive an InstancedMesh.
+ * Flatten a gltf scene into one UV-mapped geometry so it can drive an
+ * InstancedMesh with the pack's shared palette texture.
  */
-function bakeToGeometry(scene: THREE.Group): THREE.BufferGeometry {
+function bakeToGeometry(scene: THREE.Group): {
+  geometry: THREE.BufferGeometry;
+  map: THREE.Texture | null;
+} {
   scene.updateMatrixWorld(true);
   const parts: THREE.BufferGeometry[] = [];
+  let map: THREE.Texture | null = null;
   scene.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
     const geo = (o.geometry as THREE.BufferGeometry).clone().toNonIndexed();
     geo.applyMatrix4(o.matrixWorld);
     for (const name of Object.keys(geo.attributes)) {
-      if (name !== 'position' && name !== 'normal') geo.deleteAttribute(name);
+      if (name !== 'position' && name !== 'normal' && name !== 'uv') geo.deleteAttribute(name);
     }
-    const color = ((o.material as THREE.MeshStandardMaterial).color ?? new THREE.Color(1, 1, 1))
-      .clone()
-      .convertLinearToSRGB();
-    const count = geo.getAttribute('position').count;
-    const colors = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) colors.set([color.r, color.g, color.b], i * 3);
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    map ??= (o.material as THREE.MeshStandardMaterial).map ?? null;
     parts.push(geo);
   });
-  return mergeGeometries(parts);
+  return { geometry: mergeGeometries(parts), map };
 }
 
 /** Feet on y=0, footprint normalized to a unit square around the origin. */
@@ -101,11 +103,11 @@ export async function loadMedievalAssets(): Promise<boolean> {
   try {
     const loader = new GLTFLoader();
     const files = new Set(Object.values(BUILDING_FILES));
-    const TREE_FILES = ['Resource_Tree1', 'Resource_Tree2', 'Resource_PineTree'];
+    const TREE_FILES = ['tree_single_A.gltf', 'tree_single_B.gltf'];
     const loaded = new Map<string, THREE.Group>();
     await Promise.all(
       [...files, ...TREE_FILES].map(async (f) => {
-        const gltf = await loader.loadAsync(`${DIR}${f}.gltf`);
+        const gltf = await loader.loadAsync(`${DIR}${f}`);
         gltf.scene.traverse((o) => {
           if (o instanceof THREE.Mesh) {
             o.castShadow = true;
@@ -124,7 +126,7 @@ export async function loadMedievalAssets(): Promise<boolean> {
     const buildings = new Map<BuildingTypeId, THREE.Group>();
     for (const [type, file] of Object.entries(BUILDING_FILES) as [BuildingTypeId, string][]) {
       const scene = loaded.get(file)!.clone();
-      const tint = MINE_TINTS[type];
+      const tint = TINTS[type];
       if (tint !== undefined) {
         scene.traverse((o) => {
           if (o instanceof THREE.Mesh) {
@@ -137,8 +139,10 @@ export async function loadMedievalAssets(): Promise<boolean> {
       buildings.set(type, normalize(scene));
     }
 
+    let treeMap: THREE.Texture | null = null;
     const trees = TREE_FILES.map((f) => {
-      const geo = bakeToGeometry(loaded.get(f)!);
+      const { geometry: geo, map } = bakeToGeometry(loaded.get(f)!);
+      treeMap ??= map;
       // Normalize each species: trunk base at 0, height 1.
       geo.computeBoundingBox();
       const tb = geo.boundingBox!;
@@ -151,7 +155,7 @@ export async function loadMedievalAssets(): Promise<boolean> {
     assets = {
       buildings,
       trees,
-      treeMaterial: new THREE.MeshLambertMaterial({ vertexColors: true }),
+      treeMaterial: new THREE.MeshLambertMaterial({ map: treeMap }),
     };
     return true;
   } catch (err) {
