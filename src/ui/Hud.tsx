@@ -66,6 +66,7 @@ export function Hud(props: {
 }) {
   const adminMode = new URLSearchParams(location.search).has('admin');
   const [menuOpen, setMenuOpen] = createSignal(false);
+  const [buildOpen, setBuildOpen] = createSignal(false);
   const cost = (type: BuildingTypeId) => Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
   const affordable = (type: BuildingTypeId): boolean => {
     const s = stock();
@@ -182,10 +183,18 @@ export function Hud(props: {
         }
         .research-chip .label { position: relative; }
 
-        .hud-build {
+        .hud-buildbtn {
           position: absolute; bottom: 12px; left: 12px;
+          padding: 8px 10px; pointer-events: auto;
+        }
+        .hud-buildbtn button { font-size: 14px; padding: 8px 18px; }
+        .hud-build {
+          position: absolute; bottom: 64px; left: 12px;
           display: flex; flex-direction: column; gap: 8px;
-          padding: 13px 16px 14px; pointer-events: auto; max-width: 66vw;
+          padding: 13px 26px 14px 16px; pointer-events: auto; max-width: 66vw;
+        }
+        .build-close {
+          position: absolute; top: 6px; right: 6px; min-width: 0; padding: 2px 8px;
         }
         .hud-build .group { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
         .hud-build .group-seal {
@@ -330,68 +339,71 @@ export function Hud(props: {
         </div>
       </Show>
 
-      <div class="hud-build panel">
-        <For each={BUILD_GROUPS}>
-          {(group) => (
-            <div class="group">
-              <span class="group-seal">{group.kanji}</span>
-              <span class="group-label">{group.label}</span>
-              <For each={group.types}>
-                {(type) => (
-                  <TipWrap tip={() => <BuildingTip type={type} />}>
-                    <Show
-                      when={unlocked(type)}
-                      fallback={
-                        <button disabled>
-                          <LockIcon /> {buildingName(type)}
-                        </button>
-                      }
-                    >
-                      <button
-                        classList={{ active: placing() === type }}
-                        disabled={!affordable(type) && placing() !== type}
-                        onClick={() => props.onPlace(placing() === type ? null : type)}
-                      >
-                        {buildingName(type)}
-                        <span class="cost">
-                          <For each={cost(type)}>
-                            {([good, n]) => (
-                              <>
-                                <GoodIcon good={good} size={12} />
-                                {n}
-                              </>
-                            )}
-                          </For>
-                        </span>
-                      </button>
-                    </Show>
-                  </TipWrap>
-                )}
-              </For>
-              <Show when={group.label === 'War'}>
-                <TipWrap
-                  tip={() => (
-                    <>
-                      <TextTip
-                        title="Hire Serf"
-                        body="Another pair of hands joins the village to haul goods and build."
-                      />
-                      <CostLine label="Hire" cost={{ silver: 5 }} />
-                    </>
-                  )}
-                >
-                  <button disabled={(stock().silver ?? 0) < 5} onClick={() => props.onHire()}>
-                    Hire Serf
-                    <span class="cost">
-                      <GoodIcon good="silver" size={12} />5
-                    </span>
-                  </button>
-                </TipWrap>
-              </Show>
-            </div>
-          )}
-        </For>
+      <div class="hud-buildbtn panel">
+        <button
+          classList={{ active: buildOpen() || placing() !== null }}
+          {...tooltip(() => (
+            <TextTip title="Build" body="Open the construction menu. Hire serfs at the castle." />
+          ))}
+          onClick={() => setBuildOpen(!buildOpen())}
+        >
+          ⚒ Build
+        </button>
       </div>
+
+      <Show when={buildOpen()}>
+        <div class="hud-build panel">
+          <button class="build-close" onClick={() => setBuildOpen(false)}>
+            ✕
+          </button>
+          <For each={BUILD_GROUPS}>
+            {(group) => (
+              <div class="group">
+                <span class="group-seal">{group.kanji}</span>
+                <span class="group-label">{group.label}</span>
+                <For each={group.types}>
+                  {(type) => (
+                    <TipWrap tip={() => <BuildingTip type={type} />}>
+                      <Show
+                        when={unlocked(type)}
+                        fallback={
+                          <button disabled>
+                            <LockIcon /> {buildingName(type)}
+                          </button>
+                        }
+                      >
+                        <button
+                          classList={{ active: placing() === type }}
+                          disabled={!affordable(type) && placing() !== type}
+                          onClick={() => {
+                            const arming = placing() !== type;
+                            props.onPlace(arming ? type : null);
+                            // Picking closes the menu so the map is clear
+                            // for placement; cancelling keeps it open.
+                            if (arming) setBuildOpen(false);
+                          }}
+                        >
+                          {buildingName(type)}
+                          <span class="cost">
+                            <For each={cost(type)}>
+                              {([good, n]) => (
+                                <>
+                                  <GoodIcon good={good} size={12} />
+                                  {n}
+                                </>
+                              )}
+                            </For>
+                          </span>
+                        </button>
+                      </Show>
+                    </TipWrap>
+                  )}
+                </For>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
 
       <Show when={techPanelOpen()}>
         <TechTreePanel onResearch={props.onResearch} />
@@ -401,7 +413,7 @@ export function Hud(props: {
         <div class="hud-festival panel">Festival! Everyone works faster</div>
       </Show>
 
-      <SelectionPanel onTrain={props.onTrain} />
+      <SelectionPanel onTrain={props.onTrain} onHire={props.onHire} />
 
       <div class="hud-toasts">
         <For each={toasts()}>{(t) => <div class="panel toast">{t.text}</div>}</For>

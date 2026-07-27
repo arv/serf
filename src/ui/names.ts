@@ -12,6 +12,7 @@ import type { UnitTypeId } from '../sim/defs/units';
 const M = THEME === 'medieval';
 
 const MEDIEVAL_BUILDINGS: Partial<Record<BuildingTypeId, string>> = {
+  storehouse: 'Castle',
   bambooHut: 'Woodcutter',
   ricePaddy: 'Wheat Farm',
   sakeBrewery: 'Brewery',

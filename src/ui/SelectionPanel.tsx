@@ -4,8 +4,8 @@ import { TECH_DEFS, type TechId } from '../sim/defs/techs';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
-import { TipWrap, UnitTip } from './tooltip';
-import { selectedBuilding, selection, setTechPanelOpen, techs } from './store';
+import { TextTip, TipWrap, UnitTip } from './tooltip';
+import { selectedBuilding, selection, setTechPanelOpen, stock, techs } from './store';
 
 import { buildingName, techName, unitName } from './names';
 
@@ -37,7 +37,10 @@ function GoodsLine(props: { amounts: GoodAmounts }) {
   );
 }
 
-export function SelectionPanel(props: { onTrain: (buildingId: number, unit: UnitTypeId) => void }) {
+export function SelectionPanel(props: {
+  onTrain: (buildingId: number, unit: UnitTypeId) => void;
+  onHire: () => void;
+}) {
   return (
     <>
       <Show when={selectedBuilding()}>
@@ -83,6 +86,25 @@ export function SelectionPanel(props: { onTrain: (buildingId: number, unit: Unit
                         ? 'worker on the way'
                         : 'needs a worker!'}
                 </span>
+              </Show>
+              <Show when={b().type === 'storehouse' && b().state === 'built'}>
+                <div style={{ 'margin-top': '6px' }}>
+                  <TipWrap
+                    tip={() => (
+                      <TextTip
+                        title="Hire Serf"
+                        body="Another pair of hands joins the village to haul goods and build. Costs 5 silver."
+                      />
+                    )}
+                  >
+                    <button disabled={(stock().silver ?? 0) < 5} onClick={() => props.onHire()}>
+                      Hire Serf
+                      <span class="cost">
+                        <GoodIcon good="silver" size={12} />5
+                      </span>
+                    </button>
+                  </TipWrap>
+                </div>
               </Show>
               <Show when={b().type === 'terakoya' && b().state === 'built'}>
                 <div style={{ 'margin-top': '6px', display: 'flex', gap: '8px', 'align-items': 'center' }}>
