@@ -181,8 +181,10 @@ export function Hud(props: {
         }
 
         .hud-selection {
-          position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
-          padding: 8px 16px;
+          /* Command-card corner, clear of the build bar — and interactive:
+             without pointer-events the train buttons are mouse-dead. */
+          position: absolute; bottom: 12px; right: 12px;
+          padding: 8px 16px; pointer-events: auto; max-width: 34vw;
         }
         .hud-debug {
           position: absolute; top: 52px; right: 10px; width: 380px; max-height: 60vh;
