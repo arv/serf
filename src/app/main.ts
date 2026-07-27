@@ -125,6 +125,11 @@ async function boot(): Promise<void> {
 
   mountHud(host);
 
+  // The camera never rotates: hp bars copy its live orientation once to
+  // sit parallel with the screen plane.
+  sync.cameraQuaternion = renderer.rig.camera.quaternion;
+  buildingSync.cameraQuaternion = renderer.rig.camera.quaternion;
+
   function loop(): void {
     const now = performance.now();
     sync.update(now, controls.hoverUnit, controls.selected);

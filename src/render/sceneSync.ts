@@ -247,6 +247,9 @@ export class SceneSync {
   #heights: HeightField;
   #visuals = new Map<number, UnitVisual>();
   #lastNow = 0;
+  /** Live reference to the (fixed-angle) camera orientation, set at boot;
+   * hp bars copy it to stay parallel with the screen plane. */
+  cameraQuaternion: THREE.Quaternion | null = null;
 
   constructor(scene: THREE.Scene, reader: SabReader, heights: HeightField) {
     this.#scene = scene;
@@ -337,7 +340,6 @@ export class SceneSync {
         if (!visual.hpBar) {
           visual.hpBar = new THREE.Mesh(hpBarGeometry, hpBarMaterial(hpPct));
           visual.hpBar.position.y = 1.15;
-          visual.hpBar.rotation.x = -Math.PI / 5;
           visual.hpBar.renderOrder = 10;
           visual.group.add(visual.hpBar);
         }
@@ -423,7 +425,14 @@ export class SceneSync {
       const pz = y + nudgeY;
       visual.group.position.set(px, this.#heights.at(px, pz) + bob, pz);
       // Keep the hp bar screen-stable regardless of unit facing.
-      if (visual.hpBar) visual.hpBar.rotation.y = Math.PI / 4 - visual.group.rotation.y;
+      if (visual.hpBar && this.cameraQuaternion) {
+        // Screen-parallel billboard: cancel the unit's facing, then adopt
+        // the (fixed) camera orientation.
+        visual.hpBar.quaternion
+          .copy(visual.group.quaternion)
+          .invert()
+          .multiply(this.cameraQuaternion);
+      }
     }
 
     // Dispose visuals whose ids vanished from the latest publish.

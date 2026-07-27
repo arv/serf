@@ -25,8 +25,11 @@ function hpColor(pct: number): THREE.Color {
   return new THREE.Color().setHSL(0.33 * Math.max(0, Math.min(1, pct)), 0.8, 0.45);
 }
 
-/** Damage bar floating over a building, angled to the fixed camera yaw. */
-function makeHpBar(topY: number): { group: THREE.Group; fg: THREE.Mesh } {
+/** Damage bar floating over a building, parallel with the screen plane. */
+function makeHpBar(
+  topY: number,
+  camQuat: THREE.Quaternion | null,
+): { group: THREE.Group; fg: THREE.Mesh } {
   const group = new THREE.Group();
   const bg = new THREE.Mesh(
     new THREE.PlaneGeometry(HP_BAR_W, 0.13),
@@ -39,7 +42,8 @@ function makeHpBar(topY: number): { group: THREE.Group; fg: THREE.Mesh } {
   bg.renderOrder = 90;
   fg.renderOrder = 91;
   group.add(bg, fg);
-  group.rotation.y = Math.PI / 4;
+  if (camQuat) group.quaternion.copy(camQuat);
+  else group.rotation.y = Math.PI / 4;
   group.position.y = topY + 0.45;
   return { group, fg };
 }
@@ -54,6 +58,8 @@ export class BuildingSync {
   #scene: THREE.Scene;
   #heights: HeightField;
   #visuals = new Map<number, BuildingVisual>();
+  /** Fixed camera orientation for screen-parallel hp bars (set at boot). */
+  cameraQuaternion: THREE.Quaternion | null = null;
 
   constructor(scene: THREE.Scene, heights: HeightField) {
     this.#scene = scene;
@@ -87,7 +93,7 @@ export class BuildingSync {
       // Damage bar: appears once hurt (hover() shows it on healthy ones).
       v.pct = b.maxHp > 0 ? b.hp / b.maxHp : 1;
       if (v.pct < 1 && !v.hpBar) {
-        v.hpBar = makeHpBar(v.topY);
+        v.hpBar = makeHpBar(v.topY, this.cameraQuaternion);
         v.root.add(v.hpBar.group);
       }
       this.#styleBar(v, b.id === this.#hoverId || b.id === this.#selectedId);
@@ -167,7 +173,7 @@ export class BuildingSync {
     for (const [id, v] of this.#visuals) {
       const lit = id === hover || id === selected;
       if (lit && !v.hpBar) {
-        v.hpBar = makeHpBar(v.topY);
+        v.hpBar = makeHpBar(v.topY, this.cameraQuaternion);
         v.root.add(v.hpBar.group);
       }
       this.#styleBar(v, lit);

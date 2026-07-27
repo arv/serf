@@ -48,12 +48,46 @@ export function SelectionPanel(props: {
           const def = () => BUILDING_DEFS[b().type];
           return (
             <div class="hud-selection panel">
-              <b style={{ 'font-family': "Georgia, 'Times New Roman', serif" }}>
-                {buildingName(b().type)}
-              </b>
-              <span style={{ 'margin-left': '10px', opacity: 0.8 }}>
-                HP {b().hp}/{b().maxHp}
-              </span>
+              <div
+                style={{
+                  display: 'flex',
+                  'align-items': 'center',
+                  gap: '10px',
+                  'min-width': '240px',
+                }}
+              >
+                <span style={{ 'font-size': '13.5px', 'font-weight': '600', color: '#f0ede4' }}>
+                  {buildingName(b().type)}
+                </span>
+                <span
+                  style={{
+                    flex: '1',
+                    height: '4px',
+                    'border-radius': '2px',
+                    background: 'rgba(255,255,255,0.1)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'block',
+                      height: '100%',
+                      width: `${Math.round((b().hp / Math.max(b().maxHp, 1)) * 100)}%`,
+                      background: '#8fbb56',
+                      'border-radius': '2px',
+                    }}
+                  />
+                </span>
+                <span
+                  style={{
+                    'font-size': '11.5px',
+                    color: '#9b988d',
+                    'font-variant-numeric': 'tabular-nums',
+                  }}
+                >
+                  {b().hp}/{b().maxHp}
+                </span>
+              </div>
               <Show when={b().state === 'site'}>
                 <span style={{ 'margin-left': '10px' }}>
                   needs <GoodsLine amounts={b().siteNeeds ?? {}} />
