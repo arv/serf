@@ -156,14 +156,30 @@ export class ScatterMesh {
 
     for (let i = 0; i < TILE_COUNT; i++) {
       const res = map.resource[i];
+      // A resource tile with all its neighbors blocked sits in the middle
+      // of a formation: nothing walks there, so its rocks may sprawl big.
+      // Edge tiles keep their rocks contained — a miner stands next door.
+      const interior = ((): boolean => {
+        const x = tileX(i);
+        const y = tileY(i);
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
+            if (map.blocked[ny * MAP_SIZE + nx] === 0) return false;
+          }
+        }
+        return true;
+      })();
       if (res === TileResource.Bamboo) this.#placeBamboo(i);
-      else if (res === TileResource.Rock) this.#placeRock(i);
+      else if (res === TileResource.Rock) this.#placeRock(i, interior);
       else if (
         res === TileResource.IronDep ||
         res === TileResource.SilverDep ||
         res === TileResource.GoldDep
       ) {
-        this.#placeOre(i, res);
+        this.#placeOre(i, res, interior);
       }
     }
     for (const i of shoreTiles) this.#placeShoreRocks(i);
@@ -314,21 +330,36 @@ export class ScatterMesh {
     }
   }
 
-  #placeRock(tile: number): void {
+  #placeRock(tile: number, interior = false): void {
     const tx = tileX(tile);
     const ty = tileY(tile);
     const tex = this.#rockSpecies > 0;
     for (let k = 0; k < 2; k++) {
-      const jx = 0.25 + hash2(tile * 2 + k, 21) * 0.5;
-      const jz = 0.25 + hash2(tile * 2 + k, 22) * 0.5;
-      const s = k === 0 ? 0.9 + hash2(tile, 23) * 0.5 : 0.4 + hash2(tile, 24) * 0.3;
+      // KayKit rocks are span-normalized (hex-tile authoring is wider than
+      // our square tiles). Interior tiles of a formation sprawl big and
+      // dramatic; edge tiles stay contained so the boulder never clips the
+      // miner working on the neighboring tile.
+      const spread = interior ? 0.5 : 0.2;
+      const jx = tex
+        ? 0.5 - spread / 2 + hash2(tile * 2 + k, 21) * spread
+        : 0.25 + hash2(tile * 2 + k, 21) * 0.5;
+      const jz = tex
+        ? 0.5 - spread / 2 + hash2(tile * 2 + k, 22) * spread
+        : 0.25 + hash2(tile * 2 + k, 22) * 0.5;
+      const s = tex
+        ? k === 0
+          ? (interior ? 1.05 : 0.6) + hash2(tile, 23) * (interior ? 0.35 : 0.2)
+          : (interior ? 0.55 : 0.35) + hash2(tile, 24) * 0.15
+        : k === 0
+          ? 0.9 + hash2(tile, 23) * 0.5
+          : 0.4 + hash2(tile, 24) * 0.3;
       this.#put(
         this.#rockName(tile * 2 + k),
         tile,
         tx + jx,
         this.#heights.at(tx + jx, ty + jz) + (tex ? -0.02 : 0.16 * s),
         ty + jz,
-        tex ? s * 0.55 : s * 0.75,
+        tex ? s : s * 0.75,
         s,
         hash2(tile + k, 25) * Math.PI * 2,
         tex ? 0xffffff : palette.rock,
@@ -345,16 +376,16 @@ export class ScatterMesh {
     const tex = this.#rockSpecies > 0;
     for (let k = 0; k < 2; k++) {
       if (k === 1 && hash2(tile, 95) < 0.5) continue;
-      const jx = 0.1 + hash2(tile * 2 + k, 96) * 0.8;
-      const jz = 0.1 + hash2(tile * 2 + k, 97) * 0.8;
-      const s = 0.55 + hash2(tile + k, 98) * 0.75;
+      const jx = tex ? 0.35 + hash2(tile * 2 + k, 96) * 0.3 : 0.1 + hash2(tile * 2 + k, 96) * 0.8;
+      const jz = tex ? 0.35 + hash2(tile * 2 + k, 97) * 0.3 : 0.1 + hash2(tile * 2 + k, 97) * 0.8;
+      const s = tex ? 0.4 + hash2(tile + k, 98) * 0.3 : 0.55 + hash2(tile + k, 98) * 0.75;
       this.#put(
         this.#rockName(tile * 2 + k + 7),
         tile,
         tx + jx,
         this.#heights.at(tx + jx, ty + jz) + (tex ? -0.03 : 0.14 * s),
         ty + jz,
-        (tex ? s * 0.45 : s * 0.6) * (1 + hash2(tile + k, 99) * 0.5),
+        tex ? s : s * 0.6 * (1 + hash2(tile + k, 99) * 0.5),
         s,
         hash2(tile + k, 100) * Math.PI * 2,
         tex ? 0xffffff : palette.rock,
@@ -364,7 +395,7 @@ export class ScatterMesh {
     }
   }
 
-  #placeOre(tile: number, res: number): void {
+  #placeOre(tile: number, res: number, interior = false): void {
     const tx = tileX(tile);
     const ty = tileY(tile);
     const tex = this.#rockSpecies > 0;
@@ -381,17 +412,24 @@ export class ScatterMesh {
             ? 0xf0bc42
             : palette.goldOre;
     for (let k = 0; k < 4; k++) {
-      const jx = 0.15 + hash2(tile * 4 + k, 31) * 0.7;
-      const jz = 0.15 + hash2(tile * 4 + k, 32) * 0.7;
-      const s = 0.5 + hash2(tile * 4 + k, 33) * 0.8;
+      const spread = interior ? 0.6 : 0.4;
+      const jx = tex
+        ? 0.5 - spread / 2 + hash2(tile * 4 + k, 31) * spread
+        : 0.15 + hash2(tile * 4 + k, 31) * 0.7;
+      const jz = tex
+        ? 0.5 - spread / 2 + hash2(tile * 4 + k, 32) * spread
+        : 0.15 + hash2(tile * 4 + k, 32) * 0.7;
+      const s = tex
+        ? (interior ? 0.4 : 0.26) + hash2(tile * 4 + k, 33) * 0.2
+        : 0.5 + hash2(tile * 4 + k, 33) * 0.8;
       this.#put(
         tex ? this.#rockName(tile * 4 + k + 29) : 'ore',
         tile,
         tx + jx,
         this.#heights.at(tx + jx, ty + jz) + (tex ? -0.01 : 0.08 * s),
         ty + jz,
-        tex ? s * 0.28 : s,
-        tex ? s * 0.5 : s,
+        s,
+        s,
         hash2(tile * 4 + k, 34) * Math.PI,
         color,
         tex ? 0.1 : hash2(tile * 4 + k, 35) * 0.25,

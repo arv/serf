@@ -160,19 +160,25 @@ export async function loadMedievalAssets(): Promise<boolean> {
     );
 
     let natureMap: THREE.Texture | null = null;
-    const bakeNormalized = (f: string): THREE.BufferGeometry => {
+    // Normalize: base at 0, and unit HEIGHT for tall things (trees) or unit
+    // FOOTPRINT for ground clutter — the pack is authored for hex tiles, so
+    // rocks are wider than they are tall and must be sized by span or they
+    // overhang our square tiles (and clip the workers beside them).
+    const bakeNormalized = (f: string, bySpan = false): THREE.BufferGeometry => {
       const { geometry: geo, map } = bakeToGeometry(loaded.get(f)!);
       natureMap ??= map;
-      // Normalize: base at 0, height 1.
       geo.computeBoundingBox();
       const tb = geo.boundingBox!;
       geo.translate(-(tb.min.x + tb.max.x) / 2, -tb.min.y, -(tb.min.z + tb.max.z) / 2);
-      const s = 1 / (tb.max.y - tb.min.y);
+      const span = bySpan
+        ? Math.max(tb.max.x - tb.min.x, tb.max.z - tb.min.z)
+        : tb.max.y - tb.min.y;
+      const s = 1 / span;
       geo.scale(s, s, s);
       return geo;
     };
-    const trees = TREE_FILES.map(bakeNormalized);
-    const rocks = ROCK_FILES.map(bakeNormalized);
+    const trees = TREE_FILES.map((f) => bakeNormalized(f));
+    const rocks = ROCK_FILES.map((f) => bakeNormalized(f, true));
     const natureMaterial = new THREE.MeshLambertMaterial({ map: natureMap });
 
     /** A prop clone normalized to `size` tall, feet on the ground. */

@@ -34,7 +34,7 @@ export const ACTION = { idle: 0, work: 1, fight: 2, dead: 3 } as const;
 export const WORK = { none: 0, chop: 1, pickaxe: 2, hammer: 3, dig: 4, tend: 5 } as const;
 
 /** A worker's workplace flavor — picks a themed body (farmer's straw hat...). */
-export const PROFESSION = { none: 0, farmer: 1 } as const;
+export const PROFESSION = { none: 0, farmer: 1, miner: 2 } as const;
 export const SLOT_BYTES = COUNT_BYTES + IDS_BYTES + XS_BYTES + YS_BYTES + AUX_BYTES;
 export const SAB_BYTES = HEADER_INTS * 4 + SLOT_COUNT * SLOT_BYTES;
 

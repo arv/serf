@@ -502,9 +502,9 @@ function pickaxeProp(): THREE.Group {
   handle.position.y = 0.14;
   for (const side of [-1, 1]) {
     const spike = toolMesh(new THREE.ConeGeometry(0.028, 0.17, 6), 0x77848e);
-    spike.rotation.x = (side * Math.PI) / 2;
-    spike.rotation.z = side * 0.22;
-    spike.position.set(0, 0.3, side * 0.08);
+    // Head spikes run across the swing plane, tips drooping slightly.
+    spike.rotation.z = -side * (Math.PI / 2 + 0.22);
+    spike.position.set(side * 0.08, 0.3, 0);
     g.add(spike);
   }
   return g;
@@ -548,20 +548,44 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
   }
 }
 
-/** Workplace looks layered over a base spec (profession byte from the sim). */
-const FARMER_SPEC: KKSpec = {
-  file: 'Rogue',
-  hide: ['Rogue_Cape'],
-  tint: 0xc9a86a, // sun-worn tan over the leathers
-};
+/** Workplace looks layered over the worker kind (profession byte). */
+interface ProfLook {
+  spec: KKSpec;
+  /** Permanent carried tool + the WORK.* it already covers. */
+  tool?: () => THREE.Group;
+  toolWorkKind?: number;
+  strawHat?: boolean;
+}
+
+const PROF_LOOKS = new Map<number, ProfLook>([
+  // Farmer: sun-worn tan leathers, straw hat, spade in hand.
+  [
+    1,
+    {
+      spec: { file: 'Rogue', hide: ['Rogue_Cape'], tint: 0xc9a86a },
+      tool: spadeProp,
+      toolWorkKind: 4, // WORK.dig
+      strawHat: true,
+    },
+  ],
+  // Miner: dust-grey barbarian with his pickaxe over the shoulder.
+  [
+    2,
+    {
+      spec: { file: 'Barbarian', hide: ['Barbarian_BearHat'], tint: 0x9b9084 },
+      tool: pickaxeProp,
+      toolWorkKind: 2, // WORK.pickaxe
+    },
+  ],
+]);
 
 function makeKayKitCharacter(
   kindCode: number,
   profession = 0,
 ): { group: THREE.Group; visual: CharacterVisual } | null {
   if (!kkAssets) return null;
-  const farmer = profession === 1 && kindCode === 2;
-  const spec = farmer ? FARMER_SPEC : (KK_SPECS.get(kindCode) ?? KK_SPECS.get(1)!);
+  const look = kindCode === 2 ? PROF_LOOKS.get(profession) : undefined;
+  const spec = look?.spec ?? KK_SPECS.get(kindCode) ?? KK_SPECS.get(1)!;
   const char = kkAssets.chars.get(spec.file);
   if (!char) return null;
   const root = skeletonClone(char.scene);
@@ -636,15 +660,15 @@ function makeKayKitCharacter(
     hand.add(toolAnchor);
     toolCustom = new THREE.Group();
     toolAnchor.add(toolCustom);
-    if (farmer) {
-      // The farmer's own spade: carried everywhere, dug with in the field.
-      proceduralTool = spadeProp();
-      proceduralTool.userData.workKind = 4; // WORK.dig
+    if (look?.tool) {
+      // The profession's own tool: carried everywhere, worked with on site.
+      proceduralTool = look.tool();
+      proceduralTool.userData.workKind = look.toolWorkKind ?? 0;
       toolAnchor.add(proceduralTool);
     }
   }
 
-  if (farmer) {
+  if (look?.strawHat) {
     // Straw hat on the head bone, counter-scaled and sized for the big
     // KayKit skull.
     const head = root.getObjectByName('head');

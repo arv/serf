@@ -211,7 +211,17 @@ function actionOf(w: World, u: Unit): number {
 function professionOf(w: World, u: Unit): number {
   if (u.kind !== 'worker' || u.homeId === undefined) return PROFESSION.none;
   const home = w.buildings.get(u.homeId);
-  return home && !home.dead && home.type === 'ricePaddy' ? PROFESSION.farmer : PROFESSION.none;
+  if (!home || home.dead) return PROFESSION.none;
+  if (home.type === 'ricePaddy') return PROFESSION.farmer;
+  if (
+    home.type === 'quarry' ||
+    home.type === 'ironMine' ||
+    home.type === 'silverMine' ||
+    home.type === 'goldMine'
+  ) {
+    return PROFESSION.miner;
+  }
+  return PROFESSION.none;
 }
 
 function workKindOf(w: World, u: Unit): number {
