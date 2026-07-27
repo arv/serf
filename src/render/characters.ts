@@ -260,8 +260,10 @@ export interface CharacterVisual {
   carryAnchor?: THREE.Group;
   /** World-unit holder in the right hand for swappable work tools. */
   toolAnchor?: THREE.Group;
-  /** The wardrobe's own hand prop (axe, sword...), hidden while a work
-   * tool is swapped in. */
+  /** Sub-group of toolAnchor holding the currently swapped-in work tool. */
+  toolCustom?: THREE.Group;
+  /** The wardrobe's own hand prop (axe, sword, the farmer's spade...),
+   * hidden while a work tool is swapped in. */
   defaultTool?: THREE.Object3D;
   /** WORK.* currently equipped via setWorkTool (0 = the default prop). */
   toolKind: number;
@@ -531,23 +533,35 @@ const WORK_TOOLS: Record<number, () => THREE.Group> = {
  * without a tool anchor (the procedural fallback).
  */
 export function setWorkTool(visual: CharacterVisual, workKind: number): void {
-  if (!visual.toolAnchor || visual.toolKind === workKind) return;
+  if (!visual.toolCustom || visual.toolKind === workKind) return;
   visual.toolKind = workKind;
-  visual.toolAnchor.clear();
+  visual.toolCustom.clear();
   const make = WORK_TOOLS[workKind];
-  if (make) {
-    visual.toolAnchor.add(make());
+  // A default tool that already matches the work keeps its place (the
+  // farmer digs with the spade he carries).
+  const covered = make && visual.defaultTool?.userData.workKind === workKind;
+  if (make && !covered) {
+    visual.toolCustom.add(make());
     if (visual.defaultTool) visual.defaultTool.visible = false;
   } else if (visual.defaultTool) {
     visual.defaultTool.visible = true;
   }
 }
 
+/** Workplace looks layered over a base spec (profession byte from the sim). */
+const FARMER_SPEC: KKSpec = {
+  file: 'Rogue',
+  hide: ['Rogue_Cape'],
+  tint: 0xc9a86a, // sun-worn tan over the leathers
+};
+
 function makeKayKitCharacter(
   kindCode: number,
+  profession = 0,
 ): { group: THREE.Group; visual: CharacterVisual } | null {
   if (!kkAssets) return null;
-  const spec = KK_SPECS.get(kindCode) ?? KK_SPECS.get(1)!;
+  const farmer = profession === 1 && kindCode === 2;
+  const spec = farmer ? FARMER_SPEC : (KK_SPECS.get(kindCode) ?? KK_SPECS.get(1)!);
   const char = kkAssets.chars.get(spec.file);
   if (!char) return null;
   const root = skeletonClone(char.scene);
@@ -612,12 +626,37 @@ function makeKayKitCharacter(
   // Work-tool anchor in the right hand, counter-scaled to world units so
   // the procedural mallet/pickaxe/spade drop in at their authored size.
   let toolAnchor: THREE.Group | undefined;
+  let toolCustom: THREE.Group | undefined;
+  let proceduralTool: THREE.Object3D | undefined;
   const hand =
     root.getObjectByName('handslot.r') ?? root.getObjectByName('handslotr');
   if (hand) {
     toolAnchor = new THREE.Group();
     toolAnchor.scale.setScalar(1 / s);
     hand.add(toolAnchor);
+    toolCustom = new THREE.Group();
+    toolAnchor.add(toolCustom);
+    if (farmer) {
+      // The farmer's own spade: carried everywhere, dug with in the field.
+      proceduralTool = spadeProp();
+      proceduralTool.userData.workKind = 4; // WORK.dig
+      toolAnchor.add(proceduralTool);
+    }
+  }
+
+  if (farmer) {
+    // Straw hat on the head bone, counter-scaled and sized for the big
+    // KayKit skull.
+    const head = root.getObjectByName('head');
+    if (head) {
+      const holder = new THREE.Group();
+      holder.scale.setScalar(1 / s);
+      const hat = kasaHat();
+      hat.scale.setScalar(1.9);
+      hat.position.y = 0.12;
+      holder.add(hat);
+      head.add(holder);
+    }
   }
 
   const inner = new THREE.Group();
@@ -651,7 +690,8 @@ function makeKayKitCharacter(
       ranged: spec.ranged ?? false,
       carryAnchor,
       toolAnchor,
-      defaultTool: rightHand?.inst,
+      toolCustom,
+      defaultTool: proceduralTool ?? rightHand?.inst,
       toolKind: 0,
     },
   };
@@ -764,8 +804,9 @@ function attachToBone(
  */
 export function makeCharacter(
   kindCode: number,
+  profession = 0,
 ): { group: THREE.Group; visual: CharacterVisual } | null {
-  if (kkAssets) return makeKayKitCharacter(kindCode);
+  if (kkAssets) return makeKayKitCharacter(kindCode, profession);
   if (!assets) return null;
   const wardrobe = WARDROBES.get(kindCode) ?? WARDROBES.get(1)!;
   const root = skeletonClone(assets.base);

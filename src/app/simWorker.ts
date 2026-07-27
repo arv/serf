@@ -12,6 +12,7 @@ import { GOODS, type GoodAmounts } from '../sim/defs/goods';
 import type { SimCommand } from '../sim/commands';
 import {
   ACTION,
+  PROFESSION,
   PUBLISH_INTERVAL_MS,
   SAB_BYTES,
   SabWriter,
@@ -206,6 +207,13 @@ function actionOf(w: World, u: Unit): number {
 }
 
 /** Which tool animation fits this unit's work site? */
+/** Workplace flavor for themed worker bodies (the farmer's straw hat). */
+function professionOf(w: World, u: Unit): number {
+  if (u.kind !== 'worker' || u.homeId === undefined) return PROFESSION.none;
+  const home = w.buildings.get(u.homeId);
+  return home && !home.dead && home.type === 'ricePaddy' ? PROFESSION.farmer : PROFESSION.none;
+}
+
 function workKindOf(w: World, u: Unit): number {
   const home = u.homeId !== undefined ? w.buildings.get(u.homeId) : undefined;
   if (!home) return WORK.tend;
@@ -240,6 +248,7 @@ function* unitSnapshots(w: World): Generator<UnitSnapshot> {
       carrying: action === ACTION.dead ? 0 : carryingCode(u.carrying),
       action,
       workKind: action === ACTION.work ? workKindOf(w, u) : WORK.none,
+      profession: professionOf(w, u),
     };
   }
 }

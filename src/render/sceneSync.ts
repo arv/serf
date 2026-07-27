@@ -380,8 +380,11 @@ export class SceneSync {
       const id = latest.ids[i]!;
       const a = i * AUX_STRIDE;
       const kind = latest.aux[a]!;
+      const profession = latest.aux[a + 6]!;
+      // Kind and profession together pick the body (farmer vs plain worker).
+      const kindKey = kind | (profession << 8);
       let visual = this.#visuals.get(id);
-      if (visual && visual.kind !== kind) {
+      if (visual && visual.kind !== kindKey) {
         // Population economy: a serf can become a worker (or a recruit a
         // soldier) in place — swap the model, keep the entity.
         this.#scene.remove(visual.group);
@@ -389,11 +392,11 @@ export class SceneSync {
         visual = undefined;
       }
       if (!visual) {
-        const skinned = makeCharacter(kind);
+        const skinned = makeCharacter(kind, profession);
         if (skinned) {
           visual = {
             group: skinned.group,
-            kind,
+            kind: kindKey,
             carrying: 0,
             carryBox: null,
             hpBar: null,
@@ -406,7 +409,7 @@ export class SceneSync {
           const group = makeUnitModel(kind);
           visual = {
             group,
-            kind,
+            kind: kindKey,
             carrying: 0,
             carryBox: null,
             hpBar: null,
