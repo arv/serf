@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   ACTION,
   AUX_STRIDE,
+  MAX_UNITS,
   PUBLISH_INTERVAL_MS,
   WORK,
   type SabReader,
@@ -42,6 +43,10 @@ interface UnitVisual {
   char: CharacterVisual | null;
   /** ...else the procedural articulated person. */
   rig: Rig | null;
+  /** Smoothed visual de-overlap offset — render-only; the sim's positions
+   * stay untouched (no unit collision by design). */
+  sepX: number;
+  sepY: number;
 }
 
 function rigOf(group: THREE.Group): Rig {
@@ -251,6 +256,78 @@ export class SceneSync {
    * hp bars copy it to stay parallel with the screen plane. */
   cameraQuaternion: THREE.Quaternion | null = null;
 
+  // Scratch buffers for the per-frame visual de-overlap pass.
+  #posX = new Float32Array(MAX_UNITS);
+  #posY = new Float32Array(MAX_UNITS);
+  #sepTX = new Float32Array(MAX_UNITS);
+  #sepTY = new Float32Array(MAX_UNITS);
+  #cells = new Map<number, number[]>();
+
+  /**
+   * Soft visual separation: units drawn closer than SEP_RADIUS get pushed
+   * apart a little (capped, smoothed by the caller). Purely cosmetic — the
+   * sim has no unit collision by design, so hauling and combat never jam.
+   */
+  #computeSeparation(
+    latest: { count: number; xs: Float32Array; ys: Float32Array; aux: Uint8Array; index: Map<number, number>; ids: Int32Array },
+    prev: { xs: Float32Array; ys: Float32Array; index: Map<number, number> },
+    alpha: number,
+  ): void {
+    const SEP_RADIUS = 0.44;
+    const MAX_PUSH = 0.34;
+    const n = latest.count;
+    this.#cells.clear();
+    for (let i = 0; i < n; i++) {
+      const id = latest.ids[i]!;
+      const pi = prev.index.get(id);
+      this.#posX[i] = pi === undefined ? latest.xs[i]! : lerp(prev.xs[pi]!, latest.xs[i]!, alpha);
+      this.#posY[i] = pi === undefined ? latest.ys[i]! : lerp(prev.ys[pi]!, latest.ys[i]!, alpha);
+      this.#sepTX[i] = 0;
+      this.#sepTY[i] = 0;
+      if (latest.aux[i * AUX_STRIDE + 4] === ACTION.dead) continue; // corpses lie still
+      const key = (this.#posX[i]! | 0) * 256 + (this.#posY[i]! | 0);
+      let cell = this.#cells.get(key);
+      if (!cell) this.#cells.set(key, (cell = []));
+      cell.push(i);
+    }
+    for (let i = 0; i < n; i++) {
+      if (latest.aux[i * AUX_STRIDE + 4] === ACTION.dead) continue;
+      const cx = this.#posX[i]! | 0;
+      const cy = this.#posY[i]! | 0;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const cell = this.#cells.get((cx + dx) * 256 + cy + dy);
+          if (!cell) continue;
+          for (const j of cell) {
+            if (j === i) continue;
+            const ddx = this.#posX[i]! - this.#posX[j]!;
+            const ddy = this.#posY[i]! - this.#posY[j]!;
+            const d2 = ddx * ddx + ddy * ddy;
+            if (d2 >= SEP_RADIUS * SEP_RADIUS) continue;
+            const d = Math.sqrt(d2);
+            if (d < 1e-4) {
+              // Exactly stacked: split along a stable per-pair direction.
+              const ang = hash2(latest.ids[i]! * 31 + latest.ids[j]!, 5) * Math.PI * 2;
+              this.#sepTX[i]! += Math.cos(ang) * SEP_RADIUS * 0.5;
+              this.#sepTY[i]! += Math.sin(ang) * SEP_RADIUS * 0.5;
+            } else {
+              const push = (SEP_RADIUS - d) * 0.5;
+              this.#sepTX[i]! += (ddx / d) * push;
+              this.#sepTY[i]! += (ddy / d) * push;
+            }
+          }
+        }
+      }
+      // Cap so crowds squash instead of exploding outward.
+      const m2 = this.#sepTX[i]! * this.#sepTX[i]! + this.#sepTY[i]! * this.#sepTY[i]!;
+      if (m2 > MAX_PUSH * MAX_PUSH) {
+        const s = MAX_PUSH / Math.sqrt(m2);
+        this.#sepTX[i]! *= s;
+        this.#sepTY[i]! *= s;
+      }
+    }
+  }
+
   constructor(scene: THREE.Scene, reader: SabReader, heights: HeightField) {
     this.#scene = scene;
     this.#reader = reader;
@@ -264,10 +341,15 @@ export class SceneSync {
     if (li === undefined) return null;
     const alpha = this.#alpha(now);
     const pi = prev.index.get(id);
-    if (pi === undefined) return { x: latest.xs[li]!, y: latest.ys[li]! };
+    // Include the visual de-overlap offset so picking and selection fx
+    // land where the unit is drawn, not where the sim has it.
+    const v = this.#visuals.get(id);
+    const sx = v?.sepX ?? 0;
+    const sy = v?.sepY ?? 0;
+    if (pi === undefined) return { x: latest.xs[li]! + sx, y: latest.ys[li]! + sy };
     return {
-      x: lerp(prev.xs[pi]!, latest.xs[li]!, alpha),
-      y: lerp(prev.ys[pi]!, latest.ys[li]!, alpha),
+      x: lerp(prev.xs[pi]!, latest.xs[li]!, alpha) + sx,
+      y: lerp(prev.ys[pi]!, latest.ys[li]!, alpha) + sy,
     };
   }
 
@@ -292,6 +374,7 @@ export class SceneSync {
     const alpha = this.#alpha(now);
     const dt = this.#lastNow > 0 ? Math.min((now - this.#lastNow) / 1000, 0.1) : 1 / 60;
     this.#lastNow = now;
+    this.#computeSeparation(latest, prev, alpha);
 
     for (let i = 0; i < latest.count; i++) {
       const id = latest.ids[i]!;
@@ -316,6 +399,8 @@ export class SceneSync {
             hpBar: null,
             char: skinned.visual,
             rig: null,
+            sepX: 0,
+            sepY: 0,
           };
         } else {
           const group = makeUnitModel(kind);
@@ -327,6 +412,8 @@ export class SceneSync {
             hpBar: null,
             char: null,
             rig: rigOf(group),
+            sepX: 0,
+            sepY: 0,
           };
         }
         this.#visuals.set(id, visual);
@@ -419,10 +506,14 @@ export class SceneSync {
       // (Skinned clips carry their own bob.)
       const bob =
         moving && !visual.char ? Math.abs(Math.cos(now * 0.012 + id * 2.1)) * 0.025 : 0;
-      const nudgeX = moving ? 0 : (hash2(id, 1) - 0.5) * 0.24;
-      const nudgeY = moving ? 0 : (hash2(id, 2) - 0.5) * 0.24;
-      const px = x + nudgeX;
-      const pz = y + nudgeY;
+      // Ease into this frame's de-overlap offset (corpses keep theirs).
+      if (!dead) {
+        const k = Math.min(1, dt * 10);
+        visual.sepX += (this.#sepTX[i]! - visual.sepX) * k;
+        visual.sepY += (this.#sepTY[i]! - visual.sepY) * k;
+      }
+      const px = x + visual.sepX;
+      const pz = y + visual.sepY;
       visual.group.position.set(px, this.#heights.at(px, pz) + bob, pz);
       // Keep the hp bar screen-stable regardless of unit facing.
       if (visual.hpBar && this.cameraQuaternion) {
