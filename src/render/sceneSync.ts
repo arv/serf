@@ -346,20 +346,20 @@ export class SceneSync {
       const carrying = latest.aux[a + 3]!;
       if (carrying !== visual.carrying) {
         if (visual.carryBox) {
-          visual.group.remove(visual.carryBox);
+          visual.carryBox.parent?.remove(visual.carryBox);
           visual.carryBox = null;
         }
         if (carrying > 0) {
           visual.carryBox = makeCarryProp(carrying);
           if (visual.carryBox) {
-            if (visual.char) {
-              // GLB characters are taller and big-headed than the props'
-              // native shoulder height: carry above the head, slightly
-              // forward, or the load clips through the skull.
-              visual.carryBox.position.y += 0.5;
-              visual.carryBox.position.z += 0.08;
+            const anchor = visual.char?.carryAnchor;
+            if (anchor) {
+              // Held in front at the chest anchor, riding the gait.
+              visual.carryBox.position.set(0, 0, 0);
+              anchor.add(visual.carryBox);
+            } else {
+              visual.group.add(visual.carryBox);
             }
-            visual.group.add(visual.carryBox);
           }
         }
         visual.carrying = carrying;

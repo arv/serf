@@ -247,6 +247,9 @@ export interface CharacterVisual {
   current: AnimKey | null;
   jog: boolean;
   ranged: boolean;
+  /** World-unit holder on the chest bone: carried goods parented here ride
+   * the walk animation (bob, sway) instead of floating rigidly. */
+  carryAnchor?: THREE.Group;
 }
 
 let assets: CharacterAssets | null = null;
@@ -484,8 +487,14 @@ function makeKayKitCharacter(
   const slot = (bone: string, file: string | undefined, offset?: [number, number, number]) => {
     if (!file) return;
     const prop = kkAssets!.props.get(file);
-    const anchor = root.getObjectByName(bone);
-    if (!prop || !anchor) return;
+    // GLTFLoader sanitizes node names ('handslot.r' loads as 'handslotr'),
+    // so look up both spellings.
+    const anchor =
+      root.getObjectByName(bone) ?? root.getObjectByName(bone.replace(/[^\w-]/g, ''));
+    if (!prop || !anchor) {
+      console.warn(`[characters] slot miss: prop=${file}:${!!prop} bone=${bone}:${!!anchor}`);
+      return;
+    }
     const inst = prop.clone();
     if (offset) inst.position.set(...offset);
     anchor.add(inst);
@@ -495,6 +504,19 @@ function makeKayKitCharacter(
   slot('chest', spec.back, [0, 0, -0.14]);
 
   const s = char.scale * (spec.scale ?? 1);
+
+  // Carried goods anchor: on the chest bone (so loads bob and sway with
+  // the gait), counter-scaled back to world units, held out in front at
+  // arms' reach — same bone-space frame the quiver back-attach uses.
+  let carryAnchor: THREE.Group | undefined;
+  const chest = root.getObjectByName('chest');
+  if (chest) {
+    carryAnchor = new THREE.Group();
+    carryAnchor.scale.setScalar(1 / s);
+    carryAnchor.position.set(0, 0.02, 0.22);
+    chest.add(carryAnchor);
+  }
+
   const inner = new THREE.Group();
   inner.position.y = char.footY * s;
   inner.scale.setScalar(s);
@@ -524,6 +546,7 @@ function makeKayKitCharacter(
       current: null,
       jog: spec.jog ?? false,
       ranged: spec.ranged ?? false,
+      carryAnchor,
     },
   };
 }
