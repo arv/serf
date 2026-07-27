@@ -71,11 +71,17 @@ export function SelectionPanel(props: { onTrain: (buildingId: number, unit: Unit
                     color: b().staffing === 'staffed' ? '#9fb06a' : '#d98a6a',
                   }}
                 >
-                  {b().staffing === 'staffed'
-                    ? 'worker at post'
-                    : b().staffing === 'recruiting'
-                      ? 'worker on the way'
-                      : 'needs a worker!'}
+                  {b().state === 'site'
+                    ? b().staffing === 'staffed'
+                      ? 'builder at work'
+                      : b().staffing === 'recruiting'
+                        ? 'builder on the way'
+                        : 'needs a builder!'
+                    : b().staffing === 'staffed'
+                      ? 'worker at post'
+                      : b().staffing === 'recruiting'
+                        ? 'worker on the way'
+                        : 'needs a worker!'}
                 </span>
               </Show>
               <Show when={def().trains && b().state === 'built'}>

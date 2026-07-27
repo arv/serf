@@ -351,7 +351,16 @@ export class SceneSync {
         }
         if (carrying > 0) {
           visual.carryBox = makeCarryProp(carrying);
-          if (visual.carryBox) visual.group.add(visual.carryBox);
+          if (visual.carryBox) {
+            if (visual.char) {
+              // GLB characters are taller and big-headed than the props'
+              // native shoulder height: carry above the head, slightly
+              // forward, or the load clips through the skull.
+              visual.carryBox.position.y += 0.5;
+              visual.carryBox.position.z += 0.08;
+            }
+            visual.group.add(visual.carryBox);
+          }
         }
         visual.carrying = carrying;
       }

@@ -9,7 +9,9 @@ export const TICK_MS = 1000 / TICKS_PER_SECOND;
 
 // Population economy: serfs staff every production building and become
 // soldiers, so the starting pool is bigger and hiring cheaper.
-export const START_SERFS = 9;
+// One extra pair of hands since builders joined the population economy:
+// every site borrows a serf while it rises.
+export const START_SERFS = 10;
 // The village armory holds a few old weapons so a Bushidō rush can field
 // defenders before the first raid without the full iron chain.
 export const START_STOCK: GoodAmounts = {

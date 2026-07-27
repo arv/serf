@@ -9,12 +9,16 @@ interface BuildingVisual {
   state: 'site' | 'built';
   frame?: THREE.Group;
   model: THREE.Group;
+  /** Warcraft-style rise: a world-space clip plane reveals the model
+   * bottom-up as materials arrive and progress ticks. */
+  clip?: { plane: THREE.Plane; height: number; baseY: number };
 }
 
 /**
- * Mirrors the building list into the scene. Sites show a timber frame plus a
- * ghosted model that grows with build progress; completion swaps in the solid
- * model.
+ * Mirrors the building list into the scene. Sites show a timber frame with
+ * the real building rising out of it half-built (clip-plane reveal) while a
+ * peasant hammers away; completion swaps in the solid model. Themes without
+ * loaded GLB assets fall back to the ghost-scale-up look.
  */
 export class BuildingSync {
   #scene: THREE.Scene;
@@ -40,8 +44,14 @@ export class BuildingSync {
         this.#visuals.set(b.id, v);
       }
       if (b.state === 'site') {
-        const scale = 0.22 + 0.78 * (b.progress01 ?? 0);
-        v.model.scale.setScalar(scale);
+        const p = b.progress01 ?? 0;
+        if (v.clip) {
+          // Reveal the build bottom-up; a sliver shows from the start so
+          // fresh sites read as more than an empty frame.
+          v.clip.plane.constant = v.clip.baseY + 0.08 + v.clip.height * p;
+        } else {
+          v.model.scale.setScalar(0.22 + 0.78 * p);
+        }
       }
     }
     for (const id of [...this.#visuals.keys()]) {
@@ -57,19 +67,43 @@ export class BuildingSync {
 
     let frame: THREE.Group | undefined;
     let model: THREE.Group;
+    let clip: BuildingVisual['clip'];
     if (b.state === 'site') {
       frame = makeSiteFrame(b.w, b.h);
       root.add(frame);
-      model = makeGhostModel(b.type);
-      model.scale.setScalar(0.22);
-      root.add(model);
+      const medieval = makeMedievalBuilding(b.type);
+      if (medieval) {
+        model = medieval;
+        // Per-site material clones so the clip plane never touches the
+        // shared templates or finished buildings.
+        const plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), root.position.y);
+        model.traverse((o) => {
+          if (o instanceof THREE.Mesh) {
+            const m = (o.material as THREE.Material).clone();
+            m.clippingPlanes = [plane];
+            m.clipShadows = true;
+            o.material = m;
+          }
+        });
+        const bbox = new THREE.Box3().setFromObject(model);
+        clip = { plane, height: bbox.max.y - root.position.y, baseY: root.position.y };
+        plane.constant = root.position.y + 0.08;
+        root.add(model);
+        // No cosmetic builder here: the staffing system sends a real serf
+        // who becomes the builder (and then the worker) — sceneSync
+        // renders them hammering like any other unit.
+      } else {
+        model = makeGhostModel(b.type);
+        model.scale.setScalar(0.22);
+        root.add(model);
+      }
     } else {
       model = makeMedievalBuilding(b.type) ?? makeBuildingModel(b.type);
       root.add(model);
     }
 
     this.#scene.add(root);
-    return { root, state: b.state, frame, model };
+    return { root, state: b.state, frame, model, clip };
   }
 
   #dispose(id: number): void {

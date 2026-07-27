@@ -166,7 +166,13 @@ describe('the campaign is winnable', () => {
         const researchPending = researchOrder.some(
           (id) => !world.techs.researched.includes(id),
         );
-        if (
+        // Survival floor: below 3 serfs the economy is one raid from an
+        // absorbing death spiral (no haulers -> no silver -> no hires), so
+        // hire at any price. Otherwise grow the pool post-Bushidō with a
+        // silver reserve for research bills.
+        if (serfCount < 3 && (stock.silver ?? 0) >= HIRE_SERF_COST) {
+          commands.push({ kind: 'hireSerf' });
+        } else if (
           world.techs.researched.includes('bushido') &&
           serfCount < 8 &&
           (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? 10 : 0)

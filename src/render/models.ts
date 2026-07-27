@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { BuildingTypeId } from '../sim/entities';
+import { makeMedievalBuilding } from './medieval';
 import { goodColors as goodColorsLocal, palette } from './palette';
 import { planks, plaster, roofTiles, stoneBlocks, thatch } from './buildingTextures';
 
@@ -618,7 +619,8 @@ export function makeBuildingModel(type: BuildingTypeId): THREE.Group {
 
 /** Clone a building model with all materials made semi-transparent. */
 export function makeGhostModel(type: BuildingTypeId, opacity = 0.45): THREE.Group {
-  const g = makeBuildingModel(type);
+  // Preview whatever model the theme will actually build.
+  const g = makeMedievalBuilding(type) ?? makeBuildingModel(type);
   g.traverse((obj) => {
     if (obj instanceof THREE.Mesh) {
       const mat = (obj.material as THREE.MeshLambertMaterial).clone();

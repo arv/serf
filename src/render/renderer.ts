@@ -20,6 +20,8 @@ export class GameRenderer {
   constructor(canvas: HTMLCanvasElement) {
     this.#webgl = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.#webgl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Construction sites reveal their model with a clip plane.
+    this.#webgl.localClippingEnabled = true;
     this.#webgl.shadowMap.enabled = true;
     this.#webgl.shadowMap.type = THREE.PCFSoftShadowMap;
     // ACES filmic gives the saturated, contrasty "game" grade the flat

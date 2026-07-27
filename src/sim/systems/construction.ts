@@ -24,6 +24,12 @@ export function constructionSystem(world: World): void {
     if (needsLeft) continue;
 
     const def = buildingDef(b.type);
+    // Raising the frame needs hands: the staffing system's recruited
+    // builder must be on site (roads pave themselves; sandbox skips).
+    if (!def.isRoad && !world.admin.instantBuild) {
+      const builder = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+      if (!builder || builder.dead) continue;
+    }
     b.buildProgress = (b.buildProgress ?? 0) + 1;
     if (b.buildProgress < def.buildTicks) continue;
 
@@ -38,7 +44,15 @@ export function constructionSystem(world: World): void {
     b.hp = def.hp;
     delete b.siteNeeds;
     delete b.buildProgress;
-    // No free workers: the staffing system recruits an idle serf who walks
-    // over and takes the post (the population economy).
+    // The builder stays on as the building's worker; buildings that keep
+    // no resident (dojo, terakoya) release them back to the serf pool.
+    if (def.workerKind === undefined && b.workerId !== undefined) {
+      const builder = world.units.get(b.workerId);
+      if (builder && !builder.dead) {
+        builder.kind = 'serf';
+        builder.homeId = undefined;
+      }
+      b.workerId = undefined;
+    }
   }
 }

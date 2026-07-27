@@ -56,23 +56,32 @@ describe('gather production', () => {
     expect(sh.stock.bamboo ?? 0).toBeGreaterThan(0);
   });
 
-  it('site completes exactly when materials arrive; a serf walks over to staff it', () => {
+  it('a recruited builder raises the site, then stays on as its worker', () => {
     const world = bareWorld();
-    addSerf(world, 26, 34); // the future worker
+    addSerf(world, 26, 34); // the future builder-then-worker
     const site = addSite(world, 24, 30);
     site.siteNeeds = {}; // materials "already delivered"
-    const start = world.tick;
+
+    // Nothing happens until the recruited builder arrives...
+    let arrivedAt = -1;
+    for (let i = 0; i < 2000 && arrivedAt < 0; i++) {
+      tickWorld(world, []);
+      if (site.workerId !== undefined) arrivedAt = world.tick;
+    }
+    expect(arrivedAt).toBeGreaterThan(0);
+    expect(site.buildProgress ?? 0).toBeLessThanOrEqual(1);
+
+    // ...then the frame rises in exactly buildTicks (300 for the hut),
+    // give or take the arrival tick's system ordering.
     let builtAt = -1;
     for (let i = 0; i < 500 && builtAt < 0; i++) {
       tickWorld(world, []);
       if (site.state === 'built') builtAt = world.tick;
     }
-    // buildTicks=300 for the bamboo hut; construction ticks once per tick.
-    expect(builtAt - start).toBe(300);
+    expect(builtAt - arrivedAt).toBeGreaterThanOrEqual(300);
+    expect(builtAt - arrivedAt).toBeLessThanOrEqual(301);
 
-    // Population economy: no free worker — the idle serf is recruited,
-    // walks over, and becomes the worker.
-    run(world, 20 * 20);
+    // The builder is now the worker; the serf pool is empty.
     const worker = site.workerId !== undefined ? world.units.get(site.workerId) : undefined;
     expect(worker?.kind).toBe('worker');
     expect([...world.units.values()].filter((u) => u.kind === 'serf')).toEqual([]);

@@ -8,7 +8,7 @@ import { buildingDef } from '../sim/defs/buildings';
 import { TECH_DEFS } from '../sim/defs/techs';
 import { checkInvariants, checkLedger, countGoods } from '../sim/debug/invariants';
 import { findStorehouse } from '../sim/systems/logistics';
-import type { GoodAmounts } from '../sim/defs/goods';
+import { GOODS, type GoodAmounts } from '../sim/defs/goods';
 import type { SimCommand } from '../sim/commands';
 import {
   ACTION,
@@ -60,7 +60,9 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
 function snapBuilding(b: Building): BuildingSnap {
   const def = buildingDef(b.type);
   let staffing: BuildingSnap['staffing'];
-  if (def.workerKind !== undefined && b.state === 'built') {
+  const wantsStaff =
+    b.state === 'built' ? def.workerKind !== undefined : b.state === 'site' && !def.isRoad;
+  if (wantsStaff) {
     const worker = b.workerId !== undefined ? world?.units.get(b.workerId) : undefined;
     staffing = worker && !worker.dead ? 'staffed' : b.recruitId !== undefined ? 'recruiting' : 'needed';
   }
@@ -188,10 +190,17 @@ function actionOf(w: World, u: Unit): number {
   if (UNIT_DEFS[u.kind].combat && u.targetId !== undefined) return ACTION.fight;
   // Gather workers swinging at a resource tile.
   if (u.task.t === 'gatherWork') return ACTION.work;
-  // Resident workers of convert buildings mid-batch: hoeing, hammering...
-  if (u.kind === 'worker' && u.homeId !== undefined && u.task.t === 'idle') {
+  // Resident workers: builders hammering up their site once materials are
+  // in, or convert-building staff mid-batch (hoeing, hammering...).
+  if (u.homeId !== undefined && u.task.t === 'idle') {
     const home = w.buildings.get(u.homeId);
-    if (home && !home.dead && home.prodTicksLeft !== undefined) return ACTION.work;
+    if (home && !home.dead) {
+      if (home.state === 'site') {
+        const waiting = GOODS.some((g) => ((home.siteNeeds ?? {})[g] ?? 0) > 0);
+        return waiting ? ACTION.idle : ACTION.work;
+      }
+      if (home.prodTicksLeft !== undefined) return ACTION.work;
+    }
   }
   return ACTION.idle;
 }
@@ -200,6 +209,7 @@ function actionOf(w: World, u: Unit): number {
 function workKindOf(w: World, u: Unit): number {
   const home = u.homeId !== undefined ? w.buildings.get(u.homeId) : undefined;
   if (!home) return WORK.tend;
+  if (home.state === 'site') return WORK.hammer; // builder at the frame
   const def = buildingDef(home.type);
   if (def.recipe?.kind === 'gather') {
     return def.recipe.resource === 'bamboo' ? WORK.chop : WORK.pickaxe;

@@ -44,9 +44,18 @@ function handleArrivals(world: World): void {
     const b = world.buildings.get(unit.task.buildingId);
     if (b?.recruitId === unit.id) b.recruitId = undefined;
     unit.task = { t: 'idle', until: world.tick };
-    if (!b || b.dead || b.state !== 'built') continue;
+    if (!b || b.dead) continue;
 
     const def = buildingDef(b.type);
+    if (b.state === 'site') {
+      // The builder: this serf raises the building (construction only
+      // advances while they're on site) and stays on as its worker.
+      if (def.isRoad || liveWorker(world, b)) continue;
+      unit.kind = def.workerKind ?? 'worker';
+      bindWorker(b, unit);
+      continue;
+    }
+    if (b.state !== 'built') continue;
     if (def.trains) {
       // Dojo recruit: the serf enlists — consumed into the training queue.
       const idx = firstReadyTraining(b);
@@ -81,8 +90,9 @@ function requestRecruits(world: World): void {
   }
 
   for (const b of world.buildings.values()) {
-    if (b.dead || b.owner !== 'player' || b.state !== 'built') continue;
+    if (b.dead || b.owner !== 'player') continue;
     const def = buildingDef(b.type);
+    if (b.state === 'site' ? def.isRoad : b.state !== 'built') continue;
 
     // Validate any recruit en route.
     if (b.recruitId !== undefined) {
@@ -94,9 +104,16 @@ function requestRecruits(world: World): void {
       }
     }
 
-    const wantsWorker = def.workerKind !== undefined && !liveWorker(world, b);
-    const wantsRecruit = def.trains !== undefined && firstReadyTraining(b) >= 0;
-    if (!wantsWorker && !wantsRecruit) continue;
+    // Builders are recruited only once the site is nearly supplied — any
+    // earlier and they'd stand idle at the frame while the haul pool
+    // starves. The walk overlaps the last delivery.
+    const needsLeft = GOODS.reduce((n, g) => n + (b.siteNeeds?.[g] ?? 0), 0);
+    const wantsBuilder = b.state === 'site' && needsLeft <= 1 && !liveWorker(world, b);
+    const wantsWorker =
+      b.state === 'built' && def.workerKind !== undefined && !liveWorker(world, b);
+    const wantsRecruit =
+      b.state === 'built' && def.trains !== undefined && firstReadyTraining(b) >= 0;
+    if (!wantsBuilder && !wantsWorker && !wantsRecruit) continue;
     if (idle.length === 0) return; // nobody left to recruit this pass
 
     // Nearest idle serf walks over.
