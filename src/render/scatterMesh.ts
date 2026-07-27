@@ -5,7 +5,7 @@ import { hash2 } from '../shared/math';
 import { Terrain, TileResource, type MapView } from '../sim/map';
 import { palette } from './palette';
 import { foliageMaterial, makeBambooCulmTexture, makeBambooLeafSprite } from './spriteTextures';
-import { medievalTrees } from './medieval';
+import { medievalRocks, medievalTrees } from './medieval';
 import type { HeightField } from './heightField';
 
 /**
@@ -67,6 +67,14 @@ export class ScatterMesh {
   #heights: HeightField;
   #trees = false;
   #treeSpecies = 0;
+  #rockSpecies = 0;
+
+  /** Rock archetype for a seed — a KayKit variant, or the one procedural. */
+  #rockName(seed: number): string {
+    if (this.#rockSpecies === 0) return 'rock';
+    const i = (hash2(seed, 41) * this.#rockSpecies) | 0;
+    return i === 0 ? 'rock' : `rock${i}`;
+  }
 
   constructor(map: MapView, heights: HeightField) {
     this.#heights = heights;
@@ -122,12 +130,27 @@ export class ScatterMesh {
         { castShadow: false, receiveShadow: false },
       );
     }
-    this.#addArchetype(
-      'rock',
-      new THREE.DodecahedronGeometry(0.32),
-      flat(0xffffff),
-      rockTiles * 2 + shoreTiles.length * 2,
-    );
+    // Rocks: KayKit boulder variants on the medieval branch, procedural
+    // dodecahedra otherwise. Ore chunks stay procedural crystals.
+    const rocks = medievalRocks();
+    this.#rockSpecies = rocks?.geometries.length ?? 0;
+    if (rocks) {
+      rocks.geometries.forEach((geo, i) => {
+        this.#addArchetype(
+          i === 0 ? 'rock' : `rock${i}`,
+          geo,
+          rocks.material,
+          rockTiles * 2 + shoreTiles.length * 2,
+        );
+      });
+    } else {
+      this.#addArchetype(
+        'rock',
+        new THREE.DodecahedronGeometry(0.32),
+        flat(0xffffff),
+        rockTiles * 2 + shoreTiles.length * 2,
+      );
+    }
     this.#addArchetype('ore', new THREE.OctahedronGeometry(0.16), flat(0xffffff), oreTiles * 4);
 
     for (let i = 0; i < TILE_COUNT; i++) {
@@ -293,21 +316,22 @@ export class ScatterMesh {
   #placeRock(tile: number): void {
     const tx = tileX(tile);
     const ty = tileY(tile);
+    const tex = this.#rockSpecies > 0;
     for (let k = 0; k < 2; k++) {
       const jx = 0.25 + hash2(tile * 2 + k, 21) * 0.5;
       const jz = 0.25 + hash2(tile * 2 + k, 22) * 0.5;
       const s = k === 0 ? 0.9 + hash2(tile, 23) * 0.5 : 0.4 + hash2(tile, 24) * 0.3;
       this.#put(
-        'rock',
+        this.#rockName(tile * 2 + k),
         tile,
         tx + jx,
-        this.#heights.at(tx + jx, ty + jz) + 0.16 * s,
+        this.#heights.at(tx + jx, ty + jz) + (tex ? -0.02 : 0.16 * s),
         ty + jz,
-        s * 0.75,
+        tex ? s * 0.55 : s * 0.75,
         s,
         hash2(tile + k, 25) * Math.PI * 2,
-        palette.rock,
-        hash2(tile + k, 26) * 0.6,
+        tex ? 0xffffff : palette.rock,
+        hash2(tile + k, 26) * (tex ? 0.25 : 0.6),
         palette.rockDark,
       );
     }
@@ -317,22 +341,23 @@ export class ScatterMesh {
   #placeShoreRocks(tile: number): void {
     const tx = tileX(tile);
     const ty = tileY(tile);
+    const tex = this.#rockSpecies > 0;
     for (let k = 0; k < 2; k++) {
       if (k === 1 && hash2(tile, 95) < 0.5) continue;
       const jx = 0.1 + hash2(tile * 2 + k, 96) * 0.8;
       const jz = 0.1 + hash2(tile * 2 + k, 97) * 0.8;
       const s = 0.55 + hash2(tile + k, 98) * 0.75;
       this.#put(
-        'rock',
+        this.#rockName(tile * 2 + k + 7),
         tile,
         tx + jx,
-        this.#heights.at(tx + jx, ty + jz) + 0.14 * s,
+        this.#heights.at(tx + jx, ty + jz) + (tex ? -0.03 : 0.14 * s),
         ty + jz,
-        s * (0.6 + hash2(tile + k, 99) * 0.5),
+        (tex ? s * 0.45 : s * 0.6) * (1 + hash2(tile + k, 99) * 0.5),
         s,
         hash2(tile + k, 100) * Math.PI * 2,
-        palette.rock,
-        0.3 + hash2(tile + k, 101) * 0.5,
+        tex ? 0xffffff : palette.rock,
+        (tex ? 0.15 : 0.3) + hash2(tile + k, 101) * (tex ? 0.15 : 0.5),
         palette.rockDark,
       );
     }

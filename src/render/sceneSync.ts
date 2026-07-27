@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import { ACTION, AUX_STRIDE, PUBLISH_INTERVAL_MS, type SabReader } from '../protocol/sabLayout';
+import {
+  ACTION,
+  AUX_STRIDE,
+  PUBLISH_INTERVAL_MS,
+  WORK,
+  type SabReader,
+} from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
 import { makeCarryProp, makeUnitModel } from './models';
 import { makeCharacter, playAnimation, type AnimKey, type CharacterVisual } from './characters';
@@ -51,6 +57,27 @@ function rigOf(group: THREE.Group): Rig {
 const rot = (n: THREE.Object3D | undefined, x: number, y = 0, z = 0): void => {
   if (n) n.rotation.set(x, y, z);
 };
+
+/** WORK.* byte → the tool animation to play. */
+function workAnimKey(workKind: number): AnimKey {
+  switch (workKind) {
+    case WORK.pickaxe:
+      return 'pickaxe';
+    case WORK.hammer:
+      return 'hammer';
+    case WORK.dig:
+      return 'dig';
+    case WORK.tend:
+      return 'tend';
+    default:
+      return 'work';
+  }
+}
+
+/** Fallback "death animation" for rigs with no death clip: keel over. */
+function tipOver(group: THREE.Object3D, dt: number): void {
+  group.rotation.x = Math.max(group.rotation.x - dt * 4, -Math.PI / 2);
+}
 
 /** Smoothstep 0..1 — eases anticipation in and recoveries out. */
 const ease = (u: number): number => u * u * (3 - 2 * u);
@@ -345,16 +372,27 @@ export class SceneSync {
       // Animation from what the unit is doing: skinned clips when the GLB
       // assets are loaded, the procedural gait engine otherwise.
       const action = latest.aux[a + 4]!;
+      const workKind = latest.aux[a + 5]!;
+      const dead = action === ACTION.dead;
+      if (dead) moving = false; // corpses don't turn or bob
       if (visual.char) {
         let key: AnimKey;
-        if (moving) key = visual.char.jog && carrying === 0 ? 'jog' : 'walk';
+        if (dead) key = 'death';
+        else if (moving) key = visual.char.jog && carrying === 0 ? 'jog' : 'walk';
         else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
-        else if (action === ACTION.work) key = 'work';
+        else if (action === ACTION.work) key = workAnimKey(workKind);
         else key = 'idle';
-        playAnimation(visual.char, key, hash2(id, 3));
+        if (dead && !visual.char.actions.has('death')) {
+          // No death clip in this library: tip the body over instead.
+          tipOver(visual.group, dt);
+          playAnimation(visual.char, 'idle', hash2(id, 3));
+        } else {
+          playAnimation(visual.char, key, key === 'death' ? 0 : hash2(id, 3));
+        }
         visual.char.mixer.update(dt);
       } else if (visual.rig) {
-        animate(visual.rig, id, now, moving, action, carrying > 0);
+        if (dead) tipOver(visual.group, dt);
+        else animate(visual.rig, id, now, moving, action, carrying > 0);
       }
 
       // Body bob synced to the gait: high at mid-stance, low at heel-strike.

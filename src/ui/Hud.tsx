@@ -379,7 +379,15 @@ export function Hud(props: {
       <Show when={outcome() !== 'playing'}>
         <div class="hud-end">
           <div class="panel end-card">
-            <h1>{outcome() === 'won' ? '勝利 — Victory' : '敗北 — Defeat'}</h1>
+            <h1>
+              {outcome() === 'won'
+                ? MEDIEVAL
+                  ? 'Victory'
+                  : '勝利 — Victory'
+                : MEDIEVAL
+                  ? 'Defeat'
+                  : '敗北 — Defeat'}
+            </h1>
             <p>
               {outcome() === 'won'
                 ? 'The bandit camp lies in ruins. The valley is yours.'

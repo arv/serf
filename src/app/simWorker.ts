@@ -15,6 +15,7 @@ import {
   PUBLISH_INTERVAL_MS,
   SAB_BYTES,
   SabWriter,
+  WORK,
   type UnitSnapshot,
 } from '../protocol/sabLayout';
 import type { Building } from '../sim/entities';
@@ -182,6 +183,7 @@ function postStructural(): void {
 
 /** What is this unit visibly doing? Drives limb animation in the renderer. */
 function actionOf(w: World, u: Unit): number {
+  if (u.dead) return ACTION.dead;
   // Engaged fighters swing (the renderer overrides with a walk while moving).
   if (UNIT_DEFS[u.kind].combat && u.targetId !== undefined) return ACTION.fight;
   // Gather workers swinging at a resource tile.
@@ -194,18 +196,40 @@ function actionOf(w: World, u: Unit): number {
   return ACTION.idle;
 }
 
+/** Which tool animation fits this unit's work site? */
+function workKindOf(w: World, u: Unit): number {
+  const home = u.homeId !== undefined ? w.buildings.get(u.homeId) : undefined;
+  if (!home) return WORK.tend;
+  const def = buildingDef(home.type);
+  if (def.recipe?.kind === 'gather') {
+    return def.recipe.resource === 'bamboo' ? WORK.chop : WORK.pickaxe;
+  }
+  if (home.type === 'swordsmith' || home.type === 'spearmaker' || home.type === 'bowyer') {
+    return WORK.hammer;
+  }
+  if (home.type === 'ricePaddy') return WORK.dig;
+  return WORK.tend;
+}
+
 function* unitSnapshots(w: World): Generator<UnitSnapshot> {
   for (const u of w.units.values()) {
-    if (u.dead) continue;
+    // Combat corpses (deathTick set) stay visible for the death animation;
+    // other dead units (dojo consumption) vanish immediately.
+    if (u.dead && u.deathTick === undefined) continue;
+    const action = actionOf(w, u);
     yield {
       id: u.id,
       x: u.x,
       y: u.y,
       kind: UNIT_DEFS[u.kind].kindCode,
       owner: OWNER_CODE[u.owner],
-      hpPct: Math.max(0, Math.min(255, Math.round((u.hp / UNIT_DEFS[u.kind].hp) * 255))),
-      carrying: carryingCode(u.carrying),
-      action: actionOf(w, u),
+      hpPct:
+        action === ACTION.dead
+          ? 0
+          : Math.max(0, Math.min(255, Math.round((u.hp / UNIT_DEFS[u.kind].hp) * 255))),
+      carrying: action === ACTION.dead ? 0 : carryingCode(u.carrying),
+      action,
+      workKind: action === ACTION.work ? workKindOf(w, u) : WORK.none,
     };
   }
 }

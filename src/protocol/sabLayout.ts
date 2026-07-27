@@ -23,12 +23,15 @@ const COUNT_BYTES = 4;
 const IDS_BYTES = 4 * MAX_UNITS;
 const XS_BYTES = 4 * MAX_UNITS;
 const YS_BYTES = 4 * MAX_UNITS;
-/** Bytes of per-unit auxiliary state: kind, owner, hpPct, carrying, action, 3 spare. */
+/** Bytes of per-unit auxiliary state: kind, owner, hpPct, carrying, action, workKind, 2 spare. */
 export const AUX_STRIDE = 8;
 const AUX_BYTES = AUX_STRIDE * MAX_UNITS;
 
 /** What a unit is visibly doing — drives limb animation in the renderer. */
-export const ACTION = { idle: 0, work: 1, fight: 2 } as const;
+export const ACTION = { idle: 0, work: 1, fight: 2, dead: 3 } as const;
+
+/** Which kind of work — picks the tool animation (chop vs pickaxe vs...). */
+export const WORK = { none: 0, chop: 1, pickaxe: 2, hammer: 3, dig: 4, tend: 5 } as const;
 export const SLOT_BYTES = COUNT_BYTES + IDS_BYTES + XS_BYTES + YS_BYTES + AUX_BYTES;
 export const SAB_BYTES = HEADER_INTS * 4 + SLOT_COUNT * SLOT_BYTES;
 
@@ -63,8 +66,10 @@ export interface UnitSnapshot {
   owner: number;
   hpPct: number;
   carrying: number;
-  /** ACTION.idle / ACTION.work / ACTION.fight — animation intent. */
+  /** ACTION.idle / work / fight / dead — animation intent. */
   action: number;
+  /** WORK.* refinement when action is work (defaults to none). */
+  workKind?: number;
 }
 
 export class SabWriter {
@@ -97,6 +102,7 @@ export class SabWriter {
       slot.aux[a + 2] = u.hpPct;
       slot.aux[a + 3] = u.carrying;
       slot.aux[a + 4] = u.action;
+      slot.aux[a + 5] = u.workKind ?? 0;
       n++;
     }
     slot.count[0] = n;

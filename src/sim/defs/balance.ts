@@ -40,6 +40,8 @@ export const MAX_CONCURRENT_PAVING = 4; // road sites in flight (never starves c
 
 // Hiring
 export const HIRE_SERF_COST = 4; // silver
+/** Combat corpses linger this long so the death animation can play. */
+export const CORPSE_TICKS = 30;
 
 // Festivals (sake -> global work-speed buff)
 export const FESTIVAL_DURATION = 60 * TICKS_PER_SECOND;

@@ -44,6 +44,9 @@ export interface Unit {
   targetId?: EntityId;
   targetIsBuilding?: boolean;
   dead: boolean;
+  /** Set by combat deaths only — the corpse lingers a moment for the death
+   * animation. Absent for despawns (dojo consumption), which vanish at once. */
+  deathTick?: number;
 }
 
 export function makeUnit(

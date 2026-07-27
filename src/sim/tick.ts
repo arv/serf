@@ -18,7 +18,7 @@ import { combatSystem } from './systems/combat';
 import { banditsSystem } from './systems/bandits';
 import { victorySystem } from './systems/victory';
 import { buildingDef } from './defs/buildings';
-import { HIRE_SERF_COST } from './defs/balance';
+import { CORPSE_TICKS, HIRE_SERF_COST } from './defs/balance';
 import { TECH_DEFS } from './defs/techs';
 import { canResearch, isBuildingUnlocked } from './techHelpers';
 import type { GoodId } from './defs/goods';
@@ -225,7 +225,11 @@ function collectSpreadTargets(world: World, x: number, y: number, count: number)
 
 function removeDead(world: World): void {
   for (const [id, unit] of world.units) {
-    if (unit.dead) world.units.delete(id);
+    if (!unit.dead) continue;
+    // Combat corpses linger for the death animation; despawns go at once.
+    if (unit.deathTick === undefined || world.tick - unit.deathTick >= CORPSE_TICKS) {
+      world.units.delete(id);
+    }
   }
   for (const [id, b] of world.buildings) {
     if (b.dead) world.buildings.delete(id);

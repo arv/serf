@@ -50,7 +50,10 @@ interface Assets {
   buildings: Map<BuildingTypeId, THREE.Group>;
   /** Distinct tree species geometries (normalized: feet at 0, height 1). */
   trees: THREE.BufferGeometry[];
-  treeMaterial: THREE.Material;
+  /** Rock variants, same normalization. */
+  rocks: THREE.BufferGeometry[];
+  /** Shared palette-textured material for trees and rocks. */
+  natureMaterial: THREE.Material;
 }
 
 let assets: Assets | null = null;
@@ -104,9 +107,10 @@ export async function loadMedievalAssets(): Promise<boolean> {
     const loader = new GLTFLoader();
     const files = new Set(Object.values(BUILDING_FILES));
     const TREE_FILES = ['tree_single_A.gltf', 'tree_single_B.gltf'];
+    const ROCK_FILES = ['rock_single_A.gltf', 'rock_single_B.gltf', 'rock_single_C.gltf'];
     const loaded = new Map<string, THREE.Group>();
     await Promise.all(
-      [...files, ...TREE_FILES].map(async (f) => {
+      [...files, ...TREE_FILES, ...ROCK_FILES].map(async (f) => {
         const gltf = await loader.loadAsync(`${DIR}${f}`);
         gltf.scene.traverse((o) => {
           if (o instanceof THREE.Mesh) {
@@ -139,23 +143,26 @@ export async function loadMedievalAssets(): Promise<boolean> {
       buildings.set(type, normalize(scene));
     }
 
-    let treeMap: THREE.Texture | null = null;
-    const trees = TREE_FILES.map((f) => {
+    let natureMap: THREE.Texture | null = null;
+    const bakeNormalized = (f: string): THREE.BufferGeometry => {
       const { geometry: geo, map } = bakeToGeometry(loaded.get(f)!);
-      treeMap ??= map;
-      // Normalize each species: trunk base at 0, height 1.
+      natureMap ??= map;
+      // Normalize: base at 0, height 1.
       geo.computeBoundingBox();
       const tb = geo.boundingBox!;
       geo.translate(-(tb.min.x + tb.max.x) / 2, -tb.min.y, -(tb.min.z + tb.max.z) / 2);
       const s = 1 / (tb.max.y - tb.min.y);
       geo.scale(s, s, s);
       return geo;
-    });
+    };
+    const trees = TREE_FILES.map(bakeNormalized);
+    const rocks = ROCK_FILES.map(bakeNormalized);
 
     assets = {
       buildings,
       trees,
-      treeMaterial: new THREE.MeshLambertMaterial({ map: treeMap }),
+      rocks,
+      natureMaterial: new THREE.MeshLambertMaterial({ map: natureMap }),
     };
     return true;
   } catch (err) {
@@ -179,11 +186,20 @@ export function makeMedievalBuilding(type: BuildingTypeId): THREE.Group | null {
   return group;
 }
 
-/** Vertex-colored tree-species geometries for the scatter system, or null. */
+/** Palette-textured tree-species geometries for the scatter system, or null. */
 export function medievalTrees(): {
   geometries: THREE.BufferGeometry[];
   material: THREE.Material;
 } | null {
   if (!assets) return null;
-  return { geometries: assets.trees, material: assets.treeMaterial };
+  return { geometries: assets.trees, material: assets.natureMaterial };
+}
+
+/** Palette-textured rock variants for the scatter system, or null. */
+export function medievalRocks(): {
+  geometries: THREE.BufferGeometry[];
+  material: THREE.Material;
+} | null {
+  if (!assets) return null;
+  return { geometries: assets.rocks, material: assets.natureMaterial };
 }

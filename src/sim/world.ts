@@ -306,6 +306,7 @@ const DEPOSIT_CODE: Record<string, number> = {
 export function killUnit(world: World, unit: Unit): void {
   if (unit.dead) return;
   unit.dead = true;
+  unit.deathTick = world.tick;
   if (unit.carrying !== undefined) {
     world.ledger.consumed[unit.carrying] = (world.ledger.consumed[unit.carrying] ?? 0) + 1;
     unit.carrying = undefined;

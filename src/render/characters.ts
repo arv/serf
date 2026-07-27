@@ -29,7 +29,18 @@ import { THEME } from './medieval';
 const CHARACTER_URL = '/models/character/Superhero_Male_FullBody.gltf?v=2';
 const ANIMATIONS_URL = '/models/UAL1_Standard.glb?v=2';
 
-export type AnimKey = 'idle' | 'walk' | 'jog' | 'attack' | 'shoot' | 'work';
+export type AnimKey =
+  | 'idle'
+  | 'walk'
+  | 'jog'
+  | 'attack'
+  | 'shoot'
+  | 'work'
+  | 'pickaxe'
+  | 'hammer'
+  | 'dig'
+  | 'tend'
+  | 'death';
 
 const CLIP_NAMES: Record<AnimKey, string> = {
   idle: 'Idle_Loop',
@@ -37,7 +48,13 @@ const CLIP_NAMES: Record<AnimKey, string> = {
   jog: 'Jog_Fwd_Loop',
   attack: 'Sword_Attack',
   shoot: 'Spell_Simple_Shoot',
-  work: 'Sword_Attack', // with a hatchet in hand it reads as the chop
+  // The UAL has no tool clips — the sword swing stands in for all work.
+  work: 'Sword_Attack',
+  pickaxe: 'Sword_Attack',
+  hammer: 'Sword_Attack',
+  dig: 'Sword_Attack',
+  tend: 'Sword_Attack',
+  death: 'Death01', // absent from the UAL: the renderer tips the body instead
 };
 
 // --- KayKit path (medieval theme) ------------------------------------------
@@ -65,7 +82,13 @@ const KK_CLIP_NAMES: Record<AnimKey, string> = {
   jog: 'Running_A',
   attack: 'Melee_1H_Attack_Chop',
   shoot: 'Ranged_Bow_Draw',
-  work: 'Chopping', // a real woodcutting loop, at last
+  // Real tool loops per work site.
+  work: 'Chopping',
+  pickaxe: 'Pickaxing',
+  hammer: 'Hammering',
+  dig: 'Digging',
+  tend: 'Working_A',
+  death: 'Death_A',
 };
 
 interface KKSpec {
@@ -484,7 +507,13 @@ function makeKayKitCharacter(
   for (const key of Object.keys(KK_CLIP_NAMES) as AnimKey[]) {
     const name = key === 'attack' && spec.attackClip ? spec.attackClip : KK_CLIP_NAMES[key];
     const clip = kkAssets.clips.get(name);
-    if (clip) actions.set(key, mixer.clipAction(clip));
+    if (!clip) continue;
+    const action = mixer.clipAction(clip);
+    if (key === 'death') {
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true; // hold the final crumpled pose
+    }
+    actions.set(key, action);
   }
 
   return {
@@ -655,7 +684,10 @@ export function makeCharacter(
   const actions = new Map<AnimKey, THREE.AnimationAction>();
   for (const [key, clip] of assets.clips) {
     const action = mixer.clipAction(clip);
-    if (key === 'attack' || key === 'shoot' || key === 'work') {
+    if (key === 'death') {
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+    } else if (key !== 'idle' && key !== 'walk' && key !== 'jog') {
       action.setLoop(THREE.LoopRepeat, Infinity);
     }
     actions.set(key, action);

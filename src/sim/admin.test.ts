@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CORPSE_TICKS } from './defs/balance';
 import { tickWorld } from './tick';
 import { placeBuiltBuilding, type World } from './world';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants';
@@ -35,6 +36,10 @@ describe('admin sandbox', () => {
     expect([...world.units.values()].some((u) => u.owner === 'bandit')).toBe(true);
 
     tickWorld(world, [{ kind: 'admin', action: 'clearBandits' }]);
+    // All dead at once; the corpses linger for the death animation...
+    expect([...world.units.values()].filter((u) => u.owner === 'bandit' && !u.dead)).toEqual([]);
+    // ...then sweep away.
+    run(world, CORPSE_TICKS + 1);
     expect([...world.units.values()].filter((u) => u.owner === 'bandit')).toEqual([]);
     expect(checkInvariants(world).violations).toEqual([]);
   });
