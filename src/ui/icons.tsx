@@ -1,23 +1,58 @@
 import type { JSX } from 'solid-js';
 import type { GoodId } from '../sim/defs/goods';
+import { THEME } from '../render/medieval';
 
 /**
  * Tiny inline-SVG icon set — no emoji, no assets. Goods use their palette
  * color so the HUD reads like the world does.
  */
 
+const MEDIEVAL = THEME === 'medieval';
+
 const GOOD_HEX: Record<GoodId, string> = {
   water: '#6da4cc',
-  rice: '#e8d9a0',
-  bamboo: '#a4c455',
+  rice: MEDIEVAL ? '#e3bd45' : '#e8d9a0',
+  bamboo: MEDIEVAL ? '#ab8354' : '#a4c455',
   stone: '#a29a8a',
   iron: '#8d7d72',
   silver: '#c8ced6',
   gold: '#e0b74f',
-  katana: '#dbe0e6',
+  katana: MEDIEVAL ? '#c4cdd6' : '#dbe0e6',
   yari: '#c39c62',
   yumi: '#b08d57',
   sake: '#efe8f0',
+};
+
+/** Medieval glyphs (from the glass-HUD design handoff), authored in a
+ * 24-unit box and scaled into the 16-unit one. */
+const MEDIEVAL_PATHS: Partial<Record<GoodId, (c: string) => JSX.Element>> = {
+  // Wheat ear: stalk + grain ellipses
+  rice: (c) => (
+    <g transform="scale(0.667)">
+      <path d="M12 22V8" stroke={c} stroke-width="2" fill="none" stroke-linecap="round" />
+      <ellipse cx="12" cy="5" rx="2.6" ry="3.6" fill={c} />
+      <ellipse cx="7.4" cy="10" rx="2.4" ry="3.2" transform="rotate(-38 7.4 10)" fill={c} />
+      <ellipse cx="16.6" cy="10" rx="2.4" ry="3.2" transform="rotate(38 16.6 10)" fill={c} />
+      <ellipse cx="7.4" cy="15.5" rx="2.4" ry="3.2" transform="rotate(-38 7.4 15.5)" fill={c} />
+      <ellipse cx="16.6" cy="15.5" rx="2.4" ry="3.2" transform="rotate(38 16.6 15.5)" fill={c} />
+    </g>
+  ),
+  // Log with end-grain
+  bamboo: (c) => (
+    <g transform="scale(0.667)">
+      <rect x="3" y="9" width="18" height="6" rx="3" fill={c} />
+      <circle cx="18" cy="12" r="3" fill="#d4af7e" />
+      <circle cx="18" cy="12" r="1.3" fill={c} />
+    </g>
+  ),
+  // Straight sword: blade + crossguard + grip
+  katana: (c) => (
+    <g transform="scale(0.667)" fill="none" stroke-linecap="round">
+      <path d="M19 5L9 15" stroke={c} stroke-width="2.6" />
+      <path d="M6.5 12.5l5 5" stroke="#a08356" stroke-width="2.4" />
+      <path d="M5 19l2.5-2.5" stroke="#a08356" stroke-width="2.4" />
+    </g>
+  ),
 };
 
 const PATHS: Record<GoodId, (c: string) => JSX.Element> = {
@@ -95,7 +130,9 @@ export function GoodIcon(props: { good: GoodId; size?: number }) {
       style={{ 'vertical-align': '-2px' }}
       aria-label={props.good}
     >
-      {PATHS[props.good](GOOD_HEX[props.good])}
+      {((MEDIEVAL ? MEDIEVAL_PATHS[props.good] : undefined) ?? PATHS[props.good])(
+        GOOD_HEX[props.good],
+      )}
     </svg>
   );
 }
