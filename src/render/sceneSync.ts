@@ -8,6 +8,7 @@ import {
   type SabReader,
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
+import { GOODS } from '../sim/defs/goods';
 import { makeCarryProp, makeUnitModel } from './models';
 import {
   makeCharacter,
@@ -68,6 +69,10 @@ function rigOf(group: THREE.Group): Rig {
 const rot = (n: THREE.Object3D | undefined, x: number, y = 0, z = 0): void => {
   if (n) n.rotation.set(x, y, z);
 };
+
+/** Water travels on the shoulder yoke — the plain gait reads fine for it;
+ * everything else is held in the arms with the composited carry clips. */
+const YOKE_CODE = GOODS.indexOf('water') + 1;
 
 /** WORK.* byte → the tool animation to play. */
 function workAnimKey(workKind: number): AnimKey {
@@ -486,12 +491,14 @@ export class SceneSync {
       const dead = action === ACTION.dead;
       if (dead) moving = false; // corpses don't turn or bob
       if (visual.char) {
+        const heldCarry = carrying > 0 && carrying !== YOKE_CODE;
         let key: AnimKey;
         if (dead) key = 'death';
-        else if (moving) key = visual.char.jog && carrying === 0 ? 'jog' : 'walk';
+        else if (moving)
+          key = heldCarry ? 'carry' : visual.char.jog && carrying === 0 ? 'jog' : 'walk';
         else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
         else if (action === ACTION.work) key = workAnimKey(workKind);
-        else key = 'idle';
+        else key = heldCarry ? 'carryIdle' : 'idle';
         // Right tool for the job: mallet on sites, pickaxe at rock faces.
         setWorkTool(visual.char, !moving && action === ACTION.work ? workKind : 0);
         if (dead && !visual.char.actions.has('death')) {

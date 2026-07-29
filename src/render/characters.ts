@@ -41,6 +41,8 @@ export type AnimKey =
   | 'dig'
   | 'tend'
   | 'draw'
+  | 'carry'
+  | 'carryIdle'
   | 'death';
 
 const CLIP_NAMES: Record<AnimKey, string> = {
@@ -56,6 +58,8 @@ const CLIP_NAMES: Record<AnimKey, string> = {
   dig: 'Sword_Attack',
   tend: 'Sword_Attack',
   draw: 'Sword_Attack',
+  carry: 'Walk_Loop',
+  carryIdle: 'Idle_Loop',
   death: 'Death01', // absent from the UAL: the renderer tips the body instead
 };
 
@@ -92,6 +96,9 @@ const KK_CLIP_NAMES: Record<AnimKey, string> = {
   tend: 'Working_A',
   // Hand-over-hand reeling doubles as cranking the well bucket up.
   draw: 'Fishing_Reeling',
+  // Composited at load: gait legs + holding-pose arms.
+  carry: 'Carry_Walk',
+  carryIdle: 'Carry_Idle',
   death: 'Death_A',
 };
 
@@ -469,6 +476,38 @@ async function loadKayKitCharacters(): Promise<boolean> {
         props.set(f, gltf.scene);
       }),
     ]);
+    // The pack has no carry-walk, so composite one: legs and hips from the
+    // gait, arms frozen in the two-handed holding pose — carriers actually
+    // hold their load instead of pumping their arms through it.
+    const ARM_BONES = /upperarm|lowerarm|wrist|hand|handslot/;
+    const composite = (
+      baseName: string,
+      holdName: string,
+      name: string,
+    ): THREE.AnimationClip | null => {
+      const base = clips.get(baseName);
+      const hold = clips.get(holdName);
+      if (!base || !hold) return null;
+      const legTracks = base.tracks.filter((t) => !ARM_BONES.test(t.name));
+      const armTracks = hold.tracks
+        .filter((t) => ARM_BONES.test(t.name))
+        .map((t) => {
+          // A single static key: the pose's first frame, held.
+          const size = t.getValueSize();
+          const Track = t.constructor as new (
+            name: string,
+            times: number[],
+            values: ArrayLike<number>,
+          ) => THREE.KeyframeTrack;
+          return new Track(t.name, [0], t.values.slice(0, size));
+        });
+      const clip = new THREE.AnimationClip(name, base.duration, [...legTracks, ...armTracks]);
+      clips.set(name, clip);
+      return clip;
+    };
+    composite('Walking_A', 'Holding_B', 'Carry_Walk');
+    composite('Idle_A', 'Holding_B', 'Carry_Idle');
+
     kkAssets = { chars, clips, props };
     return true;
   } catch (err) {
