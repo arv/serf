@@ -1155,6 +1155,25 @@ const PACK_CARRY: Partial<Record<GoodId, { prop: string; span: number }>> = {
   stone: { prop: 'resource_stone', span: 0.36 },
 };
 
+/**
+ * A single unit of a good as a small grounded prop, for the stock piles
+ * that grow beside buildings — same look as the carried version, base on
+ * the ground.
+ */
+export function makePileProp(good: GoodId): THREE.Group {
+  const pack = PACK_CARRY[good];
+  const inner = (pack && medievalCarryProp(pack.prop, 0.3)) ?? carryProto(good).clone();
+  if (!pack) {
+    inner.position.set(0, 0, 0); // strip the carry-height offset
+    inner.scale.setScalar(0.62);
+  }
+  const g = new THREE.Group();
+  g.add(inner);
+  const bb = new THREE.Box3().setFromObject(g);
+  inner.position.y -= bb.min.y;
+  return g;
+}
+
 export function makeCarryProp(carryCode: number): THREE.Group | null {
   const good = GOODS[carryCode - 1];
   if (!good) return null;

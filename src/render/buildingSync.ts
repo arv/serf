@@ -1,6 +1,9 @@
 import * as THREE from 'three';
-import { makeBuildingModel, makeGhostModel, makeSiteFrame } from './models';
+import { makeBuildingModel, makeGhostModel, makePileProp, makeSiteFrame } from './models';
 import { makeMedievalBuilding } from './medieval';
+import { buildingDef } from '../sim/defs/buildings';
+import { GOODS, type GoodId } from '../sim/defs/goods';
+import { hash2 } from '../shared/math';
 import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
 
@@ -17,6 +20,10 @@ interface BuildingVisual {
   hpBar?: { group: THREE.Group; fg: THREE.Mesh };
   /** Latest hp fraction, for hover bars on healthy buildings. */
   pct: number;
+  /** Physical stock piles against the front wall. */
+  piles?: THREE.Group;
+  /** Serialized pile contents — rebuilt only when the counts change. */
+  pileKey: string;
 }
 
 const HP_BAR_W = 1.1;
@@ -90,6 +97,8 @@ export class BuildingSync {
         }
       }
 
+      this.#syncPiles(v, b);
+
       // Damage bar: appears once hurt (hover() shows it on healthy ones).
       v.pct = b.maxHp > 0 ? b.hp / b.maxHp : 1;
       if (v.pct < 1 && !v.hpBar) {
@@ -150,7 +159,62 @@ export class BuildingSync {
 
     const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
     this.#scene.add(root);
-    return { root, state: b.state, frame, model, clip, topY, pct: 1 };
+    return { root, state: b.state, frame, model, clip, topY, pct: 1, pileKey: "" };
+  }
+
+  /**
+   * The Settlers fantasy: every good a building holds exists physically,
+   * piled against its front wall — the same props the serfs carry. Piles
+   * track the true sim counts, so a good vanishes from the stack at the
+   * exact publish where a carrier picks it up. Sites show the materials
+   * delivered so far.
+   */
+  #syncPiles(v: BuildingVisual, b: BuildingSnap): void {
+    const def = buildingDef(b.type);
+    const shown: [GoodId, number][] = [];
+    for (const g of GOODS) {
+      let n: number;
+      if (b.state === 'site') {
+        // Delivered materials wait by the frame, then drain into the
+        // structure as the build progresses.
+        const delivered =
+          ((def.cost as Partial<Record<GoodId, number>>)[g] ?? 0) - (b.siteNeeds?.[g] ?? 0);
+        n = Math.round(delivered * (1 - (b.progress01 ?? 0)));
+      } else {
+        n = (b.stock[g] ?? 0) + (b.inputs[g] ?? 0);
+      }
+      if (n > 0) shown.push([g, Math.min(n, 8)]);
+    }
+    const key = shown.map(([g, n]) => `${g}${n}`).join('.');
+    if (key === v.pileKey) return;
+    v.pileKey = key;
+    if (v.piles) {
+      v.root.remove(v.piles);
+      v.piles = undefined;
+    }
+    if (shown.length === 0) return;
+
+    const piles = new THREE.Group();
+    // Just outside the front wall, Settlers-style — goods wait at the door
+    // (they're ankle-high; carriers step over them).
+    piles.position.set(0, 0, b.h / 2 + 0.3);
+    shown.forEach(([good, n], col) => {
+      const cx = (col - (shown.length - 1) / 2) * 0.42;
+      for (let i = 0; i < n; i++) {
+        const prop = makePileProp(good);
+        const row = i % 3;
+        const layer = (i / 3) | 0;
+        prop.position.set(
+          cx + (hash2(b.id * 31 + i, col) - 0.5) * 0.06,
+          layer * 0.12,
+          row * 0.17 - 0.17,
+        );
+        prop.rotation.y = (hash2(b.id * 17 + i, col + 9) - 0.5) * 0.7;
+        piles.add(prop);
+      }
+    });
+    v.root.add(piles);
+    v.piles = piles;
   }
 
   #hoverId = -1;

@@ -31,6 +31,9 @@ export function constructionSystem(world: World): void {
       if (!builder || builder.dead) continue;
     }
     b.buildProgress = (b.buildProgress ?? 0) + 1;
+    // The structure firms up as it rises — hp grows in step with progress
+    // (an increment, so raid damage taken meanwhile is not healed).
+    b.hp = Math.min(def.hp, b.hp + (def.hp * 0.85) / def.buildTicks);
     if (b.buildProgress < def.buildTicks) continue;
 
     if (def.isRoad) {

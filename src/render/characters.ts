@@ -504,6 +504,7 @@ function pickaxeProp(): THREE.Group {
   const g = new THREE.Group();
   const handle = toolMesh(new THREE.CylinderGeometry(0.016, 0.02, 0.34, 6), 0x8a6a42);
   handle.position.y = 0.14;
+  g.add(handle);
   for (const side of [-1, 1]) {
     const spike = toolMesh(new THREE.ConeGeometry(0.028, 0.17, 6), 0x77848e);
     // Head spikes run across the swing plane, tips drooping slightly.

@@ -239,6 +239,8 @@ export function placeSite(
   const def = buildingDef(type);
   const b = makeBuildingRecord(world, type, owner, x, y);
   b.state = 'site';
+  // A bare frame is fragile; hp climbs to full as construction advances.
+  b.hp = Math.max(1, Math.round(buildingDef(b.type).hp * 0.15));
   b.hp = Math.max(1, Math.round(def.hp * 0.2));
   b.siteNeeds = { ...def.cost };
   b.buildProgress = 0;
