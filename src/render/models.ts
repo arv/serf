@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BuildingTypeId } from '../sim/entities';
-import { makeMedievalBuilding } from './medieval';
+import { makeMedievalBuilding, medievalCarryProp } from './medieval';
 import { goodColors as goodColorsLocal, palette } from './palette';
 import { planks, plaster, roofTiles, stoneBlocks, thatch } from './buildingTextures';
 
@@ -1148,9 +1148,21 @@ function carryProto(good: GoodId): THREE.Group {
 const carryPrototypes = new Map<GoodId, THREE.Group>();
 
 /** The visible good on a carrier's shoulders, by SAB carry code. */
+/** Goods whose carried look comes from the pack's own resource piles, so
+ * what's on a serf's arms matches what's stacked in the yards. */
+const PACK_CARRY: Partial<Record<GoodId, { prop: string; span: number }>> = {
+  bamboo: { prop: 'resource_lumber', span: 0.44 },
+  stone: { prop: 'resource_stone', span: 0.36 },
+};
+
 export function makeCarryProp(carryCode: number): THREE.Group | null {
   const good = GOODS[carryCode - 1];
   if (!good) return null;
+  const pack = PACK_CARRY[good];
+  if (pack) {
+    const prop = medievalCarryProp(pack.prop, pack.span);
+    if (prop) return prop;
+  }
   let proto = carryPrototypes.get(good);
   if (!proto) {
     proto = carryProto(good);

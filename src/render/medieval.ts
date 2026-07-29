@@ -85,6 +85,8 @@ interface Assets {
   rocks: THREE.BufferGeometry[];
   /** Shared palette-textured material for trees and rocks. */
   natureMaterial: THREE.Material;
+  /** Loaded pack prop scenes (wheelbarrow, resource piles...). */
+  props: Map<string, THREE.Group>;
 }
 
 let assets: Assets | null = null;
@@ -232,7 +234,12 @@ export async function loadMedievalAssets(): Promise<boolean> {
       buildings.set(type, group);
     }
 
-    assets = { buildings, trees, rocks, natureMaterial };
+    const props = new Map<string, THREE.Group>();
+    for (const p of DECOR_PROP_FILES) {
+      const scene = loaded.get(`${p}.gltf`);
+      if (scene) props.set(p, scene);
+    }
+    assets = { buildings, trees, rocks, natureMaterial, props };
     return true;
   } catch (err) {
     console.warn('[medieval] falling back to the Japan look:', err);
@@ -271,4 +278,27 @@ export function medievalRocks(): {
 } | null {
   if (!assets) return null;
   return { geometries: assets.rocks, material: assets.natureMaterial };
+}
+
+/**
+ * A pack prop cloned and normalized for carrying: centered on the origin
+ * and scaled to `span` across — so what a serf hauls matches what's piled
+ * in the yards (the mill's squared beams, the quarry's stone). Null when
+ * the theme is off or the prop is unknown.
+ */
+export function medievalCarryProp(prop: string, span: number): THREE.Group | null {
+  const src = assets?.props.get(prop);
+  if (!src) return null;
+  const c = src.clone();
+  const bb = new THREE.Box3().setFromObject(c);
+  const width = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z, 1e-6);
+  c.position.set(
+    -(bb.min.x + bb.max.x) / 2,
+    -(bb.min.y + bb.max.y) / 2,
+    -(bb.min.z + bb.max.z) / 2,
+  );
+  const g = new THREE.Group();
+  g.scale.setScalar(span / width);
+  g.add(c);
+  return g;
 }
