@@ -18,8 +18,11 @@ export class GameRenderer {
   #lastTime = performance.now();
 
   constructor(canvas: HTMLCanvasElement) {
-    this.#webgl = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.#webgl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Phones and tablets render the same scene on a far smaller GPU: trade
+    // resolution and shadow crispness for framerate. Desktop is unchanged.
+    const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+    this.#webgl = new THREE.WebGLRenderer({ canvas, antialias: !coarse });
+    this.#webgl.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.5 : 2));
     // Construction sites reveal their model with a clip plane.
     this.#webgl.localClippingEnabled = true;
     this.#webgl.shadowMap.enabled = true;
@@ -43,7 +46,7 @@ export class GameRenderer {
     sun.position.set(MAP_SIZE / 2 - 28, 55, MAP_SIZE / 2 + 18);
     sun.target.position.set(MAP_SIZE / 2, 0, MAP_SIZE / 2);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048);
     const half = MAP_SIZE * 0.75;
     sun.shadow.camera.left = -half;
     sun.shadow.camera.right = half;

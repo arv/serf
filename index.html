@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the HUD reach under notches (it pads itself
+         back out with env(safe-area-inset-*)); the scale locks stop a
+         two-finger map pinch from zooming the page instead. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>Serf</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -43,6 +49,9 @@
         inset: 0;
         width: 100%;
         height: 100%;
+        /* The map owns its gestures: no browser scroll, pull-to-refresh,
+           or double-tap zoom over the world. */
+        touch-action: none;
       }
       #ui {
         position: fixed;

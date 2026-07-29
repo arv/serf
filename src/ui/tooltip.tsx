@@ -35,17 +35,29 @@ let showTimer: ReturnType<typeof setTimeout> | undefined;
 export function tooltip(content: () => JSX.Element): {
   onMouseEnter: (e: MouseEvent) => void;
   onMouseLeave: () => void;
+  onPointerDown: (e: PointerEvent) => void;
+  onPointerUp: () => void;
+  onPointerCancel: () => void;
 } {
+  const show = (target: HTMLElement, delay: number): void => {
+    const rect = target.getBoundingClientRect();
+    clearTimeout(showTimer);
+    showTimer = setTimeout(() => setTip({ rect, content }), delay);
+  };
+  const hide = (): void => {
+    clearTimeout(showTimer);
+    setTip(null);
+  };
   return {
-    onMouseEnter: (e: MouseEvent) => {
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      clearTimeout(showTimer);
-      showTimer = setTimeout(() => setTip({ rect, content }), 130);
+    onMouseEnter: (e: MouseEvent) => show(e.currentTarget as HTMLElement, 130),
+    onMouseLeave: hide,
+    // Touch has no hover: press and hold reveals the tip instead, and it
+    // clears on release. (Mouse presses are already covered by hover.)
+    onPointerDown: (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') show(e.currentTarget as HTMLElement, 260);
     },
-    onMouseLeave: () => {
-      clearTimeout(showTimer);
-      setTip(null);
-    },
+    onPointerUp: hide,
+    onPointerCancel: hide,
   };
 }
 

@@ -228,6 +228,99 @@ export function Hud(props: {
           margin: 0 0 8px; font-size: 26px; font-weight: 600; color: #e5c469;
         }
         .end-card button { margin-top: 12px; padding: 8px 24px; font-size: 14px; }
+
+        /* ——— Progressive layer ———
+           One HUD, adapting to what the device can do. Desktop keeps
+           everything above; these rules only add. */
+
+        /* Touch pointers can't hit a 28px chip: grow every target to the
+           44px guideline. Applies to tablets too, at any width. */
+        @media (pointer: coarse) {
+          #ui button { padding: 11px 15px; min-height: 44px; }
+          #ui .hud-speed button { padding: 9px 14px; min-height: 44px; }
+          #ui .hud-speed button.icon { width: 46px; height: 44px; }
+          #ui .hud-tabs button { padding: 9px 18px; min-height: 40px; }
+          #ui .menu-close, #ui .tech-close { min-height: 36px; padding: 4px 12px; }
+          .hud-resources span.res { padding: 7px 10px; }
+          /* Hover styling is meaningless without a hover cursor and just
+             leaves buttons stuck in the hover state after a tap. */
+          #ui button:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.14);
+          }
+          #ui .hud-tabs button.active { background: #e5c469; color: #0e100f; }
+          #ui .hud-speed button.active { background: #e5c469; color: #0e100f; }
+          #ui button.active {
+            background: rgba(229, 196, 105, 0.16);
+            border-color: rgba(229, 196, 105, 0.5);
+          }
+        }
+
+        /* Phone-width: the two top strips can't share a row, and the two
+           bottom cards can't sit side by side. Stack them, and let the
+           long lists scroll instead of growing over the map. */
+        @media (max-width: 760px) {
+          .hud-speed {
+            top: calc(10px + env(safe-area-inset-top));
+            right: calc(10px + env(safe-area-inset-right));
+          }
+          .hud-resources {
+            top: calc(66px + env(safe-area-inset-top));
+            left: calc(10px + env(safe-area-inset-left));
+            right: calc(10px + env(safe-area-inset-right));
+            justify-content: flex-start;
+          }
+          .hud-resources > div {
+            width: 100%;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-width: none;
+            justify-content: flex-start;
+          }
+          .hud-resources > div::-webkit-scrollbar { display: none; }
+          .hud-resources span.res { flex: 0 0 auto; }
+
+          .hud-bottom {
+            left: calc(10px + env(safe-area-inset-left));
+            right: calc(10px + env(safe-area-inset-right));
+            bottom: calc(10px + env(safe-area-inset-bottom));
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+          }
+          .hud-selection { margin-left: 0; max-width: none; }
+          .hud-build .hud-items {
+            min-height: 0;
+            max-height: 26vh;
+            overflow-y: auto;
+          }
+          .hud-menu {
+            top: calc(66px + env(safe-area-inset-top));
+            right: calc(10px + env(safe-area-inset-right));
+          }
+          .tech-panel {
+            top: calc(66px + env(safe-area-inset-top));
+            left: calc(10px + env(safe-area-inset-left));
+            right: calc(10px + env(safe-area-inset-right));
+            transform: none;
+            max-width: none;
+            max-height: 62vh;
+            overflow: auto;
+          }
+          .hud-toasts {
+            top: calc(120px + env(safe-area-inset-top));
+            right: calc(10px + env(safe-area-inset-right));
+          }
+          .hud-debug { display: none; } /* desktop-only diagnostics */
+        }
+
+        /* Landscape phones are short: keep the bottom cards side by side
+           and cap their height so the map stays visible. */
+        @media (max-width: 900px) and (max-height: 480px) {
+          .hud-bottom { flex-direction: row; align-items: flex-end; }
+          .hud-selection { max-width: 50%; }
+          .hud-build .hud-items { max-height: 20vh; }
+        }
       `}</style>
 
       <div class="hud-resources">
