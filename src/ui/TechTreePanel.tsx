@@ -68,6 +68,31 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
         .tech-node.locked { opacity: 0.4; }
         .tech-node .bar { height: 3px; background: #dfb670; margin-top: 4px; border-radius: 2px; }
         .tech-note { font-size: 11px; opacity: 0.75; margin-top: 6px; }
+
+        /* Phone: three side-by-side branches can't fit, and a flex row just
+           runs off-screen. Become a full-height sheet with the branches
+           stacked and scrolling. (These overrides live here, not in the HUD
+           stylesheet, because this component's <style> renders later and
+           would otherwise win.) */
+        @media (max-width: 760px) {
+          .tech-panel {
+            top: calc(64px + env(safe-area-inset-top));
+            bottom: calc(10px + env(safe-area-inset-bottom));
+            left: calc(10px + env(safe-area-inset-left));
+            right: calc(10px + env(safe-area-inset-right));
+            transform: none;
+            max-width: none;
+            flex-direction: column;
+            gap: 10px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding: 44px 14px 14px; /* clear of the close button */
+          }
+          .tech-branch { min-width: 0; width: 100%; }
+          .tech-node { padding: 9px 10px; font-size: 13px; }
+          .tech-node .desc { font-size: 12px; }
+          .tech-close { top: 10px; right: 10px; padding: 6px 12px; }
+        }
       `}</style>
       <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
         ✕
