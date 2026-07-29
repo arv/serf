@@ -76,16 +76,29 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
            would otherwise win.) */
         @media (max-width: 760px) {
           .tech-panel {
+            /* A sheet this size must be opaque: at 0.72 alpha the build card
+               behind it showed through and made the list unreadable. The
+               huge spread shadow is the scrim, and ::before absorbs taps
+               so they don't reach the map. */
+            background: rgba(11, 13, 12, 0.98);
+            box-shadow: 0 0 0 100vmax rgba(6, 8, 7, 0.55);
             top: calc(64px + env(safe-area-inset-top));
             bottom: calc(10px + env(safe-area-inset-bottom));
             left: calc(10px + env(safe-area-inset-left));
             right: calc(10px + env(safe-area-inset-right));
             transform: none;
             max-width: none;
+            max-height: none;
             flex-direction: column;
             gap: 10px;
             overflow-x: hidden;
             overflow-y: auto;
+            /* Spell the scroll gesture out: the page itself can't scroll
+               (body is overflow:hidden) and the canvas takes
+               touch-action:none, so this container must claim pan-y. */
+            touch-action: pan-y;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
             padding: 44px 14px 14px; /* clear of the close button */
           }
           .tech-branch { min-width: 0; width: 100%; }

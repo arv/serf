@@ -36,6 +36,7 @@ export function tooltip(content: () => JSX.Element): {
   onMouseEnter: (e: MouseEvent) => void;
   onMouseLeave: () => void;
   onPointerDown: (e: PointerEvent) => void;
+  onPointerMove: (e: PointerEvent) => void;
   onPointerUp: () => void;
   onPointerCancel: () => void;
 } {
@@ -48,16 +49,36 @@ export function tooltip(content: () => JSX.Element): {
     clearTimeout(showTimer);
     setTip(null);
   };
+  // Where a touch started, so a press that turns into a scroll gives the
+  // gesture back to the list instead of popping a tip over it.
+  let from: { x: number; y: number } | null = null;
   return {
     onMouseEnter: (e: MouseEvent) => show(e.currentTarget as HTMLElement, 130),
     onMouseLeave: hide,
     // Touch has no hover: press and hold reveals the tip instead, and it
     // clears on release. (Mouse presses are already covered by hover.)
     onPointerDown: (e: PointerEvent) => {
-      if (e.pointerType !== 'mouse') show(e.currentTarget as HTMLElement, 260);
+      if (e.pointerType === 'mouse') return;
+      from = { x: e.clientX, y: e.clientY };
+      show(e.currentTarget as HTMLElement, 260);
     },
-    onPointerUp: hide,
-    onPointerCancel: hide,
+    onPointerMove: (e: PointerEvent) => {
+      if (!from) return;
+      const dx = e.clientX - from.x;
+      const dy = e.clientY - from.y;
+      if (dx * dx + dy * dy > 100) {
+        from = null;
+        hide();
+      }
+    },
+    onPointerUp: () => {
+      from = null;
+      hide();
+    },
+    onPointerCancel: () => {
+      from = null;
+      hide();
+    },
   };
 }
 

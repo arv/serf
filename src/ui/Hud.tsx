@@ -294,20 +294,17 @@ export function Hud(props: {
             min-height: 0;
             max-height: 26vh;
             overflow-y: auto;
+            touch-action: pan-y;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
           }
           .hud-menu {
             top: calc(66px + env(safe-area-inset-top));
             right: calc(10px + env(safe-area-inset-right));
           }
-          .tech-panel {
-            top: calc(66px + env(safe-area-inset-top));
-            left: calc(10px + env(safe-area-inset-left));
-            right: calc(10px + env(safe-area-inset-right));
-            transform: none;
-            max-width: none;
-            max-height: 62vh;
-            overflow: auto;
-          }
+          /* .tech-panel's phone layout lives in TechTreePanel's own <style>:
+             that component renders later, so rules here lost the tie and
+             a stale max-height silently capped the sheet. */
           .hud-toasts {
             top: calc(120px + env(safe-area-inset-top));
             right: calc(10px + env(safe-area-inset-right));
