@@ -236,6 +236,7 @@ function workKindOf(w: World, u: Unit): number {
     return WORK.hammer;
   }
   if (home.type === 'ricePaddy') return WORK.dig;
+  if (home.type === 'well') return WORK.draw; // cranking the bucket up
   return WORK.tend;
 }
 

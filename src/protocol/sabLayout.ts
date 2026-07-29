@@ -31,7 +31,15 @@ const AUX_BYTES = AUX_STRIDE * MAX_UNITS;
 export const ACTION = { idle: 0, work: 1, fight: 2, dead: 3 } as const;
 
 /** Which kind of work — picks the tool animation (chop vs pickaxe vs...). */
-export const WORK = { none: 0, chop: 1, pickaxe: 2, hammer: 3, dig: 4, tend: 5 } as const;
+export const WORK = {
+  none: 0,
+  chop: 1,
+  pickaxe: 2,
+  hammer: 3,
+  dig: 4,
+  tend: 5,
+  draw: 6,
+} as const;
 
 /** A worker's workplace flavor — picks a themed body (farmer's straw hat...). */
 export const PROFESSION = { none: 0, farmer: 1, miner: 2 } as const;

@@ -80,6 +80,8 @@ function workAnimKey(workKind: number): AnimKey {
       return 'dig';
     case WORK.tend:
       return 'tend';
+    case WORK.draw:
+      return 'draw';
     default:
       return 'work';
   }

@@ -40,6 +40,7 @@ export type AnimKey =
   | 'hammer'
   | 'dig'
   | 'tend'
+  | 'draw'
   | 'death';
 
 const CLIP_NAMES: Record<AnimKey, string> = {
@@ -54,6 +55,7 @@ const CLIP_NAMES: Record<AnimKey, string> = {
   hammer: 'Sword_Attack',
   dig: 'Sword_Attack',
   tend: 'Sword_Attack',
+  draw: 'Sword_Attack',
   death: 'Death01', // absent from the UAL: the renderer tips the body instead
 };
 
@@ -88,6 +90,8 @@ const KK_CLIP_NAMES: Record<AnimKey, string> = {
   hammer: 'Hammering',
   dig: 'Digging',
   tend: 'Working_A',
+  // Hand-over-hand reeling doubles as cranking the well bucket up.
+  draw: 'Fishing_Reeling',
   death: 'Death_A',
 };
 
@@ -524,6 +528,7 @@ const WORK_TOOLS: Record<number, () => THREE.Group> = {
   3: malletProp, // WORK.hammer
   2: pickaxeProp, // WORK.pickaxe
   4: spadeProp, // WORK.dig
+  6: () => new THREE.Group(), // WORK.draw — bare hands on the well crank
 };
 
 /**
