@@ -270,15 +270,16 @@ export function Hud(props: {
             right: calc(10px + env(safe-area-inset-right));
             justify-content: flex-start;
           }
+          /* Full width now, so the goods wrap onto a second row instead of
+             running off the edge — nothing is hidden and there's no
+             invisible scroll to discover. */
           .hud-resources > div {
             width: 100%;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            scrollbar-width: none;
+            flex-wrap: wrap;
             justify-content: flex-start;
+            row-gap: 2px;
           }
-          .hud-resources > div::-webkit-scrollbar { display: none; }
-          .hud-resources span.res { flex: 0 0 auto; }
+          .hud-resources span.res { flex: 0 0 auto; padding: 4px 8px; font-size: 13px; }
 
           .hud-bottom {
             left: calc(10px + env(safe-area-inset-left));

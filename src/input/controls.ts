@@ -140,13 +140,13 @@ export class Controls {
     const type = placing();
     if (type) {
       if (e.button === 0) {
-        const origin = this.#placementOrigin(e.clientX, e.clientY);
-        if (origin && canPlace(this.#mirror.map, type, origin.x, origin.y)) {
-          this.#host.sendCommands([
-            { kind: 'placeBuilding', building: type, x: origin.x, y: origin.y },
-          ]);
-          if (!e.shiftKey) this.#cancelPlacement();
+        if (e.pointerType === 'touch') {
+          // The finger may be starting a map drag, so commit on release
+          // and only if it stayed put — a drag pans instead of building.
+          this.#touchOrigin = { x: e.clientX, y: e.clientY };
+          return;
         }
+        this.#place(e.clientX, e.clientY, e.shiftKey);
       } else if (e.button === 2) {
         this.#cancelPlacement();
       }
@@ -172,6 +172,19 @@ export class Controls {
     }
   };
 
+  /** Commit the armed building at this screen point, if it fits. */
+  #place(px: number, py: number, keepArmed: boolean): void {
+    const type = placing();
+    if (!type) return;
+    const origin = this.#placementOrigin(px, py);
+    if (origin && canPlace(this.#mirror.map, type, origin.x, origin.y)) {
+      this.#host.sendCommands([
+        { kind: 'placeBuilding', building: type, x: origin.x, y: origin.y },
+      ]);
+      if (!keepArmed) this.#cancelPlacement();
+    }
+  }
+
   /** Cancel a pending long-press once the finger travels (that's a pan). */
   #cancelLongPress(px: number, py: number): void {
     const o = this.#touchOrigin;
@@ -188,6 +201,9 @@ export class Controls {
     this.#updateHover(e.clientX, e.clientY);
     const type = placing();
     if (type) {
+      // A travelling finger is panning the map, not aiming: drop the
+      // pending placement (the ghost still tracks so the site stays visible).
+      if (e.pointerType === 'touch') this.#cancelLongPress(e.clientX, e.clientY);
       const origin = this.#placementOrigin(e.clientX, e.clientY);
       if (origin) {
         this.#ghost.show(type);
@@ -223,6 +239,15 @@ export class Controls {
     clearTimeout(this.#longPress);
     const heldStill = this.#touchOrigin !== null;
     this.#touchOrigin = null;
+
+    // Placement mode never arms a drag, so it has to be handled before the
+    // drag guard below: touch commits here (a mouse placed on press).
+    if (placing()) {
+      if (e.pointerType === 'touch' && e.button === 0 && heldStill) {
+        this.#place(e.clientX, e.clientY, false);
+      }
+      return;
+    }
     if (e.button !== 0 || !this.#dragStart) return;
     const start = this.#dragStart;
     this.#dragStart = null;
