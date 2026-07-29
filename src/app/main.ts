@@ -26,6 +26,7 @@ import {
   setSelectedBuilding,
   setStock,
   setTechs,
+  speed,
 } from '../ui/store';
 import { WorldMirror } from './mirror';
 import { WorkerSimHost } from './simHost';
@@ -132,7 +133,7 @@ async function boot(): Promise<void> {
 
   function loop(): void {
     const now = performance.now();
-    sync.update(now, controls.hoverUnit, controls.selected);
+    sync.update(now, controls.hoverUnit, controls.selected, speed() === 0);
     buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
     controls.prune();
     selectionFx.update(controls.selected, sync, now);

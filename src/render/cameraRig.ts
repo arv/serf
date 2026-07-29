@@ -68,6 +68,60 @@ export class CameraRig {
       this.#panScreen(-e.movementX * worldPerPixel, -e.movementY * worldPerPixel);
     });
 
+    // --- Touch: one finger drags the map, two fingers pinch to zoom ------
+    // (There is no wheel, middle button, or keyboard on a phone.) Selection
+    // and orders stay with Controls, which ignores multi-touch gestures.
+    const touches = new Map<number, { x: number; y: number }>();
+    let pinchDist = 0;
+    const spread = (): number => {
+      const [a, b] = [...touches.values()];
+      return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+    };
+    canvas.addEventListener('touchstart', (e) => {
+      for (const t of e.changedTouches) {
+        touches.set(t.identifier, { x: t.clientX, y: t.clientY });
+      }
+      if (touches.size === 2) pinchDist = spread();
+    });
+    canvas.addEventListener(
+      'touchmove',
+      (e) => {
+        e.preventDefault(); // no browser scroll/zoom over the map
+        const worldPerPixel = this.#viewHeight / this.#canvas.clientHeight;
+        // Pan by the average finger delta, so a pinch doesn't also lurch.
+        let dx = 0;
+        let dy = 0;
+        let moved = 0;
+        for (const t of e.changedTouches) {
+          const prev = touches.get(t.identifier);
+          if (!prev) continue;
+          dx += t.clientX - prev.x;
+          dy += t.clientY - prev.y;
+          moved++;
+          prev.x = t.clientX;
+          prev.y = t.clientY;
+        }
+        if (moved > 0) {
+          this.#panScreen((-dx / moved) * worldPerPixel, (-dy / moved) * worldPerPixel);
+        }
+        if (touches.size === 2) {
+          const d = spread();
+          if (pinchDist > 0 && d > 0) {
+            this.#viewHeight = clamp(this.#viewHeight * (pinchDist / d), MIN_VIEW, MAX_VIEW);
+            this.resize();
+          }
+          pinchDist = d;
+        }
+      },
+      { passive: false },
+    );
+    const endTouch = (e: TouchEvent): void => {
+      for (const t of e.changedTouches) touches.delete(t.identifier);
+      if (touches.size < 2) pinchDist = 0;
+    };
+    canvas.addEventListener('touchend', endTouch);
+    canvas.addEventListener('touchcancel', endTouch);
+
     window.addEventListener('resize', () => this.resize());
   }
 

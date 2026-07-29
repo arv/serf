@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BuildingTypeId } from '../sim/entities';
-import { makeMedievalBuilding, medievalCarryProp } from './medieval';
+import { THEME, makeMedievalBuilding, medievalCarryProp } from './medieval';
 import { goodColors as goodColorsLocal, palette } from './palette';
 import { planks, plaster, roofTiles, stoneBlocks, thatch } from './buildingTextures';
 
@@ -1016,6 +1016,8 @@ export function makeUnitModel(kindCode: number): THREE.Group {
 
 import { GOODS, type GoodId } from '../sim/defs/goods';
 
+const MEDIEVAL = THEME === 'medieval';
+
 function carryProto(good: GoodId): THREE.Group {
   const g = new THREE.Group();
   const add = (m: THREE.Mesh): void => {
@@ -1094,6 +1096,27 @@ function carryProto(good: GoodId): THREE.Group {
       break;
     }
     case 'katana': {
+      if (MEDIEVAL) {
+        // Sheathed arming sword: leather scabbard, straight crossguard.
+        // Parts sit along the same yaw as the scabbard, so their offsets are
+        // (d·cos 0.35, −d·sin 0.35) for a distance d up the blade.
+        const scabbard = mesh(new THREE.BoxGeometry(0.44, 0.05, 0.075), palette.wood);
+        scabbard.rotation.y = 0.35;
+        add(scabbard);
+        const guard = mesh(new THREE.BoxGeometry(0.035, 0.045, 0.19), 0x9aa0a8);
+        guard.position.set(0.216, 0.005, -0.079);
+        guard.rotation.y = 0.35;
+        add(guard);
+        const grip = mesh(new THREE.BoxGeometry(0.1, 0.04, 0.042), 0x2c2018);
+        grip.position.set(0.268, 0.005, -0.098);
+        grip.rotation.y = 0.35;
+        add(grip);
+        const pommel = mesh(new THREE.SphereGeometry(0.032, 6, 5), 0x9aa0a8);
+        pommel.position.set(0.315, 0.005, -0.115);
+        add(pommel);
+        g.position.y = 0.92;
+        break;
+      }
       // Sheathed blade carried flat.
       const saya = mesh(new THREE.BoxGeometry(0.55, 0.045, 0.07), 0x2a2233);
       saya.rotation.y = 0.35;
@@ -1128,6 +1151,23 @@ function carryProto(good: GoodId): THREE.Group {
       break;
     }
     case 'sake': {
+      if (MEDIEVAL) {
+        // A stout ale cask, iron-hooped, carried on its side.
+        const staves = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 10), 0x8a6033);
+        staves.rotation.z = Math.PI / 2;
+        add(staves);
+        const belly = mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.12, 10), 0x8a6033);
+        belly.rotation.z = Math.PI / 2;
+        add(belly);
+        for (const sx of [-0.085, 0.085]) {
+          const hoop = mesh(new THREE.CylinderGeometry(0.106, 0.106, 0.022, 10), 0x3a3128);
+          hoop.rotation.z = Math.PI / 2;
+          hoop.position.x = sx;
+          add(hoop);
+        }
+        g.position.y = 0.93;
+        break;
+      }
       // A cream tokkuri jug with a vermillion collar.
       const body = mesh(new THREE.SphereGeometry(0.12, 8, 6), 0xece2d0);
       body.scale.y = 1.1;

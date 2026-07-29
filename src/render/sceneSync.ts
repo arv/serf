@@ -259,6 +259,8 @@ export class SceneSync {
   #heights: HeightField;
   #visuals = new Map<number, UnitVisual>();
   #lastNow = 0;
+  /** Animation clock: advances only while the game is running. */
+  #animNow = 0;
   /** Live reference to the (fixed-angle) camera orientation, set at boot;
    * hp bars copy it to stay parallel with the screen plane. */
   cameraQuaternion: THREE.Quaternion | null = null;
@@ -375,12 +377,23 @@ export class SceneSync {
     return clamp((now - this.#reader.latestObservedAt) / PUBLISH_INTERVAL_MS, 0, 1);
   }
 
-  update(now: number, hoverId = -1, selected?: ReadonlySet<number>): void {
+  update(
+    now: number,
+    hoverId = -1,
+    selected?: ReadonlySet<number>,
+    paused = false,
+  ): void {
     this.#reader.poll(now);
     const { latest, prev } = this.#reader;
     const alpha = this.#alpha(now);
-    const dt = this.#lastNow > 0 ? Math.min((now - this.#lastNow) / 1000, 0.1) : 1 / 60;
+    const realDt = this.#lastNow > 0 ? Math.min((now - this.#lastNow) / 1000, 0.1) : 1 / 60;
     this.#lastNow = now;
+    // A paused game holds its pose: clips stop advancing and the procedural
+    // animation clock stops, while interpolation keeps using the real clock
+    // (no new publishes arrive, so units simply sit still).
+    const dt = paused ? 0 : realDt;
+    this.#animNow += dt * 1000;
+    const animNow = this.#animNow;
     this.#computeSeparation(latest, prev, alpha);
 
     for (let i = 0; i < latest.count; i++) {
@@ -511,13 +524,13 @@ export class SceneSync {
         visual.char.mixer.update(dt);
       } else if (visual.rig) {
         if (dead) tipOver(visual.group, dt);
-        else animate(visual.rig, id, now, moving, action, carrying > 0);
+        else animate(visual.rig, id, animNow, moving, action, carrying > 0);
       }
 
       // Body bob synced to the gait: high at mid-stance, low at heel-strike.
       // (Skinned clips carry their own bob.)
       const bob =
-        moving && !visual.char ? Math.abs(Math.cos(now * 0.012 + id * 2.1)) * 0.025 : 0;
+        moving && !visual.char ? Math.abs(Math.cos(animNow * 0.012 + id * 2.1)) * 0.025 : 0;
       // Ease into this frame's de-overlap offset (corpses keep theirs).
       if (!dead) {
         const k = Math.min(1, dt * 10);

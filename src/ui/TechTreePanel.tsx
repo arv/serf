@@ -3,7 +3,7 @@ import { TECH_BRANCHES, TECH_DEFS, type TechId } from '../sim/defs/techs';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { GoodIcon } from './icons';
 import { TechTip, tooltip } from './tooltip';
-import { buildingName, techName } from './names';
+import { buildingName, techDesc, techName } from './names';
 import { setTechPanelOpen, stock, techs } from './store';
 
 const BRANCH_LABELS: Record<string, string> = {
@@ -107,7 +107,7 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
                       )}
                     </For>
                   </span>
-                  <div class="desc">{TECH_DEFS[id].desc}</div>
+                  <div class="desc">{techDesc(id)}</div>
                   <Show when={state(id) === 'researching'}>
                     <div class="bar" style={{ width: `${progress(id)}%` }} />
                   </Show>

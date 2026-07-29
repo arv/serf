@@ -1,6 +1,7 @@
 import type { JSX } from 'solid-js';
 import type { GoodId } from '../sim/defs/goods';
 import { THEME } from '../render/medieval';
+import { goodName } from './names';
 
 /**
  * Tiny inline-SVG icon set — no emoji, no assets. Goods use their palette
@@ -20,7 +21,7 @@ const GOOD_HEX: Record<GoodId, string> = {
   katana: MEDIEVAL ? '#c4cdd6' : '#dbe0e6',
   yari: '#c39c62',
   yumi: '#b08d57',
-  sake: '#efe8f0',
+  sake: MEDIEVAL ? '#d2963c' : '#efe8f0',
 };
 
 /** Medieval glyphs (from the glass-HUD design handoff), authored in a
@@ -51,6 +52,41 @@ const MEDIEVAL_PATHS: Partial<Record<GoodId, (c: string) => JSX.Element>> = {
       <path d="M19 5L9 15" stroke={c} stroke-width="2.6" />
       <path d="M6.5 12.5l5 5" stroke="#a08356" stroke-width="2.4" />
       <path d="M5 19l2.5-2.5" stroke="#a08356" stroke-width="2.4" />
+    </g>
+  ),
+  // Silver penny: round coin struck with a short cross
+  silver: (c) => (
+    <g transform="scale(0.667)">
+      <circle cx="12" cy="12" r="8.4" fill={c} />
+      <path
+        d="M12 4.4v15.2M4.4 12h15.2"
+        stroke="#79818c"
+        stroke-width="1.5"
+        stroke-linecap="round"
+      />
+    </g>
+  ),
+  // Stack of gold coins
+  gold: (c) => (
+    <g transform="scale(0.667)" stroke="#8a6a1e" stroke-width="0.9">
+      <ellipse cx="12" cy="16.8" rx="7.4" ry="2.9" fill={c} />
+      <ellipse cx="12" cy="12.6" rx="7.4" ry="2.9" fill={c} />
+      <ellipse cx="12" cy="8.4" rx="7.4" ry="2.9" fill={c} />
+    </g>
+  ),
+  // Tankard: tapered mug, handle, foam head
+  sake: (c) => (
+    <g transform="scale(0.667)">
+      <path d="M6 7.5h9.5l-.8 12.2a1.6 1.6 0 0 1-1.6 1.5H8.4a1.6 1.6 0 0 1-1.6-1.5L6 7.5Z" fill={c} />
+      <path
+        d="M15.2 10.2h1.9a2.9 2.9 0 0 1 0 5.8h-1.9"
+        fill="none"
+        stroke={c}
+        stroke-width="1.8"
+      />
+      <path d="M5.6 4.4h10.3a1.7 1.7 0 0 1 0 3.4H5.6a1.7 1.7 0 0 1 0-3.4Z" fill="#f4ecd8" />
+      <circle cx="8.5" cy="3.9" r="2" fill="#f4ecd8" />
+      <circle cx="13" cy="4.1" r="1.7" fill="#f4ecd8" />
     </g>
   ),
 };
@@ -128,7 +164,7 @@ export function GoodIcon(props: { good: GoodId; size?: number }) {
       width={props.size ?? 14}
       height={props.size ?? 14}
       style={{ 'vertical-align': '-2px' }}
-      aria-label={props.good}
+      aria-label={goodName(props.good)}
     >
       {((MEDIEVAL ? MEDIEVAL_PATHS[props.good] : undefined) ?? PATHS[props.good])(
         GOOD_HEX[props.good],

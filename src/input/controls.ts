@@ -20,6 +20,9 @@ import type { SimHost } from '../app/simHost';
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
+/** Touch: hold this long without travelling to issue a move order. */
+const LONG_PRESS_MS = 420;
+const TOUCH_SLOP_PX = 12;
 
 /**
  * Left click / drag: select player units. Right click: move order for the
@@ -42,6 +45,8 @@ export class Controls {
   #bandEl: HTMLDivElement;
   #hoverUnit = -1;
   #hoverBuilding = -1;
+  #longPress: ReturnType<typeof setTimeout> | undefined;
+  #touchOrigin: { x: number; y: number } | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -150,10 +155,34 @@ export class Controls {
     if (e.button === 0) {
       this.#dragStart = { x: e.clientX, y: e.clientY };
       this.#dragging = false;
+      if (e.pointerType === 'touch') {
+        // Touch has no second button: a press held in place is the move
+        // order (a drag pans the camera instead — see CameraRig).
+        this.#touchOrigin = { x: e.clientX, y: e.clientY };
+        clearTimeout(this.#longPress);
+        this.#longPress = setTimeout(() => {
+          if (!this.#touchOrigin) return;
+          this.#issueMove(this.#touchOrigin.x, this.#touchOrigin.y);
+          this.#dragStart = null; // consumed: no select on release
+          this.#touchOrigin = null;
+        }, LONG_PRESS_MS);
+      }
     } else if (e.button === 2) {
       this.#issueMove(e.clientX, e.clientY);
     }
   };
+
+  /** Cancel a pending long-press once the finger travels (that's a pan). */
+  #cancelLongPress(px: number, py: number): void {
+    const o = this.#touchOrigin;
+    if (!o) return;
+    const dx = px - o.x;
+    const dy = py - o.y;
+    if (dx * dx + dy * dy > TOUCH_SLOP_PX * TOUCH_SLOP_PX) {
+      clearTimeout(this.#longPress);
+      this.#touchOrigin = null;
+    }
+  }
 
   #onMove = (e: PointerEvent): void => {
     this.#updateHover(e.clientX, e.clientY);
@@ -168,6 +197,11 @@ export class Controls {
     }
     this.#ghost.hide();
     if (!this.#dragStart) return;
+    if (e.pointerType === 'touch') {
+      // The camera owns finger drags; never band-select on touch.
+      this.#cancelLongPress(e.clientX, e.clientY);
+      return;
+    }
     const dx = e.clientX - this.#dragStart.x;
     const dy = e.clientY - this.#dragStart.y;
     if (!this.#dragging && dx * dx + dy * dy > DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) {
@@ -186,11 +220,19 @@ export class Controls {
   };
 
   #onUp = (e: PointerEvent): void => {
+    clearTimeout(this.#longPress);
+    const heldStill = this.#touchOrigin !== null;
+    this.#touchOrigin = null;
     if (e.button !== 0 || !this.#dragStart) return;
     const start = this.#dragStart;
     this.#dragStart = null;
     this.#bandEl.style.display = 'none';
 
+    if (e.pointerType === 'touch') {
+      // A tap that stayed put selects; a finger that travelled was a pan.
+      if (heldStill) this.#selectAtPoint(e.clientX, e.clientY, false);
+      return;
+    }
     if (this.#dragging) {
       this.#dragging = false;
       this.#selectInRect(start.x, start.y, e.clientX, e.clientY, e.shiftKey);

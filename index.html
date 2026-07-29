@@ -7,9 +7,22 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Zen+Antique&family=Shippori+Mincho:wght@500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <!-- The theme switch (see src/render/medieval.ts) is repeated here because
+         the base font must be right before any module runs: medieval is the
+         default, so the Japanese faces load only for ?theme=japan and html.jp
+         puts them back as the base font — no swap, no FOUC either way. -->
+    <script>
+      if (new URLSearchParams(location.search).get('theme') === 'japan') {
+        document.documentElement.classList.add('jp');
+        document.head.insertAdjacentHTML(
+          'beforeend',
+          '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Antique&family=Shippori+Mincho:wght@500;600;700&display=swap">',
+        );
+      }
+    </script>
     <style>
       html,
       body {
@@ -17,6 +30,9 @@
         height: 100%;
         overflow: hidden;
         background: #120d08;
+        font-family: 'Space Grotesk', system-ui, sans-serif;
+      }
+      html.jp body {
         font-family: 'Zen Antique', Georgia, serif;
       }
       /* Fixed to the viewport so the game always fills the window, even
@@ -68,7 +84,6 @@
          RTS, not midnight forest. */
       html.day body {
         background: #0e1210;
-        font-family: 'Space Grotesk', system-ui, sans-serif;
       }
       html.day #grade-mult {
         background: linear-gradient(155deg, rgba(180, 195, 150, 0.1) 0%, rgba(95, 130, 125, 0.16) 100%);

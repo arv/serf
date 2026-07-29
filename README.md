@@ -1,9 +1,15 @@
-# Serf 🎋
+# Serf ⚔️
 
-A feudal-Japan Settlers-like RTS in the browser: ~80% economy and logistics,
-~20% combat. Watch your serfs physically carry every good across the valley,
-wear trails into the grass, and — with Masonry — pave the busiest lanes into
-stone roads.
+A medieval Settlers-like RTS in the browser: ~80% economy and logistics, ~20%
+combat. Watch your serfs physically carry every good across the valley, wear
+trails into the grass, and — with Masonry — pave the busiest lanes into stone
+roads.
+
+The game ships two skins over one simulation. Medieval is the default;
+`?theme=japan` shows the original hand-built feudal-Japan look, where the
+Castle is a storehouse, the Brewery a sake brewery, and knights are samurai.
+Sim ids stay Japanese under both (saves depend on them) — only the display
+layer changes.
 
 ## Play
 
@@ -12,19 +18,19 @@ pnpm install
 pnpm dev
 ```
 
-- **Goal**: destroy the bandit camp in the far corner. If your storehouse
-  falls, the game is lost. First raid arrives after ~5 peaceful minutes.
-- **Goods** (11): water, rice, bamboo, stone, iron, silver, gold, katana,
-  yari, yumi, sake. Everything is hauled by serfs — there is no magic global
-  stockpile; the resource bar shows what's physically in the storehouse.
-- **Chains**: wells feed rice paddies; iron + bamboo become weapons at the
-  smiths; rice + weapons train soldiers at the dojo; rice + water become sake,
-  and sake delivered to the Terakoya throws festivals (+25% work speed).
-- **Tech**: build a Terakoya and research across Agriculture / Craft /
-  Warfare. Unlocks are real strategic forks — Ironworking opens the katana
-  economy, Archery opens the bow line, Masonry paves your roads.
-- **Combat triangle**: Samurai (heavy) ⟶ beat Ashigaru (light) ⟶ catch
-  Archers (ranged) ⟶ kite Samurai. Bandit waves mix all three classes (the
+- **Goal**: destroy the bandit camp in the far corner. If your castle falls,
+  the game is lost. First raid arrives after ~5 peaceful minutes.
+- **Goods** (11): water, wheat, wood, stone, iron, silver, gold, sword, spear,
+  bow, ale. Everything is hauled by serfs — there is no magic global
+  stockpile; the resource bar shows what's physically in the castle.
+- **Chains**: wells feed wheat farms; iron + wood become weapons at the
+  smiths; wheat + weapons train soldiers at the barracks; wheat + water become
+  ale, and ale delivered to the abbey throws festivals (+25% work speed).
+- **Tech**: build an Abbey and research across Agriculture / Craft / Warfare.
+  Unlocks are real strategic forks — Ironworking opens the sword economy,
+  Archery opens the bow line, Masonry paves your roads.
+- **Combat triangle**: Knights (heavy) ⟶ beat Spearmen (light) ⟶ catch
+  Archers (ranged) ⟶ kite Knights. Bandit waves mix all three classes (the
   raid warning tells you the composition) — countering them means retooling
   your weapon production, not just clicking harder.
 
@@ -34,12 +40,13 @@ pnpm dev
 |---|---|
 | Left click / drag | Select units (shift = add) |
 | Right click | Move order / attack enemy building |
-| Click building | Building panel (dojo: train units) |
+| Click building | Building panel (barracks: train units) |
 | WASD / arrows / middle-drag | Pan camera |
 | Mouse wheel | Zoom |
 | Esc | Cancel placement / clear selection |
 | ` (backquote) | Logistics debug overlay |
 | `?seed=123` URL param | Pick a map seed |
+| `?theme=japan` URL param | Original feudal-Japan look |
 
 ## Architecture
 
