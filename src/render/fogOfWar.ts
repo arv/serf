@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { MAP_SIZE, TILE_COUNT, tileIdx } from '../shared/grid';
 import { AUX_STRIDE, ACTION, type SabReader } from '../protocol/sabLayout';
 import { OWNER_CODE } from '../sim/defs/units';
+import { palette } from './palette';
 import type { BuildingSnap } from '../protocol/messages';
 
 /** How far each thing sees, in tiles. */
@@ -57,7 +58,11 @@ export class FogOfWar implements FogQuery {
   #scratch = new Float32Array(TILE_COUNT);
   #bytes = new Uint8Array(TILE_COUNT * 4);
   #texture: THREE.DataTexture;
-  #uniforms: { uFogTex: { value: THREE.Texture }; uFogSize: { value: number } };
+  #uniforms: {
+    uFogTex: { value: THREE.Texture };
+    uFogSize: { value: number };
+    uUnknown: { value: THREE.Color };
+  };
   #patched = new WeakSet<THREE.Material>();
   #accum = 0;
   #enabled = true;
@@ -88,9 +93,16 @@ export class FogOfWar implements FogQuery {
     this.#texture.wrapS = THREE.ClampToEdgeWrapping;
     this.#texture.wrapT = THREE.ClampToEdgeWrapping;
     this.#texture.needsUpdate = true;
+    // Unexplored ground is painted the scene's own background color, so
+    // the map stops being a silhouette in the dark: where there is no
+    // geometry at all the background already shows, and anything else
+    // leaves the map's edge legible as a shape. Encoded to sRGB because
+    // this lands after the color-space conversion, on the final pixel.
+    const unknown = new THREE.Color(palette.background).convertLinearToSRGB();
     this.#uniforms = {
       uFogTex: { value: this.#texture },
       uFogSize: { value: MAP_SIZE },
+      uUnknown: { value: unknown },
     };
   }
 
@@ -236,6 +248,7 @@ export class FogOfWar implements FogQuery {
       previous(shader, renderer);
       shader.uniforms.uFogTex = this.#uniforms.uFogTex;
       shader.uniforms.uFogSize = this.#uniforms.uFogSize;
+      shader.uniforms.uUnknown = this.#uniforms.uUnknown;
 
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec2 vFogXZ;')
@@ -263,13 +276,12 @@ export class FogOfWar implements FogQuery {
             // Remembered ground: what you saw, drained of color and light.
             float lum = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
             vec3 memory = mix(vec3(lum), gl_FragColor.rgb, 0.4) * 0.5;
-            vec3 unknown = vec3(0.045, 0.058, 0.062);
-            vec3 hidden = mix(unknown, memory, seen);
+            vec3 hidden = mix(uUnknown, memory, seen);
             gl_FragColor.rgb = mix(hidden, gl_FragColor.rgb, vis);
           }`;
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <common>',
-        '#include <common>\nuniform sampler2D uFogTex;\nuniform float uFogSize;\nvarying vec2 vFogXZ;',
+        '#include <common>\nuniform sampler2D uFogTex;\nuniform float uFogSize;\nuniform vec3 uUnknown;\nvarying vec2 vFogXZ;',
       );
       // Last chunk standing: fog multiplies the finished pixel, so it dims
       // lighting, tone mapping and all.
