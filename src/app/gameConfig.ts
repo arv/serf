@@ -14,11 +14,16 @@ export function configFromUrl(search: string): GameConfig {
   const seedParam = params.get('seed');
   const seed = seedParam ? Number(seedParam) : 20260724;
 
-  // Dev testbed: ?players=N boots an N-seat world (extra seats sit inert
-  // until the AI or the lobby fills them). ?ai=1 arrives with the AI phase.
+  // ?ai=N: skirmish vs N computer opponents (seat 0 = you). ?players=N is
+  // the dev testbed: N human seats, the extras sitting inert.
+  const aiParam = Number(params.get('ai') ?? '0');
+  const aiSeats = Math.max(0, Math.min(3, Number.isFinite(aiParam) ? aiParam : 0));
   const playersParam = Number(params.get('players') ?? '1');
   const seats = Math.max(1, Math.min(4, Number.isFinite(playersParam) ? playersParam : 1));
-  const players = Array.from({ length: seats }, () => ({ kind: 'human' as const }));
+  const players: { kind: 'human' | 'ai' }[] =
+    aiSeats > 0
+      ? [{ kind: 'human' }, ...Array.from({ length: aiSeats }, () => ({ kind: 'ai' as const }))]
+      : Array.from({ length: seats }, () => ({ kind: 'human' as const }));
 
   return {
     seed,

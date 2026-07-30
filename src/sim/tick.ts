@@ -17,6 +17,7 @@ import { trainingSystem, enqueueTraining } from './systems/training';
 import { staffingSystem } from './systems/staffing';
 import { combatSystem } from './systems/combat';
 import { banditsSystem } from './systems/bandits';
+import { aiSystem } from './systems/ai';
 import { victorySystem } from './systems/victory';
 import { buildingDef } from './defs/buildings';
 import { CORPSE_TICKS, HIRE_SERF_COST } from './defs/balance';
@@ -46,6 +47,10 @@ export interface PlayerCommand {
 export function tickWorld(world: World, commands: readonly PlayerCommand[]): void {
   const rng = new Rng(world.rngState);
 
+  // AI seats decide before envelope commands land — a fixed, documented
+  // order (and no shared-Rng use), so rollback re-simulation reproduces
+  // their decisions exactly.
+  aiSystem(world);
   for (const c of commands) applyCommand(world, c.playerId, c.cmd);
 
   researchSystem(world);
