@@ -12,13 +12,13 @@ import { canPlace, killUnit, placeSite, spawnUnit, type World } from './world';
 import { GOODS } from './defs/goods';
 import { findStorehouse } from './systems/logistics';
 import { researchSystem } from './systems/research';
-import { trainingSystem, enqueueTraining } from './systems/training';
+import { trainingSystem, hiringSystem, enqueueTraining } from './systems/training';
 import { staffingSystem } from './systems/staffing';
 import { combatSystem } from './systems/combat';
 import { banditsSystem } from './systems/bandits';
 import { victorySystem } from './systems/victory';
 import { buildingDef } from './defs/buildings';
-import { CORPSE_TICKS, HIRE_SERF_COST } from './defs/balance';
+import { CORPSE_TICKS, HIRE_QUEUE_CAP, HIRE_SERF_COST } from './defs/balance';
 import { TECH_DEFS } from './defs/techs';
 import { canResearch, isBuildingUnlocked } from './techHelpers';
 import type { GoodId } from './defs/goods';
@@ -43,6 +43,7 @@ export function tickWorld(world: World, commands: readonly SimCommand[]): void {
   constructionSystem(world);
   staffingSystem(world);
   trainingSystem(world);
+  hiringSystem(world);
   wanderSystem(world, rng);
   movementSystem(world);
   combatSystem(world);
@@ -94,11 +95,17 @@ function applyCommand(world: World, cmd: SimCommand): void {
       break;
     }
     case 'hireSerf': {
+      // Pay now, arrive later: the recruit is summoned, not conjured. The
+      // hiring system walks the queue down and drops them at the door.
       const sh = findStorehouse(world);
-      if (sh && (sh.stock.silver ?? 0) >= HIRE_SERF_COST) {
+      if (
+        sh &&
+        (sh.stock.silver ?? 0) >= HIRE_SERF_COST &&
+        (sh.hireQueue ?? 0) < HIRE_QUEUE_CAP
+      ) {
         sh.stock.silver = (sh.stock.silver ?? 0) - HIRE_SERF_COST;
         world.ledger.consumed.silver = (world.ledger.consumed.silver ?? 0) + HIRE_SERF_COST;
-        spawnUnit(world, 'serf', 'player', sh.x + sh.w / 2, sh.y + sh.h + 0.5);
+        sh.hireQueue = (sh.hireQueue ?? 0) + 1;
       }
       break;
     }

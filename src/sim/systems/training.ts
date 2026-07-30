@@ -1,7 +1,7 @@
 import { buildingDef } from '../defs/buildings';
 import { UNIT_DEFS } from '../defs/units';
 import { getModifier, isUnitUnlocked } from '../techHelpers';
-import { TRAIN_QUEUE_CAP } from '../defs/balance';
+import { HIRE_SERF_TICKS, TRAIN_QUEUE_CAP } from '../defs/balance';
 import { spawnUnit, type World } from '../world';
 import { nearestWalkable } from '../path';
 import { tileX, tileY } from '../../shared/grid';
@@ -35,6 +35,23 @@ export function trainingSystem(world: World): void {
       const unit = spawnUnit(world, head.unit, b.owner, door.x, door.y);
       unit.hp = Math.round(UNIT_DEFS[head.unit].hp * getModifier(world, 'militaryHp'));
     }
+  }
+}
+
+/**
+ * Hiring. Silver bought the recruit at the moment the order was placed
+ * (see the hireSerf command); this walks the queue down and puts them at
+ * the storehouse door, one every HIRE_SERF_TICKS.
+ */
+export function hiringSystem(world: World): void {
+  for (const b of world.buildings.values()) {
+    if (b.dead || b.state !== 'built' || !b.hireQueue) continue;
+    b.hireTicksLeft = (b.hireTicksLeft ?? HIRE_SERF_TICKS) - 1;
+    if (b.hireTicksLeft > 0) continue;
+    const door = doorOf(world, b);
+    spawnUnit(world, 'serf', b.owner, door.x, door.y);
+    b.hireQueue--;
+    b.hireTicksLeft = b.hireQueue > 0 ? HIRE_SERF_TICKS : undefined;
   }
 }
 
