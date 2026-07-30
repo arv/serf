@@ -4,6 +4,7 @@
   "description": "A feudal-Japan Settlers-like RTS in the browser",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.5.1",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
