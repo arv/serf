@@ -163,6 +163,9 @@ export class TerrainMesh {
     const iron = new THREE.Color(palette.ironOre);
     const silver = new THREE.Color(palette.silverOre);
     const goldOre = new THREE.Color(palette.goldOre);
+    const rock = new THREE.Color(palette.rock);
+    const rockDark = new THREE.Color(palette.rockDark);
+    const snow = new THREE.Color(palette.peakSnow);
     const c = new THREE.Color();
 
     for (let v = 0; v < pos.count; v++) {
@@ -186,6 +189,12 @@ export class TerrainMesh {
         const m = this.#meadow[v]!;
         if (m < 0.52) c.copy(lush).lerp(olive, m / 0.52);
         else c.copy(olive).lerp(gold, (m - 0.52) / 0.48);
+        // Altitude: meadow dries into bare rock, and the peaks catch snow.
+        if (y > 0.9) {
+          const rocky = Math.min((y - 0.9) / 0.55, 1);
+          c.lerp(m < 0.5 ? rock : rockDark, rocky * 0.9);
+          if (y > 1.95) c.lerp(snow, Math.min((y - 1.95) / 0.45, 1) * 0.85);
+        }
         // Trampled ground near buildings.
         const e = this.#tileEarth[tile]!;
         if (e > 0) c.lerp(earth, e * 0.7);

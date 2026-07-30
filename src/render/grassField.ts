@@ -44,6 +44,8 @@ export class GrassField {
     for (let i = 0; i < TILE_COUNT; i++) {
       if (map.terrain[i] !== Terrain.Grass) continue;
       if (map.buildingAt[i]! >= 0 || map.pathLevel[i] !== PathLevel.None) continue;
+      // Above the meadow line the ground is bare rock — no blades.
+      if (map.height[i]! > 1.1) continue;
       const x = tileX(i);
       const y = tileY(i);
       // Cluster density: meadow patches, not a uniform lawn.

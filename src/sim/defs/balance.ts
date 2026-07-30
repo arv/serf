@@ -11,7 +11,10 @@ export const TICK_MS = 1000 / TICKS_PER_SECOND;
 // soldiers, so the starting pool is bigger and hiring cheaper.
 // One extra pair of hands since builders joined the population economy:
 // every site borrows a serf while it rises.
-export const START_SERFS = 10;
+// 12 hands since the mountain/lake worldgen: routes detour around water
+// and the ore ring sits farther out, so the same build-out consumes more
+// serf-hours before the silver economy can fund hires.
+export const START_SERFS = 12;
 // The village armory holds a few old weapons so a Bushidō rush can field
 // defenders before the first raid without the full iron chain.
 export const START_STOCK: GoodAmounts = {

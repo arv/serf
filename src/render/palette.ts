@@ -31,6 +31,7 @@ const japan = {
   bambooLeafDark: 0x2e6b1e,
   rock: 0x7d7668, // mossier warm grey
   rockDark: 0x57534a,
+  peakSnow: 0xdfe4e2, // mountain caps
   ironOre: 0x7a5c4f,
   silverOre: 0xb9c0c8,
   goldOre: 0xd4a93c,
@@ -73,6 +74,7 @@ const medieval: Palette = {
   riverbed: 0x3c5638,
   rock: 0x8b8375,
   rockDark: 0x666055,
+  peakSnow: 0xedf2f4,
   skyLight: 0xcfe4f7,
   groundBounce: 0x7f9a50,
   background: 0x223526,

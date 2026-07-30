@@ -135,18 +135,24 @@ export function createWorld(seed: number): World {
     [10, MAP_SIZE - 13],
     [MAP_SIZE - 13, MAP_SIZE - 13],
   ];
-  const [cx, cy] = corners[rng.int(corners.length)]!;
-  outer: for (let r = 0; r < 12; r++) {
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-        if (rectClear(map, cx + dx, cy + dy, 3, 3)) {
-          const camp = placeBuiltBuilding(world, 'banditCamp', 'bandit', cx + dx, cy + dy);
-          // Standing guards defend the camp (auto-acquire handles the rest).
-          for (let g = 0; g < 3; g++) {
-            spawnUnit(world, 'bandit', 'bandit', camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
+  // Mountains and lakes can swallow a whole corner now, so fall through
+  // to the other corners rather than generating a campless (instant-win)
+  // world.
+  const firstCorner = rng.int(corners.length);
+  outer: for (let ci = 0; ci < corners.length; ci++) {
+    const [cx, cy] = corners[(firstCorner + ci) % corners.length]!;
+    for (let r = 0; r < 12; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          if (rectClear(map, cx + dx, cy + dy, 3, 3)) {
+            const camp = placeBuiltBuilding(world, 'banditCamp', 'bandit', cx + dx, cy + dy);
+            // Standing guards defend the camp (auto-acquire handles the rest).
+            for (let g = 0; g < 3; g++) {
+              spawnUnit(world, 'bandit', 'bandit', camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
+            }
+            break outer;
           }
-          break outer;
         }
       }
     }
@@ -261,6 +267,40 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
     for (let tx = x; tx < x + def.w; tx++) {
       if (map.terrain[tileIdx(tx, ty)] !== Terrain.Grass) return false;
     }
+  }
+
+  // Mountainsides are for mines (they carve into the seam); everything
+  // else needs flat-ish ground. Corner heights match the renderer's
+  // bilinear ground (average of adjacent tiles), so 1x1 footprints on a
+  // steep hillside are caught too.
+  if (!def.nearDeposit) {
+    const corner = (vx: number, vy: number): number => {
+      let sum = 0;
+      let n = 0;
+      for (let dy = -1; dy <= 0; dy++) {
+        for (let dx = -1; dx <= 0; dx++) {
+          const tx = vx + dx;
+          const ty = vy + dy;
+          if (!inBounds(tx, ty)) continue;
+          sum += map.height[tileIdx(tx, ty)]!;
+          n++;
+        }
+      }
+      return n > 0 ? sum / n : 0;
+    };
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const [vx, vy] of [
+      [x, y],
+      [x + def.w, y],
+      [x, y + def.h],
+      [x + def.w, y + def.h],
+    ] as const) {
+      const h = corner(vx, vy);
+      if (h < lo) lo = h;
+      if (h > hi) hi = h;
+    }
+    if (hi - lo > 0.5) return false;
   }
   let hasDoor = false;
   for (let tx = x - 1; tx <= x + def.w && !hasDoor; tx++) {
