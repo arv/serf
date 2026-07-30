@@ -81,7 +81,7 @@ async function boot(): Promise<void> {
   renderer.scene.add(scatter.group);
   const grass = new GrassField(init.map, heights);
   renderer.scene.add(grass.mesh);
-  const water = new WaterMesh();
+  const water = new WaterMesh(init.map);
   renderer.scene.add(water.mesh);
   const mist = new Mist(init.map);
   renderer.scene.add(mist.group);

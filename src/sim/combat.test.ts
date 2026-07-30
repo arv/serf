@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick';
-import { placeBuiltBuilding, spawnUnit, type World } from './world';
+import { placeBuiltBuilding, spawnUnit, spawnUnitNearby, type World } from './world';
+import { Terrain } from './map';
 import { COUNTER_TABLE, UNIT_DEFS } from './defs/units';
 import { checkInvariants } from './debug/invariants';
 import { addSerf, addStorehouse, bareWorld } from './testUtils';
@@ -126,6 +127,22 @@ describe('raids and victory', () => {
     world.raidState = { nextRaidTick: 10, wave: 3 };
     run(world, 20 * 90);
     expect(world.outcome).toBe('lost');
+  });
+
+  it('musters raiders on dry land when the camp sits against water', () => {
+    const world = bareWorld();
+    // Flood everything south of the camp — where guards would normally form up.
+    for (let y = 33; y < 40; y++) {
+      for (let x = 26; x < 40; x++) {
+        const i = y * 64 + x;
+        world.map.terrain[i] = Terrain.Water;
+        world.map.blocked[i] = 1;
+      }
+    }
+    const camp = placeBuiltBuilding(world, 'banditCamp', 'bandit', 30, 30);
+    const raider = spawnUnitNearby(world, 'bandit', 'bandit', camp.x + 1.5, camp.y + camp.h + 1.5);
+    const tile = Math.floor(raider.y) * 64 + Math.floor(raider.x);
+    expect(world.map.blocked[tile]).toBe(0);
   });
 
   it('idle soldiers auto-besiege an enemy building in acquire range', () => {
