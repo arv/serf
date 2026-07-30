@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
-import { factionTint } from './factionPalette';
+import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
 
 /**
  * Medieval/fantasy look (branch experiment): building and tree models from
@@ -19,7 +19,9 @@ const DIR = '/models/kaykit/';
 
 /**
  * Which KayKit Medieval Hexagon model (CC0, Kay Lousberg) plays each (still
- * Japanese-named) building. Green is the player faction; red the bandits.
+ * Japanese-named) building. All load the pack's "green" variant — the
+ * variants differ only in the team-color swatch, which we repaint per
+ * owner (see splitTeamColorGroups).
  */
 const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   storehouse: 'building_castle_green.gltf',
@@ -28,10 +30,12 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   well: 'building_well_green.gltf',
   ricePaddy: 'farm_plot.glb',
   sakeBrewery: 'building_tavern_green.gltf',
-  // Each metal mine is its own faction-colored variant, dressed differently.
-  ironMine: 'building_mine_red.gltf',
-  silverMine: 'building_mine_blue.gltf',
-  goldMine: 'building_mine_yellow.gltf',
+  // The mines share one model and read apart by their spoil (rust, silver,
+  // gold boulders in BUILDING_DECOR) — the pack's color variants only vary
+  // the team-color slot, which now belongs to the owning faction.
+  ironMine: 'building_mine_green.gltf',
+  silverMine: 'building_mine_green.gltf',
+  goldMine: 'building_mine_green.gltf',
   swordsmith: 'building_blacksmith_green.gltf',
   spearmaker: 'building_blacksmith_green.gltf',
   bowyer: 'building_archeryrange_green.gltf',
@@ -321,6 +325,7 @@ export async function loadMedievalAssets(): Promise<boolean> {
         obj.rotation.y = d.rot ?? 0;
         group.add(obj);
       }
+      splitTeamColorGroups(group);
       buildings.set(type, group);
     }
 
@@ -341,35 +346,55 @@ export async function loadMedievalAssets(): Promise<boolean> {
  * A medieval stand-in for this building, scaled to its footprint — or null
  * (no model / theme off), in which case the hand-built model is used.
  */
-/** Per-(mesh, owner) tinted material cache — rival buildings share clones. */
-const factionMaterials = new Map<string, THREE.Material>();
-
-/** Per-owner banner material (shared across all of a faction's buildings). */
-const bannerMaterials = new Map<number, THREE.MeshLambertMaterial>();
-
 /**
- * A faction banner by the wall — the crisp ownership read the texture-atlas
- * tint can't deliver at village zoom. Model units (pre-normalize footprint
- * scale): pole at the south-east corner, pennant at the top.
+ * Split a building's triangles into two draw groups: everything textured
+ * as usual, plus the team-color slot KayKit reserves in the atlas. Done
+ * once per building template; instances just swap group 1's material for
+ * their owner's color.
  */
-function makeBanner(owner: number, color: THREE.Color): THREE.Group {
-  let cloth = bannerMaterials.get(owner);
-  if (!cloth) {
-    cloth = new THREE.MeshLambertMaterial({ color });
-    bannerMaterials.set(owner, cloth);
+function splitTeamColorGroups(root: THREE.Object3D): void {
+  const { u0, u1, v0, v1 } = TEAM_SWATCH_UV;
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const geo = (o.geometry as THREE.BufferGeometry).clone();
+    const index = geo.getIndex();
+    const uv = geo.getAttribute('uv');
+    if (!index || !uv) return;
+    const inSlot = (i: number): boolean => {
+      const u = uv.getX(i);
+      const v = uv.getY(i);
+      return u >= u0 && u <= u1 && v >= v0 && v <= v1;
+    };
+    const plain: number[] = [];
+    const team: number[] = [];
+    for (let i = 0; i < index.count; i += 3) {
+      const a = index.getX(i);
+      const b = index.getX(i + 1);
+      const c = index.getX(i + 2);
+      // A triangle belongs to the team slot only if it lies wholly inside.
+      (inSlot(a) && inSlot(b) && inSlot(c) ? team : plain).push(a, b, c);
+    }
+    if (team.length === 0) return; // nothing faction-colored on this mesh
+    geo.setIndex([...plain, ...team]);
+    geo.clearGroups();
+    geo.addGroup(0, plain.length, 0);
+    geo.addGroup(plain.length, team.length, 1);
+    o.geometry = geo;
+    // Slot 1 is a placeholder here; makeMedievalBuilding fills it per owner.
+    o.material = [o.material as THREE.Material, o.material as THREE.Material];
+  });
+}
+
+/** Per-owner flat material for the team-color slot. */
+const teamMaterials = new Map<number, THREE.MeshLambertMaterial>();
+
+function teamMaterial(color: number): THREE.MeshLambertMaterial {
+  let m = teamMaterials.get(color);
+  if (!m) {
+    m = new THREE.MeshLambertMaterial({ color });
+    teamMaterials.set(color, m);
   }
-  const wood = new THREE.MeshLambertMaterial({ color: 0x5a4630 });
-  const g = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.022, 1.0, 6), wood);
-  pole.position.y = 0.5;
-  pole.castShadow = true;
-  g.add(pole);
-  const pennant = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.014), cloth);
-  pennant.position.set(0.15, 0.9, 0);
-  pennant.castShadow = true;
-  g.add(pennant);
-  g.position.set(0.42, 0, 0.42);
-  return g;
+  return m;
 }
 
 export function makeMedievalBuilding(type: BuildingTypeId, owner = 0): THREE.Group | null {
@@ -377,25 +402,17 @@ export function makeMedievalBuilding(type: BuildingTypeId, owner = 0): THREE.Gro
   if (!template) return null;
   const def = BUILDING_DEFS[type];
   const group = template.clone();
-  // Rival factions read two ways: a gentle multiply over the whole kit
-  // (subtle — the texture atlas eats most of it) and, the real signal, a
-  // faction banner planted at the wall. Seat 0 keeps the stock look.
+  // Paint the team-color slot: rival castles, mills and mines read at a
+  // glance without a marker floating over them. Bandits keep the stock
+  // slate, which is exactly what "no faction" should look like.
   const faction = factionTint(owner);
   if (faction !== undefined) {
-    const target = new THREE.Color(faction);
+    const team = teamMaterial(faction);
     group.traverse((o) => {
-      if (!(o instanceof THREE.Mesh)) return;
-      const m = o.material as THREE.Material & { uuid: string };
-      const key = `${m.uuid}:${owner}`;
-      let tinted = factionMaterials.get(key);
-      if (!tinted) {
-        tinted = m.clone();
-        (tinted as THREE.MeshStandardMaterial).color?.lerp(target, 0.35);
-        factionMaterials.set(key, tinted);
+      if (o instanceof THREE.Mesh && Array.isArray(o.material)) {
+        o.material = [o.material[0]!, team];
       }
-      o.material = tinted;
     });
-    group.add(makeBanner(owner, target));
   }
   // Templates are unit-square and origin-centered, matching the hand-built
   // models (buildingSync positions the root at the footprint center).

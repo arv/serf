@@ -189,36 +189,28 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
     storehouse.stock = { ...START_STOCK };
   }
 
-  // Bandit camp in a far corner; search outward for a clear 3x3.
-  const corners: [number, number][] = [
-    [10, 10],
-    [MAP_SIZE - 13, 10],
-    [10, MAP_SIZE - 13],
-    [MAP_SIZE - 13, MAP_SIZE - 13],
-  ];
-  // Solo: random corner. Multiplayer: the corner farthest from everyone,
-  // so no faction starts with raiders on their doorstep. Mountains and
-  // lakes can swallow a whole corner, so fall through to the next rather
-  // than generating a campless world.
-  let order: number[];
-  if (starts.length === 1) {
-    const firstCorner = rng.int(corners.length);
-    order = corners.map((_, ci) => (firstCorner + ci) % corners.length);
-  } else {
-    const score = (ci: number): number => {
-      const [cx, cy] = corners[ci]!;
-      let nearest = Infinity;
-      for (const s of starts) {
-        const d = Math.max(Math.abs(cx + 1 - (s.x + 1)), Math.abs(cy + 1 - (s.y + 1)));
-        if (d < nearest) nearest = d;
-      }
-      return nearest;
-    };
-    order = corners.map((_, ci) => ci).sort((a, z) => score(z) - score(a) || a - z);
-  }
-  outer: for (const ci of order) {
-    const [cx, cy] = corners[ci]!;
-    for (let r = 0; r < 12; r++) {
+  // Bandit camp. Solo: a random far corner (the classic campaign). With
+  // rivals on the map every corner is somebody's doorstep — a camp there
+  // puts its standing guards inside acquire range of that player's
+  // storehouse and they raze it before the match starts — so the camp
+  // takes the contested middle instead, roughly equidistant from all.
+  const campSeeds: [number, number][] =
+    starts.length === 1
+      ? (() => {
+          const corners: [number, number][] = [
+            [10, 10],
+            [MAP_SIZE - 13, 10],
+            [10, MAP_SIZE - 13],
+            [MAP_SIZE - 13, MAP_SIZE - 13],
+          ];
+          const first = rng.int(corners.length);
+          return corners.map((_, ci) => corners[(first + ci) % corners.length]!);
+        })()
+      : [[MAP_SIZE / 2 - 1, MAP_SIZE / 2 - 1]];
+  // Mountains and lakes can swallow a whole seed area, so widen the search
+  // rather than generate a campless (instant-win) world.
+  outer: for (const [cx, cy] of campSeeds) {
+    for (let r = 0; r < 16; r++) {
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;

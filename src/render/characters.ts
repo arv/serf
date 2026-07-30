@@ -637,8 +637,9 @@ function makeKayKitCharacter(
   if (!char) return null;
   const root = skeletonClone(char.scene);
 
-  // Rival factions read by cloth color: lerp the kit toward the seat's
-  // banner tint (seat 0 and bandits keep their stock look).
+  // Faction cloth: lerp the kit toward the seat's color, the same four the
+  // buildings' team-color slot uses, so a rival's serfs and their mill
+  // read as one side. Bandits keep their grim stock look.
   const faction = factionTint(owner);
   root.traverse((o) => {
     if (!(o instanceof THREE.Mesh) && !(o instanceof THREE.SkinnedMesh)) return;
@@ -650,7 +651,7 @@ function makeKayKitCharacter(
       if (!tinted) {
         tinted = m.clone();
         if (spec.tint !== undefined) tinted.color.set(spec.tint);
-        if (faction !== undefined) tinted.color.lerp(new THREE.Color(faction), 0.4);
+        if (faction !== undefined) tinted.color.lerp(new THREE.Color(faction), 0.55);
         kkTintMaterials.set(key, tinted);
       }
       o.material = tinted;

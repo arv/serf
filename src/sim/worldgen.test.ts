@@ -4,6 +4,7 @@ import { Terrain } from './map';
 import { createWorld } from './world';
 import { BANDIT, isPlayerOwner } from './entities';
 import { START_SERFS } from './defs/balance';
+import { tickWorld } from './tick';
 
 /** 4-connected grass reachability between two tiles. */
 function reachable(map: { terrain: Uint8Array }, from: number, to: number): boolean {
@@ -63,6 +64,16 @@ describe('N-player worldgen', () => {
         expect(camp).toBeDefined();
         expect(camp!.owner).toBe(BANDIT);
         expect(isPlayerOwner(camp!.owner)).toBe(false);
+        // ...and stands clear of every start. The camp's standing guards
+        // besiege any enemy building inside their acquire radius, so a camp
+        // on someone's doorstep razes their storehouse before the match
+        // begins — which is exactly what happened at 4 players until the
+        // camp moved to the contested middle. Nobody may be eliminated
+        // while everyone is still standing around doing nothing.
+        for (let t = 0; t < 1500; t++) tickWorld(world, []);
+        for (const p of world.players) {
+          expect(p.alive, `seat ${p.id} was eliminated before doing anything`).toBe(true);
+        }
       }
     });
   }
