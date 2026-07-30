@@ -11,8 +11,10 @@ export const FOG_ENABLED = !new URLSearchParams(location.search).has('nofog');
 const UNIT_SIGHT = 6.5;
 const BUILDING_SIGHT = 5.5;
 const STOREHOUSE_SIGHT = 9;
-/** Tiles over which a sight circle fades out at its rim. */
-const RIM = 1.4;
+/** Tiles over which a sight circle fades out at its rim. Generous on
+ * purpose: a long feather is what makes the frontier read as fog rolling
+ * off rather than a stencil cut around each unit. */
+const RIM = 3.2;
 
 /** Reveal snaps in; concealment lags behind, so edges breathe. */
 const REVEAL_RATE = 14;
@@ -50,6 +52,12 @@ export class FogOfWar implements FogQuery {
   #target = new Float32Array(TILE_COUNT);
   /** Ever-seen, 0..1 per tile (never decreases). */
   #explored = new Float32Array(TILE_COUNT);
+  /** Blurred copies — what the texture carries. The crisp arrays above stay
+   * authoritative for gameplay queries, so softening the look never makes
+   * "can I see that raider" a fuzzy question. */
+  #visSoft = new Float32Array(TILE_COUNT);
+  #expSoft = new Float32Array(TILE_COUNT);
+  #scratch = new Float32Array(TILE_COUNT);
   #bytes = new Uint8Array(TILE_COUNT * 4);
   #texture: THREE.DataTexture;
   #uniforms: { uFogTex: { value: THREE.Texture }; uFogSize: { value: number } };
@@ -144,11 +152,43 @@ export class FogOfWar implements FogQuery {
       const next = v + (t - v) * (t > v ? up : down);
       this.#vis[i] = next;
       if (next > this.#explored[i]!) this.#explored[i] = next;
+    }
+
+    // Two blur passes before upload. One texel per tile means bilinear
+    // filtering alone only ever smooths across a single tile, which still
+    // leaves the grid legible along the frontier.
+    this.#blur(this.#vis, this.#visSoft);
+    this.#blur(this.#visSoft, this.#visSoft);
+    this.#blur(this.#explored, this.#expSoft);
+    this.#blur(this.#expSoft, this.#expSoft);
+    for (let i = 0; i < TILE_COUNT; i++) {
       const o = i * 4;
-      this.#bytes[o] = Math.round(next * 255);
-      this.#bytes[o + 1] = Math.round(this.#explored[i]! * 255);
+      this.#bytes[o] = Math.round(this.#visSoft[i]! * 255);
+      this.#bytes[o + 1] = Math.round(this.#expSoft[i]! * 255);
     }
     this.#texture.needsUpdate = true;
+  }
+
+  /** Separable 1-2-1 blur, clamped at the map edge. */
+  #blur(src: Float32Array, out: Float32Array): void {
+    const s = this.#scratch;
+    for (let z = 0; z < MAP_SIZE; z++) {
+      const row = z * MAP_SIZE;
+      for (let x = 0; x < MAP_SIZE; x++) {
+        const l = src[row + (x > 0 ? x - 1 : 0)]!;
+        const c = src[row + x]!;
+        const r = src[row + (x < MAP_SIZE - 1 ? x + 1 : MAP_SIZE - 1)]!;
+        s[row + x] = (l + 2 * c + r) * 0.25;
+      }
+    }
+    for (let z = 0; z < MAP_SIZE; z++) {
+      const row = z * MAP_SIZE;
+      const upRow = (z > 0 ? z - 1 : 0) * MAP_SIZE;
+      const dnRow = (z < MAP_SIZE - 1 ? z + 1 : MAP_SIZE - 1) * MAP_SIZE;
+      for (let x = 0; x < MAP_SIZE; x++) {
+        out[row + x] = (s[upRow + x]! + 2 * s[row + x]! + s[dnRow + x]!) * 0.25;
+      }
+    }
   }
 
   /**
@@ -206,8 +246,8 @@ export class FogOfWar implements FogQuery {
             float seen = f.g;
             // Remembered ground: what you saw, drained of color and light.
             float lum = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
-            vec3 memory = mix(vec3(lum), gl_FragColor.rgb, 0.4) * 0.42;
-            vec3 unknown = vec3(0.016, 0.026, 0.03);
+            vec3 memory = mix(vec3(lum), gl_FragColor.rgb, 0.4) * 0.5;
+            vec3 unknown = vec3(0.045, 0.058, 0.062);
             vec3 hidden = mix(unknown, memory, seen);
             gl_FragColor.rgb = mix(hidden, gl_FragColor.rgb, vis);
           }`;
