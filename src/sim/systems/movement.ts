@@ -41,7 +41,7 @@ export function movementSystem(world: World): void {
       const wy = tileY(next) + 0.5;
       const dx = wx - unit.x;
       const dy = wy - unit.y;
-      const dist = Math.hypot(dx, dy);
+      const dist = Math.sqrt(dx * dx + dy * dy); // sqrt is IEEE-exact; hypot is not
       if (dist <= budget) {
         unit.x = wx;
         unit.y = wy;

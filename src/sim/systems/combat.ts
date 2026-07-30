@@ -5,6 +5,12 @@ import { findPath, findPathToAdjacent, nearestWalkable } from '../path';
 import { destroyBuilding, killUnit, type World } from '../world';
 import type { Unit } from '../units';
 
+/** Euclidean distance via sqrt (correctly rounded per IEEE-754, unlike
+ * Math.hypot) — lockstep clients on different JS engines must agree. */
+function exactDist(dx: number, dy: number): number {
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 /**
  * Thin, quarantined combat: reads positions, writes hp and movement intents.
  * The economy learns about combat solely through deaths flowing into
@@ -80,7 +86,7 @@ export function combatSystem(world: World): void {
     // Engage: in range -> strike on cooldown; out of range -> close in.
     // Ranged units kite: they back off from anything closing to melee.
     if (targetUnit) {
-      const dist = Math.hypot(targetUnit.x - unit.x, targetUnit.y - unit.y);
+      const dist = exactDist(targetUnit.x - unit.x, targetUnit.y - unit.y);
       const isRanged = combat.range > 2;
       if (isRanged && dist < 2.4) {
         if (dist <= combat.range && unit.cooldownLeft <= 0) {
@@ -136,7 +142,7 @@ function acquireUnit(world: World, unit: Unit, radius: number): Unit | undefined
   let bestScore = Infinity;
   for (const other of world.units.values()) {
     if (other.dead || other.owner === unit.owner) continue;
-    const dist = Math.hypot(other.x - unit.x, other.y - unit.y);
+    const dist = exactDist(other.x - unit.x, other.y - unit.y);
     if (dist > radius) continue;
     const otherClass = UNIT_DEFS[other.kind].combat?.class;
     // Favor targets we counter; civilians are class-less easy prey for raiders.
@@ -173,7 +179,7 @@ function chaseUnit(world: World, unit: Unit, target: Unit): void {
     const last = path[path.length - 1]!;
     const lx = tileX(last) + 0.5;
     const ly = tileY(last) + 0.5;
-    if (Math.hypot(target.x - lx, target.y - ly) < 1.6) return; // path still good
+    if (exactDist(target.x - lx, target.y - ly) < 1.6) return; // path still good
   }
   const p = findPath(
     world.map,
@@ -193,7 +199,7 @@ function kiteAway(world: World, unit: Unit, threat: Unit): void {
   if (unit.path !== null && unit.pathIdx < unit.path.length) return; // already scooting
   const dx = unit.x - threat.x;
   const dy = unit.y - threat.y;
-  const len = Math.hypot(dx, dy) || 1;
+  const len = exactDist(dx, dy) || 1;
   const tx = Math.round(unit.x + (dx / len) * 3);
   const ty = Math.round(unit.y + (dy / len) * 3);
   const idx = nearestWalkable(world.map, tx, ty, 3);
@@ -208,7 +214,7 @@ function kiteAway(world: World, unit: Unit, threat: Unit): void {
 function distToBuilding(unit: Unit, b: Building): number {
   const cx = Math.max(b.x, Math.min(unit.x, b.x + b.w));
   const cy = Math.max(b.y, Math.min(unit.y, b.y + b.h));
-  return Math.hypot(unit.x - cx, unit.y - cy);
+  return exactDist(unit.x - cx, unit.y - cy);
 }
 
 function nearestEnemyBuilding(world: World, unit: Unit): Building | undefined {
@@ -217,7 +223,7 @@ function nearestEnemyBuilding(world: World, unit: Unit): Building | undefined {
   for (const b of world.buildings.values()) {
     if (b.dead || b.owner === unit.owner) continue;
     const c = centerOf(b);
-    const dist = Math.hypot(c.x - unit.x, c.y - unit.y);
+    const dist = exactDist(c.x - unit.x, c.y - unit.y);
     if (dist < bestDist) {
       bestDist = dist;
       best = b;

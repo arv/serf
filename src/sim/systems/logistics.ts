@@ -3,6 +3,7 @@ import { INPUT_CAP, buildingDef } from '../defs/buildings';
 import { GOODS, type GoodId } from '../defs/goods';
 import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } from '../entities';
 import { findPathToAdjacent } from '../path';
+import { simWarn } from '../log';
 import { trainingDemand } from './training';
 import type { Unit } from '../units';
 import type { HaulJob, World } from '../world';
@@ -58,7 +59,7 @@ export function abortJob(world: World, job: HaulJob, reason: string): void {
   }
   world.jobs.delete(job.id);
   if (import.meta.env?.DEV) {
-    console.warn(`[logistics] job ${job.id} (${job.good} ${job.from}->${job.to}) aborted: ${reason}`);
+    simWarn(`[logistics] job ${job.id} (${job.good} ${job.from}->${job.to}) aborted: ${reason}`);
   }
 }
 
@@ -171,7 +172,13 @@ function match(world: World): void {
   }
 
   // Priority first, then FIFO by demand age.
-  demands.sort((a, z) => a.priority - z.priority || a.since - z.since);
+  demands.sort(
+    (a, z) =>
+      a.priority - z.priority ||
+      a.since - z.since ||
+      a.building.id - z.building.id ||
+      GOODS.indexOf(a.good) - GOODS.indexOf(z.good),
+  );
 
   for (const d of demands) {
     let want = d.want;
@@ -267,7 +274,7 @@ function dispatch(world: World): void {
     }
   }
   if (open.length === 0) return;
-  open.sort((a, z) => a.priority - z.priority || a.createdTick - z.createdTick);
+  open.sort((a, z) => a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id);
 
   // Idle serfs, bucketed by faction — a job is only ever offered to serfs of
   // its own owner.
