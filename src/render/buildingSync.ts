@@ -177,6 +177,18 @@ export class BuildingSync {
     };
   }
 
+  /** Built wells' world centers and grip handles — sceneSync IK-glues the
+   * drawing serf's hand to the grip and stands them beside it. */
+  wellCranks(): { x: number; z: number; grip: THREE.Object3D }[] {
+    const out: { x: number; z: number; grip: THREE.Object3D }[] = [];
+    for (const v of this.#visuals.values()) {
+      if (v.state !== 'built' || !v.crank) continue;
+      const grip = v.crank.getObjectByName('wellGrip');
+      if (grip) out.push({ x: v.root.position.x, z: v.root.position.z, grip });
+    }
+    return out;
+  }
+
   /** Per render frame: turn the staffed wells' windlasses. dt in seconds
    * (pass 0 while paused). */
   frame(dt: number): void {

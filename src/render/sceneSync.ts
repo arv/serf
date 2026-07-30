@@ -49,6 +49,59 @@ interface UnitVisual {
    * stay untouched (no unit collision by design). */
   sepX: number;
   sepY: number;
+  /** Right-arm bone chain for the well-crank IK. undefined = not looked
+   * up yet, null = this rig has no such bones. */
+  arm?: ArmChain | null;
+}
+
+interface ArmChain {
+  upper: THREE.Object3D;
+  lower: THREE.Object3D;
+  hand: THREE.Object3D;
+}
+
+/** GLTFLoader sanitizes bone names ('upperarm.r' → 'upperarmr'). */
+function findArm(group: THREE.Group): ArmChain | null {
+  const bone = (n: string): THREE.Object3D | undefined =>
+    group.getObjectByName(n) ?? group.getObjectByName(n.replace(/[^\w-]/g, ''));
+  const upper = bone('upperarm.r');
+  const lower = bone('lowerarm.r');
+  const hand = bone('hand.r');
+  return upper && lower && hand ? { upper, lower, hand } : null;
+}
+
+const IK_B = new THREE.Vector3();
+const IK_E = new THREE.Vector3();
+const IK_D = new THREE.Vector3();
+const IK_Q = new THREE.Quaternion();
+const IK_PQ = new THREE.Quaternion();
+const IK_PQI = new THREE.Quaternion();
+const IK_TARGET = new THREE.Vector3();
+
+/** One CCD step: swing `bone` so `tip` aims at `target` (world space). */
+function aimBone(bone: THREE.Object3D, tip: THREE.Object3D, target: THREE.Vector3): void {
+  bone.updateWorldMatrix(true, false);
+  tip.updateWorldMatrix(true, false);
+  bone.getWorldPosition(IK_B);
+  tip.getWorldPosition(IK_E);
+  IK_E.sub(IK_B);
+  IK_D.copy(target).sub(IK_B);
+  if (IK_E.lengthSq() < 1e-8 || IK_D.lengthSq() < 1e-8) return;
+  IK_Q.setFromUnitVectors(IK_E.normalize(), IK_D.normalize());
+  bone.parent!.getWorldQuaternion(IK_PQ);
+  IK_PQI.copy(IK_PQ).invert();
+  // local' = parent⁻¹ · Δworld · parent · local
+  bone.quaternion.premultiply(IK_PQ).premultiply(IK_Q).premultiply(IK_PQI);
+}
+
+/** CCD from the elbow out: a few passes settle the hand on the target
+ * (or at full stretch toward it when out of reach). */
+function ikReach(arm: ArmChain, target: THREE.Vector3): void {
+  aimBone(arm.lower, arm.hand, target);
+  aimBone(arm.upper, arm.hand, target);
+  aimBone(arm.lower, arm.hand, target);
+  aimBone(arm.upper, arm.hand, target);
+  aimBone(arm.lower, arm.hand, target);
 }
 
 function rigOf(group: THREE.Group): Rig {
@@ -267,14 +320,30 @@ export class SceneSync {
    * hp bars copy it to stay parallel with the screen plane. */
   cameraQuaternion: THREE.Quaternion | null = null;
 
-  /** Built wells' world centers (from main's structural feed). A drawing
-   * serf belongs at the windlass handle, but the sim parks staffed workers
-   * on whichever adjacent tile the path found — so the render snaps them
-   * to the crank side (see update). */
-  #wells: { x: number; z: number }[] = [];
+  /** Built wells' world centers + grip handles (from main's structural
+   * feed). A drawing serf belongs at the windlass, but the sim parks
+   * staffed workers on whichever adjacent tile the path found — so the
+   * render stands them beside the crank and IK-glues their hand to the
+   * grip (see update). */
+  #wells: { x: number; z: number; grip: THREE.Object3D }[] = [];
 
-  setWells(wells: { x: number; z: number }[]): void {
+  setWells(wells: { x: number; z: number; grip: THREE.Object3D }[]): void {
     this.#wells = wells;
+  }
+
+  #nearestWell(x: number, y: number): { x: number; z: number; grip: THREE.Object3D } | null {
+    let well: { x: number; z: number; grip: THREE.Object3D } | null = null;
+    let best = 2.25; // the worker stands adjacent: within 1.5 tiles
+    for (const w of this.#wells) {
+      const dx = w.x - x;
+      const dz = w.z - y;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < best) {
+        best = d2;
+        well = w;
+      }
+    }
+    return well;
   }
 
   // Scratch buffers for the per-frame visual de-overlap pass.
@@ -515,6 +584,13 @@ export class SceneSync {
       const workKind = latest.aux[a + 5]!;
       const dead = action === ACTION.dead;
       if (dead) moving = false; // corpses don't turn or bob
+      // Drawing at a well with a crank: the serf stands beside the windlass
+      // and their hand is IK-glued to the grip, so the base pose is a calm
+      // idle — the cranking motion IS the crank's.
+      const crankWell =
+        !dead && !moving && action === ACTION.work && workKind === WORK.draw
+          ? this.#nearestWell(x, y)
+          : null;
       if (visual.char) {
         const heldCarry = carrying > 0 && carrying !== YOKE_CODE;
         let key: AnimKey;
@@ -522,7 +598,7 @@ export class SceneSync {
         else if (moving)
           key = heldCarry ? 'carry' : visual.char.jog && carrying === 0 ? 'jog' : 'walk';
         else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
-        else if (action === ACTION.work) key = workAnimKey(workKind);
+        else if (action === ACTION.work) key = crankWell ? 'idle' : workAnimKey(workKind);
         else key = heldCarry ? 'carryIdle' : 'idle';
         // Right tool for the job: mallet on sites, pickaxe at rock faces.
         setWorkTool(visual.char, !moving && action === ACTION.work ? workKind : 0);
@@ -543,27 +619,14 @@ export class SceneSync {
       // (Skinned clips carry their own bob.)
       const bob =
         moving && !visual.char ? Math.abs(Math.cos(animNow * 0.012 + id * 2.1)) * 0.025 : 0;
-      // A drawing serf stands at the crank handle (east of the well, facing
-      // it) no matter which adjacent tile the sim parked them on. The snap
-      // rides the smoothed de-overlap channel, so picking and selection fx
-      // (positionOf) already follow it.
-      if (!dead && !moving && action === ACTION.work && workKind === WORK.draw) {
-        let well: { x: number; z: number } | null = null;
-        let best = 2.25; // within 1.5 tiles of a well center
-        for (const w of this.#wells) {
-          const dx = w.x - x;
-          const dz = w.z - y;
-          const d2 = dx * dx + dz * dz;
-          if (d2 < best) {
-            best = d2;
-            well = w;
-          }
-        }
-        if (well) {
-          this.#sepTX[i] = well.x + 0.68 - x;
-          this.#sepTY[i] = well.z - y;
-          visual.group.rotation.y = -Math.PI / 2; // face the crank (-x)
-        }
+      // The crank operator's mark: north-east of the handle, side-on to the
+      // well, facing south — from the fixed camera the grip and the glued
+      // hand stay in front of the body. The snap rides the smoothed
+      // de-overlap channel, so picking (positionOf) already follows it.
+      if (crankWell) {
+        this.#sepTX[i] = crankWell.x + 0.64 - x;
+        this.#sepTY[i] = crankWell.z - 0.12 - y;
+        visual.group.rotation.y = 0; // face +z, crank at the right hand
       }
       // Ease into this frame's de-overlap offset (corpses keep theirs).
       if (!dead) {
@@ -574,6 +637,16 @@ export class SceneSync {
       const px = x + visual.sepX;
       const pz = y + visual.sepY;
       visual.group.position.set(px, this.#heights.at(px, pz) + bob, pz);
+      // Glue the cranking hand to the grip — after the group transform is
+      // final for this frame, override the clip's right arm with a CCD
+      // reach toward the grip's current world position.
+      if (crankWell && visual.char) {
+        visual.arm ??= findArm(visual.group);
+        if (visual.arm) {
+          crankWell.grip.getWorldPosition(IK_TARGET);
+          ikReach(visual.arm, IK_TARGET);
+        }
+      }
       // Keep the hp bar screen-stable regardless of unit facing.
       if (visual.hpBar && this.cameraQuaternion) {
         // Screen-parallel billboard: cancel the unit's facing, then adopt

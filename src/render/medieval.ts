@@ -279,6 +279,7 @@ export async function loadMedievalAssets(): Promise<boolean> {
         arm.position.set(0.3, -0.05, 0);
         crank.add(arm);
         const grip = part(new THREE.CylinderGeometry(0.022, 0.022, 0.12, 6));
+        grip.name = 'wellGrip'; // sceneSync IK-glues the drawing serf's hand here
         grip.rotation.z = Math.PI / 2;
         grip.position.set(0.36, -0.09, 0);
         crank.add(grip);
