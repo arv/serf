@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { BuildingTypeId } from '../sim/entities';
 import { THEME, makeMedievalBuilding, medievalCarryProp } from './medieval';
+import { mapMaterials } from './materials';
 import { goodColors as goodColorsLocal, palette } from './palette';
 import { planks, plaster, roofTiles, stoneBlocks, thatch } from './buildingTextures';
 
@@ -625,9 +626,6 @@ export function makeGhostModel(
 ): THREE.Group {
   // Preview whatever model the theme will actually build, in your colors.
   const g = makeMedievalBuilding(type, owner) ?? makeBuildingModel(type);
-  // Faction-colored meshes carry a material array (texture group +
-  // team-color group); treating one as a lone material throws and the
-  // ghost never appears.
   const ghosted = (m: THREE.Material): THREE.Material => {
     const mat = m.clone() as THREE.MeshLambertMaterial;
     mat.transparent = true;
@@ -637,9 +635,7 @@ export function makeGhostModel(
   };
   g.traverse((obj) => {
     if (obj instanceof THREE.Mesh) {
-      obj.material = Array.isArray(obj.material)
-        ? obj.material.map(ghosted)
-        : ghosted(obj.material as THREE.Material);
+      mapMaterials(obj, ghosted);
       obj.castShadow = false;
       obj.receiveShadow = false;
     }

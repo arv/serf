@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { makeBuildingModel, makeGhostModel, makePileProp, makeSiteFrame } from './models';
 import { makeMedievalBuilding } from './medieval';
+import { mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
@@ -132,11 +133,7 @@ export class BuildingSync {
       if (medieval) {
         model = medieval;
         // Per-site material clones so the clip plane never touches the
-        // shared templates or finished buildings. Faction-colored meshes
-        // carry a material *array* (texture group + team-color group), so
-        // clone through both — treating one as a lone material throws, and
-        // the throw took the whole structural update with it: no frame, no
-        // rise, no HUD refresh.
+        // shared templates or finished buildings.
         const plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), root.position.y);
         const clipped = (m: THREE.Material): THREE.Material => {
           const c = m.clone();
@@ -145,11 +142,7 @@ export class BuildingSync {
           return c;
         };
         model.traverse((o) => {
-          if (o instanceof THREE.Mesh) {
-            o.material = Array.isArray(o.material)
-              ? o.material.map(clipped)
-              : clipped(o.material as THREE.Material);
-          }
+          if (o instanceof THREE.Mesh) mapMaterials(o, clipped);
         });
         // Note: root isn't in the scene yet, so this bbox is root-local —
         // max.y IS the model height above its own base.
