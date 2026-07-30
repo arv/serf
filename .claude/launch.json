@@ -4,8 +4,33 @@
     {
       "name": "serf-dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev", "--port", "5199", "--strictPort"],
+      "runtimeArgs": [
+        "dev",
+        "--port",
+        "5199",
+        "--strictPort"
+      ],
       "port": 5199
+    },
+    {
+      "name": "serf-mp",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "/Users/arv/src/arv/serf/.claude/worktrees/multiplayer",
+        "dev"
+      ],
+      "autoPort": true
+    },
+    {
+      "name": "serf-fog",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "/Users/arv/src/arv/serf/.claude/worktrees/fog-of-war",
+        "dev"
+      ],
+      "autoPort": true
     }
   ]
 }
