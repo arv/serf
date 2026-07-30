@@ -19,6 +19,7 @@ import { mountHud } from '../ui/mount';
 import {
   myPlayerId,
   setMyPlayerId,
+  setNetMode,
   pushToast,
   selectedBuilding,
   setAdminState,
@@ -34,6 +35,8 @@ import {
 import { WorldMirror } from './mirror';
 import { WorkerSimHost } from './simHost';
 import { configFromUrl } from './gameConfig';
+import { relayUrl, runLobby } from '../net/lobbyClient';
+import type { NetInfo } from '../protocol/messages';
 
 function fatal(message: string): never {
   const el = document.getElementById('fatal')!;
@@ -53,23 +56,43 @@ if (!crossOriginIsolated) {
 }
 
 async function boot(): Promise<void> {
-  const config = configFromUrl(location.search);
-  setMyPlayerId(config.myPlayerId);
+  let config = configFromUrl(location.search);
+  let loadData: string | undefined;
+  let net: NetInfo | undefined;
 
-  // A pending load (set by the Load button before its reload) boots the
-  // worker straight into the saved world. sessionStorage on purpose: it is
-  // per-tab, so a second open tab (e.g. the dev preview) can never steal or
-  // duplicate the handoff the way a shared localStorage key could.
-  const loadData = sessionStorage.getItem('serf-load-pending') ?? undefined;
-  sessionStorage.removeItem('serf-load-pending');
-  // Migrate away any stale handoff left by the old localStorage flow.
-  localStorage.removeItem('serf-load-pending');
+  const params = new URLSearchParams(location.search);
+  const mp = params.get('mp');
+  if (mp) {
+    // Multiplayer: the lobby resolves seats, the world blob, and our seat
+    // token; the worker's own socket does the rest.
+    const aiSeats = Math.max(0, Math.min(3, Number(params.get('ai') ?? '0') || 0));
+    const lobby = await runLobby(mp, aiSeats, config.seed, relayUrl(location.search));
+    config = {
+      ...config,
+      players: lobby.seats,
+      myPlayerId: lobby.myPlayerId,
+      adminEnabled: false,
+    };
+    loadData = lobby.worldBlob;
+    net = lobby.net;
+  } else {
+    // A pending load (set by the Load button before its reload) boots the
+    // worker straight into the saved world. sessionStorage on purpose: it is
+    // per-tab, so a second open tab (e.g. the dev preview) can never steal or
+    // duplicate the handoff the way a shared localStorage key could.
+    loadData = sessionStorage.getItem('serf-load-pending') ?? undefined;
+    sessionStorage.removeItem('serf-load-pending');
+    // Migrate away any stale handoff left by the old localStorage flow.
+    localStorage.removeItem('serf-load-pending');
+  }
+  setMyPlayerId(config.myPlayerId);
+  setNetMode(net !== undefined);
 
   const host = new WorkerSimHost();
   // Character/building GLBs load while the worker generates the world; if
   // they fail, the renderer falls back to the procedural models.
   const [init] = await Promise.all([
-    host.start(config, loadData),
+    host.start(config, loadData, net),
     loadCharacterAssets(),
     loadMedievalAssets(),
   ]);
@@ -115,6 +138,7 @@ async function boot(): Promise<void> {
     }
     const changes = mirror.apply(msg);
     for (const tile of changes.resourceCleared) scatter.removeTile(tile);
+    if (changes.refreshAll) scatter.resyncAll(mirror.map);
     if (changes.repaint) terrain.repaintAll();
     buildingSync.update(msg.buildings);
     feedWells();

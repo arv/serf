@@ -182,12 +182,34 @@ export class ScatterMesh {
         this.#placeOre(i, res, interior);
       }
     }
-    for (const i of shoreTiles) this.#placeShoreRocks(i);
+    for (const i of shoreTiles) {
+      this.#placeShoreRocks(i);
+      this.#cosmetic.add(i); // never resource-driven; rollback resync skips
+    }
 
     for (const a of this.#archetypes.values()) {
       a.mesh.count = a.cursor;
       a.mesh.instanceMatrix.needsUpdate = true;
       if (a.mesh.instanceColor) a.mesh.instanceColor.needsUpdate = true;
+    }
+  }
+
+  #cosmetic = new Set<number>();
+
+  /**
+   * Rollback resync: hide scatter on every tile the corrected map no longer
+   * grants a resource or leaves buildable (shore decor is exempt). Scatter
+   * is only ever removed — a rollback that *restores* a tree the prediction
+   * felled leaves it hidden until regrowth; a cosmetic, self-healing gap.
+   */
+  resyncAll(map: { resource: Uint8Array; buildingAt: Int16Array }): void {
+    for (const a of this.#archetypes.values()) {
+      for (const tile of [...a.byTile.keys()]) {
+        if (this.#cosmetic.has(tile)) continue;
+        if (map.resource[tile] === TileResource.None || map.buildingAt[tile]! >= 0) {
+          this.removeTile(tile);
+        }
+      }
     }
   }
 

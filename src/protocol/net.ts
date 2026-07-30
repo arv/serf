@@ -44,7 +44,7 @@ export type NetFrame =
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-export function encodeTurnSubmit(envelope: CommandEnvelope): Uint8Array {
+export function encodeTurnSubmit(envelope: CommandEnvelope): Uint8Array<ArrayBuffer> {
   const payload = textEncoder.encode(JSON.stringify(envelope.commands));
   const buf = new Uint8Array(9 + payload.length);
   const view = new DataView(buf.buffer);
@@ -60,7 +60,7 @@ export function encodeTurnSubmit(envelope: CommandEnvelope): Uint8Array {
  * `firstTick` (live streaming: 1; rejoin batches: up to 512). An empty
  * closed tick costs 9 bytes.
  */
-export function encodeTurn(firstTick: number, tickCount: number, records: TurnRecord[]): Uint8Array {
+export function encodeTurn(firstTick: number, tickCount: number, records: TurnRecord[]): Uint8Array<ArrayBuffer> {
   const encoded = records.map((r) => ({
     r,
     payload: textEncoder.encode(JSON.stringify(r.commands)),
@@ -85,7 +85,7 @@ export function encodeTurn(firstTick: number, tickCount: number, records: TurnRe
   return buf;
 }
 
-export function encodeHash(tick: number, hash: number): Uint8Array {
+export function encodeHash(tick: number, hash: number): Uint8Array<ArrayBuffer> {
   const buf = new Uint8Array(9);
   const view = new DataView(buf.buffer);
   view.setUint8(0, FRAME.HASH);
@@ -94,7 +94,7 @@ export function encodeHash(tick: number, hash: number): Uint8Array {
   return buf;
 }
 
-export function encodePing(clientTimeMs: number): Uint8Array {
+export function encodePing(clientTimeMs: number): Uint8Array<ArrayBuffer> {
   const buf = new Uint8Array(5);
   const view = new DataView(buf.buffer);
   view.setUint8(0, FRAME.PING);
@@ -106,7 +106,7 @@ export function encodePong(
   clientTimeEcho: number,
   serverTimeMs: number,
   serverClosedTick: number,
-): Uint8Array {
+): Uint8Array<ArrayBuffer> {
   const buf = new Uint8Array(13);
   const view = new DataView(buf.buffer);
   view.setUint8(0, FRAME.PONG);

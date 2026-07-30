@@ -8,6 +8,7 @@ import type {
 } from '../protocol/messages';
 import type { SimCommand } from '../sim/commands';
 import type { GameConfig } from './gameConfig';
+import type { NetInfo } from '../protocol/messages';
 
 export interface SimInit {
   reader: SabReader;
@@ -21,7 +22,7 @@ export interface SimInit {
  * same interface later because the sim is pure.
  */
 export interface SimHost {
-  start(config: GameConfig, loadData?: string): Promise<SimInit>;
+  start(config: GameConfig, loadData?: string, net?: NetInfo): Promise<SimInit>;
   sendCommands(commands: SimCommand[]): void;
   setSpeed(speed: number): void;
   requestSave(): Promise<string>;
@@ -35,7 +36,7 @@ export class WorkerSimHost implements SimHost {
   /** Seat the UI's commands are issued as (always 0 until lobbies land). */
   playerId = 0;
 
-  start(config: GameConfig, loadData?: string): Promise<SimInit> {
+  start(config: GameConfig, loadData?: string, net?: NetInfo): Promise<SimInit> {
     this.playerId = config.myPlayerId;
     return new Promise((resolve, reject) => {
       this.#worker.onerror = (e) => reject(new Error(`sim worker failed: ${e.message}`));
@@ -50,7 +51,7 @@ export class WorkerSimHost implements SimHost {
           this.#saveCb = null;
         }
       };
-      this.#post({ type: 'init', config, loadData });
+      this.#post({ type: 'init', config, loadData, net });
     });
   }
 

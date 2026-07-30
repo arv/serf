@@ -13,6 +13,7 @@ import { buildingName, techName } from './names';
 import {
   debugJobs,
   debugOpen,
+  netMode,
   invariantViolations,
   myPlayerId,
   openPanel,
@@ -372,19 +373,21 @@ export function Hud(props: {
         >
           ☰
         </button>
-        <span class="div"></span>
-        <For each={SPEEDS}>
-          {(s) => (
-            <button
-              class="icon"
-              classList={{ active: speed() === s.value }}
-              {...tooltip(() => <TextTip title={s.label} body={s.hint} />)}
-              onClick={() => props.onSpeed(s.value)}
-            >
-              <s.icon />
-            </button>
-          )}
-        </For>
+        <Show when={!netMode()}>
+          <span class="div"></span>
+          <For each={SPEEDS}>
+            {(s) => (
+              <button
+                class="icon"
+                classList={{ active: speed() === s.value }}
+                {...tooltip(() => <TextTip title={s.label} body={s.hint} />)}
+                onClick={() => props.onSpeed(s.value)}
+              >
+                <s.icon />
+              </button>
+            )}
+          </For>
+        </Show>
       </div>
 
       <Show when={menuOpen()}>
@@ -395,14 +398,16 @@ export function Hud(props: {
               ✕
             </button>
           </div>
-          <button
-            onClick={() => {
-              props.onSave();
-              setMenuOpen(false);
-            }}
-          >
-            Save village
-          </button>
+          <Show when={!netMode()}>
+            <button
+              onClick={() => {
+                props.onSave();
+                setMenuOpen(false);
+              }}
+            >
+              Save village
+            </button>
+          </Show>
           <button
             disabled={!localStorage.getItem('serf-save')}
             onClick={() => {

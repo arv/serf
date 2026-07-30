@@ -73,8 +73,21 @@ export interface MapSnapshot {
   height: Float32Array;
 }
 
+/** How the worker reaches the relay in a networked match. */
+export interface NetInfo {
+  relayUrl: string;
+  token: string;
+  playerId: number;
+}
+
+export type NetStatus =
+  | { state: 'ok'; rttMs: number; behindTicks: number }
+  | { state: 'stalled'; behindTicks: number }
+  | { state: 'desync'; tick: number }
+  | { state: 'disconnected' };
+
 export type MainToWorker =
-  | { type: 'init'; config: WorldConfig; loadData?: string }
+  | { type: 'init'; config: WorldConfig; loadData?: string; net?: NetInfo }
   | { type: 'commands'; commands: PlayerCommand[] }
   | { type: 'setSpeed'; speed: number }
   | { type: 'requestSave' };
@@ -89,6 +102,14 @@ export interface StructuralUpdate {
   tick: number;
   buildings: BuildingSnap[];
   mapDeltas: MapDelta[];
+  /** After a rollback: wholesale replacement for the mirror's mutable map
+   * arrays (incremental deltas shipped for re-simulated ticks are void). */
+  fullMap?: {
+    resource: Uint8Array;
+    blocked: Uint8Array;
+    pathLevel: Uint8Array;
+    buildingAt: Int16Array;
+  };
   /** One block per seat; the main thread reads its own via myPlayerId. */
   players: PlayerSnap[];
   admin: { enabled: boolean; raidsEnabled: boolean; instantBuild: boolean };
@@ -107,4 +128,5 @@ export type WorkerToMain =
     }
   | StructuralUpdate
   | { type: 'saved'; data: string }
+  | { type: 'netStatus'; status: NetStatus }
   | { type: 'log'; message: string };

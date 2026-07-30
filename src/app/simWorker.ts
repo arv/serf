@@ -20,7 +20,18 @@ import {
 } from '../protocol/sabLayout';
 import type { Building } from '../sim/entities';
 import type { Unit } from '../sim/units';
-import type { BuildingSnap, MainToWorker, PlayerSnap, WorkerToMain } from '../protocol/messages';
+import type {
+  BuildingSnap,
+  MainToWorker,
+  NetInfo,
+  NetStatus,
+  PlayerSnap,
+  WorkerToMain,
+} from '../protocol/messages';
+import { RollbackSession } from '../net/rollback';
+import { decodeFrame, encodeHash, encodePing, encodeTurnSubmit } from '../protocol/net';
+import { hashWorld } from '../sim/hash';
+import type { GameEvent } from '../sim/world';
 
 /**
  * Worker entry: owns the World and the fixed-timestep loop. Publishes unit
@@ -35,6 +46,18 @@ let pendingCommands: PlayerCommand[] = [];
 let initialGoods: GoodAmounts = {};
 let lastInvariantViolations: string[] = [];
 
+// --- Networked-match state (absent in single-player) ----------------------
+let session: RollbackSession | null = null;
+let socket: WebSocket | null = null;
+let confirmedEvents: GameEvent[] = [];
+let needFullRefresh = false;
+// Server clock estimate from the latest PONG.
+let pongClosedTick = -1;
+let pongAtMs = 0;
+let rttMs = 120;
+let lastStatus = '';
+const HASH_INTERVAL = 20; // confirmed ticks between HASH reports
+
 const post = (msg: WorkerToMain): void => {
   (self as unknown as DedicatedWorkerGlobalScope).postMessage(msg);
 };
@@ -43,13 +66,21 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
   const msg = e.data;
   switch (msg.type) {
     case 'init':
-      init(msg.config, msg.loadData);
+      init(msg.config, msg.loadData, msg.net);
       break;
     case 'commands':
-      pendingCommands.push(...msg.commands);
+      if (session && socket) {
+        // Networked: wrap as an envelope, schedule optimistically, ship it.
+        const envelope = session.submitLocal(msg.commands.map((c) => c.cmd));
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(encodeTurnSubmit(envelope));
+        }
+      } else {
+        pendingCommands.push(...msg.commands);
+      }
       break;
     case 'setSpeed':
-      speed = msg.speed;
+      if (!session) speed = msg.speed; // lockstep runs at 1x, always
       break;
     case 'requestSave':
       if (world) post({ type: 'saved', data: serializeWorld(world) });
@@ -91,8 +122,19 @@ function snapBuilding(b: Building): BuildingSnap {
   };
 }
 
-function init(config: import('../sim/world').WorldConfig, loadData?: string): void {
+function init(config: import('../sim/world').WorldConfig, loadData?: string, net?: NetInfo): void {
   world = loadData !== undefined ? deserializeWorld(loadData) : createWorld(config);
+  if (net) {
+    session = new RollbackSession(world, net.playerId);
+    session.onConfirmedTick = (_w, events) => {
+      confirmedEvents.push(...events);
+    };
+    session.onRollback = () => {
+      needFullRefresh = true;
+    };
+    world = session.predicted; // the renderer's world
+    openSocket(net);
+  }
   initialGoods = countGoods(world);
   const sab = new SharedArrayBuffer(SAB_BYTES);
   writer = new SabWriter(sab);
@@ -129,8 +171,94 @@ let acc = 0;
 /** Cap banked time so a debugger pause doesn't unleash a tick avalanche. */
 const MAX_CATCHUP_QUANTA = 10;
 
+/** Server tick the relay has closed by now, per the latest PONG. */
+function estimatedClosedTick(now: number): number {
+  if (pongClosedTick < 0) return -1;
+  return pongClosedTick + Math.floor((now - pongAtMs + rttMs / 2) / TICK_MS);
+}
+
+function postStatus(status: NetStatus): void {
+  const key = JSON.stringify(status);
+  if (key === lastStatus) return;
+  lastStatus = key;
+  post({ type: 'netStatus', status });
+}
+
+let lastHashedTick = 0;
+
+function netPump(): void {
+  if (!world || !writer || !session) return;
+  const now = performance.now();
+  // Aim prediction just past the server's closed frontier so submissions
+  // arrive before their desired tick closes.
+  const lead = Math.ceil(rttMs / 2 / TICK_MS) + 1;
+  const target = estimatedClosedTick(now) + lead;
+  session.advancePredicted(Math.min(target, session.predictedTick + 10));
+  world = session.predicted; // rollback replaces the object — re-point
+  if (session.stalled) {
+    postStatus({ state: 'stalled', behindTicks: session.lead });
+  } else {
+    postStatus({ state: 'ok', rttMs: Math.round(rttMs), behindTicks: session.lead });
+  }
+  // Predicted events never surface (confirmed is the exactly-once source).
+  world.pendingEvents.length = 0;
+  publish();
+  if (
+    needFullRefresh ||
+    world.pendingDeltas.length > 0 ||
+    world.tick % MATCHER_INTERVAL === 0
+  ) {
+    postStructural();
+  }
+}
+
+function openSocket(net: NetInfo): void {
+  const ws = new WebSocket(net.relayUrl);
+  ws.binaryType = 'arraybuffer';
+  socket = ws;
+  ws.onopen = () => {
+    // Bind this socket to our seat; the server streams any closed history
+    // (empty at match start) and then live TURN frames.
+    ws.send(JSON.stringify({ t: 'rejoin', token: net.token }));
+    ws.send(encodePing(performance.now() >>> 0));
+    setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(encodePing(performance.now() >>> 0));
+    }, 2000);
+  };
+  ws.onmessage = (e: MessageEvent) => {
+    if (typeof e.data === 'string') {
+      const msg = JSON.parse(e.data) as { t: string; tick?: number };
+      if (msg.t === 'desync') postStatus({ state: 'desync', tick: msg.tick ?? 0 });
+      return;
+    }
+    const frame = decodeFrame(new Uint8Array(e.data as ArrayBuffer));
+    if (frame.kind === 'turn' && session) {
+      session.ingestTurns(frame.firstTick, frame.tickCount, frame.records);
+      // Report confirmed-world hashes on a fixed cadence.
+      while (session.confirmedTick >= lastHashedTick + HASH_INTERVAL) {
+        lastHashedTick += HASH_INTERVAL;
+        if (session.confirmedTick === lastHashedTick && ws.readyState === WebSocket.OPEN) {
+          ws.send(encodeHash(lastHashedTick, hashWorld(session.confirmed)));
+        }
+      }
+    } else if (frame.kind === 'pong') {
+      const now = performance.now();
+      rttMs = Math.max(1, (now >>> 0) - frame.clientTimeEcho);
+      pongClosedTick = frame.serverClosedTick === 0xffffffff ? -1 : frame.serverClosedTick;
+      pongAtMs = now;
+    }
+  };
+  ws.onclose = () => {
+    postStatus({ state: 'disconnected' });
+  };
+}
+
 function pump(): void {
   if (!world || !writer) return;
+  if (session) {
+    netPump();
+    return;
+  }
   const now = performance.now();
   acc = Math.min(acc + (now - lastPump) * rateAdjust, TICK_MS * MAX_CATCHUP_QUANTA);
   lastPump = now;
@@ -199,15 +327,27 @@ function snapPlayers(w: import('../sim/world').World): PlayerSnap[] {
 
 function postStructural(): void {
   if (!world) return;
+  const fullMap = needFullRefresh
+    ? {
+        resource: world.map.resource.slice(),
+        blocked: world.map.blocked.slice(),
+        pathLevel: world.map.pathLevel.slice(),
+        buildingAt: world.map.buildingAt.slice(),
+      }
+    : undefined;
+  needFullRefresh = false;
   post({
     type: 'structural',
     tick: world.tick,
     buildings: [...world.buildings.values()].filter((b) => !b.dead).map(snapBuilding),
     mapDeltas: world.pendingDeltas.splice(0),
+    fullMap,
     players: snapPlayers(world),
     admin: { ...world.admin },
-    events: world.pendingEvents.splice(0),
-    outcome: world.outcome,
+    // Networked: events and the match outcome speak only confirmed truth —
+    // prediction never shows a toast or a game-over it might take back.
+    events: session ? confirmedEvents.splice(0) : world.pendingEvents.splice(0),
+    outcome: session ? session.confirmed.outcome : world.outcome,
     jobs: [...world.jobs.values()].map((j) => ({
       id: j.id,
       good: j.good,

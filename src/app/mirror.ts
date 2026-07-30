@@ -5,6 +5,8 @@ export interface MirrorChanges {
   resourceCleared: number[];
   /** Any terrain-color-relevant change (paths, deposits, footprints). */
   repaint: boolean;
+  /** A rollback replaced the whole map state — resync everything derived. */
+  refreshAll: boolean;
 }
 
 /**
@@ -22,7 +24,18 @@ export class WorldMirror {
   }
 
   apply(msg: StructuralUpdate): MirrorChanges {
-    const changes: MirrorChanges = { resourceCleared: [], repaint: false };
+    const changes: MirrorChanges = { resourceCleared: [], repaint: false, refreshAll: false };
+
+    if (msg.fullMap) {
+      // Rollback correction: deltas shipped for re-simulated ticks are void;
+      // replace the mutable arrays wholesale and resync all consumers.
+      this.map.resource.set(msg.fullMap.resource);
+      this.map.blocked.set(msg.fullMap.blocked);
+      this.map.pathLevel.set(msg.fullMap.pathLevel);
+      this.map.buildingAt.set(msg.fullMap.buildingAt);
+      changes.refreshAll = true;
+      changes.repaint = true;
+    }
 
     for (const d of msg.mapDeltas) {
       if (this.map.resource[d.idx] !== d.resource && d.resource === 0) {
