@@ -24,6 +24,9 @@ interface BuildingVisual {
   piles?: THREE.Group;
   /** Serialized pile contents — rebuilt only when the counts change. */
   pileKey: string;
+  /** The well's windlass, spun per frame while the well is staffed. */
+  crank?: THREE.Object3D;
+  staffed: boolean;
 }
 
 const HP_BAR_W = 1.1;
@@ -97,6 +100,7 @@ export class BuildingSync {
         }
       }
 
+      v.staffed = b.staffing === 'staffed';
       this.#syncPiles(v, b);
 
       // Damage bar: appears once hurt (hover() shows it on healthy ones).
@@ -159,7 +163,29 @@ export class BuildingSync {
 
     const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
     this.#scene.add(root);
-    return { root, state: b.state, frame, model, clip, topY, pct: 1, pileKey: "" };
+    return {
+      root,
+      state: b.state,
+      frame,
+      model,
+      clip,
+      topY,
+      pct: 1,
+      pileKey: '',
+      crank: model.getObjectByName('wellCrank') ?? undefined,
+      staffed: false,
+    };
+  }
+
+  /** Per render frame: turn the staffed wells' windlasses. dt in seconds
+   * (pass 0 while paused). */
+  frame(dt: number): void {
+    if (dt <= 0) return;
+    for (const v of this.#visuals.values()) {
+      if (v.crank && v.staffed && v.state === 'built') {
+        v.crank.rotation.x += dt * 3.4; // axle runs along x, resting on the side frames
+      }
+    }
   }
 
   /**

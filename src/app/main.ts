@@ -90,6 +90,15 @@ async function boot(): Promise<void> {
   buildingSync.update(init.buildings);
 
   const sync = new SceneSync(renderer.scene, init.reader, heights);
+  // Where the well cranks are: drawing serfs get visually snapped to them.
+  const feedWells = (buildings: typeof init.buildings): void => {
+    sync.setWells(
+      buildings
+        .filter((b) => b.type === 'well' && b.state === 'built')
+        .map((b) => ({ x: b.x + b.w / 2, z: b.y + b.h / 2 })),
+    );
+  };
+  feedWells(init.buildings);
   const selectionFx = new SelectionFx(renderer.scene, heights);
   const ghost = new GhostPlacement(renderer.scene, heights);
   const controls = new Controls(canvas, renderer.rig.camera, sync, host, mirror, ghost, heights);
@@ -107,6 +116,7 @@ async function boot(): Promise<void> {
     for (const tile of changes.resourceCleared) scatter.removeTile(tile);
     if (changes.repaint) terrain.repaintAll();
     buildingSync.update(msg.buildings);
+    feedWells(msg.buildings);
     setStock(msg.stock);
     setTechs(msg.techs);
     setDebugJobs(msg.jobs);
@@ -139,7 +149,8 @@ async function boot(): Promise<void> {
     selectionFx.update(controls.selected, sync, now);
     water.update(now);
     mist.update(now);
-    renderer.frame();
+    const dt = renderer.frame();
+    buildingSync.frame(speed() === 0 ? 0 : dt);
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);

@@ -10,6 +10,7 @@ import {
 import { clamp, hash2, lerp } from '../shared/math';
 import { GOODS } from '../sim/defs/goods';
 import { makeCarryProp, makeUnitModel } from './models';
+import { THEME } from './medieval';
 import {
   makeCharacter,
   playAnimation,
@@ -70,9 +71,10 @@ const rot = (n: THREE.Object3D | undefined, x: number, y = 0, z = 0): void => {
   if (n) n.rotation.set(x, y, z);
 };
 
-/** Water travels on the shoulder yoke — the plain gait reads fine for it;
- * everything else is held in the arms with the composited carry clips. */
-const YOKE_CODE = GOODS.indexOf('water') + 1;
+/** Only the Japan theme carries water on a shoulder yoke, which rides fine
+ * on the plain gait. Medieval hauls a bucket, so it needs the holding pose
+ * like every other good — otherwise the bucket floats unheld. */
+const YOKE_CODE = THEME === 'japan' ? GOODS.indexOf('water') + 1 : -1;
 
 /** WORK.* byte → the tool animation to play. */
 function workAnimKey(workKind: number): AnimKey {
@@ -264,6 +266,16 @@ export class SceneSync {
   /** Live reference to the (fixed-angle) camera orientation, set at boot;
    * hp bars copy it to stay parallel with the screen plane. */
   cameraQuaternion: THREE.Quaternion | null = null;
+
+  /** Built wells' world centers (from main's structural feed). A drawing
+   * serf belongs at the windlass handle, but the sim parks staffed workers
+   * on whichever adjacent tile the path found — so the render snaps them
+   * to the crank side (see update). */
+  #wells: { x: number; z: number }[] = [];
+
+  setWells(wells: { x: number; z: number }[]): void {
+    this.#wells = wells;
+  }
 
   // Scratch buffers for the per-frame visual de-overlap pass.
   #posX = new Float32Array(MAX_UNITS);
@@ -531,6 +543,28 @@ export class SceneSync {
       // (Skinned clips carry their own bob.)
       const bob =
         moving && !visual.char ? Math.abs(Math.cos(animNow * 0.012 + id * 2.1)) * 0.025 : 0;
+      // A drawing serf stands at the crank handle (east of the well, facing
+      // it) no matter which adjacent tile the sim parked them on. The snap
+      // rides the smoothed de-overlap channel, so picking and selection fx
+      // (positionOf) already follow it.
+      if (!dead && !moving && action === ACTION.work && workKind === WORK.draw) {
+        let well: { x: number; z: number } | null = null;
+        let best = 2.25; // within 1.5 tiles of a well center
+        for (const w of this.#wells) {
+          const dx = w.x - x;
+          const dz = w.z - y;
+          const d2 = dx * dx + dz * dz;
+          if (d2 < best) {
+            best = d2;
+            well = w;
+          }
+        }
+        if (well) {
+          this.#sepTX[i] = well.x + 0.74 - x;
+          this.#sepTY[i] = well.z - y;
+          visual.group.rotation.y = -Math.PI / 2; // face the crank (-x)
+        }
+      }
       // Ease into this frame's de-overlap offset (corpses keep theirs).
       if (!dead) {
         const k = Math.min(1, dt * 10);

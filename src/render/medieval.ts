@@ -122,6 +122,33 @@ function bakeToGeometry(scene: THREE.Group): {
   return { geometry: mergeGeometries(parts), map };
 }
 
+/**
+ * Rebuild an indexed geometry without the triangles whose centroid falls
+ * inside `box` (model space) — the scalpel for parts baked into a merged
+ * mesh that we want to replace with animated ones.
+ */
+function stripTrianglesInBox(geo: THREE.BufferGeometry, box: THREE.Box3): THREE.BufferGeometry {
+  const index = geo.getIndex();
+  if (!index) return geo;
+  const out = geo.clone();
+  const pos = out.getAttribute('position');
+  const kept: number[] = [];
+  const v = new THREE.Vector3();
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i);
+    const b = index.getX(i + 1);
+    const c = index.getX(i + 2);
+    v.set(
+      (pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3,
+      (pos.getY(a) + pos.getY(b) + pos.getY(c)) / 3,
+      (pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3,
+    );
+    if (!box.containsPoint(v)) kept.push(a, b, c);
+  }
+  out.setIndex(kept);
+  return out;
+}
+
 /** Feet on y=0, footprint normalized to a unit square around the origin. */
 function normalize(scene: THREE.Group): THREE.Group {
   const bbox = new THREE.Box3().setFromObject(scene);
@@ -205,6 +232,58 @@ export async function loadMedievalAssets(): Promise<boolean> {
     const buildings = new Map<BuildingTypeId, THREE.Group>();
     for (const [type, file] of Object.entries(BUILDING_FILES) as [BuildingTypeId, string][]) {
       const scene = loaded.get(file)!.clone();
+      if (type === 'well') {
+        // The pack bakes a static windlass into the well's single mesh: an
+        // axle along x resting on the side frames, a crank handle hanging
+        // off its +x end, and a rope + hook over the shaft. Cut exactly
+        // those parts (boxes validated triangle-by-triangle against the
+        // source obj — everything else on those planes is roof, gable, or
+        // lattice and must survive) and rebuild the assembly as our own
+        // 'wellCrank' group, which buildingSync spins while the well is
+        // staffed. The free packs ship no .blend sources, so the scalpel
+        // is code.
+        const CUT: [number, number, number, number, number, number][] = [
+          [-0.155, 0.28, -0.05, 0.155, 0.4, 0.05], // axle mid-span + rope hook
+          [-0.33, 0.29, -0.05, -0.29, 0.38, 0.05], // axle west end cap
+          [0.29, 0.29, -0.05, 0.33, 0.38, 0.05], // axle east end cap
+          [0.25, 0.2, -0.03, 0.35, 0.335, 0.03], // crank handle
+          [-0.02, 0.1, -0.02, 0.02, 0.32, 0.02], // rope down the shaft
+        ];
+        scene.traverse((o) => {
+          if (o instanceof THREE.Mesh) {
+            for (const [x0, y0, z0, x1, y1, z1] of CUT) {
+              o.geometry = stripTrianglesInBox(
+                o.geometry as THREE.BufferGeometry,
+                new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)),
+              );
+            }
+          }
+        });
+        const wood = new THREE.MeshLambertMaterial({ color: 0x7a5a38 });
+        const part = (geo: THREE.BufferGeometry): THREE.Mesh => {
+          const m = new THREE.Mesh(geo, wood);
+          m.castShadow = true;
+          return m;
+        };
+        const crank = new THREE.Group();
+        crank.name = 'wellCrank';
+        // Axle along x between the side frames, where the baked one sat.
+        const axle = part(new THREE.CylinderGeometry(0.028, 0.028, 0.63, 8));
+        axle.rotation.z = Math.PI / 2;
+        crank.add(axle);
+        // Crank arm drops from the +x axle end; grip points further +x so
+        // the serf standing east of the well can reach it.
+        const arm = part(new THREE.BoxGeometry(0.05, 0.15, 0.036));
+        arm.position.set(0.3, -0.06, 0);
+        crank.add(arm);
+        const grip = part(new THREE.CylinderGeometry(0.022, 0.022, 0.09, 6));
+        grip.rotation.z = Math.PI / 2;
+        grip.position.set(0.35, -0.12, 0);
+        crank.add(grip);
+        // Model units (pre-normalize): the baked axle centered at y≈0.336.
+        crank.position.set(0, 0.336, 0);
+        scene.add(crank);
+      }
       const tint = TINTS[type];
       if (tint !== undefined) {
         scene.traverse((o) => {
