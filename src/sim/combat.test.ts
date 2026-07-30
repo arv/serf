@@ -128,6 +128,27 @@ describe('raids and victory', () => {
     expect(world.outcome).toBe('lost');
   });
 
+  it('idle soldiers auto-besiege an enemy building in acquire range', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const camp = placeBuiltBuilding(world, 'banditCamp', 'bandit', 38, 30);
+    camp.hp = 60;
+    // No orders given: standing near the camp is enough to start the siege.
+    spawnUnit(world, 'samurai', 'player', 36.5, 30.5);
+    run(world, 20 * 60);
+    expect(world.outcome).toBe('won');
+  });
+
+  it('idle soldiers ignore enemy buildings beyond acquire range', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const camp = placeBuiltBuilding(world, 'banditCamp', 'bandit', 50, 30);
+    const samurai = spawnUnit(world, 'samurai', 'player', 32.5, 30.5);
+    run(world, 20 * 10);
+    expect(camp.dead).toBe(false);
+    expect(samurai.x).toBeLessThan(35); // held position, no cross-map crusade
+  });
+
   it('attack-ordered samurai raze the camp and win the game', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});

@@ -62,6 +62,15 @@ export function combatSystem(world: World): void {
         } else {
           unit.task = { t: 'idle', until: world.tick };
         }
+      } else {
+        // No enemy units around: idle soldiers besiege enemy buildings in
+        // acquire range. Without this, a squad that cuts down the camp's
+        // guards stands politely beside the camp instead of finishing it.
+        const b = nearestEnemyBuilding(world, unit);
+        if (b && distToBuilding(unit, b) <= combat.acquireRadius) {
+          unit.targetId = b.id;
+          unit.targetIsBuilding = true;
+        }
       }
     }
 
