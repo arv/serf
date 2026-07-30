@@ -3,7 +3,7 @@ import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { TechId } from '../sim/defs/techs';
 import type { PlayerCommand } from '../sim/tick';
-import type { GameEvent, MapDelta } from '../sim/world';
+import type { GameEvent, MapDelta, WorldConfig } from '../sim/world';
 
 /** Tech-tree state for the UI. */
 export interface TechSnap {
@@ -74,7 +74,7 @@ export interface MapSnapshot {
 }
 
 export type MainToWorker =
-  | { type: 'init'; seed: number; loadData?: string }
+  | { type: 'init'; config: WorldConfig; loadData?: string }
   | { type: 'commands'; commands: PlayerCommand[] }
   | { type: 'setSpeed'; speed: number }
   | { type: 'requestSave' };

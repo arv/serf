@@ -60,7 +60,18 @@ export function resourceBlocks(res: number): boolean {
   return res === TileResource.Bamboo || res === TileResource.Rock;
 }
 
-export function generateMap(rng: Rng): GameMap {
+/** A faction's home: storehouse footprint origin tile. */
+export interface StartSpot {
+  x: number;
+  y: number;
+}
+
+/** Plateau/flood anchor tile of a start (the storehouse's center tile). */
+function anchorOf(s: StartSpot): { x: number; y: number } {
+  return { x: s.x + 2, y: s.y + 2 };
+}
+
+export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
   const map: GameMap = {
     terrain: new Uint8Array(TILE_COUNT),
     resource: new Uint8Array(TILE_COUNT),
@@ -97,7 +108,7 @@ export function generateMap(rng: Rng): GameMap {
 
   // Terrain shape before resources: basins flood into lakes, so clusters
   // must only ever land on the ground that survives.
-  computeTerrain(map, heightSeed);
+  computeTerrain(map, heightSeed, starts);
 
   const placeCluster = (
     res: TileResourceKind,
@@ -135,6 +146,19 @@ export function generateMap(rng: Rng): GameMap {
   const heightAt = (x: number, y: number): number => map.height[tileIdx(x, y)]!;
   const centerDist = (x: number, y: number): number =>
     Math.hypot(x - MAP_SIZE / 2, y - MAP_SIZE / 2);
+  // Distance to the nearest faction start — the multiplayer generalization
+  // of "distance from the (center) home plateau". Solo start anchors at the
+  // map center, so this IS centerDist there, keeping the classic seeds
+  // byte-identical.
+  const startDist = (x: number, y: number): number => {
+    let best = Infinity;
+    for (const s of starts) {
+      const a = anchorOf(s);
+      const d = Math.hypot(x - a.x, y - a.y);
+      if (d < best) best = d;
+    }
+    return best;
+  };
   // A spot matching an altitude taste: preference tiers are tried in
   // order (40 draws each) so a seed whose terrain lacks a band degrades
   // to the next-best flavor instead of scattering at random. Every tier
@@ -142,39 +166,42 @@ export function generateMap(rng: Rng): GameMap {
   // a grove sprouting against the storehouse walls the whole town in.
   const spotPref = (
     minEdge: number,
-    minCenter: number,
+    minStart: number,
     preds: ((x: number, y: number) => boolean)[],
   ): [number, number] => {
     for (const pred of preds) {
       for (let tries = 0; tries < 40; tries++) {
         const [x, y] = randomSpot(minEdge);
-        if (centerDist(x, y) >= minCenter && pred(x, y)) return [x, y];
+        if (startDist(x, y) >= minStart && pred(x, y)) return [x, y];
       }
     }
     for (;;) {
       const [x, y] = randomSpot(minEdge);
-      if (centerDist(x, y) >= minCenter) return [x, y];
+      if (startDist(x, y) >= minStart) return [x, y];
     }
   };
 
-  // Starter larder: one grove and one outcrop guaranteed just past the
-  // plateau rim, so the opening build order isn't hostage to how far the
-  // noise scattered everything (the bigger, lake-cut world pays real
-  // travel time for distance).
-  for (const [res, amt, radius] of [
-    [TileResource.Bamboo, 6, 3],
-    [TileResource.Rock, 10, 2],
-  ] as const) {
-    for (let tries = 0; ; tries++) {
-      const ang = rng.range(0, Math.PI * 2);
-      const dc = rng.range(10.5, 13);
-      const x = Math.round(MAP_SIZE / 2 + Math.cos(ang) * dc);
-      const y = Math.round(MAP_SIZE / 2 + Math.sin(ang) * dc);
-      if (inBounds(x, y) && map.terrain[tileIdx(x, y)] === Terrain.Grass) {
-        placeCluster(res, amt, x, y, radius, 0.8);
-        break;
+  // Starter larder: one grove and one outcrop guaranteed just past each
+  // start's plateau rim, so no faction's opening build order is hostage to
+  // how far the noise scattered everything (the bigger, lake-cut world pays
+  // real travel time for distance).
+  for (const start of starts) {
+    const a = anchorOf(start);
+    for (const [res, amt, radius] of [
+      [TileResource.Bamboo, 6, 3],
+      [TileResource.Rock, 10, 2],
+    ] as const) {
+      for (let tries = 0; ; tries++) {
+        const ang = rng.range(0, Math.PI * 2);
+        const dc = rng.range(10.5, 13);
+        const x = Math.round(a.x + Math.cos(ang) * dc);
+        const y = Math.round(a.y + Math.sin(ang) * dc);
+        if (inBounds(x, y) && map.terrain[tileIdx(x, y)] === Terrain.Grass) {
+          placeCluster(res, amt, x, y, radius, 0.8);
+          break;
+        }
+        if (tries > 200) break; // pathological seed: live off the scattered ones
       }
-      if (tries > 200) break; // pathological seed: live off the scattered ones
     }
   }
 
@@ -196,10 +223,14 @@ export function generateMap(rng: Rng): GameMap {
   // mines demand expansion, near enough to defend, and — crucially —
   // outside the corners where the bandit camp spawns (a seam beside the
   // camp bleeds every serf sent to build its mine).
+  // More mouths, more seams: with N factions the ring carries more ore so
+  // parallel hire economies don't starve (solo multiplier is 1 — classic
+  // seeds unchanged).
+  const seamMult = Math.ceil(starts.length / 2);
   const deposits: [TileResourceKind, number, number][] = [
-    [TileResource.IronDep, 24, 2],
-    [TileResource.SilverDep, 20, 2],
-    [TileResource.GoldDep, 12, 1],
+    [TileResource.IronDep, 24, 2 * seamMult],
+    [TileResource.SilverDep, 20, 2 * seamMult],
+    [TileResource.GoldDep, 12, 1 * seamMult],
   ];
   const onRing = (x0: number, y0: number): boolean => {
     const dc = centerDist(x0, y0);
@@ -240,6 +271,33 @@ function valueNoise(seed: number, x: number, y: number, scale: number): number {
 /** Below this raw-noise value a tile floods into a lake. */
 const LAKE_LEVEL_T = 0.26;
 
+/** Are two tiles on the same 4-connected grass component? */
+function connected(map: GameMap, from: number, to: number): boolean {
+  if (map.terrain[from] !== Terrain.Grass || map.terrain[to] !== Terrain.Grass) return false;
+  const seen = new Uint8Array(TILE_COUNT);
+  const queue: number[] = [from];
+  seen[from] = 1;
+  for (let head = 0; head < queue.length; head++) {
+    const i = queue[head]!;
+    if (i === to) return true;
+    const x = i % MAP_SIZE;
+    const y = (i / MAP_SIZE) | 0;
+    for (const [nx, ny] of [
+      [x - 1, y],
+      [x + 1, y],
+      [x, y - 1],
+      [x, y + 1],
+    ] as const) {
+      if (!inBounds(nx, ny)) continue;
+      const n = tileIdx(nx, ny);
+      if (seen[n] || map.terrain[n] !== Terrain.Grass) continue;
+      seen[n] = 1;
+      queue.push(n);
+    }
+  }
+  return false;
+}
+
 /**
  * Terrain shape: a dramatic heightfield whose extremes mean something.
  * Ridged noise piles into real mountain ranges (up to ~2.5 world units);
@@ -250,18 +308,24 @@ const LAKE_LEVEL_T = 0.26;
  * middle of the map is eased toward gentle meadow: the starting town needs
  * buildable land.
  */
-function computeTerrain(map: GameMap, seed: number): void {
+function computeTerrain(map: GameMap, seed: number, starts: readonly StartSpot[]): void {
   // Raw shape in ~[0, 1]: rolling base + squared ridge lines for ranges.
   const raw = new Float32Array(TILE_COUNT);
-  const c0 = MAP_SIZE / 2 - 0.5;
+  // Plateau centers sit at each start's storehouse middle (solo: the map
+  // center, exactly the classic constant).
+  const centers = starts.map((s) => ({ x: s.x + 1.5, y: s.y + 1.5 }));
   for (let i = 0; i < TILE_COUNT; i++) {
     const x = i % MAP_SIZE;
     const y = (i / MAP_SIZE) | 0;
     const rolling = valueNoise(seed, x, y, 12) * 0.55 + valueNoise(seed + 1, x, y, 5) * 0.2;
     const ridge = 1 - Math.abs(2 * valueNoise(seed + 3, x, y, 9) - 1);
     let r = rolling + ridge * ridge * 0.25;
-    // Home plateau: keep the starting area gentle and dry.
-    const dc = Math.hypot(x - c0, y - c0);
+    // Home plateaus: keep every faction's starting area gentle and dry.
+    let dc = Infinity;
+    for (const c of centers) {
+      const d = Math.hypot(x - c.x, y - c.y);
+      if (d < dc) dc = d;
+    }
     if (dc < 9) {
       const g = Math.min(Math.max((dc - 3) / 6, 0), 1);
       const blend = g * g * (3 - 2 * g);
@@ -276,8 +340,40 @@ function computeTerrain(map: GameMap, seed: number): void {
     if (raw[i]! < LAKE_LEVEL_T) map.terrain[i] = Terrain.Water;
   }
 
-  // One landmass: drown grass pockets the lakes cut off from the center.
-  const center = tileIdx(MAP_SIZE / 2, MAP_SIZE / 2);
+  // Rival plateaus must share the landmass: if the lakes cut a start off
+  // from start 0, carve a 2-wide land bridge along the straight line
+  // between them (deterministic, interior-only — starts sit well inside
+  // the sea fringe). Solo skips this entirely.
+  const anchorTile = (s: StartSpot): number => tileIdx(s.x + 2, s.y + 2);
+  if (starts.length > 1) {
+    for (let si = 1; si < starts.length; si++) {
+      if (connected(map, anchorTile(starts[0]!), anchorTile(starts[si]!))) continue;
+      const a = centers[0]!;
+      const b = centers[si]!;
+      const steps = Math.ceil(Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y))) * 2;
+      for (let t = 0; t <= steps; t++) {
+        const px = Math.round(a.x + ((b.x - a.x) * t) / steps);
+        const py = Math.round(a.y + ((b.y - a.y) * t) / steps);
+        for (const [ox, oy] of [
+          [0, 0],
+          [1, 0],
+          [0, 1],
+        ] as const) {
+          const cx = px + ox;
+          const cy = py + oy;
+          if (!inBounds(cx, cy)) continue;
+          const ci = tileIdx(cx, cy);
+          if (map.terrain[ci] === Terrain.Water && raw[ci]! < LAKE_LEVEL_T) {
+            map.terrain[ci] = Terrain.Grass;
+            raw[ci] = LAKE_LEVEL_T + 0.06; // causeway height, just above the water
+          }
+        }
+      }
+    }
+  }
+
+  // One landmass: drown grass pockets the lakes cut off from home.
+  const center = anchorTile(starts[0]!);
   const reached = new Uint8Array(TILE_COUNT);
   const flood: number[] = [center];
   reached[center] = 1;

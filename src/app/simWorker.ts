@@ -44,7 +44,7 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
   const msg = e.data;
   switch (msg.type) {
     case 'init':
-      init(msg.seed, msg.loadData);
+      init(msg.config, msg.loadData);
       break;
     case 'commands':
       pendingCommands.push(...msg.commands);
@@ -92,8 +92,8 @@ function snapBuilding(b: Building): BuildingSnap {
   };
 }
 
-function init(seed: number, loadData?: string): void {
-  world = loadData !== undefined ? deserializeWorld(loadData) : createWorld(seed);
+function init(config: import('../sim/world').WorldConfig, loadData?: string): void {
+  world = loadData !== undefined ? deserializeWorld(loadData) : createWorld(config);
   initialGoods = countGoods(world);
   const sab = new SharedArrayBuffer(SAB_BYTES);
   writer = new SabWriter(sab);

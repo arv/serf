@@ -482,8 +482,10 @@ export class SceneSync {
       const a = i * AUX_STRIDE;
       const kind = latest.aux[a]!;
       const profession = latest.aux[a + 6]!;
-      // Kind and profession together pick the body (farmer vs plain worker).
-      const kindKey = kind | (profession << 8);
+      const owner = latest.aux[a + 1]!;
+      // Kind, profession, and faction together pick the body (farmer vs
+      // plain worker; rival cloth tints). BANDIT (255) folds to slot 15.
+      const kindKey = kind | (profession << 8) | ((owner & 0x0f) << 12);
       let visual = this.#visuals.get(id);
       if (visual && visual.kind !== kindKey) {
         // Population economy: a serf can become a worker (or a recruit a
@@ -493,7 +495,7 @@ export class SceneSync {
         visual = undefined;
       }
       if (!visual) {
-        const skinned = makeCharacter(kind, profession);
+        const skinned = makeCharacter(kind, profession, owner);
         if (skinned) {
           visual = {
             group: skinned.group,

@@ -12,6 +12,7 @@ import {
   yariSpear,
 } from './models';
 import { palette } from './palette';
+import { factionTint } from './factionPalette';
 import { THEME } from './medieval';
 
 /**
@@ -627,6 +628,7 @@ const PROF_LOOKS = new Map<number, ProfLook>([
 function makeKayKitCharacter(
   kindCode: number,
   profession = 0,
+  owner = 0,
 ): { group: THREE.Group; visual: CharacterVisual } | null {
   if (!kkAssets) return null;
   const look = kindCode === 2 ? PROF_LOOKS.get(profession) : undefined;
@@ -635,16 +637,20 @@ function makeKayKitCharacter(
   if (!char) return null;
   const root = skeletonClone(char.scene);
 
+  // Rival factions read by cloth color: lerp the kit toward the seat's
+  // banner tint (seat 0 and bandits keep their stock look).
+  const faction = factionTint(owner);
   root.traverse((o) => {
     if (!(o instanceof THREE.Mesh) && !(o instanceof THREE.SkinnedMesh)) return;
     if (spec.hide?.includes(o.name)) o.visible = false;
-    if (spec.tint !== undefined) {
+    if (spec.tint !== undefined || faction !== undefined) {
       const m = o.material as THREE.MeshStandardMaterial;
-      const key = `${spec.file}:${o.name}:${spec.tint}`;
+      const key = `${spec.file}:${o.name}:${spec.tint ?? 'x'}:${faction ?? 'x'}`;
       let tinted = kkTintMaterials.get(key);
       if (!tinted) {
         tinted = m.clone();
-        tinted.color.set(spec.tint);
+        if (spec.tint !== undefined) tinted.color.set(spec.tint);
+        if (faction !== undefined) tinted.color.lerp(new THREE.Color(faction), 0.4);
         kkTintMaterials.set(key, tinted);
       }
       o.material = tinted;
@@ -874,8 +880,9 @@ function attachToBone(
 export function makeCharacter(
   kindCode: number,
   profession = 0,
+  owner = 0,
 ): { group: THREE.Group; visual: CharacterVisual } | null {
-  if (kkAssets) return makeKayKitCharacter(kindCode, profession);
+  if (kkAssets) return makeKayKitCharacter(kindCode, profession, owner);
   if (!assets) return null;
   const wardrobe = WARDROBES.get(kindCode) ?? WARDROBES.get(1)!;
   const root = skeletonClone(assets.base);

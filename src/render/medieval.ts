@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
+import { factionTint } from './factionPalette';
 
 /**
  * Medieval/fantasy look (branch experiment): building and tree models from
@@ -340,11 +341,62 @@ export async function loadMedievalAssets(): Promise<boolean> {
  * A medieval stand-in for this building, scaled to its footprint — or null
  * (no model / theme off), in which case the hand-built model is used.
  */
-export function makeMedievalBuilding(type: BuildingTypeId): THREE.Group | null {
+/** Per-(mesh, owner) tinted material cache — rival buildings share clones. */
+const factionMaterials = new Map<string, THREE.Material>();
+
+/** Per-owner banner material (shared across all of a faction's buildings). */
+const bannerMaterials = new Map<number, THREE.MeshLambertMaterial>();
+
+/**
+ * A faction banner by the wall — the crisp ownership read the texture-atlas
+ * tint can't deliver at village zoom. Model units (pre-normalize footprint
+ * scale): pole at the south-east corner, pennant at the top.
+ */
+function makeBanner(owner: number, color: THREE.Color): THREE.Group {
+  let cloth = bannerMaterials.get(owner);
+  if (!cloth) {
+    cloth = new THREE.MeshLambertMaterial({ color });
+    bannerMaterials.set(owner, cloth);
+  }
+  const wood = new THREE.MeshLambertMaterial({ color: 0x5a4630 });
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.022, 1.0, 6), wood);
+  pole.position.y = 0.5;
+  pole.castShadow = true;
+  g.add(pole);
+  const pennant = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.014), cloth);
+  pennant.position.set(0.15, 0.9, 0);
+  pennant.castShadow = true;
+  g.add(pennant);
+  g.position.set(0.42, 0, 0.42);
+  return g;
+}
+
+export function makeMedievalBuilding(type: BuildingTypeId, owner = 0): THREE.Group | null {
   const template = assets?.buildings.get(type);
   if (!template) return null;
   const def = BUILDING_DEFS[type];
   const group = template.clone();
+  // Rival factions read two ways: a gentle multiply over the whole kit
+  // (subtle — the texture atlas eats most of it) and, the real signal, a
+  // faction banner planted at the wall. Seat 0 keeps the stock look.
+  const faction = factionTint(owner);
+  if (faction !== undefined) {
+    const target = new THREE.Color(faction);
+    group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      const m = o.material as THREE.Material & { uuid: string };
+      const key = `${m.uuid}:${owner}`;
+      let tinted = factionMaterials.get(key);
+      if (!tinted) {
+        tinted = m.clone();
+        (tinted as THREE.MeshStandardMaterial).color?.lerp(target, 0.35);
+        factionMaterials.set(key, tinted);
+      }
+      o.material = tinted;
+    });
+    group.add(makeBanner(owner, target));
+  }
   // Templates are unit-square and origin-centered, matching the hand-built
   // models (buildingSync positions the root at the footprint center).
   group.scale.setScalar(Math.min(def.w, def.h) * 1.06);

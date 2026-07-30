@@ -2,10 +2,15 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "serf-dev",
+      "name": "serf-mp",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev", "--port", "5199", "--strictPort"],
-      "port": 5199
+      "runtimeArgs": [
+        "dev",
+        "--port",
+        "5307",
+        "--strictPort"
+      ],
+      "port": 5307
     }
   ]
 }

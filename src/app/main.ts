@@ -18,6 +18,7 @@ import { Controls } from '../input/controls';
 import { mountHud } from '../ui/mount';
 import {
   myPlayerId,
+  setMyPlayerId,
   pushToast,
   selectedBuilding,
   setAdminState,
@@ -32,6 +33,7 @@ import {
 } from '../ui/store';
 import { WorldMirror } from './mirror';
 import { WorkerSimHost } from './simHost';
+import { configFromUrl } from './gameConfig';
 
 function fatal(message: string): never {
   const el = document.getElementById('fatal')!;
@@ -51,8 +53,8 @@ if (!crossOriginIsolated) {
 }
 
 async function boot(): Promise<void> {
-  const seedParam = new URLSearchParams(location.search).get('seed');
-  const seed = seedParam ? Number(seedParam) : 20260724;
+  const config = configFromUrl(location.search);
+  setMyPlayerId(config.myPlayerId);
 
   // A pending load (set by the Load button before its reload) boots the
   // worker straight into the saved world. sessionStorage on purpose: it is
@@ -67,13 +69,15 @@ async function boot(): Promise<void> {
   // Character/building GLBs load while the worker generates the world; if
   // they fail, the renderer falls back to the procedural models.
   const [init] = await Promise.all([
-    host.start(seed, loadData),
+    host.start(config, loadData),
     loadCharacterAssets(),
     loadMedievalAssets(),
   ]);
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   const renderer = new GameRenderer(canvas);
+  // Dev-only scene handle for console debugging.
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__scene = renderer.scene;
 
   const mirror = new WorldMirror(init.map, init.buildings);
   const heights = new HeightField(init.map.height);

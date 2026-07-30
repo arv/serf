@@ -128,7 +128,7 @@ export class BuildingSync {
     if (b.state === 'site') {
       frame = makeSiteFrame(b.w, b.h);
       root.add(frame);
-      const medieval = makeMedievalBuilding(b.type);
+      const medieval = makeMedievalBuilding(b.type, b.owner);
       if (medieval) {
         model = medieval;
         // Per-site material clones so the clip plane never touches the
@@ -157,7 +157,7 @@ export class BuildingSync {
         root.add(model);
       }
     } else {
-      model = makeMedievalBuilding(b.type) ?? makeBuildingModel(b.type);
+      model = makeMedievalBuilding(b.type, b.owner) ?? makeBuildingModel(b.type);
       root.add(model);
     }
 

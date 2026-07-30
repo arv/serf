@@ -109,9 +109,53 @@ export function pushDelta(world: World, idx: number): void {
   });
 }
 
-export function createWorld(seed: number): World {
-  const rng = new Rng(seed | 0);
-  const map = generateMap(rng);
+export interface WorldConfig {
+  seed: number;
+  /** 1..4 seats; index = playerId. */
+  players: { kind: 'human' | 'ai' }[];
+  /** Admin (cheat) commands honored. Default true — networked games pass false. */
+  adminEnabled?: boolean;
+  /** Bandit raids run. Default true; false still places the camp, raids stay off. */
+  banditsEnabled?: boolean;
+}
+
+/**
+ * Storehouse footprint origins per player count. Solo keeps the classic
+ * center start; 2-4 players sit symmetrically on a ring around the middle
+ * (the contested ore ring stays equidistant). Integer literals on purpose —
+ * worldgen must not depend on runtime trig.
+ */
+const START_LAYOUTS: Record<number, [number, number][]> = {
+  1: [[MAP_SIZE / 2 - 2, MAP_SIZE / 2 - 2]],
+  2: [
+    [18, 18],
+    [44, 44],
+  ],
+  3: [
+    [30, 49],
+    [14, 20],
+    [46, 20],
+  ],
+  4: [
+    [18, 18],
+    [44, 44],
+    [44, 18],
+    [18, 44],
+  ],
+};
+
+export function createWorld(seedOrConfig: number | WorldConfig): World {
+  const config: WorldConfig =
+    typeof seedOrConfig === 'number'
+      ? { seed: seedOrConfig, players: [{ kind: 'human' }] }
+      : seedOrConfig;
+  const seed = config.seed | 0;
+  const layout = START_LAYOUTS[config.players.length];
+  if (!layout) throw new Error(`no start layout for ${config.players.length} players`);
+  const starts = layout.map(([x, y]) => ({ x, y }));
+
+  const rng = new Rng(seed);
+  const map = generateMap(rng, starts);
 
   const world: World = {
     tick: 0,
@@ -124,33 +168,56 @@ export function createWorld(seed: number): World {
     nextJobId: 1,
     ledger: { produced: {}, consumed: {} },
     pendingDeltas: [],
-    players: [makePlayer(0, 'human', seed | 0)],
+    players: config.players.map((p, i) => makePlayer(i, p.kind, seed)),
     raidState: { nextRaidTick: FIRST_RAID_TICK, wave: 0 },
-    admin: { enabled: true, raidsEnabled: true, instantBuild: false },
+    admin: {
+      enabled: config.adminEnabled ?? true,
+      raidsEnabled: config.banditsEnabled ?? true,
+      instantBuild: false,
+    },
     pendingEvents: [],
     outcome: { state: 'playing' },
   };
 
-  // Storehouse at the center; clear anything under it.
-  const shX = MAP_SIZE / 2 - 2;
-  const shY = MAP_SIZE / 2 - 2;
-  clearResources(map, shX - 1, shY - 1, 5, 5);
-  const storehouse = placeBuiltBuilding(world, 'storehouse', 0, shX, shY);
-  storehouse.stock = { ...START_STOCK };
+  // Each faction's storehouse on its plateau; clear anything under it.
+  // (Entity-id order — storehouses, camp, serfs — matches the classic solo
+  // worldgen exactly.)
+  for (let p = 0; p < starts.length; p++) {
+    const { x: shX, y: shY } = starts[p]!;
+    clearResources(map, shX - 1, shY - 1, 5, 5);
+    const storehouse = placeBuiltBuilding(world, 'storehouse', p, shX, shY);
+    storehouse.stock = { ...START_STOCK };
+  }
 
-  // Bandit camp in a random far corner; search outward for a clear 3x3.
+  // Bandit camp in a far corner; search outward for a clear 3x3.
   const corners: [number, number][] = [
     [10, 10],
     [MAP_SIZE - 13, 10],
     [10, MAP_SIZE - 13],
     [MAP_SIZE - 13, MAP_SIZE - 13],
   ];
-  // Mountains and lakes can swallow a whole corner now, so fall through
-  // to the other corners rather than generating a campless (instant-win)
-  // world.
-  const firstCorner = rng.int(corners.length);
-  outer: for (let ci = 0; ci < corners.length; ci++) {
-    const [cx, cy] = corners[(firstCorner + ci) % corners.length]!;
+  // Solo: random corner. Multiplayer: the corner farthest from everyone,
+  // so no faction starts with raiders on their doorstep. Mountains and
+  // lakes can swallow a whole corner, so fall through to the next rather
+  // than generating a campless world.
+  let order: number[];
+  if (starts.length === 1) {
+    const firstCorner = rng.int(corners.length);
+    order = corners.map((_, ci) => (firstCorner + ci) % corners.length);
+  } else {
+    const score = (ci: number): number => {
+      const [cx, cy] = corners[ci]!;
+      let nearest = Infinity;
+      for (const s of starts) {
+        const d = Math.max(Math.abs(cx + 1 - (s.x + 1)), Math.abs(cy + 1 - (s.y + 1)));
+        if (d < nearest) nearest = d;
+      }
+      return nearest;
+    };
+    order = corners.map((_, ci) => ci).sort((a, z) => score(z) - score(a) || a - z);
+  }
+  outer: for (const ci of order) {
+    const [cx, cy] = corners[ci]!;
     for (let r = 0; r < 12; r++) {
       for (let dy = -r; dy <= r; dy++) {
         for (let dx = -r; dx <= r; dx++) {
@@ -168,11 +235,14 @@ export function createWorld(seed: number): World {
     }
   }
 
-  // Starting serfs, scattered just south of the storehouse.
-  for (let i = 0; i < START_SERFS; i++) {
-    const x = shX - 1 + (i % 5) + 0.5;
-    const y = shY + 4 + Math.floor(i / 5) + 0.5;
-    spawnUnit(world, 'serf', 0, x, y);
+  // Starting serfs, scattered just south of each storehouse.
+  for (let p = 0; p < starts.length; p++) {
+    const { x: shX, y: shY } = starts[p]!;
+    for (let i = 0; i < START_SERFS; i++) {
+      const x = shX - 1 + (i % 5) + 0.5;
+      const y = shY + 4 + Math.floor(i / 5) + 0.5;
+      spawnUnit(world, 'serf', p, x, y);
+    }
   }
 
   world.rngState = rng.state;
