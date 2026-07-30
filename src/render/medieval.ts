@@ -272,13 +272,15 @@ export async function loadMedievalAssets(): Promise<boolean> {
         axle.rotation.z = Math.PI / 2;
         crank.add(axle);
         // Crank arm drops from the +x axle end; grip points further +x so
-        // the serf standing east of the well can reach it.
-        const arm = part(new THREE.BoxGeometry(0.05, 0.15, 0.036));
-        arm.position.set(0.3, -0.06, 0);
+        // the serf standing east of the well can reach it. Short arm on
+        // purpose: the grip's orbit has to stay inside the reeling hands'
+        // workspace or the "cranking" reads as miming.
+        const arm = part(new THREE.BoxGeometry(0.05, 0.12, 0.036));
+        arm.position.set(0.3, -0.05, 0);
         crank.add(arm);
-        const grip = part(new THREE.CylinderGeometry(0.022, 0.022, 0.09, 6));
+        const grip = part(new THREE.CylinderGeometry(0.022, 0.022, 0.12, 6));
         grip.rotation.z = Math.PI / 2;
-        grip.position.set(0.35, -0.12, 0);
+        grip.position.set(0.36, -0.09, 0);
         crank.add(grip);
         // Model units (pre-normalize): the baked axle centered at y≈0.336.
         crank.position.set(0, 0.336, 0);

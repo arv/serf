@@ -183,7 +183,10 @@ export class BuildingSync {
     if (dt <= 0) return;
     for (const v of this.#visuals.values()) {
       if (v.crank && v.staffed && v.state === 'built') {
-        v.crank.rotation.x += dt * 3.4; // axle runs along x, resting on the side frames
+        // Axle runs along x, resting on the side frames. One revolution per
+        // loop of the worker's reeling clip (1.6 s) — both advance on render
+        // dt, so the grip and the cranking hands stay frequency-locked.
+        v.crank.rotation.x += dt * ((Math.PI * 2) / 1.6);
       }
     }
   }

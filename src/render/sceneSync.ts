@@ -560,7 +560,7 @@ export class SceneSync {
           }
         }
         if (well) {
-          this.#sepTX[i] = well.x + 0.74 - x;
+          this.#sepTX[i] = well.x + 0.68 - x;
           this.#sepTY[i] = well.z - y;
           visual.group.rotation.y = -Math.PI / 2; // face the crank (-x)
         }
