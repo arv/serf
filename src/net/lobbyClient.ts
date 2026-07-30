@@ -117,11 +117,15 @@ interface Overlay {
  * native share sheet on phones, the clipboard everywhere else. The
  * clipboard is always available here — SharedArrayBuffer already forces
  * cross-origin isolation, so the page is necessarily a secure context.
+ *
+ * The url is the whole payload. Share sheets splice `title`/`text` in
+ * front of the link, so a recipient who copies from one ends up with a
+ * sentence wrapped around the URL instead of something pasteable.
  */
 async function shareInvite(url: string): Promise<'shared' | 'copied'> {
   if (typeof navigator.share === 'function') {
     try {
-      await navigator.share({ title: 'Serf', text: 'Join my match', url });
+      await navigator.share({ url });
       return 'shared';
     } catch {
       // Dismissed, or this payload is unshareable — fall through to copying.
