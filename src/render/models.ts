@@ -1228,11 +1228,15 @@ export function makeCarryProp(carryCode: number): THREE.Group | null {
     if (prop) {
       // The chest anchor sits at the palms: stand the prop off by its own
       // half-depth so round loads (bucket, barrel) rest against the hands
-      // instead of clipping through the torso. The anchor space is world
-      // units (counter-scaled), so the bbox measures directly.
+      // instead of clipping through the torso. The offset lives on an
+      // inner node because sceneSync zeroes the carry box's own position
+      // when it parents it to the anchor (that reset strips the japan
+      // protos' baked carry height). Anchor space is world units.
       const bb = new THREE.Box3().setFromObject(prop);
       prop.position.z = (bb.max.z - bb.min.z) / 2;
-      return prop;
+      const held = new THREE.Group();
+      held.add(prop);
+      return held;
     }
   }
   let proto = carryPrototypes.get(good);
