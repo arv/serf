@@ -28,6 +28,7 @@ import {
   techPanelOpen,
   techs,
   toasts,
+  CHEATS_ALLOWED,
 } from './store';
 
 const SPEEDS = [
@@ -54,7 +55,10 @@ export function Hud(props: {
   onSave: () => void;
   onAdmin: (action: AdminAction) => void;
 }) {
-  const adminMode = new URLSearchParams(location.search).has('admin');
+  // The sim rejects admin commands in a match (world.admin.enabled is
+  // false), so every button here no-ops — except the fog toggle, which
+  // never reaches the sim. Hide the panel rather than leave that one live.
+  const adminMode = CHEATS_ALLOWED && new URLSearchParams(location.search).has('admin');
   const [activeTab, setActiveTab] = createSignal(0);
   const menuOpen = (): boolean => openPanel() === 'menu';
   const setMenuOpen = (open: boolean): void => {

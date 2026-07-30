@@ -78,13 +78,28 @@ export const [adminState, setAdminState] = createSignal({
 });
 
 /**
+ * Whether client-side cheats are allowed to work at all. Single player is
+ * the only place they are harmless; against a live opponent every one of
+ * them is an advantage they cannot see you taking. `?mp` is how main.ts
+ * decides to enter multiplayer, so it decides this too — and it has to be
+ * the URL rather than the netMode() signal below, because this is read at
+ * module load, before the lobby has resolved.
+ */
+export const CHEATS_ALLOWED = !new URLSearchParams(location.search).has('mp');
+
+/**
  * Fog of war. Unlike the switches above this one never reaches the sim:
  * fog is a view over the world, not part of it, so it stays a client
  * signal — nothing to keep deterministic, nothing to save. ?nofog starts
  * it off.
+ *
+ * That client-sidedness is exactly why it needs the cheat gate: turning
+ * fog off does not merely brighten the picture, it makes visibleAt() and
+ * exploredAt() answer true, which re-enables hovering, selecting and
+ * reading the health of enemy units. In a match that is a maphack.
  */
 export const [fogEnabled, setFogEnabled] = createSignal(
-  !new URLSearchParams(location.search).has('nofog'),
+  !(CHEATS_ALLOWED && new URLSearchParams(location.search).has('nofog')),
 );
 
 /** Debug overlay (backquote). */

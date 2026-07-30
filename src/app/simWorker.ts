@@ -419,16 +419,23 @@ function postStructural(): void {
     // prediction never shows a toast or a game-over it might take back.
     events: session ? confirmedEvents.splice(0) : world.pendingEvents.splice(0),
     outcome: session ? session.confirmed.outcome : world.outcome,
-    jobs: [...world.jobs.values()].map((j) => ({
-      id: j.id,
-      good: j.good,
-      from: j.from,
-      to: j.to,
-      priority: j.priority,
-      phase: j.phase,
-      serfId: j.serfId,
-      age: world!.tick - j.createdTick,
-    })),
+    // Networked: only our own hauls. The overlay is a window on your
+    // economy, and JobSnap carries no owner, so unfiltered it hands the
+    // opponent's production chain over unlabelled but perfectly readable.
+    // Solo keeps every job — there is nobody to hide them from, and the
+    // AI's logistics are worth watching.
+    jobs: [...world.jobs.values()]
+      .filter((j) => netInfo === null || j.owner === netInfo.playerId)
+      .map((j) => ({
+        id: j.id,
+        good: j.good,
+        from: j.from,
+        to: j.to,
+        priority: j.priority,
+        phase: j.phase,
+        serfId: j.serfId,
+        age: world!.tick - j.createdTick,
+      })),
     invariantViolations: lastInvariantViolations,
   });
 }
