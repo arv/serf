@@ -1,5 +1,5 @@
 import { COUNTER_TABLE, UNIT_DEFS } from '../defs/units';
-import { BANDIT, centerOf, type Building } from '../entities';
+import { BANDIT, centerOf, isPlayerOwner, type Building } from '../entities';
 import { tileX, tileY } from '../../shared/grid';
 import { findPath, findPathToAdjacent, nearestWalkable } from '../path';
 import { destroyBuilding, killUnit, type World } from '../world';
@@ -46,6 +46,27 @@ export function combatSystem(world: World): void {
       }
     }
 
+    // Camp guards hold their post. Without a leash a wandering serf tows
+    // one into the village, and the pack follows it home.
+    const guard = unit.owner === BANDIT && unit.task.t !== 'raid' ? campOf(world) : undefined;
+    if (guard && distToBuilding(unit, guard) > GUARD_LEASH) {
+      unit.targetId = undefined;
+      unit.targetIsBuilding = undefined;
+      if (unit.path === null) {
+        unit.path = findPathToAdjacent(
+          world.map,
+          Math.floor(unit.x),
+          Math.floor(unit.y),
+          guard.x,
+          guard.y,
+          guard.w,
+          guard.h,
+        );
+        unit.pathIdx = 0;
+      }
+      continue;
+    }
+
     if (unit.targetId === undefined) {
       targetUnit = acquireUnit(world, unit, combat.acquireRadius);
       if (targetUnit) {
@@ -69,10 +90,12 @@ export function combatSystem(world: World): void {
         } else {
           unit.task = { t: 'idle', until: world.tick };
         }
-      } else {
+      } else if (isPlayerOwner(unit.owner)) {
         // No enemy units around: idle soldiers besiege enemy buildings in
         // acquire range. Without this, a squad that cuts down the camp's
         // guards stands politely beside the camp instead of finishing it.
+        // Player armies only — camp guards get their targets from raids, or
+        // three of them would demolish a base nobody ever provoked.
         const b = nearestEnemyBuilding(world, unit);
         if (b && distToBuilding(unit, b) <= combat.acquireRadius) {
           unit.targetId = b.id;
@@ -133,6 +156,16 @@ export function combatSystem(world: World): void {
       }
     }
   }
+}
+
+/** How far a camp guard may stray from home before it turns back. */
+const GUARD_LEASH = 9;
+
+function campOf(world: World): Building | undefined {
+  for (const b of world.buildings.values()) {
+    if (!b.dead && b.type === 'banditCamp') return b;
+  }
+  return undefined;
 }
 
 /** Nearest enemy unit in radius, preferring countered classes. */

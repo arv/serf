@@ -57,7 +57,12 @@ export class WorkerSimHost implements SimHost {
   ): Promise<SimInit> {
     this.playerId = config.myPlayerId;
     return new Promise((resolve, reject) => {
-      this.#worker.onerror = (e) => reject(new Error(`sim worker failed: ${e.message}`));
+      // A worker that dies after start would otherwise fail silently: the
+      // promise is already resolved, so surface the error loudly too.
+      this.#worker.onerror = (e) => {
+        console.error(`[sim worker] ${e.message} (${e.filename}:${e.lineno})`);
+        reject(new Error(`sim worker failed: ${e.message}`));
+      };
       this.#worker.onmessage = (e: MessageEvent<WorkerToMain>) => {
         const msg = e.data;
         if (msg.type === 'ready') {
@@ -69,6 +74,8 @@ export class WorkerSimHost implements SimHost {
           this.#saveCb = null;
         } else if (msg.type === 'netStatus') {
           this.#netStatusCb?.(msg.status);
+        } else if (msg.type === 'log') {
+          console.log(msg.message);
         }
       };
       // MessagePorts must ride the transfer list.

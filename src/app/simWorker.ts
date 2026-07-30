@@ -59,6 +59,8 @@ let pongClosedTick = -1;
 let pongAtMs = 0;
 let rttMs = 120;
 let lastStatus = '';
+/** Last tick written to the SAB — one publish per tick, never two. */
+let lastPublishedTick = -1;
 const HASH_INTERVAL = 20; // confirmed ticks between HASH reports
 
 const post = (msg: WorkerToMain): void => {
@@ -243,14 +245,22 @@ function netPump(): void {
   }
   // Predicted events never surface (confirmed is the exactly-once source).
   world.pendingEvents.length = 0;
-  publish();
-  if (
-    needFullRefresh ||
-    world.pendingDeltas.length > 0 ||
-    world.tick % MATCHER_INTERVAL === 0
-  ) {
-    postStructural();
+  // Exactly one publish per tick. The pump runs at 100Hz while ticks close
+  // at 20Hz, and ticks arrive from two directions —
+  // prediction running forward, and confirmation catching up and re-cloning
+  // the predicted world. Publishing on every pump, or on both tick sources,
+  // fills consecutive SAB slots with the same tick; the renderer reads
+  // movement by diffing the newest two, so a duplicated tick reads as
+  // "standing still" and walkers flicker between the walk and idle poses.
+  if (world.tick !== lastPublishedTick) {
+    lastPublishedTick = world.tick;
+    publish();
+    if (world.pendingDeltas.length > 0 || world.tick % MATCHER_INTERVAL === 0) {
+      postStructural();
+    }
   }
+  // A rollback correction is structural news even mid-tick.
+  if (needFullRefresh) postStructural();
 }
 
 function openSocket(net: NetInfo): void {

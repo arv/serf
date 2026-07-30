@@ -190,23 +190,32 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
   }
 
   // Bandit camp. Solo: a random far corner (the classic campaign). With
-  // rivals on the map every corner is somebody's doorstep — a camp there
-  // puts its standing guards inside acquire range of that player's
-  // storehouse and they raze it before the match starts — so the camp
-  // takes the contested middle instead, roughly equidistant from all.
-  const campSeeds: [number, number][] =
-    starts.length === 1
-      ? (() => {
-          const corners: [number, number][] = [
-            [10, 10],
-            [MAP_SIZE - 13, 10],
-            [10, MAP_SIZE - 13],
-            [MAP_SIZE - 13, MAP_SIZE - 13],
-          ];
-          const first = rng.int(corners.length);
-          return corners.map((_, ci) => corners[(first + ci) % corners.length]!);
-        })()
-      : [[MAP_SIZE / 2 - 1, MAP_SIZE / 2 - 1]];
+  // rivals on the map a corner may be somebody's doorstep, so pick the
+  // candidate — corners or the contested middle — that sits farthest from
+  // the nearest start (two players leave two corners free; four players
+  // leave none, and the middle wins).
+  const corners: [number, number][] = [
+    [10, 10],
+    [MAP_SIZE - 13, 10],
+    [10, MAP_SIZE - 13],
+    [MAP_SIZE - 13, MAP_SIZE - 13],
+  ];
+  let campSeeds: [number, number][];
+  if (starts.length === 1) {
+    const first = rng.int(corners.length);
+    campSeeds = corners.map((_, ci) => corners[(first + ci) % corners.length]!);
+  } else {
+    const nearestStart = ([cx, cy]: [number, number]): number => {
+      let best = Infinity;
+      for (const st of starts) {
+        const d = Math.max(Math.abs(cx + 1 - (st.x + 1)), Math.abs(cy + 1 - (st.y + 1)));
+        if (d < best) best = d;
+      }
+      return best;
+    };
+    const middle: [number, number] = [MAP_SIZE / 2 - 1, MAP_SIZE / 2 - 1];
+    campSeeds = [...corners, middle].sort((a, z) => nearestStart(z) - nearestStart(a));
+  }
   // Mountains and lakes can swallow a whole seed area, so widen the search
   // rather than generate a campless (instant-win) world.
   outer: for (const [cx, cy] of campSeeds) {

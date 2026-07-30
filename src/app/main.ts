@@ -132,8 +132,14 @@ async function boot(): Promise<void> {
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   const renderer = new GameRenderer(canvas);
-  // Dev-only scene handle for console debugging.
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__scene = renderer.scene;
+  // Dev-only handles for console debugging (scene graph + the SAB reader,
+  // which is where render-vs-sim questions get settled).
+  if (import.meta.env.DEV) {
+    Object.assign(window as unknown as Record<string, unknown>, {
+      __scene: renderer.scene,
+      __reader: init.reader,
+    });
+  }
 
   const mirror = new WorldMirror(init.map, init.buildings);
   const heights = new HeightField(init.map.height);
