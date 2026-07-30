@@ -1,6 +1,8 @@
 import { TILE_COUNT } from '../shared/grid';
+import { BANDIT } from './entities';
 import type { GameMap } from './map';
-import type { World } from './world';
+import type { PlayerState } from './player';
+import type { MatchOutcome, World } from './world';
 
 /**
  * Save/load. The World is serializable by construction (plain records, ID
@@ -10,7 +12,7 @@ import type { World } from './world';
  */
 
 interface SaveFile {
-  version: 1;
+  version: 1 | 2;
   world: {
     tick: number;
     rngState: number;
@@ -21,17 +23,19 @@ interface SaveFile {
     buildings: unknown[];
     jobs: unknown[];
     ledger: World['ledger'];
-    pavingUnlocked: boolean;
-    techs: World['techs'];
+    players: PlayerState[];
     raidState: World['raidState'];
     admin?: World['admin'];
-    outcome: World['outcome'];
+    outcome: MatchOutcome;
+    // --- version 1 fields (migrated into players[0] on load) ---
+    pavingUnlocked?: boolean;
+    techs?: PlayerState['techs'];
   };
 }
 
 export function serializeWorld(world: World): string {
   const file: SaveFile = {
-    version: 1,
+    version: 2,
     world: {
       tick: world.tick,
       rngState: world.rngState,
@@ -51,8 +55,7 @@ export function serializeWorld(world: World): string {
       buildings: [...world.buildings.values()],
       jobs: [...world.jobs.values()],
       ledger: world.ledger,
-      pavingUnlocked: world.pavingUnlocked,
-      techs: world.techs,
+      players: world.players,
       raidState: world.raidState,
       admin: world.admin,
       outcome: world.outcome,
@@ -63,7 +66,9 @@ export function serializeWorld(world: World): string {
 
 export function deserializeWorld(json: string): World {
   const file = JSON.parse(json) as SaveFile;
-  if (file.version !== 1) throw new Error(`unknown save version ${String(file.version)}`);
+  if (file.version !== 1 && file.version !== 2) {
+    throw new Error(`unknown save version ${String(file.version)}`);
+  }
   const w = file.world;
 
   const map: GameMap = {
@@ -92,12 +97,43 @@ export function deserializeWorld(json: string): World {
     jobs: new Map((w.jobs as { id: number }[]).map((j) => [j.id, j])) as World['jobs'],
     ledger: w.ledger,
     pendingDeltas: [],
-    pavingUnlocked: w.pavingUnlocked,
-    techs: w.techs,
+    players:
+      file.version === 2
+        ? w.players
+        : [
+            // v1 saves were solo: wrap the old global tech state as player 0.
+            {
+              id: 0,
+              kind: 'human',
+              techs: w.techs ?? { researched: [], festivalTicksLeft: 0 },
+              pavingUnlocked: w.pavingUnlocked ?? false,
+              alive: (w.outcome as unknown as string) !== 'lost',
+            },
+          ],
     raidState: w.raidState,
-    admin: w.admin ?? { raidsEnabled: true, instantBuild: false },
+    admin:
+      file.version === 2 && w.admin
+        ? w.admin
+        : { enabled: true, raidsEnabled: true, instantBuild: false, ...(w.admin ?? {}) },
     pendingEvents: [],
-    outcome: w.outcome,
+    outcome:
+      file.version === 2
+        ? w.outcome
+        : migrateOutcomeV1(w.outcome as unknown as 'playing' | 'won' | 'lost'),
   };
+  if (file.version === 1) migrateV1(world);
   return world;
+}
+
+function migrateOutcomeV1(outcome: 'playing' | 'won' | 'lost'): MatchOutcome {
+  if (outcome === 'playing') return { state: 'playing' };
+  return { state: 'over', winner: outcome === 'won' ? 0 : null };
+}
+
+/** v1 entities carried string owners; jobs had no owner. */
+function migrateV1(world: World): void {
+  const owner = (o: unknown): number => (o === 'bandit' ? BANDIT : o === 'player' ? 0 : (o as number));
+  for (const u of world.units.values()) u.owner = owner(u.owner);
+  for (const b of world.buildings.values()) b.owner = owner(b.owner);
+  for (const j of world.jobs.values()) j.owner ??= 0;
 }

@@ -19,6 +19,14 @@ export function checkInvariants(world: World): InvariantReport {
   const expectOut = new Map<number, GoodAmounts>();
   const expectIn = new Map<number, GoodAmounts>();
   for (const job of world.jobs.values()) {
+    // Hauls never cross factions — the multiplayer leak tripwire.
+    const from = world.buildings.get(job.from);
+    const to = world.buildings.get(job.to);
+    if (from && to && (from.owner !== job.owner || to.owner !== job.owner)) {
+      violations.push(
+        `job ${job.id}: owner ${job.owner} but from=${from.owner} to=${to.owner} (cross-owner)`,
+      );
+    }
     if (job.phase !== 'toDropoff') {
       const m = expectOut.get(job.from) ?? {};
       m[job.good] = (m[job.good] ?? 0) + 1;

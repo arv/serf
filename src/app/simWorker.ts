@@ -2,14 +2,14 @@
 import { createWorld, type World } from '../sim/world';
 import { deserializeWorld, serializeWorld } from '../sim/save';
 import { tickWorld } from '../sim/tick';
-import { OWNER_CODE, UNIT_DEFS, carryingCode } from '../sim/defs/units';
+import { UNIT_DEFS, carryingCode } from '../sim/defs/units';
 import { MATCHER_INTERVAL } from '../sim/defs/balance';
 import { buildingDef } from '../sim/defs/buildings';
 import { TECH_DEFS } from '../sim/defs/techs';
 import { checkInvariants, checkLedger, countGoods } from '../sim/debug/invariants';
 import { findStorehouse } from '../sim/systems/logistics';
 import { GOODS, type GoodAmounts } from '../sim/defs/goods';
-import type { SimCommand } from '../sim/commands';
+import type { PlayerCommand } from '../sim/tick';
 import {
   ACTION,
   PROFESSION,
@@ -21,7 +21,7 @@ import {
 } from '../protocol/sabLayout';
 import type { Building } from '../sim/entities';
 import type { Unit } from '../sim/units';
-import type { BuildingSnap, MainToWorker, WorkerToMain } from '../protocol/messages';
+import type { BuildingSnap, MainToWorker, PlayerSnap, WorkerToMain } from '../protocol/messages';
 
 /**
  * Worker entry: owns the World and the fixed-timestep loop. Publishes unit
@@ -32,7 +32,7 @@ import type { BuildingSnap, MainToWorker, WorkerToMain } from '../protocol/messa
 let world: World | null = null;
 let writer: SabWriter | null = null;
 let speed = 1; // ticks per interval; 0 = paused
-let pendingCommands: SimCommand[] = [];
+let pendingCommands: PlayerCommand[] = [];
 let initialGoods: GoodAmounts = {};
 let lastInvariantViolations: string[] = [];
 
@@ -141,35 +141,48 @@ function step(): void {
   }
 }
 
+function snapPlayers(w: import('../sim/world').World): PlayerSnap[] {
+  return w.players.map((p) => {
+    const storehouse = findStorehouse(w, p.id);
+    let hasTerakoya = false;
+    for (const b of w.buildings.values()) {
+      if (!b.dead && b.type === 'terakoya' && b.state === 'built' && b.owner === p.id) {
+        hasTerakoya = true;
+      }
+    }
+    return {
+      id: p.id,
+      kind: p.kind,
+      alive: p.alive,
+      stock: storehouse ? { ...storehouse.stock } : {},
+      techs: {
+        researched: [...p.techs.researched],
+        active: p.techs.active
+          ? {
+              tech: p.techs.active.tech,
+              ticksLeft: p.techs.active.ticksLeft,
+              totalTicks: TECH_DEFS[p.techs.active.tech].durationTicks,
+            }
+          : undefined,
+        festivalTicksLeft: p.techs.festivalTicksLeft,
+        pavingUnlocked: p.pavingUnlocked,
+        hasTerakoya,
+      },
+    };
+  });
+}
+
 function postStructural(): void {
   if (!world) return;
-  const storehouse = findStorehouse(world);
-  let hasTerakoya = false;
-  for (const b of world.buildings.values()) {
-    if (!b.dead && b.type === 'terakoya' && b.state === 'built') hasTerakoya = true;
-  }
   post({
     type: 'structural',
     tick: world.tick,
     buildings: [...world.buildings.values()].filter((b) => !b.dead).map(snapBuilding),
     mapDeltas: world.pendingDeltas.splice(0),
-    stock: storehouse ? { ...storehouse.stock } : {},
+    players: snapPlayers(world),
     admin: { ...world.admin },
     events: world.pendingEvents.splice(0),
     outcome: world.outcome,
-    techs: {
-      researched: [...world.techs.researched],
-      active: world.techs.active
-        ? {
-            tech: world.techs.active.tech,
-            ticksLeft: world.techs.active.ticksLeft,
-            totalTicks: TECH_DEFS[world.techs.active.tech].durationTicks,
-          }
-        : undefined,
-      festivalTicksLeft: world.techs.festivalTicksLeft,
-      pavingUnlocked: world.pavingUnlocked,
-      hasTerakoya,
-    },
     jobs: [...world.jobs.values()].map((j) => ({
       id: j.id,
       good: j.good,
@@ -251,7 +264,7 @@ function* unitSnapshots(w: World): Generator<UnitSnapshot> {
       x: u.x,
       y: u.y,
       kind: UNIT_DEFS[u.kind].kindCode,
-      owner: OWNER_CODE[u.owner],
+      owner: u.owner, // numeric owner rides the aux byte raw
       hpPct:
         action === ACTION.dead
           ? 0

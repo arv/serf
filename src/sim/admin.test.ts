@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { CORPSE_TICKS } from './defs/balance';
+import { BANDIT } from './entities';
 import { tickWorld } from './tick';
 import { placeBuiltBuilding, type World } from './world';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants';
-import { addSerf, addSite, addStorehouse, bareWorld } from './testUtils';
+import { cmds, addSerf, addSite, addStorehouse, bareWorld } from './testUtils';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -13,16 +14,16 @@ describe('admin sandbox', () => {
   it('toggleRaids off silences the bandit camp', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    placeBuiltBuilding(world, 'banditCamp', 'bandit', 44, 30);
+    placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
     world.raidState = { nextRaidTick: 10, wave: 0 };
-    tickWorld(world, [{ kind: 'admin', action: 'toggleRaids' }]);
+    tickWorld(world, cmds({ kind: 'admin', action: 'toggleRaids' }));
     run(world, 200);
 
     expect(world.raidState.wave).toBe(0);
-    expect([...world.units.values()].filter((u) => u.owner === 'bandit')).toEqual([]);
+    expect([...world.units.values()].filter((u) => u.owner === BANDIT)).toEqual([]);
 
     // Toggle back on: raids resume.
-    tickWorld(world, [{ kind: 'admin', action: 'toggleRaids' }]);
+    tickWorld(world, cmds({ kind: 'admin', action: 'toggleRaids' }));
     run(world, 20);
     expect(world.raidState.wave).toBeGreaterThan(0);
   });
@@ -30,17 +31,17 @@ describe('admin sandbox', () => {
   it('clearBandits kills every bandit on the map', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    placeBuiltBuilding(world, 'banditCamp', 'bandit', 44, 30);
+    placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
     world.raidState = { nextRaidTick: 10, wave: 0 };
     run(world, 40); // a wave spawns and marches
-    expect([...world.units.values()].some((u) => u.owner === 'bandit')).toBe(true);
+    expect([...world.units.values()].some((u) => u.owner === BANDIT)).toBe(true);
 
-    tickWorld(world, [{ kind: 'admin', action: 'clearBandits' }]);
+    tickWorld(world, cmds({ kind: 'admin', action: 'clearBandits' }));
     // All dead at once; the corpses linger for the death animation...
-    expect([...world.units.values()].filter((u) => u.owner === 'bandit' && !u.dead)).toEqual([]);
+    expect([...world.units.values()].filter((u) => u.owner === BANDIT && !u.dead)).toEqual([]);
     // ...then sweep away.
     run(world, CORPSE_TICKS + 1);
-    expect([...world.units.values()].filter((u) => u.owner === 'bandit')).toEqual([]);
+    expect([...world.units.values()].filter((u) => u.owner === BANDIT)).toEqual([]);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
@@ -48,7 +49,7 @@ describe('admin sandbox', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { bamboo: 3 });
     const initial = countGoods(world);
-    tickWorld(world, [{ kind: 'admin', action: 'grantGoods' }]);
+    tickWorld(world, cmds({ kind: 'admin', action: 'grantGoods' }));
 
     expect(sh.stock.bamboo).toBe(28);
     expect(sh.stock.gold).toBe(25);
@@ -59,7 +60,7 @@ describe('admin sandbox', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {}); // nothing in store
     addSerf(world, 29, 34);
-    tickWorld(world, [{ kind: 'admin', action: 'toggleInstantBuild' }]);
+    tickWorld(world, cmds({ kind: 'admin', action: 'toggleInstantBuild' }));
     const site = addSite(world, 24, 30);
     run(world, 5);
 
@@ -71,24 +72,24 @@ describe('admin sandbox', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
     const before = world.units.size;
-    tickWorld(world, [{ kind: 'admin', action: 'spawnParade' }]);
+    tickWorld(world, cmds({ kind: 'admin', action: 'spawnParade' }));
 
     const spawned = [...world.units.values()].slice(before);
     expect(spawned).toHaveLength(8);
     expect(new Set(spawned.map((u) => u.kind)).size).toBe(8);
-    expect(spawned.every((u) => u.owner === 'player')).toBe(true);
+    expect(spawned.every((u) => u.owner === 0)).toBe(true);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('finishResearch completes the active tech immediately', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { rice: 20, silver: 20 });
-    placeBuiltBuilding(world, 'terakoya', 'player', 24, 30);
-    tickWorld(world, [{ kind: 'research', tech: 'strawSandals' }]);
-    expect(world.techs.active?.tech).toBe('strawSandals');
+    placeBuiltBuilding(world, 'terakoya', 0, 24, 30);
+    tickWorld(world, cmds({ kind: 'research', tech: 'strawSandals' }));
+    expect(world.players[0]!.techs.active?.tech).toBe('strawSandals');
 
-    tickWorld(world, [{ kind: 'admin', action: 'finishResearch' }]);
+    tickWorld(world, cmds({ kind: 'admin', action: 'finishResearch' }));
     run(world, 2);
-    expect(world.techs.researched).toContain('strawSandals');
+    expect(world.players[0]!.techs.researched).toContain('strawSandals');
   });
 });

@@ -28,7 +28,7 @@ export function movementSystem(world: World): void {
     let budget =
       (UNIT_DEFS[unit.kind].speed *
         tileSpeedMult(world.map, here) *
-        (civilian ? getModifier(world, 'serfSpeed') : 1)) /
+        (civilian ? getModifier(world, unit.owner, 'serfSpeed') : 1)) /
       TICKS_PER_SECOND;
 
     while (budget > 0 && unit.pathIdx < path.length) {

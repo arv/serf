@@ -1,10 +1,10 @@
 import type * as THREE from 'three';
 import { inBounds, tileIdx } from '../shared/grid';
-import { OWNER_CODE } from '../sim/defs/units';
 import { buildingDef } from '../sim/defs/buildings';
 import { canPlace } from '../sim/world';
 import {
   debugOpen,
+  myPlayerId,
   placing,
   setDebugOpen,
   setPlacing,
@@ -300,7 +300,7 @@ export class Controls {
   }
 
   #playerUnitScreenPos(id: number, now: number): { x: number; y: number } | null {
-    if (this.#sync.ownerOf(id) !== OWNER_CODE.player) return null;
+    if (this.#sync.ownerOf(id) !== myPlayerId()) return null;
     const pos = this.#sync.positionOf(id, now);
     if (!pos) return null;
     const groundY = this.#heights.at(pos.x, pos.y);
@@ -331,7 +331,7 @@ export class Controls {
         if (inBounds(tx, ty)) {
           const bId = this.#mirror.map.buildingAt[tileIdx(tx, ty)]!;
           const snap = bId >= 0 ? this.#mirror.buildings.get(bId) : undefined;
-          if (snap && snap.owner === 'player') {
+          if (snap && snap.owner === myPlayerId()) {
             this.#setSel(new Set());
             setSelectedBuilding(snap);
             return;

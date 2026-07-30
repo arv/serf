@@ -16,13 +16,16 @@ import { buildingDef, type BuildingTypeId } from './defs/buildings';
 import { makeUnit, type Unit } from './units';
 import type { GoodAmounts, GoodId } from './defs/goods';
 import type { TechId } from './defs/techs';
-import type { Building, EntityId, Owner } from './entities';
+import { BANDIT, type Building, type EntityId, type Owner } from './entities';
+import { makePlayer, type PlayerState } from './player';
 
 export interface HaulJob {
   id: number;
   good: GoodId;
   from: EntityId;
   to: EntityId;
+  /** Faction the haul belongs to — jobs never cross owners (invariant). */
+  owner: Owner;
   priority: 1 | 2 | 3;
   createdTick: number;
   phase: 'open' | 'toPickup' | 'toDropoff';
@@ -59,18 +62,25 @@ export interface World {
   ledger: Ledger;
   /** Drained by the worker into structural messages. */
   pendingDeltas: MapDelta[];
-  /** Stone-road paving enabled (unlocked by the Masonry tech). */
-  pavingUnlocked: boolean;
-  techs: TechState;
+  /** Faction state per seat; index === owner id === command playerId. */
+  players: PlayerState[];
   raidState: { nextRaidTick: number; wave: number };
   /** Sandbox switches for tweaking the game (the ?admin panel). */
   admin: AdminState;
   /** One-shot events drained into structural messages (toasts, game over). */
   pendingEvents: GameEvent[];
-  outcome: 'playing' | 'won' | 'lost';
+  outcome: MatchOutcome;
 }
 
+export type MatchOutcome =
+  | { state: 'playing' }
+  /** winner null = the last player fell too (solo loss / mutual destruction). */
+  | { state: 'over'; winner: Owner | null };
+
 export interface AdminState {
+  /** Admin commands are honored at all (set once at world creation, so every
+   * lockstep client agrees; networked matches create worlds with this off). */
+  enabled: boolean;
   /** Bandit waves spawn (default on; off = peaceful sandbox). */
   raidsEnabled: boolean;
   /** Sites complete instantly and need no materials. */
@@ -78,8 +88,9 @@ export interface AdminState {
 }
 
 export type GameEvent =
-  | { kind: 'raidIncoming'; text: string }
-  | { kind: 'gameOver'; outcome: 'won' | 'lost' };
+  | { kind: 'raidIncoming'; text: string; player: Owner }
+  | { kind: 'playerEliminated'; player: Owner }
+  | { kind: 'gameOver'; winner: Owner | null };
 
 export interface TechState {
   researched: TechId[];
@@ -113,19 +124,18 @@ export function createWorld(seed: number): World {
     nextJobId: 1,
     ledger: { produced: {}, consumed: {} },
     pendingDeltas: [],
-    pavingUnlocked: false, // Masonry unlocks
-    techs: { researched: [], festivalTicksLeft: 0 },
+    players: [makePlayer(0, 'human', seed | 0)],
     raidState: { nextRaidTick: FIRST_RAID_TICK, wave: 0 },
-    admin: { raidsEnabled: true, instantBuild: false },
+    admin: { enabled: true, raidsEnabled: true, instantBuild: false },
     pendingEvents: [],
-    outcome: 'playing',
+    outcome: { state: 'playing' },
   };
 
   // Storehouse at the center; clear anything under it.
   const shX = MAP_SIZE / 2 - 2;
   const shY = MAP_SIZE / 2 - 2;
   clearResources(map, shX - 1, shY - 1, 5, 5);
-  const storehouse = placeBuiltBuilding(world, 'storehouse', 'player', shX, shY);
+  const storehouse = placeBuiltBuilding(world, 'storehouse', 0, shX, shY);
   storehouse.stock = { ...START_STOCK };
 
   // Bandit camp in a random far corner; search outward for a clear 3x3.
@@ -146,10 +156,10 @@ export function createWorld(seed: number): World {
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           if (rectClear(map, cx + dx, cy + dy, 3, 3)) {
-            const camp = placeBuiltBuilding(world, 'banditCamp', 'bandit', cx + dx, cy + dy);
+            const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, cx + dx, cy + dy);
             // Standing guards defend the camp (auto-acquire handles the rest).
             for (let g = 0; g < 3; g++) {
-              spawnUnit(world, 'bandit', 'bandit', camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
+              spawnUnit(world, 'bandit', BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
             }
             break outer;
           }
@@ -162,7 +172,7 @@ export function createWorld(seed: number): World {
   for (let i = 0; i < START_SERFS; i++) {
     const x = shX - 1 + (i % 5) + 0.5;
     const y = shY + 4 + Math.floor(i / 5) + 0.5;
-    spawnUnit(world, 'serf', 'player', x, y);
+    spawnUnit(world, 'serf', 0, x, y);
   }
 
   world.rngState = rng.state;

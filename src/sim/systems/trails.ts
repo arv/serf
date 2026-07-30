@@ -8,7 +8,9 @@ import {
   WEAR_DECAY,
 } from '../defs/balance';
 import { tileX, tileY } from '../../shared/grid';
+import { buildingDef } from '../defs/buildings';
 import { PathLevel, Terrain } from '../map';
+import { isPlayerOwner, type Owner } from '../entities';
 import { placeSite, pushDelta, type World } from '../world';
 
 /**
@@ -51,7 +53,7 @@ export function trailsSystem(world: World): void {
  * Capped concurrency keeps paving from starving real construction.
  */
 function paveStep(world: World): void {
-  if (!world.pavingUnlocked) return;
+  if (!world.players.some((p) => p.pavingUnlocked)) return;
   if (world.tick === 0 || world.tick % PAVE_INTERVAL !== 0) return;
 
   let active = 0;
@@ -69,8 +71,30 @@ function paveStep(world: World): void {
     if (map.buildingAt[i] !== -1 || map.blocked[i]) continue;
     picks.push(i);
   }
-  picks.sort((a, z) => map.wear[z]! - map.wear[a]!);
+  picks.sort((a, z) => map.wear[z]! - map.wear[a]! || a - z);
   for (const idx of picks.slice(0, MAX_CONCURRENT_PAVING - active)) {
-    placeSite(world, 'roadSite', 'player', tileX(idx), tileY(idx));
+    // The stone bill goes to whoever wore the trail: attribute the tile to
+    // the nearest live storage building's owner — and only pave when that
+    // owner has actually researched Masonry.
+    const owner = nearestStorageOwner(world, tileX(idx), tileY(idx));
+    if (owner === undefined || !world.players[owner]?.pavingUnlocked) continue;
+    placeSite(world, 'roadSite', owner, tileX(idx), tileY(idx));
   }
+}
+
+/** Owner of the nearest live storage building (ties: lowest owner id wins
+ * via the buildings map's insertion order). */
+function nearestStorageOwner(world: World, x: number, y: number): Owner | undefined {
+  let best: Owner | undefined;
+  let bestDist = Infinity;
+  for (const b of world.buildings.values()) {
+    if (b.dead || b.state !== 'built' || !buildingDef(b.type).storage) continue;
+    if (!isPlayerOwner(b.owner)) continue;
+    const dist = Math.max(Math.abs(b.x + b.w / 2 - x), Math.abs(b.y + b.h / 2 - y));
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = b.owner;
+    }
+  }
+  return best;
 }

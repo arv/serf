@@ -90,8 +90,6 @@ export const COUNTER_TABLE: Record<UnitClass, Record<UnitClass, number>> = {
   ranged: { heavy: 1.5, light: 0.67, ranged: 1.0 },
 };
 
-export const OWNER_CODE = { player: 0, bandit: 1 } as const;
-
 /** SAB byte for a carried good: 0 = nothing, else GOODS index + 1. */
 export function carryingCode(good: GoodId | undefined): number {
   return good === undefined ? 0 : GOODS.indexOf(good) + 1;

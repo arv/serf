@@ -1,5 +1,6 @@
 import { COUNTER_TABLE, UNIT_DEFS } from '../defs/units';
-import { centerOf, type Building } from '../entities';
+import { BANDIT, centerOf, type Building } from '../entities';
+import { tileX, tileY } from '../../shared/grid';
 import { findPath, findPathToAdjacent, nearestWalkable } from '../path';
 import { destroyBuilding, killUnit, type World } from '../world';
 import type { Unit } from '../units';
@@ -52,7 +53,7 @@ export function combatSystem(world: World): void {
         if (targetBuilding && (targetBuilding.dead || targetBuilding.owner === unit.owner)) {
           targetBuilding = undefined;
         }
-        if (!targetBuilding && unit.owner === 'bandit') {
+        if (!targetBuilding && unit.owner === BANDIT) {
           targetBuilding = nearestEnemyBuilding(world, unit);
           if (targetBuilding) unit.task = { t: 'raid', buildingId: targetBuilding.id };
         }
@@ -170,8 +171,8 @@ function chaseUnit(world: World, unit: Unit, target: Unit): void {
   const path = unit.path;
   if (path && unit.pathIdx < path.length) {
     const last = path[path.length - 1]!;
-    const lx = (last % 64) + 0.5;
-    const ly = Math.floor(last / 64) + 0.5;
+    const lx = tileX(last) + 0.5;
+    const ly = tileY(last) + 0.5;
     if (Math.hypot(target.x - lx, target.y - ly) < 1.6) return; // path still good
   }
   const p = findPath(
@@ -197,7 +198,7 @@ function kiteAway(world: World, unit: Unit, threat: Unit): void {
   const ty = Math.round(unit.y + (dy / len) * 3);
   const idx = nearestWalkable(world.map, tx, ty, 3);
   if (idx < 0) return;
-  const p = findPath(world.map, Math.floor(unit.x), Math.floor(unit.y), idx % 64, Math.floor(idx / 64));
+  const p = findPath(world.map, Math.floor(unit.x), Math.floor(unit.y), tileX(idx), tileY(idx));
   if (p && p.length > 0) {
     unit.path = p;
     unit.pathIdx = 0;

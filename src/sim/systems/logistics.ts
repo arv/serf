@@ -1,7 +1,7 @@
 import { JOB_BLOCKED_BACKOFF, MATCHER_INTERVAL, TERAKOYA_SAKE_CAP } from '../defs/balance';
 import { INPUT_CAP, buildingDef } from '../defs/buildings';
 import { GOODS, type GoodId } from '../defs/goods';
-import { centerOf, type Building, type EntityId } from '../entities';
+import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } from '../entities';
 import { findPathToAdjacent } from '../path';
 import { trainingDemand } from './training';
 import type { Unit } from '../units';
@@ -94,9 +94,16 @@ function suspended(world: World, b: Building, good: GoodId): boolean {
 
 function match(world: World): void {
   const demands: DemandFull[] = [];
+  // Evacuation targets resolve per producer owner; cache the lookup — it
+  // used to be a full building scan inside the loop.
+  const storehouses = new Map<Owner, Building | undefined>();
+  const storehouseOf = (owner: Owner): Building | undefined => {
+    if (!storehouses.has(owner)) storehouses.set(owner, findStorehouse(world, owner));
+    return storehouses.get(owner);
+  };
 
   for (const b of world.buildings.values()) {
-    if (b.dead || b.owner !== 'player') continue;
+    if (b.dead || !isPlayerOwner(b.owner)) continue;
     const def = buildingDef(b.type);
 
     if (b.state === 'site' && b.siteNeeds) {
@@ -126,7 +133,7 @@ function match(world: World): void {
     }
 
     // Festivals: the terakoya sips sake.
-    if (b.type === 'terakoya' && world.techs.researched.includes('festivals')) {
+    if (b.type === 'terakoya' && world.players[b.owner]?.techs.researched.includes('festivals')) {
       const want = TERAKOYA_SAKE_CAP - (b.inputs.sake ?? 0) - (b.inbound.sake ?? 0);
       if (want > 0) demands.push(demandOf(world, b, 'sake', want, 2));
       else delete b.demandSince.sake;
@@ -152,7 +159,7 @@ function match(world: World): void {
       for (const good of outputs) {
         const surplus = availableOut(b, good);
         if (surplus > 0) {
-          const storehouse = findStorehouse(world);
+          const storehouse = storehouseOf(b.owner);
           if (storehouse && storehouse.id !== b.id) {
             demands.push(demandOf(world, storehouse, good, surplus, 3, b));
           }
@@ -197,9 +204,9 @@ function demandOf(
   return { building, good, want, priority, since: ageHolder.demandSince[good], pinnedSource };
 }
 
-function findStorehouse(world: World): Building | undefined {
+function findStorehouse(world: World, owner: Owner): Building | undefined {
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.state === 'built' && buildingDef(b.type).storage && b.owner === 'player') {
+    if (!b.dead && b.state === 'built' && buildingDef(b.type).storage && b.owner === owner) {
       return b;
     }
   }
@@ -211,7 +218,7 @@ function nearestSupply(world: World, sink: Building, good: GoodId): Building | u
   let best: Building | undefined;
   let bestDist = Infinity;
   for (const b of world.buildings.values()) {
-    if (b.dead || b.id === sink.id || b.state !== 'built' || b.owner !== 'player') continue;
+    if (b.dead || b.id === sink.id || b.state !== 'built' || b.owner !== sink.owner) continue;
     if (availableOut(b, good) <= 0) continue;
     const bc = centerOf(b);
     const dist = Math.abs(bc.x - c.x) + Math.abs(bc.y - c.y);
@@ -239,6 +246,9 @@ function createJob(
     good,
     from,
     to,
+    // Source and dest share an owner by construction (nearestSupply and
+    // evacuation both filter on it); the job carries it for dispatch.
+    owner: dest.owner,
     priority,
     createdTick: world.tick,
     phase: 'open',
@@ -259,15 +269,22 @@ function dispatch(world: World): void {
   if (open.length === 0) return;
   open.sort((a, z) => a.priority - z.priority || a.createdTick - z.createdTick);
 
-  const idle: Unit[] = [];
+  // Idle serfs, bucketed by faction — a job is only ever offered to serfs of
+  // its own owner.
+  const idleByOwner = new Map<Owner, Unit[]>();
   for (const u of world.units.values()) {
-    if (u.dead || u.kind !== 'serf' || u.owner !== 'player' || u.jobId !== undefined) continue;
-    if (u.task.t === 'idle' || u.task.t === 'move') idle.push(u);
+    if (u.dead || u.kind !== 'serf' || !isPlayerOwner(u.owner) || u.jobId !== undefined) continue;
+    if (u.task.t === 'idle' || u.task.t === 'move') {
+      let bucket = idleByOwner.get(u.owner);
+      if (!bucket) idleByOwner.set(u.owner, (bucket = []));
+      bucket.push(u);
+    }
   }
-  if (idle.length === 0) return;
+  if (idleByOwner.size === 0) return;
 
   for (const job of open) {
-    if (idle.length === 0) break;
+    const idle = idleByOwner.get(job.owner);
+    if (!idle || idle.length === 0) continue;
     const from = world.buildings.get(job.from);
     if (!from) continue; // reconcile will clean it up
 

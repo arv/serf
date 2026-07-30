@@ -1,6 +1,6 @@
 import { RAID_CAP, RAID_INTERVAL } from '../defs/balance';
 import { type UnitTypeId } from '../defs/units';
-import { type Building } from '../entities';
+import { BANDIT, isPlayerOwner, type Building } from '../entities';
 import { spawnUnit, type World } from '../world';
 import { Rng } from '../../shared/rng';
 
@@ -10,7 +10,7 @@ import { Rng } from '../../shared/rng';
  * — has to answer. The wave preview event lets the UI warn with composition.
  */
 export function banditsSystem(world: World, rng: Rng): void {
-  if (world.outcome !== 'playing' || !world.admin.raidsEnabled) return;
+  if (world.outcome.state !== 'playing' || !world.admin.raidsEnabled) return;
   if (world.tick < world.raidState.nextRaidTick) return;
 
   const camp = findCamp(world);
@@ -35,7 +35,7 @@ export function banditsSystem(world: World, rng: Rng): void {
     const unit = spawnUnit(
       world,
       kind,
-      'bandit',
+      BANDIT,
       camp.x + 1.5 + (i % 4) - 1.5,
       camp.y + camp.h + 1.5 + Math.floor(i / 4),
     );
@@ -50,7 +50,11 @@ export function banditsSystem(world: World, rng: Rng): void {
     ronin: 'marauders', // theme-neutral read for the heavy raider
   };
   const text = [...counts.entries()].map(([k, n]) => `${n} ${names[k] ?? k}`).join(', ');
-  world.pendingEvents.push({ kind: 'raidIncoming', text: `${text} approaching!` });
+  world.pendingEvents.push({
+    kind: 'raidIncoming',
+    text: `${text} approaching!`,
+    player: target.owner,
+  });
 }
 
 function findCamp(world: World): Building | undefined {
@@ -60,16 +64,20 @@ function findCamp(world: World): Building | undefined {
   return undefined;
 }
 
-/** Storehouse-weighted target selection. */
+/** Storehouse-weighted target selection, pressuring every faction. */
 function pickTarget(world: World, rng: Rng): Building | undefined {
-  const player: Building[] = [];
-  let storehouse: Building | undefined;
+  const targets: Building[] = [];
+  const storehouses: Building[] = [];
   for (const b of world.buildings.values()) {
-    if (b.dead || b.owner !== 'player') continue;
-    player.push(b);
-    if (b.type === 'storehouse') storehouse = b;
+    if (b.dead || !isPlayerOwner(b.owner)) continue;
+    targets.push(b);
+    if (b.type === 'storehouse') storehouses.push(b);
   }
-  if (player.length === 0) return undefined;
-  if (storehouse && rng.next() < 0.6) return storehouse;
-  return player[rng.int(player.length)];
+  if (targets.length === 0) return undefined;
+  if (storehouses.length > 0 && rng.next() < 0.6) {
+    // Single storehouse (solo) draws nothing extra — keeps the solo RNG
+    // stream byte-identical to the pre-multiplayer game.
+    return storehouses.length === 1 ? storehouses[0] : storehouses[rng.int(storehouses.length)];
+  }
+  return targets[rng.int(targets.length)];
 }

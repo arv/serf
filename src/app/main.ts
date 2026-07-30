@@ -17,12 +17,14 @@ if (THEME === 'medieval') document.documentElement.classList.add('day');
 import { Controls } from '../input/controls';
 import { mountHud } from '../ui/mount';
 import {
+  myPlayerId,
   pushToast,
   selectedBuilding,
   setAdminState,
   setDebugJobs,
   setInvariantViolations,
   setOutcome,
+  setPlayersMeta,
   setSelectedBuilding,
   setStock,
   setTechs,
@@ -112,14 +114,22 @@ async function boot(): Promise<void> {
     if (changes.repaint) terrain.repaintAll();
     buildingSync.update(msg.buildings);
     feedWells();
-    setStock(msg.stock);
-    setTechs(msg.techs);
+    const mine = msg.players[myPlayerId()];
+    if (mine) {
+      setStock(mine.stock);
+      setTechs(mine.techs);
+    }
+    setPlayersMeta(msg.players);
     setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
     setAdminState(msg.admin);
     for (const event of msg.events) {
-      if (event.kind === 'raidIncoming') pushToast(event.text);
+      if (event.kind === 'raidIncoming' && event.player === myPlayerId()) {
+        pushToast(event.text);
+      } else if (event.kind === 'playerEliminated' && event.player !== myPlayerId()) {
+        pushToast('A rival banner has fallen!');
+      }
     }
     // Keep the selected building's panel fresh (or clear it if destroyed).
     const sel = selectedBuilding();

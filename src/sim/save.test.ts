@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { cmds } from './testUtils';
 import { createWorld, type World } from './world';
 import { deserializeWorld, serializeWorld } from './save';
 import { tickWorld } from './tick';
@@ -24,22 +25,22 @@ function digest(world: World) {
     wear: [...world.map.wear],
     pathLevel: [...world.map.pathLevel],
     ledger: world.ledger,
-    techs: world.techs,
+    techs: world.players[0]!.techs,
   };
 }
 
 describe('save/load', () => {
   it('round-trip at tick N + resume == uninterrupted run', () => {
     const a = createWorld(777);
-    for (let t = 0; t < 1500; t++) tickWorld(a, commandScript(t));
+    for (let t = 0; t < 1500; t++) tickWorld(a, cmds(...commandScript(t)));
 
     // Snapshot mid-flight (serfs mid-haul, workers mid-chop).
     const saved = serializeWorld(a);
     const b = deserializeWorld(saved);
 
     for (let t = 1500; t < 3000; t++) {
-      tickWorld(a, commandScript(t));
-      tickWorld(b, commandScript(t));
+      tickWorld(a, cmds(...commandScript(t)));
+      tickWorld(b, cmds(...commandScript(t)));
     }
 
     expect(digest(b)).toEqual(digest(a));
@@ -52,7 +53,7 @@ describe('save/load', () => {
 
   it('save size stays localStorage-friendly', () => {
     const world = createWorld(1);
-    for (let t = 0; t < 500; t++) tickWorld(world, commandScript(t));
+    for (let t = 0; t < 500; t++) tickWorld(world, cmds(...commandScript(t)));
     const size = serializeWorld(world).length;
     expect(size).toBeLessThan(1_500_000); // well under the ~5MB quota
   });

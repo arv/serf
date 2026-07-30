@@ -4,7 +4,7 @@ import { tileIdx } from '../shared/grid';
 import { tickWorld } from './tick';
 import { destroyBuilding, killUnit, type World } from './world';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants';
-import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testUtils';
+import { cmds, addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testUtils';
 import { TileResource } from './map';
 import type { GoodAmounts } from './defs/goods';
 
@@ -224,7 +224,7 @@ describe('fuzz: 10k ticks of random destruction never corrupts the economy', () 
         } else if (roll < 0.85) {
           const x = 18 + rng.int(24);
           const y = 18 + rng.int(24);
-          tickWorld(world, [{ kind: 'placeBuilding', building: 'bambooHut', x, y }]);
+          tickWorld(world, cmds({ kind: 'placeBuilding', building: 'bambooHut', x, y }));
         } else {
           const serfs = [...world.units.values()].filter((u) => u.kind === 'serf');
           if (serfs.length < 8) addSerf(world, 30 + rng.int(4), 35);

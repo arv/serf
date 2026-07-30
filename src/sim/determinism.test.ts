@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { cmds } from './testUtils';
 import { createWorld, type World } from './world';
 import { tickWorld } from './tick';
 import type { SimCommand } from './commands';
@@ -27,7 +28,7 @@ function commandScript(tick: number): SimCommand[] {
 
 function run(seed: number, ticks: number): World {
   const world = createWorld(seed);
-  for (let t = 0; t < ticks; t++) tickWorld(world, commandScript(t));
+  for (let t = 0; t < ticks; t++) tickWorld(world, cmds(...commandScript(t)));
   return world;
 }
 

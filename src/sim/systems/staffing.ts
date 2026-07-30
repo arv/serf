@@ -2,7 +2,7 @@ import { buildingDef } from '../defs/buildings';
 import { GOODS, type GoodId } from '../defs/goods';
 import { findPathToAdjacent } from '../path';
 import { bindWorker } from './production';
-import type { Building } from '../entities';
+import { isPlayerOwner, type Building, type Owner } from '../entities';
 import type { Unit } from '../units';
 import type { World } from '../world';
 
@@ -82,15 +82,20 @@ function handleArrivals(world: World): void {
 }
 
 function requestRecruits(world: World): void {
-  // Idle serfs available for recruitment this pass.
-  const idle: Unit[] = [];
+  // Idle serfs available for recruitment this pass, bucketed by faction —
+  // buildings only ever draw staff from their own owner's pool.
+  const idleByOwner = new Map<Owner, Unit[]>();
   for (const u of world.units.values()) {
-    if (u.dead || u.kind !== 'serf' || u.owner !== 'player' || u.jobId !== undefined) continue;
-    if (u.task.t === 'idle' || u.task.t === 'move') idle.push(u);
+    if (u.dead || u.kind !== 'serf' || !isPlayerOwner(u.owner) || u.jobId !== undefined) continue;
+    if (u.task.t === 'idle' || u.task.t === 'move') {
+      let bucket = idleByOwner.get(u.owner);
+      if (!bucket) idleByOwner.set(u.owner, (bucket = []));
+      bucket.push(u);
+    }
   }
 
   for (const b of world.buildings.values()) {
-    if (b.dead || b.owner !== 'player') continue;
+    if (b.dead || !isPlayerOwner(b.owner)) continue;
     const def = buildingDef(b.type);
     if (b.state === 'site' ? def.isRoad : b.state !== 'built') continue;
 
@@ -114,7 +119,8 @@ function requestRecruits(world: World): void {
     const wantsRecruit =
       b.state === 'built' && def.trains !== undefined && firstReadyTraining(b) >= 0;
     if (!wantsBuilder && !wantsWorker && !wantsRecruit) continue;
-    if (idle.length === 0) return; // nobody left to recruit this pass
+    const idle = idleByOwner.get(b.owner);
+    if (!idle || idle.length === 0) continue; // nobody of this faction left
 
     // Nearest idle serf walks over.
     const cx = b.x + b.w / 2;

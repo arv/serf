@@ -71,8 +71,8 @@ function convertStep(world: World, b: Building, recipe: Recipe & { kind: 'conver
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
   }
   const speedup =
-    getModifier(world, 'workSpeed') *
-    (b.type === 'ricePaddy' ? getModifier(world, 'paddySpeed') : 1);
+    getModifier(world, b.owner, 'workSpeed') *
+    (b.type === 'ricePaddy' ? getModifier(world, b.owner, 'paddySpeed') : 1);
   b.prodTicksLeft = Math.max(1, Math.round(recipe.durationTicks / speedup));
 }
 
@@ -122,8 +122,8 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
         return;
       }
       const speedup =
-        getModifier(world, 'workSpeed') *
-        (buildingDef(b.type).nearDeposit ? getModifier(world, 'mineSpeed') : 1);
+        getModifier(world, b.owner, 'workSpeed') *
+        (buildingDef(b.type).nearDeposit ? getModifier(world, b.owner, 'mineSpeed') : 1);
       worker.task = {
         t: 'gatherWork',
         tile,

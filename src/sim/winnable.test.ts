@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { cmds } from './testUtils';
 import { TILE_COUNT, tileX, tileY } from '../shared/grid';
 import { createWorld, canPlace, type World } from './world';
 import { tickWorld } from './tick';
@@ -19,7 +20,7 @@ import type { Building } from './entities';
 const MILITARY = new Set(['samurai', 'ashigaru', 'archer']);
 
 function buildings(world: World): Building[] {
-  return [...world.buildings.values()].filter((b) => !b.dead && b.owner === 'player');
+  return [...world.buildings.values()].filter((b) => !b.dead && b.owner === 0);
 }
 
 function has(world: World, type: BuildingTypeId): boolean {
@@ -98,13 +99,13 @@ describe('the campaign is winnable', () => {
     for (let t = 0; t < MAX_TICKS; t++) {
       const commands: SimCommand[] = [];
 
-      if (t % 20 === 0 && world.outcome === 'playing') {
+      if (t % 20 === 0 && world.outcome.state === 'playing') {
         const stock = storehouse(world).stock;
 
         // --- Build order: desired counts vs standing counts ----------------
         // Rebuilds anything raiders destroy; a 2nd bamboo hut joins once the
         // smith economy starts drinking bamboo.
-        const iron = world.techs.researched.includes('ironworking');
+        const iron = world.players[0]!.techs.researched.includes('ironworking');
         const wants: [BuildingTypeId, number, { x: number; y: number } | null][] = [];
         const grove = nearestResource(world, TileResource.Bamboo, baseX, baseY);
         if (grove >= 0) {
@@ -120,7 +121,7 @@ describe('the campaign is winnable', () => {
         }
         wants.push(['terakoya', 1, findSpot(world, 'terakoya', baseX, baseY)]);
         // Defense before economic width: dojo the moment Bushidō lands.
-        if (world.techs.researched.includes('bushido')) {
+        if (world.players[0]!.techs.researched.includes('bushido')) {
           wants.push(['dojo', 1, findSpot(world, 'dojo', baseX, baseY)]);
         }
         wants.push(['well', 1, findSpot(world, 'well', baseX, baseY)]);
@@ -164,7 +165,7 @@ describe('the campaign is winnable', () => {
           (u) => !u.dead && u.kind === 'serf',
         ).length;
         const researchPending = researchOrder.some(
-          (id) => !world.techs.researched.includes(id),
+          (id) => !world.players[0]!.techs.researched.includes(id),
         );
         // Survival floor: below 3 serfs the economy is one raid from an
         // absorbing death spiral (no haulers -> no silver -> no hires), so
@@ -173,7 +174,7 @@ describe('the campaign is winnable', () => {
         if (serfCount < 3 && (stock.silver ?? 0) >= HIRE_SERF_COST) {
           commands.push({ kind: 'hireSerf' });
         } else if (
-          world.techs.researched.includes('bushido') &&
+          world.players[0]!.techs.researched.includes('bushido') &&
           serfCount < 8 &&
           (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? 10 : 0)
         ) {
@@ -181,8 +182,8 @@ describe('the campaign is winnable', () => {
         }
 
         // --- Research queue -------------------------------------------------
-        if (!world.techs.active) {
-          const next = researchOrder.find((id) => !world.techs.researched.includes(id));
+        if (!world.players[0]!.techs.active) {
+          const next = researchOrder.find((id) => !world.players[0]!.techs.researched.includes(id));
           if (next && has(world, 'terakoya')) {
             const cost = TECH_DEFS[next].cost;
             const ok = Object.entries(cost).every(
@@ -208,7 +209,7 @@ describe('the campaign is winnable', () => {
 
         // --- Army: rally at home until strong, then raze the camp ----------
         const army = [...world.units.values()].filter(
-          (u) => !u.dead && u.owner === 'player' && MILITARY.has(u.kind),
+          (u) => !u.dead && u.owner === 0 && MILITARY.has(u.kind),
         );
         const camp = [...world.buildings.values()].find(
           (b) => !b.dead && b.type === 'banditCamp',
@@ -237,12 +238,12 @@ describe('the campaign is winnable', () => {
         }
       }
 
-      tickWorld(world, commands);
-      if (world.outcome !== 'playing') break;
+      tickWorld(world, cmds(...commands));
+      if (world.outcome.state !== 'playing') break;
     }
 
     // The one assertion that matters.
-    expect(world.outcome, `ended at tick ${world.tick}`).toBe('won');
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: 'over', winner: 0 });
     // And it should be winnable within a reasonable session.
     expect(world.tick).toBeLessThan(45_000);
   }, 120_000);

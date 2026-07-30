@@ -8,7 +8,18 @@ import type { UnitTypeId } from './defs/units';
  */
 export type EntityId = number;
 
-export type Owner = 'player' | 'bandit';
+/**
+ * Owners are numeric: 0..MAX_PLAYERS-1 are player slots (=== the playerId in
+ * command envelopes === the index into world.players), BANDIT is the neutral
+ * raider faction. The value rides the SAB aux byte raw, so it must fit u8.
+ */
+export type Owner = number;
+export const MAX_PLAYERS = 4;
+export const BANDIT: Owner = 255;
+/** 254 is reserved for a future neutral/gaia faction. */
+export function isPlayerOwner(o: Owner): boolean {
+  return o < MAX_PLAYERS;
+}
 
 export type { BuildingTypeId };
 

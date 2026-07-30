@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { BANDIT } from './entities';
 import { tickWorld } from './tick';
 import { placeBuiltBuilding, spawnUnit, type World } from './world';
 import { COUNTER_TABLE, UNIT_DEFS } from './defs/units';
 import { checkInvariants } from './debug/invariants';
-import { addSerf, addStorehouse, bareWorld } from './testUtils';
+import { cmds, addSerf, addStorehouse, bareWorld } from './testUtils';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -21,29 +22,29 @@ describe('the counter triangle', () => {
 
   it('samurai (heavy) beats ashigaru (light) in a straight duel', () => {
     const world = bareWorld();
-    const samurai = spawnUnit(world, 'samurai', 'player', 30.5, 30.5);
-    spawnUnit(world, 'ashigaru', 'bandit', 31.5, 30.5);
+    const samurai = spawnUnit(world, 'samurai', 0, 30.5, 30.5);
+    spawnUnit(world, 'ashigaru', BANDIT, 31.5, 30.5);
     run(world, 20 * 30);
     expect(samurai.dead).toBe(false);
-    expect([...world.units.values()].filter((u) => u.owner === 'bandit')).toEqual([]);
+    expect([...world.units.values()].filter((u) => u.owner === BANDIT)).toEqual([]);
   });
 
   it('ashigaru (light) catches and kills the archer (ranged)', () => {
     const world = bareWorld();
-    const ashigaru = spawnUnit(world, 'ashigaru', 'player', 30.5, 30.5);
-    spawnUnit(world, 'archer', 'bandit', 33.5, 30.5);
+    const ashigaru = spawnUnit(world, 'ashigaru', 0, 30.5, 30.5);
+    spawnUnit(world, 'archer', BANDIT, 33.5, 30.5);
     run(world, 20 * 30);
     expect(ashigaru.dead).toBe(false);
-    expect([...world.units.values()].filter((u) => u.owner === 'bandit')).toEqual([]);
+    expect([...world.units.values()].filter((u) => u.owner === BANDIT)).toEqual([]);
   });
 
   it('archer (ranged) kites down the ronin (heavy)', () => {
     const world = bareWorld();
-    const archer = spawnUnit(world, 'archer', 'player', 30.5, 30.5);
-    spawnUnit(world, 'ronin', 'bandit', 34.5, 30.5);
+    const archer = spawnUnit(world, 'archer', 0, 30.5, 30.5);
+    spawnUnit(world, 'ronin', BANDIT, 34.5, 30.5);
     run(world, 20 * 40);
     expect(archer.dead).toBe(false);
-    expect([...world.units.values()].filter((u) => u.owner === 'bandit')).toEqual([]);
+    expect([...world.units.values()].filter((u) => u.owner === BANDIT)).toEqual([]);
   });
 });
 
@@ -51,9 +52,9 @@ describe('dojo training', () => {
   it('trains a samurai from hauled rice + katana', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { rice: 10, katana: 2 });
-    const dojo = placeBuiltBuilding(world, 'dojo', 'player', 36, 30);
+    const dojo = placeBuiltBuilding(world, 'dojo', 0, 36, 30);
     addSerf(world, 34, 34);
-    tickWorld(world, [{ kind: 'trainUnit', buildingId: dojo.id, unit: 'samurai' }]);
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: dojo.id, unit: 'samurai' }));
 
     // Samurai isn't tech-gated (only its katana chain is), so the queue fills.
     expect(dojo.trainQueue?.length).toBe(1);
@@ -66,23 +67,23 @@ describe('dojo training', () => {
   it('gates gated units until their tech lands', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { rice: 10, yumi: 2 });
-    const dojo = placeBuiltBuilding(world, 'dojo', 'player', 36, 30);
-    tickWorld(world, [{ kind: 'trainUnit', buildingId: dojo.id, unit: 'archer' }]);
+    const dojo = placeBuiltBuilding(world, 'dojo', 0, 36, 30);
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: dojo.id, unit: 'archer' }));
     expect(dojo.trainQueue ?? []).toEqual([]);
 
-    world.techs.researched.push('bushido', 'archery');
-    tickWorld(world, [{ kind: 'trainUnit', buildingId: dojo.id, unit: 'archer' }]);
+    world.players[0]!.techs.researched.push('bushido', 'archery');
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: dojo.id, unit: 'archer' }));
     expect(dojo.trainQueue?.length).toBe(1);
   });
 
   it('a stuck head does not block trainable units behind it (skip-ahead)', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { rice: 10, yari: 2 }); // yari, but no katana
-    world.techs.researched.push('bushido');
-    const dojo = placeBuiltBuilding(world, 'dojo', 'player', 36, 30);
+    world.players[0]!.techs.researched.push('bushido');
+    const dojo = placeBuiltBuilding(world, 'dojo', 0, 36, 30);
     addSerf(world, 34, 34);
-    tickWorld(world, [{ kind: 'trainUnit', buildingId: dojo.id, unit: 'samurai' }]);
-    tickWorld(world, [{ kind: 'trainUnit', buildingId: dojo.id, unit: 'ashigaru' }]);
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: dojo.id, unit: 'samurai' }));
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: dojo.id, unit: 'ashigaru' }));
     run(world, 20 * 90);
 
     // The samurai still waits for its katana; the ashigaru trained anyway.
@@ -94,10 +95,10 @@ describe('dojo training', () => {
   it('applies militaryHp modifiers at spawn', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { rice: 10, yari: 2 });
-    world.techs.researched.push('bushido', 'lamellarArmor');
-    const dojo = placeBuiltBuilding(world, 'dojo', 'player', 36, 30);
+    world.players[0]!.techs.researched.push('bushido', 'lamellarArmor');
+    const dojo = placeBuiltBuilding(world, 'dojo', 0, 36, 30);
     addSerf(world, 34, 34);
-    tickWorld(world, [{ kind: 'trainUnit', buildingId: dojo.id, unit: 'ashigaru' }]);
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: dojo.id, unit: 'ashigaru' }));
     run(world, 20 * 60);
     const ashigaru = [...world.units.values()].find((u) => u.kind === 'ashigaru');
     expect(ashigaru).toBeDefined();
@@ -109,7 +110,7 @@ describe('raids and victory', () => {
   it('spawns escalating waves that attack the storehouse', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});
-    placeBuiltBuilding(world, 'banditCamp', 'bandit', 44, 30);
+    placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
     world.raidState = { nextRaidTick: 10, wave: 0 };
     run(world, 20 * 60);
 
@@ -121,29 +122,29 @@ describe('raids and victory', () => {
   it('losing the storehouse loses the game', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});
-    placeBuiltBuilding(world, 'banditCamp', 'bandit', 44, 30);
+    placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
     sh.hp = 1;
     world.raidState = { nextRaidTick: 10, wave: 3 };
     run(world, 20 * 90);
-    expect(world.outcome).toBe('lost');
+    expect(world.outcome).toEqual({ state: 'over', winner: null });
   });
 
   it('idle soldiers auto-besiege an enemy building in acquire range', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const camp = placeBuiltBuilding(world, 'banditCamp', 'bandit', 38, 30);
+    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 38, 30);
     camp.hp = 60;
     // No orders given: standing near the camp is enough to start the siege.
-    spawnUnit(world, 'samurai', 'player', 36.5, 30.5);
+    spawnUnit(world, 'samurai', 0, 36.5, 30.5);
     run(world, 20 * 60);
-    expect(world.outcome).toBe('won');
+    expect(world.outcome).toEqual({ state: 'over', winner: 0 });
   });
 
   it('idle soldiers ignore enemy buildings beyond acquire range', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const camp = placeBuiltBuilding(world, 'banditCamp', 'bandit', 50, 30);
-    const samurai = spawnUnit(world, 'samurai', 'player', 32.5, 30.5);
+    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 50, 30);
+    const samurai = spawnUnit(world, 'samurai', 0, 32.5, 30.5);
     run(world, 20 * 10);
     expect(camp.dead).toBe(false);
     expect(samurai.x).toBeLessThan(35); // held position, no cross-map crusade
@@ -152,15 +153,15 @@ describe('raids and victory', () => {
   it('attack-ordered samurai raze the camp and win the game', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const camp = placeBuiltBuilding(world, 'banditCamp', 'bandit', 40, 30);
+    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 40, 30);
     camp.hp = 60;
     const ids: number[] = [];
-    for (let i = 0; i < 3; i++) ids.push(spawnUnit(world, 'samurai', 'player', 36.5, 29.5 + i).id);
+    for (let i = 0; i < 3; i++) ids.push(spawnUnit(world, 'samurai', 0, 36.5, 29.5 + i).id);
     // Right-click on the camp = attack order.
-    tickWorld(world, [{ kind: 'moveUnits', unitIds: ids, x: 41, y: 31 }]);
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: ids, x: 41, y: 31 }));
     run(world, 20 * 60);
 
-    expect(world.outcome).toBe('won');
+    expect(world.outcome).toEqual({ state: 'over', winner: 0 });
     // Attackers stand down instead of turning on the village.
     for (const id of ids) {
       const u = world.units.get(id);

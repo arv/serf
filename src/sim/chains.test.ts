@@ -15,7 +15,7 @@ function run(world: World, ticks: number): void {
 describe('convert chains', () => {
   it('well produces water on a pure timer', () => {
     const world = bareWorld();
-    const well = placeBuiltBuilding(world, 'well', 'player', 30, 30);
+    const well = placeBuiltBuilding(world, 'well', 0, 30, 30);
     staffBuilding(world, well);
     run(world, 20 * 13); // durationTicks = 120
     expect(well.stock.water ?? 0).toBeGreaterThan(0);
@@ -24,8 +24,8 @@ describe('convert chains', () => {
   it('paddy consumes hauled water and yields rice (well -> paddy -> storehouse)', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});
-    staffBuilding(world, placeBuiltBuilding(world, 'well', 'player', 26, 30));
-    staffBuilding(world, placeBuiltBuilding(world, 'ricePaddy', 'player', 34, 29));
+    staffBuilding(world, placeBuiltBuilding(world, 'well', 0, 26, 30));
+    staffBuilding(world, placeBuiltBuilding(world, 'ricePaddy', 0, 34, 29));
     addSerf(world, 29, 34);
     addSerf(world, 33, 34);
     const initial = countGoods(world);
@@ -38,7 +38,7 @@ describe('convert chains', () => {
 
   it('two-input recipe waits for both ingredients (brewery)', () => {
     const world = bareWorld();
-    const brewery = placeBuiltBuilding(world, 'sakeBrewery', 'player', 30, 30);
+    const brewery = placeBuiltBuilding(world, 'sakeBrewery', 0, 30, 30);
     staffBuilding(world, brewery);
     brewery.inputs.rice = 1; // no water yet
     run(world, 100);
@@ -54,7 +54,7 @@ describe('convert chains', () => {
 
   it('weapon chain: swordsmith turns iron+bamboo into katana', () => {
     const world = bareWorld();
-    const smith = placeBuiltBuilding(world, 'swordsmith', 'player', 30, 30);
+    const smith = placeBuiltBuilding(world, 'swordsmith', 0, 30, 30);
     staffBuilding(world, smith);
     smith.inputs.iron = 2;
     smith.inputs.bamboo = 1;
@@ -81,8 +81,8 @@ describe('mine placement', () => {
     const dep = tileIdx(33, 31);
     world.map.resource[dep] = TileResource.IronDep;
     world.map.resourceAmt[dep] = 10;
-    const mine = placeBuiltBuilding(world, 'ironMine', 'player', 30, 30);
-    const miner = spawnUnit(world, 'worker', 'player', 30.5, 33.5);
+    const mine = placeBuiltBuilding(world, 'ironMine', 0, 30, 30);
+    const miner = spawnUnit(world, 'worker', 0, 30.5, 33.5);
     bindWorker(mine, miner);
     run(world, 20 * 60);
 
@@ -94,7 +94,7 @@ describe('mine placement', () => {
 describe('stone-road paving', () => {
   it('paves sustained high-wear trails via stone hauls', () => {
     const world = bareWorld();
-    world.pavingUnlocked = true;
+    world.players[0]!.pavingUnlocked = true;
     addStorehouse(world, 30, 30, { stone: 10 });
     addSerf(world, 29, 34);
 
@@ -117,7 +117,7 @@ describe('stone-road paving', () => {
 
   it('does nothing while locked', () => {
     const world = bareWorld();
-    world.pavingUnlocked = false;
+    world.players[0]!.pavingUnlocked = false;
     addStorehouse(world, 30, 30, { stone: 10 });
     const idx = tileIdx(30, 36);
     world.map.pathLevel[idx] = PathLevel.Trail;

@@ -31,6 +31,8 @@ export class WorkerSimHost implements SimHost {
   #worker = new Worker(new URL('./simWorker.ts', import.meta.url), { type: 'module' });
   #structuralCb: ((msg: StructuralUpdate) => void) | null = null;
   #saveCb: ((data: string) => void) | null = null;
+  /** Seat the UI's commands are issued as (always 0 until lobbies land). */
+  playerId = 0;
 
   start(seed: number, loadData?: string): Promise<SimInit> {
     return new Promise((resolve, reject) => {
@@ -62,7 +64,12 @@ export class WorkerSimHost implements SimHost {
   }
 
   sendCommands(commands: SimCommand[]): void {
-    if (commands.length > 0) this.#post({ type: 'commands', commands });
+    if (commands.length > 0) {
+      this.#post({
+        type: 'commands',
+        commands: commands.map((cmd) => ({ playerId: this.playerId, cmd })),
+      });
+    }
   }
 
   setSpeed(speed: number): void {

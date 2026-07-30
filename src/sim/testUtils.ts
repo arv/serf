@@ -1,9 +1,12 @@
 import { TILE_COUNT } from '../shared/grid';
 import { placeBuiltBuilding, placeSite, spawnUnit, type World } from './world';
+import { makePlayer } from './player';
 import { bindWorker } from './systems/production';
+import type { SimCommand } from './commands';
+import type { PlayerCommand } from './tick';
 import type { GameMap } from './map';
 import type { GoodAmounts } from './defs/goods';
-import type { Building } from './entities';
+import type { Building, Owner } from './entities';
 import type { Unit } from './units';
 
 /** An all-grass, empty 64x64 map for deterministic logistics tests. */
@@ -20,7 +23,7 @@ export function bareMap(): GameMap {
   };
 }
 
-export function bareWorld(seed = 1): World {
+export function bareWorld(seed = 1, playerCount = 1): World {
   return {
     tick: 0,
     rngState: seed,
@@ -32,41 +35,57 @@ export function bareWorld(seed = 1): World {
     nextJobId: 1,
     ledger: { produced: {}, consumed: {} },
     pendingDeltas: [],
-    pavingUnlocked: false, // paving tests opt in explicitly
-    techs: { researched: [], festivalTicksLeft: 0 },
+    players: Array.from({ length: playerCount }, (_, i) => makePlayer(i, 'human', seed)),
     raidState: { nextRaidTick: Number.MAX_SAFE_INTEGER, wave: 0 }, // raids opt in
-    admin: { raidsEnabled: true, instantBuild: false },
+    admin: { enabled: true, raidsEnabled: true, instantBuild: false },
     pendingEvents: [],
-    outcome: 'playing',
+    outcome: { state: 'playing' },
   };
 }
 
-export function addStorehouse(world: World, x: number, y: number, stock: GoodAmounts): Building {
-  const b = placeBuiltBuilding(world, 'storehouse', 'player', x, y);
+/** Wrap bare SimCommands as player-0 envelopes (the common test case). */
+export function cmds(...commands: SimCommand[]): PlayerCommand[] {
+  return commands.map((cmd) => ({ playerId: 0, cmd }));
+}
+
+export function addStorehouse(
+  world: World,
+  x: number,
+  y: number,
+  stock: GoodAmounts,
+  owner: Owner = 0,
+): Building {
+  const b = placeBuiltBuilding(world, 'storehouse', owner, x, y);
   b.stock = { ...stock };
   return b;
 }
 
-export function addBuiltHut(world: World, x: number, y: number, withWorker = true): Building {
-  const b = placeBuiltBuilding(world, 'bambooHut', 'player', x, y);
+export function addBuiltHut(
+  world: World,
+  x: number,
+  y: number,
+  withWorker = true,
+  owner: Owner = 0,
+): Building {
+  const b = placeBuiltBuilding(world, 'bambooHut', owner, x, y);
   if (withWorker) {
-    const worker = spawnUnit(world, 'worker', 'player', x + 0.5, y + b.h + 0.5);
+    const worker = spawnUnit(world, 'worker', owner, x + 0.5, y + b.h + 0.5);
     bindWorker(b, worker);
   }
   return b;
 }
 
-export function addSite(world: World, x: number, y: number): Building {
-  return placeSite(world, 'bambooHut', 'player', x, y);
+export function addSite(world: World, x: number, y: number, owner: Owner = 0): Building {
+  return placeSite(world, 'bambooHut', owner, x, y);
 }
 
-export function addSerf(world: World, x: number, y: number): Unit {
-  return spawnUnit(world, 'serf', 'player', x + 0.5, y + 0.5);
+export function addSerf(world: World, x: number, y: number, owner: Owner = 0): Unit {
+  return spawnUnit(world, 'serf', owner, x + 0.5, y + 0.5);
 }
 
 /** Staff a building directly (tests that don't exercise recruitment). */
 export function staffBuilding(world: World, b: Building): Unit {
-  const worker = spawnUnit(world, 'worker', 'player', b.x + b.w / 2, b.y + b.h + 0.5);
+  const worker = spawnUnit(world, 'worker', b.owner, b.x + b.w / 2, b.y + b.h + 0.5);
   bindWorker(b, worker);
   return worker;
 }

@@ -1,8 +1,8 @@
-import type { SimCommand } from '../sim/commands';
 import type { EntityId, Owner } from '../sim/entities';
 import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { TechId } from '../sim/defs/techs';
+import type { PlayerCommand } from '../sim/tick';
 import type { GameEvent, MapDelta } from '../sim/world';
 
 /** Tech-tree state for the UI. */
@@ -13,6 +13,18 @@ export interface TechSnap {
   pavingUnlocked: boolean;
   hasTerakoya: boolean;
 }
+
+/** Per-player faction block; the main thread picks its own by myPlayerId. */
+export interface PlayerSnap {
+  id: Owner;
+  kind: 'human' | 'ai';
+  alive: boolean;
+  /** This player's storehouse stock ({} once eliminated). */
+  stock: GoodAmounts;
+  techs: TechSnap;
+}
+
+export type OutcomeSnap = { state: 'playing' } | { state: 'over'; winner: Owner | null };
 
 /** Serializable snapshot of a building for the main thread's mirror. */
 export interface BuildingSnap {
@@ -63,26 +75,25 @@ export interface MapSnapshot {
 
 export type MainToWorker =
   | { type: 'init'; seed: number; loadData?: string }
-  | { type: 'commands'; commands: SimCommand[] }
+  | { type: 'commands'; commands: PlayerCommand[] }
   | { type: 'setSpeed'; speed: number }
   | { type: 'requestSave' };
 
 /**
  * Low-frequency structural state (every 5 ticks / on change): building
- * mirror, map deltas, HUD stock, debug info. The hot per-tick unit state
- * rides the SharedArrayBuffer instead.
+ * mirror, map deltas, per-player faction blocks, debug info. The hot
+ * per-tick unit state rides the SharedArrayBuffer instead.
  */
 export interface StructuralUpdate {
   type: 'structural';
   tick: number;
   buildings: BuildingSnap[];
   mapDeltas: MapDelta[];
-  /** Storehouse stock (the HUD's resource bar). */
-  stock: GoodAmounts;
-  techs: TechSnap;
-  admin: { raidsEnabled: boolean; instantBuild: boolean };
+  /** One block per seat; the main thread reads its own via myPlayerId. */
+  players: PlayerSnap[];
+  admin: { enabled: boolean; raidsEnabled: boolean; instantBuild: boolean };
   events: GameEvent[];
-  outcome: 'playing' | 'won' | 'lost';
+  outcome: OutcomeSnap;
   jobs: JobSnap[];
   invariantViolations: string[];
 }

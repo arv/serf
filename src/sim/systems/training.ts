@@ -33,7 +33,7 @@ export function trainingSystem(world: World): void {
       b.trainQueue.shift();
       const door = doorOf(world, b);
       const unit = spawnUnit(world, head.unit, b.owner, door.x, door.y);
-      unit.hp = Math.round(UNIT_DEFS[head.unit].hp * getModifier(world, 'militaryHp'));
+      unit.hp = Math.round(UNIT_DEFS[head.unit].hp * getModifier(world, b.owner, 'militaryHp'));
     }
   }
 }
@@ -58,7 +58,7 @@ export function enqueueTraining(world: World, b: Building, unit: string): void {
   const def = buildingDef(b.type);
   const option = def.trains?.find((o) => o.unit === unit);
   if (!option || b.state !== 'built' || b.dead) return;
-  if (!isUnitUnlocked(world, option.unit)) return;
+  if (!isUnitUnlocked(world, b.owner, option.unit)) return;
   b.trainQueue ??= [];
   if (b.trainQueue.length >= TRAIN_QUEUE_CAP) return;
   b.trainQueue.push({ unit: option.unit, ticksLeft: 0, started: false });

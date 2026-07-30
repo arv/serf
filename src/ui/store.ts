@@ -9,7 +9,7 @@ if (import.meta.hot) {
 }
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { BuildingTypeId } from '../sim/defs/buildings';
-import type { BuildingSnap, JobSnap, TechSnap } from '../protocol/messages';
+import type { BuildingSnap, JobSnap, OutcomeSnap, PlayerSnap, TechSnap } from '../protocol/messages';
 
 /**
  * Main-thread UI state. Worker structural updates write into this; Solid
@@ -17,6 +17,14 @@ import type { BuildingSnap, JobSnap, TechSnap } from '../protocol/messages';
  */
 export const [speed, setSpeed] = createSignal(1);
 export const [selection, setSelection] = createSignal<ReadonlySet<number>>(new Set());
+
+/** The seat this client plays (0 until lobbies land). Everything the HUD
+ * shows — stock, techs, outcome copy, selection filters — is this player's
+ * perspective. */
+export const [myPlayerId, setMyPlayerId] = createSignal(0);
+
+/** All seats' faction blocks (for elimination toasts, future score UI). */
+export const [playersMeta, setPlayersMeta] = createSignal<PlayerSnap[]>([]);
 
 /** Storehouse stock — the HUD resource bar. */
 export const [stock, setStock] = createSignal<GoodAmounts>({});
@@ -51,11 +59,12 @@ export function pushToast(text: string): void {
   setTimeout(() => setToasts(toasts().filter((t) => t.id !== id)), 8000);
 }
 
-/** Game outcome (drives the end screen). */
-export const [outcome, setOutcome] = createSignal<'playing' | 'won' | 'lost'>('playing');
+/** Match outcome (drives the end screen). */
+export const [outcome, setOutcome] = createSignal<OutcomeSnap>({ state: 'playing' });
 
 /** Sandbox switches, mirrored from the sim (?admin panel). */
 export const [adminState, setAdminState] = createSignal({
+  enabled: true,
   raidsEnabled: true,
   instantBuild: false,
 });

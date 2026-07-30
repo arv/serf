@@ -14,9 +14,11 @@ import {
   debugJobs,
   debugOpen,
   invariantViolations,
+  myPlayerId,
   openPanel,
   outcome,
   placing,
+  playersMeta,
   setOpenPanel,
   setTechPanelOpen,
   speed,
@@ -64,6 +66,11 @@ export function Hud(props: {
   const unlocked = (type: BuildingTypeId): boolean => {
     const req = BUILDING_DEFS[type].requiresTech;
     return req === undefined || techs().researched.includes(req);
+  };
+  const soloMode = (): boolean => playersMeta().length <= 1;
+  const won = (): boolean => {
+    const o = outcome();
+    return o.state === 'over' && o.winner === myPlayerId();
   };
 
   return (
@@ -475,13 +482,15 @@ export function Hud(props: {
         <For each={toasts()}>{(t) => <div class="panel toast">{t.text}</div>}</For>
       </div>
 
-      <Show when={outcome() !== 'playing'}>
+      <Show when={outcome().state === 'over'}>
         <div class="hud-end">
           <div class="panel end-card">
-            <h1>{outcome() === 'won' ? 'Victory' : 'Defeat'}</h1>
+            <h1>{won() ? 'Victory' : 'Defeat'}</h1>
             <p>
-              {outcome() === 'won'
-                ? 'The bandit camp lies in ruins. The valley is yours.'
+              {won()
+                ? soloMode()
+                  ? 'The bandit camp lies in ruins. The valley is yours.'
+                  : 'The last rival banner has fallen. The valley is yours.'
                 : 'The storehouse has fallen. The village scatters to the winds.'}
             </p>
             <button
