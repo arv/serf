@@ -112,6 +112,25 @@ interface Overlay {
   remove(): void;
 }
 
+/**
+ * Hand the invite link over by whatever route this device offers: the
+ * native share sheet on phones, the clipboard everywhere else. The
+ * clipboard is always available here — SharedArrayBuffer already forces
+ * cross-origin isolation, so the page is necessarily a secure context.
+ */
+async function shareInvite(url: string): Promise<'shared' | 'copied'> {
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ title: 'Serf', text: 'Join my match', url });
+      return 'shared';
+    } catch {
+      // Dismissed, or this payload is unshareable — fall through to copying.
+    }
+  }
+  await navigator.clipboard.writeText(url);
+  return 'copied';
+}
+
 function makeOverlay(): Overlay {
   const el = document.createElement('div');
   el.style.cssText =
@@ -129,15 +148,31 @@ function makeOverlay(): Overlay {
             }</li>`,
         )
         .join('');
+      // The code alone makes the other player retype it; the link is the
+      // thing you actually paste into a chat window.
+      const invite = `${location.origin}${location.pathname}?mp=${room.code}`;
       el.innerHTML =
         `<div><h1>War Council</h1>` +
         `<p>Room code: <strong style="font-size:1.6em;letter-spacing:0.2em">${room.code}</strong></p>` +
+        `<p><button id="lobby-copy" style="font:inherit;padding:6px 14px">` +
+        `Copy invite link</button></p>` +
         `<ul style="list-style:none;padding:0">${seatRows}</ul>` +
         (isHost
           ? `<button id="lobby-start" style="font-size:1.2em;padding:8px 24px">Begin the match</button>`
           : `<p>Waiting for the host…</p>`) +
         `</div>`;
       document.getElementById('lobby-start')?.addEventListener('click', onStart);
+
+      const copyBtn = document.getElementById('lobby-copy');
+      copyBtn?.addEventListener('click', () => {
+        void shareInvite(invite).then((how) => {
+          if (how === 'shared') return; // the share sheet is its own feedback
+          copyBtn.textContent = 'Copied!';
+          setTimeout(() => {
+            copyBtn.textContent = 'Copy invite link';
+          }, 1600);
+        });
+      });
     },
     remove() {
       el.remove();
