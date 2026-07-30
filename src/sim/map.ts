@@ -398,43 +398,54 @@ function computeTerrain(map: GameMap, seed: number, starts: readonly StartSpot[]
     if (map.terrain[i] === Terrain.Grass && !reached[i]) map.terrain[i] = Terrain.Water;
   }
 
-  // 4-neighbor BFS distance (in tiles) to the nearest water tile, for
-  // banks that dive toward the waterline.
-  const dist = new Float32Array(TILE_COUNT).fill(99);
-  const queue: number[] = [];
-  for (let i = 0; i < TILE_COUNT; i++) {
-    if (map.terrain[i] === Terrain.Water) {
-      dist[i] = 0;
-      queue.push(i);
-    }
-  }
-  for (let head = 0; head < queue.length; head++) {
-    const i = queue[head]!;
-    const x = i % MAP_SIZE;
-    const y = (i / MAP_SIZE) | 0;
-    const d = dist[i]! + 1;
-    if (d > 6) continue;
-    for (const [nx, ny] of [
-      [x - 1, y],
-      [x + 1, y],
-      [x, y - 1],
-      [x, y + 1],
-    ] as const) {
-      if (!inBounds(nx, ny)) continue;
-      const n = tileIdx(nx, ny);
-      if (d < dist[n]!) {
-        dist[n] = d;
-        queue.push(n);
+  // 4-neighbor BFS distances (in tiles): to the nearest water tile, for
+  // banks that dive toward the waterline, and to the nearest land tile,
+  // for beds that shelve. Both are capped — past a few tiles the shaping
+  // has already saturated.
+  const bfs = (seedKind: number): Float32Array => {
+    const dist = new Float32Array(TILE_COUNT).fill(99);
+    const queue: number[] = [];
+    for (let i = 0; i < TILE_COUNT; i++) {
+      if (map.terrain[i] === seedKind) {
+        dist[i] = 0;
+        queue.push(i);
       }
     }
-  }
+    for (let head = 0; head < queue.length; head++) {
+      const i = queue[head]!;
+      const x = i % MAP_SIZE;
+      const y = (i / MAP_SIZE) | 0;
+      const d = dist[i]! + 1;
+      if (d > 6) continue;
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ] as const) {
+        if (!inBounds(nx, ny)) continue;
+        const n = tileIdx(nx, ny);
+        if (d < dist[n]!) {
+          dist[n] = d;
+          queue.push(n);
+        }
+      }
+    }
+    return dist;
+  };
+  const dist = bfs(Terrain.Water);
+  const landDist = bfs(Terrain.Grass);
 
   for (let i = 0; i < TILE_COUNT; i++) {
     const x = i % MAP_SIZE;
     const y = (i / MAP_SIZE) | 0;
     if (map.terrain[i] === Terrain.Water) {
-      // Bed drops below the waterline, deeper away from shore.
-      map.height[i] = -0.85 - valueNoise(seed + 2, x, y, 5) * 0.5;
+      // Beds shelve: barely under the surface at the margins, plunging to
+      // full depth a few tiles out. A flat bed gives the renderer nothing
+      // to grade, and every lake reads as one solid slab of color.
+      const shelf = Math.min(landDist[i]! / 2.2, 1);
+      const ease = shelf * shelf * (3 - 2 * shelf);
+      map.height[i] = -0.34 - ease * 0.95 - valueNoise(seed + 2, x, y, 5) * 0.22;
     } else {
       // Power curve exaggerates the extremes: lowlands stay gentle,
       // ridges climb steeply into peaks.

@@ -9,6 +9,7 @@ import { SceneSync } from '../render/sceneSync';
 import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
 import { GhostPlacement } from '../render/ghost';
+import { FogOfWar } from '../render/fogOfWar';
 import { loadCharacterAssets } from '../render/characters';
 import { THEME, loadMedievalAssets } from '../render/medieval';
 
@@ -32,6 +33,7 @@ import {
   setStock,
   setTechs,
   speed,
+  fogEnabled,
 } from '../ui/store';
 import { WorldMirror } from './mirror';
 import { WorkerSimHost, type AiPortHandle } from './simHost';
@@ -149,19 +151,25 @@ async function boot(): Promise<void> {
   renderer.scene.add(scatter.group);
   const grass = new GrassField(init.map, heights);
   renderer.scene.add(grass.mesh);
-  const water = new WaterMesh();
+  const water = new WaterMesh(init.map);
   renderer.scene.add(water.mesh);
   const mist = new Mist(init.map);
   renderer.scene.add(mist.group);
 
-  const buildingSync = new BuildingSync(renderer.scene, heights);
+  const buildingSync = new BuildingSync(renderer.scene, heights, config.myPlayerId);
   buildingSync.update(init.buildings);
 
-  const sync = new SceneSync(renderer.scene, init.reader, heights);
+  const sync = new SceneSync(renderer.scene, init.reader, heights, config.myPlayerId);
   // Where the well cranks are: drawing serfs stand beside them and their
   // hand is IK-glued to the grip.
   const feedWells = (): void => sync.setWells(buildingSync.wellCranks());
   feedWells();
+  const fog = new FogOfWar(config.myPlayerId);
+  sync.setFog(fog);
+  buildingSync.setFog(fog);
+  // Latest building roster, for the fog's sight sources.
+  let roster = init.buildings;
+
   const selectionFx = new SelectionFx(renderer.scene, heights);
   const ghost = new GhostPlacement(renderer.scene, heights, config.myPlayerId);
   const controls = new Controls(canvas, renderer.rig.camera, sync, host, mirror, ghost, heights);
@@ -181,6 +189,7 @@ async function boot(): Promise<void> {
     if (changes.refreshAll) scatter.resyncAll(mirror.map);
     if (changes.repaint) terrain.repaintAll();
     buildingSync.update(msg.buildings);
+    roster = msg.buildings;
     feedWells();
     const mine = msg.players[myPlayerId()];
     if (mine) {
@@ -214,8 +223,14 @@ async function boot(): Promise<void> {
   sync.cameraQuaternion = renderer.rig.camera.quaternion;
   buildingSync.cameraQuaternion = renderer.rig.camera.quaternion;
 
+  let fogLast = performance.now();
   function loop(): void {
     const now = performance.now();
+    // Fog first: the entity syncs below ask it what may be drawn, so it
+    // has to reflect this frame's positions, not the last one's.
+    fog.setEnabled(fogEnabled());
+    fog.update(Math.min((now - fogLast) / 1000, 0.25), init.reader, roster, renderer.scene);
+    fogLast = now;
     sync.update(now, controls.hoverUnit, controls.selected, speed() === 0);
     buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
     controls.prune();

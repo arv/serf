@@ -5,6 +5,7 @@ import { mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
+import type { FogQuery } from './fogOfWar';
 import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
 
@@ -44,11 +45,11 @@ function makeHpBar(
   const group = new THREE.Group();
   const bg = new THREE.Mesh(
     new THREE.PlaneGeometry(HP_BAR_W, 0.13),
-    new THREE.MeshBasicMaterial({ color: 0x140f0a, depthTest: false }),
+    new THREE.MeshBasicMaterial({ color: 0x140f0a, depthTest: false, userData: { noFog: true } }),
   );
   const fg = new THREE.Mesh(
     new THREE.PlaneGeometry(HP_BAR_W - 0.06, 0.07),
-    new THREE.MeshBasicMaterial({ color: 0x3faf46, depthTest: false }),
+    new THREE.MeshBasicMaterial({ color: 0x3faf46, depthTest: false, userData: { noFog: true } }),
   );
   bg.renderOrder = 90;
   fg.renderOrder = 91;
@@ -68,13 +69,22 @@ function makeHpBar(
 export class BuildingSync {
   #scene: THREE.Scene;
   #heights: HeightField;
+  /** Seat viewing the scene — everyone else is an enemy to the fog. */
+  #owner: number;
   #visuals = new Map<number, BuildingVisual>();
   /** Fixed camera orientation for screen-parallel hp bars (set at boot). */
   cameraQuaternion: THREE.Quaternion | null = null;
+  /** Fog test; enemy buildings hide until their ground has been explored. */
+  #fog: FogQuery | null = null;
 
-  constructor(scene: THREE.Scene, heights: HeightField) {
+  setFog(fog: FogQuery): void {
+    this.#fog = fog;
+  }
+
+  constructor(scene: THREE.Scene, heights: HeightField, owner = 0) {
     this.#scene = scene;
     this.#heights = heights;
+    this.#owner = owner;
   }
 
   update(buildings: BuildingSnap[]): void {
@@ -99,6 +109,13 @@ export class BuildingSync {
         } else {
           v.model.scale.setScalar(0.22 + 0.78 * p);
         }
+      }
+
+      // Enemy buildings are remembered: once you have seen a camp it stays
+      // on the map even when the light moves off it, because it is not
+      // going anywhere. (Units get the opposite rule — see sceneSync.)
+      if (this.#fog && b.owner !== this.#owner) {
+        v.root.visible = this.#fog.exploredAt(b.x + b.w / 2, b.y + b.h / 2);
       }
 
       v.staffed = b.staffing === 'staffed';

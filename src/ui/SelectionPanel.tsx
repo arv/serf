@@ -1,6 +1,12 @@
 import { For, Show } from 'solid-js';
 import { BUILDING_DEFS } from '../sim/defs/buildings';
 import { TECH_DEFS, type TechId } from '../sim/defs/techs';
+import {
+  HIRE_QUEUE_CAP,
+  HIRE_SERF_COST,
+  HIRE_SERF_TICKS,
+  TICKS_PER_SECOND,
+} from '../sim/defs/balance';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
@@ -127,14 +133,41 @@ export function SelectionPanel(props: {
                     tip={() => (
                       <TextTip
                         title="Hire Serf"
-                        body="Another pair of hands joins the village to haul goods and build. Costs 5 silver."
+                        body={`Word goes out to the next village; the recruit walks in after about ${Math.round(
+                          HIRE_SERF_TICKS / TICKS_PER_SECOND,
+                        )} seconds. Costs ${HIRE_SERF_COST} silver, paid when you order.`}
                       />
                     )}
                   >
-                    <button disabled={(stock().silver ?? 0) < 5} onClick={() => props.onHire()}>
-                      Hire Serf
-                      <span class="cost">
-                        <GoodIcon good="silver" size={12} />5
+                    <button
+                      disabled={
+                        (stock().silver ?? 0) < HIRE_SERF_COST ||
+                        (b().hireQueue ?? 0) >= HIRE_QUEUE_CAP
+                      }
+                      onClick={() => props.onHire()}
+                      style={{ position: 'relative', overflow: 'hidden' }}
+                    >
+                      {/* The recruit's walk, filling the button left to right. */}
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          position: 'absolute',
+                          inset: '0 auto 0 0',
+                          width: `${(b().hireQueue ? (b().hireProgress01 ?? 0) : 0) * 100}%`,
+                          background: 'rgba(229, 196, 105, 0.3)',
+                          'pointer-events': 'none',
+                        }}
+                      />
+                      <span style={{ position: 'relative' }}>
+                        Hire Serf
+                        <Show when={(b().hireQueue ?? 0) > 1}>
+                          {' '}
+                          ×{b().hireQueue}
+                        </Show>
+                      </span>
+                      <span class="cost" style={{ position: 'relative' }}>
+                        <GoodIcon good="silver" size={12} />
+                        {HIRE_SERF_COST}
                       </span>
                     </button>
                   </TipWrap>
@@ -195,7 +228,9 @@ export function SelectionPanel(props: {
         }}
       </Show>
       <Show when={!selectedBuilding() && selection().size > 0}>
-        <div class="hud-selection panel">{selection().size} unit(s) selected</div>
+        <div class="hud-selection panel">
+          {selection().size} {selection().size === 1 ? 'unit' : 'units'} selected
+        </div>
       </Show>
     </>
   );

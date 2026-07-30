@@ -62,6 +62,11 @@ export interface Building {
   prodTicksLeft?: number;
   /** Military training queue (dojo). */
   trainQueue?: { unit: UnitTypeId; ticksLeft: number; started: boolean }[];
+  /** Paid-for serf hires still on their way in (storehouse), and the ticks
+   * left on the one at the front. Silver is taken when the order is
+   * placed, so a cancelled game or a razed storehouse cannot refund it. */
+  hireQueue?: number;
+  hireTicksLeft?: number;
   /** When to respawn a lost resident worker. */
   workerRespawnAt?: number;
   dead: boolean;

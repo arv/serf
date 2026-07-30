@@ -3,10 +3,10 @@ import { tileIdx } from '../shared/grid';
 import { tickWorld } from './tick';
 import { PathLevel, TileResource } from './map';
 import { canPlace, placeBuiltBuilding, spawnUnit, type World } from './world';
-import { PAVE_WEAR_THRESHOLD } from './defs/balance';
+import { HIRE_SERF_COST, HIRE_SERF_TICKS, PAVE_WEAR_THRESHOLD } from './defs/balance';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants';
 import { bindWorker } from './systems/production';
-import { addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils';
+import { addSerf, addStorehouse, bareWorld, cmds, staffBuilding } from './testUtils';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -126,5 +126,51 @@ describe('stone-road paving', () => {
       tickWorld(world, []);
     }
     expect(world.map.pathLevel[idx]).toBe(PathLevel.Trail);
+  });
+});
+
+describe('hiring a serf', () => {
+  const serfCount = (world: World): number =>
+    [...world.units.values()].filter((u) => !u.dead && u.kind === 'serf').length;
+
+  it('charges up front and delivers the recruit after the wait', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, { silver: 10 });
+    tickWorld(world, cmds({ kind: 'hireSerf' }));
+
+    // Paid immediately, but nobody has walked in yet.
+    expect(sh.stock.silver).toBe(10 - HIRE_SERF_COST);
+    expect(sh.hireQueue).toBe(1);
+    expect(serfCount(world)).toBe(0);
+
+    for (let t = 0; t < HIRE_SERF_TICKS - 2; t++) tickWorld(world, []);
+    expect(serfCount(world)).toBe(0);
+
+    for (let t = 0; t < 3; t++) tickWorld(world, []);
+    expect(serfCount(world)).toBe(1);
+    expect(sh.hireQueue).toBe(0);
+  });
+
+  it('queues repeat orders and staggers their arrivals', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, { silver: 20 });
+    tickWorld(world, cmds({ kind: 'hireSerf' }, { kind: 'hireSerf' }));
+    expect(sh.hireQueue).toBe(2);
+    expect(sh.stock.silver).toBe(20 - HIRE_SERF_COST * 2);
+
+    for (let t = 0; t < HIRE_SERF_TICKS + 1; t++) tickWorld(world, []);
+    expect(serfCount(world)).toBe(1); // the second is still on the road
+
+    for (let t = 0; t < HIRE_SERF_TICKS + 1; t++) tickWorld(world, []);
+    expect(serfCount(world)).toBe(2);
+    expect(sh.hireQueue).toBe(0);
+  });
+
+  it('refuses orders it cannot afford, and never charges for them', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, { silver: HIRE_SERF_COST - 1 });
+    tickWorld(world, cmds({ kind: 'hireSerf' }));
+    expect(sh.hireQueue).toBeUndefined();
+    expect(sh.stock.silver).toBe(HIRE_SERF_COST - 1);
   });
 });

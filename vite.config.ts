@@ -8,9 +8,9 @@ const crossOriginIsolation = {
   'Cross-Origin-Embedder-Policy': 'require-corp',
 };
 
-// Take whatever port the environment assigns (several dev servers share
-// this repo — worktrees, the relay, other sessions); vite's default when
-// nothing is set.
+// Honor PORT so several checkouts (worktrees) can run dev servers side by
+// side without fighting over one hardcoded port. An explicit --port still
+// wins, and without either we fall through to Vite's own default.
 const port = process.env.PORT ? Number(process.env.PORT) : undefined;
 
 export default defineConfig({

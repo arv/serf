@@ -1,7 +1,7 @@
 import { RAID_CAP, RAID_INTERVAL } from '../defs/balance';
 import { type UnitTypeId } from '../defs/units';
 import { BANDIT, isPlayerOwner, type Building } from '../entities';
-import { spawnUnit, type World } from '../world';
+import { spawnUnitNearby, type World } from '../world';
 import { Rng } from '../../shared/rng';
 
 /**
@@ -32,7 +32,7 @@ export function banditsSystem(world: World, rng: Rng): void {
 
   for (let i = 0; i < roster.length; i++) {
     const kind = roster[i]!;
-    const unit = spawnUnit(
+    const unit = spawnUnitNearby(
       world,
       kind,
       BANDIT,

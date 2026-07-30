@@ -77,6 +77,16 @@ export const [adminState, setAdminState] = createSignal({
   instantBuild: false,
 });
 
+/**
+ * Fog of war. Unlike the switches above this one never reaches the sim:
+ * fog is a view over the world, not part of it, so it stays a client
+ * signal — nothing to keep deterministic, nothing to save. ?nofog starts
+ * it off.
+ */
+export const [fogEnabled, setFogEnabled] = createSignal(
+  !new URLSearchParams(location.search).has('nofog'),
+);
+
 /** Debug overlay (backquote). */
 export const [debugOpen, setDebugOpen] = createSignal(false);
 export const [debugJobs, setDebugJobs] = createSignal<JobSnap[]>([]);

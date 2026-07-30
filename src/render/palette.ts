@@ -14,6 +14,7 @@ const japan = {
   grassDark: 0x2e5a1c, // shaded lush grass
   water: 0x1d4a56, // dark moody teal
   waterShore: 0x3d7482,
+  waterDeep: 0x0d2531, // the middle of the lake
   earthTrail: 0x9b7d4e, // worn dirt
   stoneRoad: 0x8f8878, // pavers
   // Terrain painting: meadow hue range + bank/bed tones
@@ -65,7 +66,8 @@ const medieval: Palette = {
   grassDry: 0x8ba342,
   grassDark: 0x357522,
   water: 0x2f7e96,
-  waterShore: 0x5fa8b4,
+  waterShore: 0x58aec0,
+  waterDeep: 0x14526e,
   grassLush: 0x5bb02f,
   grassOlive: 0x7a9e44,
   grassGold: 0xaaa04e,

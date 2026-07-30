@@ -14,6 +14,7 @@ import { FIRST_RAID_TICK, START_SERFS, START_STOCK } from './defs/balance';
 import { UNIT_DEFS } from './defs/units';
 import { buildingDef, type BuildingTypeId } from './defs/buildings';
 import { makeUnit, type Unit } from './units';
+import { nearestWalkable } from './path';
 import type { GoodAmounts, GoodId } from './defs/goods';
 import type { TechId } from './defs/techs';
 import { BANDIT, type Building, type EntityId, type Owner } from './entities';
@@ -227,7 +228,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
             const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, cx + dx, cy + dy);
             // Standing guards defend the camp (auto-acquire handles the rest).
             for (let g = 0; g < 3; g++) {
-              spawnUnit(world, 'bandit', BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
+              spawnUnitNearby(world, 'bandit', BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
             }
             break outer;
           }
@@ -260,6 +261,29 @@ export function spawnUnit(
   const unit = makeUnit(world.nextId++, kind, owner, x, y, UNIT_DEFS[kind].hp);
   world.units.set(unit.id, unit);
   return unit;
+}
+
+/**
+ * Spawn on dry, walkable ground: the requested spot if it is clear, else the
+ * nearest tile that is. Lakes and mountains can sit right where a camp wants
+ * to muster its raiders, and a unit dropped on water wades in place forever
+ * (the grid it paths on says that tile is blocked).
+ */
+export function spawnUnitNearby(
+  world: World,
+  kind: keyof typeof UNIT_DEFS,
+  owner: Owner,
+  x: number,
+  y: number,
+): Unit {
+  const tx = Math.floor(x);
+  const ty = Math.floor(y);
+  if (inBounds(tx, ty) && !world.map.blocked[tileIdx(tx, ty)]) {
+    return spawnUnit(world, kind, owner, x, y);
+  }
+  const idx = nearestWalkable(world.map, tx, ty, 8);
+  if (idx < 0) return spawnUnit(world, kind, owner, x, y); // nowhere dry nearby
+  return spawnUnit(world, kind, owner, (idx % MAP_SIZE) + 0.5, Math.floor(idx / MAP_SIZE) + 0.5);
 }
 
 function makeBuildingRecord(
