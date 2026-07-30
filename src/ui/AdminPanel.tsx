@@ -1,11 +1,12 @@
 import type { AdminAction } from '../sim/commands';
 import { TextTip, tooltip } from './tooltip';
-import { adminState, techs } from './store';
+import { adminState, fogEnabled, setFogEnabled, techs } from './store';
 
 /**
  * Sandbox controls for tweaking the game, shown only with ?admin in the URL.
- * Every button is an ordinary sim command, so effects are saved like
- * everything else.
+ * Nearly every button is an ordinary sim command, so effects are saved like
+ * everything else; fog of war is the exception, being a view over the world
+ * rather than part of it (see the store).
  */
 export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
   return (
@@ -63,6 +64,19 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
       >
         Instant build: <span class={adminState().instantBuild ? 'on' : 'off'}>
           {adminState().instantBuild ? 'on' : 'off'}
+        </span>
+      </button>
+      <button
+        {...tooltip(() => (
+          <TextTip
+            title="Fog of war"
+            body="Off reveals the whole map. Render-only — what you have explored is remembered while it is off."
+          />
+        ))}
+        onClick={() => setFogEnabled(!fogEnabled())}
+      >
+        Fog of war: <span class={fogEnabled() ? 'on' : 'off'}>
+          {fogEnabled() ? 'on' : 'off'}
         </span>
       </button>
       <button

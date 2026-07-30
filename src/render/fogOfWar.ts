@@ -4,9 +4,6 @@ import { AUX_STRIDE, ACTION, type SabReader } from '../protocol/sabLayout';
 import { OWNER_CODE } from '../sim/defs/units';
 import type { BuildingSnap } from '../protocol/messages';
 
-/** Disable the whole layer with ?nofog — handy when eyeballing the map. */
-export const FOG_ENABLED = !new URLSearchParams(location.search).has('nofog');
-
 /** How far each thing sees, in tiles. */
 const UNIT_SIGHT = 6.5;
 const BUILDING_SIGHT = 5.5;
@@ -63,6 +60,23 @@ export class FogOfWar implements FogQuery {
   #uniforms: { uFogTex: { value: THREE.Texture }; uFogSize: { value: number } };
   #patched = new WeakSet<THREE.Material>();
   #accum = 0;
+  #enabled = true;
+
+  /**
+   * Turn the layer on or off. Off lights the whole map rather than
+   * unpatching materials, so toggling costs one texture write and the
+   * remembered ground is still there when it comes back on.
+   */
+  setEnabled(on: boolean): void {
+    if (on === this.#enabled) return;
+    this.#enabled = on;
+    if (on) {
+      this.#accum = Infinity; // recompute on the next update, no wait
+    } else {
+      this.#bytes.fill(255);
+      this.#texture.needsUpdate = true;
+    }
+  }
 
   constructor() {
     this.#texture = new THREE.DataTexture(this.#bytes, MAP_SIZE, MAP_SIZE);
@@ -88,11 +102,11 @@ export class FogOfWar implements FogQuery {
   }
 
   visibleAt(x: number, z: number): boolean {
-    return !FOG_ENABLED || this.#at(this.#vis, x, z) > SEEN;
+    return !this.#enabled || this.#at(this.#vis, x, z) > SEEN;
   }
 
   exploredAt(x: number, z: number): boolean {
-    return !FOG_ENABLED || this.#at(this.#explored, x, z) > SEEN;
+    return !this.#enabled || this.#at(this.#explored, x, z) > SEEN;
   }
 
   /** Stamp one sight circle into the target mask. */
@@ -122,8 +136,10 @@ export class FogOfWar implements FogQuery {
    * smoothing hides the difference.
    */
   update(dt: number, reader: SabReader, buildings: BuildingSnap[], scene: THREE.Scene): void {
-    if (!FOG_ENABLED) return;
+    // Patch even while disabled: materials created during a fog-off
+    // stretch must still be ready for it being switched back on.
     this.#patchNewMaterials(scene);
+    if (!this.#enabled) return;
 
     this.#accum += dt;
     if (this.#accum < 1 / 12) return;
