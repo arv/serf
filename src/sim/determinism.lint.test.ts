@@ -1,5 +1,3 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -11,29 +9,19 @@ import { describe, expect, it } from 'vitest';
  */
 const BANNED =
   /Math\.(hypot|pow|sin|cos|tan|atan2?|asin|acos|exp|log2?|log10|log1p|cbrt|sinh|cosh|tanh|random)\b|Date\.now|performance\.now/;
-const EXEMPT = new Set(['map.ts']);
+const EXEMPT = ['/map.ts'];
 
-function tsFilesUnder(dir: string): string[] {
-  const out: string[] = [];
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) out.push(...tsFilesUnder(p));
-    else if (name.endsWith('.ts') && !name.endsWith('.test.ts')) out.push(p);
-  }
-  return out;
-}
+const SOURCES = import.meta.glob('./**/*.ts', { query: '?raw', import: 'default', eager: true });
 
 describe('determinism lint', () => {
   it('the runtime sim contains no engine-approximated math', () => {
-    const simDir = join(import.meta.dirname, '.');
     const offenders: string[] = [];
-    for (const file of tsFilesUnder(simDir)) {
-      const base = file.split('/').pop()!;
-      if (EXEMPT.has(base)) continue;
-      const lines = readFileSync(file, 'utf8').split('\n');
-      lines.forEach((line, i) => {
-        if (BANNED.test(line) && !line.trimStart().startsWith('*') && !line.trimStart().startsWith('//')) {
-          offenders.push(`${file}:${i + 1}: ${line.trim()}`);
+    for (const [path, raw] of Object.entries(SOURCES)) {
+      if (path.endsWith('.test.ts') || EXEMPT.some((e) => path.endsWith(e))) continue;
+      (raw as string).split('\n').forEach((line, i) => {
+        const t = line.trimStart();
+        if (BANNED.test(line) && !t.startsWith('*') && !t.startsWith('//')) {
+          offenders.push(`${path}:${i + 1}: ${line.trim()}`);
         }
       });
     }

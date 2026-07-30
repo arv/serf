@@ -3,7 +3,7 @@ import { createWorld, type World } from '../sim/world';
 import { deserializeWorld, serializeWorld } from '../sim/save';
 import { tickWorld } from '../sim/tick';
 import { UNIT_DEFS, carryingCode } from '../sim/defs/units';
-import { MATCHER_INTERVAL } from '../sim/defs/balance';
+import { MATCHER_INTERVAL, TICK_MS } from '../sim/defs/balance';
 import { buildingDef } from '../sim/defs/buildings';
 import { TECH_DEFS } from '../sim/defs/techs';
 import { checkInvariants, checkLedger, countGoods } from '../sim/debug/invariants';
@@ -13,7 +13,6 @@ import type { PlayerCommand } from '../sim/tick';
 import {
   ACTION,
   PROFESSION,
-  PUBLISH_INTERVAL_MS,
   SAB_BYTES,
   SabWriter,
   WORK,
@@ -115,29 +114,55 @@ function init(config: import('../sim/world').WorldConfig, loadData?: string): vo
   publish();
   postStructural();
   // Dedicated-worker timers are not throttled like main-thread timers, so a
-  // plain interval keeps the sim running even when the tab is hidden.
-  setInterval(step, PUBLISH_INTERVAL_MS);
+  // plain interval keeps the sim running even when the tab is hidden. The
+  // fine-grained pump + accumulator (instead of one 50ms interval) is the
+  // lockstep foundation: tick timing follows accumulated time, and
+  // `rateAdjust` lets the netcode nudge the clock to track the relay.
+  lastPump = performance.now();
+  setInterval(pump, 10);
 }
 
-function step(): void {
+/** Netcode drift-correction knob (1.0 in single-player). */
+let rateAdjust = 1.0;
+let lastPump = 0;
+let acc = 0;
+/** Cap banked time so a debugger pause doesn't unleash a tick avalanche. */
+const MAX_CATCHUP_QUANTA = 10;
+
+function pump(): void {
   if (!world || !writer) return;
+  const now = performance.now();
+  acc = Math.min(acc + (now - lastPump) * rateAdjust, TICK_MS * MAX_CATCHUP_QUANTA);
+  lastPump = now;
   // While paused, commands stay queued and apply on unpause — the classic
-  // "issue orders during pause" affordance.
-  if (speed <= 0) return;
-  const commands = pendingCommands;
-  pendingCommands = [];
-  for (let i = 0; i < speed; i++) {
-    tickWorld(world, i === 0 ? commands : []);
-    if (import.meta.env.DEV && world.tick % 20 === 0) {
-      const report = checkInvariants(world);
-      const ledger = checkLedger(world, initialGoods);
-      lastInvariantViolations = [...report.violations, ...ledger];
-      for (const v of lastInvariantViolations) console.warn(`[invariant] t${world.tick} ${v}`);
-    }
+  // "issue orders during pause" affordance. Banked time is dropped.
+  if (speed <= 0) {
+    acc = 0;
+    return;
   }
-  publish();
-  if (world.tick % MATCHER_INTERVAL === 0 || world.pendingDeltas.length > 0) {
-    postStructural();
+  let ran = false;
+  while (acc >= TICK_MS) {
+    acc -= TICK_MS;
+    // One 50ms quantum = `speed` ticks (0/1/3), commands on its first tick —
+    // byte-compatible with the old fixed-interval loop.
+    const commands = pendingCommands;
+    pendingCommands = [];
+    for (let i = 0; i < speed; i++) {
+      tickWorld(world, i === 0 ? commands : []);
+      if (import.meta.env.DEV && world.tick % 20 === 0) {
+        const report = checkInvariants(world);
+        const ledger = checkLedger(world, initialGoods);
+        lastInvariantViolations = [...report.violations, ...ledger];
+        for (const v of lastInvariantViolations) console.warn(`[invariant] t${world.tick} ${v}`);
+      }
+    }
+    ran = true;
+  }
+  if (ran) {
+    publish();
+    if (world.tick % MATCHER_INTERVAL === 0 || world.pendingDeltas.length > 0) {
+      postStructural();
+    }
   }
 }
 
