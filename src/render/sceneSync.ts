@@ -8,6 +8,8 @@ import {
   type SabReader,
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
+import { OWNER_CODE } from '../sim/defs/units';
+import type { FogQuery } from './fogOfWar';
 import { GOODS } from '../sim/defs/goods';
 import { makeCarryProp, makeUnitModel } from './models';
 import { THEME } from './medieval';
@@ -296,7 +298,7 @@ function hpBarMaterial(pct: number): THREE.MeshBasicMaterial {
   let mat = hpBarMaterials.get(bucket);
   if (!mat) {
     const color = new THREE.Color().setHSL(0.33 * (bucket / 4), 0.8, 0.45);
-    mat = new THREE.MeshBasicMaterial({ color, depthTest: false });
+    mat = new THREE.MeshBasicMaterial({ color, depthTest: false, userData: { noFog: true } });
     hpBarMaterials.set(bucket, mat);
   }
   return mat;
@@ -330,6 +332,16 @@ export class SceneSync {
   setWells(wells: { x: number; z: number; grip: THREE.Object3D }[]): void {
     this.#wells = wells;
   }
+
+  /** Fog test; enemies standing in unlit ground are not drawn at all. */
+  #fog: FogQuery | null = null;
+
+  setFog(fog: FogQuery): void {
+    this.#fog = fog;
+  }
+
+  /** Ids currently hidden by fog — picking and selection skip them. */
+  #hidden = new Set<number>();
 
   #nearestWell(x: number, y: number): { x: number; z: number; grip: THREE.Object3D } | null {
     let well: { x: number; z: number; grip: THREE.Object3D } | null = null;
@@ -431,6 +443,9 @@ export class SceneSync {
     if (li === undefined) return null;
     const alpha = this.#alpha(now);
     const pi = prev.index.get(id);
+    // Hidden by fog: report no position at all, which is what keeps
+    // picking, hover and band-select from reaching into the dark.
+    if (this.#hidden.has(id)) return null;
     // Include the visual de-overlap offset so picking and selection fx
     // land where the unit is drawn, not where the sim has it.
     const v = this.#visuals.get(id);
@@ -476,6 +491,7 @@ export class SceneSync {
     this.#animNow += dt * 1000;
     const animNow = this.#animNow;
     this.#computeSeparation(latest, prev, alpha);
+    this.#hidden.clear();
 
     for (let i = 0; i < latest.count; i++) {
       const id = latest.ids[i]!;
@@ -522,6 +538,18 @@ export class SceneSync {
         }
         this.#visuals.set(id, visual);
         this.#scene.add(visual.group);
+      }
+
+      // Enemies vanish in unlit ground. Only current visibility counts —
+      // a raider you saw a minute ago is long gone, so unlike a building
+      // there is nothing sensible to remember.
+      if (this.#fog && latest.aux[a + 1] !== OWNER_CODE.player) {
+        const lit = this.#fog.visibleAt(latest.xs[i]!, latest.ys[i]!);
+        visual.group.visible = lit;
+        if (!lit) {
+          this.#hidden.add(id);
+          continue;
+        }
       }
 
       // Health bar when damaged, hovered, or selected.

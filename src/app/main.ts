@@ -9,6 +9,7 @@ import { SceneSync } from '../render/sceneSync';
 import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
 import { GhostPlacement } from '../render/ghost';
+import { FogOfWar } from '../render/fogOfWar';
 import { loadCharacterAssets } from '../render/characters';
 import { THEME, loadMedievalAssets } from '../render/medieval';
 
@@ -94,6 +95,12 @@ async function boot(): Promise<void> {
   // hand is IK-glued to the grip.
   const feedWells = (): void => sync.setWells(buildingSync.wellCranks());
   feedWells();
+  const fog = new FogOfWar();
+  sync.setFog(fog);
+  buildingSync.setFog(fog);
+  // Latest building roster, for the fog's sight sources.
+  let roster = init.buildings;
+
   const selectionFx = new SelectionFx(renderer.scene, heights);
   const ghost = new GhostPlacement(renderer.scene, heights);
   const controls = new Controls(canvas, renderer.rig.camera, sync, host, mirror, ghost, heights);
@@ -111,6 +118,7 @@ async function boot(): Promise<void> {
     for (const tile of changes.resourceCleared) scatter.removeTile(tile);
     if (changes.repaint) terrain.repaintAll();
     buildingSync.update(msg.buildings);
+    roster = msg.buildings;
     feedWells();
     setStock(msg.stock);
     setTechs(msg.techs);
@@ -136,8 +144,13 @@ async function boot(): Promise<void> {
   sync.cameraQuaternion = renderer.rig.camera.quaternion;
   buildingSync.cameraQuaternion = renderer.rig.camera.quaternion;
 
+  let fogLast = performance.now();
   function loop(): void {
     const now = performance.now();
+    // Fog first: the entity syncs below ask it what may be drawn, so it
+    // has to reflect this frame's positions, not the last one's.
+    fog.update(Math.min((now - fogLast) / 1000, 0.25), init.reader, roster, renderer.scene);
+    fogLast = now;
     sync.update(now, controls.hoverUnit, controls.selected, speed() === 0);
     buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
     controls.prune();
