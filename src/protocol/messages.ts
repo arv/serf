@@ -87,7 +87,15 @@ export type NetStatus =
   | { state: 'disconnected' };
 
 export type MainToWorker =
-  | { type: 'init'; config: WorldConfig; loadData?: string; net?: NetInfo }
+  | {
+      type: 'init';
+      config: WorldConfig;
+      loadData?: string;
+      net?: NetInfo;
+      /** Single-player AI seats: one MessagePort per brain worker — the sim
+       * streams executed ticks out and receives that seat's commands back. */
+      aiPorts?: { playerId: number; port: MessagePort }[];
+    }
   | { type: 'commands'; commands: PlayerCommand[] }
   | { type: 'setSpeed'; speed: number }
   | { type: 'requestSave' };

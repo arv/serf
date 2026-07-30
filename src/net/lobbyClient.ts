@@ -17,6 +17,8 @@ export interface LobbyResult {
   worldBlob: string;
   seats: { kind: 'human' | 'ai' }[];
   myPlayerId: number;
+  /** Host only: the AI seats this client must run brain workers for. */
+  aiSeats: { playerId: number; token: string }[];
 }
 
 export function relayUrl(search: string): string {
@@ -25,6 +27,11 @@ export function relayUrl(search: string): string {
   if (fromParam) return fromParam;
   const fromEnv = import.meta.env.VITE_RELAY_URL as string | undefined;
   if (fromEnv) return fromEnv;
+  // Production is served by the relay process itself — same origin, same
+  // port, ws upgraded in place. Dev runs vite + the relay side by side.
+  if (import.meta.env.PROD) {
+    return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+  }
   return `ws://${location.hostname}:8787`;
 }
 
@@ -67,6 +74,7 @@ export function runLobby(mp: string, aiSeats: number, seed: number, url: string)
             token: string;
             worldBlob: string;
             seats: { kind: 'human' | 'ai' }[];
+            aiSeats?: { playerId: number; token: string }[];
           }
         | { t: 'error'; message: string }
         | { t: 'peer' };
@@ -90,6 +98,7 @@ export function runLobby(mp: string, aiSeats: number, seed: number, url: string)
           worldBlob: msg.worldBlob,
           seats: msg.seats,
           myPlayerId: msg.playerId,
+          aiSeats: msg.aiSeats ?? [],
         });
       } else if (msg.t === 'error') {
         fail(msg.message);

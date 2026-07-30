@@ -45,7 +45,6 @@ export function cloneWorld(world: World): World {
       active: p.techs.active ? { ...p.techs.active } : undefined,
       festivalTicksLeft: p.techs.festivalTicksLeft,
     },
-    ai: p.ai ? { ...p.ai } : undefined,
   }));
 
   return {

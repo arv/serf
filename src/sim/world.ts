@@ -168,7 +168,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
     nextJobId: 1,
     ledger: { produced: {}, consumed: {} },
     pendingDeltas: [],
-    players: config.players.map((p, i) => makePlayer(i, p.kind, seed)),
+    players: config.players.map((p, i) => makePlayer(i, p.kind)),
     raidState: { nextRaidTick: FIRST_RAID_TICK, wave: 0 },
     admin: {
       enabled: config.adminEnabled ?? true,

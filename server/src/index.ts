@@ -1,4 +1,7 @@
-import { createServer } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { extname, join, normalize, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { decodeFrame, encodePong } from '../../src/protocol/net.ts';
 import {
@@ -27,14 +30,69 @@ import {
 
 const PORT = Number(process.env.PORT ?? 8787);
 
+/**
+ * One process, one port: this HTTP server serves the built game (the vite
+ * dist/) and upgrades the same origin's WebSocket connections to the relay
+ * — so production is a single service, and the client's relay URL is just
+ * its own origin. The game needs cross-origin isolation for
+ * SharedArrayBuffer, so every response carries COOP/COEP.
+ */
+const DIST_DIR = resolve(
+  process.env.DIST_DIR ?? join(fileURLToPath(import.meta.url), '../../../dist'),
+);
+const SERVES_GAME = existsSync(join(DIST_DIR, 'index.html'));
+
+const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+  '.bin': 'application/octet-stream',
+  '.wasm': 'application/wasm',
+  '.woff2': 'font/woff2',
+};
+
+function isolationHeaders(res: ServerResponse): void {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+}
+
 const http = createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'text/plain' });
     res.end('ok');
     return;
   }
-  res.writeHead(404);
-  res.end();
+  if (!SERVES_GAME || (req.method !== 'GET' && req.method !== 'HEAD')) {
+    res.writeHead(404);
+    res.end();
+    return;
+  }
+  // Static game: sanitized path under dist/, SPA-falling back to index.html.
+  const urlPath = normalize(decodeURIComponent((req.url ?? '/').split('?')[0]!)).replace(
+    /^(\.\.[/\\])+/,
+    '',
+  );
+  let file = join(DIST_DIR, urlPath);
+  if (!file.startsWith(DIST_DIR) || !existsSync(file) || statSync(file).isDirectory()) {
+    file = join(DIST_DIR, 'index.html');
+  }
+  const ext = extname(file);
+  isolationHeaders(res);
+  res.setHeader('content-type', MIME[ext] ?? 'application/octet-stream');
+  // Hashed assets cache forever; the entry document revalidates.
+  res.setHeader(
+    'cache-control',
+    ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+  );
+  createReadStream(file).pipe(res);
 });
 
 const wss = new WebSocketServer({ server: http, perMessageDeflate: true });
@@ -138,6 +196,14 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
             worldBlob: room.worldBlob,
             seats: room.seats.map((x) => ({ kind: x.kind })),
             startInMs: room.matchStartMs - Date.now(),
+            // The host runs the AI brains: hand it their seat tokens so
+            // each brain worker connects as an ordinary (headless) client.
+            aiSeats:
+              s.playerId === 0
+                ? room.seats
+                    .filter((x) => x.kind === 'ai')
+                    .map((x) => ({ playerId: x.playerId, token: x.token }))
+                : [],
           });
         }
       }

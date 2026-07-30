@@ -4,24 +4,19 @@ import { BUILDING_DEFS, buildingDef, type BuildingTypeId } from '../defs/buildin
 import { TECH_DEFS, type TechId } from '../defs/techs';
 import { HIRE_SERF_COST } from '../defs/balance';
 import { canPlace, type World } from '../world';
-import { applyCommand } from '../tick';
 import { isPlayerOwner, type Building, type Owner } from '../entities';
-import type { PlayerState } from '../player';
 import type { SimCommand } from '../commands';
 
 /**
- * The AI opponent: a strategic layer that issues the same five command
- * verbs a human does, at a once-per-second cadence, through the exported
- * applyCommand — so every lockstep client simulates it identically and a
- * rollback re-simulates it for free.
+ * The AI opponent's brain: a pure strategic layer that reads a World and
+ * emits the same five command verbs a human does. It runs OUTSIDE the sim —
+ * one dedicated worker per AI seat holds a replica world and speaks
+ * ordinary commands, so the sim stays input-driven, rollback treats AI
+ * moves as remote inputs, and thinking never blocks a tick.
  *
  * Grown from the winnable-campaign test bot: wants-vs-standing-counts
  * build order, survival-floor hiring with a research reserve, a fixed
  * research queue, a katana-aware dojo queue, rally-then-attack army logic.
- *
- * Determinism rules: runs FIRST in tickWorld (before envelope commands);
- * never touches the tick's shared Rng (its reserved substream lives in
- * PlayerState.ai.rngState); all state lives on the World.
  */
 
 export const AI_TUNING = {
@@ -38,24 +33,159 @@ export const AI_TUNING = {
 
 const MILITARY = new Set(['samurai', 'ashigaru', 'archer']);
 
-export function aiSystem(world: World): void {
-  if (world.outcome.state !== 'playing') return;
-  for (const p of world.players) {
-    if (p.kind !== 'ai' || !p.alive || !p.ai) continue;
-    // Stagger seats so two AIs never decide on the same tick.
-    if (world.tick % AI_TUNING.decisionInterval !== (p.id * 5) % AI_TUNING.decisionInterval) {
-      continue;
+export class AiBrain {
+  readonly playerId: Owner;
+  #lastAttackTick = 0;
+  #lastRallyTick = 0;
+  #attacking = false;
+
+  constructor(playerId: Owner) {
+    this.playerId = playerId;
+  }
+
+  /** Is `tick` one of this seat's decision beats? (Seats stagger so two
+   * brains never fire on the same tick.) */
+  shouldDecide(tick: number): boolean {
+    return tick % AI_TUNING.decisionInterval === (this.playerId * 5) % AI_TUNING.decisionInterval;
+  }
+
+  /** Read the world, emit this beat's commands. Pure apart from the brain's
+   * own pacing memory. */
+  decide(world: World): SimCommand[] {
+    const p = world.players[this.playerId];
+    if (!p || !p.alive || world.outcome.state !== 'playing') return [];
+    const commands: SimCommand[] = [];
+    const mine = ownedBuildings(world, this.playerId);
+    const sh = mine.find((b) => b.type === 'storehouse' && b.state === 'built');
+    if (!sh) return commands; // one tick from elimination; nothing to do
+    const baseX = sh.x + 1;
+    const baseY = sh.y + 1;
+    const stock = sh.stock as Record<string, number>;
+    const techs = p.techs;
+    const has = (type: BuildingTypeId): boolean => mine.some((b) => b.type === type);
+    const countOf = (type: BuildingTypeId): number => mine.filter((b) => b.type === type).length;
+
+    // --- Build order: desired counts vs standing counts (rebuilds losses) ---
+    const iron = techs.researched.includes('ironworking');
+    const wants: [BuildingTypeId, number, { x: number; y: number } | null][] = [];
+    const grove = nearestResource(world, TileResource.Bamboo, baseX, baseY);
+    if (grove >= 0) {
+      wants.push(['bambooHut', iron ? 2 : 1, findSpot(world, 'bambooHut', tileX(grove), tileY(grove), 6)]);
     }
-    for (const cmd of decide(world, p)) applyCommand(world, p.id, cmd);
+    const rocks = nearestResource(world, TileResource.Rock, baseX, baseY);
+    if (rocks >= 0) {
+      wants.push(['quarry', 1, findSpot(world, 'quarry', tileX(rocks), tileY(rocks), 6)]);
+    }
+    wants.push(['terakoya', 1, findSpot(world, 'terakoya', baseX, baseY)]);
+    if (techs.researched.includes('bushido')) {
+      wants.push(['dojo', 1, findSpot(world, 'dojo', baseX, baseY)]);
+    }
+    wants.push(['well', 1, findSpot(world, 'well', baseX, baseY)]);
+    wants.push(['ricePaddy', 1, findSpot(world, 'ricePaddy', baseX, baseY)]);
+    if (has('dojo')) {
+      const silverSeam = nearestResource(world, TileResource.SilverDep, baseX, baseY);
+      if (silverSeam >= 0) {
+        wants.push(['silverMine', 1, findSpot(world, 'silverMine', tileX(silverSeam), tileY(silverSeam), 4)]);
+      }
+    }
+    if (iron) {
+      const seam = nearestResource(world, TileResource.IronDep, baseX, baseY);
+      if (seam >= 0) {
+        wants.push(['ironMine', 1, findSpot(world, 'ironMine', tileX(seam), tileY(seam), 4)]);
+      }
+      wants.push(['spearmaker', 1, findSpot(world, 'spearmaker', baseX, baseY)]);
+      wants.push(['swordsmith', 1, findSpot(world, 'swordsmith', baseX, baseY)]);
+    }
+    for (const [type, desired, spot] of wants) {
+      if (!spot || countOf(type) >= desired) continue;
+      const cost = BUILDING_DEFS[type].cost as Record<string, number>;
+      const ok = Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
+      if (ok) {
+        commands.push({ kind: 'placeBuilding', building: type, x: spot.x, y: spot.y });
+        break; // one placement per decision to keep hauling focused
+      }
+    }
+
+    // --- Population: keep loose serfs around ---------------------------------
+    let serfCount = 0;
+    for (const u of world.units.values()) {
+      if (!u.dead && u.owner === this.playerId && u.kind === 'serf') serfCount++;
+    }
+    const researchPending = AI_TUNING.researchOrder.some((id) => !techs.researched.includes(id));
+    if (serfCount < AI_TUNING.survivalFloor && (stock.silver ?? 0) >= HIRE_SERF_COST) {
+      commands.push({ kind: 'hireSerf' });
+    } else if (
+      techs.researched.includes('bushido') &&
+      serfCount < AI_TUNING.serfTarget &&
+      (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? AI_TUNING.researchReserve : 0)
+    ) {
+      commands.push({ kind: 'hireSerf' });
+    }
+
+    // --- Research queue ------------------------------------------------------
+    if (!techs.active) {
+      const next = AI_TUNING.researchOrder.find((id) => !techs.researched.includes(id));
+      if (next && has('terakoya')) {
+        const cost = TECH_DEFS[next].cost as Record<string, number>;
+        const ok = Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
+        if (ok) commands.push({ kind: 'research', tech: next });
+      }
+    }
+
+    // --- Keep the dojo queue warm --------------------------------------------
+    const dojo = mine.find((b) => b.type === 'dojo' && b.state === 'built');
+    if (dojo && (dojo.trainQueue?.length ?? 0) < AI_TUNING.dojoQueueDepth) {
+      const katanaAround =
+        (stock.katana ?? 0) + (dojo.inputs.katana ?? 0) + (dojo.inbound.katana ?? 0) > 0;
+      commands.push({
+        kind: 'trainUnit',
+        buildingId: dojo.id,
+        unit: katanaAround ? 'samurai' : 'ashigaru',
+      });
+    }
+
+    // --- Army: rally at home until strong, then march ------------------------
+    const army = [...world.units.values()].filter(
+      (u) => !u.dead && u.owner === this.playerId && MILITARY.has(u.kind),
+    );
+    const target = pickAttackTarget(world, this.playerId, baseX, baseY);
+    if (
+      target &&
+      army.length >= AI_TUNING.armyAttackSize &&
+      world.tick - this.#lastAttackTick > AI_TUNING.attackCooldown
+    ) {
+      this.#attacking = true;
+      this.#lastAttackTick = world.tick;
+      commands.push({
+        kind: 'moveUnits',
+        unitIds: army.map((u) => u.id),
+        x: target.x + 1,
+        y: target.y + 1,
+      });
+    } else if (
+      !this.#attacking &&
+      army.length > 0 &&
+      world.tick - this.#lastRallyTick > AI_TUNING.rallyCooldown
+    ) {
+      // Garrison duty: stand by the storehouse so auto-acquire covers it.
+      this.#lastRallyTick = world.tick;
+      const idle = army.filter((u) => u.task.t === 'idle');
+      if (idle.length > 0) {
+        commands.push({
+          kind: 'moveUnits',
+          unitIds: idle.map((u) => u.id),
+          x: baseX,
+          y: baseY + 4,
+        });
+      }
+    }
+
+    return commands;
   }
 }
 
 function ownedBuildings(world: World, owner: Owner): Building[] {
   return [...world.buildings.values()].filter((b) => !b.dead && b.owner === owner);
-}
-
-function requireCost(type: BuildingTypeId): Record<string, number> {
-  return BUILDING_DEFS[type].cost as Record<string, number>;
 }
 
 /**
@@ -129,135 +259,4 @@ function pickAttackTarget(world: World, owner: Owner, bx: number, by: number): B
     }
   }
   return best;
-}
-
-function decide(world: World, p: PlayerState): SimCommand[] {
-  const commands: SimCommand[] = [];
-  const ai = p.ai!;
-  const mine = ownedBuildings(world, p.id);
-  const sh = mine.find((b) => b.type === 'storehouse' && b.state === 'built');
-  if (!sh) return commands; // one tick from elimination; nothing to do
-  const baseX = sh.x + 1;
-  const baseY = sh.y + 1;
-  const stock = sh.stock as Record<string, number>;
-  const techs = p.techs;
-  const has = (type: BuildingTypeId): boolean => mine.some((b) => b.type === type);
-  const countOf = (type: BuildingTypeId): number => mine.filter((b) => b.type === type).length;
-
-  // --- Build order: desired counts vs standing counts (rebuilds losses) ---
-  const iron = techs.researched.includes('ironworking');
-  const wants: [BuildingTypeId, number, { x: number; y: number } | null][] = [];
-  const grove = nearestResource(world, TileResource.Bamboo, baseX, baseY);
-  if (grove >= 0) {
-    wants.push(['bambooHut', iron ? 2 : 1, findSpot(world, 'bambooHut', tileX(grove), tileY(grove), 6)]);
-  }
-  const rocks = nearestResource(world, TileResource.Rock, baseX, baseY);
-  if (rocks >= 0) {
-    wants.push(['quarry', 1, findSpot(world, 'quarry', tileX(rocks), tileY(rocks), 6)]);
-  }
-  wants.push(['terakoya', 1, findSpot(world, 'terakoya', baseX, baseY)]);
-  if (techs.researched.includes('bushido')) {
-    wants.push(['dojo', 1, findSpot(world, 'dojo', baseX, baseY)]);
-  }
-  wants.push(['well', 1, findSpot(world, 'well', baseX, baseY)]);
-  wants.push(['ricePaddy', 1, findSpot(world, 'ricePaddy', baseX, baseY)]);
-  if (has('dojo')) {
-    const silverSeam = nearestResource(world, TileResource.SilverDep, baseX, baseY);
-    if (silverSeam >= 0) {
-      wants.push(['silverMine', 1, findSpot(world, 'silverMine', tileX(silverSeam), tileY(silverSeam), 4)]);
-    }
-  }
-  if (iron) {
-    const seam = nearestResource(world, TileResource.IronDep, baseX, baseY);
-    if (seam >= 0) {
-      wants.push(['ironMine', 1, findSpot(world, 'ironMine', tileX(seam), tileY(seam), 4)]);
-    }
-    wants.push(['spearmaker', 1, findSpot(world, 'spearmaker', baseX, baseY)]);
-    wants.push(['swordsmith', 1, findSpot(world, 'swordsmith', baseX, baseY)]);
-  }
-  for (const [type, desired, spot] of wants) {
-    if (!spot || countOf(type) >= desired) continue;
-    const cost = requireCost(type);
-    const ok = Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
-    if (ok) {
-      commands.push({ kind: 'placeBuilding', building: type, x: spot.x, y: spot.y });
-      break; // one placement per decision to keep hauling focused
-    }
-  }
-
-  // --- Population: keep loose serfs around ---------------------------------
-  let serfCount = 0;
-  for (const u of world.units.values()) {
-    if (!u.dead && u.owner === p.id && u.kind === 'serf') serfCount++;
-  }
-  const researchPending = AI_TUNING.researchOrder.some((id) => !techs.researched.includes(id));
-  if (serfCount < AI_TUNING.survivalFloor && (stock.silver ?? 0) >= HIRE_SERF_COST) {
-    commands.push({ kind: 'hireSerf' });
-  } else if (
-    techs.researched.includes('bushido') &&
-    serfCount < AI_TUNING.serfTarget &&
-    (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? AI_TUNING.researchReserve : 0)
-  ) {
-    commands.push({ kind: 'hireSerf' });
-  }
-
-  // --- Research queue ------------------------------------------------------
-  if (!techs.active) {
-    const next = AI_TUNING.researchOrder.find((id) => !techs.researched.includes(id));
-    if (next && has('terakoya')) {
-      const cost = TECH_DEFS[next].cost as Record<string, number>;
-      const ok = Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
-      if (ok) commands.push({ kind: 'research', tech: next });
-    }
-  }
-
-  // --- Keep the dojo queue warm --------------------------------------------
-  const dojo = mine.find((b) => b.type === 'dojo' && b.state === 'built');
-  if (dojo && (dojo.trainQueue?.length ?? 0) < AI_TUNING.dojoQueueDepth) {
-    const katanaAround =
-      (stock.katana ?? 0) + (dojo.inputs.katana ?? 0) + (dojo.inbound.katana ?? 0) > 0;
-    commands.push({
-      kind: 'trainUnit',
-      buildingId: dojo.id,
-      unit: katanaAround ? 'samurai' : 'ashigaru',
-    });
-  }
-
-  // --- Army: rally at home until strong, then march ------------------------
-  const army = [...world.units.values()].filter(
-    (u) => !u.dead && u.owner === p.id && MILITARY.has(u.kind),
-  );
-  const target = pickAttackTarget(world, p.id, baseX, baseY);
-  if (
-    target &&
-    army.length >= AI_TUNING.armyAttackSize &&
-    world.tick - ai.lastAttackTick > AI_TUNING.attackCooldown
-  ) {
-    ai.attacking = true;
-    ai.lastAttackTick = world.tick;
-    commands.push({
-      kind: 'moveUnits',
-      unitIds: army.map((u) => u.id),
-      x: target.x + 1,
-      y: target.y + 1,
-    });
-  } else if (
-    !ai.attacking &&
-    army.length > 0 &&
-    world.tick - ai.lastRallyTick > AI_TUNING.rallyCooldown
-  ) {
-    // Garrison duty: stand by the storehouse so auto-acquire covers it.
-    ai.lastRallyTick = world.tick;
-    const idle = army.filter((u) => u.task.t === 'idle');
-    if (idle.length > 0) {
-      commands.push({
-        kind: 'moveUnits',
-        unitIds: idle.map((u) => u.id),
-        x: baseX,
-        y: baseY + 4,
-      });
-    }
-  }
-
-  return commands;
 }

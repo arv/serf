@@ -35,7 +35,7 @@ export function bareWorld(seed = 1, playerCount = 1): World {
     nextJobId: 1,
     ledger: { produced: {}, consumed: {} },
     pendingDeltas: [],
-    players: Array.from({ length: playerCount }, (_, i) => makePlayer(i, 'human', seed)),
+    players: Array.from({ length: playerCount }, (_, i) => makePlayer(i, 'human')),
     raidState: { nextRaidTick: Number.MAX_SAFE_INTEGER, wave: 0 }, // raids opt in
     admin: { enabled: true, raidsEnabled: true, instantBuild: false },
     pendingEvents: [],

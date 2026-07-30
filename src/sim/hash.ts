@@ -63,7 +63,6 @@ export function hashWorld(world: World): number {
   for (const p of world.players) {
     mix(p.alive ? 1 : 0);
     mix(p.techs.researched.length);
-    if (p.ai) mixU32(p.ai.lastAttackTick);
   }
 
   const blocked = world.map.blocked;

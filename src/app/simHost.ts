@@ -22,8 +22,18 @@ export interface SimInit {
  * thing; a LocalSimHost (sim inline, for step-debugging) can implement the
  * same interface later because the sim is pure.
  */
+export interface AiPortHandle {
+  playerId: number;
+  port: MessagePort;
+}
+
 export interface SimHost {
-  start(config: GameConfig, loadData?: string, net?: NetInfo): Promise<SimInit>;
+  start(
+    config: GameConfig,
+    loadData?: string,
+    net?: NetInfo,
+    aiPorts?: AiPortHandle[],
+  ): Promise<SimInit>;
   sendCommands(commands: SimCommand[]): void;
   setSpeed(speed: number): void;
   requestSave(): Promise<string>;
@@ -39,7 +49,12 @@ export class WorkerSimHost implements SimHost {
   /** Seat the UI's commands are issued as (always 0 until lobbies land). */
   playerId = 0;
 
-  start(config: GameConfig, loadData?: string, net?: NetInfo): Promise<SimInit> {
+  start(
+    config: GameConfig,
+    loadData?: string,
+    net?: NetInfo,
+    aiPorts?: AiPortHandle[],
+  ): Promise<SimInit> {
     this.playerId = config.myPlayerId;
     return new Promise((resolve, reject) => {
       this.#worker.onerror = (e) => reject(new Error(`sim worker failed: ${e.message}`));
@@ -56,7 +71,11 @@ export class WorkerSimHost implements SimHost {
           this.#netStatusCb?.(msg.status);
         }
       };
-      this.#post({ type: 'init', config, loadData, net });
+      // MessagePorts must ride the transfer list.
+      this.#worker.postMessage(
+        { type: 'init', config, loadData, net, aiPorts } satisfies MainToWorker,
+        aiPorts?.map((a) => a.port) ?? [],
+      );
     });
   }
 
