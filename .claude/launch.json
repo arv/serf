@@ -5,12 +5,9 @@
       "name": "serf-mp",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [
-        "dev",
-        "--port",
-        "5307",
-        "--strictPort"
+        "dev"
       ],
-      "port": 5307
+      "autoPort": true
     }
   ]
 }
