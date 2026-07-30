@@ -55,7 +55,14 @@ interface Decor {
   rot?: number;
 }
 
-const DECOR_PROP_FILES = ['wheelbarrow', 'sack', 'resource_stone', 'resource_lumber'];
+const DECOR_PROP_FILES = [
+  'wheelbarrow',
+  'sack',
+  'resource_stone',
+  'resource_lumber',
+  'bucket_water',
+  'barrel',
+];
 
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   bambooHut: [{ prop: 'resource_lumber', at: [0.36, 0.28], size: 0.12, rot: 0.3 }],

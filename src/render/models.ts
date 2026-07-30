@@ -1193,6 +1193,11 @@ const carryPrototypes = new Map<GoodId, THREE.Group>();
 const PACK_CARRY: Partial<Record<GoodId, { prop: string; span: number }>> = {
   bamboo: { prop: 'resource_lumber', span: 0.44 },
   stone: { prop: 'resource_stone', span: 0.36 },
+  // A shoulder yoke is feudal Japan, and the pole spanned most of a tile
+  // besides: medieval water travels by the hand-sized pack bucket.
+  water: { prop: 'bucket_water', span: 0.26 },
+  rice: { prop: 'sack', span: 0.3 },
+  sake: { prop: 'barrel', span: 0.3 },
 };
 
 /**
