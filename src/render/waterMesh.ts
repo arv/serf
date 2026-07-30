@@ -3,16 +3,18 @@ import { MAP_SIZE } from '../shared/grid';
 import { WATER_LEVEL, type MapView } from '../sim/map';
 import { palette } from './palette';
 
-/** Unit vector toward the sun, matching the scene's key light. */
-const SUN_DIR = new THREE.Vector3(-28, 55, 18).normalize();
-
 /**
  * The water surface: one plane at the waterline, shaded against the terrain
  * beneath it. The bed heightfield rides along as a texture, so every pixel
  * knows how deep the water under it is — which is what makes it read as
- * water rather than a colored sheet: bright translucent shallows grading
- * into opaque depths, a foam line hugging every shore, and a sun glitter
- * that swims across the swell. Injected into a stock Lambert material via
+ * water rather than a colored sheet: clear shallows over the shelf grading
+ * into opaque depths.
+ *
+ * The motion is value noise drifting in two directions, not a product of
+ * sines: sines beat against each other into a criss-cross grid that reads
+ * as wallpaper the moment you look at a whole lake. (KayKit ships no
+ * animated water — its 100-odd water assets are static hex tiles — so this
+ * is ours to write.) Injected into a stock Lambert material via
  * onBeforeCompile, so it keeps lighting, shadows, fog, and tone mapping.
  */
 export class WaterMesh {
@@ -57,8 +59,6 @@ export class WaterMesh {
       shader.uniforms.uShallow = { value: new THREE.Color(palette.waterShore) };
       shader.uniforms.uMid = { value: new THREE.Color(palette.water) };
       shader.uniforms.uDeep = { value: new THREE.Color(palette.waterDeep) };
-      shader.uniforms.uFoam = { value: new THREE.Color(palette.waterFoam) };
-      shader.uniforms.uSunDir = { value: SUN_DIR };
 
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vWorldPos;')
@@ -78,8 +78,6 @@ export class WaterMesh {
           uniform vec3 uShallow;
           uniform vec3 uMid;
           uniform vec3 uDeep;
-          uniform vec3 uFoam;
-          uniform vec3 uSunDir;
           varying vec3 vWorldPos;
 
           float bedTexel(vec2 tile) {
@@ -100,24 +98,29 @@ export class WaterMesh {
             return mix(mix(a, b, s.x), mix(c, d, s.x), s.y);
           }
 
-          // Analytic surface normal of the swell + chop wave field: the
-          // gradient is exact, so highlights track the crests instead of
-          // sliding over them. The slope is deliberately steep — a nearly
-          // flat normal never tilts far enough to catch the sun.
-          vec3 waveNormal(vec2 p, float t) {
-            float s1 = sin(p.x * 0.55 + t * 0.5);
-            float c1 = cos(p.x * 0.55 + t * 0.5);
-            float s2 = sin(p.y * 0.7 - t * 0.35);
-            float c2 = cos(p.y * 0.7 - t * 0.35);
-            float s3 = cos((p.x + p.y) * 0.4 + t * 0.3);
-            float dx = 0.55 * c1 * s2 + 0.24 * s3;
-            float dz = 0.7 * s1 * c2 + 0.24 * s3;
-            // Choppier ripples riding the swell add the fine glitter.
-            float u = p.x * 2.1 + p.y * 1.3 + t * 1.1;
-            float v = p.y * 2.7 - p.x * 0.9 - t * 0.8;
-            dx += (2.1 * cos(u) * sin(v) - 0.9 * sin(u) * cos(v)) * 0.14;
-            dz += (1.3 * cos(u) * sin(v) + 2.7 * sin(u) * cos(v)) * 0.14;
-            return normalize(vec3(-dx * 0.55, 1.0, -dz * 0.55));
+          float hash21(vec2 p) {
+            p = fract(p * vec2(123.34, 456.21));
+            p += dot(p, p + 45.32);
+            return fract(p.x * p.y);
+          }
+
+          float vnoise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            float a = hash21(i);
+            float b = hash21(i + vec2(1.0, 0.0));
+            float c = hash21(i + vec2(0.0, 1.0));
+            float d = hash21(i + vec2(1.0, 1.0));
+            return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+          }
+
+          // Two octaves drifting on different headings, so the pattern
+          // never lines up with itself.
+          float ripple(vec2 p, float t) {
+            float n = vnoise(p * 0.5 + vec2(t * 0.05, t * 0.033));
+            n += 0.5 * vnoise(p * 1.25 - vec2(t * 0.041, t * 0.067));
+            return n / 1.5;
           }`,
         )
         .replace(
@@ -126,8 +129,8 @@ export class WaterMesh {
           {
             vec2 p = vWorldPos.xz;
             float depth = uWaterLevel - bedHeight(p);
-            // Land: the terrain already occludes us, but bail before
-            // painting foam up the hillside.
+            // Land: the terrain already occludes us, but bail rather than
+            // shade a surface that is not there.
             if (depth <= 0.0) discard;
             // Normalized over the bed's actual shelving range (see the
             // lake beds in worldgen), so the whole gradient gets used.
@@ -137,38 +140,15 @@ export class WaterMesh {
             vec3 col = mix(uShallow, uMid, smoothstep(0.0, 0.3, d01));
             col = mix(col, uDeep, smoothstep(0.28, 0.85, d01));
 
-            // Broad brightness banding from the swell keeps the flat plane
-            // from looking like a decal.
-            float swell = sin(p.x * 0.55 + uTime * 0.5) * sin(p.y * 0.7 - uTime * 0.35)
-                        + sin((p.x + p.y) * 0.4 + uTime * 0.3);
-            swell *= 0.5;
-            col *= 1.0 + swell * 0.06;
-
-            // Surf. Distance to the shoreline in PIXELS, not world units:
-            // depth divided by its own screen-space gradient. Bed slope
-            // varies wildly (a sheer mountain lake vs a shallow bay), so a
-            // world-space threshold gives a band that is either invisible
-            // or a flood — this keeps one constant, crisp line at every
-            // zoom level.
-            float grad = length(vec2(dFdx(depth), dFdy(depth)));
-            float shore = grad > 1e-6 ? depth / grad : 1e6;
-            float wob = sin(p.x * 3.3 + uTime * 1.2) * 0.5
-                      + sin(p.y * 2.9 - uTime * 0.9) * 0.5;
-            float edge = 7.0 + wob * 2.5;
-            float foam = 1.0 - smoothstep(edge - 4.0, edge + 4.0, shore);
-            // A second lacy line breaking further out. Two incommensurate
-            // frequencies, so the crests never settle into the regular
-            // chevron wallpaper a single directional sine produces.
-            float band = sin(p.x * 2.2 + p.y * 1.8 - uTime * 1.6)
-                       * sin(p.x * 0.9 - p.y * 1.31 + uTime * 0.7);
-            float lace = (1.0 - smoothstep(12.0, 30.0, shore))
-                       * smoothstep(0.35, 0.85, band);
-            foam = clamp(foam + lace * 0.25, 0.0, 1.0);
-            col = mix(col, uFoam, foam);
+            // Soft drifting light and shade, the way sun sits on open water.
+            float r = ripple(p, uTime);
+            col *= 1.0 + (r - 0.5) * 0.18;
 
             diffuseColor.rgb = col;
-            // Clear at the margins, opaque over the deeps; foam is solid.
-            diffuseColor.a = mix(mix(0.3, 0.86, d01), 0.95, foam);
+            // No surf line: a bright rim traced around every lake reads as
+            // an outline, not as water. The shore dissolves instead —
+            // nearly clear where it laps the bank, opaque over the deeps.
+            diffuseColor.a = mix(0.24, 0.88, d01);
           }`,
         )
         .replace(
@@ -176,23 +156,14 @@ export class WaterMesh {
           /* glsl */ `#include <emissivemap_fragment>
           {
             vec2 p = vWorldPos.xz;
-            vec3 n = waveNormal(p, uTime);
-            vec3 viewDir = normalize(cameraPosition - vWorldPos);
-            vec3 halfDir = normalize(uSunDir + viewDir);
-            float ndh = max(dot(n, halfDir), 0.0);
-            // A broad lobe for the sheen rolling along the swells, and a
-            // tight one for glitter. The tight exponent stays modest: the
-            // half-vector sits well off vertical under this fixed camera,
-            // so anything sharper rounds to nothing on a near-flat surface.
-            float sheen = pow(ndh, 14.0);
-            float glint = pow(ndh, 26.0);
-            // Broken up by a fast high-frequency field so the glitter reads
-            // as scattered points of light rather than a smooth band.
-            float speck = sin(p.x * 7.3 + uTime * 1.9) * sin(p.y * 6.1 - uTime * 1.4)
-                        + sin((p.x - p.y) * 5.1 + uTime * 2.3);
-            glint *= smoothstep(0.35, 1.25, speck + 0.7);
-            totalEmissiveRadiance += vec3(1.0, 0.97, 0.88) * glint * 0.5
-                                   + vec3(0.42, 0.66, 0.72) * sheen * 0.05;
+            float depth = uWaterLevel - bedHeight(p);
+            float d01 = clamp((depth - 0.06) / 1.15, 0.0, 1.0);
+            // Shimmer: a faster, finer field clipped near its peaks, so
+            // only the crests catch the light. Fades out in the shallows,
+            // where the bed shows through instead.
+            float g = vnoise(p * 5.2 + vec2(uTime * 0.15, -uTime * 0.11));
+            float shimmer = smoothstep(0.82, 0.99, g) * smoothstep(0.12, 0.45, d01);
+            totalEmissiveRadiance += vec3(0.62, 0.82, 0.86) * shimmer * 0.11;
           }`,
         );
     };
