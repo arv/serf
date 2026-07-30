@@ -618,16 +618,28 @@ export function makeBuildingModel(type: BuildingTypeId): THREE.Group {
 }
 
 /** Clone a building model with all materials made semi-transparent. */
-export function makeGhostModel(type: BuildingTypeId, opacity = 0.45): THREE.Group {
-  // Preview whatever model the theme will actually build.
-  const g = makeMedievalBuilding(type) ?? makeBuildingModel(type);
+export function makeGhostModel(
+  type: BuildingTypeId,
+  opacity = 0.45,
+  owner = 0,
+): THREE.Group {
+  // Preview whatever model the theme will actually build, in your colors.
+  const g = makeMedievalBuilding(type, owner) ?? makeBuildingModel(type);
+  // Faction-colored meshes carry a material array (texture group +
+  // team-color group); treating one as a lone material throws and the
+  // ghost never appears.
+  const ghosted = (m: THREE.Material): THREE.Material => {
+    const mat = m.clone() as THREE.MeshLambertMaterial;
+    mat.transparent = true;
+    mat.opacity = opacity;
+    mat.depthWrite = false;
+    return mat;
+  };
   g.traverse((obj) => {
     if (obj instanceof THREE.Mesh) {
-      const mat = (obj.material as THREE.MeshLambertMaterial).clone();
-      mat.transparent = true;
-      mat.opacity = opacity;
-      mat.depthWrite = false;
-      obj.material = mat;
+      obj.material = Array.isArray(obj.material)
+        ? obj.material.map(ghosted)
+        : ghosted(obj.material as THREE.Material);
       obj.castShadow = false;
       obj.receiveShadow = false;
     }

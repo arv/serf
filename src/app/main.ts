@@ -163,7 +163,7 @@ async function boot(): Promise<void> {
   const feedWells = (): void => sync.setWells(buildingSync.wellCranks());
   feedWells();
   const selectionFx = new SelectionFx(renderer.scene, heights);
-  const ghost = new GhostPlacement(renderer.scene, heights);
+  const ghost = new GhostPlacement(renderer.scene, heights, config.myPlayerId);
   const controls = new Controls(canvas, renderer.rig.camera, sync, host, mirror, ghost, heights);
 
   host.onNetStatus((status) => setNetStatus(status));

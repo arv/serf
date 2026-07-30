@@ -132,14 +132,23 @@ export class BuildingSync {
       if (medieval) {
         model = medieval;
         // Per-site material clones so the clip plane never touches the
-        // shared templates or finished buildings.
+        // shared templates or finished buildings. Faction-colored meshes
+        // carry a material *array* (texture group + team-color group), so
+        // clone through both — treating one as a lone material throws, and
+        // the throw took the whole structural update with it: no frame, no
+        // rise, no HUD refresh.
         const plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), root.position.y);
+        const clipped = (m: THREE.Material): THREE.Material => {
+          const c = m.clone();
+          c.clippingPlanes = [plane];
+          c.clipShadows = true;
+          return c;
+        };
         model.traverse((o) => {
           if (o instanceof THREE.Mesh) {
-            const m = (o.material as THREE.Material).clone();
-            m.clippingPlanes = [plane];
-            m.clipShadows = true;
-            o.material = m;
+            o.material = Array.isArray(o.material)
+              ? o.material.map(clipped)
+              : clipped(o.material as THREE.Material);
           }
         });
         // Note: root isn't in the scene yet, so this bbox is root-local —

@@ -15,17 +15,20 @@ export class GhostPlacement {
   #heights: HeightField;
   #group: THREE.Group | null = null;
   #type: BuildingTypeId | null = null;
+  /** Seat whose colors the preview wears. */
+  #owner: number;
 
-  constructor(scene: THREE.Scene, heights: HeightField) {
+  constructor(scene: THREE.Scene, heights: HeightField, owner = 0) {
     this.#scene = scene;
     this.#heights = heights;
+    this.#owner = owner;
   }
 
   show(type: BuildingTypeId): void {
     if (this.#type === type) return;
     this.hide();
     this.#type = type;
-    this.#group = makeGhostModel(type, 0.55);
+    this.#group = makeGhostModel(type, 0.55, this.#owner);
     this.#group.visible = false;
     this.#scene.add(this.#group);
   }
