@@ -228,7 +228,9 @@ export function SelectionPanel(props: {
         }}
       </Show>
       <Show when={!selectedBuilding() && selection().size > 0}>
-        <div class="hud-selection panel">{selection().size} unit(s) selected</div>
+        <div class="hud-selection panel">
+          {selection().size} {selection().size === 1 ? 'unit' : 'units'} selected
+        </div>
       </Show>
     </>
   );
