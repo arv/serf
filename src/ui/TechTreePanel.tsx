@@ -66,7 +66,14 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
         }
         .tech-node.unaffordable { opacity: 0.7; }
         .tech-node.locked { opacity: 0.4; }
-        .tech-node .bar { height: 3px; background: #dfb670; margin-top: 4px; border-radius: 2px; }
+        /* Research progress fills the node itself, the way the Hire button
+           fills — a sliver of bar tacked on the bottom is easy to miss. */
+        .tech-node { position: relative; overflow: hidden; }
+        .tech-node > *:not(.fill) { position: relative; }
+        .tech-node .fill {
+          position: absolute; inset: 0 auto 0 0;
+          background: rgba(223, 182, 112, 0.22); pointer-events: none;
+        }
         .tech-note { font-size: 11px; opacity: 0.75; margin-top: 6px; }
 
         /* Phone: three side-by-side branches can't fit, and a flex row just
@@ -130,6 +137,10 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
                     if (state(id) === 'available' && techs().hasTerakoya) props.onResearch(id);
                   }}
                 >
+                  {/* First in the DOM so it paints behind the text. */}
+                  <Show when={state(id) === 'researching'}>
+                    <div class="fill" style={{ width: `${progress(id)}%` }} />
+                  </Show>
                   <b>
                     {state(id) === 'done' ? '✓ ' : ''}
                     {techName(id)}
@@ -146,9 +157,6 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
                     </For>
                   </span>
                   <div class="desc">{techDesc(id)}</div>
-                  <Show when={state(id) === 'researching'}>
-                    <div class="bar" style={{ width: `${progress(id)}%` }} />
-                  </Show>
                 </div>
               )}
             </For>
