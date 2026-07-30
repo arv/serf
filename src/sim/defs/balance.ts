@@ -45,6 +45,10 @@ export const MAX_CONCURRENT_PAVING = 4; // road sites in flight (never starves c
 
 // Hiring
 export const HIRE_SERF_COST = 4; // silver
+/** Word has to reach the next village over and the recruit has to walk in. */
+export const HIRE_SERF_TICKS = 8 * TICKS_PER_SECOND;
+/** Paid-for hires that can be waiting at once. */
+export const HIRE_QUEUE_CAP = 5;
 /** Combat corpses linger this long so the death animation can play. */
 export const CORPSE_TICKS = 30;
 

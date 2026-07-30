@@ -35,6 +35,9 @@ export interface BuildingSnap {
   reservedOut: GoodAmounts;
   maxHp: number;
   trainQueue?: { unit: string; started: boolean }[];
+  /** Serf hires paid for and still walking in, and the leader's progress 0..1. */
+  hireQueue?: number;
+  hireProgress01?: number;
   /** Staffing state (undefined = building needs no worker). */
   staffing?: 'staffed' | 'recruiting' | 'needed';
 }

@@ -3,7 +3,7 @@ import { createWorld, type World } from '../sim/world';
 import { deserializeWorld, serializeWorld } from '../sim/save';
 import { tickWorld } from '../sim/tick';
 import { OWNER_CODE, UNIT_DEFS, carryingCode } from '../sim/defs/units';
-import { MATCHER_INTERVAL } from '../sim/defs/balance';
+import { HIRE_SERF_TICKS, MATCHER_INTERVAL } from '../sim/defs/balance';
 import { buildingDef } from '../sim/defs/buildings';
 import { TECH_DEFS } from '../sim/defs/techs';
 import { checkInvariants, checkLedger, countGoods } from '../sim/debug/invariants';
@@ -89,6 +89,10 @@ function snapBuilding(b: Building): BuildingSnap {
     inbound: { ...b.inbound },
     reservedOut: { ...b.reservedOut },
     trainQueue: b.trainQueue?.map((q) => ({ unit: q.unit, started: q.started })),
+    hireQueue: b.hireQueue,
+    hireProgress01: b.hireQueue
+      ? 1 - (b.hireTicksLeft ?? HIRE_SERF_TICKS) / HIRE_SERF_TICKS
+      : undefined,
   };
 }
 
