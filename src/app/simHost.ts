@@ -3,6 +3,7 @@ import type {
   BuildingSnap,
   MainToWorker,
   MapSnapshot,
+  NetStatus,
   StructuralUpdate,
   WorkerToMain,
 } from '../protocol/messages';
@@ -27,12 +28,14 @@ export interface SimHost {
   setSpeed(speed: number): void;
   requestSave(): Promise<string>;
   onStructural(cb: (msg: StructuralUpdate) => void): void;
+  onNetStatus?(cb: (status: NetStatus) => void): void;
 }
 
 export class WorkerSimHost implements SimHost {
   #worker = new Worker(new URL('./simWorker.ts', import.meta.url), { type: 'module' });
   #structuralCb: ((msg: StructuralUpdate) => void) | null = null;
   #saveCb: ((data: string) => void) | null = null;
+  #netStatusCb: ((status: NetStatus) => void) | null = null;
   /** Seat the UI's commands are issued as (always 0 until lobbies land). */
   playerId = 0;
 
@@ -49,6 +52,8 @@ export class WorkerSimHost implements SimHost {
         } else if (msg.type === 'saved') {
           this.#saveCb?.(msg.data);
           this.#saveCb = null;
+        } else if (msg.type === 'netStatus') {
+          this.#netStatusCb?.(msg.status);
         }
       };
       this.#post({ type: 'init', config, loadData, net });
@@ -64,6 +69,10 @@ export class WorkerSimHost implements SimHost {
 
   onStructural(cb: (msg: StructuralUpdate) => void): void {
     this.#structuralCb = cb;
+  }
+
+  onNetStatus(cb: (status: NetStatus) => void): void {
+    this.#netStatusCb = cb;
   }
 
   sendCommands(commands: SimCommand[]): void {

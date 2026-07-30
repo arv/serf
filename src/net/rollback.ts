@@ -106,8 +106,14 @@ export class RollbackSession {
    * disagrees with what it applied. */
   ingestTurns(firstTick: number, tickCount: number, records: TurnRecord[]): void {
     for (const r of records) {
+      // Rejoin replays stream the whole history — ticks already confirmed
+      // are settled truth; drop them instead of hoarding stale buckets.
+      if (r.tick < this.confirmed.tick) continue;
       let bucket = this.#turnLog.get(r.tick);
       if (!bucket) this.#turnLog.set(r.tick, (bucket = []));
+      // Replayed frames can overlap live ones — a record is identified by
+      // (playerId, seq) forever, so duplicates drop.
+      if (bucket.some((x) => x.playerId === r.playerId && x.seq === r.seq)) continue;
       bucket.push(r);
       // Ack: our own record came back — it is scheduled truth now.
       if (r.playerId === this.localPlayerId) {

@@ -29,6 +29,11 @@ export const [playersMeta, setPlayersMeta] = createSignal<PlayerSnap[]>([]);
 /** Networked match: lockstep speed (no pause/FF), no save, no cheats. */
 export const [netMode, setNetMode] = createSignal(false);
 
+/** Live connection health (netMode only). */
+export const [netStatus, setNetStatus] = createSignal<
+  import('../protocol/messages').NetStatus | null
+>(null);
+
 /** Storehouse stock — the HUD resource bar. */
 export const [stock, setStock] = createSignal<GoodAmounts>({});
 

@@ -14,6 +14,7 @@ import {
   debugJobs,
   debugOpen,
   netMode,
+  netStatus,
   invariantViolations,
   myPlayerId,
   openPanel,
@@ -156,6 +157,21 @@ export function Hud(props: {
         }
         .research-chip .label { position: relative; }
 
+        .hud-nettrouble {
+          position: absolute;
+          top: 70px;
+          left: 50%;
+          transform: translateX(-50%);
+          padding: 8px 18px;
+          color: #e8b7a0;
+          z-index: 12;
+        }
+        #ui .net-chip {
+          font-size: 12px;
+          color: #9fae9a;
+          padding: 0 8px;
+          align-self: center;
+        }
         .hud-speed {
           position: absolute; top: 12px; right: 12px;
           display: flex; align-items: center; gap: 4px;
@@ -268,7 +284,22 @@ export function Hud(props: {
            bottom cards can't sit side by side. Stack them, and let the
            long lists scroll instead of growing over the map. */
         @media (max-width: 760px) {
-          .hud-speed {
+          .hud-nettrouble {
+          position: absolute;
+          top: 70px;
+          left: 50%;
+          transform: translateX(-50%);
+          padding: 8px 18px;
+          color: #e8b7a0;
+          z-index: 12;
+        }
+        #ui .net-chip {
+          font-size: 12px;
+          color: #9fae9a;
+          padding: 0 8px;
+          align-self: center;
+        }
+        .hud-speed {
             top: calc(10px + env(safe-area-inset-top));
             right: calc(10px + env(safe-area-inset-right));
           }
@@ -373,6 +404,16 @@ export function Hud(props: {
         >
           ☰
         </button>
+        <Show when={netMode() && netStatus()?.state === 'ok'}>
+          <span
+            class="net-chip"
+            {...tooltip(() => (
+              <TextTip title="Connection" body="Round-trip to the relay and prediction lead." />
+            ))}
+          >
+            {'⇄ ' + String((netStatus() as { rttMs: number }).rttMs) + 'ms'}
+          </span>
+        </Show>
         <Show when={!netMode()}>
           <span class="div"></span>
           <For each={SPEEDS}>
@@ -486,6 +527,17 @@ export function Hud(props: {
       <div class="hud-toasts">
         <For each={toasts()}>{(t) => <div class="panel toast">{t.text}</div>}</For>
       </div>
+
+      <Show when={netMode() && netStatus() && netStatus()!.state !== 'ok'}>
+        <div class="hud-nettrouble panel">
+          {((): string => {
+            const s = netStatus()!;
+            if (s.state === 'stalled') return 'Connection lagging — waiting for the relay…';
+            if (s.state === 'desync') return 'The clients have diverged. A resync is needed.';
+            return 'Connection to the relay lost. Reconnecting…';
+          })()}
+        </div>
+      </Show>
 
       <Show when={outcome().state === 'over'}>
         <div class="hud-end">

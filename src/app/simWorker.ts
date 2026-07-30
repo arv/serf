@@ -51,6 +51,8 @@ let session: RollbackSession | null = null;
 let socket: WebSocket | null = null;
 let confirmedEvents: GameEvent[] = [];
 let needFullRefresh = false;
+let netInfo: NetInfo | null = null;
+let worldBlob: string | null = null;
 // Server clock estimate from the latest PONG.
 let pongClosedTick = -1;
 let pongAtMs = 0;
@@ -125,13 +127,9 @@ function snapBuilding(b: Building): BuildingSnap {
 function init(config: import('../sim/world').WorldConfig, loadData?: string, net?: NetInfo): void {
   world = loadData !== undefined ? deserializeWorld(loadData) : createWorld(config);
   if (net) {
-    session = new RollbackSession(world, net.playerId);
-    session.onConfirmedTick = (_w, events) => {
-      confirmedEvents.push(...events);
-    };
-    session.onRollback = () => {
-      needFullRefresh = true;
-    };
+    netInfo = net;
+    worldBlob = loadData ?? null;
+    session = makeSession(world, net.playerId);
     world = session.predicted; // the renderer's world
     openSocket(net);
   }
@@ -170,6 +168,32 @@ let lastPump = 0;
 let acc = 0;
 /** Cap banked time so a debugger pause doesn't unleash a tick avalanche. */
 const MAX_CATCHUP_QUANTA = 10;
+
+function makeSession(base: World, playerId: number): RollbackSession {
+  const s = new RollbackSession(base, playerId);
+  s.onConfirmedTick = (_w, events) => {
+    confirmedEvents.push(...events);
+  };
+  s.onRollback = () => {
+    needFullRefresh = true;
+  };
+  return s;
+}
+
+/**
+ * Desync recovery: determinism makes the blob + closed history the
+ * authoritative state, so rebuild from scratch and let the reconnect
+ * stream replay everything. Costs a "rejoining" moment, never a guess.
+ */
+function resyncFromHistory(): void {
+  if (!worldBlob || !netInfo || !session) return;
+  const base = deserializeWorld(worldBlob);
+  session = makeSession(base, netInfo.playerId);
+  world = session.predicted;
+  lastHashedTick = 0;
+  needFullRefresh = true;
+  socket?.close(); // the reconnect handler streams the full history
+}
 
 /** Server tick the relay has closed by now, per the latest PONG. */
 function estimatedClosedTick(now: number): number {
@@ -213,22 +237,33 @@ function netPump(): void {
 }
 
 function openSocket(net: NetInfo): void {
+  // One ping timer across reconnects.
+  setInterval(() => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(encodePing(performance.now() >>> 0));
+    }
+  }, 2000);
+  connectSocket(net, 0);
+}
+
+function connectSocket(net: NetInfo, attempt: number): void {
   const ws = new WebSocket(net.relayUrl);
   ws.binaryType = 'arraybuffer';
   socket = ws;
   ws.onopen = () => {
-    // Bind this socket to our seat; the server streams any closed history
-    // (empty at match start) and then live TURN frames.
+    // Bind this socket to our seat; the server streams the closed history
+    // (empty at match start, everything since on a reconnect — confirmed
+    // catches up by replay) and then live TURN frames.
     ws.send(JSON.stringify({ t: 'rejoin', token: net.token }));
     ws.send(encodePing(performance.now() >>> 0));
-    setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(encodePing(performance.now() >>> 0));
-    }, 2000);
   };
   ws.onmessage = (e: MessageEvent) => {
     if (typeof e.data === 'string') {
       const msg = JSON.parse(e.data) as { t: string; tick?: number };
-      if (msg.t === 'desync') postStatus({ state: 'desync', tick: msg.tick ?? 0 });
+      if (msg.t === 'desync') {
+        postStatus({ state: 'desync', tick: msg.tick ?? 0 });
+        resyncFromHistory();
+      }
       return;
     }
     const frame = decodeFrame(new Uint8Array(e.data as ArrayBuffer));
@@ -250,6 +285,9 @@ function openSocket(net: NetInfo): void {
   };
   ws.onclose = () => {
     postStatus({ state: 'disconnected' });
+    // Same token, exponential-ish backoff — the relay keeps the seat warm.
+    const delay = Math.min(500 * 2 ** attempt, 8000);
+    setTimeout(() => connectSocket(net, attempt + 1), delay);
   };
 }
 

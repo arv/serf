@@ -20,6 +20,7 @@ import {
   myPlayerId,
   setMyPlayerId,
   setNetMode,
+  setNetStatus,
   pushToast,
   selectedBuilding,
   setAdminState,
@@ -127,6 +128,7 @@ async function boot(): Promise<void> {
   const ghost = new GhostPlacement(renderer.scene, heights);
   const controls = new Controls(canvas, renderer.rig.camera, sync, host, mirror, ghost, heights);
 
+  host.onNetStatus((status) => setNetStatus(status));
   host.onStructural((msg) => {
     // Grass and shore rocks make way for buildings and worn trails (checked
     // against the mirror's pre-update state, so compare before applying).
