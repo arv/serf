@@ -17,7 +17,16 @@ export class WaterMesh {
     geometry.rotateX(-Math.PI / 2);
     geometry.translate(MAP_SIZE / 2, WATER_LEVEL, MAP_SIZE / 2);
 
-    const material = new THREE.MeshLambertMaterial({ color: palette.water });
+    // Semitransparent so the painted lakebed shows through — an opaque
+    // sheet reads as sky, not water. No depth write: the terrain beneath
+    // is already drawn, and other transparent layers (mist) composite
+    // over the surface without sorting fights.
+    const material = new THREE.MeshLambertMaterial({
+      color: palette.water,
+      transparent: true,
+      opacity: 0.58,
+      depthWrite: false,
+    });
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = this.#time;
       shader.vertexShader = shader.vertexShader
