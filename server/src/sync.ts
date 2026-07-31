@@ -1,98 +1,244 @@
 /**
- * Turning the authoritative world into per-client frames.
+ * Turning the authoritative world into per-seat frames.
  *
- * Right now every seat gets the same picture — this phase only moves the
- * simulation, it does not yet hide anything. Per-player visibility filtering
- * lands here next, which is why frame construction lives in its own module
- * rather than inside the room's tick loop.
+ * This is the file that ends information cheating. A client is not trusted
+ * to hide what it has been told — it is never told. Everything a seat
+ * receives passes through the filters here, so a maphack has nothing to
+ * reveal and a debugger attached to the browser finds only what that seat
+ * has legitimately observed.
  *
- * One rule already matters: `pendingDeltas` and `pendingEvents` on the world
- * are drain-once outboxes, so they are emptied a single time per broadcast
- * and the result is fanned out. Draining per seat would hand seat 0 the map
- * deltas and leave everyone else with a stale mirror.
+ * Two rules, lifted from how the renderer used to hide things:
+ * - units by *current* visibility — a raider you saw a minute ago is gone
+ * - buildings by *exploration*, frozen at last sight — a camp does not walk
+ *   away, but nor do you watch it being built from across the map
+ *
+ * `pendingDeltas` and `pendingEvents` on the world are drain-once outboxes,
+ * so they are emptied a single time per pump and then distributed. Draining
+ * per seat would hand seat 0 the map deltas and leave everyone else stale.
  */
 import { encodeHot, encodeInit, encodeStruct } from '../../src/protocol/state.ts';
-import {
-  snapBuildings,
-  snapJobs,
-  snapPlayers,
-  unitSnapshots,
-} from '../../src/protocol/snapshot.ts';
-import type { World } from '../../src/sim/world.ts';
+import { snapBuilding, snapJobs, snapPlayers, unitSnapshots } from '../../src/protocol/snapshot.ts';
+import { TILE_COUNT } from '../../src/shared/grid.ts';
+import { SeatVision } from '../../src/sim/visibility.ts';
+import type { UnitSnapshot } from '../../src/protocol/sabLayout.ts';
+import type { BuildingSnap, PlayerSnap } from '../../src/protocol/messages.ts';
+import type { EntityId } from '../../src/sim/entities.ts';
+import type { GameEvent, MapDelta, World } from '../../src/sim/world.ts';
 import type { Room, Seat } from './rooms.ts';
+
+/** Ticks between structural frames when nothing else forces one. */
+const MIN_STRUCT_GAP = 5;
+
+/** Per-seat filtering state. */
+export class SeatView {
+  readonly vision = new SeatVision();
+  /** Enemy buildings as this seat last saw them, by id. */
+  readonly lastSeen = new Map<EntityId, BuildingSnap>();
+  /** Map news owed to this seat, held until the next structural frame. */
+  readonly owedTiles = new Set<number>();
+  /** Events owed likewise. They are drained from the world once per pump,
+   * so a seat that is between structural frames has to keep its own copy
+   * or the raid warning is simply lost. */
+  readonly owedEvents: GameEvent[] = [];
+  lastStructTick = -1;
+}
 
 function send(seat: Seat, frame: Uint8Array): void {
   if (seat.connected && seat.ws) seat.ws.send(frame);
 }
 
-/** Everything a client needs to stand up its mirror: the immutable map plus
- * the current roster. Sent on match start and again on rejoin. */
-export function sendInit(room: Room, seat: Seat): void {
+function tileDelta(world: World, idx: number): MapDelta {
+  return {
+    idx,
+    resource: world.map.resource[idx]!,
+    blocked: world.map.blocked[idx]!,
+    pathLevel: world.map.pathLevel[idx]!,
+    buildingAt: world.map.buildingAt[idx]!,
+  };
+}
+
+/** Refresh every seat's vision and note what each one newly observed. */
+export function recomputeVision(room: Room): void {
   const world = room.world;
   if (!world) return;
-  send(
-    seat,
-    encodeInit(
-      world.tick,
-      seat.playerId,
-      {
-        terrain: world.map.terrain,
-        resource: world.map.resource,
-        blocked: world.map.blocked,
-        pathLevel: world.map.pathLevel,
-        buildingAt: world.map.buildingAt,
-        height: world.map.height,
-      },
-      {
-        buildings: snapBuildings(world),
-        players: snapPlayers(world),
-        admin: { ...world.admin },
-        outcome: world.outcome,
-        seats: room.seats.map((s) => ({ kind: s.kind })),
-      },
-    ),
+  for (const seat of room.seats) {
+    if (!seat.view) continue;
+    seat.view.vision.recompute(world, seat.playerId);
+    // Newly lit ground: a delta only fires when a tile *changes*, so land
+    // built on while we were not looking would stay wrong forever.
+    for (const idx of seat.view.vision.revealed) seat.view.owedTiles.add(idx);
+  }
+}
+
+/**
+ * The map as this seat is allowed to know it at match start.
+ *
+ * Terrain, height and the natural resource layout go out whole: that is the
+ * shape of the world, hiding it would mean streaming terrain geometry, and
+ * the map reads as an empty void without it. `blocked` rides along because
+ * it is mostly the same natural landscape (water, cliffs, boulders) and
+ * start positions come from a fixed table anyone can read in the source.
+ *
+ * What is withheld is the part that carries ongoing intelligence:
+ * `buildingAt` and `pathLevel` — what a rival has built, and where they
+ * walk. Those arrive tile by tile as ground is observed.
+ */
+function initialMap(world: World, view: SeatView): {
+  terrain: Uint8Array;
+  resource: Uint8Array;
+  blocked: Uint8Array;
+  pathLevel: Uint8Array;
+  buildingAt: Int16Array;
+  height: Float32Array;
+} {
+  const buildingAt = new Int16Array(TILE_COUNT).fill(-1);
+  const pathLevel = new Uint8Array(TILE_COUNT);
+  for (let i = 0; i < TILE_COUNT; i++) {
+    if (view.vision.explored[i]) {
+      buildingAt[i] = world.map.buildingAt[i]!;
+      pathLevel[i] = world.map.pathLevel[i]!;
+    }
+  }
+  return {
+    terrain: world.map.terrain,
+    resource: world.map.resource,
+    blocked: world.map.blocked,
+    pathLevel,
+    buildingAt,
+    height: world.map.height,
+  };
+}
+
+/** Every seat's block, but only our own carries stock and tech. Rival
+ * economies are exactly the thing scouting is supposed to cost. */
+function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
+  return players.map((p) =>
+    p.id === seatId
+      ? p
+      : {
+          id: p.id,
+          kind: p.kind,
+          alive: p.alive,
+          stock: {},
+          techs: {
+            researched: [],
+            festivalTicksLeft: 0,
+            pavingUnlocked: false,
+            hasTerakoya: false,
+          },
+        },
   );
 }
 
-/** The 20 Hz frame. Built once and fanned out while every seat sees the
- * same units; per-seat construction arrives with visibility filtering. */
+/** Raid warnings are addressed; eliminations and the result are public. */
+function eventsFor(events: GameEvent[], seatId: number): GameEvent[] {
+  return events.filter((e) => e.kind !== 'raidIncoming' || e.player === seatId);
+}
+
+/** Buildings this seat may see: its own and currently-observed ones live,
+ * previously-seen ones frozen as they were left. */
+function buildingsFor(world: World, seatId: number, view: SeatView): BuildingSnap[] {
+  const out: BuildingSnap[] = [];
+  const shown = new Set<EntityId>();
+  for (const b of world.buildings.values()) {
+    if (b.dead) continue;
+    const own = b.owner === seatId;
+    if (own || view.vision.canSee(b.x + b.w / 2, b.y + b.h / 2)) {
+      const snap = snapBuilding(world, b);
+      if (!own) view.lastSeen.set(b.id, snap);
+      out.push(snap);
+      shown.add(b.id);
+    }
+  }
+  // Remembered buildings: still standing but unobserved, or destroyed while
+  // we were not watching. Either way the memory holds until we look again.
+  for (const [id, snap] of view.lastSeen) {
+    if (shown.has(id)) continue;
+    const live = world.buildings.get(id);
+    const centerX = snap.x + snap.w / 2;
+    const centerY = snap.y + snap.h / 2;
+    if (view.vision.canSee(centerX, centerY)) {
+      // We are looking right at it and the world says it is gone.
+      if (!live || live.dead) view.lastSeen.delete(id);
+      continue;
+    }
+    if (view.vision.hasExplored(centerX, centerY)) out.push(snap);
+  }
+  return out;
+}
+
+export function sendInit(room: Room, seat: Seat): void {
+  const world = room.world;
+  const view = seat.view;
+  if (!world || !view) return;
+  // The frame carries the whole permitted map, so anything owed is moot.
+  view.owedTiles.clear();
+  send(
+    seat,
+    encodeInit(world.tick, seat.playerId, initialMap(world, view), {
+      buildings: buildingsFor(world, seat.playerId, view),
+      players: redactPlayers(snapPlayers(world), seat.playerId),
+      admin: { ...world.admin },
+      outcome: world.outcome,
+      seats: room.seats.map((s) => ({ kind: s.kind })),
+    }),
+  );
+}
+
+/** The 20 Hz frame, built per seat: our own units, plus whoever is lit. */
 export function sendHot(room: Room): void {
   const world = room.world;
   if (!world) return;
-  const frame = encodeHot(world.tick, unitSnapshots(world));
-  for (const seat of room.seats) send(seat, frame);
+  const all: UnitSnapshot[] = [...unitSnapshots(world)];
+  for (const seat of room.seats) {
+    const view = seat.view;
+    if (!view || !seat.connected || !seat.ws) continue;
+    const mine: UnitSnapshot[] = [];
+    for (const u of all) {
+      if (u.owner === seat.playerId || view.vision.canSee(u.x, u.y)) mine.push(u);
+    }
+    send(seat, encodeHot(world.tick, mine));
+  }
 }
 
-export function sendStruct(room: Room): void {
+export function sendStruct(room: Room, deltas: MapDelta[], events: GameEvent[]): void {
   const world = room.world;
   if (!world) return;
-  // Drain once, fan out — see the note at the top of this file.
-  const mapDeltas = world.pendingDeltas.splice(0);
-  const events = world.pendingEvents.splice(0);
-  const buildings = snapBuildings(world);
   const players = snapPlayers(world);
-  const admin = { ...world.admin };
   for (const seat of room.seats) {
-    if (!seat.connected || !seat.ws) continue;
+    const view = seat.view;
+    if (!view) continue;
+    if (!seat.connected || !seat.ws) {
+      // Nothing to hold: a reconnect is answered with a fresh init frame
+      // carrying the whole map, so a growing backlog would be waste.
+      view.owedTiles.clear();
+      view.owedEvents.length = 0;
+      continue;
+    }
+    // Changes on ground we can see, plus ground we just walked into.
+    for (const d of deltas) {
+      if (view.vision.visible[d.idx]) view.owedTiles.add(d.idx);
+    }
+    view.owedEvents.push(...eventsFor(events, seat.playerId));
+
+    const due = world.tick - view.lastStructTick >= MIN_STRUCT_GAP;
+    if (!due && view.owedTiles.size === 0 && view.owedEvents.length === 0) continue;
+    view.lastStructTick = world.tick;
+    const mapDeltas: MapDelta[] = [];
+    for (const idx of view.owedTiles) mapDeltas.push(tileDelta(world, idx));
+    view.owedTiles.clear();
     send(
       seat,
       encodeStruct(world.tick, {
-        buildings,
+        buildings: buildingsFor(world, seat.playerId, view),
         mapDeltas,
-        players,
-        admin,
-        events,
+        players: redactPlayers(players, seat.playerId),
+        admin: { ...world.admin },
+        events: view.owedEvents.splice(0),
         outcome: world.outcome,
-        // A player's own hauls only. The debug overlay carries no owner on
-        // the wire, so unfiltered it hands over a rival's production chain.
         jobs: snapJobs(world, seat.playerId),
         invariantViolations: [],
       }),
     );
   }
-}
-
-/** True when the world has news worth a structural frame this tick. */
-export function structuralDue(world: World, lastSentTick: number, everyTicks: number): boolean {
-  return world.tick - lastSentTick >= everyTicks || world.pendingDeltas.length > 0;
 }

@@ -1,9 +1,10 @@
 import type { WebSocket } from 'ws';
 import { createWorld, type World } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
-import { MATCHER_INTERVAL, TICK_MS } from '../../src/sim/defs/balance.ts';
+import { TICK_MS } from '../../src/sim/defs/balance.ts';
 import type { SimCommand } from '../../src/sim/commands.ts';
-import { sendHot, sendStruct, structuralDue } from './sync.ts';
+import type { GameEvent, MapDelta } from '../../src/sim/world.ts';
+import { SeatView, recomputeVision, sendHot, sendStruct } from './sync.ts';
 
 export { TICK_MS };
 
@@ -14,6 +15,15 @@ export { TICK_MS };
  */
 const MAX_CATCHUP = 10;
 
+/**
+ * Ticks between visibility recomputes. Stamping sight circles for every
+ * seat is the most expensive thing the server does per room — far more
+ * than the tick itself — and units cross a fraction of a tile in this
+ * time, so recomputing at every tick buys nothing a player could notice.
+ * The renderer throttles its own fog to ~12 Hz for the same reason.
+ */
+const VISION_INTERVAL = 2;
+
 export interface Seat {
   playerId: number;
   kind: 'human' | 'ai';
@@ -21,6 +31,9 @@ export interface Seat {
   ws: WebSocket | null;
   lastSeq: number;
   connected: boolean;
+  /** What this seat has observed, and what it has been told. Created when
+   * the match starts — a lobby seat has nothing to see yet. */
+  view?: SeatView;
 }
 
 export interface Room {
@@ -38,7 +51,7 @@ export interface Room {
   closedTick: number;
   /** Orders accepted since the last tick; applied at the next one. */
   queued: PlayerCommand[];
-  lastStructTick: number;
+  lastVisionTick: number;
   /** When the last human disconnected (running rooms only; sweep target). */
   emptySinceMs?: number;
 }
@@ -62,7 +75,7 @@ export function createRoom(): Room {
     seats: [],
     closedTick: -1,
     queued: [],
-    lastStructTick: -1,
+    lastVisionTick: -1,
   };
   rooms.set(room.code, room);
   return room;
@@ -105,8 +118,11 @@ export function startMatch(room: Room, seed: number): void {
   });
   room.state = 'running';
   room.closedTick = 0;
-  room.lastStructTick = -1;
   room.matchStartMs = Date.now();
+  for (const seat of room.seats) seat.view = new SeatView();
+  // Seats must be able to see their own starting village before the first
+  // frame goes out, or the opening init would arrive with an empty map.
+  recomputeVision(room);
 }
 
 /**
@@ -129,20 +145,28 @@ export function pumpRoom(room: Room, nowMs: number): void {
   if (target <= world.tick) return;
 
   const ticks = Math.min(target - world.tick, MAX_CATCHUP);
+  const deltas: MapDelta[] = [];
+  const events: GameEvent[] = [];
   for (let i = 0; i < ticks; i++) {
     const commands = room.queued;
     room.queued = [];
     tickWorld(world, commands);
+    // Drain every tick of the burst: these are outboxes, and the next tick
+    // would otherwise pile onto news nobody has been handed yet.
+    deltas.push(...world.pendingDeltas.splice(0));
+    events.push(...world.pendingEvents.splice(0));
   }
   room.closedTick = world.tick;
+
+  if (world.tick - room.lastVisionTick >= VISION_INTERVAL) {
+    room.lastVisionTick = world.tick;
+    recomputeVision(room);
+  }
 
   // Exactly one hot frame per burst. The renderer reads movement by diffing
   // the two newest frames, so a duplicated tick reads as "standing still".
   sendHot(room);
-  if (structuralDue(world, room.lastStructTick, MATCHER_INTERVAL)) {
-    room.lastStructTick = world.tick;
-    sendStruct(room);
-  }
+  sendStruct(room, deltas, events);
 }
 
 export function deleteRoomIfDead(room: Room): void {

@@ -2,12 +2,17 @@ import * as THREE from 'three';
 import { MAP_SIZE, TILE_COUNT, tileIdx } from '../shared/grid';
 import { AUX_STRIDE, ACTION, type SabReader } from '../protocol/sabLayout';
 import { palette } from './palette';
+import { UNIT_DEFS } from '../sim/defs/units';
+import { buildingSight } from '../sim/visibility';
 import type { BuildingSnap } from '../protocol/messages';
 
-/** How far each thing sees, in tiles. */
-const UNIT_SIGHT = 6.5;
-const BUILDING_SIGHT = 5.5;
-const STOREHOUSE_SIGHT = 9;
+/** Sight radii come from the unit and building defs, so this and the
+ * server's visibility filter cannot drift apart — if they did, the server
+ * would send things this never lights, or light ground it was sent nothing
+ * for. See src/sim/visibility.ts. */
+const SIGHT_BY_KIND_CODE = new Map<number, number>(
+  Object.values(UNIT_DEFS).map((d) => [d.kindCode, d.sight]),
+);
 /** Tiles over which a sight circle fades out at its rim. Generous on
  * purpose: a long feather is what makes the frontier read as fog rolling
  * off rather than a stencil cut around each unit. */
@@ -168,12 +173,11 @@ export class FogOfWar implements FogQuery {
       const a = i * AUX_STRIDE;
       if (latest.aux[a + 1] !== this.#owner) continue;
       if (latest.aux[a + 4] === ACTION.dead) continue;
-      this.#stamp(latest.xs[i]!, latest.ys[i]!, UNIT_SIGHT);
+      this.#stamp(latest.xs[i]!, latest.ys[i]!, SIGHT_BY_KIND_CODE.get(latest.aux[a]!) ?? 0);
     }
     for (const b of buildings) {
       if (b.owner !== this.#owner) continue;
-      const sight = b.type === 'storehouse' ? STOREHOUSE_SIGHT : BUILDING_SIGHT;
-      this.#stamp(b.x + b.w / 2, b.y + b.h / 2, sight + Math.max(b.w, b.h) / 2);
+      this.#stamp(b.x + b.w / 2, b.y + b.h / 2, buildingSight(b.type, b.w, b.h));
     }
 
     const up = 1 - Math.exp(-step * REVEAL_RATE);

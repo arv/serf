@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import { inBounds, tileIdx } from '../shared/grid';
-import { buildingDef } from '../sim/defs/buildings';
+import { buildingDef, type BuildingTypeId } from '../sim/defs/buildings';
 import { canPlace } from '../sim/world';
 import {
   debugOpen,
@@ -14,6 +14,7 @@ import {
 import { screenToGround, worldToScreen } from './picking';
 import type { SceneSync } from '../render/sceneSync';
 import type { GhostPlacement } from '../render/ghost';
+import type { FogQuery } from '../render/fogOfWar';
 import type { HeightField } from '../render/heightField';
 import type { WorldMirror } from '../app/mirror';
 import type { SimHost } from '../app/simHost';
@@ -39,6 +40,8 @@ export class Controls {
   #mirror: WorldMirror;
   #ghost: GhostPlacement;
   #heights: HeightField;
+  /** Fog test, so placement cannot probe ground nobody has scouted. */
+  #fog: FogQuery | null = null;
   #selection = new Set<number>();
   #dragStart: { x: number; y: number } | null = null;
   #dragging = false;
@@ -172,12 +175,40 @@ export class Controls {
     }
   };
 
+  setFog(fog: FogQuery): void {
+    this.#fog = fog;
+  }
+
+  /**
+   * You cannot build on ground you have never scouted.
+   *
+   * This is a real rule, not just a guard. Without it, arming a building
+   * and clicking across the dark is a free map probe: the click is silently
+   * dropped wherever something already stands, so "nothing happened" maps
+   * out a rival's base without sending a single order. Requiring
+   * exploration removes the question rather than the answer.
+   */
+  #explored(x: number, y: number, w: number, h: number): boolean {
+    if (!this.#fog) return true;
+    for (let ty = y; ty < y + h; ty++) {
+      for (let tx = x; tx < x + w; tx++) {
+        if (!this.#fog.exploredAt(tx + 0.5, ty + 0.5)) return false;
+      }
+    }
+    return true;
+  }
+
+  #canPlaceHere(type: BuildingTypeId, x: number, y: number): boolean {
+    const def = buildingDef(type);
+    return this.#explored(x, y, def.w, def.h) && canPlace(this.#mirror.map, type, x, y);
+  }
+
   /** Commit the armed building at this screen point, if it fits. */
   #place(px: number, py: number, keepArmed: boolean): void {
     const type = placing();
     if (!type) return;
     const origin = this.#placementOrigin(px, py);
-    if (origin && canPlace(this.#mirror.map, type, origin.x, origin.y)) {
+    if (origin && this.#canPlaceHere(type, origin.x, origin.y)) {
       this.#host.sendCommands([
         { kind: 'placeBuilding', building: type, x: origin.x, y: origin.y },
       ]);
@@ -207,7 +238,7 @@ export class Controls {
       const origin = this.#placementOrigin(e.clientX, e.clientY);
       if (origin) {
         this.#ghost.show(type);
-        this.#ghost.moveTo(origin.x, origin.y, canPlace(this.#mirror.map, type, origin.x, origin.y));
+        this.#ghost.moveTo(origin.x, origin.y, this.#canPlaceHere(type, origin.x, origin.y));
       }
       return;
     }

@@ -1,0 +1,100 @@
+/**
+ * What a seat can see. This is the gameplay half of fog of war, lifted out
+ * of the renderer so the server can decide what to *send* rather than the
+ * client deciding what to *draw*.
+ *
+ * src/render/fogOfWar.ts keeps the presentation half — the soft rim, the
+ * reveal/conceal easing, the blur and the shader. None of that belongs
+ * here: a server has no opinion about how a frontier should look, only
+ * about whether a tile is observed.
+ *
+ * The radii match the renderer's exactly. The one deliberate difference is
+ * the edge: the renderer fades a sight circle out over RIM tiles and treats
+ * a tile as seen above a threshold, which makes its effective gameplay
+ * radius about a tile shorter than the nominal one. The server uses the
+ * full radius, so it always sends slightly more than the client will draw.
+ * That margin is the right direction to err — the alternative is an enemy
+ * standing in lit ground who was never sent, which reads as a hole in the
+ * world rather than as fog.
+ */
+import { MAP_SIZE, TILE_COUNT, tileIdx } from '../shared/grid.ts';
+import { UNIT_DEFS } from './defs/units.ts';
+import { buildingDef } from './defs/buildings.ts';
+import type { Owner } from './entities.ts';
+import type { World } from './world.ts';
+
+/** A building watches from its edges, not its middle, so its footprint
+ * widens what it covers. Units are points and need no such adjustment. */
+export function buildingSight(type: Parameters<typeof buildingDef>[0], w: number, h: number): number {
+  return buildingDef(type).sight + Math.max(w, h) / 2;
+}
+
+/**
+ * One seat's view of the map. Two grids: what is lit right now, and what
+ * has ever been lit. Units are hidden by the first (a raider you saw a
+ * minute ago is long gone); buildings are remembered through the second
+ * (a camp does not walk away).
+ */
+export class SeatVision {
+  /** 1 = observed this recompute. */
+  readonly visible = new Uint8Array(TILE_COUNT);
+  /** 1 = observed at some point. Never goes back to 0. */
+  readonly explored = new Uint8Array(TILE_COUNT);
+  /** Tiles that were dark last recompute and are lit now. The server owes
+   * the client the current contents of these — a delta only fires when a
+   * tile *changes*, so ground that was built on while unobserved would
+   * otherwise stay wrong in the client's memory forever. */
+  readonly revealed: number[] = [];
+  #prev = new Uint8Array(TILE_COUNT);
+
+  recompute(world: World, owner: Owner): void {
+    this.visible.fill(0);
+    for (const u of world.units.values()) {
+      if (u.dead || u.owner !== owner) continue;
+      this.#stamp(u.x, u.y, UNIT_DEFS[u.kind].sight);
+    }
+    for (const b of world.buildings.values()) {
+      if (b.dead || b.owner !== owner) continue;
+      this.#stamp(b.x + b.w / 2, b.y + b.h / 2, buildingSight(b.type, b.w, b.h));
+    }
+    this.revealed.length = 0;
+    for (let i = 0; i < TILE_COUNT; i++) {
+      const lit = this.visible[i]!;
+      if (lit && !this.#prev[i]) this.revealed.push(i);
+      if (lit) this.explored[i] = 1;
+      this.#prev[i] = lit;
+    }
+  }
+
+  canSee(x: number, y: number): boolean {
+    const tx = Math.floor(x);
+    const ty = Math.floor(y);
+    if (tx < 0 || ty < 0 || tx >= MAP_SIZE || ty >= MAP_SIZE) return false;
+    return this.visible[tileIdx(tx, ty)] === 1;
+  }
+
+  hasExplored(x: number, y: number): boolean {
+    const tx = Math.floor(x);
+    const ty = Math.floor(y);
+    if (tx < 0 || ty < 0 || tx >= MAP_SIZE || ty >= MAP_SIZE) return false;
+    return this.explored[tileIdx(tx, ty)] === 1;
+  }
+
+  /** Light every tile whose center is within `radius` of (cx, cy). */
+  #stamp(cx: number, cy: number, radius: number): void {
+    const r = Math.ceil(radius);
+    const x0 = Math.max(0, Math.floor(cx) - r);
+    const x1 = Math.min(MAP_SIZE - 1, Math.floor(cx) + r);
+    const y0 = Math.max(0, Math.floor(cy) - r);
+    const y1 = Math.min(MAP_SIZE - 1, Math.floor(cy) + r);
+    const rr = radius * radius; // squared: no sqrt in the inner loop
+    for (let y = y0; y <= y1; y++) {
+      const dy = y + 0.5 - cy;
+      const row = y * MAP_SIZE;
+      for (let x = x0; x <= x1; x++) {
+        const dx = x + 0.5 - cx;
+        if (dx * dx + dy * dy <= rr) this.visible[row + x] = 1;
+      }
+    }
+  }
+}

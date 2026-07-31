@@ -19,6 +19,9 @@ export interface UnitDef {
   kindCode: number;
   speed: number; // tiles/sec
   hp: number;
+  /** How far this unit reveals the map, in tiles. Read by both the server's
+   * visibility filter and the renderer's fog, so the two cannot drift. */
+  sight: number;
   combat?: CombatStats;
 }
 
@@ -37,13 +40,14 @@ export type UnitTypeId =
  * kites heavy. Enemy kinds mirror the classes so counters matter both ways.
  */
 export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
-  serf: { id: 'serf', kindCode: 1, speed: 1.8, hp: 25 },
-  worker: { id: 'worker', kindCode: 2, speed: 1.7, hp: 25 },
+  serf: { id: 'serf', kindCode: 1, speed: 1.8, hp: 25, sight: 6.5 },
+  worker: { id: 'worker', kindCode: 2, speed: 1.7, hp: 25, sight: 6.5 },
   samurai: {
     id: 'samurai',
     kindCode: 3,
     speed: 1.6,
     hp: 80,
+    sight: 6.5,
     combat: { class: 'heavy', damage: 10, cooldownTicks: 20, range: 1.3, acquireRadius: 6 },
   },
   ashigaru: {
@@ -51,6 +55,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     kindCode: 4,
     speed: 2.4,
     hp: 45,
+    sight: 6.5,
     combat: { class: 'light', damage: 7, cooldownTicks: 20, range: 1.3, acquireRadius: 6 },
   },
   archer: {
@@ -58,6 +63,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     kindCode: 5,
     speed: 2.0,
     hp: 35,
+    sight: 6.5,
     combat: { class: 'ranged', damage: 6, cooldownTicks: 24, range: 5, acquireRadius: 7 },
   },
   bandit: {
@@ -65,6 +71,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     kindCode: 6,
     speed: 2.0,
     hp: 40,
+    sight: 6.5,
     combat: { class: 'light', damage: 6, cooldownTicks: 20, range: 1.3, acquireRadius: 8 },
   },
   banditArcher: {
@@ -72,6 +79,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     kindCode: 7,
     speed: 1.9,
     hp: 30,
+    sight: 6.5,
     combat: { class: 'ranged', damage: 5, cooldownTicks: 24, range: 5, acquireRadius: 8 },
   },
   ronin: {
@@ -79,6 +87,7 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     kindCode: 8,
     speed: 1.5,
     hp: 70,
+    sight: 6.5,
     combat: { class: 'heavy', damage: 9, cooldownTicks: 20, range: 1.3, acquireRadius: 8 },
   },
 };

@@ -166,6 +166,9 @@ async function boot(): Promise<void> {
   const selectionFx = new SelectionFx(renderer.scene, heights);
   const ghost = new GhostPlacement(renderer.scene, heights, config.myPlayerId);
   const controls = new Controls(canvas, renderer.rig.camera, sync, host, mirror, ghost, heights);
+  // Placement consults the fog: unscouted ground is not buildable, which is
+  // what stops the build ghost being used to probe the dark.
+  controls.setFog(fog);
 
   host.onNetStatus((status) => setNetStatus(status));
   host.onStructural((msg) => {

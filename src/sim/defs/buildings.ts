@@ -37,6 +37,10 @@ export interface BuildingDef {
   cost: GoodAmounts;
   buildTicks: number;
   hp: number;
+  /** How far this building reveals the map from its footprint edge, in
+   * tiles. Read by both the server's visibility filter and the renderer's
+   * fog, so the two cannot drift. */
+  sight: number;
   storage?: boolean;
   recipe?: Recipe;
   /** Resident worker spawned when construction completes (gather recipes). */
@@ -89,6 +93,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: {},
     buildTicks: 0,
     hp: 500,
+    sight: 9,
     storage: true,
   },
   banditCamp: {
@@ -99,6 +104,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: {},
     buildTicks: 0,
     hp: 600,
+    sight: 5.5,
   },
   bambooHut: {
     id: 'bambooHut',
@@ -108,6 +114,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 6 },
     buildTicks: 15 * S,
     hp: 150,
+    sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'bamboo', output: 'bamboo', radius: 8, workTicks: 2.5 * S },
   },
@@ -119,6 +126,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 6 },
     buildTicks: 15 * S,
     hp: 150,
+    sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'rock', output: 'stone', radius: 8, workTicks: 3 * S },
   },
@@ -130,6 +138,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 4 },
     buildTicks: 8 * S,
     hp: 80,
+    sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'convert', inputs: {}, outputs: { water: 1 }, durationTicks: 6 * S },
   },
@@ -141,6 +150,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 8 },
     buildTicks: 15 * S,
     hp: 100,
+    sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'convert', inputs: { water: 1 }, outputs: { rice: 1 }, durationTicks: 10 * S },
   },
@@ -153,6 +163,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 10, stone: 4 },
     buildTicks: 20 * S,
     hp: 160,
+    sight: 5.5,
     workerKind: 'worker',
     recipe: {
       kind: 'convert',
@@ -170,6 +181,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 8, stone: 4 },
     buildTicks: 20 * S,
     hp: 180,
+    sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'ironDep', output: 'iron', radius: 4, workTicks: 4 * S },
     nearDeposit: { resource: 'ironDep', radius: 4 },
@@ -182,6 +194,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 8, stone: 4 },
     buildTicks: 20 * S,
     hp: 180,
+    sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'silverDep', output: 'silver', radius: 4, workTicks: 4 * S },
     nearDeposit: { resource: 'silverDep', radius: 4 },
@@ -195,6 +208,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 10, stone: 6 },
     buildTicks: 25 * S,
     hp: 180,
+    sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'goldDep', output: 'gold', radius: 4, workTicks: 5 * S },
     nearDeposit: { resource: 'goldDep', radius: 4 },
@@ -208,6 +222,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 10, stone: 6 },
     buildTicks: 20 * S,
     hp: 180,
+    sight: 5.5,
     workerKind: 'worker',
     recipe: {
       kind: 'convert',
@@ -225,6 +240,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 8, stone: 4 },
     buildTicks: 18 * S,
     hp: 160,
+    sight: 5.5,
     workerKind: 'worker',
     recipe: {
       kind: 'convert',
@@ -242,6 +258,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 8 },
     buildTicks: 18 * S,
     hp: 140,
+    sight: 5.5,
     workerKind: 'worker',
     recipe: {
       kind: 'convert',
@@ -258,6 +275,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 10, stone: 4 },
     buildTicks: 20 * S,
     hp: 160,
+    sight: 5.5,
   },
   dojo: {
     id: 'dojo',
@@ -267,6 +285,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { bamboo: 12, stone: 8 },
     buildTicks: 25 * S,
     hp: 220,
+    sight: 5.5,
     requiresTech: 'bushido',
     trains: [
       { unit: 'samurai', cost: { rice: 3, katana: 1 }, durationTicks: 15 * S },
@@ -282,6 +301,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { stone: 1 },
     buildTicks: 2 * S,
     hp: 1,
+    sight: 5.5,
     sitePriority: 3,
     noBlock: true,
     isRoad: true,
