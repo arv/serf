@@ -22,18 +22,8 @@ export interface SimInit {
  * thing; a LocalSimHost (sim inline, for step-debugging) can implement the
  * same interface later because the sim is pure.
  */
-export interface AiPortHandle {
-  playerId: number;
-  port: MessagePort;
-}
-
 export interface SimHost {
-  start(
-    config: GameConfig,
-    loadData?: string,
-    net?: NetInfo,
-    aiPorts?: AiPortHandle[],
-  ): Promise<SimInit>;
+  start(config: GameConfig, loadData?: string, net?: NetInfo): Promise<SimInit>;
   sendCommands(commands: SimCommand[]): void;
   setSpeed(speed: number): void;
   requestSave(): Promise<string>;
@@ -63,12 +53,7 @@ export class WorkerSimHost implements SimHost {
         : new Worker(new URL('./simWorker.ts', import.meta.url), { type: 'module' });
   }
 
-  start(
-    config: GameConfig,
-    loadData?: string,
-    net?: NetInfo,
-    aiPorts?: AiPortHandle[],
-  ): Promise<SimInit> {
+  start(config: GameConfig, loadData?: string, net?: NetInfo): Promise<SimInit> {
     this.playerId = config.myPlayerId;
     return new Promise((resolve, reject) => {
       // A worker that dies after start would otherwise fail silently: the
@@ -92,11 +77,7 @@ export class WorkerSimHost implements SimHost {
           console.log(msg.message);
         }
       };
-      // MessagePorts must ride the transfer list.
-      this.#worker.postMessage(
-        { type: 'init', config, loadData, net, aiPorts } satisfies MainToWorker,
-        aiPorts?.map((a) => a.port) ?? [],
-      );
+      this.#worker.postMessage({ type: 'init', config, loadData, net } satisfies MainToWorker);
     });
   }
 

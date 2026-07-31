@@ -36,7 +36,7 @@ import {
   fogEnabled,
 } from '../ui/store';
 import { WorldMirror } from './mirror';
-import { WorkerSimHost, type AiPortHandle } from './simHost';
+import { WorkerSimHost } from './simHost';
 import { configFromUrl } from './gameConfig';
 import { relayUrl, runLobby } from '../net/lobbyClient';
 import type { NetInfo } from '../protocol/messages';
@@ -58,18 +58,10 @@ if (!crossOriginIsolated) {
   );
 }
 
-/** One dedicated worker per AI seat — the brain thinks off-thread and
- * speaks ordinary commands (SP: over a MessagePort tick feed from the sim
- * worker; MP: as a headless relay client with its own seat token). */
-function spawnAiWorker(): Worker {
-  return new Worker(new URL('../net/aiWorker.ts', import.meta.url), { type: 'module' });
-}
-
 async function boot(): Promise<void> {
   let config = configFromUrl(location.search);
   let loadData: string | undefined;
   let net: NetInfo | undefined;
-  const aiPorts: AiPortHandle[] = [];
 
   const params = new URLSearchParams(location.search);
   const mp = params.get('mp');
@@ -99,20 +91,6 @@ async function boot(): Promise<void> {
   setMyPlayerId(config.myPlayerId);
   setNetMode(net !== undefined);
 
-  // Single-player AI seats: pair each brain worker with the sim worker via
-  // a MessageChannel (executed ticks out, that seat's commands back).
-  if (!net) {
-    config.players.forEach((p, playerId) => {
-      if (p.kind !== 'ai') return;
-      const channel = new MessageChannel();
-      spawnAiWorker().postMessage(
-        { type: 'init', playerId, loadData, config, port: channel.port1 },
-        [channel.port1],
-      );
-      aiPorts.push({ playerId, port: channel.port2 });
-    });
-  }
-
   // Single player owns a World in a worker; multiplayer owns a socket and
   // renders what the server sends. Both speak the same worker protocol, so
   // nothing below this line knows the difference.
@@ -120,7 +98,7 @@ async function boot(): Promise<void> {
   // Character/building GLBs load while the world is prepared; if they fail,
   // the renderer falls back to the procedural models.
   const [init] = await Promise.all([
-    host.start(config, loadData, net, aiPorts),
+    host.start(config, loadData, net),
     loadCharacterAssets(),
     loadMedievalAssets(),
   ]);

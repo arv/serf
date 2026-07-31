@@ -2,6 +2,7 @@
 import { createWorld, type World } from '../sim/world';
 import { deserializeWorld, serializeWorld } from '../sim/save';
 import { tickWorld } from '../sim/tick';
+import { AiSeats } from '../sim/aiSeats';
 import { UNIT_DEFS, carryingCode } from '../sim/defs/units';
 import { HIRE_SERF_TICKS, MATCHER_INTERVAL, TICK_MS } from '../sim/defs/balance';
 import { buildingDef } from '../sim/defs/buildings';
@@ -71,7 +72,7 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
   const msg = e.data;
   switch (msg.type) {
     case 'init':
-      init(msg.config, msg.loadData, msg.net, msg.aiPorts);
+      init(msg.config, msg.loadData, msg.net);
       break;
     case 'commands':
       if (session && socket) {
@@ -131,24 +132,16 @@ function snapBuilding(b: Building): BuildingSnap {
   };
 }
 
-let aiPorts: MessagePort[] = [];
+let ai: AiSeats | null = null;
 
 function init(
   config: import('../sim/world').WorldConfig,
   loadData?: string,
   net?: NetInfo,
-  ports?: { playerId: number; port: MessagePort }[],
 ): void {
   world = loadData !== undefined ? deserializeWorld(loadData) : createWorld(config);
-  // Single-player AI brains: their replicas follow the executed-tick feed
-  // and answer with commands, queued exactly like a player's clicks.
-  for (const { playerId, port } of ports ?? []) {
-    aiPorts.push(port);
-    port.onmessage = (ev: MessageEvent<{ type: string; commands: SimCommand[] }>) => {
-      if (ev.data.type !== 'aiCommands') return;
-      pendingCommands.push(...ev.data.commands.map((cmd) => ({ playerId, cmd })));
-    };
-  }
+  // AI seats think next to the world, the same way the server runs them.
+  ai = new AiSeats(world);
   if (net) {
     netInfo = net;
     worldBlob = loadData ?? null;
@@ -346,8 +339,10 @@ function pump(): void {
     pendingCommands = [];
     for (let i = 0; i < speed; i++) {
       const executed = i === 0 ? commands : [];
+      // Brains decide from the state this tick starts in, and go in with
+      // the player's orders — no frame of hindsight.
+      if (ai) executed.push(...ai.decide(world));
       tickWorld(world, executed);
-      for (const port of aiPorts) port.postMessage({ type: 'tick', commands: executed });
       if (import.meta.env.DEV && world.tick % 20 === 0) {
         const report = checkInvariants(world);
         const ledger = checkLedger(world, initialGoods);

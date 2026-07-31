@@ -1,6 +1,7 @@
 import type { WebSocket } from 'ws';
 import { createWorld, type World } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
+import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { TICK_MS } from '../../src/sim/defs/balance.ts';
 import type { SimCommand } from '../../src/sim/commands.ts';
 import type { GameEvent, MapDelta } from '../../src/sim/world.ts';
@@ -46,6 +47,8 @@ export interface Room {
    * impossible rather than merely inconvenient.
    */
   world?: World;
+  /** Brains for this room's AI seats, run in-process next to the world. */
+  ai?: AiSeats;
   matchStartMs?: number;
   /** Mirrors world.tick; -1 until the match starts (the PONG sentinel). */
   closedTick: number;
@@ -116,6 +119,7 @@ export function startMatch(room: Room, seed: number): void {
     adminEnabled: false,
     banditsEnabled: true,
   });
+  room.ai = new AiSeats(room.world);
   room.state = 'running';
   room.closedTick = 0;
   room.matchStartMs = Date.now();
@@ -150,6 +154,9 @@ export function pumpRoom(room: Room, nowMs: number): void {
   for (let i = 0; i < ticks; i++) {
     const commands = room.queued;
     room.queued = [];
+    // Brains decide from the state this tick starts in, and their orders
+    // go in with the players' — no frame of hindsight.
+    if (room.ai) commands.push(...room.ai.decide(world));
     tickWorld(world, commands);
     // Drain every tick of the burst: these are outboxes, and the next tick
     // would otherwise pile onto news nobody has been handed yet.
