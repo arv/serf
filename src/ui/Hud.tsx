@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from 'solid-js';
+import { For, Show, createSignal, onCleanup } from 'solid-js';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { TechId } from '../sim/defs/techs';
@@ -11,6 +11,7 @@ import { FastIcon, GoodIcon, LockIcon, PauseIcon, PlayIcon } from './icons';
 import { BuildingTip, GoodTip, TextTip, TipWrap, TooltipLayer, tooltip } from './tooltip';
 import { buildingName, techName } from './names';
 import {
+  bandArm,
   debugJobs,
   debugOpen,
   netMode,
@@ -21,6 +22,7 @@ import {
   outcome,
   placing,
   playersMeta,
+  setBandArm,
   setOpenPanel,
   setTechPanelOpen,
   speed,
@@ -30,6 +32,18 @@ import {
   toasts,
   CHEATS_ALLOWED,
 } from './store';
+
+/** Reactive media query (no dependency; one listener per call site). */
+function useMedia(query: string): () => boolean {
+  const mq = window.matchMedia(query);
+  const [matches, setMatches] = createSignal(mq.matches);
+  const onChange = (e: MediaQueryListEvent): void => {
+    setMatches(e.matches);
+  };
+  mq.addEventListener('change', onChange);
+  onCleanup(() => mq.removeEventListener('change', onChange));
+  return matches;
+}
 
 const SPEEDS = [
   { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },
@@ -54,12 +68,27 @@ export function Hud(props: {
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
   onSave: () => void;
   onAdmin: (action: AdminAction) => void;
+  onSelectArmy: () => void;
+  onDeselect: () => void;
 }) {
   // The sim rejects admin commands in a match (world.admin.enabled is
   // false), so every button here no-ops — except the fog toggle, which
   // never reaches the sim. Hide the panel rather than leave that one live.
   const adminMode = CHEATS_ALLOWED && new URLSearchParams(location.search).has('admin');
   const [activeTab, setActiveTab] = createSignal(0);
+  const isPhone = useMedia('(max-width: 760px)');
+  const isCoarse = useMedia('(pointer: coarse)');
+  // Phones start with the build card folded to a pill; arming a placement
+  // folds it again so the map is visible while you aim the ghost.
+  const [buildOpen, setBuildOpen] = createSignal(false);
+  const buildVisible = (): boolean => !isPhone() || buildOpen();
+  const place = (type: BuildingTypeId | null): void => {
+    props.onPlace(type);
+    if (type !== null && isPhone()) setBuildOpen(false);
+  };
+  /** Phone: only goods you actually hold — a wall of zeros is dead space. */
+  const shownGoods = (): GoodId[] =>
+    isPhone() ? GOODS.filter((g) => (stock()[g] ?? 0) > 0) : [...GOODS];
   const menuOpen = (): boolean => openPanel() === 'menu';
   const setMenuOpen = (open: boolean): void => {
     setOpenPanel(open ? 'menu' : null);
@@ -229,6 +258,36 @@ export function Hud(props: {
           pointer-events: auto; flex: 0 1 auto; min-width: 0; margin-left: auto;
           max-width: 430px; padding: 12px 14px;
         }
+
+        /* Floating touch actions: marquee select + grab-the-army. Fixed to
+           the right edge over the map — the one part of a phone screen the
+           HUD hasn't claimed. Hidden entirely on fine pointers. */
+        .hud-touch {
+          position: fixed;
+          right: calc(10px + env(safe-area-inset-right));
+          bottom: 38vh;
+          display: flex; flex-direction: column; gap: 8px;
+          pointer-events: auto; z-index: 11;
+        }
+        #ui .hud-touch button {
+          width: 52px; height: 52px; padding: 0;
+          border-radius: 14px; font-size: 20px;
+          display: grid; place-items: center;
+          background: rgba(14, 16, 15, 0.72);
+          -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+        }
+        #ui .hud-touch button.active {
+          background: rgba(229, 196, 105, 0.35);
+          border-color: #e5c469;
+        }
+        .hud-build-pill {
+          pointer-events: auto; align-self: flex-start;
+          padding: 10px 16px; font-weight: 600;
+        }
+        #ui .build-fold {
+          margin-left: auto; min-height: 0;
+          padding: 4px 12px; background: transparent; border: none; color: #a3a099;
+        }
         .hud-debug {
           position: absolute; top: 56px; right: 12px; width: 380px; max-height: 60vh;
           overflow: auto; padding: 8px 10px; pointer-events: auto;
@@ -333,6 +392,8 @@ export function Hud(props: {
             gap: 8px;
           }
           .hud-selection { margin-left: 0; max-width: none; }
+          /* The fold ✕ sits at the row's end, so the tab strip stretches. */
+          .hud-tabs { align-self: stretch; }
           .hud-build .hud-items {
             min-height: 0;
             max-height: 26vh;
@@ -366,7 +427,7 @@ export function Hud(props: {
 
       <div class="hud-resources">
         <div class="panel">
-          <For each={[...GOODS]}>
+          <For each={shownGoods()}>
             {(good) => (
               <span
                 class="res"
@@ -471,53 +532,87 @@ export function Hud(props: {
       </Show>
 
       <div class="hud-bottom">
-        <div class="hud-build panel">
-          <div class="hud-tabs">
-            <For each={BUILD_GROUPS}>
-              {(group, i) => (
-                <button classList={{ active: activeTab() === i() }} onClick={() => setActiveTab(i())}>
-                  {group.label}
-                </button>
-              )}
-            </For>
+        <Show when={isCoarse() || isPhone()}>
+          <div class="hud-touch">
+            <button
+              classList={{ active: bandArm() }}
+              onClick={() => setBandArm(!bandArm())}
+              title="Band select: arm, then drag over your units"
+            >
+              ⬚
+            </button>
+            <button onClick={() => props.onSelectArmy()} title="Select all soldiers">
+              ⚔
+            </button>
           </div>
-          <div class="hud-items">
-            <For each={BUILD_GROUPS[activeTab()]!.types}>
-              {(type) => (
-                <TipWrap tip={() => <BuildingTip type={type} />}>
-                  <Show
-                    when={unlocked(type)}
-                    fallback={
-                      <button disabled>
-                        <LockIcon /> {buildingName(type)}
-                      </button>
-                    }
-                  >
-                    <button
-                      classList={{ active: placing() === type }}
-                      disabled={!affordable(type) && placing() !== type}
-                      onClick={() => props.onPlace(placing() === type ? null : type)}
-                    >
-                      {buildingName(type)}
-                      <span class="cost">
-                        <For each={cost(type)}>
-                          {([good, n]) => (
-                            <>
-                              <GoodIcon good={good} size={11} />
-                              {n}
-                            </>
-                          )}
-                        </For>
-                      </span>
-                    </button>
-                  </Show>
-                </TipWrap>
-              )}
-            </For>
-          </div>
-        </div>
+        </Show>
 
-        <SelectionPanel onTrain={props.onTrain} onHire={props.onHire} />
+        <Show
+          when={buildVisible()}
+          fallback={
+            <button class="hud-build-pill panel" onClick={() => setBuildOpen(true)}>
+              🔨 Build
+              <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
+            </button>
+          }
+        >
+          <div class="hud-build panel">
+            <div class="hud-tabs">
+              <For each={BUILD_GROUPS}>
+                {(group, i) => (
+                  <button classList={{ active: activeTab() === i() }} onClick={() => setActiveTab(i())}>
+                    {group.label}
+                  </button>
+                )}
+              </For>
+              <Show when={isPhone()}>
+                <button class="build-fold" onClick={() => setBuildOpen(false)}>
+                  ✕
+                </button>
+              </Show>
+            </div>
+            <div class="hud-items">
+              <For each={BUILD_GROUPS[activeTab()]!.types}>
+                {(type) => (
+                  <TipWrap tip={() => <BuildingTip type={type} />}>
+                    <Show
+                      when={unlocked(type)}
+                      fallback={
+                        <button disabled>
+                          <LockIcon /> {buildingName(type)}
+                        </button>
+                      }
+                    >
+                      <button
+                        classList={{ active: placing() === type }}
+                        disabled={!affordable(type) && placing() !== type}
+                        onClick={() => place(placing() === type ? null : type)}
+                      >
+                        {buildingName(type)}
+                        <span class="cost">
+                          <For each={cost(type)}>
+                            {([good, n]) => (
+                              <>
+                                <GoodIcon good={good} size={11} />
+                                {n}
+                              </>
+                            )}
+                          </For>
+                        </span>
+                      </button>
+                    </Show>
+                  </TipWrap>
+                )}
+              </For>
+            </div>
+          </div>
+        </Show>
+
+        <SelectionPanel
+          onTrain={props.onTrain}
+          onHire={props.onHire}
+          onDeselect={props.onDeselect}
+        />
       </div>
 
       <Show when={techPanelOpen()}>

@@ -40,6 +40,13 @@ export const [stock, setStock] = createSignal<GoodAmounts>({});
 /** Active build-menu placement mode (null = normal selection). */
 export const [placing, setPlacing] = createSignal<BuildingTypeId | null>(null);
 
+/**
+ * One-shot touch marquee: the HUD button arms it, and the next one-finger
+ * drag draws a selection band instead of panning the camera (Controls
+ * consumes the flag; CameraRig yields while it is set).
+ */
+export const [bandArm, setBandArm] = createSignal(false);
+
 /** Tech tree state + panel visibility. */
 export const [techs, setTechs] = createSignal<TechSnap>({
   researched: [],

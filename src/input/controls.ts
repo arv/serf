@@ -2,10 +2,13 @@ import type * as THREE from 'three';
 import { inBounds, tileIdx } from '../shared/grid';
 import { buildingDef, type BuildingTypeId } from '../sim/defs/buildings';
 import { canPlace } from '../sim/world';
+import { UNIT_DEFS } from '../sim/defs/units';
 import {
+  bandArm,
   debugOpen,
   myPlayerId,
   placing,
+  setBandArm,
   setDebugOpen,
   setPlacing,
   setSelectedBuilding,
@@ -21,9 +24,14 @@ import type { SimHost } from '../app/simHost';
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
-/** Touch: hold this long without travelling to issue a move order. */
-const LONG_PRESS_MS = 420;
 const TOUCH_SLOP_PX = 12;
+
+/** Kind codes that count as army for the select-army shortcut. */
+const MILITARY_CODES = new Set(
+  Object.values(UNIT_DEFS)
+    .filter((d) => d.combat !== undefined)
+    .map((d) => d.kindCode),
+);
 
 /**
  * Left click / drag: select player units. Right click: move order for the
@@ -31,6 +39,12 @@ const TOUCH_SLOP_PX = 12;
  * validity-tinted ghost, left click places, right click / Esc cancels. A
  * small mode machine avoids the classic click-vs-drag papercuts; the band
  * rectangle is an HTML div, not WebGL.
+ *
+ * Touch speaks selection-first, like every phone RTS: tap a unit to select,
+ * then tap the ground to send the selection there (an order pulse + a tick
+ * of haptics confirm it). The HUD's marquee button arms a one-shot band
+ * select — the next finger drag draws the band while the camera holds
+ * still — and its army button grabs every soldier at once.
  */
 export class Controls {
   #canvas: HTMLCanvasElement;
@@ -48,8 +62,11 @@ export class Controls {
   #bandEl: HTMLDivElement;
   #hoverUnit = -1;
   #hoverBuilding = -1;
-  #longPress: ReturnType<typeof setTimeout> | undefined;
   #touchOrigin: { x: number; y: number } | null = null;
+  /** A marquee drag in flight (armed by the HUD's band button). */
+  #bandTouch = false;
+  /** Camera gate — closed while a marquee drag owns the finger. */
+  #rig: { touchPanEnabled: boolean } | null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -59,6 +76,7 @@ export class Controls {
     mirror: WorldMirror,
     ghost: GhostPlacement,
     heights: HeightField,
+    rig?: { touchPanEnabled: boolean },
   ) {
     this.#canvas = canvas;
     this.#camera = camera;
@@ -67,6 +85,7 @@ export class Controls {
     this.#mirror = mirror;
     this.#ghost = ghost;
     this.#heights = heights;
+    this.#rig = rig ?? null;
 
     this.#bandEl = document.createElement('div');
     this.#bandEl.style.cssText =
@@ -159,16 +178,14 @@ export class Controls {
       this.#dragStart = { x: e.clientX, y: e.clientY };
       this.#dragging = false;
       if (e.pointerType === 'touch') {
-        // Touch has no second button: a press held in place is the move
-        // order (a drag pans the camera instead — see CameraRig).
         this.#touchOrigin = { x: e.clientX, y: e.clientY };
-        clearTimeout(this.#longPress);
-        this.#longPress = setTimeout(() => {
-          if (!this.#touchOrigin) return;
-          this.#issueMove(this.#touchOrigin.x, this.#touchOrigin.y);
-          this.#dragStart = null; // consumed: no select on release
-          this.#touchOrigin = null;
-        }, LONG_PRESS_MS);
+        if (bandArm()) {
+          // The marquee button armed this drag: it draws the selection
+          // band, and the camera holds still until the finger lifts.
+          this.#bandTouch = true;
+          if (this.#rig) this.#rig.touchPanEnabled = false;
+          this.#canvas.setPointerCapture(e.pointerId);
+        }
       }
     } else if (e.button === 2) {
       this.#issueMove(e.clientX, e.clientY);
@@ -216,14 +233,13 @@ export class Controls {
     }
   }
 
-  /** Cancel a pending long-press once the finger travels (that's a pan). */
-  #cancelLongPress(px: number, py: number): void {
+  /** A finger that travels past the slop is a pan, not a tap. */
+  #cancelTap(px: number, py: number): void {
     const o = this.#touchOrigin;
     if (!o) return;
     const dx = px - o.x;
     const dy = py - o.y;
     if (dx * dx + dy * dy > TOUCH_SLOP_PX * TOUCH_SLOP_PX) {
-      clearTimeout(this.#longPress);
       this.#touchOrigin = null;
     }
   }
@@ -234,7 +250,7 @@ export class Controls {
     if (type) {
       // A travelling finger is panning the map, not aiming: drop the
       // pending placement (the ghost still tracks so the site stays visible).
-      if (e.pointerType === 'touch') this.#cancelLongPress(e.clientX, e.clientY);
+      if (e.pointerType === 'touch') this.#cancelTap(e.clientX, e.clientY);
       const origin = this.#placementOrigin(e.clientX, e.clientY);
       if (origin) {
         this.#ghost.show(type);
@@ -244,9 +260,9 @@ export class Controls {
     }
     this.#ghost.hide();
     if (!this.#dragStart) return;
-    if (e.pointerType === 'touch') {
-      // The camera owns finger drags; never band-select on touch.
-      this.#cancelLongPress(e.clientX, e.clientY);
+    if (e.pointerType === 'touch' && !this.#bandTouch) {
+      // The camera owns plain finger drags; only an armed marquee selects.
+      this.#cancelTap(e.clientX, e.clientY);
       return;
     }
     const dx = e.clientX - this.#dragStart.x;
@@ -267,7 +283,6 @@ export class Controls {
   };
 
   #onUp = (e: PointerEvent): void => {
-    clearTimeout(this.#longPress);
     const heldStill = this.#touchOrigin !== null;
     this.#touchOrigin = null;
 
@@ -285,8 +300,21 @@ export class Controls {
     this.#bandEl.style.display = 'none';
 
     if (e.pointerType === 'touch') {
-      // A tap that stayed put selects; a finger that travelled was a pan.
-      if (heldStill) this.#selectAtPoint(e.clientX, e.clientY, false);
+      if (this.#bandTouch) {
+        // The armed marquee resolves: a real drag selects the band, a mere
+        // tap falls back to point-select. One-shot either way.
+        const dragged = this.#dragging;
+        this.#bandTouch = false;
+        this.#dragging = false;
+        setBandArm(false);
+        if (this.#rig) this.#rig.touchPanEnabled = true;
+        if (dragged) this.#selectInRect(start.x, start.y, e.clientX, e.clientY, false);
+        else this.#selectAtPoint(e.clientX, e.clientY, false);
+        return;
+      }
+      // A tap that stayed put speaks selection-first; a travelled finger
+      // was a pan and means nothing here.
+      if (heldStill) this.#touchTap(e.clientX, e.clientY);
       return;
     }
     if (this.#dragging) {
@@ -296,6 +324,25 @@ export class Controls {
       this.#selectAtPoint(e.clientX, e.clientY, e.shiftKey);
     }
   };
+
+  /**
+   * The touch grammar: tap a unit to select it; with a selection standing,
+   * tap the ground (or a foe) to send them there; with nothing selected a
+   * tap opens your building underneath, or clears the panel.
+   */
+  #touchTap(px: number, py: number): void {
+    const unitId = this.#unitAt(px, py);
+    if (unitId >= 0) {
+      setSelectedBuilding(null);
+      this.#setSel(new Set([unitId]));
+      return;
+    }
+    if (this.#selection.size > 0) {
+      this.#issueMove(px, py);
+      return;
+    }
+    this.#selectAtPoint(px, py, false); // building panel, or clears it
+  }
 
   /** Track what's under the cursor — any owner; hp is interesting on foes. */
   #updateHover(px: number, py: number): void {
@@ -338,7 +385,8 @@ export class Controls {
     return worldToScreen(this.#camera, this.#canvas, pos.x, groundY + 0.4, pos.y);
   }
 
-  #selectAtPoint(px: number, py: number, additive: boolean): void {
+  /** Nearest own unit within tap radius of a screen point, or -1. */
+  #unitAt(px: number, py: number): number {
     const now = performance.now();
     let bestId = -1;
     let bestDist = CLICK_RADIUS_PX * CLICK_RADIUS_PX;
@@ -353,6 +401,11 @@ export class Controls {
         bestId = id;
       }
     }
+    return bestId;
+  }
+
+  #selectAtPoint(px: number, py: number, additive: boolean): void {
+    const bestId = this.#unitAt(px, py);
     if (bestId < 0 && !additive) {
       // No unit under the cursor — try a building.
       const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
@@ -408,5 +461,45 @@ export class Controls {
         y: Math.floor(ground.z),
       },
     ]);
+    this.#orderPulse(px, py);
+  }
+
+  /** A ring blooming at the tap/click plus a tick of haptics: order taken. */
+  #orderPulse(px: number, py: number): void {
+    const el = document.createElement('div');
+    el.style.cssText =
+      `position:fixed;left:${px}px;top:${py}px;width:44px;height:44px;` +
+      'margin:-22px 0 0 -22px;border:2px solid #e5c469;border-radius:50%;' +
+      'pointer-events:none;z-index:10;opacity:0.9;' +
+      'animation:serf-order-pulse 0.45s ease-out forwards;';
+    if (!document.getElementById('serf-order-pulse-style')) {
+      const style = document.createElement('style');
+      style.id = 'serf-order-pulse-style';
+      style.textContent =
+        '@keyframes serf-order-pulse { from { transform: scale(1); opacity: 0.9; }' +
+        ' to { transform: scale(0.25); opacity: 0; } }';
+      document.head.appendChild(style);
+    }
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 500);
+    navigator.vibrate?.(12);
+  }
+
+  /** Clear both unit selection and the building panel (HUD ✕ button). */
+  deselectAll(): void {
+    this.#setSel(new Set());
+    setSelectedBuilding(null);
+  }
+
+  /** Select every soldier you own — the phone answer to band-dragging an army. */
+  selectArmy(): void {
+    const sel = new Set<number>();
+    for (const id of this.#sync.latestIds.keys()) {
+      if (this.#sync.ownerOf(id) !== myPlayerId()) continue;
+      const kind = this.#sync.kindOf(id);
+      if (kind !== null && MILITARY_CODES.has(kind)) sel.add(id);
+    }
+    setSelectedBuilding(null);
+    this.#setSel(sel);
   }
 }

@@ -171,7 +171,16 @@ async function boot(): Promise<void> {
 
   const selectionFx = new SelectionFx(renderer.scene, heights);
   const ghost = new GhostPlacement(renderer.scene, heights, config.myPlayerId);
-  const controls = new Controls(canvas, renderer.rig.camera, sync, host, mirror, ghost, heights);
+  const controls = new Controls(
+    canvas,
+    renderer.rig.camera,
+    sync,
+    host,
+    mirror,
+    ghost,
+    heights,
+    renderer.rig,
+  );
   // Placement consults the fog: unscouted ground is not buildable, which is
   // what stops the build ghost being used to probe the dark.
   controls.setFog(fog);
@@ -218,7 +227,10 @@ async function boot(): Promise<void> {
     }
   });
 
-  mountHud(host);
+  mountHud(host, {
+    selectArmy: () => controls.selectArmy(),
+    deselect: () => controls.deselectAll(),
+  });
 
   // The camera never rotates: hp bars copy its live orientation once to
   // sit parallel with the screen plane.

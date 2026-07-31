@@ -46,6 +46,7 @@ function GoodsLine(props: { amounts: GoodAmounts }) {
 export function SelectionPanel(props: {
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
   onHire: () => void;
+  onDeselect: () => void;
 }) {
   return (
     <>
@@ -228,8 +229,24 @@ export function SelectionPanel(props: {
         }}
       </Show>
       <Show when={!selectedBuilding() && selection().size > 0}>
-        <div class="hud-selection panel">
-          {selection().size} {selection().size === 1 ? 'unit' : 'units'} selected
+        <div
+          class="hud-selection panel"
+          style={{ display: 'flex', 'align-items': 'center', gap: '10px' }}
+        >
+          <span style={{ flex: '1' }}>
+            {selection().size} {selection().size === 1 ? 'unit' : 'units'} selected
+            <span style={{ opacity: 0.6, 'margin-left': '8px', 'font-size': '12px' }}>
+              {matchMedia('(pointer: coarse)').matches
+                ? 'tap the ground to send them'
+                : 'right-click to send them'}
+            </span>
+          </span>
+          <button
+            style={{ 'min-height': '0', padding: '4px 12px' }}
+            onClick={() => props.onDeselect()}
+          >
+            ✕
+          </button>
         </div>
       </Show>
     </>
