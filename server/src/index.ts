@@ -4,7 +4,9 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { decodeState, encodePong } from '../../src/protocol/state.ts';
+import { sanitizeCommands } from '../../src/sim/commands.ts';
 import {
+  MAX_COMMANDS_PER_FRAME,
   TICK_MS,
   roomsIterable,
   sweepRooms,
@@ -253,7 +255,9 @@ function handleBinary(ws: WebSocket, conn: Conn, data: Uint8Array): void {
   const frame = decodeState(data);
   if (!frame) throw new Error('unknown frame from client');
   if (frame.kind === 'cmd') {
-    queueCommands(room, seat, frame.seq, frame.commands);
+    // What came off the wire only claims to be commands. Screen it here, at
+    // the trust boundary, so nothing malformed can reach the shared tick.
+    queueCommands(room, seat, frame.seq, sanitizeCommands(frame.commands, MAX_COMMANDS_PER_FRAME));
     return;
   }
   if (frame.kind === 'ping') {
@@ -263,10 +267,22 @@ function handleBinary(ws: WebSocket, conn: Conn, data: Uint8Array): void {
   throw new Error(`unexpected ${frame.kind} from client`);
 }
 
-// One clock for every room.
+// One clock for every room. A room that manages to throw despite the
+// screening at the socket boundary loses its own tick, not everyone's — an
+// uncaught error here would stop the interval and freeze every live match.
 setInterval(() => {
   const now = Date.now();
-  for (const room of roomsIterable()) pumpRoom(room, now);
+  for (const room of roomsIterable()) {
+    try {
+      pumpRoom(room, now);
+    } catch (err) {
+      room.pumpErrors = (room.pumpErrors ?? 0) + 1;
+      // Loud the first time, then occasionally: this fires at 100 Hz.
+      if (room.pumpErrors === 1 || room.pumpErrors % 1000 === 0) {
+        console.error(`[serf] room ${room.code} pump failed (x${room.pumpErrors}):`, err);
+      }
+    }
+  }
 }, 10);
 setInterval(() => sweepRooms(Date.now()), 30_000);
 

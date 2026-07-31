@@ -46,7 +46,19 @@ export interface PlayerCommand {
 export function tickWorld(world: World, commands: readonly PlayerCommand[]): void {
   const rng = new Rng(world.rngState);
 
-  for (const c of commands) applyCommand(world, c.playerId, c.cmd);
+  for (const c of commands) {
+    // One order must never be able to stop the world. Commands are screened
+    // before they get here (sanitizeCommand), so a throw means a sim bug
+    // rather than a hostile frame — but on the server this loop runs inside
+    // a pump shared by every live match, and killing that process to report
+    // a bug in one of them is the worse trade. Deterministic either way:
+    // the same command against the same world throws for every observer.
+    try {
+      applyCommand(world, c.playerId, c.cmd);
+    } catch (err) {
+      console.error(`[sim] command ${c.cmd.kind} from player ${c.playerId} failed:`, err);
+    }
+  }
 
   researchSystem(world);
   productionSystem(world, rng);

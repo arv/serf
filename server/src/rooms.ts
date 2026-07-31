@@ -40,6 +40,13 @@ export interface Seat {
 /** Cap on a listing response — the browser has no pagination. */
 const LIST_LIMIT = 20;
 
+/**
+ * Orders one client may submit in a single frame. A frame is one click's
+ * worth of intent — the UI never sends more than a handful — so this is
+ * only ever reached by something that is not playing the game.
+ */
+export const MAX_COMMANDS_PER_FRAME = 32;
+
 /** How many human seats a room can hold. */
 const MAX_HUMANS = 4;
 
@@ -68,6 +75,8 @@ export interface Room {
    * for more matches. See serverStats(). */
   pumpMsAvg: number;
   pumpMsPeak: number;
+  /** Pumps that threw, for log rate-limiting (see the clock in index.ts). */
+  pumpErrors?: number;
   /** When the last human disconnected (running rooms only; sweep target). */
   emptySinceMs?: number;
 }
