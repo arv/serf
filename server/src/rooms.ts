@@ -1,8 +1,18 @@
 import type { WebSocket } from 'ws';
-import { encodeTurn, type CommandEnvelope, type TurnRecord } from '../../src/protocol/net.ts';
+import { createWorld, type World } from '../../src/sim/world.ts';
+import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
+import { MATCHER_INTERVAL, TICK_MS } from '../../src/sim/defs/balance.ts';
+import type { SimCommand } from '../../src/sim/commands.ts';
+import { sendHot, sendStruct, structuralDue } from './sync.ts';
 
-/** Milliseconds per tick — must match src/sim/defs/balance.ts TICK_MS. */
-export const TICK_MS = 50;
+export { TICK_MS };
+
+/**
+ * A pump that woke up very late (GC, a suspended container) must not try to
+ * simulate the whole gap in one go. Ticks are ~0.05 ms, so ten per 10 ms pump
+ * still catches up 50x faster than real time.
+ */
+const MAX_CATCHUP = 10;
 
 export interface Seat {
   playerId: number;
@@ -15,16 +25,20 @@ export interface Seat {
 
 export interface Room {
   code: string;
-  state: 'lobby' | 'running' | 'ended';
+  state: 'lobby' | 'running';
   seats: Seat[];
-  worldBlob?: string;
+  /**
+   * The authoritative world. It exists only here — clients receive filtered
+   * views of it and never simulate, which is what makes information cheating
+   * impossible rather than merely inconvenient.
+   */
+  world?: World;
   matchStartMs?: number;
+  /** Mirrors world.tick; -1 until the match starts (the PONG sentinel). */
   closedTick: number;
-  pending: Map<number, TurnRecord[]>;
-  /** One encoded TURN frame per closed tick — the rejoin/replay source. */
-  history: Buffer[];
-  /** Desync bookkeeping: tick -> seat -> hash (windowed). */
-  hashes: Map<number, Map<number, number>>;
+  /** Orders accepted since the last tick; applied at the next one. */
+  queued: PlayerCommand[];
+  lastStructTick: number;
   /** When the last human disconnected (running rooms only; sweep target). */
   emptySinceMs?: number;
 }
@@ -47,9 +61,8 @@ export function createRoom(): Room {
     state: 'lobby',
     seats: [],
     closedTick: -1,
-    pending: new Map(),
-    history: [],
-    hashes: new Map(),
+    queued: [],
+    lastStructTick: -1,
   };
   rooms.set(room.code, room);
   return room;
@@ -80,60 +93,56 @@ export function addSeat(room: Room, kind: 'human' | 'ai', ws: WebSocket | null):
   return seat;
 }
 
-/** Accept a submission: validate seq continuity, assign the earliest open
- * tick, and queue it. Returns false on a protocol violation. */
-export function acceptSubmission(room: Room, seat: Seat, env: CommandEnvelope): boolean {
-  if (env.seq !== seat.lastSeq + 1) return false;
-  seat.lastSeq = env.seq;
-  const tick = Math.max(env.desiredTick, room.closedTick + 1);
-  let bucket = room.pending.get(tick);
-  if (!bucket) room.pending.set(tick, (bucket = []));
-  bucket.push({ tick, playerId: seat.playerId, seq: env.seq, commands: env.commands });
-  return true;
+/** Build the world and start the clock. The server generates it: with one
+ * simulator there is no cross-engine worldgen risk, and no blob to ship. */
+export function startMatch(room: Room, seed: number): void {
+  room.world = createWorld({
+    seed,
+    players: room.seats.map((s) => ({ kind: s.kind })),
+    // Cheats are a single-player affair; a networked world never honors them.
+    adminEnabled: false,
+    banditsEnabled: true,
+  });
+  room.state = 'running';
+  room.closedTick = 0;
+  room.lastStructTick = -1;
+  room.matchStartMs = Date.now();
 }
 
-/** Close every tick the wall clock has passed; broadcast one TURN frame per
- * tick and append it to history. */
+/**
+ * Queue a client's orders for the next tick. `seq` only guards against
+ * duplicates on a reconnect — ordering within a tick is by seat, and the
+ * playerId is stamped here from the authenticated seat, never trusted from
+ * the wire.
+ */
+export function queueCommands(room: Room, seat: Seat, seq: number, commands: SimCommand[]): void {
+  if (seq <= seat.lastSeq) return; // already applied (reconnect replay)
+  seat.lastSeq = seq;
+  for (const cmd of commands) room.queued.push({ playerId: seat.playerId, cmd });
+}
+
+/** Advance the world to wall-clock time and broadcast what changed. */
 export function pumpRoom(room: Room, nowMs: number): void {
-  if (room.state !== 'running' || room.matchStartMs === undefined) return;
+  const world = room.world;
+  if (room.state !== 'running' || !world || room.matchStartMs === undefined) return;
   const target = Math.floor((nowMs - room.matchStartMs) / TICK_MS);
-  while (room.closedTick < target) {
-    const tick = ++room.closedTick;
-    const records = (room.pending.get(tick) ?? []).sort(
-      (a, z) => a.playerId - z.playerId || a.seq - z.seq,
-    );
-    room.pending.delete(tick);
-    const frame = Buffer.from(encodeTurn(tick, 1, records));
-    room.history.push(frame);
-    for (const seat of room.seats) {
-      if (seat.connected && seat.ws) seat.ws.send(frame);
-    }
-  }
-}
+  if (target <= world.tick) return;
 
-/** Compare hashes for a tick once every connected human seat reported. */
-export function recordHash(
-  room: Room,
-  seat: Seat,
-  tick: number,
-  hash: number,
-): { desync: boolean; hashes?: Record<number, number> } {
-  let byId = room.hashes.get(tick);
-  if (!byId) room.hashes.set(tick, (byId = new Map()));
-  byId.set(seat.playerId, hash);
-  const reporters = room.seats.filter((s) => s.kind === 'human' && s.connected);
-  if (reporters.every((s) => byId.has(s.playerId))) {
-    const values = new Set(byId.values());
-    const result =
-      values.size > 1
-        ? { desync: true, hashes: Object.fromEntries(byId) as Record<number, number> }
-        : { desync: false };
-    // Window the bookkeeping: this tick is settled.
-    room.hashes.delete(tick);
-    for (const t of room.hashes.keys()) if (t < tick - 600) room.hashes.delete(t);
-    return result;
+  const ticks = Math.min(target - world.tick, MAX_CATCHUP);
+  for (let i = 0; i < ticks; i++) {
+    const commands = room.queued;
+    room.queued = [];
+    tickWorld(world, commands);
   }
-  return { desync: false };
+  room.closedTick = world.tick;
+
+  // Exactly one hot frame per burst. The renderer reads movement by diffing
+  // the two newest frames, so a duplicated tick reads as "standing still".
+  sendHot(room);
+  if (structuralDue(world, room.lastStructTick, MATCHER_INTERVAL)) {
+    room.lastStructTick = world.tick;
+    sendStruct(room);
+  }
 }
 
 export function deleteRoomIfDead(room: Room): void {
@@ -149,7 +158,7 @@ export function deleteRoomIfDead(room: Room): void {
   else room.emptySinceMs ??= Date.now();
 }
 
-/** Sweep long-abandoned running rooms (called from the pump loop). */
+/** Sweep long-abandoned running rooms. */
 export function sweepRooms(nowMs: number): void {
   for (const room of rooms.values()) {
     if (room.emptySinceMs !== undefined && nowMs - room.emptySinceMs > 5 * 60_000) {

@@ -1,24 +1,19 @@
-import { createWorld, type WorldConfig } from '../sim/world';
-import { serializeWorld } from '../sim/save';
 import type { NetInfo } from '../protocol/messages';
 
 /**
  * Main-thread lobby flow: a short-lived JSON WebSocket for room setup. On
- * match start it hands over a world blob + seat token and closes — the sim
- * worker then opens its own binary socket straight to the relay.
+ * match start it hands over a seat token and closes — the net worker then
+ * opens its own binary socket straight to the server.
  *
- * The host generates the world and ships it via the server, which sidesteps
- * cross-engine worldgen float differences entirely and gives the relay the
- * rejoin/replay base state.
+ * The server builds the world from the seed the host sends. Nothing about
+ * the world reaches this client except through the filtered state frames it
+ * receives once the match is running.
  */
 
 export interface LobbyResult {
   net: NetInfo;
-  worldBlob: string;
   seats: { kind: 'human' | 'ai' }[];
   myPlayerId: number;
-  /** Host only: the AI seats this client must run brain workers for. */
-  aiSeats: { playerId: number; token: string }[];
 }
 
 export function relayUrl(search: string): string {
@@ -72,33 +67,21 @@ export function runLobby(mp: string, aiSeats: number, seed: number, url: string)
             t: 'begin';
             playerId: number;
             token: string;
-            worldBlob: string;
             seats: { kind: 'human' | 'ai' }[];
-            aiSeats?: { playerId: number; token: string }[];
           }
         | { t: 'error'; message: string }
         | { t: 'peer' };
       if (msg.t === 'room') {
         room = msg;
-        overlay.render(msg, isHost, () => {
-          // Host generates the world for everyone at Start.
-          const config: WorldConfig = {
-            seed,
-            players: room!.seats.map((s) => ({ kind: s.kind })),
-            adminEnabled: false,
-            banditsEnabled: true,
-          };
-          ws.send(JSON.stringify({ t: 'start', worldBlob: serializeWorld(createWorld(config)) }));
-        });
+        // The seed is all the host contributes; the server builds the world.
+        overlay.render(msg, isHost, () => ws.send(JSON.stringify({ t: 'start', seed })));
       } else if (msg.t === 'begin') {
         overlay.remove();
         ws.close();
         resolve({
           net: { relayUrl: url, token: msg.token, playerId: msg.playerId },
-          worldBlob: msg.worldBlob,
           seats: msg.seats,
           myPlayerId: msg.playerId,
-          aiSeats: msg.aiSeats ?? [],
         });
       } else if (msg.t === 'error') {
         fail(msg.message);

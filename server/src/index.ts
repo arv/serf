@@ -4,9 +4,9 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { decodeFrame, encodePong } from '../../src/protocol/net.ts';
+import { decodeState } from '../../src/protocol/state.ts';
 import {
   TICK_MS,
-  acceptSubmission,
   roomsIterable,
   sweepRooms,
   addSeat,
@@ -15,17 +15,19 @@ import {
   findSeatByToken,
   getRoom,
   pumpRoom,
-  recordHash,
+  queueCommands,
+  startMatch,
   type Room,
   type Seat,
 } from './rooms.ts';
+import { sendInit } from './sync.ts';
 
 /**
- * The Serf relay: rooms, the lockstep tick authority, and dumb-but-honest
- * input relaying. It never simulates the game — determinism means the
- * closed turn history IS the authoritative state. Lobby traffic is JSON
- * text frames; in-match traffic is the binary protocol from
- * src/protocol/net.ts (shared file, no build step — node strips types).
+ * The Serf server: rooms, the simulation, and per-client state frames. It
+ * owns the world — clients send orders and render what they are told, and
+ * never hold state their seat has not observed. Lobby traffic is JSON text
+ * frames; in-match traffic is the binary protocol from
+ * src/protocol/state.ts (shared file, no build step — node strips types).
  */
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -105,7 +107,7 @@ interface Conn {
 type LobbyMsg =
   | { t: 'create'; ai?: number }
   | { t: 'join'; code: string }
-  | { t: 'start'; worldBlob: string }
+  | { t: 'start'; seed: number }
   | { t: 'rejoin'; token: string };
 
 function sendJson(ws: WebSocket, msg: unknown): void {
@@ -179,31 +181,21 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       break;
     }
     case 'start': {
-      console.log('[relay] start requested');
       const { room, seat } = conn;
       if (!room || !seat) throw new Error('not in a room');
       if (seat.playerId !== 0) throw new Error('only the host starts the match');
       if (room.state !== 'lobby') throw new Error('already started');
-      room.worldBlob = msg.worldBlob;
-      room.state = 'running';
-      room.matchStartMs = Date.now() + 1500;
+      // The server builds the world. With one simulator there is no
+      // cross-engine worldgen risk and no blob to ship around.
+      startMatch(room, Number(msg.seed) | 0);
+      console.log(`[serf] room ${room.code} started, ${room.seats.length} seat(s)`);
       for (const s of room.seats) {
         if (s.connected && s.ws) {
           sendJson(s.ws, {
             t: 'begin',
             playerId: s.playerId,
             token: s.token,
-            worldBlob: room.worldBlob,
             seats: room.seats.map((x) => ({ kind: x.kind })),
-            startInMs: room.matchStartMs - Date.now(),
-            // The host runs the AI brains: hand it their seat tokens so
-            // each brain worker connects as an ordinary (headless) client.
-            aiSeats:
-              s.playerId === 0
-                ? room.seats
-                    .filter((x) => x.kind === 'ai')
-                    .map((x) => ({ playerId: x.playerId, token: x.token }))
-                : [],
           });
         }
       }
@@ -222,12 +214,11 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       sendJson(ws, {
         t: 'rejoined',
         playerId: seat.playerId,
-        worldBlob: room.worldBlob,
         seats: room.seats.map((x) => ({ kind: x.kind })),
-        historyTicks: room.history.length,
       });
-      // Stream the whole closed history, then live frames follow naturally.
-      for (const frame of room.history) ws.send(frame);
+      // Current state, not a replay: the server holds the world, so catching
+      // a client up is one frame regardless of how long the match has run.
+      sendInit(room, seat);
       for (const s of room.seats) {
         if (s !== seat && s.connected && s.ws) {
           sendJson(s.ws, { t: 'peer', playerId: seat.playerId, connected: true });
@@ -241,30 +232,16 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
 function handleBinary(ws: WebSocket, conn: Conn, data: Uint8Array): void {
   const { room, seat } = conn;
   if (!room || !seat) throw new Error('binary frame before joining a room');
-  const frame = decodeFrame(data);
-  switch (frame.kind) {
-    case 'turnSubmit':
-      if (!acceptSubmission(room, seat, frame.envelope)) {
-        throw new Error(`bad seq ${frame.envelope.seq} from seat ${seat.playerId}`);
-      }
-      break;
-    case 'ping':
-      ws.send(encodePong(frame.clientTimeMs, Date.now() % 0xffffffff, room.closedTick >>> 0));
-      break;
-    case 'hash': {
-      const result = recordHash(room, seat, frame.tick, frame.hash);
-      if (result.desync) {
-        for (const s of room.seats) {
-          if (s.connected && s.ws) {
-            sendJson(s.ws, { t: 'desync', tick: frame.tick, hashes: result.hashes });
-          }
-        }
-      }
-      break;
-    }
-    default:
-      throw new Error(`unexpected ${frame.kind} from client`);
+  const state = decodeState(data);
+  if (state) {
+    if (state.kind !== 'cmd') throw new Error(`unexpected ${state.kind} from client`);
+    queueCommands(room, seat, state.seq, state.commands);
+    return;
   }
+  // Not a state frame: the only other thing a client sends is a clock ping.
+  const frame = decodeFrame(data);
+  if (frame.kind !== 'ping') throw new Error(`unexpected ${frame.kind} from client`);
+  ws.send(encodePong(frame.clientTimeMs, Date.now() % 0xffffffff, room.closedTick >>> 0));
 }
 
 // One clock for every room.

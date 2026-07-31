@@ -74,8 +74,9 @@ async function boot(): Promise<void> {
   const params = new URLSearchParams(location.search);
   const mp = params.get('mp');
   if (mp) {
-    // Multiplayer: the lobby resolves seats, the world blob, and our seat
-    // token; the worker's own socket does the rest.
+    // Multiplayer: the lobby resolves seats and our seat token, and that is
+    // all that crosses. No world blob — the server holds the world and
+    // sends this seat only what it may see.
     const aiSeats = Math.max(0, Math.min(3, Number(params.get('ai') ?? '0') || 0));
     const lobby = await runLobby(mp, aiSeats, config.seed, relayUrl(location.search));
     config = {
@@ -84,18 +85,7 @@ async function boot(): Promise<void> {
       myPlayerId: lobby.myPlayerId,
       adminEnabled: false,
     };
-    loadData = lobby.worldBlob;
     net = lobby.net;
-    // The host runs one brain worker per AI seat; each plays through its
-    // own relay socket like any remote client.
-    for (const seat of lobby.aiSeats) {
-      spawnAiWorker().postMessage({
-        type: 'init',
-        playerId: seat.playerId,
-        loadData: lobby.worldBlob,
-        net: { relayUrl: lobby.net.relayUrl, token: seat.token },
-      });
-    }
   } else {
     // A pending load (set by the Load button before its reload) boots the
     // worker straight into the saved world. sessionStorage on purpose: it is
@@ -123,9 +113,12 @@ async function boot(): Promise<void> {
     });
   }
 
-  const host = new WorkerSimHost();
-  // Character/building GLBs load while the worker generates the world; if
-  // they fail, the renderer falls back to the procedural models.
+  // Single player owns a World in a worker; multiplayer owns a socket and
+  // renders what the server sends. Both speak the same worker protocol, so
+  // nothing below this line knows the difference.
+  const host = new WorkerSimHost(net ? 'net' : 'sim');
+  // Character/building GLBs load while the world is prepared; if they fail,
+  // the renderer falls back to the procedural models.
   const [init] = await Promise.all([
     host.start(config, loadData, net, aiPorts),
     loadCharacterAssets(),

@@ -1,9 +1,9 @@
-import type { EntityId, Owner } from '../sim/entities';
-import type { BuildingTypeId } from '../sim/defs/buildings';
-import type { GoodAmounts } from '../sim/defs/goods';
-import type { TechId } from '../sim/defs/techs';
-import type { PlayerCommand } from '../sim/tick';
-import type { GameEvent, MapDelta, WorldConfig } from '../sim/world';
+import type { EntityId, Owner } from '../sim/entities.ts';
+import type { BuildingTypeId } from '../sim/defs/buildings.ts';
+import type { GoodAmounts } from '../sim/defs/goods.ts';
+import type { TechId } from '../sim/defs/techs.ts';
+import type { PlayerCommand } from '../sim/tick.ts';
+import type { GameEvent, MapDelta, WorldConfig } from '../sim/world.ts';
 
 /** Tech-tree state for the UI. */
 export interface TechSnap {

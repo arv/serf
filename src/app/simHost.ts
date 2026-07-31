@@ -42,12 +42,26 @@ export interface SimHost {
 }
 
 export class WorkerSimHost implements SimHost {
-  #worker = new Worker(new URL('./simWorker.ts', import.meta.url), { type: 'module' });
+  /**
+   * Two workers speak this exact protocol, so the main thread and the whole
+   * renderer never learn which one they are talking to:
+   * - 'sim' owns a World and runs it (single player)
+   * - 'net' owns a socket and renders what the server sends (multiplayer,
+   *   where holding a World client-side would be holding the enemy's too)
+   */
+  #worker: Worker;
   #structuralCb: ((msg: StructuralUpdate) => void) | null = null;
   #saveCb: ((data: string) => void) | null = null;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
-  /** Seat the UI's commands are issued as (always 0 until lobbies land). */
+  /** Seat the UI's commands are issued as. */
   playerId = 0;
+
+  constructor(kind: 'sim' | 'net' = 'sim') {
+    this.#worker =
+      kind === 'net'
+        ? new Worker(new URL('./netWorker.ts', import.meta.url), { type: 'module' })
+        : new Worker(new URL('./simWorker.ts', import.meta.url), { type: 'module' });
+  }
 
   start(
     config: GameConfig,
