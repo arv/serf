@@ -15,6 +15,7 @@ import {
   getRoom,
   pumpRoom,
   queueCommands,
+  serverStats,
   startMatch,
   type Room,
   type Seat,
@@ -67,8 +68,10 @@ function isolationHeaders(res: ServerResponse): void {
 
 const http = createServer((req, res) => {
   if (req.url === '/health') {
-    res.writeHead(200, { 'content-type': 'text/plain' });
-    res.end('ok');
+    // Deliberately more than 'ok': this process now simulates, so the useful
+    // question is how close to full it is.
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, ...serverStats() }));
     return;
   }
   if (!SERVES_GAME || (req.method !== 'GET' && req.method !== 'HEAD')) {

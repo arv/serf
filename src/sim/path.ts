@@ -32,8 +32,25 @@ export function tileSpeedMult(map: PathMap, idx: number): number {
   return level === PathLevel.Road ? 1.35 : level === PathLevel.Trail ? 1.15 : 1.0;
 }
 
+/**
+ * A* scratch, shared by every search in the process — ~200 KiB that would
+ * otherwise be allocated per call.
+ *
+ * THE CONTRACT: `search()` must run to completion without yielding. It is
+ * the only reader and writer of these buffers, and it holds no state across
+ * calls, so any number of worlds may path through it *sequentially*. The
+ * server relies on exactly that: it ticks many rooms on one thread, and the
+ * scratch is safe because no room's search can be interleaved with another's.
+ *
+ * What would break it: making anything on this path async, moving rooms onto
+ * worker threads that share this module instance, or time-slicing the search
+ * across ticks. Any of those needs per-room scratch instead — pass it in, or
+ * allocate per world.
+ */
 const gScore = new Float32Array(TILE_COUNT);
 const cameFrom = new Int32Array(TILE_COUNT);
+/** Generation stamps: a tile counts as visited when its stamp is current,
+ * which avoids clearing 16 KiB per search. */
 const visited = new Int32Array(TILE_COUNT);
 let generation = 0;
 
@@ -42,6 +59,24 @@ let generation = 0;
 const heap = new Int32Array(TILE_COUNT * 8);
 const fScore = new Float32Array(TILE_COUNT);
 let heapSize = 0;
+
+/**
+ * Take the next generation stamp, wrapping deliberately.
+ *
+ * `visited` holds Int32 stamps, so past 2^31 searches the counter would wrap
+ * into values still sitting in the array and stale tiles would read as
+ * already-visited — a wrong path, not a crash, which is the worst kind of
+ * bug to find. This used to be far off; a server ticking many rooms burns
+ * generations N times faster, so make it explicit rather than incidental.
+ * Clearing costs 16 KiB once every two billion searches.
+ */
+function nextGeneration(): number {
+  if (generation === 0x7fffffff) {
+    visited.fill(0);
+    generation = 0;
+  }
+  return ++generation;
+}
 
 function heapPush(idx: number, f: number): void {
   fScore[idx] = f;
@@ -111,7 +146,7 @@ function search(
     return octile(x, y, cx, cy);
   };
 
-  generation++;
+  const generation = nextGeneration();
   heapSize = 0;
   gScore[start] = 0;
   cameFrom[start] = -1;

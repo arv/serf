@@ -55,6 +55,10 @@ export interface Room {
   /** Orders accepted since the last tick; applied at the next one. */
   queued: PlayerCommand[];
   lastVisionTick: number;
+  /** Rolling cost of a pump, in ms — what says whether this process has room
+   * for more matches. See serverStats(). */
+  pumpMsAvg: number;
+  pumpMsPeak: number;
   /** When the last human disconnected (running rooms only; sweep target). */
   emptySinceMs?: number;
 }
@@ -79,6 +83,8 @@ export function createRoom(): Room {
     closedTick: -1,
     queued: [],
     lastVisionTick: -1,
+    pumpMsAvg: 0,
+    pumpMsPeak: 0,
   };
   rooms.set(room.code, room);
   return room;
@@ -141,12 +147,21 @@ export function queueCommands(room: Room, seat: Seat, seq: number, commands: Sim
   for (const cmd of commands) room.queued.push({ playerId: seat.playerId, cmd });
 }
 
+/**
+ * How long a pump may take before it is worth complaining about. A room
+ * costs well under a millisecond; ticking is only a fraction of the 50 ms
+ * budget, and this process ticks every room on one thread, so a room that
+ * regularly runs long is the signal that the box is full.
+ */
+const SLOW_PUMP_MS = 8;
+
 /** Advance the world to wall-clock time and broadcast what changed. */
 export function pumpRoom(room: Room, nowMs: number): void {
   const world = room.world;
   if (room.state !== 'running' || !world || room.matchStartMs === undefined) return;
   const target = Math.floor((nowMs - room.matchStartMs) / TICK_MS);
   if (target <= world.tick) return;
+  const startedAt = performance.now();
 
   const ticks = Math.min(target - world.tick, MAX_CATCHUP);
   const deltas: MapDelta[] = [];
@@ -174,6 +189,47 @@ export function pumpRoom(room: Room, nowMs: number): void {
   // the two newest frames, so a duplicated tick reads as "standing still".
   sendHot(room);
   sendStruct(room, deltas, events);
+
+  const took = performance.now() - startedAt;
+  // Exponential average: one slow pump is a GC pause, a sustained one is a
+  // capacity problem, and only the second is worth acting on.
+  room.pumpMsAvg = room.pumpMsAvg === 0 ? took : room.pumpMsAvg * 0.9 + took * 0.1;
+  if (took > room.pumpMsPeak) room.pumpMsPeak = took;
+  if (room.pumpMsAvg > SLOW_PUMP_MS) {
+    console.warn(
+      `[serf] room ${room.code} pumps slowly: ${room.pumpMsAvg.toFixed(1)}ms avg ` +
+        `(${room.seats.length} seats, tick ${world.tick})`,
+    );
+    room.pumpMsAvg = 0; // re-arm rather than warn every pump
+  }
+}
+
+/** A snapshot for /health: is this process comfortable? */
+export function serverStats(): {
+  rooms: number;
+  running: number;
+  seats: number;
+  pumpMsAvg: number;
+  pumpMsPeak: number;
+} {
+  let running = 0;
+  let seats = 0;
+  let avg = 0;
+  let peak = 0;
+  for (const room of rooms.values()) {
+    seats += room.seats.length;
+    if (room.state !== 'running') continue;
+    running++;
+    avg += room.pumpMsAvg;
+    peak = Math.max(peak, room.pumpMsPeak);
+  }
+  return {
+    rooms: rooms.size,
+    running,
+    seats,
+    pumpMsAvg: running > 0 ? Number((avg / running).toFixed(3)) : 0,
+    pumpMsPeak: Number(peak.toFixed(3)),
+  };
 }
 
 export function deleteRoomIfDead(room: Room): void {
