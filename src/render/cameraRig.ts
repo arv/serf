@@ -20,9 +20,17 @@ export class CameraRig {
   #viewHeight = 30;
   #keys = new Set<string>();
   #dragging = false;
+  #interactive: boolean;
 
-  constructor(canvas: HTMLCanvasElement) {
+  /**
+   * `interactive: false` builds a rig nobody can drive — no key, wheel or
+   * drag listeners at all. The start screen's backdrop needs that: its
+   * listeners would otherwise be live under the menu, and typing a room
+   * code into the form would pan the scene behind it.
+   */
+  constructor(canvas: HTMLCanvasElement, interactive = true) {
     this.#canvas = canvas;
+    this.#interactive = interactive;
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
     // ?zoom=6 boots close-in — handy for inspecting people and props.
     const zoom = Number(new URLSearchParams(location.search).get('zoom'));
@@ -31,6 +39,7 @@ export class CameraRig {
     }
     this.resize();
     this.#apply();
+    if (!interactive) return;
 
     window.addEventListener('keydown', (e) => {
       if (!e.repeat) this.#keys.add(e.code);
@@ -126,7 +135,19 @@ export class CameraRig {
   }
 
   /** Per-frame: apply held pan keys. dt in seconds. */
+  /** Point the camera at a spot on the ground, optionally reframing. */
+  focusOn(x: number, z: number, viewHeight?: number): void {
+    this.#target.set(x, 0, z);
+    if (viewHeight !== undefined) {
+      this.#viewHeight = clamp(viewHeight, MIN_VIEW, MAX_VIEW);
+      this.resize(); // recomputes the frustum, then applies
+      return;
+    }
+    this.#apply();
+  }
+
   tick(dt: number): void {
+    if (!this.#interactive) return;
     const speed = this.#viewHeight * 0.9 * dt;
     let dx = 0;
     let dz = 0;

@@ -11,8 +11,11 @@ export interface GameConfig extends WorldConfig {
 
 export function configFromUrl(search: string): GameConfig {
   const params = new URLSearchParams(search);
-  const seedParam = params.get('seed');
-  const seed = seedParam ? Number(seedParam) : 20260724;
+  // A non-numeric seed used to reach createWorld as NaN and generate a
+  // broken world; fall back instead. The menu only ever sends digits, but
+  // the URL is hand-editable.
+  const parsedSeed = Number(params.get('seed'));
+  const seed = Number.isFinite(parsedSeed) && params.get('seed') ? parsedSeed : 20260724;
 
   // ?ai=N: skirmish vs N computer opponents (seat 0 = you). ?players=N is
   // the dev testbed: N human seats, the extras sitting inert.
@@ -30,6 +33,7 @@ export function configFromUrl(search: string): GameConfig {
     players,
     myPlayerId: 0,
     adminEnabled: true, // solo modes keep the sandbox switches live
-    banditsEnabled: true,
+    // ?bandits=0 turns the neutral hostiles off (the start screen's toggle).
+    banditsEnabled: params.get('bandits') !== '0',
   };
 }

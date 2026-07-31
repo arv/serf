@@ -13,6 +13,7 @@ import {
   deleteRoomIfDead,
   findSeatByToken,
   getRoom,
+  listOpenRooms,
   pumpRoom,
   queueCommands,
   serverStats,
@@ -104,10 +105,17 @@ const wss = new WebSocketServer({ server: http, perMessageDeflate: true });
 interface Conn {
   room?: Room;
   seat?: Seat;
+  /** Last time this socket asked for the room list (rate limiting). */
+  lastListMs?: number;
 }
 
+/** Minimum gap between {t:'list'} requests on one socket. The menu polls at
+ * 3s; this only bites on a client that is misbehaving. */
+const LIST_MIN_GAP_MS = 1000;
+
 type LobbyMsg =
-  | { t: 'create'; ai?: number }
+  | { t: 'list' }
+  | { t: 'create'; ai?: number; open?: boolean }
   | { t: 'join'; code: string }
   | { t: 'start'; seed: number }
   | { t: 'rejoin'; token: string };
@@ -159,8 +167,16 @@ wss.on('connection', (ws) => {
 
 function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
   switch (msg.t) {
+    case 'list': {
+      const now = Date.now();
+      if (conn.lastListMs !== undefined && now - conn.lastListMs < LIST_MIN_GAP_MS) return;
+      conn.lastListMs = now;
+      sendJson(ws, { t: 'rooms', rooms: listOpenRooms(now) });
+      break;
+    }
     case 'create': {
-      const room = createRoom();
+      // The start screen sends open:false for a code-only room.
+      const room = createRoom(msg.open === false ? 'closed' : 'open');
       const seat = addSeat(room, 'human', ws);
       // Host-requested AI seats fill in right away (they never connect —
       // every client simulates them locally).

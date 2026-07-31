@@ -41,7 +41,13 @@ interface RoomState {
  * code (joiner); hosts may bring AI seats. Renders a minimal DOM overlay;
  * resolves when the server says 'begin'.
  */
-export function runLobby(mp: string, aiSeats: number, seed: number, url: string): Promise<LobbyResult> {
+export function runLobby(
+  mp: string,
+  aiSeats: number,
+  seed: number,
+  url: string,
+  open = true,
+): Promise<LobbyResult> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
     const overlay = makeOverlay();
@@ -57,7 +63,9 @@ export function runLobby(mp: string, aiSeats: number, seed: number, url: string)
     ws.onerror = () => fail(`cannot reach the relay at ${url}`);
     ws.onopen = () => {
       ws.send(
-        isHost ? JSON.stringify({ t: 'create', ai: aiSeats }) : JSON.stringify({ t: 'join', code: mp }),
+        isHost
+          ? JSON.stringify({ t: 'create', ai: aiSeats, open })
+          : JSON.stringify({ t: 'join', code: mp }),
       );
     };
     ws.onmessage = (e: MessageEvent<string>) => {

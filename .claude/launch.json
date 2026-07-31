@@ -8,6 +8,12 @@
       "autoPort": true
     },
     {
+      "name": "serf-mp",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "/Users/arv/src/arv/serf/.claude/worktrees/multiplayer", "dev"],
+      "autoPort": true
+    },
+    {
       "name": "serf-fog",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--dir", "/Users/arv/src/arv/serf/.claude/worktrees/fog-of-war", "dev"],

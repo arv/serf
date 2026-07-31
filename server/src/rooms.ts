@@ -37,9 +37,18 @@ export interface Seat {
   view?: SeatView;
 }
 
+/** Cap on a listing response — the browser has no pagination. */
+const LIST_LIMIT = 20;
+
+/** How many human seats a room can hold. */
+const MAX_HUMANS = 4;
+
 export interface Room {
   code: string;
   state: 'lobby' | 'running';
+  /** Open rooms are listed for anyone to join; closed ones need the code. */
+  visibility: 'open' | 'closed';
+  createdMs: number;
   seats: Seat[];
   /**
    * The authoritative world. It exists only here — clients receive filtered
@@ -75,10 +84,12 @@ function makeCode(): string {
   return rooms.has(code) ? makeCode() : code;
 }
 
-export function createRoom(): Room {
+export function createRoom(visibility: 'open' | 'closed' = 'open'): Room {
   const room: Room = {
     code: makeCode(),
     state: 'lobby',
+    visibility,
+    createdMs: Date.now(),
     seats: [],
     closedTick: -1,
     queued: [],
@@ -256,4 +267,41 @@ export function sweepRooms(nowMs: number): void {
 
 export function roomsIterable(): Iterable<Room> {
   return rooms.values();
+}
+
+/** One row of the start screen's room browser. */
+export interface RoomListing {
+  code: string;
+  filled: number;
+  total: number;
+  ai: number;
+  ageMs: number;
+}
+
+/**
+ * Rooms a stranger may join: still in the lobby, and open. A room that has
+ * started drops out of the list by construction — its state is 'running' —
+ * which is what keeps the browser self-cleaning alongside deleteRoomIfDead.
+ *
+ * The room code is the identity. There are no player names anywhere in the
+ * sim, and inventing one here would be inventing a whole social feature.
+ */
+export function listOpenRooms(nowMs: number): RoomListing[] {
+  const out: RoomListing[] = [];
+  for (const room of rooms.values()) {
+    if (room.state !== 'lobby' || room.visibility !== 'open') continue;
+    const ai = room.seats.filter((s) => s.kind === 'ai').length;
+    const humans = room.seats.filter((s) => s.kind === 'human');
+    out.push({
+      code: room.code,
+      // Seats a human could take: the table minus the AI ones.
+      filled: humans.length,
+      total: Math.max(humans.length, MAX_HUMANS - ai),
+      ai,
+      ageMs: Math.max(0, nowMs - room.createdMs),
+    });
+  }
+  // Newest first, then capped — a player wants the room someone just made.
+  out.sort((a, z) => a.ageMs - z.ageMs);
+  return out.slice(0, LIST_LIMIT);
 }

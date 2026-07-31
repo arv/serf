@@ -110,6 +110,20 @@
           rgba(10, 18, 12, 0.3) 100%
         );
       }
+      /* Pre-boot start screen (src/ui/StartMenu.tsx). Above #ui, and unlike
+         #ui it takes pointer events; hidden until mounted. */
+      #menu {
+        position: fixed;
+        inset: 0;
+        display: none;
+        z-index: 10;
+      }
+      /* While the menu is up the canvas is scenery: the real game framed on
+         the castle, pushed back behind the glass. The grade layers keep
+         applying, so it reads exactly like the game does. */
+      html.menu-bg #canvas {
+        filter: blur(3px) saturate(0.9) brightness(0.62);
+      }
       #fatal {
         position: fixed;
         inset: 0;
@@ -129,6 +143,7 @@
     <div id="grade-glow"></div>
     <div id="vignette"></div>
     <div id="ui"></div>
+    <div id="menu"></div>
     <div id="fatal"></div>
     <script type="module" src="/src/app/main.ts"></script>
   </body>

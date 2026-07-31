@@ -37,6 +37,7 @@ import {
 } from '../ui/store';
 import { WorldMirror } from './mirror';
 import { WorkerSimHost } from './simHost';
+import { mountStartMenu } from '../ui/StartMenu';
 import { configFromUrl } from './gameConfig';
 import { relayUrl, runLobby } from '../net/lobbyClient';
 import type { NetInfo } from '../protocol/messages';
@@ -58,7 +59,26 @@ if (!crossOriginIsolated) {
   );
 }
 
+/**
+ * Launch parameters. Any of these means the player has already chosen a
+ * game — anything else (a bare '/', or '?theme=japan') gets the menu.
+ */
+const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu'];
+
 async function boot(): Promise<void> {
+  const launchParams = new URLSearchParams(location.search);
+  // A pending load is a launch too: the Load button stashes the save and
+  // reloads, and that handoff must not bounce back to the menu.
+  const chosen =
+    LAUNCH_PARAMS.some((k) => launchParams.has(k)) ||
+    sessionStorage.getItem('serf-load-pending') !== null;
+  if (!chosen) {
+    // The menu never runs alongside the sim: every mode it offers writes
+    // location.search and reloads, so boot() runs once per match as before.
+    mountStartMenu();
+    return;
+  }
+
   let config = configFromUrl(location.search);
   let loadData: string | undefined;
   let net: NetInfo | undefined;
@@ -70,7 +90,15 @@ async function boot(): Promise<void> {
     // all that crosses. No world blob — the server holds the world and
     // sends this seat only what it may see.
     const aiSeats = Math.max(0, Math.min(3, Number(params.get('ai') ?? '0') || 0));
-    const lobby = await runLobby(mp, aiSeats, config.seed, relayUrl(location.search));
+    // ?open=0 hosts an unlisted room — joinable by code, absent from the
+    // start screen's browser.
+    const lobby = await runLobby(
+      mp,
+      aiSeats,
+      config.seed,
+      relayUrl(location.search),
+      params.get('open') !== '0',
+    );
     config = {
       ...config,
       players: lobby.seats,

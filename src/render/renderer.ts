@@ -17,7 +17,7 @@ export class GameRenderer {
   #webgl: THREE.WebGLRenderer;
   #lastTime = performance.now();
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, interactive = true) {
     // Phones and tablets render the same scene on a far smaller GPU: trade
     // resolution and shadow crispness for framerate. Desktop is unchanged.
     const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
@@ -37,7 +37,7 @@ export class GameRenderer {
     this.scene.fog = DAY
       ? new THREE.Fog(palette.fog, 125, 270)
       : new THREE.Fog(palette.fog, 95, 190);
-    this.rig = new CameraRig(canvas);
+    this.rig = new CameraRig(canvas, interactive);
 
     const hemi = new THREE.HemisphereLight(palette.skyLight, palette.groundBounce, DAY ? 1.05 : 0.7);
     this.scene.add(hemi);
