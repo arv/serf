@@ -34,8 +34,15 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
   };
 
   return (
-    <div class="tech-panel panel">
-      <style>{`
+    <>
+      {/* The tap-absorbing half of the phone sheet's scrim (the dimming
+          half is the panel's own box-shadow). First in the DOM so the sheet
+          paints over it, and a real element because a shadow spread is not
+          hit-testable — see the media query below. */}
+      <div class="tech-scrim" />
+      <div class="tech-panel panel">
+        <style>{`
+        .tech-scrim { display: none; }
         .tech-panel {
           position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
           display: flex; gap: 18px; padding: 14px 18px; pointer-events: auto;
@@ -82,11 +89,22 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
            stylesheet, because this component's <style> renders later and
            would otherwise win.) */
         @media (max-width: 760px) {
+          /* Taps on the dimmed area have to stop here. #ui is
+             pointer-events:none and the dimming is a box-shadow spread,
+             which nothing can hit, so an order aimed at the open sheet used
+             to fall straight through to the map and deselect, select, or —
+             after the long press — send the selection walking. */
+          .tech-scrim {
+            display: block;
+            position: fixed;
+            inset: 0;
+            pointer-events: auto;
+          }
           .tech-panel {
             /* A sheet this size must be opaque: at 0.72 alpha the build card
                behind it showed through and made the list unreadable. The
-               huge spread shadow is the scrim, and ::before absorbs taps
-               so they don't reach the map. */
+               huge spread shadow does the dimming; .tech-scrim above takes
+               the taps. */
             background: rgba(11, 13, 12, 0.98);
             box-shadow: 0 0 0 100vmax rgba(6, 8, 7, 0.55);
             top: calc(64px + env(safe-area-inset-top));
@@ -114,55 +132,56 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
           .tech-close { top: 10px; right: 10px; padding: 6px 12px; }
         }
       `}</style>
-      <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
-        ✕
-      </button>
-      <Show when={!techs().hasTerakoya}>
-        <div class="tech-note">Build a {buildingName('terakoya')} to begin research.</div>
-      </Show>
-      <For each={TECH_BRANCHES}>
-        {(branch) => (
-          <div class="tech-branch">
-            <h3>{BRANCH_LABELS[branch]}</h3>
-            <For
-              each={(Object.keys(TECH_DEFS) as TechId[]).filter(
-                (id) => TECH_DEFS[id].branch === branch,
-              )}
-            >
-              {(id) => (
-                <div
-                  classList={{ 'tech-node': true, [state(id)]: true }}
-                  {...tooltip(() => <TechTip tech={id} />)}
-                  onClick={() => {
-                    if (state(id) === 'available' && techs().hasTerakoya) props.onResearch(id);
-                  }}
-                >
-                  {/* First in the DOM so it paints behind the text. */}
-                  <Show when={state(id) === 'researching'}>
-                    <div class="fill" style={{ width: `${progress(id)}%` }} />
-                  </Show>
-                  <b>
-                    {state(id) === 'done' ? '✓ ' : ''}
-                    {techName(id)}
-                  </b>
-                  <span class="cost">
-                    <For each={Object.entries(TECH_DEFS[id].cost) as [GoodId, number][]}>
-                      {([good, n]) => (
-                        <>
-                          {' '}
-                          <GoodIcon good={good} size={12} />
-                          {n}
-                        </>
-                      )}
-                    </For>
-                  </span>
-                  <div class="desc">{techDesc(id)}</div>
-                </div>
-              )}
-            </For>
-          </div>
-        )}
-      </For>
-    </div>
+        <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
+          ✕
+        </button>
+        <Show when={!techs().hasTerakoya}>
+          <div class="tech-note">Build a {buildingName('terakoya')} to begin research.</div>
+        </Show>
+        <For each={TECH_BRANCHES}>
+          {(branch) => (
+            <div class="tech-branch">
+              <h3>{BRANCH_LABELS[branch]}</h3>
+              <For
+                each={(Object.keys(TECH_DEFS) as TechId[]).filter(
+                  (id) => TECH_DEFS[id].branch === branch,
+                )}
+              >
+                {(id) => (
+                  <div
+                    classList={{ 'tech-node': true, [state(id)]: true }}
+                    {...tooltip(() => <TechTip tech={id} />)}
+                    onClick={() => {
+                      if (state(id) === 'available' && techs().hasTerakoya) props.onResearch(id);
+                    }}
+                  >
+                    {/* First in the DOM so it paints behind the text. */}
+                    <Show when={state(id) === 'researching'}>
+                      <div class="fill" style={{ width: `${progress(id)}%` }} />
+                    </Show>
+                    <b>
+                      {state(id) === 'done' ? '✓ ' : ''}
+                      {techName(id)}
+                    </b>
+                    <span class="cost">
+                      <For each={Object.entries(TECH_DEFS[id].cost) as [GoodId, number][]}>
+                        {([good, n]) => (
+                          <>
+                            {' '}
+                            <GoodIcon good={good} size={12} />
+                            {n}
+                          </>
+                        )}
+                      </For>
+                    </span>
+                    <div class="desc">{techDesc(id)}</div>
+                  </div>
+                )}
+              </For>
+            </div>
+          )}
+        </For>
+      </div>
+    </>
   );
 }

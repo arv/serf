@@ -687,7 +687,10 @@ export class SceneSync {
       // final for this frame, override the clip's right arm with a CCD
       // reach toward the grip's current world position.
       if (crankWell && visual.char) {
-        visual.arm ??= findArm(visual.group);
+        // Explicitly undefined: ??= assigns on null too, so a rig without
+        // the bones re-ran findArm's six name lookups every single frame,
+        // which is the one thing the null in the cache is there to stop.
+        if (visual.arm === undefined) visual.arm = findArm(visual.group);
         if (visual.arm) {
           crankWell.grip.getWorldPosition(IK_TARGET);
           ikReach(visual.arm, IK_TARGET);

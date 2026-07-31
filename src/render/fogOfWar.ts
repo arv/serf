@@ -70,6 +70,10 @@ export class FogOfWar implements FogQuery {
     uUnknown: { value: THREE.Color };
   };
   #patched = new WeakSet<THREE.Material>();
+  /** Objects already listening for children, so the sweep can be skipped
+   * while the graph is unchanged. */
+  #watched = new WeakSet<THREE.Object3D>();
+  #dirty = true;
   #accum = 0;
   #enabled = true;
   /** Seat whose eyes we see through: its units and buildings light the map. */
@@ -157,9 +161,13 @@ export class FogOfWar implements FogQuery {
    * smoothing hides the difference.
    */
   update(dt: number, reader: SabReader, buildings: BuildingSnap[], scene: THREE.Scene): void {
-    // Patch even while disabled: materials created during a fog-off
-    // stretch must still be ready for it being switched back on.
-    this.#patchNewMaterials(scene);
+    // Only when the graph has actually grown. This used to walk every
+    // Object3D in the scene on every frame — a dozen-plus nodes per unit
+    // rig, plus buildings, piles and site frames — ahead of both the
+    // enabled check and the throttle, to find nothing 59 frames out of 60.
+    // Still done while disabled, though: materials created during a fog-off
+    // stretch must be ready for it being switched back on.
+    if (this.#dirty) this.#patchNewMaterials(scene);
     if (!this.#enabled) return;
 
     this.#accum += dt;
@@ -233,9 +241,21 @@ export class FogOfWar implements FogQuery {
    * created in half a dozen modules (and cloned per building, per unit,
    * per prop), and a sweep catches all of them without threading a fog
    * reference through every one.
+   *
+   * The sweep also subscribes to every node it passes, which is what lets
+   * it be skipped the rest of the time: a visual only becomes visible by
+   * being added somewhere under the scene, and that add marks the graph
+   * dirty in the same frame it happens, so the next sweep still lands
+   * before the object's second frame — exactly where the every-frame sweep
+   * landed.
    */
   #patchNewMaterials(scene: THREE.Scene): void {
+    this.#dirty = false;
     scene.traverse((obj) => {
+      if (!this.#watched.has(obj)) {
+        this.#watched.add(obj);
+        obj.addEventListener('childadded', this.#onChildAdded);
+      }
       const mesh = obj as THREE.Mesh;
       const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
       if (!mat) return;
@@ -244,12 +264,22 @@ export class FogOfWar implements FogQuery {
     });
   }
 
+  #onChildAdded = (): void => {
+    this.#dirty = true;
+  };
+
   #patch(material: THREE.Material): void {
     if (this.#patched.has(material)) return;
     this.#patched.add(material);
     // Screen-space overlays (hp bars, selection rings) opt out: they only
     // ever show for things the player can already see.
     if (material.userData?.noFog) return;
+    // Sprites cannot take this patch. Their vertex shader has no
+    // <project_vertex> to hang the world position on, so vFogXZ would be
+    // declared, read, and never written — the fragment then sampled some
+    // arbitrary tile (0,0 in practice) instead of the sprite's own, and
+    // mist over explored water came out painted toward the unknown color.
+    if (material instanceof THREE.SpriteMaterial) return;
 
     const previous = material.onBeforeCompile.bind(material);
     material.onBeforeCompile = (shader, renderer) => {
