@@ -85,7 +85,16 @@ export function checkInvariants(world: World): InvariantReport {
         violations.push(`serf ${u.id}: carrying ${u.carrying} in phase ${job.phase}`);
       }
     } else if (u.kind === 'serf' && u.carrying !== undefined) {
-      violations.push(`serf ${u.id}: carrying ${u.carrying} with no job`);
+      // Holding a good with no job is a legitimate state since move orders
+      // stopped destroying cargo: abortJob leaves the good in his hands on
+      // purpose, and rehomeCarriedGoods only gets a turn on matcher ticks,
+      // so he may walk the errand and then wait, both for seconds. What is
+      // still wrong is a carrier in a task nothing drives — the shape an
+      // ex-worker takes when he is unbound while a gather task is still on
+      // him, which no system will ever pick up again.
+      if (u.task.t !== 'idle' && u.task.t !== 'move') {
+        violations.push(`serf ${u.id}: carrying ${u.carrying} in task ${u.task.t} with no job`);
+      }
     }
   }
 

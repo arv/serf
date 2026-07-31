@@ -291,6 +291,9 @@ describe('move orders outrank employment', () => {
     expect(serf.carrying).toBe('bamboo'); // still in his hands
     expect(world.ledger.consumed.bamboo ?? 0).toBe(consumed);
     expect(serf.task.t).toBe('move');
+    // Walking an errand while laden is the intended state, not a violation:
+    // the invariant used to call it orphaned cargo on every dev sweep.
+    expect(checkInvariants(world).violations).toEqual([]);
 
     // He walks the errand, then hands off what he was still carrying.
     guard = 0;
