@@ -1,7 +1,7 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "buildCommand": "pnpm install --frozen-lockfile && pnpm build && pnpm --dir server install --frozen-lockfile"
+    "buildCommand": "pnpm install --frozen-lockfile && pnpm --dir server install --frozen-lockfile && pnpm build"
   },
   "deploy": {
     "startCommand": "node server/src/index.ts",

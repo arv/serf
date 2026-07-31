@@ -45,7 +45,9 @@ replica world, and there is no AI-specific netcode.
 
 Deploy the repo root as a single service:
 
-- Build command: `pnpm install && pnpm build && pnpm --dir server install`
+- Build command: `pnpm install && pnpm --dir server install && pnpm build`
+  (server deps first: `pnpm build` typechecks this package too, and that
+  needs its `@types/node` and `ws` present)
 - Start command: `node server/src/index.ts` (Node ≥ 23 strips the shared
   TypeScript natively — no server build step)
 - Railway provides `PORT`; `/health` answers 200.
