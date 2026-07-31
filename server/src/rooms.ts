@@ -47,8 +47,12 @@ const LIST_LIMIT = 20;
  */
 export const MAX_COMMANDS_PER_FRAME = 32;
 
-/** How many human seats a room can hold. */
-const MAX_HUMANS = 4;
+/**
+ * Seats at the table, humans and AI together. The world only has start
+ * layouts for one through four players, so a fifth seat of any kind is a
+ * room that can never begin.
+ */
+export const MAX_SEATS = 4;
 
 export interface Room {
   code: string;
@@ -135,6 +139,19 @@ export function addSeat(room: Room, kind: 'human' | 'ai', ws: WebSocket | null):
   return seat;
 }
 
+/**
+ * Take a chair away again — a lobby seat whose occupant left for another
+ * room. Only ever a lobby operation: playerId is the index into the world
+ * the match will build, so the remaining seats renumber, which a running
+ * room could not survive.
+ */
+export function removeSeat(room: Room, seat: Seat): void {
+  const at = room.seats.indexOf(seat);
+  if (at < 0) return;
+  room.seats.splice(at, 1);
+  room.seats.forEach((s, i) => (s.playerId = i));
+}
+
 /** Build the world and start the clock. The server generates it: with one
  * simulator there is no cross-engine worldgen risk, and no blob to ship. */
 export function startMatch(room: Room, seed: number): void {
@@ -164,8 +181,21 @@ export function startMatch(room: Room, seed: number): void {
 export function queueCommands(room: Room, seat: Seat, seq: number, commands: SimCommand[]): void {
   if (seq <= seat.lastSeq) return; // already applied (reconnect replay)
   seat.lastSeq = seq;
-  for (const cmd of commands) room.queued.push({ playerId: seat.playerId, cmd });
+  for (const cmd of commands) {
+    // Everything queued is applied in one tick, on the thread every other
+    // room ticks on. A backlog this deep is nobody playing, so the overflow
+    // is dropped rather than allowed to stall the process.
+    if (room.queued.length >= MAX_QUEUED) break;
+    room.queued.push({ playerId: seat.playerId, cmd });
+  }
 }
+
+/**
+ * Orders a room may hold between ticks. Four seats clicking as fast as
+ * hands allow is a handful; this is only reached by a client submitting
+ * frames in a loop.
+ */
+const MAX_QUEUED = 256;
 
 /**
  * How long a pump may take before it is worth complaining about. A room
@@ -305,7 +335,7 @@ export function listOpenRooms(nowMs: number): RoomListing[] {
       code: room.code,
       // Seats a human could take: the table minus the AI ones.
       filled: humans.length,
-      total: Math.max(humans.length, MAX_HUMANS - ai),
+      total: Math.max(humans.length, MAX_SEATS - ai),
       ai,
       ageMs: Math.max(0, nowMs - room.createdMs),
     });

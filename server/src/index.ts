@@ -7,6 +7,7 @@ import { decodeState, encodePong } from '../../src/protocol/state.ts';
 import { sanitizeCommands } from '../../src/sim/commands.ts';
 import {
   MAX_COMMANDS_PER_FRAME,
+  MAX_SEATS,
   TICK_MS,
   roomsIterable,
   sweepRooms,
@@ -18,6 +19,7 @@ import {
   listOpenRooms,
   pumpRoom,
   queueCommands,
+  removeSeat,
   serverStats,
   startMatch,
   type Room,
@@ -167,6 +169,33 @@ wss.on('connection', (ws) => {
   });
 });
 
+/**
+ * Give up whatever room this socket is already in. One connection holds one
+ * seat: without this, a second `create` or `join` simply overwrote
+ * conn.room/conn.seat and the old room kept a seat marked connected, with a
+ * live ws, that nothing would ever reclaim — the close handler only knows
+ * about the newest room. A client looping `create` grew the room map without
+ * bound; join-then-join left a permanent "Ready" ghost that could hold a
+ * lobby at full.
+ */
+function releaseRoom(conn: Conn, ws: WebSocket): void {
+  const { room, seat } = conn;
+  conn.room = undefined;
+  conn.seat = undefined;
+  if (!room || !seat) return;
+  if (seat.ws !== ws) return; // a newer socket owns the seat now
+  if (room.state === 'lobby') {
+    // Nothing has been built yet: take the chair away rather than leave an
+    // empty one at the table.
+    removeSeat(room, seat);
+    broadcastRoomState(room);
+  } else {
+    seat.connected = false;
+    seat.ws = null;
+  }
+  deleteRoomIfDead(room);
+}
+
 function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
   switch (msg.t) {
     case 'list': {
@@ -177,12 +206,13 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       break;
     }
     case 'create': {
+      releaseRoom(conn, ws);
       // The start screen sends open:false for a code-only room.
       const room = createRoom(msg.open === false ? 'closed' : 'open');
       const seat = addSeat(room, 'human', ws);
       // Host-requested AI seats fill in right away (they never connect —
       // every client simulates them locally).
-      const aiCount = Math.max(0, Math.min(3, msg.ai ?? 0));
+      const aiCount = Math.max(0, Math.min(MAX_SEATS - 1, msg.ai ?? 0));
       for (let i = 0; i < aiCount; i++) addSeat(room, 'ai', null);
       conn.room = room;
       conn.seat = seat;
@@ -193,7 +223,16 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       const room = getRoom(msg.code);
       if (!room) throw new Error(`no room ${msg.code}`);
       if (room.state !== 'lobby') throw new Error('match already started');
-      if (room.seats.filter((s) => s.kind === 'human').length >= 4) throw new Error('room full');
+      // Already sitting here: refresh the view rather than release the seat
+      // and immediately claim a second one.
+      if (conn.room === room) {
+        broadcastRoomState(room);
+        break;
+      }
+      // Every seat counts, AI included: the world has no start layout past
+      // four, so letting a fifth in made a room that could never begin.
+      if (room.seats.length >= MAX_SEATS) throw new Error('room full');
+      releaseRoom(conn, ws);
       const seat = addSeat(room, 'human', ws);
       conn.room = room;
       conn.seat = seat;
@@ -226,6 +265,9 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       console.log(`[relay] rejoin token=${msg.token.slice(0, 8)} found=${!!found}`);
       if (!found) throw new Error('unknown token');
       const { room, seat } = found;
+      // Same leak as create/join: a socket that already held a seat must let
+      // go of it before binding another.
+      if (conn.seat !== seat) releaseRoom(conn, ws);
       seat.ws = ws;
       seat.connected = true;
       room.emptySinceMs = undefined;
@@ -255,6 +297,10 @@ function handleBinary(ws: WebSocket, conn: Conn, data: Uint8Array): void {
   const frame = decodeState(data);
   if (!frame) throw new Error('unknown frame from client');
   if (frame.kind === 'cmd') {
+    // A lobby room never pumps, so anything queued before the match starts
+    // would sit in room.queued forever, growing with every frame. No client
+    // submits before it has been told the match began.
+    if (room.state !== 'running') throw new Error('command frame before the match started');
     // What came off the wire only claims to be commands. Screen it here, at
     // the trust boundary, so nothing malformed can reach the shared tick.
     queueCommands(room, seat, frame.seq, sanitizeCommands(frame.commands, MAX_COMMANDS_PER_FRAME));
