@@ -509,8 +509,7 @@ export class SceneSync {
       if (visual && visual.kind !== kindKey) {
         // Population economy: a serf can become a worker (or a recruit a
         // soldier) in place — swap the model, keep the entity.
-        this.#scene.remove(visual.group);
-        this.#visuals.delete(id);
+        this.#removeVisual(id, visual);
         visual = undefined;
       }
       if (!visual) {
@@ -695,10 +694,26 @@ export class SceneSync {
     if (this.#visuals.size > latest.count) {
       for (const [id, visual] of this.#visuals) {
         if (!latest.index.has(id)) {
-          this.#scene.remove(visual.group);
-          this.#visuals.delete(id);
+          this.#removeVisual(id, visual);
         }
       }
     }
+  }
+
+  /**
+   * Remove a unit visual AND free what it uniquely owns on the GPU. The
+   * GLB clone shares geometry and materials with the loaded assets, but
+   * every SkeletonUtils.clone gets its own Skeleton — and a skeleton
+   * lazily allocates a float DataTexture of bone matrices at first
+   * render. Removing without disposing leaks one such texture per unit;
+   * a long session of combat churn bleeds VRAM until the GPU process
+   * dies (Android Chrome's sad-face tab is exactly this).
+   */
+  #removeVisual(id: number, visual: UnitVisual): void {
+    this.#scene.remove(visual.group);
+    visual.group.traverse((o) => {
+      if (o instanceof THREE.SkinnedMesh) o.skeleton.dispose();
+    });
+    this.#visuals.delete(id);
   }
 }

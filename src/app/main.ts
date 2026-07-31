@@ -133,6 +133,29 @@ async function boot(): Promise<void> {
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   const renderer = new GameRenderer(canvas);
+
+  // WebGL context loss. three.js prevents the default and resumes if the
+  // browser restores the context — but when Android kills the GPU process
+  // under memory pressure, restoration often never comes and the canvas
+  // stays a white sad-face while the HUD (and the sim, in its worker)
+  // carry on. Give restoration a grace window; failing that, save through
+  // the same sessionStorage handoff the Load button uses and reload — the
+  // player comes back into the same world. Multiplayer skips the save
+  // (the server owns the world; the rejoin token survives the reload).
+  let restoreTimer: ReturnType<typeof setTimeout> | undefined;
+  canvas.addEventListener('webglcontextlost', () => {
+    restoreTimer = setTimeout(() => {
+      if (net) {
+        location.reload();
+        return;
+      }
+      void host
+        .requestSave()
+        .then((data) => sessionStorage.setItem('serf-load-pending', data))
+        .finally(() => location.reload());
+    }, 4000);
+  });
+  canvas.addEventListener('webglcontextrestored', () => clearTimeout(restoreTimer));
   // Dev-only handles for console debugging (scene graph + the SAB reader,
   // which is where render-vs-sim questions get settled).
   if (import.meta.env.DEV) {

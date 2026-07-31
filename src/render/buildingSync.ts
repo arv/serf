@@ -306,9 +306,25 @@ export class BuildingSync {
 
   #dispose(id: number): void {
     const v = this.#visuals.get(id);
-    if (v) {
-      this.#scene.remove(v.root);
-      this.#visuals.delete(id);
+    if (!v) return;
+    this.#scene.remove(v.root);
+    // Free what this visual uniquely owns on the GPU. Models share the
+    // template geometry/materials — except construction sites, which clone
+    // every material to carry their private clip plane, and hp bars, which
+    // own their two quads outright.
+    if (v.clip) {
+      v.model.traverse((o) => {
+        if (o instanceof THREE.Mesh) (o.material as THREE.Material).dispose();
+      });
     }
+    if (v.hpBar) {
+      v.hpBar.group.traverse((o) => {
+        if (o instanceof THREE.Mesh) {
+          o.geometry.dispose();
+          (o.material as THREE.Material).dispose();
+        }
+      });
+    }
+    this.#visuals.delete(id);
   }
 }
