@@ -73,13 +73,19 @@ export class GameRenderer {
     resize();
   }
 
-  /** Render one frame; returns dt (seconds) for anyone who needs it. */
-  frame(): number {
+  /**
+   * Render one frame; returns dt (seconds) for anyone who needs it.
+   *
+   * `camera` overrides the rig — the start screen's backdrop looks at the
+   * same scene through a perspective lens from ground level, which the
+   * orthographic rig cannot express.
+   */
+  frame(camera?: THREE.Camera): number {
     const now = performance.now();
     const dt = Math.min((now - this.#lastTime) / 1000, 0.25);
     this.#lastTime = now;
     this.rig.tick(dt);
-    this.#webgl.render(this.scene, this.rig.camera);
+    this.#webgl.render(this.scene, camera ?? this.rig.camera);
     return dt;
   }
 }

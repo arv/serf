@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { GameRenderer } from '../render/renderer';
 import { TerrainMesh } from '../render/terrainMesh';
 import { ScatterMesh } from '../render/scatterMesh';
@@ -28,19 +29,40 @@ import { createWorld } from '../sim/world';
 
 /** A seed whose start plateau frames well. Nothing depends on it. */
 const BACKDROP_SEED = 41207;
-/** Tight enough that the keep reads as a building, not a dot. */
-const VIEW_HEIGHT = 17;
-/** Radius and period of the camera's drift around the keep, in tiles / ms. */
-const DRIFT_RADIUS = 3.2;
-const DRIFT_PERIOD = 46_000;
+
 /**
- * Push the keep off-centre so the menu card does not sit on top of it. The
- * camera is a fixed 45-degree iso rig, so "left on screen" is this direction
- * on the ground; focusing that far along it slides the subject the other way.
+ * The backdrop uses its own perspective camera rather than the game's
+ * orthographic rig. The game looks down a fixed isometric line because
+ * that is what makes a strategy map readable; a menu wants the opposite —
+ * standing in the grass looking up at the keep. An ortho projection at a
+ * low tilt has no convergence and just reads as a flat side elevation, so
+ * depth here has to come from a real lens.
  */
-const SCREEN_SHIFT = 7.5;
-const SHIFT_X = Math.cos(Math.PI / 4) * SCREEN_SHIFT;
-const SHIFT_Z = -Math.sin(Math.PI / 4) * SCREEN_SHIFT;
+const FOV = 46;
+/**
+ * Eye height and stand-off, in tiles. Together these set the tilt: about
+ * 10 degrees below level, against the game's fixed 35. Low enough to look
+ * across the valley at the keep rather than down onto it, high enough that
+ * the near grass does not become a wall.
+ */
+const EYE_HEIGHT = 6;
+const ORBIT_RADIUS = 19;
+/** Aim below the eye so the shot tilts down slightly, not up at the sky. */
+const LOOK_HEIGHT = 2.8;
+/**
+ * Yaw applied after aiming, sliding the keep left of centre so the menu card
+ * does not sit on top of it — but only as far as the viewport allows. The
+ * card is a fixed 486px, so a wide window has room beside it and a portrait
+ * one has none; a fixed offset that frames nicely on a desktop pushes the
+ * keep clean off the side of a phone.
+ */
+const OFF_CENTRE = -0.42;
+/** Aspect at which no shift is applied, and where it reaches full. */
+const SHIFT_FROM = 1.0;
+const SHIFT_TO = 1.8;
+/** Where the walk starts — chosen so the sun rakes across the keep. */
+const START_ANGLE = 2.2;
+const DRIFT_PERIOD = 96_000;
 
 export interface Backdrop {
   stop(): void;
@@ -76,29 +98,54 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   // Frame the player's keep — the storehouse is the castle in this theme.
   const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse');
   const half = world.map.terrain.length ** 0.5 / 2;
-  const cx = (keep ? keep.x + keep.w / 2 : half) + SHIFT_X;
-  const cz = (keep ? keep.y + keep.h / 2 : half) + SHIFT_Z;
-  renderer.rig.focusOn(cx, cz, VIEW_HEIGHT);
+  const cx = keep ? keep.x + keep.w / 2 : half;
+  const cz = keep ? keep.y + keep.h / 2 : half;
+  const groundY = heights.at(cx, cz);
+
+  const camera = new THREE.PerspectiveCamera(FOV, 1, 0.4, 400);
+  let yawOffset = 0;
+  let angle = START_ANGLE;
+  let lift = 0;
+  const aim = (a: number, l: number): void => {
+    angle = a;
+    lift = l;
+    camera.position.set(
+      cx + Math.sin(angle) * ORBIT_RADIUS,
+      groundY + EYE_HEIGHT + lift,
+      cz + Math.cos(angle) * ORBIT_RADIUS,
+    );
+    camera.lookAt(cx, groundY + LOOK_HEIGHT, cz);
+    camera.rotateY(yawOffset);
+  };
+  const fit = (): void => {
+    const aspect = canvas.clientWidth / Math.max(canvas.clientHeight, 1);
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+    const room = Math.min(Math.max((aspect - SHIFT_FROM) / (SHIFT_TO - SHIFT_FROM), 0), 1);
+    yawOffset = OFF_CENTRE * room;
+    aim(angle, lift); // re-apply: the offset just changed
+  };
+  fit();
+  new ResizeObserver(fit).observe(canvas);
 
   const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  aim(START_ANGLE, 0);
   let raf = 0;
   let stopped = false;
   const loop = (): void => {
     if (stopped) return;
     const now = performance.now();
     if (!still) {
-      // A slow arc around the keep, with a second slower term on each axis so
-      // the path never quite repeats — a clean ellipse reads as a turntable,
-      // which is the one thing that makes a live scene look canned. Plus a
-      // gentle breath on the zoom.
+      // A very slow walk around the keep, with a gentle rise and fall on the
+      // eye. Two terms rather than one so the path never quite repeats — a
+      // clean circle reads as a turntable, which is the single thing that
+      // makes a live scene look canned.
       const t = (now / DRIFT_PERIOD) * Math.PI * 2;
-      const x = cx + Math.sin(t) * DRIFT_RADIUS + Math.sin(t * 0.37) * DRIFT_RADIUS * 0.35;
-      const z = cz + Math.cos(t) * DRIFT_RADIUS * 0.5 + Math.cos(t * 0.53) * DRIFT_RADIUS * 0.3;
-      renderer.rig.focusOn(x, z, VIEW_HEIGHT * (1 + Math.sin(t * 0.21) * 0.05));
+      aim(START_ANGLE + t + Math.sin(t * 0.41) * 0.12, Math.sin(t * 0.63) * 0.5);
     }
     water.update(now);
     mist.update(now);
-    renderer.frame();
+    renderer.frame(camera);
     raf = requestAnimationFrame(loop);
   };
   raf = requestAnimationFrame(loop);
