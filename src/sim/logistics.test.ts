@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Rng } from '../shared/rng.ts';
 import { tileIdx } from '../shared/grid.ts';
 import { tickWorld } from './tick.ts';
-import { destroyBuilding, killUnit, type World } from './world.ts';
+import { destroyBuilding, killUnit, placeBuiltBuilding, type World } from './world.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
 import {
   cmds,
@@ -270,6 +270,32 @@ describe('move orders outrank employment', () => {
 
     // And the freed demand can be served again rather than staying reserved.
     run(world, 200);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('never destroys the good in a reassigned serf\'s hands', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, { bamboo: 5 });
+    placeBuiltBuilding(world, 'bowyer', 0, 36, 30); // wants bamboo as input
+    const serf = addSerf(world, 32, 32);
+
+    // Run until he is actually holding something, then yank him away.
+    let guard = 0;
+    while (serf.carrying === undefined && guard++ < 600) tickWorld(world, []);
+    expect(serf.carrying).toBe('bamboo');
+
+    // The abort must not write the good off — compare the ledger across the
+    // interrupt itself, since production legitimately consumes bamboo later.
+    const consumed = world.ledger.consumed.bamboo ?? 0;
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 20, y: 20 }));
+    expect(serf.carrying).toBe('bamboo'); // still in his hands
+    expect(world.ledger.consumed.bamboo ?? 0).toBe(consumed);
+    expect(serf.task.t).toBe('move');
+
+    // He walks the errand, then hands off what he was still carrying.
+    guard = 0;
+    while (serf.carrying !== undefined && guard++ < 900) tickWorld(world, []);
+    expect(serf.carrying).toBeUndefined();
     expect(checkInvariants(world).violations).toEqual([]);
   });
 

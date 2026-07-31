@@ -22,6 +22,7 @@ import type { HaulJob, World } from '../world.ts';
 export function logisticsSystem(world: World): void {
   if (world.tick % MATCHER_INTERVAL === 0) {
     reconcile(world);
+    rehomeCarriedGoods(world);
     match(world);
   }
   dispatch(world);
@@ -40,14 +41,28 @@ function releaseDest(world: World, job: HaulJob): void {
   if (to) to.inbound[job.good] = Math.max(0, (to.inbound[job.good] ?? 0) - 1);
 }
 
-/** Cancel a job from any phase, releasing exactly the outstanding reservations. */
-export function abortJob(world: World, job: HaulJob, reason: string): void {
+/**
+ * Cancel a job from any phase, releasing exactly the outstanding reservations.
+ *
+ * `keepCargo` spares whatever the serf is holding: the job dies but the
+ * good stays in his hands, and the matcher hands it on later (see the
+ * carried-good rule in match). Callers pass it when the carrier is alive
+ * and merely reassigned — destroying a barrel because the player told
+ * someone to walk elsewhere is not a rule, it is a bug.
+ */
+export function abortJob(
+  world: World,
+  job: HaulJob,
+  reason: string,
+  keepCargo = false,
+): void {
   if (job.phase !== 'toDropoff') releaseSource(world, job);
   releaseDest(world, job);
   const serf = job.serfId !== undefined ? world.units.get(job.serfId) : undefined;
   if (serf && !serf.dead) {
-    if (serf.carrying !== undefined) {
-      // v1: a dropped good is destroyed (logged via ledger as consumed).
+    if (serf.carrying !== undefined && !keepCargo) {
+      // Nobody is left to carry it: the good is destroyed, ledgered so the
+      // conservation check stays honest.
       world.ledger.consumed[serf.carrying] =
         (world.ledger.consumed[serf.carrying] ?? 0) + 1;
       serf.carrying = undefined;
@@ -263,6 +278,77 @@ function createJob(
     phase: 'open',
   });
   world.nextJobId++;
+}
+
+// --- Orphaned cargo --------------------------------------------------------
+
+/**
+ * A serf holding a good with no job to explain it — his haul was cancelled
+ * out from under him (a move order, say) but the good is real and already
+ * out of its source building. Hand him a delivery straight into the
+ * dropoff phase: whoever wants that good, else the storehouse. The job
+ * machinery already copes with a `from` that no longer means anything —
+ * reconcile only checks the source while the phase is still toPickup.
+ */
+function rehomeCarriedGoods(world: World): void {
+  for (const serf of world.units.values()) {
+    if (serf.dead || serf.jobId !== undefined || serf.carrying === undefined) continue;
+    if (serf.kind !== 'serf' || !isPlayerOwner(serf.owner)) continue;
+    if (serf.task.t !== 'idle') continue; // let him finish the walk he was sent on
+
+    const good = serf.carrying;
+    const to = deliveryTargetFor(world, serf.owner, good);
+    if (!to) continue; // no storehouse (eliminated) — he keeps holding it
+
+    const path = findPathToAdjacent(
+      world.map,
+      Math.floor(serf.x),
+      Math.floor(serf.y),
+      to.x,
+      to.y,
+      to.w,
+      to.h,
+    );
+    if (!path) continue; // walled off for now; try again next pass
+
+    const job: HaulJob = {
+      id: world.nextJobId++,
+      good,
+      // The good left its source long ago; nothing reads this once the
+      // phase is toDropoff, and reconcile explicitly skips the check.
+      from: to.id,
+      to: to.id,
+      owner: serf.owner,
+      priority: 2,
+      createdTick: world.tick,
+      phase: 'toDropoff',
+      serfId: serf.id,
+    };
+    world.jobs.set(job.id, job);
+    to.inbound[good] = (to.inbound[good] ?? 0) + 1;
+    serf.jobId = job.id;
+    serf.path = path;
+    serf.pathIdx = 0;
+    serf.task = { t: 'haul' };
+  }
+}
+
+/** Somebody who wants this good — a builder or consumer first, else home. */
+function deliveryTargetFor(world: World, owner: Owner, good: GoodId): Building | undefined {
+  const home = findStorehouse(world, owner);
+  for (const b of world.buildings.values()) {
+    if (b.dead || b.owner !== owner || b === home) continue;
+    if (b.state === 'site') {
+      if ((b.siteNeeds?.[good] ?? 0) > (b.inbound[good] ?? 0)) return b;
+      continue;
+    }
+    const def = buildingDef(b.type);
+    const wantsInput =
+      (def.recipe?.kind === 'convert' && (def.recipe.inputs[good] ?? 0) > 0) ||
+      (b.type === 'terakoya' && good === 'sake');
+    if (wantsInput && (b.inputs[good] ?? 0) + (b.inbound[good] ?? 0) < INPUT_CAP) return b;
+  }
+  return home;
 }
 
 // --- Serf claiming ---------------------------------------------------------

@@ -222,7 +222,7 @@ function applyMoveUnits(
     // job the player had nobody left to command.
     if (unit.jobId !== undefined) {
       const job = world.jobs.get(unit.jobId);
-      if (job) abortJob(world, job, 'reassigned by a move order');
+      if (job) abortJob(world, job, 'reassigned by a move order', true);
       unit.jobId = undefined;
     }
     if (unit.homeId !== undefined) unbindWorker(world, unit);

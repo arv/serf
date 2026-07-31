@@ -88,8 +88,10 @@ function requestRecruits(world: World): void {
   for (const u of world.units.values()) {
     if (u.dead || u.kind !== 'serf' || !isPlayerOwner(u.owner) || u.jobId !== undefined) continue;
     // A serf walking under a player's move order is spoken for; recruiting
-    // him mid-stride would make the order look ignored.
-    if (u.task.t === 'idle') {
+    // him mid-stride would make the order look ignored. Nor do we hire a
+    // serf still holding a good — he owes that delivery first, and taking
+    // a post would strand it in his hands forever.
+    if (u.task.t === 'idle' && u.carrying === undefined) {
       let bucket = idleByOwner.get(u.owner);
       if (!bucket) idleByOwner.set(u.owner, (bucket = []));
       bucket.push(u);
