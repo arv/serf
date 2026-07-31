@@ -19,6 +19,7 @@
 import { encodeHot, encodeInit, encodeStruct } from '../../src/protocol/state.ts';
 import { snapBuilding, snapJobs, snapPlayers, unitSnapshots } from '../../src/protocol/snapshot.ts';
 import { TILE_COUNT } from '../../src/shared/grid.ts';
+import { Terrain, resourceBlocks } from '../../src/sim/map.ts';
 import { SeatVision } from '../../src/sim/visibility.ts';
 import type { UnitSnapshot } from '../../src/protocol/sabLayout.ts';
 import type { BuildingSnap, PlayerSnap } from '../../src/protocol/messages.ts';
@@ -75,13 +76,22 @@ export function recomputeVision(room: Room): void {
  *
  * Terrain, height and the natural resource layout go out whole: that is the
  * shape of the world, hiding it would mean streaming terrain geometry, and
- * the map reads as an empty void without it. `blocked` rides along because
- * it is mostly the same natural landscape (water, cliffs, boulders) and
- * start positions come from a fixed table anyone can read in the source.
+ * the map reads as an empty void without it. Start positions come from a
+ * fixed table anyone can read in the source.
  *
  * What is withheld is the part that carries ongoing intelligence:
  * `buildingAt` and `pathLevel` — what a rival has built, and where they
  * walk. Those arrive tile by tile as ground is observed.
+ *
+ * `blocked` has to be rebuilt rather than merely copied, because it is
+ * derived from both. A tile that is blocked while being grass with nothing
+ * growing on it is a building footprint by elimination, so shipping the
+ * grid whole handed over every rival structure on the map — and sendInit
+ * runs again on every rejoin, which made disconnecting and reconnecting a
+ * repeatable full-map scan. Unexplored ground gets only the landscape's
+ * share of it (water and standing resources, exactly what recomputeBlocked
+ * derives from the arrays already sent); the building share arrives with
+ * the map deltas, as ground is explored.
  */
 function initialMap(world: World, view: SeatView): {
   terrain: Uint8Array;
@@ -93,16 +103,21 @@ function initialMap(world: World, view: SeatView): {
 } {
   const buildingAt = new Int16Array(TILE_COUNT).fill(-1);
   const pathLevel = new Uint8Array(TILE_COUNT);
+  const blocked = new Uint8Array(TILE_COUNT);
   for (let i = 0; i < TILE_COUNT; i++) {
     if (view.vision.explored[i]) {
       buildingAt[i] = world.map.buildingAt[i]!;
       pathLevel[i] = world.map.pathLevel[i]!;
+      blocked[i] = world.map.blocked[i]!;
+    } else {
+      blocked[i] =
+        world.map.terrain[i] === Terrain.Water || resourceBlocks(world.map.resource[i]!) ? 1 : 0;
     }
   }
   return {
     terrain: world.map.terrain,
     resource: world.map.resource,
-    blocked: world.map.blocked,
+    blocked,
     pathLevel,
     buildingAt,
     height: world.map.height,
