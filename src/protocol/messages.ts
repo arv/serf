@@ -83,11 +83,12 @@ export interface NetInfo {
   playerId: number;
 }
 
-export type NetStatus =
-  | { state: 'ok'; rttMs: number; behindTicks: number }
-  | { state: 'stalled'; behindTicks: number }
-  | { state: 'desync'; tick: number }
-  | { state: 'disconnected' };
+/**
+ * Connection state. Under lockstep there were also 'stalled' (prediction ran
+ * too far ahead of the relay) and 'desync' (clients disagreed); neither can
+ * happen now that one machine simulates and the rest render what it sends.
+ */
+export type NetStatus = { state: 'ok'; rttMs: number } | { state: 'disconnected' };
 
 export type MainToWorker =
   | {
@@ -110,8 +111,8 @@ export interface StructuralUpdate {
   tick: number;
   buildings: BuildingSnap[];
   mapDeltas: MapDelta[];
-  /** After a rollback: wholesale replacement for the mirror's mutable map
-   * arrays (incremental deltas shipped for re-simulated ticks are void). */
+  /** Wholesale replacement for the mirror's mutable map arrays, sent when
+   * a reconnecting client cannot be caught up with deltas it missed. */
   fullMap?: {
     resource: Uint8Array;
     blocked: Uint8Array;

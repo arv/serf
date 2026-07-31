@@ -5,7 +5,8 @@ export interface MirrorChanges {
   resourceCleared: number[];
   /** Any terrain-color-relevant change (paths, deposits, footprints). */
   repaint: boolean;
-  /** A rollback replaced the whole map state — resync everything derived. */
+  /** The server resent the whole map (a reconnect) — resync everything
+   * derived from it, since the deltas we missed are not coming. */
   refreshAll: boolean;
 }
 

@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 /**
- * Lockstep guard rail: the runtime sim must use only bit-exact math.
- * Math.hypot/pow/sin/cos/... are implementation-approximated per ECMA-262 —
- * two engines can disagree in the last ulp and a lockstep match desyncs.
- * Worldgen (map.ts) is exempt: in multiplayer the host generates the world
- * once and ships the blob, so its transcendentals never run mid-match.
+ * The runtime sim uses only bit-exact math. Math.hypot/pow/sin/cos/... are
+ * implementation-approximated per ECMA-262, so two engines can disagree in
+ * the last ulp.
+ *
+ * That used to be a hard requirement: under lockstep every client simulated,
+ * and one ulp of disagreement desynced the match. One machine simulates now,
+ * so it is no longer load-bearing for multiplayer — it is kept because it is
+ * free and it still buys same-build reproducibility, which save/load
+ * (save.test.ts resumes a run and expects the same world) and the AI
+ * regression tests both lean on. Relax it if it ever blocks something real.
+ *
+ * Worldgen (map.ts) is exempt: it runs once, before any of that matters.
  */
 const BANNED =
   /Math\.(hypot|pow|sin|cos|tan|atan2?|asin|acos|exp|log2?|log10|log1p|cbrt|sinh|cosh|tanh|random)\b|Date\.now|performance\.now/;

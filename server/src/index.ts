@@ -3,8 +3,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { decodeFrame, encodePong } from '../../src/protocol/net.ts';
-import { decodeState } from '../../src/protocol/state.ts';
+import { decodeState, encodePong } from '../../src/protocol/state.ts';
 import {
   TICK_MS,
   roomsIterable,
@@ -232,16 +231,17 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
 function handleBinary(ws: WebSocket, conn: Conn, data: Uint8Array): void {
   const { room, seat } = conn;
   if (!room || !seat) throw new Error('binary frame before joining a room');
-  const state = decodeState(data);
-  if (state) {
-    if (state.kind !== 'cmd') throw new Error(`unexpected ${state.kind} from client`);
-    queueCommands(room, seat, state.seq, state.commands);
+  const frame = decodeState(data);
+  if (!frame) throw new Error('unknown frame from client');
+  if (frame.kind === 'cmd') {
+    queueCommands(room, seat, frame.seq, frame.commands);
     return;
   }
-  // Not a state frame: the only other thing a client sends is a clock ping.
-  const frame = decodeFrame(data);
-  if (frame.kind !== 'ping') throw new Error(`unexpected ${frame.kind} from client`);
-  ws.send(encodePong(frame.clientTimeMs, Date.now() % 0xffffffff, room.closedTick >>> 0));
+  if (frame.kind === 'ping') {
+    ws.send(encodePong(frame.clientTimeMs, Date.now() % 0xffffffff));
+    return;
+  }
+  throw new Error(`unexpected ${frame.kind} from client`);
 }
 
 // One clock for every room.

@@ -26,7 +26,7 @@ export const [myPlayerId, setMyPlayerId] = createSignal(0);
 /** All seats' faction blocks (for elimination toasts, future score UI). */
 export const [playersMeta, setPlayersMeta] = createSignal<PlayerSnap[]>([]);
 
-/** Networked match: lockstep speed (no pause/FF), no save, no cheats. */
+/** Networked match: one shared clock (no pause/FF), no save, no cheats. */
 export const [netMode, setNetMode] = createSignal(false);
 
 /** Live connection health (netMode only). */

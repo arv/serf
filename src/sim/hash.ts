@@ -2,10 +2,11 @@ import { GOODS } from './defs/goods.ts';
 import type { World } from './world.ts';
 
 /**
- * 32-bit FNV-1a digest of the outcome-relevant world state — the desync
- * detector. Every lockstep client hashes its confirmed world at the same
- * cadence; the relay compares. Fields mirror the determinism-test digest;
- * float coordinates hash by their f64 bit patterns (bit-exact or bust).
+ * 32-bit FNV-1a digest of the outcome-relevant world state. It was the
+ * lockstep desync detector; with one simulator there is nothing to compare
+ * across machines, and it now serves the tests — "are these two worlds the
+ * same" for save/clone round-trips and determinism regressions. Float
+ * coordinates hash by their f64 bit patterns (bit-exact or bust).
  */
 
 const scratch = new DataView(new ArrayBuffer(8));

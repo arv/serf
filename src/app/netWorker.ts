@@ -1,7 +1,6 @@
 /// <reference lib="webworker" />
 import { SAB_BYTES, SabWriter } from '../protocol/sabLayout';
-import { decodeState, encodeCmd } from '../protocol/state';
-import { decodeFrame, encodePing } from '../protocol/net';
+import { decodeState, encodeCmd, encodePing } from '../protocol/state';
 import { MovePredictor } from '../net/predict';
 import type {
   BuildingSnap,
@@ -109,34 +108,33 @@ function onInit(tick: number, map: MapSnapshot, payload: InitPayload): void {
 
 function onFrame(data: Uint8Array): void {
   const frame = decodeState(data);
-  if (frame) {
-    switch (frame.kind) {
-      case 'init':
-        onInit(frame.tick, frame.map, frame.json as InitPayload);
-        return;
-      case 'hot': {
-        lastUnits = new Map(frame.units.map((u) => [u.id, u]));
-        predictor?.apply(frame.units, myPlayerId);
-        writer?.publish(frame.units);
-        return;
-      }
-      case 'struct': {
-        const json = frame.json as Omit<StructuralUpdate, 'type' | 'tick'>;
-        post({ ...json, type: 'structural', tick: frame.tick });
-        return;
-      }
-      default:
-        return; // 'cmd' is ours, never inbound
+  if (!frame) return;
+  switch (frame.kind) {
+    case 'init':
+      onInit(frame.tick, frame.map, frame.json as InitPayload);
+      return;
+    case 'hot': {
+      lastUnits = new Map(frame.units.map((u) => [u.id, u]));
+      predictor?.apply(frame.units, myPlayerId);
+      writer?.publish(frame.units);
+      return;
     }
-  }
-  const other = decodeFrame(data);
-  if (other.kind === 'pong') {
-    // The echo is our own send time, truncated the same way; a negative or
-    // absurd delta means the 32-bit counter wrapped mid-flight, so keep the
-    // previous estimate rather than reporting nonsense.
-    const rtt = (Date.now() % 0xffffffff) - other.clientTimeEcho;
-    if (rtt >= 0 && rtt < 60_000) rttMs = rtt;
-    postStatus({ state: 'ok', rttMs, behindTicks: 0 });
+    case 'struct': {
+      const json = frame.json as Omit<StructuralUpdate, 'type' | 'tick'>;
+      post({ ...json, type: 'structural', tick: frame.tick });
+      return;
+    }
+    case 'pong': {
+      // The echo is our own send time, truncated the same way; a negative
+      // or absurd delta means the 32-bit counter wrapped mid-flight, so
+      // keep the previous estimate rather than reporting nonsense.
+      const rtt = (Date.now() % 0xffffffff) - frame.clientTimeEcho;
+      if (rtt >= 0 && rtt < 60_000) rttMs = rtt;
+      postStatus({ state: 'ok', rttMs });
+      return;
+    }
+    default:
+      return; // 'cmd' and 'ping' are ours, never inbound
   }
 }
 

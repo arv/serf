@@ -3,7 +3,6 @@ import { INPUT_CAP, buildingDef } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
-import { simWarn } from '../log.ts';
 import { trainingDemand } from './training.ts';
 import type { Unit } from '../units.ts';
 import type { HaulJob, World } from '../world.ts';
@@ -62,7 +61,7 @@ export function abortJob(world: World, job: HaulJob, reason: string): void {
   // plain Node on the server (where it does not). Reading it through a cast
   // keeps this dev-only warning honest in both without a shim.
   if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) {
-    simWarn(`[logistics] job ${job.id} (${job.good} ${job.from}->${job.to}) aborted: ${reason}`);
+    console.warn(`[logistics] job ${job.id} (${job.good} ${job.from}->${job.to}) aborted: ${reason}`);
   }
 }
 

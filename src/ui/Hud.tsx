@@ -532,15 +532,8 @@ export function Hud(props: {
         <For each={toasts()}>{(t) => <div class="panel toast">{t.text}</div>}</For>
       </div>
 
-      <Show when={netMode() && netStatus() && netStatus()!.state !== 'ok'}>
-        <div class="hud-nettrouble panel">
-          {((): string => {
-            const s = netStatus()!;
-            if (s.state === 'stalled') return 'Connection lagging — waiting for the relay…';
-            if (s.state === 'desync') return 'The clients have diverged. A resync is needed.';
-            return 'Connection to the relay lost. Reconnecting…';
-          })()}
-        </div>
+      <Show when={netMode() && netStatus()?.state === 'disconnected'}>
+        <div class="hud-nettrouble panel">Connection to the server lost. Reconnecting…</div>
       </Show>
 
       <Show when={outcome().state === 'over'}>

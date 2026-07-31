@@ -45,7 +45,7 @@ describe('cloneWorld — the rollback snapshot primitive', () => {
     expect(hashWorld(viaSave)).toBe(hashWorld(world));
   });
 
-  it('meets the rollback time budget', () => {
+  it('stays cheap enough to snapshot a live world', () => {
     const world = createWorld({
       seed: 8,
       players: [{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }],
@@ -63,8 +63,10 @@ describe('cloneWorld — the rollback snapshot primitive', () => {
 
     // eslint-disable-next-line no-console
     console.log(`cloneWorld ${cloneMs.toFixed(2)}ms, tick ${tickMs.toFixed(3)}ms at 4p scale`);
-    // Budget: a 40-tick rollback burst (MAX_PREDICTION) must fit a frame.
-    expect(cloneMs + 40 * tickMs).toBeLessThan(16);
+    // Rollback is gone, so there is no per-frame burst to fit any more. This
+    // is a regression tripwire: cloning a whole world should stay in the
+    // small-milliseconds, or something has started deep-copying the map.
+    expect(cloneMs).toBeLessThan(5);
   });
 });
 

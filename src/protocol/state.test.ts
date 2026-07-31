@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { TILE_COUNT } from '../shared/grid';
-import { decodeState, encodeCmd, encodeHot, encodeInit, encodeStruct } from './state';
+import {
+  decodeState,
+  encodeCmd,
+  encodeHot,
+  encodeInit,
+  encodePing,
+  encodePong,
+  encodeStruct,
+} from './state';
 import type { UnitSnapshot } from './sabLayout';
 import type { MapSnapshot } from './messages';
 
@@ -105,9 +113,16 @@ describe('state frames', () => {
     expect(cmd).toEqual({ kind: 'cmd', seq: 5, commands: [{ kind: 'hireSerf' }] });
   });
 
+  it('round-trips the clock probe', () => {
+    expect(decodeState(encodePing(123456))).toEqual({ kind: 'ping', clientTimeMs: 123456 });
+    expect(decodeState(encodePong(123456, 999))).toEqual({
+      kind: 'pong',
+      clientTimeEcho: 123456,
+      serverTimeMs: 999,
+    });
+  });
+
   it('returns null for tags it does not own', () => {
-    // The lockstep protocol shares the socket; unknown tags fall through
-    // rather than being treated as corruption.
-    expect(decodeState(new Uint8Array([0x01, 0, 0, 0, 0]))).toBeNull();
+    expect(decodeState(new Uint8Array([0x7f, 0, 0, 0, 0]))).toBeNull();
   });
 });

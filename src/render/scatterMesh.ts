@@ -184,7 +184,7 @@ export class ScatterMesh {
     }
     for (const i of shoreTiles) {
       this.#placeShoreRocks(i);
-      this.#cosmetic.add(i); // never resource-driven; rollback resync skips
+      this.#cosmetic.add(i); // never resource-driven; a full resync skips it
     }
 
     for (const a of this.#archetypes.values()) {
@@ -197,10 +197,11 @@ export class ScatterMesh {
   #cosmetic = new Set<number>();
 
   /**
-   * Rollback resync: hide scatter on every tile the corrected map no longer
-   * grants a resource or leaves buildable (shore decor is exempt). Scatter
-   * is only ever removed — a rollback that *restores* a tree the prediction
-   * felled leaves it hidden until regrowth; a cosmetic, self-healing gap.
+   * Full resync (a reconnect resends the map): hide scatter on every tile
+   * the refreshed map no longer grants a resource or leaves buildable
+   * (shore decor is exempt). Scatter is only ever removed — if the refresh
+   * *restores* a tree we had already felled, it stays hidden until
+   * regrowth; a cosmetic, self-healing gap.
    */
   resyncAll(map: { resource: Uint8Array; buildingAt: Int16Array }): void {
     for (const a of this.#archetypes.values()) {

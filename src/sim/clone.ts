@@ -6,11 +6,13 @@ import type { GoodAmounts } from './defs/goods.ts';
 import type { PlayerState } from './player.ts';
 
 /**
- * Deep-copy a World for rollback snapshots — the netcode's confirmed world
- * is cloned into a fresh predicted world on every misprediction. Hand-rolled
- * (structuredClone is 2-4x slower on the entity maps) and therefore brittle
- * against new fields: when World or its records grow, update THIS, save.ts,
- * and hash.ts together (clone.test.ts pins them to each other).
+ * Deep-copy a World. Written for rollback snapshots, which are gone; it
+ * stays because clone.test.ts uses it as an independent reference for
+ * save.ts — cloning and round-tripping through the save format must produce
+ * the same world, which is what catches a new World field that serialization
+ * forgot. Hand-rolled (structuredClone is 2-4x slower on the entity maps)
+ * and therefore brittle against new fields: when World or its records grow,
+ * update THIS, save.ts, and hash.ts together.
  *
  * `terrain` and `height` are shared by reference on purpose — they are
  * written only by worldgen (see map.ts) and never change mid-match.

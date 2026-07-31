@@ -17,6 +17,11 @@ import { AUX_STRIDE, type UnitSnapshot } from './sabLayout.ts';
 import type { SimCommand } from '../sim/commands.ts';
 import type { MapSnapshot } from './messages.ts';
 
+/** Clock probe, kept from the lockstep protocol that this replaces — it is
+ * the one frame that was never about relaying inputs. */
+export const PING = 0x05;
+export const PONG = 0x06;
+
 export const STATE_INIT = 0x10;
 export const STATE_HOT = 0x11;
 export const STATE_STRUCT = 0x12;
@@ -222,12 +227,47 @@ function decodeCmd(data: Uint8Array): CmdFrame {
   };
 }
 
-export type StateFrame = InitFrame | HotFrame | StructFrame | CmdFrame;
+export function encodePing(clientTimeMs: number): Uint8Array<ArrayBuffer> {
+  const out = new Uint8Array(5);
+  out[0] = PING;
+  new DataView(out.buffer).setUint32(1, clientTimeMs >>> 0, true);
+  return out;
+}
 
-/** Returns null for tags this protocol does not own, so a caller can fall
- * through to another decoder rather than treating it as corruption. */
+export function encodePong(clientTimeEcho: number, serverTimeMs: number): Uint8Array<ArrayBuffer> {
+  const out = new Uint8Array(9);
+  const view = new DataView(out.buffer);
+  out[0] = PONG;
+  view.setUint32(1, clientTimeEcho >>> 0, true);
+  view.setUint32(5, serverTimeMs >>> 0, true);
+  return out;
+}
+
+export interface PingFrame {
+  kind: 'ping';
+  clientTimeMs: number;
+}
+
+export interface PongFrame {
+  kind: 'pong';
+  clientTimeEcho: number;
+  serverTimeMs: number;
+}
+
+export type StateFrame = InitFrame | HotFrame | StructFrame | CmdFrame | PingFrame | PongFrame;
+
+/** Returns null for tags this protocol does not own. */
 export function decodeState(data: Uint8Array): StateFrame | null {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   switch (data[0]) {
+    case PING:
+      return { kind: 'ping', clientTimeMs: view.getUint32(1, true) };
+    case PONG:
+      return {
+        kind: 'pong',
+        clientTimeEcho: view.getUint32(1, true),
+        serverTimeMs: view.getUint32(5, true),
+      };
     case STATE_INIT:
       return decodeInit(data);
     case STATE_HOT:
