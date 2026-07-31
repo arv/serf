@@ -479,6 +479,13 @@ export class SceneSync {
     return this.#reader.latest.aux[li * AUX_STRIDE]!;
   }
 
+  /** A corpse: still published, for the length of the death animation. */
+  isDead(id: number): boolean {
+    const li = this.#reader.latest.index.get(id);
+    if (li === undefined) return false;
+    return this.#reader.latest.aux[li * AUX_STRIDE + 4] === ACTION.dead;
+  }
+
   #alpha(now: number): number {
     return clamp((now - this.#reader.latestObservedAt) / PUBLISH_INTERVAL_MS, 0, 1);
   }

@@ -96,6 +96,11 @@ export class Controls {
     canvas.addEventListener('pointerdown', this.#onDown);
     canvas.addEventListener('pointermove', this.#onMove);
     canvas.addEventListener('pointerup', this.#onUp);
+    // The gesture can also end without a pointerup: the system takes it (a
+    // notification shade, a browser back-swipe) or the capture is lost.
+    // Nothing it was building up should land afterwards.
+    canvas.addEventListener('pointercancel', this.#onCancel);
+    canvas.addEventListener('lostpointercapture', this.#onCancel);
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape') {
         if (placing()) this.#cancelPlacement();
@@ -145,7 +150,11 @@ export class Controls {
   prune(): void {
     let changed = false;
     for (const id of this.#selection) {
-      if (!this.#sync.latestIds.has(id)) {
+      // A corpse stays in the publish while its death animation plays, so
+      // "gone from the publish" is not enough: a wiped squad went on
+      // wearing selection rings, counting in the HUD, and putting dead ids
+      // into the next move order.
+      if (!this.#sync.latestIds.has(id) || this.#sync.isDead(id)) {
         this.#selection.delete(id);
         changed = true;
       }
@@ -158,7 +167,35 @@ export class Controls {
     setSelection(new Set(sel));
   }
 
+  /**
+   * Forget everything the current gesture had started: the band
+   * rectangle, and the tap that would have selected or placed.
+   * Used when the gesture is taken away rather than finished — a cancelled
+   * touch, a lost capture, or a second finger arriving.
+   */
+  #abortGesture = (): void => {
+    this.#touchOrigin = null;
+    this.#dragStart = null;
+    this.#dragging = false;
+    this.#bandEl.style.display = 'none';
+  };
+
+  #onCancel = (): void => {
+    this.#abortGesture();
+  };
+
+  /** Only the first finger down commands anything. A second one means the
+   * camera — pinch-zoom, two-finger pan — and what the first was starting
+   * is not what the player meant by it. */
+  #secondaryTouch(e: PointerEvent): boolean {
+    return e.pointerType === 'touch' && !e.isPrimary;
+  }
+
   #onDown = (e: PointerEvent): void => {
+    if (this.#secondaryTouch(e)) {
+      this.#abortGesture();
+      return;
+    }
     const type = placing();
     if (type) {
       if (e.button === 0) {
@@ -245,6 +282,7 @@ export class Controls {
   }
 
   #onMove = (e: PointerEvent): void => {
+    if (this.#secondaryTouch(e)) return;
     this.#updateHover(e.clientX, e.clientY);
     const type = placing();
     if (type) {
@@ -283,6 +321,7 @@ export class Controls {
   };
 
   #onUp = (e: PointerEvent): void => {
+    if (this.#secondaryTouch(e)) return;
     const heldStill = this.#touchOrigin !== null;
     this.#touchOrigin = null;
 
