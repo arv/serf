@@ -2,6 +2,15 @@ import { MAP_SIZE, TILE_COUNT, inBounds, tileIdx, tileX, tileY } from '../shared
 import { PathLevel, type GameMap } from './map.ts';
 
 /**
+ * All the pathfinder actually reads: where it cannot go, and what a step
+ * costs. Narrower than GameMap on purpose — the multiplayer client holds
+ * only a map snapshot, and this is what lets it predict its own movement
+ * with the very same pathfinder the server moves with, rather than an
+ * approximation that would drift.
+ */
+export type PathMap = Pick<GameMap, 'blocked' | 'pathLevel'>;
+
+/**
  * A* over the tile grid: 8-directional, corner cutting forbidden, path-aware
  * step costs so units prefer trails and roads. Flat typed arrays with a
  * generation stamp avoid per-call clearing; a binary heap orders the open set.
@@ -13,12 +22,12 @@ const EXPANSION_CAP = 4096;
 /** Movement cost multiplier per path level: grass, dirt trail, stone road. */
 const LEVEL_COST = [1.0, 0.85, 0.72] as const;
 
-export function tileStepCost(map: GameMap, idx: number): number {
+export function tileStepCost(map: PathMap, idx: number): number {
   return LEVEL_COST[map.pathLevel[idx]!] ?? 1.0;
 }
 
 /** Movement speed multiplier for a tile (inverse of its cost advantage). */
-export function tileSpeedMult(map: GameMap, idx: number): number {
+export function tileSpeedMult(map: PathMap, idx: number): number {
   const level = map.pathLevel[idx]!;
   return level === PathLevel.Road ? 1.35 : level === PathLevel.Trail ? 1.15 : 1.0;
 }
@@ -83,7 +92,7 @@ function octile(x0: number, y0: number, x1: number, y1: number): number {
  * is returned as tile indices excluding the start tile; null if unreachable.
  */
 function search(
-  map: GameMap,
+  map: PathMap,
   sx: number,
   sy: number,
   isGoal: (idx: number) => boolean,
@@ -147,7 +156,7 @@ function search(
  * if unreachable. Target must be walkable.
  */
 export function findPath(
-  map: GameMap,
+  map: PathMap,
   sx: number,
   sy: number,
   tx: number,
@@ -173,7 +182,7 @@ function reconstruct(start: number, goal: number): number[] {
  * Nearest walkable tile to (tx,ty), spiralling outward. Returns tile index or
  * -1. Useful for right-click targets on blocked tiles.
  */
-export function nearestWalkable(map: GameMap, tx: number, ty: number, maxR = 8): number {
+export function nearestWalkable(map: PathMap, tx: number, ty: number, maxR = 8): number {
   for (let r = 0; r <= maxR; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -193,7 +202,7 @@ export function nearestWalkable(map: GameMap, tx: number, ty: number, maxR = 8):
  * entry point.
  */
 export function findPathToAdjacent(
-  map: GameMap,
+  map: PathMap,
   sx: number,
   sy: number,
   bx: number,

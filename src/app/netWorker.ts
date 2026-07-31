@@ -2,6 +2,7 @@
 import { SAB_BYTES, SabWriter } from '../protocol/sabLayout';
 import { decodeState, encodeCmd } from '../protocol/state';
 import { decodeFrame, encodePing } from '../protocol/net';
+import { MovePredictor } from '../net/predict';
 import type {
   BuildingSnap,
   MainToWorker,
@@ -12,6 +13,7 @@ import type {
   WorkerToMain,
 } from '../protocol/messages';
 import type { SimCommand } from '../sim/commands';
+import type { UnitSnapshot } from '../protocol/sabLayout';
 
 /**
  * The multiplayer client's end of the wire. It holds the socket, decodes the
@@ -32,6 +34,11 @@ let rttMs = 0;
 let lastStatus = '';
 /** The `ready` handshake happens once; a reconnect re-inits the mirror. */
 let started = false;
+/** Our own seat, and prediction for its units' movement. */
+let myPlayerId = 0;
+let predictor: MovePredictor | null = null;
+/** The latest server frame, indexed — where an order starts from. */
+let lastUnits = new Map<number, UnitSnapshot>();
 
 function post(msg: WorkerToMain, transfer: Transferable[] = []): void {
   (self as unknown as Worker).postMessage(msg, transfer);
@@ -74,6 +81,10 @@ function rosterUpdate(
 }
 
 function onInit(tick: number, map: MapSnapshot, payload: InitPayload): void {
+  // Prediction paths on the map we were given, with the same pathfinder the
+  // server moves with. A resend means the world moved on without us, so any
+  // guess in flight is stale.
+  predictor = new MovePredictor(map);
   if (!started) {
     started = true;
     sab = new SharedArrayBuffer(SAB_BYTES);
@@ -103,9 +114,12 @@ function onFrame(data: Uint8Array): void {
       case 'init':
         onInit(frame.tick, frame.map, frame.json as InitPayload);
         return;
-      case 'hot':
+      case 'hot': {
+        lastUnits = new Map(frame.units.map((u) => [u.id, u]));
+        predictor?.apply(frame.units, myPlayerId);
         writer?.publish(frame.units);
         return;
+      }
       case 'struct': {
         const json = frame.json as Omit<StructuralUpdate, 'type' | 'tick'>;
         post({ ...json, type: 'structural', tick: frame.tick });
@@ -158,6 +172,11 @@ function init(net: NetInfo): void {
 
 function sendCommands(commands: SimCommand[]): void {
   if (socket?.readyState !== WebSocket.OPEN) return;
+  // Start moving before the server has heard the order — the dead window
+  // between click and answer is the whole of what a player feels as lag.
+  for (const cmd of commands) {
+    if (cmd.kind === 'moveUnits') predictor?.order(cmd.unitIds, cmd.x, cmd.y, lastUnits);
+  }
   socket.send(encodeCmd(++seq, commands));
 }
 
@@ -166,6 +185,7 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
   switch (msg.type) {
     case 'init':
       if (!msg.net) throw new Error('netWorker requires net info');
+      myPlayerId = msg.net.playerId;
       init(msg.net);
       break;
     case 'commands':
