@@ -227,17 +227,6 @@ function applyMoveUnits(
   for (const id of cmd.unitIds) {
     const unit = world.units.get(id);
     if (!unit || unit.dead || unit.owner !== playerId) continue;
-    // A move order outranks whatever the unit was employed doing: a hauler
-    // drops its job (reservations released, carried good lost) and a
-    // resident worker quits the post, freeing the building to recruit
-    // again. Ignoring these orders meant that once the last serf took a
-    // job the player had nobody left to command.
-    if (unit.jobId !== undefined) {
-      const job = world.jobs.get(unit.jobId);
-      if (job) abortJob(world, job, 'reassigned by a move order', true);
-      unit.jobId = undefined;
-    }
-    if (unit.homeId !== undefined) unbindWorker(world, unit);
     const goal = targets[Math.min(t++, targets.length - 1)]!;
     const path = findPath(
       world.map,
@@ -246,14 +235,30 @@ function applyMoveUnits(
       tileX(goal),
       tileY(goal),
     );
-    if (path) {
-      unit.path = path;
-      unit.pathIdx = 0;
-      unit.task = { t: 'move' };
-      // Explicit orders disengage combat until arrival.
-      unit.targetId = undefined;
-      unit.targetIsBuilding = undefined;
+    // An order that cannot be walked changes nothing. Quitting first and
+    // asking afterwards stranded a resident worker for good: unbindWorker
+    // had already cleared homeId and turned him back into a serf, so
+    // production no longer drove him, while his gather task stayed put —
+    // and wander, dispatch and staffing all want a genuinely idle unit, so
+    // nothing ever picked him up again.
+    if (!path) continue;
+    // A move order outranks whatever the unit was employed doing: a hauler
+    // drops its job (reservations released, the good stays in his hands)
+    // and a resident worker quits the post, freeing the building to recruit
+    // again. Ignoring these orders meant that once the last serf took a
+    // job the player had nobody left to command.
+    if (unit.jobId !== undefined) {
+      const job = world.jobs.get(unit.jobId);
+      if (job) abortJob(world, job, 'reassigned by a move order', true);
+      unit.jobId = undefined;
     }
+    if (unit.homeId !== undefined) unbindWorker(world, unit);
+    unit.path = path;
+    unit.pathIdx = 0;
+    unit.task = { t: 'move' };
+    // Explicit orders disengage combat until arrival.
+    unit.targetId = undefined;
+    unit.targetIsBuilding = undefined;
   }
 }
 

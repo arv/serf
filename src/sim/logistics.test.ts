@@ -299,6 +299,33 @@ describe('move orders outrank employment', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
+  it('never hands a fresh pickup to a serf who is already carrying', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, { bamboo: 5 });
+    placeBuiltBuilding(world, 'bowyer', 0, 36, 30); // wants bamboo as input
+    const serf = addSerf(world, 32, 32);
+    const initial = countGoods(world);
+
+    let guard = 0;
+    while (serf.carrying === undefined && guard++ < 600) tickWorld(world, []);
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 20, y: 20 }));
+    expect(serf.carrying).toBe('bamboo');
+
+    // dispatch runs every tick and used to claim him the moment he arrived,
+    // while rehomeCarriedGoods only gets a turn every MATCHER_INTERVAL. The
+    // pickup then overwrote what was already in his hands: a good gone from
+    // the world with no ledger entry to account for it.
+    guard = 0;
+    while (serf.carrying !== undefined && guard++ < 900) {
+      tickWorld(world, []);
+      const job = serf.jobId !== undefined ? world.jobs.get(serf.jobId) : undefined;
+      if (job) expect(job.phase).toBe('toDropoff');
+    }
+    expect(serf.carrying).toBeUndefined();
+    expect(checkLedger(world, initial)).toEqual([]);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
   it('lets a resident worker quit his post, so the building re-recruits', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
@@ -315,6 +342,34 @@ describe('move orders outrank employment', () => {
 
     // Staffing notices the empty post and sends somebody (him, once idle).
     run(world, 400);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('an order that cannot be walked leaves the worker at his post', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const hut = addBuiltHut(world, 36, 30);
+    const worker = staffBuilding(world, hut);
+
+    // A sealed pocket: the tile itself is walkable, so it is offered as a
+    // destination, but nothing can reach it.
+    for (let y = 49; y <= 51; y++) {
+      for (let x = 49; x <= 51; x++) {
+        if (x !== 50 || y !== 50) world.map.blocked[tileIdx(x, y)] = 1;
+      }
+    }
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [worker.id], x: 50, y: 50 }));
+
+    // He used to be fired before the path was even attempted, which left an
+    // ex-worker holding a gather task no system drives: production had lost
+    // him with the post, and wander, dispatch and staffing all want a unit
+    // that is genuinely idle. The population silently lost a man.
+    expect(worker.kind).toBe('worker');
+    expect(worker.homeId).toBe(hut.id);
+    expect(hut.workerId).toBe(worker.id);
+    expect(worker.task.t).not.toBe('move');
+    run(world, 200);
+    expect(worker.homeId).toBe(hut.id);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 });

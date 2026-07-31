@@ -370,8 +370,12 @@ function dispatch(world: World): void {
   for (const u of world.units.values()) {
     if (u.dead || u.kind !== 'serf' || !isPlayerOwner(u.owner) || u.jobId !== undefined) continue;
     // Walking under a player's move order is not idleness — leave them be
-    // until they arrive (movement flips the task back to idle there).
-    if (u.task.t === 'idle') {
+    // until they arrive (movement flips the task back to idle there). Nor
+    // is a serf who is still holding something free: the pickup below
+    // overwrites what he carries, which would destroy a real good with no
+    // ledger entry to show for it. He owes that delivery first, and
+    // rehomeCarriedGoods is what hands it to him.
+    if (u.task.t === 'idle' && u.carrying === undefined) {
       let bucket = idleByOwner.get(u.owner);
       if (!bucket) idleByOwner.set(u.owner, (bucket = []));
       bucket.push(u);
