@@ -4,7 +4,15 @@ import { tileIdx } from '../shared/grid.ts';
 import { tickWorld } from './tick.ts';
 import { destroyBuilding, killUnit, type World } from './world.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
-import { cmds, addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
+import {
+  cmds,
+  addBuiltHut,
+  addSerf,
+  addSite,
+  addStorehouse,
+  bareWorld,
+  staffBuilding,
+} from './testUtils.ts';
 import { TileResource } from './map.ts';
 import type { GoodAmounts } from './defs/goods.ts';
 
@@ -244,4 +252,43 @@ describe('fuzz: 10k ticks of random destruction never corrupts the economy', () 
       expect(world.buildings.get(job.to)?.dead).not.toBe(true);
     }
   }, 30_000);
+});
+
+describe('move orders outrank employment', () => {
+  it('pulls a hauling serf off its job, releasing the reservations', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, { bamboo: 5 });
+    addSite(world, 36, 30);
+    const serf = addSerf(world, 32, 32);
+    run(world, 40);
+    expect(serf.jobId).toBeDefined(); // the matcher hired him
+
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 20, y: 20 }));
+    expect(serf.jobId).toBeUndefined();
+    expect(serf.task.t).toBe('move');
+    expect(checkInvariants(world).violations).toEqual([]);
+
+    // And the freed demand can be served again rather than staying reserved.
+    run(world, 200);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('lets a resident worker quit his post, so the building re-recruits', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const hut = addBuiltHut(world, 36, 30);
+    const worker = staffBuilding(world, hut);
+    expect(hut.workerId).toBe(worker.id);
+
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [worker.id], x: 24, y: 24 }));
+    expect(worker.homeId).toBeUndefined();
+    expect(worker.kind).toBe('serf');
+    expect(hut.workerId).toBeUndefined();
+    expect(worker.task.t).toBe('move');
+    expect(checkInvariants(world).violations).toEqual([]);
+
+    // Staffing notices the empty post and sends somebody (him, once idle).
+    run(world, 400);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
 });

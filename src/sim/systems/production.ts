@@ -210,3 +210,16 @@ export function bindWorker(b: Building, worker: Unit): void {
   b.workerId = worker.id;
   worker.homeId = b.id;
 }
+
+/**
+ * The inverse: the worker walks off the job and rejoins the serf pool, and
+ * the building goes back to wanting one (staffing will recruit again). Both
+ * sides are cleared together — the invariants check that workerId and homeId
+ * always point at each other.
+ */
+export function unbindWorker(world: World, worker: Unit): void {
+  const home = worker.homeId !== undefined ? world.buildings.get(worker.homeId) : undefined;
+  if (home && home.workerId === worker.id) home.workerId = undefined;
+  worker.homeId = undefined;
+  worker.kind = 'serf';
+}

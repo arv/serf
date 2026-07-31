@@ -283,7 +283,9 @@ function dispatch(world: World): void {
   const idleByOwner = new Map<Owner, Unit[]>();
   for (const u of world.units.values()) {
     if (u.dead || u.kind !== 'serf' || !isPlayerOwner(u.owner) || u.jobId !== undefined) continue;
-    if (u.task.t === 'idle' || u.task.t === 'move') {
+    // Walking under a player's move order is not idleness — leave them be
+    // until they arrive (movement flips the task back to idle there).
+    if (u.task.t === 'idle') {
       let bucket = idleByOwner.get(u.owner);
       if (!bucket) idleByOwner.set(u.owner, (bucket = []));
       bucket.push(u);

@@ -5,8 +5,8 @@ import { BANDIT, type Owner } from './entities.ts';
 import { findPath, nearestWalkable } from './path.ts';
 import { movementSystem } from './systems/movement.ts';
 import { wanderSystem } from './systems/wander.ts';
-import { logisticsSystem } from './systems/logistics.ts';
-import { productionSystem } from './systems/production.ts';
+import { abortJob, logisticsSystem } from './systems/logistics.ts';
+import { productionSystem, unbindWorker } from './systems/production.ts';
 import { constructionSystem } from './systems/construction.ts';
 import { trailsSystem } from './systems/trails.ts';
 import { canPlace, killUnit, placeSite, spawnUnit, type World } from './world.ts';
@@ -215,9 +215,17 @@ function applyMoveUnits(
   for (const id of cmd.unitIds) {
     const unit = world.units.get(id);
     if (!unit || unit.dead || unit.owner !== playerId) continue;
-    // Serfs mid-haul ignore move orders (their job owns them); idle serfs and
-    // military obey.
-    if (unit.jobId !== undefined || unit.homeId !== undefined) continue;
+    // A move order outranks whatever the unit was employed doing: a hauler
+    // drops its job (reservations released, carried good lost) and a
+    // resident worker quits the post, freeing the building to recruit
+    // again. Ignoring these orders meant that once the last serf took a
+    // job the player had nobody left to command.
+    if (unit.jobId !== undefined) {
+      const job = world.jobs.get(unit.jobId);
+      if (job) abortJob(world, job, 'reassigned by a move order');
+      unit.jobId = undefined;
+    }
+    if (unit.homeId !== undefined) unbindWorker(world, unit);
     const goal = targets[Math.min(t++, targets.length - 1)]!;
     const path = findPath(
       world.map,

@@ -87,7 +87,9 @@ function requestRecruits(world: World): void {
   const idleByOwner = new Map<Owner, Unit[]>();
   for (const u of world.units.values()) {
     if (u.dead || u.kind !== 'serf' || !isPlayerOwner(u.owner) || u.jobId !== undefined) continue;
-    if (u.task.t === 'idle' || u.task.t === 'move') {
+    // A serf walking under a player's move order is spoken for; recruiting
+    // him mid-stride would make the order look ignored.
+    if (u.task.t === 'idle') {
       let bucket = idleByOwner.get(u.owner);
       if (!bucket) idleByOwner.set(u.owner, (bucket = []));
       bucket.push(u);
