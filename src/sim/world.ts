@@ -1,5 +1,5 @@
-import { Rng } from '../shared/rng';
-import { MAP_SIZE, inBounds, tileIdx } from '../shared/grid';
+import { Rng } from '../shared/rng.ts';
+import { MAP_SIZE, inBounds, tileIdx } from '../shared/grid.ts';
 import {
   Terrain,
   TileResource,
@@ -9,16 +9,16 @@ import {
   resourceBlocks,
   type GameMap,
   type MapView,
-} from './map';
-import { FIRST_RAID_TICK, START_SERFS, START_STOCK } from './defs/balance';
-import { UNIT_DEFS } from './defs/units';
-import { buildingDef, type BuildingTypeId } from './defs/buildings';
-import { makeUnit, type Unit } from './units';
-import { nearestWalkable } from './path';
-import type { GoodAmounts, GoodId } from './defs/goods';
-import type { TechId } from './defs/techs';
-import { BANDIT, type Building, type EntityId, type Owner } from './entities';
-import { makePlayer, type PlayerState } from './player';
+} from './map.ts';
+import { FIRST_RAID_TICK, START_SERFS, START_STOCK } from './defs/balance.ts';
+import { UNIT_DEFS } from './defs/units.ts';
+import { buildingDef, type BuildingTypeId } from './defs/buildings.ts';
+import { makeUnit, type Unit } from './units.ts';
+import { nearestWalkable } from './path.ts';
+import type { GoodAmounts, GoodId } from './defs/goods.ts';
+import type { TechId } from './defs/techs.ts';
+import { BANDIT, type Building, type EntityId, type Owner } from './entities.ts';
+import { makePlayer, type PlayerState } from './player.ts';
 
 export interface HaulJob {
   id: number;

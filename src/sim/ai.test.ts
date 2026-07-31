@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld, type World, type WorldConfig } from './world';
-import { tickWorld, type PlayerCommand } from './tick';
-import { AiBrain } from './systems/ai';
-import { checkInvariants } from './debug/invariants';
+import { createWorld, type World, type WorldConfig } from './world.ts';
+import { tickWorld, type PlayerCommand } from './tick.ts';
+import { AiBrain } from './systems/ai.ts';
+import { checkInvariants } from './debug/invariants.ts';
 
 function digest(world: World): unknown {
   return {

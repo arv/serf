@@ -1,7 +1,7 @@
-import { Rng } from '../../shared/rng';
-import { inBounds, tileIdx } from '../../shared/grid';
-import { findPath } from '../path';
-import type { World } from '../world';
+import { Rng } from '../../shared/rng.ts';
+import { inBounds, tileIdx } from '../../shared/grid.ts';
+import { findPath } from '../path.ts';
+import type { World } from '../world.ts';
 
 /**
  * Placeholder M1 behavior: idle serfs occasionally stroll to a nearby tile.

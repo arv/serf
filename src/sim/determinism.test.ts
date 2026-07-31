@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { cmds } from './testUtils';
-import { createWorld, type World } from './world';
-import { tickWorld } from './tick';
-import type { SimCommand } from './commands';
+import { cmds } from './testUtils.ts';
+import { createWorld, type World } from './world.ts';
+import { tickWorld } from './tick.ts';
+import type { SimCommand } from './commands.ts';
 
 /** Deep-comparable digest of sim state (Maps flattened, floats exact). */
 function digest(world: World) {

@@ -1,13 +1,13 @@
-import { TILE_COUNT } from '../shared/grid';
-import { placeBuiltBuilding, placeSite, spawnUnit, type World } from './world';
-import { makePlayer } from './player';
-import { bindWorker } from './systems/production';
-import type { SimCommand } from './commands';
-import type { PlayerCommand } from './tick';
-import type { GameMap } from './map';
-import type { GoodAmounts } from './defs/goods';
-import type { Building, Owner } from './entities';
-import type { Unit } from './units';
+import { TILE_COUNT } from '../shared/grid.ts';
+import { placeBuiltBuilding, placeSite, spawnUnit, type World } from './world.ts';
+import { makePlayer } from './player.ts';
+import { bindWorker } from './systems/production.ts';
+import type { SimCommand } from './commands.ts';
+import type { PlayerCommand } from './tick.ts';
+import type { GameMap } from './map.ts';
+import type { GoodAmounts } from './defs/goods.ts';
+import type { Building, Owner } from './entities.ts';
+import type { Unit } from './units.ts';
 
 /** An all-grass, empty 64x64 map for deterministic logistics tests. */
 export function bareMap(): GameMap {

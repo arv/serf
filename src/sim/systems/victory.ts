@@ -1,6 +1,6 @@
-import { buildingDef } from '../defs/buildings';
-import type { Owner } from '../entities';
-import type { World } from '../world';
+import { buildingDef } from '../defs/buildings.ts';
+import type { Owner } from '../entities.ts';
+import type { World } from '../world.ts';
 
 /**
  * Elimination and match end. A player whose storehouse falls is out; the

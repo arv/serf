@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { tickWorld } from './tick';
-import { placeBuiltBuilding, type World } from './world';
-import { TECH_DEFS } from './defs/techs';
-import { FESTIVAL_DURATION } from './defs/balance';
-import { getModifier, isBuildingUnlocked } from './techHelpers';
-import { cmds, addStorehouse, bareWorld, staffBuilding } from './testUtils';
+import { tickWorld } from './tick.ts';
+import { placeBuiltBuilding, type World } from './world.ts';
+import { TECH_DEFS } from './defs/techs.ts';
+import { FESTIVAL_DURATION } from './defs/balance.ts';
+import { getModifier, isBuildingUnlocked } from './techHelpers.ts';
+import { cmds, addStorehouse, bareWorld, staffBuilding } from './testUtils.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

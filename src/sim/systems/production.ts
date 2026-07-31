@@ -1,14 +1,14 @@
-import { inBounds, tileIdx, tileX, tileY } from '../../shared/grid';
-import { Rng } from '../../shared/rng';
-import { BAMBOO_MAX_AMT, REGROW_INTERVAL } from '../defs/balance';
-import { OUTPUT_CAP, buildingDef, type Recipe } from '../defs/buildings';
-import { TileResource, type TileResourceKind } from '../map';
-import { centerOf, type Building } from '../entities';
-import { findPathToAdjacent } from '../path';
-import { depleteResourceTile, type World } from '../world';
-import { getModifier } from '../techHelpers';
-import type { GoodId } from '../defs/goods';
-import type { Unit } from '../units';
+import { inBounds, tileIdx, tileX, tileY } from '../../shared/grid.ts';
+import { Rng } from '../../shared/rng.ts';
+import { BAMBOO_MAX_AMT, REGROW_INTERVAL } from '../defs/balance.ts';
+import { OUTPUT_CAP, buildingDef, type Recipe } from '../defs/buildings.ts';
+import { TileResource, type TileResourceKind } from '../map.ts';
+import { centerOf, type Building } from '../entities.ts';
+import { findPathToAdjacent } from '../path.ts';
+import { depleteResourceTile, type World } from '../world.ts';
+import { getModifier } from '../techHelpers.ts';
+import type { GoodId } from '../defs/goods.ts';
+import type { Unit } from '../units.ts';
 
 const RESOURCE_CODE: Record<string, TileResourceKind> = {
   bamboo: TileResource.Bamboo,

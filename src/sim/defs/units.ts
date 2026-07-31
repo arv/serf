@@ -1,4 +1,4 @@
-import { GOODS, type GoodId } from './goods';
+import { GOODS, type GoodId } from './goods.ts';
 
 /**
  * Unit definitions. `kindCode`/`ownerCode` are the compact byte encodings

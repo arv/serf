@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CORPSE_TICKS } from './defs/balance';
-import { BANDIT } from './entities';
-import { tickWorld } from './tick';
-import { placeBuiltBuilding, type World } from './world';
-import { checkInvariants, checkLedger, countGoods } from './debug/invariants';
-import { cmds, addSerf, addSite, addStorehouse, bareWorld } from './testUtils';
+import { CORPSE_TICKS } from './defs/balance.ts';
+import { BANDIT } from './entities.ts';
+import { tickWorld } from './tick.ts';
+import { placeBuiltBuilding, type World } from './world.ts';
+import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
+import { cmds, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

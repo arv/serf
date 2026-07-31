@@ -1,6 +1,6 @@
-import { Rng } from '../shared/rng';
-import { MAP_SIZE, TILE_COUNT, edgeDist, inBounds, tileIdx } from '../shared/grid';
-import { hash2 } from '../shared/math';
+import { Rng } from '../shared/rng.ts';
+import { MAP_SIZE, TILE_COUNT, edgeDist, inBounds, tileIdx } from '../shared/grid.ts';
+import { hash2 } from '../shared/math.ts';
 
 export const Terrain = { Grass: 0, Water: 1 } as const;
 export type TerrainKind = (typeof Terrain)[keyof typeof Terrain];

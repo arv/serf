@@ -3,6 +3,10 @@
     "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    // src/sim and src/shared spell out .ts on their relative imports so the
+    // server can load them straight from source, with no build step (see
+    // server/tsconfig.json). Legal here because this project is noEmit.
+    "allowImportingTsExtensions": true,
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "preserve",
     "jsxImportSource": "solid-js",

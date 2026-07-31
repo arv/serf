@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_SIZE, TILE_COUNT, tileIdx, tileX, tileY } from '../shared/grid';
-import { PathLevel, type GameMap } from './map';
-import { findPath, findPathToAdjacent, nearestWalkable } from './path';
+import { MAP_SIZE, TILE_COUNT, tileIdx, tileX, tileY } from '../shared/grid.ts';
+import { PathLevel, type GameMap } from './map.ts';
+import { findPath, findPathToAdjacent, nearestWalkable } from './path.ts';
 
 function emptyMap(): GameMap {
   return {

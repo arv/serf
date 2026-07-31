@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { tileIdx } from '../shared/grid';
-import { tickWorld } from './tick';
-import { PathLevel, TileResource } from './map';
-import { canPlace, placeBuiltBuilding, spawnUnit, type World } from './world';
-import { HIRE_SERF_COST, HIRE_SERF_TICKS, PAVE_WEAR_THRESHOLD } from './defs/balance';
-import { checkInvariants, checkLedger, countGoods } from './debug/invariants';
-import { bindWorker } from './systems/production';
-import { addSerf, addStorehouse, bareWorld, cmds, staffBuilding } from './testUtils';
+import { tileIdx } from '../shared/grid.ts';
+import { tickWorld } from './tick.ts';
+import { PathLevel, TileResource } from './map.ts';
+import { canPlace, placeBuiltBuilding, spawnUnit, type World } from './world.ts';
+import { HIRE_SERF_COST, HIRE_SERF_TICKS, PAVE_WEAR_THRESHOLD } from './defs/balance.ts';
+import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
+import { bindWorker } from './systems/production.ts';
+import { addSerf, addStorehouse, bareWorld, cmds, staffBuilding } from './testUtils.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

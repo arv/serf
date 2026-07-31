@@ -1,5 +1,5 @@
-import { MAP_SIZE, TILE_COUNT, inBounds, tileIdx, tileX, tileY } from '../shared/grid';
-import { PathLevel, type GameMap } from './map';
+import { MAP_SIZE, TILE_COUNT, inBounds, tileIdx, tileX, tileY } from '../shared/grid.ts';
+import { PathLevel, type GameMap } from './map.ts';
 
 /**
  * A* over the tile grid: 8-directional, corner cutting forbidden, path-aware

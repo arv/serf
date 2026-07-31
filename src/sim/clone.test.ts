@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { cloneWorld } from './clone';
-import { hashWorld } from './hash';
-import { deserializeWorld, serializeWorld } from './save';
-import { createWorld, type World } from './world';
-import { tickWorld } from './tick';
+import { cloneWorld } from './clone.ts';
+import { hashWorld } from './hash.ts';
+import { deserializeWorld, serializeWorld } from './save.ts';
+import { createWorld, type World } from './world.ts';
+import { tickWorld } from './tick.ts';
 
 function run(world: World, ticks: number): void {
   for (let t = 0; t < ticks; t++) tickWorld(world, []);

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_SIZE, tileIdx } from '../shared/grid';
-import { Terrain } from './map';
-import { createWorld } from './world';
-import { BANDIT, isPlayerOwner } from './entities';
-import { START_SERFS } from './defs/balance';
-import { tickWorld } from './tick';
+import { MAP_SIZE, tileIdx } from '../shared/grid.ts';
+import { Terrain } from './map.ts';
+import { createWorld } from './world.ts';
+import { BANDIT, isPlayerOwner } from './entities.ts';
+import { START_SERFS } from './defs/balance.ts';
+import { tickWorld } from './tick.ts';
 
 /** 4-connected grass reachability between two tiles. */
 function reachable(map: { terrain: Uint8Array }, from: number, to: number): boolean {

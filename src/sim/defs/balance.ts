@@ -2,7 +2,7 @@
  * Global tunables. Per-thing numbers (hp, speeds, costs) live on their defs;
  * this file holds cross-cutting knobs so a balance pass is one screen.
  */
-import type { GoodAmounts } from './goods';
+import type { GoodAmounts } from './goods.ts';
 
 export const TICKS_PER_SECOND = 20;
 export const TICK_MS = 1000 / TICKS_PER_SECOND;

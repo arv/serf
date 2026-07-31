@@ -1,6 +1,6 @@
-import type { GoodAmounts } from './goods';
-import type { BuildingTypeId } from './buildings';
-import type { UnitTypeId } from './units';
+import type { GoodAmounts } from './goods.ts';
+import type { BuildingTypeId } from './buildings.ts';
+import type { UnitTypeId } from './units.ts';
 
 /**
  * The tech tree: three short branches researched at the Terakoya for goods +

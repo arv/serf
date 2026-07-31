@@ -1,9 +1,9 @@
-import { tileIdx, tileX, tileY } from '../../shared/grid';
-import { TICKS_PER_SECOND } from '../defs/balance';
-import { UNIT_DEFS } from '../defs/units';
-import { tileSpeedMult } from '../path';
-import { getModifier } from '../techHelpers';
-import type { World } from '../world';
+import { tileIdx, tileX, tileY } from '../../shared/grid.ts';
+import { TICKS_PER_SECOND } from '../defs/balance.ts';
+import { UNIT_DEFS } from '../defs/units.ts';
+import { tileSpeedMult } from '../path.ts';
+import { getModifier } from '../techHelpers.ts';
+import type { World } from '../world.ts';
 
 /**
  * Advance every unit along its path. Waypoints are tile centers; speed is the

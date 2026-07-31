@@ -1,9 +1,9 @@
-import { COUNTER_TABLE, UNIT_DEFS } from '../defs/units';
-import { BANDIT, centerOf, isPlayerOwner, type Building } from '../entities';
-import { tileX, tileY } from '../../shared/grid';
-import { findPath, findPathToAdjacent, nearestWalkable } from '../path';
-import { destroyBuilding, killUnit, type World } from '../world';
-import type { Unit } from '../units';
+import { COUNTER_TABLE, UNIT_DEFS } from '../defs/units.ts';
+import { BANDIT, centerOf, isPlayerOwner, type Building } from '../entities.ts';
+import { tileX, tileY } from '../../shared/grid.ts';
+import { findPath, findPathToAdjacent, nearestWalkable } from '../path.ts';
+import { destroyBuilding, killUnit, type World } from '../world.ts';
+import type { Unit } from '../units.ts';
 
 /** Euclidean distance via sqrt (correctly rounded per IEEE-754, unlike
  * Math.hypot) — lockstep clients on different JS engines must agree. */

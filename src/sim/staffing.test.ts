@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { tickWorld } from './tick';
-import { killUnit, placeBuiltBuilding, type World } from './world';
-import { checkInvariants } from './debug/invariants';
-import { cmds, addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils';
+import { tickWorld } from './tick.ts';
+import { killUnit, placeBuiltBuilding, type World } from './world.ts';
+import { checkInvariants } from './debug/invariants.ts';
+import { cmds, addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

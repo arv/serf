@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { tileIdx } from '../shared/grid';
-import { tickWorld } from './tick';
-import { PathLevel, TileResource } from './map';
-import { OUTPUT_CAP } from './defs/buildings';
-import { TRAILS_INTERVAL, TRAIL_WEAR_THRESHOLD } from './defs/balance';
-import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testUtils';
-import type { World } from './world';
+import { tileIdx } from '../shared/grid.ts';
+import { tickWorld } from './tick.ts';
+import { PathLevel, TileResource } from './map.ts';
+import { OUTPUT_CAP } from './defs/buildings.ts';
+import { TRAILS_INTERVAL, TRAIL_WEAR_THRESHOLD } from './defs/balance.ts';
+import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
+import type { World } from './world.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

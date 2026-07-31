@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { BANDIT } from './entities';
-import { tickWorld } from './tick';
-import { placeBuiltBuilding, spawnUnit, spawnUnitNearby, type World } from './world';
-import { Terrain } from './map';
-import { COUNTER_TABLE, UNIT_DEFS } from './defs/units';
-import { checkInvariants } from './debug/invariants';
-import { cmds, addSerf, addStorehouse, bareWorld } from './testUtils';
+import { BANDIT } from './entities.ts';
+import { tickWorld } from './tick.ts';
+import { placeBuiltBuilding, spawnUnit, spawnUnitNearby, type World } from './world.ts';
+import { Terrain } from './map.ts';
+import { COUNTER_TABLE, UNIT_DEFS } from './defs/units.ts';
+import { checkInvariants } from './debug/invariants.ts';
+import { cmds, addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

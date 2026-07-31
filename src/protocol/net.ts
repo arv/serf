@@ -1,4 +1,4 @@
-import type { SimCommand } from '../sim/commands';
+import type { SimCommand } from '../sim/commands.ts';
 
 /**
  * The multiplayer wire protocol, shared verbatim by the browser worker and

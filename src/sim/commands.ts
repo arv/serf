@@ -1,7 +1,7 @@
-import type { EntityId } from './entities';
-import type { BuildingTypeId } from './defs/buildings';
-import type { TechId } from './defs/techs';
-import type { UnitTypeId } from './defs/units';
+import type { EntityId } from './entities.ts';
+import type { BuildingTypeId } from './defs/buildings.ts';
+import type { TechId } from './defs/techs.ts';
+import type { UnitTypeId } from './defs/units.ts';
 
 /**
  * The only way anything outside the sim mutates the world. Commands are

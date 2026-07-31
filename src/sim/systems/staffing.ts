@@ -1,10 +1,10 @@
-import { buildingDef } from '../defs/buildings';
-import { GOODS, type GoodId } from '../defs/goods';
-import { findPathToAdjacent } from '../path';
-import { bindWorker } from './production';
-import { isPlayerOwner, type Building, type Owner } from '../entities';
-import type { Unit } from '../units';
-import type { World } from '../world';
+import { buildingDef } from '../defs/buildings.ts';
+import { GOODS, type GoodId } from '../defs/goods.ts';
+import { findPathToAdjacent } from '../path.ts';
+import { bindWorker } from './production.ts';
+import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
+import type { Unit } from '../units.ts';
+import type { World } from '../world.ts';
 
 const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
 

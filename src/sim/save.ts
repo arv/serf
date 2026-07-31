@@ -1,8 +1,8 @@
-import { TILE_COUNT } from '../shared/grid';
-import { BANDIT } from './entities';
-import type { GameMap } from './map';
-import type { PlayerState } from './player';
-import type { MatchOutcome, World } from './world';
+import { TILE_COUNT } from '../shared/grid.ts';
+import { BANDIT } from './entities.ts';
+import type { GameMap } from './map.ts';
+import type { PlayerState } from './player.ts';
+import type { MatchOutcome, World } from './world.ts';
 
 /**
  * Save/load. The World is serializable by construction (plain records, ID

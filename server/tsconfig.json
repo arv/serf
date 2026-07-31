@@ -9,5 +9,8 @@
     "types": ["node"],
     "erasableSyntaxOnly": true
   },
-  "include": ["src", "../src/protocol/net.ts"]
+  "include": ["src", "../src/protocol/net.ts", "../src/sim", "../src/shared"],
+  // Tests are Vitest's, not the server's — determinism.lint.test.ts uses
+  // import.meta.glob, which only exists under Vite.
+  "exclude": ["../src/**/*.test.ts"]
 }

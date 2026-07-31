@@ -1,11 +1,11 @@
-import { TILE_COUNT, tileX, tileY } from '../../shared/grid';
-import { TileResource } from '../map';
-import { BUILDING_DEFS, buildingDef, type BuildingTypeId } from '../defs/buildings';
-import { TECH_DEFS, type TechId } from '../defs/techs';
-import { HIRE_SERF_COST } from '../defs/balance';
-import { canPlace, type World } from '../world';
-import { isPlayerOwner, type Building, type Owner } from '../entities';
-import type { SimCommand } from '../commands';
+import { TILE_COUNT, tileX, tileY } from '../../shared/grid.ts';
+import { TileResource } from '../map.ts';
+import { BUILDING_DEFS, buildingDef, type BuildingTypeId } from '../defs/buildings.ts';
+import { TECH_DEFS, type TechId } from '../defs/techs.ts';
+import { HIRE_SERF_COST } from '../defs/balance.ts';
+import { canPlace, type World } from '../world.ts';
+import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
+import type { SimCommand } from '../commands.ts';
 
 /**
  * The AI opponent's brain: a pure strategic layer that reads a World and

@@ -1,8 +1,8 @@
-import { buildingDef } from '../defs/buildings';
-import { GOODS } from '../defs/goods';
-import { PathLevel } from '../map';
-import { destroyBuilding, type World } from '../world';
-import { tileIdx } from '../../shared/grid';
+import { buildingDef } from '../defs/buildings.ts';
+import { GOODS } from '../defs/goods.ts';
+import { PathLevel } from '../map.ts';
+import { destroyBuilding, type World } from '../world.ts';
+import { tileIdx } from '../../shared/grid.ts';
 
 /**
  * Sites whose materials are fully delivered tick a build timer, then become

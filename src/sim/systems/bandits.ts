@@ -1,8 +1,8 @@
-import { RAID_CAP, RAID_INTERVAL } from '../defs/balance';
-import { type UnitTypeId } from '../defs/units';
-import { BANDIT, isPlayerOwner, type Building } from '../entities';
-import { spawnUnitNearby, type World } from '../world';
-import { Rng } from '../../shared/rng';
+import { RAID_CAP, RAID_INTERVAL } from '../defs/balance.ts';
+import { type UnitTypeId } from '../defs/units.ts';
+import { BANDIT, isPlayerOwner, type Building } from '../entities.ts';
+import { spawnUnitNearby, type World } from '../world.ts';
+import { Rng } from '../../shared/rng.ts';
 
 /**
  * Escalating raids: waves grow and diversify (light -> +ranged -> +heavy) so

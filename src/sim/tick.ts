@@ -1,31 +1,31 @@
-import { Rng } from '../shared/rng';
-import { inBounds, tileIdx, tileX, tileY } from '../shared/grid';
-import { UNIT_DEFS } from './defs/units';
-import { BANDIT, type Owner } from './entities';
-import { findPath, nearestWalkable } from './path';
-import { movementSystem } from './systems/movement';
-import { wanderSystem } from './systems/wander';
-import { logisticsSystem } from './systems/logistics';
-import { productionSystem } from './systems/production';
-import { constructionSystem } from './systems/construction';
-import { trailsSystem } from './systems/trails';
-import { canPlace, killUnit, placeSite, spawnUnit, type World } from './world';
-import { GOODS } from './defs/goods';
-import { findStorehouse } from './systems/logistics';
-import { researchSystem } from './systems/research';
-import { trainingSystem, hiringSystem, enqueueTraining } from './systems/training';
-import { staffingSystem } from './systems/staffing';
-import { combatSystem } from './systems/combat';
-import { banditsSystem } from './systems/bandits';
-import { victorySystem } from './systems/victory';
-import { buildingDef } from './defs/buildings';
-import { CORPSE_TICKS, HIRE_QUEUE_CAP, HIRE_SERF_COST } from './defs/balance';
-import { TECH_DEFS } from './defs/techs';
-import { canResearch, isBuildingUnlocked } from './techHelpers';
-import type { GoodId } from './defs/goods';
-import type { AdminAction, SimCommand } from './commands';
+import { Rng } from '../shared/rng.ts';
+import { inBounds, tileIdx, tileX, tileY } from '../shared/grid.ts';
+import { UNIT_DEFS } from './defs/units.ts';
+import { BANDIT, type Owner } from './entities.ts';
+import { findPath, nearestWalkable } from './path.ts';
+import { movementSystem } from './systems/movement.ts';
+import { wanderSystem } from './systems/wander.ts';
+import { logisticsSystem } from './systems/logistics.ts';
+import { productionSystem } from './systems/production.ts';
+import { constructionSystem } from './systems/construction.ts';
+import { trailsSystem } from './systems/trails.ts';
+import { canPlace, killUnit, placeSite, spawnUnit, type World } from './world.ts';
+import { GOODS } from './defs/goods.ts';
+import { findStorehouse } from './systems/logistics.ts';
+import { researchSystem } from './systems/research.ts';
+import { trainingSystem, hiringSystem, enqueueTraining } from './systems/training.ts';
+import { staffingSystem } from './systems/staffing.ts';
+import { combatSystem } from './systems/combat.ts';
+import { banditsSystem } from './systems/bandits.ts';
+import { victorySystem } from './systems/victory.ts';
+import { buildingDef } from './defs/buildings.ts';
+import { CORPSE_TICKS, HIRE_QUEUE_CAP, HIRE_SERF_COST } from './defs/balance.ts';
+import { TECH_DEFS } from './defs/techs.ts';
+import { canResearch, isBuildingUnlocked } from './techHelpers.ts';
+import type { GoodId } from './defs/goods.ts';
+import type { AdminAction, SimCommand } from './commands.ts';
 
-export { TICKS_PER_SECOND, TICK_MS } from './defs/balance';
+export { TICKS_PER_SECOND, TICK_MS } from './defs/balance.ts';
 
 /**
  * A command plus the seat that issued it. In multiplayer the netcode layer

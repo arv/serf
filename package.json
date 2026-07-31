@@ -7,11 +7,12 @@
   "packageManager": "pnpm@11.5.1",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p server --noEmit",
     "test": "vitest run",
-    "server": "pnpm --dir server dev"
+    "server": "pnpm --dir server dev",
+    "smoke": "pnpm --dir server smoke"
   },
   "devEngines": {
     "packageManager": {

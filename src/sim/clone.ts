@@ -1,9 +1,9 @@
-import type { World } from './world';
-import type { Building } from './entities';
-import type { Unit } from './units';
-import type { HaulJob } from './world';
-import type { GoodAmounts } from './defs/goods';
-import type { PlayerState } from './player';
+import type { World } from './world.ts';
+import type { Building } from './entities.ts';
+import type { Unit } from './units.ts';
+import type { HaulJob } from './world.ts';
+import type { GoodAmounts } from './defs/goods.ts';
+import type { PlayerState } from './player.ts';
 
 /**
  * Deep-copy a World for rollback snapshots — the netcode's confirmed world

@@ -1,5 +1,5 @@
-import { GOODS } from './defs/goods';
-import type { World } from './world';
+import { GOODS } from './defs/goods.ts';
+import type { World } from './world.ts';
 
 /**
  * 32-bit FNV-1a digest of the outcome-relevant world state — the desync

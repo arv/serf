@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld } from './world';
-import { tickWorld } from './tick';
-import { AiBrain } from './systems/ai';
+import { createWorld } from './world.ts';
+import { tickWorld } from './tick.ts';
+import { AiBrain } from './systems/ai.ts';
 
 /**
  * THE playtest: the AI brain (systems/ai.ts) wins the solo campaign on the

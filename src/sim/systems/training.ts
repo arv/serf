@@ -1,12 +1,12 @@
-import { buildingDef } from '../defs/buildings';
-import { UNIT_DEFS } from '../defs/units';
-import { getModifier, isUnitUnlocked } from '../techHelpers';
-import { HIRE_SERF_TICKS, TRAIN_QUEUE_CAP } from '../defs/balance';
-import { spawnUnit, type World } from '../world';
-import { nearestWalkable } from '../path';
-import { tileX, tileY } from '../../shared/grid';
-import type { GoodId } from '../defs/goods';
-import type { Building } from '../entities';
+import { buildingDef } from '../defs/buildings.ts';
+import { UNIT_DEFS } from '../defs/units.ts';
+import { getModifier, isUnitUnlocked } from '../techHelpers.ts';
+import { HIRE_SERF_TICKS, TRAIN_QUEUE_CAP } from '../defs/balance.ts';
+import { spawnUnit, type World } from '../world.ts';
+import { nearestWalkable } from '../path.ts';
+import { tileX, tileY } from '../../shared/grid.ts';
+import type { GoodId } from '../defs/goods.ts';
+import type { Building } from '../entities.ts';
 
 /**
  * Dojo training. A queue item starts when its ingredients are in the input

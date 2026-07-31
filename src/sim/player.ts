@@ -1,5 +1,5 @@
-import type { Owner } from './entities';
-import type { TechState } from './world';
+import type { Owner } from './entities.ts';
+import type { TechState } from './world.ts';
 
 /**
  * Per-player faction state. One entry per seat in world.players, indexed by

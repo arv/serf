@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { cmds } from './testUtils';
-import { createWorld, type World } from './world';
-import { deserializeWorld, serializeWorld } from './save';
-import { tickWorld } from './tick';
-import { checkInvariants } from './debug/invariants';
-import type { SimCommand } from './commands';
+import { cmds } from './testUtils.ts';
+import { createWorld, type World } from './world.ts';
+import { deserializeWorld, serializeWorld } from './save.ts';
+import { tickWorld } from './tick.ts';
+import { checkInvariants } from './debug/invariants.ts';
+import type { SimCommand } from './commands.ts';
 
 function commandScript(tick: number): SimCommand[] {
   if (tick === 50) return [{ kind: 'placeBuilding', building: 'bambooHut', x: 26, y: 36 }];

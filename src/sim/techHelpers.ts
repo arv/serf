@@ -1,8 +1,8 @@
-import { TECH_DEFS, type ModifierKey, type TechId } from './defs/techs';
-import { buildingDef, type BuildingTypeId } from './defs/buildings';
-import type { UnitTypeId } from './defs/units';
-import type { Owner } from './entities';
-import type { World } from './world';
+import { TECH_DEFS, type ModifierKey, type TechId } from './defs/techs.ts';
+import { buildingDef, type BuildingTypeId } from './defs/buildings.ts';
+import type { UnitTypeId } from './defs/units.ts';
+import type { Owner } from './entities.ts';
+import type { World } from './world.ts';
 
 /**
  * All tech effects are read through these functions, so sim systems never

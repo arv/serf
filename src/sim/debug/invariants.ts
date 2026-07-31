@@ -1,5 +1,5 @@
-import { GOODS, type GoodAmounts } from '../defs/goods';
-import type { World } from '../world';
+import { GOODS, type GoodAmounts } from '../defs/goods.ts';
+import type { World } from '../world.ts';
 
 /**
  * Dev-only consistency checks over the logistics bookkeeping. Violations mean

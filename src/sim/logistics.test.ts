@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { Rng } from '../shared/rng';
-import { tileIdx } from '../shared/grid';
-import { tickWorld } from './tick';
-import { destroyBuilding, killUnit, type World } from './world';
-import { checkInvariants, checkLedger, countGoods } from './debug/invariants';
-import { cmds, addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testUtils';
-import { TileResource } from './map';
-import type { GoodAmounts } from './defs/goods';
+import { Rng } from '../shared/rng.ts';
+import { tileIdx } from '../shared/grid.ts';
+import { tickWorld } from './tick.ts';
+import { destroyBuilding, killUnit, type World } from './world.ts';
+import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
+import { cmds, addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
+import { TileResource } from './map.ts';
+import type { GoodAmounts } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

@@ -1,6 +1,6 @@
-import type { EntityId, Owner } from './entities';
-import type { GoodId } from './defs/goods';
-import type { UnitTypeId } from './defs/units';
+import type { EntityId, Owner } from './entities.ts';
+import type { GoodId } from './defs/goods.ts';
+import type { UnitTypeId } from './defs/units.ts';
 
 /**
  * Task state machines are small discriminated unions; systems switch on

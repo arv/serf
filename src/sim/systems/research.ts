@@ -1,6 +1,6 @@
-import { FESTIVAL_DURATION } from '../defs/balance';
-import { TECH_DEFS } from '../defs/techs';
-import { type World } from '../world';
+import { FESTIVAL_DURATION } from '../defs/balance.ts';
+import { TECH_DEFS } from '../defs/techs.ts';
+import { type World } from '../world.ts';
 
 /**
  * Ticks every player's active research and festival buff. Research is

@@ -6,12 +6,12 @@ import {
   TRAIL_REVERT_WEAR,
   TRAIL_WEAR_THRESHOLD,
   WEAR_DECAY,
-} from '../defs/balance';
-import { tileX, tileY } from '../../shared/grid';
-import { buildingDef } from '../defs/buildings';
-import { PathLevel, Terrain } from '../map';
-import { isPlayerOwner, type Owner } from '../entities';
-import { placeSite, pushDelta, type World } from '../world';
+} from '../defs/balance.ts';
+import { tileX, tileY } from '../../shared/grid.ts';
+import { buildingDef } from '../defs/buildings.ts';
+import { PathLevel, Terrain } from '../map.ts';
+import { isPlayerOwner, type Owner } from '../entities.ts';
+import { placeSite, pushDelta, type World } from '../world.ts';
 
 /**
  * Emergent trails, the Settlers homage: foot traffic wears tiles (movement

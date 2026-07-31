@@ -1,6 +1,6 @@
-import type { GoodAmounts, GoodId } from './goods';
-import type { UnitTypeId } from './units';
-import type { TechId } from './techs';
+import type { GoodAmounts, GoodId } from './goods.ts';
+import type { UnitTypeId } from './units.ts';
+import type { TechId } from './techs.ts';
 
 /**
  * Two recipe kinds cover every producer in the game:

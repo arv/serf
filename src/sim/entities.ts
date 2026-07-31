@@ -1,6 +1,6 @@
-import type { GoodAmounts } from './defs/goods';
-import type { BuildingTypeId } from './defs/buildings';
-import type { UnitTypeId } from './defs/units';
+import type { GoodAmounts } from './defs/goods.ts';
+import type { BuildingTypeId } from './defs/buildings.ts';
+import type { UnitTypeId } from './defs/units.ts';
 
 /**
  * Entity records are plain serializable data. Cross-entity references are IDs
