@@ -45,7 +45,17 @@ import type { NetInfo } from '../protocol/messages';
 function fatal(message: string): never {
   const el = document.getElementById('fatal')!;
   el.style.display = 'grid';
-  el.innerHTML = `<div><h1>Serf cannot start</h1><p>${message}</p></div>`;
+  const card = document.createElement('div');
+  const title = document.createElement('h1');
+  title.textContent = 'Serf cannot start';
+  const body = document.createElement('p');
+  // Text, never markup. Relay error messages land here (runLobby's fail
+  // rejects with them and boot's catch brings them straight in), and the
+  // relay is not an author this page may trust with an origin that holds
+  // the saves and the seat token.
+  body.textContent = message;
+  card.append(title, body);
+  el.replaceChildren(card);
   throw new Error(message);
 }
 
@@ -54,8 +64,8 @@ function fatal(message: string): never {
 if (!crossOriginIsolated) {
   fatal(
     'This page is not cross-origin isolated, so SharedArrayBuffer is unavailable. ' +
-      'The server must send <code>Cross-Origin-Opener-Policy: same-origin</code> and ' +
-      '<code>Cross-Origin-Embedder-Policy: require-corp</code> (vite.config.ts does this for dev).',
+      'The server must send "Cross-Origin-Opener-Policy: same-origin" and ' +
+      '"Cross-Origin-Embedder-Policy: require-corp" (vite.config.ts does this for dev).',
   );
 }
 
