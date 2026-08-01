@@ -151,6 +151,23 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       b.paused = cmd.paused || undefined;
       break;
     }
+    case 'setBuildingRecipe': {
+      // The forge menu: pick which weapon the smith works on. Gated per
+      // option (bows need archery, iron weapons need ironworking); a
+      // batch already on the fire finishes as what it started as.
+      const b = world.buildings.get(cmd.buildingId);
+      if (!b || b.dead || b.owner !== playerId) break;
+      const opt = buildingDef(b.type).recipeOptions?.[cmd.index];
+      if (!opt) break;
+      if (
+        opt.requiresTech !== undefined &&
+        !(world.players[playerId]?.techs.researched.includes(opt.requiresTech) ?? false)
+      ) {
+        break;
+      }
+      b.recipeIndex = cmd.index;
+      break;
+    }
     case 'sellBuilding': {
       // Tear a building down for half its cost back, floored per good.
       // Sites refund half of what was actually delivered. The resident

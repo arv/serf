@@ -10,32 +10,33 @@ function run(world: World, ticks: number): void {
 
 /**
  * The pause lever: a halted building neither works its recipe nor calls
- * for inputs — the fix for a bowyer quietly eating the village's wood —
+ * for inputs — the fix for a weaponsmith quietly eating the village's wood —
  * while the worker keeps the post and everything resumes on unpause.
  */
 describe('pausing a building', () => {
-  it('a paused bowyer stops converting and stops demanding wood', () => {
+  it('a paused weaponsmith stops converting and stops demanding wood', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 12 });
-    const bowyer = placeBuiltBuilding(world, 'bowyer', 0, 36, 30);
-    staffBuilding(world, bowyer);
+    const sh = addStorehouse(world, 30, 30, { wood: 12, iron: 6 });
+    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    staffBuilding(world, smith);
     addSerf(world, 33, 33);
 
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: bowyer.id, paused: true }));
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: smith.id, paused: true }));
     run(world, 1200);
 
-    // Nothing hauled in, nothing brewed: the wood pile is untouched.
+    // Nothing hauled in, nothing forged: the piles are untouched.
     expect(sh.stock.wood).toBe(12);
-    expect(bowyer.inputs.wood ?? 0).toBe(0);
-    expect(bowyer.stock.bow ?? 0).toBe(0);
-    expect(bowyer.workerId).toBeDefined(); // the worker kept the post
+    expect(sh.stock.iron).toBe(6);
+    expect(smith.inputs.wood ?? 0).toBe(0);
+    expect(smith.stock.spear ?? 0).toBe(0);
+    expect(smith.workerId).toBeDefined(); // the worker kept the post
     expect(checkInvariants(world).violations).toEqual([]);
 
-    // Unpause: wood flows and bows come out.
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: bowyer.id, paused: false }));
+    // Unpause: materials flow and spears come out.
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: smith.id, paused: false }));
     let guard = 0;
-    while ((bowyer.stock.bow ?? 0) === 0 && guard++ < 4000) tickWorld(world, []);
-    expect(bowyer.stock.bow ?? 0).toBeGreaterThan(0);
+    while ((smith.stock.spear ?? 0) === 0 && guard++ < 4000) tickWorld(world, []);
+    expect(smith.stock.spear ?? 0).toBeGreaterThan(0);
     expect(sh.stock.wood).toBeLessThan(12);
   });
 
@@ -59,10 +60,10 @@ describe('pausing a building', () => {
   it('a rival cannot pause your buildings', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, { wood: 0 });
-    const bowyer = placeBuiltBuilding(world, 'bowyer', 0, 36, 30);
+    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
     tickWorld(world, [
-      { playerId: 1, cmd: { kind: 'setBuildingPaused', buildingId: bowyer.id, paused: true } },
+      { playerId: 1, cmd: { kind: 'setBuildingPaused', buildingId: smith.id, paused: true } },
     ]);
-    expect(bowyer.paused).toBeUndefined();
+    expect(smith.paused).toBeUndefined();
   });
 });

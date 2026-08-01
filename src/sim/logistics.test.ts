@@ -276,7 +276,7 @@ describe('move orders outrank employment', () => {
   it('never destroys the good in a reassigned serf\'s hands', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { wood: 5 });
-    placeBuiltBuilding(world, 'bowyer', 0, 36, 30); // wants wood as input
+    placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30); // spear recipe wants wood
     const serf = addSerf(world, 32, 32);
 
     // Run until he is actually holding something, then yank him away.
@@ -305,7 +305,7 @@ describe('move orders outrank employment', () => {
   it('never hands a fresh pickup to a serf who is already carrying', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { wood: 5 });
-    placeBuiltBuilding(world, 'bowyer', 0, 36, 30); // wants wood as input
+    placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30); // spear recipe wants wood
     const serf = addSerf(world, 32, 32);
     const initial = countGoods(world);
 

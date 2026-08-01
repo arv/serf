@@ -1,7 +1,7 @@
 import { inBounds, tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { Rng } from '../../shared/rng.ts';
 import { WOOD_MAX_AMT, REGROW_INTERVAL } from '../defs/balance.ts';
-import { OUTPUT_CAP, buildingDef, type Recipe } from '../defs/buildings.ts';
+import { OUTPUT_CAP, buildingDef, convertRecipeOf, type BuildingDef, type Recipe } from '../defs/buildings.ts';
 import { TileResource, type TileResourceKind } from '../map.ts';
 import { centerOf, type Building } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
@@ -27,7 +27,7 @@ export function productionSystem(world: World, rng: Rng): void {
   for (const b of world.buildings.values()) {
     if (b.dead || b.state !== 'built' || b.paused) continue;
     const def = buildingDef(b.type);
-    const recipe = def.recipe;
+    const recipe = def.recipe ?? convertRecipeOf(def, b);
     if (!recipe) continue;
     // Population economy: no worker at the post, no production. (Gather
     // recipes are inherently worker-driven; converts pause too, mid-batch
@@ -37,7 +37,7 @@ export function productionSystem(world: World, rng: Rng): void {
       if (!worker || worker.dead) continue;
     }
     if (recipe.kind === 'gather') gatherStep(world, b, recipe);
-    else convertStep(world, b, recipe);
+    else convertStep(world, b, def, recipe);
   }
 
   if (world.tick > 0 && world.tick % REGROW_INTERVAL === 0) regrow(world, rng);
@@ -47,15 +47,28 @@ export function productionSystem(world: World, rng: Rng): void {
  * Convert recipes: consume inputs at batch start, emit outputs at batch end.
  * Full output buffers stall the next batch (Settlers rule).
  */
-function convertStep(world: World, b: Building, recipe: Recipe & { kind: 'convert' }): void {
+function convertStep(
+  world: World,
+  b: Building,
+  def: BuildingDef,
+  recipe: Recipe & { kind: 'convert' },
+): void {
   if (b.prodTicksLeft !== undefined) {
     b.prodTicksLeft--;
     if (b.prodTicksLeft <= 0) {
-      for (const [good, n] of Object.entries(recipe.outputs) as [GoodId, number][]) {
+      // The batch finishes as what it started as: a forge switched from
+      // spears to swords mid-batch still turns out the spear it was
+      // hammering (prodRecipeIndex is stamped at batch start).
+      const started =
+        b.prodRecipeIndex !== undefined
+          ? (def.recipeOptions?.[b.prodRecipeIndex]?.recipe ?? recipe)
+          : recipe;
+      for (const [good, n] of Object.entries(started.outputs) as [GoodId, number][]) {
         b.stock[good] = (b.stock[good] ?? 0) + n;
         world.ledger.produced[good] = (world.ledger.produced[good] ?? 0) + n;
       }
       b.prodTicksLeft = undefined;
+      b.prodRecipeIndex = undefined;
     }
     return;
   }
@@ -74,6 +87,7 @@ function convertStep(world: World, b: Building, recipe: Recipe & { kind: 'conver
     getModifier(world, b.owner, 'workSpeed') *
     (b.type === 'wheatFarm' ? getModifier(world, b.owner, 'farmSpeed') : 1);
   b.prodTicksLeft = Math.max(1, Math.round(recipe.durationTicks / speedup));
+  if (def.recipeOptions) b.prodRecipeIndex = b.recipeIndex ?? 0;
 }
 
 function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather' }): void {

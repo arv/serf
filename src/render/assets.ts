@@ -31,18 +31,15 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   ironMine: 'building_mine_green.gltf',
   silverMine: 'building_mine_green.gltf',
   goldMine: 'building_mine_green.gltf',
-  swordsmith: 'building_blacksmith_green.gltf',
-  spearmaker: 'building_blacksmith_green.gltf',
-  bowyer: 'building_archeryrange_green.gltf',
+  weaponsmith: 'building_blacksmith_green.gltf',
   barracks: 'building_barracks_green.gltf',
   abbey: 'building_church_green.gltf',
   banditCamp: 'building_tower_B_red.gltf',
 };
 
-/** Tints so buildings sharing a model read apart (the two smiths). */
-const TINTS: Partial<Record<BuildingTypeId, number>> = {
-  spearmaker: 0x9a7a4e,
-};
+/** Tints so buildings sharing a model read apart. Empty since the smiths
+ * merged; the mechanism stays for the next shared model. */
+const TINTS: Partial<Record<BuildingTypeId, number>> = {};
 
 /** Prop dressing placed around a building, in its unit-square space. */
 interface Decor {

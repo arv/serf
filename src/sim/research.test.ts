@@ -57,15 +57,15 @@ describe('research', () => {
   it('gates buildings until researched', () => {
     const world = bareWorld();
     setupSchool(world);
-    expect(isBuildingUnlocked(world, 0, 'swordsmith')).toBe(false);
+    expect(isBuildingUnlocked(world, 0, 'weaponsmith')).toBe(false);
 
-    tickWorld(world, cmds({ kind: 'placeBuilding', building: 'swordsmith', x: 40, y: 40 }));
-    expect([...world.buildings.values()].some((b) => b.type === 'swordsmith')).toBe(false);
+    tickWorld(world, cmds({ kind: 'placeBuilding', building: 'weaponsmith', x: 40, y: 40 }));
+    expect([...world.buildings.values()].some((b) => b.type === 'weaponsmith')).toBe(false);
 
     world.players[0]!.techs.researched.push('cobbledBoots', 'ironworking');
-    expect(isBuildingUnlocked(world, 0, 'swordsmith')).toBe(true);
-    tickWorld(world, cmds({ kind: 'placeBuilding', building: 'swordsmith', x: 40, y: 40 }));
-    expect([...world.buildings.values()].some((b) => b.type === 'swordsmith')).toBe(true);
+    expect(isBuildingUnlocked(world, 0, 'weaponsmith')).toBe(true);
+    tickWorld(world, cmds({ kind: 'placeBuilding', building: 'weaponsmith', x: 40, y: 40 }));
+    expect([...world.buildings.values()].some((b) => b.type === 'weaponsmith')).toBe(true);
   });
 
   it('masonry unlocks paving', () => {

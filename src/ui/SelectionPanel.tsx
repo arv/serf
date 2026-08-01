@@ -13,7 +13,7 @@ import { GoodIcon, LockIcon } from './icons';
 import { TextTip, TipWrap, UnitTip } from './tooltip';
 import { myPlayerId, selectedBuilding, selection, setTechPanelOpen, stock, techs } from './store';
 
-import { buildingName, techName, unitName } from './names';
+import { buildingName, goodName, techName, unitName } from './names';
 
 /** Which tech gates a trainable unit (mirrors unlockUnit effects). */
 function unitTechGate(unit: UnitTypeId): TechId | undefined {
@@ -50,6 +50,7 @@ export function SelectionPanel(props: {
   onDismiss: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
   onTogglePause: (buildingId: number, paused: boolean) => void;
+  onSetRecipe: (buildingId: number, index: number) => void;
 }) {
   return (
     <>
@@ -190,6 +191,48 @@ export function SelectionPanel(props: {
                     Sell
                   </button>
                 </TipWrap>
+              </Show>
+              <Show when={def().recipeOptions && b().state === 'built'}>
+                <div style={{ 'margin-top': '6px', display: 'flex', gap: '6px', 'align-items': 'center' }}>
+                  <span style={{ opacity: 0.7, 'font-size': '12px' }}>forge</span>
+                  <For each={def().recipeOptions!}>
+                    {(opt, i) => {
+                      const output = () => Object.keys(opt.recipe.outputs)[0] as GoodId;
+                      const locked = () =>
+                        opt.requiresTech !== undefined &&
+                        !techs().researched.includes(opt.requiresTech);
+                      const active = () => (b().recipeIndex ?? 0) === i();
+                      return (
+                        <TipWrap
+                          tip={() => (
+                            <TextTip
+                              title={`Forge ${goodName(output())}s`}
+                              body={
+                                locked()
+                                  ? `Locked — needs ${techName(opt.requiresTech!)}.`
+                                  : 'Deliveries and the smith switch to this weapon; a batch already on the fire finishes first.'
+                              }
+                            />
+                          )}
+                        >
+                          <button
+                            classList={{ active: active() }}
+                            disabled={locked()}
+                            onClick={() => props.onSetRecipe(b().id, i())}
+                          >
+                            <Show when={locked()}>
+                              <LockIcon />{' '}
+                            </Show>
+                            <GoodIcon good={output()} size={13} />
+                            <span class="cost">
+                              <GoodsLine amounts={opt.recipe.inputs} />
+                            </span>
+                          </button>
+                        </TipWrap>
+                      );
+                    }}
+                  </For>
+                </div>
               </Show>
               <Show when={b().type === 'storehouse' && b().state === 'built'}>
                 <div style={{ 'margin-top': '6px' }}>

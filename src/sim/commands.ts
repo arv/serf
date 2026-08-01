@@ -18,6 +18,7 @@ export type SimCommand =
   | { kind: 'dismissWorker'; buildingId: EntityId }
   | { kind: 'sellBuilding'; buildingId: EntityId }
   | { kind: 'setBuildingPaused'; buildingId: EntityId; paused: boolean }
+  | { kind: 'setBuildingRecipe'; buildingId: EntityId; index: number }
   | { kind: 'research'; tech: TechId }
   | { kind: 'trainUnit'; buildingId: EntityId; unit: UnitTypeId }
   | { kind: 'admin'; action: AdminAction };
@@ -101,6 +102,14 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
     case 'setBuildingPaused':
       if (!isId(c.buildingId)) return null;
       return { kind: 'setBuildingPaused', buildingId: c.buildingId, paused: c.paused === true };
+    case 'setBuildingRecipe': {
+      if (!isId(c.buildingId)) return null;
+      const index = c.index;
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > 15) {
+        return null;
+      }
+      return { kind: 'setBuildingRecipe', buildingId: c.buildingId, index };
+    }
     case 'research':
       if (!isDefined(TECH_DEFS, c.tech)) return null;
       return { kind: 'research', tech: c.tech as TechId };

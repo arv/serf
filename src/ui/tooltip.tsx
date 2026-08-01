@@ -245,7 +245,13 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
   const def = () => BUILDING_DEFS[props.type];
   const lockedBy = () => {
     const req = def().requiresTech;
-    return req !== undefined && !techs().researched.includes(req) ? techName(req) : null;
+    if (req === undefined) return null;
+    const researched = techs().researched;
+    if (Array.isArray(req)) {
+      // Any one of them opens the door; name them all while none has.
+      return req.some((t) => researched.includes(t)) ? null : req.map(techName).join(' or ');
+    }
+    return researched.includes(req) ? null : techName(req);
   };
   return (
     <>
