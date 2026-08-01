@@ -95,6 +95,43 @@ interface RoomMsg {
 }
 
 /**
+ * The seat, stashed so a reload can sit back down. A phone that loses its
+ * GPU process reloads mid-match (see main.ts) and lands here with ?mp=CODE
+ * — without this it would try to join its own running match and be told
+ * "already started". sessionStorage on purpose: it is per-tab, so a second
+ * open tab can never steal the seat.
+ */
+const SEAT_STASH = 'serf-seat';
+
+interface SeatStash {
+  code: string;
+  token: string;
+  playerId: number;
+  seats: { kind: 'human' | 'ai' }[];
+}
+
+function readSeatStash(code: string): SeatStash | null {
+  try {
+    const raw = sessionStorage.getItem(SEAT_STASH);
+    if (!raw) return null;
+    const stash = JSON.parse(raw) as SeatStash;
+    if (typeof stash.token !== 'string') return null;
+    // 'new' is the host's URL — any stashed seat in this tab is the match
+    // that reload interrupted. A room code must match exactly.
+    return code === 'new' || stash.code === code.toUpperCase() ? stash : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The start menu calls this on every launch: choosing a game from the
+ * menu is fresh intent, and a stashed seat from the last match must not
+ * quietly sit back down in it. */
+export function clearSeatStash(): void {
+  sessionStorage.removeItem(SEAT_STASH);
+}
+
+/**
  * Run the lobby until the match starts. `mp` is 'new' (host) or a room
  * code (joiner); `init` seeds the room's settings from the launch URL, and
  * from there the host tunes them in the council. Resolves when the server
@@ -108,6 +145,8 @@ export function runLobby(
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
     const isHost = mp === 'new';
+    // A reload mid-match sits back down instead of knocking on the door.
+    const stash = readSeatStash(mp);
 
     const [view, setView] = createSignal<CouncilView>({
       phase: 'connecting',
@@ -150,12 +189,18 @@ export function runLobby(
     ws.onerror = () => fail(`cannot reach the relay at ${url}`);
     ws.onopen = () => {
       ws.send(
-        isHost
-          ? JSON.stringify({ t: 'create', open: opts.open, config: opts.init })
-          : JSON.stringify({ t: 'join', code: mp }),
+        stash
+          ? JSON.stringify({ t: 'rejoin', token: stash.token })
+          : isHost
+            ? JSON.stringify({ t: 'create', open: opts.open, config: opts.init })
+            : JSON.stringify({ t: 'join', code: mp }),
       );
     };
     ws.onmessage = (e: MessageEvent<string>) => {
+      // The rejoin reply is chased by a binary init frame on this same
+      // socket; the net worker will fetch its own once the match view
+      // boots, so anything non-JSON here is simply not for us.
+      if (typeof e.data !== 'string') return;
       const msg = JSON.parse(e.data) as
         | RoomMsg
         | {
@@ -164,9 +209,18 @@ export function runLobby(
             token: string;
             seats: { kind: 'human' | 'ai' }[];
           }
+        | { t: 'rejoined'; playerId: number; seats: { kind: 'human' | 'ai' }[] }
         | { t: 'error'; message: string }
         | { t: 'peer' };
-      if (msg.t === 'room') {
+      if (msg.t === 'rejoined' && stash) {
+        unmount();
+        ws.close();
+        resolve({
+          net: { relayUrl: url, token: stash.token, playerId: msg.playerId },
+          seats: Array.isArray(msg.seats) ? msg.seats : stash.seats,
+          myPlayerId: msg.playerId,
+        });
+      } else if (msg.t === 'room') {
         setView({
           phase: 'lobby',
           code: String(msg.code ?? ''),
@@ -177,6 +231,15 @@ export function runLobby(
           config: sanitizeLobbyConfig(defaultLobbyConfig(), msg.config),
         });
       } else if (msg.t === 'begin') {
+        sessionStorage.setItem(
+          SEAT_STASH,
+          JSON.stringify({
+            code: view().code || mp.toUpperCase(),
+            token: msg.token,
+            playerId: msg.playerId,
+            seats: msg.seats,
+          } satisfies SeatStash),
+        );
         unmount();
         ws.close();
         resolve({
@@ -185,6 +248,10 @@ export function runLobby(
           myPlayerId: msg.playerId,
         });
       } else if (msg.t === 'error') {
+        // A dead stash (room swept, seat reassigned) must not wedge the
+        // tab into retrying forever: forget it so the next load knocks
+        // normally instead.
+        if (stash) sessionStorage.removeItem(SEAT_STASH);
         fail(msg.message);
       }
     };

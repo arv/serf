@@ -193,7 +193,7 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
               <Show when={b().type === 'terakoya' && b().state === 'built'}>
-                <div style={{ 'margin-top': '6px', display: 'flex', gap: '8px', 'align-items': 'center' }}>
+                <div style={{ 'margin-top': '6px', display: 'flex', 'flex-wrap': 'wrap', gap: '8px', 'align-items': 'center' }}>
                   <button onClick={() => setTechPanelOpen(true)}>Research…</button>
                   <Show when={techs().active}>
                     {(a) => (
@@ -206,7 +206,10 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
               <Show when={def().trains && b().state === 'built'}>
-                <div style={{ 'margin-top': '6px', display: 'flex', gap: '6px' }}>
+                {/* Wraps: three train buttons plus the queue tally outgrow
+                    the panel's width cap, and touch sizing widens them
+                    further — spilling off-screen on anything narrow. */}
+                <div style={{ 'margin-top': '6px', display: 'flex', 'flex-wrap': 'wrap', gap: '6px' }}>
                   <For each={def().trains!}>
                     {(option) => {
                       const gate = unitTechGate(option.unit);

@@ -1,6 +1,6 @@
 import { For, Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { render } from 'solid-js/web';
-import { relayUrl } from '../net/lobbyClient';
+import { clearSeatStash, relayUrl } from '../net/lobbyClient';
 import { DiceIcon, MENU_STYLE } from './menuChrome';
 import { DEFAULT_SEED } from '../protocol/lobby';
 import { startMenuBackdrop, type Backdrop } from './menuBackdrop';
@@ -166,6 +166,7 @@ function StartMenu() {
 
   const launch = (): void => {
     if (isJoin() && !target()) return;
+    clearSeatStash(); // a menu launch is fresh intent, never a reconnect
     location.search = search();
   };
   const onEnter = (e: KeyboardEvent): void => {

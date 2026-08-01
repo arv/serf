@@ -42,7 +42,7 @@ import { configFromUrl } from './gameConfig';
 import { relayUrl, runLobby } from '../net/lobbyClient';
 import type { NetInfo } from '../protocol/messages';
 
-function fatal(message: string): never {
+function fatal(message: string, opts?: { retry?: boolean }): never {
   const el = document.getElementById('fatal')!;
   el.style.display = 'grid';
   const card = document.createElement('div');
@@ -55,6 +55,16 @@ function fatal(message: string): never {
   // the saves and the seat token.
   body.textContent = message;
   card.append(title, body);
+  if (opts?.retry) {
+    const retry = document.createElement('button');
+    retry.textContent = 'Try again';
+    retry.style.cssText =
+      'font:inherit;font-size:15px;padding:10px 26px;margin-top:10px;cursor:pointer;' +
+      'color:#f7e9c0;background:rgba(229,196,105,0.13);border:1px solid rgba(229,196,105,0.5);' +
+      'border-radius:11px;';
+    retry.addEventListener('click', () => location.reload());
+    card.append(retry);
+  }
   el.replaceChildren(card);
   throw new Error(message);
 }
@@ -143,7 +153,25 @@ async function boot(): Promise<void> {
   ]);
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-  const renderer = new GameRenderer(canvas);
+  // Android Chrome kills the GPU process under memory pressure, and for a
+  // while afterwards a WebGL context simply isn't granted. A dead-end
+  // error screen made that read as "the game is broken"; the process
+  // usually comes back within a breath, so retry once on our own and put
+  // a button on the screen for the times it needs longer.
+  let renderer: GameRenderer;
+  try {
+    renderer = new GameRenderer(canvas);
+    sessionStorage.removeItem('serf-gl-fails');
+  } catch (err) {
+    const fails = Number(sessionStorage.getItem('serf-gl-fails') ?? '0') + 1;
+    sessionStorage.setItem('serf-gl-fails', String(fails));
+    if (fails <= 1) setTimeout(() => location.reload(), 1500);
+    fatal(
+      'The browser refused a WebGL context — this usually passes in a moment. ' +
+        `(${err instanceof Error ? err.message : String(err)})`,
+      { retry: true },
+    );
+  }
 
   // WebGL context loss. three.js prevents the default and resumes if the
   // browser restores the context — but when Android kills the GPU process
@@ -177,6 +205,9 @@ async function boot(): Promise<void> {
   }
 
   const mirror = new WorldMirror(init.map, init.buildings);
+  if (import.meta.env.DEV) {
+    Object.assign(window as unknown as Record<string, unknown>, { __mirror: mirror });
+  }
   const heights = new HeightField(init.map.height);
   const terrain = new TerrainMesh(init.map, heights);
   renderer.scene.add(terrain.mesh);
@@ -198,6 +229,9 @@ async function boot(): Promise<void> {
   const feedWells = (): void => sync.setWells(buildingSync.wellCranks());
   feedWells();
   const fog = new FogOfWar(config.myPlayerId);
+  if (import.meta.env.DEV) {
+    Object.assign(window as unknown as Record<string, unknown>, { __fog: fog });
+  }
   sync.setFog(fog);
   buildingSync.setFog(fog);
   // Latest building roster, for the fog's sight sources.

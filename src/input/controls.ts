@@ -8,6 +8,7 @@ import {
   debugOpen,
   myPlayerId,
   placing,
+  pushToast,
   setBandArm,
   setDebugOpen,
   setPlacing,
@@ -202,7 +203,15 @@ export class Controls {
         if (e.pointerType === 'touch') {
           // The finger may be starting a map drag, so commit on release
           // and only if it stayed put — a drag pans instead of building.
+          // Meanwhile the ghost appears under the finger at once: touch
+          // has no hover, so the press itself is the only chance to show
+          // the footprint and its valid/invalid tint before it commits.
           this.#touchOrigin = { x: e.clientX, y: e.clientY };
+          const origin = this.#placementOrigin(e.clientX, e.clientY);
+          if (origin) {
+            this.#ghost.show(type);
+            this.#ghost.moveTo(origin.x, origin.y, this.#canPlaceHere(type, origin.x, origin.y));
+          }
           return;
         }
         this.#place(e.clientX, e.clientY, e.shiftKey);
@@ -267,6 +276,22 @@ export class Controls {
         { kind: 'placeBuilding', building: type, x: origin.x, y: origin.y },
       ]);
       if (!keepArmed) this.#cancelPlacement();
+      return;
+    }
+    // A refused spot must never be a silent nothing. With a mouse the red
+    // ghost already warned before the click; a finger taps blind — no
+    // hover — so without this the phone reads "building is broken" where
+    // the desktop reads "I can see it won't fit". Same rule, told out loud.
+    if (origin) {
+      this.#ghost.show(type);
+      this.#ghost.moveTo(origin.x, origin.y, false);
+      const def = buildingDef(type);
+      pushToast(
+        this.#explored(origin.x, origin.y, def.w, def.h)
+          ? 'No room to build there.'
+          : 'Too dark to build — nobody has scouted that ground.',
+      );
+      navigator.vibrate?.(30);
     }
   }
 

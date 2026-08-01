@@ -476,7 +476,7 @@ export function Hud(props: {
       <div class="hud-speed panel">
         <button
           classList={{ active: menuOpen() }}
-          {...tooltip(() => <TextTip title="Menu" body="Save and load the village." />)}
+          {...tooltip(() => <TextTip title="Menu" body="Save, load, or leave the village." />)}
           onClick={() => setMenuOpen(!menuOpen())}
         >
           ☰
@@ -556,19 +556,33 @@ export function Hud(props: {
               Save village
             </button>
           </Show>
+          <Show when={!netMode()}>
+            <button
+              disabled={!localStorage.getItem('serf-save')}
+              onClick={() => {
+                const data = localStorage.getItem('serf-save');
+                if (data) {
+                  // sessionStorage: survives this tab's reload but is invisible
+                  // to other tabs — two open tabs must never race for it.
+                  sessionStorage.setItem('serf-load-pending', data);
+                  location.reload();
+                }
+              }}
+            >
+              Load last save
+            </button>
+          </Show>
           <button
-            disabled={!localStorage.getItem('serf-save')}
             onClick={() => {
-              const data = localStorage.getItem('serf-save');
-              if (data) {
-                // sessionStorage: survives this tab's reload but is invisible
-                // to other tabs — two open tabs must never race for it.
-                sessionStorage.setItem('serf-load-pending', data);
-                location.reload();
+              // In a match the world lives on (solo: gone unless saved;
+              // multiplayer: the room plays on and the seat token can
+              // rejoin) — but the player is leaving either way, so ask.
+              if (confirm('Leave the match and return to the menu?')) {
+                location.href = location.pathname;
               }
             }}
           >
-            Load last save
+            Quit to menu
           </button>
         </div>
       </Show>
