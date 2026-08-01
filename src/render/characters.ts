@@ -588,15 +588,18 @@ function spadeProp(): THREE.Group {
   // Same frame as every tool: grip at the origin, haft up +Y, business
   // end at the top. The blade-down experiment put the blade at the sky in
   // the dig loop — the handslot points +Y at the ground mid-stroke.
+  // Butt joints only: the first cut ran the haft through the blade faces
+  // and lapped the tip cone over the blade in the same plane, and both
+  // showed up as flicker and poke-through at game zoom.
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.024, 0.03, 0.5, 6), 0x8a6a42);
+  const handle = toolMesh(new THREE.CylinderGeometry(0.024, 0.03, 0.4, 6), 0x8a6a42);
   handle.position.y = 0.2;
-  const blade = toolMesh(new THREE.BoxGeometry(0.16, 0.22, 0.03), 0x8b95a0);
+  const blade = toolMesh(new THREE.BoxGeometry(0.16, 0.2, 0.032), 0x8b95a0);
   blade.position.y = 0.5;
-  const tip = toolMesh(new THREE.ConeGeometry(0.09, 0.07, 4), 0x77848e);
+  const tip = toolMesh(new THREE.ConeGeometry(0.113, 0.07, 4), 0x8b95a0);
   tip.rotation.y = Math.PI / 4;
-  tip.scale.z = 0.3;
-  tip.position.y = 0.63;
+  tip.scale.z = 0.133;
+  tip.position.y = 0.635;
   const grip = toolMesh(new THREE.CylinderGeometry(0.022, 0.022, 0.13, 6), 0x6b4e2e);
   grip.rotation.z = Math.PI / 2;
   grip.position.y = -0.02;
@@ -622,6 +625,10 @@ const WORK_TOOLS: Record<number, () => THREE.Group> = {
   6: () => new THREE.Group(), // WORK.draw — bare hands on the well crank
 };
 
+/** setWorkTool sentinel: hands are full (carrying goods) — no tool shows,
+ * not even the profession's carried one. */
+export const TOOL_STOWED = -1;
+
 /**
  * Equip the right tool for a work animation: mallet for building and
  * smithing, pickaxe at the rock faces, spade in the fields. Kind 0 (or an
@@ -632,6 +639,10 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
   if (!visual.toolCustom || visual.toolKind === workKind) return;
   visual.toolKind = workKind;
   visual.toolCustom.clear();
+  if (workKind === TOOL_STOWED) {
+    if (visual.defaultTool) visual.defaultTool.visible = false;
+    return;
+  }
   const make = WORK_TOOLS[workKind];
   // A default tool that already matches the work keeps its place (the
   // farmer digs with the spade he carries).
@@ -784,16 +795,11 @@ function makeKayKitCharacter(
     toolCustom = gripPose(new THREE.Group());
     toolAnchor.add(toolCustom);
     if (look?.tool) {
-      // The profession's own tool, shown only while working it. Carrying
-      // it at rest was tried and retried: anchored to a hand that hangs
-      // against a body this wide, every carry pose either buried the tool
-      // in the skirt or read as dropped at the ankle. Off-duty hands stay
-      // empty — matching the worker's chop axe — and the straw hat and
-      // miner's dust carry the identity.
+      // The profession's own tool: carried at rest like a soldier carries
+      // a sword, worked with on site, and stowed only while the hands are
+      // full of goods (TOOL_STOWED).
       proceduralTool = gripPose(look.tool());
       proceduralTool.userData.workKind = look.toolWorkKind ?? 0;
-      proceduralTool.userData.workOnly = true;
-      proceduralTool.visible = false;
       toolAnchor.add(proceduralTool);
     }
   }
@@ -810,7 +816,7 @@ function makeKayKitCharacter(
       // head bone and spans ~0.32 wide (world units) — the old 1.9/0.12
       // hat sat entirely inside the head.
       hat.scale.setScalar(2.6);
-      hat.position.y = 0.5;
+      hat.position.y = 0.42;
       holder.add(hat);
       head.add(holder);
     }

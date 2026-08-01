@@ -5,6 +5,7 @@ import {
   makeCharacter,
   playAnimation,
   setWorkTool,
+  TOOL_STOWED,
   type AnimKey,
   type CharacterVisual,
 } from '../render/characters';
@@ -183,9 +184,12 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<void> {
   overlay.appendChild(bar);
   const setMode = (mode: Mode): void => {
     for (const { visual, col, offset } of cast) {
-      // Tools only come out for the job; every other mode restores the
-      // column's own kit (the knight's sword, the farmer's spade).
-      setWorkTool(visual, mode === 'work' ? (col.workKind ?? 0) : 0);
+      // Work brings out the trade's tool, carrying stows everything (the
+      // hands are full), everything else shows the column's standing kit.
+      setWorkTool(
+        visual,
+        mode === 'work' ? (col.workKind ?? 0) : mode === 'carry' ? TOOL_STOWED : 0,
+      );
       playAnimation(visual, clipFor(mode, col, visual), offset);
     }
     for (const b of bar.children as HTMLCollectionOf<HTMLButtonElement>) {
