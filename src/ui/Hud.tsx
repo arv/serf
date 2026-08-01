@@ -160,6 +160,11 @@ export function Hud(props: {
         }
         #ui .cost svg { margin-left: 4px; vertical-align: -1px; }
 
+        /* Wrapper for the two top strips: invisible on desktop (children
+           keep their absolute spots), a flow column on phones so they can
+           stack in either order without measuring each other. */
+        .hud-top { position: absolute; inset: 0; pointer-events: none; }
+
         .hud-resources {
           position: absolute; top: 12px; left: 12px; right: 240px;
           display: flex; justify-content: center; pointer-events: none;
@@ -362,14 +367,22 @@ export function Hud(props: {
           padding: 0 8px;
           align-self: center;
         }
-        .hud-speed {
+        /* Resources first, speed under them — goods are what you glance
+           at, and flow order means a wrapping strip can never overlap the
+           pill. Children go static inside the flex column. */
+          .hud-top {
+            display: flex; flex-direction: column; gap: 8px;
+            inset: auto;
             top: calc(10px + env(safe-area-inset-top));
-            right: calc(10px + env(safe-area-inset-right));
-          }
-          .hud-resources {
-            top: calc(66px + env(safe-area-inset-top));
             left: calc(10px + env(safe-area-inset-left));
             right: calc(10px + env(safe-area-inset-right));
+          }
+          .hud-speed {
+            position: static;
+            align-self: flex-end;
+          }
+          .hud-resources {
+            position: static;
             justify-content: flex-start;
           }
           /* Full width now, so the goods wrap onto a second row instead of
@@ -403,7 +416,7 @@ export function Hud(props: {
             -webkit-overflow-scrolling: touch;
           }
           .hud-menu {
-            top: calc(66px + env(safe-area-inset-top));
+            top: calc(120px + env(safe-area-inset-top));
             right: calc(10px + env(safe-area-inset-right));
           }
           /* .tech-panel's phone layout lives in TechTreePanel's own <style>:
@@ -425,6 +438,7 @@ export function Hud(props: {
         }
       `}</style>
 
+      <div class="hud-top">
       <div class="hud-resources">
         <div class="panel">
           <For each={shownGoods()}>
@@ -481,19 +495,49 @@ export function Hud(props: {
         </Show>
         <Show when={!netMode()}>
           <span class="div"></span>
-          <For each={SPEEDS}>
-            {(s) => (
-              <button
-                class="icon"
-                classList={{ active: speed() === s.value }}
-                {...tooltip(() => <TextTip title={s.label} body={s.hint} />)}
-                onClick={() => props.onSpeed(s.value)}
-              >
-                <s.icon />
-              </button>
-            )}
-          </For>
+          <Show
+            when={isPhone()}
+            fallback={
+              <For each={SPEEDS}>
+                {(s) => (
+                  <button
+                    class="icon"
+                    classList={{ active: speed() === s.value }}
+                    {...tooltip(() => <TextTip title={s.label} body={s.hint} />)}
+                    onClick={() => props.onSpeed(s.value)}
+                  >
+                    <s.icon />
+                  </button>
+                )}
+              </For>
+            }
+          >
+            {/* One thumb, one button: each tap steps play -> fast -> pause.
+                The icon shows the state you are in, gold when time is not
+                running normally. */}
+            <button
+              class="icon"
+              classList={{ active: speed() !== 1 }}
+              {...tooltip(() => (
+                <TextTip
+                  title={SPEEDS.find((s) => s.value === speed())?.label ?? 'Speed'}
+                  body="Taps cycle play, fast forward, pause."
+                />
+              ))}
+              onClick={() => {
+                const order = [1, 3, 0];
+                const next = order[(order.indexOf(speed()) + 1) % order.length]!;
+                props.onSpeed(next);
+              }}
+            >
+              {(() => {
+                const s = SPEEDS.find((x) => x.value === speed()) ?? SPEEDS[1]!;
+                return <s.icon />;
+              })()}
+            </button>
+          </Show>
         </Show>
+      </div>
       </div>
 
       <Show when={menuOpen()}>
@@ -536,12 +580,22 @@ export function Hud(props: {
           <div class="hud-touch">
             <button
               classList={{ active: bandArm() }}
+              {...tooltip(() => (
+                <TextTip
+                  title="Band select"
+                  body="Arm it, then drag a box over your people. The camera holds still for that one drag."
+                />
+              ))}
               onClick={() => setBandArm(!bandArm())}
-              title="Band select: arm, then drag over your units"
             >
               ⬚
             </button>
-            <button onClick={() => props.onSelectArmy()} title="Select all soldiers">
+            <button
+              {...tooltip(() => (
+                <TextTip title="Muster the army" body="Selects every soldier you own, wherever they are." />
+              ))}
+              onClick={() => props.onSelectArmy()}
+            >
               ⚔
             </button>
           </div>
