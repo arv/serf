@@ -86,9 +86,6 @@ export function Hud(props: {
     props.onPlace(type);
     if (type !== null && isPhone()) setBuildOpen(false);
   };
-  /** Phone: only goods you actually hold — a wall of zeros is dead space. */
-  const shownGoods = (): GoodId[] =>
-    isPhone() ? GOODS.filter((g) => (stock()[g] ?? 0) > 0) : [...GOODS];
   const menuOpen = (): boolean => openPanel() === 'menu';
   const setMenuOpen = (open: boolean): void => {
     setOpenPanel(open ? 'menu' : null);
@@ -441,7 +438,7 @@ export function Hud(props: {
       <div class="hud-top">
       <div class="hud-resources">
         <div class="panel">
-          <For each={shownGoods()}>
+          <For each={[...GOODS]}>
             {(good) => (
               <span
                 class="res"
