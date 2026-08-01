@@ -372,24 +372,27 @@ function kasaHat(): THREE.Group {
     // solid leather-brown dome — scaled to the chibi skull it read as a
     // beige pancake.
     const straw = 0xd3ab5c;
+    // The crown is wider than the chibi skull at its seat (0.125 profile
+    // x hat scale vs ~0.30 head radius) — narrower and the hair shears
+    // through the brim ring.
     const hat = lathe(
       [
-        [0.175, 0.0],
-        [0.17, 0.012],
-        [0.1, 0.03],
-        [0.095, 0.04],
-        [0.08, 0.085],
-        [0.045, 0.105],
-        [0.0, 0.112],
+        [0.172, 0.0],
+        [0.167, 0.012],
+        [0.12, 0.03],
+        [0.115, 0.042],
+        [0.098, 0.095],
+        [0.05, 0.118],
+        [0.0, 0.125],
       ],
       straw,
       16,
     );
     const band = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.097, 0.1, 0.022, 16),
+      new THREE.CylinderGeometry(0.117, 0.12, 0.022, 16),
       new THREE.MeshLambertMaterial({ color: 0x7a5636 }),
     );
-    band.position.y = 0.042;
+    band.position.y = 0.045;
     g.add(hat, band);
     return g;
   }
