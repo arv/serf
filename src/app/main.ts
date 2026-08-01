@@ -87,6 +87,13 @@ const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu'];
 
 async function boot(): Promise<void> {
   const launchParams = new URLSearchParams(location.search);
+  if (launchParams.has('wardrobe')) {
+    // The costume fitting room: every unit of every faction, labeled,
+    // under the real camera and sun. Render-only — no sim, no HUD.
+    const { mountWardrobe } = await import('../ui/wardrobe');
+    await mountWardrobe(document.getElementById('canvas') as HTMLCanvasElement);
+    return;
+  }
   // A pending load is a launch too: the Load button stashes the save and
   // reloads, and that handoff must not bounce back to the menu.
   const chosen =
@@ -263,21 +270,11 @@ async function boot(): Promise<void> {
 
   host.onNetStatus((status) => setNetStatus(status));
   host.onStructural((msg) => {
-    // Grass and shore rocks make way for buildings and worn trails (checked
-    // against the mirror's pre-update state, so compare before applying).
-    for (const d of msg.mapDeltas) {
-      if (d.buildingAt >= 0 || d.pathLevel !== 0) {
-        grass.removeTile(d.idx);
-        if (d.buildingAt >= 0) scatter.removeTile(d.idx);
-      }
-    }
-    const changes = mirror.apply(msg);
-    for (const tile of changes.resourceCleared) scatter.removeTile(tile);
-    if (changes.refreshAll) scatter.resyncAll(mirror.map);
-    if (changes.repaint) terrain.repaintAll();
-    buildingSync.update(msg.buildings);
-    roster = msg.buildings;
-    feedWells();
+    // HUD state first, scene sync second. These signal writes cannot
+    // throw, while the render sync below can — and when it does, the
+    // damage must stay on the canvas. With the old order an exception
+    // there silently froze stock, outcome and the selection panel for the
+    // rest of the match while the sim ran on.
     const mine = msg.players[myPlayerId()];
     if (mine) {
       setStock(mine.stock);
@@ -301,6 +298,22 @@ async function boot(): Promise<void> {
       const fresh = msg.buildings.find((b) => b.id === sel.id);
       setSelectedBuilding(fresh ?? null);
     }
+
+    // Grass and shore rocks make way for buildings and worn trails (checked
+    // against the mirror's pre-update state, so compare before applying).
+    for (const d of msg.mapDeltas) {
+      if (d.buildingAt >= 0 || d.pathLevel !== 0) {
+        grass.removeTile(d.idx);
+        if (d.buildingAt >= 0) scatter.removeTile(d.idx);
+      }
+    }
+    const changes = mirror.apply(msg);
+    for (const tile of changes.resourceCleared) scatter.removeTile(tile);
+    if (changes.refreshAll) scatter.resyncAll(mirror.map);
+    if (changes.repaint) terrain.repaintAll();
+    buildingSync.update(msg.buildings);
+    roster = msg.buildings;
+    feedWells();
   });
 
   mountHud(host, {
