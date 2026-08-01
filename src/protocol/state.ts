@@ -37,7 +37,8 @@ const MAP_BYTES =
   TILE_COUNT + // blocked    u8
   TILE_COUNT + // pathLevel  u8
   TILE_COUNT * 2 + // buildingAt i16
-  TILE_COUNT * 4; // height     f32
+  TILE_COUNT * 4 + // height     f32
+  TILE_COUNT; // explored   u8
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -50,11 +51,18 @@ function rawBytes(a: ArrayBufferView): Uint8Array {
  * Match start (and rejoin): the immutable map plus everything the client
  * needs to build its mirror. Sent once per client — the map arrays are 40 KiB
  * and worldgen never rewrites terrain or height.
+ *
+ * `explored` is the seat's ever-seen grid, straight from the server's own
+ * visibility filter. It exists so a reload keeps its memory of the map:
+ * the renderer's fog re-accumulates from live sight, and without this a
+ * rejoining player found everything they had scouted dark again — and the
+ * build gate refusing ground they had legitimately explored.
  */
 export function encodeInit(
   tick: number,
   playerId: number,
   map: MapSnapshot,
+  explored: Uint8Array,
   json: unknown,
 ): Uint8Array<ArrayBuffer> {
   const body = enc.encode(JSON.stringify(json));
@@ -73,6 +81,8 @@ export function encodeInit(
   off += TILE_COUNT * 2;
   out.set(rawBytes(map.height), off);
   off += TILE_COUNT * 4;
+  out.set(explored, off);
+  off += TILE_COUNT;
   out.set(body, off);
   return out;
 }
@@ -82,6 +92,8 @@ export interface InitFrame {
   tick: number;
   playerId: number;
   map: MapSnapshot;
+  /** Ever-seen grid for this seat — fog memory across reloads. */
+  explored: Uint8Array;
   json: unknown;
 }
 
@@ -108,12 +120,14 @@ function decodeInit(data: Uint8Array): InitFrame {
   const height = new Float32Array(TILE_COUNT);
   rawBytes(height).set(data.subarray(off, off + TILE_COUNT * 4));
   off += TILE_COUNT * 4;
+  const explored = u8();
   const json = jsonLen > 0 ? JSON.parse(dec.decode(data.subarray(off, off + jsonLen))) : undefined;
   return {
     kind: 'init',
     tick,
     playerId,
     map: { terrain, resource, blocked, pathLevel, buildingAt, height },
+    explored,
     json,
   };
 }

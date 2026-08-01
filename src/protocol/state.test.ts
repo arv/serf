@@ -36,7 +36,8 @@ function fakeMap(): MapSnapshot {
 describe('state frames', () => {
   it('round-trips the init frame, map arrays and all', () => {
     const map = fakeMap();
-    const frame = decodeState(encodeInit(42, 3, map, { buildings: [{ id: 1 }] }));
+    const explored = new Uint8Array(TILE_COUNT).map((_, i) => (i % 4 === 0 ? 1 : 0));
+    const frame = decodeState(encodeInit(42, 3, map, explored, { buildings: [{ id: 1 }] }));
     expect(frame?.kind).toBe('init');
     if (frame?.kind !== 'init') return;
     expect(frame.tick).toBe(42);
@@ -48,13 +49,14 @@ describe('state frames', () => {
     expect(frame.map.pathLevel).toEqual(map.pathLevel);
     expect(frame.map.buildingAt).toEqual(map.buildingAt);
     expect(frame.map.height).toEqual(map.height);
+    expect(frame.explored).toEqual(explored);
   });
 
   it('decodes an init frame that is not byte-aligned in its buffer', () => {
     // WebSocket payloads arrive as views into a larger pooled buffer, so the
     // decoder must never assume a zero (or aligned) byteOffset.
     const map = fakeMap();
-    const encoded = encodeInit(1, 0, map, null);
+    const encoded = encodeInit(1, 0, map, new Uint8Array(TILE_COUNT), null);
     const padded = new Uint8Array(encoded.length + 3);
     padded.set(encoded, 3);
     const frame = decodeState(padded.subarray(3));

@@ -236,6 +236,9 @@ async function boot(): Promise<void> {
   const feedWells = (): void => sync.setWells(buildingSync.wellCranks());
   feedWells();
   const fog = new FogOfWar(config.myPlayerId);
+  // Multiplayer: the server remembers what this seat has scouted, so a
+  // reload starts with that memory instead of a dark map.
+  if (init.explored) fog.seedExplored(init.explored);
   if (import.meta.env.DEV) {
     Object.assign(window as unknown as Record<string, unknown>, { __fog: fog });
   }
@@ -270,6 +273,8 @@ async function boot(): Promise<void> {
 
   host.onNetStatus((status) => setNetStatus(status));
   host.onStructural((msg) => {
+    // A reconnect resync carries the seat's ever-seen grid afresh.
+    if (msg.explored) fog.seedExplored(msg.explored);
     // HUD state first, scene sync second. These signal writes cannot
     // throw, while the render sync below can — and when it does, the
     // damage must stay on the canvas. With the old order an exception

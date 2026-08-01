@@ -15,6 +15,8 @@ export interface SimInit {
   reader: SabReader;
   map: MapSnapshot;
   buildings: BuildingSnap[];
+  /** Multiplayer: the seat's ever-seen grid, seeding the fog's memory. */
+  explored?: Uint8Array;
 }
 
 /**
@@ -65,7 +67,12 @@ export class WorkerSimHost implements SimHost {
       this.#worker.onmessage = (e: MessageEvent<WorkerToMain>) => {
         const msg = e.data;
         if (msg.type === 'ready') {
-          resolve({ reader: new SabReader(msg.sab), map: msg.map, buildings: msg.buildings });
+          resolve({
+            reader: new SabReader(msg.sab),
+            map: msg.map,
+            buildings: msg.buildings,
+            explored: msg.explored,
+          });
         } else if (msg.type === 'structural') {
           this.#structuralCb?.(msg);
         } else if (msg.type === 'saved') {

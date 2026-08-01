@@ -79,7 +79,7 @@ function rosterUpdate(
   };
 }
 
-function onInit(tick: number, map: MapSnapshot, payload: InitPayload): void {
+function onInit(tick: number, map: MapSnapshot, explored: Uint8Array, payload: InitPayload): void {
   // Prediction paths on the map we were given, with the same pathfinder the
   // server moves with. A resend means the world moved on without us, so any
   // guess in flight is stale.
@@ -88,7 +88,7 @@ function onInit(tick: number, map: MapSnapshot, payload: InitPayload): void {
     started = true;
     sab = new SharedArrayBuffer(SAB_BYTES);
     writer = new SabWriter(sab);
-    post({ type: 'ready', sab, map, buildings: payload.buildings });
+    post({ type: 'ready', sab, map, buildings: payload.buildings, explored });
     // The roster arrives with the map, so the HUD has stock and tech
     // immediately rather than after the first structural frame.
     post(rosterUpdate(tick, payload));
@@ -96,14 +96,14 @@ function onInit(tick: number, map: MapSnapshot, payload: InitPayload): void {
   }
   // Reconnect: the server's world moved on without us, so replace the
   // mirror's mutable map wholesale rather than trusting missed deltas.
-  post(
-    rosterUpdate(tick, payload, {
-      resource: map.resource,
-      blocked: map.blocked,
-      pathLevel: map.pathLevel,
-      buildingAt: map.buildingAt,
-    }),
-  );
+  const update = rosterUpdate(tick, payload, {
+    resource: map.resource,
+    blocked: map.blocked,
+    pathLevel: map.pathLevel,
+    buildingAt: map.buildingAt,
+  });
+  update.explored = explored;
+  post(update);
 }
 
 function onFrame(data: Uint8Array): void {
@@ -111,7 +111,7 @@ function onFrame(data: Uint8Array): void {
   if (!frame) return;
   switch (frame.kind) {
     case 'init':
-      onInit(frame.tick, frame.map, frame.json as InitPayload);
+      onInit(frame.tick, frame.map, frame.explored, frame.json as InitPayload);
       return;
     case 'hot': {
       lastUnits = new Map(frame.units.map((u) => [u.id, u]));

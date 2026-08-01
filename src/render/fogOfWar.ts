@@ -119,6 +119,21 @@ export class FogOfWar implements FogQuery {
     };
   }
 
+  /**
+   * Adopt a server-sent ever-seen grid (multiplayer boot and reconnect).
+   * The fog otherwise re-accumulates from live sight only, which after a
+   * reload left everything the seat had scouted dark — and the placement
+   * gate refusing ground the server itself considers explored. Values only
+   * ever rise: local memory is kept where it is already brighter.
+   */
+  seedExplored(explored: Uint8Array): void {
+    const n = Math.min(explored.length, TILE_COUNT);
+    for (let i = 0; i < n; i++) {
+      if (explored[i] && this.#explored[i]! < 1) this.#explored[i] = 1;
+    }
+    this.#accum = Infinity; // re-blur and upload on the next update
+  }
+
   #at(field: Float32Array, x: number, z: number): number {
     const tx = Math.floor(x);
     const tz = Math.floor(z);

@@ -119,6 +119,9 @@ export interface StructuralUpdate {
     pathLevel: Uint8Array;
     buildingAt: Int16Array;
   };
+  /** The seat's ever-seen grid, riding reconnect resyncs so the fog's
+   * memory (and the build gate behind it) survives a dropped socket. */
+  explored?: Uint8Array;
   /** One block per seat; the main thread reads its own via myPlayerId. */
   players: PlayerSnap[];
   admin: { enabled: boolean; raidsEnabled: boolean; instantBuild: boolean };
@@ -134,6 +137,10 @@ export type WorkerToMain =
       sab: SharedArrayBuffer;
       map: MapSnapshot;
       buildings: BuildingSnap[];
+      /** Multiplayer only: the seat's ever-seen grid from the server, so
+       * the fog boots with its memory instead of blank. Solo omits it —
+       * a fresh world has nothing explored yet. */
+      explored?: Uint8Array;
     }
   | StructuralUpdate
   | { type: 'saved'; data: string }

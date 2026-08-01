@@ -190,7 +190,7 @@ export function sendInit(room: Room, seat: Seat): void {
   view.owedTiles.clear();
   send(
     seat,
-    encodeInit(world.tick, seat.playerId, initialMap(world, view), {
+    encodeInit(world.tick, seat.playerId, initialMap(world, view), view.vision.explored, {
       buildings: buildingsFor(world, seat.playerId, view),
       players: redactPlayers(snapPlayers(world), seat.playerId),
       admin: { ...world.admin },
