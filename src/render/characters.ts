@@ -588,22 +588,28 @@ function spadeProp(): THREE.Group {
   // Same frame as every tool: grip at the origin, haft up +Y, business
   // end at the top. The blade-down experiment put the blade at the sky in
   // the dig loop — the handslot points +Y at the ground mid-stroke.
-  // Butt joints only: the first cut ran the haft through the blade faces
-  // and lapped the tip cone over the blade in the same plane, and both
-  // showed up as flicker and poke-through at game zoom.
+  // The blade is one extruded spade profile — shoulders at the socket, a
+  // rounded taper to the point. The box-plus-pyramid attempt read as a
+  // sideways spearhead the moment the camera saw it edge-on.
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.024, 0.03, 0.4, 6), 0x8a6a42);
-  handle.position.y = 0.2;
-  const blade = toolMesh(new THREE.BoxGeometry(0.16, 0.2, 0.032), 0x8b95a0);
-  blade.position.y = 0.5;
-  const tip = toolMesh(new THREE.ConeGeometry(0.113, 0.07, 4), 0x8b95a0);
-  tip.rotation.y = Math.PI / 4;
-  tip.scale.z = 0.133;
-  tip.position.y = 0.635;
+  const handle = toolMesh(new THREE.CylinderGeometry(0.024, 0.03, 0.42, 6), 0x8a6a42);
+  handle.position.y = 0.21;
+  const profile = new THREE.Shape();
+  profile.moveTo(-0.085, 0);
+  profile.lineTo(-0.095, 0.09);
+  profile.quadraticCurveTo(-0.075, 0.2, 0, 0.25);
+  profile.quadraticCurveTo(0.075, 0.2, 0.095, 0.09);
+  profile.lineTo(0.085, 0);
+  profile.closePath();
+  const blade = toolMesh(
+    new THREE.ExtrudeGeometry(profile, { depth: 0.028, bevelEnabled: false }),
+    0x8b95a0,
+  );
+  blade.position.set(0, 0.41, -0.014);
   const grip = toolMesh(new THREE.CylinderGeometry(0.022, 0.022, 0.13, 6), 0x6b4e2e);
   grip.rotation.z = Math.PI / 2;
   grip.position.y = -0.02;
-  g.add(handle, blade, tip, grip);
+  g.add(handle, blade, grip);
   return g;
 }
 
