@@ -472,6 +472,13 @@ export class SceneSync {
     return this.#reader.latest.aux[li * AUX_STRIDE + 1]!;
   }
 
+  /** Unit kind code (UNIT_DEFS kindCode), for kind-aware selection. */
+  kindOf(id: number): number | null {
+    const li = this.#reader.latest.index.get(id);
+    if (li === undefined) return null;
+    return this.#reader.latest.aux[li * AUX_STRIDE]!;
+  }
+
   #alpha(now: number): number {
     return clamp((now - this.#reader.latestObservedAt) / PUBLISH_INTERVAL_MS, 0, 1);
   }

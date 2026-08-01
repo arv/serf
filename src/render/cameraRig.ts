@@ -21,6 +21,9 @@ export class CameraRig {
   #keys = new Set<string>();
   #dragging = false;
   #interactive: boolean;
+  /** Touch pan/pinch gate: Controls closes it while a marquee drag owns
+   * the finger, so the map holds still under the selection band. */
+  touchPanEnabled = true;
 
   /**
    * `interactive: false` builds a rig nobody can drive — no key, wheel or
@@ -96,6 +99,18 @@ export class CameraRig {
       'touchmove',
       (e) => {
         e.preventDefault(); // no browser scroll/zoom over the map
+        if (!this.touchPanEnabled) {
+          // A selection band owns this drag; just keep the anchors fresh so
+          // reopening the gate mid-gesture doesn't lurch the camera.
+          for (const t of e.changedTouches) {
+            const prev = touches.get(t.identifier);
+            if (prev) {
+              prev.x = t.clientX;
+              prev.y = t.clientY;
+            }
+          }
+          return;
+        }
         const worldPerPixel = this.#viewHeight / this.#canvas.clientHeight;
         // Pan by the average finger delta, so a pinch doesn't also lurch.
         let dx = 0;
