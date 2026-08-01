@@ -94,7 +94,7 @@ export function SelectionPanel(props: {
                     'font-variant-numeric': 'tabular-nums',
                   }}
                 >
-                  {b().hp}/{b().maxHp}
+                  {Math.round(b().hp)}/{b().maxHp}
                 </span>
               </div>
               <Show when={b().state === 'site'}>
