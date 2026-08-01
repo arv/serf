@@ -233,6 +233,34 @@ export async function loadGlbAssets(): Promise<boolean> {
     const buildings = new Map<BuildingTypeId, THREE.Group>();
     for (const [type, file] of Object.entries(BUILDING_FILES) as [BuildingTypeId, string][]) {
       const scene = loaded.get(file)!.clone();
+      if (type === 'woodcutter') {
+        // The pack bakes stock into the lumbermill: a two-layer log pile
+        // along the west wall, three stacked planks and two loose boards
+        // out front, and little billet stacks against the east and south
+        // walls. None of it was ever hauled, and it stands right where the
+        // real stock piles up. Cut it (boxes validated component-by-
+        // component against the source mesh; the stump, the axe and the
+        // board on the saw bench are workshop character and stay). Main
+        // mesh only — the top mesh has a roof post grazing one box.
+        const CUT: [number, number, number, number, number, number][] = [
+          [-0.7, 0.008, -0.475, -0.425, 0.2, 0.235], // log pile, west wall
+          [0.0, -0.02, 0.35, 0.42, 0.155, 0.58], // three stacked planks, front
+          [0.08, 0.008, 0.148, 0.49, 0.09, 0.28], // two loose boards, porch
+          [0.565, 0.06, -0.14, 0.6, 0.18, 0.02], // billets, east wall
+          [-0.36, 0.06, -0.465, -0.19, 0.18, -0.425], // billets, south wall
+          [0.036, 0.06, -0.465, 0.145, 0.18, -0.425], // lone billet, south wall
+        ];
+        scene.traverse((o) => {
+          if (o instanceof THREE.Mesh && o.name === 'building_lumbermill_green') {
+            for (const [x0, y0, z0, x1, y1, z1] of CUT) {
+              o.geometry = stripTrianglesInBox(
+                o.geometry as THREE.BufferGeometry,
+                new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)),
+              );
+            }
+          }
+        });
+      }
       if (type === 'well') {
         // The pack bakes a static windlass into the well's single mesh: an
         // axle along x resting on the side frames, a crank handle hanging
