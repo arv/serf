@@ -106,6 +106,7 @@ const http = createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ server: http, perMessageDeflate: true });
+wss.on('error', (err) => console.error('[serf] websocket server error:', err));
 
 interface Conn {
   room?: Room;
@@ -147,6 +148,15 @@ function broadcastRoomState(room: Room): void {
 
 wss.on('connection', (ws) => {
   const conn: Conn = {};
+
+  // A client that vanishes rudely — phone reload, tab kill, radio drop —
+  // surfaces as an 'error' on its socket, and an EventEmitter error with
+  // no listener takes down the whole process, every room with it. The
+  // close handler right below does the actual seat bookkeeping; this only
+  // has to exist.
+  ws.on('error', (err) => {
+    console.warn('[serf] client socket error:', err instanceof Error ? err.message : err);
+  });
 
   ws.on('message', (data, isBinary) => {
     try {
