@@ -70,6 +70,9 @@ interface KKSpec {
   right?: string;
   /** Euler fix-up for right-hand props that load facing the wrong way. */
   rightRot?: [number, number, number];
+  /** The right-hand prop is a work tool, not a standing weapon: hidden
+   * except while performing this WORK.* kind. */
+  rightWorkKind?: number;
   left?: string;
   /** Prop strapped to the chest (quivers). */
   back?: string;
@@ -84,11 +87,18 @@ interface KKSpec {
 const KK_SPECS = new Map<number, KKSpec>([
   [1, { file: 'Rogue', hide: ['Rogue_Cape'] }],
   [2, {
-    file: 'Barbarian',
-    hide: ['Barbarian_BearHat'],
+    // The Mage, bare-headed: under the wizard hat it is a hooded work
+    // smock — the closest thing the pack has to a laborer. The Barbarian
+    // it replaces read as a shirtless warrior hauling lumber. The pack
+    // axe stays in the kit but only for the chop — a laborer walks
+    // empty-handed (a builder marching around armed read as a raid), and
+    // the modeled axe beats any procedural stand-in while he swings.
+    file: 'Mage',
+    hide: ['Mage_Hat'],
     right: 'axe_1handed',
     // The axe loads blade-backwards in the grip; spin it to face the swing.
     rightRot: [0, Math.PI, 0],
+    rightWorkKind: 1, // WORK.chop
   }],
   [3, { file: 'Knight', right: 'sword_1handed', left: 'shield_badge', jog: true }],
   [4, {
@@ -159,21 +169,35 @@ export interface CharacterVisual {
 
 // --- Rigid props, sized in world units and counter-scaled onto bones -------
 
-function peasantHat(): THREE.Group {
+function peasantHat(bandColor?: number): THREE.Group {
   const g = new THREE.Group();
-  // Round-brimmed straw peasant hat.
+  // Peasant straw hat: a wide thin brim that sags at the edge, a low
+  // rounded crown, and a dark band where they meet. The crown seat stays
+  // wider than the chibi skull (~0.30 world at the seat) so the hair
+  // mostly tucks under instead of shearing through the brim ring.
+  const straw = 0xd3ab5c;
   const hat = lathe(
     [
-      [0.16, 0.0],
-      [0.15, 0.025],
-      [0.09, 0.035],
-      [0.075, 0.09],
-      [0.0, 0.105],
+      [0.172, 0.0],
+      [0.167, 0.012],
+      [0.12, 0.03],
+      [0.115, 0.042],
+      [0.098, 0.095],
+      [0.05, 0.118],
+      [0.0, 0.125],
     ],
-    0x9a7748,
-    12,
+    straw,
+    16,
   );
-  g.add(hat);
+  // The band takes the seat's color when one is given — the farmer's
+  // tunic mostly hides under the brim from the game camera, so the hat
+  // itself joins the heraldry.
+  const band = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.117, 0.12, 0.022, 16),
+    new THREE.MeshLambertMaterial({ color: bandColor ?? 0x7a5636 }),
+  );
+  band.position.y = 0.045;
+  g.add(hat, band);
   return g;
 }
 
@@ -271,40 +295,78 @@ const toolMesh = (geo: THREE.BufferGeometry, color: number): THREE.Mesh => {
   return m;
 };
 
+// Tool proportions follow the pack's chibi exaggeration: the KayKit axe is
+// nearly half a body tall with a fist-sized head, and the first draft of
+// these (0.3-unit twigs) disappeared in hand next to it.
 function malletProp(): THREE.Group {
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.016, 0.02, 0.3, 6), 0x8a6a42);
-  handle.position.y = 0.12;
-  const head = toolMesh(new THREE.CylinderGeometry(0.05, 0.05, 0.13, 8), 0x6b4e2e);
+  const handle = toolMesh(new THREE.CylinderGeometry(0.022, 0.028, 0.44, 6), 0x8a6a42);
+  handle.position.y = 0.18;
+  const head = toolMesh(new THREE.CylinderGeometry(0.085, 0.085, 0.22, 8), 0x6b4e2e);
   head.rotation.z = Math.PI / 2;
-  head.position.y = 0.27;
-  g.add(handle, head);
+  head.position.y = 0.4;
+  const band = toolMesh(new THREE.CylinderGeometry(0.088, 0.088, 0.03, 8), 0x77848e);
+  band.rotation.z = Math.PI / 2;
+  band.position.y = 0.4;
+  g.add(handle, head, band);
   return g;
 }
 
 function pickaxeProp(): THREE.Group {
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.016, 0.02, 0.34, 6), 0x8a6a42);
-  handle.position.y = 0.14;
-  g.add(handle);
+  const handle = toolMesh(new THREE.CylinderGeometry(0.022, 0.028, 0.48, 6), 0x8a6a42);
+  handle.position.y = 0.2;
+  const collar = toolMesh(new THREE.BoxGeometry(0.08, 0.06, 0.06), 0x5c666e);
+  collar.position.y = 0.44;
+  g.add(handle, collar);
   for (const side of [-1, 1]) {
-    const spike = toolMesh(new THREE.ConeGeometry(0.028, 0.17, 6), 0x77848e);
+    const spike = toolMesh(new THREE.ConeGeometry(0.05, 0.3, 6), 0x77848e);
     // Head spikes run across the swing plane, tips drooping slightly.
     spike.rotation.z = -side * (Math.PI / 2 + 0.22);
-    spike.position.set(side * 0.08, 0.3, 0);
+    spike.position.set(side * 0.16, 0.42, 0);
     g.add(spike);
   }
   return g;
 }
 
 function spadeProp(): THREE.Group {
+  // Same frame as every tool: grip at the origin, haft up +Y, business
+  // end at the top. The blade-down experiment put the blade at the sky in
+  // the dig loop — the handslot points +Y at the ground mid-stroke.
+  // The blade is one extruded spade profile — shoulders at the socket, a
+  // rounded taper to the point. The box-plus-pyramid attempt read as a
+  // sideways spearhead the moment the camera saw it edge-on.
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.014, 0.016, 0.34, 6), 0x8a6a42);
-  handle.position.y = 0.14;
-  const blade = toolMesh(new THREE.BoxGeometry(0.09, 0.12, 0.015), 0x8b95a0);
-  blade.position.y = 0.34;
-  g.add(handle, blade);
+  const handle = toolMesh(new THREE.CylinderGeometry(0.024, 0.03, 0.42, 6), 0x8a6a42);
+  handle.position.y = 0.21;
+  const profile = new THREE.Shape();
+  profile.moveTo(-0.085, 0);
+  profile.lineTo(-0.095, 0.09);
+  profile.quadraticCurveTo(-0.075, 0.2, 0, 0.25);
+  profile.quadraticCurveTo(0.075, 0.2, 0.095, 0.09);
+  profile.lineTo(0.085, 0);
+  profile.closePath();
+  const blade = toolMesh(
+    new THREE.ExtrudeGeometry(profile, { depth: 0.028, bevelEnabled: false }),
+    0x8b95a0,
+  );
+  blade.position.set(0, 0.41, -0.014);
+  const grip = toolMesh(new THREE.CylinderGeometry(0.022, 0.022, 0.13, 6), 0x6b4e2e);
+  grip.rotation.z = Math.PI / 2;
+  grip.position.y = -0.02;
+  g.add(handle, blade, grip);
   return g;
+}
+
+/** Relaxed grip: mid-haft, head tipped out and a touch forward. Tools sat
+ * grip-at-end pointing straight down the idle arm, which parked the spade
+ * blade at the ankle and read as dropped rather than held; these angles
+ * were tuned live in the fitting room and still swing true in the work
+ * loops. */
+function gripPose<T extends THREE.Object3D>(tool: T): T {
+  tool.position.y = -0.14;
+  tool.rotation.set(0.35, 0, -0.55);
+  return tool;
 }
 
 const WORK_TOOLS: Record<number, () => THREE.Group> = {
@@ -313,6 +375,10 @@ const WORK_TOOLS: Record<number, () => THREE.Group> = {
   4: spadeProp, // WORK.dig
   6: () => new THREE.Group(), // WORK.draw — bare hands on the well crank
 };
+
+/** setWorkTool sentinel: hands are full (carrying goods) — no tool shows,
+ * not even the profession's carried one. */
+export const TOOL_STOWED = -1;
 
 /**
  * Equip the right tool for a work animation: mallet for building and
@@ -324,6 +390,10 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
   if (!visual.toolCustom || visual.toolKind === workKind) return;
   visual.toolKind = workKind;
   visual.toolCustom.clear();
+  if (workKind === TOOL_STOWED) {
+    if (visual.defaultTool) visual.defaultTool.visible = false;
+    return;
+  }
   const make = WORK_TOOLS[workKind];
   // A default tool that already matches the work keeps its place (the
   // farmer digs with the spade he carries).
@@ -332,7 +402,8 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
     visual.toolCustom.add(make());
     if (visual.defaultTool) visual.defaultTool.visible = false;
   } else if (visual.defaultTool) {
-    visual.defaultTool.visible = true;
+    const d = visual.defaultTool.userData;
+    visual.defaultTool.visible = !d.workOnly || workKind === d.workKind;
   }
 }
 
@@ -439,6 +510,11 @@ function makeKayKitCharacter(
     return { inst, anchor };
   };
   const rightHand = slot('handslot.r', spec.right, undefined, spec.rightRot);
+  if (rightHand && spec.rightWorkKind !== undefined) {
+    rightHand.inst.userData.workKind = spec.rightWorkKind;
+    rightHand.inst.userData.workOnly = true;
+    rightHand.inst.visible = false;
+  }
   slot('handslot.l', spec.left);
   slot('chest', spec.back, [0, 0, -0.14]);
 
@@ -467,11 +543,13 @@ function makeKayKitCharacter(
     toolAnchor = new THREE.Group();
     toolAnchor.scale.setScalar(1 / s);
     hand.add(toolAnchor);
-    toolCustom = new THREE.Group();
+    toolCustom = gripPose(new THREE.Group());
     toolAnchor.add(toolCustom);
     if (look?.tool) {
-      // The profession's own tool: carried everywhere, worked with on site.
-      proceduralTool = look.tool();
+      // The profession's own tool: carried at rest like a soldier carries
+      // a sword, worked with on site, and stowed only while the hands are
+      // full of goods (TOOL_STOWED).
+      proceduralTool = gripPose(look.tool());
       proceduralTool.userData.workKind = look.toolWorkKind ?? 0;
       toolAnchor.add(proceduralTool);
     }
@@ -484,9 +562,12 @@ function makeKayKitCharacter(
     if (head) {
       const holder = new THREE.Group();
       holder.scale.setScalar(1 / s);
-      const hat = peasantHat();
-      hat.scale.setScalar(1.9);
-      hat.position.y = 0.12;
+      const hat = peasantHat(faction);
+      // Sized against the measured skull: crown tops out ~0.56 above the
+      // head bone and spans ~0.32 wide (world units) — the old 1.9/0.12
+      // hat sat entirely inside the head.
+      hat.scale.setScalar(2.35);
+      hat.position.y = 0.41;
       holder.add(hat);
       head.add(holder);
     }
