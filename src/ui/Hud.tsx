@@ -70,6 +70,7 @@ export function Hud(props: {
   onAdmin: (action: AdminAction) => void;
   onSelectArmy: () => void;
   onDeselect: () => void;
+  onDismiss: (buildingId: number) => void;
 }) {
   // The sim rejects admin commands in a match (world.admin.enabled is
   // false), so every button here no-ops — except the fog toggle, which
@@ -663,6 +664,7 @@ export function Hud(props: {
           onTrain={props.onTrain}
           onHire={props.onHire}
           onDeselect={props.onDeselect}
+          onDismiss={props.onDismiss}
         />
       </div>
 

@@ -47,6 +47,7 @@ export function SelectionPanel(props: {
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
   onHire: () => void;
   onDeselect: () => void;
+  onDismiss: (buildingId: number) => void;
 }) {
   return (
     <>
@@ -127,6 +128,23 @@ export function SelectionPanel(props: {
                         ? 'worker on the way'
                         : 'needs a worker!'}
                 </span>
+              </Show>
+              <Show when={b().state === 'built' && b().staffing === 'staffed'}>
+                <TipWrap
+                  tip={() => (
+                    <TextTip
+                      title="Dismiss worker"
+                      body="Sends the worker back to the serf pool — the way out when nobody is free to haul or build. This post stands open for a while so the freed hands can take up new work first."
+                    />
+                  )}
+                >
+                  <button
+                    style={{ 'margin-left': '8px', 'min-height': '0', padding: '3px 10px' }}
+                    onClick={() => props.onDismiss(b().id)}
+                  >
+                    Dismiss
+                  </button>
+                </TipWrap>
               </Show>
               <Show when={b().type === 'storehouse' && b().state === 'built'}>
                 <div style={{ 'margin-top': '6px' }}>

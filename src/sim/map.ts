@@ -110,6 +110,9 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
   // must only ever land on the ground that survives.
   computeTerrain(map, heightSeed, starts);
 
+  /** Returns how many tiles were actually written — a center inside an
+   * existing grove or against water can yield zero, and callers that
+   * guarantee a resource must know to try elsewhere. */
   const placeCluster = (
     res: TileResourceKind,
     amt: number,
@@ -117,7 +120,8 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
     cy: number,
     radius: number,
     density: number,
-  ): void => {
+  ): number => {
+    let placed = 0;
     const r = Math.ceil(radius);
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -130,8 +134,10 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
         if (rng.next() > density) continue;
         map.resource[i] = res;
         map.resourceAmt[i] = amt;
+        placed++;
       }
     }
+    return placed;
   };
 
   const randomSpot = (minEdge: number): [number, number] => {
@@ -219,30 +225,85 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
     const [x, y] = spotPref(4, 10, [(x0, y0) => heightAt(x0, y0) > 0.7]);
     placeCluster(TileResource.Rock, 10, x, y, rng.range(1.4, 2.6), 0.85);
   }
-  // Ore deposits on a mid-map mountain ring: far enough from home that
-  // mines demand expansion, near enough to defend, and — crucially —
-  // outside the corners where the bandit camp spawns (a seam beside the
-  // camp bleeds every serf sent to build its mine).
-  // More mouths, more seams: with N factions the ring carries more ore so
-  // parallel hire economies don't starve (solo multiplier is 1 — classic
-  // seeds unchanged).
-  const seamMult = Math.ceil(starts.length / 2);
-  const deposits: [TileResourceKind, number, number][] = [
-    [TileResource.IronDep, 24, 2 * seamMult],
-    [TileResource.SilverDep, 20, 2 * seamMult],
-    [TileResource.GoldDep, 12, 1 * seamMult],
-  ];
-  const onRing = (x0: number, y0: number): boolean => {
-    const dc = centerDist(x0, y0);
-    return dc >= 13 && dc <= 17;
-  };
-  for (const [res, amt, count] of deposits) {
-    for (let c = 0; c < count; c++) {
-      const [x, y] = spotPref(4, 14, [
-        (x0, y0) => onRing(x0, y0) && heightAt(x0, y0) > 1.0,
-        onRing,
-      ]);
-      placeCluster(res, amt, x, y, rng.range(1.2, 1.9), 1);
+  if (starts.length > 1) {
+    // Ore is a birthright, not a lottery. Every faction gets one iron seam
+    // and one silver seam at the same distance band from home, in its own
+    // territory (no closer to any rival) — random deposits on a shared
+    // ring could hand both iron seams to one side of a two-player map.
+    // Placement draws polar offsets from the start's anchor, preferring
+    // high ground.
+    const isOwnGround = (s: StartSpot, x: number, y: number): boolean => {
+      const a = anchorOf(s);
+      return Math.hypot(x - a.x, y - a.y) <= startDist(x, y) + 1e-6;
+    };
+    const seamFor = (start: StartSpot, res: TileResourceKind, amt: number): void => {
+      const a = anchorOf(start);
+      const tiers: ((x: number, y: number) => boolean)[] = [
+        (x, y) => isOwnGround(start, x, y) && heightAt(x, y) > 0.8,
+        (x, y) => isOwnGround(start, x, y),
+        () => true, // pathological seed: any grass in the band beats no seam
+      ];
+      for (const [ti, pred] of tiers.entries()) {
+        const reach = ti === tiers.length - 1 ? 17 : 13; // last tier looks wider
+        for (let tries = 0; tries < 60; tries++) {
+          const ang = rng.range(0, Math.PI * 2);
+          const d = rng.range(9, reach);
+          const x = Math.round(a.x + Math.cos(ang) * d);
+          const y = Math.round(a.y + Math.sin(ang) * d);
+          if (!inBounds(x, y) || edgeDist(x, y) < 3) continue;
+          if (map.terrain[tileIdx(x, y)] !== Terrain.Grass) continue;
+          if (!pred(x, y)) continue;
+          if (placeCluster(res, amt, x, y, rng.range(1.2, 1.9), 1) > 0) return;
+        }
+      }
+    };
+    for (const start of starts) {
+      seamFor(start, TileResource.IronDep, 24);
+      seamFor(start, TileResource.SilverDep, 20);
+    }
+
+    // Gold is the exception by design: contested, not owned. It sits in
+    // the middle — equidistant from every start, and the bandit camp that
+    // spawns there stands guard over it.
+    const mid = MAP_SIZE / 2;
+    for (let tries = 0; tries < 200; tries++) {
+      const ang = rng.range(0, Math.PI * 2);
+      const d = rng.range(1.5, 3 + tries * 0.03); // widen slowly if the middle is lake
+      const x = Math.round(mid + Math.cos(ang) * d);
+      const y = Math.round(mid + Math.sin(ang) * d);
+      if (
+        inBounds(x, y) &&
+        map.terrain[tileIdx(x, y)] === Terrain.Grass &&
+        placeCluster(TileResource.GoldDep, 12, x, y, rng.range(1.4, 1.9), 1) > 0
+      ) {
+        break;
+      }
+    }
+  } else {
+    // Solo keeps the classic mid-ring, draw for draw: the campaign (and
+    // both winnable playthrough tests) are tuned against these worlds, and
+    // fairness-between-rivals has no meaning with one player.
+    const deposits: [TileResourceKind, number, number][] = [
+      [TileResource.IronDep, 24, 2],
+      [TileResource.SilverDep, 20, 2],
+      [TileResource.GoldDep, 12, 1],
+    ];
+    const onRing = (x0: number, y0: number): boolean => {
+      const dc = centerDist(x0, y0);
+      return dc >= 13 && dc <= 17;
+    };
+    for (const [res, amt, count] of deposits) {
+      for (let c = 0; c < count; c++) {
+        // A center inside an existing grove writes nothing — redraw then.
+        // Seeds whose first draw lands keep their exact classic worlds.
+        for (let tries = 0; tries < 40; tries++) {
+          const [x, y] = spotPref(4, 14, [
+            (x0, y0) => onRing(x0, y0) && heightAt(x0, y0) > 1.0,
+            onRing,
+          ]);
+          if (placeCluster(res, amt, x, y, rng.range(1.2, 1.9), 1) > 0) break;
+        }
+      }
     }
   }
 

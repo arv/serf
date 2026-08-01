@@ -19,7 +19,7 @@ import { combatSystem } from './systems/combat.ts';
 import { banditsSystem } from './systems/bandits.ts';
 import { victorySystem } from './systems/victory.ts';
 import { buildingDef } from './defs/buildings.ts';
-import { CORPSE_TICKS, HIRE_QUEUE_CAP, HIRE_SERF_COST } from './defs/balance.ts';
+import { CORPSE_TICKS, DISMISS_RESTAFF_BACKOFF, HIRE_QUEUE_CAP, HIRE_SERF_COST } from './defs/balance.ts';
 import { TECH_DEFS } from './defs/techs.ts';
 import { canResearch, isBuildingUnlocked } from './techHelpers.ts';
 import type { GoodId } from './defs/goods.ts';
@@ -123,6 +123,20 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
       }
       player.techs.active = { tech: cmd.tech, ticksLeft: TECH_DEFS[cmd.tech].durationTicks };
+      break;
+    }
+    case 'dismissWorker': {
+      // Release a resident back to the serf pool — the escape hatch when
+      // the loose pool is empty and something new must get built. The
+      // emptied post waits out a backoff before recruiting again, so the
+      // freed serf takes new work instead of being pulled straight back.
+      const b = world.buildings.get(cmd.buildingId);
+      if (!b || b.dead || b.owner !== playerId || b.workerId === undefined) break;
+      const worker = world.units.get(b.workerId);
+      if (worker && !worker.dead) {
+        unbindWorker(world, worker);
+        b.staffBackoffUntil = world.tick + DISMISS_RESTAFF_BACKOFF;
+      }
       break;
     }
     case 'hireSerf': {

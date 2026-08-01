@@ -203,6 +203,14 @@ async function boot(): Promise<void> {
   // Latest building roster, for the fog's sight sources.
   let roster = init.buildings;
 
+  // Open on your own keep, not the map's middle. Solo they coincide, but a
+  // multiplayer start sits on a ring — the first thing a player sees must
+  // be their storehouse, not the bandits' hill.
+  const home = init.buildings.find(
+    (b) => b.type === 'storehouse' && b.owner === config.myPlayerId,
+  );
+  if (home) renderer.rig.focusOn(home.x + home.w / 2, home.y + home.h / 2);
+
   const selectionFx = new SelectionFx(renderer.scene, heights);
   const ghost = new GhostPlacement(renderer.scene, heights, config.myPlayerId);
   const controls = new Controls(
