@@ -113,9 +113,13 @@ function makeLabel(parent: HTMLElement, text: string, header = false): HTMLSpanE
 export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<void> {
   await loadCharacterAssets();
   const renderer = new GameRenderer(canvas);
-  // Same console handle the game exposes — texture forensics happen here.
+  // Same console handles the game exposes — texture forensics and scripted
+  // camera jumps (screenshot tooling) happen here.
   if (import.meta.env.DEV) {
-    Object.assign(window as unknown as Record<string, unknown>, { __scene: renderer.scene });
+    Object.assign(window as unknown as Record<string, unknown>, {
+      __scene: renderer.scene,
+      __rig: renderer.rig,
+    });
   }
 
   // Plain valley grass underfoot — the exact background the tints must

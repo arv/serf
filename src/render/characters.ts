@@ -126,12 +126,11 @@ const KK_SPECS = new Map<number, KKSpec>([
   [2, {
     // The Mage, bare-headed: under the wizard hat it is a hooded work
     // smock — the closest thing the pack has to a laborer. The Barbarian
-    // it replaces read as a shirtless warrior hauling lumber.
+    // it replaces read as a shirtless warrior hauling lumber. No standing
+    // weapon: a laborer walks empty-handed and tools come out on site
+    // (WORK_TOOLS — the builder was walking around with an axe).
     file: 'Mage',
     hide: ['Mage_Hat'],
-    right: 'axe_1handed',
-    // The axe loads blade-backwards in the grip; spin it to face the swing.
-    rightRot: [0, Math.PI, 0],
   }],
   [3, { file: 'Knight', right: 'sword_1handed', left: 'shield_badge', jog: true }],
   [4, {
@@ -360,19 +359,30 @@ function clothMaterial(color: number): THREE.MeshStandardMaterial {
 function kasaHat(): THREE.Group {
   const g = new THREE.Group();
   if (THEME === 'medieval') {
-    // Round-brimmed peasant hat instead of the conical kasa.
+    // Peasant straw hat: a wide thin brim that sags at the edge, a low
+    // rounded crown, and a dark band where they meet. The first cut was a
+    // solid leather-brown dome — scaled to the chibi skull it read as a
+    // beige pancake.
+    const straw = 0xd3ab5c;
     const hat = lathe(
       [
-        [0.16, 0.0],
-        [0.15, 0.025],
-        [0.09, 0.035],
-        [0.075, 0.09],
-        [0.0, 0.105],
+        [0.175, 0.0],
+        [0.17, 0.012],
+        [0.1, 0.03],
+        [0.095, 0.04],
+        [0.08, 0.085],
+        [0.045, 0.105],
+        [0.0, 0.112],
       ],
-      0x9a7748,
-      12,
+      straw,
+      16,
     );
-    g.add(hat);
+    const band = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.097, 0.1, 0.022, 16),
+      new THREE.MeshLambertMaterial({ color: 0x7a5636 }),
+    );
+    band.position.y = 0.042;
+    g.add(hat, band);
     return g;
   }
   const hat = lathe(
@@ -532,29 +542,51 @@ const toolMesh = (geo: THREE.BufferGeometry, color: number): THREE.Mesh => {
   return m;
 };
 
+// Tool proportions follow the pack's chibi exaggeration: the KayKit axe is
+// nearly half a body tall with a fist-sized head, and the first draft of
+// these (0.3-unit twigs) disappeared in hand next to it.
 function malletProp(): THREE.Group {
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.016, 0.02, 0.3, 6), 0x8a6a42);
-  handle.position.y = 0.12;
-  const head = toolMesh(new THREE.CylinderGeometry(0.05, 0.05, 0.13, 8), 0x6b4e2e);
+  const handle = toolMesh(new THREE.CylinderGeometry(0.022, 0.028, 0.44, 6), 0x8a6a42);
+  handle.position.y = 0.18;
+  const head = toolMesh(new THREE.CylinderGeometry(0.085, 0.085, 0.22, 8), 0x6b4e2e);
   head.rotation.z = Math.PI / 2;
-  head.position.y = 0.27;
-  g.add(handle, head);
+  head.position.y = 0.4;
+  const band = toolMesh(new THREE.CylinderGeometry(0.088, 0.088, 0.03, 8), 0x77848e);
+  band.rotation.z = Math.PI / 2;
+  band.position.y = 0.4;
+  g.add(handle, head, band);
   return g;
 }
 
 function pickaxeProp(): THREE.Group {
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.016, 0.02, 0.34, 6), 0x8a6a42);
-  handle.position.y = 0.14;
-  g.add(handle);
+  const handle = toolMesh(new THREE.CylinderGeometry(0.022, 0.028, 0.48, 6), 0x8a6a42);
+  handle.position.y = 0.2;
+  const collar = toolMesh(new THREE.BoxGeometry(0.08, 0.06, 0.06), 0x5c666e);
+  collar.position.y = 0.44;
+  g.add(handle, collar);
   for (const side of [-1, 1]) {
-    const spike = toolMesh(new THREE.ConeGeometry(0.028, 0.17, 6), 0x77848e);
+    const spike = toolMesh(new THREE.ConeGeometry(0.05, 0.3, 6), 0x77848e);
     // Head spikes run across the swing plane, tips drooping slightly.
     spike.rotation.z = -side * (Math.PI / 2 + 0.22);
-    spike.position.set(side * 0.08, 0.3, 0);
+    spike.position.set(side * 0.16, 0.42, 0);
     g.add(spike);
   }
+  return g;
+}
+
+function hatchetProp(): THREE.Group {
+  // Not the japan wardrobe's hatchet (models.ts): that one is sized for
+  // the slim procedural people and reads as a twig in a KayKit fist.
+  const g = new THREE.Group();
+  const haft = toolMesh(new THREE.CylinderGeometry(0.022, 0.028, 0.44, 6), 0x8a6a42);
+  haft.position.y = 0.18;
+  const head = toolMesh(new THREE.BoxGeometry(0.17, 0.11, 0.04), 0x77848e);
+  head.position.set(0.06, 0.36, 0);
+  const edge = toolMesh(new THREE.BoxGeometry(0.03, 0.12, 0.045), 0xb9c2ca);
+  edge.position.set(0.145, 0.36, 0);
+  g.add(haft, head, edge);
   return g;
 }
 
@@ -569,6 +601,7 @@ function spadeProp(): THREE.Group {
 }
 
 const WORK_TOOLS: Record<number, () => THREE.Group> = {
+  1: hatchetProp, // WORK.chop
   3: malletProp, // WORK.hammer
   2: pickaxeProp, // WORK.pickaxe
   4: spadeProp, // WORK.dig
@@ -746,8 +779,11 @@ function makeKayKitCharacter(
       const holder = new THREE.Group();
       holder.scale.setScalar(1 / s);
       const hat = kasaHat();
-      hat.scale.setScalar(1.9);
-      hat.position.y = 0.12;
+      // Sized against the measured skull: crown tops out ~0.56 above the
+      // head bone and spans ~0.32 wide (world units) — the old 1.9/0.12
+      // hat sat entirely inside the head.
+      hat.scale.setScalar(2.6);
+      hat.position.y = 0.5;
       holder.add(hat);
       head.add(holder);
     }
