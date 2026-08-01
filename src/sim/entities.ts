@@ -67,6 +67,8 @@ export interface Building {
    * placed, so a cancelled game or a razed storehouse cannot refund it. */
   hireQueue?: number;
   hireTicksLeft?: number;
+  /** Recruiting pause after the player dismissed the worker on purpose. */
+  staffBackoffUntil?: number;
   /** When to respawn a lost resident worker. */
   workerRespawnAt?: number;
   dead: boolean;

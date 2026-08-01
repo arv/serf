@@ -11,6 +11,7 @@ describe('command screening', () => {
       { kind: 'moveUnits', unitIds: [1, 2, 3], x: 10, y: 12 },
       { kind: 'placeBuilding', building: 'bambooHut', x: 4, y: 5 },
       { kind: 'hireSerf' },
+      { kind: 'dismissWorker', buildingId: 3 },
       { kind: 'research', tech: 'irrigation' },
       { kind: 'trainUnit', buildingId: 7, unit: 'ashigaru' },
       { kind: 'admin', action: 'grantGoods' },

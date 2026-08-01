@@ -100,6 +100,10 @@ function requestRecruits(world: World): void {
 
   for (const b of world.buildings.values()) {
     if (b.dead || !isPlayerOwner(b.owner)) continue;
+    // A freshly dismissed post stands open for a while: the player emptied
+    // it on purpose, and re-capturing the freed serf the moment he goes
+    // idle between haul trips would silently undo the order.
+    if ((b.staffBackoffUntil ?? 0) > world.tick) continue;
     const def = buildingDef(b.type);
     if (b.state === 'site' ? def.isRoad : b.state !== 'built') continue;
 
