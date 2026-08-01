@@ -12,6 +12,7 @@ describe('command screening', () => {
       { kind: 'placeBuilding', building: 'woodcutter', x: 4, y: 5 },
       { kind: 'hireSerf' },
       { kind: 'dismissWorker', buildingId: 3 },
+      { kind: 'sellBuilding', buildingId: 3 },
       { kind: 'research', tech: 'irrigation' },
       { kind: 'trainUnit', buildingId: 7, unit: 'spearman' },
       { kind: 'admin', action: 'grantGoods' },

@@ -9,7 +9,7 @@ import { abortJob, logisticsSystem } from './systems/logistics.ts';
 import { productionSystem, unbindWorker } from './systems/production.ts';
 import { constructionSystem } from './systems/construction.ts';
 import { trailsSystem } from './systems/trails.ts';
-import { canPlace, killUnit, placeSite, spawnUnit, type World } from './world.ts';
+import { canPlace, destroyBuilding, killUnit, placeSite, spawnUnit, type World } from './world.ts';
 import { GOODS } from './defs/goods.ts';
 import { findStorehouse } from './systems/logistics.ts';
 import { researchSystem } from './systems/research.ts';
@@ -137,6 +137,36 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         unbindWorker(world, worker);
         b.staffBackoffUntil = world.tick + DISMISS_RESTAFF_BACKOFF;
       }
+      break;
+    }
+    case 'sellBuilding': {
+      // Tear a building down for half its cost back, floored per good.
+      // Sites refund half of what was actually delivered. The resident
+      // walks out a serf again before the wrecking starts — demolition is
+      // an economic decision, not an execution. The storehouse is not
+      // sellable: it is the elimination token, and cashing it in would be
+      // resigning for pocket change.
+      const b = world.buildings.get(cmd.buildingId);
+      if (!b || b.dead || b.owner !== playerId) break;
+      const def = buildingDef(b.type);
+      if (def.storage || def.isRoad || def.systemOnly) break;
+      if (b.workerId !== undefined) {
+        const worker = world.units.get(b.workerId);
+        if (worker && !worker.dead) unbindWorker(world, worker);
+      }
+      const sh = findStorehouse(world, playerId);
+      if (sh) {
+        for (const [good, n] of Object.entries(def.cost) as [GoodId, number][]) {
+          const delivered = b.state === 'site' ? n - (b.siteNeeds?.[good] ?? 0) : n;
+          const refund = Math.floor(delivered / 2);
+          if (refund <= 0) continue;
+          sh.stock[good] = (sh.stock[good] ?? 0) + refund;
+          // Ledgered as production so the conservation invariant stays
+          // honest — the same bookkeeping grantGoods uses.
+          world.ledger.produced[good] = (world.ledger.produced[good] ?? 0) + refund;
+        }
+      }
+      destroyBuilding(world, b);
       break;
     }
     case 'hireSerf': {

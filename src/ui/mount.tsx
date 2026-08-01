@@ -27,6 +27,7 @@ export function mountHud(host: SimHost, actions: HudActions): void {
         onPlace={(type) => setPlacing(type)}
         onHire={() => host.sendCommands([{ kind: 'hireSerf' }])}
         onDismiss={(buildingId) => host.sendCommands([{ kind: 'dismissWorker', buildingId }])}
+        onSell={(buildingId) => host.sendCommands([{ kind: 'sellBuilding', buildingId }])}
         onResearch={(tech) => host.sendCommands([{ kind: 'research', tech }])}
         onTrain={(buildingId, unit) =>
           host.sendCommands([{ kind: 'trainUnit', buildingId, unit }])

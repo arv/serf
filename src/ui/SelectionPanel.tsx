@@ -11,7 +11,7 @@ import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
 import { TextTip, TipWrap, UnitTip } from './tooltip';
-import { selectedBuilding, selection, setTechPanelOpen, stock, techs } from './store';
+import { myPlayerId, selectedBuilding, selection, setTechPanelOpen, stock, techs } from './store';
 
 import { buildingName, techName, unitName } from './names';
 
@@ -48,6 +48,7 @@ export function SelectionPanel(props: {
   onHire: () => void;
   onDeselect: () => void;
   onDismiss: (buildingId: number) => void;
+  onSell: (buildingId: number) => void;
 }) {
   return (
     <>
@@ -143,6 +144,27 @@ export function SelectionPanel(props: {
                     onClick={() => props.onDismiss(b().id)}
                   >
                     Dismiss
+                  </button>
+                </TipWrap>
+              </Show>
+              <Show
+                when={
+                  b().owner === myPlayerId() && !def().storage && !def().isRoad && !def().systemOnly
+                }
+              >
+                <TipWrap
+                  tip={() => (
+                    <TextTip
+                      title="Sell building"
+                      body="Tears it down for half its build cost back, floored per good — a half-built site refunds half of what was delivered. The worker walks out a serf; anything stocked inside is lost."
+                    />
+                  )}
+                >
+                  <button
+                    style={{ 'margin-left': '8px', 'min-height': '0', padding: '3px 10px' }}
+                    onClick={() => props.onSell(b().id)}
+                  >
+                    Sell
                   </button>
                 </TipWrap>
               </Show>

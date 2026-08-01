@@ -64,8 +64,10 @@ const DECOR_PROP_FILES = [
   'barrel',
 ];
 
+// No goods-shaped decor on producers whose live stock piles up outside:
+// the woodcutter's baked lumber pile read as planks that were never
+// hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
-  woodcutter: [{ prop: 'resource_lumber', at: [0.36, 0.28], size: 0.12, rot: 0.3 }],
   quarry: [
     { prop: 'resource_stone', at: [0.34, 0.3], size: 0.14 },
     { prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 },
