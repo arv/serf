@@ -364,7 +364,7 @@ function clothMaterial(color: number): THREE.MeshStandardMaterial {
 
 // --- Rigid props, sized in world units and counter-scaled onto bones -------
 
-function kasaHat(): THREE.Group {
+function kasaHat(bandColor?: number): THREE.Group {
   const g = new THREE.Group();
   if (THEME === 'medieval') {
     // Peasant straw hat: a wide thin brim that sags at the edge, a low
@@ -388,9 +388,12 @@ function kasaHat(): THREE.Group {
       straw,
       16,
     );
+    // The band takes the seat's color when one is given — the farmer's
+    // tunic mostly hides under the brim from the game camera, so the hat
+    // itself joins the heraldry.
     const band = new THREE.Mesh(
       new THREE.CylinderGeometry(0.117, 0.12, 0.022, 16),
-      new THREE.MeshLambertMaterial({ color: 0x7a5636 }),
+      new THREE.MeshLambertMaterial({ color: bandColor ?? 0x7a5636 }),
     );
     band.position.y = 0.045;
     g.add(hat, band);
@@ -820,12 +823,12 @@ function makeKayKitCharacter(
     if (head) {
       const holder = new THREE.Group();
       holder.scale.setScalar(1 / s);
-      const hat = kasaHat();
+      const hat = kasaHat(faction);
       // Sized against the measured skull: crown tops out ~0.56 above the
       // head bone and spans ~0.32 wide (world units) — the old 1.9/0.12
       // hat sat entirely inside the head.
-      hat.scale.setScalar(2.6);
-      hat.position.y = 0.42;
+      hat.scale.setScalar(2.35);
+      hat.position.y = 0.41;
       holder.add(hat);
       head.add(holder);
     }
