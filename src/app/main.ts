@@ -77,6 +77,13 @@ const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu'];
 
 async function boot(): Promise<void> {
   const launchParams = new URLSearchParams(location.search);
+  if (launchParams.has('wardrobe')) {
+    // The costume fitting room: every unit of every faction, labeled,
+    // under the real camera and sun. Render-only — no sim, no HUD.
+    const { mountWardrobe } = await import('../ui/wardrobe');
+    await mountWardrobe(document.getElementById('canvas') as HTMLCanvasElement);
+    return;
+  }
   // A pending load is a launch too: the Load button stashes the save and
   // reloads, and that handoff must not bounce back to the menu.
   const chosen =

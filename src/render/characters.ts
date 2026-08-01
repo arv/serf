@@ -637,21 +637,36 @@ function makeKayKitCharacter(
   if (!char) return null;
   const root = skeletonClone(char.scene);
 
-  // Faction cloth: lerp the kit toward the seat's color, the same four the
-  // buildings' team-color slot uses, so a rival's serfs and their mill
-  // read as one side. Bandits keep their grim stock look.
+  // Faction cloth: only the torso and cape take the seat's color — the
+  // same four the buildings' team-color slot uses — worn strong, like a
+  // tabard. Skin, hair, leather and steel keep the pack's own palette;
+  // tinting the whole body just washed every kind into the same olive
+  // mush and left faction identity to, of all things, hair color.
+  // Bandits keep their grim stock look.
   const faction = factionTint(owner);
+  const CLOTH = /_(Body|Cape)$/;
   root.traverse((o) => {
     if (!(o instanceof THREE.Mesh) && !(o instanceof THREE.SkinnedMesh)) return;
     if (spec.hide?.includes(o.name)) o.visible = false;
-    if (spec.tint !== undefined || faction !== undefined) {
+    const clothFaction = CLOTH.test(o.name) ? faction : undefined;
+    if (spec.tint !== undefined || clothFaction !== undefined) {
       const m = o.material as THREE.MeshStandardMaterial;
-      const key = `${spec.file}:${o.name}:${spec.tint ?? 'x'}:${faction ?? 'x'}`;
+      const key = `${spec.file}:${o.name}:${spec.tint ?? 'x'}:${clothFaction ?? 'x'}`;
       let tinted = kkTintMaterials.get(key);
       if (!tinted) {
         tinted = m.clone();
         if (spec.tint !== undefined) tinted.color.set(spec.tint);
-        if (faction !== undefined) tinted.color.lerp(new THREE.Color(faction), 0.55);
+        // The color multiplies the painted texture, and the cloth regions
+        // are mid-brown — a straight faction multiplier goes swampy. Lift
+        // it toward white so the cloth reads as dyed, not stained.
+        if (clothFaction !== undefined) {
+          // Two hands on the dye vat: the multiplier alone goes swampy
+          // (cloth texels are mid-brown, and green x brown is bog), while
+          // a touch of emissive restores the saturation multiply loses.
+          // Together they read as dyed cloth under the same sun.
+          tinted.color.lerp(new THREE.Color(clothFaction), 0.9).lerp(new THREE.Color(0xffffff), 0.12);
+          tinted.emissive.set(clothFaction).multiplyScalar(0.22);
+        }
         kkTintMaterials.set(key, tinted);
       }
       o.material = tinted;
