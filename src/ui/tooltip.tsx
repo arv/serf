@@ -33,8 +33,8 @@ const [tip, setTip] = createSignal<TipState | null>(null);
 let showTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function tooltip(content: () => JSX.Element): {
-  onMouseEnter: (e: MouseEvent) => void;
-  onMouseLeave: () => void;
+  onPointerEnter: (e: PointerEvent) => void;
+  onPointerLeave: () => void;
   onPointerDown: (e: PointerEvent) => void;
   onPointerMove: (e: PointerEvent) => void;
   onPointerUp: () => void;
@@ -53,8 +53,14 @@ export function tooltip(content: () => JSX.Element): {
   // gesture back to the list instead of popping a tip over it.
   let from: { x: number; y: number } | null = null;
   return {
-    onMouseEnter: (e: MouseEvent) => show(e.currentTarget as HTMLElement, 130),
-    onMouseLeave: hide,
+    // Hover via pointerenter, not mouseenter: after every tap the browser
+    // fires a compatibility mouseenter, and a touchscreen never sends the
+    // matching mouseleave — the hover tip it opened stayed up forever.
+    // pointerenter carries pointerType, so touch simply doesn't hover.
+    onPointerEnter: (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') show(e.currentTarget as HTMLElement, 130);
+    },
+    onPointerLeave: hide,
     // Touch has no hover: press and hold reveals the tip instead, and it
     // clears on release. (Mouse presses are already covered by hover.)
     onPointerDown: (e: PointerEvent) => {
