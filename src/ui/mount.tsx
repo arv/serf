@@ -3,14 +3,17 @@ import { Hud } from './Hud';
 import { pushToast, setPlacing, setSpeed } from './store';
 import type { SimHost } from '../app/simHost';
 
-/** Selection actions the HUD needs from Controls (touch has no shift/drag). */
-export interface SelectionActions {
+/** What the HUD needs from the app: selection actions from Controls (touch
+ * has no shift/drag), and the save assembled where world and fog meet. */
+export interface HudActions {
   selectArmy(): void;
   deselect(): void;
+  /** The full save string — the worker's world plus the fog's memory. */
+  save(): Promise<string>;
 }
 
 /** Mount the Solid HUD into the overlay div. Solid never touches the canvas. */
-export function mountHud(host: SimHost, actions: SelectionActions): void {
+export function mountHud(host: SimHost, actions: HudActions): void {
   const root = document.getElementById('ui')!;
   render(
     () => (
@@ -29,7 +32,7 @@ export function mountHud(host: SimHost, actions: SelectionActions): void {
           host.sendCommands([{ kind: 'trainUnit', buildingId, unit }])
         }
         onSave={() => {
-          void host.requestSave().then((data) => {
+          void actions.save().then((data) => {
             localStorage.setItem('serf-save', data);
             pushToast('Game saved');
           });

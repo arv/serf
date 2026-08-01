@@ -33,6 +33,7 @@ import {
   fogEnabled,
 } from '../ui/store';
 import { WorldMirror } from './mirror';
+import { envelopeSave, splitSave } from './saveEnvelope';
 import { WorkerSimHost } from './simHost';
 import { mountStartMenu } from '../ui/StartMenu';
 import { configFromUrl } from './gameConfig';
@@ -141,6 +142,15 @@ async function boot(): Promise<void> {
     // Migrate away any stale handoff left by the old localStorage flow.
     localStorage.removeItem('serf-load-pending');
   }
+  // A solo save is an envelope: the worker's world string plus the fog's
+  // memory. Split it here — the worker gets exactly the string it wrote,
+  // and the explored grid waits for the fog to exist.
+  let fogSeed: Uint8Array | undefined;
+  if (loadData !== undefined) {
+    const split = splitSave(loadData);
+    loadData = split.world;
+    fogSeed = split.explored;
+  }
   setMyPlayerId(config.myPlayerId);
   setNetMode(net !== undefined);
 
@@ -192,8 +202,10 @@ async function boot(): Promise<void> {
         location.reload();
         return;
       }
-      void host
-        .requestSave()
+      // saveGame is declared further down, but this callback cannot run
+      // before it exists: everything between here and there is synchronous,
+      // and the timer gives it four seconds besides.
+      void saveGame()
         .then((data) => sessionStorage.setItem('serf-load-pending', data))
         .finally(() => location.reload());
     }, 4000);
@@ -233,9 +245,15 @@ async function boot(): Promise<void> {
   const feedWells = (): void => sync.setWells(buildingSync.wellCranks());
   feedWells();
   const fog = new FogOfWar(config.myPlayerId);
-  // Multiplayer: the server remembers what this seat has scouted, so a
-  // reload starts with that memory instead of a dark map.
+  // The fog's memory across sessions: multiplayer seats get the server's
+  // authoritative explored grid; a loaded solo game gets the one its save
+  // carried. Never both — solo has no server, multiplayer has no save.
   if (init.explored) fog.seedExplored(init.explored);
+  else if (fogSeed) fog.seedExplored(fogSeed);
+  // One save string for every writer — the menu button and the GPU-crash
+  // handoff alike: the world from the worker, the fog's memory from here.
+  const saveGame = async (): Promise<string> =>
+    envelopeSave(await host.requestSave(), fog.exportExplored());
   if (import.meta.env.DEV) {
     Object.assign(window as unknown as Record<string, unknown>, { __fog: fog });
   }
@@ -321,6 +339,7 @@ async function boot(): Promise<void> {
   mountHud(host, {
     selectArmy: () => controls.selectArmy(),
     deselect: () => controls.deselectAll(),
+    save: saveGame,
   });
 
   // The camera never rotates: hp bars copy its live orientation once to

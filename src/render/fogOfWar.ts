@@ -134,6 +134,17 @@ export class FogOfWar implements FogQuery {
     this.#accum = Infinity; // re-blur and upload on the next update
   }
 
+  /** Crisp ever-seen snapshot (1 = seen), judged by the same threshold the
+   * gameplay queries use — what the solo save carries so a loaded game
+   * remembers its map (multiplayer gets the server's grid instead). */
+  exportExplored(): Uint8Array {
+    const out = new Uint8Array(TILE_COUNT);
+    for (let i = 0; i < TILE_COUNT; i++) {
+      if (this.#explored[i]! > SEEN) out[i] = 1;
+    }
+    return out;
+  }
+
   #at(field: Float32Array, x: number, z: number): number {
     const tx = Math.floor(x);
     const tz = Math.floor(z);
