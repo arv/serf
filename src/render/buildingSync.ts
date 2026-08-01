@@ -35,6 +35,8 @@ interface BuildingVisual {
   /** The well's windlass, spun per frame while the well is staffed. */
   crank?: THREE.Object3D;
   staffed: boolean;
+  /** Longest footprint side, for sizing the teardown dust. */
+  span: number;
 }
 
 const HP_BAR_W = 1.1;
@@ -158,19 +160,22 @@ export class BuildingSync {
       });
       v.hpBar = undefined;
     }
-    // A ground-hugging dust disc that swells and thins as the walls drop.
+    // A ground-hugging dust band, sized past the footprint — a ring
+    // narrower than the walls plays out entirely underneath the sinking
+    // model and nobody ever sees it.
+    const r = v.span * 0.8;
     const dust = new THREE.Mesh(
-      new THREE.RingGeometry(0.25, 0.95, 20),
+      new THREE.RingGeometry(r * 0.45, r, 24),
       new THREE.MeshBasicMaterial({
         color: 0xa4906c,
         transparent: true,
-        opacity: 0.55,
+        opacity: 0.7,
         depthWrite: false,
         side: THREE.DoubleSide,
       }),
     );
     dust.rotation.x = -Math.PI / 2;
-    dust.position.set(v.root.position.x, v.root.position.y + 0.03, v.root.position.z);
+    dust.position.set(v.root.position.x, v.root.position.y + 0.05, v.root.position.z);
     this.#scene.add(dust);
     this.#dying.push({
       visual: v,
@@ -241,6 +246,7 @@ export class BuildingSync {
       pileKey: '',
       crank: model.getObjectByName('wellCrank') ?? undefined,
       staffed: false,
+      span: Math.max(b.w, b.h),
     };
   }
 
@@ -278,9 +284,9 @@ export class BuildingSync {
       root.position.y = d.baseY - sink * (d.visual.topY + 0.4);
       root.rotation.x = d.tiltX * d.t;
       root.rotation.z = d.tiltZ * d.t;
-      const spread = 0.7 + d.t * 1.1;
+      const spread = 1 + d.t * 0.9;
       d.dust.scale.setScalar(spread);
-      (d.dust.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - d.t);
+      (d.dust.material as THREE.MeshBasicMaterial).opacity = 0.7 * (1 - d.t * d.t);
     }
     for (let i = this.#dying.length - 1; i >= 0; i--) {
       const d = this.#dying[i]!;
