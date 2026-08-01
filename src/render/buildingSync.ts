@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import { makeBuildingModel, makeGhostModel, makePileProp, makeSiteFrame } from './models';
+import {
+  makeBuildingModel,
+  makeGhostModel,
+  makePileProp,
+  makeSiteFrame,
+  PILE_SCALE,
+} from './models';
 import { makeGlbBuilding } from './assets';
 import { eachMaterial, mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
@@ -259,15 +265,17 @@ export class BuildingSync {
     // (they're ankle-high; carriers step over them).
     piles.position.set(0, 0, b.h / 2 + 0.3);
     shown.forEach(([good, n], col) => {
-      const cx = (col - (shown.length - 1) / 2) * 0.42;
+      // The lattice grows with the props (PILE_SCALE), or the fatter
+      // stacks interpenetrate.
+      const cx = (col - (shown.length - 1) / 2) * 0.42 * PILE_SCALE;
       for (let i = 0; i < n; i++) {
         const prop = makePileProp(good);
         const row = i % 3;
         const layer = (i / 3) | 0;
         prop.position.set(
           cx + (hash2(b.id * 31 + i, col) - 0.5) * 0.06,
-          layer * 0.12,
-          row * 0.17 - 0.17,
+          layer * 0.12 * PILE_SCALE,
+          (row * 0.17 - 0.17) * PILE_SCALE,
         );
         prop.rotation.y = (hash2(b.id * 17 + i, col + 9) - 0.5) * 0.7;
         piles.add(prop);

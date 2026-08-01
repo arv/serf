@@ -1153,6 +1153,10 @@ const PACK_CARRY: Partial<Record<GoodId, { prop: string; span: number }>> = {
   ale: { prop: 'barrel', span: 0.3 },
 };
 
+/** Ground stock renders a quarter larger than the carried version: at
+ * village zoom the true-size stacks read as ground clutter, not goods. */
+export const PILE_SCALE = 1.25;
+
 /**
  * A single unit of a good as a small grounded prop, for the stock piles
  * that grow beside buildings — same look as the carried version, base on
@@ -1165,6 +1169,7 @@ export function makePileProp(good: GoodId): THREE.Group {
     inner.position.set(0, 0, 0); // strip the carry-height offset
     inner.scale.setScalar(0.62);
   }
+  inner.scale.multiplyScalar(PILE_SCALE);
   const g = new THREE.Group();
   g.add(inner);
   const bb = new THREE.Box3().setFromObject(g);
