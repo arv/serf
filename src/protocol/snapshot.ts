@@ -142,6 +142,10 @@ function professionOf(w: World, u: Unit): number {
   if (u.kind !== 'worker' || u.homeId === undefined) return PROFESSION.none;
   const home = w.buildings.get(u.homeId);
   if (!home || home.dead) return PROFESSION.none;
+  // The look comes with the job, not the job offer: a builder raising his
+  // own future farm stays a plain laborer until the roof is on — the
+  // straw hat goes on when farming starts.
+  if (home.state !== 'built') return PROFESSION.none;
   if (home.type === 'wheatFarm') return PROFESSION.farmer;
   if (
     home.type === 'quarry' ||
