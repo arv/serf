@@ -124,8 +124,11 @@ interface KKSpec {
 const KK_SPECS = new Map<number, KKSpec>([
   [1, { file: 'Rogue', hide: ['Rogue_Cape'] }],
   [2, {
-    file: 'Barbarian',
-    hide: ['Barbarian_BearHat'],
+    // The Mage, bare-headed: under the wizard hat it is a hooded work
+    // smock — the closest thing the pack has to a laborer. The Barbarian
+    // it replaces read as a shirtless warrior hauling lumber.
+    file: 'Mage',
+    hide: ['Mage_Hat'],
     right: 'axe_1handed',
     // The axe loads blade-backwards in the grip; spin it to face the swing.
     rightRot: [0, Math.PI, 0],

@@ -4,11 +4,14 @@ import {
   loadCharacterAssets,
   makeCharacter,
   playAnimation,
+  setWorkTool,
+  type AnimKey,
   type CharacterVisual,
 } from '../render/characters';
 import { worldToScreen } from '../input/picking';
 import { palette } from '../render/palette';
 import { UNIT_DEFS } from '../sim/defs/units';
+import { WORK } from '../protocol/sabLayout';
 import { unitName } from './names';
 import { BANDIT } from '../sim/entities';
 import { MAP_SIZE } from '../shared/grid';
@@ -32,6 +35,8 @@ interface Column {
   code: number;
   profession: number;
   label: string;
+  /** WORK.* this column performs in Work mode (tool + loop). */
+  workKind?: number;
 }
 
 interface Row {
@@ -42,14 +47,46 @@ interface Row {
 function columns(): Column[] {
   const out: Column[] = [];
   for (const def of Object.values(UNIT_DEFS)) {
-    out.push({ code: def.kindCode, profession: 0, label: unitName(def.id) });
     if (def.id === 'worker') {
-      // The workplace looks layered over the worker kind (see PROF_LOOKS).
-      out.push({ code: def.kindCode, profession: 1, label: 'Farmer' });
-      out.push({ code: def.kindCode, profession: 2, label: 'Miner' });
+      // One column per trade: the profession looks (see PROF_LOOKS) plus
+      // the work each performs in Work mode — tool in hand, proper loop.
+      out.push({ code: def.kindCode, profession: 0, label: 'Builder', workKind: WORK.hammer });
+      out.push({ code: def.kindCode, profession: 0, label: 'Woodcutter', workKind: WORK.chop });
+      out.push({ code: def.kindCode, profession: 1, label: 'Farmer', workKind: WORK.dig });
+      out.push({ code: def.kindCode, profession: 2, label: 'Miner', workKind: WORK.pickaxe });
+    } else {
+      out.push({ code: def.kindCode, profession: 0, label: unitName(def.id) });
     }
   }
   return out;
+}
+
+/** WORK.* byte -> tool loop, mirroring the game's own mapping (sceneSync). */
+const WORK_ANIM: Record<number, AnimKey> = {
+  [WORK.chop]: 'work',
+  [WORK.pickaxe]: 'pickaxe',
+  [WORK.hammer]: 'hammer',
+  [WORK.dig]: 'dig',
+  [WORK.tend]: 'tend',
+  [WORK.draw]: 'draw',
+};
+
+type Mode = 'idle' | 'walk' | 'carry' | 'work' | 'death';
+const MODES: Mode[] = ['idle', 'walk', 'carry', 'work', 'death'];
+
+/** What this column performs in a given mode: villagers work their trade,
+ * soldiers fight, serfs haul. */
+function clipFor(mode: Mode, col: Column, v: CharacterVisual): AnimKey {
+  switch (mode) {
+    case 'walk':
+      return v.jog ? 'jog' : 'walk';
+    case 'work':
+      if (col.workKind !== undefined) return WORK_ANIM[col.workKind] ?? 'work';
+      if (col.code === 1) return 'carry'; // a serf's work is hauling
+      return v.ranged ? 'shoot' : 'attack';
+    default:
+      return mode;
+  }
 }
 
 const ROWS: Row[] = [
@@ -103,7 +140,7 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<void> {
   overlay.style.pointerEvents = 'none';
   document.body.appendChild(overlay);
 
-  const visuals: CharacterVisual[] = [];
+  const cast: { visual: CharacterVisual; col: Column; offset: number }[] = [];
   const labels: { el: HTMLSpanElement; x: number; y: number; z: number }[] = [];
 
   ROWS.forEach((row, r) => {
@@ -122,8 +159,9 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<void> {
       made.group.rotation.y = Math.PI * 0.25;
       made.group.position.set(x, 0, z);
       renderer.scene.add(made.group);
-      playAnimation(made.visual, 'idle', r * 1.7 + c * 0.6);
-      visuals.push(made.visual);
+      const offset = r * 1.7 + c * 0.6;
+      playAnimation(made.visual, 'idle', offset);
+      cast.push({ visual: made.visual, col, offset });
       if (r === 0) {
         labels.push({ el: makeLabel(overlay, col.label), x, y: 0, z: z - 1.1 });
       }
@@ -132,9 +170,39 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<void> {
 
   renderer.rig.focusOn(MAP_SIZE / 2, MAP_SIZE / 2);
 
+  // The move bar: play the whole cast through one animation at a time.
+  const bar = document.createElement('div');
+  bar.style.cssText =
+    'position:absolute;left:50%;bottom:14px;transform:translateX(-50%);' +
+    'display:flex;gap:6px;pointer-events:auto;background:rgba(20,16,10,0.75);' +
+    'padding:6px 8px;border-radius:8px';
+  overlay.appendChild(bar);
+  const setMode = (mode: Mode): void => {
+    for (const { visual, col, offset } of cast) {
+      // Tools only come out for the job; every other mode restores the
+      // column's own kit (the knight's sword, the farmer's spade).
+      setWorkTool(visual, mode === 'work' ? (col.workKind ?? 0) : 0);
+      playAnimation(visual, clipFor(mode, col, visual), offset);
+    }
+    for (const b of bar.children as HTMLCollectionOf<HTMLButtonElement>) {
+      b.style.background = b.textContent === mode ? '#e5c469' : 'transparent';
+      b.style.color = b.textContent === mode ? '#241d12' : '#f0ede4';
+    }
+  };
+  for (const mode of MODES) {
+    const b = document.createElement('button');
+    b.textContent = mode;
+    b.style.cssText =
+      'font:600 12px system-ui;border:none;border-radius:5px;padding:5px 12px;' +
+      'cursor:pointer;background:transparent;color:#f0ede4;text-transform:capitalize';
+    b.onclick = () => setMode(mode);
+    bar.appendChild(b);
+  }
+  setMode('idle');
+
   const loop = (): void => {
     const dt = renderer.frame();
-    for (const v of visuals) v.mixer.update(dt);
+    for (const { visual } of cast) visual.mixer.update(dt);
     for (const l of labels) {
       const p = worldToScreen(renderer.rig.camera, canvas, l.x, l.y, l.z);
       l.el.style.left = `${p.x}px`;
