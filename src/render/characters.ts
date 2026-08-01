@@ -110,6 +110,9 @@ interface KKSpec {
   right?: string;
   /** Euler fix-up for right-hand props that load facing the wrong way. */
   rightRot?: [number, number, number];
+  /** The right-hand prop is a work tool, not a standing weapon: hidden
+   * except while performing this WORK.* kind. */
+  rightWorkKind?: number;
   left?: string;
   /** Prop strapped to the chest (quivers). */
   back?: string;
@@ -126,11 +129,16 @@ const KK_SPECS = new Map<number, KKSpec>([
   [2, {
     // The Mage, bare-headed: under the wizard hat it is a hooded work
     // smock — the closest thing the pack has to a laborer. The Barbarian
-    // it replaces read as a shirtless warrior hauling lumber. No standing
-    // weapon: a laborer walks empty-handed and tools come out on site
-    // (WORK_TOOLS — the builder was walking around with an axe).
+    // it replaces read as a shirtless warrior hauling lumber. The pack
+    // axe stays in the kit but only for the chop — a laborer walks
+    // empty-handed (a builder marching around armed read as a raid), and
+    // the modeled axe beats any procedural stand-in while he swings.
     file: 'Mage',
     hide: ['Mage_Hat'],
+    right: 'axe_1handed',
+    // The axe loads blade-backwards in the grip; spin it to face the swing.
+    rightRot: [0, Math.PI, 0],
+    rightWorkKind: 1, // WORK.chop
   }],
   [3, { file: 'Knight', right: 'sword_1handed', left: 'shield_badge', jog: true }],
   [4, {
@@ -576,27 +584,23 @@ function pickaxeProp(): THREE.Group {
   return g;
 }
 
-function hatchetProp(): THREE.Group {
-  // Not the japan wardrobe's hatchet (models.ts): that one is sized for
-  // the slim procedural people and reads as a twig in a KayKit fist.
-  const g = new THREE.Group();
-  const haft = toolMesh(new THREE.CylinderGeometry(0.022, 0.028, 0.44, 6), 0x8a6a42);
-  haft.position.y = 0.18;
-  const head = toolMesh(new THREE.BoxGeometry(0.17, 0.11, 0.04), 0x77848e);
-  head.position.set(0.06, 0.36, 0);
-  const edge = toolMesh(new THREE.BoxGeometry(0.03, 0.12, 0.045), 0xb9c2ca);
-  edge.position.set(0.145, 0.36, 0);
-  g.add(haft, head, edge);
-  return g;
-}
-
 function spadeProp(): THREE.Group {
+  // Blade DOWN, T-grip up — a shovel is the one tool carried business-end
+  // at the soil, and the crossbar is what makes the silhouette read.
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.014, 0.016, 0.34, 6), 0x8a6a42);
-  handle.position.y = 0.14;
-  const blade = toolMesh(new THREE.BoxGeometry(0.09, 0.12, 0.015), 0x8b95a0);
-  blade.position.y = 0.34;
-  g.add(handle, blade);
+  const handle = toolMesh(new THREE.CylinderGeometry(0.022, 0.026, 0.42, 6), 0x8a6a42);
+  handle.position.y = 0.17;
+  const grip = toolMesh(new THREE.CylinderGeometry(0.02, 0.02, 0.11, 6), 0x6b4e2e);
+  grip.rotation.z = Math.PI / 2;
+  grip.position.y = 0.38;
+  const blade = toolMesh(new THREE.BoxGeometry(0.13, 0.17, 0.025), 0x8b95a0);
+  blade.position.y = -0.04;
+  const tip = toolMesh(new THREE.ConeGeometry(0.075, 0.05, 4), 0x77848e);
+  tip.rotation.z = Math.PI;
+  tip.rotation.y = Math.PI / 4;
+  tip.scale.z = 0.32;
+  tip.position.y = -0.14;
+  g.add(handle, grip, blade, tip);
   return g;
 }
 
@@ -612,7 +616,6 @@ function gripPose<T extends THREE.Object3D>(tool: T): T {
 }
 
 const WORK_TOOLS: Record<number, () => THREE.Group> = {
-  1: hatchetProp, // WORK.chop
   3: malletProp, // WORK.hammer
   2: pickaxeProp, // WORK.pickaxe
   4: spadeProp, // WORK.dig
@@ -637,7 +640,8 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
     visual.toolCustom.add(make());
     if (visual.defaultTool) visual.defaultTool.visible = false;
   } else if (visual.defaultTool) {
-    visual.defaultTool.visible = true;
+    const d = visual.defaultTool.userData;
+    visual.defaultTool.visible = !d.workOnly || workKind === d.workKind;
   }
 }
 
@@ -744,6 +748,11 @@ function makeKayKitCharacter(
     return { inst, anchor };
   };
   const rightHand = slot('handslot.r', spec.right, undefined, spec.rightRot);
+  if (rightHand && spec.rightWorkKind !== undefined) {
+    rightHand.inst.userData.workKind = spec.rightWorkKind;
+    rightHand.inst.userData.workOnly = true;
+    rightHand.inst.visible = false;
+  }
   slot('handslot.l', spec.left);
   slot('chest', spec.back, [0, 0, -0.14]);
 
@@ -775,9 +784,16 @@ function makeKayKitCharacter(
     toolCustom = gripPose(new THREE.Group());
     toolAnchor.add(toolCustom);
     if (look?.tool) {
-      // The profession's own tool: carried everywhere, worked with on site.
+      // The profession's own tool, shown only while working it. Carrying
+      // it at rest was tried and retried: anchored to a hand that hangs
+      // against a body this wide, every carry pose either buried the tool
+      // in the skirt or read as dropped at the ankle. Off-duty hands stay
+      // empty — matching the worker's chop axe — and the straw hat and
+      // miner's dust carry the identity.
       proceduralTool = gripPose(look.tool());
       proceduralTool.userData.workKind = look.toolWorkKind ?? 0;
+      proceduralTool.userData.workOnly = true;
+      proceduralTool.visible = false;
       toolAnchor.add(proceduralTool);
     }
   }
