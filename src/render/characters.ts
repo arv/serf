@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { lathe } from './models';
+import { loadGltfRetry } from './assets';
 import { factionTint } from './factionPalette';
 
 /**
@@ -216,14 +217,14 @@ function prepKayKitScene(scene: THREE.Group): void {
 }
 
 async function loadKayKitCharacters(): Promise<boolean> {
-  try {
+  {
     const loader = new GLTFLoader();
     const chars = new Map<string, KKCharacter>();
     const clips = new Map<string, THREE.AnimationClip>();
     const props = new Map<string, THREE.Group>();
     await Promise.all([
       ...KK_CHARACTER_FILES.map(async (f) => {
-        const gltf = await loader.loadAsync(`${KK_DIR}${f}.glb`);
+        const gltf = await loadGltfRetry(loader, `${KK_DIR}${f}.glb`);
         prepKayKitScene(gltf.scene);
         const bbox = new THREE.Box3().setFromObject(gltf.scene);
         const height = bbox.max.y - bbox.min.y;
@@ -234,11 +235,11 @@ async function loadKayKitCharacters(): Promise<boolean> {
         });
       }),
       ...KK_ANIMATION_FILES.map(async (f) => {
-        const gltf = await loader.loadAsync(`${KK_DIR}Rig_Medium_${f}.glb`);
+        const gltf = await loadGltfRetry(loader, `${KK_DIR}Rig_Medium_${f}.glb`);
         for (const clip of gltf.animations) clips.set(clip.name, clip);
       }),
       ...KK_PROP_FILES.map(async (f) => {
-        const gltf = await loader.loadAsync(`${KK_DIR}${f}.gltf`);
+        const gltf = await loadGltfRetry(loader, `${KK_DIR}${f}.gltf`);
         prepKayKitScene(gltf.scene);
         props.set(f, gltf.scene);
       }),
@@ -277,9 +278,6 @@ async function loadKayKitCharacters(): Promise<boolean> {
 
     kkAssets = { chars, clips, props };
     return true;
-  } catch (err) {
-    console.warn('[characters] KayKit assets failed; procedural people:', err);
-    return false;
   }
 }
 

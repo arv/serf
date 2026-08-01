@@ -9,7 +9,7 @@ import {
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
 import type { FogQuery } from './fogOfWar';
-import { makeCarryProp, makeUnitModel } from './models';
+import { makeCarryProp } from './models';
 import {
   makeCharacter,
   playAnimation,
@@ -20,31 +20,14 @@ import {
 } from './characters';
 import type { HeightField } from './heightField';
 
-/** Named joint pivots of an articulated person (see models.ts person()). */
-interface Rig {
-  hips: THREE.Object3D | undefined;
-  legL: THREE.Object3D | undefined;
-  legR: THREE.Object3D | undefined;
-  shinL: THREE.Object3D | undefined;
-  shinR: THREE.Object3D | undefined;
-  armL: THREE.Object3D | undefined;
-  armR: THREE.Object3D | undefined;
-  foreL: THREE.Object3D | undefined;
-  foreR: THREE.Object3D | undefined;
-  torso: THREE.Object3D | undefined;
-  head: THREE.Object3D | undefined;
-}
-
 interface UnitVisual {
   group: THREE.Group;
   kind: number;
   carrying: number;
   carryBox: THREE.Object3D | null;
   hpBar: THREE.Mesh | null;
-  /** Skinned GLB character when assets are loaded... */
+  /** The skinned GLB character driving this unit. */
   char: CharacterVisual | null;
-  /** ...else the procedural articulated person. */
-  rig: Rig | null;
   /** Smoothed visual de-overlap offset — render-only; the sim's positions
    * stay untouched (no unit collision by design). */
   sepX: number;
@@ -104,26 +87,6 @@ function ikReach(arm: ArmChain, target: THREE.Vector3): void {
   aimBone(arm.lower, arm.hand, target);
 }
 
-function rigOf(group: THREE.Group): Rig {
-  return {
-    hips: group.getObjectByName('hips'),
-    legL: group.getObjectByName('legL'),
-    legR: group.getObjectByName('legR'),
-    shinL: group.getObjectByName('shinL'),
-    shinR: group.getObjectByName('shinR'),
-    armL: group.getObjectByName('armL'),
-    armR: group.getObjectByName('armR'),
-    foreL: group.getObjectByName('foreL'),
-    foreR: group.getObjectByName('foreR'),
-    torso: group.getObjectByName('torso'),
-    head: group.getObjectByName('head'),
-  };
-}
-
-const rot = (n: THREE.Object3D | undefined, x: number, y = 0, z = 0): void => {
-  if (n) n.rotation.set(x, y, z);
-};
-
 /** WORK.* byte → the tool animation to play. */
 function workAnimKey(workKind: number): AnimKey {
   switch (workKind) {
@@ -145,141 +108,6 @@ function workAnimKey(workKind: number): AnimKey {
 /** Fallback "death animation" for rigs with no death clip: keel over. */
 function tipOver(group: THREE.Object3D, dt: number): void {
   group.rotation.x = Math.max(group.rotation.x - dt * 4, -Math.PI / 2);
-}
-
-/** Smoothstep 0..1 — eases anticipation in and recoveries out. */
-const ease = (u: number): number => u * u * (3 - 2 * u);
-
-/**
- * Procedural skeletal animation: what you do is what you show. The model
- * faces +z, so negative rotation.x swings a hanging limb forward; knees only
- * fold positive, elbows only negative. Phase offsets by id keep a crowd from
- * moving in lockstep.
- */
-function animate(
-  rig: Rig,
-  id: number,
-  now: number,
-  moving: boolean,
-  action: number,
-  carrying: boolean,
-): void {
-  const phase = now * 0.012 + id * 2.1;
-
-  if (moving) {
-    const swing = Math.sin(phase);
-    // Contra-lateral gait with pelvic rotation; the torso counter-rotates
-    // and the head stabilizes against both.
-    rot(rig.legL, swing * 0.55);
-    rot(rig.legR, -swing * 0.55);
-    // Knees fold through the recovery swing, extend into heel-strike.
-    rot(rig.shinL, 0.1 + Math.max(0, -Math.cos(phase)) * 0.85);
-    rot(rig.shinR, 0.1 + Math.max(0, Math.cos(phase)) * 0.85);
-    if (rig.hips) rig.hips.rotation.set(0, -swing * 0.08, 0);
-    if (carrying) {
-      // Both hands up steadying the shoulder load; heavier forward lean.
-      rot(rig.armL, -2.35);
-      rot(rig.armR, -2.35);
-      rot(rig.foreL, -0.55);
-      rot(rig.foreR, -0.55);
-      rot(rig.torso, 0.14, swing * 0.05);
-    } else {
-      rot(rig.armL, -swing * 0.5, 0, -0.05);
-      rot(rig.armR, swing * 0.5, 0, 0.05);
-      // Standing elbow bend that folds further on the fore-swing.
-      rot(rig.foreL, -0.3 - Math.max(0, swing) * 0.45);
-      rot(rig.foreR, -0.3 - Math.max(0, -swing) * 0.45);
-      rot(rig.torso, 0.07, swing * 0.1, swing * 0.03);
-    }
-    rot(rig.head, -0.04, -(rig.torso?.rotation.y ?? 0) * 0.7);
-    return;
-  }
-
-  if (action === ACTION.work) {
-    // Anticipation -> strike -> recover: slow eased windup, whip-fast fall
-    // (accelerating, not linear), brief follow-through past the bottom.
-    const t = (now * 0.0016 + id * 0.37) % 1;
-    let lift: number; // 0 rest .. 1 overhead
-    let through = 0; // follow-through carry past the strike point
-    if (t < 0.55) {
-      lift = ease(t / 0.55);
-    } else if (t < 0.7) {
-      const u = (t - 0.55) / 0.15;
-      lift = 1 - u * u;
-    } else {
-      lift = 0;
-      through = Math.sin(((t - 0.7) / 0.3) * Math.PI) * 0.3;
-    }
-    rot(rig.armR, -0.4 - lift * 2.0 + through);
-    rot(rig.foreR, -0.25 - lift * 0.9); // elbow cocks up, extends at impact
-    rot(rig.armL, -0.25 - lift * 0.35);
-    rot(rig.foreL, -0.5);
-    rot(rig.torso, 0.06 + (1 - lift) * 0.22, -0.12 + lift * 0.18);
-    rot(rig.head, 0.16 - (1 - lift) * 0.08); // eyes on the work
-    // Planted working stance, knees loaded.
-    rot(rig.legL, 0.26);
-    rot(rig.shinL, 0.3);
-    rot(rig.legR, -0.3);
-    rot(rig.shinR, 0.22);
-    if (rig.hips) rig.hips.rotation.set(0, 0.08, 0);
-    return;
-  }
-
-  if (action === ACTION.fight) {
-    // Sword cut: coil over the rear shoulder, explosive diagonal cut
-    // driven from the hips, settle back to guard.
-    const t = (now * 0.004 + id * 0.61) % 1;
-    let raise: number; // 0 low .. 1 coiled overhead
-    let drive: number; // 0 coiled back .. 1 hips driven through the cut
-    if (t < 0.45) {
-      raise = ease(t / 0.45);
-      drive = 0;
-    } else if (t < 0.58) {
-      const u = (t - 0.45) / 0.13;
-      raise = 1 - u * u;
-      drive = u;
-    } else {
-      raise = 0;
-      drive = 1 - ease(Math.min(1, ((t - 0.58) / 0.42) * 1.4));
-    }
-    rot(rig.armR, -0.55 - raise * 1.95, -raise * 0.25);
-    rot(rig.foreR, -0.2 - raise * 1.0);
-    // Off hand up in guard.
-    rot(rig.armL, -0.85, 0.15);
-    rot(rig.foreL, -1.05);
-    rot(rig.torso, 0.1 + drive * 0.14, -0.25 - raise * 0.2 + drive * 0.8);
-    rot(rig.head, 0.04, -(rig.torso?.rotation.y ?? 0) * 0.55); // eyes on target
-    // Front-back stance; the lead knee loads through the cut.
-    rot(rig.legL, -0.4 + drive * 0.12);
-    rot(rig.shinL, 0.35 + drive * 0.25);
-    rot(rig.legR, 0.45 - drive * 0.1);
-    rot(rig.shinR, 0.12);
-    if (rig.hips) rig.hips.rotation.set(0, -0.15 + drive * 0.3, 0);
-    return;
-  }
-
-  // Idle: weight settles onto one hip with a slow sway, quiet breath, and
-  // an occasional glance around.
-  const breath = Math.sin(now * 0.002 + id);
-  const sway = Math.sin(now * 0.0009 + id * 1.3);
-  rot(rig.legL, 0.02 - sway * 0.02, 0, sway * 0.03);
-  rot(rig.legR, -0.02 + sway * 0.02, 0, sway * 0.03);
-  rot(rig.shinL, 0.06 + Math.max(0, sway) * 0.05);
-  rot(rig.shinR, 0.06 + Math.max(0, -sway) * 0.05);
-  if (rig.hips) rig.hips.rotation.set(0, 0, sway * 0.035);
-  if (carrying) {
-    rot(rig.armL, -2.35);
-    rot(rig.armR, -2.35);
-    rot(rig.foreL, -0.55);
-    rot(rig.foreR, -0.55);
-  } else {
-    rot(rig.armL, breath * 0.03, 0, -0.06);
-    rot(rig.armR, -breath * 0.03, 0, 0.06);
-    rot(rig.foreL, -0.22 - breath * 0.02);
-    rot(rig.foreR, -0.22 - breath * 0.02);
-  }
-  rot(rig.torso, 0.03 + breath * 0.02, sway * 0.05, -sway * 0.025);
-  rot(rig.head, breath * 0.015, Math.sin(now * 0.0006 + id * 2.7) * 0.35);
 }
 
 const hpBarGeometry = new THREE.PlaneGeometry(0.5, 0.06);
@@ -521,33 +349,22 @@ export class SceneSync {
         visual = undefined;
       }
       if (!visual) {
+        // Assets are guaranteed by boot (the loaders retry and then fail
+        // the whole boot loudly) — a miss here is a programming error, not
+        // a network condition, and the old silent fallback to the
+        // procedural person hid exactly that difference.
         const skinned = makeCharacter(kind, profession, owner);
-        if (skinned) {
-          visual = {
-            group: skinned.group,
-            kind: kindKey,
-            carrying: 0,
-            carryBox: null,
-            hpBar: null,
-            char: skinned.visual,
-            rig: null,
-            sepX: 0,
-            sepY: 0,
-          };
-        } else {
-          const group = makeUnitModel(kind);
-          visual = {
-            group,
-            kind: kindKey,
-            carrying: 0,
-            carryBox: null,
-            hpBar: null,
-            char: null,
-            rig: rigOf(group),
-            sepX: 0,
-            sepY: 0,
-          };
-        }
+        if (!skinned) throw new Error(`no character for kind ${kind}`);
+        visual = {
+          group: skinned.group,
+          kind: kindKey,
+          carrying: 0,
+          carryBox: null,
+          hpBar: null,
+          char: skinned.visual,
+          sepX: 0,
+          sepY: 0,
+        };
         this.#visuals.set(id, visual);
         this.#scene.add(visual.group);
       }
@@ -651,9 +468,6 @@ export class SceneSync {
           playAnimation(visual.char, key, key === 'death' ? 0 : hash2(id, 3));
         }
         visual.char.mixer.update(dt);
-      } else if (visual.rig) {
-        if (dead) tipOver(visual.group, dt);
-        else animate(visual.rig, id, animNow, moving, action, carrying > 0);
       }
 
       // Body bob synced to the gait: high at mid-stance, low at heel-strike.

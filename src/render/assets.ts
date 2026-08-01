@@ -158,8 +158,34 @@ function normalize(scene: THREE.Group): THREE.Group {
   return out;
 }
 
+/**
+ * Load one GLTF with retries: transient fetch failures (a dev-server
+ * restart mid-flight, a flaky connection) used to reject the whole asset
+ * Promise.all and silently dress the entire game in the procedural
+ * fallback — which wore the legacy japan look and read as a different
+ * game. Three attempts with a growing pause covers the transient class;
+ * a real failure still throws, and boot turns it into a visible error
+ * instead of a costume change.
+ */
+export async function loadGltfRetry(
+  loader: GLTFLoader,
+  url: string,
+  attempts = 3,
+): Promise<Awaited<ReturnType<GLTFLoader['loadAsync']>>> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await loader.loadAsync(url);
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 350 * (i + 1)));
+    }
+  }
+  throw new Error(`asset failed after ${attempts} attempts: ${url} (${String(lastErr)})`);
+}
+
 export async function loadGlbAssets(): Promise<boolean> {
-  try {
+  {
     const loader = new GLTFLoader();
     const files = new Set(Object.values(BUILDING_FILES));
     const TREE_FILES = ['tree_single_A.gltf', 'tree_single_B.gltf'];
@@ -168,7 +194,7 @@ export async function loadGlbAssets(): Promise<boolean> {
     await Promise.all(
       [...files, ...TREE_FILES, ...ROCK_FILES, ...DECOR_PROP_FILES.map((p) => `${p}.gltf`)].map(
         async (f) => {
-        const gltf = await loader.loadAsync(`${DIR}${f}`);
+        const gltf = await loadGltfRetry(loader, `${DIR}${f}`);
         gltf.scene.traverse((o) => {
           if (o instanceof THREE.Mesh) {
             o.castShadow = true;
@@ -371,9 +397,6 @@ export async function loadGlbAssets(): Promise<boolean> {
     }
     assets = { buildings, trees, rocks, natureMaterial, props };
     return true;
-  } catch (err) {
-    console.warn('[assets] falling back to procedural models:', err);
-    return false;
   }
 }
 

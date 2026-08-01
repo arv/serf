@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import {
-  makeBuildingModel,
   makeGhostModel,
   makePileProp,
   makeSiteFrame,
   PILE_SCALE,
+  makeRoadPile,
 } from './models';
 import { glbYardProp, glbYardRock, makeGlbBuilding } from './assets';
 import { eachMaterial, mapMaterials } from './materials';
@@ -269,7 +269,9 @@ export class BuildingSync {
         root.add(model);
       }
     } else {
-      model = makeGlbBuilding(b.type, b.owner) ?? makeBuildingModel(b.type);
+      // Roads are the one type without a GLB — their 'built' form is the
+      // terrain itself, so the pile marker covers the site moment only.
+      model = makeGlbBuilding(b.type, b.owner) ?? makeRoadPile();
       root.add(model);
     }
 
