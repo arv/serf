@@ -7,7 +7,7 @@ import type { AdminAction } from '../sim/commands';
 import { TechTreePanel } from './TechTreePanel';
 import { SelectionPanel } from './SelectionPanel';
 import { AdminPanel } from './AdminPanel';
-import { FastIcon, GoodIcon, LockIcon, PauseIcon, PlayIcon } from './icons';
+import { FastIcon, GoodIcon, LockIcon, PauseIcon, PlayIcon, BandIcon, MalletIcon, SwordsIcon } from './icons';
 import { BuildingTip, GoodTip, TextTip, TipWrap, TooltipLayer, tooltip } from './tooltip';
 import { buildingName, techName } from './names';
 import {
@@ -601,7 +601,7 @@ export function Hud(props: {
               ))}
               onClick={() => setBandArm(!bandArm())}
             >
-              ⬚
+              <BandIcon />
             </button>
             <button
               {...tooltip(() => (
@@ -609,7 +609,7 @@ export function Hud(props: {
               ))}
               onClick={() => props.onSelectArmy()}
             >
-              ⚔
+              <SwordsIcon />
             </button>
           </div>
         </Show>
@@ -618,7 +618,7 @@ export function Hud(props: {
           when={buildVisible()}
           fallback={
             <button class="hud-build-pill panel" onClick={() => setBuildOpen(true)}>
-              🔨 Build
+              <MalletIcon /> Build
               <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
             </button>
           }

@@ -157,3 +157,47 @@ export function FastIcon() {
     </svg>
   );
 }
+
+/** Band-select: viewfinder corners, the box you are about to drag. */
+export function BandIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
+      <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+        <path d="M2 5V3.5A1.5 1.5 0 0 1 3.5 2H5" />
+        <path d="M11 2h1.5A1.5 1.5 0 0 1 14 3.5V5" />
+        <path d="M14 11v1.5a1.5 1.5 0 0 1-1.5 1.5H11" />
+        <path d="M5 14H3.5A1.5 1.5 0 0 1 2 12.5V11" />
+      </g>
+    </svg>
+  );
+}
+
+/** Crossed swords for mustering the army. */
+export function SwordsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
+      <g fill="none" stroke-linecap="round">
+        <path d="M3.2 2.6l8.2 8.2M12.8 2.6l-8.2 8.2" stroke="#aeb6bf" stroke-width="1.7" />
+        <path d="M9.6 12.2l2.6-2.6M3.8 9.6l2.6 2.6" stroke="#c8a84a" stroke-width="1.6" />
+        <path d="M12.6 13.2l1 1M3.4 13.2l-1 1" stroke="#8a6a42" stroke-width="1.8" />
+      </g>
+    </svg>
+  );
+}
+
+/** The builder's mallet, for the build menu. */
+export function MalletIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
+      <path
+        d="M9 8.6L3.6 14"
+        stroke="#a08356"
+        stroke-width="1.9"
+        stroke-linecap="round"
+        fill="none"
+      />
+      <path d="M6.6 4.4 11.4 9.2 14 6.6 13.2 3.4 10 2.4 6.6 4.4Z" fill="#9aa3ad" />
+      <path d="M6.6 4.4 11.4 9.2" stroke="#79818c" stroke-width="1" />
+    </svg>
+  );
+}
