@@ -8,13 +8,13 @@ export const TICKS_PER_SECOND = 20;
 export const TICK_MS = 1000 / TICKS_PER_SECOND;
 
 // Population economy: serfs staff every production building and become
-// soldiers, so the starting pool is bigger and hiring cheaper.
-// One extra pair of hands since builders joined the population economy:
-// every site borrows a serf while it rises.
-// 12 hands since the mountain/lake worldgen: routes detour around water
-// and the ore ring sits farther out, so the same build-out consumes more
-// serf-hours before the silver economy can fund hires.
-export const START_SERFS = 12;
+// soldiers. The pool starts scarce on purpose — with hands to spare, build
+// order is just a queue; when staffing one building means not staffing
+// another, every placement is a decision. Growth comes from hiring (paid
+// in silver), so expanding the village is itself an economic choice.
+// 8 is the tested floor: at 6 the campaign AI falls to the raids and AI-vs-AI
+// stalemates, even with the silver-first build order (see ai.ts).
+export const START_SERFS = 8;
 // The village armory holds a few old weapons so a Bushidō rush can field
 // defenders before the first raid without the full iron chain.
 export const START_STOCK: GoodAmounts = {

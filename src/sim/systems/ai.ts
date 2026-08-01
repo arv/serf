@@ -77,17 +77,18 @@ export class AiBrain {
       wants.push(['quarry', 1, findSpot(world, 'quarry', tileX(rocks), tileY(rocks), 6)]);
     }
     wants.push(['terakoya', 1, findSpot(world, 'terakoya', baseX, baseY)]);
+    // Silver before the dojo: the pool starts lean, so replacement hands
+    // are bought — and research, weapons and hiring all drain the same
+    // purse. Income first is what makes the rest of the plan affordable.
+    const silverSeam = nearestResource(world, TileResource.SilverDep, baseX, baseY);
+    if (silverSeam >= 0) {
+      wants.push(['silverMine', 1, findSpot(world, 'silverMine', tileX(silverSeam), tileY(silverSeam), 4)]);
+    }
     if (techs.researched.includes('bushido')) {
       wants.push(['dojo', 1, findSpot(world, 'dojo', baseX, baseY)]);
     }
     wants.push(['well', 1, findSpot(world, 'well', baseX, baseY)]);
     wants.push(['ricePaddy', 1, findSpot(world, 'ricePaddy', baseX, baseY)]);
-    if (has('dojo')) {
-      const silverSeam = nearestResource(world, TileResource.SilverDep, baseX, baseY);
-      if (silverSeam >= 0) {
-        wants.push(['silverMine', 1, findSpot(world, 'silverMine', tileX(silverSeam), tileY(silverSeam), 4)]);
-      }
-    }
     if (iron) {
       const seam = nearestResource(world, TileResource.IronDep, baseX, baseY);
       if (seam >= 0) {
