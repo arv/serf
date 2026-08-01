@@ -31,6 +31,9 @@ export function mountHud(host: SimHost, actions: HudActions): void {
         onTogglePause={(buildingId, paused) =>
           host.sendCommands([{ kind: 'setBuildingPaused', buildingId, paused }])
         }
+        onSetRecipe={(buildingId, index) =>
+          host.sendCommands([{ kind: 'setBuildingRecipe', buildingId, index }])
+        }
         onResearch={(tech) => host.sendCommands([{ kind: 'research', tech }])}
         onTrain={(buildingId, unit) =>
           host.sendCommands([{ kind: 'trainUnit', buildingId, unit }])

@@ -53,6 +53,8 @@ export interface BuildingSnap {
   /** Staffing state (undefined = building needs no worker). */
   staffing?: 'staffed' | 'recruiting' | 'needed';
   paused?: boolean;
+  /** Active recipeOptions index (weaponsmith forge menu). */
+  recipeIndex?: number;
 }
 
 /** Debug-overlay row for a haul job. */

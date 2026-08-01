@@ -1,5 +1,5 @@
 import { JOB_BLOCKED_BACKOFF, MATCHER_INTERVAL, ABBEY_ALE_CAP } from '../defs/balance.ts';
-import { INPUT_CAP, buildingDef } from '../defs/buildings.ts';
+import { INPUT_CAP, buildingDef, convertRecipeOf, outputGoodsOf } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
@@ -139,8 +139,9 @@ function match(world: World): void {
     if (b.state !== 'built') continue;
 
     // Convert recipes demand their input goods (priority 2).
-    if (def.recipe?.kind === 'convert' && !b.paused) {
-      for (const good of Object.keys(def.recipe.inputs) as GoodId[]) {
+    const convert = convertRecipeOf(def, b);
+    if (convert && !b.paused) {
+      for (const good of Object.keys(convert.inputs) as GoodId[]) {
         const want = INPUT_CAP - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0 && !suspended(world, b, good)) {
           demands.push(demandOf(world, b, good, want, 2));
@@ -169,12 +170,10 @@ function match(world: World): void {
 
     // Producers evacuate their outputs to the storehouse (priority 3) —
     // modeled as a demand *by the storehouse*, pinned to the supplier.
-    if (def.recipe && !def.storage) {
-      const outputs =
-        def.recipe.kind === 'gather'
-          ? [def.recipe.output]
-          : (Object.keys(def.recipe.outputs) as GoodId[]);
-      for (const good of outputs) {
+    if ((def.recipe || def.recipeOptions) && !def.storage) {
+      // Every good the building can ever emit — a smith switched off
+      // bowmaking still ships its leftover bows.
+      for (const good of outputGoodsOf(def)) {
         const surplus = availableOut(b, good);
         if (surplus > 0) {
           const storehouse = storehouseOf(b.owner);
@@ -343,10 +342,10 @@ function deliveryTargetFor(world: World, owner: Owner, good: GoodId): Building |
       continue;
     }
     const def = buildingDef(b.type);
+    const convert = convertRecipeOf(def, b);
     const wantsInput =
       !b.paused &&
-      ((def.recipe?.kind === 'convert' && (def.recipe.inputs[good] ?? 0) > 0) ||
-        (b.type === 'abbey' && good === 'ale'));
+      (((convert?.inputs[good] ?? 0) > 0) || (b.type === 'abbey' && good === 'ale'));
     if (wantsInput && (b.inputs[good] ?? 0) + (b.inbound[good] ?? 0) < INPUT_CAP) return b;
   }
   return home;
@@ -515,7 +514,7 @@ function deliver(world: World, to: Building, good: GoodId): void {
     return;
   }
   const def = buildingDef(to.type);
-  if (def.recipe?.kind === 'convert' && (def.recipe.inputs[good] ?? 0) > 0) {
+  if ((convertRecipeOf(def, to)?.inputs[good] ?? 0) > 0) {
     to.inputs[good] = (to.inputs[good] ?? 0) + 1;
   } else if (to.type === 'abbey' && good === 'ale') {
     to.inputs.ale = (to.inputs.ale ?? 0) + 1;

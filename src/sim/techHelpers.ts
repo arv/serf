@@ -28,7 +28,10 @@ export function getModifier(world: World, owner: Owner, key: ModifierKey): numbe
 export function isBuildingUnlocked(world: World, owner: Owner, type: BuildingTypeId): boolean {
   const req = buildingDef(type).requiresTech;
   if (req === undefined) return true;
-  return world.players[owner]?.techs.researched.includes(req) ?? false;
+  const researched = world.players[owner]?.techs.researched ?? [];
+  // An array means any one of them opens the door (the weaponsmith comes
+  // with ironworking or archery, whichever lands first).
+  return Array.isArray(req) ? req.some((t) => researched.includes(t)) : researched.includes(req);
 }
 
 /** Units named by an unlockUnit effect are gated; everything else is free. */

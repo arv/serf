@@ -55,7 +55,7 @@ const BUILD_GROUPS: { label: string; types: BuildingTypeId[] }[] = [
   { label: 'Village', types: ['woodcutter', 'quarry', 'well', 'wheatFarm', 'abbey'] },
   {
     label: 'Industry',
-    types: ['brewery', 'ironMine', 'silverMine', 'goldMine', 'swordsmith', 'spearmaker', 'bowyer'],
+    types: ['brewery', 'ironMine', 'silverMine', 'goldMine', 'weaponsmith'],
   },
   { label: 'War', types: ['barracks'] },
 ];
@@ -73,6 +73,7 @@ export function Hud(props: {
   onDismiss: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
   onTogglePause: (buildingId: number, paused: boolean) => void;
+  onSetRecipe: (buildingId: number, index: number) => void;
 }) {
   // The sim rejects admin commands in a match (world.admin.enabled is
   // false), so every button here no-ops — except the fog toggle, which
@@ -100,7 +101,9 @@ export function Hud(props: {
   };
   const unlocked = (type: BuildingTypeId): boolean => {
     const req = BUILDING_DEFS[type].requiresTech;
-    return req === undefined || techs().researched.includes(req);
+    if (req === undefined) return true;
+    const researched = techs().researched;
+    return Array.isArray(req) ? req.some((t) => researched.includes(t)) : researched.includes(req);
   };
   const soloMode = (): boolean => playersMeta().length <= 1;
   const won = (): boolean => {
@@ -683,6 +686,7 @@ export function Hud(props: {
           onDismiss={props.onDismiss}
           onSell={props.onSell}
           onTogglePause={props.onTogglePause}
+          onSetRecipe={props.onSetRecipe}
         />
       </div>
 

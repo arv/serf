@@ -94,8 +94,12 @@ export class AiBrain {
       if (seam >= 0) {
         wants.push(['ironMine', 1, findSpot(world, 'ironMine', tileX(seam), tileY(seam), 4)]);
       }
-      wants.push(['spearmaker', 1, findSpot(world, 'spearmaker', baseX, baseY)]);
-      wants.push(['swordsmith', 1, findSpot(world, 'swordsmith', baseX, baseY)]);
+      if (has('barracks')) {
+        // Weapons need somewhere to train their bearers: the smiths wait
+        // for the barracks, or their wood hunger keeps it unaffordable
+        // forever (the army-less death the winnable test caught).
+        wants.push(['weaponsmith', 2, findSpot(world, 'weaponsmith', baseX, baseY)]);
+      }
     }
     for (const [type, desired, spot] of wants) {
       if (!spot || countOf(type) >= desired) continue;
@@ -131,6 +135,20 @@ export class AiBrain {
         const ok = Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
         if (ok) commands.push({ kind: 'research', tech: next });
       }
+    }
+
+    // --- Forge assignments: first smith on swords, the rest on spears -------
+    // The same weapon mix the old separate swordsmith and spearmaker gave.
+    if (iron) {
+      const smiths = mine
+        .filter((b) => b.type === 'weaponsmith' && b.state === 'built')
+        .sort((a, z) => a.id - z.id);
+      smiths.forEach((smith, i) => {
+        const want = i === 0 ? 1 : 0; // recipeOptions: [spear, sword, bow]
+        if ((smith.recipeIndex ?? 0) !== want) {
+          commands.push({ kind: 'setBuildingRecipe', buildingId: smith.id, index: want });
+        }
+      });
     }
 
     // --- Keep the barracks queue warm --------------------------------------------

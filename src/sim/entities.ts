@@ -60,6 +60,11 @@ export interface Building {
   recruitId?: EntityId;
   /** Convert recipe: ticks left on the current batch (undefined = not running). */
   prodTicksLeft?: number;
+  /** Selected option in the def's recipeOptions (weaponsmith forge menu). */
+  recipeIndex?: number;
+  /** The option the running batch was started with: a switch mid-batch
+   * must not change what comes out of the kiln. */
+  prodRecipeIndex?: number;
   /** Military training queue (barracks). */
   trainQueue?: { unit: UnitTypeId; ticksLeft: number; started: boolean }[];
   /** Paid-for serf hires still on their way in (storehouse), and the ticks

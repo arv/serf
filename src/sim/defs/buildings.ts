@@ -43,6 +43,10 @@ export interface BuildingDef {
   sight: number;
   storage?: boolean;
   recipe?: Recipe;
+  /** Player-selectable convert recipes (the weaponsmith's forge menu).
+   * The building's recipeIndex picks the active one; options may be
+   * individually tech-gated on top of the building's own unlock. */
+  recipeOptions?: { recipe: Recipe & { kind: 'convert' }; requiresTech?: TechId }[];
   /** Resident worker spawned when construction completes (gather recipes). */
   workerKind?: UnitTypeId;
   /** Placement: requires a matching deposit tile within `radius` of the footprint. */
@@ -55,8 +59,9 @@ export interface BuildingDef {
   isRoad?: boolean;
   /** Hidden from the build menu (system-placed). */
   systemOnly?: boolean;
-  /** Must be researched before this building can be placed. */
-  requiresTech?: TechId;
+  /** Must be researched before this building can be placed (an array
+   * means any one of them suffices). */
+  requiresTech?: TechId | TechId[];
   /** Military training (barracks): unit options with costs + duration. */
   trains?: { unit: UnitTypeId; cost: GoodAmounts; durationTicks: number }[];
 }
@@ -75,9 +80,7 @@ export type BuildingTypeId =
   | 'ironMine'
   | 'silverMine'
   | 'goldMine'
-  | 'swordsmith'
-  | 'spearmaker'
-  | 'bowyer'
+  | 'weaponsmith'
   | 'abbey'
   | 'barracks'
   | 'roadSite';
@@ -213,10 +216,13 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     recipe: { kind: 'gather', resource: 'goldDep', output: 'gold', radius: 4, workTicks: 5 * S },
     nearDeposit: { resource: 'goldDep', radius: 4 },
   },
-  swordsmith: {
-    id: 'swordsmith',
-    name: 'Swordsmith',
-    requiresTech: 'ironworking' as const,
+  weaponsmith: {
+    id: 'weaponsmith',
+    name: 'Weaponsmith',
+    // Either war path opens the forge; what it can forge is gated per
+    // recipe below. (Sword-, spear- and bowmaking shared one roof — and,
+    // it turned out, one model — so they share one building.)
+    requiresTech: ['ironworking', 'archery'] as const as ('ironworking' | 'archery')[],
     w: 2,
     h: 2,
     cost: { wood: 10, stone: 6 },
@@ -224,48 +230,35 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 180,
     sight: 5.5,
     workerKind: 'worker',
-    recipe: {
-      kind: 'convert',
-      inputs: { iron: 2, wood: 1 },
-      outputs: { sword: 1 },
-      durationTicks: 14 * S,
-    },
-  },
-  spearmaker: {
-    id: 'spearmaker',
-    name: 'Spearmaker',
-    requiresTech: 'ironworking' as const,
-    w: 2,
-    h: 2,
-    cost: { wood: 8, stone: 4 },
-    buildTicks: 18 * S,
-    hp: 160,
-    sight: 5.5,
-    workerKind: 'worker',
-    recipe: {
-      kind: 'convert',
-      inputs: { iron: 1, wood: 2 },
-      outputs: { spear: 1 },
-      durationTicks: 10 * S,
-    },
-  },
-  bowyer: {
-    id: 'bowyer',
-    name: 'Bowyer',
-    requiresTech: 'archery' as const,
-    w: 2,
-    h: 2,
-    cost: { wood: 8 },
-    buildTicks: 18 * S,
-    hp: 140,
-    sight: 5.5,
-    workerKind: 'worker',
-    recipe: {
-      kind: 'convert',
-      inputs: { wood: 3 },
-      outputs: { bow: 1 },
-      durationTicks: 8 * S,
-    },
+    recipeOptions: [
+      {
+        recipe: {
+          kind: 'convert',
+          inputs: { iron: 1, wood: 2 },
+          outputs: { spear: 1 },
+          durationTicks: 10 * S,
+        },
+        requiresTech: 'ironworking' as const,
+      },
+      {
+        recipe: {
+          kind: 'convert',
+          inputs: { iron: 2, wood: 1 },
+          outputs: { sword: 1 },
+          durationTicks: 14 * S,
+        },
+        requiresTech: 'ironworking' as const,
+      },
+      {
+        recipe: {
+          kind: 'convert',
+          inputs: { wood: 3 },
+          outputs: { bow: 1 },
+          durationTicks: 8 * S,
+        },
+        requiresTech: 'archery' as const,
+      },
+    ],
   },
   abbey: {
     id: 'abbey',
@@ -311,4 +304,29 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
 
 export function buildingDef(id: BuildingTypeId): BuildingDef {
   return BUILDING_DEFS[id];
+}
+
+/** The active convert recipe: the fixed one, or the option the building's
+ * recipeIndex selects (weaponsmith). Undefined for gatherers and storage. */
+export function convertRecipeOf(
+  def: BuildingDef,
+  b?: { recipeIndex?: number },
+): (Recipe & { kind: 'convert' }) | undefined {
+  if (def.recipe?.kind === 'convert') return def.recipe;
+  return def.recipeOptions?.[b?.recipeIndex ?? 0]?.recipe;
+}
+
+/** Every good this building can ever emit — evacuation must keep hauling
+ * a weapon the smith no longer forges. */
+export function outputGoodsOf(def: BuildingDef): GoodId[] {
+  if (def.recipe) {
+    return def.recipe.kind === 'gather'
+      ? [def.recipe.output]
+      : (Object.keys(def.recipe.outputs) as GoodId[]);
+  }
+  const out = new Set<GoodId>();
+  for (const opt of def.recipeOptions ?? []) {
+    for (const g of Object.keys(opt.recipe.outputs) as GoodId[]) out.add(g);
+  }
+  return [...out];
 }

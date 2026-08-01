@@ -52,9 +52,10 @@ describe('convert chains', () => {
     expect(brewery.inputs.water ?? 0).toBe(0);
   });
 
-  it('weapon chain: swordsmith turns iron+wood into sword', () => {
+  it('weapon chain: the weaponsmith on swords turns iron+wood into sword', () => {
     const world = bareWorld();
-    const smith = placeBuiltBuilding(world, 'swordsmith', 0, 30, 30);
+    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 30, 30);
+    smith.recipeIndex = 1; // recipeOptions: [spear, sword, bow]
     staffBuilding(world, smith);
     smith.inputs.iron = 2;
     smith.inputs.wood = 1;

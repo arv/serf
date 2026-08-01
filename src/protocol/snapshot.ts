@@ -51,6 +51,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     reservedOut: { ...b.reservedOut },
     trainQueue: b.trainQueue?.map((q) => ({ unit: q.unit, started: q.started })),
     paused: b.paused,
+    recipeIndex: b.recipeIndex,
     hireQueue: b.hireQueue,
     hireProgress01: b.hireQueue
       ? 1 - (b.hireTicksLeft ?? HIRE_SERF_TICKS) / HIRE_SERF_TICKS
@@ -168,9 +169,7 @@ function workKindOf(w: World, u: Unit): number {
   if (def.recipe?.kind === 'gather') {
     return def.recipe.resource === 'wood' ? WORK.chop : WORK.pickaxe;
   }
-  if (home.type === 'swordsmith' || home.type === 'spearmaker' || home.type === 'bowyer') {
-    return WORK.hammer;
-  }
+  if (home.type === 'weaponsmith') return WORK.hammer;
   if (home.type === 'wheatFarm') return WORK.dig;
   if (home.type === 'well') return WORK.draw; // cranking the bucket up
   return WORK.tend;

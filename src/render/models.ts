@@ -459,27 +459,7 @@ function makeSwordsmith(): THREE.Group {
   return g;
 }
 
-function makeSpearmaker(): THREE.Group {
-  const g = workshopBase({ wall: TEX.plank(), roofTex: TEX.roofSlate() });
-  const shaft = mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4, 5), goodColorsLocal.spear);
-  shaft.position.set(0.8, 0.7, 0.2);
-  shaft.rotation.z = 0.35;
-  g.add(shaft);
-  const tip = mesh(new THREE.ConeGeometry(0.07, 0.2, 5), goodColorsLocal.sword);
-  tip.position.set(0.56, 1.36, 0.2);
-  tip.rotation.z = 0.35;
-  g.add(tip);
-  return g;
-}
 
-function makeBowyer(): THREE.Group {
-  const g = workshopBase({ wall: TEX.plank(), roofTex: TEX.thatch(), roofFlat: true });
-  const bow = mesh(new THREE.TorusGeometry(0.4, 0.035, 6, 12, Math.PI), goodColorsLocal.bow);
-  bow.position.set(0.85, 0.55, 0.2);
-  bow.rotation.z = Math.PI / 2;
-  g.add(bow);
-  return g;
-}
 
 function makeAbbey(): THREE.Group {
   return workshopBase({ wall: TEX.plaster(), roofTex: TEX.roofVermillion(), size: 1.7 });
@@ -591,9 +571,7 @@ const factories: Record<BuildingTypeId, () => THREE.Group> = {
   ironMine: makeMine(palette.ironOre),
   silverMine: makeMine(palette.silverOre),
   goldMine: makeMine(palette.goldOre),
-  swordsmith: makeSwordsmith,
-  spearmaker: makeSpearmaker,
-  bowyer: makeBowyer,
+  weaponsmith: makeSwordsmith,
   abbey: makeAbbey,
   barracks: makeBarracks,
   roadSite: makeRoadPile,

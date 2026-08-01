@@ -102,10 +102,9 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     durationTicks: 40 * S,
     effects: [
       { kind: 'unlockBuilding', building: 'ironMine' },
-      { kind: 'unlockBuilding', building: 'swordsmith' },
-      { kind: 'unlockBuilding', building: 'spearmaker' },
+      { kind: 'unlockBuilding', building: 'weaponsmith' },
     ],
-    desc: 'Unlocks the Iron Mine, Swordsmith, and Spearmaker.',
+    desc: 'Unlocks the Iron Mine and the Weaponsmith, with spear- and swordmaking.',
   },
   deepMining: {
     id: 'deepMining',
@@ -153,10 +152,10 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     cost: { wood: 8, silver: 6 },
     durationTicks: 30 * S,
     effects: [
-      { kind: 'unlockBuilding', building: 'bowyer' },
+      { kind: 'unlockBuilding', building: 'weaponsmith' },
       { kind: 'unlockUnit', unit: 'archer' },
     ],
-    desc: 'Unlocks the Bowyer and Archers.',
+    desc: 'Unlocks bowmaking at the Weaponsmith, and Archers.',
   },
   mailArmor: {
     id: 'mailArmor',
