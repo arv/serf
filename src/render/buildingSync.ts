@@ -6,7 +6,7 @@ import {
   makeSiteFrame,
   PILE_SCALE,
 } from './models';
-import { glbYardProp, makeGlbBuilding } from './assets';
+import { glbYardProp, glbYardRock, makeGlbBuilding } from './assets';
 import { eachMaterial, mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
 import { GOODS, type GoodId } from '../sim/defs/goods';
@@ -38,6 +38,29 @@ interface BuildingVisual {
   /** Longest footprint side, for sizing the teardown dust. */
   span: number;
 }
+
+/** One yard-stock entry: what good, worn as which look, standing where. */
+interface YardStyle {
+  good: GoodId;
+  /** Pack prop stacks (lumber, cut stone)... */
+  prop?: string;
+  /** ...or spoil boulders tinted to the ore. */
+  rock?: number;
+  /** Normalized template coords: x, z, yaw, per-spot scale factor. */
+  spots: [number, number, number, number][];
+  /** Template-space size of the biggest stack or boulder. */
+  size: number;
+  /** Goods per stack shown. */
+  per: number;
+}
+
+/** The mine model's three cut-out boulder seats (see the surgery in
+ * assets.ts) — shared by the quarry and all three mines. */
+const MINE_SPOTS: [number, number, number, number][] = [
+  [-0.218, 0.245, 0.4, 1],
+  [0.177, 0.337, -0.3, 0.52],
+  [-0.325, 0.274, 1.1, 0.54],
+];
 
 const HP_BAR_W = 1.1;
 
@@ -336,19 +359,34 @@ export class BuildingSync {
    * exact publish where a carrier picks it up. Sites show the materials
    * delivered so far.
    */
-  /** The woodcutter's yard: its wood stock renders as the pack's own
-   * lumber stacks, standing exactly where the model's baked pile stood
-   * before the surgery cut it out (normalized decor coords x the template
-   * scale) — same graphics, same spot, but now the pile is real. */
-  #syncWoodYard(v: BuildingVisual, b: BuildingSnap): boolean {
-    if (b.type !== 'woodcutter' || b.state !== 'built') return false;
-    const SPOTS: [number, number, number][] = [
-      [0.36, 0.28, 0.3],
-      [0.36, -0.04, -0.25],
-      [0.08, 0.3, 0.15],
-    ];
-    const n = (b.stock.wood ?? 0) + (b.inputs.wood ?? 0);
-    const stacks = Math.min(Math.ceil(n / 3), SPOTS.length);
+  /** Producers whose stock lives in the yard: goods render where the
+   * model's baked stock stood before the surgeries cut it out (normalized
+   * template coords x the template scale) — the same graphics the model
+   * shipped with, except a carrier can walk off with them. Spots are
+   * biggest-first; `per` goods fill one stack/boulder. */
+  static #YARDS: Partial<Record<BuildingSnap['type'], YardStyle>> = {
+    woodcutter: {
+      good: 'wood',
+      prop: 'resource_lumber',
+      spots: [
+        [0.36, 0.28, 0.3, 1],
+        [0.36, -0.04, -0.25, 0.9],
+        [0.08, 0.3, 0.15, 0.85],
+      ],
+      size: 0.12,
+      per: 3,
+    },
+    quarry: { good: 'stone', prop: 'resource_stone', spots: MINE_SPOTS, size: 0.12, per: 3 },
+    ironMine: { good: 'iron', rock: 0x9a5f42, spots: MINE_SPOTS, size: 0.153, per: 2 },
+    silverMine: { good: 'silver', rock: 0xdbe4ee, spots: MINE_SPOTS, size: 0.153, per: 2 },
+    goldMine: { good: 'gold', rock: 0xf0bc42, spots: MINE_SPOTS, size: 0.153, per: 2 },
+  };
+
+  #syncYard(v: BuildingVisual, b: BuildingSnap): boolean {
+    const yard = BuildingSync.#YARDS[b.type];
+    if (!yard || b.state !== 'built') return false;
+    const n = (b.stock[yard.good] ?? 0) + (b.inputs[yard.good] ?? 0);
+    const stacks = Math.min(Math.ceil(n / yard.per), yard.spots.length);
     const key = `yard${stacks}`;
     if (key === v.pileKey) return true;
     v.pileKey = key;
@@ -360,12 +398,14 @@ export class BuildingSync {
     const s = Math.min(b.w, b.h) * 1.06;
     const piles = new THREE.Group();
     for (let i = 0; i < stacks; i++) {
-      const [x, z, rot] = SPOTS[i]!;
-      const stack = glbYardProp('resource_lumber', 0.12 * s);
-      if (!stack) return true; // assets missing; nothing to show
-      stack.position.set(x * s, 0, z * s);
-      stack.rotation.y = rot;
-      piles.add(stack);
+      const [x, z, rot, f] = yard.spots[i]!;
+      const item = yard.prop
+        ? glbYardProp(yard.prop, yard.size * f * s)
+        : glbYardRock(yard.rock!, yard.size * f * s);
+      if (!item) return true; // assets missing; nothing to show
+      item.position.set(x * s, 0, z * s);
+      item.rotation.y = rot;
+      piles.add(item);
     }
     v.root.add(piles);
     v.piles = piles;
@@ -373,7 +413,7 @@ export class BuildingSync {
   }
 
   #syncPiles(v: BuildingVisual, b: BuildingSnap): void {
-    if (this.#syncWoodYard(v, b)) return;
+    if (this.#syncYard(v, b)) return;
     const def = buildingDef(b.type);
     const shown: [GoodId, number][] = [];
     for (const g of GOODS) {

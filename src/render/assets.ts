@@ -68,22 +68,10 @@ const DECOR_PROP_FILES = [
 // the woodcutter's baked lumber pile read as planks that were never
 // hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
-  quarry: [
-    { prop: 'resource_stone', at: [0.34, 0.3], size: 0.14 },
-    { prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 },
-  ],
-  ironMine: [
-    { rock: 0x9a5f42, at: [0.35, 0.3], size: 0.2 },
-    { prop: 'wheelbarrow', at: [-0.35, 0.32], size: 0.15, rot: -0.5 },
-  ],
-  silverMine: [
-    { rock: 0xdbe4ee, at: [0.35, 0.3], size: 0.2 },
-    { prop: 'sack', at: [-0.33, 0.33], size: 0.11 },
-  ],
-  goldMine: [
-    { rock: 0xf0bc42, at: [0.35, 0.3], size: 0.2 },
-    { prop: 'sack', at: [-0.33, 0.33], size: 0.11, rot: 1.1 },
-  ],
+  quarry: [{ prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 }],
+  ironMine: [{ prop: 'wheelbarrow', at: [-0.35, 0.32], size: 0.15, rot: -0.5 }],
+  silverMine: [{ prop: 'sack', at: [-0.33, 0.33], size: 0.11 }],
+  goldMine: [{ prop: 'sack', at: [-0.33, 0.33], size: 0.11, rot: 1.1 }],
 };
 
 interface Assets {
@@ -252,6 +240,29 @@ export async function loadGlbAssets(): Promise<boolean> {
         ];
         scene.traverse((o) => {
           if (o instanceof THREE.Mesh && o.name === 'building_lumbermill_green') {
+            for (const [x0, y0, z0, x1, y1, z1] of CUT) {
+              o.geometry = stripTrianglesInBox(
+                o.geometry as THREE.BufferGeometry,
+                new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)),
+              );
+            }
+          }
+        });
+      }
+      if (type === 'quarry' || type === 'ironMine' || type === 'silverMine' || type === 'goldMine') {
+        // The mine model bakes three spoil boulders at its mouth — stock
+        // that was never mined. Cut them (validated component-by-component
+        // like the lumbermill; the rocky mounds and frame lose at most a
+        // ground-level triangle each, hidden under the yard stock that
+        // stands in the same spots). Live ore re-fills the yard through
+        // buildingSync's YARDS table.
+        const CUT: [number, number, number, number, number, number][] = [
+          [-0.6, 0.01, 0.25, -0.27, 0.23, 0.57], // big boulder
+          [0.24, 0.01, 0.5, 0.42, 0.13, 0.68], // small boulder, east
+          [-0.73, 0.01, 0.37, -0.55, 0.16, 0.56], // small boulder, west
+        ];
+        scene.traverse((o) => {
+          if (o instanceof THREE.Mesh && o.name === 'building_mine_green') {
             for (const [x0, y0, z0, x1, y1, z1] of CUT) {
               o.geometry = stripTrianglesInBox(
                 o.geometry as THREE.BufferGeometry,
@@ -456,6 +467,21 @@ export function glbRocks(): {
 } | null {
   if (!assets) return null;
   return { geometries: assets.rocks, material: assets.natureMaterial };
+}
+
+/** A spoil boulder for the mine yards: the scatter rock geometry under a
+ * tinted nature material, scaled like BUILDING_DECOR's rock branch was —
+ * live ore stock wearing the exact look of the decor it replaces. */
+export function glbYardRock(color: number, size: number): THREE.Group | null {
+  if (!assets || !assets.rocks[0]) return null;
+  const mat = (assets.natureMaterial as THREE.MeshLambertMaterial).clone();
+  mat.color.set(color);
+  const boulder = new THREE.Mesh(assets.rocks[0], mat);
+  boulder.castShadow = true;
+  const g = new THREE.Group();
+  g.scale.setScalar(size);
+  g.add(boulder);
+  return g;
 }
 
 /** A pack prop normalized to `height` tall, feet on the ground — the same
