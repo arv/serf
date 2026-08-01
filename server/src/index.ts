@@ -4,6 +4,7 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { decodeState, encodePong } from '../../src/protocol/state.ts';
+import { defaultLobbyConfig, sanitizeLobbyConfig } from '../../src/protocol/lobby.ts';
 import { sanitizeCommands } from '../../src/sim/commands.ts';
 import {
   MAX_COMMANDS_PER_FRAME,
@@ -119,9 +120,10 @@ const LIST_MIN_GAP_MS = 1000;
 
 type LobbyMsg =
   | { t: 'list' }
-  | { t: 'create'; ai?: number; open?: boolean }
+  | { t: 'create'; open?: boolean; config?: unknown }
   | { t: 'join'; code: string }
-  | { t: 'start'; seed: number }
+  | { t: 'config'; config?: unknown }
+  | { t: 'start' }
   | { t: 'rejoin'; token: string };
 
 function sendJson(ws: WebSocket, msg: unknown): void {
@@ -132,7 +134,13 @@ function broadcastRoomState(room: Room): void {
   const seats = room.seats.map((s) => ({ kind: s.kind, connected: s.connected }));
   for (const s of room.seats) {
     if (s.connected && s.ws) {
-      sendJson(s.ws, { t: 'room', code: room.code, yourSeat: s.playerId, seats });
+      sendJson(s.ws, {
+        t: 'room',
+        code: room.code,
+        yourSeat: s.playerId,
+        seats,
+        config: room.config,
+      });
     }
   }
 }
@@ -207,13 +215,14 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
     }
     case 'create': {
       releaseRoom(conn, ws);
-      // The start screen sends open:false for a code-only room.
-      const room = createRoom(msg.open === false ? 'closed' : 'open');
+      // The start screen sends open:false for a code-only room. Settings
+      // come in as a config the host keeps tuning from the council; AI
+      // seats are numbers in it, not chairs, until the match starts.
+      const room = createRoom(
+        msg.open === false ? 'closed' : 'open',
+        sanitizeLobbyConfig(defaultLobbyConfig(), msg.config),
+      );
       const seat = addSeat(room, 'human', ws);
-      // Host-requested AI seats fill in right away (they never connect —
-      // every client simulates them locally).
-      const aiCount = Math.max(0, Math.min(MAX_SEATS - 1, msg.ai ?? 0));
-      for (let i = 0; i < aiCount; i++) addSeat(room, 'ai', null);
       conn.room = room;
       conn.seat = seat;
       broadcastRoomState(room);
@@ -239,14 +248,25 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       broadcastRoomState(room);
       break;
     }
+    case 'config': {
+      const { room, seat } = conn;
+      if (!room || !seat) throw new Error('not in a room');
+      if (room.state !== 'lobby') throw new Error('already started');
+      // Not the host's word: ignored, not fatal — a stale client mustn't
+      // lose its seat over a message the room simply doesn't honor.
+      if (seat.playerId !== 0) break;
+      room.config = sanitizeLobbyConfig(room.config, msg.config);
+      broadcastRoomState(room);
+      break;
+    }
     case 'start': {
       const { room, seat } = conn;
       if (!room || !seat) throw new Error('not in a room');
       if (seat.playerId !== 0) throw new Error('only the host starts the match');
       if (room.state !== 'lobby') throw new Error('already started');
-      // The server builds the world. With one simulator there is no
-      // cross-engine worldgen risk and no blob to ship around.
-      startMatch(room, Number(msg.seed) | 0);
+      // The server builds the world from room.config. With one simulator
+      // there is no cross-engine worldgen risk and no blob to ship around.
+      startMatch(room);
       console.log(`[serf] room ${room.code} started, ${room.seats.length} seat(s)`);
       for (const s of room.seats) {
         if (s.connected && s.ws) {

@@ -98,17 +98,18 @@ async function boot(): Promise<void> {
   if (mp) {
     // Multiplayer: the lobby resolves seats and our seat token, and that is
     // all that crosses. No world blob — the server holds the world and
-    // sends this seat only what it may see.
-    const aiSeats = Math.max(0, Math.min(3, Number(params.get('ai') ?? '0') || 0));
+    // sends this seat only what it may see. URL params only seed the
+    // room's settings; the host tunes them in the War Council from there.
     // ?open=0 hosts an unlisted room — joinable by code, absent from the
     // start screen's browser.
-    const lobby = await runLobby(
-      mp,
-      aiSeats,
-      config.seed,
-      relayUrl(location.search),
-      params.get('open') !== '0',
-    );
+    const lobby = await runLobby(mp, relayUrl(location.search), {
+      open: params.get('open') !== '0',
+      init: {
+        ai: Math.max(0, Math.min(3, Number(params.get('ai') ?? '0') || 0)),
+        bandits: params.get('bandits') !== '0',
+        seed: config.seed,
+      },
+    });
     config = {
       ...config,
       players: lobby.seats,

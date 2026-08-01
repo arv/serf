@@ -1,3 +1,4 @@
+import { DEFAULT_SEED } from '../protocol/lobby';
 import type { WorldConfig } from '../sim/world';
 
 /**
@@ -15,7 +16,7 @@ export function configFromUrl(search: string): GameConfig {
   // broken world; fall back instead. The menu only ever sends digits, but
   // the URL is hand-editable.
   const parsedSeed = Number(params.get('seed'));
-  const seed = Number.isFinite(parsedSeed) && params.get('seed') ? parsedSeed : 20260724;
+  const seed = Number.isFinite(parsedSeed) && params.get('seed') ? parsedSeed : DEFAULT_SEED;
 
   // ?ai=N: skirmish vs N computer opponents (seat 0 = you). ?players=N is
   // the dev testbed: N human seats, the extras sitting inert.

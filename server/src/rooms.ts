@@ -3,6 +3,7 @@ import { createWorld, type World } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
 import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { TICK_MS } from '../../src/sim/defs/balance.ts';
+import { MAX_SEATS, type LobbyConfig } from '../../src/protocol/lobby.ts';
 import type { SimCommand } from '../../src/sim/commands.ts';
 import type { GameEvent, MapDelta } from '../../src/sim/world.ts';
 import { SeatView, recomputeVision, sendHot, sendStruct } from './sync.ts';
@@ -47,12 +48,9 @@ const LIST_LIMIT = 20;
  */
 export const MAX_COMMANDS_PER_FRAME = 32;
 
-/**
- * Seats at the table, humans and AI together. The world only has start
- * layouts for one through four players, so a fifth seat of any kind is a
- * room that can never begin.
- */
-export const MAX_SEATS = 4;
+/** Re-exported for index.ts; the number itself lives with the lobby wire
+ * contract, which the client shares. */
+export { MAX_SEATS };
 
 export interface Room {
   code: string;
@@ -60,6 +58,15 @@ export interface Room {
   /** Open rooms are listed for anyone to join; closed ones need the code. */
   visibility: 'open' | 'closed';
   createdMs: number;
+  /**
+   * Match settings, host-edited from the War Council until the match
+   * starts. Always a sanitized copy — the world is built from this, never
+   * from anything straight off the wire.
+   */
+  config: LobbyConfig;
+  /** In the lobby these are the humans only; the AI seats config asks for
+   * are materialized at startMatch, so a joining human always outranks
+   * a computer for a chair. */
   seats: Seat[];
   /**
    * The authoritative world. It exists only here — clients receive filtered
@@ -97,12 +104,13 @@ function makeCode(): string {
   return rooms.has(code) ? makeCode() : code;
 }
 
-export function createRoom(visibility: 'open' | 'closed' = 'open'): Room {
+export function createRoom(visibility: 'open' | 'closed', config: LobbyConfig): Room {
   const room: Room = {
     code: makeCode(),
     state: 'lobby',
     visibility,
     createdMs: Date.now(),
+    config,
     seats: [],
     closedTick: -1,
     queued: [],
@@ -152,15 +160,20 @@ export function removeSeat(room: Room, seat: Seat): void {
   room.seats.forEach((s, i) => (s.playerId = i));
 }
 
-/** Build the world and start the clock. The server generates it: with one
- * simulator there is no cross-engine worldgen risk, and no blob to ship. */
-export function startMatch(room: Room, seed: number): void {
+/** Build the world and start the clock. The server generates it from the
+ * room's own sanitized settings: with one simulator there is no
+ * cross-engine worldgen risk, and no blob to ship. */
+export function startMatch(room: Room): void {
+  // The computer seats the host asked for, minus the chairs humans took —
+  // AI fills in, it never holds a seat against a person.
+  const aiFill = Math.max(0, Math.min(room.config.ai, MAX_SEATS - room.seats.length));
+  for (let i = 0; i < aiFill; i++) addSeat(room, 'ai', null);
   room.world = createWorld({
-    seed,
+    seed: room.config.seed,
     players: room.seats.map((s) => ({ kind: s.kind })),
     // Cheats are a single-player affair; a networked world never honors them.
     adminEnabled: false,
-    banditsEnabled: true,
+    banditsEnabled: room.config.bandits,
   });
   room.ai = new AiSeats(room.world);
   room.state = 'running';
@@ -329,14 +342,13 @@ export function listOpenRooms(nowMs: number): RoomListing[] {
   const out: RoomListing[] = [];
   for (const room of rooms.values()) {
     if (room.state !== 'lobby' || room.visibility !== 'open') continue;
-    const ai = room.seats.filter((s) => s.kind === 'ai').length;
-    const humans = room.seats.filter((s) => s.kind === 'human');
     out.push({
       code: room.code,
-      // Seats a human could take: the table minus the AI ones.
-      filled: humans.length,
-      total: Math.max(humans.length, MAX_SEATS - ai),
-      ai,
+      // Lobby seats are all human, and AI only fills what stays empty, so
+      // a human can always join until the table itself is full.
+      filled: room.seats.length,
+      total: MAX_SEATS,
+      ai: room.config.ai,
       ageMs: Math.max(0, nowMs - room.createdMs),
     });
   }
