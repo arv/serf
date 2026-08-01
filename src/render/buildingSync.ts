@@ -136,8 +136,50 @@ export class BuildingSync {
       this.#styleBar(v, b.id === this.#hoverId || b.id === this.#selectedId);
     }
     for (const id of [...this.#visuals.keys()]) {
-      if (!seen.has(id)) this.#dispose(id);
+      // Gone from the roster: sold or razed. Instead of popping out of
+      // existence the model goes down into the ground under a puff of
+      // dust (see frame). The site->built swap above stays instant — that
+      // building is not leaving, it is arriving.
+      if (!seen.has(id)) this.#beginTeardown(id);
     }
+  }
+
+  #beginTeardown(id: number): void {
+    const v = this.#visuals.get(id);
+    if (!v) return;
+    this.#visuals.delete(id);
+    if (v.hpBar) {
+      v.root.remove(v.hpBar.group);
+      v.hpBar.group.traverse((o) => {
+        if (o instanceof THREE.Mesh) {
+          o.geometry.dispose();
+          eachMaterial(o, (m) => m.dispose());
+        }
+      });
+      v.hpBar = undefined;
+    }
+    // A ground-hugging dust disc that swells and thins as the walls drop.
+    const dust = new THREE.Mesh(
+      new THREE.RingGeometry(0.25, 0.95, 20),
+      new THREE.MeshBasicMaterial({
+        color: 0xa4906c,
+        transparent: true,
+        opacity: 0.55,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    dust.rotation.x = -Math.PI / 2;
+    dust.position.set(v.root.position.x, v.root.position.y + 0.03, v.root.position.z);
+    this.#scene.add(dust);
+    this.#dying.push({
+      visual: v,
+      t: 0,
+      baseY: v.root.position.y,
+      tiltX: (hash2(id, 7) - 0.5) * 0.22,
+      tiltZ: (hash2(id, 11) - 0.5) * 0.22,
+      dust,
+    });
   }
 
   #create(b: BuildingSnap): BuildingVisual {
@@ -226,6 +268,29 @@ export class BuildingSync {
         v.crank.rotation.x += dt * ((Math.PI * 2) / 1.6);
       }
     }
+    if (this.#dying.length === 0) return;
+    const DURATION = 0.9;
+    for (const d of this.#dying) {
+      d.t = Math.min(d.t + dt / DURATION, 1);
+      // Ease-in sink: slow shudder first, then the drop.
+      const sink = d.t * d.t;
+      const { root } = d.visual;
+      root.position.y = d.baseY - sink * (d.visual.topY + 0.4);
+      root.rotation.x = d.tiltX * d.t;
+      root.rotation.z = d.tiltZ * d.t;
+      const spread = 0.7 + d.t * 1.1;
+      d.dust.scale.setScalar(spread);
+      (d.dust.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - d.t);
+    }
+    for (let i = this.#dying.length - 1; i >= 0; i--) {
+      const d = this.#dying[i]!;
+      if (d.t < 1) continue;
+      this.#scene.remove(d.visual.root, d.dust);
+      d.dust.geometry.dispose();
+      (d.dust.material as THREE.Material).dispose();
+      this.#freeGpu(d.visual);
+      this.#dying.splice(i, 1);
+    }
   }
 
   /**
@@ -288,6 +353,18 @@ export class BuildingSync {
   #hoverId = -1;
   #selectedId = -1;
 
+  /** Visuals mid-teardown: the building already left the roster, the model
+   * is sinking into its own dust. Purely cosmetic — picking, fog and the
+   * mirror all forgot the building the moment the roster did. */
+  #dying: {
+    visual: BuildingVisual;
+    t: number;
+    baseY: number;
+    tiltX: number;
+    tiltZ: number;
+    dust: THREE.Mesh;
+  }[] = [];
+
   #styleBar(v: BuildingVisual, highlighted: boolean): void {
     if (!v.hpBar) return;
     v.hpBar.group.visible = v.pct < 1 || highlighted;
@@ -316,10 +393,15 @@ export class BuildingSync {
     const v = this.#visuals.get(id);
     if (!v) return;
     this.#scene.remove(v.root);
-    // Free what this visual uniquely owns on the GPU. Models share the
-    // template geometry/materials — except construction sites, which clone
-    // every material to carry their private clip plane, and hp bars, which
-    // own their two quads outright.
+    this.#freeGpu(v);
+    this.#visuals.delete(id);
+  }
+
+  /** Free what this visual uniquely owns on the GPU. Models share the
+   * template geometry/materials — except construction sites, which clone
+   * every material to carry their private clip plane, and hp bars, which
+   * own their two quads outright. */
+  #freeGpu(v: BuildingVisual): void {
     if (v.clip) {
       v.model.traverse((o) => {
         // eachMaterial, not `.dispose()` on the field: faction-colored
@@ -340,6 +422,5 @@ export class BuildingSync {
         }
       });
     }
-    this.#visuals.delete(id);
   }
 }

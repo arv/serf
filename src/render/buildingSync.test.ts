@@ -67,8 +67,13 @@ describe('a construction site with multi-material meshes', () => {
     sync.update([snap({ state: 'built' })]);
     expect(scene.children.length).toBe(siteRoots);
 
-    // The next roster still syncs: a razed building's visual leaves.
+    // The next roster still syncs: a razed building's visual goes down
+    // through the teardown — it lingers (model sinking, dust ring) while
+    // the animation plays, and only then leaves the scene for good.
     sync.update([]);
+    expect(scene.children.length).toBeGreaterThan(0);
+    sync.frame(0.5);
+    sync.frame(0.5);
     expect(scene.children.length).toBe(0);
   });
 
