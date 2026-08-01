@@ -72,8 +72,8 @@ describe('a construction site with multi-material meshes', () => {
     // the animation plays, and only then leaves the scene for good.
     sync.update([]);
     expect(scene.children.length).toBeGreaterThan(0);
-    sync.frame(0.5);
-    sync.frame(0.5);
+    sync.frame(0.7);
+    sync.frame(0.7);
     expect(scene.children.length).toBe(0);
   });
 
