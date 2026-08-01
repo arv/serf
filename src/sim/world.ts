@@ -438,7 +438,7 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
 }
 
 const DEPOSIT_CODE: Record<string, number> = {
-  bamboo: TileResource.Bamboo,
+  wood: TileResource.Wood,
   rock: TileResource.Rock,
   ironDep: TileResource.IronDep,
   silverDep: TileResource.SilverDep,

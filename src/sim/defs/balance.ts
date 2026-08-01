@@ -15,15 +15,15 @@ export const TICK_MS = 1000 / TICKS_PER_SECOND;
 // 8 is the tested floor: at 6 the campaign AI falls to the raids and AI-vs-AI
 // stalemates, even with the silver-first build order (see ai.ts).
 export const START_SERFS = 8;
-// The village armory holds a few old weapons so a Bushidō rush can field
+// The village armory holds a few old weapons so a Soldiery rush can field
 // defenders before the first raid without the full iron chain.
 export const START_STOCK: GoodAmounts = {
-  bamboo: 36,
+  wood: 36,
   stone: 15,
-  rice: 12,
+  wheat: 12,
   silver: 20,
-  yari: 2,
-  katana: 1,
+  spear: 2,
+  sword: 1,
 };
 
 // Logistics
@@ -35,8 +35,8 @@ export const TRAILS_INTERVAL = 20; // ticks between trail passes
 export const WEAR_DECAY = 0.98; // per pass multiplier
 export const TRAIL_WEAR_THRESHOLD = 12; // wear to become a dirt trail
 export const TRAIL_REVERT_WEAR = 1.5; // below this an unpaved trail reverts
-export const REGROW_INTERVAL = 200; // bamboo regrowth cadence
-export const BAMBOO_MAX_AMT = 6;
+export const REGROW_INTERVAL = 200; // tree regrowth cadence
+export const WOOD_MAX_AMT = 6;
 
 // Stone-road paving (Masonry)
 export const PAVE_INTERVAL = 100; // ticks between paving scans
@@ -55,9 +55,9 @@ export const DISMISS_RESTAFF_BACKOFF = 30 * TICKS_PER_SECOND;
 /** Combat corpses linger this long so the death animation can play. */
 export const CORPSE_TICKS = 30;
 
-// Festivals (sake -> global work-speed buff)
+// Festivals (ale -> global work-speed buff)
 export const FESTIVAL_DURATION = 60 * TICKS_PER_SECOND;
-export const TERAKOYA_SAKE_CAP = 2;
+export const ABBEY_ALE_CAP = 2;
 
 // Raids — paced for the population economy's slower ramp (staffing every
 // building and mustering an army both consume people).

@@ -52,12 +52,12 @@ const SPEEDS = [
 ];
 
 const BUILD_GROUPS: { label: string; types: BuildingTypeId[] }[] = [
-  { label: 'Village', types: ['bambooHut', 'quarry', 'well', 'ricePaddy', 'terakoya'] },
+  { label: 'Village', types: ['woodcutter', 'quarry', 'well', 'wheatFarm', 'abbey'] },
   {
     label: 'Industry',
-    types: ['sakeBrewery', 'ironMine', 'silverMine', 'goldMine', 'swordsmith', 'spearmaker', 'bowyer'],
+    types: ['brewery', 'ironMine', 'silverMine', 'goldMine', 'swordsmith', 'spearmaker', 'bowyer'],
   },
-  { label: 'War', types: ['dojo'] },
+  { label: 'War', types: ['barracks'] },
 ];
 
 export function Hud(props: {

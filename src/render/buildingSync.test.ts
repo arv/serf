@@ -5,13 +5,12 @@ import { HeightField } from './heightField';
 import type { BuildingSnap } from '../protocol/messages';
 
 // The KayKit buildings carry material *arrays* on their meshes (the textured
-// group plus the team-color group). The real loader needs GLB files (and the
-// real module reads `location` at import time), so mock the surface this
-// import graph touches and hand update() a synthetic model of the same shape.
-vi.mock('./medieval', () => ({
-  THEME: 'medieval',
-  medievalCarryProp: () => null,
-  makeMedievalBuilding: () => {
+// group plus the team-color group). The real loader needs GLB files, so mock
+// the surface this import graph touches and hand update() a synthetic model
+// of the same shape.
+vi.mock('./assets', () => ({
+  glbCarryProp: () => null,
+  makeGlbBuilding: () => {
     const geo = new THREE.BoxGeometry(1, 1, 1);
     geo.clearGroups();
     geo.addGroup(0, 18, 0);
@@ -31,7 +30,7 @@ const { BuildingSync } = await import('./buildingSync');
 function snap(over: Partial<BuildingSnap>): BuildingSnap {
   return {
     id: 7,
-    type: 'bambooHut',
+    type: 'woodcutter',
     owner: 0,
     x: 10,
     y: 10,

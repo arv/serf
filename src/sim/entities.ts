@@ -60,7 +60,7 @@ export interface Building {
   recruitId?: EntityId;
   /** Convert recipe: ticks left on the current batch (undefined = not running). */
   prodTicksLeft?: number;
-  /** Military training queue (dojo). */
+  /** Military training queue (barracks). */
   trainQueue?: { unit: UnitTypeId; ticksLeft: number; started: boolean }[];
   /** Paid-for serf hires still on their way in (storehouse), and the ticks
    * left on the one at the front. Silver is taken when the order is

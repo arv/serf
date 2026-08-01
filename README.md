@@ -5,12 +5,6 @@ combat. Watch your serfs physically carry every good across the valley, wear
 trails into the grass, and — with Masonry — pave the busiest lanes into stone
 roads.
 
-The game ships two skins over one simulation. Medieval is the default;
-`?theme=japan` shows the original hand-built feudal-Japan look, where the
-Castle is a storehouse, the Brewery a sake brewery, and knights are samurai.
-Sim ids stay Japanese under both (saves depend on them) — only the display
-layer changes.
-
 ## Play
 
 ```sh
@@ -46,7 +40,6 @@ pnpm dev
 | Esc | Cancel placement / clear selection |
 | ` (backquote) | Logistics debug overlay |
 | `?seed=123` URL param | Pick a map seed |
-| `?theme=japan` URL param | Original feudal-Japan look |
 
 ## Architecture
 

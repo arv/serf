@@ -12,10 +12,7 @@ import { TECH_DEFS, type TechId } from '../sim/defs/techs';
 import { COUNTER_TABLE, UNIT_DEFS, type UnitClass, type UnitTypeId } from '../sim/defs/units';
 import { GoodIcon } from './icons';
 import { buildingName, goodName, techDesc, techName, unitName } from './names';
-import { THEME } from '../render/medieval';
 import { stock, techs } from './store';
-
-const MEDIEVAL = THEME === 'medieval';
 
 /**
  * One floating tooltip layer for the whole HUD. Spread `{...tooltip(...)}`
@@ -181,35 +178,21 @@ export function CostLine(props: { label: string; cost: GoodAmounts; extra?: stri
 
 // --- Content builders -------------------------------------------------------
 
-/** Names live in names.ts (the icon layer needs them too); only the flavor
- * text is theme-branched here. */
-const GOOD_DESC: Record<GoodId, string> = MEDIEVAL
-  ? {
-      water: 'Drawn at wells. Soaks the fields and thins the ale.',
-      rice: 'The staple. Feeds soldiers in training and funds research.',
-      bamboo: 'Felled in the forest. The village is built from it.',
-      stone: 'Quarried from outcrops. Heavy building and road paving.',
-      iron: 'Hauled from mountain seams. Becomes blades and spearheads.',
-      silver: 'Minted currency. Pays for serfs and scholarship.',
-      gold: 'Rare and bright. Buys the finest arms and gilding.',
-      katana: 'Forged by the swordsmith. Arms one knight.',
-      yari: 'Shafted by the spearmaker. Arms one spearman.',
-      yumi: 'Strung by the bowyer. Arms one archer.',
-      sake: 'Brewed from wheat and water. Fuels festivals at the Abbey.',
-    }
-  : {
-      water: 'Drawn at wells. Floods rice paddies and thins the sake.',
-      rice: 'The staple. Feeds soldiers in training and funds research.',
-      bamboo: 'Cut from the groves. The village is built from it.',
-      stone: 'Quarried from outcrops. Heavy building and road paving.',
-      iron: 'Hauled from mountain seams. Becomes blades and spearheads.',
-      silver: 'Minted currency. Pays for serfs and scholarship.',
-      gold: 'Rare and bright. Buys the finest arms and inlays.',
-      katana: 'Forged by the swordsmith. Arms one samurai.',
-      yari: 'Shafted by the spearmaker. Arms one ashigaru.',
-      yumi: 'Strung by the bowyer. Arms one archer.',
-      sake: 'Brewed from rice and water. Fuels festivals at the Terakoya.',
-    };
+/** Names live in names.ts (the icon layer needs them too); the flavor text
+ * lives here. */
+const GOOD_DESC: Record<GoodId, string> = {
+  water: 'Drawn at wells. Soaks the fields and thins the ale.',
+  wheat: 'The staple. Feeds soldiers in training and funds research.',
+  wood: 'Felled in the forest. The village is built from it.',
+  stone: 'Quarried from outcrops. Heavy building and road paving.',
+  iron: 'Hauled from mountain seams. Becomes blades and spearheads.',
+  silver: 'Minted currency. Pays for serfs and scholarship.',
+  gold: 'Rare and bright. Buys the finest arms and gilding.',
+  sword: 'Forged by the swordsmith. Arms one knight.',
+  spear: 'Shafted by the spearmaker. Arms one spearman.',
+  bow: 'Strung by the bowyer. Arms one archer.',
+  ale: 'Brewed from wheat and water. Fuels festivals at the Abbey.',
+};
 
 export function GoodTip(props: { good: GoodId }) {
   return (
@@ -224,7 +207,7 @@ export function GoodTip(props: { good: GoodId }) {
 }
 
 const RESOURCE_NAMES: Record<string, string> = {
-  bamboo: MEDIEVAL ? 'woods' : 'bamboo groves',
+  wood: 'woods',
   rock: 'rock outcrops',
   ironDep: 'iron seams',
   silverDep: 'silver seams',
@@ -253,12 +236,8 @@ function recipeText(recipe: Recipe): string {
 }
 
 const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
-  terakoya: MEDIEVAL
-    ? 'Monks research the tech tree here; delivered ale throws work-speed festivals.'
-    : 'Monks research the tech tree here; delivered sake throws work-speed festivals.',
-  dojo: MEDIEVAL
-    ? 'Trains knights, spearmen, and archers from wheat and forged weapons.'
-    : 'Trains samurai, ashigaru, and archers from rice and forged weapons.',
+  abbey: 'Monks research the tech tree here; delivered ale throws work-speed festivals.',
+  barracks: 'Trains knights, spearmen, and archers from wheat and forged weapons.',
   storehouse: 'The heart of the village. All goods flow here — lose it and all is lost.',
 };
 
@@ -289,7 +268,7 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
       />
       <Show when={lockedBy()}>
         <div class="tip-warn">
-          Requires {lockedBy()} (research at the {buildingName('terakoya')})
+          Requires {lockedBy()} (research at the {buildingName('abbey')})
         </div>
       </Show>
     </>
@@ -303,10 +282,10 @@ const CLASS_INFO: Record<UnitClass, { name: string; beats: UnitClass; losesTo: U
 };
 
 const UNIT_FLAVOR: Partial<Record<UnitTypeId, string>> = {
-  samurai: 'Slow, armored, and lethal up close.',
-  ashigaru: 'Fast peasant spears — they run archers down.',
+  knight: 'Slow, armored, and lethal up close.',
+  spearman: 'Fast peasant spears — they run archers down.',
   archer: 'Keeps its distance and kites heavy armor.',
-}; // flavor is class-based and reads fine in both themes
+};
 
 export function UnitTip(props: { unit: UnitTypeId; cost?: GoodAmounts; lockedBy?: string | null }) {
   const def = () => UNIT_DEFS[props.unit];
@@ -336,7 +315,7 @@ export function UnitTip(props: { unit: UnitTypeId; cost?: GoodAmounts; lockedBy?
       </Show>
       <Show when={props.lockedBy}>
         <div class="tip-warn">
-          Requires {props.lockedBy} (research at the {buildingName('terakoya')})
+          Requires {props.lockedBy} (research at the {buildingName('abbey')})
         </div>
       </Show>
     </>

@@ -68,10 +68,10 @@ export function snapBuildings(world: World): BuildingSnap[] {
 export function snapPlayers(world: World): PlayerSnap[] {
   return world.players.map((p) => {
     const storehouse = findStorehouse(world, p.id);
-    let hasTerakoya = false;
+    let hasAbbey = false;
     for (const b of world.buildings.values()) {
-      if (!b.dead && b.type === 'terakoya' && b.state === 'built' && b.owner === p.id) {
-        hasTerakoya = true;
+      if (!b.dead && b.type === 'abbey' && b.state === 'built' && b.owner === p.id) {
+        hasAbbey = true;
       }
     }
     return {
@@ -90,7 +90,7 @@ export function snapPlayers(world: World): PlayerSnap[] {
           : undefined,
         festivalTicksLeft: p.techs.festivalTicksLeft,
         pavingUnlocked: p.pavingUnlocked,
-        hasTerakoya,
+        hasAbbey,
       },
     };
   });
@@ -137,12 +137,12 @@ function actionOf(w: World, u: Unit): number {
   return ACTION.idle;
 }
 
-/** Workplace flavor for themed worker bodies (the farmer's straw hat). */
+/** Workplace flavor for profession-dressed worker bodies (the farmer's straw hat). */
 function professionOf(w: World, u: Unit): number {
   if (u.kind !== 'worker' || u.homeId === undefined) return PROFESSION.none;
   const home = w.buildings.get(u.homeId);
   if (!home || home.dead) return PROFESSION.none;
-  if (home.type === 'ricePaddy') return PROFESSION.farmer;
+  if (home.type === 'wheatFarm') return PROFESSION.farmer;
   if (
     home.type === 'quarry' ||
     home.type === 'ironMine' ||
@@ -161,12 +161,12 @@ function workKindOf(w: World, u: Unit): number {
   if (home.state === 'site') return WORK.hammer; // builder at the frame
   const def = buildingDef(home.type);
   if (def.recipe?.kind === 'gather') {
-    return def.recipe.resource === 'bamboo' ? WORK.chop : WORK.pickaxe;
+    return def.recipe.resource === 'wood' ? WORK.chop : WORK.pickaxe;
   }
   if (home.type === 'swordsmith' || home.type === 'spearmaker' || home.type === 'bowyer') {
     return WORK.hammer;
   }
-  if (home.type === 'ricePaddy') return WORK.dig;
+  if (home.type === 'wheatFarm') return WORK.dig;
   if (home.type === 'well') return WORK.draw; // cranking the bucket up
   return WORK.tend;
 }
@@ -174,7 +174,7 @@ function workKindOf(w: World, u: Unit): number {
 export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
   for (const u of w.units.values()) {
     // Combat corpses (deathTick set) stay visible for the death animation;
-    // other dead units (dojo consumption) vanish immediately.
+    // other dead units (barracks consumption) vanish immediately.
     if (u.dead && u.deathTick === undefined) continue;
     const action = actionOf(w, u);
     yield {

@@ -52,7 +52,7 @@ export const [techs, setTechs] = createSignal<TechSnap>({
   researched: [],
   festivalTicksLeft: 0,
   pavingUnlocked: false,
-  hasTerakoya: false,
+  hasAbbey: false,
 });
 /** At most one HUD popup at a time — opening any closes the others. */
 export type HudPanel = 'build' | 'menu' | 'tech';

@@ -9,9 +9,7 @@ import {
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
 import type { FogQuery } from './fogOfWar';
-import { GOODS } from '../sim/defs/goods';
 import { makeCarryProp, makeUnitModel } from './models';
-import { THEME } from './medieval';
 import {
   makeCharacter,
   playAnimation,
@@ -125,11 +123,6 @@ const rot = (n: THREE.Object3D | undefined, x: number, y = 0, z = 0): void => {
   if (n) n.rotation.set(x, y, z);
 };
 
-/** Only the Japan theme carries water on a shoulder yoke, which rides fine
- * on the plain gait. Medieval hauls a bucket, so it needs the holding pose
- * like every other good — otherwise the bucket floats unheld. */
-const YOKE_CODE = THEME === 'japan' ? GOODS.indexOf('water') + 1 : -1;
-
 /** WORK.* byte → the tool animation to play. */
 function workAnimKey(workKind: number): AnimKey {
   switch (workKind) {
@@ -232,7 +225,7 @@ function animate(
   }
 
   if (action === ACTION.fight) {
-    // Kenjutsu cut: coil over the rear shoulder, explosive diagonal cut
+    // Sword cut: coil over the rear shoulder, explosive diagonal cut
     // driven from the hips, settle back to guard.
     const t = (now * 0.004 + id * 0.61) % 1;
     let raise: number; // 0 low .. 1 coiled overhead
@@ -588,7 +581,7 @@ export class SceneSync {
       }
 
       // Visible carried good — the core fantasy, as the actual object:
-      // shoulder-pole pails, rice bales, bamboo bundles, ingots, jugs.
+      // pack buckets, grain sacks, lumber, ingots, casks.
       const carrying = latest.aux[a + 3]!;
       if (carrying !== visual.carrying) {
         if (visual.carryBox) {
@@ -638,11 +631,10 @@ export class SceneSync {
           ? this.#nearestWell(x, y)
           : null;
       if (visual.char) {
-        const heldCarry = carrying > 0 && carrying !== YOKE_CODE;
+        const heldCarry = carrying > 0;
         let key: AnimKey;
         if (dead) key = 'death';
-        else if (moving)
-          key = heldCarry ? 'carry' : visual.char.jog && carrying === 0 ? 'jog' : 'walk';
+        else if (moving) key = heldCarry ? 'carry' : visual.char.jog ? 'jog' : 'walk';
         else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
         else if (action === ACTION.work) key = crankWell ? 'idle' : workAnimKey(workKind);
         else key = heldCarry ? 'carryIdle' : 'idle';

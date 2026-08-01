@@ -24,7 +24,7 @@ export function banditsSystem(world: World, rng: Rng): void {
   const bandits = Math.min(2 + wave, 5);
   for (let i = 0; i < bandits; i++) roster.push('bandit');
   for (let i = 0; i < wave - 2; i++) roster.push('banditArcher');
-  for (let i = 0; i < wave - 4; i++) roster.push('ronin');
+  for (let i = 0; i < wave - 4; i++) roster.push('marauder');
   roster.length = Math.min(roster.length, RAID_CAP);
 
   const target = pickTarget(world, rng);
@@ -47,7 +47,7 @@ export function banditsSystem(world: World, rng: Rng): void {
   const names: Record<string, string> = {
     bandit: 'bandits',
     banditArcher: 'bandit archers',
-    ronin: 'marauders', // theme-neutral read for the heavy raider
+    marauder: 'marauders',
   };
   const text = [...counts.entries()].map(([k, n]) => `${n} ${names[k] ?? k}`).join(', ');
   world.pendingEvents.push({
