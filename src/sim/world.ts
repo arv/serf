@@ -191,10 +191,10 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
   }
 
   // Bandit camp. Solo: a random far corner (the classic campaign). With
-  // rivals on the map a corner may be somebody's doorstep, so pick the
-  // candidate — corners or the contested middle — that sits farthest from
-  // the nearest start (two players leave two corners free; four players
-  // leave none, and the middle wins).
+  // rivals on the map the barbarians hold the middle instead — an
+  // equidistant menace standing guard over the contested gold that
+  // worldgen put there. Corners stay on the list as fallbacks, farthest
+  // from any doorstep first, for seeds whose middle is all lake.
   const corners: [number, number][] = [
     [10, 10],
     [MAP_SIZE - 13, 10],
@@ -215,7 +215,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
       return best;
     };
     const middle: [number, number] = [MAP_SIZE / 2 - 1, MAP_SIZE / 2 - 1];
-    campSeeds = [...corners, middle].sort((a, z) => nearestStart(z) - nearestStart(a));
+    campSeeds = [middle, ...corners.sort((a, z) => nearestStart(z) - nearestStart(a))];
   }
   // Mountains and lakes can swallow a whole seed area, so widen the search
   // rather than generate a campless (instant-win) world.
