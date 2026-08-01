@@ -600,6 +600,17 @@ function spadeProp(): THREE.Group {
   return g;
 }
 
+/** Relaxed grip: mid-haft, head tipped out and a touch forward. Tools sat
+ * grip-at-end pointing straight down the idle arm, which parked the spade
+ * blade at the ankle and read as dropped rather than held; these angles
+ * were tuned live in the fitting room and still swing true in the work
+ * loops. */
+function gripPose<T extends THREE.Object3D>(tool: T): T {
+  tool.position.y = -0.14;
+  tool.rotation.set(0.35, 0, -0.55);
+  return tool;
+}
+
 const WORK_TOOLS: Record<number, () => THREE.Group> = {
   1: hatchetProp, // WORK.chop
   3: malletProp, // WORK.hammer
@@ -761,11 +772,11 @@ function makeKayKitCharacter(
     toolAnchor = new THREE.Group();
     toolAnchor.scale.setScalar(1 / s);
     hand.add(toolAnchor);
-    toolCustom = new THREE.Group();
+    toolCustom = gripPose(new THREE.Group());
     toolAnchor.add(toolCustom);
     if (look?.tool) {
       // The profession's own tool: carried everywhere, worked with on site.
-      proceduralTool = look.tool();
+      proceduralTool = gripPose(look.tool());
       proceduralTool.userData.workKind = look.toolWorkKind ?? 0;
       toolAnchor.add(proceduralTool);
     }
