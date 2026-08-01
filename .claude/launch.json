@@ -58,6 +58,16 @@
         "dev"
       ],
       "autoPort": true
+    },
+    {
+      "name": "serf-assets",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "/Users/arv/src/arv/serf/.claude/worktrees/asset-fallback",
+        "dev"
+      ],
+      "autoPort": true
     }
   ]
 }
