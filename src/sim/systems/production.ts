@@ -25,7 +25,7 @@ const RESOURCE_CODE: Record<string, TileResourceKind> = {
  */
 export function productionSystem(world: World, rng: Rng): void {
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built') continue;
+    if (b.dead || b.state !== 'built' || b.paused) continue;
     const def = buildingDef(b.type);
     const recipe = def.recipe;
     if (!recipe) continue;

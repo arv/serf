@@ -49,6 +49,7 @@ export function SelectionPanel(props: {
   onDeselect: () => void;
   onDismiss: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
+  onTogglePause: (buildingId: number, paused: boolean) => void;
 }) {
   return (
     <>
@@ -152,6 +153,28 @@ export function SelectionPanel(props: {
                   b().owner === myPlayerId() && !def().storage && !def().isRoad && !def().systemOnly
                 }
               >
+                <Show when={b().paused}>
+                  <span style={{ 'margin-left': '10px', color: '#e5c469' }}>paused</span>
+                </Show>
+                <TipWrap
+                  tip={() => (
+                    <TextTip
+                      title={b().paused ? 'Resume' : 'Pause'}
+                      body={
+                        b().paused
+                          ? 'Puts the place back to work: production, deliveries and construction pick up where they left off.'
+                          : 'Halts the workshop without breaking it up: no production, no incoming deliveries, no construction progress. The worker keeps the post and finished stock still ships out.'
+                      }
+                    />
+                  )}
+                >
+                  <button
+                    style={{ 'margin-left': '8px', 'min-height': '0', padding: '3px 10px' }}
+                    onClick={() => props.onTogglePause(b().id, !b().paused)}
+                  >
+                    {b().paused ? 'Resume' : 'Pause'}
+                  </button>
+                </TipWrap>
                 <TipWrap
                   tip={() => (
                     <TextTip

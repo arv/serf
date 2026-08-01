@@ -52,6 +52,7 @@ export interface BuildingSnap {
   hireProgress01?: number;
   /** Staffing state (undefined = building needs no worker). */
   staffing?: 'staffed' | 'recruiting' | 'needed';
+  paused?: boolean;
 }
 
 /** Debug-overlay row for a haul job. */

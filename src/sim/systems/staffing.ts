@@ -104,6 +104,7 @@ function requestRecruits(world: World): void {
     // it on purpose, and re-capturing the freed serf the moment he goes
     // idle between haul trips would silently undo the order.
     if ((b.staffBackoffUntil ?? 0) > world.tick) continue;
+    if (b.paused) continue; // a halted post summons nobody
     const def = buildingDef(b.type);
     if (b.state === 'site' ? def.isRoad : b.state !== 'built') continue;
 

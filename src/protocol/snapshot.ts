@@ -50,6 +50,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     inbound: { ...b.inbound },
     reservedOut: { ...b.reservedOut },
     trainQueue: b.trainQueue?.map((q) => ({ unit: q.unit, started: q.started })),
+    paused: b.paused,
     hireQueue: b.hireQueue,
     hireProgress01: b.hireQueue
       ? 1 - (b.hireTicksLeft ?? HIRE_SERF_TICKS) / HIRE_SERF_TICKS

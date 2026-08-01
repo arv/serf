@@ -72,6 +72,7 @@ export function Hud(props: {
   onDeselect: () => void;
   onDismiss: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
+  onTogglePause: (buildingId: number, paused: boolean) => void;
 }) {
   // The sim rejects admin commands in a match (world.admin.enabled is
   // false), so every button here no-ops — except the fog toggle, which
@@ -681,6 +682,7 @@ export function Hud(props: {
           onDeselect={props.onDeselect}
           onDismiss={props.onDismiss}
           onSell={props.onSell}
+          onTogglePause={props.onTogglePause}
         />
       </div>
 

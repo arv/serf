@@ -17,6 +17,7 @@ export type SimCommand =
   | { kind: 'hireSerf' }
   | { kind: 'dismissWorker'; buildingId: EntityId }
   | { kind: 'sellBuilding'; buildingId: EntityId }
+  | { kind: 'setBuildingPaused'; buildingId: EntityId; paused: boolean }
   | { kind: 'research'; tech: TechId }
   | { kind: 'trainUnit'; buildingId: EntityId; unit: UnitTypeId }
   | { kind: 'admin'; action: AdminAction };
@@ -97,6 +98,9 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
     case 'sellBuilding':
       if (!isId(c.buildingId)) return null;
       return { kind: 'sellBuilding', buildingId: c.buildingId };
+    case 'setBuildingPaused':
+      if (!isId(c.buildingId)) return null;
+      return { kind: 'setBuildingPaused', buildingId: c.buildingId, paused: c.paused === true };
     case 'research':
       if (!isDefined(TECH_DEFS, c.tech)) return null;
       return { kind: 'research', tech: c.tech as TechId };

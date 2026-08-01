@@ -11,7 +11,7 @@ import { tileIdx } from '../../shared/grid.ts';
  */
 export function constructionSystem(world: World): void {
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'site' || !b.siteNeeds) continue;
+    if (b.dead || b.state !== 'site' || !b.siteNeeds || b.paused) continue;
 
     // Sandbox: sites need nothing and finish now (reconcile cancels any
     // in-flight material hauls via the "site no longer needs good" rule).

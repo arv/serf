@@ -124,7 +124,7 @@ function match(world: World): void {
     if (b.dead || !isPlayerOwner(b.owner)) continue;
     const def = buildingDef(b.type);
 
-    if (b.state === 'site' && b.siteNeeds) {
+    if (b.state === 'site' && b.siteNeeds && !b.paused) {
       for (const good of GOODS) {
         const want = (b.siteNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0 && !suspended(world, b, good)) {
@@ -139,7 +139,7 @@ function match(world: World): void {
     if (b.state !== 'built') continue;
 
     // Convert recipes demand their input goods (priority 2).
-    if (def.recipe?.kind === 'convert') {
+    if (def.recipe?.kind === 'convert' && !b.paused) {
       for (const good of Object.keys(def.recipe.inputs) as GoodId[]) {
         const want = INPUT_CAP - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0 && !suspended(world, b, good)) {
@@ -151,14 +151,14 @@ function match(world: World): void {
     }
 
     // Festivals: the abbey sips ale.
-    if (b.type === 'abbey' && world.players[b.owner]?.techs.researched.includes('festivals')) {
+    if (b.type === 'abbey' && !b.paused && world.players[b.owner]?.techs.researched.includes('festivals')) {
       const want = ABBEY_ALE_CAP - (b.inputs.ale ?? 0) - (b.inbound.ale ?? 0);
       if (want > 0) demands.push(demandOf(world, b, 'ale', want, 2));
       else delete b.demandSince.ale;
     }
 
     // Training queues demand their wheat + weapons (priority 2).
-    if (def.trains && b.trainQueue && b.trainQueue.length > 0) {
+    if (def.trains && !b.paused && b.trainQueue && b.trainQueue.length > 0) {
       const need = trainingDemand(b);
       for (const [good, n] of Object.entries(need) as [GoodId, number][]) {
         const want = n - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
@@ -344,8 +344,9 @@ function deliveryTargetFor(world: World, owner: Owner, good: GoodId): Building |
     }
     const def = buildingDef(b.type);
     const wantsInput =
-      (def.recipe?.kind === 'convert' && (def.recipe.inputs[good] ?? 0) > 0) ||
-      (b.type === 'abbey' && good === 'ale');
+      !b.paused &&
+      ((def.recipe?.kind === 'convert' && (def.recipe.inputs[good] ?? 0) > 0) ||
+        (b.type === 'abbey' && good === 'ale'));
     if (wantsInput && (b.inputs[good] ?? 0) + (b.inbound[good] ?? 0) < INPUT_CAP) return b;
   }
   return home;

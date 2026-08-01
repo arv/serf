@@ -67,6 +67,10 @@ export interface Building {
    * placed, so a cancelled game or a razed storehouse cannot refund it. */
   hireQueue?: number;
   hireTicksLeft?: number;
+  /** Player-ordered production halt: no recipe ticks, no input demands,
+   * no construction progress. The worker keeps the post; outputs still
+   * evacuate to the storehouse. */
+  paused?: boolean;
   /** Recruiting pause after the player dismissed the worker on purpose. */
   staffBackoffUntil?: number;
   /** When to respawn a lost resident worker. */

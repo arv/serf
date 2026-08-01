@@ -139,6 +139,18 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       }
       break;
     }
+    case 'setBuildingPaused': {
+      // Halt the workshop without breaking it up: production, input hauls
+      // and construction progress stop; the worker keeps the post and any
+      // finished stock still evacuates. The lever for 'the bowyer is
+      // eating all my wood'.
+      const b = world.buildings.get(cmd.buildingId);
+      if (!b || b.dead || b.owner !== playerId) break;
+      const def = buildingDef(b.type);
+      if (def.storage || def.isRoad || def.systemOnly) break;
+      b.paused = cmd.paused || undefined;
+      break;
+    }
     case 'sellBuilding': {
       // Tear a building down for half its cost back, floored per good.
       // Sites refund half of what was actually delivered. The resident
