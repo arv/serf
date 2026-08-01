@@ -585,22 +585,22 @@ function pickaxeProp(): THREE.Group {
 }
 
 function spadeProp(): THREE.Group {
-  // Blade DOWN, T-grip up — a shovel is the one tool carried business-end
-  // at the soil, and the crossbar is what makes the silhouette read.
+  // Same frame as every tool: grip at the origin, haft up +Y, business
+  // end at the top. The blade-down experiment put the blade at the sky in
+  // the dig loop — the handslot points +Y at the ground mid-stroke.
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.022, 0.026, 0.42, 6), 0x8a6a42);
-  handle.position.y = 0.17;
-  const grip = toolMesh(new THREE.CylinderGeometry(0.02, 0.02, 0.11, 6), 0x6b4e2e);
-  grip.rotation.z = Math.PI / 2;
-  grip.position.y = 0.38;
-  const blade = toolMesh(new THREE.BoxGeometry(0.13, 0.17, 0.025), 0x8b95a0);
-  blade.position.y = -0.04;
-  const tip = toolMesh(new THREE.ConeGeometry(0.075, 0.05, 4), 0x77848e);
-  tip.rotation.z = Math.PI;
+  const handle = toolMesh(new THREE.CylinderGeometry(0.024, 0.03, 0.5, 6), 0x8a6a42);
+  handle.position.y = 0.2;
+  const blade = toolMesh(new THREE.BoxGeometry(0.16, 0.22, 0.03), 0x8b95a0);
+  blade.position.y = 0.5;
+  const tip = toolMesh(new THREE.ConeGeometry(0.09, 0.07, 4), 0x77848e);
   tip.rotation.y = Math.PI / 4;
-  tip.scale.z = 0.32;
-  tip.position.y = -0.14;
-  g.add(handle, grip, blade, tip);
+  tip.scale.z = 0.3;
+  tip.position.y = 0.63;
+  const grip = toolMesh(new THREE.CylinderGeometry(0.022, 0.022, 0.13, 6), 0x6b4e2e);
+  grip.rotation.z = Math.PI / 2;
+  grip.position.y = -0.02;
+  g.add(handle, blade, tip, grip);
   return g;
 }
 
