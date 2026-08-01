@@ -458,6 +458,22 @@ export function glbRocks(): {
   return { geometries: assets.rocks, material: assets.natureMaterial };
 }
 
+/** A pack prop normalized to `height` tall, feet on the ground — the same
+ * framing BUILDING_DECOR uses. For live stock that stands in for baked
+ * yard decor the surgery cut out (the woodcutter's lumber stacks). */
+export function glbYardProp(prop: string, height: number): THREE.Group | null {
+  const src = assets?.props.get(prop);
+  if (!src) return null;
+  const c = src.clone();
+  const bb = new THREE.Box3().setFromObject(c);
+  const h = Math.max(bb.max.y - bb.min.y, 1e-6);
+  c.position.set(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+  const g = new THREE.Group();
+  g.scale.setScalar(height / h);
+  g.add(c);
+  return g;
+}
+
 /**
  * A pack prop cloned and normalized for carrying: centered on the origin
  * and scaled to `span` across — so what a serf hauls matches what's piled

@@ -6,7 +6,7 @@ import {
   makeSiteFrame,
   PILE_SCALE,
 } from './models';
-import { makeGlbBuilding } from './assets';
+import { glbYardProp, makeGlbBuilding } from './assets';
 import { eachMaterial, mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
 import { GOODS, type GoodId } from '../sim/defs/goods';
@@ -40,6 +40,9 @@ interface BuildingVisual {
 }
 
 const HP_BAR_W = 1.1;
+
+/** One low-poly ball shared by every dust puff; scaled per puff. */
+const PUFF_GEO = new THREE.IcosahedronGeometry(1, 0);
 
 function hpColor(pct: number): THREE.Color {
   return new THREE.Color().setHSL(0.33 * Math.max(0, Math.min(1, pct)), 0.8, 0.45);
@@ -160,22 +163,35 @@ export class BuildingSync {
       });
       v.hpBar = undefined;
     }
-    // A ground-hugging dust band, sized past the footprint — a ring
-    // narrower than the walls plays out entirely underneath the sinking
-    // model and nobody ever sees it.
-    const r = v.span * 0.8;
-    const dust = new THREE.Mesh(
-      new THREE.RingGeometry(r * 0.45, r, 24),
-      new THREE.MeshBasicMaterial({
-        color: 0xa4906c,
+    // The cloud: a fistful of low-poly puffs bursting out past the walls,
+    // each with its own heading, size, tumble and moment to join — chaos,
+    // not choreography. A single tidy expanding ring read as a decal.
+    const dust = new THREE.Group();
+    dust.position.copy(v.root.position);
+    const n = 8 + Math.round(v.span * 4);
+    const puffs = [];
+    for (let i = 0; i < n; i++) {
+      const grey = 0.55 + hash2(id * 3 + i, 21) * 0.3;
+      const mat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(grey + 0.09, grey + 0.03, grey * 0.82),
         transparent: true,
-        opacity: 0.7,
+        opacity: 0,
         depthWrite: false,
-        side: THREE.DoubleSide,
-      }),
-    );
-    dust.rotation.x = -Math.PI / 2;
-    dust.position.set(v.root.position.x, v.root.position.y + 0.05, v.root.position.z);
+      });
+      const mesh = new THREE.Mesh(PUFF_GEO, mat);
+      mesh.visible = false;
+      dust.add(mesh);
+      puffs.push({
+        mesh,
+        angle: (i / n) * Math.PI * 2 + (hash2(id + i, 3) - 0.5) * 1.2,
+        r0: v.span * (0.25 + hash2(id + i, 5) * 0.3),
+        vr: v.span * (0.5 + hash2(id + i, 9) * 0.7),
+        size: v.span * (0.1 + hash2(id + i, 13) * 0.16),
+        delay: hash2(id + i, 17) * 0.4,
+        spinX: (hash2(id + i, 19) - 0.5) * 9,
+        spinZ: (hash2(id + i, 23) - 0.5) * 9,
+      });
+    }
     this.#scene.add(dust);
     this.#dying.push({
       visual: v,
@@ -184,6 +200,7 @@ export class BuildingSync {
       tiltX: (hash2(id, 7) - 0.5) * 0.22,
       tiltZ: (hash2(id, 11) - 0.5) * 0.22,
       dust,
+      puffs,
     });
   }
 
@@ -275,7 +292,7 @@ export class BuildingSync {
       }
     }
     if (this.#dying.length === 0) return;
-    const DURATION = 0.9;
+    const DURATION = 1.15;
     for (const d of this.#dying) {
       d.t = Math.min(d.t + dt / DURATION, 1);
       // Ease-in sink: slow shudder first, then the drop.
@@ -284,16 +301,29 @@ export class BuildingSync {
       root.position.y = d.baseY - sink * (d.visual.topY + 0.4);
       root.rotation.x = d.tiltX * d.t;
       root.rotation.z = d.tiltZ * d.t;
-      const spread = 1 + d.t * 0.9;
-      d.dust.scale.setScalar(spread);
-      (d.dust.material as THREE.MeshBasicMaterial).opacity = 0.7 * (1 - d.t * d.t);
+      for (const p of d.puffs) {
+        // Each puff lives on its own clock: nothing until its delay, then
+        // a burst out and up, a slow tumble, and a shrink into nothing.
+        const tau = Math.min(Math.max((d.t - p.delay) / (1 - p.delay), 0), 1);
+        p.mesh.visible = tau > 0;
+        if (tau <= 0) continue;
+        const r = p.r0 + p.vr * tau;
+        p.mesh.position.set(
+          Math.cos(p.angle) * r,
+          0.12 + Math.sin(tau * Math.PI) * p.size * 2.2,
+          Math.sin(p.angle) * r,
+        );
+        p.mesh.scale.setScalar(p.size * (0.5 + tau * 1.1) * (1 - tau * tau * 0.6));
+        p.mesh.rotation.x += p.spinX * dt;
+        p.mesh.rotation.z += p.spinZ * dt;
+        (p.mesh.material as THREE.MeshBasicMaterial).opacity = 0.8 * (1 - tau) * (1 - tau);
+      }
     }
     for (let i = this.#dying.length - 1; i >= 0; i--) {
       const d = this.#dying[i]!;
       if (d.t < 1) continue;
       this.#scene.remove(d.visual.root, d.dust);
-      d.dust.geometry.dispose();
-      (d.dust.material as THREE.Material).dispose();
+      for (const p of d.puffs) (p.mesh.material as THREE.Material).dispose();
       this.#freeGpu(d.visual);
       this.#dying.splice(i, 1);
     }
@@ -306,7 +336,44 @@ export class BuildingSync {
    * exact publish where a carrier picks it up. Sites show the materials
    * delivered so far.
    */
+  /** The woodcutter's yard: its wood stock renders as the pack's own
+   * lumber stacks, standing exactly where the model's baked pile stood
+   * before the surgery cut it out (normalized decor coords x the template
+   * scale) — same graphics, same spot, but now the pile is real. */
+  #syncWoodYard(v: BuildingVisual, b: BuildingSnap): boolean {
+    if (b.type !== 'woodcutter' || b.state !== 'built') return false;
+    const SPOTS: [number, number, number][] = [
+      [0.36, 0.28, 0.3],
+      [0.36, -0.04, -0.25],
+      [0.08, 0.3, 0.15],
+    ];
+    const n = (b.stock.wood ?? 0) + (b.inputs.wood ?? 0);
+    const stacks = Math.min(Math.ceil(n / 3), SPOTS.length);
+    const key = `yard${stacks}`;
+    if (key === v.pileKey) return true;
+    v.pileKey = key;
+    if (v.piles) {
+      v.root.remove(v.piles);
+      v.piles = undefined;
+    }
+    if (stacks === 0) return true;
+    const s = Math.min(b.w, b.h) * 1.06;
+    const piles = new THREE.Group();
+    for (let i = 0; i < stacks; i++) {
+      const [x, z, rot] = SPOTS[i]!;
+      const stack = glbYardProp('resource_lumber', 0.12 * s);
+      if (!stack) return true; // assets missing; nothing to show
+      stack.position.set(x * s, 0, z * s);
+      stack.rotation.y = rot;
+      piles.add(stack);
+    }
+    v.root.add(piles);
+    v.piles = piles;
+    return true;
+  }
+
   #syncPiles(v: BuildingVisual, b: BuildingSnap): void {
+    if (this.#syncWoodYard(v, b)) return;
     const def = buildingDef(b.type);
     const shown: [GoodId, number][] = [];
     for (const g of GOODS) {
@@ -368,7 +435,18 @@ export class BuildingSync {
     baseY: number;
     tiltX: number;
     tiltZ: number;
-    dust: THREE.Mesh;
+    dust: THREE.Group;
+    puffs: {
+      mesh: THREE.Mesh;
+      angle: number;
+      r0: number;
+      vr: number;
+      size: number;
+      /** Fraction of the teardown before this puff joins in. */
+      delay: number;
+      spinX: number;
+      spinZ: number;
+    }[];
   }[] = [];
 
   #styleBar(v: BuildingVisual, highlighted: boolean): void {
