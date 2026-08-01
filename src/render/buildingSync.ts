@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { makeBuildingModel, makeGhostModel, makePileProp, makeSiteFrame } from './models';
 import { makeMedievalBuilding } from './medieval';
-import { mapMaterials } from './materials';
+import { eachMaterial, mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
@@ -314,14 +314,21 @@ export class BuildingSync {
     // own their two quads outright.
     if (v.clip) {
       v.model.traverse((o) => {
-        if (o instanceof THREE.Mesh) (o.material as THREE.Material).dispose();
+        // eachMaterial, not `.dispose()` on the field: faction-colored
+        // buildings carry material arrays, and the bare call threw here —
+        // which didn't just leak, it aborted update() mid-frame. The
+        // finished building vanished (site removed, built model never
+        // made), the broken visual stayed in the map, and every later
+        // frame re-threw at the same building, freezing building sync,
+        // stock, and the outcome banner for the rest of the match.
+        if (o instanceof THREE.Mesh) eachMaterial(o, (m) => m.dispose());
       });
     }
     if (v.hpBar) {
       v.hpBar.group.traverse((o) => {
         if (o instanceof THREE.Mesh) {
           o.geometry.dispose();
-          (o.material as THREE.Material).dispose();
+          eachMaterial(o, (m) => m.dispose());
         }
       });
     }
