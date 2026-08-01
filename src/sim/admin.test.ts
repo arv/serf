@@ -47,11 +47,11 @@ describe('admin sandbox', () => {
 
   it('grantGoods fills the storehouse and keeps the ledger honest', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { bamboo: 3 });
+    const sh = addStorehouse(world, 30, 30, { wood: 3 });
     const initial = countGoods(world);
     tickWorld(world, cmds({ kind: 'admin', action: 'grantGoods' }));
 
-    expect(sh.stock.bamboo).toBe(28);
+    expect(sh.stock.wood).toBe(28);
     expect(sh.stock.gold).toBe(25);
     expect(checkLedger(world, initial)).toEqual([]);
   });
@@ -83,13 +83,13 @@ describe('admin sandbox', () => {
 
   it('finishResearch completes the active tech immediately', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { rice: 20, silver: 20 });
-    placeBuiltBuilding(world, 'terakoya', 0, 24, 30);
-    tickWorld(world, cmds({ kind: 'research', tech: 'strawSandals' }));
-    expect(world.players[0]!.techs.active?.tech).toBe('strawSandals');
+    addStorehouse(world, 30, 30, { wheat: 20, silver: 20 });
+    placeBuiltBuilding(world, 'abbey', 0, 24, 30);
+    tickWorld(world, cmds({ kind: 'research', tech: 'cobbledBoots' }));
+    expect(world.players[0]!.techs.active?.tech).toBe('cobbledBoots');
 
     tickWorld(world, cmds({ kind: 'admin', action: 'finishResearch' }));
     run(world, 2);
-    expect(world.players[0]!.techs.researched).toContain('strawSandals');
+    expect(world.players[0]!.techs.researched).toContain('cobbledBoots');
   });
 });

@@ -139,7 +139,7 @@ function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
             researched: [],
             festivalTicksLeft: 0,
             pavingUnlocked: false,
-            hasTerakoya: false,
+            hasAbbey: false,
           },
         },
   );

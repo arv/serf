@@ -7,7 +7,7 @@ import { GrassField } from '../render/grassField';
 import { WaterMesh } from '../render/waterMesh';
 import { Mist } from '../render/mist';
 import { BuildingSync } from '../render/buildingSync';
-import { loadMedievalAssets } from '../render/medieval';
+import { loadGlbAssets } from '../render/assets';
 import { snapBuildings } from '../protocol/snapshot';
 import { createWorld } from '../sim/world';
 
@@ -71,7 +71,7 @@ export interface Backdrop {
 export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Backdrop> {
   // Buildings only — the castle is the subject, and skipping the character
   // atlas keeps the menu's first paint quick.
-  await loadMedievalAssets();
+  await loadGlbAssets();
 
   const world = createWorld({
     seed: BACKDROP_SEED,
@@ -95,7 +95,7 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   buildings.cameraQuaternion = renderer.rig.camera.quaternion;
   buildings.update(snapBuildings(world));
 
-  // Frame the player's keep — the storehouse is the castle in this theme.
+  // Frame the player's keep — the castle at the map's heart.
   const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse');
   const half = world.map.terrain.length ** 0.5 / 2;
   const cx = keep ? keep.x + keep.w / 2 : half;

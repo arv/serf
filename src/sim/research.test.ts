@@ -11,14 +11,14 @@ function run(world: World, ticks: number): void {
 }
 
 function setupSchool(world: World): void {
-  addStorehouse(world, 30, 30, { rice: 50, silver: 50, stone: 20, bamboo: 20, sake: 10, iron: 10 });
-  placeBuiltBuilding(world, 'terakoya', 0, 24, 30);
+  addStorehouse(world, 30, 30, { wheat: 50, silver: 50, stone: 20, wood: 20, ale: 10, iron: 10 });
+  placeBuiltBuilding(world, 'abbey', 0, 24, 30);
 }
 
 describe('research', () => {
-  it('requires a terakoya', () => {
+  it('requires a abbey', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { rice: 50, silver: 50 });
+    addStorehouse(world, 30, 30, { wheat: 50, silver: 50 });
     tickWorld(world, cmds({ kind: 'research', tech: 'irrigation' }));
     expect(world.players[0]!.techs.active).toBeUndefined();
   });
@@ -27,15 +27,15 @@ describe('research', () => {
     const world = bareWorld();
     setupSchool(world);
     const silverBefore = 50;
-    tickWorld(world, cmds({ kind: 'research', tech: 'strawSandals' }));
+    tickWorld(world, cmds({ kind: 'research', tech: 'cobbledBoots' }));
 
-    expect(world.players[0]!.techs.active?.tech).toBe('strawSandals');
+    expect(world.players[0]!.techs.active?.tech).toBe('cobbledBoots');
     const sh = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
-    expect(sh.stock.silver).toBe(silverBefore - (TECH_DEFS.strawSandals.cost.silver ?? 0));
+    expect(sh.stock.silver).toBe(silverBefore - (TECH_DEFS.cobbledBoots.cost.silver ?? 0));
     expect(getModifier(world, 0, 'serfSpeed')).toBe(1);
 
-    run(world, TECH_DEFS.strawSandals.durationTicks + 2);
-    expect(world.players[0]!.techs.researched).toContain('strawSandals');
+    run(world, TECH_DEFS.cobbledBoots.durationTicks + 2);
+    expect(world.players[0]!.techs.researched).toContain('cobbledBoots');
     expect(world.players[0]!.techs.active).toBeUndefined();
     expect(getModifier(world, 0, 'serfSpeed')).toBeCloseTo(1.15);
   });
@@ -43,15 +43,15 @@ describe('research', () => {
   it('enforces prereqs and one-at-a-time', () => {
     const world = bareWorld();
     setupSchool(world);
-    // ironworking requires strawSandals — rejected.
+    // ironworking requires cobbledBoots — rejected.
     tickWorld(world, cmds({ kind: 'research', tech: 'ironworking' }));
     expect(world.players[0]!.techs.active).toBeUndefined();
 
-    tickWorld(world, cmds({ kind: 'research', tech: 'strawSandals' }));
-    expect(world.players[0]!.techs.active?.tech).toBe('strawSandals');
+    tickWorld(world, cmds({ kind: 'research', tech: 'cobbledBoots' }));
+    expect(world.players[0]!.techs.active?.tech).toBe('cobbledBoots');
     // A second research while active — rejected.
     tickWorld(world, cmds({ kind: 'research', tech: 'irrigation' }));
-    expect(world.players[0]!.techs.active?.tech).toBe('strawSandals');
+    expect(world.players[0]!.techs.active?.tech).toBe('cobbledBoots');
   });
 
   it('gates buildings until researched', () => {
@@ -62,7 +62,7 @@ describe('research', () => {
     tickWorld(world, cmds({ kind: 'placeBuilding', building: 'swordsmith', x: 40, y: 40 }));
     expect([...world.buildings.values()].some((b) => b.type === 'swordsmith')).toBe(false);
 
-    world.players[0]!.techs.researched.push('strawSandals', 'ironworking');
+    world.players[0]!.techs.researched.push('cobbledBoots', 'ironworking');
     expect(isBuildingUnlocked(world, 0, 'swordsmith')).toBe(true);
     tickWorld(world, cmds({ kind: 'placeBuilding', building: 'swordsmith', x: 40, y: 40 }));
     expect([...world.buildings.values()].some((b) => b.type === 'swordsmith')).toBe(true);
@@ -72,22 +72,22 @@ describe('research', () => {
     const world = bareWorld();
     setupSchool(world);
     expect(world.players[0]!.pavingUnlocked).toBe(false);
-    world.players[0]!.techs.researched.push('strawSandals');
+    world.players[0]!.techs.researched.push('cobbledBoots');
     tickWorld(world, cmds({ kind: 'research', tech: 'masonry' }));
     run(world, TECH_DEFS.masonry.durationTicks + 2);
     expect(world.players[0]!.pavingUnlocked).toBe(true);
   });
 
-  it('festival: terakoya burns sake for a work-speed buff', () => {
+  it('festival: abbey burns ale for a work-speed buff', () => {
     const world = bareWorld();
     setupSchool(world);
-    world.players[0]!.techs.researched.push('irrigation', 'sakeBrewing', 'festivals');
-    const tera = [...world.buildings.values()].find((b) => b.type === 'terakoya')!;
-    tera.inputs.sake = 1;
+    world.players[0]!.techs.researched.push('irrigation', 'brewing', 'festivals');
+    const tera = [...world.buildings.values()].find((b) => b.type === 'abbey')!;
+    tera.inputs.ale = 1;
 
     tickWorld(world, []);
     expect(world.players[0]!.techs.festivalTicksLeft).toBeGreaterThan(0);
-    expect(tera.inputs.sake ?? 0).toBe(0);
+    expect(tera.inputs.ale ?? 0).toBe(0);
     expect(getModifier(world, 0, 'workSpeed')).toBeCloseTo(1.25);
 
     run(world, FESTIVAL_DURATION + 2);
@@ -96,11 +96,11 @@ describe('research', () => {
 
   it('modifiers speed up production batches', () => {
     const world = bareWorld();
-    const paddy = placeBuiltBuilding(world, 'ricePaddy', 0, 30, 30);
-    staffBuilding(world, paddy);
-    paddy.inputs.water = 2;
+    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
+    staffBuilding(world, farm);
+    farm.inputs.water = 2;
     world.players[0]!.techs.researched.push('irrigation');
     run(world, 2); // batch starts with the modifier applied
-    expect(paddy.prodTicksLeft).toBeLessThan(200); // 200 base / 1.3 ≈ 154
+    expect(farm.prodTicksLeft).toBeLessThan(200); // 200 base / 1.3 ≈ 154
   });
 });

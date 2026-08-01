@@ -56,13 +56,13 @@ export function canResearch(
   for (const p of def.prereqs) {
     if (!t.researched.includes(p)) return { ok: false, reason: `requires ${TECH_DEFS[p].name}` };
   }
-  let hasTerakoya = false;
+  let hasAbbey = false;
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.type === 'terakoya' && b.state === 'built' && b.owner === owner) {
-      hasTerakoya = true;
+    if (!b.dead && b.type === 'abbey' && b.state === 'built' && b.owner === owner) {
+      hasAbbey = true;
       break;
     }
   }
-  if (!hasTerakoya) return { ok: false, reason: 'needs a built Terakoya' };
+  if (!hasAbbey) return { ok: false, reason: 'needs a built Abbey' };
   return { ok: true };
 }

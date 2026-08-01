@@ -11,7 +11,7 @@ const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
 /**
  * The population economy: every production building draws its resident
  * worker from the serf pool — an idle serf walks over and *becomes* the
- * worker — and the dojo consumes an arriving serf as each soldier's recruit.
+ * worker — and the barracks consumes an arriving serf as each soldier's recruit.
  * People, not buildings, are the limiting resource.
  */
 export function staffingSystem(world: World): void {
@@ -57,7 +57,7 @@ function handleArrivals(world: World): void {
     }
     if (b.state !== 'built') continue;
     if (def.trains) {
-      // Dojo recruit: the serf enlists — consumed into the training queue.
+      // Barracks recruit: the serf enlists — consumed into the training queue.
       const idx = firstReadyTraining(b);
       if (idx < 0) continue; // ingredients were lost meanwhile; stand down
       if (idx > 0) {

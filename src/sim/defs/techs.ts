@@ -3,26 +3,26 @@ import type { BuildingTypeId } from './buildings.ts';
 import type { UnitTypeId } from './units.ts';
 
 /**
- * The tech tree: three short branches researched at the Terakoya for goods +
+ * The tech tree: three short branches researched at the Abbey for goods +
  * time. Effects are typed and read on demand — `unlock*` gates checks,
  * `modifier` multipliers are combined by getModifier(), so adding a tech is
  * pure data.
  */
 export type TechId =
   | 'irrigation'
-  | 'sakeBrewing'
+  | 'brewing'
   | 'festivals'
-  | 'strawSandals'
+  | 'cobbledBoots'
   | 'ironworking'
   | 'deepMining'
   | 'masonry'
-  | 'bushido'
+  | 'soldiery'
   | 'archery'
-  | 'lamellarArmor'
-  | 'goldInlay';
+  | 'mailArmor'
+  | 'gildedArms';
 
 export type ModifierKey =
-  | 'paddySpeed' // rice paddy batch speed
+  | 'farmSpeed' // wheat farm batch speed
   | 'mineSpeed' // mine gather speed
   | 'serfSpeed' // serf + worker walk speed
   | 'workSpeed' // all production speed (festival buff)
@@ -56,39 +56,39 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Irrigation',
     branch: 'agriculture',
     prereqs: [],
-    cost: { rice: 5, silver: 3 },
+    cost: { wheat: 5, silver: 3 },
     durationTicks: 25 * S,
-    effects: [{ kind: 'modifier', key: 'paddySpeed', multiplier: 1.3 }],
-    desc: 'Wet-field channels: paddies grow rice 30% faster.',
+    effects: [{ kind: 'modifier', key: 'farmSpeed', multiplier: 1.3 }],
+    desc: 'Field channels: farms grow wheat 30% faster.',
   },
-  sakeBrewing: {
-    id: 'sakeBrewing',
-    name: 'Sake Brewing',
+  brewing: {
+    id: 'brewing',
+    name: 'Brewing',
     branch: 'agriculture',
     prereqs: ['irrigation'],
-    cost: { rice: 8, silver: 4 },
+    cost: { wheat: 8, silver: 4 },
     durationTicks: 30 * S,
-    effects: [{ kind: 'unlockBuilding', building: 'sakeBrewery' }],
-    desc: 'Unlocks the Sake Brewery.',
+    effects: [{ kind: 'unlockBuilding', building: 'brewery' }],
+    desc: 'Unlocks the Brewery.',
   },
   festivals: {
     id: 'festivals',
     name: 'Festivals',
     branch: 'agriculture',
-    prereqs: ['sakeBrewing'],
-    cost: { sake: 2, silver: 6 },
+    prereqs: ['brewing'],
+    cost: { ale: 2, silver: 6 },
     durationTicks: 30 * S,
-    effects: [], // enables the terakoya's sake-fed festival buff
-    desc: 'Sake delivered to the Terakoya holds festivals: everyone works 25% faster for a while.',
+    effects: [], // enables the abbey's ale-fed festival buff
+    desc: 'Ale delivered to the Abbey holds festivals: everyone works 25% faster for a while.',
   },
 
   // — Craft —
-  strawSandals: {
-    id: 'strawSandals',
-    name: 'Straw Sandals',
+  cobbledBoots: {
+    id: 'cobbledBoots',
+    name: 'Cobbled Boots',
     branch: 'craft',
     prereqs: [],
-    cost: { rice: 4, silver: 2 },
+    cost: { wheat: 4, silver: 2 },
     durationTicks: 20 * S,
     effects: [{ kind: 'modifier', key: 'serfSpeed', multiplier: 1.15 }],
     desc: 'Serfs and workers walk 15% faster.',
@@ -97,7 +97,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     id: 'ironworking',
     name: 'Ironworking',
     branch: 'craft',
-    prereqs: ['strawSandals'],
+    prereqs: ['cobbledBoots'],
     cost: { stone: 6, silver: 8 },
     durationTicks: 40 * S,
     effects: [
@@ -124,7 +124,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     id: 'masonry',
     name: 'Masonry',
     branch: 'craft',
-    prereqs: ['strawSandals'],
+    prereqs: ['cobbledBoots'],
     cost: { stone: 8, silver: 4 },
     durationTicks: 30 * S,
     effects: [{ kind: 'unlockPaving' }],
@@ -132,47 +132,47 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
   },
 
   // — Warfare —
-  bushido: {
-    id: 'bushido',
-    name: 'Bushidō',
+  soldiery: {
+    id: 'soldiery',
+    name: 'Soldiery',
     branch: 'warfare',
     prereqs: [],
-    cost: { rice: 6, silver: 6 },
+    cost: { wheat: 6, silver: 6 },
     durationTicks: 30 * S,
     effects: [
-      { kind: 'unlockBuilding', building: 'dojo' },
-      { kind: 'unlockUnit', unit: 'ashigaru' },
+      { kind: 'unlockBuilding', building: 'barracks' },
+      { kind: 'unlockUnit', unit: 'spearman' },
     ],
-    desc: 'Unlocks the Dojo and Yari Ashigaru.',
+    desc: 'Unlocks the Barracks and Spearmen.',
   },
   archery: {
     id: 'archery',
     name: 'Archery',
     branch: 'warfare',
-    prereqs: ['bushido'],
-    cost: { bamboo: 8, silver: 6 },
+    prereqs: ['soldiery'],
+    cost: { wood: 8, silver: 6 },
     durationTicks: 30 * S,
     effects: [
       { kind: 'unlockBuilding', building: 'bowyer' },
       { kind: 'unlockUnit', unit: 'archer' },
     ],
-    desc: 'Unlocks the Bowyer and Yumi Archer.',
+    desc: 'Unlocks the Bowyer and Archers.',
   },
-  lamellarArmor: {
-    id: 'lamellarArmor',
-    name: 'Lamellar Armor',
+  mailArmor: {
+    id: 'mailArmor',
+    name: 'Mail Armor',
     branch: 'warfare',
-    prereqs: ['bushido'],
+    prereqs: ['soldiery'],
     cost: { iron: 4, silver: 8 },
     durationTicks: 35 * S,
     effects: [{ kind: 'modifier', key: 'militaryHp', multiplier: 1.25 }],
     desc: 'Military units train with 25% more health.',
   },
-  goldInlay: {
-    id: 'goldInlay',
-    name: 'Gold Inlay',
+  gildedArms: {
+    id: 'gildedArms',
+    name: 'Gilded Arms',
     branch: 'warfare',
-    prereqs: ['lamellarArmor'],
+    prereqs: ['mailArmor'],
     cost: { gold: 4, silver: 10 },
     durationTicks: 40 * S,
     effects: [{ kind: 'modifier', key: 'militaryHp', multiplier: 1.2 }],

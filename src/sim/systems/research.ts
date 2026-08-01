@@ -29,13 +29,13 @@ export function researchSystem(world: World): void {
       continue;
     }
 
-    // Festivals: this player's built terakoya burns 1 sake for a buff.
+    // Festivals: this player's built abbey burns 1 ale for a buff.
     if (!t.researched.includes('festivals')) continue;
     for (const b of world.buildings.values()) {
-      if (b.dead || b.type !== 'terakoya' || b.state !== 'built' || b.owner !== p.id) continue;
-      if ((b.inputs.sake ?? 0) > 0) {
-        b.inputs.sake = (b.inputs.sake ?? 0) - 1;
-        world.ledger.consumed.sake = (world.ledger.consumed.sake ?? 0) + 1;
+      if (b.dead || b.type !== 'abbey' || b.state !== 'built' || b.owner !== p.id) continue;
+      if ((b.inputs.ale ?? 0) > 0) {
+        b.inputs.ale = (b.inputs.ale ?? 0) - 1;
+        world.ledger.consumed.ale = (world.ledger.consumed.ale ?? 0) + 1;
         t.festivalTicksLeft = FESTIVAL_DURATION;
       }
       break;

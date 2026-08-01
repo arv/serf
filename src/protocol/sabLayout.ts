@@ -41,7 +41,7 @@ export const WORK = {
   draw: 6,
 } as const;
 
-/** A worker's workplace flavor — picks a themed body (farmer's straw hat...). */
+/** A worker's workplace flavor — picks a profession body (farmer's straw hat...). */
 export const PROFESSION = { none: 0, farmer: 1, miner: 2 } as const;
 export const SLOT_BYTES = COUNT_BYTES + IDS_BYTES + XS_BYTES + YS_BYTES + AUX_BYTES;
 export const SAB_BYTES = HEADER_INTS * 4 + SLOT_COUNT * SLOT_BYTES;

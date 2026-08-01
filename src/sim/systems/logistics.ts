@@ -1,4 +1,4 @@
-import { JOB_BLOCKED_BACKOFF, MATCHER_INTERVAL, TERAKOYA_SAKE_CAP } from '../defs/balance.ts';
+import { JOB_BLOCKED_BACKOFF, MATCHER_INTERVAL, ABBEY_ALE_CAP } from '../defs/balance.ts';
 import { INPUT_CAP, buildingDef } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
@@ -150,14 +150,14 @@ function match(world: World): void {
       }
     }
 
-    // Festivals: the terakoya sips sake.
-    if (b.type === 'terakoya' && world.players[b.owner]?.techs.researched.includes('festivals')) {
-      const want = TERAKOYA_SAKE_CAP - (b.inputs.sake ?? 0) - (b.inbound.sake ?? 0);
-      if (want > 0) demands.push(demandOf(world, b, 'sake', want, 2));
-      else delete b.demandSince.sake;
+    // Festivals: the abbey sips ale.
+    if (b.type === 'abbey' && world.players[b.owner]?.techs.researched.includes('festivals')) {
+      const want = ABBEY_ALE_CAP - (b.inputs.ale ?? 0) - (b.inbound.ale ?? 0);
+      if (want > 0) demands.push(demandOf(world, b, 'ale', want, 2));
+      else delete b.demandSince.ale;
     }
 
-    // Training queues demand their rice + weapons (priority 2).
+    // Training queues demand their wheat + weapons (priority 2).
     if (def.trains && b.trainQueue && b.trainQueue.length > 0) {
       const need = trainingDemand(b);
       for (const [good, n] of Object.entries(need) as [GoodId, number][]) {
@@ -345,7 +345,7 @@ function deliveryTargetFor(world: World, owner: Owner, good: GoodId): Building |
     const def = buildingDef(b.type);
     const wantsInput =
       (def.recipe?.kind === 'convert' && (def.recipe.inputs[good] ?? 0) > 0) ||
-      (b.type === 'terakoya' && good === 'sake');
+      (b.type === 'abbey' && good === 'ale');
     if (wantsInput && (b.inputs[good] ?? 0) + (b.inbound[good] ?? 0) < INPUT_CAP) return b;
   }
   return home;
@@ -516,8 +516,8 @@ function deliver(world: World, to: Building, good: GoodId): void {
   const def = buildingDef(to.type);
   if (def.recipe?.kind === 'convert' && (def.recipe.inputs[good] ?? 0) > 0) {
     to.inputs[good] = (to.inputs[good] ?? 0) + 1;
-  } else if (to.type === 'terakoya' && good === 'sake') {
-    to.inputs.sake = (to.inputs.sake ?? 0) + 1;
+  } else if (to.type === 'abbey' && good === 'ale') {
+    to.inputs.ale = (to.inputs.ale ?? 0) + 1;
   } else if (def.trains) {
     // Training ingredients live in the input buffer too.
     to.inputs[good] = (to.inputs[good] ?? 0) + 1;

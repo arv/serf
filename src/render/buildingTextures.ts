@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { canvasTexture } from './spriteTextures';
 
 /**
- * Painted architecture textures, generated once at boot. The Battle Realms
- * look is hand-painted surfaces: scalloped tile roofs, weathered planks,
- * mottled plaster, straw thatch — chunky, saturated, no photorealism.
+ * Painted architecture textures, generated once at boot. The look is
+ * hand-painted surfaces: scalloped tile roofs, weathered planks, mottled
+ * plaster, straw thatch — chunky, saturated, no photorealism.
  */
 
 const cache = new Map<string, THREE.Texture>();
@@ -29,7 +29,7 @@ function shade(hex: string, f: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-/** Overlapping scalloped tile rows — the BR roof signature. */
+/** Overlapping scalloped tile rows — the stylized roof signature. */
 export function roofTiles(base: string): THREE.Texture {
   return cached(`roof:${base}`, () =>
     canvasTexture(128, (ctx) => {

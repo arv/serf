@@ -7,7 +7,7 @@ export type TerrainKind = (typeof Terrain)[keyof typeof Terrain];
 
 export const TileResource = {
   None: 0,
-  Bamboo: 1,
+  Wood: 1,
   Rock: 2,
   IronDep: 3,
   SilverDep: 4,
@@ -25,7 +25,7 @@ export const PathLevel = { None: 0, Trail: 1, Road: 2 } as const;
 export interface GameMap {
   terrain: Uint8Array;
   resource: Uint8Array;
-  /** Remaining harvests for bamboo/rock; remaining ore for deposits. */
+  /** Remaining harvests for wood/rock; remaining ore for deposits. */
   resourceAmt: Uint8Array;
   /** 1 = not walkable (water, standing resources, building footprints). */
   blocked: Uint8Array;
@@ -57,7 +57,7 @@ export type MapView = Pick<
 
 /** Walking resources block movement; ore deposits are walkable rocky ground. */
 export function resourceBlocks(res: number): boolean {
-  return res === TileResource.Bamboo || res === TileResource.Rock;
+  return res === TileResource.Wood || res === TileResource.Rock;
 }
 
 /** A faction's home: storehouse footprint origin tile. */
@@ -194,7 +194,7 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
   for (const start of starts) {
     const a = anchorOf(start);
     for (const [res, amt, radius] of [
-      [TileResource.Bamboo, 6, 3],
+      [TileResource.Wood, 6, 3],
       [TileResource.Rock, 10, 2],
     ] as const) {
       for (let tries = 0; ; tries++) {
@@ -211,14 +211,14 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
     }
   }
 
-  // Bamboo groves in the valleys — but off the immediate shoreline, so a
+  // Tree groves in the valleys — but off the immediate shoreline, so a
   // hut's commute never dead-ends against the water.
   for (let c = 0; c < 11; c++) {
     const [x, y] = spotPref(4, 10, [
       (x0, y0) => heightAt(x0, y0) > 0.3 && heightAt(x0, y0) < 0.8,
       (x0, y0) => heightAt(x0, y0) < 0.8,
     ]);
-    placeCluster(TileResource.Bamboo, 6, x, y, rng.range(2, 4), 0.75);
+    placeCluster(TileResource.Wood, 6, x, y, rng.range(2, 4), 0.75);
   }
   // Rock outcrops on the high ground.
   for (let c = 0; c < 5; c++) {

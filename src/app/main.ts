@@ -11,10 +11,7 @@ import { BuildingSync } from '../render/buildingSync';
 import { GhostPlacement } from '../render/ghost';
 import { FogOfWar } from '../render/fogOfWar';
 import { loadCharacterAssets } from '../render/characters';
-import { THEME, loadMedievalAssets } from '../render/medieval';
-
-// The daylight CSS grade keys off this class (see index.html).
-if (THEME === 'medieval') document.documentElement.classList.add('day');
+import { loadGlbAssets } from '../render/assets';
 import { Controls } from '../input/controls';
 import { mountHud } from '../ui/mount';
 import {
@@ -81,7 +78,7 @@ if (!crossOriginIsolated) {
 
 /**
  * Launch parameters. Any of these means the player has already chosen a
- * game — anything else (a bare '/', or '?theme=japan') gets the menu.
+ * game — anything else (a bare '/') gets the menu.
  */
 const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu'];
 
@@ -156,7 +153,7 @@ async function boot(): Promise<void> {
   const [init] = await Promise.all([
     host.start(config, loadData, net),
     loadCharacterAssets(),
-    loadMedievalAssets(),
+    loadGlbAssets(),
   ]);
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;

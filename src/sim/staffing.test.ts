@@ -43,7 +43,7 @@ describe('the population economy', () => {
 
   it('staffing competes with hauling: one serf cannot do both', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { bamboo: 20 });
+    addStorehouse(world, 30, 30, { wood: 20 });
     placeBuiltBuilding(world, 'well', 0, 24, 30);
     addSerf(world, 28, 34); // exactly one person
     run(world, 20 * 15);
@@ -55,17 +55,17 @@ describe('the population economy', () => {
 
   it('training a soldier consumes a serf (people become the army)', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { rice: 6, yari: 2 });
-    world.players[0]!.techs.researched.push('bushido');
-    const dojo = placeBuiltBuilding(world, 'dojo', 0, 36, 30);
+    addStorehouse(world, 30, 30, { wheat: 6, spear: 2 });
+    world.players[0]!.techs.researched.push('soldiery');
+    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
     addSerf(world, 33, 34); // one hauls, one enlists
     const peopleBefore = [...world.units.values()].filter((u) => !u.dead).length;
-    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: dojo.id, unit: 'ashigaru' }));
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'spearman' }));
     run(world, 20 * 90);
 
-    const ashigaru = [...world.units.values()].filter((u) => u.kind === 'ashigaru');
-    expect(ashigaru.length).toBe(1);
+    const spearman = [...world.units.values()].filter((u) => u.kind === 'spearman');
+    expect(spearman.length).toBe(1);
     // Net population unchanged: serf out, soldier in.
     const peopleAfter = [...world.units.values()].filter((u) => !u.dead).length;
     expect(peopleAfter).toBe(peopleBefore);

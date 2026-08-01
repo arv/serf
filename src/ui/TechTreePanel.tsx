@@ -135,8 +135,8 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
         <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
           ✕
         </button>
-        <Show when={!techs().hasTerakoya}>
-          <div class="tech-note">Build a {buildingName('terakoya')} to begin research.</div>
+        <Show when={!techs().hasAbbey}>
+          <div class="tech-note">Build a {buildingName('abbey')} to begin research.</div>
         </Show>
         <For each={TECH_BRANCHES}>
           {(branch) => (
@@ -152,7 +152,7 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
                     classList={{ 'tech-node': true, [state(id)]: true }}
                     {...tooltip(() => <TechTip tech={id} />)}
                     onClick={() => {
-                      if (state(id) === 'available' && techs().hasTerakoya) props.onResearch(id);
+                      if (state(id) === 'available' && techs().hasAbbey) props.onResearch(id);
                     }}
                   >
                     {/* First in the DOM so it paints behind the text. */}

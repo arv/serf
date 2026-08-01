@@ -5,31 +5,26 @@ import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
 
 /**
- * Medieval/fantasy look (branch experiment): building and tree models from
- * the Quaternius "Ultimate Fantasy RTS" pack (CC0), swapped in over the
- * unchanged feudal-Japan sim. The theme is a URL switch so the two looks can
- * be compared in one build: this branch defaults to medieval; ?theme=japan
- * shows the hand-built originals.
+ * GLB asset pipeline: building, tree, rock and prop models loaded from the
+ * KayKit packs (CC0). When loading fails, callers fall back to the
+ * procedural models in models.ts.
  */
-
-export const THEME: 'medieval' | 'japan' =
-  new URLSearchParams(location.search).get('theme') === 'japan' ? 'japan' : 'medieval';
 
 const DIR = '/models/kaykit/';
 
 /**
- * Which KayKit Medieval Hexagon model (CC0, Kay Lousberg) plays each (still
- * Japanese-named) building. All load the pack's "green" variant — the
- * variants differ only in the team-color swatch, which we repaint per
- * owner (see splitTeamColorGroups).
+ * Which KayKit Medieval Hexagon model (CC0, Kay Lousberg) plays each
+ * building. All load the pack's "green" variant — the variants differ only
+ * in the team-color swatch, which we repaint per owner (see
+ * splitTeamColorGroups).
  */
 const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   storehouse: 'building_castle_green.gltf',
-  bambooHut: 'building_lumbermill_green.gltf',
+  woodcutter: 'building_lumbermill_green.gltf',
   quarry: 'building_mine_green.gltf',
   well: 'building_well_green.gltf',
-  ricePaddy: 'farm_plot.glb',
-  sakeBrewery: 'building_tavern_green.gltf',
+  wheatFarm: 'farm_plot.glb',
+  brewery: 'building_tavern_green.gltf',
   // The mines share one model and read apart by their spoil (rust, silver,
   // gold boulders in BUILDING_DECOR) — the pack's color variants only vary
   // the team-color slot, which now belongs to the owning faction.
@@ -39,8 +34,8 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   swordsmith: 'building_blacksmith_green.gltf',
   spearmaker: 'building_blacksmith_green.gltf',
   bowyer: 'building_archeryrange_green.gltf',
-  dojo: 'building_barracks_green.gltf',
-  terakoya: 'building_church_green.gltf',
+  barracks: 'building_barracks_green.gltf',
+  abbey: 'building_church_green.gltf',
   banditCamp: 'building_tower_B_red.gltf',
 };
 
@@ -70,7 +65,7 @@ const DECOR_PROP_FILES = [
 ];
 
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
-  bambooHut: [{ prop: 'resource_lumber', at: [0.36, 0.28], size: 0.12, rot: 0.3 }],
+  woodcutter: [{ prop: 'resource_lumber', at: [0.36, 0.28], size: 0.12, rot: 0.3 }],
   quarry: [
     { prop: 'resource_stone', at: [0.34, 0.3], size: 0.14 },
     { prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 },
@@ -173,8 +168,7 @@ function normalize(scene: THREE.Group): THREE.Group {
   return out;
 }
 
-export async function loadMedievalAssets(): Promise<boolean> {
-  if (THEME !== 'medieval') return false;
+export async function loadGlbAssets(): Promise<boolean> {
   try {
     const loader = new GLTFLoader();
     const files = new Set(Object.values(BUILDING_FILES));
@@ -337,15 +331,11 @@ export async function loadMedievalAssets(): Promise<boolean> {
     assets = { buildings, trees, rocks, natureMaterial, props };
     return true;
   } catch (err) {
-    console.warn('[medieval] falling back to the Japan look:', err);
+    console.warn('[assets] falling back to procedural models:', err);
     return false;
   }
 }
 
-/**
- * A medieval stand-in for this building, scaled to its footprint — or null
- * (no model / theme off), in which case the hand-built model is used.
- */
 /**
  * Split a building's triangles into two draw groups: everything textured
  * as usual, plus the team-color slot KayKit reserves in the atlas. Done
@@ -380,7 +370,7 @@ function splitTeamColorGroups(root: THREE.Object3D): void {
     geo.addGroup(0, plain.length, 0);
     geo.addGroup(plain.length, team.length, 1);
     o.geometry = geo;
-    // Slot 1 is a placeholder here; makeMedievalBuilding fills it per owner.
+    // Slot 1 is a placeholder here; makeGlbBuilding fills it per owner.
     o.material = [o.material as THREE.Material, o.material as THREE.Material];
   });
 }
@@ -397,7 +387,7 @@ function teamMaterial(color: number): THREE.MeshLambertMaterial {
   return m;
 }
 
-export function makeMedievalBuilding(type: BuildingTypeId, owner = 0): THREE.Group | null {
+export function makeGlbBuilding(type: BuildingTypeId, owner = 0): THREE.Group | null {
   const template = assets?.buildings.get(type);
   if (!template) return null;
   const def = BUILDING_DEFS[type];
@@ -421,7 +411,7 @@ export function makeMedievalBuilding(type: BuildingTypeId, owner = 0): THREE.Gro
 }
 
 /** Palette-textured tree-species geometries for the scatter system, or null. */
-export function medievalTrees(): {
+export function glbTrees(): {
   geometries: THREE.BufferGeometry[];
   material: THREE.Material;
 } | null {
@@ -430,7 +420,7 @@ export function medievalTrees(): {
 }
 
 /** Palette-textured rock variants for the scatter system, or null. */
-export function medievalRocks(): {
+export function glbRocks(): {
   geometries: THREE.BufferGeometry[];
   material: THREE.Material;
 } | null {
@@ -442,9 +432,9 @@ export function medievalRocks(): {
  * A pack prop cloned and normalized for carrying: centered on the origin
  * and scaled to `span` across — so what a serf hauls matches what's piled
  * in the yards (the mill's squared beams, the quarry's stone). Null when
- * the theme is off or the prop is unknown.
+ * the assets aren't loaded or the prop is unknown.
  */
-export function medievalCarryProp(prop: string, span: number): THREE.Group | null {
+export function glbCarryProp(prop: string, span: number): THREE.Group | null {
   const src = assets?.props.get(prop);
   if (!src) return null;
   const c = src.clone();

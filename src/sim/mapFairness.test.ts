@@ -44,13 +44,13 @@ describe('map fairness', () => {
         const world = makeWorld(seed, players);
         const homes = anchors(world);
         expect(homes.length).toBe(players);
-        const bamboo = tilesOf(world, TileResource.Bamboo);
+        const wood = tilesOf(world, TileResource.Wood);
         const rock = tilesOf(world, TileResource.Rock);
         const iron = tilesOf(world, TileResource.IronDep);
         const silver = tilesOf(world, TileResource.SilverDep);
         for (const h of homes) {
           const label = `seed ${seed}, ${players}p, start ${h.x},${h.y}`;
-          expect(countNear(bamboo, h.x, h.y, 17), `${label}: bamboo`).toBeGreaterThanOrEqual(3);
+          expect(countNear(wood, h.x, h.y, 17), `${label}: wood`).toBeGreaterThanOrEqual(3);
           expect(countNear(rock, h.x, h.y, 17), `${label}: rock`).toBeGreaterThanOrEqual(2);
           expect(countNear(iron, h.x, h.y, 17), `${label}: iron`).toBeGreaterThanOrEqual(1);
           expect(countNear(silver, h.x, h.y, 17), `${label}: silver`).toBeGreaterThanOrEqual(1);

@@ -193,12 +193,12 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
       const kinds = [
         'serf',
         'worker',
-        'samurai',
-        'ashigaru',
+        'knight',
+        'spearman',
         'archer',
         'bandit',
         'banditArcher',
-        'ronin',
+        'marauder',
       ] as const;
       kinds.forEach((k, i) => {
         spawnUnit(world, k, playerId, sh.x - 2.5 + i, sh.y + sh.h + 2.5);

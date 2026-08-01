@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BuildingTypeId } from '../sim/entities';
-import { THEME, makeMedievalBuilding, medievalCarryProp } from './medieval';
+import { makeGlbBuilding, glbCarryProp } from './assets';
 import { mapMaterials } from './materials';
 import { goodColors as goodColorsLocal, palette } from './palette';
 import { planks, plaster, roofTiles, stoneBlocks, thatch } from './buildingTextures';
@@ -8,11 +8,11 @@ import { planks, plaster, roofTiles, stoneBlocks, thatch } from './buildingTextu
 export { goodColors } from './palette';
 
 /**
- * Procedural building models: primitives dressed in canvas-painted textures.
- * The Battle Realms language — scalloped tile roofs with deep eaves and
- * ridge beams, plank and plaster walls in timber frames, stone plinths,
- * lanterns and props. Each factory returns a fresh Group whose origin is the
- * footprint center at ground level.
+ * Procedural fallback building models (used when the GLB assets fail to
+ * load): primitives dressed in canvas-painted textures. Scalloped tile
+ * roofs with deep eaves and ridge beams, plank and plaster walls in timber
+ * frames, stone plinths, lanterns and props. Each factory returns a fresh
+ * Group whose origin is the footprint center at ground level.
  */
 
 export function mesh(geo: THREE.BufferGeometry, color: number): THREE.Mesh {
@@ -57,7 +57,7 @@ const TEX = {
 /**
  * A hipped, tiled roof: four-sided truncated pyramid wearing the scalloped
  * tile texture (one texture width per face), with a deep eave skirt, upturned
- * corners, and a timber ridge beam — the BR roof in one helper.
+ * corners, and a timber ridge beam — the stylized roof in one helper.
  */
 function hipRoof(width: number, height: number, texture: THREE.Texture): THREE.Group {
   const g = new THREE.Group();
@@ -125,7 +125,7 @@ function window_(g: THREE.Group, x: number, y: number, z: number, rotY = 0): voi
 
 const lanternMaterial = new THREE.MeshBasicMaterial({ color: palette.lantern });
 
-/** A glowing paper lantern (basic material ignores lighting = emissive look). */
+/** A glowing lantern (basic material ignores lighting = emissive look). */
 function lantern(x: number, y: number, z: number): THREE.Group {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), lanternMaterial);
@@ -172,7 +172,7 @@ function makeStorehouse(): THREE.Group {
   topRoof.position.y = 2.9;
   g.add(topRoof);
 
-  // Rice sacks and a barrel by the door.
+  // Wheat sacks and a barrel by the door.
   for (const [sx, sz, s] of [
     [-0.95, 1.55, 1],
     [-0.7, 1.62, 0.8],
@@ -193,14 +193,14 @@ function makeStorehouse(): THREE.Group {
   return g;
 }
 
-function makeBambooHut(): THREE.Group {
+function makeWoodcutter(): THREE.Group {
   const g = workshopBase({ wall: TEX.plank(), roofTex: TEX.thatch(), roofFlat: true });
-  // Lean-to bamboo rack at the side.
-  const rack = mesh(new THREE.BoxGeometry(0.12, 0.5, 0.9), palette.bambooCulm);
+  // Lean-to wood rack at the side.
+  const rack = mesh(new THREE.BoxGeometry(0.12, 0.5, 0.9), palette.stalk);
   rack.position.set(0.95, 0.25, 0);
   rack.rotation.z = 0.5;
   g.add(rack);
-  const bundle = mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.8, 6), palette.bambooCulmOld);
+  const bundle = mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.8, 6), palette.stalkOld);
   bundle.position.set(0.8, 0.12, -0.45);
   bundle.rotation.z = Math.PI / 2.2;
   g.add(bundle);
@@ -355,7 +355,7 @@ function makeWell(): THREE.Group {
   return g;
 }
 
-function makeRicePaddy(): THREE.Group {
+function makeWheatFarm(): THREE.Group {
   // A flooded pond dug into the meadow: organic outline, earthen skirt that
   // sinks below grade (so sloped terrain never shows a gap), soft bund lip.
   const g = new THREE.Group();
@@ -364,7 +364,7 @@ function makeRicePaddy(): THREE.Group {
   // below grade (it only exists to hide terrain seams on slopes), and the
   // water sits barely above the grass like a flooded cut. Colors stay close
   // to the meadow — murky green flood water, olive-earth bund — so the
-  // paddy melts into the terrain instead of contrasting against it.
+  // farm melts into the terrain instead of contrasting against it.
   const muddyEarth = 0x6d603a;
   const floodWater = 0x42583f;
   const basin = mesh(blobGeometry(1.55, 0.8, 0.24), muddyEarth);
@@ -396,7 +396,7 @@ function makeRicePaddy(): THREE.Group {
       if (Math.hypot(x, z) > 1.15) continue; // stay inside the pond
       const sprout = mesh(
         new THREE.ConeGeometry(0.07, 0.26 + Math.random() * 0.12, 4),
-        Math.random() < 0.3 ? palette.bambooLeafDark : palette.bambooLeaf,
+        Math.random() < 0.3 ? palette.leafDark : palette.leaf,
       );
       sprout.position.set(x, 0.2, z);
       sprout.rotation.y = Math.random() * Math.PI;
@@ -414,10 +414,10 @@ function makeBrewery(): THREE.Group {
   const band = mesh(new THREE.CylinderGeometry(0.255, 0.255, 0.05, 10), 0x2a2a2e);
   band.position.set(0.85, 0.3, -0.35);
   g.add(band);
-  // Sakabayashi: the cedar ball that marks a brewery.
-  const sugidama = mesh(new THREE.SphereGeometry(0.13, 8, 6), palette.bambooLeafDark);
-  sugidama.position.set(0.45, 0.98, 0.78);
-  g.add(sugidama);
+  // The ale bush: a greenery ball over the door, the brewer's old sign.
+  const aleBush = mesh(new THREE.SphereGeometry(0.13, 8, 6), palette.leafDark);
+  aleBush.position.set(0.45, 0.98, 0.78);
+  g.add(aleBush);
   return g;
 }
 
@@ -449,7 +449,7 @@ function makeSwordsmith(): THREE.Group {
   const chimney = tmesh(new THREE.BoxGeometry(0.24, 0.9, 0.24), TEX.stone());
   chimney.position.set(-0.55, 1.15, -0.45);
   g.add(chimney);
-  const blade = mesh(new THREE.BoxGeometry(0.05, 0.55, 0.12), goodColorsLocal.katana);
+  const blade = mesh(new THREE.BoxGeometry(0.05, 0.55, 0.12), goodColorsLocal.sword);
   blade.position.set(0.8, 0.45, 0.3);
   blade.rotation.z = 0.6;
   g.add(blade);
@@ -461,11 +461,11 @@ function makeSwordsmith(): THREE.Group {
 
 function makeSpearmaker(): THREE.Group {
   const g = workshopBase({ wall: TEX.plank(), roofTex: TEX.roofSlate() });
-  const shaft = mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4, 5), goodColorsLocal.yari);
+  const shaft = mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.4, 5), goodColorsLocal.spear);
   shaft.position.set(0.8, 0.7, 0.2);
   shaft.rotation.z = 0.35;
   g.add(shaft);
-  const tip = mesh(new THREE.ConeGeometry(0.07, 0.2, 5), goodColorsLocal.katana);
+  const tip = mesh(new THREE.ConeGeometry(0.07, 0.2, 5), goodColorsLocal.sword);
   tip.position.set(0.56, 1.36, 0.2);
   tip.rotation.z = 0.35;
   g.add(tip);
@@ -474,33 +474,18 @@ function makeSpearmaker(): THREE.Group {
 
 function makeBowyer(): THREE.Group {
   const g = workshopBase({ wall: TEX.plank(), roofTex: TEX.thatch(), roofFlat: true });
-  const bow = mesh(new THREE.TorusGeometry(0.4, 0.035, 6, 12, Math.PI), goodColorsLocal.yumi);
+  const bow = mesh(new THREE.TorusGeometry(0.4, 0.035, 6, 12, Math.PI), goodColorsLocal.bow);
   bow.position.set(0.85, 0.55, 0.2);
   bow.rotation.z = Math.PI / 2;
   g.add(bow);
   return g;
 }
 
-function makeTerakoya(): THREE.Group {
-  const g = workshopBase({ wall: TEX.plaster(), roofTex: TEX.roofVermillion(), size: 1.7 });
-  // Small torii gate at the entrance.
-  for (const sx of [-0.35, 0.35]) {
-    const p = mesh(new THREE.BoxGeometry(0.09, 0.8, 0.09), palette.vermillion);
-    p.position.set(sx, 0.4, 1.15);
-    g.add(p);
-  }
-  const lintel = mesh(new THREE.BoxGeometry(1.05, 0.09, 0.12), palette.vermillion);
-  lintel.position.set(0, 0.82, 1.15);
-  g.add(lintel);
-  g.add(lantern(-0.35, 0.62, 1.28));
-  g.add(lantern(0.35, 0.62, 1.28));
-  const lintel2 = mesh(new THREE.BoxGeometry(0.85, 0.07, 0.1), palette.wood);
-  lintel2.position.set(0, 0.62, 1.15);
-  g.add(lintel2);
-  return g;
+function makeAbbey(): THREE.Group {
+  return workshopBase({ wall: TEX.plaster(), roofTex: TEX.roofVermillion(), size: 1.7 });
 }
 
-function makeDojo(): THREE.Group {
+function makeBarracks(): THREE.Group {
   const g = new THREE.Group();
   const footing = tmesh(new THREE.BoxGeometry(2.8, 0.22, 2.8), TEX.stone());
   footing.position.y = 0.11;
@@ -530,15 +515,15 @@ function makeDojo(): THREE.Group {
     banner.position.set(sx + 0.14, 1.5, 1.35);
     g.add(banner);
   }
-  // Crossed practice weapons at the door.
-  const bokken = mesh(new THREE.BoxGeometry(0.05, 0.7, 0.05), palette.woodLight);
-  bokken.position.set(-0.2, 0.5, 1.3);
-  bokken.rotation.z = 0.5;
-  g.add(bokken);
-  const bokken2 = bokken.clone();
-  bokken2.position.x = 0.2;
-  bokken2.rotation.z = -0.5;
-  g.add(bokken2);
+  // Crossed wooden practice swords at the door.
+  const waster = mesh(new THREE.BoxGeometry(0.05, 0.7, 0.05), palette.woodLight);
+  waster.position.set(-0.2, 0.5, 1.3);
+  waster.rotation.z = 0.5;
+  g.add(waster);
+  const waster2 = waster.clone();
+  waster2.position.x = 0.2;
+  waster2.rotation.z = -0.5;
+  g.add(waster2);
   g.add(lantern(-1.15, 1.2, 1.25));
   g.add(lantern(1.15, 1.2, 1.25));
   return g;
@@ -598,19 +583,19 @@ function makeBanditCamp(): THREE.Group {
 const factories: Record<BuildingTypeId, () => THREE.Group> = {
   storehouse: makeStorehouse,
   banditCamp: makeBanditCamp,
-  bambooHut: makeBambooHut,
+  woodcutter: makeWoodcutter,
   quarry: makeQuarry,
   well: makeWell,
-  ricePaddy: makeRicePaddy,
-  sakeBrewery: makeBrewery,
+  wheatFarm: makeWheatFarm,
+  brewery: makeBrewery,
   ironMine: makeMine(palette.ironOre),
   silverMine: makeMine(palette.silverOre),
   goldMine: makeMine(palette.goldOre),
   swordsmith: makeSwordsmith,
   spearmaker: makeSpearmaker,
   bowyer: makeBowyer,
-  terakoya: makeTerakoya,
-  dojo: makeDojo,
+  abbey: makeAbbey,
+  barracks: makeBarracks,
   roadSite: makeRoadPile,
 };
 
@@ -624,8 +609,8 @@ export function makeGhostModel(
   opacity = 0.45,
   owner = 0,
 ): THREE.Group {
-  // Preview whatever model the theme will actually build, in your colors.
-  const g = makeMedievalBuilding(type, owner) ?? makeBuildingModel(type);
+  // Preview whatever model will actually be built, in your colors.
+  const g = makeGlbBuilding(type, owner) ?? makeBuildingModel(type);
   const ghosted = (m: THREE.Material): THREE.Material => {
     const mat = m.clone() as THREE.MeshLambertMaterial;
     mat.transparent = true;
@@ -678,11 +663,10 @@ const SKIN = 0xd9b38c;
 const HAIR = 0x241a12;
 
 interface PersonStyle {
-  robe: number; // kimono / armor color
+  robe: number; // tunic / armor color
   sash?: number;
-  kasa?: boolean; // straw hat
+  brimmedHat?: boolean; // straw hat
   headband?: number;
-  topknot?: boolean;
   armored?: boolean; // broader torso + shoulder plates
   scale?: number;
   /** Built into the right hand; swings with work/fight animations. */
@@ -699,7 +683,7 @@ export function lathe(profile: [number, number][], color: number, segments = 10)
 
 /**
  * A rigged villager with professional game-character anatomy: a smooth
- * lathe-turned kimono body (one continuous surface, hem to collar), and
+ * lathe-turned robe body (one continuous surface, hem to collar), and
  * TWO-BONE limbs — thighs with knee-jointed shins, upper arms with
  * elbow-jointed forearms — so gaits and swings articulate like real
  * characters instead of stick figures. Rig group names:
@@ -725,7 +709,7 @@ function person(style: PersonStyle): THREE.Group {
     leg.name = side < 0 ? 'legL' : 'legR';
     leg.position.set(side * 0.062, -0.02, 0);
 
-    // Thigh: hakama volume, widest at the hip.
+    // Thigh: trouser volume, widest at the hip.
     const thigh = lathe(
       [
         [0.045, -0.26],
@@ -738,7 +722,7 @@ function person(style: PersonStyle): THREE.Group {
     );
     leg.add(thigh);
 
-    // Shin pivots at the knee; hakama cuff flares over the ankle.
+    // Shin pivots at the knee; the trouser cuff flares over the ankle.
     const shin = new THREE.Group();
     shin.name = side < 0 ? 'shinL' : 'shinR';
     shin.position.y = -0.25;
@@ -762,7 +746,7 @@ function person(style: PersonStyle): THREE.Group {
   }
   g.add(hips);
 
-  // --- Torso: one continuous kimono surface, hem to collar ---------------
+  // --- Torso: one continuous robe surface, hem to collar -----------------
   const torso = new THREE.Group();
   torso.name = 'torso';
   torso.position.y = 0.48;
@@ -770,7 +754,7 @@ function person(style: PersonStyle): THREE.Group {
     [
       [0.148, 0.0], // hem, flared over the pelvis
       [0.135, 0.06],
-      [0.118, 0.12], // waist pinch under the obi
+      [0.118, 0.12], // waist pinch under the sash
       [0.126, 0.2],
       [shoulderW, 0.3], // chest spread
       [shoulderW * 0.92, 0.36], // shoulder roll-off
@@ -785,14 +769,14 @@ function person(style: PersonStyle): THREE.Group {
     const sash = mesh(new THREE.CylinderGeometry(0.124, 0.134, 0.075, 12), style.sash);
     sash.position.y = 0.125;
     torso.add(sash);
-    // Obi knot at the back.
+    // Sash knot at the back.
     const knot = mesh(new THREE.SphereGeometry(0.045, 6, 5), style.sash);
     knot.scale.set(1.4, 0.8, 0.7);
     knot.position.set(0, 0.13, -0.135);
     torso.add(knot);
   }
   if (style.armored) {
-    // Layered dō plates + sode shoulder guards.
+    // Layered breastplate bands + shoulder guards.
     const plate = mesh(new THREE.CylinderGeometry(0.145, 0.16, 0.05, 12), robeDark);
     plate.position.y = 0.2;
     torso.add(plate);
@@ -800,7 +784,7 @@ function person(style: PersonStyle): THREE.Group {
     plate2.position.y = 0.15;
     torso.add(plate2);
     for (const side of [-1, 1] as const) {
-      const sode = lathe(
+      const shoulderGuard = lathe(
         [
           [0.09, -0.07],
           [0.075, -0.02],
@@ -809,9 +793,9 @@ function person(style: PersonStyle): THREE.Group {
         robeDark,
         8,
       );
-      sode.position.set(side * 0.175, 0.37, 0);
-      sode.rotation.z = side * 0.35;
-      torso.add(sode);
+      shoulderGuard.position.set(side * 0.175, 0.37, 0);
+      shoulderGuard.rotation.z = side * 0.35;
+      torso.add(shoulderGuard);
     }
   }
 
@@ -831,13 +815,7 @@ function person(style: PersonStyle): THREE.Group {
   hair.scale.set(1.02, 1, 1.05);
   hair.position.set(0, 0.052, -0.012);
   head.add(hair);
-  if (style.topknot) {
-    const tail = mesh(new THREE.CylinderGeometry(0.02, 0.028, 0.07, 6), HAIR);
-    tail.position.set(0, 0.165, -0.01);
-    tail.rotation.x = -0.3;
-    head.add(tail);
-  }
-  if (style.kasa) {
+  if (style.brimmedHat) {
     const hat = lathe(
       [
         [0.215, 0],
@@ -859,7 +837,7 @@ function person(style: PersonStyle): THREE.Group {
   }
   torso.add(head);
 
-  // --- Two-bone arms: shoulder + elbow, kimono sleeves --------------------
+  // --- Two-bone arms: shoulder + elbow, draped sleeves --------------------
   for (const side of [-1, 1] as const) {
     const arm = new THREE.Group();
     arm.name = side < 0 ? 'armL' : 'armR';
@@ -909,8 +887,7 @@ function person(style: PersonStyle): THREE.Group {
   return g;
 }
 
-// Hand tools/weapons (positioned relative to the fist). Exported so the
-// skinned-character pipeline can bolt the same props onto GLB hand bones.
+// Hand tools/weapons (positioned relative to the fist).
 export function hatchet(hand: THREE.Group): void {
   const haft = mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.34, 5), palette.woodLight);
   haft.position.y = 0.1;
@@ -920,10 +897,10 @@ export function hatchet(hand: THREE.Group): void {
   hand.add(headM);
 }
 
-export function katanaBlade(hand: THREE.Group, big = false): void {
+export function swordBlade(hand: THREE.Group, big = false): void {
   const blade = mesh(
     new THREE.BoxGeometry(0.035, big ? 0.6 : 0.5, 0.05),
-    goodColorsLocal.katana,
+    goodColorsLocal.sword,
   );
   blade.position.y = big ? 0.32 : 0.27;
   hand.add(blade);
@@ -932,11 +909,11 @@ export function katanaBlade(hand: THREE.Group, big = false): void {
   hand.add(guard);
 }
 
-export function yariSpear(hand: THREE.Group): void {
-  const shaft = mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.15, 5), goodColorsLocal.yari);
+export function spearShaft(hand: THREE.Group): void {
+  const shaft = mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.15, 5), goodColorsLocal.spear);
   shaft.position.y = 0.3;
   hand.add(shaft);
-  const tip = mesh(new THREE.ConeGeometry(0.045, 0.16, 5), goodColorsLocal.katana);
+  const tip = mesh(new THREE.ConeGeometry(0.045, 0.16, 5), goodColorsLocal.sword);
   tip.position.y = 0.94;
   hand.add(tip);
 }
@@ -968,21 +945,20 @@ export function quiver(torso: THREE.Group): void {
 }
 
 const unitFactories = new Map<number, () => THREE.Group>([
-  // Serf: washi-cream kimono, burnt-orange obi — the BR peasant read.
+  // Serf: cream tunic, burnt-orange sash.
   [1, () => person({ robe: 0xe6d9b5, sash: 0xc86428 })],
-  // Worker: warm tan kimono, straw kasa, hatchet in hand.
-  [2, () => person({ robe: 0xd8a868, sash: 0x6b8f3f, kasa: true, tool: hatchet })],
-  // Samurai: bright indigo armor, topknot, katana.
-  [3, () =>
-    person({ robe: 0x5a72b8, armored: true, topknot: true, tool: (h) => katanaBlade(h) })],
-  // Ashigaru: paper tunic, indigo headband, yari.
-  [4, () => person({ robe: 0xefe3cc, headband: 0x4a5f8e, tool: yariSpear })],
-  // Archer: leaf-green garb, kasa, bow + quiver.
+  // Worker: warm tan tunic, straw hat, hatchet in hand.
+  [2, () => person({ robe: 0xd8a868, sash: 0x6b8f3f, brimmedHat: true, tool: hatchet })],
+  // Knight: bright indigo armor, sword.
+  [3, () => person({ robe: 0x5a72b8, armored: true, tool: (h) => swordBlade(h) })],
+  // Spearman: pale tunic, indigo headband, spear.
+  [4, () => person({ robe: 0xefe3cc, headband: 0x4a5f8e, tool: spearShaft })],
+  // Archer: leaf-green garb, straw hat, bow + quiver.
   [5, () =>
     person({
       robe: 0x7fae4a,
-      kasa: true,
-      tool: bowInHand(goodColorsLocal.yumi),
+      brimmedHat: true,
+      tool: bowInHand(goodColorsLocal.bow),
       back: quiver,
     })],
   // Bandit: charcoal rags, vermillion headband, crude blade.
@@ -995,14 +971,13 @@ const unitFactories = new Map<number, () => THREE.Group>([
       tool: bowInHand(palette.wood),
       back: quiver,
     })],
-  // Rōnin: gunmetal armor, big frame, long katana.
+  // Marauder: gunmetal armor, big frame, long sword.
   [8, () =>
     person({
       robe: 0x4a5364,
       armored: true,
-      topknot: true,
       scale: 1.15,
-      tool: (h) => katanaBlade(h, true),
+      tool: (h) => swordBlade(h, true),
     })],
 ]);
 
@@ -1024,8 +999,6 @@ export function makeUnitModel(kindCode: number): THREE.Group {
 
 import { GOODS, type GoodId } from '../sim/defs/goods';
 
-const MEDIEVAL = THEME === 'medieval';
-
 function carryProto(good: GoodId): THREE.Group {
   const g = new THREE.Group();
   const add = (m: THREE.Mesh): void => {
@@ -1035,7 +1008,7 @@ function carryProto(good: GoodId): THREE.Group {
 
   switch (good) {
     case 'water': {
-      // Tenbin-bo: a shoulder pole with a pail swinging at each end.
+      // A shoulder pole with a pail swinging at each end.
       const pole = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.78, 5), palette.woodLight);
       pole.rotation.z = Math.PI / 2;
       add(pole);
@@ -1053,8 +1026,8 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.88;
       break;
     }
-    case 'rice': {
-      // Tawara: a straw bale with rope bindings.
+    case 'wheat': {
+      // A straw grain bale with rope bindings.
       const bale = mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.32, 8), 0xd8c288);
       bale.rotation.z = Math.PI / 2;
       add(bale);
@@ -1067,14 +1040,14 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.92;
       break;
     }
-    case 'bamboo': {
-      // A bundle of culms over the shoulder.
+    case 'wood': {
+      // A bundle of poles over the shoulder.
       for (const [dy, dz, r] of [
         [0, 0, 0.032],
         [0.05, 0.03, 0.028],
         [0.04, -0.04, 0.03],
       ] as const) {
-        const culm = mesh(new THREE.CylinderGeometry(r, r, 0.95, 5), palette.bambooCulm);
+        const culm = mesh(new THREE.CylinderGeometry(r, r, 0.95, 5), palette.stalk);
         culm.rotation.z = Math.PI / 2;
         culm.rotation.y = 0.12;
         culm.position.set(0, dy, dz);
@@ -1103,43 +1076,29 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.9;
       break;
     }
-    case 'katana': {
-      if (MEDIEVAL) {
-        // Sheathed arming sword: leather scabbard, straight crossguard.
-        // Parts sit along the same yaw as the scabbard, so their offsets are
-        // (d·cos 0.35, −d·sin 0.35) for a distance d up the blade.
-        const scabbard = mesh(new THREE.BoxGeometry(0.44, 0.05, 0.075), palette.wood);
-        scabbard.rotation.y = 0.35;
-        add(scabbard);
-        const guard = mesh(new THREE.BoxGeometry(0.035, 0.045, 0.19), 0x9aa0a8);
-        guard.position.set(0.216, 0.005, -0.079);
-        guard.rotation.y = 0.35;
-        add(guard);
-        const grip = mesh(new THREE.BoxGeometry(0.1, 0.04, 0.042), 0x2c2018);
-        grip.position.set(0.268, 0.005, -0.098);
-        grip.rotation.y = 0.35;
-        add(grip);
-        const pommel = mesh(new THREE.SphereGeometry(0.032, 6, 5), 0x9aa0a8);
-        pommel.position.set(0.315, 0.005, -0.115);
-        add(pommel);
-        g.position.y = 0.92;
-        break;
-      }
-      // Sheathed blade carried flat.
-      const saya = mesh(new THREE.BoxGeometry(0.55, 0.045, 0.07), 0x2a2233);
-      saya.rotation.y = 0.35;
-      saya.rotation.z = 0.1;
-      add(saya);
-      const tsuba = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 8), 0xc8a84a);
-      tsuba.rotation.z = Math.PI / 2;
-      tsuba.position.set(0.2, 0.02, -0.07);
-      tsuba.rotation.y = 0.35;
-      add(tsuba);
+    case 'sword': {
+      // Sheathed arming sword: leather scabbard, straight crossguard.
+      // Parts sit along the same yaw as the scabbard, so their offsets are
+      // (d·cos 0.35, −d·sin 0.35) for a distance d up the blade.
+      const scabbard = mesh(new THREE.BoxGeometry(0.44, 0.05, 0.075), palette.wood);
+      scabbard.rotation.y = 0.35;
+      add(scabbard);
+      const guard = mesh(new THREE.BoxGeometry(0.035, 0.045, 0.19), 0x9aa0a8);
+      guard.position.set(0.216, 0.005, -0.079);
+      guard.rotation.y = 0.35;
+      add(guard);
+      const grip = mesh(new THREE.BoxGeometry(0.1, 0.04, 0.042), 0x2c2018);
+      grip.position.set(0.268, 0.005, -0.098);
+      grip.rotation.y = 0.35;
+      add(grip);
+      const pommel = mesh(new THREE.SphereGeometry(0.032, 6, 5), 0x9aa0a8);
+      pommel.position.set(0.315, 0.005, -0.115);
+      add(pommel);
       g.position.y = 0.92;
       break;
     }
-    case 'yari': {
-      const shaft = mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.05, 5), goodColorsLocal.yari);
+    case 'spear': {
+      const shaft = mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.05, 5), goodColorsLocal.spear);
       shaft.rotation.z = Math.PI / 2;
       shaft.rotation.y = 0.25;
       add(shaft);
@@ -1151,42 +1110,28 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.92;
       break;
     }
-    case 'yumi': {
-      const bow = mesh(new THREE.TorusGeometry(0.26, 0.022, 5, 10, Math.PI), goodColorsLocal.yumi);
+    case 'bow': {
+      const bow = mesh(new THREE.TorusGeometry(0.26, 0.022, 5, 10, Math.PI), goodColorsLocal.bow);
       bow.rotation.z = Math.PI / 2;
       add(bow);
       g.position.y = 0.85;
       break;
     }
-    case 'sake': {
-      if (MEDIEVAL) {
-        // A stout ale cask, iron-hooped, carried on its side.
-        const staves = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 10), 0x8a6033);
-        staves.rotation.z = Math.PI / 2;
-        add(staves);
-        const belly = mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.12, 10), 0x8a6033);
-        belly.rotation.z = Math.PI / 2;
-        add(belly);
-        for (const sx of [-0.085, 0.085]) {
-          const hoop = mesh(new THREE.CylinderGeometry(0.106, 0.106, 0.022, 10), 0x3a3128);
-          hoop.rotation.z = Math.PI / 2;
-          hoop.position.x = sx;
-          add(hoop);
-        }
-        g.position.y = 0.93;
-        break;
+    case 'ale': {
+      // A stout ale cask, iron-hooped, carried on its side.
+      const staves = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 10), 0x8a6033);
+      staves.rotation.z = Math.PI / 2;
+      add(staves);
+      const belly = mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.12, 10), 0x8a6033);
+      belly.rotation.z = Math.PI / 2;
+      add(belly);
+      for (const sx of [-0.085, 0.085]) {
+        const hoop = mesh(new THREE.CylinderGeometry(0.106, 0.106, 0.022, 10), 0x3a3128);
+        hoop.rotation.z = Math.PI / 2;
+        hoop.position.x = sx;
+        add(hoop);
       }
-      // A cream tokkuri jug with a vermillion collar.
-      const body = mesh(new THREE.SphereGeometry(0.12, 8, 6), 0xece2d0);
-      body.scale.y = 1.1;
-      add(body);
-      const neck = mesh(new THREE.CylinderGeometry(0.04, 0.055, 0.1, 7), 0xece2d0);
-      neck.position.y = 0.14;
-      add(neck);
-      const collar = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.025, 7), palette.vermillion);
-      collar.position.y = 0.1;
-      add(collar);
-      g.position.y = 0.94;
+      g.position.y = 0.93;
       break;
     }
   }
@@ -1199,13 +1144,13 @@ const carryPrototypes = new Map<GoodId, THREE.Group>();
 /** Goods whose carried look comes from the pack's own resource piles, so
  * what's on a serf's arms matches what's stacked in the yards. */
 const PACK_CARRY: Partial<Record<GoodId, { prop: string; span: number }>> = {
-  bamboo: { prop: 'resource_lumber', span: 0.44 },
+  wood: { prop: 'resource_lumber', span: 0.44 },
   stone: { prop: 'resource_stone', span: 0.36 },
-  // A shoulder yoke is feudal Japan, and the pole spanned most of a tile
-  // besides: medieval water travels by the hand-sized pack bucket.
+  // The procedural shoulder-pole carry spanned most of a tile; water
+  // travels by the hand-sized pack bucket instead.
   water: { prop: 'bucket_water', span: 0.26 },
-  rice: { prop: 'sack', span: 0.3 },
-  sake: { prop: 'barrel', span: 0.3 },
+  wheat: { prop: 'sack', span: 0.3 },
+  ale: { prop: 'barrel', span: 0.3 },
 };
 
 /**
@@ -1215,7 +1160,7 @@ const PACK_CARRY: Partial<Record<GoodId, { prop: string; span: number }>> = {
  */
 export function makePileProp(good: GoodId): THREE.Group {
   const pack = PACK_CARRY[good];
-  const inner = (pack && medievalCarryProp(pack.prop, 0.3)) ?? carryProto(good).clone();
+  const inner = (pack && glbCarryProp(pack.prop, 0.3)) ?? carryProto(good).clone();
   if (!pack) {
     inner.position.set(0, 0, 0); // strip the carry-height offset
     inner.scale.setScalar(0.62);
@@ -1232,13 +1177,13 @@ export function makeCarryProp(carryCode: number): THREE.Group | null {
   if (!good) return null;
   const pack = PACK_CARRY[good];
   if (pack) {
-    const prop = medievalCarryProp(pack.prop, pack.span);
+    const prop = glbCarryProp(pack.prop, pack.span);
     if (prop) {
       // The chest anchor sits at the palms: stand the prop off by its own
       // half-depth so round loads (bucket, barrel) rest against the hands
       // instead of clipping through the torso. The offset lives on an
       // inner node because sceneSync zeroes the carry box's own position
-      // when it parents it to the anchor (that reset strips the japan
+      // when it parents it to the anchor (that reset strips the procedural
       // protos' baked carry height). Anchor space is world units.
       const bb = new THREE.Box3().setFromObject(prop);
       prop.position.z = (bb.max.z - bb.min.z) / 2;

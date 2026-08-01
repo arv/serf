@@ -1,15 +1,15 @@
 export const GOODS = [
   'water',
-  'rice',
-  'bamboo',
+  'wheat',
+  'wood',
   'stone',
   'iron',
   'silver',
   'gold',
-  'katana',
-  'yari',
-  'yumi',
-  'sake',
+  'sword',
+  'spear',
+  'bow',
+  'ale',
 ] as const;
 
 export type GoodId = (typeof GOODS)[number];

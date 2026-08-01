@@ -67,7 +67,7 @@ export function addBuiltHut(
   withWorker = true,
   owner: Owner = 0,
 ): Building {
-  const b = placeBuiltBuilding(world, 'bambooHut', owner, x, y);
+  const b = placeBuiltBuilding(world, 'woodcutter', owner, x, y);
   if (withWorker) {
     const worker = spawnUnit(world, 'worker', owner, x + 0.5, y + b.h + 0.5);
     bindWorker(b, worker);
@@ -76,7 +76,7 @@ export function addBuiltHut(
 }
 
 export function addSite(world: World, x: number, y: number, owner: Owner = 0): Building {
-  return placeSite(world, 'bambooHut', owner, x, y);
+  return placeSite(world, 'woodcutter', owner, x, y);
 }
 
 export function addSerf(world: World, x: number, y: number, owner: Owner = 0): Unit {
