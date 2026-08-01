@@ -189,7 +189,10 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
           : Math.max(0, Math.min(255, Math.round((u.hp / UNIT_DEFS[u.kind].hp) * 255))),
       carrying: action === ACTION.dead ? 0 : carryingCode(u.carrying),
       action,
-      workKind: action === ACTION.work ? workKindOf(w, u) : WORK.none,
+      // Published whenever the unit has a post, not just mid-swing: the
+      // renderer keeps the axe in the woodcutter's fist on the walk out
+      // to the trees (goods occupy the hands on the walk back).
+      workKind: action === ACTION.work || u.homeId !== undefined ? workKindOf(w, u) : WORK.none,
       profession: professionOf(w, u),
     };
   }

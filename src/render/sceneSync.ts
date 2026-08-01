@@ -639,12 +639,10 @@ export class SceneSync {
         else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
         else if (action === ACTION.work) key = crankWell ? 'idle' : workAnimKey(workKind);
         else key = heldCarry ? 'carryIdle' : 'idle';
-        // Right tool for the job: mallet on sites, pickaxe at rock faces —
-        // and nothing at all while the hands are full of cargo.
-        setWorkTool(
-          visual.char,
-          heldCarry ? TOOL_STOWED : !moving && action === ACTION.work ? workKind : 0,
-        );
+        // Right tool for the job: mallet on sites, pickaxe at rock faces,
+        // carried on the walk out too — a woodcutter heads to the trees
+        // axe in fist. Only full hands stow it: cargo owns the grip.
+        setWorkTool(visual.char, heldCarry ? TOOL_STOWED : workKind);
         if (dead && !visual.char.actions.has('death')) {
           // No death clip in this library: tip the body over instead.
           tipOver(visual.group, dt);

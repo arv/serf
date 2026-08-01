@@ -184,11 +184,16 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<void> {
   overlay.appendChild(bar);
   const setMode = (mode: Mode): void => {
     for (const { visual, col, offset } of cast) {
-      // Work brings out the trade's tool, carrying stows everything (the
-      // hands are full), everything else shows the column's standing kit.
+      // Work and the walk to it carry the trade's tool (matching the
+      // game's rule), carrying stows everything — the hands are full —
+      // and idle shows the standing kit.
       setWorkTool(
         visual,
-        mode === 'work' ? (col.workKind ?? 0) : mode === 'carry' ? TOOL_STOWED : 0,
+        mode === 'work' || mode === 'walk'
+          ? (col.workKind ?? 0)
+          : mode === 'carry'
+            ? TOOL_STOWED
+            : 0,
       );
       playAnimation(visual, clipFor(mode, col, visual), offset);
     }
