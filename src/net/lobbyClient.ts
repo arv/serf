@@ -248,11 +248,18 @@ export function runLobby(
           myPlayerId: msg.playerId,
         });
       } else if (msg.t === 'error') {
-        // A dead stash (room swept, seat reassigned) must not wedge the
-        // tab into retrying forever: forget it so the next load knocks
-        // normally instead.
-        if (stash) sessionStorage.removeItem(SEAT_STASH);
-        fail(msg.message);
+        if (stash) {
+          // The stash pointed at a room that no longer knows us — the
+          // relay restarted, or the room was swept. That is not the
+          // player's problem: forget the seat and knock normally on a
+          // fresh socket (the relay closes this one after an error).
+          sessionStorage.removeItem(SEAT_STASH);
+          unmount();
+          ws.close();
+          resolve(runLobby(mp, url, opts));
+        } else {
+          fail(msg.message);
+        }
       }
     };
   });
