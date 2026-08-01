@@ -1,6 +1,6 @@
 import { inBounds, tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { Rng } from '../../shared/rng.ts';
-import { BAMBOO_MAX_AMT, REGROW_INTERVAL } from '../defs/balance.ts';
+import { WOOD_MAX_AMT, REGROW_INTERVAL } from '../defs/balance.ts';
 import { OUTPUT_CAP, buildingDef, type Recipe } from '../defs/buildings.ts';
 import { TileResource, type TileResourceKind } from '../map.ts';
 import { centerOf, type Building } from '../entities.ts';
@@ -11,7 +11,7 @@ import type { GoodId } from '../defs/goods.ts';
 import type { Unit } from '../units.ts';
 
 const RESOURCE_CODE: Record<string, TileResourceKind> = {
-  bamboo: TileResource.Bamboo,
+  wood: TileResource.Wood,
   rock: TileResource.Rock,
   ironDep: TileResource.IronDep,
   silverDep: TileResource.SilverDep,
@@ -72,7 +72,7 @@ function convertStep(world: World, b: Building, recipe: Recipe & { kind: 'conver
   }
   const speedup =
     getModifier(world, b.owner, 'workSpeed') *
-    (b.type === 'ricePaddy' ? getModifier(world, b.owner, 'paddySpeed') : 1);
+    (b.type === 'wheatFarm' ? getModifier(world, b.owner, 'farmSpeed') : 1);
   b.prodTicksLeft = Math.max(1, Math.round(recipe.durationTicks / speedup));
 }
 
@@ -195,11 +195,11 @@ function findResourceTile(
   return -1;
 }
 
-/** Bamboo groves slowly regrow on standing (uncleared) tiles. */
+/** Tree groves slowly regrow on standing (uncleared) tiles. */
 function regrow(world: World, rng: Rng): void {
   const map = world.map;
   for (let i = 0; i < map.resource.length; i++) {
-    if (map.resource[i] === TileResource.Bamboo && map.resourceAmt[i]! < BAMBOO_MAX_AMT) {
+    if (map.resource[i] === TileResource.Wood && map.resourceAmt[i]! < WOOD_MAX_AMT) {
       if (rng.next() < 0.1) map.resourceAmt[i] = map.resourceAmt[i]! + 1;
     }
   }

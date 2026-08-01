@@ -1,11 +1,7 @@
 import * as THREE from 'three';
 import { MAP_SIZE } from '../shared/grid';
 import { palette } from './palette';
-import { THEME } from './medieval';
 import { CameraRig } from './cameraRig';
-
-/** Medieval renders as bright stylized daylight; japan keeps the BR gloom. */
-const DAY = THEME === 'medieval';
 
 /**
  * Owns the WebGL context, scene, lights, and camera rig. Content (terrain,
@@ -30,19 +26,17 @@ export class GameRenderer {
     // ACES filmic gives the saturated, contrasty "game" grade the flat
     // Lambert colors lack on their own.
     this.#webgl.toneMapping = THREE.ACESFilmicToneMapping;
-    this.#webgl.toneMappingExposure = DAY ? 1.32 : 1.18;
+    this.#webgl.toneMappingExposure = 1.32;
 
     this.scene.background = new THREE.Color(palette.background);
-    // Daylight: distant pale haze. Japan: deep green Battle Realms gloom.
-    this.scene.fog = DAY
-      ? new THREE.Fog(palette.fog, 125, 270)
-      : new THREE.Fog(palette.fog, 95, 190);
+    // Bright stylized daylight: distant pale haze.
+    this.scene.fog = new THREE.Fog(palette.fog, 125, 270);
     this.rig = new CameraRig(canvas, interactive);
 
-    const hemi = new THREE.HemisphereLight(palette.skyLight, palette.groundBounce, DAY ? 1.05 : 0.7);
+    const hemi = new THREE.HemisphereLight(palette.skyLight, palette.groundBounce, 1.05);
     this.scene.add(hemi);
 
-    const sun = new THREE.DirectionalLight(DAY ? 0xfff1cf : 0xffdfae, DAY ? 2.7 : 2.4);
+    const sun = new THREE.DirectionalLight(0xfff1cf, 2.7);
     sun.position.set(MAP_SIZE / 2 - 28, 55, MAP_SIZE / 2 + 18);
     sun.target.position.set(MAP_SIZE / 2, 0, MAP_SIZE / 2);
     sun.castShadow = true;

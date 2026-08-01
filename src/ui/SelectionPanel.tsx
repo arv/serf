@@ -192,7 +192,7 @@ export function SelectionPanel(props: {
                   </TipWrap>
                 </div>
               </Show>
-              <Show when={b().type === 'terakoya' && b().state === 'built'}>
+              <Show when={b().type === 'abbey' && b().state === 'built'}>
                 <div style={{ 'margin-top': '6px', display: 'flex', 'flex-wrap': 'wrap', gap: '8px', 'align-items': 'center' }}>
                   <button onClick={() => setTechPanelOpen(true)}>Research…</button>
                   <Show when={techs().active}>

@@ -4,8 +4,8 @@ import { MAP_SIZE, TILE_COUNT, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, TileResource, type MapView } from '../sim/map';
 import { palette } from './palette';
-import { foliageMaterial, makeBambooCulmTexture, makeBambooLeafSprite } from './spriteTextures';
-import { medievalRocks, medievalTrees } from './medieval';
+import { foliageMaterial, makeStalkTexture, makeLeafSprite } from './spriteTextures';
+import { glbRocks, glbTrees } from './assets';
 import type { HeightField } from './heightField';
 
 /**
@@ -57,7 +57,7 @@ const CULMS_PER_TILE = 5;
 const TREES_PER_TILE = 2;
 
 /**
- * All standing scatter (bamboo culms, boulders, ore markers) as a handful of
+ * All standing scatter (tree stands, boulders, ore markers) as a handful of
  * InstancedMeshes. Depletion hides a tile's instances by zeroing their
  * matrices — counts are fixed at worldgen.
  */
@@ -79,13 +79,13 @@ export class ScatterMesh {
   constructor(map: MapView, heights: HeightField) {
     this.#heights = heights;
     // Count instances per archetype first (instanced meshes need fixed capacity).
-    let bambooTiles = 0;
+    let groveTiles = 0;
     let rockTiles = 0;
     let oreTiles = 0;
     const shoreTiles: number[] = [];
     for (let i = 0; i < TILE_COUNT; i++) {
       const res = map.resource[i];
-      if (res === TileResource.Bamboo) bambooTiles++;
+      if (res === TileResource.Wood) groveTiles++;
       else if (res === TileResource.Rock) rockTiles++;
       else if (res !== TileResource.None) oreTiles++;
       // Rocky banks: grass tiles touching water, thinned by hash.
@@ -98,20 +98,20 @@ export class ScatterMesh {
     const flat = (color: number) =>
       new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.95 });
 
-    // Groves: on the medieval branch a mixed wood of three vertex-colored
-    // tree species; otherwise bamboo — tall whip-thin culms (5 per tile)
-    // wearing a painted node-ring texture with alpha-tested leaf sprites.
-    const trees = medievalTrees();
+    // Groves: a mixed wood of GLB tree species when the pack loaded;
+    // otherwise tall whip-thin procedural stalks (5 per tile) wearing a
+    // painted node-ring texture with alpha-tested leaf sprites.
+    const trees = glbTrees();
     this.#trees = trees !== null;
     this.#treeSpecies = trees?.geometries.length ?? 0;
     if (trees) {
       trees.geometries.forEach((geo, i) => {
-        this.#addArchetype(`tree${i}`, geo, trees.material, bambooTiles * TREES_PER_TILE, {
+        this.#addArchetype(`tree${i}`, geo, trees.material, groveTiles * TREES_PER_TILE, {
           receiveShadow: false,
         });
       });
     } else {
-      const culmTexture = makeBambooCulmTexture();
+      const culmTexture = makeStalkTexture();
       culmTexture.wrapS = THREE.RepeatWrapping;
       culmTexture.wrapT = THREE.RepeatWrapping;
       culmTexture.repeat.set(1, 2.5);
@@ -119,21 +119,21 @@ export class ScatterMesh {
         'culm',
         new THREE.CylinderGeometry(0.03, 0.045, 1, 6),
         new THREE.MeshLambertMaterial({ map: culmTexture }),
-        bambooTiles * CULMS_PER_TILE,
+        groveTiles * CULMS_PER_TILE,
         { receiveShadow: false }, // dense groves would shadow-spam themselves
       );
       this.#addArchetype(
         'spray',
         crossedQuads(1.5, 1.1),
-        foliageMaterial(makeBambooLeafSprite()),
-        bambooTiles * CULMS_PER_TILE * 3,
+        foliageMaterial(makeLeafSprite()),
+        groveTiles * CULMS_PER_TILE * 3,
         { castShadow: false, receiveShadow: false },
       );
     }
-    // Rocks: KayKit boulder variants on the medieval branch (ore deposits
+    // Rocks: KayKit boulder variants when the pack loaded (ore deposits
     // become metal-tinted boulders too), procedural dodecahedra + crystal
     // octahedra otherwise.
-    const rocks = medievalRocks();
+    const rocks = glbRocks();
     this.#rockSpecies = rocks?.geometries.length ?? 0;
     if (rocks) {
       rocks.geometries.forEach((geo, i) => {
@@ -172,7 +172,7 @@ export class ScatterMesh {
         }
         return true;
       })();
-      if (res === TileResource.Bamboo) this.#placeBamboo(i);
+      if (res === TileResource.Wood) this.#placeGrove(i);
       else if (res === TileResource.Rock) this.#placeRock(i, interior);
       else if (
         res === TileResource.IronDep ||
@@ -272,7 +272,7 @@ export class ScatterMesh {
     else a.byTile.set(tile, [id]);
   }
 
-  #placeBamboo(tile: number): void {
+  #placeGrove(tile: number): void {
     const tx = tileX(tile);
     const ty = tileY(tile);
     if (this.#trees) {
@@ -306,16 +306,16 @@ export class ScatterMesh {
     }
     for (let k = 0; k < CULMS_PER_TILE; k++) {
       const seed = tile * CULMS_PER_TILE + k;
-      // Culms bunch toward the tile center like a real grove clump.
+      // Stalks bunch toward the tile center like a real grove clump.
       const jx = 0.28 + hash2(seed, 1) * 0.44;
       const jz = 0.28 + hash2(seed, 2) * 0.44;
       const h = 2.3 + hash2(seed, 3) * 1.3;
       const x = tx + jx;
       const z = ty + jz;
       const ground = this.#heights.at(x, z);
-      // Whole-culm lean: offset the top by shifting via z-rotation.
+      // Whole-stalk lean: offset the top by shifting via z-rotation.
       const lean = (hash2(seed, 4) - 0.5) * 0.22;
-      // Culm tint rides on the painted node texture: young jade -> older gold.
+      // Stalk tint rides on the painted node texture: young jade -> older gold.
       this.#put(
         'culm',
         tile,
@@ -330,7 +330,7 @@ export class ScatterMesh {
         0xd8c878,
         lean,
       );
-      // 2-3 painted leaf sprays around the upper third of the culm.
+      // 2-3 painted leaf sprays around the upper third of the stalk.
       const sprays = 2 + (hash2(seed, 9) > 0.5 ? 1 : 0);
       for (let t = 0; t < sprays; t++) {
         const th = h * (0.6 + 0.17 * t) + hash2(seed, 10 + t) * 0.2;

@@ -9,11 +9,11 @@ describe('command screening', () => {
   it('accepts what the client actually sends', () => {
     const cases: SimCommand[] = [
       { kind: 'moveUnits', unitIds: [1, 2, 3], x: 10, y: 12 },
-      { kind: 'placeBuilding', building: 'bambooHut', x: 4, y: 5 },
+      { kind: 'placeBuilding', building: 'woodcutter', x: 4, y: 5 },
       { kind: 'hireSerf' },
       { kind: 'dismissWorker', buildingId: 3 },
       { kind: 'research', tech: 'irrigation' },
-      { kind: 'trainUnit', buildingId: 7, unit: 'ashigaru' },
+      { kind: 'trainUnit', buildingId: 7, unit: 'spearman' },
       { kind: 'admin', action: 'grantGoods' },
     ];
     for (const cmd of cases) expect(sanitizeCommand(cmd)).toEqual(cmd);
@@ -37,7 +37,7 @@ describe('command screening', () => {
     expect(sanitizeCommand({ kind: 'moveUnits', unitIds: ['a'], x: 1, y: 1 })).toBeNull();
     expect(sanitizeCommand({ kind: 'moveUnits', unitIds: [1.5], x: 1, y: 1 })).toBeNull();
     expect(sanitizeCommand({ kind: 'moveUnits', unitIds: [1], x: NaN, y: 1 })).toBeNull();
-    expect(sanitizeCommand({ kind: 'placeBuilding', building: 'bambooHut' })).toBeNull();
+    expect(sanitizeCommand({ kind: 'placeBuilding', building: 'woodcutter' })).toBeNull();
     expect(sanitizeCommand(null)).toBeNull();
     expect(sanitizeCommand('moveUnits')).toBeNull();
   });

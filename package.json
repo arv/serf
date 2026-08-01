@@ -1,7 +1,7 @@
 {
   "name": "serf",
   "version": "0.1.0",
-  "description": "A feudal-Japan Settlers-like RTS in the browser",
+  "description": "A medieval Settlers-like RTS in the browser",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.5.1",

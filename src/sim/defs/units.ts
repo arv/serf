@@ -28,12 +28,12 @@ export interface UnitDef {
 export type UnitTypeId =
   | 'serf'
   | 'worker'
-  | 'samurai'
-  | 'ashigaru'
+  | 'knight'
+  | 'spearman'
   | 'archer'
   | 'bandit'
   | 'banditArcher'
-  | 'ronin';
+  | 'marauder';
 
 /**
  * The military triangle: heavy beats light, light catches ranged, ranged
@@ -42,16 +42,16 @@ export type UnitTypeId =
 export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
   serf: { id: 'serf', kindCode: 1, speed: 1.8, hp: 25, sight: 6.5 },
   worker: { id: 'worker', kindCode: 2, speed: 1.7, hp: 25, sight: 6.5 },
-  samurai: {
-    id: 'samurai',
+  knight: {
+    id: 'knight',
     kindCode: 3,
     speed: 1.6,
     hp: 80,
     sight: 6.5,
     combat: { class: 'heavy', damage: 10, cooldownTicks: 20, range: 1.3, acquireRadius: 6 },
   },
-  ashigaru: {
-    id: 'ashigaru',
+  spearman: {
+    id: 'spearman',
     kindCode: 4,
     speed: 2.4,
     hp: 45,
@@ -82,8 +82,8 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     sight: 6.5,
     combat: { class: 'ranged', damage: 5, cooldownTicks: 24, range: 5, acquireRadius: 8 },
   },
-  ronin: {
-    id: 'ronin',
+  marauder: {
+    id: 'marauder',
     kindCode: 8,
     speed: 1.5,
     hp: 70,

@@ -48,7 +48,7 @@ export function constructionSystem(world: World): void {
     delete b.siteNeeds;
     delete b.buildProgress;
     // The builder stays on as the building's worker; buildings that keep
-    // no resident (dojo, terakoya) release them back to the serf pool.
+    // no resident (barracks, abbey) release them back to the serf pool.
     if (def.workerKind === undefined && b.workerId !== undefined) {
       const builder = world.units.get(b.workerId);
       if (builder && !builder.dead) {

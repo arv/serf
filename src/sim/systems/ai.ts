@@ -16,7 +16,7 @@ import type { SimCommand } from '../commands.ts';
  *
  * Grown from the winnable-campaign test bot: wants-vs-standing-counts
  * build order, survival-floor hiring with a research reserve, a fixed
- * research queue, a katana-aware dojo queue, rally-then-attack army logic.
+ * research queue, a sword-aware barracks queue, rally-then-attack army logic.
  */
 
 export const AI_TUNING = {
@@ -27,11 +27,11 @@ export const AI_TUNING = {
   serfTarget: 8,
   survivalFloor: 3,
   researchReserve: 10,
-  researchOrder: ['bushido', 'strawSandals', 'ironworking'] as TechId[],
-  dojoQueueDepth: 2,
+  researchOrder: ['soldiery', 'cobbledBoots', 'ironworking'] as TechId[],
+  barracksQueueDepth: 2,
 } as const;
 
-const MILITARY = new Set(['samurai', 'ashigaru', 'archer']);
+const MILITARY = new Set(['knight', 'spearman', 'archer']);
 
 export class AiBrain {
   readonly playerId: Owner;
@@ -68,27 +68,27 @@ export class AiBrain {
     // --- Build order: desired counts vs standing counts (rebuilds losses) ---
     const iron = techs.researched.includes('ironworking');
     const wants: [BuildingTypeId, number, { x: number; y: number } | null][] = [];
-    const grove = nearestResource(world, TileResource.Bamboo, baseX, baseY);
+    const grove = nearestResource(world, TileResource.Wood, baseX, baseY);
     if (grove >= 0) {
-      wants.push(['bambooHut', iron ? 2 : 1, findSpot(world, 'bambooHut', tileX(grove), tileY(grove), 6)]);
+      wants.push(['woodcutter', iron ? 2 : 1, findSpot(world, 'woodcutter', tileX(grove), tileY(grove), 6)]);
     }
     const rocks = nearestResource(world, TileResource.Rock, baseX, baseY);
     if (rocks >= 0) {
       wants.push(['quarry', 1, findSpot(world, 'quarry', tileX(rocks), tileY(rocks), 6)]);
     }
-    wants.push(['terakoya', 1, findSpot(world, 'terakoya', baseX, baseY)]);
-    // Silver before the dojo: the pool starts lean, so replacement hands
+    wants.push(['abbey', 1, findSpot(world, 'abbey', baseX, baseY)]);
+    // Silver before the barracks: the pool starts lean, so replacement hands
     // are bought — and research, weapons and hiring all drain the same
     // purse. Income first is what makes the rest of the plan affordable.
     const silverSeam = nearestResource(world, TileResource.SilverDep, baseX, baseY);
     if (silverSeam >= 0) {
       wants.push(['silverMine', 1, findSpot(world, 'silverMine', tileX(silverSeam), tileY(silverSeam), 4)]);
     }
-    if (techs.researched.includes('bushido')) {
-      wants.push(['dojo', 1, findSpot(world, 'dojo', baseX, baseY)]);
+    if (techs.researched.includes('soldiery')) {
+      wants.push(['barracks', 1, findSpot(world, 'barracks', baseX, baseY)]);
     }
     wants.push(['well', 1, findSpot(world, 'well', baseX, baseY)]);
-    wants.push(['ricePaddy', 1, findSpot(world, 'ricePaddy', baseX, baseY)]);
+    wants.push(['wheatFarm', 1, findSpot(world, 'wheatFarm', baseX, baseY)]);
     if (iron) {
       const seam = nearestResource(world, TileResource.IronDep, baseX, baseY);
       if (seam >= 0) {
@@ -116,7 +116,7 @@ export class AiBrain {
     if (serfCount < AI_TUNING.survivalFloor && (stock.silver ?? 0) >= HIRE_SERF_COST) {
       commands.push({ kind: 'hireSerf' });
     } else if (
-      techs.researched.includes('bushido') &&
+      techs.researched.includes('soldiery') &&
       serfCount < AI_TUNING.serfTarget &&
       (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? AI_TUNING.researchReserve : 0)
     ) {
@@ -126,22 +126,22 @@ export class AiBrain {
     // --- Research queue ------------------------------------------------------
     if (!techs.active) {
       const next = AI_TUNING.researchOrder.find((id) => !techs.researched.includes(id));
-      if (next && has('terakoya')) {
+      if (next && has('abbey')) {
         const cost = TECH_DEFS[next].cost as Record<string, number>;
         const ok = Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
         if (ok) commands.push({ kind: 'research', tech: next });
       }
     }
 
-    // --- Keep the dojo queue warm --------------------------------------------
-    const dojo = mine.find((b) => b.type === 'dojo' && b.state === 'built');
-    if (dojo && (dojo.trainQueue?.length ?? 0) < AI_TUNING.dojoQueueDepth) {
-      const katanaAround =
-        (stock.katana ?? 0) + (dojo.inputs.katana ?? 0) + (dojo.inbound.katana ?? 0) > 0;
+    // --- Keep the barracks queue warm --------------------------------------------
+    const barracks = mine.find((b) => b.type === 'barracks' && b.state === 'built');
+    if (barracks && (barracks.trainQueue?.length ?? 0) < AI_TUNING.barracksQueueDepth) {
+      const swordAround =
+        (stock.sword ?? 0) + (barracks.inputs.sword ?? 0) + (barracks.inbound.sword ?? 0) > 0;
       commands.push({
         kind: 'trainUnit',
-        buildingId: dojo.id,
-        unit: katanaAround ? 'samurai' : 'ashigaru',
+        buildingId: barracks.id,
+        unit: swordAround ? 'knight' : 'spearman',
       });
     }
 

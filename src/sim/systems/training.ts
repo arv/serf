@@ -9,7 +9,7 @@ import type { GoodId } from '../defs/goods.ts';
 import type { Building } from '../entities.ts';
 
 /**
- * Dojo training. A queue item starts when its ingredients are in the input
+ * Barracks training. A queue item starts when its ingredients are in the input
  * buffer AND a serf recruit walks in (the staffing system delivers both the
  * skip-ahead pick and the person — soldiers consume population). This system
  * ticks the started item and pops the finished soldier at the door.

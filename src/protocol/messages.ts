@@ -11,7 +11,7 @@ export interface TechSnap {
   active?: { tech: TechId; ticksLeft: number; totalTicks: number };
   festivalTicksLeft: number;
   pavingUnlocked: boolean;
-  hasTerakoya: boolean;
+  hasAbbey: boolean;
 }
 
 /** Per-player faction block; the main thread picks its own by myPlayerId. */

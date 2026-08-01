@@ -21,45 +21,45 @@ describe('convert chains', () => {
     expect(well.stock.water ?? 0).toBeGreaterThan(0);
   });
 
-  it('paddy consumes hauled water and yields rice (well -> paddy -> storehouse)', () => {
+  it('farm consumes hauled water and yields wheat (well -> farm -> storehouse)', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});
     staffBuilding(world, placeBuiltBuilding(world, 'well', 0, 26, 30));
-    staffBuilding(world, placeBuiltBuilding(world, 'ricePaddy', 0, 34, 29));
+    staffBuilding(world, placeBuiltBuilding(world, 'wheatFarm', 0, 34, 29));
     addSerf(world, 29, 34);
     addSerf(world, 33, 34);
     const initial = countGoods(world);
     run(world, 20 * 120);
 
-    expect(sh.stock.rice ?? 0).toBeGreaterThan(0);
+    expect(sh.stock.wheat ?? 0).toBeGreaterThan(0);
     expect(checkInvariants(world).violations).toEqual([]);
     expect(checkLedger(world, initial)).toEqual([]);
   });
 
   it('two-input recipe waits for both ingredients (brewery)', () => {
     const world = bareWorld();
-    const brewery = placeBuiltBuilding(world, 'sakeBrewery', 0, 30, 30);
+    const brewery = placeBuiltBuilding(world, 'brewery', 0, 30, 30);
     staffBuilding(world, brewery);
-    brewery.inputs.rice = 1; // no water yet
+    brewery.inputs.wheat = 1; // no water yet
     run(world, 100);
-    expect(brewery.stock.sake ?? 0).toBe(0);
-    expect(brewery.inputs.rice).toBe(1); // nothing consumed
+    expect(brewery.stock.ale ?? 0).toBe(0);
+    expect(brewery.inputs.wheat).toBe(1); // nothing consumed
 
     brewery.inputs.water = 1;
     run(world, 20 * 16);
-    expect(brewery.stock.sake).toBe(1);
-    expect(brewery.inputs.rice ?? 0).toBe(0);
+    expect(brewery.stock.ale).toBe(1);
+    expect(brewery.inputs.wheat ?? 0).toBe(0);
     expect(brewery.inputs.water ?? 0).toBe(0);
   });
 
-  it('weapon chain: swordsmith turns iron+bamboo into katana', () => {
+  it('weapon chain: swordsmith turns iron+wood into sword', () => {
     const world = bareWorld();
     const smith = placeBuiltBuilding(world, 'swordsmith', 0, 30, 30);
     staffBuilding(world, smith);
     smith.inputs.iron = 2;
-    smith.inputs.bamboo = 1;
+    smith.inputs.wood = 1;
     run(world, 20 * 15);
-    expect(smith.stock.katana).toBe(1);
+    expect(smith.stock.sword).toBe(1);
   });
 });
 

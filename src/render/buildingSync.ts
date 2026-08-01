@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { makeBuildingModel, makeGhostModel, makePileProp, makeSiteFrame } from './models';
-import { makeMedievalBuilding } from './medieval';
+import { makeGlbBuilding } from './assets';
 import { eachMaterial, mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
 import { GOODS, type GoodId } from '../sim/defs/goods';
@@ -63,8 +63,8 @@ function makeHpBar(
 /**
  * Mirrors the building list into the scene. Sites show a timber frame with
  * the real building rising out of it half-built (clip-plane reveal) while a
- * peasant hammers away; completion swaps in the solid model. Themes without
- * loaded GLB assets fall back to the ghost-scale-up look.
+ * peasant hammers away; completion swaps in the solid model. Without loaded
+ * GLB assets it falls back to the ghost-scale-up look.
  */
 export class BuildingSync {
   #scene: THREE.Scene;
@@ -146,9 +146,9 @@ export class BuildingSync {
     if (b.state === 'site') {
       frame = makeSiteFrame(b.w, b.h);
       root.add(frame);
-      const medieval = makeMedievalBuilding(b.type, b.owner);
-      if (medieval) {
-        model = medieval;
+      const glb = makeGlbBuilding(b.type, b.owner);
+      if (glb) {
+        model = glb;
         // Per-site material clones so the clip plane never touches the
         // shared templates or finished buildings.
         const plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), root.position.y);
@@ -176,7 +176,7 @@ export class BuildingSync {
         root.add(model);
       }
     } else {
-      model = makeMedievalBuilding(b.type, b.owner) ?? makeBuildingModel(b.type);
+      model = makeGlbBuilding(b.type, b.owner) ?? makeBuildingModel(b.type);
       root.add(model);
     }
 

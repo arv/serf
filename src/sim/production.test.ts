@@ -11,9 +11,9 @@ function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
 }
 
-function plantBamboo(world: World, x: number, y: number, amt = 6): number {
+function plantGrove(world: World, x: number, y: number, amt = 6): number {
   const idx = tileIdx(x, y);
-  world.map.resource[idx] = TileResource.Bamboo;
+  world.map.resource[idx] = TileResource.Wood;
   world.map.resourceAmt[idx] = amt;
   world.map.blocked[idx] = 1;
   return idx;
@@ -23,25 +23,25 @@ describe('gather production', () => {
   it('worker commutes, chops, and stocks the hut; depleted tiles unblock', () => {
     const world = bareWorld();
     const hut = addBuiltHut(world, 30, 30);
-    const idx = plantBamboo(world, 34, 31, 2);
+    const idx = plantGrove(world, 34, 31, 2);
     run(world, 3000);
 
-    expect(hut.stock.bamboo ?? 0).toBeGreaterThan(0);
+    expect(hut.stock.wood ?? 0).toBeGreaterThan(0);
     expect(world.map.resource[idx]).toBe(TileResource.None);
     expect(world.map.blocked[idx]).toBe(0);
-    expect(world.ledger.produced.bamboo).toBeGreaterThan(0);
+    expect(world.ledger.produced.wood).toBeGreaterThan(0);
   });
 
   it('full output buffer stalls production (Settlers rule)', () => {
     const world = bareWorld();
     const hut = addBuiltHut(world, 30, 30);
-    hut.stock.bamboo = OUTPUT_CAP;
-    const idx = plantBamboo(world, 34, 31);
+    hut.stock.wood = OUTPUT_CAP;
+    const idx = plantGrove(world, 34, 31);
     const before = world.map.resourceAmt[idx];
     run(world, 600);
 
     // No storehouse => no evacuation => buffer stays full, no chopping.
-    expect(hut.stock.bamboo).toBe(OUTPUT_CAP);
+    expect(hut.stock.wood).toBe(OUTPUT_CAP);
     expect(world.map.resourceAmt[idx]).toBe(before);
   });
 
@@ -49,11 +49,11 @@ describe('gather production', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});
     addBuiltHut(world, 24, 30);
-    plantBamboo(world, 21, 31, 6);
+    plantGrove(world, 21, 31, 6);
     addSerf(world, 29, 34);
     run(world, 4000);
 
-    expect(sh.stock.bamboo ?? 0).toBeGreaterThan(0);
+    expect(sh.stock.wood ?? 0).toBeGreaterThan(0);
   });
 
   it('a recruited builder raises the site, then stays on as its worker', () => {
@@ -103,7 +103,7 @@ describe('trails', () => {
 
   it('foot traffic accumulates wear along a haul lane', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { bamboo: 10 });
+    addStorehouse(world, 30, 30, { wood: 10 });
     addSite(world, 22, 30);
     addSerf(world, 29, 34);
     run(world, 2000);

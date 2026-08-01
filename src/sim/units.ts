@@ -15,7 +15,7 @@ export type UnitTask =
   | { t: 'gatherOut'; tile: number }
   | { t: 'gatherWork'; tile: number; until: number }
   | { t: 'gatherHome' }
-  // Serf walking to a building to become its worker (or a dojo recruit).
+  // Serf walking to a building to become its worker (or a barracks recruit).
   | { t: 'staff'; buildingId: EntityId }
   // Bandit strategic objective: march on a player building.
   | { t: 'raid'; buildingId: EntityId };
@@ -45,7 +45,7 @@ export interface Unit {
   targetIsBuilding?: boolean;
   dead: boolean;
   /** Set by combat deaths only — the corpse lingers a moment for the death
-   * animation. Absent for despawns (dojo consumption), which vanish at once. */
+   * animation. Absent for despawns (barracks consumption), which vanish at once. */
   deathTick?: number;
 }
 

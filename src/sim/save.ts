@@ -1,5 +1,4 @@
 import { TILE_COUNT } from '../shared/grid.ts';
-import { BANDIT } from './entities.ts';
 import type { GameMap } from './map.ts';
 import type { PlayerState } from './player.ts';
 import type { MatchOutcome, World } from './world.ts';
@@ -9,10 +8,14 @@ import type { MatchOutcome, World } from './world.ts';
  * links, typed arrays), so this is mechanical: Maps become entry arrays,
  * typed arrays become plain arrays. Derived caches don't exist to rebuild —
  * `blocked` is part of the map state and round-trips as data.
+ *
+ * Version 3 renamed every sim id (goods, buildings, units, techs) to its
+ * medieval form. Older saves store the old id strings, so they are refused
+ * rather than silently mis-loaded.
  */
 
 interface SaveFile {
-  version: 1 | 2;
+  version: 3;
   world: {
     tick: number;
     rngState: number;
@@ -27,15 +30,12 @@ interface SaveFile {
     raidState: World['raidState'];
     admin?: World['admin'];
     outcome: MatchOutcome;
-    // --- version 1 fields (migrated into players[0] on load) ---
-    pavingUnlocked?: boolean;
-    techs?: PlayerState['techs'];
   };
 }
 
 export function serializeWorld(world: World): string {
   const file: SaveFile = {
-    version: 2,
+    version: 3,
     world: {
       tick: world.tick,
       rngState: world.rngState,
@@ -66,8 +66,8 @@ export function serializeWorld(world: World): string {
 
 export function deserializeWorld(json: string): World {
   const file = JSON.parse(json) as SaveFile;
-  if (file.version !== 1 && file.version !== 2) {
-    throw new Error(`unknown save version ${String(file.version)}`);
+  if (file.version !== 3) {
+    throw new Error('save is from an older version of the game');
   }
   const w = file.world;
 
@@ -79,12 +79,11 @@ export function deserializeWorld(json: string): World {
     buildingAt: Int16Array.from(w.map.buildingAt),
     wear: Float32Array.from(w.map.wear),
     pathLevel: Uint8Array.from(w.map.pathLevel),
-    // Saves from before elevation existed load as a flat valley.
-    height: w.map.height ? Float32Array.from(w.map.height) : new Float32Array(TILE_COUNT),
+    height: Float32Array.from(w.map.height),
   };
   if (map.terrain.length !== TILE_COUNT) throw new Error('corrupt save: bad map size');
 
-  const world: World = {
+  return {
     tick: w.tick,
     rngState: w.rngState,
     nextId: w.nextId,
@@ -97,43 +96,10 @@ export function deserializeWorld(json: string): World {
     jobs: new Map((w.jobs as { id: number }[]).map((j) => [j.id, j])) as World['jobs'],
     ledger: w.ledger,
     pendingDeltas: [],
-    players:
-      file.version === 2
-        ? w.players
-        : [
-            // v1 saves were solo: wrap the old global tech state as player 0.
-            {
-              id: 0,
-              kind: 'human',
-              techs: w.techs ?? { researched: [], festivalTicksLeft: 0 },
-              pavingUnlocked: w.pavingUnlocked ?? false,
-              alive: (w.outcome as unknown as string) !== 'lost',
-            },
-          ],
+    players: w.players,
     raidState: w.raidState,
-    admin:
-      file.version === 2 && w.admin
-        ? w.admin
-        : { enabled: true, raidsEnabled: true, instantBuild: false, ...(w.admin ?? {}) },
+    admin: w.admin ?? { enabled: true, raidsEnabled: true, instantBuild: false },
     pendingEvents: [],
-    outcome:
-      file.version === 2
-        ? w.outcome
-        : migrateOutcomeV1(w.outcome as unknown as 'playing' | 'won' | 'lost'),
+    outcome: w.outcome,
   };
-  if (file.version === 1) migrateV1(world);
-  return world;
-}
-
-function migrateOutcomeV1(outcome: 'playing' | 'won' | 'lost'): MatchOutcome {
-  if (outcome === 'playing') return { state: 'playing' };
-  return { state: 'over', winner: outcome === 'won' ? 0 : null };
-}
-
-/** v1 entities carried string owners; jobs had no owner. */
-function migrateV1(world: World): void {
-  const owner = (o: unknown): number => (o === 'bandit' ? BANDIT : o === 'player' ? 0 : (o as number));
-  for (const u of world.units.values()) u.owner = owner(u.owner);
-  for (const b of world.buildings.values()) b.owner = owner(b.owner);
-  for (const j of world.jobs.values()) j.owner ??= 0;
 }

@@ -7,9 +7,9 @@ import { checkInvariants } from './debug/invariants.ts';
 import type { SimCommand } from './commands.ts';
 
 function commandScript(tick: number): SimCommand[] {
-  if (tick === 50) return [{ kind: 'placeBuilding', building: 'bambooHut', x: 26, y: 36 }];
+  if (tick === 50) return [{ kind: 'placeBuilding', building: 'woodcutter', x: 26, y: 36 }];
   if (tick === 60) return [{ kind: 'placeBuilding', building: 'well', x: 38, y: 36 }];
-  if (tick === 800) return [{ kind: 'placeBuilding', building: 'ricePaddy', x: 40, y: 30 }];
+  if (tick === 800) return [{ kind: 'placeBuilding', building: 'wheatFarm', x: 40, y: 30 }];
   return [];
 }
 
@@ -49,6 +49,11 @@ describe('save/load', () => {
 
   it('rejects unknown versions', () => {
     expect(() => deserializeWorld('{"version":99,"world":{}}')).toThrow();
+  });
+
+  it('refuses saves from before the medieval id rename', () => {
+    expect(() => deserializeWorld('{"version":1,"world":{}}')).toThrow(/older version/);
+    expect(() => deserializeWorld('{"version":2,"world":{}}')).toThrow(/older version/);
   });
 
   it('save size stays localStorage-friendly', () => {

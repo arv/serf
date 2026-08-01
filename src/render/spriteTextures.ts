@@ -2,9 +2,8 @@ import * as THREE from 'three';
 
 /**
  * Hand-"painted" vegetation sprites, drawn on canvases at boot. Alpha-tested
- * quads with these textures are the classic way stylized RTS games (Battle
- * Realms included) got lush vegetation: chunky silhouettes, saturated
- * gradients, zero photorealism.
+ * quads with these textures are the classic way stylized RTS games got lush
+ * vegetation: chunky silhouettes, saturated gradients, zero photorealism.
  */
 
 export function canvasTexture(
@@ -71,8 +70,8 @@ export function makeGrassSprite(): THREE.Texture {
   });
 }
 
-/** A spray of slender drooping bamboo leaves around a node point. */
-export function makeBambooLeafSprite(): THREE.Texture {
+/** A spray of slender drooping leaves around a node point. */
+export function makeLeafSprite(): THREE.Texture {
   return canvasTexture(128, (ctx) => {
     const cx = 64;
     const cy = 78;
@@ -99,8 +98,8 @@ export function makeBambooLeafSprite(): THREE.Texture {
   });
 }
 
-/** Vertical culm strip: jade gradient with darker node rings and streaks. */
-export function makeBambooCulmTexture(): THREE.Texture {
+/** Vertical stalk strip: jade gradient with darker node rings and streaks. */
+export function makeStalkTexture(): THREE.Texture {
   return canvasTexture(64, (ctx) => {
     const grad = ctx.createLinearGradient(0, 0, 64, 0);
     grad.addColorStop(0, '#5f8a3e');

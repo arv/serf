@@ -9,7 +9,7 @@ import type { TechId } from './techs.ts';
  * - convert: inputs from the building's input buffer become outputs over time
  *   (no worker commute; empty inputs = a pure timer, e.g. the well).
  */
-export type TileResourceName = 'bamboo' | 'rock' | 'ironDep' | 'silverDep' | 'goldDep';
+export type TileResourceName = 'wood' | 'rock' | 'ironDep' | 'silverDep' | 'goldDep';
 
 export type Recipe =
   | {
@@ -57,7 +57,7 @@ export interface BuildingDef {
   systemOnly?: boolean;
   /** Must be researched before this building can be placed. */
   requiresTech?: TechId;
-  /** Military training (dojo): unit options with costs + duration. */
+  /** Military training (barracks): unit options with costs + duration. */
   trains?: { unit: UnitTypeId; cost: GoodAmounts; durationTicks: number }[];
 }
 
@@ -67,19 +67,19 @@ export const INPUT_CAP = 4;
 export type BuildingTypeId =
   | 'storehouse'
   | 'banditCamp'
-  | 'bambooHut'
+  | 'woodcutter'
   | 'quarry'
   | 'well'
-  | 'ricePaddy'
-  | 'sakeBrewery'
+  | 'wheatFarm'
+  | 'brewery'
   | 'ironMine'
   | 'silverMine'
   | 'goldMine'
   | 'swordsmith'
   | 'spearmaker'
   | 'bowyer'
-  | 'terakoya'
-  | 'dojo'
+  | 'abbey'
+  | 'barracks'
   | 'roadSite';
 
 const S = 20; // ticks per second, inlined to keep defs readable
@@ -87,7 +87,7 @@ const S = 20; // ticks per second, inlined to keep defs readable
 export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
   storehouse: {
     id: 'storehouse',
-    name: 'Storehouse',
+    name: 'Castle',
     w: 3,
     h: 3,
     cost: {},
@@ -106,24 +106,24 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 600,
     sight: 5.5,
   },
-  bambooHut: {
-    id: 'bambooHut',
-    name: 'Bamboo Hut',
+  woodcutter: {
+    id: 'woodcutter',
+    name: 'Woodcutter',
     w: 2,
     h: 2,
-    cost: { bamboo: 6 },
+    cost: { wood: 6 },
     buildTicks: 15 * S,
     hp: 150,
     sight: 5.5,
     workerKind: 'worker',
-    recipe: { kind: 'gather', resource: 'bamboo', output: 'bamboo', radius: 8, workTicks: 2.5 * S },
+    recipe: { kind: 'gather', resource: 'wood', output: 'wood', radius: 8, workTicks: 2.5 * S },
   },
   quarry: {
     id: 'quarry',
     name: 'Quarry',
     w: 2,
     h: 2,
-    cost: { bamboo: 6 },
+    cost: { wood: 6 },
     buildTicks: 15 * S,
     hp: 150,
     sight: 5.5,
@@ -135,40 +135,40 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     name: 'Well',
     w: 1,
     h: 1,
-    cost: { bamboo: 4 },
+    cost: { wood: 4 },
     buildTicks: 8 * S,
     hp: 80,
     sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'convert', inputs: {}, outputs: { water: 1 }, durationTicks: 6 * S },
   },
-  ricePaddy: {
-    id: 'ricePaddy',
-    name: 'Rice Paddy',
+  wheatFarm: {
+    id: 'wheatFarm',
+    name: 'Wheat Farm',
     w: 3,
     h: 3,
-    cost: { bamboo: 8 },
+    cost: { wood: 8 },
     buildTicks: 15 * S,
     hp: 100,
     sight: 5.5,
     workerKind: 'worker',
-    recipe: { kind: 'convert', inputs: { water: 1 }, outputs: { rice: 1 }, durationTicks: 10 * S },
+    recipe: { kind: 'convert', inputs: { water: 1 }, outputs: { wheat: 1 }, durationTicks: 10 * S },
   },
-  sakeBrewery: {
-    id: 'sakeBrewery',
-    name: 'Sake Brewery',
-    requiresTech: 'sakeBrewing' as const,
+  brewery: {
+    id: 'brewery',
+    name: 'Brewery',
+    requiresTech: 'brewing' as const,
     w: 2,
     h: 2,
-    cost: { bamboo: 10, stone: 4 },
+    cost: { wood: 10, stone: 4 },
     buildTicks: 20 * S,
     hp: 160,
     sight: 5.5,
     workerKind: 'worker',
     recipe: {
       kind: 'convert',
-      inputs: { rice: 1, water: 1 },
-      outputs: { sake: 1 },
+      inputs: { wheat: 1, water: 1 },
+      outputs: { ale: 1 },
       durationTicks: 15 * S,
     },
   },
@@ -178,7 +178,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     requiresTech: 'ironworking' as const,
     w: 2,
     h: 2,
-    cost: { bamboo: 8, stone: 4 },
+    cost: { wood: 8, stone: 4 },
     buildTicks: 20 * S,
     hp: 180,
     sight: 5.5,
@@ -191,7 +191,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     name: 'Silver Mine',
     w: 2,
     h: 2,
-    cost: { bamboo: 8, stone: 4 },
+    cost: { wood: 8, stone: 4 },
     buildTicks: 20 * S,
     hp: 180,
     sight: 5.5,
@@ -205,7 +205,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     requiresTech: 'deepMining' as const,
     w: 2,
     h: 2,
-    cost: { bamboo: 10, stone: 6 },
+    cost: { wood: 10, stone: 6 },
     buildTicks: 25 * S,
     hp: 180,
     sight: 5.5,
@@ -219,15 +219,15 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     requiresTech: 'ironworking' as const,
     w: 2,
     h: 2,
-    cost: { bamboo: 10, stone: 6 },
+    cost: { wood: 10, stone: 6 },
     buildTicks: 20 * S,
     hp: 180,
     sight: 5.5,
     workerKind: 'worker',
     recipe: {
       kind: 'convert',
-      inputs: { iron: 2, bamboo: 1 },
-      outputs: { katana: 1 },
+      inputs: { iron: 2, wood: 1 },
+      outputs: { sword: 1 },
       durationTicks: 14 * S,
     },
   },
@@ -237,15 +237,15 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     requiresTech: 'ironworking' as const,
     w: 2,
     h: 2,
-    cost: { bamboo: 8, stone: 4 },
+    cost: { wood: 8, stone: 4 },
     buildTicks: 18 * S,
     hp: 160,
     sight: 5.5,
     workerKind: 'worker',
     recipe: {
       kind: 'convert',
-      inputs: { iron: 1, bamboo: 2 },
-      outputs: { yari: 1 },
+      inputs: { iron: 1, wood: 2 },
+      outputs: { spear: 1 },
       durationTicks: 10 * S,
     },
   },
@@ -255,42 +255,42 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     requiresTech: 'archery' as const,
     w: 2,
     h: 2,
-    cost: { bamboo: 8 },
+    cost: { wood: 8 },
     buildTicks: 18 * S,
     hp: 140,
     sight: 5.5,
     workerKind: 'worker',
     recipe: {
       kind: 'convert',
-      inputs: { bamboo: 3 },
-      outputs: { yumi: 1 },
+      inputs: { wood: 3 },
+      outputs: { bow: 1 },
       durationTicks: 8 * S,
     },
   },
-  terakoya: {
-    id: 'terakoya',
-    name: 'Terakoya',
+  abbey: {
+    id: 'abbey',
+    name: 'Abbey',
     w: 2,
     h: 2,
-    cost: { bamboo: 10, stone: 4 },
+    cost: { wood: 10, stone: 4 },
     buildTicks: 20 * S,
     hp: 160,
     sight: 5.5,
   },
-  dojo: {
-    id: 'dojo',
-    name: 'Dojo',
+  barracks: {
+    id: 'barracks',
+    name: 'Barracks',
     w: 3,
     h: 3,
-    cost: { bamboo: 12, stone: 8 },
+    cost: { wood: 12, stone: 8 },
     buildTicks: 25 * S,
     hp: 220,
     sight: 5.5,
-    requiresTech: 'bushido',
+    requiresTech: 'soldiery',
     trains: [
-      { unit: 'samurai', cost: { rice: 3, katana: 1 }, durationTicks: 15 * S },
-      { unit: 'ashigaru', cost: { rice: 2, yari: 1 }, durationTicks: 10 * S },
-      { unit: 'archer', cost: { rice: 2, yumi: 1 }, durationTicks: 12 * S },
+      { unit: 'knight', cost: { wheat: 3, sword: 1 }, durationTicks: 15 * S },
+      { unit: 'spearman', cost: { wheat: 2, spear: 1 }, durationTicks: 10 * S },
+      { unit: 'archer', cost: { wheat: 2, bow: 1 }, durationTicks: 12 * S },
     ],
   },
   roadSite: {
