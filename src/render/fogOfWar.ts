@@ -194,6 +194,7 @@ export class FogOfWar implements FogQuery {
     // Still done while disabled, though: materials created during a fog-off
     // stretch must be ready for it being switched back on.
     if (this.#dirty) this.#patchNewMaterials(scene);
+    else if (this.#pending.length > 0) this.#patchPending();
     if (!this.#enabled) return;
 
     this.#accum += dt;
@@ -277,21 +278,35 @@ export class FogOfWar implements FogQuery {
    */
   #patchNewMaterials(scene: THREE.Scene): void {
     this.#dirty = false;
-    scene.traverse((obj) => {
-      if (!this.#watched.has(obj)) {
-        this.#watched.add(obj);
-        obj.addEventListener('childadded', this.#onChildAdded);
-      }
-      const mesh = obj as THREE.Mesh;
-      const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
-      if (!mat) return;
-      if (Array.isArray(mat)) for (const m of mat) this.#patch(m);
-      else this.#patch(mat);
-    });
+    this.#pending.length = 0; // the full sweep covers any queued subtrees
+    scene.traverse(this.#visit);
   }
 
-  #onChildAdded = (): void => {
-    this.#dirty = true;
+  /** Sweep only the subtrees added since the last frame — a scene add no
+   * longer triggers a walk of the whole graph, just of what arrived (the
+   * traverse catches grandchildren, so they get listeners and patches). */
+  #patchPending(): void {
+    for (const root of this.#pending) root.traverse(this.#visit);
+    this.#pending.length = 0;
+  }
+
+  #visit = (obj: THREE.Object3D): void => {
+    if (!this.#watched.has(obj)) {
+      this.#watched.add(obj);
+      obj.addEventListener('childadded', this.#onChildAdded);
+    }
+    const mesh = obj as THREE.Mesh;
+    const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
+    if (!mat) return;
+    if (Array.isArray(mat)) for (const m of mat) this.#patch(m);
+    else this.#patch(mat);
+  };
+
+  /** Subtrees added to the scene since the last sweep. */
+  #pending: THREE.Object3D[] = [];
+
+  #onChildAdded = (event: { child: THREE.Object3D }): void => {
+    this.#pending.push(event.child);
   };
 
   #patch(material: THREE.Material): void {
