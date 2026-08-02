@@ -2,6 +2,7 @@ import type { WebSocket } from 'ws';
 import { createWorld, type World } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
 import { AiSeats } from '../../src/sim/aiSeats.ts';
+import { parseStrategyId } from '../../src/sim/defs/aiStrategies.ts';
 import { TICK_MS } from '../../src/sim/defs/balance.ts';
 import { MAX_SEATS, type LobbyConfig } from '../../src/protocol/lobby.ts';
 import type { SimCommand } from '../../src/sim/commands.ts';
@@ -179,9 +180,18 @@ export function startMatch(room: Room): void {
   // AI fills in, it never holds a seat against a person.
   const aiFill = Math.max(0, Math.min(room.config.ai, MAX_SEATS - room.seats.length));
   for (let i = 0; i < aiFill; i++) addSeat(room, 'ai', null);
+  // The council's picks, in the order the computer seats filled up. A seat
+  // the host left on Random names nothing and the seed deals it one. The
+  // fallback is for a room restored from a snapshot written before the
+  // field existed: no picks recorded means every seat is dealt.
+  const bots = room.config.bots ?? [];
+  let picked = 0;
   room.world = createWorld({
     seed: room.config.seed,
-    players: room.seats.map((s) => ({ kind: s.kind })),
+    players: room.seats.map((s) => ({
+      kind: s.kind,
+      strategy: s.kind === 'ai' ? parseStrategyId(bots[picked++]) : undefined,
+    })),
     // Cheats are a single-player affair; a networked world never honors them.
     adminEnabled: false,
     banditsEnabled: room.config.bandits,

@@ -1,7 +1,14 @@
 import { For, Show, createSignal, type Accessor } from 'solid-js';
 import { render } from 'solid-js/web';
 import { MAX_SEATS, type LobbyConfig } from '../protocol/lobby';
-import { strategyForSeat } from '../sim/defs/aiStrategies';
+import {
+  AI_STRATEGIES,
+  AI_STRATEGY_ORDER,
+  dealStrategies,
+  parseStrategyId,
+  strategyOf,
+  type AiStrategy,
+} from '../sim/defs/aiStrategies';
 import { DiceIcon, MENU_STYLE } from './menuChrome';
 
 /**
@@ -95,10 +102,38 @@ function WarCouncil(props: CouncilHooks) {
   // the controls without a reload.
   const isHost = (): boolean => inRoom() && v().yourSeat === 0;
 
+  /**
+   * The opponents this room would field, resolved exactly the way the
+   * server resolves them at startMatch: the host's picks kept, the rest
+   * dealt from the map seed. Every seat watches this change live, so the
+   * table knows who it is sitting down against before the match begins.
+   */
+  const opponents = (): AiStrategy[] => {
+    const { seats, config } = v();
+    const aiFill = Math.max(0, Math.min(config.ai, MAX_SEATS - seats.length));
+    const chairs = [
+      ...seats.map(() => ({ kind: 'human' as const })),
+      ...Array.from({ length: aiFill }, (_, i) => ({
+        kind: 'ai' as const,
+        strategy: parseStrategyId(config.bots[i]),
+      })),
+    ];
+    return dealStrategies(config.seed, chairs)
+      .slice(seats.length)
+      .map((id) => strategyOf(id));
+  };
+
+  const setBot = (index: number, id: string): void => {
+    const bots = [...v().config.bots];
+    bots[index] = id === '' ? null : id;
+    props.onConfig({ bots });
+  };
+
   /** The table, always MAX_SEATS chairs: humans, then the computer seats
    * the host asked for, then what is still open. */
   const rows = (): SeatRow[] => {
     const { seats, yourSeat, config } = v();
+    const them = opponents();
     const out: SeatRow[] = seats.map((s, i) => ({
       color: SEAT_COLORS[i % SEAT_COLORS.length]!,
       who: i === yourSeat ? 'You' : 'Ally',
@@ -108,12 +143,11 @@ function WarCouncil(props: CouncilHooks) {
     }));
     const aiFill = Math.max(0, Math.min(config.ai, MAX_SEATS - out.length));
     for (let i = 0; i < aiFill; i++) {
-      // Named, because the computer seats do not play alike: the playbook
-      // a seat runs is fixed by its number, so the council can say up front
-      // which opponents the table is setting itself.
+      // Named, because the computer seats do not play alike: whichever
+      // playbook this chair was picked or dealt is who sits in it.
       out.push({
         color: SEAT_COLORS[out.length % SEAT_COLORS.length]!,
-        who: strategyForSeat(out.length).name,
+        who: them[i]?.name ?? 'Computer',
         state: 'computer',
         stateClass: 'ready',
         open: false,
@@ -217,6 +251,35 @@ function WarCouncil(props: CouncilHooks) {
                     </For>
                   </div>
                 </div>
+
+                <Show when={opponents().length > 0}>
+                  <div class="row">
+                    <div>
+                      <div class="row-label">Who they are</div>
+                      <div class="row-hint">
+                        {isHost()
+                          ? 'Random lets the map seed choose — no two play alike'
+                          : 'Set by the host'}
+                      </div>
+                    </div>
+                    <div class="opponents">
+                      <For each={opponents()}>
+                        {(rolled, i) => (
+                          <select
+                            disabled={!isHost()}
+                            value={v().config.bots[i()] ?? ''}
+                            onChange={(e) => setBot(i(), e.currentTarget.value)}
+                          >
+                            <option value="">Random — {rolled.name}</option>
+                            <For each={AI_STRATEGY_ORDER}>
+                              {(id) => <option value={id}>{AI_STRATEGIES[id].name}</option>}
+                            </For>
+                          </select>
+                        )}
+                      </For>
+                    </div>
+                  </div>
+                </Show>
 
                 <div class="row">
                   <div>

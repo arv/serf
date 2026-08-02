@@ -64,6 +64,13 @@ export const MENU_STYLE = `
 #menu .pills button:hover { color: #f0ede4; }
 #menu .pills button.on { color: #f5e4b6; background: rgba(229,196,105,0.16); }
 
+#menu .opponents { display: flex; flex-direction: column; gap: 5px; }
+#menu select { cursor: pointer; padding: 7px 9px; font: inherit; font-size: 12.5px; color: #e4e1d6;
+  background: rgba(0,0,0,0.34); border: 1px solid rgba(255,255,255,0.13); border-radius: 9px;
+  transition: border-color 0.15s; }
+#menu select:hover { border-color: rgba(229,196,105,0.42); }
+#menu select option { color: #e4e1d6; background: #23231f; }
+
 #menu input { padding: 8px 10px; font: inherit; font-size: 13.5px; color: #f2efe4;
   background: rgba(0,0,0,0.34); border: 1px solid rgba(255,255,255,0.13); border-radius: 9px; }
 #menu input.seed { width: 108px; text-align: right; font-variant-numeric: tabular-nums; }

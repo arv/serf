@@ -4,12 +4,7 @@ import { BUILDING_DEFS, buildingDef, type BuildingTypeId } from '../defs/buildin
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, type UnitTypeId } from '../defs/units.ts';
 import { HIRE_SERF_COST } from '../defs/balance.ts';
-import {
-  strategyForSeat,
-  type AiStrategy,
-  type BuildAnchor,
-  type BuildStep,
-} from '../defs/aiStrategies.ts';
+import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
 import { canPlace, type World } from '../world.ts';
 import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
 import type { GoodId } from '../defs/goods.ts';
@@ -24,15 +19,16 @@ import type { SimCommand } from '../commands.ts';
  *
  * The brain is the machinery; WHAT it plays is a playbook it is handed
  * (defs/aiStrategies.ts): build order, research line, forge assignment,
- * what it trains, how big an army it wants and whether it defends. Seats
- * take a different playbook each, so three computer opponents are three
- * different games rather than one game three times.
+ * what it trains, how big an army it wants and whether it defends. Every
+ * AI seat is dealt a different one when the world is made, so three
+ * computer opponents are three different games rather than one game three
+ * times over.
  *
- * The default seat-0 playbook ('steward') is the original single strategy
- * unchanged — wants-vs-standing-counts build order, survival-floor hiring
- * with a research reserve, a fixed research queue, a sword-aware barracks
- * queue, rally-then-attack army logic — because the winnable-campaign
- * regression drives it.
+ * The 'steward' playbook is the original single strategy unchanged —
+ * wants-vs-standing-counts build order, survival-floor hiring with a
+ * research reserve, a fixed research queue, a sword-aware barracks queue,
+ * rally-then-attack army logic — because the winnable-campaign regression
+ * drives it.
  */
 
 export const AI_PACING = {
@@ -78,7 +74,7 @@ export class AiBrain {
   #lastRallyTick = 0;
   #attacking = false;
 
-  constructor(playerId: Owner, strategy: AiStrategy = strategyForSeat(playerId)) {
+  constructor(playerId: Owner, strategy: AiStrategy) {
     this.playerId = playerId;
     this.strategy = strategy;
   }

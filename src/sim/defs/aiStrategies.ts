@@ -1,3 +1,4 @@
+import { Rng } from '../../shared/rng.ts';
 import type { BuildingTypeId } from './buildings.ts';
 import type { TechId } from './techs.ts';
 import type { UnitTypeId } from './units.ts';
@@ -9,11 +10,11 @@ import type { UnitTypeId } from './units.ts';
  * systems/ai.ts. Every computer opponent in a skirmish therefore opened the
  * same way, researched the same three techs and marched at the same seven
  * soldiers — beat one and you had beaten all of them. A playbook is data
- * now, the brain reads it, and a seat picks one by its id.
+ * now, the brain reads it, and the map seed deals one to every AI seat.
  *
- * `steward` is that original line, kept number-for-number: it is the one
- * the winnable-campaign regression drives, so it stays the tested default
- * for seat 0 and the yardstick the other three are balanced against.
+ * `steward` is that original line, kept number-for-number: the yardstick
+ * the other three are balanced against, and what a seat runs when a save
+ * predates the deal.
  *
  * Everything here must stay pure data — the brain runs beside the sim on
  * whichever host owns the world, and two hosts reading the same table have
@@ -253,15 +254,72 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
   },
 };
 
-/**
- * Seat id to playbook. Seat 0 keeps the tested campaign line (it is the
- * solo player's seat, and the one the winnable regression drives); the rest
- * get a playbook each, so a three-opponent skirmish is three different
- * games. Deterministic on purpose — every host must seat the same brains.
- */
+/** The deck, in the order it is written down. Shuffled before it is dealt. */
 export const AI_STRATEGY_ORDER: AiStrategyId[] = ['steward', 'warlord', 'abbot', 'fletcher'];
 
-export function strategyForSeat(playerId: number): AiStrategy {
-  const id = AI_STRATEGY_ORDER[playerId % AI_STRATEGY_ORDER.length]!;
-  return AI_STRATEGIES[id];
+/**
+ * The playbooks in the order this seed deals them: a Fisher-Yates shuffle
+ * on the map seed, so which opponents you meet is part of the valley you
+ * rolled. Same seed, same valley, same three faces.
+ *
+ * Random, but never *unrepeatable* — the deal has to survive a save being
+ * reloaded and a match resuming on a restarted server, or an opponent
+ * would change its mind about how it plays halfway through. Hence a seed
+ * and not a coin: the world writes the result down (PlayerState.strategy)
+ * and it rides the save file from there.
+ *
+ * Its own Rng stream on purpose: drawing from worldgen's would shift every
+ * tree and seam on the map, and the seed is a promise about the valley.
+ */
+export function shuffledStrategies(seed: number): AiStrategyId[] {
+  const deck = [...AI_STRATEGY_ORDER];
+  // A seed of 0 is a fixed point of mulberry32's first step, and 0 is what
+  // an old save's missing seed looks like; the odd offset keeps that from
+  // being a special case anyone has to remember.
+  const rng = new Rng(((seed | 0) ^ 0x5e1f) | 0);
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = rng.int(i + 1);
+    [deck[i], deck[j]] = [deck[j]!, deck[i]!];
+  }
+  return deck;
+}
+
+/**
+ * Resolve every seat's playbook: a seat that named one keeps it, the rest
+ * are dealt from the shuffled deck in seat order. Human seats draw nothing.
+ *
+ * A named playbook comes out of the deck first, because three opponents
+ * should be three different opponents whether they were picked or rolled.
+ * (If all four are named the deck comes back whole — a fifth AI seat has
+ * to repeat someone.)
+ */
+export function dealStrategies(
+  seed: number,
+  seats: { kind: 'human' | 'ai'; strategy?: AiStrategyId }[],
+): (AiStrategyId | undefined)[] {
+  const named = new Set(seats.filter((s) => s.kind === 'ai' && s.strategy).map((s) => s.strategy));
+  const left = shuffledStrategies(seed).filter((id) => !named.has(id));
+  const deck = left.length > 0 ? left : shuffledStrategies(seed);
+  let dealt = 0;
+  return seats.map((s) =>
+    s.kind !== 'ai' ? undefined : (s.strategy ?? deck[dealt++ % deck.length]!),
+  );
+}
+
+/** The playbook a seat was dealt. A save from before the deal existed has
+ * none recorded: those seats run the campaign line. */
+export function strategyOf(id: AiStrategyId | undefined): AiStrategy {
+  return AI_STRATEGIES[id ?? 'steward'];
+}
+
+/**
+ * One playbook id, or undefined for 'deal me one'. The single gate for
+ * anything a player can write — a URL is hand-editable and a lobby patch
+ * arrives off a socket, and neither may name a playbook that does not
+ * exist. `Object.hasOwn`, because AI_STRATEGIES['constructor'] is truthy
+ * through the prototype.
+ */
+export function parseStrategyId(raw: unknown): AiStrategyId | undefined {
+  if (typeof raw !== 'string' || !Object.hasOwn(AI_STRATEGIES, raw)) return undefined;
+  return raw as AiStrategyId;
 }

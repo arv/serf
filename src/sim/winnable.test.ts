@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createWorld } from './world.ts';
 import { tickWorld } from './tick.ts';
 import { AiBrain } from './systems/ai.ts';
+import { strategyOf } from './defs/aiStrategies.ts';
 
 /**
  * THE playtest: the AI brain (systems/ai.ts) wins the solo campaign on the
@@ -15,7 +16,10 @@ import { AiBrain } from './systems/ai.ts';
 describe('the campaign is winnable', () => {
   it('the AI player beats the default map', () => {
     const world = createWorld({ seed: 20260724, players: [{ kind: 'ai' }] });
-    const brain = new AiBrain(0);
+    // Whichever playbook this seed dealt the seat — every one of them can
+    // take this map (aiStrategies.test.ts holds that line); what is tested
+    // here is that the map stays takeable.
+    const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy));
 
     const MAX_TICKS = 45_000; // ~37 minutes of game time
     for (let t = 0; t < MAX_TICKS; t++) {

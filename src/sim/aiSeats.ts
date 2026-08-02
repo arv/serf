@@ -13,6 +13,7 @@
  * one the worker version had, and it matters: deciding after the tick would
  * give the AI a frame of hindsight nobody else gets.
  */
+import { strategyOf } from './defs/aiStrategies.ts';
 import { AiBrain } from './systems/ai.ts';
 import type { PlayerCommand } from './tick.ts';
 import type { World } from './world.ts';
@@ -21,7 +22,12 @@ export class AiSeats {
   #brains: AiBrain[];
 
   constructor(world: World) {
-    this.#brains = world.players.filter((p) => p.kind === 'ai').map((p) => new AiBrain(p.id));
+    // The playbook comes off the seat, not off the seat number: the world
+    // was dealt them at creation and has carried them through every save
+    // and restart since.
+    this.#brains = world.players
+      .filter((p) => p.kind === 'ai')
+      .map((p) => new AiBrain(p.id, strategyOf(p.strategy)));
   }
 
   get count(): number {

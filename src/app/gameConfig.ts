@@ -1,4 +1,5 @@
 import { DEFAULT_SEED } from '../protocol/lobby';
+import { parseStrategyId } from '../sim/defs/aiStrategies';
 import type { WorldConfig } from '../sim/world';
 
 /**
@@ -24,9 +25,19 @@ export function configFromUrl(search: string): GameConfig {
   const aiSeats = Math.max(0, Math.min(3, Number.isFinite(aiParam) ? aiParam : 0));
   const playersParam = Number(params.get('players') ?? '1');
   const seats = Math.max(1, Math.min(4, Number.isFinite(playersParam) ? playersParam : 1));
-  const players: { kind: 'human' | 'ai' }[] =
+  // ?bots=warlord,,abbot names the opponents seat by seat; a blank or
+  // unknown entry (and the whole param, absent) leaves that seat to the
+  // seed's deal. Order matches the opponent seats, which start at 1.
+  const bots = (params.get('bots') ?? '').split(',');
+  const players: WorldConfig['players'] =
     aiSeats > 0
-      ? [{ kind: 'human' }, ...Array.from({ length: aiSeats }, () => ({ kind: 'ai' as const }))]
+      ? [
+          { kind: 'human' },
+          ...Array.from({ length: aiSeats }, (_, i) => ({
+            kind: 'ai' as const,
+            strategy: parseStrategyId(bots[i]),
+          })),
+        ]
       : Array.from({ length: seats }, () => ({ kind: 'human' as const }));
 
   return {

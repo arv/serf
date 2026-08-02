@@ -11,7 +11,7 @@ describe('sanitizeLobbyConfig', () => {
 
   it('applies a legal patch field by field', () => {
     const out = sanitizeLobbyConfig(base, { ai: 2, bandits: false, seed: 123456 });
-    expect(out).toEqual({ ai: 2, bandits: false, seed: 123456 });
+    expect(out).toEqual({ ai: 2, bandits: false, seed: 123456, bots: [] });
   });
 
   it('keeps the base where the patch is silent', () => {

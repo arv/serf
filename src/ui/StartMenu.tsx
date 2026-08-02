@@ -3,7 +3,15 @@ import { render } from 'solid-js/web';
 import { clearSeatStash, relayUrl } from '../net/lobbyClient';
 import { DiceIcon, MENU_STYLE } from './menuChrome';
 import { DEFAULT_SEED } from '../protocol/lobby';
-import { strategyForSeat } from '../sim/defs/aiStrategies';
+import {
+  AI_STRATEGIES,
+  AI_STRATEGY_ORDER,
+  dealStrategies,
+  parseStrategyId,
+  strategyOf,
+  type AiStrategy,
+  type AiStrategyId,
+} from '../sim/defs/aiStrategies';
 import { startMenuBackdrop, type Backdrop } from './menuBackdrop';
 
 /**
@@ -27,19 +35,12 @@ const OPTIONS = {
 
 const AI_SEATS = Array.from({ length: OPTIONS.maxOpponents + 1 }, (_, i) => i);
 
-/**
- * Who you would be up against. Seat 0 is yours in single player, so the
- * opponents fill from seat 1 — and since a seat's playbook is fixed by its
- * number, the menu can name them before the valley is even generated.
- */
-function opponentHint(count: number): string {
-  if (count === 0) return 'They build and raid like you do';
-  const them = Array.from({ length: count }, (_, i) => strategyForSeat(i + 1));
-  // One opponent gets its whole character; a table of them gets the roll
-  // call, because three blurbs do not fit under a row of pills.
-  if (them.length === 1) return `${them[0]!.name} — ${them[0]!.blurb.toLowerCase()}`;
-  const names = them.map((s) => s.name);
-  return `You face ${names.slice(0, -1).join(', ')} and ${names.at(-1)!} — each plays its own game`;
+/** What to say under the opponent pickers. One opponent gets its whole
+ * character; a table of them gets the general rule, because three blurbs
+ * do not fit under three select boxes. */
+function opponentHint(them: AiStrategy[]): string {
+  if (them.length === 1) return them[0]!.blurb;
+  return 'Random lets the map seed choose — no two of them play alike';
 }
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
@@ -107,6 +108,8 @@ function StartMenu() {
   const [mode, setMode] = createSignal<Mode>('single');
   const [mp, setMp] = createSignal<MpMode>('host');
   const [ai, setAi] = createSignal(2);
+  // One entry per opponent seat; undefined means 'let the seed deal it'.
+  const [bots, setBots] = createSignal<(AiStrategyId | undefined)[]>([]);
   const [seed, setSeed] = createSignal(DEFAULT_SEED);
   const [bandits, setBandits] = createSignal(true);
   const [room, setRoom] = createSignal('');
@@ -117,6 +120,25 @@ function StartMenu() {
 
   const isMulti = (): boolean => mode() === 'multi';
   const isJoin = (): boolean => isMulti() && mp() === 'join';
+
+  /** The opponents this skirmish would actually field: what the player
+   * picked, and for the seats left on Random, what this seed deals them.
+   * The same call the world makes, so the menu cannot promise a face the
+   * match does not bring. */
+  const opponents = (): AiStrategy[] => {
+    const seats = [
+      { kind: 'human' as const },
+      ...Array.from({ length: ai() }, (_, i) => ({ kind: 'ai' as const, strategy: bots()[i] })),
+    ];
+    return dealStrategies(seed(), seats)
+      .slice(1)
+      .map((id) => strategyOf(id));
+  };
+  const setBot = (index: number, id: AiStrategyId | undefined): void => {
+    const next = [...bots()];
+    next[index] = id;
+    setBots(next);
+  };
 
   let inFlight = false;
   const refresh = async (): Promise<void> => {
@@ -160,6 +182,10 @@ function StartMenu() {
     const p = new URLSearchParams();
     if (!isMulti()) {
       if (ai() > 0) p.set('ai', String(ai()));
+      // Only the named ones travel; a seat left on Random says nothing and
+      // is dealt from the seed at the other end.
+      const named = bots().slice(0, ai());
+      if (named.some(Boolean)) p.set('bots', named.map((b) => b ?? '').join(','));
       p.set('seed', String(seed()));
       if (!bandits()) p.set('bandits', '0');
     } else if (mp() === 'host') {
@@ -370,7 +396,7 @@ function StartMenu() {
                 <div class="row">
                   <div>
                     <div class="row-label">Computer opponents</div>
-                    <div class="row-hint">{opponentHint(ai())}</div>
+                    <div class="row-hint">They build and raid like you do</div>
                   </div>
                   <div class="pills">
                     <For each={AI_SEATS}>
@@ -382,6 +408,33 @@ function StartMenu() {
                     </For>
                   </div>
                 </div>
+
+                <Show when={ai() > 0}>
+                  <div class="row">
+                    <div>
+                      <div class="row-label">Who you face</div>
+                      <div class="row-hint">{opponentHint(opponents())}</div>
+                    </div>
+                    <div class="opponents">
+                      <For each={opponents()}>
+                        {(rolled, i) => (
+                          <select
+                            value={bots()[i()] ?? ''}
+                            onChange={(e) => setBot(i(), parseStrategyId(e.currentTarget.value))}
+                          >
+                            {/* The roll is named in the option itself: a
+                                Random seat is still a specific opponent
+                                once the seed is on the table. */}
+                            <option value="">Random — {rolled.name}</option>
+                            <For each={AI_STRATEGY_ORDER}>
+                              {(id) => <option value={id}>{AI_STRATEGIES[id].name}</option>}
+                            </For>
+                          </select>
+                        )}
+                      </For>
+                    </div>
+                  </div>
+                </Show>
 
                 <Show when={OPTIONS.showSeedRow}>
                   <div class="row">

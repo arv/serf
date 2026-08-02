@@ -13,6 +13,7 @@ import {
 import { FIRST_RAID_TICK, START_SERFS, START_STOCK } from './defs/balance.ts';
 import { UNIT_DEFS } from './defs/units.ts';
 import { buildingDef, type BuildingTypeId } from './defs/buildings.ts';
+import { dealStrategies, type AiStrategyId } from './defs/aiStrategies.ts';
 import { makeUnit, type Unit } from './units.ts';
 import { nearestWalkable } from './path.ts';
 import type { GoodAmounts, GoodId } from './defs/goods.ts';
@@ -115,8 +116,9 @@ export function pushDelta(world: World, idx: number): void {
 
 export interface WorldConfig {
   seed: number;
-  /** 1..4 seats; index = playerId. */
-  players: { kind: 'human' | 'ai' }[];
+  /** 1..4 seats; index = playerId. An AI seat may name the playbook it
+   * wants; the ones that don't are dealt from the seed. */
+  players: { kind: 'human' | 'ai'; strategy?: AiStrategyId }[];
   /** Admin (cheat) commands honored. Default true — networked games pass false. */
   adminEnabled?: boolean;
   /** Bandits exist. Default true; false places no camp, no guards, and
@@ -159,6 +161,8 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
   if (!layout) throw new Error(`no start layout for ${config.players.length} players`);
   const starts = layout.map(([x, y]) => ({ x, y }));
 
+  const deal = dealStrategies(seed, config.players);
+
   const rng = new Rng(seed);
   const map = generateMap(rng, starts);
 
@@ -173,7 +177,9 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
     nextJobId: 1,
     ledger: { produced: {}, consumed: {} },
     pendingDeltas: [],
-    players: config.players.map((p, i) => makePlayer(i, p.kind)),
+    // The seed deals the AI seats their playbooks here, once, and the
+    // world carries the result from then on (see PlayerState.strategy).
+    players: config.players.map((p, i) => makePlayer(i, p.kind, deal[i])),
     raidState: { nextRaidTick: FIRST_RAID_TICK, wave: 0 },
     admin: {
       enabled: config.adminEnabled ?? true,
