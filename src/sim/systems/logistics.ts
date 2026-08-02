@@ -193,20 +193,28 @@ function match(world: World): void {
       a.priority - z.priority ||
       a.since - z.since ||
       a.building.id - z.building.id ||
-      GOODS.indexOf(a.good) - GOODS.indexOf(z.good),
+      GOOD_INDEX[a.good] - GOOD_INDEX[z.good],
   );
 
   for (const d of demands) {
     let want = d.want;
+    // Reuse the matched source while it still has availability: only this
+    // loop's own reservations change during the iterations, so a rescan
+    // would return the same winner until it is exhausted.
+    let source: Building | undefined;
     while (want > 0) {
-      const source = d.pinnedSource ?? nearestSupply(world, d.building, d.good);
-      if (!source || availableOut(source, d.good) <= 0) break;
+      if (source === undefined || availableOut(source, d.good) <= 0) {
+        source = d.pinnedSource ?? nearestSupply(world, d.building, d.good);
+        if (!source || availableOut(source, d.good) <= 0) break;
+      }
       createJob(world, d.good, source.id, d.building.id, d.priority);
       want--;
-      if (d.pinnedSource && availableOut(d.pinnedSource, d.good) <= 0) break;
     }
   }
 }
+
+/** good -> position in GOODS, so the sort comparator avoids indexOf scans. */
+const GOOD_INDEX = Object.fromEntries(GOODS.map((g, i) => [g, i])) as Record<GoodId, number>;
 
 interface DemandFull extends Demand {
   pinnedSource?: Building;
