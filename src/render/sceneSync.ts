@@ -183,12 +183,16 @@ export class SceneSync {
     return well;
   }
 
-  // Scratch buffers for the per-frame visual de-overlap pass.
+  // Scratch buffers for the per-frame visual de-overlap pass. The cell
+  // arrays are pooled: emptied (length = 0) and refilled each frame rather
+  // than reallocated, so steady state allocates nothing per frame. An empty
+  // array means "unused this frame".
   #posX = new Float32Array(MAX_UNITS);
   #posY = new Float32Array(MAX_UNITS);
   #sepTX = new Float32Array(MAX_UNITS);
   #sepTY = new Float32Array(MAX_UNITS);
   #cells = new Map<number, number[]>();
+  #usedCells: number[] = [];
 
   /**
    * Soft visual separation: units drawn closer than SEP_RADIUS get pushed
@@ -203,7 +207,8 @@ export class SceneSync {
     const SEP_RADIUS = 0.44;
     const MAX_PUSH = 0.34;
     const n = latest.count;
-    this.#cells.clear();
+    for (const key of this.#usedCells) this.#cells.get(key)!.length = 0;
+    this.#usedCells.length = 0;
     for (let i = 0; i < n; i++) {
       const id = latest.ids[i]!;
       const pi = prev.index.get(id);
@@ -215,6 +220,7 @@ export class SceneSync {
       const key = (this.#posX[i]! | 0) * 256 + (this.#posY[i]! | 0);
       let cell = this.#cells.get(key);
       if (!cell) this.#cells.set(key, (cell = []));
+      if (cell.length === 0) this.#usedCells.push(key);
       cell.push(i);
     }
     for (let i = 0; i < n; i++) {
@@ -224,7 +230,7 @@ export class SceneSync {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           const cell = this.#cells.get((cx + dx) * 256 + cy + dy);
-          if (!cell) continue;
+          if (!cell || cell.length === 0) continue;
           for (const j of cell) {
             if (j === i) continue;
             const ddx = this.#posX[i]! - this.#posX[j]!;
