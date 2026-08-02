@@ -4,6 +4,7 @@ import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { TechId } from '../sim/defs/techs';
 import type { UnitTypeId } from '../sim/defs/units';
 import type { AdminAction } from '../sim/commands';
+import { clearSeatStash } from '../net/lobbyClient';
 import { TechTreePanel } from './TechTreePanel';
 import { SelectionPanel } from './SelectionPanel';
 import { AdminPanel } from './AdminPanel';
@@ -773,7 +774,15 @@ export function Hud(props: {
             <button
               onClick={() => {
                 sessionStorage.removeItem('serf-load-pending');
-                location.reload();
+                if (netMode()) {
+                  // A bare reload rejoins the finished room by seat token
+                  // and lands right back on this screen. Drop the seat and
+                  // host a fresh council instead.
+                  clearSeatStash();
+                  location.href = `${location.pathname}?mp=new`;
+                } else {
+                  location.reload();
+                }
               }}
             >
               Play again
