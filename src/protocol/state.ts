@@ -134,7 +134,7 @@ function decodeInit(data: Uint8Array): InitFrame {
 
 /** The 20 Hz frame: every unit this client may see, packed. */
 export function encodeHot(tick: number, units: Iterable<UnitSnapshot>): Uint8Array<ArrayBuffer> {
-  const rows: UnitSnapshot[] = [...units];
+  const rows: readonly UnitSnapshot[] = Array.isArray(units) ? units : [...units];
   const out = new Uint8Array(7 + rows.length * UNIT_BYTES);
   const view = new DataView(out.buffer);
   out[0] = STATE_HOT;
