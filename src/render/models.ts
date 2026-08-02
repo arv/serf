@@ -297,7 +297,10 @@ export const PILE_SCALE = 1.25;
  */
 export function makePileProp(good: GoodId): THREE.Group {
   const pack = PACK_CARRY[good];
-  const inner = (pack && glbCarryProp(pack.prop, 0.3)) ?? carryProto(good).clone();
+  // Clone from the shared prototype cache (like makeCarryProp): building
+  // a fresh carryProto per pile minted new geometries/materials each call,
+  // which buildingSync's bare remove() then leaked on the GPU.
+  const inner = (pack && glbCarryProp(pack.prop, 0.3)) ?? cachedCarryProto(good).clone();
   if (!pack) {
     inner.position.set(0, 0, 0); // strip the carry-height offset
     inner.scale.setScalar(0.62);
@@ -330,10 +333,15 @@ export function makeCarryProp(carryCode: number): THREE.Group | null {
       return held;
     }
   }
+  return cachedCarryProto(good).clone();
+}
+
+/** Shared procedural prototype per good; clones share geometry/materials. */
+function cachedCarryProto(good: GoodId): THREE.Group {
   let proto = carryPrototypes.get(good);
   if (!proto) {
     proto = carryProto(good);
     carryPrototypes.set(good, proto);
   }
-  return proto.clone();
+  return proto;
 }
