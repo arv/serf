@@ -264,24 +264,34 @@ export class SceneSync {
 
   /** Current interpolated world position of a unit (for picking/FX). */
   positionOf(id: number, now: number): { x: number; y: number } | null {
+    const out = { x: 0, y: 0 };
+    return this.positionOfInto(id, now, out) ? out : null;
+  }
+
+  /** positionOf without the allocation: writes into `out`; false when the
+   * unit is absent from the latest publish or hidden by fog. */
+  positionOfInto(id: number, now: number, out: { x: number; y: number }): boolean {
     const { latest, prev } = this.#reader;
     const li = latest.index.get(id);
-    if (li === undefined) return null;
-    const alpha = this.#alpha(now);
-    const pi = prev.index.get(id);
+    if (li === undefined) return false;
     // Hidden by fog: report no position at all, which is what keeps
     // picking, hover and band-select from reaching into the dark.
-    if (this.#hidden.has(id)) return null;
+    if (this.#hidden.has(id)) return false;
     // Include the visual de-overlap offset so picking and selection fx
     // land where the unit is drawn, not where the sim has it.
     const v = this.#visuals.get(id);
     const sx = v?.sepX ?? 0;
     const sy = v?.sepY ?? 0;
-    if (pi === undefined) return { x: latest.xs[li]! + sx, y: latest.ys[li]! + sy };
-    return {
-      x: lerp(prev.xs[pi]!, latest.xs[li]!, alpha) + sx,
-      y: lerp(prev.ys[pi]!, latest.ys[li]!, alpha) + sy,
-    };
+    const pi = prev.index.get(id);
+    if (pi === undefined) {
+      out.x = latest.xs[li]! + sx;
+      out.y = latest.ys[li]! + sy;
+      return true;
+    }
+    const alpha = this.#alpha(now);
+    out.x = lerp(prev.xs[pi]!, latest.xs[li]!, alpha) + sx;
+    out.y = lerp(prev.ys[pi]!, latest.ys[li]!, alpha) + sy;
+    return true;
   }
 
   /** All unit ids in the latest publish (for band select). */

@@ -363,6 +363,9 @@ async function boot(): Promise<void> {
     fog.setEnabled(fogEnabled() && !fallen);
     fog.update(Math.min((now - fogLast) / 1000, 0.25), init.reader, roster, renderer.scene);
     fogLast = now;
+    // Hover picking is deferred from pointermove (which can fire at
+    // hundreds of Hz) to at most once per frame, here.
+    controls.updateHoverIfDirty();
     sync.update(now, controls.hoverUnit, controls.selected, speed() === 0, renderer.rig.viewBounds());
     buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
     controls.prune();

@@ -63,6 +63,16 @@ export class Controls {
   #bandEl: HTMLDivElement;
   #hoverUnit = -1;
   #hoverBuilding = -1;
+  /** Last pointer position + dirty flag: pointermove can fire at hundreds
+   * of Hz, so the O(units) hover scan runs at most once per frame, from
+   * the rAF loop (updateHoverIfDirty). */
+  #hoverX = 0;
+  #hoverY = 0;
+  #hoverDirty = false;
+  #hoverIsTouch = false;
+  // Scratch objects for the per-unit screen-space scans.
+  #scratchPos = { x: 0, y: 0 };
+  #scratchScreen = { x: 0, y: 0 };
   #touchOrigin: { x: number; y: number } | null = null;
   /** A marquee drag in flight (armed by the HUD's band button). */
   #bandTouch = false;
@@ -308,7 +318,10 @@ export class Controls {
 
   #onMove = (e: PointerEvent): void => {
     if (this.#secondaryTouch(e)) return;
-    this.#updateHover(e.clientX, e.clientY);
+    this.#hoverX = e.clientX;
+    this.#hoverY = e.clientY;
+    this.#hoverIsTouch = e.pointerType === 'touch';
+    this.#hoverDirty = true;
     const type = placing();
     if (type) {
       // A travelling finger is panning the map, not aiming: drop the
@@ -408,23 +421,39 @@ export class Controls {
     this.#selectAtPoint(px, py, false); // building panel, or clears it
   }
 
+  /** Run the deferred hover scan, if the pointer moved since last frame. */
+  updateHoverIfDirty(): void {
+    if (!this.#hoverDirty) return;
+    this.#hoverDirty = false;
+    this.#updateHover(this.#hoverX, this.#hoverY);
+  }
+
   /** Track what's under the cursor — any owner; hp is interesting on foes. */
   #updateHover(px: number, py: number): void {
     const now = performance.now();
     let bestId = -1;
     let bestDist = CLICK_RADIUS_PX * CLICK_RADIUS_PX;
-    for (const id of this.#sync.latestIds.keys()) {
-      const pos = this.#sync.positionOf(id, now);
-      if (!pos) continue;
-      const groundY = this.#heights.at(pos.x, pos.y);
-      const screen = worldToScreen(this.#camera, this.#canvas, pos.x, groundY + 0.4, pos.y);
-      if (!screen) continue;
-      const dx = screen.x - px;
-      const dy = screen.y - py;
-      const d = dx * dx + dy * dy;
-      if (d < bestDist) {
-        bestDist = d;
-        bestId = id;
+    // Touch placement mode has no hover to show — skip the unit scan.
+    if (!(this.#hoverIsTouch && placing())) {
+      const pos = this.#scratchPos;
+      for (const id of this.#sync.latestIds.keys()) {
+        if (!this.#sync.positionOfInto(id, now, pos)) continue;
+        const groundY = this.#heights.at(pos.x, pos.y);
+        const screen = worldToScreen(
+          this.#camera,
+          this.#canvas,
+          pos.x,
+          groundY + 0.4,
+          pos.y,
+          this.#scratchScreen,
+        );
+        const dx = screen.x - px;
+        const dy = screen.y - py;
+        const d = dx * dx + dy * dy;
+        if (d < bestDist) {
+          bestDist = d;
+          bestId = id;
+        }
       }
     }
     this.#hoverUnit = bestId;
@@ -441,12 +470,14 @@ export class Controls {
     }
   }
 
-  #playerUnitScreenPos(id: number, now: number): { x: number; y: number } | null {
-    if (this.#sync.ownerOf(id) !== myPlayerId()) return null;
-    const pos = this.#sync.positionOf(id, now);
-    if (!pos) return null;
+  /** Screen position of an own unit, written into `out`; false otherwise. */
+  #playerUnitScreenPosInto(id: number, now: number, out: { x: number; y: number }): boolean {
+    if (this.#sync.ownerOf(id) !== myPlayerId()) return false;
+    const pos = this.#scratchPos;
+    if (!this.#sync.positionOfInto(id, now, pos)) return false;
     const groundY = this.#heights.at(pos.x, pos.y);
-    return worldToScreen(this.#camera, this.#canvas, pos.x, groundY + 0.4, pos.y);
+    worldToScreen(this.#camera, this.#canvas, pos.x, groundY + 0.4, pos.y, out);
+    return true;
   }
 
   /** Nearest own unit within tap radius of a screen point, or -1. */
@@ -454,9 +485,9 @@ export class Controls {
     const now = performance.now();
     let bestId = -1;
     let bestDist = CLICK_RADIUS_PX * CLICK_RADIUS_PX;
+    const screen = this.#scratchScreen;
     for (const id of this.#sync.latestIds.keys()) {
-      const screen = this.#playerUnitScreenPos(id, now);
-      if (!screen) continue;
+      if (!this.#playerUnitScreenPosInto(id, now, screen)) continue;
       const dx = screen.x - px;
       const dy = screen.y - py;
       const d = dx * dx + dy * dy;
@@ -503,9 +534,9 @@ export class Controls {
     const minY = Math.min(y0, y1);
     const maxY = Math.max(y0, y1);
     const sel = additive ? new Set(this.#selection) : new Set<number>();
+    const screen = this.#scratchScreen;
     for (const id of this.#sync.latestIds.keys()) {
-      const screen = this.#playerUnitScreenPos(id, now);
-      if (!screen) continue;
+      if (!this.#playerUnitScreenPosInto(id, now, screen)) continue;
       if (screen.x >= minX && screen.x <= maxX && screen.y >= minY && screen.y <= maxY) {
         sel.add(id);
       }
