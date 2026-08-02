@@ -1,13 +1,11 @@
-import { For, Show, createSignal, type Accessor } from 'solid-js';
+import { For, Index, Show, createSignal, type Accessor } from 'solid-js';
 import { render } from 'solid-js/web';
 import { MAX_SEATS, type LobbyConfig } from '../protocol/lobby';
 import {
   AI_STRATEGIES,
   AI_STRATEGY_ORDER,
-  dealStrategies,
   parseStrategyId,
-  strategyOf,
-  type AiStrategy,
+  type AiStrategyId,
 } from '../sim/defs/aiStrategies';
 import { DiceIcon, MENU_STYLE } from './menuChrome';
 
@@ -103,24 +101,15 @@ function WarCouncil(props: CouncilHooks) {
   const isHost = (): boolean => inRoom() && v().yourSeat === 0;
 
   /**
-   * The opponents this room would field, resolved exactly the way the
-   * server resolves them at startMatch: the host's picks kept, the rest
-   * dealt from the map seed. Every seat watches this change live, so the
-   * table knows who it is sitting down against before the match begins.
+   * One entry per computer chair: the playbook the host named for it, or
+   * undefined for the ones left to the seed. Which opponent Random will
+   * turn out to be is not shown — the council could derive it from the
+   * seed, but a roll everyone can read before the march is not a roll.
    */
-  const opponents = (): AiStrategy[] => {
+  const picks = (): (AiStrategyId | undefined)[] => {
     const { seats, config } = v();
     const aiFill = Math.max(0, Math.min(config.ai, MAX_SEATS - seats.length));
-    const chairs = [
-      ...seats.map(() => ({ kind: 'human' as const })),
-      ...Array.from({ length: aiFill }, (_, i) => ({
-        kind: 'ai' as const,
-        strategy: parseStrategyId(config.bots[i]),
-      })),
-    ];
-    return dealStrategies(config.seed, chairs)
-      .slice(seats.length)
-      .map((id) => strategyOf(id));
+    return Array.from({ length: aiFill }, (_, i) => parseStrategyId(config.bots[i]));
   };
 
   const setBot = (index: number, id: string): void => {
@@ -133,7 +122,7 @@ function WarCouncil(props: CouncilHooks) {
    * the host asked for, then what is still open. */
   const rows = (): SeatRow[] => {
     const { seats, yourSeat, config } = v();
-    const them = opponents();
+    const named = picks();
     const out: SeatRow[] = seats.map((s, i) => ({
       color: SEAT_COLORS[i % SEAT_COLORS.length]!,
       who: i === yourSeat ? 'You' : 'Ally',
@@ -143,12 +132,14 @@ function WarCouncil(props: CouncilHooks) {
     }));
     const aiFill = Math.max(0, Math.min(config.ai, MAX_SEATS - out.length));
     for (let i = 0; i < aiFill; i++) {
-      // Named, because the computer seats do not play alike: whichever
-      // playbook this chair was picked or dealt is who sits in it.
+      // A chair the host named says who is in it; one left on Random
+      // stays 'Computer' until the match introduces them.
       out.push({
         color: SEAT_COLORS[out.length % SEAT_COLORS.length]!,
-        who: them[i]?.name ?? 'Computer',
-        state: 'computer',
+        who: named[i] ? AI_STRATEGIES[named[i]!].name : 'Computer',
+        // The status column carries whichever fact the name did not: a
+        // named chair is still a computer, an unnamed one is just ready.
+        state: named[i] ? 'computer' : 'ready',
         stateClass: 'ready',
         open: false,
       });
@@ -252,31 +243,33 @@ function WarCouncil(props: CouncilHooks) {
                   </div>
                 </div>
 
-                <Show when={opponents().length > 0}>
+                <Show when={picks().length > 0}>
                   <div class="row">
                     <div>
                       <div class="row-label">Who they are</div>
                       <div class="row-hint">
                         {isHost()
-                          ? 'Random lets the map seed choose — no two play alike'
+                          ? 'Random keeps it to itself until the march'
                           : 'Set by the host'}
                       </div>
                     </div>
                     <div class="opponents">
-                      <For each={opponents()}>
-                        {(rolled, i) => (
+                      {/* Index, not For — see the same picker in StartMenu:
+                          keying on the item makes two Random seats one. */}
+                      <Index each={picks()}>
+                        {(pick, i) => (
                           <select
                             disabled={!isHost()}
-                            value={v().config.bots[i()] ?? ''}
-                            onChange={(e) => setBot(i(), e.currentTarget.value)}
+                            value={pick() ?? ''}
+                            onChange={(e) => setBot(i, e.currentTarget.value)}
                           >
-                            <option value="">Random — {rolled.name}</option>
+                            <option value="">Random</option>
                             <For each={AI_STRATEGY_ORDER}>
                               {(id) => <option value={id}>{AI_STRATEGIES[id].name}</option>}
                             </For>
                           </select>
                         )}
-                      </For>
+                      </Index>
                     </div>
                   </div>
                 </Show>

@@ -1,4 +1,4 @@
-import { For, Show, createSignal, onCleanup, onMount } from 'solid-js';
+import { For, Index, Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { render } from 'solid-js/web';
 import { clearSeatStash, relayUrl } from '../net/lobbyClient';
 import { DiceIcon, MENU_STYLE } from './menuChrome';
@@ -6,10 +6,7 @@ import { DEFAULT_SEED } from '../protocol/lobby';
 import {
   AI_STRATEGIES,
   AI_STRATEGY_ORDER,
-  dealStrategies,
   parseStrategyId,
-  strategyOf,
-  type AiStrategy,
   type AiStrategyId,
 } from '../sim/defs/aiStrategies';
 import { startMenuBackdrop, type Backdrop } from './menuBackdrop';
@@ -35,12 +32,21 @@ const OPTIONS = {
 
 const AI_SEATS = Array.from({ length: OPTIONS.maxOpponents + 1 }, (_, i) => i);
 
-/** What to say under the opponent pickers. One opponent gets its whole
- * character; a table of them gets the general rule, because three blurbs
- * do not fit under three select boxes. */
-function opponentHint(them: AiStrategy[]): string {
-  if (them.length === 1) return them[0]!.blurb;
-  return 'Random lets the map seed choose — no two of them play alike';
+/**
+ * What to say under the opponent pickers. A single named opponent gets its
+ * whole character, since the player asked for that one by name; anything
+ * with a Random seat in it gets the general rule instead.
+ *
+ * Deliberately says nothing about who Random turned up. The menu could
+ * work it out — the deal is a pure function of the seed sitting two rows
+ * down — but a roll you can read before the match is not a roll, it is a
+ * lineup with extra steps. Finding out who you are up against is the
+ * first thing the skirmish has to tell you.
+ */
+function opponentHint(picks: (AiStrategyId | undefined)[]): string {
+  const only = picks.length === 1 ? picks[0] : undefined;
+  if (only) return AI_STRATEGIES[only].blurb;
+  return 'Random keeps it to itself until you meet them';
 }
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
@@ -121,19 +127,11 @@ function StartMenu() {
   const isMulti = (): boolean => mode() === 'multi';
   const isJoin = (): boolean => isMulti() && mp() === 'join';
 
-  /** The opponents this skirmish would actually field: what the player
-   * picked, and for the seats left on Random, what this seed deals them.
-   * The same call the world makes, so the menu cannot promise a face the
-   * match does not bring. */
-  const opponents = (): AiStrategy[] => {
-    const seats = [
-      { kind: 'human' as const },
-      ...Array.from({ length: ai() }, (_, i) => ({ kind: 'ai' as const, strategy: bots()[i] })),
-    ];
-    return dealStrategies(seed(), seats)
-      .slice(1)
-      .map((id) => strategyOf(id));
-  };
+  /** One entry per opponent seat: the playbook the player named for it, or
+   * undefined for the ones left to the seed. What the seed will actually
+   * deal those is not the menu's business — see opponentHint. */
+  const picks = (): (AiStrategyId | undefined)[] =>
+    Array.from({ length: ai() }, (_, i) => bots()[i]);
   const setBot = (index: number, id: AiStrategyId | undefined): void => {
     const next = [...bots()];
     next[index] = id;
@@ -413,25 +411,26 @@ function StartMenu() {
                   <div class="row">
                     <div>
                       <div class="row-label">Who you face</div>
-                      <div class="row-hint">{opponentHint(opponents())}</div>
+                      <div class="row-hint">{opponentHint(picks())}</div>
                     </div>
                     <div class="opponents">
-                      <For each={opponents()}>
-                        {(rolled, i) => (
+                      {/* Index, not For: these are seats, and two of them
+                          reading Random are not the same seat. For keys on
+                          the item, so picking one opponent moved the select
+                          instead of changing it. */}
+                      <Index each={picks()}>
+                        {(pick, i) => (
                           <select
-                            value={bots()[i()] ?? ''}
-                            onChange={(e) => setBot(i(), parseStrategyId(e.currentTarget.value))}
+                            value={pick() ?? ''}
+                            onChange={(e) => setBot(i, parseStrategyId(e.currentTarget.value))}
                           >
-                            {/* The roll is named in the option itself: a
-                                Random seat is still a specific opponent
-                                once the seed is on the table. */}
-                            <option value="">Random — {rolled.name}</option>
+                            <option value="">Random</option>
                             <For each={AI_STRATEGY_ORDER}>
                               {(id) => <option value={id}>{AI_STRATEGIES[id].name}</option>}
                             </For>
                           </select>
                         )}
-                      </For>
+                      </Index>
                     </div>
                   </div>
                 </Show>
