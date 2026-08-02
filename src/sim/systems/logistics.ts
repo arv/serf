@@ -370,7 +370,6 @@ function dispatch(world: World): void {
     }
   }
   if (open.length === 0) return;
-  open.sort((a, z) => a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id);
 
   // Idle serfs, bucketed by faction — a job is only ever offered to serfs of
   // its own owner.
@@ -390,6 +389,10 @@ function dispatch(world: World): void {
     }
   }
   if (idleByOwner.size === 0) return;
+
+  // Sort only once we know somebody can actually claim a job — this runs
+  // every tick, and most ticks have no idle serfs.
+  open.sort((a, z) => a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id);
 
   for (const job of open) {
     const idle = idleByOwner.get(job.owner);
