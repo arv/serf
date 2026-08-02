@@ -1,6 +1,12 @@
-import { For, Show, createSignal, type Accessor } from 'solid-js';
+import { For, Index, Show, createSignal, type Accessor } from 'solid-js';
 import { render } from 'solid-js/web';
 import { MAX_SEATS, type LobbyConfig } from '../protocol/lobby';
+import {
+  AI_STRATEGIES,
+  AI_STRATEGY_ORDER,
+  parseStrategyId,
+  type AiStrategyId,
+} from '../sim/defs/aiStrategies';
 import { DiceIcon, MENU_STYLE } from './menuChrome';
 
 /**
@@ -94,10 +100,29 @@ function WarCouncil(props: CouncilHooks) {
   // the controls without a reload.
   const isHost = (): boolean => inRoom() && v().yourSeat === 0;
 
+  /**
+   * One entry per computer chair: the playbook the host named for it, or
+   * undefined for the ones left to the seed. Which opponent Random will
+   * turn out to be is not shown — the council could derive it from the
+   * seed, but a roll everyone can read before the march is not a roll.
+   */
+  const picks = (): (AiStrategyId | undefined)[] => {
+    const { seats, config } = v();
+    const aiFill = Math.max(0, Math.min(config.ai, MAX_SEATS - seats.length));
+    return Array.from({ length: aiFill }, (_, i) => parseStrategyId(config.bots[i]));
+  };
+
+  const setBot = (index: number, id: string): void => {
+    const bots = [...v().config.bots];
+    bots[index] = id === '' ? null : id;
+    props.onConfig({ bots });
+  };
+
   /** The table, always MAX_SEATS chairs: humans, then the computer seats
    * the host asked for, then what is still open. */
   const rows = (): SeatRow[] => {
     const { seats, yourSeat, config } = v();
+    const named = picks();
     const out: SeatRow[] = seats.map((s, i) => ({
       color: SEAT_COLORS[i % SEAT_COLORS.length]!,
       who: i === yourSeat ? 'You' : 'Ally',
@@ -107,10 +132,14 @@ function WarCouncil(props: CouncilHooks) {
     }));
     const aiFill = Math.max(0, Math.min(config.ai, MAX_SEATS - out.length));
     for (let i = 0; i < aiFill; i++) {
+      // A chair the host named says who is in it; one left on Random
+      // stays 'Computer' until the match introduces them.
       out.push({
         color: SEAT_COLORS[out.length % SEAT_COLORS.length]!,
-        who: 'Computer',
-        state: 'ready',
+        who: named[i] ? AI_STRATEGIES[named[i]!].name : 'Computer',
+        // The status column carries whichever fact the name did not: a
+        // named chair is still a computer, an unnamed one is just ready.
+        state: named[i] ? 'computer' : 'ready',
         stateClass: 'ready',
         open: false,
       });
@@ -213,6 +242,37 @@ function WarCouncil(props: CouncilHooks) {
                     </For>
                   </div>
                 </div>
+
+                <Show when={picks().length > 0}>
+                  <div class="row">
+                    <div>
+                      <div class="row-label">Who they are</div>
+                      <div class="row-hint">
+                        {isHost()
+                          ? 'Random keeps it to itself until the march'
+                          : 'Set by the host'}
+                      </div>
+                    </div>
+                    <div class="opponents">
+                      {/* Index, not For — see the same picker in StartMenu:
+                          keying on the item makes two Random seats one. */}
+                      <Index each={picks()}>
+                        {(pick, i) => (
+                          <select
+                            disabled={!isHost()}
+                            value={pick() ?? ''}
+                            onChange={(e) => setBot(i, e.currentTarget.value)}
+                          >
+                            <option value="">Random</option>
+                            <For each={AI_STRATEGY_ORDER}>
+                              {(id) => <option value={id}>{AI_STRATEGIES[id].name}</option>}
+                            </For>
+                          </select>
+                        )}
+                      </Index>
+                    </div>
+                  </div>
+                </Show>
 
                 <div class="row">
                   <div>

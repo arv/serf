@@ -1,8 +1,14 @@
-import { For, Show, createSignal, onCleanup, onMount } from 'solid-js';
+import { For, Index, Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { render } from 'solid-js/web';
 import { clearSeatStash, relayUrl } from '../net/lobbyClient';
 import { DiceIcon, MENU_STYLE } from './menuChrome';
 import { DEFAULT_SEED } from '../protocol/lobby';
+import {
+  AI_STRATEGIES,
+  AI_STRATEGY_ORDER,
+  parseStrategyId,
+  type AiStrategyId,
+} from '../sim/defs/aiStrategies';
 import { startMenuBackdrop, type Backdrop } from './menuBackdrop';
 
 /**
@@ -25,6 +31,23 @@ const OPTIONS = {
 };
 
 const AI_SEATS = Array.from({ length: OPTIONS.maxOpponents + 1 }, (_, i) => i);
+
+/**
+ * What to say under the opponent pickers. A single named opponent gets its
+ * whole character, since the player asked for that one by name; anything
+ * with a Random seat in it gets the general rule instead.
+ *
+ * Deliberately says nothing about who Random turned up. The menu could
+ * work it out — the deal is a pure function of the seed sitting two rows
+ * down — but a roll you can read before the match is not a roll, it is a
+ * lineup with extra steps. Finding out who you are up against is the
+ * first thing the skirmish has to tell you.
+ */
+function opponentHint(picks: (AiStrategyId | undefined)[]): string {
+  const only = picks.length === 1 ? picks[0] : undefined;
+  if (only) return AI_STRATEGIES[only].blurb;
+  return 'Random keeps it to itself until you meet them';
+}
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
 
@@ -91,6 +114,8 @@ function StartMenu() {
   const [mode, setMode] = createSignal<Mode>('single');
   const [mp, setMp] = createSignal<MpMode>('host');
   const [ai, setAi] = createSignal(2);
+  // One entry per opponent seat; undefined means 'let the seed deal it'.
+  const [bots, setBots] = createSignal<(AiStrategyId | undefined)[]>([]);
   const [seed, setSeed] = createSignal(DEFAULT_SEED);
   const [bandits, setBandits] = createSignal(true);
   const [room, setRoom] = createSignal('');
@@ -101,6 +126,17 @@ function StartMenu() {
 
   const isMulti = (): boolean => mode() === 'multi';
   const isJoin = (): boolean => isMulti() && mp() === 'join';
+
+  /** One entry per opponent seat: the playbook the player named for it, or
+   * undefined for the ones left to the seed. What the seed will actually
+   * deal those is not the menu's business — see opponentHint. */
+  const picks = (): (AiStrategyId | undefined)[] =>
+    Array.from({ length: ai() }, (_, i) => bots()[i]);
+  const setBot = (index: number, id: AiStrategyId | undefined): void => {
+    const next = [...bots()];
+    next[index] = id;
+    setBots(next);
+  };
 
   let inFlight = false;
   const refresh = async (): Promise<void> => {
@@ -144,6 +180,10 @@ function StartMenu() {
     const p = new URLSearchParams();
     if (!isMulti()) {
       if (ai() > 0) p.set('ai', String(ai()));
+      // Only the named ones travel; a seat left on Random says nothing and
+      // is dealt from the seed at the other end.
+      const named = bots().slice(0, ai());
+      if (named.some(Boolean)) p.set('bots', named.map((b) => b ?? '').join(','));
       p.set('seed', String(seed()));
       if (!bandits()) p.set('bandits', '0');
     } else if (mp() === 'host') {
@@ -366,6 +406,34 @@ function StartMenu() {
                     </For>
                   </div>
                 </div>
+
+                <Show when={ai() > 0}>
+                  <div class="row">
+                    <div>
+                      <div class="row-label">Who you face</div>
+                      <div class="row-hint">{opponentHint(picks())}</div>
+                    </div>
+                    <div class="opponents">
+                      {/* Index, not For: these are seats, and two of them
+                          reading Random are not the same seat. For keys on
+                          the item, so picking one opponent moved the select
+                          instead of changing it. */}
+                      <Index each={picks()}>
+                        {(pick, i) => (
+                          <select
+                            value={pick() ?? ''}
+                            onChange={(e) => setBot(i, parseStrategyId(e.currentTarget.value))}
+                          >
+                            <option value="">Random</option>
+                            <For each={AI_STRATEGY_ORDER}>
+                              {(id) => <option value={id}>{AI_STRATEGIES[id].name}</option>}
+                            </For>
+                          </select>
+                        )}
+                      </Index>
+                    </div>
+                  </div>
+                </Show>
 
                 <Show when={OPTIONS.showSeedRow}>
                   <div class="row">

@@ -19,6 +19,14 @@ export interface LobbyConfig {
   bandits: boolean;
   /** Worldgen seed — same seed, same valley. */
   seed: number;
+  /**
+   * Which playbook each computer seat runs, in the order they fill the
+   * table. A null (or a short list) leaves that seat to the seed's deal,
+   * which is the default — the host picks an opponent only when they want
+   * a particular one. Ids are validated against the sim's table, so this
+   * cannot name a playbook that does not exist.
+   */
+  bots: (string | null)[];
 }
 
 /** Seats at the table, humans and AI together. The world only has start
@@ -29,7 +37,7 @@ export const MAX_SEATS = 4;
 export const DEFAULT_SEED = 20260724;
 
 export function defaultLobbyConfig(): LobbyConfig {
-  return { ai: 0, bandits: true, seed: DEFAULT_SEED };
+  return { ai: 0, bandits: true, seed: DEFAULT_SEED, bots: [] };
 }
 
 /**
@@ -49,6 +57,15 @@ export function sanitizeLobbyConfig(base: LobbyConfig, patch: unknown): LobbyCon
     // Same coercion the old start message used: any finite number becomes
     // a deterministic int32, so every seat derives the identical world.
     out.seed = p.seed | 0;
+  }
+  if (Array.isArray(p.bots)) {
+    // Shape only: a name this file has never heard of is not an error, it
+    // just fails to name a playbook when the world is built, and that seat
+    // takes the seed's deal. Kept dependency-free on purpose — the sim's
+    // table of playbooks is not something the wire contract should import.
+    out.bots = p.bots
+      .slice(0, MAX_SEATS)
+      .map((b) => (typeof b === 'string' && b.length <= 24 ? b : null));
   }
   return out;
 }

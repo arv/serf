@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createWorld, type World, type WorldConfig } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
 import { AiBrain } from './systems/ai.ts';
+import { strategyOf } from './defs/aiStrategies.ts';
 import { checkInvariants } from './debug/invariants.ts';
 
 function digest(world: World): unknown {
@@ -19,9 +20,11 @@ function digest(world: World): unknown {
 /** Drive every AI seat's brain the way its worker does. */
 function runWithBrains(config: WorldConfig, maxTicks: number, onTick?: (w: World) => void): World {
   const world = createWorld(config);
-  const brains = config.players
-    .map((p, i) => (p.kind === 'ai' ? new AiBrain(i) : null))
-    .filter((b): b is AiBrain => b !== null);
+  // Playbooks come off the world, which was dealt them from the seed —
+  // the same lookup AiSeats does for the hosts.
+  const brains = world.players
+    .filter((p) => p.kind === 'ai')
+    .map((p) => new AiBrain(p.id, strategyOf(p.strategy)));
   for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
     const commands: PlayerCommand[] = [];
     for (const brain of brains) {

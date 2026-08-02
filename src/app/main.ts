@@ -124,6 +124,9 @@ async function boot(): Promise<void> {
         ai: Math.max(0, Math.min(3, Number(params.get('ai') ?? '0') || 0)),
         bandits: params.get('bandits') !== '0',
         seed: config.seed,
+        // Nobody named an opponent on the way in; the council is where a
+        // host picks one, and until then the seed deals them.
+        bots: [],
       },
     });
     config = {

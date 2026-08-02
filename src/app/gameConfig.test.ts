@@ -34,6 +34,20 @@ describe('configFromUrl', () => {
     expect(configFromUrl('?ai=-1').players).toEqual([{ kind: 'human' }]);
   });
 
+  it('names the opponents ?bots asks for, seat by seat', () => {
+    const c = configFromUrl('?ai=3&bots=warlord,,abbot');
+    expect(c.players.map((p) => p.strategy)).toEqual([undefined, 'warlord', undefined, 'abbot']);
+    // No param at all: every opponent is left to the seed's deal.
+    expect(configFromUrl('?ai=2').players.map((p) => p.strategy)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    // A playbook nobody has heard of names nothing — it never reaches the
+    // world as a strategy id.
+    expect(configFromUrl('?ai=1&bots=nonesuch').players[1]!.strategy).toBeUndefined();
+  });
+
   it('ignores junk rather than booting a broken world', () => {
     expect(configFromUrl('?ai=abc').players).toEqual([{ kind: 'human' }]);
     // A NaN seed used to reach worldgen and produce nonsense.
