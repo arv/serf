@@ -1,6 +1,7 @@
 import { FESTIVAL_DURATION } from '../defs/balance.ts';
 import { TECH_DEFS } from '../defs/techs.ts';
 import { type World } from '../world.ts';
+import type { Building, Owner } from '../entities.ts';
 
 /**
  * Ticks every player's active research and festival buff. Research is
@@ -9,6 +10,22 @@ import { type World } from '../world.ts';
  * directly).
  */
 export function researchSystem(world: World): void {
+  // Each owner's first built abbey (the only one the old per-player scan
+  // ever touched — it broke after the first match), gathered lazily in one
+  // pass instead of a full building scan per player per tick.
+  let abbeys: Map<Owner, Building> | undefined;
+  const abbeyOf = (owner: Owner): Building | undefined => {
+    if (!abbeys) {
+      abbeys = new Map();
+      for (const b of world.buildings.values()) {
+        if (!b.dead && b.type === 'abbey' && b.state === 'built' && !abbeys.has(b.owner)) {
+          abbeys.set(b.owner, b);
+        }
+      }
+    }
+    return abbeys.get(owner);
+  };
+
   for (const p of world.players) {
     const t = p.techs;
 
@@ -31,14 +48,11 @@ export function researchSystem(world: World): void {
 
     // Festivals: this player's built abbey burns 1 ale for a buff.
     if (!t.researched.includes('festivals')) continue;
-    for (const b of world.buildings.values()) {
-      if (b.dead || b.type !== 'abbey' || b.state !== 'built' || b.owner !== p.id) continue;
-      if ((b.inputs.ale ?? 0) > 0) {
-        b.inputs.ale = (b.inputs.ale ?? 0) - 1;
-        world.ledger.consumed.ale = (world.ledger.consumed.ale ?? 0) + 1;
-        t.festivalTicksLeft = FESTIVAL_DURATION;
-      }
-      break;
+    const abbey = abbeyOf(p.id);
+    if (abbey && (abbey.inputs.ale ?? 0) > 0) {
+      abbey.inputs.ale = (abbey.inputs.ale ?? 0) - 1;
+      world.ledger.consumed.ale = (world.ledger.consumed.ale ?? 0) + 1;
+      t.festivalTicksLeft = FESTIVAL_DURATION;
     }
   }
 }
