@@ -120,7 +120,10 @@ export class Controls {
           setSelectedBuilding(null);
         }
       } else if (e.code === 'Backquote') {
-        setDebugOpen(!debugOpen());
+        const open = !debugOpen();
+        setDebugOpen(open);
+        // The worker skips serializing its jobs table until told to.
+        this.#host.setDebug(open);
       }
     });
   }

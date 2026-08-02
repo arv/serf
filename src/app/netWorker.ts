@@ -220,8 +220,10 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       sendCommands(msg.commands.map((c) => c.cmd));
       break;
     // Speed and save are single-player affairs: a shared world runs at one
-    // rate, and there is nothing local to serialize.
+    // rate, and there is nothing local to serialize. The debug jobs feed
+    // likewise — the server decides what a seat gets told.
     case 'setSpeed':
+    case 'setDebug':
     case 'requestSave':
       break;
   }
