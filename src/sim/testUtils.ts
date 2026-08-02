@@ -40,6 +40,7 @@ export function bareWorld(seed = 1, playerCount = 1): World {
     admin: { enabled: true, raidsEnabled: true, instantBuild: false },
     pendingEvents: [],
     outcome: { state: 'playing' },
+    banditsEnabled: true,
   };
 }
 

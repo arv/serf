@@ -29,13 +29,15 @@ export function victorySystem(world: World): void {
 
   const alive = world.players.filter((p) => p.alive);
   if (world.players.length === 1) {
-    // Solo campaign: destroy the bandit camp to win.
+    // Solo campaign: destroy the bandit camp to win. A world generated
+    // without bandits has no camp and no objective — a sandbox that only
+    // ends if the storehouse falls.
     let campStands = false;
     for (const b of world.buildings.values()) {
       if (!b.dead && b.type === 'banditCamp') campStands = true;
     }
     if (alive.length === 0) endMatch(world, null);
-    else if (!campStands) endMatch(world, 0);
+    else if (!campStands && world.banditsEnabled) endMatch(world, 0);
   } else if (alive.length <= 1) {
     endMatch(world, alive[0]?.id ?? null);
   }

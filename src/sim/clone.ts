@@ -50,6 +50,7 @@ export function cloneWorld(world: World): World {
   }));
 
   return {
+    banditsEnabled: world.banditsEnabled,
     tick: world.tick,
     rngState: world.rngState,
     nextId: world.nextId,

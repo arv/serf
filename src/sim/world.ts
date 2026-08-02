@@ -68,6 +68,9 @@ export interface World {
   raidState: { nextRaidTick: number; wave: number };
   /** Sandbox switches for tweaking the game (the ?admin panel). */
   admin: AdminState;
+  /** Whether this world was generated with a bandit faction; gates the
+   * solo raze-the-camp win so a peaceful sandbox never auto-ends. */
+  banditsEnabled: boolean;
   /** One-shot events drained into structural messages (toasts, game over). */
   pendingEvents: GameEvent[];
   outcome: MatchOutcome;
@@ -116,7 +119,8 @@ export interface WorldConfig {
   players: { kind: 'human' | 'ai' }[];
   /** Admin (cheat) commands honored. Default true — networked games pass false. */
   adminEnabled?: boolean;
-  /** Bandit raids run. Default true; false still places the camp, raids stay off. */
+  /** Bandits exist. Default true; false places no camp, no guards, and
+   * runs no raids — a peaceful sandbox (solo never auto-wins there). */
   banditsEnabled?: boolean;
 }
 
@@ -178,6 +182,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
     },
     pendingEvents: [],
     outcome: { state: 'playing' },
+    banditsEnabled: config.banditsEnabled ?? true,
   };
 
   // Each faction's storehouse on its plateau; clear anything under it.
@@ -219,6 +224,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
   }
   // Mountains and lakes can swallow a whole seed area, so widen the search
   // rather than generate a campless (instant-win) world.
+  if (config.banditsEnabled === false) campSeeds = [];
   outer: for (const [cx, cy] of campSeeds) {
     for (let r = 0; r < 16; r++) {
       for (let dy = -r; dy <= r; dy++) {

@@ -11,17 +11,19 @@ import { FastIcon, GoodIcon, LockIcon, PauseIcon, PlayIcon, BandIcon, MalletIcon
 import { BuildingTip, GoodTip, TextTip, TipWrap, TooltipLayer, tooltip } from './tooltip';
 import { buildingName, techName } from './names';
 import {
+  CHEATS_ALLOWED,
   bandArm,
   debugJobs,
   debugOpen,
-  netMode,
-  netStatus,
   invariantViolations,
   myPlayerId,
+  netMode,
+  netStatus,
   openPanel,
   outcome,
   placing,
   playersMeta,
+  selection,
   setBandArm,
   setOpenPanel,
   setTechPanelOpen,
@@ -30,7 +32,6 @@ import {
   techPanelOpen,
   techs,
   toasts,
-  CHEATS_ALLOWED,
 } from './store';
 
 /** Reactive media query (no dependency; one listener per call site). */
@@ -106,6 +107,10 @@ export function Hud(props: {
     return Array.isArray(req) ? req.some((t) => researched.includes(t)) : researched.includes(req);
   };
   const soloMode = (): boolean => playersMeta().length <= 1;
+  /** This seat has fallen while the match plays on (multiplayer). */
+  const eliminated = (): boolean =>
+    outcome().state === 'playing' && playersMeta()[myPlayerId()]?.alive === false;
+  const [spectating, setSpectating] = createSignal(false);
   const won = (): boolean => {
     const o = outcome();
     return o.state === 'over' && o.winner === myPlayerId();
@@ -615,6 +620,19 @@ export function Hud(props: {
             >
               <SwordsIcon />
             </button>
+            <Show when={selection().size > 0}>
+              <button
+                {...tooltip(() => (
+                  <TextTip
+                    title="Deselect"
+                    body="Lets the current selection go — taps stop being move orders."
+                  />
+                ))}
+                onClick={() => props.onDeselect()}
+              >
+                ✕
+              </button>
+            </Show>
           </div>
         </Show>
 
@@ -704,6 +722,28 @@ export function Hud(props: {
 
       <Show when={netMode() && netStatus()?.state === 'disconnected'}>
         <div class="hud-nettrouble panel">Connection to the server lost. Reconnecting…</div>
+      </Show>
+
+      <Show when={eliminated() && !spectating()}>
+        <div class="hud-end">
+          <div class="panel end-card">
+            <h1>Defeat</h1>
+            <p>
+              Your castle has fallen and the village scatters — but the battle
+              for the valley rages on without you.
+            </p>
+            <button onClick={() => setSpectating(true)}>Watch the rest</button>
+            <button
+              onClick={() => {
+                if (confirm('Leave the match and return to the menu?')) {
+                  location.href = location.pathname;
+                }
+              }}
+            >
+              Quit to menu
+            </button>
+          </div>
+        </div>
       </Show>
 
       <Show when={outcome().state === 'over'}>

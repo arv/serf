@@ -84,6 +84,7 @@ export function deserializeWorld(json: string): World {
   if (map.terrain.length !== TILE_COUNT) throw new Error('corrupt save: bad map size');
 
   return {
+    banditsEnabled: (w as { banditsEnabled?: boolean }).banditsEnabled ?? true,
     tick: w.tick,
     rngState: w.rngState,
     nextId: w.nextId,
