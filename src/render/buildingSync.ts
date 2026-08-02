@@ -67,9 +67,22 @@ const HP_BAR_W = 1.1;
 /** One low-poly ball shared by every dust puff; scaled per puff. */
 const PUFF_GEO = new THREE.IcosahedronGeometry(1, 0);
 
+/** Scratch color for hp tinting — callers copy out of it immediately. */
+const HP_COLOR = new THREE.Color();
+
 function hpColor(pct: number): THREE.Color {
-  return new THREE.Color().setHSL(0.33 * Math.max(0, Math.min(1, pct)), 0.8, 0.45);
+  return HP_COLOR.setHSL(0.33 * Math.max(0, Math.min(1, pct)), 0.8, 0.45);
 }
+
+// Shared across every bar (like the unit path in sceneSync): only the fg
+// material is per-bar, because #styleBar tints its color per building.
+const HP_BG_GEO = new THREE.PlaneGeometry(HP_BAR_W, 0.13);
+const HP_FG_GEO = new THREE.PlaneGeometry(HP_BAR_W - 0.06, 0.07);
+const HP_BG_MAT = new THREE.MeshBasicMaterial({
+  color: 0x140f0a,
+  depthTest: false,
+  userData: { noFog: true },
+});
 
 /** Damage bar floating over a building, parallel with the screen plane. */
 function makeHpBar(
@@ -77,12 +90,9 @@ function makeHpBar(
   camQuat: THREE.Quaternion | null,
 ): { group: THREE.Group; fg: THREE.Mesh } {
   const group = new THREE.Group();
-  const bg = new THREE.Mesh(
-    new THREE.PlaneGeometry(HP_BAR_W, 0.13),
-    new THREE.MeshBasicMaterial({ color: 0x140f0a, depthTest: false, userData: { noFog: true } }),
-  );
+  const bg = new THREE.Mesh(HP_BG_GEO, HP_BG_MAT);
   const fg = new THREE.Mesh(
-    new THREE.PlaneGeometry(HP_BAR_W - 0.06, 0.07),
+    HP_FG_GEO,
     new THREE.MeshBasicMaterial({ color: 0x3faf46, depthTest: false, userData: { noFog: true } }),
   );
   bg.renderOrder = 90;
@@ -178,12 +188,9 @@ export class BuildingSync {
     this.#visuals.delete(id);
     if (v.hpBar) {
       v.root.remove(v.hpBar.group);
-      v.hpBar.group.traverse((o) => {
-        if (o instanceof THREE.Mesh) {
-          o.geometry.dispose();
-          eachMaterial(o, (m) => m.dispose());
-        }
-      });
+      // Geometry and the bg material are shared; only fg's tinted material
+      // is owned by this bar.
+      (v.hpBar.fg.material as THREE.Material).dispose();
       v.hpBar = undefined;
     }
     // The cloud: a fistful of low-poly puffs bursting out past the walls,
@@ -525,8 +532,8 @@ export class BuildingSync {
 
   /** Free what this visual uniquely owns on the GPU. Models share the
    * template geometry/materials — except construction sites, which clone
-   * every material to carry their private clip plane, and hp bars, which
-   * own their two quads outright. */
+   * every material to carry their private clip plane, and hp bars, whose
+   * per-building tinted fg material is theirs alone (quads are shared). */
   #freeGpu(v: BuildingVisual): void {
     if (v.clip) {
       v.model.traverse((o) => {
@@ -541,12 +548,9 @@ export class BuildingSync {
       });
     }
     if (v.hpBar) {
-      v.hpBar.group.traverse((o) => {
-        if (o instanceof THREE.Mesh) {
-          o.geometry.dispose();
-          eachMaterial(o, (m) => m.dispose());
-        }
-      });
+      // Geometry and the bg material are shared; only fg's tinted material
+      // is owned by this bar.
+      (v.hpBar.fg.material as THREE.Material).dispose();
     }
   }
 }
