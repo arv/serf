@@ -27,6 +27,7 @@ import {
   type Seat,
 } from './rooms.ts';
 import { sendInit } from './sync.ts';
+import { persistRooms, restorePersistedRooms } from './persist.ts';
 
 /**
  * The Serf server: rooms, the simulation, and per-client state frames. It
@@ -362,6 +363,25 @@ setInterval(() => {
   }
 }, 10);
 setInterval(() => sweepRooms(Date.now()), 30_000);
+
+// Rooms the previous process left behind (a deploy's SIGTERM, below):
+// restored before the listener opens, so the tokens clients are already
+// retrying with are honored from the very first upgrade.
+const restored = restorePersistedRooms(Date.now());
+if (restored > 0) console.log(`[serf] restored ${restored} room(s) from the previous process`);
+
+// Every deploy replaces this process: SIGTERM, grace, then the new image.
+// Running rooms go to disk for the next process; the sockets just die,
+// which is fine — clients reconnect-loop through the downtime and rejoin
+// by token once the new listener answers.
+process.on('SIGTERM', () => {
+  try {
+    console.log(`[serf] SIGTERM: persisted ${persistRooms()} running room(s)`);
+  } catch (err) {
+    console.error('[serf] SIGTERM: persisting rooms failed:', err);
+  }
+  process.exit(0);
+});
 
 http.listen(PORT, () => {
   console.log(`serf relay listening on :${PORT} (tick ${TICK_MS}ms)`);

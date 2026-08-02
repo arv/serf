@@ -116,6 +116,20 @@ export function Hud(props: {
     const o = outcome();
     return o.state === 'over' && o.winner === myPlayerId();
   };
+  /**
+   * The one end-of-match card on screen. These states can genuinely overlap
+   * — a tab that watched the storehouse fall and then slept past the room's
+   * grace period is both 'over' and 'gone' — and each card is a full-screen
+   * band, so without a strict order they stack into a double dialog. The
+   * decided match outranks transport news: "Defeat" is the story, a swept
+   * room is plumbing.
+   */
+  const endCard = (): 'outcome' | 'gone' | 'eliminated' | undefined => {
+    if (outcome().state === 'over') return 'outcome';
+    if (netMode() && netStatus()?.state === 'gone') return 'gone';
+    if (eliminated() && !spectating()) return 'eliminated';
+    return undefined;
+  };
 
   return (
     <>
@@ -722,25 +736,27 @@ export function Hud(props: {
       </div>
 
       <Show when={netMode() && netStatus()?.state === 'disconnected'}>
-        <div class="hud-nettrouble panel">Connection to the server lost. Reconnecting…</div>
+        <div class="hud-nettrouble panel">
+          Connection to the server lost. Reconnecting… — your seat is held,
+          and the match rides out even a server restart.
+        </div>
       </Show>
 
-      <Show when={netMode() && netStatus()?.state === 'gone'}>
+      <Show when={endCard() === 'gone'}>
         <div class="hud-end">
           <div class="panel end-card">
             <h1>The match is gone</h1>
             <p>
-              The server no longer knows this match. Either it restarted (a
-              deploy does this — every running match lives only in its
-              memory), or the room stood empty past its grace period. Either
-              way this world can't be resumed.
+              The server no longer knows this match. A room stands for a few
+              minutes after its last player leaves, then winds down — and
+              this one wound down. It can't be resumed.
             </p>
             <button onClick={() => (location.href = location.pathname)}>Back to the menu</button>
           </div>
         </div>
       </Show>
 
-      <Show when={eliminated() && !spectating()}>
+      <Show when={endCard() === 'eliminated'}>
         <div class="hud-end">
           <div class="panel end-card">
             <h1>Defeat</h1>
@@ -762,7 +778,7 @@ export function Hud(props: {
         </div>
       </Show>
 
-      <Show when={outcome().state === 'over'}>
+      <Show when={endCard() === 'outcome'}>
         <div class="hud-end">
           <div class="panel end-card">
             <h1>{won() ? 'Victory' : 'Defeat'}</h1>
