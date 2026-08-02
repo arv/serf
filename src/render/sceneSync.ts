@@ -8,6 +8,7 @@ import {
   type SabReader,
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
+import type { ViewBounds } from './cameraRig';
 import type { FogQuery } from './fogOfWar';
 import { makeCarryProp } from './models';
 import {
@@ -317,6 +318,7 @@ export class SceneSync {
     hoverId = -1,
     selected?: ReadonlySet<number>,
     paused = false,
+    bounds?: ViewBounds,
   ): void {
     this.#reader.poll(now);
     const { latest, prev } = this.#reader;
@@ -381,21 +383,33 @@ export class SceneSync {
         }
       }
 
+      const pi = prev.index.get(id);
+      const x = pi === undefined ? latest.xs[i]! : lerp(prev.xs[pi]!, latest.xs[i]!, alpha);
+      const y = pi === undefined ? latest.ys[i]! : lerp(prev.ys[pi]!, latest.ys[i]!, alpha);
+      // Off-screen units keep position/rotation fresh but skip everything
+      // cosmetic — clip selection, mixer sampling, tools, IK, hp bars.
+      // Purely visual: nothing here feeds back into the sim or picking.
+      const offScreen =
+        bounds !== undefined &&
+        (x < bounds.minX || x > bounds.maxX || y < bounds.minZ || y > bounds.maxZ);
+
       // Health bar when damaged, hovered, or selected.
-      const hpPct = latest.aux[a + 2]! / 255;
-      const highlighted = id === hoverId || (selected?.has(id) ?? false);
-      if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead) {
-        if (!visual.hpBar) {
-          visual.hpBar = new THREE.Mesh(hpBarGeometry, hpBarMaterial(hpPct));
-          visual.hpBar.position.y = 1.15;
-          visual.hpBar.renderOrder = 10;
-          visual.group.add(visual.hpBar);
+      if (!offScreen) {
+        const hpPct = latest.aux[a + 2]! / 255;
+        const highlighted = id === hoverId || (selected?.has(id) ?? false);
+        if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead) {
+          if (!visual.hpBar) {
+            visual.hpBar = new THREE.Mesh(hpBarGeometry, hpBarMaterial(hpPct));
+            visual.hpBar.position.y = 1.15;
+            visual.hpBar.renderOrder = 10;
+            visual.group.add(visual.hpBar);
+          }
+          visual.hpBar.material = hpBarMaterial(hpPct);
+          visual.hpBar.scale.x = Math.max(hpPct, 0.05);
+        } else if (visual.hpBar) {
+          visual.group.remove(visual.hpBar);
+          visual.hpBar = null;
         }
-        visual.hpBar.material = hpBarMaterial(hpPct);
-        visual.hpBar.scale.x = Math.max(hpPct, 0.05);
-      } else if (visual.hpBar) {
-        visual.group.remove(visual.hpBar);
-        visual.hpBar = null;
       }
 
       // Visible carried good — the core fantasy, as the actual object:
@@ -421,9 +435,6 @@ export class SceneSync {
         }
         visual.carrying = carrying;
       }
-      const pi = prev.index.get(id);
-      const x = pi === undefined ? latest.xs[i]! : lerp(prev.xs[pi]!, latest.xs[i]!, alpha);
-      const y = pi === undefined ? latest.ys[i]! : lerp(prev.ys[pi]!, latest.ys[i]!, alpha);
 
       // Moving? -> walk bob. Standing? -> deterministic de-stacking nudge.
       let moving = false;
@@ -445,10 +456,14 @@ export class SceneSync {
       // and their hand is IK-glued to the grip, so the base pose is a calm
       // idle — the cranking motion IS the crank's.
       const crankWell =
-        !dead && !moving && action === ACTION.work && workKind === WORK.draw
+        !offScreen && !dead && !moving && action === ACTION.work && workKind === WORK.draw
           ? this.#nearestWell(x, y)
           : null;
-      if (visual.char) {
+      if (visual.char && offScreen) {
+        // Culled: drop the current clip so re-entry restarts it cleanly
+        // (playAnimation is a no-op while `current` matches).
+        visual.char.current = null;
+      } else if (visual.char) {
         const heldCarry = carrying > 0;
         let key: AnimKey;
         if (dead) key = 'death';
@@ -506,7 +521,7 @@ export class SceneSync {
         }
       }
       // Keep the hp bar screen-stable regardless of unit facing.
-      if (visual.hpBar && this.cameraQuaternion) {
+      if (!offScreen && visual.hpBar && this.cameraQuaternion) {
         // Screen-parallel billboard: cancel the unit's facing, then adopt
         // the (fixed) camera orientation.
         visual.hpBar.quaternion

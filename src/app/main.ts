@@ -363,7 +363,7 @@ async function boot(): Promise<void> {
     fog.setEnabled(fogEnabled() && !fallen);
     fog.update(Math.min((now - fogLast) / 1000, 0.25), init.reader, roster, renderer.scene);
     fogLast = now;
-    sync.update(now, controls.hoverUnit, controls.selected, speed() === 0);
+    sync.update(now, controls.hoverUnit, controls.selected, speed() === 0, renderer.rig.viewBounds());
     buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
     controls.prune();
     selectionFx.update(controls.selected, sync, now);
