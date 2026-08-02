@@ -155,10 +155,14 @@ function eventsFor(events: GameEvent[], seatId: number): GameEvent[] {
 function buildingsFor(world: World, seatId: number, view: SeatView): BuildingSnap[] {
   const out: BuildingSnap[] = [];
   const shown = new Set<EntityId>();
+  // The fallen see everything: an eliminated seat can act on nothing, so
+  // there is nothing left to hide — and spectating a black map is no
+  // consolation prize.
+  const spectator = world.players[seatId]?.alive === false;
   for (const b of world.buildings.values()) {
     if (b.dead) continue;
     const own = b.owner === seatId;
-    if (own || view.vision.canSee(b.x + b.w / 2, b.y + b.h / 2)) {
+    if (own || spectator || view.vision.canSee(b.x + b.w / 2, b.y + b.h / 2)) {
       const snap = snapBuilding(world, b);
       if (!own) view.lastSeen.set(b.id, snap);
       out.push(snap);
@@ -208,9 +212,10 @@ export function sendHot(room: Room): void {
   for (const seat of room.seats) {
     const view = seat.view;
     if (!view || !seat.connected || !seat.ws) continue;
+    const spectator = world.players[seat.playerId]?.alive === false;
     const mine: UnitSnapshot[] = [];
     for (const u of all) {
-      if (u.owner === seat.playerId || view.vision.canSee(u.x, u.y)) mine.push(u);
+      if (spectator || u.owner === seat.playerId || view.vision.canSee(u.x, u.y)) mine.push(u);
     }
     send(seat, encodeHot(world.tick, mine));
   }
@@ -231,8 +236,10 @@ export function sendStruct(room: Room, deltas: MapDelta[], events: GameEvent[]):
       continue;
     }
     // Changes on ground we can see, plus ground we just walked into.
+    // Spectators (eliminated seats) are owed everything.
+    const spectator = world.players[seat.playerId]?.alive === false;
     for (const d of deltas) {
-      if (view.vision.visible[d.idx]) view.owedTiles.add(d.idx);
+      if (spectator || view.vision.visible[d.idx]) view.owedTiles.add(d.idx);
     }
     view.owedEvents.push(...eventsFor(events, seat.playerId));
 

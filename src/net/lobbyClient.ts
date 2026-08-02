@@ -98,8 +98,12 @@ interface RoomMsg {
  * The seat, stashed so a reload can sit back down. A phone that loses its
  * GPU process reloads mid-match (see main.ts) and lands here with ?mp=CODE
  * — without this it would try to join its own running match and be told
- * "already started". sessionStorage on purpose: it is per-tab, so a second
- * open tab can never steal the seat.
+ * "already started". Stored in BOTH sessionStorage and localStorage: the
+ * session copy keeps a same-tab reload honest, and the local copy lets a
+ * CLOSED tab reopen its invite URL and reclaim the seat within the
+ * server's grace window (the room lives ~5 minutes after the last human
+ * leaves). Two tabs racing the local copy resolve server-side: the seat
+ * binds to the newest socket.
  */
 const SEAT_STASH = 'serf-seat';
 
@@ -112,7 +116,7 @@ interface SeatStash {
 
 function readSeatStash(code: string): SeatStash | null {
   try {
-    const raw = sessionStorage.getItem(SEAT_STASH);
+    const raw = sessionStorage.getItem(SEAT_STASH) ?? localStorage.getItem(SEAT_STASH);
     if (!raw) return null;
     const stash = JSON.parse(raw) as SeatStash;
     if (typeof stash.token !== 'string') return null;
@@ -129,6 +133,7 @@ function readSeatStash(code: string): SeatStash | null {
  * quietly sit back down in it. */
 export function clearSeatStash(): void {
   sessionStorage.removeItem(SEAT_STASH);
+  localStorage.removeItem(SEAT_STASH);
 }
 
 /**
@@ -140,7 +145,7 @@ export function clearSeatStash(): void {
 export function runLobby(
   mp: string,
   url: string,
-  opts: { open: boolean; init: LobbyConfig },
+  opts: { open: boolean; init: LobbyConfig; notice?: string },
 ): Promise<LobbyResult> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
@@ -149,6 +154,7 @@ export function runLobby(
     const stash = readSeatStash(mp);
 
     const [view, setView] = createSignal<CouncilView>({
+      notice: opts.notice,
       phase: 'connecting',
       code: '',
       yourSeat: isHost ? 0 : -1,
@@ -222,6 +228,7 @@ export function runLobby(
         });
       } else if (msg.t === 'room') {
         setView({
+          notice: view().notice,
           phase: 'lobby',
           code: String(msg.code ?? ''),
           yourSeat: Number(msg.yourSeat ?? -1),
@@ -231,15 +238,14 @@ export function runLobby(
           config: sanitizeLobbyConfig(defaultLobbyConfig(), msg.config),
         });
       } else if (msg.t === 'begin') {
-        sessionStorage.setItem(
-          SEAT_STASH,
-          JSON.stringify({
+        const stashJson = JSON.stringify({
             code: view().code || mp.toUpperCase(),
             token: msg.token,
             playerId: msg.playerId,
             seats: msg.seats,
-          } satisfies SeatStash),
-        );
+          } satisfies SeatStash);
+        sessionStorage.setItem(SEAT_STASH, stashJson);
+        localStorage.setItem(SEAT_STASH, stashJson);
         unmount();
         ws.close();
         resolve({
@@ -252,11 +258,12 @@ export function runLobby(
           // The stash pointed at a room that no longer knows us — the
           // relay restarted, or the room was swept. That is not the
           // player's problem: forget the seat and knock normally on a
-          // fresh socket (the relay closes this one after an error).
-          sessionStorage.removeItem(SEAT_STASH);
+          // fresh socket (the relay closes this one after an error) —
+          // but SAY so, or the old match seems to vanish without a word.
+          clearSeatStash();
           unmount();
           ws.close();
-          resolve(runLobby(mp, url, opts));
+          resolve(runLobby(mp, url, { ...opts, notice: 'Your previous match has ended.' }));
         } else {
           fail(msg.message);
         }

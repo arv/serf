@@ -17,6 +17,9 @@ import { DiceIcon, MENU_STYLE } from './menuChrome';
  */
 
 export interface CouncilView {
+  /** One-line context from the journey here ('Your previous match has
+   * ended.') — shown quietly above the lobby. */
+  notice?: string;
   phase: 'connecting' | 'lobby';
   code: string;
   yourSeat: number;
@@ -152,6 +155,11 @@ function WarCouncil(props: CouncilHooks) {
               <i class="r" />
             </div>
             <h1>WAR COUNCIL</h1>
+            <Show when={props.view().notice}>
+              <p style={{ color: '#e5c469', 'font-size': '13px', margin: '2px 0 0' }}>
+                {props.view().notice}
+              </p>
+            </Show>
             <p class="tagline">
               {inRoom()
                 ? 'The march begins when the host gives the word.'

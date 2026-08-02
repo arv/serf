@@ -138,6 +138,9 @@ function onFrame(data: Uint8Array): void {
   }
 }
 
+/** Set when the relay disowns our token: the match is gone for good. */
+let gone = false;
+
 function connect(net: NetInfo, attempt: number): void {
   const ws = new WebSocket(net.relayUrl);
   socket = ws;
@@ -150,10 +153,29 @@ function connect(net: NetInfo, attempt: number): void {
     ws.send(encodePing(Date.now() % 0xffffffff));
   };
   ws.onmessage = (e: MessageEvent<ArrayBuffer | string>) => {
-    if (typeof e.data === 'string') return; // lobby chatter; nothing to do
+    if (typeof e.data === 'string') {
+      // The one string that matters: the relay refusing our token. The
+      // reconnect loop used to skip every string frame, so a swept room
+      // meant retrying forever behind a 'Reconnecting...' bar.
+      try {
+        const msg = JSON.parse(e.data) as { t?: string };
+        if (msg.t === 'error') {
+          gone = true;
+          postStatus({
+            state: 'gone',
+            message: 'The room has wound down — the match is over.',
+          });
+          ws.close();
+        }
+      } catch {
+        // Non-JSON lobby chatter; nothing to do.
+      }
+      return;
+    }
     onFrame(new Uint8Array(e.data));
   };
   ws.onclose = () => {
+    if (gone) return;
     postStatus({ state: 'disconnected' });
     const delay = Math.min(500 * 2 ** attempt, 8000);
     setTimeout(() => connect(net, attempt + 1), delay);

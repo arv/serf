@@ -91,7 +91,12 @@ export interface NetInfo {
  * too far ahead of the relay) and 'desync' (clients disagreed); neither can
  * happen now that one machine simulates and the rest render what it sends.
  */
-export type NetStatus = { state: 'ok'; rttMs: number } | { state: 'disconnected' };
+export type NetStatus =
+  | { state: 'ok'; rttMs: number }
+  | { state: 'disconnected' }
+  /** The room no longer knows us (swept, or the relay restarted): the
+   * match is unreachable for good — stop reconnecting, say so. */
+  | { state: 'gone'; message: string };
 
 export type MainToWorker =
   | {

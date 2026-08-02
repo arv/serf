@@ -724,6 +724,19 @@ export function Hud(props: {
         <div class="hud-nettrouble panel">Connection to the server lost. Reconnecting…</div>
       </Show>
 
+      <Show when={netMode() && netStatus()?.state === 'gone'}>
+        <div class="hud-end">
+          <div class="panel end-card">
+            <h1>The match is gone</h1>
+            <p>
+              The room wound down while you were away — after a few minutes
+              with nobody at the table, the server clears it.
+            </p>
+            <button onClick={() => (location.href = location.pathname)}>Back to the menu</button>
+          </div>
+        </div>
+      </Show>
+
       <Show when={eliminated() && !spectating()}>
         <div class="hud-end">
           <div class="panel end-card">

@@ -16,6 +16,7 @@ import { Controls } from '../input/controls';
 import { mountHud } from '../ui/mount';
 import {
   myPlayerId,
+  playersMeta,
   setMyPlayerId,
   setNetMode,
   setNetStatus,
@@ -352,7 +353,10 @@ async function boot(): Promise<void> {
     const now = performance.now();
     // Fog first: the entity syncs below ask it what may be drawn, so it
     // has to reflect this frame's positions, not the last one's.
-    fog.setEnabled(fogEnabled());
+    // Death lifts the fog: an eliminated seat is a spectator, and the
+    // server has already stopped filtering what it sends us.
+    const fallen = playersMeta()[myPlayerId()]?.alive === false;
+    fog.setEnabled(fogEnabled() && !fallen);
     fog.update(Math.min((now - fogLast) / 1000, 0.25), init.reader, roster, renderer.scene);
     fogLast = now;
     sync.update(now, controls.hoverUnit, controls.selected, speed() === 0);
