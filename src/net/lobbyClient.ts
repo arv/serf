@@ -162,29 +162,35 @@ export function runLobby(
       config: opts.init,
     });
 
-    const unmount = mountWarCouncil({
-      view,
-      onConfig(patch) {
-        // Optimistic: the relay echoes the room right back, and its copy —
-        // run through the same sanitizer — wins.
-        setView((s) => ({ ...s, config: sanitizeLobbyConfig(s.config, patch) }));
-        ws.send(JSON.stringify({ t: 'config', config: patch }));
-      },
-      onStart() {
-        ws.send(JSON.stringify({ t: 'start' }));
-      },
-      onShare() {
-        const code = view().code;
-        return shareInvite(
-          `${location.origin}${location.pathname}?mp=${encodeURIComponent(code)}`,
-        );
-      },
-      onLeave() {
-        // Back to the start menu; closing the socket on unload releases the
-        // seat (the relay removes lobby chairs on disconnect).
-        location.href = location.pathname;
-      },
-    });
+    // A stashed rejoin sits straight back down — mounting the council for
+    // the token round-trip flashed the lobby chrome over every mid-match
+    // reload. It only appears if the rejoin fails and we fall back to
+    // knocking normally (the recursion re-enters without a stash).
+    const unmount = stash
+      ? (): void => {}
+      : mountWarCouncil({
+          view,
+          onConfig(patch) {
+            // Optimistic: the relay echoes the room right back, and its
+            // copy — run through the same sanitizer — wins.
+            setView((s) => ({ ...s, config: sanitizeLobbyConfig(s.config, patch) }));
+            ws.send(JSON.stringify({ t: 'config', config: patch }));
+          },
+          onStart() {
+            ws.send(JSON.stringify({ t: 'start' }));
+          },
+          onShare() {
+            const code = view().code;
+            return shareInvite(
+              `${location.origin}${location.pathname}?mp=${encodeURIComponent(code)}`,
+            );
+          },
+          onLeave() {
+            // Back to the start menu; closing the socket on unload releases
+            // the seat (the relay removes lobby chairs on disconnect).
+            location.href = location.pathname;
+          },
+        });
 
     const fail = (message: string): void => {
       unmount();
