@@ -107,6 +107,9 @@ export type MainToWorker =
     }
   | { type: 'commands'; commands: PlayerCommand[] }
   | { type: 'setSpeed'; speed: number }
+  /** Debug overlay visibility: the worker only serializes its jobs table
+   * into structural updates while someone is actually watching. */
+  | { type: 'setDebug'; enabled: boolean }
   | { type: 'requestSave' };
 
 /**

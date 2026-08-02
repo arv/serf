@@ -107,7 +107,9 @@ const http = createServer((req, res) => {
   createReadStream(file).pipe(res);
 });
 
-const wss = new WebSocketServer({ server: http, perMessageDeflate: true });
+// No permessage-deflate: at 20 Hz of small binary frames the zlib contexts
+// cost far more in CPU and per-socket memory than the bytes they save.
+const wss = new WebSocketServer({ server: http, perMessageDeflate: false });
 wss.on('error', (err) => console.error('[serf] websocket server error:', err));
 
 interface Conn {

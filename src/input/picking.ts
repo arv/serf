@@ -37,17 +37,19 @@ export function screenToGround(
 
 const world = new THREE.Vector3();
 
-/** Project a world position to canvas pixels. */
+/** Project a world position to canvas pixels. Pass `out` to skip the
+ * per-call allocation in tight per-unit scans. */
 export function worldToScreen(
   camera: THREE.Camera,
   canvas: HTMLCanvasElement,
   x: number,
   y: number,
   z: number,
+  out?: { x: number; y: number },
 ): { x: number; y: number } {
   world.set(x, y, z).project(camera);
-  return {
-    x: ((world.x + 1) / 2) * canvas.clientWidth,
-    y: ((1 - world.y) / 2) * canvas.clientHeight,
-  };
+  const o = out ?? { x: 0, y: 0 };
+  o.x = ((world.x + 1) / 2) * canvas.clientWidth;
+  o.y = ((1 - world.y) / 2) * canvas.clientHeight;
+  return o;
 }

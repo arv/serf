@@ -9,6 +9,14 @@ const MIN_VIEW = 5;
 const MAX_VIEW = 52;
 const PAN_MARGIN = 4;
 
+/** Conservative world-space XZ rectangle of the visible ground. */
+export interface ViewBounds {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
 /**
  * Classic isometric-style orthographic rig: fixed yaw/pitch, panning moves a
  * ground-plane target, zoom scales the frustum height.
@@ -183,6 +191,28 @@ export class CameraRig {
     this.#target.x = clamp(this.#target.x + rx * x - fx * z, -PAN_MARGIN, MAP_SIZE + PAN_MARGIN);
     this.#target.z = clamp(this.#target.z + rz * x - fz * z, -PAN_MARGIN, MAP_SIZE + PAN_MARGIN);
     this.#apply();
+  }
+
+  /**
+   * Conservative world-space XZ bounds of the visible ground, with margin —
+   * the axis-aligned box around the ortho frustum's ground footprint (a 45°
+   * parallelogram whose screen-vertical extent stretches by 1/sin(pitch)).
+   * Used to skip per-frame animation work for units nobody can see; the
+   * margin also absorbs the screen shift terrain height introduces.
+   */
+  viewBounds(margin = 3): ViewBounds {
+    const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
+    const halfH = this.#viewHeight / 2;
+    const halfW = halfH * aspect;
+    const halfG = halfH / Math.sin(PITCH);
+    // Both screen axes project onto world X/Z with |cos 45°| = |sin 45°|.
+    const ext = Math.SQRT1_2 * (halfW + halfG) + margin;
+    return {
+      minX: this.#target.x - ext,
+      maxX: this.#target.x + ext,
+      minZ: this.#target.z - ext,
+      maxZ: this.#target.z + ext,
+    };
   }
 
   resize(): void {

@@ -224,7 +224,9 @@ export function sendHot(room: Room): void {
 export function sendStruct(room: Room, deltas: MapDelta[], events: GameEvent[]): void {
   const world = room.world;
   if (!world) return;
-  const players = snapPlayers(world);
+  // Lazy: seats only take struct frames every few ticks, so snapping the
+  // players (a building scan per player) at 20 Hz is usually wasted work.
+  let players: PlayerSnap[] | undefined;
   for (const seat of room.seats) {
     const view = seat.view;
     if (!view) continue;
@@ -245,6 +247,7 @@ export function sendStruct(room: Room, deltas: MapDelta[], events: GameEvent[]):
 
     const due = world.tick - view.lastStructTick >= MIN_STRUCT_GAP;
     if (!due && view.owedTiles.size === 0 && view.owedEvents.length === 0) continue;
+    players ??= snapPlayers(world);
     view.lastStructTick = world.tick;
     const mapDeltas: MapDelta[] = [];
     for (const idx of view.owedTiles) mapDeltas.push(tileDelta(world, idx));

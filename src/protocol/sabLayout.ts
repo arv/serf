@@ -210,10 +210,13 @@ export class SabReader {
       const before = Atomics.load(this.#header, lock);
       if (before & 1) continue; // write in progress
       const count = slot.count[0]!;
-      out.ids.set(slot.ids);
-      out.xs.set(slot.xs);
-      out.ys.set(slot.ys);
-      out.aux.set(slot.aux);
+      // Copy only the live prefix: the seqlock before/after check re-verifies
+      // that count and rows were stable across the copy, so stale bytes past
+      // `count` are never read.
+      out.ids.set(slot.ids.subarray(0, count));
+      out.xs.set(slot.xs.subarray(0, count));
+      out.ys.set(slot.ys.subarray(0, count));
+      out.aux.set(slot.aux.subarray(0, count * AUX_STRIDE));
       const after = Atomics.load(this.#header, lock);
       if (before === after) {
         out.publishSeq = seq;

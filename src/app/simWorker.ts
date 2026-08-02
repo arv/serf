@@ -27,6 +27,8 @@ let pendingCommands: PlayerCommand[] = [];
 let initialGoods: GoodAmounts = {};
 let lastInvariantViolations: string[] = [];
 let ai: AiSeats | null = null;
+/** Debug overlay open on the main thread — only then serialize jobs. */
+let debugEnabled = false;
 
 const post = (msg: WorkerToMain): void => {
   (self as unknown as DedicatedWorkerGlobalScope).postMessage(msg);
@@ -43,6 +45,12 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       break;
     case 'setSpeed':
       speed = msg.speed;
+      break;
+    case 'setDebug':
+      debugEnabled = msg.enabled;
+      // Fill the overlay at once instead of waiting for the next matcher
+      // interval to ship a structural frame.
+      if (debugEnabled) postStructural();
       break;
     case 'requestSave':
       if (world) post({ type: 'saved', data: serializeWorld(world) });
@@ -138,9 +146,10 @@ function postStructural(): void {
     admin: { ...world.admin },
     events: world.pendingEvents.splice(0),
     outcome: world.outcome,
-    // Every job: there is nobody here to hide the AI's logistics from, and
-    // watching them is the point of the overlay.
-    jobs: snapJobs(world),
+    // Every job while the debug overlay is open: there is nobody here to
+    // hide the AI's logistics from, and watching them is the point of the
+    // overlay. Closed (the normal case), serializing them at 4 Hz is waste.
+    jobs: debugEnabled ? snapJobs(world) : [],
     invariantViolations: lastInvariantViolations,
   });
 }

@@ -28,6 +28,8 @@ export interface SimHost {
   start(config: GameConfig, loadData?: string, net?: NetInfo): Promise<SimInit>;
   sendCommands(commands: SimCommand[]): void;
   setSpeed(speed: number): void;
+  /** Tell the worker whether the debug overlay is watching (jobs feed). */
+  setDebug(enabled: boolean): void;
   requestSave(): Promise<string>;
   onStructural(cb: (msg: StructuralUpdate) => void): void;
   onNetStatus?(cb: (status: NetStatus) => void): void;
@@ -114,6 +116,10 @@ export class WorkerSimHost implements SimHost {
 
   setSpeed(speed: number): void {
     this.#post({ type: 'setSpeed', speed });
+  }
+
+  setDebug(enabled: boolean): void {
+    this.#post({ type: 'setDebug', enabled });
   }
 
   #post(msg: MainToWorker): void {

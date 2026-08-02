@@ -12,16 +12,16 @@ import type { World } from '../world.ts';
 export function victorySystem(world: World): void {
   if (world.outcome.state !== 'playing') return;
 
+  // One pass over the buildings replaces a full scan per player per tick.
+  const hasStorehouse = new Set<Owner>();
+  for (const b of world.buildings.values()) {
+    if (!b.dead && b.state === 'built' && buildingDef(b.type).storage) {
+      hasStorehouse.add(b.owner);
+    }
+  }
   for (const p of world.players) {
     if (!p.alive) continue;
-    let hasStorehouse = false;
-    for (const b of world.buildings.values()) {
-      if (!b.dead && b.state === 'built' && buildingDef(b.type).storage && b.owner === p.id) {
-        hasStorehouse = true;
-        break;
-      }
-    }
-    if (!hasStorehouse) {
+    if (!hasStorehouse.has(p.id)) {
       p.alive = false;
       world.pendingEvents.push({ kind: 'playerEliminated', player: p.id });
     }
@@ -34,7 +34,10 @@ export function victorySystem(world: World): void {
     // ends if the storehouse falls.
     let campStands = false;
     for (const b of world.buildings.values()) {
-      if (!b.dead && b.type === 'banditCamp') campStands = true;
+      if (!b.dead && b.type === 'banditCamp') {
+        campStands = true;
+        break;
+      }
     }
     if (alive.length === 0) endMatch(world, null);
     else if (!campStands && world.banditsEnabled) endMatch(world, 0);

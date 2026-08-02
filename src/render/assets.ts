@@ -489,13 +489,23 @@ export function glbRocks(): {
   return { geometries: assets.rocks, material: assets.natureMaterial };
 }
 
+/** Tinted nature materials for yard rocks, cached per color. */
+const yardRockMaterials = new Map<number, THREE.MeshLambertMaterial>();
+
 /** A spoil boulder for the mine yards: the scatter rock geometry under a
  * tinted nature material, scaled like BUILDING_DECOR's rock branch was —
  * live ore stock wearing the exact look of the decor it replaces. */
 export function glbYardRock(color: number, size: number): THREE.Group | null {
   if (!assets || !assets.rocks[0]) return null;
-  const mat = (assets.natureMaterial as THREE.MeshLambertMaterial).clone();
-  mat.color.set(color);
+  // Tinted materials are cached per color (like teamMaterials above):
+  // stock piles come and go constantly, and a fresh material clone per
+  // pile leaked GPU programs/uniforms on every bare remove().
+  let mat = yardRockMaterials.get(color);
+  if (!mat) {
+    mat = (assets.natureMaterial as THREE.MeshLambertMaterial).clone();
+    mat.color.set(color);
+    yardRockMaterials.set(color, mat);
+  }
   const boulder = new THREE.Mesh(assets.rocks[0], mat);
   boulder.castShadow = true;
   const g = new THREE.Group();

@@ -8,6 +8,7 @@ import {
   type SabReader,
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
+import type { ViewBounds } from './cameraRig';
 import type { FogQuery } from './fogOfWar';
 import { makeCarryProp } from './models';
 import {
@@ -182,12 +183,16 @@ export class SceneSync {
     return well;
   }
 
-  // Scratch buffers for the per-frame visual de-overlap pass.
+  // Scratch buffers for the per-frame visual de-overlap pass. The cell
+  // arrays are pooled: emptied (length = 0) and refilled each frame rather
+  // than reallocated, so steady state allocates nothing per frame. An empty
+  // array means "unused this frame".
   #posX = new Float32Array(MAX_UNITS);
   #posY = new Float32Array(MAX_UNITS);
   #sepTX = new Float32Array(MAX_UNITS);
   #sepTY = new Float32Array(MAX_UNITS);
   #cells = new Map<number, number[]>();
+  #usedCells: number[] = [];
 
   /**
    * Soft visual separation: units drawn closer than SEP_RADIUS get pushed
@@ -202,7 +207,8 @@ export class SceneSync {
     const SEP_RADIUS = 0.44;
     const MAX_PUSH = 0.34;
     const n = latest.count;
-    this.#cells.clear();
+    for (const key of this.#usedCells) this.#cells.get(key)!.length = 0;
+    this.#usedCells.length = 0;
     for (let i = 0; i < n; i++) {
       const id = latest.ids[i]!;
       const pi = prev.index.get(id);
@@ -214,6 +220,7 @@ export class SceneSync {
       const key = (this.#posX[i]! | 0) * 256 + (this.#posY[i]! | 0);
       let cell = this.#cells.get(key);
       if (!cell) this.#cells.set(key, (cell = []));
+      if (cell.length === 0) this.#usedCells.push(key);
       cell.push(i);
     }
     for (let i = 0; i < n; i++) {
@@ -223,7 +230,7 @@ export class SceneSync {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           const cell = this.#cells.get((cx + dx) * 256 + cy + dy);
-          if (!cell) continue;
+          if (!cell || cell.length === 0) continue;
           for (const j of cell) {
             if (j === i) continue;
             const ddx = this.#posX[i]! - this.#posX[j]!;
@@ -263,24 +270,34 @@ export class SceneSync {
 
   /** Current interpolated world position of a unit (for picking/FX). */
   positionOf(id: number, now: number): { x: number; y: number } | null {
+    const out = { x: 0, y: 0 };
+    return this.positionOfInto(id, now, out) ? out : null;
+  }
+
+  /** positionOf without the allocation: writes into `out`; false when the
+   * unit is absent from the latest publish or hidden by fog. */
+  positionOfInto(id: number, now: number, out: { x: number; y: number }): boolean {
     const { latest, prev } = this.#reader;
     const li = latest.index.get(id);
-    if (li === undefined) return null;
-    const alpha = this.#alpha(now);
-    const pi = prev.index.get(id);
+    if (li === undefined) return false;
     // Hidden by fog: report no position at all, which is what keeps
     // picking, hover and band-select from reaching into the dark.
-    if (this.#hidden.has(id)) return null;
+    if (this.#hidden.has(id)) return false;
     // Include the visual de-overlap offset so picking and selection fx
     // land where the unit is drawn, not where the sim has it.
     const v = this.#visuals.get(id);
     const sx = v?.sepX ?? 0;
     const sy = v?.sepY ?? 0;
-    if (pi === undefined) return { x: latest.xs[li]! + sx, y: latest.ys[li]! + sy };
-    return {
-      x: lerp(prev.xs[pi]!, latest.xs[li]!, alpha) + sx,
-      y: lerp(prev.ys[pi]!, latest.ys[li]!, alpha) + sy,
-    };
+    const pi = prev.index.get(id);
+    if (pi === undefined) {
+      out.x = latest.xs[li]! + sx;
+      out.y = latest.ys[li]! + sy;
+      return true;
+    }
+    const alpha = this.#alpha(now);
+    out.x = lerp(prev.xs[pi]!, latest.xs[li]!, alpha) + sx;
+    out.y = lerp(prev.ys[pi]!, latest.ys[li]!, alpha) + sy;
+    return true;
   }
 
   /** All unit ids in the latest publish (for band select). */
@@ -317,6 +334,7 @@ export class SceneSync {
     hoverId = -1,
     selected?: ReadonlySet<number>,
     paused = false,
+    bounds?: ViewBounds,
   ): void {
     this.#reader.poll(now);
     const { latest, prev } = this.#reader;
@@ -381,21 +399,33 @@ export class SceneSync {
         }
       }
 
+      const pi = prev.index.get(id);
+      const x = pi === undefined ? latest.xs[i]! : lerp(prev.xs[pi]!, latest.xs[i]!, alpha);
+      const y = pi === undefined ? latest.ys[i]! : lerp(prev.ys[pi]!, latest.ys[i]!, alpha);
+      // Off-screen units keep position/rotation fresh but skip everything
+      // cosmetic — clip selection, mixer sampling, tools, IK, hp bars.
+      // Purely visual: nothing here feeds back into the sim or picking.
+      const offScreen =
+        bounds !== undefined &&
+        (x < bounds.minX || x > bounds.maxX || y < bounds.minZ || y > bounds.maxZ);
+
       // Health bar when damaged, hovered, or selected.
-      const hpPct = latest.aux[a + 2]! / 255;
-      const highlighted = id === hoverId || (selected?.has(id) ?? false);
-      if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead) {
-        if (!visual.hpBar) {
-          visual.hpBar = new THREE.Mesh(hpBarGeometry, hpBarMaterial(hpPct));
-          visual.hpBar.position.y = 1.15;
-          visual.hpBar.renderOrder = 10;
-          visual.group.add(visual.hpBar);
+      if (!offScreen) {
+        const hpPct = latest.aux[a + 2]! / 255;
+        const highlighted = id === hoverId || (selected?.has(id) ?? false);
+        if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead) {
+          if (!visual.hpBar) {
+            visual.hpBar = new THREE.Mesh(hpBarGeometry, hpBarMaterial(hpPct));
+            visual.hpBar.position.y = 1.15;
+            visual.hpBar.renderOrder = 10;
+            visual.group.add(visual.hpBar);
+          }
+          visual.hpBar.material = hpBarMaterial(hpPct);
+          visual.hpBar.scale.x = Math.max(hpPct, 0.05);
+        } else if (visual.hpBar) {
+          visual.group.remove(visual.hpBar);
+          visual.hpBar = null;
         }
-        visual.hpBar.material = hpBarMaterial(hpPct);
-        visual.hpBar.scale.x = Math.max(hpPct, 0.05);
-      } else if (visual.hpBar) {
-        visual.group.remove(visual.hpBar);
-        visual.hpBar = null;
       }
 
       // Visible carried good — the core fantasy, as the actual object:
@@ -421,9 +451,6 @@ export class SceneSync {
         }
         visual.carrying = carrying;
       }
-      const pi = prev.index.get(id);
-      const x = pi === undefined ? latest.xs[i]! : lerp(prev.xs[pi]!, latest.xs[i]!, alpha);
-      const y = pi === undefined ? latest.ys[i]! : lerp(prev.ys[pi]!, latest.ys[i]!, alpha);
 
       // Moving? -> walk bob. Standing? -> deterministic de-stacking nudge.
       let moving = false;
@@ -445,10 +472,14 @@ export class SceneSync {
       // and their hand is IK-glued to the grip, so the base pose is a calm
       // idle — the cranking motion IS the crank's.
       const crankWell =
-        !dead && !moving && action === ACTION.work && workKind === WORK.draw
+        !offScreen && !dead && !moving && action === ACTION.work && workKind === WORK.draw
           ? this.#nearestWell(x, y)
           : null;
-      if (visual.char) {
+      if (visual.char && offScreen) {
+        // Culled: drop the current clip so re-entry restarts it cleanly
+        // (playAnimation is a no-op while `current` matches).
+        visual.char.current = null;
+      } else if (visual.char) {
         const heldCarry = carrying > 0;
         let key: AnimKey;
         if (dead) key = 'death';
@@ -506,7 +537,7 @@ export class SceneSync {
         }
       }
       // Keep the hp bar screen-stable regardless of unit facing.
-      if (visual.hpBar && this.cameraQuaternion) {
+      if (!offScreen && visual.hpBar && this.cameraQuaternion) {
         // Screen-parallel billboard: cancel the unit's facing, then adopt
         // the (fixed) camera orientation.
         visual.hpBar.quaternion

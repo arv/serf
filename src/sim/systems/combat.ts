@@ -19,6 +19,34 @@ function exactDist(dx: number, dy: number): number {
  * matchups so battles sort into counters without micro.
  */
 export function combatSystem(world: World): void {
+  // Per-tick caches, hoisted out of the per-unit loop. Arrays preserve Map
+  // insertion order (ascending entity id), so every strict-< first-wins
+  // selection below behaves exactly as scanning the Maps directly did.
+  // Entities killed mid-loop stay in the arrays with dead=true, hence the
+  // dead re-checks at each use site.
+  const liveUnits: Unit[] = [];
+  for (const u of world.units.values()) if (!u.dead) liveUnits.push(u);
+  const liveBuildings: Building[] = [];
+  for (const b of world.buildings.values()) if (!b.dead) liveBuildings.push(b);
+
+  // Lazily computed camp, invalidated if it dies mid-tick (matching the old
+  // per-unit rescan, which skipped dead camps and took the next one).
+  let camp: Building | undefined;
+  let campValid = false;
+  const campOf = (): Building | undefined => {
+    if (!campValid || (camp !== undefined && camp.dead)) {
+      campValid = true;
+      camp = undefined;
+      for (const b of liveBuildings) {
+        if (!b.dead && b.type === 'banditCamp') {
+          camp = b;
+          break;
+        }
+      }
+    }
+    return camp;
+  };
+
   for (const unit of world.units.values()) {
     if (unit.dead) continue;
     const combat = UNIT_DEFS[unit.kind].combat;
@@ -48,7 +76,7 @@ export function combatSystem(world: World): void {
 
     // Camp guards hold their post. Without a leash a wandering serf tows
     // one into the village, and the pack follows it home.
-    const guard = unit.owner === BANDIT && unit.task.t !== 'raid' ? campOf(world) : undefined;
+    const guard = unit.owner === BANDIT && unit.task.t !== 'raid' ? campOf() : undefined;
     if (guard && distToBuilding(unit, guard) > GUARD_LEASH) {
       unit.targetId = undefined;
       unit.targetIsBuilding = undefined;
@@ -68,7 +96,7 @@ export function combatSystem(world: World): void {
     }
 
     if (unit.targetId === undefined) {
-      targetUnit = acquireUnit(world, unit, combat.acquireRadius);
+      targetUnit = acquireUnit(liveUnits, unit, combat.acquireRadius);
       if (targetUnit) {
         unit.targetId = targetUnit.id;
         unit.targetIsBuilding = false;
@@ -81,7 +109,7 @@ export function combatSystem(world: World): void {
           targetBuilding = undefined;
         }
         if (!targetBuilding && unit.owner === BANDIT) {
-          targetBuilding = nearestEnemyBuilding(world, unit);
+          targetBuilding = nearestEnemyBuilding(liveBuildings, unit);
           if (targetBuilding) unit.task = { t: 'raid', buildingId: targetBuilding.id };
         }
         if (targetBuilding) {
@@ -96,7 +124,7 @@ export function combatSystem(world: World): void {
         // guards stands politely beside the camp instead of finishing it.
         // Player armies only — camp guards get their targets from raids, or
         // three of them would demolish a base nobody ever provoked.
-        const b = nearestEnemyBuilding(world, unit);
+        const b = nearestEnemyBuilding(liveBuildings, unit);
         if (b && distToBuilding(unit, b) <= combat.acquireRadius) {
           unit.targetId = b.id;
           unit.targetIsBuilding = true;
@@ -161,21 +189,21 @@ export function combatSystem(world: World): void {
 /** How far a camp guard may stray from home before it turns back. */
 const GUARD_LEASH = 9;
 
-function campOf(world: World): Building | undefined {
-  for (const b of world.buildings.values()) {
-    if (!b.dead && b.type === 'banditCamp') return b;
-  }
-  return undefined;
-}
-
 /** Nearest enemy unit in radius, preferring countered classes. */
-function acquireUnit(world: World, unit: Unit, radius: number): Unit | undefined {
+function acquireUnit(units: readonly Unit[], unit: Unit, radius: number): Unit | undefined {
   const myClass = UNIT_DEFS[unit.kind].combat!.class;
+  // Conservative squared-distance reject: anything strictly beyond
+  // radius + 1 cannot pass `dist <= radius` below even after sqrt rounding,
+  // so skipping it early is behavior-identical.
+  const rejectSq = (radius + 1) * (radius + 1);
   let best: Unit | undefined;
   let bestScore = Infinity;
-  for (const other of world.units.values()) {
+  for (const other of units) {
     if (other.dead || other.owner === unit.owner) continue;
-    const dist = exactDist(other.x - unit.x, other.y - unit.y);
+    const dx = other.x - unit.x;
+    const dy = other.y - unit.y;
+    if (dx * dx + dy * dy > rejectSq) continue;
+    const dist = exactDist(dx, dy);
     if (dist > radius) continue;
     const otherClass = UNIT_DEFS[other.kind].combat?.class;
     // Favor targets we counter; civilians are class-less easy prey for raiders.
@@ -250,16 +278,24 @@ function distToBuilding(unit: Unit, b: Building): number {
   return exactDist(unit.x - cx, unit.y - cy);
 }
 
-function nearestEnemyBuilding(world: World, unit: Unit): Building | undefined {
+function nearestEnemyBuilding(buildings: readonly Building[], unit: Unit): Building | undefined {
   let best: Building | undefined;
   let bestDist = Infinity;
-  for (const b of world.buildings.values()) {
+  // Conservative squared-distance reject: anything strictly beyond
+  // bestDist + 1 cannot pass `dist < bestDist` below even after sqrt
+  // rounding, so skipping it early is behavior-identical.
+  let rejectSq = Infinity;
+  for (const b of buildings) {
     if (b.dead || b.owner === unit.owner) continue;
     const c = centerOf(b);
-    const dist = exactDist(c.x - unit.x, c.y - unit.y);
+    const dx = c.x - unit.x;
+    const dy = c.y - unit.y;
+    if (dx * dx + dy * dy > rejectSq) continue;
+    const dist = exactDist(dx, dy);
     if (dist < bestDist) {
       bestDist = dist;
       best = b;
+      rejectSq = (bestDist + 1) * (bestDist + 1);
     }
   }
   return best;

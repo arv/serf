@@ -36,8 +36,10 @@ let started = false;
 /** Our own seat, and prediction for its units' movement. */
 let myPlayerId = 0;
 let predictor: MovePredictor | null = null;
-/** The latest server frame, indexed — where an order starts from. */
-let lastUnits = new Map<number, UnitSnapshot>();
+/** The latest server frame — where an order starts from. Indexed lazily:
+ * frames arrive at 20 Hz but the index is only needed on a user command. */
+let lastUnitRows: readonly UnitSnapshot[] = [];
+let lastUnitsIndex: Map<number, UnitSnapshot> | null = null;
 
 function post(msg: WorkerToMain, transfer: Transferable[] = []): void {
   (self as unknown as Worker).postMessage(msg, transfer);
@@ -114,7 +116,8 @@ function onFrame(data: Uint8Array): void {
       onInit(frame.tick, frame.map, frame.explored, frame.json as InitPayload);
       return;
     case 'hot': {
-      lastUnits = new Map(frame.units.map((u) => [u.id, u]));
+      lastUnitRows = frame.units;
+      lastUnitsIndex = null;
       predictor?.apply(frame.units, myPlayerId);
       writer?.publish(frame.units);
       return;
@@ -195,7 +198,10 @@ function sendCommands(commands: SimCommand[]): void {
   // Start moving before the server has heard the order — the dead window
   // between click and answer is the whole of what a player feels as lag.
   for (const cmd of commands) {
-    if (cmd.kind === 'moveUnits') predictor?.order(cmd.unitIds, cmd.x, cmd.y, lastUnits);
+    if (cmd.kind === 'moveUnits') {
+      lastUnitsIndex ??= new Map(lastUnitRows.map((u) => [u.id, u]));
+      predictor?.order(cmd.unitIds, cmd.x, cmd.y, lastUnitsIndex);
+    }
   }
   socket.send(encodeCmd(++seq, commands));
 }
@@ -214,8 +220,10 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       sendCommands(msg.commands.map((c) => c.cmd));
       break;
     // Speed and save are single-player affairs: a shared world runs at one
-    // rate, and there is nothing local to serialize.
+    // rate, and there is nothing local to serialize. The debug jobs feed
+    // likewise — the server decides what a seat gets told.
     case 'setSpeed':
+    case 'setDebug':
     case 'requestSave':
       break;
   }

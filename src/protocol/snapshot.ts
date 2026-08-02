@@ -13,10 +13,9 @@ import { HIRE_SERF_TICKS } from '../sim/defs/balance.ts';
 import { TECH_DEFS } from '../sim/defs/techs.ts';
 import { GOODS } from '../sim/defs/goods.ts';
 import { UNIT_DEFS, carryingCode } from '../sim/defs/units.ts';
-import { findStorehouse } from '../sim/systems/logistics.ts';
 import { ACTION, PROFESSION, WORK, type UnitSnapshot } from './sabLayout.ts';
 import type { World } from '../sim/world.ts';
-import type { Building } from '../sim/entities.ts';
+import type { Building, Owner } from '../sim/entities.ts';
 import type { Unit } from '../sim/units.ts';
 import type { BuildingSnap, JobSnap, PlayerSnap } from './messages.ts';
 
@@ -68,14 +67,19 @@ export function snapBuildings(world: World): BuildingSnap[] {
 }
 
 export function snapPlayers(world: World): PlayerSnap[] {
+  // One pass over the buildings gathers each owner's first built storehouse
+  // (same first-in-map-order pick as findStorehouse) and abbey presence,
+  // instead of a full building scan per player.
+  const storehouses = new Map<Owner, Building>();
+  const abbeyOwners = new Set<Owner>();
+  for (const b of world.buildings.values()) {
+    if (b.dead || b.state !== 'built') continue;
+    if (b.type === 'abbey') abbeyOwners.add(b.owner);
+    if (!storehouses.has(b.owner) && buildingDef(b.type).storage) storehouses.set(b.owner, b);
+  }
   return world.players.map((p) => {
-    const storehouse = findStorehouse(world, p.id);
-    let hasAbbey = false;
-    for (const b of world.buildings.values()) {
-      if (!b.dead && b.type === 'abbey' && b.state === 'built' && b.owner === p.id) {
-        hasAbbey = true;
-      }
-    }
+    const storehouse = storehouses.get(p.id);
+    const hasAbbey = abbeyOwners.has(p.id);
     return {
       id: p.id,
       kind: p.kind,
