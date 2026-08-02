@@ -1,6 +1,7 @@
 import { For, Show, createSignal, type Accessor } from 'solid-js';
 import { render } from 'solid-js/web';
 import { MAX_SEATS, type LobbyConfig } from '../protocol/lobby';
+import { strategyForSeat } from '../sim/defs/aiStrategies';
 import { DiceIcon, MENU_STYLE } from './menuChrome';
 
 /**
@@ -107,10 +108,13 @@ function WarCouncil(props: CouncilHooks) {
     }));
     const aiFill = Math.max(0, Math.min(config.ai, MAX_SEATS - out.length));
     for (let i = 0; i < aiFill; i++) {
+      // Named, because the computer seats do not play alike: the playbook
+      // a seat runs is fixed by its number, so the council can say up front
+      // which opponents the table is setting itself.
       out.push({
         color: SEAT_COLORS[out.length % SEAT_COLORS.length]!,
-        who: 'Computer',
-        state: 'ready',
+        who: strategyForSeat(out.length).name,
+        state: 'computer',
         stateClass: 'ready',
         open: false,
       });

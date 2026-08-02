@@ -3,6 +3,7 @@ import { render } from 'solid-js/web';
 import { clearSeatStash, relayUrl } from '../net/lobbyClient';
 import { DiceIcon, MENU_STYLE } from './menuChrome';
 import { DEFAULT_SEED } from '../protocol/lobby';
+import { strategyForSeat } from '../sim/defs/aiStrategies';
 import { startMenuBackdrop, type Backdrop } from './menuBackdrop';
 
 /**
@@ -25,6 +26,21 @@ const OPTIONS = {
 };
 
 const AI_SEATS = Array.from({ length: OPTIONS.maxOpponents + 1 }, (_, i) => i);
+
+/**
+ * Who you would be up against. Seat 0 is yours in single player, so the
+ * opponents fill from seat 1 — and since a seat's playbook is fixed by its
+ * number, the menu can name them before the valley is even generated.
+ */
+function opponentHint(count: number): string {
+  if (count === 0) return 'They build and raid like you do';
+  const them = Array.from({ length: count }, (_, i) => strategyForSeat(i + 1));
+  // One opponent gets its whole character; a table of them gets the roll
+  // call, because three blurbs do not fit under a row of pills.
+  if (them.length === 1) return `${them[0]!.name} — ${them[0]!.blurb.toLowerCase()}`;
+  const names = them.map((s) => s.name);
+  return `You face ${names.slice(0, -1).join(', ')} and ${names.at(-1)!} — each plays its own game`;
+}
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
 
@@ -354,7 +370,7 @@ function StartMenu() {
                 <div class="row">
                   <div>
                     <div class="row-label">Computer opponents</div>
-                    <div class="row-hint">They build and raid like you do</div>
+                    <div class="row-hint">{opponentHint(ai())}</div>
                   </div>
                   <div class="pills">
                     <For each={AI_SEATS}>
