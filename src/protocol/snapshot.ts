@@ -74,6 +74,7 @@ export function snapPlayers(world: World): PlayerSnap[] {
     for (const b of world.buildings.values()) {
       if (!b.dead && b.type === 'abbey' && b.state === 'built' && b.owner === p.id) {
         hasAbbey = true;
+        break;
       }
     }
     return {
