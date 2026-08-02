@@ -12,6 +12,14 @@ import type { World } from '../world.ts';
  * owner task re-plans on its next decision.
  */
 export function movementSystem(world: World): void {
+  // serfSpeed tech multiplier per player, computed once per tick instead of
+  // per civilian (getModifier walks every researched tech's effects). Owners
+  // without a player entry (BANDIT) fall back to the same baseline of 1.
+  const serfSpeedMod: number[] = [];
+  for (let owner = 0; owner < world.players.length; owner++) {
+    serfSpeedMod[owner] = getModifier(world, owner, 'serfSpeed');
+  }
+
   for (const unit of world.units.values()) {
     if (unit.dead || !unit.path) continue;
     const path = unit.path;
@@ -28,7 +36,7 @@ export function movementSystem(world: World): void {
     let budget =
       (UNIT_DEFS[unit.kind].speed *
         tileSpeedMult(world.map, here) *
-        (civilian ? getModifier(world, unit.owner, 'serfSpeed') : 1)) /
+        (civilian ? (serfSpeedMod[unit.owner] ?? 1) : 1)) /
       TICKS_PER_SECOND;
 
     while (budget > 0 && unit.pathIdx < path.length) {
