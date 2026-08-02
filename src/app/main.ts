@@ -334,7 +334,8 @@ async function boot(): Promise<void> {
     const changes = mirror.apply(msg);
     for (const tile of changes.resourceCleared) scatter.removeTile(tile);
     if (changes.refreshAll) scatter.resyncAll(mirror.map);
-    if (changes.repaint) terrain.repaintAll();
+    if (changes.refreshAll) terrain.repaintAll();
+    else if (changes.repaintTiles.length > 0) terrain.repaintTiles(changes.repaintTiles);
     buildingSync.update(msg.buildings);
     roster = msg.buildings;
     feedWells();

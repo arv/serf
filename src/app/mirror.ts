@@ -3,8 +3,9 @@ import type { BuildingSnap, MapSnapshot, StructuralUpdate } from '../protocol/me
 export interface MirrorChanges {
   /** Tiles whose standing resource vanished (scatter must hide them). */
   resourceCleared: number[];
-  /** Any terrain-color-relevant change (paths, deposits, footprints). */
-  repaint: boolean;
+  /** Tiles with a terrain-color-relevant change (paths, deposits,
+   * footprints) — the terrain repaints just these and their aprons. */
+  repaintTiles: number[];
   /** The server resent the whole map (a reconnect) — resync everything
    * derived from it, since the deltas we missed are not coming. */
   refreshAll: boolean;
@@ -25,7 +26,7 @@ export class WorldMirror {
   }
 
   apply(msg: StructuralUpdate): MirrorChanges {
-    const changes: MirrorChanges = { resourceCleared: [], repaint: false, refreshAll: false };
+    const changes: MirrorChanges = { resourceCleared: [], repaintTiles: [], refreshAll: false };
 
     if (msg.fullMap) {
       // Rollback correction: deltas shipped for re-simulated ticks are void;
@@ -35,7 +36,6 @@ export class WorldMirror {
       this.map.pathLevel.set(msg.fullMap.pathLevel);
       this.map.buildingAt.set(msg.fullMap.buildingAt);
       changes.refreshAll = true;
-      changes.repaint = true;
     }
 
     for (const d of msg.mapDeltas) {
@@ -48,7 +48,7 @@ export class WorldMirror {
         // Buildings trample the ground around them — repaint on placement.
         this.map.buildingAt[d.idx] !== d.buildingAt
       ) {
-        changes.repaint = true;
+        changes.repaintTiles.push(d.idx);
       }
       this.map.resource[d.idx] = d.resource;
       this.map.blocked[d.idx] = d.blocked;

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MAP_SIZE, TILE_COUNT, tileIdx } from '../shared/grid';
+import { MAP_SIZE, TILE_COUNT, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { PathLevel, Terrain, TileResource, type MapView } from '../sim/map';
 import { palette } from './palette';
@@ -107,113 +107,189 @@ export class TerrainMesh {
 
   /** Recolor every vertex from current map state. */
   repaintAll(): void {
-    const map = this.#map;
-
     // --- Per-tile pass: classify + trampled-earth mask -----------------------
-    for (let i = 0; i < TILE_COUNT; i++) {
-      const level = map.pathLevel[i];
-      this.#tileClass[i] =
-        map.terrain[i] === Terrain.Water
-          ? CLASS_WATER
-          : level === PathLevel.Road
-            ? CLASS_ROAD
-            : level === PathLevel.Trail
-              ? CLASS_TRAIL
-              : CLASS_GRASS;
-      const res = map.resource[i];
-      this.#tileDeposit[i] =
-        res === TileResource.IronDep
-          ? 1
-          : res === TileResource.SilverDep
-            ? 2
-            : res === TileResource.GoldDep
-              ? 3
-              : 0;
-      this.#tileEarth[i] = map.buildingAt[i]! >= 0 ? 1 : 0;
-    }
-    // Feather trampled earth one tile outward.
     for (let y = 0; y < MAP_SIZE; y++) {
-      for (let x = 0; x < MAP_SIZE; x++) {
-        const i = tileIdx(x, y);
-        if (this.#tileEarth[i] === 1) continue;
-        let near = 0;
-        for (let dy = -1; dy <= 1 && !near; dy++) {
-          for (let dx = -1; dx <= 1 && !near; dx++) {
-            const nx = x + dx;
-            const ny = y + dy;
-            if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
-            if (this.#map.buildingAt[tileIdx(nx, ny)]! >= 0) near = 1;
-          }
-        }
-        if (near) this.#tileEarth[i] = 0.55;
-      }
+      for (let x = 0; x < MAP_SIZE; x++) this.#recomputeTile(x, y);
     }
 
     // --- Per-vertex pass -----------------------------------------------------
     const pos = this.#geometry.attributes.position!;
-    const lush = new THREE.Color(palette.grassLush);
-    const olive = new THREE.Color(palette.grassOlive);
-    const gold = new THREE.Color(palette.grassGold);
-    const earth = new THREE.Color(palette.trampledEarth);
-    const moss = new THREE.Color(palette.bankMoss);
-    const bed = new THREE.Color(palette.riverbed);
-    const trail = new THREE.Color(palette.earthTrail);
-    const road = new THREE.Color(palette.stoneRoad);
-    const water = new THREE.Color(palette.water);
-    const iron = new THREE.Color(palette.ironOre);
-    const silver = new THREE.Color(palette.silverOre);
-    const goldOre = new THREE.Color(palette.goldOre);
-    const rock = new THREE.Color(palette.rock);
-    const rockDark = new THREE.Color(palette.rockDark);
-    const snow = new THREE.Color(palette.peakSnow);
-    const c = new THREE.Color();
+    for (let v = 0; v < pos.count; v++) this.#paintVertex(v);
+    // A full range keeps any partial ranges queued earlier in the same frame
+    // from downgrading this repaint to a partial upload (three merges ranges).
+    this.#colorAttr.clearUpdateRanges();
+    this.#colorAttr.addUpdateRange(0, this.#colorAttr.array.length);
+    this.#colorAttr.needsUpdate = true;
+  }
 
-    for (let v = 0; v < pos.count; v++) {
-      const x = pos.getX(v);
-      const z = pos.getZ(v);
-      // Warped tile lookup: organic macro boundaries.
-      const tx = Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(x + this.#warpX[v]!)));
-      const tz = Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(z + this.#warpZ[v]!)));
-      const tile = tileIdx(tx, tz);
-      const cls = this.#tileClass[tile];
-      const y = this.#vertY[v]!;
+  /**
+   * Recolor only around the given changed tiles. Per-tile fields are
+   * recomputed in a 1-tile ring (the trampled-earth feather reaches that
+   * far); vertices are repainted in a 2-tile apron (feather plus the
+   * boundary warp of at most ±0.55 tiles), and only the touched spans of
+   * the color buffer are re-uploaded.
+   */
+  repaintTiles(tiles: readonly number[]): void {
+    if (tiles.length === 0) return;
 
-      if (cls === CLASS_WATER) {
-        c.copy(bed).lerp(water, Math.min(Math.max((-y - 0.2) * 1.4, 0), 1) * 0.75);
-      } else if (cls === CLASS_ROAD) {
-        c.copy(road);
-      } else if (cls === CLASS_TRAIL) {
-        c.copy(trail).lerp(earth, 0.3);
-      } else {
-        // Meadow: lush -> olive -> sun-dried gold.
-        const m = this.#meadow[v]!;
-        if (m < 0.52) c.copy(lush).lerp(olive, m / 0.52);
-        else c.copy(olive).lerp(gold, (m - 0.52) / 0.48);
-        // Altitude: meadow dries into bare rock, and the peaks catch snow.
-        if (y > 0.9) {
-          const rocky = Math.min((y - 0.9) / 0.55, 1);
-          c.lerp(m < 0.5 ? rock : rockDark, rocky * 0.9);
-          if (y > 1.95) c.lerp(snow, Math.min((y - 1.95) / 0.45, 1) * 0.85);
+    const dirty = new Set<number>(tiles);
+    const recompute = new Set<number>();
+    for (const t of dirty) {
+      const tx = tileX(t);
+      const ty = tileY(t);
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = tx + dx;
+          const ny = ty + dy;
+          if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
+          recompute.add(tileIdx(nx, ny));
         }
-        // Trampled ground near buildings.
-        const e = this.#tileEarth[tile]!;
-        if (e > 0) c.lerp(earth, e * 0.7);
-        // Deposits tint the rocky ground.
-        const dep = this.#tileDeposit[tile];
-        if (dep === 1) c.lerp(iron, 0.5);
-        else if (dep === 2) c.lerp(silver, 0.45);
-        else if (dep === 3) c.lerp(goldOre, 0.45);
       }
+    }
+    for (const i of recompute) this.#recomputeTile(tileX(i), tileY(i));
 
-      // Banks sink into dark moss; anything below the waterline goes murky.
-      if (y < 0.5 && cls !== CLASS_ROAD) {
-        const wet = Math.min((0.5 - y) / 1.1, 0.8);
-        c.lerp(moss, wet);
+    // Vertices live on a (GRID+1)^2 lattice, SEG per tile edge, row-major —
+    // vertex (row, col) sits at world (col/SEG, row/SEG).
+    const dirtyVerts = new Set<number>();
+    for (const t of dirty) {
+      const tx = tileX(t);
+      const ty = tileY(t);
+      const c0 = Math.max(0, (tx - 2) * SEG);
+      const c1 = Math.min(GRID, (tx + 3) * SEG);
+      const r0 = Math.max(0, (ty - 2) * SEG);
+      const r1 = Math.min(GRID, (ty + 3) * SEG);
+      for (let r = r0; r <= r1; r++) {
+        const base = r * (GRID + 1);
+        for (let col = c0; col <= c1; col++) dirtyVerts.add(base + col);
       }
+    }
+    for (const v of dirtyVerts) this.#paintVertex(v);
 
-      const s = this.#speck[v]!;
-      this.#colorAttr.setXYZ(v, c.r * s, c.g * s, c.b * s);
+    // Upload only the touched spans: consecutive vertex runs become ranges
+    // (three merges overlapping/adjacent ones before the bufferSubData).
+    const sorted = [...dirtyVerts].sort((a, z) => a - z);
+    let runStart = sorted[0]!;
+    let prev = sorted[0]!;
+    for (let k = 1; k <= sorted.length; k++) {
+      const v = sorted[k];
+      if (v === prev + 1) {
+        prev = v;
+        continue;
+      }
+      this.#colorAttr.addUpdateRange(runStart * 3, (prev - runStart + 1) * 3);
+      if (v === undefined) break;
+      runStart = v;
+      prev = v;
     }
     this.#colorAttr.needsUpdate = true;
   }
+
+  /** Refresh one tile's paint class, deposit tint, and trampled-earth mask. */
+  #recomputeTile(x: number, y: number): void {
+    const map = this.#map;
+    const i = tileIdx(x, y);
+    const level = map.pathLevel[i];
+    this.#tileClass[i] =
+      map.terrain[i] === Terrain.Water
+        ? CLASS_WATER
+        : level === PathLevel.Road
+          ? CLASS_ROAD
+          : level === PathLevel.Trail
+            ? CLASS_TRAIL
+            : CLASS_GRASS;
+    const res = map.resource[i];
+    this.#tileDeposit[i] =
+      res === TileResource.IronDep
+        ? 1
+        : res === TileResource.SilverDep
+          ? 2
+          : res === TileResource.GoldDep
+            ? 3
+            : 0;
+    if (map.buildingAt[i]! >= 0) {
+      this.#tileEarth[i] = 1;
+      return;
+    }
+    // Feather trampled earth one tile outward from building footprints.
+    let near = 0;
+    for (let dy = -1; dy <= 1 && !near; dy++) {
+      for (let dx = -1; dx <= 1 && !near; dx++) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
+        if (map.buildingAt[tileIdx(nx, ny)]! >= 0) near = 1;
+      }
+    }
+    this.#tileEarth[i] = near ? 0.55 : 0;
+  }
+
+  /** Color one vertex from the current per-tile fields. */
+  #paintVertex(v: number): void {
+    const pos = this.#geometry.attributes.position!;
+    const c = SCRATCH;
+    const x = pos.getX(v);
+    const z = pos.getZ(v);
+    // Warped tile lookup: organic macro boundaries.
+    const tx = Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(x + this.#warpX[v]!)));
+    const tz = Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(z + this.#warpZ[v]!)));
+    const tile = tileIdx(tx, tz);
+    const cls = this.#tileClass[tile];
+    const y = this.#vertY[v]!;
+
+    if (cls === CLASS_WATER) {
+      c.copy(COL.bed).lerp(COL.water, Math.min(Math.max((-y - 0.2) * 1.4, 0), 1) * 0.75);
+    } else if (cls === CLASS_ROAD) {
+      c.copy(COL.road);
+    } else if (cls === CLASS_TRAIL) {
+      c.copy(COL.trail).lerp(COL.earth, 0.3);
+    } else {
+      // Meadow: lush -> olive -> sun-dried gold.
+      const m = this.#meadow[v]!;
+      if (m < 0.52) c.copy(COL.lush).lerp(COL.olive, m / 0.52);
+      else c.copy(COL.olive).lerp(COL.gold, (m - 0.52) / 0.48);
+      // Altitude: meadow dries into bare rock, and the peaks catch snow.
+      if (y > 0.9) {
+        const rocky = Math.min((y - 0.9) / 0.55, 1);
+        c.lerp(m < 0.5 ? COL.rock : COL.rockDark, rocky * 0.9);
+        if (y > 1.95) c.lerp(COL.snow, Math.min((y - 1.95) / 0.45, 1) * 0.85);
+      }
+      // Trampled ground near buildings.
+      const e = this.#tileEarth[tile]!;
+      if (e > 0) c.lerp(COL.earth, e * 0.7);
+      // Deposits tint the rocky ground.
+      const dep = this.#tileDeposit[tile];
+      if (dep === 1) c.lerp(COL.iron, 0.5);
+      else if (dep === 2) c.lerp(COL.silver, 0.45);
+      else if (dep === 3) c.lerp(COL.goldOre, 0.45);
+    }
+
+    // Banks sink into dark moss; anything below the waterline goes murky.
+    if (y < 0.5 && cls !== CLASS_ROAD) {
+      const wet = Math.min((0.5 - y) / 1.1, 0.8);
+      c.lerp(COL.moss, wet);
+    }
+
+    const s = this.#speck[v]!;
+    this.#colorAttr.setXYZ(v, c.r * s, c.g * s, c.b * s);
+  }
 }
+
+/** Palette colors used by the vertex painter, built once. */
+const COL = {
+  lush: new THREE.Color(palette.grassLush),
+  olive: new THREE.Color(palette.grassOlive),
+  gold: new THREE.Color(palette.grassGold),
+  earth: new THREE.Color(palette.trampledEarth),
+  moss: new THREE.Color(palette.bankMoss),
+  bed: new THREE.Color(palette.riverbed),
+  trail: new THREE.Color(palette.earthTrail),
+  road: new THREE.Color(palette.stoneRoad),
+  water: new THREE.Color(palette.water),
+  iron: new THREE.Color(palette.ironOre),
+  silver: new THREE.Color(palette.silverOre),
+  goldOre: new THREE.Color(palette.goldOre),
+  rock: new THREE.Color(palette.rock),
+  rockDark: new THREE.Color(palette.rockDark),
+  snow: new THREE.Color(palette.peakSnow),
+};
+const SCRATCH = new THREE.Color();
