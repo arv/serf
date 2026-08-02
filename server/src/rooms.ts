@@ -126,6 +126,17 @@ export function getRoom(code: string): Room | undefined {
   return rooms.get(code.toUpperCase());
 }
 
+/**
+ * Seat a room rebuilt from a persistence record (see persist.ts). Refused
+ * when the code is already live: the snapshot is data off disk, and two
+ * rooms under one code would cross their seat tokens.
+ */
+export function adoptRoom(room: Room): boolean {
+  if (rooms.has(room.code)) return false;
+  rooms.set(room.code, room);
+  return true;
+}
+
 export function findSeatByToken(token: string): { room: Room; seat: Seat } | undefined {
   for (const room of rooms.values()) {
     const seat = room.seats.find((s) => s.token === token);

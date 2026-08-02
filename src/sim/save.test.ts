@@ -56,6 +56,18 @@ describe('save/load', () => {
     expect(() => deserializeWorld('{"version":2,"world":{}}')).toThrow(/older version/);
   });
 
+  it('keeps bandits off through a round-trip', () => {
+    // The flag lives on the world, not in any entity, so a save that omits
+    // it silently resurrects the raiders in a no-bandits match on load.
+    const world = createWorld({
+      seed: 5,
+      players: [{ kind: 'human' }],
+      adminEnabled: false,
+      banditsEnabled: false,
+    });
+    expect(deserializeWorld(serializeWorld(world)).banditsEnabled).toBe(false);
+  });
+
   it('save size stays localStorage-friendly', () => {
     const world = createWorld(1);
     for (let t = 0; t < 500; t++) tickWorld(world, cmds(...commandScript(t)));

@@ -1,6 +1,9 @@
 node_modules/
 dist/
 
+# local room persistence (the deploy uses a Railway volume instead)
+server/.data/
+
 # build artifacts — sources are TypeScript only
 *.js
 *.js.map

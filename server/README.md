@@ -51,6 +51,11 @@ Deploy the repo root as a single service:
 - Start command: `node server/src/index.ts` (Node ≥ 23 strips the shared
   TypeScript natively — no server build step)
 - Railway provides `PORT`; `/health` answers 200.
+- Attach a **volume** so running matches survive deploys. Railway exposes
+  its mount path as `RAILWAY_VOLUME_MOUNT_PATH`, which the server picks up
+  by itself (see `src/persist.ts`). Without one the snapshot lands inside
+  the image's filesystem, which the next deploy discards — every push is
+  back to killing every match.
 
 WebSockets are not subject to COEP/CORP, so no extra headers or services
 are needed.
@@ -80,10 +85,22 @@ scratch first.
 
 ## State & limits
 
-Rooms live in memory: a server restart drops running matches (clients show
-"connection lost" and their rejoin tokens die with the process).
+Rooms live in memory while the process runs, and running matches survive a
+restart: SIGTERM (which is what a deploy sends) serializes every running
+room — world, seat tokens, per-seat fog — to a snapshot on disk, and the
+next process restores them before it starts listening, so the rejoin
+tokens clients are retrying with stay good across the gap. The clock is
+rebased on restore: the downtime reads as a pause, not as minutes of
+unattended simulation. The snapshot needs storage that outlives the image
+— a Railway volume (`RAILWAY_VOLUME_MOUNT_PATH`, automatic) or
+`SERF_STATE_DIR`; local dev falls back to `server/.data/`. Lobby rooms are
+not persisted: their occupants never learned a token, so no one could
+claim a restored lobby seat.
+
 Disconnected players rejoin by token while the room lives; a room whose
-humans have all been gone for 5 minutes is swept.
+humans have all been gone for 5 minutes is swept, and a restored room
+starts that clock at boot — matches nobody comes back for clean
+themselves up.
 
 A room keeps ticking while its players are away, which is deliberate: the
 tick is derived from wall-clock time since match start, so a room that

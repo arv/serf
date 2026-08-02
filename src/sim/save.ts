@@ -17,6 +17,8 @@ import type { MatchOutcome, World } from './world.ts';
 interface SaveFile {
   version: 3;
   world: {
+    /** Absent in saves from before the toggle existed; those ran bandits. */
+    banditsEnabled?: boolean;
     tick: number;
     rngState: number;
     nextId: number;
@@ -37,6 +39,7 @@ export function serializeWorld(world: World): string {
   const file: SaveFile = {
     version: 3,
     world: {
+      banditsEnabled: world.banditsEnabled,
       tick: world.tick,
       rngState: world.rngState,
       nextId: world.nextId,
@@ -84,7 +87,7 @@ export function deserializeWorld(json: string): World {
   if (map.terrain.length !== TILE_COUNT) throw new Error('corrupt save: bad map size');
 
   return {
-    banditsEnabled: (w as { banditsEnabled?: boolean }).banditsEnabled ?? true,
+    banditsEnabled: w.banditsEnabled ?? true,
     tick: w.tick,
     rngState: w.rngState,
     nextId: w.nextId,
