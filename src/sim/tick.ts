@@ -337,6 +337,7 @@ function applyMoveUnits(
 
 function collectSpreadTargets(world: World, x: number, y: number, count: number): number[] {
   const out: number[] = [];
+  const seen = new Set<number>();
   const first = nearestWalkable(world.map, x, y);
   if (first < 0) return out;
   const fx = tileX(first);
@@ -346,7 +347,10 @@ function collectSpreadTargets(world: World, x: number, y: number, count: number)
       for (let dx = -r; dx <= r && out.length < count; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const idx = nearestWalkable(world.map, fx + dx, fy + dy, 0);
-        if (idx >= 0 && !out.includes(idx)) out.push(idx);
+        if (idx >= 0 && !seen.has(idx)) {
+          seen.add(idx);
+          out.push(idx);
+        }
       }
     }
   }

@@ -540,7 +540,9 @@ function deliver(world: World, to: Building, good: GoodId): void {
 // --- Reconcile: validate every live job, repair loudly ---------------------
 
 function reconcile(world: World): void {
-  for (const job of [...world.jobs.values()]) {
+  // Direct Map iteration is safe here: abortJob/unassignJob only ever
+  // delete entries, never add, and JS Maps tolerate deletion mid-iteration.
+  for (const job of world.jobs.values()) {
     const from = world.buildings.get(job.from);
     const to = world.buildings.get(job.to);
     if (!to || to.dead) {
