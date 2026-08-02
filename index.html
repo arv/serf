@@ -5,6 +5,14 @@
     <!-- viewport-fit=cover lets the HUD reach under notches (it pads itself
          back out with env(safe-area-inset-*)); the scale locks stop a
          two-finger map pinch from zooming the page instead. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#223526" />
+    <!-- iOS has no manifest support worth the name: these two give the same
+         add-to-home-screen fullscreen treatment on Safari. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
