@@ -730,8 +730,10 @@ export function Hud(props: {
           <div class="panel end-card">
             <h1>The match is gone</h1>
             <p>
-              The room wound down while you were away — after a few minutes
-              with nobody at the table, the server clears it.
+              The server no longer knows this match. Either it restarted (a
+              deploy does this — every running match lives only in its
+              memory), or the room stood empty past its grace period. Either
+              way this world can't be resumed.
             </p>
             <button onClick={() => (location.href = location.pathname)}>Back to the menu</button>
           </div>
