@@ -75,8 +75,17 @@ export function serviceWorkerPlugin(): Plugin {
         .replace('__ASSET_VERSION__', version(dist, assets))
         .replace("['__SHELL__']", JSON.stringify(shell))
         .replace("['__ASSETS__']", JSON.stringify(assets));
-      if (source.includes('__SHELL__') || source.includes('__SHELL_VERSION__')) {
-        this.error(`${SW_SOURCE} placeholders did not substitute — has it been renamed?`);
+      // Every placeholder, not a named few: a substitution that silently
+      // misses is the worst outcome here, since the worker still installs
+      // and only stops caching what it was meant to. An unfilled
+      // ['__ASSETS__'] would warm one bogus URL, swallow the failure, and
+      // leave a build that looks offline-ready with no models on disk.
+      const unfilled = [...new Set(source.match(/__[A-Z_]+__/g))];
+      if (unfilled.length > 0) {
+        this.error(
+          `${SW_SOURCE} left ${unfilled.join(', ')} unsubstituted — ` +
+            'a placeholder was renamed or its surrounding formatting changed.',
+        );
       }
       writeFileSync(join(dist, 'sw.js'), source);
     },
