@@ -123,6 +123,13 @@ function StartMenu() {
   const [picked, setPicked] = createSignal<string | null>(null);
   const [rooms, setRooms] = createSignal<OpenRoom[]>([]);
   const [loadingRooms, setLoadingRooms] = createSignal(false);
+  // The service worker keeps the shell and the models on disk, so a cold
+  // launch with no network still reaches this menu — and single player,
+  // being a local sim, still plays. Only the relay-backed half of the
+  // screen has to stand down. navigator.onLine overstates connectivity
+  // (a captive portal reads as online) but never understates it, which is
+  // the direction that matters here: false means definitely not hosting.
+  const [online, setOnline] = createSignal(navigator.onLine);
 
   const isMulti = (): boolean => mode() === 'multi';
   const isJoin = (): boolean => isMulti() && mp() === 'join';
@@ -153,9 +160,23 @@ function StartMenu() {
   };
 
   const poll = setInterval(() => {
-    if (isJoin()) void refresh();
+    if (isJoin() && online()) void refresh();
   }, POLL_MS);
   onCleanup(() => clearInterval(poll));
+
+  const syncOnline = (): void => {
+    setOnline(navigator.onLine);
+    // Losing the connection mid-menu leaves the multiplayer pane pointing
+    // at a relay that is not there; fall back to the half that still works.
+    if (!navigator.onLine) setMode('single');
+    else if (isJoin()) void refresh();
+  };
+  window.addEventListener('online', syncOnline);
+  window.addEventListener('offline', syncOnline);
+  onCleanup(() => {
+    window.removeEventListener('online', syncOnline);
+    window.removeEventListener('offline', syncOnline);
+  });
 
   // The live backdrop: the game itself, framed on the castle (menuBackdrop.ts).
   // Failure here is cosmetic — the veils alone still look deliberate.
@@ -246,6 +267,8 @@ function StartMenu() {
               </button>
               <button
                 class={mode() === 'multi' ? 'on' : ''}
+                disabled={!online()}
+                title={online() ? undefined : 'Needs a connection to the relay'}
                 onClick={() => {
                   setMode('multi');
                   if (mp() === 'join') void refresh();
@@ -257,6 +280,18 @@ function StartMenu() {
             </div>
 
             <div class="rows">
+              <Show when={!online()}>
+                <div class="row">
+                  <div>
+                    <div class="row-label">Offline</div>
+                    <div class="row-hint">
+                      The valley runs on this device — skirmishes and saves are unaffected.
+                      Multiplayer comes back with the connection.
+                    </div>
+                  </div>
+                </div>
+              </Show>
+
               <Show when={isMulti()}>
                 <div class="choices">
                   <button class={`choice ${mp() === 'host' ? 'on' : ''}`} onClick={() => setMp('host')}>
@@ -515,7 +550,10 @@ function StartMenu() {
         </div>
 
         <div class="footer">
-          <span>SERF · build 0.4.2 · {isMulti() ? 'server lobby' : 'local sim'}</span>
+          <span>
+            SERF · build 0.4.2 ·{' '}
+            {isMulti() ? 'server lobby' : online() ? 'local sim' : 'local sim · offline'}
+          </span>
           <span class="tech">Server-authoritative · SAB render feed</span>
         </div>
       </div>
