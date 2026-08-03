@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import solid from 'vite-plugin-solid';
+import { serviceWorkerPlugin } from './build/swPlugin';
 
 // SharedArrayBuffer requires cross-origin isolation. Production hosting must
 // send these same two headers.
@@ -14,7 +15,7 @@ const crossOriginIsolation = {
 const port = process.env.PORT ? Number(process.env.PORT) : undefined;
 
 export default defineConfig({
-  plugins: [solid()],
+  plugins: [solid(), serviceWorkerPlugin()],
   server: { headers: crossOriginIsolation, port },
   preview: { headers: crossOriginIsolation, port },
   // Sim tests are headless node — no DOM environment needed or wanted.

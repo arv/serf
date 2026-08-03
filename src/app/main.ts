@@ -37,6 +37,7 @@ import { WorldMirror } from './mirror';
 import { envelopeSave, splitSave } from './saveEnvelope';
 import { WorkerSimHost } from './simHost';
 import { mountStartMenu } from '../ui/StartMenu';
+import { registerServiceWorker } from './serviceWorker';
 import { configFromUrl } from './gameConfig';
 import { relayUrl, runLobby } from '../net/lobbyClient';
 import type { NetInfo } from '../protocol/messages';
@@ -98,6 +99,10 @@ async function boot(): Promise<void> {
   const chosen =
     LAUNCH_PARAMS.some((k) => launchParams.has(k)) ||
     sessionStorage.getItem('serf-load-pending') !== null;
+  // Single player is a local sim, so with the shell and the models on disk
+  // it plays with the network off entirely. A pending update only takes
+  // over on the menu — never behind a live match.
+  registerServiceWorker({ applyUpdates: !chosen });
   if (!chosen) {
     // The menu never runs alongside the sim: every mode it offers writes
     // location.search and reloads, so boot() runs once per match as before.

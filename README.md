@@ -28,6 +28,20 @@ pnpm dev
   raid warning tells you the composition) — countering them means retooling
   your weapon production, not just clicking harder.
 
+### Offline
+
+Single player is a local sim, so a production build plays with the network
+switched off. The first visit installs a service worker that precaches the
+app shell and the ~10 MB of KayKit models; after that a cold launch — menu,
+map generation, a whole skirmish, saving and loading — needs nothing from
+the server. Only multiplayer does, and the start menu dims it when the
+connection is gone.
+
+Updates land on the start screen: a new build's worker installs in the
+background, and the menu (where no match is at stake) waves it through and
+reloads onto it. A worker that finishes installing mid-match stays parked
+until the player is back at the menu.
+
 ### Controls
 
 | Input | Action |
@@ -56,6 +70,13 @@ asserting the goods-conservation ledger and every reservation invariant.
 
 SharedArrayBuffer needs cross-origin isolation: dev/preview servers send
 COOP/COEP headers (see `vite.config.ts`); production hosting must do the same.
+The offline worker inherits that for free — it replays the cached response
+with the headers it was fetched with, so `crossOriginIsolated` holds with no
+server in reach. `src/app/sw.js` ships to `dist/` verbatim (it is the one
+hand-written JS file in the tree); `build/swPlugin.ts` fills in its precache
+manifest from the finished build, and registration lives in
+`src/app/serviceWorker.ts` — dev unregisters instead, so `pnpm dev` is never
+served yesterday's bundle.
 
 ```sh
 pnpm test        # headless sim suite (58 tests)

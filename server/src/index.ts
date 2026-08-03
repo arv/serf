@@ -99,10 +99,13 @@ const http = createServer((req, res) => {
   const ext = extname(file);
   isolationHeaders(res);
   res.setHeader('content-type', MIME[ext] ?? 'application/octet-stream');
-  // Hashed assets cache forever; the entry document revalidates.
+  // Hashed assets cache forever; the entry document revalidates. So does
+  // the service worker: it is the one .js file with a stable name, and
+  // freezing it for a year would freeze every future deploy with it.
+  const revalidates = ext === '.html' || file === join(DIST_DIR, 'sw.js');
   res.setHeader(
     'cache-control',
-    ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+    revalidates ? 'no-cache' : 'public, max-age=31536000, immutable',
   );
   createReadStream(file).pipe(res);
 });

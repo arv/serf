@@ -10,4 +10,9 @@ server/.data/
 *.map
 *.tsbuildinfo
 
+# ...with one exception: the service worker ships to dist/ verbatim rather
+# than through the bundler, so it is authored as plain JS (build/swPlugin.ts
+# only fills in its precache manifest).
+!src/app/sw.js
+
 .DS_Store

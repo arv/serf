@@ -43,6 +43,9 @@ export const MENU_STYLE = `
   color: #94958c; background: transparent; border: none; border-radius: 9px; transition: background 0.15s, color 0.15s; }
 #menu .seg button:hover { color: #f0ede4; }
 #menu .seg button.on { color: #f5e4b6; background: rgba(229,196,105,0.16); }
+/* Offline: the relay-backed half of the menu stands down (StartMenu.tsx). */
+#menu .seg button:disabled { opacity: 0.4; cursor: default; }
+#menu .seg button:disabled:hover { color: #94958c; }
 
 #menu .rows { display: flex; flex-direction: column; padding: 6px 16px 0; }
 #menu .row { display: flex; align-items: center; justify-content: space-between; gap: 16px;
