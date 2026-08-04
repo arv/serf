@@ -1,5 +1,6 @@
 import { For, Index, Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { render } from 'solid-js/web';
+import { BUILD_LABEL } from '../app/buildInfo';
 import { clearSeatStash, relayUrl } from '../net/lobbyClient';
 import { DiceIcon, MENU_STYLE } from './menuChrome';
 import { DEFAULT_SEED } from '../protocol/lobby';
@@ -551,7 +552,7 @@ function StartMenu() {
 
         <div class="footer">
           <span>
-            SERF · build 0.4.2 ·{' '}
+            SERF · build {BUILD_LABEL} ·{' '}
             {isMulti() ? 'server lobby' : online() ? 'local sim' : 'local sim · offline'}
           </span>
           <span class="tech">Server-authoritative · SAB render feed</span>
