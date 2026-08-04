@@ -351,7 +351,6 @@ function WarCouncil(props: CouncilHooks) {
 
         <div class="footer">
           <span>SERF · war council</span>
-          <span class="tech">Server-authoritative · the relay holds the world</span>
         </div>
       </div>
     </>
