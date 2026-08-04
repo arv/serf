@@ -555,7 +555,6 @@ function StartMenu() {
             SERF · build {BUILD_LABEL} ·{' '}
             {isMulti() ? 'server lobby' : online() ? 'local sim' : 'local sim · offline'}
           </span>
-          <span class="tech">Server-authoritative · SAB render feed</span>
         </div>
       </div>
     </>
