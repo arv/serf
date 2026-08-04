@@ -138,13 +138,12 @@ export const MENU_STYLE = `
 #menu .secondary button:hover { color: #f0ede4; border-color: rgba(255,255,255,0.2); }
 #menu .secondary button:disabled { opacity: 0.45; cursor: default; }
 
-#menu .footer { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+#menu .footer { display: flex; align-items: center; justify-content: flex-start;
   padding: 0 20px env(safe-area-inset-bottom); font-size: 11px; color: #5f6159; letter-spacing: 0.06em; }
 
 /* Phones and short windows: same DOM, tighter stack, bigger touch targets. */
 @media (max-width: 560px) {
   #menu .kicker i { display: none; }
-  #menu .footer .tech { display: none; }
   #menu .footer { justify-content: center; }
   #menu .stack { gap: 14px; justify-content: flex-start; }
   #menu .pills button { width: 40px; height: 34px; }
