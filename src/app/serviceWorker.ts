@@ -13,6 +13,18 @@
 const SW_URL = '/sw.js';
 
 let reloading = false;
+let held = false;
+
+/**
+ * Stop waving updates through. The menu registers with applyUpdates on —
+ * nothing is at stake there — but the War Council hands its match over
+ * without a navigation, so by the time a worker finishes installing this
+ * page may have become a running game. Called as a match takes over: the
+ * new worker stays parked, and the next launch picks it up.
+ */
+export function holdServiceWorkerUpdates(): void {
+  held = true;
+}
 
 /**
  * @param opts.applyUpdates true on the start menu — no sim, no unsaved
@@ -68,10 +80,12 @@ async function install(applyUpdates: boolean): Promise<void> {
   const takeOver = (worker: ServiceWorker): void => {
     // Nothing is controlling this page yet, so this is a first install:
     // there is no stale shell to replace and nothing to reload for.
-    if (!navigator.serviceWorker.controller || waved) return;
+    if (!navigator.serviceWorker.controller || waved || held) return;
     waved = true;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloading) return;
+      // A match may have started since the wave-through; a reload under a
+      // running game is exactly what the handshake exists to avoid.
+      if (reloading || held) return;
       reloading = true;
       location.reload();
     });

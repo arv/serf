@@ -1,25 +1,26 @@
 import { For, Index, Show, createSignal, onCleanup, onMount } from 'solid-js';
-import { render } from 'solid-js/web';
 import { BUILD_LABEL } from '../app/buildInfo';
-import { clearSeatStash, relayUrl } from '../net/lobbyClient';
-import { DiceIcon, MENU_STYLE } from './menuChrome';
-import { DEFAULT_SEED } from '../protocol/lobby';
+import { clearSeatStash, relayUrl, type CouncilRequest } from '../net/lobbyClient';
+import { DiceIcon } from './menuChrome';
+import { DEFAULT_SEED, defaultLobbyConfig } from '../protocol/lobby';
 import {
   AI_STRATEGIES,
   AI_STRATEGY_ORDER,
   parseStrategyId,
   type AiStrategyId,
 } from '../sim/defs/aiStrategies';
-import { startMenuBackdrop, type Backdrop } from './menuBackdrop';
 
 /**
- * Pre-boot start screen. Mounted into #menu by main.ts when the URL carries
- * no launch params; it never coexists with the sim — picking a mode sets
- * location.search, which reloads into boot() proper.
+ * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
+ * which owns the backdrop behind it and the #menu root under it.
+ *
+ * Multiplayer walks straight into the War Council from here, in place: the
+ * two are screens of one page and the background never reloads. Single
+ * player is still a navigation — it sets location.search and boot() comes
+ * back up in the sim.
  *
  * Visual language matches the in-game HUD (glass panels, one gold accent,
- * Space Grotesk). The background is the real game, framed on the castle and
- * blurred — see menuBackdrop.ts.
+ * Space Grotesk).
  */
 
 /** Shipping set of options. The launch URL is a dev affordance — off for
@@ -52,9 +53,23 @@ function opponentHint(picks: (AiStrategyId | undefined)[]): string {
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
 
-type Mode = 'single' | 'multi';
-type MpMode = 'host' | 'join';
+export type Mode = 'single' | 'multi';
+export type MpMode = 'host' | 'join';
 type Visibility = 'open' | 'private';
+
+/** Which pane the screen opens on. The shell hands back what the player
+ * had chosen when they walked into the council, so backing out of it does
+ * not dump them on the single-player tab. */
+export interface StartState {
+  mode: Mode;
+  mp: MpMode;
+}
+
+export interface StartMenuProps {
+  start: StartState;
+  /** Multiplayer: take the shell to the War Council, no reload. */
+  onCouncil(req: CouncilRequest): void;
+}
 
 /** One row of the room browser; the shape the server answers {t:'list'} with. */
 interface OpenRoom {
@@ -111,9 +126,9 @@ const ManyIcon = (
     <path d="M18 15.2A6.5 6.5 0 0 1 21.5 20" />
   </svg>
 );
-function StartMenu() {
-  const [mode, setMode] = createSignal<Mode>('single');
-  const [mp, setMp] = createSignal<MpMode>('host');
+export function StartMenu(props: StartMenuProps) {
+  const [mode, setMode] = createSignal<Mode>(props.start.mode);
+  const [mp, setMp] = createSignal<MpMode>(props.start.mp);
   const [ai, setAi] = createSignal(2);
   // One entry per opponent seat; undefined means 'let the seed deal it'.
   const [bots, setBots] = createSignal<(AiStrategyId | undefined)[]>([]);
@@ -179,43 +194,25 @@ function StartMenu() {
     window.removeEventListener('offline', syncOnline);
   });
 
-  // The live backdrop: the game itself, framed on the castle (menuBackdrop.ts).
-  // Failure here is cosmetic — the veils alone still look deliberate.
-  let backdrop: Backdrop | null = null;
+  // Coming back from the council on the join pane: the room list is stale
+  // by definition, and the poll is up to three seconds away.
   onMount(() => {
-    const canvas = document.getElementById('canvas') as HTMLCanvasElement | null;
-    if (!canvas) return;
-    document.documentElement.classList.add('menu-bg');
-    void startMenuBackdrop(canvas)
-      .then((b) => {
-        backdrop = b;
-      })
-      .catch((err: unknown) => {
-        console.warn('[menu] no live backdrop:', err);
-      });
+    if (isJoin() && online()) void refresh();
   });
-  onCleanup(() => backdrop?.stop());
 
   const hasSave = localStorage.getItem('serf-save') !== null;
 
+  /** The single-player launch URL. Multiplayer has none: it walks into the
+   * council in place, and the room's settings live on the relay. */
   const search = (): string => {
     const p = new URLSearchParams();
-    if (!isMulti()) {
-      if (ai() > 0) p.set('ai', String(ai()));
-      // Only the named ones travel; a seat left on Random says nothing and
-      // is dealt from the seed at the other end.
-      const named = bots().slice(0, ai());
-      if (named.some(Boolean)) p.set('bots', named.map((b) => b ?? '').join(','));
-      p.set('seed', String(seed()));
-      if (!bandits()) p.set('bandits', '0');
-    } else if (mp() === 'host') {
-      // Just the room. Seats, seed and raids are set in the War Council,
-      // where every joiner watches them change.
-      p.set('mp', 'new');
-      if (vis() === 'private') p.set('open', '0');
-    } else {
-      p.set('mp', target().toUpperCase());
-    }
+    if (ai() > 0) p.set('ai', String(ai()));
+    // Only the named ones travel; a seat left on Random says nothing and
+    // is dealt from the seed at the other end.
+    const named = bots().slice(0, ai());
+    if (named.some(Boolean)) p.set('bots', named.map((b) => b ?? '').join(','));
+    p.set('seed', String(seed()));
+    if (!bandits()) p.set('bandits', '0');
     return '?' + p.toString();
   };
 
@@ -229,6 +226,16 @@ function StartMenu() {
   const launch = (): void => {
     if (isJoin() && !target()) return;
     clearSeatStash(); // a menu launch is fresh intent, never a reconnect
+    if (isMulti()) {
+      props.onCouncil({
+        mp: isJoin() ? target().toUpperCase() : 'new',
+        open: vis() === 'open',
+        // Seats, seed and raids open at their defaults and are set in the
+        // council, where every joiner watches them change.
+        init: defaultLobbyConfig(),
+      });
+      return;
+    }
     location.search = search();
   };
   const onEnter = (e: KeyboardEvent): void => {
@@ -244,10 +251,6 @@ function StartMenu() {
 
   return (
     <>
-      <style>{MENU_STYLE}</style>
-      <div class="veil-a" />
-      <div class="veil-b" />
-
       <div class="shell">
         <div class="stack">
           <div class="title">
@@ -522,7 +525,7 @@ function StartMenu() {
                 </svg>
                 {ctaLabel()}
               </button>
-              <Show when={OPTIONS.showLaunchUrl}>
+              <Show when={OPTIONS.showLaunchUrl && !isMulti()}>
                 <div class="cta-url">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7L11 5" />
@@ -559,11 +562,4 @@ function StartMenu() {
       </div>
     </>
   );
-}
-
-/** Called by main.ts instead of booting the sim when there are no launch params. */
-export function mountStartMenu(): void {
-  const root = document.getElementById('menu')!;
-  root.style.display = 'block';
-  render(() => <StartMenu />, root);
 }

@@ -1,5 +1,4 @@
 import { For, Index, Show, createSignal, type Accessor } from 'solid-js';
-import { render } from 'solid-js/web';
 import { MAX_SEATS, type LobbyConfig } from '../protocol/lobby';
 import {
   AI_STRATEGIES,
@@ -7,13 +6,15 @@ import {
   parseStrategyId,
   type AiStrategyId,
 } from '../sim/defs/aiStrategies';
-import { DiceIcon, MENU_STYLE } from './menuChrome';
+import { DiceIcon } from './menuChrome';
 
 /**
- * The multiplayer waiting room, styled as the start menu's sibling: same
- * glass card, same gold, mounted into the same #menu root. The host tunes
- * the match here — computer seats, bandit raids, the map seed — and every
- * seat watches the settings change live; joiners see them read-only.
+ * The multiplayer waiting room: the start screen's sibling, not its
+ * successor. Both are screens of the menu shell (MenuApp.tsx), so walking
+ * in here is a swap of the card in front of the same live backdrop — same
+ * glass, same gold, no reload. The host tunes the match here — computer
+ * seats, bandit raids, the map seed — and every seat watches the settings
+ * change live; joiners see them read-only.
  *
  * Security note: everything shown that is not a literal here — the room
  * code, seat kinds, the settings — is written by the relay. It all renders
@@ -40,6 +41,7 @@ export interface CouncilHooks {
   onStart(): void;
   /** Hand the invite link over; resolves with which route it took. */
   onShare(): Promise<'shared' | 'copied'>;
+  /** Back out: the room is abandoned and the shell shows the start screen. */
   onLeave(): void;
 }
 
@@ -91,7 +93,7 @@ interface SeatRow {
   open: boolean;
 }
 
-function WarCouncil(props: CouncilHooks) {
+export function WarCouncil(props: CouncilHooks) {
   const [shared, setShared] = createSignal(false);
   const v = props.view;
   const inRoom = (): boolean => v().phase === 'lobby';
@@ -171,9 +173,9 @@ function WarCouncil(props: CouncilHooks) {
 
   return (
     <>
-      <style>{MENU_STYLE + COUNCIL_STYLE}</style>
-      <div class="veil-a" />
-      <div class="veil-b" />
+      {/* The shared sheet and the veils belong to the shell — this screen
+          only adds what is its own. */}
+      <style>{COUNCIL_STYLE}</style>
 
       <div class="shell">
         <div class="stack">
@@ -355,16 +357,4 @@ function WarCouncil(props: CouncilHooks) {
       </div>
     </>
   );
-}
-
-/** Mount into #menu (the start screen never coexists with the lobby — a
- * multiplayer launch always reloads first). Returns the teardown. */
-export function mountWarCouncil(hooks: CouncilHooks): () => void {
-  const root = document.getElementById('menu')!;
-  root.style.display = 'block';
-  const dispose = render(() => <WarCouncil {...hooks} />, root);
-  return () => {
-    dispose();
-    root.style.display = 'none';
-  };
 }

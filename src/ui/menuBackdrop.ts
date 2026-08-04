@@ -12,8 +12,10 @@ import { snapBuildings } from '../protocol/snapshot';
 import { createWorld } from '../sim/world';
 
 /**
- * The start screen's background: the actual game, framed on the castle and
- * blurred behind the menu.
+ * The pre-boot background, shared by every menu screen: the actual game,
+ * framed on the castle and blurred behind the glass. It is started once by
+ * the menu shell (MenuApp.tsx) and outlives the screens in front of it, so
+ * walking from the start screen into the War Council never restarts it.
  *
  * A captured still would have been cheaper, but it goes stale the moment the
  * art changes and it cannot be framed per-viewport. This renders a real
@@ -21,10 +23,14 @@ import { createWorld } from '../sim/world';
  * worker and no HUD. The scene never ticks; only the camera moves, drifting
  * a slow arc around the keep.
  *
- * The blur, desaturation and darkening are CSS on the canvas (see the #menu
- * rules in index.html), so the cost here is one static scene and a camera.
- * If anything throws — no WebGL, assets refused — the caller keeps the plain
- * gradient background and the menu is unaffected.
+ * It renders onto its own canvas (#menu-canvas, created by the shell), not
+ * the game's: the match that follows needs a WebGL context of its own, and
+ * a canvas only ever hands out one. stop() drops this one so it can.
+ *
+ * The blur, desaturation and darkening are CSS on that canvas (see the
+ * #menu-canvas rules in index.html), so the cost here is one static scene
+ * and a camera. If anything throws — no WebGL, assets refused — the caller
+ * keeps the plain gradient background and the menu is unaffected.
  */
 
 /** A seed whose start plateau frames well. Nothing depends on it. */
@@ -103,6 +109,7 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   const groundY = heights.at(cx, cz);
 
   const camera = new THREE.PerspectiveCamera(FOV, 1, 0.4, 400);
+  let stopped = false;
   let yawOffset = 0;
   let angle = START_ANGLE;
   let lift = 0;
@@ -118,6 +125,7 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
     camera.rotateY(yawOffset);
   };
   const fit = (): void => {
+    if (stopped) return;
     const aspect = canvas.clientWidth / Math.max(canvas.clientHeight, 1);
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
@@ -126,12 +134,12 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
     aim(angle, lift); // re-apply: the offset just changed
   };
   fit();
-  new ResizeObserver(fit).observe(canvas);
+  const observer = new ResizeObserver(fit);
+  observer.observe(canvas);
 
   const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   aim(START_ANGLE, 0);
   let raf = 0;
-  let stopped = false;
   const loop = (): void => {
     if (stopped) return;
     const now = performance.now();
@@ -152,8 +160,13 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
 
   return {
     stop(): void {
+      if (stopped) return;
       stopped = true;
       cancelAnimationFrame(raf);
+      observer.disconnect();
+      // The context goes with it: the match about to boot needs one of its
+      // own, and browsers hand them out sparingly.
+      renderer.dispose();
     },
   };
 }

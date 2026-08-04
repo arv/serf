@@ -1,9 +1,11 @@
 /**
  * The pre-boot screens' shared visual language: glass card, one gold
- * accent, Space Grotesk — the same vocabulary as the in-game HUD. Both the
- * start menu and the multiplayer War Council mount into #menu and inject
- * this sheet, which is what keeps the two screens pixel-identical instead
- * of drifting apart. Screen-specific rules live with their screen.
+ * accent, Space Grotesk — the same vocabulary as the in-game HUD. The menu
+ * shell (MenuApp.tsx) injects this sheet once and swaps screens underneath
+ * it, which is what keeps the start menu and the War Council pixel-
+ * identical instead of drifting apart — and what makes walking between
+ * them a change of card, not of page. Screen-specific rules live with
+ * their screen.
  */
 
 export const GOLD = '#e5c469';
