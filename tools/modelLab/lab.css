@@ -1,0 +1,401 @@
+/* The model lab, wearing the game's own chrome: Space Grotesk over a dark
+   ground, one gold accent, hairline rules — the vocabulary menuChrome.tsx
+   established for everything outside the match, with Georgia for reading
+   copy the way the tech tree and admin panels already use it. The bright
+   meadow stages are the only saturated thing on the page, which is the
+   point: the models are what you are here to look at.
+
+   Both the dev page (`pnpm dev` → /tools/modelLab/) and the published
+   gallery load this sheet. */
+
+:root {
+  color-scheme: dark light;
+
+  --ground: #0d0f0e;
+  --ground-2: #131614;
+  --panel: rgba(20, 23, 21, 0.72);
+  --edge: rgba(255, 255, 255, 0.09);
+  --edge-strong: rgba(255, 255, 255, 0.16);
+  --ink: #f4f1e6;
+  --ink-2: #cfcbbd;
+  --muted: #94958c;
+  --gold: #e5c469;
+  --gold-dim: #cbbd93;
+  --gold-wash: rgba(229, 196, 105, 0.14);
+  --meadow-a: #cfe0bd;
+  --meadow-b: #a9c691;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --ground: #e7e3d7;
+    --ground-2: #ded9ca;
+    --panel: rgba(252, 250, 244, 0.86);
+    --edge: rgba(40, 34, 20, 0.14);
+    --edge-strong: rgba(40, 34, 20, 0.26);
+    --ink: #1e201c;
+    --ink-2: #3d3f38;
+    --muted: #6b6a5f;
+    --gold: #8a6714;
+    --gold-dim: #7a5c1a;
+    --gold-wash: rgba(138, 103, 20, 0.12);
+    --meadow-a: #dcead0;
+    --meadow-b: #b7d1a1;
+    --shadow: 0 14px 34px rgba(60, 52, 30, 0.16);
+  }
+}
+
+/* The viewer's own toggle stamps the root, and has to win in both
+   directions — hence the full pair rather than one override. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ground: #0d0f0e;
+  --ground-2: #131614;
+  --panel: rgba(20, 23, 21, 0.72);
+  --edge: rgba(255, 255, 255, 0.09);
+  --edge-strong: rgba(255, 255, 255, 0.16);
+  --ink: #f4f1e6;
+  --ink-2: #cfcbbd;
+  --muted: #94958c;
+  --gold: #e5c469;
+  --gold-dim: #cbbd93;
+  --gold-wash: rgba(229, 196, 105, 0.14);
+  --meadow-a: #cfe0bd;
+  --meadow-b: #a9c691;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --ground: #e7e3d7;
+  --ground-2: #ded9ca;
+  --panel: rgba(252, 250, 244, 0.86);
+  --edge: rgba(40, 34, 20, 0.14);
+  --edge-strong: rgba(40, 34, 20, 0.26);
+  --ink: #1e201c;
+  --ink-2: #3d3f38;
+  --muted: #6b6a5f;
+  --gold: #8a6714;
+  --gold-dim: #7a5c1a;
+  --gold-wash: rgba(138, 103, 20, 0.12);
+  --meadow-a: #dcead0;
+  --meadow-b: #b7d1a1;
+  --shadow: 0 14px 34px rgba(60, 52, 30, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(ellipse 90% 60% at 50% -10%, var(--ground-2), transparent 70%),
+    var(--ground);
+  color: var(--ink);
+  font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-text-size-adjust: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+/* The canvas floats over the layout and draws each card's stage into its
+   own scissor rectangle; it is transparent everywhere else, so the page
+   reads normally through it. */
+#lab-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+main,
+.wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 2.25rem 1.1rem 4rem;
+}
+
+.page-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0 0 2.5rem;
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 6.5vw, 2.9rem);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+}
+
+.page-head p {
+  margin: 0;
+  max-width: 62ch;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* --- section heads ------------------------------------------------------ */
+
+.slot {
+  margin: 0 0 3.25rem;
+  scroll-margin-top: 4.5rem;
+}
+
+.slot-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  margin: 0 0 1.15rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid var(--edge);
+}
+
+.slot-head h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 4.2vw, 1.7rem);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+}
+
+.slot-head p {
+  margin: 0;
+  max-width: 66ch;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* --- cards -------------------------------------------------------------- */
+
+.cards {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: radial-gradient(125% 105% at 50% 12%, var(--meadow-a), var(--meadow-b));
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.stage:active {
+  cursor: grabbing;
+}
+
+.stage .hint {
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.45rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #46523c;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem 1.05rem;
+}
+
+.body h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.fp {
+  flex: none;
+  padding: 0.08rem 0.46rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold-dim);
+  border: 1px solid var(--edge-strong);
+  border-radius: 999px;
+}
+
+.body > p {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.34rem 0.7rem;
+  margin: 0.1rem 0 0;
+}
+
+dt {
+  padding-top: 0.16rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+dd code,
+dd span {
+  padding: 0.1rem 0.36rem;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+}
+
+dd code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--gold);
+  background: var(--gold-wash);
+  border-color: transparent;
+}
+
+dd.made span {
+  font-size: 0.72rem;
+  color: var(--ink-2);
+  background: color-mix(in srgb, currentcolor 7%, transparent);
+}
+
+dd.made .none {
+  color: var(--muted);
+  background: transparent;
+}
+
+/* ?only=<id>: one composition, as large as the page allows. */
+.solo .cards {
+  grid-template-columns: 1fr;
+}
+
+.solo .stage {
+  aspect-ratio: 1 / 1;
+}
+
+/* The recipe eyebrow: the chain is a real sequence, so the arrow is doing
+   work no ornament could. */
+.recipe {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+}
+
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  align-items: baseline;
+  max-width: 74ch;
+  margin: 1rem 0 0;
+  padding: 0.75rem 0.9rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+  background: var(--gold-wash);
+  border-left: 2px solid var(--gold);
+  border-radius: 0 8px 8px 0;
+  text-wrap: pretty;
+}
+
+.pick span {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* The paid pack changes some of these answers; it reads as a note against
+   the recommendation, not as a second recommendation. */
+.extra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  align-items: baseline;
+  max-width: 74ch;
+  margin: 0.5rem 0 0;
+  padding: 0.7rem 0.9rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+  border: 1px dashed var(--edge-strong);
+  border-radius: 8px;
+  text-wrap: pretty;
+}
+
+.extra span {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.close code {
+  padding: 0.08rem 0.34rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82em;
+  color: var(--gold);
+  background: var(--gold-wash);
+  border-radius: 5px;
+}

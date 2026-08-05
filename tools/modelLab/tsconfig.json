@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["vite/client"]
+  },
+  // The browser half only. The vite config and the node scripts beside it
+  // want @types/node, which this project does not install at the root.
+  "include": ["*.ts"],
+  "exclude": ["vite.gallery.config.ts"]
+}
