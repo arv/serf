@@ -1,9 +1,11 @@
 import { Rng } from '../shared/rng.ts';
 import { MAP_SIZE, inBounds, tileIdx } from '../shared/grid.ts';
 import {
+  RESOURCE_CODE,
   Terrain,
   TileResource,
   clearResources,
+  findResourceNear,
   generateMap,
   rectClear,
   resourceBlocks,
@@ -12,7 +14,12 @@ import {
 } from './map.ts';
 import { FIRST_RAID_TICK, START_SERFS, START_STOCK } from './defs/balance.ts';
 import { UNIT_DEFS } from './defs/units.ts';
-import { buildingDef, type BuildingTypeId } from './defs/buildings.ts';
+import {
+  buildingDef,
+  gatherOrigin,
+  gatherRecipeOf,
+  type BuildingTypeId,
+} from './defs/buildings.ts';
 import { dealStrategies, type AiStrategyId } from './defs/aiStrategies.ts';
 import { makeUnit, type Unit } from './units.ts';
 import { nearestWalkable } from './path.ts';
@@ -389,7 +396,7 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
   // else needs flat-ish ground. Corner heights match the renderer's
   // bilinear ground (average of adjacent tiles), so 1x1 footprints on a
   // steep hillside are caught too.
-  if (!def.nearDeposit) {
+  if (!def.mine) {
     const corner = (vx: number, vy: number): number => {
       let sum = 0;
       let n = 0;
@@ -428,34 +435,22 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
   }
   if (!hasDoor) return false;
 
-  // Mines must sit next to their ore seam.
-  if (def.nearDeposit) {
-    const code = DEPOSIT_CODE[def.nearDeposit.resource];
-    const r = def.nearDeposit.radius;
-    const cx = Math.floor(x + def.w / 2);
-    const cy = Math.floor(y + def.h / 2);
-    let found = false;
-    for (let dy = -r; dy <= r && !found; dy++) {
-      for (let dx = -r; dx <= r && !found; dx++) {
-        const px = cx + dx;
-        const py = cy + dy;
-        if (!inBounds(px, py)) continue;
-        const i = tileIdx(px, py);
-        if (map.resource[i] === code && map.buildingAt[i] === -1) found = true;
-      }
+  // A gatherer has to be within reach of something to gather. The mine's
+  // seam is the obvious case, but the woodcutter and the quarry answer to
+  // the same rule: a hut raised out of range of every tree is six wood
+  // spent on a worker who walks out, finds nothing, and comes home — so
+  // the refusal happens here, while it is still a ghost under the cursor,
+  // rather than three minutes later when the wood never arrives. The
+  // search is the worker's own, run from the footprint it would stand on.
+  const gather = gatherRecipeOf(def);
+  if (gather) {
+    const c = gatherOrigin(def, x, y);
+    if (findResourceNear(map, c.x, c.y, RESOURCE_CODE[gather.resource]!, gather.radius) < 0) {
+      return false;
     }
-    if (!found) return false;
   }
   return true;
 }
-
-const DEPOSIT_CODE: Record<string, number> = {
-  wood: TileResource.Wood,
-  rock: TileResource.Rock,
-  ironDep: TileResource.IronDep,
-  silverDep: TileResource.SilverDep,
-  goldDep: TileResource.GoldDep,
-};
 
 /**
  * Kill a unit: marked dead now, removed at end of tick. A carried good dies

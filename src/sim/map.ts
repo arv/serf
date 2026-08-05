@@ -1,6 +1,7 @@
 import { Rng } from '../shared/rng.ts';
 import { MAP_SIZE, TILE_COUNT, edgeDist, inBounds, tileIdx } from '../shared/grid.ts';
 import { hash2 } from '../shared/math.ts';
+import type { TileResourceName } from './defs/buildings.ts';
 
 export const Terrain = { Grass: 0, Water: 1 } as const;
 export type TerrainKind = (typeof Terrain)[keyof typeof Terrain];
@@ -58,6 +59,51 @@ export type MapView = Pick<
 /** Walking resources block movement; ore deposits are walkable rocky ground. */
 export function resourceBlocks(res: number): boolean {
   return res === TileResource.Wood || res === TileResource.Rock;
+}
+
+/** A gather recipe's resource name, as the tile code the map stores. */
+export const RESOURCE_CODE: Record<TileResourceName, TileResourceKind> = {
+  wood: TileResource.Wood,
+  rock: TileResource.Rock,
+  ironDep: TileResource.IronDep,
+  silverDep: TileResource.SilverDep,
+  goldDep: TileResource.GoldDep,
+};
+
+/**
+ * Nearest tile a gatherer can work, searched outward in rings to `radius`.
+ *
+ * This is the search the resident worker runs at the start of every trip —
+ * and, run against a prospective footprint's center, the placement rule that
+ * refuses a woodcutter with no trees in reach. One function, so a hut can
+ * never be legal to build in a spot where its worker would stand idle.
+ *
+ * `resourceAmt` is sim-only (the mirrored MapView carries no amounts), but a
+ * tile worked dry has its resource code cleared as well, so the code alone
+ * answers the question on the render side.
+ */
+export function findResourceNear(
+  map: MapView & { resourceAmt?: ArrayLike<number> },
+  cx: number,
+  cy: number,
+  code: TileResourceKind,
+  radius: number,
+): number {
+  for (let r = 1; r <= radius; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = cx + dx;
+        const y = cy + dy;
+        if (!inBounds(x, y)) continue;
+        const i = tileIdx(x, y);
+        if (map.resource[i] !== code) continue;
+        if (map.resourceAmt && map.resourceAmt[i]! <= 0) continue;
+        return i;
+      }
+    }
+  }
+  return -1;
 }
 
 /** A faction's home: storehouse footprint origin tile. */
