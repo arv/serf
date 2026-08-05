@@ -9,6 +9,7 @@ import { SceneSync } from '../render/sceneSync';
 import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
 import { GhostPlacement } from '../render/ghost';
+import { SelectedReach } from '../render/reachOutline';
 import { FogOfWar } from '../render/fogOfWar';
 import { loadCharacterAssets } from '../render/characters';
 import { loadGlbAssets } from '../render/assets';
@@ -33,6 +34,7 @@ import {
   setTechs,
   speed,
   fogEnabled,
+  placing,
 } from '../ui/store';
 import { WorldMirror } from './mirror';
 import { envelopeSave, splitSave } from './saveEnvelope';
@@ -333,6 +335,7 @@ async function runMatch(
 
   const selectionFx = new SelectionFx(renderer.scene, heights);
   const ghost = new GhostPlacement(renderer.scene, heights, config.myPlayerId);
+  const selectedReach = new SelectedReach(renderer.scene, heights);
   const controls = new Controls(
     canvas,
     renderer.rig.camera,
@@ -427,6 +430,10 @@ async function runMatch(
     controls.updateHoverIfDirty();
     sync.update(now, controls.hoverUnit, controls.selected, speed() === 0, renderer.rig.viewBounds());
     buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
+    // While a new hut is being aimed, the ghost's own outline is the one
+    // that answers the question — two squares over the same ground, in two
+    // colors, would only be read as a conflict.
+    selectedReach.update(placing() ? null : selectedBuilding());
     controls.prune();
     selectionFx.update(controls.selected, sync, now);
     water.update(now);
