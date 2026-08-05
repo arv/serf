@@ -22,6 +22,7 @@ import type { FogQuery } from '../render/fogOfWar';
 import type { HeightField } from '../render/heightField';
 import type { WorldMirror } from '../app/mirror';
 import type { SimHost } from '../app/simHost';
+import type { BuildingSnap } from '../protocol/messages';
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
@@ -43,9 +44,10 @@ const MILITARY_CODES = new Set(
  *
  * Touch speaks selection-first, like every phone RTS: tap a unit to select,
  * then tap the ground to send the selection there (an order pulse + a tick
- * of haptics confirm it). The HUD's marquee button arms a one-shot band
- * select — the next finger drag draws the band while the camera holds
- * still — and its army button grabs every soldier at once.
+ * of haptics confirm it) — though a tap on one of your own buildings opens
+ * that building instead of marching onto it. The HUD's marquee button arms
+ * a one-shot band select — the next finger drag draws the band while the
+ * camera holds still — and its army button grabs every soldier at once.
  */
 export class Controls {
   #canvas: HTMLCanvasElement;
@@ -406,9 +408,17 @@ export class Controls {
   };
 
   /**
-   * The touch grammar: tap a unit to select it; with a selection standing,
-   * tap the ground (or a foe) to send them there; with nothing selected a
-   * tap opens your building underneath, or clears the panel.
+   * The touch grammar: tap a unit to select it; tap one of your buildings to
+   * open its panel; otherwise, with a selection standing, tap the ground (or
+   * a foe) to send them there. Empty ground with nothing selected clears.
+   *
+   * Your own buildings outrank the move order on purpose. A finger has one
+   * gesture, so while a selection stood, a tap on the brewery marched them
+   * over instead of opening it — and with the village built up, that left
+   * the panels reachable only by deselecting first. Nothing is lost: a
+   * building's tiles are blocked, so that order only ever walked them to
+   * the free ground beside it, which is exactly what tapping beside it
+   * does. Foreign buildings stay an order, so an enemy camp still raids.
    */
   #touchTap(px: number, py: number): void {
     const unitId = this.#unitAt(px, py);
@@ -417,11 +427,17 @@ export class Controls {
       this.#setSel(new Set([unitId]));
       return;
     }
+    const building = this.#ownBuildingAt(px, py);
+    if (building) {
+      this.#setSel(new Set());
+      setSelectedBuilding(building);
+      return;
+    }
     if (this.#selection.size > 0) {
       this.#issueMove(px, py);
       return;
     }
-    this.#selectAtPoint(px, py, false); // building panel, or clears it
+    this.deselectAll();
   }
 
   /** Run the deferred hover scan, if the pointer moved since last frame. */
@@ -502,23 +518,27 @@ export class Controls {
     return bestId;
   }
 
+  /** The building of yours under a screen point, or null. */
+  #ownBuildingAt(px: number, py: number): BuildingSnap | null {
+    const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
+    if (!ground) return null;
+    const tx = Math.floor(ground.x);
+    const ty = Math.floor(ground.z);
+    if (!inBounds(tx, ty)) return null;
+    const bId = this.#mirror.map.buildingAt[tileIdx(tx, ty)]!;
+    const snap = bId >= 0 ? this.#mirror.buildings.get(bId) : undefined;
+    return snap && snap.owner === myPlayerId() ? snap : null;
+  }
+
   #selectAtPoint(px: number, py: number, additive: boolean): void {
     const bestId = this.#unitAt(px, py);
     if (bestId < 0 && !additive) {
       // No unit under the cursor — try a building.
-      const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
-      if (ground) {
-        const tx = Math.floor(ground.x);
-        const ty = Math.floor(ground.z);
-        if (inBounds(tx, ty)) {
-          const bId = this.#mirror.map.buildingAt[tileIdx(tx, ty)]!;
-          const snap = bId >= 0 ? this.#mirror.buildings.get(bId) : undefined;
-          if (snap && snap.owner === myPlayerId()) {
-            this.#setSel(new Set());
-            setSelectedBuilding(snap);
-            return;
-          }
-        }
+      const snap = this.#ownBuildingAt(px, py);
+      if (snap) {
+        this.#setSel(new Set());
+        setSelectedBuilding(snap);
+        return;
       }
     }
     setSelectedBuilding(null);
