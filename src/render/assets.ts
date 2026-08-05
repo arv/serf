@@ -20,6 +20,7 @@ const DIR = '/models/kaykit/';
  */
 const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   storehouse: 'building_castle_green.gltf',
+  house: 'building_home_A_green.gltf',
   woodcutter: 'building_lumbermill_green.gltf',
   quarry: 'building_mine_green.gltf',
   well: 'building_well_green.gltf',

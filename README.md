@@ -20,6 +20,11 @@ pnpm dev
 - **Chains**: wells feed wheat farms; iron + wood become weapons at the
   smiths; wheat + weapons train soldiers at the barracks; wheat + water become
   ale, and ale delivered to the abbey throws festivals (+25% work speed).
+- **Population**: the HUD counts every person you own — idle serfs, the
+  workers inside your buildings, and your soldiers, since each one was a serf
+  first. The castle sleeps 10 and you start with 8, so growth needs **houses**:
+  10 more beds each, and a hire is refused while every bed is taken. Building
+  wide and mustering an army compete for the same roofs.
 - **Tech**: build an Abbey and research across Agriculture / Craft / Warfare.
   Unlocks are real strategic forks — Ironworking opens the sword economy,
   Archery opens the bow line, Masonry paves your roads.

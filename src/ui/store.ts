@@ -37,6 +37,16 @@ export const [netStatus, setNetStatus] = createSignal<
 /** Storehouse stock — the HUD resource bar. */
 export const [stock, setStock] = createSignal<GoodAmounts>({});
 
+/**
+ * Heads and beds — the HUD's population readout. `pop` is every living
+ * person this seat owns (serfs, resident workers, soldiers alike); `cap` is
+ * the castle's ten plus ten for every finished house.
+ */
+export const [population, setPopulation] = createSignal<{ pop: number; cap: number }>({
+  pop: 0,
+  cap: 0,
+});
+
 /** Active build-menu placement mode (null = normal selection). */
 export const [placing, setPlacing] = createSignal<BuildingTypeId | null>(null);
 

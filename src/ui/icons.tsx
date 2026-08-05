@@ -185,6 +185,16 @@ export function SwordsIcon() {
   );
 }
 
+/** A head and shoulders: the population readout's glyph. */
+export function PopIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
+      <circle cx="8" cy="5.4" r="3" fill="currentColor" />
+      <path d="M2.6 14.4a5.4 5.4 0 0 1 10.8 0Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 /** The builder's mallet, for the build menu. */
 export function MalletIcon() {
   return (

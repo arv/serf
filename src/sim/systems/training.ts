@@ -3,6 +3,7 @@ import { UNIT_DEFS } from '../defs/units.ts';
 import { getModifier, isUnitUnlocked } from '../techHelpers.ts';
 import { HIRE_SERF_TICKS, TRAIN_QUEUE_CAP } from '../defs/balance.ts';
 import { spawnUnit, type World } from '../world.ts';
+import { popCapOf, populationOf } from '../population.ts';
 import { nearestWalkable } from '../path.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
 import type { GoodId } from '../defs/goods.ts';
@@ -42,12 +43,18 @@ export function trainingSystem(world: World): void {
  * Hiring. Silver bought the recruit at the moment the order was placed
  * (see the hireSerf command); this walks the queue down and puts them at
  * the storehouse door, one every HIRE_SERF_TICKS.
+ *
+ * The hire order checked for a free bed, but the walk takes eight seconds
+ * and a house can burn down inside it. A recruit who arrives to no room
+ * waits at the gate — timer spent, still queued — and moves in the instant
+ * one opens. Silver already paid is never quietly eaten.
  */
 export function hiringSystem(world: World): void {
   for (const b of world.buildings.values()) {
     if (b.dead || b.state !== 'built' || !b.hireQueue) continue;
-    b.hireTicksLeft = (b.hireTicksLeft ?? HIRE_SERF_TICKS) - 1;
+    b.hireTicksLeft = Math.max(0, (b.hireTicksLeft ?? HIRE_SERF_TICKS) - 1);
     if (b.hireTicksLeft > 0) continue;
+    if (populationOf(world, b.owner) >= popCapOf(world, b.owner)) continue; // no bed yet
     const door = doorOf(world, b);
     spawnUnit(world, 'serf', b.owner, door.x, door.y);
     b.hireQueue--;

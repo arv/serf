@@ -61,6 +61,17 @@ export interface AiStrategy {
   survivalFloor: number;
   /** Growth waits on this tech (null hires from the first beat). */
   growthAfter: TechId | null;
+  /**
+   * Housing top-up. The plan's own `house` steps carry the opening; this is
+   * the standing rule for a match that outruns them, since every soldier
+   * trained is another head under the cap. On a beat the build order had
+   * nothing to place, a seat with fewer than this many beds standing empty
+   * lays another house — counting sites, so it orders one at a time.
+   */
+  housingHeadroom: number;
+  /** Ceiling on houses, the plan's own included. Past this the seat grows
+   * by winning rather than by building. */
+  houseLimit: number;
 
   // — War —
   /** Forge assignment by smith age: recipeOptions index [spear, sword, bow].
@@ -94,6 +105,11 @@ const STEWARD_BUILD: BuildStep[] = [
     more: { after: 'ironworking', count: 2 },
   },
   { type: 'quarry', count: 1, anchor: 'rock', radius: 6 },
+  // Beds, third. The castle sleeps ten and the village starts with eight,
+  // so the opening's hiring is throttled to two hands until a roof goes
+  // up — but the axe and the pick have to come first or there is nothing
+  // to build it with.
+  { type: 'house', count: 1, anchor: 'base', more: { after: 'ironworking', count: 2 } },
   { type: 'abbey', count: 1, anchor: 'base' },
   // Silver before the barracks: the pool starts lean, so replacement hands
   // are bought — and research, weapons and hiring all drain the same purse.
@@ -120,6 +136,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     serfTarget: 8,
     survivalFloor: 3,
     growthAfter: 'soldiery',
+    housingHeadroom: 3,
+    houseLimit: 4,
     weaponMix: [1, 0], // first smith on swords, the rest on spears
     trainPreference: ['knight'],
     trainFallback: 'spearman',
@@ -144,6 +162,9 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         more: { after: 'ironworking', count: 2 },
       },
       { type: 'quarry', count: 1, anchor: 'rock', radius: 6 },
+      // Beds third, as the campaign line has them: the axe and the pick
+      // first, then the roof that lets the village grow past ten.
+      { type: 'house', count: 1, anchor: 'base', more: { after: 'ironworking', count: 2 } },
       { type: 'abbey', count: 1, anchor: 'base' },
       { type: 'silverMine', count: 1, anchor: 'silver', radius: 4 },
       { type: 'barracks', count: 1, anchor: 'base', after: 'soldiery' },
@@ -160,6 +181,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     serfTarget: 9,
     survivalFloor: 3,
     growthAfter: null,
+    housingHeadroom: 3,
+    houseLimit: 4,
     weaponMix: [1], // every forge on swords: knights or nothing
     trainPreference: ['knight'],
     trainFallback: 'spearman',
@@ -184,6 +207,9 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         more: { after: 'ironworking', count: 2 },
       },
       { type: 'quarry', count: 1, anchor: 'rock', radius: 6 },
+      // Beds third, as the campaign line has them: the axe and the pick
+      // first, then the roof that lets the village grow past ten.
+      { type: 'house', count: 1, anchor: 'base', more: { after: 'ironworking', count: 2 } },
       { type: 'abbey', count: 1, anchor: 'base' },
       { type: 'silverMine', count: 1, anchor: 'silver', radius: 4 },
       { type: 'barracks', count: 1, anchor: 'base', after: 'soldiery' },
@@ -202,6 +228,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     serfTarget: 12,
     survivalFloor: 3,
     growthAfter: null,
+    housingHeadroom: 4,
+    houseLimit: 5,
     weaponMix: [1, 0],
     trainPreference: ['knight', 'spearman'],
     trainFallback: 'spearman',
@@ -226,6 +254,9 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         more: { after: 'archery', count: 2 },
       },
       { type: 'quarry', count: 1, anchor: 'rock', radius: 6 },
+      // Beds third, as the campaign line has them: the axe and the pick
+      // first, then the roof that lets the village grow past ten.
+      { type: 'house', count: 1, anchor: 'base', more: { after: 'archery', count: 2 } },
       { type: 'abbey', count: 1, anchor: 'base' },
       { type: 'silverMine', count: 1, anchor: 'silver', radius: 4 },
       { type: 'barracks', count: 1, anchor: 'base', after: 'soldiery' },
@@ -240,6 +271,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     serfTarget: 9,
     survivalFloor: 3,
     growthAfter: 'soldiery',
+    housingHeadroom: 3,
+    houseLimit: 4,
     weaponMix: [2], // every forge on bowstaves
     // The two spears in the armory arm the first pair of defenders; after
     // that the queue waits on bows, since no iron chain is coming.

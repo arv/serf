@@ -4,6 +4,7 @@ import { BUILDING_DEFS, buildingDef, type BuildingTypeId } from '../defs/buildin
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, type UnitTypeId } from '../defs/units.ts';
 import { HIRE_SERF_COST } from '../defs/balance.ts';
+import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
 import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
 import { canPlace, type World } from '../world.ts';
 import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
@@ -105,6 +106,11 @@ export class AiBrain {
     const countOf = (type: BuildingTypeId): number => mine.filter((b) => b.type === type).length;
 
     // --- Build order: desired counts vs standing counts (rebuilds losses) ---
+    // Housing is in here, as steps like any other: a playbook decides for
+    // itself when in the plan it stops to raise a roof. Ordering matters —
+    // an opening that lays a house before the woodcutter spends the whole
+    // starting woodpile on beds it has nobody to fill, and never recovers.
+    let placed = false;
     for (const step of s.build) {
       if (step.after && !researched(step.after)) continue;
       if (step.needs && !has(step.needs)) continue;
@@ -112,12 +118,30 @@ export class AiBrain {
       if (countOf(step.type) >= desired) continue;
       const spot = spotFor(world, step, baseX, baseY);
       if (!spot) continue;
-      const cost = BUILDING_DEFS[step.type].cost as Record<string, number>;
-      const ok = Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
-      if (ok) {
+      if (affordable(BUILDING_DEFS[step.type].cost as Record<string, number>, stock)) {
         commands.push({ kind: 'placeBuilding', building: step.type, x: spot.x, y: spot.y });
+        placed = true;
         break; // one placement per decision to keep hauling focused
       }
+    }
+
+    // --- Housing: the roofs the plan did not foresee -------------------------
+    // A build order names a fixed number of houses, but a match that runs
+    // long fills them: every soldier the barracks turns out is another head
+    // under the cap, and a seat that hits it stops replacing its dead. This
+    // is the standing top-up — only on a beat the plan had nothing to place,
+    // and only once the village is nearly full, so it never competes with
+    // the opening. Sites count toward the planned cap, so it lays one house
+    // at a time rather than four on the beat the last bed fills.
+    if (
+      !placed &&
+      countOf('house') < s.houseLimit &&
+      plannedPopCapOf(world, this.playerId) - populationOf(world, this.playerId) <
+        s.housingHeadroom &&
+      affordable(BUILDING_DEFS.house.cost as Record<string, number>, stock)
+    ) {
+      const spot = findSpot(world, 'house', baseX, baseY);
+      if (spot) commands.push({ kind: 'placeBuilding', building: 'house', x: spot.x, y: spot.y });
     }
 
     // --- Population: keep loose serfs around ---------------------------------
@@ -127,9 +151,14 @@ export class AiBrain {
     }
     const researchPending = s.researchOrder.some((id) => !techs.researched.includes(id));
     const growing = s.growthAfter === null || researched(s.growthAfter);
-    if (serfCount < s.survivalFloor && (stock.silver ?? 0) >= HIRE_SERF_COST) {
+    // Even the panic floor cannot conjure a bed. Asking anyway is harmless —
+    // the sim refuses it — but a seat that knows it is full spends the beat
+    // on the housing rule above instead of on an order that goes nowhere.
+    const room = hasRoomToHire(world, this.playerId);
+    if (room && serfCount < s.survivalFloor && (stock.silver ?? 0) >= HIRE_SERF_COST) {
       commands.push({ kind: 'hireSerf' });
     } else if (
+      room &&
       growing &&
       serfCount < s.serfTarget &&
       (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? s.researchReserve : 0)
@@ -247,6 +276,11 @@ export function mustersNeeded(armyAttackSize: number, idleFor: number): number {
   if (idleFor <= staleAfter) return armyAttackSize;
   const impatience = Math.floor((idleFor - staleAfter) / stalePeriod) + 1;
   return Math.max(staleFloor, armyAttackSize - impatience);
+}
+
+/** Is every line of this cost sitting in the storehouse? */
+function affordable(cost: Record<string, number>, stock: Record<string, number>): boolean {
+  return Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
 }
 
 function ownedBuildings(world: World, owner: Owner): Building[] {

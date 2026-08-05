@@ -11,7 +11,15 @@ import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
 import { TextTip, TipWrap, UnitTip } from './tooltip';
-import { myPlayerId, selectedBuilding, selection, setTechPanelOpen, stock, techs } from './store';
+import {
+  myPlayerId,
+  population,
+  selectedBuilding,
+  selection,
+  setTechPanelOpen,
+  stock,
+  techs,
+} from './store';
 
 import { buildingName, goodName, techName, unitName } from './names';
 
@@ -52,6 +60,18 @@ export function SelectionPanel(props: {
   onTogglePause: (buildingId: number, paused: boolean) => void;
   onSetRecipe: (buildingId: number, index: number) => void;
 }) {
+  /**
+   * No bed free, so a recruit has nowhere to walk in to. Advisory — the sim
+   * refuses the order too, this only stops the button lying.
+   *
+   * `queued` is what keeps it honest: a recruit who is paid for and still
+   * walking holds a bed the head count cannot see yet, and the sim's gate
+   * (hasRoomToHire) counts them. Without it the last bed reads free for the
+   * eight seconds of the walk, and the click goes nowhere. The castle's own
+   * queue is the whole of it — hiring always goes to the storehouse, and a
+   * seat has exactly one.
+   */
+  const noRoom = (queued = 0): boolean => population().pop + queued >= population().cap;
   return (
     <>
       <Show when={selectedBuilding()}>
@@ -240,16 +260,21 @@ export function SelectionPanel(props: {
                     tip={() => (
                       <TextTip
                         title="Hire Serf"
-                        body={`Word goes out to the next village; the recruit walks in after about ${Math.round(
-                          HIRE_SERF_TICKS / TICKS_PER_SECOND,
-                        )} seconds. Costs ${HIRE_SERF_COST} silver, paid when you order.`}
+                        body={
+                          noRoom(b().hireQueue ?? 0)
+                            ? 'Every bed in the village is taken — counting the recruits already walking in, who each need one on arrival. Build a house; each sleeps ten.'
+                            : `Word goes out to the next village; the recruit walks in after about ${Math.round(
+                                HIRE_SERF_TICKS / TICKS_PER_SECOND,
+                              )} seconds. Costs ${HIRE_SERF_COST} silver, paid when you order.`
+                        }
                       />
                     )}
                   >
                     <button
                       disabled={
                         (stock().silver ?? 0) < HIRE_SERF_COST ||
-                        (b().hireQueue ?? 0) >= HIRE_QUEUE_CAP
+                        (b().hireQueue ?? 0) >= HIRE_QUEUE_CAP ||
+                        noRoom(b().hireQueue ?? 0)
                       }
                       onClick={() => props.onHire()}
                       style={{ position: 'relative', overflow: 'hidden' }}

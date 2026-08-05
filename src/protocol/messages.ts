@@ -22,6 +22,10 @@ export interface PlayerSnap {
   /** This player's storehouse stock ({} once eliminated). */
   stock: GoodAmounts;
   techs: TechSnap;
+  /** Living people this seat owns — serfs, workers and soldiers alike. */
+  pop: number;
+  /** Beds standing: the castle's ten plus ten per finished house. */
+  popCap: number;
 }
 
 export type OutcomeSnap = { state: 'playing' } | { state: 'over'; winner: Owner | null };

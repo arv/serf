@@ -3,6 +3,8 @@ import { createWorld, type World, type WorldConfig } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
 import { serializeWorld, deserializeWorld } from './save.ts';
 import { AiBrain, mustersNeeded } from './systems/ai.ts';
+import { popCapOf, populationOf } from './population.ts';
+import { BUILDING_DEFS } from './defs/buildings.ts';
 import {
   AI_STRATEGIES,
   AI_STRATEGY_ORDER,
@@ -64,6 +66,23 @@ describe('the AI playbooks', () => {
         state: 'over',
         winner: 0,
       });
+    }
+  }, 240_000);
+
+  it('every playbook raises roofs, and outgrows the castle it started under', () => {
+    for (const id of IDS) {
+      const world = playCampaign(id, 12_000);
+      const houses = [...world.buildings.values()].filter(
+        (b) => !b.dead && b.owner === 0 && b.type === 'house',
+      );
+      expect(houses.length, `${id} built no house`).toBeGreaterThan(0);
+      // A plan that only ever builds beds is no better than one that builds
+      // none: what the housing is for is a village bigger than ten.
+      expect(populationOf(world, 0), `${id} never outgrew the castle`).toBeGreaterThan(
+        BUILDING_DEFS.storehouse.housing!,
+      );
+      // And it never sneaks past its own ceiling.
+      expect(populationOf(world, 0)).toBeLessThanOrEqual(popCapOf(world, 0));
     }
   }, 240_000);
 

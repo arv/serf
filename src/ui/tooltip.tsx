@@ -238,6 +238,7 @@ function recipeText(recipe: Recipe): string {
 const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
   abbey: 'Monks research the tech tree here; delivered ale throws work-speed festivals.',
   barracks: 'Trains knights, spearmen, and archers from wheat and forged weapons.',
+  house: 'Sleeps ten more villagers. Nobody lives here yet — beds are what let you hire.',
   storehouse: 'The heart of the village. All goods flow here — lose it and all is lost.',
 };
 

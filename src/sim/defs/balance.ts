@@ -60,9 +60,13 @@ export const FESTIVAL_DURATION = 60 * TICKS_PER_SECOND;
 export const ABBEY_ALE_CAP = 2;
 
 // Raids — paced for the population economy's slower ramp (staffing every
-// building and mustering an army both consume people).
-export const FIRST_RAID_TICK = 420 * TICKS_PER_SECOND; // 7 minutes of peace
-export const RAID_INTERVAL = 150 * TICKS_PER_SECOND;
+// building and mustering an army both consume people). Stretched by a fifth
+// when housing became a gate on that ramp: the castle sleeps ten, so the
+// first raid now has to wait out a house as well as a barracks. At the old
+// seven minutes every playbook met the first wave a squad short and the
+// campaign stopped being winnable.
+export const FIRST_RAID_TICK = 540 * TICKS_PER_SECOND; // 9 minutes of peace
+export const RAID_INTERVAL = 180 * TICKS_PER_SECOND;
 export const RAID_CAP = 8;
 
 // Training
