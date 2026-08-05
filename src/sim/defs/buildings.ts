@@ -82,6 +82,7 @@ export type BuildingTypeId =
   | 'wheatFarm'
   | 'mill'
   | 'bakery'
+  | 'henYard'
   | 'brewery'
   | 'ironMine'
   | 'silverMine'
@@ -221,6 +222,23 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       outputs: { food: 2 },
       durationTicks: 12 * S,
     },
+  },
+  henYard: {
+    id: 'henYard',
+    name: 'Hen Yard',
+    w: 3,
+    h: 3,
+    cost: { wood: 10, stone: 2 },
+    buildTicks: 18 * S,
+    hp: 140,
+    sight: 5.5,
+    workerKind: 'worker',
+    // The short path to food, against the mill-and-bakery's long one: one
+    // building and one hand instead of two of each, at half the food per
+    // grain. It also wants ground — 3x3 for what the bakery does in 2x2 —
+    // so the choice between them is bread in a tight village against birds
+    // on land you have to spare.
+    recipe: { kind: 'convert', inputs: { wheat: 1 }, outputs: { food: 1 }, durationTicks: 13 * S },
   },
   brewery: {
     id: 'brewery',

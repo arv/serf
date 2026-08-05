@@ -73,3 +73,74 @@ export function makeBakeOven(h = 0.62): THREE.Group {
   }
   return g;
 }
+
+/**
+ * A hen. Two spheres, a beak, a comb and a pair of legs — at village zoom
+ * that is every feature the eye actually resolves, and anything more would
+ * be geometry nobody sees.
+ *
+ * `h` is height in unit-square units. The hens are the whole reason the hen
+ * yard reads as husbandry rather than as a shed with a fence, so they sit
+ * where the camera looks: in front of the awning, not behind it.
+ */
+export function makeHen(h = 0.1, facing = 0): THREE.Group {
+  const g = new THREE.Group();
+  const body = part(new THREE.SphereGeometry(h * 0.3, 7, 5), palette.paper);
+  body.scale.set(1.2, 1, 0.95);
+  body.position.y = h * 0.46;
+  g.add(body);
+
+  const head = part(new THREE.SphereGeometry(h * 0.17, 6, 5), palette.paper);
+  head.position.set(h * 0.26, h * 0.72, 0);
+  g.add(head);
+
+  const beak = part(new THREE.ConeGeometry(h * 0.06, h * 0.12, 4), palette.lantern);
+  beak.rotation.z = -Math.PI / 2;
+  beak.position.set(h * 0.45, h * 0.7, 0);
+  g.add(beak);
+
+  const comb = part(new THREE.BoxGeometry(h * 0.05, h * 0.1, h * 0.04), palette.vermillion);
+  comb.position.set(h * 0.24, h * 0.88, 0);
+  g.add(comb);
+
+  const tail = part(new THREE.ConeGeometry(h * 0.16, h * 0.24, 4), palette.paper);
+  tail.rotation.z = Math.PI / 2.4;
+  tail.scale.set(1, 1, 0.5);
+  tail.position.set(-h * 0.36, h * 0.6, 0);
+  g.add(tail);
+
+  for (const sz of [-0.09, 0.09]) {
+    const leg = part(new THREE.BoxGeometry(h * 0.04, h * 0.22, h * 0.04), palette.lantern);
+    leg.position.set(0, h * 0.11, h * sz);
+    g.add(leg);
+  }
+  g.rotation.y = facing;
+  return g;
+}
+
+/** The hen yard's flock, scattered across the pen the stables enclose. */
+export function makeFlock(): THREE.Group {
+  const g = new THREE.Group();
+  // Hand-placed rather than random: the sim is deterministic and the decor
+  // is built once per template, so a seeded scatter would buy nothing but
+  // a worse arrangement.
+  const spots: [number, number, number, number][] = [
+    [-0.04, 0.32, 1.2, 0.13],
+    [-0.28, 0.22, 2.7, 0.115],
+    [0.16, 0.16, 4.3, 0.12],
+    [-0.18, 0.42, 0.4, 0.11],
+    [0.24, 0.36, 5.4, 0.125],
+  ];
+  for (const [x, z, r, h] of spots) {
+    const hen = makeHen(h, r);
+    hen.position.set(x, 0, z);
+    g.add(hen);
+  }
+  // Scattered feed, so the flock reads as feeding rather than standing.
+  for (let i = 0; i < 8; i++) {
+    const grain = part(new THREE.BoxGeometry(0.012, 0.005, 0.012), palette.stalkOld);
+    grain.position.set(-0.22 + (i % 4) * 0.07, 0.003, 0.2 + Math.floor(i / 4) * 0.1);
+    g.add(grain);
+  }
+  return g;
+}

@@ -51,8 +51,8 @@ const SLOTS: Slot[] = [
     name: 'Livestock',
     recipe: 'wheat → food',
     sub: 'No pack has animals for this — mine are hand-built in all four. What differs is how much of the pen comes for free, and the EXTRA stables come with their own fence, hay and awning.',
-    pick: 'Stables, now that they are here: it is the only option with no fencing run to lay by hand, and the shed reads as husbandry rather than storage. The hen yard stays the cheaper early building if livestock ends up tiered.',
-    extra: 'The stables are in. The herd is not — EXTRA’s sheep and cattle live in a folder we have not seen yet, and they would be better animals than mine. The hens have no equivalent there and stay hand-built either way.',
+    pick: 'Built, and it is the two combined: the EXTRA stables for the shed and its own rail fence, with hens in the pen. Wheat goes in, food comes out — one building and one hand, against the mill and bakery’s two of each, at half the food per grain. Bread for a tight village; birds for land you can spare.',
+    extra: 'The stables are in. There are no animals in any KayKit pack — no sheep, no cattle — so the hens are ours, and were always going to be.',
   },
   {
     slot: 'goods',
