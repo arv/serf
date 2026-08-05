@@ -1,4 +1,5 @@
 import { For, Index, Show, createSignal, onCleanup, onMount } from 'solid-js';
+import { createStore, reconcile } from 'solid-js/store';
 import { BUILD_LABEL } from '../app/buildInfo';
 import { clearSeatStash, relayUrl, type CouncilRequest } from '../net/lobbyClient';
 import { DiceIcon } from './menuChrome';
@@ -137,7 +138,20 @@ export function StartMenu(props: StartMenuProps) {
   const [room, setRoom] = createSignal('');
   const [vis, setVis] = createSignal<Visibility>('open');
   const [picked, setPicked] = createSignal<string | null>(null);
-  const [rooms, setRooms] = createSignal<OpenRoom[]>([]);
+  /**
+   * The open rooms, as a store rather than a signal. The poll answers with
+   * a whole new list every three seconds, and a plain signal made every one
+   * of those a fresh array of fresh objects — so <For>, which keys on
+   * identity, rebuilt every row. Rows that rebuild under the cursor cannot
+   * be clicked reliably, lose keyboard focus, and drop the list's scroll
+   * position; the visible flicker was only the symptom.
+   *
+   * reconcile keyed on the room code diffs the answer against what is
+   * already there: an unchanged room keeps its DOM node, a room whose seats
+   * filled updates that text in place, and only rooms that actually came or
+   * went touch the list.
+   */
+  const [rooms, setRooms] = createStore<OpenRoom[]>([]);
   const [loadingRooms, setLoadingRooms] = createSignal(false);
   // The service worker keeps the shell and the models on disk, so a cold
   // launch with no network still reaches this menu — and single player,
@@ -167,7 +181,7 @@ export function StartMenu(props: StartMenuProps) {
     inFlight = true;
     setLoadingRooms(true);
     const found = await listRooms();
-    setRooms(found);
+    setRooms(reconcile(found, { key: 'code' }));
     // A room that filled up or started while selected can no longer be joined.
     const still = found.find((r) => r.code === picked());
     if (picked() && (!still || still.filled >= still.total)) setPicked(null);
@@ -320,7 +334,7 @@ export function StartMenu(props: StartMenuProps) {
                   <div class="browser-head">
                     <div style="display:flex;align-items:baseline;gap:8px">
                       <span class="row-label">Open rooms</span>
-                      <span class="count">{rooms().length} open</span>
+                      <span class="count">{rooms.length} open</span>
                     </div>
                     <button
                       class="icon-btn"
@@ -335,15 +349,20 @@ export function StartMenu(props: StartMenuProps) {
                     </button>
                   </div>
 
-                  <Show when={loadingRooms() && rooms().length === 0}>
+                  <Show when={loadingRooms() && rooms.length === 0}>
                     <div class="browser-load">Looking for open rooms…</div>
                   </Show>
 
-                  <Show when={rooms().length > 0}>
+                  <Show when={rooms.length > 0}>
                     <div class="room-list">
-                      <For each={rooms()}>
+                      <For each={rooms}>
                         {(r) => {
                           const full = (): boolean => r.filled >= r.total;
+                          // Index, not For: a pip is a seat, and a seat
+                          // being taken should light the pip already there
+                          // rather than rebuild the row's dots.
+                          const pips = (): boolean[] =>
+                            Array.from({ length: r.total }, (_, i) => i < r.filled);
                           return (
                             <button
                               class={`room ${picked() === r.code ? 'on' : ''}`}
@@ -363,9 +382,9 @@ export function StartMenu(props: StartMenuProps) {
                                 </span>
                               </span>
                               <span class="pips">
-                                <For each={Array.from({ length: r.total }, (_, i) => i < r.filled)}>
-                                  {(on) => <span class={on ? 'filled' : ''} />}
-                                </For>
+                                <Index each={pips()}>
+                                  {(on) => <span class={on() ? 'filled' : ''} />}
+                                </Index>
                               </span>
                             </button>
                           );
@@ -374,7 +393,7 @@ export function StartMenu(props: StartMenuProps) {
                     </div>
                   </Show>
 
-                  <Show when={!loadingRooms() && rooms().length === 0}>
+                  <Show when={!loadingRooms() && rooms.length === 0}>
                     <div class="browser-none">
                       <div class="t">No open rooms right now</div>
                       <div class="s">Host one, or join a private room with its code.</div>
