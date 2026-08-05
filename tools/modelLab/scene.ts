@@ -18,7 +18,15 @@ const WATER = 0x2f7e96;
 const EARTH = 0x8d7146;
 
 export function makeRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer {
-  const r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  // preserveDrawingBuffer: the viewer blits this canvas into each card's 2D
+  // canvas right after rendering, and without it the buffer may already be
+  // cleared by the time drawImage reads it.
+  const r = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: true,
+    preserveDrawingBuffer: true,
+  });
   r.setClearColor(0x000000, 0);
   r.shadowMap.enabled = true;
   r.shadowMap.type = THREE.PCFShadowMap;

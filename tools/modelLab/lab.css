@@ -105,22 +105,9 @@ body {
   outline-offset: 3px;
 }
 
-/* The canvas floats over the layout and draws each card's stage into its
-   own scissor rectangle; it is transparent everywhere else, so the page
-   reads normally through it. */
-#lab-canvas {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 3;
-}
-
 main,
 .wrap {
   position: relative;
-  z-index: 1;
   max-width: 1120px;
   margin: 0 auto;
   padding: 2.25rem 1.1rem 4rem;
@@ -212,6 +199,17 @@ main,
 
 .stage:active {
   cursor: grabbing;
+}
+
+/* Each card owns its picture: the shared WebGL context renders offscreen
+   and the result is blitted here, so nothing depends on the page's height
+   or on how the document scrolls. */
+.stage .shot {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .stage .hint {
@@ -398,4 +396,15 @@ dd.made .none {
   color: var(--gold);
   background: var(--gold-wash);
   border-radius: 5px;
+}
+
+/* Loud on failure rather than blank: the page says what went wrong. */
+.lab-error {
+  margin: 0 0 1.5rem;
+  padding: 0.85rem 1rem;
+  font-size: 0.92rem;
+  color: var(--ink);
+  background: color-mix(in srgb, #d22227 16%, transparent);
+  border: 1px solid color-mix(in srgb, #d22227 45%, transparent);
+  border-radius: 8px;
 }
