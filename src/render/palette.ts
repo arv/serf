@@ -63,4 +63,6 @@ export const goodColors: Record<GoodId, number> = {
   spear: 0xb08d57,
   bow: 0x9a7b4f,
   ale: 0xefe8f0,
+  flour: 0xe9e2d4,
+  food: 0xd9a860,
 };

@@ -55,7 +55,7 @@ describe('the population economy', () => {
 
   it('training a soldier consumes a serf (people become the army)', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wheat: 6, spear: 2 });
+    addStorehouse(world, 30, 30, { food: 6, spear: 2 });
     world.players[0]!.techs.researched.push('soldiery');
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);

@@ -48,6 +48,8 @@ const GOOD_NAMES: Record<GoodId, string> = {
   spear: 'Spear',
   bow: 'Bow',
   ale: 'Ale',
+  flour: 'Flour',
+  food: 'Food',
 };
 
 export function goodName(good: GoodId): string {

@@ -20,7 +20,12 @@ export const START_SERFS = 8;
 export const START_STOCK: GoodAmounts = {
   wood: 36,
   stone: 15,
+  // Wheat is for the scholars and the brewer now; the bread the opening's
+  // defenders eat is already baked, the same way their spears are already
+  // forged. Without it a Soldiery rush would have to stand up the whole
+  // mill-and-bakery chain before it could field anyone at all.
   wheat: 12,
+  food: 8,
   silver: 20,
   spear: 2,
   sword: 1,

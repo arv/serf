@@ -50,9 +50,9 @@ describe('the counter triangle', () => {
 });
 
 describe('barracks training', () => {
-  it('trains a knight from hauled wheat + sword', () => {
+  it('trains a knight from hauled food + sword', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wheat: 10, sword: 2 });
+    addStorehouse(world, 30, 30, { food: 10, sword: 2 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'knight' }));
@@ -67,7 +67,7 @@ describe('barracks training', () => {
 
   it('gates gated units until their tech lands', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wheat: 10, bow: 2 });
+    addStorehouse(world, 30, 30, { food: 10, bow: 2 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'archer' }));
     expect(barracks.trainQueue ?? []).toEqual([]);
@@ -79,7 +79,7 @@ describe('barracks training', () => {
 
   it('a stuck head does not block trainable units behind it (skip-ahead)', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wheat: 10, spear: 2 }); // spear, but no sword
+    addStorehouse(world, 30, 30, { food: 10, spear: 2 }); // spear, but no sword
     world.players[0]!.techs.researched.push('soldiery');
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
@@ -95,7 +95,7 @@ describe('barracks training', () => {
 
   it('applies militaryHp modifiers at spawn', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wheat: 10, spear: 2 });
+    addStorehouse(world, 30, 30, { food: 10, spear: 2 });
     world.players[0]!.techs.researched.push('soldiery', 'mailArmor');
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);

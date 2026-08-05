@@ -19,6 +19,8 @@ const GOOD_HEX: Record<GoodId, string> = {
   spear: '#c39c62',
   bow: '#b08d57',
   ale: '#d2963c',
+  flour: '#e4dcc9',
+  food: '#d9a860',
 };
 
 /** Good glyphs. Some (from the glass-HUD design handoff) are authored in a
@@ -104,6 +106,32 @@ const PATHS: Record<GoodId, (c: string) => JSX.Element> = {
       <path d="M5.6 4.4h10.3a1.7 1.7 0 0 1 0 3.4H5.6a1.7 1.7 0 0 1 0-3.4Z" fill="#f4ecd8" />
       <circle cx="8.5" cy="3.9" r="2" fill="#f4ecd8" />
       <circle cx="13" cy="4.1" r="1.7" fill="#f4ecd8" />
+    </g>
+  ),
+  // Sack, tied at the neck — the mill's output, and how flour travels
+  flour: (c) => (
+    <g transform="scale(0.667)">
+      <path
+        d="M9 6.6h6c2.2 2.4 3.4 5.6 3.4 8.6 0 3-2.6 4.6-6.4 4.6s-6.4-1.6-6.4-4.6c0-3 1.2-6.2 3.4-8.6Z"
+        fill={c}
+      />
+      <path d="M8.8 6.6c1-1.2 1.6-2.2 1.6-3.2h3.2c0 1 .6 2 1.6 3.2H8.8Z" fill="#b9ae96" />
+      <path d="M9.6 14.6h4.8" stroke="#b9ae96" stroke-width="1.4" stroke-linecap="round" />
+    </g>
+  ),
+  // Round loaf, slashed across the crust
+  food: (c) => (
+    <g transform="scale(0.667)">
+      <path
+        d="M3.4 13.6c0-3.8 3.8-6.6 8.6-6.6s8.6 2.8 8.6 6.6c0 2.6-3.8 4.2-8.6 4.2s-8.6-1.6-8.6-4.2Z"
+        fill={c}
+      />
+      <path
+        d="M7.6 11.2l2 2.4M11.4 10.4l2 2.4M15.2 11.2l1.8 2.2"
+        stroke="#8f6533"
+        stroke-width="1.5"
+        stroke-linecap="round"
+      />
     </g>
   ),
 };

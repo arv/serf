@@ -80,6 +80,8 @@ export type BuildingTypeId =
   | 'house'
   | 'well'
   | 'wheatFarm'
+  | 'mill'
+  | 'bakery'
   | 'brewery'
   | 'ironMine'
   | 'silverMine'
@@ -181,6 +183,44 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'convert', inputs: { water: 1 }, outputs: { wheat: 1 }, durationTicks: 10 * S },
+  },
+  mill: {
+    id: 'mill',
+    name: 'Mill',
+    w: 2,
+    h: 2,
+    cost: { wood: 8, stone: 4 },
+    buildTicks: 18 * S,
+    hp: 150,
+    sight: 5.5,
+    // No resident: the wind does the grinding, the way it does in the
+    // model. That is not only flavor — the chain adds two posts to a serf
+    // pool the balance keeps deliberately lean, and paying two hands for
+    // what used to be one farm's output is what made the campaign
+    // unwinnable in testing. The bakery keeps its baker.
+    // Grain in, flour out. Slower than the farm that feeds it on purpose:
+    // one mill should serve two farms, so the chain is a shape rather than
+    // a stack of one-to-ones.
+    recipe: { kind: 'convert', inputs: { wheat: 1 }, outputs: { flour: 1 }, durationTicks: 8 * S },
+  },
+  bakery: {
+    id: 'bakery',
+    name: 'Bakery',
+    w: 2,
+    h: 2,
+    cost: { wood: 10, stone: 6 },
+    buildTicks: 20 * S,
+    hp: 160,
+    sight: 5.5,
+    workerKind: 'worker',
+    // The well is already on every build order; making bread want water
+    // ties the food chain to it rather than adding a parallel one.
+    recipe: {
+      kind: 'convert',
+      inputs: { flour: 1, water: 1 },
+      outputs: { food: 2 },
+      durationTicks: 12 * S,
+    },
   },
   brewery: {
     id: 'brewery',
@@ -306,9 +346,11 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     sight: 5.5,
     requiresTech: 'soldiery',
     trains: [
-      { unit: 'knight', cost: { wheat: 3, sword: 1 }, durationTicks: 15 * S },
-      { unit: 'spearman', cost: { wheat: 2, spear: 1 }, durationTicks: 10 * S },
-      { unit: 'archer', cost: { wheat: 2, bow: 1 }, durationTicks: 12 * S },
+      // Soldiers march on bread, not on raw grain: the barracks is the far
+      // end of mill -> bakery, and wheat is a crop again.
+      { unit: 'knight', cost: { food: 3, sword: 1 }, durationTicks: 15 * S },
+      { unit: 'spearman', cost: { food: 2, spear: 1 }, durationTicks: 10 * S },
+      { unit: 'archer', cost: { food: 2, bow: 1 }, durationTicks: 12 * S },
     ],
   },
   roadSite: {

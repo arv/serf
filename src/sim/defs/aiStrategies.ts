@@ -55,7 +55,12 @@ export interface AiStrategy {
   researchOrder: TechId[];
   /** Silver held back from hiring while research is still pending. */
   researchReserve: number;
-  /** Serfs hired up to, once `growthAfter` is in. */
+  /**
+   * Serfs hired up to, once `growthAfter` is in. Every playbook's target
+   * went up by two when the food chain landed: the mill and the bakery each
+   * keep a resident, so a plan that fielded an army on the old target now
+   * fields one two hands short of it.
+   */
   serfTarget: number;
   /** Below this, hire regardless of research or gates — the panic floor. */
   survivalFloor: number;
@@ -118,6 +123,15 @@ const STEWARD_BUILD: BuildStep[] = [
   { type: 'barracks', count: 1, anchor: 'base', after: 'soldiery' },
   { type: 'well', count: 1, anchor: 'base' },
   { type: 'wheatFarm', count: 1, anchor: 'base' },
+  // Grain is no longer a war material on its own: without the mill and the
+  // bakery behind it the barracks trains nobody at all. Both wait on the
+  // barracks itself, though — the castle's opening stock of bread covers
+  // the first defenders, and a chain built before there is anywhere to send
+  // its bread just eats the wood the barracks was waiting for. (Without the
+  // gate the campaign is unwinnable: the plan reaches Soldiery with the
+  // mill standing and nothing left to raise a barracks with.)
+  { type: 'mill', count: 1, anchor: 'base', needs: 'barracks' },
+  { type: 'bakery', count: 1, anchor: 'base', needs: 'barracks' },
   { type: 'ironMine', count: 1, anchor: 'iron', radius: 4, after: 'ironworking' },
   // Weapons need somewhere to train their bearers: the smiths wait for the
   // barracks, or their wood hunger keeps it unaffordable forever (the
@@ -133,7 +147,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     build: STEWARD_BUILD,
     researchOrder: ['soldiery', 'cobbledBoots', 'ironworking'],
     researchReserve: 10,
-    serfTarget: 8,
+    serfTarget: 10,
     survivalFloor: 3,
     growthAfter: 'soldiery',
     housingHeadroom: 3,
@@ -170,6 +184,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       { type: 'barracks', count: 1, anchor: 'base', after: 'soldiery' },
       { type: 'well', count: 1, anchor: 'base' },
       { type: 'wheatFarm', count: 1, anchor: 'base' },
+      { type: 'mill', count: 1, anchor: 'base', needs: 'barracks' },
+      { type: 'bakery', count: 1, anchor: 'base', needs: 'barracks' },
       // Two mines for two forges. A sword is two iron to a spear's one, so
       // an all-knight army on one seam starves the smiths and fields four
       // men instead of an army — a second mine is what makes the plan real.
@@ -178,7 +194,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     ],
     researchOrder: ['soldiery', 'cobbledBoots', 'ironworking', 'mailArmor'],
     researchReserve: 6,
-    serfTarget: 9,
+    serfTarget: 11,
     survivalFloor: 3,
     growthAfter: null,
     housingHeadroom: 3,
@@ -215,6 +231,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       { type: 'barracks', count: 1, anchor: 'base', after: 'soldiery' },
       { type: 'well', count: 1, anchor: 'base' },
       { type: 'wheatFarm', count: 1, anchor: 'base' },
+      { type: 'mill', count: 1, anchor: 'base', needs: 'barracks' },
+      { type: 'bakery', count: 1, anchor: 'base', needs: 'barracks' },
       { type: 'ironMine', count: 1, anchor: 'iron', radius: 4, after: 'ironworking' },
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'ironworking', needs: 'barracks' },
       // The wide half of the plan waits for the iron chain to stand: hired
@@ -225,7 +243,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     ],
     researchOrder: ['soldiery', 'cobbledBoots', 'ironworking', 'irrigation', 'masonry'],
     researchReserve: 10,
-    serfTarget: 12,
+    serfTarget: 14,
     survivalFloor: 3,
     growthAfter: null,
     housingHeadroom: 4,
@@ -262,13 +280,15 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       { type: 'barracks', count: 1, anchor: 'base', after: 'soldiery' },
       { type: 'well', count: 1, anchor: 'base' },
       { type: 'wheatFarm', count: 1, anchor: 'base' },
+      { type: 'mill', count: 1, anchor: 'base', needs: 'barracks' },
+      { type: 'bakery', count: 1, anchor: 'base', needs: 'barracks' },
       // Two forges and no mine to feed them: bowstaves are three wood
       // apiece, which is why the second woodcutter comes with the archery.
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'archery', needs: 'barracks' },
     ],
     researchOrder: ['soldiery', 'archery', 'cobbledBoots'],
     researchReserve: 8,
-    serfTarget: 9,
+    serfTarget: 11,
     survivalFloor: 3,
     growthAfter: 'soldiery',
     housingHeadroom: 3,

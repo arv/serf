@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
+import { makeBakeOven } from './procParts';
 
 /**
  * GLB asset pipeline: building, tree, rock and prop models loaded from the
@@ -25,6 +26,12 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   quarry: 'building_mine_green.gltf',
   well: 'building_well_green.gltf',
   wheatFarm: 'farm_plot.glb',
+  mill: 'building_windmill_green.gltf',
+  // The pack has no bakery. The second house model is the closest shell —
+  // unused until now, so it costs the town no other identity — and the
+  // stone oven bolted to its flank (BUILDING_DECOR) is what actually says
+  // "bread" at village zoom.
+  bakery: 'building_home_B_green.gltf',
   brewery: 'building_tavern_green.gltf',
   // The mines share one model and read apart by their spoil (rust, silver,
   // gold boulders in BUILDING_DECOR) — the pack's color variants only vary
@@ -46,8 +53,11 @@ const TINTS: Partial<Record<BuildingTypeId, number>> = {};
 interface Decor {
   /** A pack prop scene by file stem... */
   prop?: string;
-  /** ...or an ore-tinted boulder. */
+  /** ...an ore-tinted boulder... */
   rock?: number;
+  /** ...or something we build ourselves, for what the pack has no model of.
+   * Sized by the builder, not by `size`. */
+  make?: () => THREE.Object3D;
   at: [number, number];
   size: number;
   rot?: number;
@@ -66,6 +76,13 @@ const DECOR_PROP_FILES = [
 // the woodcutter's baked lumber pile read as planks that were never
 // hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
+  // The oven is the bakery's whole tell — it has to sit proud of the wall
+  // on the side the camera sees, not tucked behind the roof.
+  bakery: [
+    { make: () => makeBakeOven(0.62), at: [0.42, 0.3], size: 1, rot: -0.55 },
+    { prop: 'barrel', at: [-0.38, 0.33], size: 0.13 },
+  ],
+  mill: [{ prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5 }],
   quarry: [{ prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 }],
   ironMine: [{ prop: 'wheelbarrow', at: [-0.35, 0.32], size: 0.15, rot: -0.5 }],
   silverMine: [{ prop: 'sack', at: [-0.33, 0.33], size: 0.11 }],
@@ -366,7 +383,9 @@ export async function loadGlbAssets(): Promise<boolean> {
       // particular read apart by their spoil, not just their roof color.
       for (const d of BUILDING_DECOR[type] ?? []) {
         let obj: THREE.Object3D | undefined;
-        if (d.prop !== undefined) {
+        if (d.make !== undefined) {
+          obj = d.make();
+        } else if (d.prop !== undefined) {
           const src = loaded.get(`${d.prop}.gltf`);
           if (src) obj = propOfSize(src, d.size);
         } else if (d.rock !== undefined && rocks[0]) {
