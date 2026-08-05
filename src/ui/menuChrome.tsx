@@ -11,7 +11,12 @@
 export const GOLD = '#e5c469';
 
 export const MENU_STYLE = `
-#menu { position: fixed; inset: 0; overflow-y: auto; overflow-x: hidden; font-family: 'Space Grotesk', system-ui, sans-serif; }
+/* 'contain' on the screen itself: a downward swipe at the top of the menu
+   is someone scrolling it, not asking Chrome for pull-to-refresh — and a
+   refresh here costs a page load, or in the council a trip back through
+   the rejoin. */
+#menu { position: fixed; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+  font-family: 'Space Grotesk', system-ui, sans-serif; }
 #menu * { box-sizing: border-box; }
 /* Both veils are fixed so they stay put while the screen scrolls; the
    background itself is the live canvas underneath (see menuBackdrop.ts). */
@@ -95,7 +100,12 @@ export const MENU_STYLE = `
 #menu .browser { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid rgba(255,255,255,0.07); }
 #menu .browser-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 #menu .browser-head .count { font-size: 11px; color: #85857c; font-variant-numeric: tabular-nums; }
-#menu .room-list { display: flex; flex-direction: column; gap: 6px; max-height: 132px; overflow-y: auto; }
+/* Two rows and a slice of the third: the cut row is the affordance, and it
+   is why the height is not a whole number of rows. 'contain' keeps a flick
+   that runs past the end inside the list — without it the page underneath
+   takes over mid-gesture, which on a phone reads as the list jumping. */
+#menu .room-list { display: flex; flex-direction: column; gap: 6px; max-height: 132px; overflow-y: auto;
+  overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(229,196,105,0.3) transparent; }
 #menu .room { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 9px 11px; text-align: left; font: inherit; color: #cfccc2; background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; transition: background 0.15s, border-color 0.15s; }
@@ -150,6 +160,23 @@ export const MENU_STYLE = `
   #menu .stack { gap: 14px; justify-content: flex-start; }
   #menu .pills button { width: 40px; height: 34px; }
   #menu .icon-btn { width: 40px; height: 40px; }
+  /* Proximity, not mandatory: a flick settles with a row against the top
+     rather than sliced across the middle, but a deliberate nudge still
+     goes where it was put. */
+  #menu .room-list { scroll-snap-type: y proximity; }
+  #menu .room { scroll-snap-align: start; }
+}
+/* The desktop card floats in a big window, so a 132px list costs it
+   nothing. A tall phone is all card and no window: that same peephole
+   showed two rooms with a third of the screen going spare underneath, and
+   reaching the fourth room meant working a 132px scroller with a thumb.
+   Spend the spare height on rooms.
+   Only where there is spare height to spend — a 667px phone is already
+   full, and taking more there would push the join button off the bottom.
+   Small viewport units, not dynamic ones: the list must not resize under
+   the finger as the URL bar comes and goes. */
+@media (max-width: 560px) and (min-height: 720px) {
+  #menu .room-list { max-height: 34vh; max-height: 34svh; }
 }
 #menu button:focus-visible, #menu input:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: 2px; }
 `;
