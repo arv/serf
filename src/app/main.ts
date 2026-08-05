@@ -36,13 +36,14 @@ import {
 import { WorldMirror } from './mirror';
 import { envelopeSave, splitSave } from './saveEnvelope';
 import { WorkerSimHost } from './simHost';
-import { mountStartMenu } from '../ui/StartMenu';
-import { registerServiceWorker } from './serviceWorker';
-import { configFromUrl } from './gameConfig';
-import { relayUrl, runLobby } from '../net/lobbyClient';
+import { mountMenu } from '../ui/MenuApp';
+import { holdServiceWorkerUpdates, registerServiceWorker } from './serviceWorker';
+import { configFromUrl, type GameConfig } from './gameConfig';
+import { defaultLobbyConfig, sanitizeLobbyConfig, type LobbyConfig } from '../protocol/lobby';
+import type { LobbyResult } from '../net/lobbyClient';
 import type { NetInfo } from '../protocol/messages';
 
-function fatal(message: string, opts?: { retry?: boolean }): never {
+function showFatal(message: string, opts?: { retry?: boolean }): void {
   const el = document.getElementById('fatal')!;
   el.style.display = 'grid';
   const card = document.createElement('div');
@@ -66,7 +67,16 @@ function fatal(message: string, opts?: { retry?: boolean }): never {
     card.append(retry);
   }
   el.replaceChildren(card);
+}
+
+/** The same screen, for the paths that must not carry on afterwards. */
+function fatal(message: string, opts?: { retry?: boolean }): never {
+  showFatal(message, opts);
   throw new Error(message);
+}
+
+function fatalFrom(err: unknown): void {
+  showFatal(err instanceof Error ? err.message : String(err));
 }
 
 // The sim<->render hot path runs over SharedArrayBuffer, which requires
@@ -81,9 +91,27 @@ if (!crossOriginIsolated) {
 
 /**
  * Launch parameters. Any of these means the player has already chosen a
- * game — anything else (a bare '/') gets the menu.
+ * game — anything else (a bare '/') gets the menu. ?mp is the exception
+ * that proves it: a room is chosen, but the choosing happens in the
+ * council, which is a menu screen.
  */
 const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu'];
+
+/**
+ * A room's opening settings, from the URL a link or a reload arrived on.
+ * Only ever a starting point: the host tunes them in the council, and the
+ * server builds the world from its own sanitized copy.
+ */
+function lobbyInitFromUrl(params: URLSearchParams): LobbyConfig {
+  return sanitizeLobbyConfig(defaultLobbyConfig(), {
+    ai: Number(params.get('ai') ?? '0') || 0,
+    bandits: params.get('bandits') !== '0',
+    seed: configFromUrl(location.search).seed,
+    // Nobody named an opponent on the way in; the council is where a host
+    // picks one, and until then the seed deals them.
+    bots: [],
+  });
+}
 
 async function boot(): Promise<void> {
   const launchParams = new URLSearchParams(location.search);
@@ -103,54 +131,39 @@ async function boot(): Promise<void> {
   // it plays with the network off entirely. A pending update only takes
   // over on the menu — never behind a live match.
   registerServiceWorker({ applyUpdates: !chosen });
-  if (!chosen) {
-    // The menu never runs alongside the sim: every mode it offers writes
-    // location.search and reloads, so boot() runs once per match as before.
-    mountStartMenu();
+
+  const mp = launchParams.get('mp');
+  if (!chosen || mp !== null) {
+    // The pre-boot screens are one page. A bare '/' opens on the start
+    // screen; ?mp=CODE (an invite link, or a reload) opens straight into
+    // that room, and ?open=0 hosts an unlisted one — joinable by code,
+    // absent from the start screen's browser. Either way the shell runs
+    // the lobby and hands the match over in place, so the only reload
+    // between the menu and a multiplayer match is the one nobody asked
+    // for.
+    mountMenu(
+      mp === null
+        ? null
+        : { mp, open: launchParams.get('open') !== '0', init: lobbyInitFromUrl(launchParams) },
+      {
+        onBegin: (lobby) => void startNetMatch(lobby).catch(fatalFrom),
+        // The relay refused or could not be reached. Offer the reload: it
+        // lands back on this same URL, which is the room if one was named
+        // and the start screen if the trouble came before that.
+        onError: (message) => showFatal(message, { retry: true }),
+      },
+    );
     return;
   }
 
-  let config = configFromUrl(location.search);
-  let loadData: string | undefined;
-  let net: NetInfo | undefined;
-
-  const params = new URLSearchParams(location.search);
-  const mp = params.get('mp');
-  if (mp) {
-    // Multiplayer: the lobby resolves seats and our seat token, and that is
-    // all that crosses. No world blob — the server holds the world and
-    // sends this seat only what it may see. URL params only seed the
-    // room's settings; the host tunes them in the War Council from there.
-    // ?open=0 hosts an unlisted room — joinable by code, absent from the
-    // start screen's browser.
-    const lobby = await runLobby(mp, relayUrl(location.search), {
-      open: params.get('open') !== '0',
-      init: {
-        ai: Math.max(0, Math.min(3, Number(params.get('ai') ?? '0') || 0)),
-        bandits: params.get('bandits') !== '0',
-        seed: config.seed,
-        // Nobody named an opponent on the way in; the council is where a
-        // host picks one, and until then the seed deals them.
-        bots: [],
-      },
-    });
-    config = {
-      ...config,
-      players: lobby.seats,
-      myPlayerId: lobby.myPlayerId,
-      adminEnabled: false,
-    };
-    net = lobby.net;
-  } else {
-    // A pending load (set by the Load button before its reload) boots the
-    // worker straight into the saved world. sessionStorage on purpose: it is
-    // per-tab, so a second open tab (e.g. the dev preview) can never steal or
-    // duplicate the handoff the way a shared localStorage key could.
-    loadData = sessionStorage.getItem('serf-load-pending') ?? undefined;
-    sessionStorage.removeItem('serf-load-pending');
-    // Migrate away any stale handoff left by the old localStorage flow.
-    localStorage.removeItem('serf-load-pending');
-  }
+  // A pending load (set by the Load button before its reload) boots the
+  // worker straight into the saved world. sessionStorage on purpose: it is
+  // per-tab, so a second open tab (e.g. the dev preview) can never steal or
+  // duplicate the handoff the way a shared localStorage key could.
+  let loadData = sessionStorage.getItem('serf-load-pending') ?? undefined;
+  sessionStorage.removeItem('serf-load-pending');
+  // Migrate away any stale handoff left by the old localStorage flow.
+  localStorage.removeItem('serf-load-pending');
   // A solo save is an envelope: the worker's world string plus the fog's
   // memory. Split it here — the worker gets exactly the string it wrote,
   // and the explored grid waits for the fog to exist.
@@ -160,6 +173,44 @@ async function boot(): Promise<void> {
     loadData = split.world;
     fogSeed = split.explored;
   }
+  await runMatch(configFromUrl(location.search), { loadData, fogSeed });
+}
+
+/**
+ * Take over from the council. The lobby resolved seats and our seat token,
+ * and that is all that crossed. No world blob — the server holds the world
+ * and sends this seat only what it may see.
+ *
+ * The menu is already gone by here (the shell tears itself down before
+ * calling), so the canvas, the pointer events and a WebGL context are all
+ * free to take.
+ */
+async function startNetMatch(lobby: LobbyResult): Promise<void> {
+  await runMatch(
+    {
+      ...configFromUrl(location.search),
+      players: lobby.seats,
+      myPlayerId: lobby.myPlayerId,
+      adminEnabled: false,
+    },
+    { net: lobby.net },
+  );
+}
+
+/**
+ * The match itself: worker, renderer, HUD and the frame loop. Reached
+ * either from a launch URL or from the council handing over in place, and
+ * exactly once per page either way — everything below assumes it owns the
+ * canvas.
+ */
+async function runMatch(
+  config: GameConfig,
+  opts: { loadData?: string; fogSeed?: Uint8Array; net?: NetInfo },
+): Promise<void> {
+  const { loadData, fogSeed, net } = opts;
+  // From here on the page is a match, not a menu: a service worker that
+  // finishes installing must not swap the shell out from under it.
+  holdServiceWorkerUpdates();
   setMyPlayerId(config.myPlayerId);
   setNetMode(net !== undefined);
 

@@ -1,5 +1,5 @@
 import { createSignal } from 'solid-js';
-import { mountWarCouncil, type CouncilView } from '../ui/WarCouncil';
+import type { CouncilHooks, CouncilView } from '../ui/WarCouncil';
 import { sanitizeLobbyConfig, defaultLobbyConfig, type LobbyConfig } from '../protocol/lobby';
 import type { NetInfo } from '../protocol/messages';
 
@@ -12,12 +12,40 @@ import type { NetInfo } from '../protocol/messages';
  * and echoed to every seat; the server builds the world from its own copy
  * of them. Nothing about the world reaches this client except through the
  * filtered state frames it receives once the match is running.
+ *
+ * The socket is all this module owns. It never puts the council on screen
+ * itself — it hands the hooks to `present` and the menu shell decides where
+ * they render, which is what lets the council be a screen of the menu
+ * rather than a page of its own.
  */
 
 export interface LobbyResult {
   net: NetInfo;
   seats: { kind: 'human' | 'ai' }[];
   myPlayerId: number;
+}
+
+/** Which room to sit down in, and the settings a new one opens with. */
+export interface CouncilRequest {
+  /** 'new' to host a room, or the code of one to join. */
+  mp: string;
+  /** Host only: list the room in everyone's browser. */
+  open: boolean;
+  /** Seed settings for a room being created; ignored when joining one. */
+  init: LobbyConfig;
+  /** One line of context from the journey here, shown above the lobby. */
+  notice?: string;
+}
+
+export interface LobbyUi {
+  /**
+   * Put the council on screen and return its teardown. Not called for a
+   * stashed rejoin, which resolves without the lobby ever being seen.
+   */
+  present(hooks: CouncilHooks): () => void;
+  /** The player backed out. The socket is closed and the returned promise
+   * is abandoned — it never settles, and the caller owns the screen. */
+  onLeave(): void;
 }
 
 /** Loopback in the spellings a URL can produce. */
@@ -137,38 +165,43 @@ export function clearSeatStash(): void {
 }
 
 /**
- * Run the lobby until the match starts. `mp` is 'new' (host) or a room
- * code (joiner); `init` seeds the room's settings from the launch URL, and
- * from there the host tunes them in the council. Resolves when the server
- * says 'begin'.
+ * Run the lobby until the match starts. `req.mp` is 'new' (host) or a room
+ * code (joiner); `req.init` seeds a new room's settings, and from there the
+ * host tunes them in the council. Resolves when the server says 'begin' —
+ * or never, if the player leaves.
  */
-export function runLobby(
-  mp: string,
-  url: string,
-  opts: { open: boolean; init: LobbyConfig; notice?: string },
-): Promise<LobbyResult> {
+export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise<LobbyResult> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
-    const isHost = mp === 'new';
+    const isHost = req.mp === 'new';
     // A reload mid-match sits back down instead of knocking on the door.
-    const stash = readSeatStash(mp);
+    const stash = readSeatStash(req.mp);
+    /**
+     * The player left. Nothing this socket has to say matters after that,
+     * and saying it anyway is worse than silence: a queued 'begin' would
+     * start a match nobody is watching for, and closing a socket that has
+     * not finished connecting fires `error` — which used to throw the
+     * "cannot reach the relay" screen over the start menu the player had
+     * just walked back to.
+     */
+    let abandoned = false;
 
     const [view, setView] = createSignal<CouncilView>({
-      notice: opts.notice,
+      notice: req.notice,
       phase: 'connecting',
       code: '',
       yourSeat: isHost ? 0 : -1,
       seats: [],
-      config: opts.init,
+      config: req.init,
     });
 
-    // A stashed rejoin sits straight back down — mounting the council for
+    // A stashed rejoin sits straight back down — showing the council for
     // the token round-trip flashed the lobby chrome over every mid-match
     // reload. It only appears if the rejoin fails and we fall back to
     // knocking normally (the recursion re-enters without a stash).
     const unmount = stash
       ? (): void => {}
-      : mountWarCouncil({
+      : ui.present({
           view,
           onConfig(patch) {
             // Optimistic: the relay echoes the room right back, and its
@@ -186,13 +219,19 @@ export function runLobby(
             );
           },
           onLeave() {
-            // Back to the start menu; closing the socket on unload releases
-            // the seat (the relay removes lobby chairs on disconnect).
-            location.href = location.pathname;
+            // Closing the socket releases the seat (the relay removes lobby
+            // chairs on disconnect); this promise is simply dropped, and the
+            // shell puts the start screen back.
+            abandoned = true;
+            ws.onopen = ws.onmessage = ws.onerror = null;
+            unmount();
+            ws.close();
+            ui.onLeave();
           },
         });
 
     const fail = (message: string): void => {
+      if (abandoned) return;
       unmount();
       ws.close();
       reject(new Error(message));
@@ -204,11 +243,14 @@ export function runLobby(
         stash
           ? JSON.stringify({ t: 'rejoin', token: stash.token })
           : isHost
-            ? JSON.stringify({ t: 'create', open: opts.open, config: opts.init })
-            : JSON.stringify({ t: 'join', code: mp }),
+            ? JSON.stringify({ t: 'create', open: req.open, config: req.init })
+            : JSON.stringify({ t: 'join', code: req.mp }),
       );
     };
     ws.onmessage = (e: MessageEvent<string>) => {
+      // Detaching the handlers on the way out is the real guard; this one
+      // catches an event already queued behind that.
+      if (abandoned) return;
       // The rejoin reply is chased by a binary init frame on this same
       // socket; the net worker will fetch its own once the match view
       // boots, so anything non-JSON here is simply not for us.
@@ -245,7 +287,7 @@ export function runLobby(
         });
       } else if (msg.t === 'begin') {
         const stashJson = JSON.stringify({
-            code: view().code || mp.toUpperCase(),
+            code: view().code || req.mp.toUpperCase(),
             token: msg.token,
             playerId: msg.playerId,
             seats: msg.seats,
@@ -269,7 +311,7 @@ export function runLobby(
           clearSeatStash();
           unmount();
           ws.close();
-          resolve(runLobby(mp, url, { ...opts, notice: 'Your previous match has ended.' }));
+          resolve(runLobby(url, { ...req, notice: 'Your previous match has ended.' }, ui));
         } else {
           fail(msg.message);
         }

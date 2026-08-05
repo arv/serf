@@ -12,6 +12,8 @@ export class GameRenderer {
   readonly rig: CameraRig;
   #webgl: THREE.WebGLRenderer;
   #lastTime = performance.now();
+  #observer: ResizeObserver;
+  #onWindowResize: () => void;
 
   constructor(canvas: HTMLCanvasElement, interactive = true) {
     // Phones and tablets render the same scene on a far smaller GPU: trade
@@ -62,9 +64,24 @@ export class GameRenderer {
         this.rig.resize();
       }
     };
-    new ResizeObserver(resize).observe(canvas);
+    this.#observer = new ResizeObserver(resize);
+    this.#observer.observe(canvas);
+    this.#onWindowResize = resize;
     window.addEventListener('resize', resize);
     resize();
+  }
+
+  /**
+   * Give the GPU back. Only the menu backdrop needs this: it renders on its
+   * own canvas so that handing over to a match can drop the whole context
+   * rather than share one — a canvas cannot hand out a second WebGL
+   * context, and a renderer that has released its own cannot be revived.
+   */
+  dispose(): void {
+    this.#observer.disconnect();
+    window.removeEventListener('resize', this.#onWindowResize);
+    this.#webgl.dispose();
+    this.#webgl.forceContextLoss();
   }
 
   /**
