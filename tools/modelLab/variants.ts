@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Kit } from './kit';
+import type { BuildingTypeId } from '../../src/sim/defs/buildings';
 
 /**
  * Candidate looks for the food chain: mill, bakery, fishery, livestock,
@@ -322,399 +323,78 @@ export function sacks(K: Kit, n: number, swatch: 'cream' | 'straw' | 'white' | n
 // ---------------------------------------------------------------------------
 // The candidates.
 
+/** The food buildings as the game builds them, baked straight out of
+ * src/render/assets.ts by the bake page. */
+export const GAME_BUILDINGS: { type: BuildingTypeId; id: string }[] = [
+  { type: 'mill', id: 'mill' },
+  { type: 'bakery', id: 'bakery' },
+  { type: 'henYard', id: 'henYard' },
+  { type: 'fishery', id: 'fishery' },
+];
+
 export const VARIANTS: Variant[] = [
-  // --- Mill: wheat -> flour ------------------------------------------------
   {
-    id: 'mill-windmill',
+    id: 'mill',
     slot: 'mill',
     title: 'Windmill',
     blurb:
-      'The pack windmill, straight in. Its sail cross is a separate node, so it can turn while the mill is staffed — the same trick the well crank uses.',
-    pack: ['building_windmill_green', 'sack', 'wheelbarrow'],
+      'The pack windmill, straight in, with a sack of flour at its foot. Its sail cross is a separate node, so it can turn while the mill is staffed — the same trick the well crank uses, and still to be wired up.',
+    pack: ['building_windmill_green', 'sack'],
     handmade: [],
     w: 2,
     h: 2,
     build(K) {
       const g = new THREE.Group();
-      add(g, K.base('building_windmill_green', 2, 2, { rot: -Math.PI / 2 }));
-      add(g, sacks(K, 3, 'white'), -0.62, 0, 0.52);
-      add(g, K.prop('wheelbarrow', { h: 0.3, rot: 2.2 }), 0.66, 0, 0.5);
+      add(g, K.model('game/mill'));
       return g;
     },
   },
   {
-    id: 'mill-watermill',
-    slot: 'mill',
-    title: 'Watermill',
-    blurb:
-      'The pack watermill. Its wheel is a separate node too, and it wants a riverbank — a placement rule the game already has machinery for (nearDeposit).',
-    pack: ['building_watermill_green', 'sack', 'crate_A_small'],
-    handmade: [],
-    w: 2,
-    h: 2,
-    waterAt: 0.62,
-    build(K) {
-      const g = new THREE.Group();
-      // The wheel sits on the model's -z face; turn the mill to put it in
-      // the water rather than against the bank.
-      add(g, K.base('building_watermill_green', 2, 2, { rot: Math.PI }), 0, 0, -0.25);
-      add(g, sacks(K, 3, 'white'), -0.85, 0, -0.5);
-      add(g, K.prop('crate_A_small', { h: 0.2, rot: 0.4 }), 0.8, 0, -0.55);
-      return g;
-    },
-  },
-  {
-    id: 'mill-windmill-yard',
-    slot: 'mill',
-    title: 'Windmill + threshing yard',
-    blurb:
-      'Same windmill, dressed: a pallet of grain sacks, a barrow, and loose straw. Reads as a working mill from further out, at the cost of a busier footprint.',
-    pack: ['building_windmill_green', 'pallet', 'sack', 'wheelbarrow', 'crate_A_small'],
-    handmade: ['straw scatter'],
-    w: 3,
-    h: 3,
-    build(K) {
-      const g = new THREE.Group();
-      add(g, K.base('building_windmill_green', 2, 2, { rot: -Math.PI / 2 }), 0.25, 0, -0.25);
-      add(g, K.prop('pallet', { span: 0.7, rot: 0.1 }), -0.85, 0, 0.55);
-      add(g, sacks(K, 4, 'straw'), -0.9, 0.07, 0.5);
-      add(g, K.prop('wheelbarrow', { h: 0.32, rot: 2.4 }), 0.9, 0, 0.75);
-      add(g, K.prop('crate_A_small', { h: 0.22 }), 0.2, 0, 1.0);
-      for (let i = 0; i < 5; i++) {
-        const straw = K.box(0.24, 0.02, 0.03, 'straw');
-        straw.rotation.y = i * 1.1;
-        add(g, straw, -0.2 + i * 0.16, 0.01, 0.95 - (i % 2) * 0.2);
-      }
-      return g;
-    },
-  },
-
-  // --- Bakery: flour + water -> food --------------------------------------
-  {
-    id: 'bakery-house-oven',
+    id: 'bakery',
     slot: 'bakery',
     title: 'Bake-house',
     blurb:
-      'The unused second house model with a hand-built stone oven bolted to its flank. Cheapest honest bakery: one new prop, and the town gains a silhouette it does not already have.',
-    pack: ['building_home_B_green', 'crate_open', 'barrel'],
-    handmade: ['stone oven + chimney', 'loaves'],
+      'The pack’s second house with a clay oven built onto its flank: domed hearth, arched mouth with a fire behind it, short chimney, firewood stacked against the side. The oven is the whole tell — the shell alone would read as another dwelling.',
+    pack: ['building_home_B_green', 'barrel'],
+    handmade: ['clay oven + chimney'],
     w: 2,
     h: 2,
     build(K) {
       const g = new THREE.Group();
-      add(g, K.base('building_home_B_green', 1.75, 1.75, { rot: 0.08 }), -0.4, 0, -0.35);
-      add(g, bakeOven(K, 1.35), 0.85, 0, 0.35, -0.55);
-      add(g, breadCrate(K, 1.1), -0.05, 0, 0.85);
-      add(g, K.prop('barrel', { h: 0.32 }), -1.05, 0, 0.72);
+      add(g, K.model('game/bakery'));
       return g;
     },
   },
   {
-    id: 'bakery-market-stall',
-    slot: 'bakery',
-    title: 'Baker’s stall',
-    blurb:
-      'The pack market stall as an open bakery: awning, counter, oven behind. Lightest build (no surgery on the model) and instantly readable, but it is a stall, not a workshop.',
-    pack: ['building_market_green', 'crate_open', 'crate_A_small'],
-    handmade: ['stone oven', 'loaves on the counter'],
-    w: 2,
-    h: 2,
-    build(K) {
-      const g = new THREE.Group();
-      add(g, K.base('building_market_green', 1.9, 1.9), -0.18, 0, 0.25);
-      add(g, bakeOven(K, 1.05), 0.95, 0, -0.35, 0.3);
-      add(g, breadCrate(K, 1.0), 0.7, 0, 0.75);
-      add(g, K.prop('crate_A_small', { h: 0.22, rot: 0.7 }), -1.0, 0, 0.75);
-      return g;
-    },
-  },
-  {
-    id: 'bakery-oven-yard',
-    slot: 'bakery',
-    title: 'Oven house',
-    blurb:
-      'No pack building at all: a squat stone bakehouse whose whole front is the oven arch, under a pack-style gabled roof. Nothing in the village looks like it, and it is the only option that needs no model we already use elsewhere.',
-    pack: ['pallet', 'sack', 'crate_open', 'barrel'],
-    handmade: ['stone bakehouse', 'gable roof', 'oven arch', 'loaves'],
-    w: 2,
-    h: 2,
-    build(K) {
-      const g = new THREE.Group();
-      const W = 1.5;
-      const D = 1.25;
-      // Stone body with a banded course at the top, like the pack's walls.
-      add(g, K.box(W, 0.82, D, 'stone'), 0, 0.41, -0.1);
-      add(g, K.box(W + 0.08, 0.09, D + 0.08, 'stonePale'), 0, 0.86, -0.1);
-      // The oven mouth: an arch cut into the south face, embers inside.
-      add(g, K.box(0.62, 0.5, 0.12, 'charcoal'), -0.02, 0.29, 0.53);
-      add(g, K.cyl(0.31, 0.31, 0.12, 12, 'charcoal'), -0.02, 0.54, 0.53, 0);
-      add(g, K.box(0.5, 0.09, 0.1, 'roofOrange'), -0.02, 0.12, 0.55);
-      for (const sx of [-0.4, 0.36]) {
-        add(g, K.box(0.16, 0.72, 0.14, 'stonePale'), sx * 1.05, 0.36, 0.53);
-      }
-      // Gable roof, pack colors.
-      for (const sz of [-1, 1]) {
-        const pitch = K.box(W + 0.3, 0.09, D * 0.72, 'roofBlue');
-        pitch.rotation.x = sz * 0.62;
-        add(g, pitch, 0, 1.14, -0.1 + sz * D * 0.27);
-      }
-      add(g, K.box(W + 0.36, 0.08, 0.1, 'roofOrange'), 0, 1.34, -0.1);
-      // Chimney off the ridge.
-      add(g, K.cyl(0.11, 0.13, 0.62, 6, 'stone'), 0.42, 1.34, -0.34);
-      add(g, K.box(0.3, 0.07, 0.3, 'slate'), 0.42, 1.68, -0.34);
-      // The working yard: bread bench, flour on a pallet, water butt.
-      add(g, K.box(0.8, 0.07, 0.36, 'timber'), -0.9, 0.46, 0.5, 0.35);
-      for (const d of [-0.3, 0.3]) {
-        add(g, K.box(0.07, 0.44, 0.07, 'timberDark'), -0.9 + d * 0.94, 0.22, 0.5 + d * 0.34);
-      }
-      add(g, breadCrate(K, 0.95), -0.88, 0.49, 0.48);
-      add(g, K.prop('pallet', { span: 0.58, rot: 0.2 }), 1.02, 0, 0.42);
-      add(g, sacks(K, 3, 'white'), 0.98, 0.07, 0.4);
-      add(g, K.prop('barrel', { h: 0.32 }), 0.42, 0, 0.82);
-      for (let i = 0; i < 4; i++) {
-        const log = K.cyl(0.05, 0.05, 0.42, 6, 'timberDark');
-        log.rotation.z = Math.PI / 2;
-        add(g, log, -0.95, 0.06 + Math.floor(i / 2) * 0.1, -0.5 + (i % 2) * 0.12);
-      }
-      return g;
-    },
-  },
-
-  // --- Fishery -------------------------------------------------------------
-  {
-    id: 'fishery-hut-jetty',
-    slot: 'fishery',
-    title: 'Fisherman’s hut',
-    blurb:
-      'A small house on the bank, the EXTRA pier out over the water, its boat drawn up alongside, the catch drying on a rack. The rack and the fish on it are the only things left that we build.',
-    pack: [
-      'building_home_B_green',
-      'extra/building_docks_green',
-      'extra/boat',
-      'extra/anchor',
-      'barrel',
-      'waterplant_A',
-      'waterlily_A',
-    ],
-    handmade: ['drying rack + fish'],
-    w: 2,
-    h: 2,
-    waterAt: 0.7,
-    build(K) {
-      const g = new THREE.Group();
-      add(g, K.base('building_home_B_green', 1.55, 1.55, { rot: -0.3 }), -0.5, 0, -0.62);
-      add(g, K.prop('extra/building_docks_green', { span: 1.5, rot: Math.PI / 2 }), 0.72, 0, 0.95);
-      add(g, dryingRack(K, 0.8), -1.0, 0, -0.05, -0.5);
-      add(g, K.prop('extra/boat', { span: 0.85, rot: 1.15 }), -0.35, 0.03, 1.3);
-      add(g, K.prop('barrel', { h: 0.26 }), 0.62, 0, -0.55);
-      add(g, K.prop('extra/anchor', { h: 0.32, rot: 0.6 }), 0.2, 0, 0.1);
-      add(g, K.prop('waterplant_A', { h: 0.22 }), -1.15, 0, 1.05);
-      add(g, K.prop('waterlily_A', { span: 0.3 }), 0.35, 0.04, 1.6);
-      return g;
-    },
-  },
-  {
-    id: 'fishery-camp',
-    slot: 'fishery',
-    title: 'Fishing camp',
-    blurb:
-      'The EXTRA pack’s camp tent, nets on frames, a boat pulled up, a fire going. Cheap and early — it looks like something two serfs put up in an afternoon, which is exactly what a first food building should look like.',
-    pack: ['extra/building_tent_green', 'extra/boat', 'crate_open', 'barrel', 'waterplant_A'],
-    handmade: ['net frames', 'fish'],
-    w: 2,
-    h: 2,
-    waterAt: 0.75,
-    build(K) {
-      const g = new THREE.Group();
-      add(g, K.base('extra/building_tent_green', 1.5, 1.5, { rot: 0.35 }), -0.55, 0, -0.6);
-      add(g, netFrame(K, 0.72), 0.62, 0, -0.6, -0.3);
-      add(g, netFrame(K, 0.56), 1.0, 0, 0.1, 0.45);
-      add(g, K.prop('extra/boat', { span: 0.9, rot: 1.4 }), 0.05, 0.03, 1.3);
-      add(g, dryingRack(K, 0.62), -0.9, 0, 0.35, 0.2);
-      add(g, K.prop('crate_open', { span: 0.32, rot: 0.5 }), -0.05, 0, 0.2);
-      add(g, K.prop('barrel', { h: 0.26 }), 0.45, 0, 0.45);
-      add(g, K.prop('waterplant_A', { h: 0.2 }), -1.2, 0, 1.15);
-      // The fire the camp is named for.
-      add(g, K.part(new THREE.CircleGeometry(0.2, 10), 'charcoal'), -0.15, 0.01, -0.15);
-      for (let i = 0; i < 4; i++) {
-        const stick = K.cyl(0.03, 0.03, 0.3, 5, 'timberDark');
-        stick.rotation.z = 0.9;
-        stick.rotation.y = i * 1.6;
-        add(g, stick, -0.15, 0.08, -0.15);
-      }
-      add(g, K.sphere(0.1, 'roofOrange', 6), -0.15, 0.1, -0.15);
-      return g;
-    },
-  },
-  {
-    id: 'fishery-stilt-house',
-    slot: 'fishery',
-    title: 'Fish house on stilts',
-    blurb:
-      'The hut stands *in* the water on posts, reached by the jetty. Strongest silhouette of the three and the clearest "this needs a shore" signal, but it needs the deck and posts built by hand.',
-    pack: ['building_home_B_green', 'extra/boat', 'crate_A_small', 'barrel', 'waterlily_A'],
-    handmade: ['stilt deck + posts', 'jetty', 'drying rack + fish'],
-    w: 2,
-    h: 2,
-    waterAt: 0.15,
-    build(K) {
-      const g = new THREE.Group();
-      // Deck out over the water, on posts.
-      add(g, K.box(1.6, 0.09, 1.45, 'timber'), 0.05, 0.38, 0.95);
-      for (const sx of [-0.66, 0.72]) {
-        for (const sz of [0.4, 1.5]) {
-          add(g, K.box(0.1, 0.45, 0.1, 'timberDark'), sx, 0.19, sz);
-        }
-      }
-      add(g, K.base('building_home_B_green', 1.4, 1.4, { rot: 0.22 }), -0.02, 0.42, 1.05);
-      // The plank walk from the bank onto the deck.
-      add(g, jetty(K, 0.55, 0.44), 0.62, 0, -0.42);
-      add(g, K.box(0.44, 0.04, 0.5, 'timber'), 0.62, 0.31, 0.15);
-      add(g, dryingRack(K, 0.62), 0.78, 0.42, 0.55, 1.55);
-      add(g, K.prop('crate_A_small', { h: 0.2, rot: 0.5 }), -0.55, 0.42, 0.6);
-      add(g, K.prop('barrel', { h: 0.24 }), -0.5, 0.42, 1.5);
-      add(g, K.prop('waterlily_A', { span: 0.32 }), 1.45, 0.05, 1.35);
-      add(g, K.prop('extra/boat', { span: 0.75, rot: 0.4 }), -1.05, 0.04, 0.8);
-      return g;
-    },
-  },
-
-  {
-    id: 'fishery-shipyard',
-    slot: 'fishery',
-    title: 'Shipyard',
-    blurb:
-      'The EXTRA pack’s shipyard: a boat on the slipway, an anchor, barrels on the quay, and the pier beside it. Nothing hand-built at all — and the only candidate that already looks like an industry rather than a hut.',
-    pack: [
-      'extra/building_shipyard_green',
-      'extra/building_docks_green',
-      'extra/boat',
-      'extra/boatrack',
-      'waterlily_A',
-      'barrel',
-    ],
-    handmade: [],
-    w: 3,
-    h: 3,
-    waterAt: 0.75,
-    build(K) {
-      const g = new THREE.Group();
-      add(g, K.base('extra/building_shipyard_green', 2.3, 2.3, { rot: -0.12 }), -0.35, 0, -0.5);
-      add(g, K.prop('extra/building_docks_green', { span: 1.6, rot: Math.PI / 2 }), 1.05, 0, 0.95);
-      add(g, K.prop('barrel', { h: 0.28 }), -1.15, 0, 0.45);
-      add(g, K.prop('extra/boatrack', { span: 0.55, rot: 0.3 }), -1.15, 0, 1.05);
-      add(g, K.prop('extra/boat', { span: 0.8, rot: 0.9 }), 0.15, 0.03, 1.85);
-      add(g, K.prop('waterlily_A', { span: 0.34 }), -0.6, 0.04, 1.95);
-      return g;
-    },
-  },
-
-  // --- Livestock -----------------------------------------------------------
-  {
-    id: 'livestock-pigpen',
-    slot: 'livestock',
-    title: 'Pig pen',
-    blurb:
-      'Pack fencing around a hand-built sty, a trough, and three pigs. The fence run is the pack’s and tiles cleanly; the animals are the only genuinely new modelling.',
-    pack: ['fence_wood_straight', 'fence_wood_straight_gate', 'crate_A_small'],
-    handmade: ['pigs', 'trough', 'sty'],
-    w: 3,
-    h: 3,
-    build(K) {
-      const g = new THREE.Group();
-      add(g, pen(K, 2.7, 2.7));
-      // Sty: a low shed against the north fence.
-      add(g, K.box(1.0, 0.42, 0.6, 'timber'), -0.55, 0.21, -0.9);
-      const roof = K.box(1.15, 0.06, 0.72, 'straw');
-      roof.rotation.x = -0.18;
-      add(g, roof, -0.55, 0.46, -0.88);
-      add(g, K.box(0.34, 0.3, 0.03, 'charcoal'), -0.55, 0.15, -0.6);
-      add(g, trough(K, 0.7), 0.75, 0, 0.35, 0.2);
-      add(g, pig(K, 0.4), 0.35, 0, -0.35, 1.9);
-      add(g, pig(K, 0.36), 0.85, 0, -0.05, 3.5);
-      add(g, pig(K, 0.34), -0.35, 0, 0.65, 0.7);
-      add(g, K.prop('crate_A_small', { h: 0.2, rot: 0.3 }), -1.05, 0, 0.85);
-      // Churned mud where they wallow.
-      const mud = K.part(new THREE.CircleGeometry(0.42, 12), 'brown');
-      mud.rotation.x = -Math.PI / 2;
-      add(g, mud, 0.5, 0.012, 0.45);
-      return g;
-    },
-  },
-  {
-    id: 'livestock-henyard',
+    id: 'henYard',
     slot: 'livestock',
     title: 'Hen yard',
     blurb:
-      'A coop on stilts with a ramp, fenced run, five hens. Smaller and gentler than the pig pen — reads well at 2x2, so it can be the cheap early food building.',
-    pack: ['fence_wood_straight', 'fence_wood_straight_gate', 'crate_open', 'sack'],
-    handmade: ['coop', 'hens', 'feed scatter'],
+      'The EXTRA stables — an open shed that arrives with its own rail fence, hay and awning — with five hens and scattered feed in the pen. No KayKit pack has an animal in it, so the birds were always going to be ours.',
+    pack: ['extra/building_stables_green'],
+    handmade: ['hens', 'feed'],
     w: 3,
     h: 3,
     build(K) {
       const g = new THREE.Group();
-      add(g, pen(K, 2.7, 2.7));
-      add(g, coop(K, 0.75), -0.6, 0, -0.75, 0.15);
-      const hens: [number, number, number][] = [
-        [0.5, -0.5, 1.2],
-        [0.85, 0.15, 2.6],
-        [0.2, 0.5, 0.3],
-        [-0.5, 0.75, 4.1],
-        [1.0, 0.85, 5.2],
-      ];
-      for (const [x, z, r] of hens) add(g, chicken(K, 0.27), x, 0, z, r);
-      add(g, K.prop('crate_open', { span: 0.3, rot: 0.4 }), -1.05, 0, 0.55);
-      add(g, sacks(K, 2, 'straw'), -1.0, 0, 0.05);
-      for (let i = 0; i < 7; i++) {
-        add(g, K.box(0.035, 0.012, 0.035, 'gold'), 0.15 + (i % 4) * 0.16, 0.006, 0.15 + (i % 3) * 0.2);
-      }
+      add(g, K.model('game/henYard'));
       return g;
     },
   },
   {
-    id: 'livestock-steading',
-    slot: 'livestock',
-    title: 'Steading',
+    id: 'fishery',
+    slot: 'fishery',
+    title: 'Fishery',
     blurb:
-      'One building that covers both animals: pack barn, fenced yard, pigs on one side, hens on the other. The most content per building slot, and the busiest 3x3 in the game.',
-    pack: ['building_home_B_green', 'fence_wood_straight', 'fence_wood_straight_gate', 'barrel'],
-    handmade: ['pigs', 'hens', 'trough', 'coop'],
+      'The EXTRA shipyard with the sailing ship cut off its roof and a fish sign standing in its place, the pack’s pier running out of the front, an anchor and a boat rack on the quay. The pier turns with the building to reach whichever side the water is on.',
+    pack: ['extra/building_shipyard_green', 'extra/building_docks_green', 'extra/anchor', 'extra/boatrack'],
+    handmade: ['fish sign'],
     w: 3,
     h: 3,
+    waterAt: 1.35,
     build(K) {
       const g = new THREE.Group();
-      add(g, K.base('building_home_B_green', 1.9, 1.9, { rot: 0.12 }), -0.62, 0, -0.68);
-      add(g, pen(K, 2.7, 2.7));
-      add(g, coop(K, 0.55), 1.0, 0, -0.75, -0.4);
-      add(g, trough(K, 0.6), -0.35, 0, 0.85, 0.15);
-      add(g, pig(K, 0.38), 0.45, 0, 0.55, 2.2);
-      add(g, pig(K, 0.32), 0.95, 0, 0.9, 4.0);
-      add(g, chicken(K, 0.25), 0.95, 0, -0.1, 1.2);
-      add(g, chicken(K, 0.25), 0.45, 0, -0.25, 3.4);
-      add(g, K.prop('barrel', { h: 0.26 }), -1.05, 0, 0.35);
-      return g;
-    },
-  },
-
-  {
-    id: 'livestock-stables',
-    slot: 'livestock',
-    title: 'Stables',
-    blurb:
-      'The EXTRA pack’s stables: an open shed under an awning with its own rail fence, hay and barrels already on it. Only the animals are ours — and it is the one option that needs no fencing run laid by hand.',
-    pack: ['extra/building_stables_green', 'crate_open', 'sack'],
-    handmade: ['pigs', 'hens'],
-    w: 3,
-    h: 3,
-    build(K) {
-      const g = new THREE.Group();
-      add(g, K.base('extra/building_stables_green', 2.6, 2.6, { rot: -0.08 }), 0, 0, -0.2);
-      add(g, pig(K, 0.38), 0.55, 0, 0.85, 2.3);
-      add(g, pig(K, 0.32), -0.15, 0, 1.1, 4.1);
-      add(g, chicken(K, 0.25), 1.0, 0, 0.5, 1.1);
-      add(g, chicken(K, 0.25), -0.75, 0, 0.75, 3.6);
-      add(g, K.prop('crate_open', { span: 0.3, rot: 0.4 }), -1.15, 0, 0.35);
-      add(g, sacks(K, 2, 'straw'), 1.2, 0, 0.15);
+      add(g, K.model('game/fishery'));
       return g;
     },
   },
@@ -789,13 +469,11 @@ export const VARIANTS: Variant[] = [
   },
 ];
 
-/** Every pack file the variants reference (the lab preloads exactly these). */
+/**
+ * Pack files the *goods* cards still compose by hand. The buildings no
+ * longer appear here: they are baked whole out of the game's own pipeline,
+ * so the gallery cannot drift from what a match draws.
+ */
 export function requiredFiles(): string[] {
-  const s = new Set<string>();
-  for (const v of VARIANTS) for (const f of v.pack) s.add(f);
-  // Referenced by shared parts rather than named per variant.
-  for (const f of ['sack', 'crate_open', 'crate_A_small', 'crate_A_big', 'pallet', 'barrel']) {
-    s.add(f);
-  }
-  return [...s];
+  return ['sack', 'crate_open', 'crate_A_small', 'crate_A_big', 'barrel', 'crate_long_A', 'restaurant/crate_buns'];
 }

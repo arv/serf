@@ -130,6 +130,12 @@ export class Kit {
     );
   }
 
+  /** Take an already-composed scene (a game building, decor and all) into
+   * the same flattened, vertex-colored form as a pack model. */
+  absorb(name: string, scene: THREE.Object3D): void {
+    this.#models.set(name, flatten(scene, new Map()));
+  }
+
   /** Rebuild from arrays baked by tools/modelLab/bake.mjs. */
   loadBaked(set: BakedSet): void {
     for (const [name, m] of Object.entries(set)) {
@@ -212,6 +218,12 @@ export class Kit {
 
   cone(r: number, h: number, seg: number, swatch: SwatchName): THREE.Mesh {
     return this.part(new THREE.ConeGeometry(r, h, seg), swatch);
+  }
+
+  /** A model used exactly as baked — no normalizing, no rescaling. Game
+   * buildings arrive already at the size buildingSync draws them. */
+  model(file: string): THREE.Mesh | null {
+    return this.#mesh(file);
   }
 
   #mesh(file: string): THREE.Mesh | null {
@@ -370,8 +382,16 @@ function flatten(
     const pos = geo.getAttribute('position');
     const nor = geo.getAttribute('normal');
     const uv = geo.getAttribute('uv');
-    const map = (o.material as THREE.MeshStandardMaterial)?.map ?? null;
+    // A game building is a mix: pack meshes wear the atlas (and carry two
+    // material groups once the team-color slot is split out), while the
+    // parts we build ourselves carry a flat color and no map at all. Take
+    // the map where there is one and the color where there is not.
+    const mat = (Array.isArray(o.material) ? o.material[0] : o.material) as
+      | THREE.MeshStandardMaterial
+      | undefined;
+    const map = mat?.map ?? null;
     const s = map ? samplerFor(map, samplers) : null;
+    const flat = mat?.color;
     const base = positions.length / 3;
     nm.getNormalMatrix(o.matrixWorld);
 
@@ -386,7 +406,15 @@ function flatten(
       }
       if (s && uv) {
         sample(s, uv.getX(i), uv.getY(i), rgb);
-      } else {
+        colors.push(LINEAR[rgb[0]]!, LINEAR[rgb[1]]!, LINEAR[rgb[2]]!);
+        continue;
+      }
+      if (flat) {
+        // Already linear: a THREE.Color built from a hex literal is.
+        colors.push(flat.r, flat.g, flat.b);
+        continue;
+      }
+      {
         // Flat grey means the atlas did not resolve — usually a model in a
         // subfolder whose texture is not beside it. Say so rather than
         // quietly shipping a colorless building.
@@ -397,8 +425,8 @@ function flatten(
         rgb[0] = 200;
         rgb[1] = 200;
         rgb[2] = 200;
+        colors.push(LINEAR[rgb[0]]!, LINEAR[rgb[1]]!, LINEAR[rgb[2]]!);
       }
-      colors.push(LINEAR[rgb[0]]!, LINEAR[rgb[1]]!, LINEAR[rgb[2]]!);
     }
 
     const idx = geo.getIndex();

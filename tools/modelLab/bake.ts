@@ -1,11 +1,17 @@
 import { Kit } from './kit';
-import { requiredFiles } from './variants';
+import { requiredFiles, GAME_BUILDINGS } from './variants';
+import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
 
 /**
- * The bake page: load every model the compositions use, flatten each to
- * vertex-colored arrays, and hand the result to bake.mjs through the page.
- * It runs in a browser because that is where GLTFLoader and a canvas to
- * sample the atlas with both live.
+ * The bake page: flatten everything the gallery draws into vertex-colored
+ * arrays and hand the result to bake.mjs through the page. It runs in a
+ * browser because that is where GLTFLoader and a canvas to sample the atlas
+ * with both live.
+ *
+ * The four food buildings are baked from the *game's* asset pipeline rather
+ * than rebuilt here, so the gallery shows exactly what a match shows —
+ * surgery, decor, fish sign and all. That is the whole point of it now that
+ * the models are chosen: what you iterate on has to be the real thing.
  */
 
 declare global {
@@ -19,8 +25,14 @@ const status = document.getElementById('status')!;
 const K = new Kit();
 try {
   await K.load(requiredFiles());
+  await loadGlbAssets();
+  for (const b of GAME_BUILDINGS) {
+    const g = makeGlbBuilding(b.type, 0);
+    if (!g) throw new Error(`no model for ${b.type}`);
+    K.absorb(`game/${b.type}`, g);
+  }
   window.__BAKED = JSON.stringify(K.bake());
-  status.textContent = `baked ${requiredFiles().length} models`;
+  status.textContent = 'baked';
 } catch (err) {
   window.__BAKE_ERROR = String(err);
   status.textContent = `failed: ${String(err)}`;

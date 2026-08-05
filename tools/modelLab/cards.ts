@@ -27,38 +27,38 @@ const SLOTS: Slot[] = [
     slot: 'mill',
     name: 'Mill',
     recipe: 'wheat → flour',
-    sub: 'The one slot the pack already answers. Both candidates ship a moving part as its own node, so either can turn while the mill is staffed the way the well crank does.',
-    pick: 'Windmill. It stands anywhere, it is the taller silhouette, and the watermill’s riverbank rule is a constraint the mill does not need to earn its keep — keep the watermill in the drawer as a later variant.',
+    sub: 'The one slot the pack answered outright.',
+    pick: 'It stands anywhere, and the watermill’s riverbank rule is a constraint the mill does not need to earn its keep. The watermill stays in the drawer as a later variant.',
   },
   {
     slot: 'bakery',
     name: 'Bakery',
     recipe: 'flour + water → food',
-    sub: 'Nothing in the pack is a bakery, so every option builds an oven. What they differ on is what the oven is attached to, and how much of the town’s existing vocabulary they reuse.',
-    pick: 'Oven house. The bake-house is cheaper to build but wears the house model, and the village already reads houses as population — a food building that looks like a house will be misread every time.',
+    sub: 'Nothing in any pack is a bakery, so the oven is ours either way.',
+    pick: 'The oven house — a purpose-built stone bakehouse whose whole front is the arch — is still the better silhouette. This went in first because it needed no new machinery in the renderer, and the swap is contained.',
     extra: 'EXTRA’s awning stall with the hanging meat and grain sacks is the closest thing to a food shop in any KayKit pack — worth trying as a fourth bakery, or holding back for a butcher if livestock ships its own building.',
   },
   {
     slot: 'fishery',
     name: 'Fishery',
     recipe: 'shore → food',
-    sub: 'No inputs but a coastline. What you are picking is the shape that says “this one needs water” — and since the EXTRA pier and shipyard landed, how little of it we have to build ourselves.',
-    pick: 'Built: the shipyard. Not one hand-built part on it, and it reads as an industry rather than a hut. It is the only food that costs no field — on a map where the wheat belt is somebody else’s, a coastline is a war economy — and the price is that it can only stand on one. It also brought the game its first placement rule that is not about ore.',
+    sub: 'No inputs at all — a coastline is the only thing it consumes.',
+    pick: 'The one building here with nothing hand-built on it but its sign. It also brought the game its first placement rule that is not about ore: touching water, and turned to face it.',
     extra: 'In and working. The pier runs out from the fisherman’s hut, the camp has its proper tent, and the pack’s own boat replaced the hull I modelled. The fish are the last thing still ours, and no KayKit pack has one.',
   },
   {
     slot: 'livestock',
     name: 'Livestock',
     recipe: 'wheat → food',
-    sub: 'No pack has animals for this — mine are hand-built in all four. What differs is how much of the pen comes for free, and the EXTRA stables come with their own fence, hay and awning.',
-    pick: 'Built, and it is the two combined: the EXTRA stables for the shed and its own rail fence, with hens in the pen. Wheat goes in, food comes out — one building and one hand, against the mill and bakery’s two of each, at half the food per grain. Bread for a tight village; birds for land you can spare.',
+    sub: 'The shed and its fence are the pack’s; the birds are not.',
+    pick: 'Wheat goes in, food comes out — one building and one hand, against the mill and bakery’s two of each, at half the food per grain. Bread for a tight village; birds for land you can spare.',
     extra: 'The stables are in. There are no animals in any KayKit pack — no sheep, no cattle — so the hens are ours, and were always going to be.',
   },
   {
     slot: 'goods',
     name: 'The goods',
     recipe: 'what a serf carries',
-    sub: 'Every new good needs a prop on a serf’s shoulders and a pile in the yard. These are shown at carry scale — drag them the same way.',
+    sub: 'Every new good needs a prop on a serf’s shoulders and a pile in the yard. Still undecided — these are shown at carry scale, so drag them the same way.',
     pick: 'Loaves in the pack’s open crate for food, and the tan sack repainted near-white for flour. Both stay inside the atlas we already ship; the Restaurant Bits crate is the better model but drags a second texture in for one prop.',
   },
 ];
@@ -99,7 +99,7 @@ export function galleryMarkup(): string {
           <p>${esc(s.sub)}</p>
         </header>
         <div class="cards">${items}</div>
-        <p class="pick"><span>would take</span>${esc(s.pick)}</p>
+        <p class="pick"><span>why this one</span>${esc(s.pick)}</p>
         ${s.extra ? `<p class="extra"><span>with EXTRA</span>${esc(s.extra)}</p>` : ''}
       </section>`;
   }).join('');
