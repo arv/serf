@@ -51,6 +51,13 @@ describe('the reach outline of a selected building', () => {
     expect(outline(scene)).toBeUndefined();
   });
 
+  it('clears when the selection moves on to a building that works none', () => {
+    const { reach, scene } = makeReach();
+    reach.update(snap({ id: 1, type: 'woodcutter' }));
+    reach.update(snap({ id: 2, type: 'brewery' }));
+    expect(outline(scene)).toBeUndefined();
+  });
+
   it('follows the selection from one gatherer to the next', () => {
     const { reach, scene } = makeReach();
     reach.update(snap({ id: 1, type: 'woodcutter', x: 10, y: 10 }));

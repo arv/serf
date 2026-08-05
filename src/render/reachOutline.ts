@@ -1,11 +1,6 @@
 import * as THREE from 'three';
 import { palette } from './palette';
-import {
-  buildingDef,
-  gatherOrigin,
-  gatherRecipeOf,
-  type BuildingDef,
-} from '../sim/defs/buildings';
+import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings';
 import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
 
@@ -146,8 +141,10 @@ const SELECTED = new THREE.Color(palette.vermillion);
  */
 export class SelectedReach {
   #outline: ReachOutline;
-  /** Building the outline currently belongs to; buildings never move, so
-   * this is enough to keep the per-frame update to a comparison. */
+  /** The selection this was last run for, gatherer or not (-1 for none).
+   * Buildings neither move nor change type, so a repeat id means the band
+   * on the ground is already the right one and the frame is over — a
+   * standing selection costs one comparison, not a def lookup. */
   #id = -1;
 
   constructor(scene: THREE.Scene, heights: HeightField) {
@@ -155,24 +152,20 @@ export class SelectedReach {
   }
 
   update(building: BuildingSnap | null): void {
-    const gather = building && gatherRecipeOf(buildingDef(building.type));
-    if (!building || !gather) {
-      if (this.#id !== -1) this.hide();
+    const id = building?.id ?? -1;
+    if (id === this.#id) return;
+    this.#id = id;
+    const def = building && buildingDef(building.type);
+    const gather = def && gatherRecipeOf(def);
+    if (!building || !def || !gather) {
+      this.#outline.hide();
       return;
     }
-    if (building.id === this.#id) return;
-    this.#id = building.id;
     this.#outline.show(gather.radius);
-    const def: BuildingDef = buildingDef(building.type);
     // The worker searches from the footprint's center tile, so the outline
     // is drawn around that tile's center — not the footprint's midpoint,
     // which is half a tile off for even-sized huts.
     const origin = gatherOrigin(def, building.x, building.y);
     this.#outline.moveTo(origin.x + 0.5, origin.y + 0.5, SELECTED);
-  }
-
-  hide(): void {
-    this.#outline.hide();
-    this.#id = -1;
   }
 }
