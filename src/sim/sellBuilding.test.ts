@@ -3,7 +3,14 @@ import { tickWorld } from './tick.ts';
 import { canPlace, type World } from './world.ts';
 import { buildingDef } from './defs/buildings.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
-import { addBuiltHut, addSite, addStorehouse, bareWorld, cmds } from './testUtils.ts';
+import {
+  addBuiltHut,
+  addResourceTile,
+  addSite,
+  addStorehouse,
+  bareWorld,
+  cmds,
+} from './testUtils.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -18,6 +25,7 @@ describe('selling a building', () => {
   it('refunds half the cost, frees the worker and the ground', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { wood: 0 });
+    addResourceTile(world, 40, 30); // a grove in reach, or the hut is illegal ground
     const hut = addBuiltHut(world, 36, 30);
     const workerId = hut.workerId!;
     const initial = countGoods(world);

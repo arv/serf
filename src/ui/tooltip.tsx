@@ -6,7 +6,12 @@ if (import.meta.hot) {
   import.meta.hot.accept(() => import.meta.hot?.invalidate());
 }
 import { TICKS_PER_SECOND } from '../sim/defs/balance';
-import { BUILDING_DEFS, type BuildingTypeId, type Recipe } from '../sim/defs/buildings';
+import {
+  BUILDING_DEFS,
+  gatherRecipeOf,
+  type BuildingTypeId,
+  type Recipe,
+} from '../sim/defs/buildings';
 import { type GoodAmounts, type GoodId } from '../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../sim/defs/techs';
 import { COUNTER_TABLE, UNIT_DEFS, type UnitClass, type UnitTypeId } from '../sim/defs/units';
@@ -265,8 +270,14 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
       <div class="tip-desc">
         {BUILDING_FLAVOR[props.type] ?? (def().recipe ? recipeText(def().recipe!) : '')}
       </div>
-      <Show when={def().nearDeposit}>
-        <div class="tip-line">Must be placed beside {RESOURCE_NAMES[def().nearDeposit!.resource]}.</div>
+      <Show when={gatherRecipeOf(def())}>
+        {(gather) => (
+          <div class="tip-line">
+            Must be built within {gather().radius} tiles of{' '}
+            {RESOURCE_NAMES[gather().resource] ?? gather().resource} — that is as far as its
+            worker will walk.
+          </div>
+        )}
       </Show>
       <CostLine
         label="Build"

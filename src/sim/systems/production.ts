@@ -1,22 +1,21 @@
-import { inBounds, tileIdx, tileX, tileY } from '../../shared/grid.ts';
+import { tileX, tileY } from '../../shared/grid.ts';
 import { Rng } from '../../shared/rng.ts';
 import { WOOD_MAX_AMT, REGROW_INTERVAL } from '../defs/balance.ts';
-import { OUTPUT_CAP, buildingDef, convertRecipeOf, type BuildingDef, type Recipe } from '../defs/buildings.ts';
-import { TileResource, type TileResourceKind } from '../map.ts';
-import { centerOf, type Building } from '../entities.ts';
+import {
+  OUTPUT_CAP,
+  buildingDef,
+  convertRecipeOf,
+  gatherOrigin,
+  type BuildingDef,
+  type Recipe,
+} from '../defs/buildings.ts';
+import { RESOURCE_CODE, TileResource, findResourceNear } from '../map.ts';
+import type { Building } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { depleteResourceTile, type World } from '../world.ts';
 import { getModifier } from '../techHelpers.ts';
 import type { GoodId } from '../defs/goods.ts';
 import type { Unit } from '../units.ts';
-
-const RESOURCE_CODE: Record<string, TileResourceKind> = {
-  wood: TileResource.Wood,
-  rock: TileResource.Rock,
-  ironDep: TileResource.IronDep,
-  silverDep: TileResource.SilverDep,
-  goldDep: TileResource.GoldDep,
-};
 
 /**
  * Gather production: each producer's resident worker commutes to resource
@@ -102,7 +101,14 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
         worker.task = { t: 'idle', until: world.tick + 20 };
         return;
       }
-      const tile = findResourceTile(world, b, RESOURCE_CODE[recipe.resource]!, recipe.radius);
+      const c = gatherOrigin(buildingDef(b.type), b.x, b.y);
+      const tile = findResourceNear(
+        world.map,
+        c.x,
+        c.y,
+        RESOURCE_CODE[recipe.resource]!,
+        recipe.radius,
+      );
       if (tile < 0) {
         worker.task = { t: 'idle', until: world.tick + 40 };
         return;
@@ -137,7 +143,7 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
       }
       const speedup =
         getModifier(world, b.owner, 'workSpeed') *
-        (buildingDef(b.type).nearDeposit ? getModifier(world, b.owner, 'mineSpeed') : 1);
+        (buildingDef(b.type).mine ? getModifier(world, b.owner, 'mineSpeed') : 1);
       worker.task = {
         t: 'gatherWork',
         tile,
@@ -182,31 +188,6 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
     default:
       return;
   }
-}
-
-/** Nearest matching resource tile within radius of the building center. */
-function findResourceTile(
-  world: World,
-  b: Building,
-  code: TileResourceKind,
-  radius: number,
-): number {
-  const c = centerOf(b);
-  const cx = Math.floor(c.x);
-  const cy = Math.floor(c.y);
-  for (let r = 1; r <= radius; r++) {
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-        const x = cx + dx;
-        const y = cy + dy;
-        if (!inBounds(x, y)) continue;
-        const i = tileIdx(x, y);
-        if (world.map.resource[i] === code && world.map.resourceAmt[i]! > 0) return i;
-      }
-    }
-  }
-  return -1;
 }
 
 /** Tree groves slowly regrow on standing (uncleared) tiles. */

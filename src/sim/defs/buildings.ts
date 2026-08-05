@@ -16,7 +16,9 @@ export type Recipe =
       kind: 'gather';
       resource: TileResourceName;
       output: GoodId;
-      /** Search radius (tiles from building center) for resource tiles. */
+      /** Search radius (tiles from building center) for resource tiles. This
+       * is also the placement rule: a gatherer may only be sited where the
+       * worker it will house can already see something to work. */
       radius: number;
       /** Ticks spent working a tile before yielding 1 good. */
       workTicks: number;
@@ -52,8 +54,9 @@ export interface BuildingDef {
   recipeOptions?: { recipe: Recipe & { kind: 'convert' }; requiresTech?: TechId }[];
   /** Resident worker spawned when construction completes (gather recipes). */
   workerKind?: UnitTypeId;
-  /** Placement: requires a matching deposit tile within `radius` of the footprint. */
-  nearDeposit?: { resource: TileResourceName; radius: number };
+  /** Digs into the hillside rather than standing on it: exempt from the
+   * flat-ground placement rule, and sped up by mining research. */
+  mine?: boolean;
   /** Site demand priority (construction defaults to 1; road paving uses 3). */
   sitePriority?: 1 | 2 | 3;
   /** Footprint does not block movement (road sites). */
@@ -212,7 +215,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'ironDep', output: 'iron', radius: 4, workTicks: 4 * S },
-    nearDeposit: { resource: 'ironDep', radius: 4 },
+    mine: true,
   },
   silverMine: {
     id: 'silverMine',
@@ -225,7 +228,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'silverDep', output: 'silver', radius: 4, workTicks: 4 * S },
-    nearDeposit: { resource: 'silverDep', radius: 4 },
+    mine: true,
   },
   goldMine: {
     id: 'goldMine',
@@ -239,7 +242,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'goldDep', output: 'gold', radius: 4, workTicks: 5 * S },
-    nearDeposit: { resource: 'goldDep', radius: 4 },
+    mine: true,
   },
   weaponsmith: {
     id: 'weaponsmith',
@@ -329,6 +332,23 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
 
 export function buildingDef(id: BuildingTypeId): BuildingDef {
   return BUILDING_DEFS[id];
+}
+
+/** The gather recipe, if this building works the land. Undefined for
+ * converters and for buildings with no recipe at all. */
+export function gatherRecipeOf(def: BuildingDef): (Recipe & { kind: 'gather' }) | undefined {
+  return def.recipe?.kind === 'gather' ? def.recipe : undefined;
+}
+
+/** The tile a gatherer searches outward from: its footprint center, floored.
+ * Takes the origin rather than the building so a ghost under the cursor
+ * measures its reach from exactly where the built hut would. */
+export function gatherOrigin(
+  def: BuildingDef,
+  x: number,
+  y: number,
+): { x: number; y: number } {
+  return { x: Math.floor(x + def.w / 2), y: Math.floor(y + def.h / 2) };
 }
 
 /** The active convert recipe: the fixed one, or the option the building's
