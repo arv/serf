@@ -23,8 +23,9 @@ import type { UnitTypeId } from './units.ts';
 
 export type AiStrategyId = 'steward' | 'warlord' | 'abbot' | 'fletcher';
 
-/** Where a build step looks for ground: the home base, or a resource seam. */
-export type BuildAnchor = 'base' | 'wood' | 'rock' | 'iron' | 'silver';
+/** Where a build step looks for ground: the home base, a resource seam, or
+ * the shore (the fishery is the only thing that wants the last one). */
+export type BuildAnchor = 'base' | 'wood' | 'rock' | 'iron' | 'silver' | 'water';
 
 export interface BuildStep {
   type: BuildingTypeId;
@@ -137,6 +138,11 @@ const STEWARD_BUILD: BuildStep[] = [
   // barracks, or their wood hunger keeps it unaffordable forever (the
   // army-less death the winnable test caught).
   { type: 'weaponsmith', count: 2, anchor: 'base', after: 'ironworking', needs: 'barracks' },
+  // Last in the plan, and on purpose. A shore is free food, but the brain
+  // cannot tell whether it needs any: its list is unconditional, so a
+  // fishery bought before the smiths is a hand and twelve wood spent on
+  // food the bakery was already making. Behind everything, it is surplus.
+  { type: 'fishery', count: 1, anchor: 'water', radius: 8, after: 'ironworking', needs: 'barracks' },
 ];
 
 export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
@@ -191,6 +197,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // men instead of an army — a second mine is what makes the plan real.
       { type: 'ironMine', count: 2, anchor: 'iron', radius: 4, after: 'ironworking' },
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'ironworking', needs: 'barracks' },
+      // Last, and only once the forges stand — see the campaign line's note.
+      { type: 'fishery', count: 1, anchor: 'water', radius: 8, after: 'ironworking', needs: 'barracks' },
     ],
     researchOrder: ['soldiery', 'cobbledBoots', 'ironworking', 'mailArmor'],
     researchReserve: 6,
@@ -240,6 +248,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // are hands to spare.
       { type: 'wheatFarm', count: 2, anchor: 'base', after: 'ironworking' },
       { type: 'well', count: 2, anchor: 'base', after: 'ironworking' },
+      // The second field is where this plan's spare hand goes, which is why
+      // no fishery follows it — see the Fletcher's note.
     ],
     researchOrder: ['soldiery', 'cobbledBoots', 'ironworking', 'irrigation', 'masonry'],
     researchReserve: 10,
@@ -285,6 +295,12 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // Two forges and no mine to feed them: bowstaves are three wood
       // apiece, which is why the second woodcutter comes with the archery.
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'archery', needs: 'barracks' },
+      // No fishery here, and none in the Abbot's plan either. Both run their
+      // last step on a purse the iron seats never touch — the Fletcher pays
+      // for bowstaves out of the same wood the shore hut wants, and the Abbot
+      // is already the longest plan in the deck with no spare hand. Tried in
+      // both and both stopped winning the campaign map; a seat that cannot
+      // afford surplus food should not be buying any.
     ],
     researchOrder: ['soldiery', 'archery', 'cobbledBoots'],
     researchReserve: 8,
