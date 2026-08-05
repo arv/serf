@@ -32,6 +32,13 @@ export interface HaulJob {
   createdTick: number;
   phase: 'open' | 'toPickup' | 'toDropoff';
   serfId?: EntityId;
+  /**
+   * Set on arrival at a source with `drawTicks` (the well): the tick the
+   * hauler finishes drawing and the good is finally in its hands. Lives on
+   * the job rather than the building so two haulers at one well each pay
+   * their own six seconds instead of queueing on a shared timer.
+   */
+  drawUntil?: number;
   blockedUntil?: number;
   /** Consecutive pathing failures; too many aborts the job + backs off the demand. */
   blockedCount?: number;

@@ -52,6 +52,18 @@ export interface BuildingDef {
   recipeOptions?: { recipe: Recipe & { kind: 'convert' }; requiresTech?: TechId }[];
   /** Resident worker spawned when construction completes (gather recipes). */
   workerKind?: UnitTypeId;
+  /**
+   * Ticks a hauler spends at this building collecting one good, before it
+   * has anything in its hands. Undefined — every building but the well —
+   * means a pickup is instant.
+   *
+   * The well's alternative to a resident: a bucket on a rope is not a job,
+   * it is a thing you do when you want water. The cost does not vanish, it
+   * moves — off the population cap and onto the haulage pool, and onto the
+   * beat it is actually wanted rather than all day. A keeper cranking into
+   * a full bucket was paying rent on nothing.
+   */
+  drawTicks?: number;
   /** Placement: requires a matching deposit tile within `radius` of the footprint. */
   nearDeposit?: { resource: TileResourceName; radius: number };
   /**
@@ -178,8 +190,19 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     buildTicks: 8 * S,
     hp: 80,
     sight: 5.5,
-    workerKind: 'worker',
+    // No keeper. The two clocks are different things: durationTicks is the
+    // shaft refilling — the well's own rate, and still what caps one well at
+    // ten water a minute — and drawTicks is the hauler on the windlass. Only
+    // the second costs anybody anything, and only when someone came for
+    // water.
+    //
+    // Six seconds each, which is not a coincidence: a resident made ten
+    // water a minute for one permanent hand, so a six-second draw at ten
+    // water a minute costs the same hand's worth of haulage. The bill is
+    // identical and the population slot is free. Below demand it costs
+    // nothing at all, which the keeper never managed.
     recipe: { kind: 'convert', inputs: {}, outputs: { water: 1 }, durationTicks: 6 * S },
+    drawTicks: 6 * S,
   },
   wheatFarm: {
     id: 'wheatFarm',

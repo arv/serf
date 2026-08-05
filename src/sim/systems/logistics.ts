@@ -89,6 +89,9 @@ export function unassignJob(world: World, job: HaulJob): void {
   }
   job.phase = 'open';
   job.serfId = undefined;
+  // Half-wound is not wound: the next serf to take this job starts the draw
+  // from the top rather than inheriting a dead one's progress.
+  job.drawUntil = undefined;
 }
 
 // --- Demand/supply matching ------------------------------------------------
@@ -475,6 +478,20 @@ function progress(world: World): void {
         // Reservation should prevent this; reconcile will warn. Retry later.
         abortJob(world, job, 'source out of stock at pickup');
         continue;
+      }
+      // Somewhere that has to be worked to give up its goods — the well and
+      // its windlass. The serf stands at it for drawTicks before anything is
+      // in its hands; the reservation is already held, so nothing else can
+      // take the water it is winding up. (Held here, before the stock is
+      // decremented, so a serf killed mid-draw loses the trip and not the
+      // good.)
+      const draw = buildingDef(from.type).drawTicks;
+      if (draw !== undefined) {
+        if (job.drawUntil === undefined) {
+          job.drawUntil = world.tick + draw;
+          continue;
+        }
+        if (world.tick < job.drawUntil) continue;
       }
       from.stock[job.good] = (from.stock[job.good] ?? 0) - 1;
       releaseSource(world, job);

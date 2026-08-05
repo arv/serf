@@ -252,7 +252,12 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // no fishery follows it — see the Fletcher's note.
     ],
     researchOrder: ['soldiery', 'cobbledBoots', 'ironworking', 'irrigation', 'masonry'],
-    researchReserve: 10,
+    // The smallest purse in the deck, on the longest research order. This is
+    // the widest plan and the one that runs closest to the edge: it staffs
+    // more posts than anyone, and every post is a hand that stops hauling.
+    // Holding ten silver back for the next tech is how it ends up with one
+    // loose serf, forty open jobs and nothing moving.
+    researchReserve: 6,
     serfTarget: 14,
     survivalFloor: 3,
     growthAfter: null,
