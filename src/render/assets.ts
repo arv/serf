@@ -20,10 +20,7 @@ const DIR = '/models/kaykit/';
  */
 const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   storehouse: 'building_castle_green.gltf',
-  // The pack ships no plain dwelling, and the market is the closest thing
-  // to one it has: a timbered two-storey with a shopfront. Read as the
-  // village house, it is the only unused townish model in the set.
-  house: 'building_market_green.gltf',
+  house: 'building_home_A_green.gltf',
   woodcutter: 'building_lumbermill_green.gltf',
   quarry: 'building_mine_green.gltf',
   well: 'building_well_green.gltf',

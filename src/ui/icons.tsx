@@ -185,20 +185,12 @@ export function SwordsIcon() {
   );
 }
 
-/** A villager under a roof: the population readout's glyph. */
+/** A head and shoulders: the population readout's glyph. */
 export function PopIcon() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
-      <path
-        d="M2.2 7.4 8 2.8l5.8 4.6"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        fill="none"
-      />
-      <circle cx="8" cy="8.7" r="1.7" fill="currentColor" />
-      <path d="M4.9 14a3.1 3.1 0 0 1 6.2 0Z" fill="currentColor" />
+      <circle cx="8" cy="5.4" r="3" fill="currentColor" />
+      <path d="M2.6 14.4a5.4 5.4 0 0 1 10.8 0Z" fill="currentColor" />
     </svg>
   );
 }
