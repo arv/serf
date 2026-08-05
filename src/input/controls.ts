@@ -48,6 +48,9 @@ const MILITARY_CODES = new Set(
  * that building instead of marching onto it. The HUD's marquee button arms
  * a one-shot band select — the next finger drag draws the band while the
  * camera holds still — and its army button grabs every soldier at once.
+ * Placement has no Esc and no right click there either, so the way out of
+ * an armed building is the HUD's cancel bar, which comes back through
+ * setPlacement(null).
  */
 export class Controls {
   #canvas: HTMLCanvasElement;
@@ -116,7 +119,7 @@ export class Controls {
     canvas.addEventListener('lostpointercapture', this.#onCancel);
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape') {
-        if (placing()) this.#cancelPlacement();
+        if (placing()) this.setPlacement(null);
         else {
           this.#setSel(new Set());
           setSelectedBuilding(null);
@@ -130,9 +133,15 @@ export class Controls {
     });
   }
 
-  #cancelPlacement(): void {
-    setPlacing(null);
-    this.#ghost.hide();
+  /**
+   * Arm (or disarm) build placement. Everything that changes the mode goes
+   * through here, the HUD's buttons included: writing the signal alone
+   * leaves the ghost standing on the map until the next pointer move, and
+   * a finger that just tapped Cancel may never send one.
+   */
+  setPlacement(type: BuildingTypeId | null): void {
+    setPlacing(type);
+    if (type === null) this.#ghost.hide();
   }
 
   /** Footprint origin tile for a ghost centered under the cursor. */
@@ -231,7 +240,7 @@ export class Controls {
         }
         this.#place(e.clientX, e.clientY, e.shiftKey);
       } else if (e.button === 2) {
-        this.#cancelPlacement();
+        this.setPlacement(null);
       }
       return;
     }
@@ -290,7 +299,7 @@ export class Controls {
       this.#host.sendCommands([
         { kind: 'placeBuilding', building: type, x: origin.x, y: origin.y },
       ]);
-      if (!keepArmed) this.#cancelPlacement();
+      if (!keepArmed) this.setPlacement(null);
       return;
     }
     // A refused spot must never be a silent nothing. With a mouse the red

@@ -402,6 +402,7 @@ async function runMatch(
   mountHud(host, {
     selectArmy: () => controls.selectArmy(),
     deselect: () => controls.deselectAll(),
+    place: (type) => controls.setPlacement(type),
     save: saveGame,
   });
 
