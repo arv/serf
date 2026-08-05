@@ -46,7 +46,19 @@ import { defaultLobbyConfig, sanitizeLobbyConfig, type LobbyConfig } from '../pr
 import type { LobbyResult } from '../net/lobbyClient';
 import type { NetInfo } from '../protocol/messages';
 
+/**
+ * Whether a screen is already up. The first failure is the one that knows
+ * what happened; anything after it is that failure arriving a second time.
+ * fatal() throws, so every one of these ends up at boot()'s catch as well —
+ * and the plain screen that catch would draw used to replace the screen the
+ * WebGL path had just put up, taking the Try again button with it and
+ * leaving the player with a black page and no way out.
+ */
+let fatalShown = false;
+
 function showFatal(message: string, opts?: { retry?: boolean }): void {
+  if (fatalShown) return;
+  fatalShown = true;
   const el = document.getElementById('fatal')!;
   el.style.display = 'grid';
   const card = document.createElement('div');
@@ -66,7 +78,12 @@ function showFatal(message: string, opts?: { retry?: boolean }): void {
       'font:inherit;font-size:15px;padding:10px 26px;margin-top:10px;cursor:pointer;' +
       'color:#f7e9c0;background:rgba(229,196,105,0.13);border:1px solid rgba(229,196,105,0.5);' +
       'border-radius:11px;';
-    retry.addEventListener('click', () => location.reload());
+    retry.addEventListener('click', () => {
+      // Asking by hand re-arms the automatic tries: the count exists to stop
+      // a reload loop running on its own, and this one is not on its own.
+      sessionStorage.removeItem('serf-gl-fails');
+      location.reload();
+    });
     card.append(retry);
   }
   el.replaceChildren(card);
@@ -217,24 +234,19 @@ async function runMatch(
   setMyPlayerId(config.myPlayerId);
   setNetMode(net !== undefined);
 
-  // Single player owns a World in a worker; multiplayer owns a socket and
-  // renders what the server sends. Both speak the same worker protocol, so
-  // nothing below this line knows the difference.
-  const host = new WorkerSimHost(net ? 'net' : 'sim');
-  // Character/building GLBs load while the world is prepared; if they fail,
-  // the renderer falls back to the procedural models.
-  const [init] = await Promise.all([
-    host.start(config, loadData, net),
-    loadCharacterAssets(),
-    loadGlbAssets(),
-  ]);
-
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+  // The context comes first, before the world is built and the models are
+  // fetched. Two reasons, both about the phone this fails on: asking while
+  // the page is at its lightest is the ask most likely to be granted, and
+  // when it is refused anyway, failing here costs nothing — no worker, no
+  // map, nothing to tear down before the reload below.
+  //
   // Android Chrome kills the GPU process under memory pressure, and for a
-  // while afterwards a WebGL context simply isn't granted. A dead-end
-  // error screen made that read as "the game is broken"; the process
-  // usually comes back within a breath, so retry once on our own and put
-  // a button on the screen for the times it needs longer.
+  // while afterwards a WebGL context simply isn't granted. A dead-end error
+  // screen made that read as "the game is broken"; the process usually
+  // comes back within a breath, so try again on our own — twice, giving it
+  // longer the second time — and leave a button for when it needs longer
+  // still.
   let renderer: GameRenderer;
   try {
     renderer = new GameRenderer(canvas);
@@ -242,7 +254,7 @@ async function runMatch(
   } catch (err) {
     const fails = Number(sessionStorage.getItem('serf-gl-fails') ?? '0') + 1;
     sessionStorage.setItem('serf-gl-fails', String(fails));
-    if (fails <= 1) setTimeout(() => location.reload(), 1500);
+    if (fails <= 2) setTimeout(() => location.reload(), fails * 1500);
     fatal(
       'The browser refused a WebGL context — this usually passes in a moment. ' +
         `(${err instanceof Error ? err.message : String(err)})`,
@@ -258,22 +270,39 @@ async function runMatch(
   // the same sessionStorage handoff the Load button uses and reload — the
   // player comes back into the same world. Multiplayer skips the save
   // (the server owns the world; the rejoin token survives the reload).
+  //
+  // Armed the moment the context exists, which is before the world is
+  // built: generating a map is the heaviest thing this page does, and a
+  // phone that loses the GPU while it happens must still find its way to
+  // the reload rather than sit on a dead canvas.
   let restoreTimer: ReturnType<typeof setTimeout> | undefined;
+  // Assigned once the world is up, further down. Until then a loss has
+  // nothing worth keeping and the reload is the whole recovery.
+  let rescue: (() => Promise<string>) | undefined;
   canvas.addEventListener('webglcontextlost', () => {
     restoreTimer = setTimeout(() => {
-      if (net) {
+      if (net || !rescue) {
         location.reload();
         return;
       }
-      // saveGame is declared further down, but this callback cannot run
-      // before it exists: everything between here and there is synchronous,
-      // and the timer gives it four seconds besides.
-      void saveGame()
+      void rescue()
         .then((data) => sessionStorage.setItem('serf-load-pending', data))
         .finally(() => location.reload());
     }, 4000);
   });
   canvas.addEventListener('webglcontextrestored', () => clearTimeout(restoreTimer));
+
+  // Single player owns a World in a worker; multiplayer owns a socket and
+  // renders what the server sends. Both speak the same worker protocol, so
+  // nothing below this line knows the difference.
+  const host = new WorkerSimHost(net ? 'net' : 'sim');
+  // Character/building GLBs load while the world is prepared; if they fail,
+  // the renderer falls back to the procedural models.
+  const [init] = await Promise.all([
+    host.start(config, loadData, net),
+    loadCharacterAssets(),
+    loadGlbAssets(),
+  ]);
   // Dev-only handles for console debugging (scene graph + the SAB reader,
   // which is where render-vs-sim questions get settled).
   if (import.meta.env.DEV) {
@@ -317,6 +346,7 @@ async function runMatch(
   // handoff alike: the world from the worker, the fog's memory from here.
   const saveGame = async (): Promise<string> =>
     envelopeSave(await host.requestSave(), fog.exportExplored());
+  rescue = saveGame;
   if (import.meta.env.DEV) {
     Object.assign(window as unknown as Record<string, unknown>, { __fog: fog });
   }

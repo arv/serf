@@ -74,10 +74,44 @@ export interface Backdrop {
   stop(): void;
 }
 
+/**
+ * The one live backdrop, tracked here rather than in the shell that started
+ * it, because leaving the menu is not always the shell's own doing: single
+ * player begins with a navigation (StartMenu.tsx), and a page that walks
+ * away still holding a WebGL context can be parked in the back/forward
+ * cache — context and all. Phones hand contexts out sparingly, and the
+ * match booting on the far side of that navigation needs one of its own.
+ * releaseMenuBackdrop() gives this one back before the page leaves.
+ */
+let live: Backdrop | null = null;
+/**
+ * Bumped by every start and every release. A backdrop whose assets land
+ * after it was released disposes of itself rather than taking a context
+ * nobody will ever look at.
+ */
+let generation = 0;
+
+/** Already gone by the time it was ready; nothing to stop. */
+const DEAD: Backdrop = { stop() {} };
+
+/**
+ * Give the backdrop's WebGL context back, now. Safe to call at any time,
+ * including with a start still in flight and with no backdrop at all.
+ */
+export function releaseMenuBackdrop(): void {
+  generation++;
+  live?.stop();
+  live = null;
+}
+
 export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Backdrop> {
+  const mine = ++generation;
   // Buildings only — the castle is the subject, and skipping the character
   // atlas keeps the menu's first paint quick.
   await loadGlbAssets();
+  // Released while the models were loading: take no context at all. Every
+  // line below this one is synchronous, so this is the only window.
+  if (mine !== generation) return DEAD;
 
   const world = createWorld({
     seed: BACKDROP_SEED,
@@ -158,10 +192,11 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   };
   raf = requestAnimationFrame(loop);
 
-  return {
+  const backdrop: Backdrop = {
     stop(): void {
       if (stopped) return;
       stopped = true;
+      if (live === backdrop) live = null;
       cancelAnimationFrame(raf);
       observer.disconnect();
       // The context goes with it: the match about to boot needs one of its
@@ -169,4 +204,6 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
       renderer.dispose();
     },
   };
+  live = backdrop;
+  return backdrop;
 }

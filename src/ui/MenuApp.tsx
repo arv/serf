@@ -4,7 +4,7 @@ import { MENU_STYLE } from './menuChrome';
 import { StartMenu, type StartState } from './StartMenu';
 import { WarCouncil, type CouncilHooks } from './WarCouncil';
 import { relayUrl, runLobby, type CouncilRequest, type LobbyResult } from '../net/lobbyClient';
-import { startMenuBackdrop, type Backdrop } from './menuBackdrop';
+import { releaseMenuBackdrop, startMenuBackdrop } from './menuBackdrop';
 
 /**
  * The pre-boot shell: one page, two screens. The start screen and the War
@@ -133,28 +133,42 @@ function MenuApp(props: { entry: MenuEntry; host: MenuHost }) {
   // alone still look deliberate.
   const root = document.getElementById('menu')!;
   let canvas: HTMLCanvasElement | null = null;
-  let backdrop: Backdrop | null = null;
-  let torn = false;
-  createEffect(() => {
-    const on = showing();
-    root.style.display = on ? 'block' : 'none';
-    if (!on || canvas) return;
+  const raise = (): void => {
+    if (canvas) return;
     canvas = document.createElement('canvas');
     canvas.id = 'menu-canvas';
     document.getElementById('canvas')!.insertAdjacentElement('afterend', canvas);
-    void startMenuBackdrop(canvas)
-      .then((b) => {
-        if (torn) b.stop();
-        else backdrop = b;
-      })
-      .catch((err: unknown) => {
-        console.warn('[menu] no live backdrop:', err);
-      });
-  });
-  onCleanup(() => {
-    torn = true;
-    backdrop?.stop();
+    void startMenuBackdrop(canvas).catch((err: unknown) => {
+      console.warn('[menu] no live backdrop:', err);
+    });
+  };
+  const drop = (): void => {
+    releaseMenuBackdrop();
     canvas?.remove();
+    canvas = null;
+  };
+  createEffect(() => {
+    const on = showing();
+    root.style.display = on ? 'block' : 'none';
+    if (on) raise();
+  });
+
+  // A page that leaves while holding a context can be parked in the
+  // back/forward cache still holding it, and the single-player launch is a
+  // navigation — so the match on the far side would be asking a phone for a
+  // second context. Hand this one back on the way out, and build a fresh one
+  // if the player comes back to a restored page.
+  const onHide = (): void => drop();
+  const onShow = (e: PageTransitionEvent): void => {
+    if (e.persisted && showing()) raise();
+  };
+  window.addEventListener('pagehide', onHide);
+  window.addEventListener('pageshow', onShow);
+
+  onCleanup(() => {
+    window.removeEventListener('pagehide', onHide);
+    window.removeEventListener('pageshow', onShow);
+    drop();
     root.style.display = 'none';
   });
 
