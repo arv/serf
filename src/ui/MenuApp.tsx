@@ -41,6 +41,26 @@ function paneFor(req: CouncilRequest | null): StartState | null {
   return req === null ? null : { mode: 'multi', mp: req.mp === 'new' ? 'host' : 'join' };
 }
 
+/**
+ * Write the room into the address bar, or take it back out — leaving every
+ * other parameter where it is. What a reload comes back on is this URL, and
+ * ?relay= is part of how it finds its way home: dropping it would send the
+ * next connection to a different server than the one this room lives on.
+ * The dev switches (?zoom=, ?wardrobe=) survive for the same reason.
+ */
+function setRoomInUrl(code: string | null): void {
+  const params = new URLSearchParams(location.search);
+  if (code === null) {
+    params.delete('mp');
+    // Visibility is a property of creating a room, not of being in one.
+    params.delete('open');
+  } else {
+    params.set('mp', code);
+  }
+  const query = params.toString();
+  history.replaceState(null, '', query ? `?${query}` : location.pathname);
+}
+
 function MenuApp(props: { entry: MenuEntry; host: MenuHost }) {
   const [council, setCouncil] = createSignal<CouncilRequest | null>(props.entry);
   // Set by runLobby the moment it has something to show. A stashed rejoin
@@ -81,7 +101,7 @@ function MenuApp(props: { entry: MenuEntry; host: MenuHost }) {
       pushed = false;
       history.back();
     } else {
-      history.replaceState(null, '', location.pathname);
+      setRoomInUrl(null);
     }
   };
 
@@ -103,7 +123,7 @@ function MenuApp(props: { entry: MenuEntry; host: MenuHost }) {
   // Invite button hands out.
   createEffect(() => {
     const code = hooks()?.view().code;
-    if (code) history.replaceState(null, '', `?mp=${encodeURIComponent(code)}`);
+    if (code) setRoomInUrl(code);
   });
 
   // The live backdrop (menuBackdrop.ts) on its own canvas, over the game's

@@ -176,6 +176,15 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
     const isHost = req.mp === 'new';
     // A reload mid-match sits back down instead of knocking on the door.
     const stash = readSeatStash(req.mp);
+    /**
+     * The player left. Nothing this socket has to say matters after that,
+     * and saying it anyway is worse than silence: a queued 'begin' would
+     * start a match nobody is watching for, and closing a socket that has
+     * not finished connecting fires `error` — which used to throw the
+     * "cannot reach the relay" screen over the start menu the player had
+     * just walked back to.
+     */
+    let abandoned = false;
 
     const [view, setView] = createSignal<CouncilView>({
       notice: req.notice,
@@ -213,6 +222,8 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
             // Closing the socket releases the seat (the relay removes lobby
             // chairs on disconnect); this promise is simply dropped, and the
             // shell puts the start screen back.
+            abandoned = true;
+            ws.onopen = ws.onmessage = ws.onerror = null;
             unmount();
             ws.close();
             ui.onLeave();
@@ -220,6 +231,7 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
         });
 
     const fail = (message: string): void => {
+      if (abandoned) return;
       unmount();
       ws.close();
       reject(new Error(message));
@@ -236,6 +248,9 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
       );
     };
     ws.onmessage = (e: MessageEvent<string>) => {
+      // Detaching the handlers on the way out is the real guard; this one
+      // catches an event already queued behind that.
+      if (abandoned) return;
       // The rejoin reply is chased by a binary init frame on this same
       // socket; the net worker will fetch its own once the match view
       // boots, so anything non-JSON here is simply not for us.
