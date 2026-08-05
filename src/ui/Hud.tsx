@@ -342,6 +342,23 @@ export function Hud(props: {
           pointer-events: auto; align-self: flex-start;
           padding: 10px 16px; font-weight: 600;
         }
+        /* Placement is a mode, and a mode with no way out is a trap. A
+           mouse leaves it with Esc or a right click; a finger has neither,
+           so until this bar the only exit was finding somewhere the
+           building actually fits — impossible for a mine with no mountain
+           in sight. Touch pointers only: the desktop already has two. */
+        .hud-placing {
+          pointer-events: auto; min-width: 0;
+          display: flex; align-items: center; gap: 10px;
+          padding: 6px 6px 6px 14px;
+        }
+        .hud-placing .what {
+          flex: 1 1 auto; min-width: 0;
+          display: flex; align-items: center; gap: 8px;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .hud-placing .what b { color: #e5c469; font-weight: 600; }
+        #ui .hud-placing .cancel { flex: 0 0 auto; }
         #ui .build-fold {
           margin-left: auto; min-height: 0;
           padding: 4px 12px; background: transparent; border: none; color: #a3a099;
@@ -684,6 +701,19 @@ export function Hud(props: {
               </button>
             </Show>
           </div>
+        </Show>
+
+        <Show when={(isCoarse() || isPhone()) && placing()}>
+          {(type) => (
+            <div class="hud-placing panel">
+              <span class="what">
+                <MalletIcon /> Tap the map to place <b>{buildingName(type())}</b>
+              </span>
+              <button class="cancel" onClick={() => place(null)}>
+                ✕ Cancel
+              </button>
+            </div>
+          )}
         </Show>
 
         <Show
