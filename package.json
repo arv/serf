@@ -1,6 +1,6 @@
 {
   "name": "serf",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A medieval Settlers-like RTS in the browser",
   "private": true,
   "type": "module",
