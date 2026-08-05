@@ -298,6 +298,39 @@ export function spawnUnitNearby(
   return spawnUnit(world, kind, owner, (idx % MAP_SIZE) + 0.5, Math.floor(idx / MAP_SIZE) + 0.5);
 }
 
+/**
+ * Which way the nearest water lies from a footprint, as quarter turns from
+ * +z. Ties break toward +z and then clockwise, which is arbitrary but has
+ * to be deterministic: two hosts placing the same fishery must turn it the
+ * same way or their renders — and their save hashes — diverge.
+ */
+function waterFacing(
+  map: World['map'],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius: number,
+): 0 | 1 | 2 | 3 {
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  let best: 0 | 1 | 2 | 3 = 0;
+  let bestD = Infinity;
+  for (let ty = y - radius; ty < y + h + radius; ty++) {
+    for (let tx = x - radius; tx < x + w + radius; tx++) {
+      if (!inBounds(tx, ty)) continue;
+      if (map.terrain[tileIdx(tx, ty)] !== Terrain.Water) continue;
+      const dx = tx + 0.5 - cx;
+      const dy = ty + 0.5 - cy;
+      const d = dx * dx + dy * dy;
+      if (d >= bestD) continue;
+      bestD = d;
+      best = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : dy > 0 ? 0 : 2;
+    }
+  }
+  return best;
+}
+
 function makeBuildingRecord(
   world: World,
   type: BuildingTypeId,
@@ -322,6 +355,9 @@ function makeBuildingRecord(
     reservedOut: {},
     demandSince: {},
     dead: false,
+    ...(def.nearWater
+      ? { facing: waterFacing(world.map, x, y, def.w, def.h, def.nearWater.radius) }
+      : {}),
   };
 }
 

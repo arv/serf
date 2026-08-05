@@ -54,6 +54,8 @@ export interface BuildingSnap {
   /** Serf hires paid for and still walking in, and the leader's progress 0..1. */
   hireQueue?: number;
   hireProgress01?: number;
+  /** Quarter turns from "front faces +z" — shore buildings only. */
+  facing?: 0 | 1 | 2 | 3;
   /** Staffing state (undefined = building needs no worker). */
   staffing?: 'staffed' | 'recruiting' | 'needed';
   paused?: boolean;

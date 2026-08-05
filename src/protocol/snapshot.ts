@@ -31,6 +31,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
   }
   return {
     staffing,
+    facing: b.facing,
     id: b.id,
     type: b.type,
     owner: b.owner,

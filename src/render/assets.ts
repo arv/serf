@@ -62,6 +62,13 @@ interface Decor {
   prop?: string;
   /** Height above the footprint, for dressing that sits on a roof. */
   y?: number;
+  /**
+   * Size by footprint span instead of height, keeping the prop's own
+   * vertical origin. The pier needs both: it is sized by how far it runs
+   * out, and its pilings belong below the waterline rather than lifted onto
+   * the grass the way `size` would put them.
+   */
+  span?: number;
   /** ...an ore-tinted boulder... */
   rock?: number;
   /** ...or something we build ourselves, for what the pack has no model of.
@@ -81,6 +88,7 @@ const DECOR_PROP_FILES = [
   'barrel',
   'extra/anchor',
   'extra/boatrack',
+  'extra/building_docks_green',
 ];
 
 // No goods-shaped decor on producers whose live stock piles up outside:
@@ -99,12 +107,17 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // so a jetty would point inland as often as not. The shipyard carries
   // its own slipway, which reads the same from every side.
   fishery: [
-    // On the ridge, where the pack's sailing ship was.
-    // Turned 45 degrees so it stands broadside to the fixed camera yaw:
-    // along either axis the fish would be read end-on and vanish.
+    // The pier runs out of the front face, so the building's facing carries
+    // it to the water (see Building.facing). Long enough to overhang the
+    // footprint on purpose: the tile it reaches is the one the placement
+    // rule guaranteed is water.
+    { prop: 'extra/building_docks_green', at: [0, 0.68], span: 0.8, size: 1, rot: Math.PI / 2 },
+    // On the ridge, where the pack's sailing ship was — turned 45 degrees so
+    // it stands broadside to the fixed camera yaw. Along either axis the
+    // fish would be read end-on and vanish.
     { make: () => makeFishSign(0.19), at: [0.06, -0.02], y: 0.34, size: 1, rot: Math.PI / 4 },
-    { prop: 'extra/anchor', at: [-0.38, 0.3], size: 0.16, rot: 0.4 },
-    { prop: 'extra/boatrack', at: [0.36, 0.34], size: 0.1, rot: -0.3 },
+    { prop: 'extra/anchor', at: [-0.38, 0.26], size: 0.16, rot: 0.4 },
+    { prop: 'extra/boatrack', at: [0.4, 0.3], size: 0.1, rot: -0.3 },
   ],
   quarry: [{ prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 }],
   ironMine: [{ prop: 'wheelbarrow', at: [-0.35, 0.32], size: 0.15, rot: -0.5 }],
@@ -270,6 +283,19 @@ export async function loadGlbAssets(): Promise<boolean> {
     const rocks = ROCK_FILES.map((f) => bakeNormalized(f, true));
     const natureMaterial = new THREE.MeshLambertMaterial({ map: natureMap });
 
+    /** A prop clone scaled by footprint span, keeping its own y origin —
+     * for props that are meant to sit into the ground rather than on it. */
+    const propOfSpan = (src: THREE.Group, span: number): THREE.Group => {
+      const c = src.clone();
+      const bb = new THREE.Box3().setFromObject(c);
+      const across = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z, 1e-6);
+      c.position.set(-(bb.min.x + bb.max.x) / 2, 0, -(bb.min.z + bb.max.z) / 2);
+      const g = new THREE.Group();
+      g.scale.setScalar(span / across);
+      g.add(c);
+      return g;
+    };
+
     /** A prop clone normalized to `size` tall, feet on the ground. */
     const propOfSize = (src: THREE.Group, size: number): THREE.Group => {
       const c = src.clone();
@@ -431,7 +457,7 @@ export async function loadGlbAssets(): Promise<boolean> {
           obj = d.make();
         } else if (d.prop !== undefined) {
           const src = loaded.get(`${d.prop}.gltf`);
-          if (src) obj = propOfSize(src, d.size);
+          if (src) obj = d.span !== undefined ? propOfSpan(src, d.span) : propOfSize(src, d.size);
         } else if (d.rock !== undefined && rocks[0]) {
           const mat = natureMaterial.clone();
           mat.color.set(d.rock);

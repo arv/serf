@@ -282,6 +282,11 @@ export class BuildingSync {
       root.add(model);
     }
 
+    // Shore buildings turn to face their water (Building.facing). Only the
+    // model turns, not the root: the footprint stays axis-aligned, and the
+    // root's own x/z rotation belongs to the collapse animation.
+    if (b.facing) model.rotation.y = (b.facing * Math.PI) / 2;
+
     const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
     this.#scene.add(root);
     return {

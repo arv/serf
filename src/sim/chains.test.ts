@@ -45,26 +45,47 @@ describe('convert chains', () => {
     expect(mill.stock.flour ?? 0).toBeGreaterThan(0);
   });
 
-  it('the fishery needs a shore, and pays food for it', () => {
+  it('the fishery needs a shore, and turns to face it', () => {
     const world = bareWorld();
     // bareWorld is all grass: inland placement must be refused...
     expect(canPlace(world.map, 'fishery', 30, 30)).toBe(false);
 
-    // ...and a pond within reach must allow it.
-    for (let ty = 26; ty < 29; ty++) {
-      for (let tx = 30; tx < 34; tx++) {
-        const i = tileIdx(tx, ty);
-        world.map.terrain[i] = Terrain.Water;
-        world.map.blocked[i] = 1;
-      }
+    // ...and water two tiles off is still inland. The pier is part of the
+    // building, so the rule is "touching", not "near".
+    for (let tx = 29; tx < 35; tx++) {
+      const i = tileIdx(tx, 27);
+      world.map.terrain[i] = Terrain.Water;
+      world.map.blocked[i] = 1;
+    }
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(false);
+
+    // Water along the footprint's north edge (y = 29, footprint y = 30..32).
+    for (let tx = 29; tx < 35; tx++) {
+      const i = tileIdx(tx, 29);
+      world.map.terrain[i] = Terrain.Water;
+      world.map.blocked[i] = 1;
     }
     expect(canPlace(world.map, 'fishery', 30, 30)).toBe(true);
 
     const fishery = placeBuiltBuilding(world, 'fishery', 0, 30, 30);
+    // Water lies at -z, so the pier turns half a circle to reach it.
+    expect(fishery.facing).toBe(2);
+
     staffBuilding(world, fishery);
     run(world, 20 * 26);
     // No inputs at all — a coastline is the only thing it consumes.
     expect(fishery.stock.food ?? 0).toBeGreaterThan(0);
+  });
+
+  it('the fishery faces east when the water is east', () => {
+    const world = bareWorld();
+    for (let ty = 29; ty < 35; ty++) {
+      const i = tileIdx(33, ty);
+      world.map.terrain[i] = Terrain.Water;
+      world.map.blocked[i] = 1;
+    }
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(true);
+    expect(placeBuiltBuilding(world, 'fishery', 0, 30, 30).facing).toBe(1);
   });
 
   it('the hen yard is the short path: wheat straight to food', () => {

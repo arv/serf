@@ -55,9 +55,10 @@ export interface BuildingDef {
   /** Placement: requires a matching deposit tile within `radius` of the footprint. */
   nearDeposit?: { resource: TileResourceName; radius: number };
   /**
-   * Placement: requires open water within `radius`. Like nearDeposit this
-   * also frees the footprint from the flat-ground rule — a shoreline is a
-   * bank by definition, and a fishery that can only stand on a dead-level
+   * Placement: requires open water within `radius` tiles of the footprint,
+   * and turns the building to face it (Building.facing). Like nearDeposit
+   * it also frees the footprint from the flat-ground rule — a shoreline is
+   * a bank by definition, and a fishery that can only stand on a dead-level
    * beach can stand almost nowhere.
    */
   nearWater?: { radius: number };
@@ -246,7 +247,9 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // war economy. The price is that it can only stand on one, and most
     // ground on most maps is not one.
     recipe: { kind: 'convert', inputs: {}, outputs: { food: 1 }, durationTicks: 12 * S },
-    nearWater: { radius: 3 },
+    // Touching, not merely near: the pier is part of the building, and a
+    // pier that stops three tiles short of the water is worse than none.
+    nearWater: { radius: 1 },
   },
   henYard: {
     id: 'henYard',
