@@ -360,6 +360,7 @@ function flatten(
   const colors: number[] = [];
   const indices: number[] = [];
   const rgb: [number, number, number] = [255, 0, 255];
+  let warned = false;
   const v = new THREE.Vector3();
   const nm = new THREE.Matrix3();
 
@@ -386,6 +387,13 @@ function flatten(
       if (s && uv) {
         sample(s, uv.getX(i), uv.getY(i), rgb);
       } else {
+        // Flat grey means the atlas did not resolve — usually a model in a
+        // subfolder whose texture is not beside it. Say so rather than
+        // quietly shipping a colorless building.
+        if (!warned) {
+          warned = true;
+          console.warn(`[kit] no atlas for ${o.name || 'a mesh'} — it will render flat grey`);
+        }
         rgb[0] = 200;
         rgb[1] = 200;
         rgb[2] = 200;
