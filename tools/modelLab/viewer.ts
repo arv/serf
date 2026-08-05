@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Kit } from './kit';
+import { Kit, type BakedSet } from './kit';
 import { VARIANTS, requiredFiles, type Variant } from './variants';
 import { makeDiorama, makeLights, makeRenderer, frame, YAW, type Diorama } from './scene';
 
@@ -35,8 +35,12 @@ interface Card {
 }
 
 export interface MountOpts {
-  /** Rewrites asset URLs (the gallery build inlines everything). */
-  manager?: THREE.LoadingManager;
+  /**
+   * Pre-baked geometry, inlined into the page by build-gallery.mjs. With
+   * it the viewer issues no requests at all; without it the models are
+   * fetched from the checkout, which is what the dev page wants.
+   */
+  baked?: BakedSet;
   onReady?: () => void;
 }
 
@@ -50,9 +54,10 @@ function fail(message: string, detail?: unknown): void {
 }
 
 export async function mountGallery(opts: MountOpts = {}): Promise<void> {
-  const K = new Kit(opts.manager);
+  const K = new Kit();
   try {
-    await K.load(requiredFiles());
+    if (opts.baked) K.loadBaked(opts.baked);
+    else await K.load(requiredFiles());
   } catch (err) {
     fail('The models could not be loaded', err);
     return;

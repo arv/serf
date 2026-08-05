@@ -21,13 +21,20 @@ full width — the fastest way to judge a placement.
 ## Publishing the gallery
 
 ```sh
+node tools/modelLab/bake.mjs          # only when a variant reaches for a new pack file
 node tools/modelLab/build-gallery.mjs [out.html]
 ```
 
-Bundles the lab into one classic script and inlines every model, the texture
-atlas and the page's font as data URIs, so the result is a single file that
-works with no network at all (which is also what a published Artifact's CSP
-demands). Output defaults to `.gallery-build/gallery.html`.
+The published page may not make a single request. An Artifact's CSP blocks
+fetch and XHR outright — `data:` URIs included — so GLTFLoader cannot run
+there at all, and neither can a texture load. `bake.mjs` therefore flattens
+every model the compositions use down to vertex-colored arrays (see below),
+into `baked.json`, and `build-gallery.mjs` inlines that beside a bundled
+copy of the lab. The result is one file with no runtime dependencies of any
+kind. Output defaults to `.gallery-build/gallery.html`.
+
+`baked.json` is committed: it changes only when the set of pack files
+changes, and keeping it means publishing does not need a browser.
 
 ## Screenshots
 
@@ -51,14 +58,21 @@ fixed canvas does not survive that).
   the footprint. What you see is the size the game would draw.
 - `K.prop(file, { h | span, at, rot })` places a pack prop, sized by height
   or by footprint.
-- `K.box/cyl/sphere/cone(..., swatch)` build hand-made parts that sample one
-  cell of the pack's own texture atlas, so they shade like the models beside
-  them instead of sitting in their own palette. `SWATCH` lists the cells with
-  their sampled hex values.
+- `K.box/cyl/sphere/cone(..., swatch)` build hand-made parts in the pack's
+  own colors, so they shade like the models beside them instead of sitting
+  in their own palette. `SWATCH` holds those colors, sampled from the atlas.
 
-One rule worth keeping: cell `3,3` is the team-color slot the renderer
-repaints per owner, so no hand-built part may point at it — anything painted
-there would change color with the flag.
+There are no textures at runtime. The pack paints everything from one small
+swatch atlas, so on load each vertex takes the color the atlas holds at its
+own UV and the map is dropped. The look survives — the cells are flat or
+vertically graded and the models' UVs already sit where they want the shade
+— and it is what lets a composition be baked to plain arrays and shipped
+inside a page.
+
+One rule worth keeping: the atlas cell holding `#008454` is the team-color
+slot the renderer repaints per owner, so no hand-built part may use it —
+anything painted there would change color with the flag. That is why it is
+absent from `SWATCH`.
 
 ## Assets
 

@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /**
- * The model lab's toolkit: load KayKit scenes, normalize them, and build
- * small procedural parts that wear the pack's own texture atlas.
+ * The model lab's toolkit: KayKit scenes, normalized, plus small procedural
+ * parts that wear the pack's own colors.
  *
  * Everything here is deliberately independent of src/render — the lab is a
  * sketchpad for compositions we have not committed to yet. Whatever wins
@@ -12,127 +12,190 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
  * Space: one unit = one map tile. A variant declares its footprint (w x h)
  * and places parts in tile coordinates around the origin, which is where
  * buildingSync anchors a building.
+ *
+ * There are no textures at runtime. The pack paints every model from one
+ * small swatch atlas, so at load time each vertex is given the color the
+ * atlas holds at its own UV and the map is dropped. The look is the same —
+ * the cells are flat or vertically graded, and the models' UVs already sit
+ * where they want the shade — and it buys two things: the published gallery
+ * needs no image or buffer fetches at all (an Artifact's CSP blocks both,
+ * data: URIs included), and a composition can be baked to plain arrays and
+ * shipped inside the page.
  */
 
 export const DIR = '/models/kaykit/';
 
-/** The pack ships one 8x4 swatch atlas; every model samples flat cells of
- * it. Procedural parts do the same, so a hand-built oven shades exactly
- * like the mill beside it instead of sitting in its own palette. */
-/* Cell centers, sampled straight off the atlas:
- *   0,0 #13191b   1,0 #d4dbde   2,0 #818c91   3,0 #4a5155
- *   4,0 #333333   5,0 #b16f52   6,0 #9b5a45   7,0 #c36532
- *   0,1 #62a0d0   1,1 #257ebc   2,1 #9b5a45   3,1 #d09745
- *   4,1 #7cab48   5,1 #daae7d   6,1 #978f86   7,1 #6b5c53
- *   0,2 #aaaf27   1,2 #008454   2,2 #818c91   3,2 #daae7d
- *   4,2 #daae7d   5,2 #e7cdb4   6,2 #d83f35   7,2 #d55652
- *   0,3 #257ebc   1,3 #d22227   2,3 #f9aa4e   3,3 #008454
- *   4,3 #f79845   5,3 #c5b097   6,3 #978675   7,3 #736458
- * Cell 3,3 is the team-color slot the renderer repaints per owner, so
- * nothing here may point at it — a hand-built part painted there would
- * change color with the flag. */
+/**
+ * Atlas cells, sampled from the pack's own texture. Hand-built parts use
+ * these so an oven shades like the mill beside it.
+ *
+ * Cell 3,3 (#008454) is the team-color slot the renderer repaints per
+ * owner, so it is deliberately absent: a part painted there would change
+ * color with the flag.
+ */
 export const SWATCH = {
-  stone: [6, 1],
-  stonePale: [5, 3],
-  stoneCold: [2, 0],
-  slate: [3, 0],
-  charcoal: [4, 0],
-  timber: [5, 0],
-  timberDark: [6, 0],
-  brown: [7, 1],
-  straw: [5, 1],
-  cream: [5, 2],
-  sand: [3, 2],
-  roofBlue: [1, 1],
-  roofOrange: [7, 0],
-  green: [4, 1],
-  gold: [3, 1],
-  amber: [2, 3],
-  red: [1, 3],
-  salmon: [7, 2],
-  steel: [2, 0],
-  white: [1, 0],
-  skyblue: [0, 1],
+  stone: 0x978f86,
+  stonePale: 0xc5b097,
+  stoneCold: 0x818c91,
+  slate: 0x4a5155,
+  charcoal: 0x333333,
+  timber: 0xb16f52,
+  timberDark: 0x9b5a45,
+  brown: 0x6b5c53,
+  straw: 0xdaae7d,
+  cream: 0xe7cdb4,
+  sand: 0xdaae7d,
+  roofBlue: 0x257ebc,
+  roofOrange: 0xc36532,
+  green: 0x7cab48,
+  gold: 0xd09745,
+  amber: 0xf9aa4e,
+  red: 0xd22227,
+  salmon: 0xd55652,
+  steel: 0x818c91,
+  white: 0xd4dbde,
+  skyblue: 0x62a0d0,
 } as const;
 
 export type SwatchName = keyof typeof SWATCH;
 
-export class Kit {
-  #scenes = new Map<string, THREE.Group>();
-  #atlas!: THREE.Texture;
-  #manager?: THREE.LoadingManager;
+/** One model, flattened to a single drawable lump of vertex-colored mesh. */
+export interface BakedModel {
+  /** base64 Float32Array, world-space. */
+  p: string;
+  /** base64 Float32Array. */
+  n: string;
+  /** base64 Uint8Array, sRGB triples. */
+  c: string;
+  /** base64 Uint32Array. */
+  i: string;
+}
 
-  /** The gallery build inlines every asset as a data URI and hands the Kit
-   * a manager that rewrites URLs into that map; the dev page just fetches. */
-  constructor(manager?: THREE.LoadingManager) {
-    this.#manager = manager;
+export type BakedSet = Record<string, BakedModel>;
+
+function toBase64(buf: ArrayBufferLike): string {
+  const bytes = new Uint8Array(buf);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s);
+}
+
+function fromBase64(s: string): ArrayBuffer {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+
+/** sRGB byte to linear float — what three expects of a color attribute. */
+function srgbToLinear(v: number): number {
+  const c = v / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+
+const LINEAR = new Float32Array(256);
+for (let i = 0; i < 256; i++) LINEAR[i] = srgbToLinear(i);
+
+export class Kit {
+  #models = new Map<string, THREE.BufferGeometry>();
+  #material?: THREE.MeshStandardMaterial;
+
+  /** One material for everything: flat-shaded pack colors, per vertex. */
+  material(): THREE.MeshStandardMaterial {
+    if (!this.#material) {
+      this.#material = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.95,
+        metalness: 0,
+      });
+    }
+    return this.#material;
   }
 
+  /**
+   * Load pack models over the network and convert them to vertex colors.
+   * The dev page takes this path so a change to the checkout is one reload
+   * away; the published gallery takes `loadBaked` instead.
+   */
   async load(files: string[]): Promise<void> {
-    const loader = new GLTFLoader(this.#manager);
+    const loader = new GLTFLoader();
+    const samplers = new Map<HTMLImageElement | ImageBitmap, Sampler>();
     await Promise.all(
       files.map(async (f) => {
         const gltf = await loader.loadAsync(`${DIR}${f}.gltf`);
-        gltf.scene.traverse((o) => {
-          if (o instanceof THREE.Mesh) {
-            o.castShadow = true;
-            o.receiveShadow = true;
-            const m = o.material as THREE.MeshStandardMaterial;
-            if (m?.isMeshStandardMaterial) {
-              m.roughness = 0.95;
-              m.metalness = 0;
-              if (!this.#atlas && !f.startsWith('restaurant/')) this.#atlas = m.map!;
-            }
-          }
-        });
-        this.#scenes.set(f, gltf.scene);
+        this.#models.set(f, flatten(gltf.scene, samplers));
       }),
     );
   }
 
-  has(file: string): boolean {
-    return this.#scenes.has(file);
+  /** Rebuild from arrays baked by tools/modelLab/bake.mjs. */
+  loadBaked(set: BakedSet): void {
+    for (const [name, m] of Object.entries(set)) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(fromBase64(m.p)), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(fromBase64(m.n)), 3));
+      const srgb = new Uint8Array(fromBase64(m.c));
+      const lin = new Float32Array(srgb.length);
+      for (let i = 0; i < srgb.length; i++) lin[i] = LINEAR[srgb[i]!]!;
+      geo.setAttribute('color', new THREE.BufferAttribute(lin, 3));
+      geo.setIndex(new THREE.BufferAttribute(new Uint32Array(fromBase64(m.i)), 1));
+      this.#models.set(name, geo);
+    }
   }
 
-  /** Paint every vertex of a geometry at the center of one atlas cell. */
-  paint(geo: THREE.BufferGeometry, swatch: SwatchName): THREE.BufferGeometry {
-    const [c, r] = SWATCH[swatch];
-    const uv = geo.getAttribute('uv');
-    const u = (c + 0.5) / 8;
-    const v = (r + 0.5) / 4;
-    if (uv) {
-      for (let i = 0; i < uv.count; i++) uv.setXY(i, u, v);
-      uv.needsUpdate = true;
-    } else {
-      const n = geo.getAttribute('position').count;
-      const arr = new Float32Array(n * 2);
-      for (let i = 0; i < n; i++) {
-        arr[i * 2] = u;
-        arr[i * 2 + 1] = v;
+  /** Serialize everything loaded, for the gallery build. */
+  bake(): BakedSet {
+    const out: BakedSet = {};
+    for (const [name, geo] of this.#models) {
+      const col = geo.getAttribute('color') as THREE.BufferAttribute;
+      const srgb = new Uint8Array(col.array.length);
+      // Stored as sRGB bytes: a third of the size, and the load-time
+      // conversion back to linear is a table lookup.
+      for (let i = 0; i < col.array.length; i++) {
+        const c = (col.array as Float32Array)[i]!;
+        const s = c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055;
+        srgb[i] = Math.round(Math.min(1, Math.max(0, s)) * 255);
       }
-      geo.setAttribute('uv', new THREE.BufferAttribute(arr, 2));
+      out[name] = {
+        p: toBase64((geo.getAttribute('position').array as Float32Array).buffer),
+        n: toBase64((geo.getAttribute('normal').array as Float32Array).buffer),
+        c: toBase64(srgb.buffer),
+        i: toBase64(new Uint32Array(geo.getIndex()!.array).buffer),
+      };
     }
+    return out;
+  }
+
+  has(file: string): boolean {
+    return this.#models.has(file);
+  }
+
+  /** Fill a geometry's color attribute with one atlas swatch. */
+  paint(geo: THREE.BufferGeometry, swatch: SwatchName): THREE.BufferGeometry {
+    const hex = SWATCH[swatch];
+    const r = LINEAR[(hex >> 16) & 255]!;
+    const g = LINEAR[(hex >> 8) & 255]!;
+    const b = LINEAR[hex & 255]!;
+    const n = geo.getAttribute('position').count;
+    const arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      arr[i * 3] = r;
+      arr[i * 3 + 1] = g;
+      arr[i * 3 + 2] = b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    geo.deleteAttribute('uv');
     return geo;
   }
 
   /** A procedural mesh wearing an atlas cell. */
   part(geo: THREE.BufferGeometry, swatch: SwatchName): THREE.Mesh {
-    const m = new THREE.Mesh(this.paint(geo, swatch), this.#sharedMat());
+    const m = new THREE.Mesh(this.paint(geo, swatch), this.material());
     m.castShadow = true;
     m.receiveShadow = true;
     return m;
-  }
-
-  #shared?: THREE.MeshStandardMaterial;
-  #sharedMat(): THREE.MeshStandardMaterial {
-    if (!this.#shared) {
-      this.#shared = new THREE.MeshStandardMaterial({
-        map: this.#atlas,
-        roughness: 0.95,
-        metalness: 0,
-      });
-    }
-    return this.#shared;
   }
 
   box(w: number, h: number, d: number, swatch: SwatchName): THREE.Mesh {
@@ -151,6 +214,15 @@ export class Kit {
     return this.part(new THREE.ConeGeometry(r, h, seg), swatch);
   }
 
+  #mesh(file: string): THREE.Mesh | null {
+    const geo = this.#models.get(file);
+    if (!geo) return null;
+    const m = new THREE.Mesh(geo, this.material());
+    m.castShadow = true;
+    m.receiveShadow = true;
+    return m;
+  }
+
   /**
    * A pack model, feet on y=0, centered on x/z, scaled so its tallest axis
    * is `h` tiles (or, with `span`, so its footprint is `span` tiles wide).
@@ -165,13 +237,10 @@ export class Kit {
       rot?: number;
       tiltX?: number;
       tiltZ?: number;
-      keepBase?: boolean;
     } = {},
   ): THREE.Group | null {
-    const src = this.#scenes.get(file);
-    if (!src) return null;
-    const inner = src.clone(true);
-    inner.updateMatrixWorld(true);
+    const inner = this.#mesh(file);
+    if (!inner) return null;
     const bb = new THREE.Box3().setFromObject(inner);
     inner.position.set(
       -(bb.min.x + bb.max.x) / 2,
@@ -203,10 +272,8 @@ export class Kit {
    * would draw.
    */
   base(file: string, w: number, h: number, opts: { rot?: number } = {}): THREE.Group | null {
-    const src = this.#scenes.get(file);
-    if (!src) return null;
-    const inner = src.clone(true);
-    inner.updateMatrixWorld(true);
+    const inner = this.#mesh(file);
+    if (!inner) return null;
     const bb = new THREE.Box3().setFromObject(inner);
     const spanX = bb.max.x - bb.min.x;
     const spanZ = bb.max.z - bb.min.z;
@@ -225,16 +292,119 @@ export class Kit {
     return g;
   }
 
-  /** Repaint a loaded pack model into a single atlas cell — how a white
-   * flour sack is made out of the grain sack. */
+  /** Repaint a loaded pack model into one atlas cell — how a white flour
+   * sack is made out of the grain sack. */
   recolor(obj: THREE.Object3D, swatch: SwatchName): THREE.Object3D {
     obj.traverse((o) => {
       if (o instanceof THREE.Mesh) {
         o.geometry = (o.geometry as THREE.BufferGeometry).clone();
         this.paint(o.geometry as THREE.BufferGeometry, swatch);
-        o.material = this.#sharedMat();
       }
     });
     return obj;
   }
+}
+
+// ---------------------------------------------------------------------------
+// gltf -> one vertex-colored geometry.
+
+/** Reads pixels out of a pack atlas, once per texture. */
+interface Sampler {
+  data: Uint8ClampedArray;
+  w: number;
+  h: number;
+}
+
+function samplerFor(
+  tex: THREE.Texture,
+  cache: Map<HTMLImageElement | ImageBitmap, Sampler>,
+): Sampler | null {
+  const img = tex.image as HTMLImageElement | ImageBitmap | undefined;
+  if (!img) return null;
+  const hit = cache.get(img);
+  if (hit) return hit;
+  const w = 'naturalWidth' in img ? img.naturalWidth : img.width;
+  const h = 'naturalHeight' in img ? img.naturalHeight : img.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(img as CanvasImageSource, 0, 0);
+  const s = { data: ctx.getImageData(0, 0, w, h).data, w, h };
+  cache.set(img, s);
+  return s;
+}
+
+function sample(s: Sampler, u: number, v: number, out: [number, number, number]): void {
+  // GLTF textures are not flipped, so v runs down the image.
+  const x = Math.min(s.w - 1, Math.max(0, Math.round(u * s.w - 0.5)));
+  const y = Math.min(s.h - 1, Math.max(0, Math.round(v * s.h - 0.5)));
+  const i = (y * s.w + x) * 4;
+  out[0] = s.data[i]!;
+  out[1] = s.data[i + 1]!;
+  out[2] = s.data[i + 2]!;
+}
+
+/**
+ * Flatten a loaded scene into one indexed geometry in world space, with the
+ * atlas baked down to a color per vertex.
+ */
+function flatten(
+  scene: THREE.Object3D,
+  samplers: Map<HTMLImageElement | ImageBitmap, Sampler>,
+): THREE.BufferGeometry {
+  scene.updateMatrixWorld(true);
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const colors: number[] = [];
+  const indices: number[] = [];
+  const rgb: [number, number, number] = [255, 0, 255];
+  const v = new THREE.Vector3();
+  const nm = new THREE.Matrix3();
+
+  scene.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const geo = o.geometry as THREE.BufferGeometry;
+    const pos = geo.getAttribute('position');
+    const nor = geo.getAttribute('normal');
+    const uv = geo.getAttribute('uv');
+    const map = (o.material as THREE.MeshStandardMaterial)?.map ?? null;
+    const s = map ? samplerFor(map, samplers) : null;
+    const base = positions.length / 3;
+    nm.getNormalMatrix(o.matrixWorld);
+
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+      positions.push(v.x, v.y, v.z);
+      if (nor) {
+        v.fromBufferAttribute(nor, i).applyMatrix3(nm).normalize();
+        normals.push(v.x, v.y, v.z);
+      } else {
+        normals.push(0, 1, 0);
+      }
+      if (s && uv) {
+        sample(s, uv.getX(i), uv.getY(i), rgb);
+      } else {
+        rgb[0] = 200;
+        rgb[1] = 200;
+        rgb[2] = 200;
+      }
+      colors.push(LINEAR[rgb[0]]!, LINEAR[rgb[1]]!, LINEAR[rgb[2]]!);
+    }
+
+    const idx = geo.getIndex();
+    if (idx) {
+      for (let i = 0; i < idx.count; i++) indices.push(base + idx.getX(i));
+    } else {
+      for (let i = 0; i < pos.count; i++) indices.push(base + i);
+    }
+  });
+
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  out.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  out.setIndex(indices);
+  return out;
 }
