@@ -481,16 +481,23 @@ export const VARIANTS: Variant[] = [
     slot: 'fishery',
     title: 'Fisherman’s hut',
     blurb:
-      'A small house on the bank, a plank jetty over the water, the catch drying on a rack. The jetty and the fish are ours; everything else is the pack.',
-    pack: ['building_home_B_green', 'barrel', 'crate_A_small', 'waterplant_A', 'waterlily_A'],
-    handmade: ['jetty', 'drying rack + fish', 'rowboat'],
+      'A small house on the bank, the EXTRA pack’s pier out over the water, the catch drying on a rack. Only the rack and the boat are ours now.',
+    pack: [
+      'building_home_B_green',
+      'extra/building_docks_green',
+      'barrel',
+      'crate_A_small',
+      'waterplant_A',
+      'waterlily_A',
+    ],
+    handmade: ['drying rack + fish', 'rowboat'],
     w: 2,
     h: 2,
     waterAt: 0.7,
     build(K) {
       const g = new THREE.Group();
       add(g, K.base('building_home_B_green', 1.55, 1.55, { rot: -0.3 }), -0.5, 0, -0.62);
-      add(g, jetty(K, 1.35, 0.46), 0.72, 0, 0.35);
+      add(g, K.prop('extra/building_docks_green', { span: 1.5, rot: Math.PI / 2 }), 0.72, 0, 0.95);
       add(g, dryingRack(K, 0.8), -1.0, 0, -0.05, -0.5);
       add(g, rowboat(K, 0.85), -0.35, 0.04, 1.3, 1.15);
       add(g, K.prop('barrel', { h: 0.26 }), 0.62, 0, -0.55);
@@ -505,15 +512,15 @@ export const VARIANTS: Variant[] = [
     slot: 'fishery',
     title: 'Fishing camp',
     blurb:
-      'The pack tent, nets on frames, a boat pulled up. Cheap and early — it looks like something two serfs put up in an afternoon, which is exactly what a first food building should look like.',
-    pack: ['tent', 'crate_open', 'barrel', 'waterplant_A'],
+      'The EXTRA pack’s camp tent, nets on frames, a boat pulled up, a fire going. Cheap and early — it looks like something two serfs put up in an afternoon, which is exactly what a first food building should look like.',
+    pack: ['extra/building_tent_green', 'crate_open', 'barrel', 'waterplant_A'],
     handmade: ['net frames', 'rowboat', 'fish'],
     w: 2,
     h: 2,
     waterAt: 0.75,
     build(K) {
       const g = new THREE.Group();
-      add(g, K.prop('tent', { h: 0.92, rot: 0.35 }), -0.6, 0, -0.55);
+      add(g, K.base('extra/building_tent_green', 1.5, 1.5, { rot: 0.35 }), -0.55, 0, -0.6);
       add(g, netFrame(K, 0.72), 0.62, 0, -0.6, -0.3);
       add(g, netFrame(K, 0.56), 1.0, 0, 0.1, 0.45);
       add(g, rowboat(K, 0.9), 0.05, 0.02, 1.3, 1.4);
@@ -562,6 +569,27 @@ export const VARIANTS: Variant[] = [
       add(g, K.prop('barrel', { h: 0.24 }), -0.5, 0.42, 1.5);
       add(g, K.prop('waterlily_A', { span: 0.32 }), 1.45, 0.05, 1.35);
       add(g, rowboat(K, 0.7), -1.05, 0.05, 0.8, 0.4);
+      return g;
+    },
+  },
+
+  {
+    id: 'fishery-shipyard',
+    slot: 'fishery',
+    title: 'Shipyard',
+    blurb:
+      'The EXTRA pack’s shipyard: a boat on the slipway, an anchor, barrels on the quay, and the pier beside it. Nothing hand-built at all — and the only candidate that already looks like an industry rather than a hut.',
+    pack: ['extra/building_shipyard_green', 'extra/building_docks_green', 'waterlily_A', 'barrel'],
+    handmade: [],
+    w: 3,
+    h: 3,
+    waterAt: 0.75,
+    build(K) {
+      const g = new THREE.Group();
+      add(g, K.base('extra/building_shipyard_green', 2.3, 2.3, { rot: -0.12 }), -0.35, 0, -0.5);
+      add(g, K.prop('extra/building_docks_green', { span: 1.6, rot: Math.PI / 2 }), 1.05, 0, 0.95);
+      add(g, K.prop('barrel', { h: 0.28 }), -1.15, 0, 0.45);
+      add(g, K.prop('waterlily_A', { span: 0.34 }), 0.0, 0.04, 1.75);
       return g;
     },
   },
@@ -649,6 +677,29 @@ export const VARIANTS: Variant[] = [
       add(g, chicken(K, 0.25), 0.95, 0, -0.1, 1.2);
       add(g, chicken(K, 0.25), 0.45, 0, -0.25, 3.4);
       add(g, K.prop('barrel', { h: 0.26 }), -1.05, 0, 0.35);
+      return g;
+    },
+  },
+
+  {
+    id: 'livestock-stables',
+    slot: 'livestock',
+    title: 'Stables',
+    blurb:
+      'The EXTRA pack’s stables: an open shed under an awning with its own rail fence, hay and barrels already on it. Only the animals are ours — and it is the one option that needs no fencing run laid by hand.',
+    pack: ['extra/building_stables_green', 'crate_open', 'sack'],
+    handmade: ['pigs', 'hens'],
+    w: 3,
+    h: 3,
+    build(K) {
+      const g = new THREE.Group();
+      add(g, K.base('extra/building_stables_green', 2.6, 2.6, { rot: -0.08 }), 0, 0, -0.2);
+      add(g, pig(K, 0.38), 0.55, 0, 0.85, 2.3);
+      add(g, pig(K, 0.32), -0.15, 0, 1.1, 4.1);
+      add(g, chicken(K, 0.25), 1.0, 0, 0.5, 1.1);
+      add(g, chicken(K, 0.25), -0.75, 0, 0.75, 3.6);
+      add(g, K.prop('crate_open', { span: 0.3, rot: 0.4 }), -1.15, 0, 0.35);
+      add(g, sacks(K, 2, 'straw'), 1.2, 0, 0.15);
       return g;
     },
   },
