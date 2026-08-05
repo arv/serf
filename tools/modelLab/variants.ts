@@ -127,7 +127,12 @@ export function dryingRack(K: Kit, len = 0.9): THREE.Group {
   return g;
 }
 
-/** A rowboat: keel plank, flared sides, pointed at both ends. */
+/**
+ * A rowboat: keel plank, flared sides, pointed at both ends. Unused since
+ * the EXTRA pack's own boat arrived — kept because it is the only hull we
+ * can ship without the paid pack, and the free-pack fallback would need it
+ * back.
+ */
 export function rowboat(K: Kit, len = 0.8): THREE.Group {
   const g = new THREE.Group();
   const w = 0.24;
@@ -481,16 +486,17 @@ export const VARIANTS: Variant[] = [
     slot: 'fishery',
     title: 'Fisherman’s hut',
     blurb:
-      'A small house on the bank, the EXTRA pack’s pier out over the water, the catch drying on a rack. Only the rack and the boat are ours now.',
+      'A small house on the bank, the EXTRA pier out over the water, its boat drawn up alongside, the catch drying on a rack. The rack and the fish on it are the only things left that we build.',
     pack: [
       'building_home_B_green',
       'extra/building_docks_green',
+      'extra/boat',
+      'extra/anchor',
       'barrel',
-      'crate_A_small',
       'waterplant_A',
       'waterlily_A',
     ],
-    handmade: ['drying rack + fish', 'rowboat'],
+    handmade: ['drying rack + fish'],
     w: 2,
     h: 2,
     waterAt: 0.7,
@@ -499,9 +505,9 @@ export const VARIANTS: Variant[] = [
       add(g, K.base('building_home_B_green', 1.55, 1.55, { rot: -0.3 }), -0.5, 0, -0.62);
       add(g, K.prop('extra/building_docks_green', { span: 1.5, rot: Math.PI / 2 }), 0.72, 0, 0.95);
       add(g, dryingRack(K, 0.8), -1.0, 0, -0.05, -0.5);
-      add(g, rowboat(K, 0.85), -0.35, 0.04, 1.3, 1.15);
+      add(g, K.prop('extra/boat', { span: 0.85, rot: 1.15 }), -0.35, 0.03, 1.3);
       add(g, K.prop('barrel', { h: 0.26 }), 0.62, 0, -0.55);
-      add(g, K.prop('crate_A_small', { h: 0.2, rot: 0.6 }), 0.25, 0, 0.15);
+      add(g, K.prop('extra/anchor', { h: 0.32, rot: 0.6 }), 0.2, 0, 0.1);
       add(g, K.prop('waterplant_A', { h: 0.22 }), -1.15, 0, 1.05);
       add(g, K.prop('waterlily_A', { span: 0.3 }), 0.35, 0.04, 1.6);
       return g;
@@ -513,8 +519,8 @@ export const VARIANTS: Variant[] = [
     title: 'Fishing camp',
     blurb:
       'The EXTRA pack’s camp tent, nets on frames, a boat pulled up, a fire going. Cheap and early — it looks like something two serfs put up in an afternoon, which is exactly what a first food building should look like.',
-    pack: ['extra/building_tent_green', 'crate_open', 'barrel', 'waterplant_A'],
-    handmade: ['net frames', 'rowboat', 'fish'],
+    pack: ['extra/building_tent_green', 'extra/boat', 'crate_open', 'barrel', 'waterplant_A'],
+    handmade: ['net frames', 'fish'],
     w: 2,
     h: 2,
     waterAt: 0.75,
@@ -523,7 +529,7 @@ export const VARIANTS: Variant[] = [
       add(g, K.base('extra/building_tent_green', 1.5, 1.5, { rot: 0.35 }), -0.55, 0, -0.6);
       add(g, netFrame(K, 0.72), 0.62, 0, -0.6, -0.3);
       add(g, netFrame(K, 0.56), 1.0, 0, 0.1, 0.45);
-      add(g, rowboat(K, 0.9), 0.05, 0.02, 1.3, 1.4);
+      add(g, K.prop('extra/boat', { span: 0.9, rot: 1.4 }), 0.05, 0.03, 1.3);
       add(g, dryingRack(K, 0.62), -0.9, 0, 0.35, 0.2);
       add(g, K.prop('crate_open', { span: 0.32, rot: 0.5 }), -0.05, 0, 0.2);
       add(g, K.prop('barrel', { h: 0.26 }), 0.45, 0, 0.45);
@@ -546,7 +552,7 @@ export const VARIANTS: Variant[] = [
     title: 'Fish house on stilts',
     blurb:
       'The hut stands *in* the water on posts, reached by the jetty. Strongest silhouette of the three and the clearest "this needs a shore" signal, but it needs the deck and posts built by hand.',
-    pack: ['building_home_B_green', 'crate_A_small', 'barrel', 'waterlily_A'],
+    pack: ['building_home_B_green', 'extra/boat', 'crate_A_small', 'barrel', 'waterlily_A'],
     handmade: ['stilt deck + posts', 'jetty', 'drying rack + fish'],
     w: 2,
     h: 2,
@@ -568,7 +574,7 @@ export const VARIANTS: Variant[] = [
       add(g, K.prop('crate_A_small', { h: 0.2, rot: 0.5 }), -0.55, 0.42, 0.6);
       add(g, K.prop('barrel', { h: 0.24 }), -0.5, 0.42, 1.5);
       add(g, K.prop('waterlily_A', { span: 0.32 }), 1.45, 0.05, 1.35);
-      add(g, rowboat(K, 0.7), -1.05, 0.05, 0.8, 0.4);
+      add(g, K.prop('extra/boat', { span: 0.75, rot: 0.4 }), -1.05, 0.04, 0.8);
       return g;
     },
   },
@@ -579,7 +585,14 @@ export const VARIANTS: Variant[] = [
     title: 'Shipyard',
     blurb:
       'The EXTRA pack’s shipyard: a boat on the slipway, an anchor, barrels on the quay, and the pier beside it. Nothing hand-built at all — and the only candidate that already looks like an industry rather than a hut.',
-    pack: ['extra/building_shipyard_green', 'extra/building_docks_green', 'waterlily_A', 'barrel'],
+    pack: [
+      'extra/building_shipyard_green',
+      'extra/building_docks_green',
+      'extra/boat',
+      'extra/boatrack',
+      'waterlily_A',
+      'barrel',
+    ],
     handmade: [],
     w: 3,
     h: 3,
@@ -589,7 +602,9 @@ export const VARIANTS: Variant[] = [
       add(g, K.base('extra/building_shipyard_green', 2.3, 2.3, { rot: -0.12 }), -0.35, 0, -0.5);
       add(g, K.prop('extra/building_docks_green', { span: 1.6, rot: Math.PI / 2 }), 1.05, 0, 0.95);
       add(g, K.prop('barrel', { h: 0.28 }), -1.15, 0, 0.45);
-      add(g, K.prop('waterlily_A', { span: 0.34 }), 0.0, 0.04, 1.75);
+      add(g, K.prop('extra/boatrack', { span: 0.55, rot: 0.3 }), -1.15, 0, 1.05);
+      add(g, K.prop('extra/boat', { span: 0.8, rot: 0.9 }), 0.15, 0.03, 1.85);
+      add(g, K.prop('waterlily_A', { span: 0.34 }), -0.6, 0.04, 1.95);
       return g;
     },
   },
