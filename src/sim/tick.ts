@@ -22,6 +22,7 @@ import { buildingDef } from './defs/buildings.ts';
 import { CORPSE_TICKS, DISMISS_RESTAFF_BACKOFF, HIRE_QUEUE_CAP, HIRE_SERF_COST } from './defs/balance.ts';
 import { TECH_DEFS } from './defs/techs.ts';
 import { canResearch, isBuildingUnlocked } from './techHelpers.ts';
+import { hasRoomToHire } from './population.ts';
 import type { GoodId } from './defs/goods.ts';
 import type { AdminAction, SimCommand } from './commands.ts';
 
@@ -201,11 +202,14 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
     case 'hireSerf': {
       // Pay now, arrive later: the recruit is summoned, not conjured. The
       // hiring system walks the queue down and drops them at the door.
+      // A recruit already on the road holds their bed, so ordering five at
+      // once cannot overshoot the cap by four.
       const sh = findStorehouse(world, playerId);
       if (
         sh &&
         (sh.stock.silver ?? 0) >= HIRE_SERF_COST &&
-        (sh.hireQueue ?? 0) < HIRE_QUEUE_CAP
+        (sh.hireQueue ?? 0) < HIRE_QUEUE_CAP &&
+        hasRoomToHire(world, playerId)
       ) {
         sh.stock.silver = (sh.stock.silver ?? 0) - HIRE_SERF_COST;
         world.ledger.consumed.silver = (world.ledger.consumed.silver ?? 0) + HIRE_SERF_COST;

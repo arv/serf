@@ -42,6 +42,9 @@ export interface BuildingDef {
    * fog, so the two cannot drift. */
   sight: number;
   storage?: boolean;
+  /** Beds this building adds to its owner's population cap while it stands
+   * (built only — a roof under construction houses nobody). */
+  housing?: number;
   recipe?: Recipe;
   /** Player-selectable convert recipes (the weaponsmith's forge menu).
    * The building's recipeIndex picks the active one; options may be
@@ -74,6 +77,7 @@ export type BuildingTypeId =
   | 'banditCamp'
   | 'woodcutter'
   | 'quarry'
+  | 'house'
   | 'well'
   | 'wheatFarm'
   | 'brewery'
@@ -98,6 +102,10 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 500,
     sight: 9,
     storage: true,
+    // The keep's own quarters. Ten beds is two spare on the eight serfs the
+    // village starts with: enough to replace a loss or two, not enough to
+    // grow on. Everything past that is a house you chose to build.
+    housing: 10,
   },
   banditCamp: {
     id: 'banditCamp',
@@ -132,6 +140,23 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'rock', output: 'stone', radius: 8, workTicks: 3 * S },
+  },
+  house: {
+    id: 'house',
+    name: 'House',
+    w: 2,
+    h: 2,
+    // Timber and a stone hearth — deliberately cheap. Housing is what the
+    // whole plan grows through, so the choice a house asks for should be
+    // "these six wood, now, instead of the mine" and not "this house or an
+    // army". Priced above the well and below the woodcutter.
+    cost: { wood: 6, stone: 2 },
+    buildTicks: 12 * S,
+    hp: 120,
+    sight: 5.5,
+    housing: 10,
+    // No resident and no recipe: like the abbey, the serf who raises it
+    // walks away a serf again when the roof goes on.
   },
   well: {
     id: 'well',

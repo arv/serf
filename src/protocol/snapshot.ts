@@ -68,14 +68,23 @@ export function snapBuildings(world: World): BuildingSnap[] {
 
 export function snapPlayers(world: World): PlayerSnap[] {
   // One pass over the buildings gathers each owner's first built storehouse
-  // (same first-in-map-order pick as findStorehouse) and abbey presence,
-  // instead of a full building scan per player.
+  // (same first-in-map-order pick as findStorehouse), abbey presence and
+  // standing beds, instead of a full building scan per player.
   const storehouses = new Map<Owner, Building>();
   const abbeyOwners = new Set<Owner>();
+  const beds = new Map<Owner, number>();
   for (const b of world.buildings.values()) {
     if (b.dead || b.state !== 'built') continue;
     if (b.type === 'abbey') abbeyOwners.add(b.owner);
     if (!storehouses.has(b.owner) && buildingDef(b.type).storage) storehouses.set(b.owner, b);
+    const housing = buildingDef(b.type).housing;
+    if (housing) beds.set(b.owner, (beds.get(b.owner) ?? 0) + housing);
+  }
+  // ...and one over the units for heads. Bandits own no seat, so their
+  // raiders never land in the map.
+  const heads = new Map<Owner, number>();
+  for (const u of world.units.values()) {
+    if (!u.dead) heads.set(u.owner, (heads.get(u.owner) ?? 0) + 1);
   }
   return world.players.map((p) => {
     const storehouse = storehouses.get(p.id);
@@ -85,6 +94,8 @@ export function snapPlayers(world: World): PlayerSnap[] {
       kind: p.kind,
       alive: p.alive,
       stock: storehouse ? { ...storehouse.stock } : {},
+      pop: heads.get(p.id) ?? 0,
+      popCap: beds.get(p.id) ?? 0,
       techs: {
         researched: [...p.techs.researched],
         active: p.techs.active

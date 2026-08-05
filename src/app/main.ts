@@ -28,6 +28,7 @@ import {
   setOutcome,
   setPlayersMeta,
   setSelectedBuilding,
+  setPopulation,
   setStock,
   setTechs,
   speed,
@@ -359,6 +360,7 @@ async function runMatch(
     if (mine) {
       setStock(mine.stock);
       setTechs(mine.techs);
+      setPopulation({ pop: mine.pop, cap: mine.popCap });
     }
     setPlayersMeta(msg.players);
     setDebugJobs(msg.jobs);

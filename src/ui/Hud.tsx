@@ -8,7 +8,17 @@ import { clearSeatStash } from '../net/lobbyClient';
 import { TechTreePanel } from './TechTreePanel';
 import { SelectionPanel } from './SelectionPanel';
 import { AdminPanel } from './AdminPanel';
-import { FastIcon, GoodIcon, LockIcon, PauseIcon, PlayIcon, BandIcon, MalletIcon, SwordsIcon } from './icons';
+import {
+  FastIcon,
+  GoodIcon,
+  LockIcon,
+  PauseIcon,
+  PlayIcon,
+  BandIcon,
+  MalletIcon,
+  PopIcon,
+  SwordsIcon,
+} from './icons';
 import { BuildingTip, GoodTip, TextTip, TipWrap, TooltipLayer, tooltip } from './tooltip';
 import { buildingName, techName } from './names';
 import {
@@ -24,6 +34,7 @@ import {
   outcome,
   placing,
   playersMeta,
+  population,
   selection,
   setBandArm,
   setOpenPanel,
@@ -54,7 +65,7 @@ const SPEEDS = [
 ];
 
 const BUILD_GROUPS: { label: string; types: BuildingTypeId[] }[] = [
-  { label: 'Village', types: ['woodcutter', 'quarry', 'well', 'wheatFarm', 'abbey'] },
+  { label: 'Village', types: ['house', 'woodcutter', 'quarry', 'well', 'wheatFarm', 'abbey'] },
   {
     label: 'Industry',
     types: ['brewery', 'ironMine', 'silverMine', 'goldMine', 'weaponsmith'],
@@ -206,6 +217,14 @@ export function Hud(props: {
         }
         .hud-resources span.res:hover { background: rgba(255, 255, 255, 0.06); }
         .hud-resources span.res.has { opacity: 1; }
+        /* Heads and beds. Ruled off from the goods because it is not one —
+           it is the ceiling everything else is spent under. */
+        .hud-resources span.res.pop {
+          margin-left: 6px; padding-left: 13px;
+          border-left: 1px solid rgba(255, 255, 255, 0.14);
+          color: #c8c4b5;
+        }
+        .hud-resources span.res.pop.full { color: #e5c469; }
         .research-chip {
           position: relative; overflow: hidden;
           margin-left: 6px; padding: 3px 11px !important;
@@ -475,6 +494,22 @@ export function Hud(props: {
               </span>
             )}
           </For>
+          <span
+            class="res pop has"
+            classList={{ full: population().pop >= population().cap }}
+            {...tooltip(() => (
+              <TextTip
+                title="Population"
+                body={
+                  population().pop >= population().cap
+                    ? 'Every bed is taken — build a house before you hire again. Workers and soldiers are counted too: each one was a serf.'
+                    : 'Everyone you own: idle serfs, the workers inside your buildings, and your soldiers. The castle sleeps 10; each house adds 10 more.'
+                }
+              />
+            ))}
+          >
+            <PopIcon /> {population().pop}/{population().cap}
+          </span>
           <Show when={techs().active}>
             {(a) => (
               <button

@@ -135,6 +135,10 @@ function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
           kind: p.kind,
           alive: p.alive,
           stock: {},
+          // A rival's head count is their army size and their build plan in
+          // one number — exactly what scouting is meant to cost.
+          pop: 0,
+          popCap: 0,
           techs: {
             researched: [],
             festivalTicksLeft: 0,
