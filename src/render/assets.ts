@@ -36,6 +36,9 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   // fence, hay and awning, so the pen costs no fencing run of our own. The
   // birds in it are ours — no KayKit pack has an animal in it.
   henYard: 'extra/building_stables_green.gltf',
+  // The EXTRA shipyard: a hull on the slipway, an anchor, barrels on the
+  // quay. The one food building that needed nothing built by hand.
+  fishery: 'extra/building_shipyard_green.gltf',
   brewery: 'building_tavern_green.gltf',
   // The mines share one model and read apart by their spoil (rust, silver,
   // gold boulders in BUILDING_DECOR) — the pack's color variants only vary
@@ -74,6 +77,8 @@ const DECOR_PROP_FILES = [
   'resource_lumber',
   'bucket_water',
   'barrel',
+  'extra/anchor',
+  'extra/boatrack',
 ];
 
 // No goods-shaped decor on producers whose live stock piles up outside:
@@ -88,6 +93,13 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   ],
   mill: [{ prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5 }],
   henYard: [{ make: () => makeFlock(), at: [0, 0], size: 1 }],
+  // No pier in the dressing: a building does not turn to face its water,
+  // so a jetty would point inland as often as not. The shipyard carries
+  // its own slipway, which reads the same from every side.
+  fishery: [
+    { prop: 'extra/anchor', at: [-0.38, 0.3], size: 0.16, rot: 0.4 },
+    { prop: 'extra/boatrack', at: [0.36, 0.34], size: 0.1, rot: -0.3 },
+  ],
   quarry: [{ prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 }],
   ironMine: [{ prop: 'wheelbarrow', at: [-0.35, 0.32], size: 0.15, rot: -0.5 }],
   silverMine: [{ prop: 'sack', at: [-0.33, 0.33], size: 0.11 }],

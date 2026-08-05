@@ -54,6 +54,13 @@ export interface BuildingDef {
   workerKind?: UnitTypeId;
   /** Placement: requires a matching deposit tile within `radius` of the footprint. */
   nearDeposit?: { resource: TileResourceName; radius: number };
+  /**
+   * Placement: requires open water within `radius`. Like nearDeposit this
+   * also frees the footprint from the flat-ground rule — a shoreline is a
+   * bank by definition, and a fishery that can only stand on a dead-level
+   * beach can stand almost nowhere.
+   */
+  nearWater?: { radius: number };
   /** Site demand priority (construction defaults to 1; road paving uses 3). */
   sitePriority?: 1 | 2 | 3;
   /** Footprint does not block movement (road sites). */
@@ -83,6 +90,7 @@ export type BuildingTypeId =
   | 'mill'
   | 'bakery'
   | 'henYard'
+  | 'fishery'
   | 'brewery'
   | 'ironMine'
   | 'silverMine'
@@ -222,6 +230,23 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       outputs: { food: 2 },
       durationTicks: 12 * S,
     },
+  },
+  fishery: {
+    id: 'fishery',
+    name: 'Fishery',
+    w: 3,
+    h: 3,
+    cost: { wood: 12, stone: 4 },
+    buildTicks: 20 * S,
+    hp: 150,
+    sight: 6.5,
+    workerKind: 'worker',
+    // The only food that costs no field. That is the whole point of it:
+    // on a map where the wheat belt is somebody else's, a coastline is a
+    // war economy. The price is that it can only stand on one, and most
+    // ground on most maps is not one.
+    recipe: { kind: 'convert', inputs: {}, outputs: { food: 1 }, durationTicks: 12 * S },
+    nearWater: { radius: 3 },
   },
   henYard: {
     id: 'henYard',

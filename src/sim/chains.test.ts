@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid.ts';
 import { tickWorld } from './tick.ts';
-import { PathLevel, TileResource } from './map.ts';
+import { PathLevel, Terrain, TileResource } from './map.ts';
 import { canPlace, placeBuiltBuilding, spawnUnit, type World } from './world.ts';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS, PAVE_WEAR_THRESHOLD } from './defs/balance.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
@@ -19,6 +19,61 @@ describe('convert chains', () => {
     staffBuilding(world, well);
     run(world, 20 * 13); // durationTicks = 120
     expect(well.stock.water ?? 0).toBeGreaterThan(0);
+  });
+
+  it('mill and bakery turn wheat into the food a soldier costs', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, { wheat: 6, water: 6 });
+    staffBuilding(world, placeBuiltBuilding(world, 'mill', 0, 26, 30));
+    staffBuilding(world, placeBuiltBuilding(world, 'bakery', 0, 34, 30));
+    addSerf(world, 29, 33);
+    addSerf(world, 33, 33);
+    run(world, 20 * 90);
+
+    // Grain went up the chain and bread came back down it.
+    expect(sh.stock.food ?? 0).toBeGreaterThan(0);
+    expect(sh.stock.wheat ?? 0).toBeLessThan(6);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('the mill grinds without a resident (the wind does the work)', () => {
+    const world = bareWorld();
+    const mill = placeBuiltBuilding(world, 'mill', 0, 30, 30);
+    mill.inputs.wheat = 2;
+    expect(mill.workerId).toBeUndefined();
+    run(world, 20 * 20);
+    expect(mill.stock.flour ?? 0).toBeGreaterThan(0);
+  });
+
+  it('the fishery needs a shore, and pays food for it', () => {
+    const world = bareWorld();
+    // bareWorld is all grass: inland placement must be refused...
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(false);
+
+    // ...and a pond within reach must allow it.
+    for (let ty = 26; ty < 29; ty++) {
+      for (let tx = 30; tx < 34; tx++) {
+        const i = tileIdx(tx, ty);
+        world.map.terrain[i] = Terrain.Water;
+        world.map.blocked[i] = 1;
+      }
+    }
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(true);
+
+    const fishery = placeBuiltBuilding(world, 'fishery', 0, 30, 30);
+    staffBuilding(world, fishery);
+    run(world, 20 * 26);
+    // No inputs at all — a coastline is the only thing it consumes.
+    expect(fishery.stock.food ?? 0).toBeGreaterThan(0);
+  });
+
+  it('the hen yard is the short path: wheat straight to food', () => {
+    const world = bareWorld();
+    const yard = placeBuiltBuilding(world, 'henYard', 0, 30, 30);
+    staffBuilding(world, yard);
+    yard.inputs.wheat = 2;
+    run(world, 20 * 30);
+    expect(yard.stock.food ?? 0).toBeGreaterThan(0);
   });
 
   it('farm consumes hauled water and yields wheat (well -> farm -> storehouse)', () => {

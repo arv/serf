@@ -389,7 +389,7 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
   // else needs flat-ish ground. Corner heights match the renderer's
   // bilinear ground (average of adjacent tiles), so 1x1 footprints on a
   // steep hillside are caught too.
-  if (!def.nearDeposit) {
+  if (!def.nearDeposit && !def.nearWater) {
     const corner = (vx: number, vy: number): number => {
       let sum = 0;
       let n = 0;
@@ -442,6 +442,19 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
         if (!inBounds(px, py)) continue;
         const i = tileIdx(px, py);
         if (map.resource[i] === code && map.buildingAt[i] === -1) found = true;
+      }
+    }
+    if (!found) return false;
+  }
+
+  // The fishery has to reach the water it fishes.
+  if (def.nearWater) {
+    const r = def.nearWater.radius;
+    let found = false;
+    for (let ty = y - r; ty <= y + def.h + r && !found; ty++) {
+      for (let tx = x - r; tx <= x + def.w + r && !found; tx++) {
+        if (!inBounds(tx, ty)) continue;
+        if (map.terrain[tileIdx(tx, ty)] === Terrain.Water) found = true;
       }
     }
     if (!found) return false;

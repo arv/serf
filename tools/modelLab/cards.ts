@@ -43,8 +43,8 @@ const SLOTS: Slot[] = [
     name: 'Fishery',
     recipe: 'shore → food',
     sub: 'No inputs but a coastline. What you are picking is the shape that says “this one needs water” — and since the EXTRA pier and shipyard landed, how little of it we have to build ourselves.',
-    pick: 'Shipyard. It arrived with the EXTRA pack and settles the section: a boat on the slipway, an anchor, the pier beside it, and not one hand-built part. It also reads as an industry rather than a hut, which the other three never quite manage.',
-    extra: 'In and working. The pier now runs out from the fisherman’s hut too, and the camp got the proper tent. The rowboats and the fish are the only things still ours — the boats are in a folder we have not seen yet.',
+    pick: 'Built: the shipyard. Not one hand-built part on it, and it reads as an industry rather than a hut. It is the only food that costs no field — on a map where the wheat belt is somebody else’s, a coastline is a war economy — and the price is that it can only stand on one. It also brought the game its first placement rule that is not about ore.',
+    extra: 'In and working. The pier runs out from the fisherman’s hut, the camp has its proper tent, and the pack’s own boat replaced the hull I modelled. The fish are the last thing still ours, and no KayKit pack has one.',
   },
   {
     slot: 'livestock',
