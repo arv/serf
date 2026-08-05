@@ -1,7 +1,8 @@
 import { Rng } from '../shared/rng.ts';
 import { MAP_SIZE, TILE_COUNT, edgeDist, inBounds, tileIdx } from '../shared/grid.ts';
 import { hash2 } from '../shared/math.ts';
-import type { TileResourceName } from './defs/buildings.ts';
+import { buildingDef, type TileResourceName } from './defs/buildings.ts';
+import { buildingSight } from './visibility.ts';
 
 export const Terrain = { Grass: 0, Water: 1 } as const;
 export type TerrainKind = (typeof Terrain)[keyof typeof Terrain];
@@ -112,10 +113,36 @@ export interface StartSpot {
   y: number;
 }
 
-/** Plateau/flood anchor tile of a start (the storehouse's center tile). */
+/**
+ * Plateau/flood anchor tile of a start: the tile just past the middle of
+ * the 3x3 castle (whose footprint runs s.x..s.x+2). Half a tile off the
+ * true center on each axis, which does not matter to the wide distance
+ * bands that use it — anything measured against what the player can *see*
+ * wants `castleCenter` instead.
+ */
 function anchorOf(s: StartSpot): { x: number; y: number } {
   return { x: s.x + 2, y: s.y + 2 };
 }
+
+/**
+ * The point the castle's sight circle is stamped from — the same
+ * `b.x + b.w / 2` that visibility and the renderer's fog both use, so a
+ * radius measured from here means what it means on screen.
+ */
+function castleCenter(s: StartSpot): { x: number; y: number } {
+  const def = buildingDef('storehouse');
+  return { x: s.x + def.w / 2, y: s.y + def.h / 2 };
+}
+
+/**
+ * How far a castle's own light reaches at tick zero, as the player sees
+ * it. `buildingSight` is what the sim lights and the server sends; the
+ * renderer feathers that circle out over a rim and only draws the inner
+ * part, so worldgen holds itself a tile inside the nominal radius rather
+ * than promising stone that arrives as fog.
+ */
+export const CASTLE_OPENING_SIGHT =
+  buildingSight('storehouse', buildingDef('storehouse').w, buildingDef('storehouse').h) - 1;
 
 export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
   const map: GameMap = {
@@ -368,22 +395,20 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
   // seed that was already fine keeps its world draw for draw — the
   // campaign map the balance tests are pinned to among them.
   //
-  // Distances run from the castle's middle, not from `anchorOf`: the
-  // anchor is a corner tile of the footprint, and that diagonal tile and a
-  // half is enough slop to pass an outcrop as "in sight" that the player's
-  // fog never uncovers. Nominal sight is 9 plus half the 3x3 body, but the
-  // renderer fades the rim and draws about a tile less, so the audit holds
-  // itself to what actually appears on screen.
-  const CASTLE_SIGHT = 9.5;
+  // Distances run from `castleCenter`, not from `anchorOf` — the anchor
+  // sits half a tile off the middle on each axis, and a sight radius is
+  // exactly the kind of measurement that slop turns into stone the fog
+  // never uncovers. Tile centers, for the same reason: it is the distance
+  // the visibility stamp itself computes.
   const rockWithin = (c: { x: number; y: number }, radius: number): number => {
     let n = 0;
-    const r = Math.ceil(radius + 1);
+    const r = Math.ceil(radius) + 1;
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
-        const x = Math.round(c.x) + dx;
-        const y = Math.round(c.y) + dy;
+        const x = Math.floor(c.x) + dx;
+        const y = Math.floor(c.y) + dy;
         if (!inBounds(x, y)) continue;
-        if (Math.hypot(x - c.x, y - c.y) > radius) continue;
+        if (Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y) > radius) continue;
         if (map.resource[tileIdx(x, y)] === TileResource.Rock) n++;
       }
     }
@@ -392,9 +417,9 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
   // In sight, so the player knows stone exists at all; and enough of it
   // within a short walk to be worth siting a quarry on.
   const stoneEnough = (c: { x: number; y: number }): boolean =>
-    rockWithin(c, CASTLE_SIGHT) > 0 && rockWithin(c, 13) >= 5;
+    rockWithin(c, CASTLE_OPENING_SIGHT) > 0 && rockWithin(c, 13) >= 5;
   for (const start of starts) {
-    const c = { x: start.x + 1.5, y: start.y + 1.5 };
+    const c = castleCenter(start);
     for (let tries = 0; tries < 400 && !stoneEnough(c); tries++) {
       const ang = rng.range(0, Math.PI * 2);
       // Inside the fog line, clear of the ground the town builds on.
