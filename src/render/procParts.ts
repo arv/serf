@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { palette } from './palette';
+import type { PropFactory } from './assets';
 
 /**
  * Hand-built dressing for buildings the KayKit pack has no model of.
@@ -189,7 +190,7 @@ export function makeFish(len = 0.2): THREE.Group {
  * 35 degrees. Broadside-on and above the ridge, the silhouette survives the
  * angle.
  */
-export function makeFishSign(len = 0.32): THREE.Group {
+export function makeFishSign(len = 0.32, prop?: PropFactory): THREE.Group {
   const g = new THREE.Group();
   // Short post: the fish is a roof ornament, not a mast. Standing it high
   // reads as a weathervane on a pole and takes the eye off the building.
@@ -201,8 +202,41 @@ export function makeFishSign(len = 0.32): THREE.Group {
   collar.position.y = len * 0.42;
   g.add(collar);
 
-  const fish = makeFish(len);
+  // The real fish where there is one — it is the same atlas, so it shades
+  // with the building under it. makeFish stays as the fallback for a build
+  // without the fish models.
+  const fish = prop?.('fish/fish', len) ?? makeFish(len);
+  // The model's nose points -z; the sign reads along +x like the hand-built
+  // one it replaced.
+  fish.rotation.y = -Math.PI / 2;
   fish.position.y = len * 0.62;
   g.add(fish);
+  return g;
+}
+
+/**
+ * A shoal working the water off the fishery's pier: three fish on their own
+ * slow circles, at three depths and three phases.
+ *
+ * They are named so buildingSync can find and swim them, and they only move
+ * while the building is staffed — the same rule the well's windlass follows.
+ * Still water outside a working fishery is the tell that it has no worker.
+ */
+export function makeShoal(prop: PropFactory): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'fisheryShoal';
+  const paths: { r: number; phase: number; speed: number; y: number; len: number }[] = [
+    { r: 0.2, phase: 0, speed: 0.55, y: 0, len: 0.15 },
+    { r: 0.3, phase: 2.3, speed: -0.42, y: -0.015, len: 0.13 },
+    { r: 0.13, phase: 4.1, speed: 0.7, y: 0.01, len: 0.11 },
+  ];
+  for (const p of paths) {
+    const fish = prop('fish/fish', p.len);
+    if (!fish) continue;
+    const pivot = new THREE.Group();
+    pivot.userData = p;
+    pivot.add(fish);
+    g.add(pivot);
+  }
   return g;
 }

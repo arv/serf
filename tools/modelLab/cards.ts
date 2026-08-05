@@ -43,7 +43,7 @@ const SLOTS: Slot[] = [
     name: 'Fishery',
     recipe: 'shore → food',
     sub: 'No inputs at all — a coastline is the only thing it consumes.',
-    pick: 'The one building here with nothing hand-built on it but its sign. It also brought the game its first placement rule that is not about ore: touching water, and turned to face it.',
+    pick: 'The one building here with nothing hand-built on it but a sign post. It also brought the game its first placement rule that is not about ore — touching water, and turned to face it — and the only decor that moves besides the well’s windlass.',
     extra: 'In and working. The pier runs out from the fisherman’s hut, the camp has its proper tent, and the pack’s own boat replaced the hull I modelled. The fish are the last thing still ours, and no KayKit pack has one.',
   },
   {

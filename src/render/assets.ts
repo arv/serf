@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
-import { makeBakeOven, makeFishSign, makeFlock } from './procParts';
+import { makeBakeOven, makeFishSign, makeFlock, makeShoal } from './procParts';
 
 /**
  * GLB asset pipeline: building, tree, rock and prop models loaded from the
@@ -56,6 +56,10 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
  * merged; the mechanism stays for the next shared model. */
 const TINTS: Partial<Record<BuildingTypeId, number>> = {};
 
+/** Clones a loaded pack prop, scaled to `span` across and keeping its own
+ * vertical origin. Null when the name is not in DECOR_PROP_FILES. */
+export type PropFactory = (name: string, span: number) => THREE.Object3D | null;
+
 /** Prop dressing placed around a building, in its unit-square space. */
 interface Decor {
   /** A pack prop scene by file stem... */
@@ -72,8 +76,10 @@ interface Decor {
   /** ...an ore-tinted boulder... */
   rock?: number;
   /** ...or something we build ourselves, for what the pack has no model of.
-   * Sized by the builder, not by `size`. */
-  make?: () => THREE.Object3D;
+   * Sized by the builder, not by `size`. The builder is handed a factory so
+   * it can fold pack models into what it makes (the shoal is pack fish on a
+   * path we author). */
+  make?: (prop: PropFactory) => THREE.Object3D;
   at: [number, number];
   size: number;
   rot?: number;
@@ -89,6 +95,7 @@ const DECOR_PROP_FILES = [
   'extra/anchor',
   'extra/boatrack',
   'extra/building_docks_green',
+  'fish/fish',
 ];
 
 // No goods-shaped decor on producers whose live stock piles up outside:
@@ -103,9 +110,6 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   ],
   mill: [{ prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5 }],
   henYard: [{ make: () => makeFlock(), at: [0, 0], size: 1 }],
-  // No pier in the dressing: a building does not turn to face its water,
-  // so a jetty would point inland as often as not. The shipyard carries
-  // its own slipway, which reads the same from every side.
   fishery: [
     // The pier runs out of the front face, so the building's facing carries
     // it to the water (see Building.facing). Long enough to overhang the
@@ -115,9 +119,13 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // On the ridge, where the pack's sailing ship was — turned 45 degrees so
     // it stands broadside to the fixed camera yaw. Along either axis the
     // fish would be read end-on and vanish.
-    { make: () => makeFishSign(0.19), at: [0.06, -0.02], y: 0.34, size: 1, rot: Math.PI / 4 },
+    { make: (prop) => makeFishSign(0.19, prop), at: [0.06, -0.02], y: 0.34, size: 1, rot: Math.PI / 4 },
     { prop: 'extra/anchor', at: [-0.38, 0.26], size: 0.16, rot: 0.4 },
     { prop: 'extra/boatrack', at: [0.4, 0.3], size: 0.1, rot: -0.3 },
+    // A shoal working the water off the pier. buildingSync swims it while
+    // the fishery is staffed, the same way it turns a staffed well's
+    // windlass — an idle fishery's water is still.
+    { make: (prop) => makeShoal(prop), at: [0, 1.02], y: 0.02, size: 1 },
   ],
   quarry: [{ prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 }],
   ironMine: [{ prop: 'wheelbarrow', at: [-0.35, 0.32], size: 0.15, rot: -0.5 }],
@@ -454,7 +462,10 @@ export async function loadGlbAssets(): Promise<boolean> {
       for (const d of BUILDING_DECOR[type] ?? []) {
         let obj: THREE.Object3D | undefined;
         if (d.make !== undefined) {
-          obj = d.make();
+          obj = d.make((name, span) => {
+            const src = loaded.get(`${name}.gltf`);
+            return src ? propOfSpan(src, span) : null;
+          });
         } else if (d.prop !== undefined) {
           const src = loaded.get(`${d.prop}.gltf`);
           if (src) obj = d.span !== undefined ? propOfSpan(src, d.span) : propOfSize(src, d.size);

@@ -386,9 +386,15 @@ export const VARIANTS: Variant[] = [
     slot: 'fishery',
     title: 'Fishery',
     blurb:
-      'The EXTRA shipyard with the sailing ship cut off its roof and a fish sign standing in its place, the pack’s pier running out of the front, an anchor and a boat rack on the quay. The pier turns with the building to reach whichever side the water is on.',
-    pack: ['extra/building_shipyard_green', 'extra/building_docks_green', 'extra/anchor', 'extra/boatrack'],
-    handmade: ['fish sign'],
+      'The EXTRA shipyard with the sailing ship cut off its roof and a fish standing on a post in its place, the pack’s pier running out of the front, an anchor and a boat rack on the quay. The pier turns with the building to reach whichever side the water is on, and a shoal of three works the water off the end of it — swimming only while the fishery is staffed.',
+    pack: [
+      'extra/building_shipyard_green',
+      'extra/building_docks_green',
+      'extra/anchor',
+      'extra/boatrack',
+      'fish/fish',
+    ],
+    handmade: ['sign post'],
     w: 3,
     h: 3,
     waterAt: 1.35,

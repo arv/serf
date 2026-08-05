@@ -34,6 +34,7 @@ interface BuildingVisual {
   pileKey: string;
   /** The well's windlass, spun per frame while the well is staffed. */
   crank?: THREE.Object3D;
+  shoal?: THREE.Object3D;
   staffed: boolean;
   /** Longest footprint side, for sizing the teardown dust. */
   span: number;
@@ -299,6 +300,7 @@ export class BuildingSync {
       pct: 1,
       pileKey: '',
       crank: model.getObjectByName('wellCrank') ?? undefined,
+      shoal: model.getObjectByName('fisheryShoal') ?? undefined,
       staffed: false,
       span: Math.max(b.w, b.h),
     };
@@ -326,6 +328,19 @@ export class BuildingSync {
         // loop of the worker's reeling clip (1.6 s) — both advance on render
         // dt, so the grip and the cranking hands stay frequency-locked.
         v.crank.rotation.x += dt * ((Math.PI * 2) / 1.6);
+      }
+      if (v.shoal && v.staffed && v.state === 'built') {
+        // Each fish carries its own circle, direction and depth. Advancing
+        // the phase and pointing the nose down the tangent is the whole
+        // motion: at village zoom a rigid fish on a slow curve reads as
+        // swimming, and the model has no rig to do better with.
+        for (const pivot of v.shoal.children) {
+          const p = pivot.userData as { r: number; phase: number; speed: number; y: number };
+          p.phase += dt * p.speed;
+          pivot.position.set(Math.cos(p.phase) * p.r, p.y, Math.sin(p.phase) * p.r);
+          // The model's nose is -z, so a tangent heading needs the half turn.
+          pivot.rotation.y = -p.phase + (p.speed > 0 ? 0 : Math.PI);
+        }
       }
     }
     if (this.#dying.length === 0) return;
