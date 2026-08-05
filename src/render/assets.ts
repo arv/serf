@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
-import { makeBakeOven, makeFlock } from './procParts';
+import { makeBakeOven, makeFishSign, makeFlock } from './procParts';
 
 /**
  * GLB asset pipeline: building, tree, rock and prop models loaded from the
@@ -60,6 +60,8 @@ const TINTS: Partial<Record<BuildingTypeId, number>> = {};
 interface Decor {
   /** A pack prop scene by file stem... */
   prop?: string;
+  /** Height above the footprint, for dressing that sits on a roof. */
+  y?: number;
   /** ...an ore-tinted boulder... */
   rock?: number;
   /** ...or something we build ourselves, for what the pack has no model of.
@@ -97,6 +99,10 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // so a jetty would point inland as often as not. The shipyard carries
   // its own slipway, which reads the same from every side.
   fishery: [
+    // On the ridge, where the pack's sailing ship was.
+    // Turned 45 degrees so it stands broadside to the fixed camera yaw:
+    // along either axis the fish would be read end-on and vanish.
+    { make: () => makeFishSign(0.19), at: [0.06, -0.02], y: 0.34, size: 1, rot: Math.PI / 4 },
     { prop: 'extra/anchor', at: [-0.38, 0.3], size: 0.16, rot: 0.4 },
     { prop: 'extra/boatrack', at: [0.36, 0.34], size: 0.1, rot: -0.3 },
   ],
@@ -330,6 +336,27 @@ export async function loadGlbAssets(): Promise<boolean> {
           }
         });
       }
+      if (type === 'fishery') {
+        // The pack perches a finished sailing ship on the shipyard's ridge —
+        // a whole vessel, masts and sails, sitting on the roof. It reads as
+        // a toy on a shelf at village zoom, and the hull already under
+        // construction on the slipway is the part that says shipyard. Cut
+        // the roof ship; the chimney (z > 0.55) and the ridge (x > 0.45)
+        // sit outside the box and survive.
+        const CUT: [number, number, number, number, number, number][] = [
+          [0.02, 0.72, -0.36, 0.46, 1.3, 0.46],
+        ];
+        scene.traverse((o) => {
+          if (o instanceof THREE.Mesh) {
+            for (const [x0, y0, z0, x1, y1, z1] of CUT) {
+              o.geometry = stripTrianglesInBox(
+                o.geometry as THREE.BufferGeometry,
+                new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)),
+              );
+            }
+          }
+        });
+      }
       if (type === 'well') {
         // The pack bakes a static windlass into the well's single mesh: an
         // axle along x resting on the side frames, a crank handle hanging
@@ -416,7 +443,7 @@ export async function loadGlbAssets(): Promise<boolean> {
           obj = g;
         }
         if (!obj) continue;
-        obj.position.set(d.at[0], 0, d.at[1]);
+        obj.position.set(d.at[0], d.y ?? 0, d.at[1]);
         obj.rotation.y = d.rot ?? 0;
         group.add(obj);
       }

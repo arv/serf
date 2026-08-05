@@ -144,3 +144,65 @@ export function makeFlock(): THREE.Group {
   }
   return g;
 }
+
+/**
+ * A fish, lying along +x: diamond body, forked tail, one dark eye. `len` is
+ * nose-to-tail in unit-square units.
+ */
+export function makeFish(len = 0.2): THREE.Group {
+  const g = new THREE.Group();
+  // Painted blue-grey rather than bare silver: at village zoom a pale fish
+  // washes out against the roof it stands on.
+  const body = part(new THREE.OctahedronGeometry(len * 0.5, 0), 0x8aa7b5);
+  body.scale.set(1, 0.56, 0.4);
+  g.add(body);
+
+  const tail = part(new THREE.ConeGeometry(len * 0.24, len * 0.28, 4), 0x8aa7b5);
+  tail.rotation.z = Math.PI / 2;
+  tail.scale.set(1, 1, 0.55);
+  tail.position.x = -len * 0.56;
+  g.add(tail);
+
+  for (const sz of [-1, 1]) {
+    const fin = part(new THREE.ConeGeometry(len * 0.13, len * 0.16, 3), 0x6f8894);
+    fin.rotation.x = (sz * Math.PI) / 2;
+    fin.position.set(-len * 0.05, 0, sz * len * 0.06);
+    g.add(fin);
+  }
+
+  const eye = part(new THREE.SphereGeometry(len * 0.05, 5, 4), 0x241c16);
+  eye.position.set(len * 0.24, len * 0.06, len * 0.07);
+  g.add(eye);
+  return g;
+}
+
+/**
+ * The fishery's sign: a fish on a mast, standing where the pack put a whole
+ * sailing ship on the roof.
+ *
+ * The ship was the wrong tell twice over — it read as a toy on a shelf at
+ * village zoom, and it said shipwright rather than fisherman. A fish says
+ * one thing at any distance, which is all a roof ornament is for.
+ *
+ * It is mounted like a weathervane rather than hung from a bracket: a
+ * hanging sign needs to be read from the side, and the camera looks down at
+ * 35 degrees. Broadside-on and above the ridge, the silhouette survives the
+ * angle.
+ */
+export function makeFishSign(len = 0.32): THREE.Group {
+  const g = new THREE.Group();
+  // Short post: the fish is a roof ornament, not a mast. Standing it high
+  // reads as a weathervane on a pole and takes the eye off the building.
+  const post = part(new THREE.CylinderGeometry(len * 0.06, len * 0.08, len * 0.42, 6), palette.wood);
+  post.position.y = len * 0.21;
+  g.add(post);
+
+  const collar = part(new THREE.BoxGeometry(len * 0.16, len * 0.06, len * 0.16), palette.woodLight);
+  collar.position.y = len * 0.42;
+  g.add(collar);
+
+  const fish = makeFish(len);
+  fish.position.y = len * 0.62;
+  g.add(fish);
+  return g;
+}
