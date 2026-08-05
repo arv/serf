@@ -353,6 +353,59 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
     }
   }
 
+  // Stone in the opening view — audited last, once every other cluster is
+  // down, and repaired only where the audit fails.
+  //
+  // The larder above promises each start an outcrop, but the promise was
+  // never counted: a center that clears the grass check still writes
+  // nothing when the grove drawn a moment earlier owns every tile in
+  // reach, and even a cluster that lands can sit entirely outside the
+  // castle's opening sight (~10 tiles) while the trees sit inside it. A
+  // player who sees timber and no stone at all reads the map as stoneless
+  // and plays it that way — which is exactly the solo game this repairs.
+  //
+  // Repair draws from `rng` only for a start that came up short, so every
+  // seed that was already fine keeps its world draw for draw — the
+  // campaign map the balance tests are pinned to among them.
+  //
+  // Distances run from the castle's middle, not from `anchorOf`: the
+  // anchor is a corner tile of the footprint, and that diagonal tile and a
+  // half is enough slop to pass an outcrop as "in sight" that the player's
+  // fog never uncovers. Nominal sight is 9 plus half the 3x3 body, but the
+  // renderer fades the rim and draws about a tile less, so the audit holds
+  // itself to what actually appears on screen.
+  const CASTLE_SIGHT = 9.5;
+  const rockWithin = (c: { x: number; y: number }, radius: number): number => {
+    let n = 0;
+    const r = Math.ceil(radius + 1);
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const x = Math.round(c.x) + dx;
+        const y = Math.round(c.y) + dy;
+        if (!inBounds(x, y)) continue;
+        if (Math.hypot(x - c.x, y - c.y) > radius) continue;
+        if (map.resource[tileIdx(x, y)] === TileResource.Rock) n++;
+      }
+    }
+    return n;
+  };
+  // In sight, so the player knows stone exists at all; and enough of it
+  // within a short walk to be worth siting a quarry on.
+  const stoneEnough = (c: { x: number; y: number }): boolean =>
+    rockWithin(c, CASTLE_SIGHT) > 0 && rockWithin(c, 13) >= 5;
+  for (const start of starts) {
+    const c = { x: start.x + 1.5, y: start.y + 1.5 };
+    for (let tries = 0; tries < 400 && !stoneEnough(c); tries++) {
+      const ang = rng.range(0, Math.PI * 2);
+      // Inside the fog line, clear of the ground the town builds on.
+      const dc = rng.range(7, 9);
+      const x = Math.round(c.x + Math.cos(ang) * dc);
+      const y = Math.round(c.y + Math.sin(ang) * dc);
+      if (!inBounds(x, y) || map.terrain[tileIdx(x, y)] !== Terrain.Grass) continue;
+      placeCluster(TileResource.Rock, 10, x, y, 2, 0.85);
+    }
+  }
+
   recomputeBlocked(map);
   return map;
 }

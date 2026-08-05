@@ -75,6 +75,31 @@ describe('map fairness', () => {
     });
   }
 
+  it('every start, solo included, opens with stone in sight', () => {
+    // The complaint this covers: solo games that looked stoneless. Trees
+    // landed inside the storehouse's opening view and the outcrop did not,
+    // so the map read as "no stone" long before anyone walked far enough
+    // to find it — and on the seeds where the guaranteed cluster silently
+    // wrote zero tiles, walking further would not have helped either.
+    // Nominal castle sight is 10.5; the renderer's rim fade costs about a
+    // tile, so this is what the player is actually shown at tick zero.
+    const SIGHT = 9.5;
+    for (const players of [1, 2, 3, 4]) {
+      for (const seed of SEEDS) {
+        const world = makeWorld(seed, players);
+        const rock = tilesOf(world, TileResource.Rock);
+        for (const h of anchors(world)) {
+          const label = `seed ${seed}, ${players}p, start ${h.x},${h.y}`;
+          expect(countNear(rock, h.x, h.y, SIGHT), `${label}: stone in sight`).toBeGreaterThan(0);
+          expect(
+            countNear(rock, h.x, h.y, 13),
+            `${label}: a seam worth quarrying`,
+          ).toBeGreaterThanOrEqual(5);
+        }
+      }
+    }
+  });
+
   it('solo: the classic mid-ring layout is untouched', () => {
     for (const seed of SEEDS) {
       const world = makeWorld(seed, 1);
