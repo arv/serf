@@ -146,7 +146,7 @@ export function makeDiorama(K: Kit, v: Variant): Diorama {
   bb.getSize(size);
   // At 45/35 a composition's screen height is roughly its ground span plus
   // most of its height, so tall things (windmill, oven chimney) get framed
-  // by the same rule as flat ones (a pen full of hens). The plate is a
+  // by the same rule as flat ones (a fishery's quay). The plate is a
   // floor on the framing so the turf never crops mid-card.
   const span = Math.max(size.x, size.z);
   const view = Math.max(span * 1.45, span * 0.95 + size.y * 1.05, plateR * 1.92) + 0.35;

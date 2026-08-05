@@ -3,8 +3,8 @@ import type { Kit } from './kit';
 import type { BuildingTypeId } from '../../src/sim/defs/buildings';
 
 /**
- * Candidate looks for the food chain: mill, bakery, fishery, livestock,
- * and the goods themselves. Each variant says which pack files it leans on
+ * Candidate looks for the food chain: mill, bakery, fishery, and the goods
+ * themselves. Each variant says which pack files it leans on
  * and which parts are hand-built, so the cost of a choice is visible
  * before we commit to it.
  *
@@ -15,7 +15,7 @@ import type { BuildingTypeId } from '../../src/sim/defs/buildings';
 
 export interface Variant {
   id: string;
-  slot: 'mill' | 'bakery' | 'fishery' | 'livestock' | 'goods';
+  slot: 'mill' | 'bakery' | 'fishery' | 'goods';
   title: string;
   /** One line: what the player is looking at. */
   blurb: string;
@@ -328,7 +328,6 @@ export function sacks(K: Kit, n: number, swatch: 'cream' | 'straw' | 'white' | n
 export const GAME_BUILDINGS: { type: BuildingTypeId; id: string }[] = [
   { type: 'mill', id: 'mill' },
   { type: 'bakery', id: 'bakery' },
-  { type: 'henYard', id: 'henYard' },
   { type: 'fishery', id: 'fishery' },
 ];
 
@@ -362,22 +361,6 @@ export const VARIANTS: Variant[] = [
     build(K) {
       const g = new THREE.Group();
       add(g, K.model('game/bakery'));
-      return g;
-    },
-  },
-  {
-    id: 'henYard',
-    slot: 'livestock',
-    title: 'Hen yard',
-    blurb:
-      'The EXTRA stables — an open shed that arrives with its own rail fence, hay and awning — with five hens and scattered feed in the pen. No KayKit pack has an animal in it, so the birds were always going to be ours.',
-    pack: ['extra/building_stables_green'],
-    handmade: ['hens', 'feed'],
-    w: 3,
-    h: 3,
-    build(K) {
-      const g = new THREE.Group();
-      add(g, K.model('game/henYard'));
       return g;
     },
   },

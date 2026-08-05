@@ -14,7 +14,7 @@ if (only) document.documentElement.classList.add('solo');
 document.querySelector('#app')!.innerHTML = `
   <header class="page-head">
     <h1>The food chain</h1>
-    <p>Candidate looks for mill, bakery, fishery and livestock, built from the
+    <p>Candidate looks for mill, bakery and fishery, built from the
        KayKit Medieval Hexagon pack plus the smallest number of hand-built parts
        each one can get away with.</p>
   </header>

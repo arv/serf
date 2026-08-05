@@ -88,15 +88,6 @@ describe('convert chains', () => {
     expect(placeBuiltBuilding(world, 'fishery', 0, 30, 30).facing).toBe(1);
   });
 
-  it('the hen yard is the short path: wheat straight to food', () => {
-    const world = bareWorld();
-    const yard = placeBuiltBuilding(world, 'henYard', 0, 30, 30);
-    staffBuilding(world, yard);
-    yard.inputs.wheat = 2;
-    run(world, 20 * 30);
-    expect(yard.stock.food ?? 0).toBeGreaterThan(0);
-  });
-
   it('farm consumes hauled water and yields wheat (well -> farm -> storehouse)', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});

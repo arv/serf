@@ -6,8 +6,10 @@ two, some pack props placed around it, and whatever small parts we would
 have to build ourselves — all in tile coordinates, lit and framed exactly
 the way the game frames a building.
 
-Its first job was the food chain: mill, bakery, fishery, livestock, and the
-goods a serf carries.
+Its first job was the food chain: mill, bakery, fishery, and the goods a
+serf carries. (A livestock slot was here too, and the hen yard it was for
+was cut on balance rather than on looks — the compositions are gone with
+it, but `git log` still has them if a use turns up.)
 
 ## Looking at them
 
@@ -83,5 +85,5 @@ they cost a few kB each. The Restaurant Bits bread crate is the one prop
 that drags a second texture in — the goods section says so on the card.
 
 The paid EXTRA pack is *not* in this checkout. Drop its `Assets/gltf` folder
-into `public/models/kaykit` and the fishery's jetty, boats and shipyard, plus
-the livestock pens' animals, stop being hand-built.
+into `public/models/kaykit` and the fishery's jetty, boats and shipyard stop
+being hand-built.

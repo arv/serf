@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
-import { makeBakeOven, makeFishSign, makeFlock, makeShoal } from './procParts';
+import { makeBakeOven, makeFishSign, makeShoal } from './procParts';
 
 /**
  * GLB asset pipeline: building, tree, rock and prop models loaded from the
@@ -32,10 +32,6 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   // stone oven bolted to its flank (BUILDING_DECOR) is what actually says
   // "bread" at village zoom.
   bakery: 'building_home_B_green.gltf',
-  // The EXTRA pack's stables: an open shed that arrives with its own rail
-  // fence, hay and awning, so the pen costs no fencing run of our own. The
-  // birds in it are ours — no KayKit pack has an animal in it.
-  henYard: 'extra/building_stables_green.gltf',
   // The EXTRA shipyard: a hull on the slipway, an anchor, barrels on the
   // quay. The one food building that needed nothing built by hand.
   fishery: 'extra/building_shipyard_green.gltf',
@@ -109,7 +105,6 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     { prop: 'barrel', at: [-0.38, 0.33], size: 0.13 },
   ],
   mill: [{ prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5 }],
-  henYard: [{ make: () => makeFlock(), at: [0, 0], size: 1 }],
   fishery: [
     // The pier runs out of the front face, so the building's facing carries
     // it to the water (see Building.facing). Long enough to overhang the

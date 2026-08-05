@@ -90,7 +90,6 @@ export type BuildingTypeId =
   | 'wheatFarm'
   | 'mill'
   | 'bakery'
-  | 'henYard'
   | 'fishery'
   | 'brewery'
   | 'ironMine'
@@ -242,31 +241,29 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 150,
     sight: 6.5,
     workerKind: 'worker',
-    // The only food that costs no field. That is the whole point of it:
-    // on a map where the wheat belt is somebody else's, a coastline is a
-    // war economy. The price is that it can only stand on one, and most
-    // ground on most maps is not one.
-    recipe: { kind: 'convert', inputs: {}, outputs: { food: 1 }, durationTicks: 12 * S },
+    // The early food, and the slow one. Nothing goes in: no field, no well,
+    // no flour — one hut and one hand, feeding the barracks the beat it is
+    // finished, where the bread chain is a well, a farm, a mill and a bakery
+    // before its first loaf. That is what the rate pays for. Three a minute
+    // against the bakery's ten, and counting the hands the chain's upstream
+    // needs it is still 3.0 food per minute per hand against bread's 3.5 —
+    // so a village that has grown out of its opening wants ovens, and one
+    // that has not wants a shore. Fish while you are poor, bake once you
+    // are not.
+    //
+    // Twenty seconds and not twelve, which is where this started: at twelve
+    // a fishery made 5.0 per hand and beat the whole chain outright, and
+    // there is no scarcity to hold it back — a map carries four hundred-odd
+    // legal shore sites against a thousand-odd field sites. Two huts would
+    // have retired the bakery.
+    //
+    // (A hen yard stood beside these two for a while, wheat straight to
+    // food. Cut: two food sources are a choice, three were a menu, and the
+    // hens lost to the bakery on every number that mattered.)
+    recipe: { kind: 'convert', inputs: {}, outputs: { food: 1 }, durationTicks: 20 * S },
     // Touching, not merely near: the pier is part of the building, and a
     // pier that stops three tiles short of the water is worse than none.
     nearWater: { radius: 1 },
-  },
-  henYard: {
-    id: 'henYard',
-    name: 'Hen Yard',
-    w: 3,
-    h: 3,
-    cost: { wood: 10, stone: 2 },
-    buildTicks: 18 * S,
-    hp: 140,
-    sight: 5.5,
-    workerKind: 'worker',
-    // The short path to food, against the mill-and-bakery's long one: one
-    // building and one hand instead of two of each, at half the food per
-    // grain. It also wants ground — 3x3 for what the bakery does in 2x2 —
-    // so the choice between them is bread in a tight village against birds
-    // on land you have to spare.
-    recipe: { kind: 'convert', inputs: { wheat: 1 }, outputs: { food: 1 }, durationTicks: 13 * S },
   },
   brewery: {
     id: 'brewery',
