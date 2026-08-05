@@ -194,6 +194,17 @@ export function Hud(props: {
         }
         #ui .cost svg { margin-left: 4px; vertical-align: -1px; }
 
+        /* ——— Layer order ———
+           #ui is position:fixed, so everything below shares one stacking
+           context and anything that overlaps needs a number here rather
+           than a lucky spot in the DOM.
+             (auto) the HUD proper: top strips, build card, selection card
+             11     floating touch actions, over the map
+             19/20  the tech sheet's scrim and the sheet itself — modal
+             30     notices that outrank an open sheet: toasts, net trouble
+             35     end-of-match cards, which outrank everything but a tip
+             40     tooltips (see tooltip.tsx) */
+
         /* Wrapper for the two top strips: invisible on desktop (children
            keep their absolute spots), a flow column on phones so they can
            stack in either order without measuring each other. */
@@ -244,7 +255,7 @@ export function Hud(props: {
           transform: translateX(-50%);
           padding: 8px 18px;
           color: #e8b7a0;
-          z-index: 12;
+          z-index: 30;
         }
         #ui .net-chip {
           font-size: 12px;
@@ -351,11 +362,15 @@ export function Hud(props: {
         .hud-toasts {
           position: absolute; top: 96px; right: 12px; display: flex;
           flex-direction: column; gap: 6px; align-items: flex-end;
+          z-index: 30;
         }
         .toast { padding: 7px 13px; pointer-events: auto; }
         .hud-end {
           position: absolute; inset: 0; display: grid; place-items: center;
           background: rgba(8, 10, 8, 0.6); pointer-events: auto;
+          /* The match is over: nothing on the HUD, open sheet included,
+             may sit on top of the card that says so. */
+          z-index: 35;
         }
         .end-card { padding: 30px 44px; text-align: center; }
         .end-card h1 {
@@ -394,24 +409,9 @@ export function Hud(props: {
            bottom cards can't sit side by side. Stack them, and let the
            long lists scroll instead of growing over the map. */
         @media (max-width: 760px) {
-          .hud-nettrouble {
-          position: absolute;
-          top: 70px;
-          left: 50%;
-          transform: translateX(-50%);
-          padding: 8px 18px;
-          color: #e8b7a0;
-          z-index: 12;
-        }
-        #ui .net-chip {
-          font-size: 12px;
-          color: #9fae9a;
-          padding: 0 8px;
-          align-self: center;
-        }
-        /* Resources first, speed under them — goods are what you glance
-           at, and flow order means a wrapping strip can never overlap the
-           pill. Children go static inside the flex column. */
+          /* Resources first, speed under them — goods are what you glance
+             at, and flow order means a wrapping strip can never overlap the
+             pill. Children go static inside the flex column. */
           .hud-top {
             display: flex; flex-direction: column; gap: 8px;
             inset: auto;

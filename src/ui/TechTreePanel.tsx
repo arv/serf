@@ -47,6 +47,11 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
           position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
           display: flex; gap: 18px; padding: 14px 18px; pointer-events: auto;
           max-width: 90vw; overflow-x: auto;
+          /* Modal layer — see the layer scale in Hud.tsx. Without a number
+             the sheet took its luck from DOM order and lost to the floating
+             touch actions (z-index 11), which drew their band-select and
+             muster buttons straight through the middle of it. */
+          z-index: 20;
         }
         .tech-close {
           position: absolute; top: 8px; right: 8px; min-width: 0; padding: 2px 8px;
@@ -99,6 +104,9 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
             position: fixed;
             inset: 0;
             pointer-events: auto;
+            /* Just under the sheet, and above the touch actions it now
+               covers — the scrim is what makes those taps stop here. */
+            z-index: 19;
           }
           .tech-panel {
             /* A sheet this size must be opaque: at 0.72 alpha the build card
