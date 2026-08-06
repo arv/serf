@@ -1,7 +1,7 @@
 import { buildingDef } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
-import { bindWorker } from './production.ts';
+import { bindWorker, unbindWorker } from './production.ts';
 import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
 import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
@@ -16,7 +16,40 @@ const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
  */
 export function staffingSystem(world: World): void {
   handleArrivals(world);
-  if (world.tick % REQUEST_INTERVAL === 0) requestRecruits(world);
+  if (world.tick % REQUEST_INTERVAL === 0) {
+    releaseObsoletePosts(world);
+    requestRecruits(world);
+  }
+}
+
+/**
+ * A standing building holding a resident its def no longer wants gives them
+ * back. Nothing in a running match makes one — construction already releases
+ * the builder when a workerless building tops out — but a *save* does: the
+ * well kept a keeper until this version, so a file written by an older build
+ * still has one bound to a post that no longer exists. Left alone they stand
+ * at the windlass forever, a hand the village paid for and can never use.
+ *
+ * Written as a rule rather than a well-shaped migration because the next def
+ * to drop its post should not need a second one.
+ */
+function releaseObsoletePosts(world: World): void {
+  for (const b of world.buildings.values()) {
+    if (b.dead || b.state !== 'built' || b.workerId === undefined) continue;
+    if (buildingDef(b.type).workerKind !== undefined) continue;
+    const worker = world.units.get(b.workerId);
+    if (!worker || worker.dead) {
+      b.workerId = undefined;
+      continue;
+    }
+    unbindWorker(world, worker);
+    // Back to the pool means back to idle: a gather task left half-finished
+    // would never advance again (its building no longer drives one), and a
+    // serf that never reads idle is a serf the haulage matcher never sees.
+    // Anything in their hands stays there — logistics has a path for a free
+    // serf still holding a good.
+    worker.task = { t: 'idle', until: world.tick };
+  }
 }
 
 function liveWorker(world: World, b: Building): Unit | undefined {

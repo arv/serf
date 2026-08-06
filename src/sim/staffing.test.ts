@@ -3,6 +3,7 @@ import { tickWorld } from './tick.ts';
 import { killUnit, placeBuiltBuilding, type World } from './world.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { cmds, addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils.ts';
+import { bindWorker } from './systems/production.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -105,6 +106,25 @@ describe('the population economy', () => {
     expect(hauler.homeId).toBeUndefined();
     // The water reached the farm and came out the other side as grain.
     expect(farm.stock.wheat ?? 0).toBeGreaterThan(0);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('a save from before the well lost its keeper gives the hand back', () => {
+    const world = bareWorld();
+    const well = placeBuiltBuilding(world, 'well', 0, 30, 30);
+    // Exactly what an older save deserializes into: a standing well with a
+    // resident bound to it, from the days when its def asked for one.
+    const keeper = addSerf(world, 30, 31);
+    keeper.kind = 'worker';
+    bindWorker(well, keeper);
+    expect(well.workerId).toBe(keeper.id);
+
+    run(world, 30); // past one recruitment sweep
+
+    expect(well.workerId).toBeUndefined();
+    expect(keeper.kind).toBe('serf');
+    expect(keeper.homeId).toBeUndefined();
+    expect(keeper.task.t).toBe('idle');
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
