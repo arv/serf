@@ -20,6 +20,10 @@ pnpm dev
 - **Chains**: wells feed wheat farms; iron + wood become weapons at the
   smiths; wheat + weapons train soldiers at the barracks; wheat + water become
   ale, and ale delivered to the abbey throws festivals (+25% work speed).
+- **Siting gatherers**: the woodcutter, the quarry and the mines only stand
+  where their worker has something in reach — the trees, the outcrop, the
+  seam. Aiming one draws the square that worker will search, and the hut
+  turns red outside it, so a hut is never built to stand idle.
 - **Population**: the HUD counts every person you own — idle serfs, the
   workers inside your buildings, and your soldiers, since each one was a serf
   first. The castle sleeps 10 and you start with 8, so growth needs **houses**:

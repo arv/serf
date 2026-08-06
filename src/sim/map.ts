@@ -1,6 +1,8 @@
 import { Rng } from '../shared/rng.ts';
 import { MAP_SIZE, TILE_COUNT, edgeDist, inBounds, tileIdx } from '../shared/grid.ts';
 import { hash2 } from '../shared/math.ts';
+import { buildingDef, type TileResourceName } from './defs/buildings.ts';
+import { buildingSight } from './visibility.ts';
 
 export const Terrain = { Grass: 0, Water: 1 } as const;
 export type TerrainKind = (typeof Terrain)[keyof typeof Terrain];
@@ -60,16 +62,87 @@ export function resourceBlocks(res: number): boolean {
   return res === TileResource.Wood || res === TileResource.Rock;
 }
 
+/** A gather recipe's resource name, as the tile code the map stores. */
+export const RESOURCE_CODE: Record<TileResourceName, TileResourceKind> = {
+  wood: TileResource.Wood,
+  rock: TileResource.Rock,
+  ironDep: TileResource.IronDep,
+  silverDep: TileResource.SilverDep,
+  goldDep: TileResource.GoldDep,
+};
+
+/**
+ * Nearest tile a gatherer can work, searched outward in rings to `radius`.
+ *
+ * This is the search the resident worker runs at the start of every trip —
+ * and, run against a prospective footprint's center, the placement rule that
+ * refuses a woodcutter with no trees in reach. One function, so a hut can
+ * never be legal to build in a spot where its worker would stand idle.
+ *
+ * `resourceAmt` is sim-only (the mirrored MapView carries no amounts), but a
+ * tile worked dry has its resource code cleared as well, so the code alone
+ * answers the question on the render side.
+ */
+export function findResourceNear(
+  map: MapView & { resourceAmt?: ArrayLike<number> },
+  cx: number,
+  cy: number,
+  code: TileResourceKind,
+  radius: number,
+): number {
+  for (let r = 1; r <= radius; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = cx + dx;
+        const y = cy + dy;
+        if (!inBounds(x, y)) continue;
+        const i = tileIdx(x, y);
+        if (map.resource[i] !== code) continue;
+        if (map.resourceAmt && map.resourceAmt[i]! <= 0) continue;
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
 /** A faction's home: storehouse footprint origin tile. */
 export interface StartSpot {
   x: number;
   y: number;
 }
 
-/** Plateau/flood anchor tile of a start (the storehouse's center tile). */
+/**
+ * Plateau/flood anchor tile of a start: the tile just past the middle of
+ * the 3x3 castle (whose footprint runs s.x..s.x+2). Half a tile off the
+ * true center on each axis, which does not matter to the wide distance
+ * bands that use it — anything measured against what the player can *see*
+ * wants `castleCenter` instead.
+ */
 function anchorOf(s: StartSpot): { x: number; y: number } {
   return { x: s.x + 2, y: s.y + 2 };
 }
+
+/**
+ * The point the castle's sight circle is stamped from — the same
+ * `b.x + b.w / 2` that visibility and the renderer's fog both use, so a
+ * radius measured from here means what it means on screen.
+ */
+function castleCenter(s: StartSpot): { x: number; y: number } {
+  const def = buildingDef('storehouse');
+  return { x: s.x + def.w / 2, y: s.y + def.h / 2 };
+}
+
+/**
+ * How far a castle's own light reaches at tick zero, as the player sees
+ * it. `buildingSight` is what the sim lights and the server sends; the
+ * renderer feathers that circle out over a rim and only draws the inner
+ * part, so worldgen holds itself a tile inside the nominal radius rather
+ * than promising stone that arrives as fog.
+ */
+export const CASTLE_OPENING_SIGHT =
+  buildingSight('storehouse', buildingDef('storehouse').w, buildingDef('storehouse').h) - 1;
 
 export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
   const map: GameMap = {
@@ -304,6 +377,57 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[]): GameMap {
           if (placeCluster(res, amt, x, y, rng.range(1.2, 1.9), 1) > 0) break;
         }
       }
+    }
+  }
+
+  // Stone in the opening view — audited last, once every other cluster is
+  // down, and repaired only where the audit fails.
+  //
+  // The larder above promises each start an outcrop, but the promise was
+  // never counted: a center that clears the grass check still writes
+  // nothing when the grove drawn a moment earlier owns every tile in
+  // reach, and even a cluster that lands can sit entirely outside the
+  // castle's opening sight (~10 tiles) while the trees sit inside it. A
+  // player who sees timber and no stone at all reads the map as stoneless
+  // and plays it that way — which is exactly the solo game this repairs.
+  //
+  // Repair draws from `rng` only for a start that came up short, so every
+  // seed that was already fine keeps its world draw for draw — the
+  // campaign map the balance tests are pinned to among them.
+  //
+  // Distances run from `castleCenter`, not from `anchorOf` — the anchor
+  // sits half a tile off the middle on each axis, and a sight radius is
+  // exactly the kind of measurement that slop turns into stone the fog
+  // never uncovers. Tile centers, for the same reason: it is the distance
+  // the visibility stamp itself computes.
+  const rockWithin = (c: { x: number; y: number }, radius: number): number => {
+    let n = 0;
+    const r = Math.ceil(radius) + 1;
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const x = Math.floor(c.x) + dx;
+        const y = Math.floor(c.y) + dy;
+        if (!inBounds(x, y)) continue;
+        if (Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y) > radius) continue;
+        if (map.resource[tileIdx(x, y)] === TileResource.Rock) n++;
+      }
+    }
+    return n;
+  };
+  // In sight, so the player knows stone exists at all; and enough of it
+  // within a short walk to be worth siting a quarry on.
+  const stoneEnough = (c: { x: number; y: number }): boolean =>
+    rockWithin(c, CASTLE_OPENING_SIGHT) > 0 && rockWithin(c, 13) >= 5;
+  for (const start of starts) {
+    const c = castleCenter(start);
+    for (let tries = 0; tries < 400 && !stoneEnough(c); tries++) {
+      const ang = rng.range(0, Math.PI * 2);
+      // Inside the fog line, clear of the ground the town builds on.
+      const dc = rng.range(7, 9);
+      const x = Math.round(c.x + Math.cos(ang) * dc);
+      const y = Math.round(c.y + Math.sin(ang) * dc);
+      if (!inBounds(x, y) || map.terrain[tileIdx(x, y)] !== Terrain.Grass) continue;
+      placeCluster(TileResource.Rock, 10, x, y, 2, 0.85);
     }
   }
 

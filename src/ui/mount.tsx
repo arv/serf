@@ -1,6 +1,7 @@
 import { render } from 'solid-js/web';
 import { Hud } from './Hud';
-import { pushToast, setPlacing, setSpeed } from './store';
+import { pushToast, setSpeed } from './store';
+import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { SimHost } from '../app/simHost';
 
 /** What the HUD needs from the app: selection actions from Controls (touch
@@ -8,6 +9,9 @@ import type { SimHost } from '../app/simHost';
 export interface HudActions {
   selectArmy(): void;
   deselect(): void;
+  /** Arm or disarm placement. Controls owns it, because dropping the mode
+   * also has to take the ghost off the map. */
+  place(type: BuildingTypeId | null): void;
   /** The full save string — the worker's world plus the fog's memory. */
   save(): Promise<string>;
 }
@@ -24,7 +28,7 @@ export function mountHud(host: SimHost, actions: HudActions): void {
           host.setSpeed(speed);
           setSpeed(speed);
         }}
-        onPlace={(type) => setPlacing(type)}
+        onPlace={(type) => actions.place(type)}
         onHire={() => host.sendCommands([{ kind: 'hireSerf' }])}
         onDismiss={(buildingId) => host.sendCommands([{ kind: 'dismissWorker', buildingId }])}
         onSell={(buildingId) => host.sendCommands([{ kind: 'sellBuilding', buildingId }])}

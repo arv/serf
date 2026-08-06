@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import { makeGhostModel } from './models';
 import { eachMaterial } from './materials';
-import { buildingDef, type BuildingTypeId } from '../sim/defs/buildings';
+import {
+  buildingDef,
+  gatherOrigin,
+  gatherRecipeOf,
+  type BuildingTypeId,
+} from '../sim/defs/buildings';
+import { ReachOutline } from './reachOutline';
 import type { HeightField } from './heightField';
 
 const VALID = new THREE.Color(0x7fbf6a);
@@ -22,11 +28,13 @@ export class GhostPlacement {
    * has to survive being reapplied on every hover. */
   #base = new Map<THREE.Material, THREE.Color>();
   #valid: boolean | null = null;
+  #reach: ReachOutline;
 
   constructor(scene: THREE.Scene, heights: HeightField, owner = 0) {
     this.#scene = scene;
     this.#heights = heights;
     this.#owner = owner;
+    this.#reach = new ReachOutline(scene, heights);
   }
 
   show(type: BuildingTypeId): void {
@@ -44,6 +52,8 @@ export class GhostPlacement {
       }
     });
     this.#scene.add(this.#group);
+    const gather = gatherRecipeOf(buildingDef(type));
+    if (gather) this.#reach.show(gather.radius);
   }
 
   /** Position at footprint origin tile (x,y); tint by validity. */
@@ -54,6 +64,11 @@ export class GhostPlacement {
     const cx = x + def.w / 2;
     const cz = y + def.h / 2;
     this.#group.position.set(cx, this.#heights.at(cx, cz), cz);
+    // The worker searches from the footprint's center tile, so the outline
+    // is drawn around that tile's center — not the footprint's midpoint,
+    // which is half a tile off for even-sized huts.
+    const origin = gatherOrigin(def, x, y);
+    this.#reach.moveTo(origin.x + 0.5, origin.y + 0.5, valid ? VALID : INVALID);
     if (valid === this.#valid) return;
     this.#valid = valid;
     const tint = valid ? VALID : INVALID;
@@ -78,6 +93,7 @@ export class GhostPlacement {
       this.#scene.remove(this.#group);
       this.#group = null;
     }
+    this.#reach.hide();
     this.#base.clear();
     this.#valid = null;
     this.#type = null;

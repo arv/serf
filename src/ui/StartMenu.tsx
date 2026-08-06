@@ -3,6 +3,7 @@ import { createStore, reconcile } from 'solid-js/store';
 import { BUILD_LABEL } from '../app/buildInfo';
 import { clearSeatStash, relayUrl, type CouncilRequest } from '../net/lobbyClient';
 import { DiceIcon } from './menuChrome';
+import { releaseMenuBackdrop } from './menuBackdrop';
 import { DEFAULT_SEED, defaultLobbyConfig } from '../protocol/lobby';
 import {
   AI_STRATEGIES,
@@ -250,6 +251,11 @@ export function StartMenu(props: StartMenuProps) {
       });
       return;
     }
+    // Single player reboots the page into the sim, and the first thing it
+    // asks for is a WebGL context. Give the backdrop's back before leaving:
+    // multiplayer's handover already does (the shell unmounts first), and a
+    // phone that has to hold two at once is a phone that grants neither.
+    releaseMenuBackdrop();
     location.search = search();
   };
   const onEnter = (e: KeyboardEvent): void => {
@@ -260,6 +266,7 @@ export function StartMenu(props: StartMenuProps) {
     const data = localStorage.getItem('serf-save');
     if (!data) return;
     sessionStorage.setItem('serf-load-pending', data);
+    releaseMenuBackdrop();
     location.search = '?seed=' + seed();
   };
 

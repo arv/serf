@@ -1,7 +1,8 @@
-import { TILE_COUNT } from '../shared/grid.ts';
+import { TILE_COUNT, tileIdx } from '../shared/grid.ts';
 import { placeBuiltBuilding, placeSite, spawnUnit, type World } from './world.ts';
 import { makePlayer } from './player.ts';
 import { bindWorker } from './systems/production.ts';
+import { TileResource, resourceBlocks, type TileResourceKind } from './map.ts';
 import type { SimCommand } from './commands.ts';
 import type { PlayerCommand } from './tick.ts';
 import type { GameMap } from './map.ts';
@@ -59,6 +60,21 @@ export function addStorehouse(
   const b = placeBuiltBuilding(world, 'storehouse', owner, x, y);
   b.stock = { ...stock };
   return b;
+}
+
+/** Stand a workable resource on a tile. Gatherers may only be placed within
+ * reach of one, so most hut fixtures need something to chop. */
+export function addResourceTile(
+  world: World,
+  x: number,
+  y: number,
+  res: TileResourceKind = TileResource.Wood,
+  amt = 6,
+): void {
+  const i = tileIdx(x, y);
+  world.map.resource[i] = res;
+  world.map.resourceAmt[i] = amt;
+  if (resourceBlocks(res)) world.map.blocked[i] = 1;
 }
 
 export function addBuiltHut(

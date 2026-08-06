@@ -2,11 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid.ts';
 import { tickWorld } from './tick.ts';
 import { PathLevel, Terrain, TileResource } from './map.ts';
-import { canPlace, placeBuiltBuilding, spawnUnit, type World } from './world.ts';
+import {
+  canPlace,
+  depleteResourceTile,
+  placeBuiltBuilding,
+  spawnUnit,
+  type World,
+} from './world.ts';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS, PAVE_WEAR_THRESHOLD } from './defs/balance.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
 import { bindWorker } from './systems/production.ts';
-import { addSerf, addStorehouse, bareWorld, cmds, staffBuilding } from './testUtils.ts';
+import {
+  addResourceTile,
+  addSerf,
+  addStorehouse,
+  bareWorld,
+  cmds,
+  staffBuilding,
+} from './testUtils.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -150,7 +163,12 @@ describe('convert chains', () => {
   });
 });
 
-describe('mine placement', () => {
+/**
+ * Every gatherer answers to one placement rule: something its worker can
+ * work has to be inside the radius that worker will search. The hut is
+ * refused while it is still a ghost, not discovered idle a minute later.
+ */
+describe('gatherer placement', () => {
   it('requires a matching deposit nearby', () => {
     const world = bareWorld();
     expect(canPlace(world.map, 'ironMine', 30, 30)).toBe(false);
@@ -161,6 +179,52 @@ describe('mine placement', () => {
     expect(canPlace(world.map, 'ironMine', 30, 30)).toBe(true);
     // A silver mine still can't go there.
     expect(canPlace(world.map, 'silverMine', 30, 30)).toBe(false);
+  });
+
+  it('refuses a woodcutter with no trees in reach, and a quarry with no rock', () => {
+    const world = bareWorld();
+    expect(canPlace(world.map, 'woodcutter', 30, 30)).toBe(false);
+    expect(canPlace(world.map, 'quarry', 30, 30)).toBe(false);
+
+    // The hut's search runs from its floored footprint center — (31, 31)
+    // for a 2x2 at (30, 30) — out to the recipe's radius of 8.
+    addResourceTile(world, 39, 31);
+    expect(canPlace(world.map, 'woodcutter', 30, 30)).toBe(true);
+    expect(canPlace(world.map, 'quarry', 30, 30)).toBe(false); // trees aren't rock
+
+    addResourceTile(world, 23, 31, TileResource.Rock);
+    expect(canPlace(world.map, 'quarry', 30, 30)).toBe(true);
+  });
+
+  it('draws the line exactly where the worker stops walking', () => {
+    const world = bareWorld();
+    const radius = 8; // woodcutter's gather radius
+    const center = 31; // floored center of a 2x2 at (30, 30)
+    addResourceTile(world, center + radius + 1, center);
+    expect(canPlace(world.map, 'woodcutter', 30, 30)).toBe(false);
+
+    addResourceTile(world, center + radius, center);
+    expect(canPlace(world.map, 'woodcutter', 30, 30)).toBe(true);
+  });
+
+  it('a stump is not a tree: a worked-out grove stops being placeable ground', () => {
+    const world = bareWorld();
+    addResourceTile(world, 36, 31, TileResource.Wood, 1);
+    expect(canPlace(world.map, 'woodcutter', 30, 30)).toBe(true);
+
+    depleteResourceTile(world, tileIdx(36, 31));
+    expect(canPlace(world.map, 'woodcutter', 30, 30)).toBe(false);
+  });
+
+  it('the placed hut actually finds the wood the rule promised', () => {
+    const world = bareWorld();
+    addResourceTile(world, 39, 31); // the far edge of the radius
+    expect(canPlace(world.map, 'woodcutter', 30, 30)).toBe(true);
+
+    const hut = placeBuiltBuilding(world, 'woodcutter', 0, 30, 30);
+    bindWorker(hut, spawnUnit(world, 'worker', 0, 30.5, 32.5));
+    run(world, 20 * 60);
+    expect(hut.stock.wood ?? 0).toBeGreaterThan(0);
   });
 
   it('miner works the seam like any gather building', () => {
