@@ -107,9 +107,13 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   mill: [{ prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5 }],
   fishery: [
     // The pier runs out of the front face, so the building's facing carries
-    // it to the water (see Building.facing). Long enough to overhang the
-    // footprint on purpose: the tile it reaches is the one the placement
-    // rule guaranteed is water.
+    // it toward the water (see Building.facing). Long enough to overhang the
+    // footprint on purpose. It reaches *toward* the nearest water rather than
+    // provably into it: placement guarantees water within a tile of the
+    // footprint somewhere, and the facing points at the nearest such tile,
+    // but on a corner-only shore the pier's own tile can still be dry. It
+    // reads right at village zoom either way, which is the bar decor has to
+    // clear.
     { prop: 'extra/building_docks_green', at: [0, 0.68], span: 0.8, size: 1, rot: Math.PI / 2 },
     // On the ridge, where the pack's sailing ship was — turned 45 degrees so
     // it stands broadside to the fixed camera yaw. Along either axis the
@@ -118,8 +122,10 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     { prop: 'extra/anchor', at: [-0.38, 0.26], size: 0.16, rot: 0.4 },
     { prop: 'extra/boatrack', at: [0.4, 0.3], size: 0.1, rot: -0.3 },
     // A shoal working the water off the pier. buildingSync swims it while
-    // the fishery is staffed, the same way it turns a staffed well's
-    // windlass — an idle fishery's water is still.
+    // the fishery is staffed — an idle fishery's water is still. (It used to
+    // say "the same way it turns a staffed well's windlass"; the well keeps
+    // no staff now, and sceneSync turns that crank under the serf drawing
+    // from it.)
     { make: (prop) => makeShoal(prop), at: [0, 1.02], y: 0.02, size: 1 },
   ],
   quarry: [{ prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 }],

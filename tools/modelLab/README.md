@@ -84,6 +84,10 @@ crates, pallet, water plants) share the atlas the game already ships, so
 they cost a few kB each. The Restaurant Bits bread crate is the one prop
 that drags a second texture in — the goods section says so on the card.
 
-The paid EXTRA pack is *not* in this checkout. Drop its `Assets/gltf` folder
-into `public/models/kaykit` and the fishery's jetty, boats and shipyard stop
-being hand-built.
+The paid EXTRA pack is not in this checkout, but the four models the fishery
+actually uses are: `public/models/kaykit/extra/` holds the shipyard, the
+docks, the anchor and the boat rack, plus the shared atlas they sample. That
+is a hand-picked subset, not the pack — drop the full `Assets/gltf` folder in
+beside them if you want the rest (the awning stall, the market, the herds),
+and note that `extra/` carries no LICENSE.txt of its own the way the CC0
+folders next to it do.

@@ -59,6 +59,25 @@ describe('convert chains', () => {
     }
     expect(canPlace(world.map, 'fishery', 30, 30)).toBe(false);
 
+    // The same two tiles off the *south* edge, which is the side the bounds
+    // were once wrong on: the box ran a tile past the radius on the high
+    // side only, so this placement was accepted and the pier then pointed
+    // inland (waterFacing, searching the correct box, found nothing and
+    // fell back to facing 0).
+    for (let tx = 29; tx < 35; tx++) {
+      const i = tileIdx(tx, 34); // footprint y = 30..32, so this is 2 off
+      world.map.terrain[i] = Terrain.Water;
+      world.map.blocked[i] = 1;
+    }
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(false);
+    // ...and two off the east edge (footprint x = 30..32).
+    for (let ty = 29; ty < 35; ty++) {
+      const i = tileIdx(34, ty);
+      world.map.terrain[i] = Terrain.Water;
+      world.map.blocked[i] = 1;
+    }
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(false);
+
     // Water along the footprint's north edge (y = 29, footprint y = 30..32).
     for (let tx = 29; tx < 35; tx++) {
       const i = tileIdx(tx, 29);

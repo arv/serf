@@ -129,10 +129,10 @@ export function dryingRack(K: Kit, len = 0.9): THREE.Group {
 }
 
 /**
- * A rowboat: keel plank, flared sides, pointed at both ends. Unused since
- * the EXTRA pack's own boat arrived — kept because it is the only hull we
- * can ship without the paid pack, and the free-pack fallback would need it
- * back.
+ * A rowboat: keel plank, flared sides, pointed at both ends. Nothing builds
+ * one today — the fishery ended up with the pack's boat rack on its quay and
+ * no hull at all, and EXTRA's own boat is no longer vendored. Kept because it
+ * is the only boat we can draw without the paid pack.
  */
 export function rowboat(K: Kit, len = 0.8): THREE.Group {
   const g = new THREE.Group();
@@ -464,5 +464,5 @@ export const VARIANTS: Variant[] = [
  * so the gallery cannot drift from what a match draws.
  */
 export function requiredFiles(): string[] {
-  return ['sack', 'crate_open', 'crate_A_small', 'crate_A_big', 'barrel', 'crate_long_A', 'restaurant/crate_buns'];
+  return ['sack', 'crate_open', 'crate_A_big', 'barrel', 'crate_long_A', 'restaurant/crate_buns'];
 }

@@ -14,10 +14,11 @@ interface Slot {
   /** Which one I would take, and why. */
   pick: string;
   /**
-   * What the paid EXTRA pack would hand us here. The free pack is what
-   * these compositions are built from — EXTRA is not on GitHub and is not
-   * in the checkout — but several hand-built parts stop being necessary
-   * the moment its files land in public/models/kaykit.
+   * What the paid EXTRA pack hands us here. The free pack is what most of
+   * these compositions are built from; EXTRA is not on GitHub, and only the
+   * handful of its models the fishery actually uses are vendored into
+   * public/models/kaykit/extra. The rest of a slot's note is what would
+   * become possible if the whole pack landed there.
    */
   extra?: string;
 }
@@ -44,7 +45,7 @@ const SLOTS: Slot[] = [
     recipe: 'shore → food',
     sub: 'No inputs at all — a coastline is the only thing it consumes. The early food against the bakery’s late one: a third of the rate, none of the chain.',
     pick: 'The one building here with nothing hand-built on it but a sign post. It also brought the game its first placement rule that is not about ore — touching water, and turned to face it — and the only decor that moves besides the well’s windlass.',
-    extra: 'In and working. The pier runs out from the fisherman’s hut, the camp has its proper tent, and the pack’s own boat replaced the hull I modelled. The fish are the last thing still ours, and no KayKit pack has one.',
+    extra: 'In and working, and the only slot that needed EXTRA at all: the shipyard is the hut, the docks are the pier, and the anchor and boat rack are the quay. Those four are vendored. The fish are the last thing still ours, and no KayKit pack has one.',
   },
   {
     slot: 'goods',

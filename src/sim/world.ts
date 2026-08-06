@@ -307,9 +307,12 @@ export function spawnUnitNearby(
 
 /**
  * Which way the nearest water lies from a footprint, as quarter turns from
- * +z. Ties break toward +z and then clockwise, which is arbitrary but has
- * to be deterministic: two hosts placing the same fishery must turn it the
- * same way or their renders — and their save hashes — diverge.
+ * +z. Equal distances keep the first tile the scan reaches — lowest y, then
+ * lowest x, so a footprint with water squared off on two sides faces -z
+ * before -x before anything else. Arbitrary, but it has to be *decided*:
+ * two hosts placing the same fishery must turn it the same way or their
+ * renders — and their save hashes — diverge. Scan order is what makes that
+ * true, so the loop bounds below are load-bearing, not incidental.
  */
 function waterFacing(
   map: World['map'],
@@ -490,12 +493,17 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
     if (!found) return false;
   }
 
-  // The fishery has to reach the water it fishes.
+  // The fishery has to reach the water it fishes. The footprint runs
+  // x..x+w-1, so `r` tiles beyond it ends at x+w-1+r — the exclusive bound
+  // below. It used to be `<= x + def.w + r`, one tile too far, which let a
+  // fishery stand two tiles off the water on its south and east sides; the
+  // facing search (waterFacing, which has always used the tighter box)
+  // then found no water at all and left the pier pointing at dry land.
   if (def.nearWater) {
     const r = def.nearWater.radius;
     let found = false;
-    for (let ty = y - r; ty <= y + def.h + r && !found; ty++) {
-      for (let tx = x - r; tx <= x + def.w + r && !found; tx++) {
+    for (let ty = y - r; ty < y + def.h + r && !found; ty++) {
+      for (let tx = x - r; tx < x + def.w + r && !found; tx++) {
         if (!inBounds(tx, ty)) continue;
         if (map.terrain[tileIdx(tx, ty)] === Terrain.Water) found = true;
       }
