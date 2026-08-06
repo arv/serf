@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAP_SIZE, TILE_COUNT, tileX, tileY } from '../shared/grid.ts';
 import { createWorld, type World } from './world.ts';
-import { TileResource, type TileResourceKind } from './map.ts';
+import { CASTLE_OPENING_SIGHT, TileResource, type TileResourceKind } from './map.ts';
 
 /**
  * The fairness contract for generated maps: every faction has its own wood,
@@ -20,8 +20,9 @@ function tilesOf(world: World, code: TileResourceKind): [number, number][] {
   return out;
 }
 
+/** Tile centers against a world point, the way the sight stamp measures. */
 function countNear(tiles: [number, number][], x: number, y: number, r: number): number {
-  return tiles.filter(([tx, ty]) => Math.hypot(tx - x, ty - y) <= r).length;
+  return tiles.filter(([tx, ty]) => Math.hypot(tx + 0.5 - x, ty + 0.5 - y) <= r).length;
 }
 
 function makeWorld(seed: number, players: number): World {
@@ -74,6 +75,35 @@ describe('map fairness', () => {
       }
     });
   }
+
+  it('every start, solo included, opens with stone in sight', () => {
+    // The complaint this covers: solo games that looked stoneless. Trees
+    // landed inside the storehouse's opening view and the outcrop did not,
+    // so the map read as "no stone" long before anyone walked far enough
+    // to find it — and on the seeds where the guaranteed cluster silently
+    // wrote zero tiles, walking further would not have helped either.
+    //
+    // The radius is worldgen's own, derived from the castle's def, so the
+    // day someone changes the castle's sight or footprint this test moves
+    // with the guarantee instead of quietly checking the wrong ring.
+    for (const players of [1, 2, 3, 4]) {
+      for (const seed of SEEDS) {
+        const world = makeWorld(seed, players);
+        const rock = tilesOf(world, TileResource.Rock);
+        for (const h of anchors(world)) {
+          const label = `seed ${seed}, ${players}p, start ${h.x},${h.y}`;
+          expect(
+            countNear(rock, h.x, h.y, CASTLE_OPENING_SIGHT),
+            `${label}: stone in sight`,
+          ).toBeGreaterThan(0);
+          expect(
+            countNear(rock, h.x, h.y, 13),
+            `${label}: a seam worth quarrying`,
+          ).toBeGreaterThanOrEqual(5);
+        }
+      }
+    }
+  });
 
   it('solo: the classic mid-ring layout is untouched', () => {
     for (const seed of SEEDS) {
