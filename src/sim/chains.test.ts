@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid.ts';
 import { tickWorld } from './tick.ts';
-import { PathLevel, TileResource } from './map.ts';
+import { PathLevel, Terrain, TileResource } from './map.ts';
 import {
   canPlace,
   depleteResourceTile,
@@ -32,6 +32,92 @@ describe('convert chains', () => {
     staffBuilding(world, well);
     run(world, 20 * 13); // durationTicks = 120
     expect(well.stock.water ?? 0).toBeGreaterThan(0);
+  });
+
+  it('mill and bakery turn wheat into the food a soldier costs', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, { wheat: 6, water: 6 });
+    staffBuilding(world, placeBuiltBuilding(world, 'mill', 0, 26, 30));
+    staffBuilding(world, placeBuiltBuilding(world, 'bakery', 0, 34, 30));
+    addSerf(world, 29, 33);
+    addSerf(world, 33, 33);
+    run(world, 20 * 90);
+
+    // Grain went up the chain and bread came back down it.
+    expect(sh.stock.food ?? 0).toBeGreaterThan(0);
+    expect(sh.stock.wheat ?? 0).toBeLessThan(6);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('the mill grinds without a resident (the wind does the work)', () => {
+    const world = bareWorld();
+    const mill = placeBuiltBuilding(world, 'mill', 0, 30, 30);
+    mill.inputs.wheat = 2;
+    expect(mill.workerId).toBeUndefined();
+    run(world, 20 * 20);
+    expect(mill.stock.flour ?? 0).toBeGreaterThan(0);
+  });
+
+  it('the fishery needs a shore, and turns to face it', () => {
+    const world = bareWorld();
+    // bareWorld is all grass: inland placement must be refused...
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(false);
+
+    // ...and water two tiles off is still inland. The pier is part of the
+    // building, so the rule is "touching", not "near".
+    for (let tx = 29; tx < 35; tx++) {
+      const i = tileIdx(tx, 27);
+      world.map.terrain[i] = Terrain.Water;
+      world.map.blocked[i] = 1;
+    }
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(false);
+
+    // The same two tiles off the *south* edge, which is the side the bounds
+    // were once wrong on: the box ran a tile past the radius on the high
+    // side only, so this placement was accepted and the pier then pointed
+    // inland (waterFacing, searching the correct box, found nothing and
+    // fell back to facing 0).
+    for (let tx = 29; tx < 35; tx++) {
+      const i = tileIdx(tx, 34); // footprint y = 30..32, so this is 2 off
+      world.map.terrain[i] = Terrain.Water;
+      world.map.blocked[i] = 1;
+    }
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(false);
+    // ...and two off the east edge (footprint x = 30..32).
+    for (let ty = 29; ty < 35; ty++) {
+      const i = tileIdx(34, ty);
+      world.map.terrain[i] = Terrain.Water;
+      world.map.blocked[i] = 1;
+    }
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(false);
+
+    // Water along the footprint's north edge (y = 29, footprint y = 30..32).
+    for (let tx = 29; tx < 35; tx++) {
+      const i = tileIdx(tx, 29);
+      world.map.terrain[i] = Terrain.Water;
+      world.map.blocked[i] = 1;
+    }
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(true);
+
+    const fishery = placeBuiltBuilding(world, 'fishery', 0, 30, 30);
+    // Water lies at -z, so the pier turns half a circle to reach it.
+    expect(fishery.facing).toBe(2);
+
+    staffBuilding(world, fishery);
+    run(world, 20 * 26);
+    // No inputs at all — a coastline is the only thing it consumes.
+    expect(fishery.stock.food ?? 0).toBeGreaterThan(0);
+  });
+
+  it('the fishery faces east when the water is east', () => {
+    const world = bareWorld();
+    for (let ty = 29; ty < 35; ty++) {
+      const i = tileIdx(33, ty);
+      world.map.terrain[i] = Terrain.Water;
+      world.map.blocked[i] = 1;
+    }
+    expect(canPlace(world.map, 'fishery', 30, 30)).toBe(true);
+    expect(placeBuiltBuilding(world, 'fishery', 0, 30, 30).facing).toBe(1);
   });
 
   it('farm consumes hauled water and yields wheat (well -> farm -> storehouse)', () => {

@@ -1,0 +1,136 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "fishgen"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "fish_copper"
+    }
+  ],
+  "materials": [
+    {
+      "name": "kaykit",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0,
+        "roughnessFactor": 0.5
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "fish_copper",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "TEXCOORD_0": 1,
+            "NORMAL": 2
+          },
+          "indices": 3,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/png",
+      "name": "kaykit_atlas",
+      "uri": "../restaurant/restaurantbits_texture.png"
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 636,
+      "type": "VEC3",
+      "min": [
+        -0.154628723859787,
+        -0.24500000476837158,
+        -0.515999972820282
+      ],
+      "max": [
+        0.154628723859787,
+        0.3149999976158142,
+        0.7200000286102295
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 636,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 636,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 636,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 7632,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 7632,
+      "byteLength": 5088,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 12720,
+      "byteLength": 7632,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 20352,
+      "byteLength": 1272,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 21624,
+      "uri": "fish_copper.bin"
+    }
+  ]
+}

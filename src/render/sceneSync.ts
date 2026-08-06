@@ -44,6 +44,15 @@ interface ArmChain {
   hand: THREE.Object3D;
 }
 
+/** A standing well: where it is, the windlass that turns, and the handle a
+ * drawing serf's hand is glued to. Fed from buildingSync.wellCranks(). */
+interface Well {
+  x: number;
+  z: number;
+  crank: THREE.Object3D;
+  grip: THREE.Object3D;
+}
+
 /** GLTFLoader sanitizes bone names ('upperarm.r' → 'upperarmr'). */
 function findArm(group: THREE.Group): ArmChain | null {
   const bone = (n: string): THREE.Object3D | undefined =>
@@ -144,14 +153,19 @@ export class SceneSync {
    * hp bars copy it to stay parallel with the screen plane. */
   cameraQuaternion: THREE.Quaternion | null = null;
 
-  /** Built wells' world centers + grip handles (from main's structural
-   * feed). A drawing serf belongs at the windlass, but the sim parks
-   * staffed workers on whichever adjacent tile the path found — so the
-   * render stands them beside the crank and IK-glues their hand to the
-   * grip (see update). */
-  #wells: { x: number; z: number; grip: THREE.Object3D }[] = [];
+  /** Built wells' world centers, windlasses + grip handles (from main's
+   * structural feed). A drawing serf belongs at the windlass, but the sim
+   * parks it on whichever adjacent tile the path found — so the render
+   * stands it beside the crank, IK-glues its hand to the grip, and turns
+   * the crank under it (see update). */
+  #wells: Well[] = [];
 
-  setWells(wells: { x: number; z: number; grip: THREE.Object3D }[]): void {
+  /** Wells whose crank has already been turned this frame, so two haulers
+   * drawing at once cannot spin it twice as fast. Cleared, never
+   * reallocated. */
+  #spun = new Set<THREE.Object3D>();
+
+  setWells(wells: Well[]): void {
     this.#wells = wells;
   }
 
@@ -168,8 +182,8 @@ export class SceneSync {
   /** Seat viewing the scene — everyone else is an enemy to the fog. */
   #owner: number;
 
-  #nearestWell(x: number, y: number): { x: number; z: number; grip: THREE.Object3D } | null {
-    let well: { x: number; z: number; grip: THREE.Object3D } | null = null;
+  #nearestWell(x: number, y: number): Well | null {
+    let well: Well | null = null;
     let best = 2.25; // the worker stands adjacent: within 1.5 tiles
     for (const w of this.#wells) {
       const dx = w.x - x;
@@ -349,6 +363,7 @@ export class SceneSync {
     const animNow = this.#animNow;
     this.#computeSeparation(latest, prev, alpha);
     this.#hidden.clear();
+    this.#spun.clear();
 
     for (let i = 0; i < latest.count; i++) {
       const id = latest.ids[i]!;
@@ -475,6 +490,15 @@ export class SceneSync {
         !offScreen && !dead && !moving && action === ACTION.work && workKind === WORK.draw
           ? this.#nearestWell(x, y)
           : null;
+      // The windlass turns because someone is winding it, and only then.
+      // Axle along x; one revolution per loop of the reeling clip (1.6 s),
+      // both advancing on the same render dt, so the grip stays under the
+      // hands glued to it. Once per well per frame — two serfs drawing at
+      // one well are two buckets, not double speed.
+      if (crankWell && dt > 0 && !this.#spun.has(crankWell.crank)) {
+        this.#spun.add(crankWell.crank);
+        crankWell.crank.rotation.x += dt * ((Math.PI * 2) / 1.6);
+      }
       if (visual.char && offScreen) {
         // Culled: drop the current clip so re-entry restarts it cleanly
         // (playAnimation is a no-op while `current` matches).

@@ -1,5 +1,5 @@
 import { TILE_COUNT, tileX, tileY } from '../../shared/grid.ts';
-import { TileResource } from '../map.ts';
+import { Terrain, TileResource } from '../map.ts';
 import { BUILDING_DEFS, buildingDef, type BuildingTypeId } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, type UnitTypeId } from '../defs/units.ts';
@@ -61,7 +61,7 @@ const WEAPON_OF: Partial<Record<UnitTypeId, GoodId>> = {
   archer: 'bow',
 };
 
-const ANCHOR_RESOURCE: Record<Exclude<BuildAnchor, 'base'>, number> = {
+const ANCHOR_RESOURCE: Record<Exclude<BuildAnchor, 'base' | 'water'>, number> = {
   wood: TileResource.Wood,
   rock: TileResource.Rock,
   iron: TileResource.IronDep,
@@ -295,6 +295,14 @@ function spotFor(
   baseY: number,
 ): { x: number; y: number } | null {
   if (step.anchor === 'base') return findSpot(world, step.type, baseX, baseY, step.radius);
+  // The shore is terrain, not a resource seam, so it gets its own search.
+  // A map with no water near home simply never places the step, and the
+  // brain moves on down the list — which is the right answer, not a stall.
+  if (step.anchor === 'water') {
+    const shore = nearestWater(world, baseX, baseY);
+    if (shore < 0) return null;
+    return findSpot(world, step.type, tileX(shore), tileY(shore), step.radius);
+  }
   const tile = nearestResource(world, ANCHOR_RESOURCE[step.anchor], baseX, baseY);
   if (tile < 0) return null;
   return findSpot(world, step.type, tileX(tile), tileY(tile), step.radius);
@@ -334,6 +342,21 @@ function findSpot(
     }
   }
   return null;
+}
+
+/** Nearest open water to a point — the fishery's anchor. */
+function nearestWater(world: World, cx: number, cy: number): number {
+  let best = -1;
+  let bestDist = Infinity;
+  for (let i = 0; i < TILE_COUNT; i++) {
+    if (world.map.terrain[i] !== Terrain.Water) continue;
+    const d = Math.abs(tileX(i) - cx) + Math.abs(tileY(i) - cy);
+    if (d < bestDist) {
+      bestDist = d;
+      best = i;
+    }
+  }
+  return best;
 }
 
 /** Nearest tile with a given resource to a point. */

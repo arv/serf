@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
+import { makeBakeOven, makeFishSign, makeShoal } from './procParts';
 
 /**
  * GLB asset pipeline: building, tree, rock and prop models loaded from the
@@ -25,6 +26,15 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   quarry: 'building_mine_green.gltf',
   well: 'building_well_green.gltf',
   wheatFarm: 'farm_plot.glb',
+  mill: 'building_windmill_green.gltf',
+  // The pack has no bakery. The second house model is the closest shell —
+  // unused until now, so it costs the town no other identity — and the
+  // stone oven bolted to its flank (BUILDING_DECOR) is what actually says
+  // "bread" at village zoom.
+  bakery: 'building_home_B_green.gltf',
+  // The EXTRA shipyard: a hull on the slipway, an anchor, barrels on the
+  // quay. The one food building that needed nothing built by hand.
+  fishery: 'extra/building_shipyard_green.gltf',
   brewery: 'building_tavern_green.gltf',
   // The mines share one model and read apart by their spoil (rust, silver,
   // gold boulders in BUILDING_DECOR) — the pack's color variants only vary
@@ -42,12 +52,30 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
  * merged; the mechanism stays for the next shared model. */
 const TINTS: Partial<Record<BuildingTypeId, number>> = {};
 
+/** Clones a loaded pack prop, scaled to `span` across and keeping its own
+ * vertical origin. Null when the name is not in DECOR_PROP_FILES. */
+export type PropFactory = (name: string, span: number) => THREE.Object3D | null;
+
 /** Prop dressing placed around a building, in its unit-square space. */
 interface Decor {
   /** A pack prop scene by file stem... */
   prop?: string;
-  /** ...or an ore-tinted boulder. */
+  /** Height above the footprint, for dressing that sits on a roof. */
+  y?: number;
+  /**
+   * Size by footprint span instead of height, keeping the prop's own
+   * vertical origin. The pier needs both: it is sized by how far it runs
+   * out, and its pilings belong below the waterline rather than lifted onto
+   * the grass the way `size` would put them.
+   */
+  span?: number;
+  /** ...an ore-tinted boulder... */
   rock?: number;
+  /** ...or something we build ourselves, for what the pack has no model of.
+   * Sized by the builder, not by `size`. The builder is handed a factory so
+   * it can fold pack models into what it makes (the shoal is pack fish on a
+   * path we author). */
+  make?: (prop: PropFactory) => THREE.Object3D;
   at: [number, number];
   size: number;
   rot?: number;
@@ -60,12 +88,46 @@ const DECOR_PROP_FILES = [
   'resource_lumber',
   'bucket_water',
   'barrel',
+  'extra/anchor',
+  'extra/boatrack',
+  'extra/building_docks_green',
+  'fish/fish',
 ];
 
 // No goods-shaped decor on producers whose live stock piles up outside:
 // the woodcutter's baked lumber pile read as planks that were never
 // hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
+  // The oven is the bakery's whole tell — it has to sit proud of the wall
+  // on the side the camera sees, not tucked behind the roof.
+  bakery: [
+    { make: () => makeBakeOven(0.62), at: [0.42, 0.3], size: 1, rot: -0.55 },
+    { prop: 'barrel', at: [-0.38, 0.33], size: 0.13 },
+  ],
+  mill: [{ prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5 }],
+  fishery: [
+    // The pier runs out of the front face, so the building's facing carries
+    // it toward the water (see Building.facing). Long enough to overhang the
+    // footprint on purpose. It reaches *toward* the nearest water rather than
+    // provably into it: placement guarantees water within a tile of the
+    // footprint somewhere, and the facing points at the nearest such tile,
+    // but on a corner-only shore the pier's own tile can still be dry. It
+    // reads right at village zoom either way, which is the bar decor has to
+    // clear.
+    { prop: 'extra/building_docks_green', at: [0, 0.68], span: 0.8, size: 1, rot: Math.PI / 2 },
+    // On the ridge, where the pack's sailing ship was — turned 45 degrees so
+    // it stands broadside to the fixed camera yaw. Along either axis the
+    // fish would be read end-on and vanish.
+    { make: (prop) => makeFishSign(0.19, prop), at: [0.06, -0.02], y: 0.34, size: 1, rot: Math.PI / 4 },
+    { prop: 'extra/anchor', at: [-0.38, 0.26], size: 0.16, rot: 0.4 },
+    { prop: 'extra/boatrack', at: [0.4, 0.3], size: 0.1, rot: -0.3 },
+    // A shoal working the water off the pier. buildingSync swims it while
+    // the fishery is staffed — an idle fishery's water is still. (It used to
+    // say "the same way it turns a staffed well's windlass"; the well keeps
+    // no staff now, and sceneSync turns that crank under the serf drawing
+    // from it.)
+    { make: (prop) => makeShoal(prop), at: [0, 1.02], y: 0.02, size: 1 },
+  ],
   quarry: [{ prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 }],
   ironMine: [{ prop: 'wheelbarrow', at: [-0.35, 0.32], size: 0.15, rot: -0.5 }],
   silverMine: [{ prop: 'sack', at: [-0.33, 0.33], size: 0.11 }],
@@ -230,6 +292,19 @@ export async function loadGlbAssets(): Promise<boolean> {
     const rocks = ROCK_FILES.map((f) => bakeNormalized(f, true));
     const natureMaterial = new THREE.MeshLambertMaterial({ map: natureMap });
 
+    /** A prop clone scaled by footprint span, keeping its own y origin —
+     * for props that are meant to sit into the ground rather than on it. */
+    const propOfSpan = (src: THREE.Group, span: number): THREE.Group => {
+      const c = src.clone();
+      const bb = new THREE.Box3().setFromObject(c);
+      const across = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z, 1e-6);
+      c.position.set(-(bb.min.x + bb.max.x) / 2, 0, -(bb.min.z + bb.max.z) / 2);
+      const g = new THREE.Group();
+      g.scale.setScalar(span / across);
+      g.add(c);
+      return g;
+    };
+
     /** A prop clone normalized to `size` tall, feet on the ground. */
     const propOfSize = (src: THREE.Group, size: number): THREE.Group => {
       const c = src.clone();
@@ -287,6 +362,27 @@ export async function loadGlbAssets(): Promise<boolean> {
         ];
         scene.traverse((o) => {
           if (o instanceof THREE.Mesh && o.name === 'building_mine_green') {
+            for (const [x0, y0, z0, x1, y1, z1] of CUT) {
+              o.geometry = stripTrianglesInBox(
+                o.geometry as THREE.BufferGeometry,
+                new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)),
+              );
+            }
+          }
+        });
+      }
+      if (type === 'fishery') {
+        // The pack perches a finished sailing ship on the shipyard's ridge —
+        // a whole vessel, masts and sails, sitting on the roof. It reads as
+        // a toy on a shelf at village zoom, and the hull already under
+        // construction on the slipway is the part that says shipyard. Cut
+        // the roof ship; the chimney (z > 0.55) and the ridge (x > 0.45)
+        // sit outside the box and survive.
+        const CUT: [number, number, number, number, number, number][] = [
+          [0.02, 0.72, -0.36, 0.46, 1.3, 0.46],
+        ];
+        scene.traverse((o) => {
+          if (o instanceof THREE.Mesh) {
             for (const [x0, y0, z0, x1, y1, z1] of CUT) {
               o.geometry = stripTrianglesInBox(
                 o.geometry as THREE.BufferGeometry,
@@ -366,9 +462,14 @@ export async function loadGlbAssets(): Promise<boolean> {
       // particular read apart by their spoil, not just their roof color.
       for (const d of BUILDING_DECOR[type] ?? []) {
         let obj: THREE.Object3D | undefined;
-        if (d.prop !== undefined) {
+        if (d.make !== undefined) {
+          obj = d.make((name, span) => {
+            const src = loaded.get(`${name}.gltf`);
+            return src ? propOfSpan(src, span) : null;
+          });
+        } else if (d.prop !== undefined) {
           const src = loaded.get(`${d.prop}.gltf`);
-          if (src) obj = propOfSize(src, d.size);
+          if (src) obj = d.span !== undefined ? propOfSpan(src, d.span) : propOfSize(src, d.size);
         } else if (d.rock !== undefined && rocks[0]) {
           const mat = natureMaterial.clone();
           mat.color.set(d.rock);
@@ -380,7 +481,7 @@ export async function loadGlbAssets(): Promise<boolean> {
           obj = g;
         }
         if (!obj) continue;
-        obj.position.set(d.at[0], 0, d.at[1]);
+        obj.position.set(d.at[0], d.y ?? 0, d.at[1]);
         obj.rotation.y = d.rot ?? 0;
         group.add(obj);
       }

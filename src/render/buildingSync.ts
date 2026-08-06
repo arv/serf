@@ -34,6 +34,7 @@ interface BuildingVisual {
   pileKey: string;
   /** The well's windlass, spun per frame while the well is staffed. */
   crank?: THREE.Object3D;
+  shoal?: THREE.Object3D;
   staffed: boolean;
   /** Longest footprint side, for sizing the teardown dust. */
   span: number;
@@ -282,6 +283,11 @@ export class BuildingSync {
       root.add(model);
     }
 
+    // Shore buildings turn to face their water (Building.facing). Only the
+    // model turns, not the root: the footprint stays axis-aligned, and the
+    // root's own x/z rotation belongs to the collapse animation.
+    if (b.facing) model.rotation.y = (b.facing * Math.PI) / 2;
+
     const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
     this.#scene.add(root);
     return {
@@ -294,33 +300,44 @@ export class BuildingSync {
       pct: 1,
       pileKey: '',
       crank: model.getObjectByName('wellCrank') ?? undefined,
+      shoal: model.getObjectByName('fisheryShoal') ?? undefined,
       staffed: false,
       span: Math.max(b.w, b.h),
     };
   }
 
-  /** Built wells' world centers and grip handles — sceneSync IK-glues the
-   * drawing serf's hand to the grip and stands them beside it. */
-  wellCranks(): { x: number; z: number; grip: THREE.Object3D }[] {
-    const out: { x: number; z: number; grip: THREE.Object3D }[] = [];
+  /** Built wells' world centers, windlasses and grip handles — sceneSync
+   * stands the drawing serf beside the crank, IK-glues their hand to the
+   * grip, and turns the windlass under it. */
+  wellCranks(): { x: number; z: number; crank: THREE.Object3D; grip: THREE.Object3D }[] {
+    const out: { x: number; z: number; crank: THREE.Object3D; grip: THREE.Object3D }[] = [];
     for (const v of this.#visuals.values()) {
       if (v.state !== 'built' || !v.crank) continue;
       const grip = v.crank.getObjectByName('wellGrip');
-      if (grip) out.push({ x: v.root.position.x, z: v.root.position.z, grip });
+      if (grip) out.push({ x: v.root.position.x, z: v.root.position.z, crank: v.crank, grip });
     }
     return out;
   }
 
-  /** Per render frame: turn the staffed wells' windlasses. dt in seconds
-   * (pass 0 while paused). */
+  /** Per render frame: the decor that moves. dt in seconds (pass 0 while
+   * paused). Windlasses are not here — the well keeps no resident, so there
+   * is nothing building-side to key them off; sceneSync turns each one under
+   * the serf that came to draw from it. */
   frame(dt: number): void {
     if (dt <= 0) return;
     for (const v of this.#visuals.values()) {
-      if (v.crank && v.staffed && v.state === 'built') {
-        // Axle runs along x, resting on the side frames. One revolution per
-        // loop of the worker's reeling clip (1.6 s) — both advance on render
-        // dt, so the grip and the cranking hands stay frequency-locked.
-        v.crank.rotation.x += dt * ((Math.PI * 2) / 1.6);
+      if (v.shoal && v.staffed && v.state === 'built') {
+        // Each fish carries its own circle, direction and depth. Advancing
+        // the phase and pointing the nose down the tangent is the whole
+        // motion: at village zoom a rigid fish on a slow curve reads as
+        // swimming, and the model has no rig to do better with.
+        for (const pivot of v.shoal.children) {
+          const p = pivot.userData as { r: number; phase: number; speed: number; y: number };
+          p.phase += dt * p.speed;
+          pivot.position.set(Math.cos(p.phase) * p.r, p.y, Math.sin(p.phase) * p.r);
+          // The model's nose is -z, so a tangent heading needs the half turn.
+          pivot.rotation.y = -p.phase + (p.speed > 0 ? 0 : Math.PI);
+        }
       }
     }
     if (this.#dying.length === 0) return;

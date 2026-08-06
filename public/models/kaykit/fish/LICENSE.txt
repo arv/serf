@@ -1,0 +1,11 @@
+fishgen — procedural low-poly fish in the KayKit style.
+
+Code and mesh: CC0.
+
+The texture these reference is not here: their atlas is byte-identical to
+restaurantbits_texture.png from KayKit Restaurant Bits (Kay Lousberg, CC0),
+which this tree already ships one directory over, so the gltf files point at
+that copy instead of duplicating it.
+
+636 verts / 212 tris, flat shaded, no rig. ~1.24 units nose to tail, Y-up,
+origin at the body center, nose pointing -Z.

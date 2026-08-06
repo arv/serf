@@ -31,6 +31,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
   }
   return {
     staffing,
+    facing: b.facing,
     id: b.id,
     type: b.type,
     owner: b.owner,
@@ -132,6 +133,19 @@ export function snapJobs(world: World, owner?: number): JobSnap[] {
   return out;
 }
 
+/**
+ * The building a hauler is standing at, winding a good up out of it — the
+ * well and nothing else, today. Undefined for everyone else, which is the
+ * whole population bar one or two serfs at any moment.
+ */
+function drawingAt(w: World, u: Unit): Building | undefined {
+  if (u.task.t !== 'haul' || u.jobId === undefined) return undefined;
+  const job = w.jobs.get(u.jobId);
+  if (!job || job.phase !== 'toPickup' || job.drawUntil === undefined) return undefined;
+  if (w.tick >= job.drawUntil) return undefined;
+  return w.buildings.get(job.from);
+}
+
 /** What is this unit visibly doing? Drives limb animation in the renderer. */
 function actionOf(w: World, u: Unit): number {
   if (u.dead) return ACTION.dead;
@@ -139,6 +153,9 @@ function actionOf(w: World, u: Unit): number {
   if (UNIT_DEFS[u.kind].combat && u.targetId !== undefined) return ACTION.fight;
   // Gather workers swinging at a resource tile.
   if (u.task.t === 'gatherWork') return ACTION.work;
+  // A hauler on the well's windlass. The well keeps no resident, so this is
+  // the only way anyone is ever seen drawing.
+  if (drawingAt(w, u) !== undefined) return ACTION.work;
   // Resident workers: builders hammering up their site once materials are
   // in, or convert-building staff mid-batch (hoeing, hammering...).
   if (u.homeId !== undefined && u.task.t === 'idle') {
@@ -177,6 +194,9 @@ function professionOf(w: World, u: Unit): number {
 
 /** Which tool animation fits this unit's work site? */
 function workKindOf(w: World, u: Unit): number {
+  // A hauler mid-draw has no post; the building it is standing at is what
+  // says which animation to play.
+  if (drawingAt(w, u)?.type === 'well') return WORK.draw;
   const home = u.homeId !== undefined ? w.buildings.get(u.homeId) : undefined;
   if (!home) return WORK.tend;
   if (home.state === 'site') return WORK.hammer; // builder at the frame

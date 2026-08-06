@@ -187,7 +187,7 @@ export function CostLine(props: { label: string; cost: GoodAmounts; extra?: stri
  * lives here. */
 const GOOD_DESC: Record<GoodId, string> = {
   water: 'Drawn at wells. Soaks the fields and thins the ale.',
-  wheat: 'The staple. Feeds soldiers in training and funds research.',
+  wheat: 'The crop. Milled into flour, brewed into ale, and it funds research.',
   wood: 'Felled in the forest. The village is built from it.',
   stone: 'Quarried from outcrops. Heavy building and road paving.',
   iron: 'Hauled from mountain seams. Becomes blades and spearheads.',
@@ -197,6 +197,8 @@ const GOOD_DESC: Record<GoodId, string> = {
   spear: 'Shafted by the spearmaker. Arms one spearman.',
   bow: 'Strung by the bowyer. Arms one archer.',
   ale: 'Brewed from wheat and water. Fuels festivals at the Abbey.',
+  flour: 'Ground at the mill. On its own it feeds nobody.',
+  food: 'Baked from flour and water. What a soldier costs.',
 };
 
 export function GoodTip(props: { good: GoodId }) {

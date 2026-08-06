@@ -54,9 +54,31 @@ export interface BuildingDef {
   recipeOptions?: { recipe: Recipe & { kind: 'convert' }; requiresTech?: TechId }[];
   /** Resident worker spawned when construction completes (gather recipes). */
   workerKind?: UnitTypeId;
+  /**
+   * Ticks a hauler spends at this building collecting one good, before it
+   * has anything in its hands. Undefined — every building but the well —
+   * means a pickup is instant.
+   *
+   * The well's alternative to a resident: a bucket on a rope is not a job,
+   * it is a thing you do when you want water. The cost does not vanish, it
+   * moves — off the population cap and onto the haulage pool, and onto the
+   * beat it is actually wanted rather than all day. A keeper cranking into
+   * a full bucket was paying rent on nothing.
+   */
+  drawTicks?: number;
   /** Digs into the hillside rather than standing on it: exempt from the
    * flat-ground placement rule, and sped up by mining research. */
   mine?: boolean;
+  /**
+   * Placement: requires open water within `radius` tiles of the footprint,
+   * and turns the building to face it (Building.facing). Like `mine` it also
+   * frees the footprint from the flat-ground rule — a bank is a slope by
+   * definition, and a fishery that can only stand on a dead-level beach can
+   * stand almost nowhere. Unlike `mine` it is a rule the sim enforces rather
+   * than a fact about the building: the fishery converts, so the gather-radius
+   * check that sites every other resource building cannot speak for it.
+   */
+  nearWater?: { radius: number };
   /** Site demand priority (construction defaults to 1; road paving uses 3). */
   sitePriority?: 1 | 2 | 3;
   /** Footprint does not block movement (road sites). */
@@ -83,6 +105,9 @@ export type BuildingTypeId =
   | 'house'
   | 'well'
   | 'wheatFarm'
+  | 'mill'
+  | 'bakery'
+  | 'fishery'
   | 'brewery'
   | 'ironMine'
   | 'silverMine'
@@ -170,8 +195,19 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     buildTicks: 8 * S,
     hp: 80,
     sight: 5.5,
-    workerKind: 'worker',
+    // No keeper. The two clocks are different things: durationTicks is the
+    // shaft refilling — the well's own rate, and still what caps one well at
+    // ten water a minute — and drawTicks is the hauler on the windlass. Only
+    // the second costs anybody anything, and only when someone came for
+    // water.
+    //
+    // Six seconds each, which is not a coincidence: a resident made ten
+    // water a minute for one permanent hand, so a six-second draw at ten
+    // water a minute costs the same hand's worth of haulage. The bill is
+    // identical and the population slot is free. Below demand it costs
+    // nothing at all, which the keeper never managed.
     recipe: { kind: 'convert', inputs: {}, outputs: { water: 1 }, durationTicks: 6 * S },
+    drawTicks: 6 * S,
   },
   wheatFarm: {
     id: 'wheatFarm',
@@ -184,6 +220,78 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'convert', inputs: { water: 1 }, outputs: { wheat: 1 }, durationTicks: 10 * S },
+  },
+  mill: {
+    id: 'mill',
+    name: 'Mill',
+    w: 2,
+    h: 2,
+    cost: { wood: 8, stone: 4 },
+    buildTicks: 18 * S,
+    hp: 150,
+    sight: 5.5,
+    // No resident: the wind does the grinding, the way it does in the
+    // model. That is not only flavor — the chain adds two posts to a serf
+    // pool the balance keeps deliberately lean, and paying two hands for
+    // what used to be one farm's output is what made the campaign
+    // unwinnable in testing. The bakery keeps its baker.
+    // Grain in, flour out. Slower than the farm that feeds it on purpose:
+    // one mill should serve two farms, so the chain is a shape rather than
+    // a stack of one-to-ones.
+    recipe: { kind: 'convert', inputs: { wheat: 1 }, outputs: { flour: 1 }, durationTicks: 8 * S },
+  },
+  bakery: {
+    id: 'bakery',
+    name: 'Bakery',
+    w: 2,
+    h: 2,
+    cost: { wood: 10, stone: 6 },
+    buildTicks: 20 * S,
+    hp: 160,
+    sight: 5.5,
+    workerKind: 'worker',
+    // The well is already on every build order; making bread want water
+    // ties the food chain to it rather than adding a parallel one.
+    recipe: {
+      kind: 'convert',
+      inputs: { flour: 1, water: 1 },
+      outputs: { food: 2 },
+      durationTicks: 12 * S,
+    },
+  },
+  fishery: {
+    id: 'fishery',
+    name: 'Fishery',
+    w: 3,
+    h: 3,
+    cost: { wood: 12, stone: 4 },
+    buildTicks: 20 * S,
+    hp: 150,
+    sight: 6.5,
+    workerKind: 'worker',
+    // The early food, and the slow one. Nothing goes in: no field, no well,
+    // no flour — one hut and one hand, feeding the barracks the beat it is
+    // finished, where the bread chain is a well, a farm, a mill and a bakery
+    // before its first loaf. That is what the rate pays for. Three a minute
+    // against the bakery's ten, and counting the hands the chain's upstream
+    // needs it is still 3.0 food per minute per hand against bread's 3.5 —
+    // so a village that has grown out of its opening wants ovens, and one
+    // that has not wants a shore. Fish while you are poor, bake once you
+    // are not.
+    //
+    // Twenty seconds and not twelve, which is where this started: at twelve
+    // a fishery made 5.0 per hand and beat the whole chain outright, and
+    // there is no scarcity to hold it back — a map carries four hundred-odd
+    // legal shore sites against a thousand-odd field sites. Two huts would
+    // have retired the bakery.
+    //
+    // (A hen yard stood beside these two for a while, wheat straight to
+    // food. Cut: two food sources are a choice, three were a menu, and the
+    // hens lost to the bakery on every number that mattered.)
+    recipe: { kind: 'convert', inputs: {}, outputs: { food: 1 }, durationTicks: 20 * S },
+    // Touching, not merely near: the pier is part of the building, and a
+    // pier that stops three tiles short of the water is worse than none.
+    nearWater: { radius: 1 },
   },
   brewery: {
     id: 'brewery',
@@ -309,9 +417,11 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     sight: 5.5,
     requiresTech: 'soldiery',
     trains: [
-      { unit: 'knight', cost: { wheat: 3, sword: 1 }, durationTicks: 15 * S },
-      { unit: 'spearman', cost: { wheat: 2, spear: 1 }, durationTicks: 10 * S },
-      { unit: 'archer', cost: { wheat: 2, bow: 1 }, durationTicks: 12 * S },
+      // Soldiers march on bread, not on raw grain: the barracks is the far
+      // end of mill -> bakery, and wheat is a crop again.
+      { unit: 'knight', cost: { food: 3, sword: 1 }, durationTicks: 15 * S },
+      { unit: 'spearman', cost: { food: 2, spear: 1 }, durationTicks: 10 * S },
+      { unit: 'archer', cost: { food: 2, bow: 1 }, durationTicks: 12 * S },
     ],
   },
   roadSite: {

@@ -250,6 +250,39 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.85;
       break;
     }
+    case 'flour': {
+      // A milled sack: plumper than the grain sack the pack ships, and pale
+      // with the dust of it, so the two never read alike on a road.
+      const body = mesh(new THREE.SphereGeometry(0.13, 8, 6), 0xe4dcc9);
+      body.scale.set(1.05, 0.9, 0.8);
+      add(body);
+      const neck = mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.06, 6), 0xd6ccb4);
+      neck.position.y = 0.11;
+      add(neck);
+      const tie = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.018, 6), 0x8a6c3c);
+      tie.position.y = 0.1;
+      add(tie);
+      g.position.y = 0.9;
+      break;
+    }
+    case 'food': {
+      // Loaves in the crook of an arm: three round ones, slashed.
+      for (const [dx, dy, dz, r] of [
+        [-0.07, 0, 0.01, 0.075],
+        [0.06, 0.005, -0.02, 0.08],
+        [0, 0.075, 0, 0.07],
+      ] as const) {
+        const loaf = mesh(new THREE.SphereGeometry(r, 7, 5), goodColorsLocal.food);
+        loaf.scale.set(1.35, 0.72, 0.85);
+        loaf.position.set(dx, dy, dz);
+        add(loaf);
+        const slash = mesh(new THREE.BoxGeometry(0.012, 0.014, r * 0.9), 0xf0dcb8);
+        slash.position.set(dx, dy + r * 0.62, dz);
+        add(slash);
+      }
+      g.position.y = 0.91;
+      break;
+    }
     case 'ale': {
       // A stout ale cask, iron-hooped, carried on its side.
       const staves = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 10), 0x8a6033);

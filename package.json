@@ -1,6 +1,6 @@
 {
   "name": "serf",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A medieval Settlers-like RTS in the browser",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "dev": "vite",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit && tsc -p server --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tools/modelLab --noEmit && tsc -p server --noEmit",
     "test": "vitest run",
     "server": "pnpm --dir server dev",
     "smoke": "pnpm --dir server smoke"

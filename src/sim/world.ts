@@ -39,6 +39,13 @@ export interface HaulJob {
   createdTick: number;
   phase: 'open' | 'toPickup' | 'toDropoff';
   serfId?: EntityId;
+  /**
+   * Set on arrival at a source with `drawTicks` (the well): the tick the
+   * hauler finishes drawing and the good is finally in its hands. Lives on
+   * the job rather than the building so two haulers at one well each pay
+   * their own six seconds instead of queueing on a shared timer.
+   */
+  drawUntil?: number;
   blockedUntil?: number;
   /** Consecutive pathing failures; too many aborts the job + backs off the demand. */
   blockedCount?: number;
@@ -305,6 +312,42 @@ export function spawnUnitNearby(
   return spawnUnit(world, kind, owner, (idx % MAP_SIZE) + 0.5, Math.floor(idx / MAP_SIZE) + 0.5);
 }
 
+/**
+ * Which way the nearest water lies from a footprint, as quarter turns from
+ * +z. Equal distances keep the first tile the scan reaches — lowest y, then
+ * lowest x, so a footprint with water squared off on two sides faces -z
+ * before -x before anything else. Arbitrary, but it has to be *decided*:
+ * two hosts placing the same fishery must turn it the same way or their
+ * renders — and their save hashes — diverge. Scan order is what makes that
+ * true, so the loop bounds below are load-bearing, not incidental.
+ */
+function waterFacing(
+  map: World['map'],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius: number,
+): 0 | 1 | 2 | 3 {
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  let best: 0 | 1 | 2 | 3 = 0;
+  let bestD = Infinity;
+  for (let ty = y - radius; ty < y + h + radius; ty++) {
+    for (let tx = x - radius; tx < x + w + radius; tx++) {
+      if (!inBounds(tx, ty)) continue;
+      if (map.terrain[tileIdx(tx, ty)] !== Terrain.Water) continue;
+      const dx = tx + 0.5 - cx;
+      const dy = ty + 0.5 - cy;
+      const d = dx * dx + dy * dy;
+      if (d >= bestD) continue;
+      bestD = d;
+      best = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : dy > 0 ? 0 : 2;
+    }
+  }
+  return best;
+}
+
 function makeBuildingRecord(
   world: World,
   type: BuildingTypeId,
@@ -329,6 +372,9 @@ function makeBuildingRecord(
     reservedOut: {},
     demandSince: {},
     dead: false,
+    ...(def.nearWater
+      ? { facing: waterFacing(world.map, x, y, def.w, def.h, def.nearWater.radius) }
+      : {}),
   };
 }
 
@@ -392,11 +438,13 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
     }
   }
 
-  // Mountainsides are for mines (they carve into the seam); everything
-  // else needs flat-ish ground. Corner heights match the renderer's
-  // bilinear ground (average of adjacent tiles), so 1x1 footprints on a
-  // steep hillside are caught too.
-  if (!def.mine) {
+  // Mountainsides are for mines (they carve into the seam) and shorelines
+  // are for the fishery (a bank is a slope by definition, and a fishery
+  // that can only stand on a dead-level beach can stand almost nowhere);
+  // everything else needs flat-ish ground. Corner heights match the
+  // renderer's bilinear ground (average of adjacent tiles), so 1x1
+  // footprints on a steep hillside are caught too.
+  if (!def.mine && !def.nearWater) {
     const corner = (vx: number, vy: number): number => {
       let sum = 0;
       let n = 0;
@@ -448,6 +496,24 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
     if (findResourceNear(map, c.x, c.y, RESOURCE_CODE[gather.resource]!, gather.radius) < 0) {
       return false;
     }
+  }
+
+  // The fishery has to reach the water it fishes. The footprint runs
+  // x..x+w-1, so `r` tiles beyond it ends at x+w-1+r — the exclusive bound
+  // below. It used to be `<= x + def.w + r`, one tile too far, which let a
+  // fishery stand two tiles off the water on its south and east sides; the
+  // facing search (waterFacing, which has always used the tighter box)
+  // then found no water at all and left the pier pointing at dry land.
+  if (def.nearWater) {
+    const r = def.nearWater.radius;
+    let found = false;
+    for (let ty = y - r; ty < y + def.h + r && !found; ty++) {
+      for (let tx = x - r; tx < x + def.w + r && !found; tx++) {
+        if (!inBounds(tx, ty)) continue;
+        if (map.terrain[tileIdx(tx, ty)] === Terrain.Water) found = true;
+      }
+    }
+    if (!found) return false;
   }
   return true;
 }

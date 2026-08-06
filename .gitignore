@@ -15,4 +15,7 @@ server/.data/
 # only fills in its precache manifest).
 !src/app/sw.js
 
+# the model lab's bundled gallery (tools/modelLab/build-gallery.mjs)
+.gallery-build/
+
 .DS_Store

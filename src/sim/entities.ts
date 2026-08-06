@@ -54,6 +54,13 @@ export interface Building {
    * reservations stop pinning supply that other demands could use.
    */
   demandBackoff?: GoodAmounts;
+  /**
+   * Quarter turns clockwise from "front faces +z", set once at placement.
+   * Only shore buildings use it: the fishery turns its pier toward the
+   * water it was placed against, so the pier ends in the water rather than
+   * in a field. Everything else is built facing +z and stays there.
+   */
+  facing?: 0 | 1 | 2 | 3;
   /** Resident worker (staffed production buildings). */
   workerId?: EntityId;
   /** Serf currently walking here to staff the building / enlist. */
