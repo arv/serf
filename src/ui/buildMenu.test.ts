@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILD_GROUPS, playerBuildable } from './buildMenu';
-import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings.ts';
+import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 
 const TYPES = Object.keys(BUILDING_DEFS) as BuildingTypeId[];
 const inMenu = BUILD_GROUPS.flatMap((g) => g.types);
@@ -12,6 +12,13 @@ const inMenu = BUILD_GROUPS.flatMap((g) => g.types);
  * food chain, for three commits), and a type the sim accepts but never
  * meant to (the bandit camp, which had no systemOnly flag) is a hole no
  * button reveals.
+ *
+ * A fourth assertion lived here — that every entry names a type that
+ * exists — and was deleted rather than kept: `inMenu` is typed
+ * `BuildingTypeId[]` and `TYPES` comes from a `Record` keyed by that same
+ * union, so the compiler refuses both halves before the test can run. An
+ * assertion that cannot fail is worse than no assertion, because it looks
+ * like coverage.
  */
 describe('the build ribbon', () => {
   it('offers every building a player is allowed to place', () => {
@@ -26,11 +33,11 @@ describe('the build ribbon', () => {
 
   it('lists each building once', () => {
     const seen = new Set<BuildingTypeId>();
-    const dupes = inMenu.filter((t) => !seen.add(t) || false);
+    const dupes = inMenu.filter((t) => {
+      if (seen.has(t)) return true;
+      seen.add(t);
+      return false;
+    });
     expect(dupes).toEqual([]);
-  });
-
-  it('names a type that exists', () => {
-    expect(inMenu.filter((t) => !TYPES.includes(t))).toEqual([]);
   });
 });

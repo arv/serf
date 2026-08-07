@@ -1,4 +1,4 @@
-import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings.ts';
+import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 
 /**
  * The build ribbon's tabs, in the order they are shown.
