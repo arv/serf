@@ -21,6 +21,7 @@ export type SimCommand =
   | { kind: 'setBuildingRecipe'; buildingId: EntityId; index: number }
   | { kind: 'research'; tech: TechId }
   | { kind: 'trainUnit'; buildingId: EntityId; unit: UnitTypeId }
+  | { kind: 'cancelTraining'; buildingId: EntityId; index: number; unit: UnitTypeId }
   | { kind: 'admin'; action: AdminAction };
 
 /** Sandbox tweaks (the ?admin panel). Single-player: no cheat gating needed. */
@@ -116,6 +117,14 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
     case 'trainUnit':
       if (!isId(c.buildingId) || !isDefined(UNIT_DEFS, c.unit)) return null;
       return { kind: 'trainUnit', buildingId: c.buildingId, unit: c.unit as UnitTypeId };
+    case 'cancelTraining': {
+      if (!isId(c.buildingId) || !isDefined(UNIT_DEFS, c.unit)) return null;
+      const index = c.index;
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > 15) {
+        return null;
+      }
+      return { kind: 'cancelTraining', buildingId: c.buildingId, index, unit: c.unit as UnitTypeId };
+    }
     case 'admin':
       if (!ADMIN_ACTIONS.includes(c.action as AdminAction)) return null;
       return { kind: 'admin', action: c.action as AdminAction };

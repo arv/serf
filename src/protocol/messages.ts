@@ -50,7 +50,8 @@ export interface BuildingSnap {
   inbound: GoodAmounts;
   reservedOut: GoodAmounts;
   maxHp: number;
-  trainQueue?: { unit: string; started: boolean }[];
+  /** Barracks orders in queue order; the started one carries its progress 0..1. */
+  trainQueue?: { unit: string; started: boolean; progress01?: number }[];
   /** Serf hires paid for and still walking in, and the leader's progress 0..1. */
   hireQueue?: number;
   hireProgress01?: number;

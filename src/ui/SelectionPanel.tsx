@@ -6,6 +6,7 @@ import {
   HIRE_SERF_COST,
   HIRE_SERF_TICKS,
   TICKS_PER_SECOND,
+  TRAIN_QUEUE_CAP,
 } from '../sim/defs/balance';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
@@ -53,6 +54,7 @@ function GoodsLine(props: { amounts: GoodAmounts }) {
 
 export function SelectionPanel(props: {
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
+  onCancelTrain: (buildingId: number, index: number, unit: UnitTypeId) => void;
   onHire: () => void;
   onDeselect: () => void;
   onDismiss: (buildingId: number) => void;
@@ -319,7 +321,7 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
               <Show when={def().trains && b().state === 'built'}>
-                {/* Wraps: three train buttons plus the queue tally outgrow
+                {/* Wraps: three train buttons plus the queue row outgrow
                     the panel's width cap, and touch sizing widens them
                     further — spilling off-screen on anything narrow. */}
                 <div style={{ 'margin-top': '6px', display: 'flex', 'flex-wrap': 'wrap', gap: '6px' }}>
@@ -327,6 +329,7 @@ export function SelectionPanel(props: {
                     {(option) => {
                       const gate = unitTechGate(option.unit);
                       const locked = () => gate !== undefined && !techs().researched.includes(gate);
+                      const full = () => (b().trainQueue?.length ?? 0) >= TRAIN_QUEUE_CAP;
                       return (
                         <TipWrap
                           tip={() => (
@@ -338,7 +341,7 @@ export function SelectionPanel(props: {
                           )}
                         >
                           <button
-                            disabled={locked()}
+                            disabled={locked() || full()}
                             onClick={() => props.onTrain(b().id, option.unit)}
                           >
                             <Show when={locked()}>
@@ -353,10 +356,72 @@ export function SelectionPanel(props: {
                       );
                     }}
                   </For>
-                  <Show when={(b().trainQueue?.length ?? 0) > 0}>
-                    <span style={{ 'align-self': 'center' }}>{b().trainQueue!.length} queued</span>
-                  </Show>
                 </div>
+                <Show when={(b().trainQueue?.length ?? 0) > 0}>
+                  {/* One chip per order, in queue order. The fill is the same
+                      device as the hire button's: the started item's training
+                      clock, left to right. Clicking a chip cancels it. */}
+                  <div
+                    style={{
+                      'margin-top': '6px',
+                      display: 'flex',
+                      'flex-wrap': 'wrap',
+                      gap: '6px',
+                      'align-items': 'center',
+                    }}
+                  >
+                    <span style={{ opacity: 0.7, 'font-size': '12px' }}>
+                      queue {b().trainQueue!.length}/{TRAIN_QUEUE_CAP}
+                    </span>
+                    <For each={b().trainQueue!}>
+                      {(item, i) => (
+                        <TipWrap
+                          tip={() => (
+                            <TextTip
+                              title={item.started ? 'Cancel training' : 'Remove from queue'}
+                              body={
+                                item.started
+                                  ? 'Stops the recruit mid-drill: the ingredients go back into the barracks stores and the person walks back out a serf. The time already trained is lost.'
+                                  : 'Nothing is spent until training starts — ingredients already delivered stay at the barracks for the next order.'
+                              }
+                            />
+                          )}
+                        >
+                          <button
+                            style={{
+                              position: 'relative',
+                              overflow: 'hidden',
+                              'min-height': '0',
+                              padding: '3px 10px',
+                            }}
+                            onClick={() =>
+                              props.onCancelTrain(b().id, i(), item.unit as UnitTypeId)
+                            }
+                          >
+                            {/* The training clock, filling the chip left to right. */}
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                position: 'absolute',
+                                inset: '0 auto 0 0',
+                                width: `${(item.progress01 ?? 0) * 100}%`,
+                                background: 'rgba(229, 196, 105, 0.3)',
+                                'pointer-events': 'none',
+                              }}
+                            />
+                            <span style={{ position: 'relative' }}>
+                              {unitName(item.unit as UnitTypeId)}
+                              <Show when={!item.started}>
+                                <span style={{ opacity: 0.6 }}> · waiting</span>
+                              </Show>{' '}
+                              ✕
+                            </span>
+                          </button>
+                        </TipWrap>
+                      )}
+                    </For>
+                  </div>
+                </Show>
               </Show>
             </div>
           );

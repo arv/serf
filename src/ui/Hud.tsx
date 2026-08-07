@@ -71,6 +71,7 @@ export function Hud(props: {
   onHire: () => void;
   onResearch: (tech: TechId) => void;
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
+  onCancelTrain: (buildingId: number, index: number, unit: UnitTypeId) => void;
   onSave: () => void;
   onAdmin: (action: AdminAction) => void;
   onSelectArmy: () => void;
@@ -771,6 +772,7 @@ export function Hud(props: {
 
         <SelectionPanel
           onTrain={props.onTrain}
+          onCancelTrain={props.onCancelTrain}
           onHire={props.onHire}
           onDeselect={props.onDeselect}
           onDismiss={props.onDismiss}
