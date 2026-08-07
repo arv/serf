@@ -335,8 +335,13 @@ export class BuildingSync {
           const p = pivot.userData as { r: number; phase: number; speed: number; y: number };
           p.phase += dt * p.speed;
           pivot.position.set(Math.cos(p.phase) * p.r, p.y, Math.sin(p.phase) * p.r);
-          // The model's nose is -z, so a tangent heading needs the half turn.
-          pivot.rotation.y = -p.phase + (p.speed > 0 ? 0 : Math.PI);
+          // The model's nose is -z: rotation.y = t points it at
+          // (-sin t, -cos t), while the tangent of a counter-clockwise circle
+          // at phase p is (-sin p, cos p). So the half turn belongs to the
+          // forward swimmer, and the one running its circle backwards is the
+          // one that takes the bare -phase. Swapped, every fish in the shoal
+          // travelled tail-first.
+          pivot.rotation.y = -p.phase + (p.speed > 0 ? Math.PI : 0);
         }
       }
     }

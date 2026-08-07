@@ -10,7 +10,7 @@ import type { BuildingSnap } from '../protocol/messages';
 // of the same shape.
 vi.mock('./assets', () => ({
   glbCarryProp: () => null,
-  makeGlbBuilding: () => {
+  makeGlbBuilding: (type: string) => {
     const geo = new THREE.BoxGeometry(1, 1, 1);
     geo.clearGroups();
     geo.addGroup(0, 18, 0);
@@ -21,9 +21,16 @@ vi.mock('./assets', () => ({
     ]);
     const group = new THREE.Group();
     group.add(mesh);
+    // The real fishery carries a shoal in its decor. The pack fish are GLB,
+    // so stand an empty group in for each: makeShoal only needs the factory
+    // to hand back something it can hang on a pivot, and the swimming is all
+    // in the pivots.
+    if (type === 'fishery') group.add(makeShoal(() => new THREE.Group()));
     return group;
   },
 }));
+
+const { makeShoal } = await import('./procParts');
 
 const { BuildingSync } = await import('./buildingSync');
 
@@ -87,5 +94,35 @@ describe('a construction site with multi-material meshes', () => {
       snap({ id: 8, x: 20, y: 20, state: 'site', progress01: 0, siteNeeds: {} }),
     ]);
     expect(scene.children.length).toBe(2);
+  });
+});
+
+describe("the fishery's shoal", () => {
+  it('swims nose-first, whichever way round its circle it goes', () => {
+    const { sync, scene } = makeSync();
+    sync.update([snap({ type: 'fishery', staffing: 'staffed' })]);
+    const shoal = scene.getObjectByName('fisheryShoal');
+    expect(shoal).toBeDefined();
+    // Three fish, and the pack deals them both directions.
+    const speeds = shoal!.children.map((p) => (p.userData as { speed: number }).speed);
+    expect(speeds.some((s) => s > 0)).toBe(true);
+    expect(speeds.some((s) => s < 0)).toBe(true);
+
+    // One frame to seat them on their circles — makeShoal leaves every pivot
+    // at the origin — then a short step to measure.
+    const DT = 0.05;
+    sync.frame(DT);
+    const before = shoal!.children.map((p) => p.position.clone());
+    sync.frame(DT);
+
+    shoal!.children.forEach((pivot, i) => {
+      // Where it actually went this frame, against where its nose ended up
+      // pointing. The model's nose is -z.
+      const moved = pivot.position.clone().sub(before[i]!).setY(0).normalize();
+      const nose = new THREE.Vector3(0, 0, -1).applyEuler(pivot.rotation).setY(0).normalize();
+      // A twentieth of a second of arc is short enough that the chord and the
+      // tangent agree closely; tail-first would land near -1.
+      expect(nose.dot(moved)).toBeGreaterThan(0.99);
+    });
   });
 });
