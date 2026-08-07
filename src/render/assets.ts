@@ -114,7 +114,7 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // but on a corner-only shore the pier's own tile can still be dry. It
     // reads right at village zoom either way, which is the bar decor has to
     // clear.
-    { prop: 'extra/building_docks_green', at: [0, 0.68], span: 0.8, size: 1, rot: Math.PI / 2 },
+    { prop: 'extra/building_docks_green', at: [0, 0.68], span: 0.8, size: 1, rot: -Math.PI / 2 },
     // On the ridge, where the pack's sailing ship was — turned 45 degrees so
     // it stands broadside to the fixed camera yaw. Along either axis the
     // fish would be read end-on and vanish.
