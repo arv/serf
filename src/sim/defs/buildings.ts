@@ -144,6 +144,12 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     buildTicks: 0,
     hp: 600,
     sight: 5.5,
+    // Worldgen's to place, nobody else's. The flag was missing, and the
+    // sim's placement guard is `!systemOnly && !storage` — so a client that
+    // sent `placeBuilding: 'banditCamp'` got six hundred hit points for
+    // nothing. No UI ever offered it, which is why it went unnoticed; a
+    // hand-edited command in a networked match is not bound by the UI.
+    systemOnly: true,
   },
   woodcutter: {
     id: 'woodcutter',

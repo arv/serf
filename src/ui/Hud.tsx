@@ -21,6 +21,7 @@ import {
 } from './icons';
 import { BuildingTip, GoodTip, TextTip, TipWrap, TooltipLayer, tooltip } from './tooltip';
 import { buildingName, techName } from './names';
+import { BUILD_GROUPS } from './buildMenu';
 import {
   CHEATS_ALLOWED,
   bandArm,
@@ -62,15 +63,6 @@ const SPEEDS = [
   { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },
   { value: 1, icon: PlayIcon, label: 'Normal speed', hint: undefined as string | undefined },
   { value: 3, icon: FastIcon, label: 'Fast forward', hint: 'Runs the village at 3× speed.' },
-];
-
-const BUILD_GROUPS: { label: string; types: BuildingTypeId[] }[] = [
-  { label: 'Village', types: ['house', 'woodcutter', 'quarry', 'well', 'wheatFarm', 'abbey'] },
-  {
-    label: 'Industry',
-    types: ['brewery', 'ironMine', 'silverMine', 'goldMine', 'weaponsmith'],
-  },
-  { label: 'War', types: ['barracks'] },
 ];
 
 export function Hud(props: {
