@@ -42,6 +42,9 @@ export function mountHud(host: SimHost, actions: HudActions): void {
         onTrain={(buildingId, unit) =>
           host.sendCommands([{ kind: 'trainUnit', buildingId, unit }])
         }
+        onCancelTrain={(buildingId, index, unit) =>
+          host.sendCommands([{ kind: 'cancelTraining', buildingId, index, unit }])
+        }
         onSave={() => {
           void actions.save().then((data) => {
             localStorage.setItem('serf-save', data);

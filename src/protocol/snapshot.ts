@@ -49,7 +49,13 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     inputs: { ...b.inputs },
     inbound: { ...b.inbound },
     reservedOut: { ...b.reservedOut },
-    trainQueue: b.trainQueue?.map((q) => ({ unit: q.unit, started: q.started })),
+    trainQueue: b.trainQueue?.map((q) => ({
+      unit: q.unit,
+      started: q.started,
+      progress01: q.started
+        ? 1 - q.ticksLeft / (def.trains?.find((o) => o.unit === q.unit)?.durationTicks ?? 1)
+        : undefined,
+    })),
     paused: b.paused,
     recipeIndex: b.recipeIndex,
     hireQueue: b.hireQueue,

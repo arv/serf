@@ -88,6 +88,35 @@ export function enqueueTraining(world: World, b: Building, unit: string): void {
   b.trainQueue.push({ unit: option.unit, ticksLeft: 0, started: false });
 }
 
+/**
+ * Remove the queue item the player pointed at. `unit` rides along as a
+ * guard: the click aimed at a snapshot a few ticks stale, and the queue can
+ * shift underneath it (an item finishing, the skip-ahead reorder). A
+ * mismatch means the slot no longer holds what the player saw — drop the
+ * order rather than cancel a different one.
+ *
+ * An unstarted item owes nothing: its ingredients are still in the input
+ * buffer (or still on a serf's back) and stay at the barracks for whatever
+ * is ordered next. A started item has already eaten its ingredients and its
+ * recruit, and both walk back out — goods into the input buffer, the person
+ * out the door as a serf. Only the training time already spent is lost.
+ */
+export function cancelTraining(world: World, b: Building, index: number, unit: string): void {
+  const item = b.trainQueue?.[index];
+  if (!item || item.unit !== unit) return;
+  b.trainQueue!.splice(index, 1);
+  if (!item.started) return;
+  const option = buildingDef(b.type).trains?.find((o) => o.unit === item.unit);
+  if (option) {
+    for (const [good, n] of Object.entries(option.cost) as [GoodId, number][]) {
+      b.inputs[good] = (b.inputs[good] ?? 0) + n;
+      world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) - n;
+    }
+  }
+  const door = doorOf(world, b);
+  spawnUnit(world, 'serf', b.owner, door.x, door.y);
+}
+
 function doorOf(world: World, b: Building): { x: number; y: number } {
   const idx = nearestWalkable(world.map, Math.floor(b.x + b.w / 2), b.y + b.h, 6);
   if (idx >= 0) return { x: tileX(idx) + 0.5, y: tileY(idx) + 0.5 };

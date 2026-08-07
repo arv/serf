@@ -15,6 +15,7 @@ describe('command screening', () => {
       { kind: 'sellBuilding', buildingId: 3 },
       { kind: 'research', tech: 'irrigation' },
       { kind: 'trainUnit', buildingId: 7, unit: 'spearman' },
+      { kind: 'cancelTraining', buildingId: 7, index: 2, unit: 'spearman' },
       { kind: 'admin', action: 'grantGoods' },
     ];
     for (const cmd of cases) expect(sanitizeCommand(cmd)).toEqual(cmd);
@@ -24,6 +25,15 @@ describe('command screening', () => {
     expect(sanitizeCommand({ kind: 'placeBuilding', building: 'bogus', x: 1, y: 1 })).toBeNull();
     expect(sanitizeCommand({ kind: 'research', tech: 'bogus' })).toBeNull();
     expect(sanitizeCommand({ kind: 'trainUnit', buildingId: 1, unit: 'bogus' })).toBeNull();
+    expect(
+      sanitizeCommand({ kind: 'cancelTraining', buildingId: 1, index: 0, unit: 'bogus' }),
+    ).toBeNull();
+    expect(
+      sanitizeCommand({ kind: 'cancelTraining', buildingId: 1, index: -1, unit: 'spearman' }),
+    ).toBeNull();
+    expect(
+      sanitizeCommand({ kind: 'cancelTraining', buildingId: 1, index: 1.5, unit: 'spearman' }),
+    ).toBeNull();
     expect(sanitizeCommand({ kind: 'admin', action: 'bogus' })).toBeNull();
     expect(sanitizeCommand({ kind: 'bogus' })).toBeNull();
     // Prototype properties are not definitions.

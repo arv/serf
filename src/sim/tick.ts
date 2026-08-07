@@ -13,7 +13,7 @@ import { canPlace, destroyBuilding, killUnit, placeSite, spawnUnit, type World }
 import { GOODS } from './defs/goods.ts';
 import { findStorehouse } from './systems/logistics.ts';
 import { researchSystem } from './systems/research.ts';
-import { trainingSystem, hiringSystem, enqueueTraining } from './systems/training.ts';
+import { trainingSystem, hiringSystem, enqueueTraining, cancelTraining } from './systems/training.ts';
 import { staffingSystem } from './systems/staffing.ts';
 import { combatSystem } from './systems/combat.ts';
 import { banditsSystem } from './systems/bandits.ts';
@@ -105,6 +105,11 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
     case 'trainUnit': {
       const b = world.buildings.get(cmd.buildingId);
       if (b && b.owner === playerId) enqueueTraining(world, b, cmd.unit);
+      break;
+    }
+    case 'cancelTraining': {
+      const b = world.buildings.get(cmd.buildingId);
+      if (b && !b.dead && b.owner === playerId) cancelTraining(world, b, cmd.index, cmd.unit);
       break;
     }
     case 'admin':

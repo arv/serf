@@ -93,6 +93,50 @@ describe('barracks training', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
+  it('cancels an unstarted order outright — nothing was spent yet', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, { food: 10, sword: 2 });
+    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'knight' }));
+    expect(barracks.trainQueue?.length).toBe(1);
+
+    // The unit guard: a click aimed at a slot that no longer holds what the
+    // player saw must not cancel whatever sits there now.
+    tickWorld(world, cmds({ kind: 'cancelTraining', buildingId: barracks.id, index: 0, unit: 'archer' }));
+    expect(barracks.trainQueue?.length).toBe(1);
+
+    tickWorld(world, cmds({ kind: 'cancelTraining', buildingId: barracks.id, index: 0, unit: 'knight' }));
+    expect(barracks.trainQueue ?? []).toEqual([]);
+    run(world, 20 * 10);
+    expect([...world.units.values()].some((u) => u.kind === 'knight')).toBe(false);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('cancelling a started order returns the ingredients and the recruit', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, { food: 10, sword: 1 });
+    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    addSerf(world, 34, 34);
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'knight' }));
+
+    // Run until the serf has hauled the ingredients in and enlisted.
+    let guard = 20 * 120;
+    while (!barracks.trainQueue?.[0]?.started && guard-- > 0) tickWorld(world, []);
+    expect(barracks.trainQueue?.[0]?.started).toBe(true);
+    expect([...world.units.values()].filter((u) => u.kind === 'serf' && !u.dead)).toEqual([]);
+
+    tickWorld(world, cmds({ kind: 'cancelTraining', buildingId: barracks.id, index: 0, unit: 'knight' }));
+    expect(barracks.trainQueue ?? []).toEqual([]);
+    // The meal and the sword are back in the input buffer for the next order…
+    expect(barracks.inputs.food).toBe(3);
+    expect(barracks.inputs.sword).toBe(1);
+    // …and the person walked back out a serf instead of becoming a knight.
+    expect([...world.units.values()].filter((u) => u.kind === 'serf' && !u.dead)).toHaveLength(1);
+    run(world, 20 * 30);
+    expect([...world.units.values()].some((u) => u.kind === 'knight')).toBe(false);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
   it('applies militaryHp modifiers at spawn', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { food: 10, spear: 2 });
