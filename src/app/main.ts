@@ -297,6 +297,13 @@ async function runMatch(
   // renders what the server sends. Both speak the same worker protocol, so
   // nothing below this line knows the difference.
   const host = new WorkerSimHost(net ? 'net' : 'sim');
+  // Switching apps (or the screen going dark) freezes the solo sim: the
+  // worker's timers are deliberately unthrottled, so without this a
+  // backgrounded phone keeps simulating — and draining — a valley nobody
+  // is watching. The net worker ignores it; a shared world waits for no
+  // one. Sent through the host so this line, too, needn't know which.
+  document.addEventListener('visibilitychange', () => host.setHidden(document.hidden));
+  host.setHidden(document.hidden);
   // Character/building GLBs load while the world is prepared; if they fail,
   // the renderer falls back to the procedural models.
   const [init] = await Promise.all([

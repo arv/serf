@@ -117,6 +117,11 @@ export type MainToWorker =
   /** Debug overlay visibility: the worker only serializes its jobs table
    * into structural updates while someone is actually watching. */
   | { type: 'setDebug'; enabled: boolean }
+  /** Page visibility: hidden freezes the single-player sim (and its pump
+   * timer) so a backgrounded phone stops burning battery on a valley
+   * nobody is watching. Multiplayer ignores it — the server's world keeps
+   * running either way, and the socket has to stay warm. */
+  | { type: 'setHidden'; hidden: boolean }
   | { type: 'requestSave' };
 
 /**
