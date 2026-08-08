@@ -11,6 +11,7 @@ import { BuildingSync } from '../render/buildingSync';
 import { GhostPlacement } from '../render/ghost';
 import { SelectedReach } from '../render/reachOutline';
 import { FogOfWar } from '../render/fogOfWar';
+import { batteryFramePacer } from '../render/framePacer';
 import { loadCharacterAssets } from '../render/characters';
 import { loadGlbAssets } from '../render/assets';
 import { Controls } from '../input/controls';
@@ -296,6 +297,13 @@ async function runMatch(
   // renders what the server sends. Both speak the same worker protocol, so
   // nothing below this line knows the difference.
   const host = new WorkerSimHost(net ? 'net' : 'sim');
+  // Switching apps (or the screen going dark) freezes the solo sim: the
+  // worker's timers are deliberately unthrottled, so without this a
+  // backgrounded phone keeps simulating — and draining — a valley nobody
+  // is watching. The net worker ignores it; a shared world waits for no
+  // one. Sent through the host so this line, too, needn't know which.
+  document.addEventListener('visibilitychange', () => host.setHidden(document.hidden));
+  host.setHidden(document.hidden);
   // Character/building GLBs load while the world is prepared; if they fail,
   // the renderer falls back to the procedural models.
   const [init] = await Promise.all([
@@ -445,8 +453,17 @@ async function runMatch(
   buildingSync.cameraQuaternion = renderer.rig.camera.quaternion;
 
   let fogLast = performance.now();
+  // Phones cap the loop at 30 fps: a 90 Hz panel otherwise renders the
+  // whole valley 90 times a second, and the GPU is where the battery goes.
+  // A skipped frame does nothing at all — every update below is time-based,
+  // so play continues at full speed, drawn less often.
+  const pacer = batteryFramePacer();
   function loop(): void {
     const now = performance.now();
+    if (!pacer.due(now)) {
+      requestAnimationFrame(loop);
+      return;
+    }
     // Fog first: the entity syncs below ask it what may be drawn, so it
     // has to reflect this frame's positions, not the last one's.
     // Death lifts the fog: an eliminated seat is a spectator, and the

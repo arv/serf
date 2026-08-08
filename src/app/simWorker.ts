@@ -52,6 +52,15 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       // interval to ship a structural frame.
       if (debugEnabled) postStructural();
       break;
+    case 'setHidden':
+      // Backgrounded: freeze the world where it stands. The timer goes too —
+      // not just the ticks — so the worker stops waking the CPU 100 times a
+      // second for nothing. `speed` is untouched: coming back resumes at
+      // whatever rate the player had chosen, with no time having passed.
+      hidden = msg.hidden;
+      if (hidden) stopPump();
+      else startPump();
+      break;
     case 'requestSave':
       if (world) post({ type: 'saved', data: serializeWorld(world) });
       break;
@@ -82,18 +91,38 @@ function init(config: import('../sim/world').WorldConfig, loadData?: string): vo
 
   publish();
   postStructural();
-  // Dedicated-worker timers are not throttled like main-thread timers, so a
-  // plain interval keeps the sim running even when the tab is hidden. The
-  // pump is finer than the tick so an accumulator carries the remainder,
-  // rather than the loop quantising to whatever the timer actually did.
-  lastPump = performance.now();
-  setInterval(pump, 10);
+  startPump();
 }
 
 let lastPump = 0;
 let acc = 0;
 /** Cap on banked time, so a long stall catches up rather than stampeding. */
 const MAX_CATCHUP_QUANTA = 10;
+/** Page hidden (main thread's report): the sim holds still, timer stopped. */
+let hidden = false;
+let pumpTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Dedicated-worker timers are not throttled like main-thread timers, so a
+ * plain interval drives the sim at full rate however the page is displayed —
+ * until the main thread says it isn't displayed at all, and the timer stops
+ * outright (see 'setHidden'). The pump is finer than the tick so an
+ * accumulator carries the remainder, rather than the loop quantising to
+ * whatever the timer actually did. Starting always resets the clock and
+ * drops banked time: a resume continues, it does not catch up.
+ */
+function startPump(): void {
+  if (pumpTimer !== null || hidden || !world) return;
+  lastPump = performance.now();
+  acc = 0;
+  pumpTimer = setInterval(pump, 10);
+}
+
+function stopPump(): void {
+  if (pumpTimer === null) return;
+  clearInterval(pumpTimer);
+  pumpTimer = null;
+}
 
 function pump(): void {
   if (!world || !writer) return;

@@ -30,6 +30,8 @@ export interface SimHost {
   setSpeed(speed: number): void;
   /** Tell the worker whether the debug overlay is watching (jobs feed). */
   setDebug(enabled: boolean): void;
+  /** Tell the worker whether the page is hidden (freezes the solo sim). */
+  setHidden(hidden: boolean): void;
   requestSave(): Promise<string>;
   onStructural(cb: (msg: StructuralUpdate) => void): void;
   onNetStatus?(cb: (status: NetStatus) => void): void;
@@ -120,6 +122,10 @@ export class WorkerSimHost implements SimHost {
 
   setDebug(enabled: boolean): void {
     this.#post({ type: 'setDebug', enabled });
+  }
+
+  setHidden(hidden: boolean): void {
+    this.#post({ type: 'setHidden', hidden });
   }
 
   #post(msg: MainToWorker): void {

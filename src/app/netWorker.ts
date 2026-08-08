@@ -219,11 +219,13 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       // identity from the authenticated seat.
       sendCommands(msg.commands.map((c) => c.cmd));
       break;
-    // Speed and save are single-player affairs: a shared world runs at one
-    // rate, and there is nothing local to serialize. The debug jobs feed
-    // likewise — the server decides what a seat gets told.
+    // Speed, save and hiding are single-player affairs: a shared world runs
+    // at one rate whoever looks away, and there is nothing local to
+    // serialize. The debug jobs feed likewise — the server decides what a
+    // seat gets told.
     case 'setSpeed':
     case 'setDebug':
+    case 'setHidden':
     case 'requestSave':
       break;
   }
