@@ -23,6 +23,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TILE_COUNT } from '../../src/shared/grid.ts';
 import { deserializeWorld, serializeWorld } from '../../src/sim/save.ts';
 import { AiSeats } from '../../src/sim/aiSeats.ts';
 import type { EntityId } from '../../src/sim/entities.ts';
@@ -115,9 +116,15 @@ export function roomFromRecord(record: PersistedRoom, nowMs: number): Room {
     );
   }
   const seats = record.seats.map((s, i): Seat => {
-    const view = new SeatView();
-    unpackBits(s.explored, view.vision.explored);
-    for (const [id, snap] of s.lastSeen) view.lastSeen.set(id, snap);
+    // Human seats only, the same rule as startMatch: an AI seat's view has
+    // no consumer, and recomputing its vision would be the room's biggest
+    // cost paid for nobody.
+    let view: SeatView | undefined;
+    if (s.kind === 'human') {
+      view = new SeatView();
+      unpackBits(s.explored, view.vision.explored);
+      for (const [id, snap] of s.lastSeen) view.lastSeen.set(id, snap);
+    }
     return {
       playerId: i,
       kind: s.kind,
@@ -128,7 +135,7 @@ export function roomFromRecord(record: PersistedRoom, nowMs: number): Room {
       // at zero — a preserved counter would silently eat its first orders.
       lastSeq: -1,
       connected: false,
-      view,
+      ...(view ? { view } : {}),
     };
   });
   const room: Room = {
@@ -149,6 +156,9 @@ export function roomFromRecord(record: PersistedRoom, nowMs: number): Room {
     closedTick: world.tick,
     queued: [],
     lastVisionTick: -1,
+    // All-ones on purpose: the delta history that fed the old process's
+    // stamps is gone, so every tile counts as changed until sent once.
+    tileChangedTick: new Uint32Array(TILE_COUNT).fill(1),
     pumpMsAvg: 0,
     pumpMsPeak: 0,
     // Every seat starts disconnected, so the standard sweep applies: a room

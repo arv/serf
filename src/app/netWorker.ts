@@ -144,6 +144,16 @@ function onFrame(data: Uint8Array): void {
 /** Set when the relay disowns our token: the match is gone for good. */
 let gone = false;
 
+/** Debug overlay open on the main thread. The server only serializes the
+ * jobs table into this seat's struct frames while it is told someone is
+ * watching, so the toggle is forwarded — and re-sent on every reconnect,
+ * since a restarted relay starts every seat with the overlay closed. */
+let debugWanted = false;
+
+function sendDebug(ws: WebSocket): void {
+  ws.send(JSON.stringify({ t: 'debug', enabled: debugWanted }));
+}
+
 function connect(net: NetInfo, attempt: number): void {
   const ws = new WebSocket(net.relayUrl);
   socket = ws;
@@ -153,6 +163,7 @@ function connect(net: NetInfo, attempt: number): void {
     // The lobby socket is already closed by now, so the seat is claimed by
     // token — the same path a genuine reconnect takes.
     ws.send(JSON.stringify({ t: 'rejoin', token: net.token }));
+    if (debugWanted) sendDebug(ws);
     ws.send(encodePing(Date.now() % 0xffffffff));
   };
   ws.onmessage = (e: MessageEvent<ArrayBuffer | string>) => {
@@ -219,12 +230,18 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       // identity from the authenticated seat.
       sendCommands(msg.commands.map((c) => c.cmd));
       break;
+    case 'setDebug':
+      // The server holds the jobs table, so the overlay's open/closed state
+      // is relayed to it rather than handled here.
+      if (debugWanted !== msg.enabled) {
+        debugWanted = msg.enabled;
+        if (socket?.readyState === WebSocket.OPEN) sendDebug(socket);
+      }
+      break;
     // Speed, save and hiding are single-player affairs: a shared world runs
     // at one rate whoever looks away, and there is nothing local to
-    // serialize. The debug jobs feed likewise — the server decides what a
-    // seat gets told.
+    // serialize.
     case 'setSpeed':
-    case 'setDebug':
     case 'setHidden':
     case 'requestSave':
       break;

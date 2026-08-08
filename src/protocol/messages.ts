@@ -132,7 +132,8 @@ export type MainToWorker =
 export interface StructuralUpdate {
   type: 'structural';
   tick: number;
-  buildings: BuildingSnap[];
+  /** Absent = unchanged since the last frame (the mirror keeps what it has). */
+  buildings?: BuildingSnap[];
   mapDeltas: MapDelta[];
   /** Wholesale replacement for the mirror's mutable map arrays, sent when
    * a reconnecting client cannot be caught up with deltas it missed. */
@@ -145,12 +146,16 @@ export interface StructuralUpdate {
   /** The seat's ever-seen grid, riding reconnect resyncs so the fog's
    * memory (and the build gate behind it) survives a dropped socket. */
   explored?: Uint8Array;
-  /** One block per seat; the main thread reads its own via myPlayerId. */
-  players: PlayerSnap[];
+  /** One block per seat; the main thread reads its own via myPlayerId.
+   * Like `buildings`, absent = unchanged since the last frame: the server
+   * ships each roster only when it differs, so a frame carrying two tiles
+   * of trail wear is a few dozen bytes, not the whole village. */
+  players?: PlayerSnap[];
   admin: { enabled: boolean; raidsEnabled: boolean; instantBuild: boolean };
   events: GameEvent[];
   outcome: OutcomeSnap;
-  jobs: JobSnap[];
+  /** Debug-overlay rows; absent while nobody is watching. */
+  jobs?: JobSnap[];
   invariantViolations: string[];
 }
 

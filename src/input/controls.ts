@@ -336,16 +336,15 @@ export class Controls {
     this.#hoverY = e.clientY;
     this.#hoverIsTouch = e.pointerType === 'touch';
     this.#hoverDirty = true;
-    const type = placing();
-    if (type) {
+    if (placing()) {
       // A travelling finger is panning the map, not aiming: drop the
       // pending placement (the ghost still tracks so the site stays visible).
       if (e.pointerType === 'touch') this.#cancelTap(e.clientX, e.clientY);
-      const origin = this.#placementOrigin(e.clientX, e.clientY);
-      if (origin) {
-        this.#ghost.show(type);
-        this.#ghost.moveTo(origin.x, origin.y, this.#canPlaceHere(type, origin.x, origin.y));
-      }
+      // The ghost itself moves from the rAF loop (updateHoverIfDirty, via
+      // the dirty flag set above): pointermove fires at input-device rate —
+      // up to 1000 Hz on a gaming mouse — and re-running placement
+      // validity and the outline geometry per event bought nothing a frame
+      // could show.
       return;
     }
     this.#ghost.hide();
@@ -449,11 +448,23 @@ export class Controls {
     this.deselectAll();
   }
 
-  /** Run the deferred hover scan, if the pointer moved since last frame. */
+  /** Run the deferred hover scan (and the placement ghost, which defers
+   * from pointermove the same way), if the pointer moved since last frame. */
   updateHoverIfDirty(): void {
     if (!this.#hoverDirty) return;
     this.#hoverDirty = false;
+    this.#updateGhost(this.#hoverX, this.#hoverY);
     this.#updateHover(this.#hoverX, this.#hoverY);
+  }
+
+  /** Track the armed building's ghost under the pointer. */
+  #updateGhost(px: number, py: number): void {
+    const type = placing();
+    if (!type) return;
+    const origin = this.#placementOrigin(px, py);
+    if (!origin) return;
+    this.#ghost.show(type);
+    this.#ghost.moveTo(origin.x, origin.y, this.#canPlaceHere(type, origin.x, origin.y));
   }
 
   /** Track what's under the cursor — any owner; hp is interesting on foes. */

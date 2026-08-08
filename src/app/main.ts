@@ -397,14 +397,16 @@ async function runMatch(
     // damage must stay on the canvas. With the old order an exception
     // there silently froze stock, outcome and the selection panel for the
     // rest of the match while the sim ran on.
-    const mine = msg.players[myPlayerId()];
+    // Rosters are optional: a frame that carries only map news leaves the
+    // HUD's signals (and their subscribers) untouched.
+    const mine = msg.players?.[myPlayerId()];
     if (mine) {
       setStock(mine.stock);
       setTechs(mine.techs);
       setPopulation({ pop: mine.pop, cap: mine.popCap });
     }
-    setPlayersMeta(msg.players);
-    setDebugJobs(msg.jobs);
+    if (msg.players) setPlayersMeta(msg.players);
+    if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
     setAdminState(msg.admin);
@@ -417,7 +419,7 @@ async function runMatch(
     }
     // Keep the selected building's panel fresh (or clear it if destroyed).
     const sel = selectedBuilding();
-    if (sel) {
+    if (sel && msg.buildings) {
       const fresh = msg.buildings.find((b) => b.id === sel.id);
       setSelectedBuilding(fresh ?? null);
     }
@@ -435,9 +437,11 @@ async function runMatch(
     if (changes.refreshAll) scatter.resyncAll(mirror.map);
     if (changes.refreshAll) terrain.repaintAll();
     else if (changes.repaintTiles.length > 0) terrain.repaintTiles(changes.repaintTiles);
-    buildingSync.update(msg.buildings);
-    roster = msg.buildings;
-    feedWells();
+    if (msg.buildings) {
+      buildingSync.update(msg.buildings);
+      roster = msg.buildings;
+      feedWells();
+    }
   });
 
   mountHud(host, {
@@ -453,6 +457,8 @@ async function runMatch(
   buildingSync.cameraQuaternion = renderer.rig.camera.quaternion;
 
   let fogLast = performance.now();
+  // Reused every frame — viewBounds writes into it instead of allocating.
+  const boundsScratch = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
   // Phones cap the loop at 30 fps: a 90 Hz panel otherwise renders the
   // whole valley 90 times a second, and the GPU is where the battery goes.
   // A skipped frame does nothing at all — every update below is time-based,
@@ -475,7 +481,13 @@ async function runMatch(
     // Hover picking is deferred from pointermove (which can fire at
     // hundreds of Hz) to at most once per frame, here.
     controls.updateHoverIfDirty();
-    sync.update(now, controls.hoverUnit, controls.selected, speed() === 0, renderer.rig.viewBounds());
+    sync.update(
+      now,
+      controls.hoverUnit,
+      controls.selected,
+      speed() === 0,
+      renderer.rig.viewBounds(3, boundsScratch),
+    );
     buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
     // While a new hut is being aimed, the ghost's own outline is the one
     // that answers the question — two squares over the same ground, in two

@@ -189,11 +189,17 @@ function decodeHot(data: Uint8Array): HotFrame {
 
 /** The slow frame: buildings, stock, tech, events, map deltas. */
 export function encodeStruct(tick: number, json: unknown): Uint8Array<ArrayBuffer> {
-  const body = enc.encode(JSON.stringify(json));
-  const out = new Uint8Array(5 + body.length);
+  return encodeStructBody(tick, JSON.stringify(json));
+}
+
+/** encodeStruct for a payload the caller already stringified — the server
+ * compares the body against the last one sent before paying for a frame. */
+export function encodeStructBody(tick: number, body: string): Uint8Array<ArrayBuffer> {
+  const bytes = enc.encode(body);
+  const out = new Uint8Array(5 + bytes.length);
   new DataView(out.buffer).setUint32(1, tick, true);
   out[0] = STATE_STRUCT;
-  out.set(body, 5);
+  out.set(bytes, 5);
   return out;
 }
 

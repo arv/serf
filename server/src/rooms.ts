@@ -1,4 +1,5 @@
 import type { WebSocket } from 'ws';
+import { TILE_COUNT } from '../../src/shared/grid.ts';
 import { createWorld, type World } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
 import { AiSeats } from '../../src/sim/aiSeats.ts';
@@ -35,8 +36,13 @@ export interface Seat {
   lastSeq: number;
   connected: boolean;
   /** What this seat has observed, and what it has been told. Created when
-   * the match starts — a lobby seat has nothing to see yet. */
+   * the match starts — a lobby seat has nothing to see yet, and an AI seat
+   * never gets one: its brain reads the world directly, so a filtered view
+   * would only be recomputed for nobody. */
   view?: SeatView;
+  /** Debug overlay open on this seat's client ({t:'debug'} message) — only
+   * then do its struct frames carry the jobs table. */
+  wantsJobs?: boolean;
 }
 
 /** Cap on a listing response — the browser has no pagination. */
@@ -83,6 +89,19 @@ export interface Room {
   /** Orders accepted since the last tick; applied at the next one. */
   queued: PlayerCommand[];
   lastVisionTick: number;
+  /**
+   * When each tile last changed, stamped from the drained deltas as
+   * `tick + 1` — offset so 0 stays free to mean "never" in the companion
+   * SeatView.tileSentTick even at tick 0. Together they are what lets a
+   * fog re-reveal of ground that never changed owe the seat nothing: idle
+   * units wandering in and out of their own tiles otherwise re-queued
+   * unchanged tiles forever, forcing structural frames at the full
+   * cadence in a quiet match. Initialized to 1 ("changed before anything
+   * was sent"), so every tile starts changed: correctness then never
+   * depends on delta history a restore did not keep — a tile is sent once
+   * when first revealed, and only re-sent when it truly changes.
+   */
+  tileChangedTick: Uint32Array;
   /** Rolling cost of a pump, in ms — what says whether this process has room
    * for more matches. See serverStats(). */
   pumpMsAvg: number;
@@ -94,6 +113,19 @@ export interface Room {
 }
 
 const rooms = new Map<string, Room>();
+
+/** Every seat by its token. Rejoins spike exactly when the process is
+ * busiest (every client reconnect-loops through a deploy), and the token is
+ * client-controlled — a scan over rooms × seats per attempt was both the
+ * slow path and the cheap way to make the server walk it. */
+const seatsByToken = new Map<string, { room: Room; seat: Seat }>();
+
+/** The one door out of the room map, so the token index can never leak a
+ * deleted room's seats. */
+function dropRoom(room: Room): void {
+  rooms.delete(room.code);
+  for (const seat of room.seats) seatsByToken.delete(seat.token);
+}
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
 
@@ -116,6 +148,7 @@ export function createRoom(visibility: 'open' | 'closed', config: LobbyConfig): 
     closedTick: -1,
     queued: [],
     lastVisionTick: -1,
+    tileChangedTick: new Uint32Array(TILE_COUNT).fill(1),
     pumpMsAvg: 0,
     pumpMsPeak: 0,
   };
@@ -135,15 +168,12 @@ export function getRoom(code: string): Room | undefined {
 export function adoptRoom(room: Room): boolean {
   if (rooms.has(room.code)) return false;
   rooms.set(room.code, room);
+  for (const seat of room.seats) seatsByToken.set(seat.token, { room, seat });
   return true;
 }
 
 export function findSeatByToken(token: string): { room: Room; seat: Seat } | undefined {
-  for (const room of rooms.values()) {
-    const seat = room.seats.find((s) => s.token === token);
-    if (seat) return { room, seat };
-  }
-  return undefined;
+  return seatsByToken.get(token);
 }
 
 export function addSeat(room: Room, kind: 'human' | 'ai', ws: WebSocket | null): Seat {
@@ -156,6 +186,7 @@ export function addSeat(room: Room, kind: 'human' | 'ai', ws: WebSocket | null):
     connected: ws !== null,
   };
   room.seats.push(seat);
+  seatsByToken.set(seat.token, { room, seat });
   return seat;
 }
 
@@ -169,6 +200,7 @@ export function removeSeat(room: Room, seat: Seat): void {
   const at = room.seats.indexOf(seat);
   if (at < 0) return;
   room.seats.splice(at, 1);
+  seatsByToken.delete(seat.token);
   room.seats.forEach((s, i) => (s.playerId = i));
 }
 
@@ -200,7 +232,12 @@ export function startMatch(room: Room): void {
   room.state = 'running';
   room.closedTick = 0;
   room.matchStartMs = Date.now();
-  for (const seat of room.seats) seat.view = new SeatView();
+  // Human seats only: recomputing vision is the most expensive thing the
+  // server does per room, and an AI seat would never consume its view — the
+  // brain reads the world directly, and no socket ever asks for its frames.
+  for (const seat of room.seats) {
+    if (seat.kind === 'human') seat.view = new SeatView();
+  }
   // Seats must be able to see their own starting village before the first
   // frame goes out, or the opening init would arrive with an empty map.
   recomputeVision(room);
@@ -264,6 +301,11 @@ export function pumpRoom(room: Room, nowMs: number): void {
   }
   room.closedTick = world.tick;
 
+  // Stamp before vision runs: the recompute is what turns a reveal into
+  // owed tiles, and it must see this burst's changes as changed. The +1
+  // keeps 0 meaning "never" on the seat side of the comparison.
+  for (const d of deltas) room.tileChangedTick[d.idx] = world.tick + 1;
+
   if (world.tick - room.lastVisionTick >= VISION_INTERVAL) {
     room.lastVisionTick = world.tick;
     recomputeVision(room);
@@ -325,7 +367,7 @@ export function deleteRoomIfDead(room: Room): void {
   // Lobby rooms die at once; running matches linger — there is a window
   // where every lobby socket has closed and no worker socket has bound
   // yet (match start), and disconnected players may rejoin by token.
-  if (room.state === 'lobby') rooms.delete(room.code);
+  if (room.state === 'lobby') dropRoom(room);
   else room.emptySinceMs ??= Date.now();
 }
 
@@ -333,7 +375,7 @@ export function deleteRoomIfDead(room: Room): void {
 export function sweepRooms(nowMs: number): void {
   for (const room of rooms.values()) {
     if (room.emptySinceMs !== undefined && nowMs - room.emptySinceMs > 5 * 60_000) {
-      rooms.delete(room.code);
+      dropRoom(room);
     }
   }
 }
