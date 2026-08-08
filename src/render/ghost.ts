@@ -28,6 +28,10 @@ export class GhostPlacement {
    * has to survive being reapplied on every hover. */
   #base = new Map<THREE.Material, THREE.Color>();
   #valid: boolean | null = null;
+  /** Last footprint origin, so a cursor wandering within one tile doesn't
+   * re-lay the reach outline's geometry every update. */
+  #x = -1;
+  #y = -1;
   #reach: ReachOutline;
 
   constructor(scene: THREE.Scene, heights: HeightField, owner = 0) {
@@ -59,6 +63,10 @@ export class GhostPlacement {
   /** Position at footprint origin tile (x,y); tint by validity. */
   moveTo(x: number, y: number, valid: boolean): void {
     if (!this.#group || !this.#type) return;
+    // Same tile, same verdict: the ghost is already exactly this.
+    if (x === this.#x && y === this.#y && valid === this.#valid && this.#group.visible) return;
+    this.#x = x;
+    this.#y = y;
     const def = buildingDef(this.#type);
     this.#group.visible = true;
     const cx = x + def.w / 2;
@@ -96,6 +104,8 @@ export class GhostPlacement {
     this.#reach.hide();
     this.#base.clear();
     this.#valid = null;
+    this.#x = -1;
+    this.#y = -1;
     this.#type = null;
   }
 }

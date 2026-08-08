@@ -200,19 +200,18 @@ export class CameraRig {
    * Used to skip per-frame animation work for units nobody can see; the
    * margin also absorbs the screen shift terrain height introduces.
    */
-  viewBounds(margin = 3): ViewBounds {
+  viewBounds(margin = 3, out: ViewBounds = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 }): ViewBounds {
     const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
     const halfH = this.#viewHeight / 2;
     const halfW = halfH * aspect;
     const halfG = halfH / Math.sin(PITCH);
     // Both screen axes project onto world X/Z with |cos 45°| = |sin 45°|.
     const ext = Math.SQRT1_2 * (halfW + halfG) + margin;
-    return {
-      minX: this.#target.x - ext,
-      maxX: this.#target.x + ext,
-      minZ: this.#target.z - ext,
-      maxZ: this.#target.z + ext,
-    };
+    out.minX = this.#target.x - ext;
+    out.maxX = this.#target.x + ext;
+    out.minZ = this.#target.z - ext;
+    out.maxZ = this.#target.z + ext;
+    return out;
   }
 
   resize(): void {

@@ -18,6 +18,9 @@ export class SelectionFx {
     transparent: true,
     opacity: 0.9,
   });
+  // Scratch for the per-ring position reads: with an army selected this
+  // runs hundreds of times a frame, so it must not allocate.
+  #pos = { x: 0, y: 0 };
 
   constructor(scene: THREE.Scene, heights: HeightField) {
     this.#scene = scene;
@@ -27,9 +30,9 @@ export class SelectionFx {
 
   update(selection: ReadonlySet<number>, sync: SceneSync, now: number): void {
     let used = 0;
+    const pos = this.#pos;
     for (const id of selection) {
-      const pos = sync.positionOf(id, now);
-      if (!pos) continue;
+      if (!sync.positionOfInto(id, now, pos)) continue;
       let ring = this.#pool[used];
       if (!ring) {
         ring = new THREE.Mesh(this.#geometry, this.#material);

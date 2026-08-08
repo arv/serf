@@ -457,6 +457,8 @@ async function runMatch(
   buildingSync.cameraQuaternion = renderer.rig.camera.quaternion;
 
   let fogLast = performance.now();
+  // Reused every frame — viewBounds writes into it instead of allocating.
+  const boundsScratch = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
   // Phones cap the loop at 30 fps: a 90 Hz panel otherwise renders the
   // whole valley 90 times a second, and the GPU is where the battery goes.
   // A skipped frame does nothing at all — every update below is time-based,
@@ -479,7 +481,13 @@ async function runMatch(
     // Hover picking is deferred from pointermove (which can fire at
     // hundreds of Hz) to at most once per frame, here.
     controls.updateHoverIfDirty();
-    sync.update(now, controls.hoverUnit, controls.selected, speed() === 0, renderer.rig.viewBounds());
+    sync.update(
+      now,
+      controls.hoverUnit,
+      controls.selected,
+      speed() === 0,
+      renderer.rig.viewBounds(3, boundsScratch),
+    );
     buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
     // While a new hut is being aimed, the ghost's own outline is the one
     // that answers the question — two squares over the same ground, in two
