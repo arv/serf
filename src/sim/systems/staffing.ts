@@ -9,7 +9,7 @@ import type { World } from '../world.ts';
 const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
 const UNREACHABLE_BACKOFF = 25; // ticks before re-pathing to a walled-off post
 /** A site ready for its builder this long escalates to every-tick claiming. */
-const BUILDER_STARVED_TICKS = 400; // 20 seconds
+const BUILDER_STARVED_TICKS = 200; // 10 seconds
 
 /**
  * The population economy: every production building draws its resident
