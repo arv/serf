@@ -85,6 +85,9 @@ export interface Building {
   paused?: boolean;
   /** Recruiting pause after the player dismissed the worker on purpose. */
   staffBackoffUntil?: number;
+  /** Since when this site has been ready for a builder and without one.
+   * Staffing uses it to escalate a long wait (see BUILDER_STARVED_TICKS). */
+  builderWantedSince?: number;
   /** When to respawn a lost resident worker. */
   workerRespawnAt?: number;
   dead: boolean;

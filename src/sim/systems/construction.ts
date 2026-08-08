@@ -47,6 +47,7 @@ export function constructionSystem(world: World): void {
     b.hp = def.hp;
     delete b.siteNeeds;
     delete b.buildProgress;
+    delete b.builderWantedSince;
     // The builder stays on as the building's worker; buildings that keep
     // no resident (barracks, abbey) release them back to the serf pool.
     if (def.workerKind === undefined && b.workerId !== undefined) {
