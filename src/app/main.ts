@@ -11,6 +11,7 @@ import { BuildingSync } from '../render/buildingSync';
 import { GhostPlacement } from '../render/ghost';
 import { SelectedReach } from '../render/reachOutline';
 import { FogOfWar } from '../render/fogOfWar';
+import { batteryFramePacer } from '../render/framePacer';
 import { loadCharacterAssets } from '../render/characters';
 import { loadGlbAssets } from '../render/assets';
 import { Controls } from '../input/controls';
@@ -445,8 +446,17 @@ async function runMatch(
   buildingSync.cameraQuaternion = renderer.rig.camera.quaternion;
 
   let fogLast = performance.now();
+  // Phones cap the loop at 30 fps: a 90 Hz panel otherwise renders the
+  // whole valley 90 times a second, and the GPU is where the battery goes.
+  // A skipped frame does nothing at all — every update below is time-based,
+  // so play continues at full speed, drawn less often.
+  const pacer = batteryFramePacer();
   function loop(): void {
     const now = performance.now();
+    if (!pacer.due(now)) {
+      requestAnimationFrame(loop);
+      return;
+    }
     // Fog first: the entity syncs below ask it what may be drawn, so it
     // has to reflect this frame's positions, not the last one's.
     // Death lifts the fog: an eliminated seat is a spectator, and the

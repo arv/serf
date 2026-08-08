@@ -10,6 +10,7 @@ import { BuildingSync } from '../render/buildingSync';
 import { loadGlbAssets } from '../render/assets';
 import { snapBuildings } from '../protocol/snapshot';
 import { createWorld } from '../sim/world';
+import { batteryFramePacer } from '../render/framePacer';
 
 /**
  * The pre-boot background, shared by every menu screen: the actual game,
@@ -174,9 +175,17 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   aim(START_ANGLE, 0);
   let raf = 0;
+  // Same 30 fps phone cap as the match loop — a menu left open on a phone
+  // otherwise drains the battery on a blurred backdrop, and the drift is
+  // far too slow for the skipped frames to read as judder through the glass.
+  const pacer = batteryFramePacer();
   const loop = (): void => {
     if (stopped) return;
     const now = performance.now();
+    if (!pacer.due(now)) {
+      raf = requestAnimationFrame(loop);
+      return;
+    }
     if (!still) {
       // A very slow walk around the keep, with a gentle rise and fall on the
       // eye. Two terms rather than one so the path never quite repeats — a
