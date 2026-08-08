@@ -1,3 +1,4 @@
+import { TICKS_PER_SECOND } from '../defs/balance.ts';
 import { buildingDef } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
@@ -7,9 +8,11 @@ import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
 
 const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
-const UNREACHABLE_BACKOFF = 25; // ticks before re-pathing to a walled-off post
-/** A site ready for its builder this long escalates to every-tick claiming. */
-const BUILDER_STARVED_TICKS = 200; // 10 seconds
+const UNREACHABLE_BACKOFF = REQUEST_INTERVAL; // hold before re-pathing to a walled-off post
+/** A site ready for its builder this long escalates to every-tick claiming.
+ * The clock starts on the sweep beat, so the effective bound is this plus
+ * up to one REQUEST_INTERVAL. */
+const BUILDER_STARVED_TICKS = 10 * TICKS_PER_SECOND;
 
 /**
  * The population economy: every production building draws its resident
@@ -142,12 +145,21 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
   // by one of these: an unclaimed job still needs an idle serf, and the serf
   // this sweep would recruit may be the only one — stolen for the frame, the
   // last plank never arrives and the site deadlocks at one-to-go.
-  const assignedInbound = new Map<number, number>();
-  for (const job of world.jobs.values()) {
-    if (job.serfId !== undefined) {
-      assignedInbound.set(job.to, (assignedInbound.get(job.to) ?? 0) + 1);
+  //
+  // Built lazily: it means a scan of the job board, and on the every-tick
+  // passes the common case is that no site is starved enough to ask.
+  let assignedInbound: Map<number, number> | undefined;
+  const assignedTo = (id: number): number => {
+    if (!assignedInbound) {
+      assignedInbound = new Map();
+      for (const job of world.jobs.values()) {
+        if (job.serfId !== undefined) {
+          assignedInbound.set(job.to, (assignedInbound.get(job.to) ?? 0) + 1);
+        }
+      }
     }
-  }
+    return assignedInbound.get(id) ?? 0;
+  };
   for (const b of world.buildings.values()) {
     if (b.dead || !isPlayerOwner(b.owner)) continue;
     if (
@@ -185,14 +197,14 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     const wantsBuilder =
       b.state === 'site' &&
       needsLeft <= 1 &&
-      needsLeft <= (assignedInbound.get(b.id) ?? 0) &&
+      needsLeft <= assignedTo(b.id) &&
       !liveWorker(world, b);
     if (b.state === 'site') {
-      // The starvation clock: starts when the site first stands builder-ready
-      // and unfilled, stops when it no longer does. (A site with a recruit
-      // already walking never reaches this line, so the clock keeps running
-      // until the builder is actually bound — a recruit who dies en route
-      // does not reset the wait.)
+      // The starvation clock: starts on the first sweep that finds the site
+      // builder-ready and unfilled, stops when it no longer is. (A site with
+      // a recruit already walking never reaches this line, so the clock
+      // keeps running until the builder is actually bound — a recruit who
+      // dies en route does not reset the wait.)
       if (wantsBuilder) b.builderWantedSince ??= world.tick;
       else delete b.builderWantedSince;
     }
