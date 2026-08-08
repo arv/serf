@@ -90,14 +90,16 @@ export interface Room {
   queued: PlayerCommand[];
   lastVisionTick: number;
   /**
-   * Tick each tile last changed, stamped from the drained deltas. Together
-   * with SeatView.tileSentTick this is what lets a fog re-reveal of ground
-   * that never changed owe the seat nothing: idle units wandering in and
-   * out of their own tiles otherwise re-queued unchanged tiles forever,
-   * forcing structural frames at the full cadence in a quiet match.
-   * Initialized to 1 (not 0), so every tile starts "changed": correctness
-   * then never depends on delta history a restore did not keep — a tile is
-   * sent once when first revealed, and only re-sent when it truly changes.
+   * When each tile last changed, stamped from the drained deltas as
+   * `tick + 1` — offset so 0 stays free to mean "never" in the companion
+   * SeatView.tileSentTick even at tick 0. Together they are what lets a
+   * fog re-reveal of ground that never changed owe the seat nothing: idle
+   * units wandering in and out of their own tiles otherwise re-queued
+   * unchanged tiles forever, forcing structural frames at the full
+   * cadence in a quiet match. Initialized to 1 ("changed before anything
+   * was sent"), so every tile starts changed: correctness then never
+   * depends on delta history a restore did not keep — a tile is sent once
+   * when first revealed, and only re-sent when it truly changes.
    */
   tileChangedTick: Uint32Array;
   /** Rolling cost of a pump, in ms — what says whether this process has room
@@ -300,8 +302,9 @@ export function pumpRoom(room: Room, nowMs: number): void {
   room.closedTick = world.tick;
 
   // Stamp before vision runs: the recompute is what turns a reveal into
-  // owed tiles, and it must see this burst's changes as changed.
-  for (const d of deltas) room.tileChangedTick[d.idx] = world.tick;
+  // owed tiles, and it must see this burst's changes as changed. The +1
+  // keeps 0 meaning "never" on the seat side of the comparison.
+  for (const d of deltas) room.tileChangedTick[d.idx] = world.tick + 1;
 
   if (world.tick - room.lastVisionTick >= VISION_INTERVAL) {
     room.lastVisionTick = world.tick;

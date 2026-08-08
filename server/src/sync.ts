@@ -60,9 +60,10 @@ export class SeatView {
   lastBuildingsBody = '';
   lastPlayersBody = '';
   lastMiscBody = '';
-  /** Tick each tile's contents were last sent to this seat (0 = never).
-   * Compared against Room.tileChangedTick when ground is re-revealed, so a
-   * tile the seat already knows correctly owes it nothing. */
+  /** When each tile's contents were last sent to this seat, stored as
+   * `tick + 1` so 0 means "never" even for a send at tick 0. Compared
+   * against Room.tileChangedTick (same offset) when ground is re-revealed,
+   * so a tile the seat already knows correctly owes it nothing. */
   readonly tileSentTick = new Uint32Array(TILE_COUNT);
 }
 
@@ -255,7 +256,7 @@ export function sendInit(room: Room, seat: Seat): void {
   // never been sent and owes its first reveal.
   view.owedTiles.clear();
   for (let i = 0; i < TILE_COUNT; i++) {
-    view.tileSentTick[i] = view.vision.explored[i] ? world.tick : 0;
+    view.tileSentTick[i] = view.vision.explored[i] ? world.tick + 1 : 0;
   }
   // The rosters ride the init frame itself, so the next struct frame must
   // compare against nothing and resend whatever has news.
@@ -329,7 +330,7 @@ export function sendStruct(room: Room, deltas: MapDelta[], events: GameEvent[]):
     const mapDeltas: MapDelta[] = [];
     for (const idx of view.owedTiles) {
       mapDeltas.push(tileDelta(world, idx));
-      view.tileSentTick[idx] = world.tick;
+      view.tileSentTick[idx] = world.tick + 1;
     }
     view.owedTiles.clear();
     const owedEvents = view.owedEvents.splice(0);
