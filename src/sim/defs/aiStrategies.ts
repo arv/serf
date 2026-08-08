@@ -320,7 +320,13 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     trainPreference: ['archer', 'spearman'],
     trainFallback: 'archer',
     barracksQueueDepth: 3,
-    armyAttackSize: 8,
+    // Ten, up from eight: bows trickle out of the forges three staves at a
+    // time, and a muster of eight on the campaign map marched between the
+    // raid waves with too little behind it — wiped at the camp, and the
+    // second wave took a castle nobody was left to hold. At ten the army
+    // stays home through the first wave and razes the camp in one march,
+    // before the second one spawns.
+    armyAttackSize: 10,
     attackCooldown: 700,
     rallyCooldown: 400,
     prefersRivals: false,

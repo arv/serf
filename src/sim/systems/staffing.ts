@@ -1,3 +1,4 @@
+import { TICKS_PER_SECOND } from '../defs/balance.ts';
 import { buildingDef } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
@@ -7,19 +8,35 @@ import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
 
 const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
+const UNREACHABLE_BACKOFF = REQUEST_INTERVAL; // hold before re-pathing to a walled-off post
+/** A site ready for its builder this long escalates to every-tick claiming.
+ * The clock starts on the sweep beat, so the effective bound is this plus
+ * up to one REQUEST_INTERVAL. */
+const BUILDER_STARVED_TICKS = 10 * TICKS_PER_SECOND;
 
 /**
  * The population economy: every production building draws its resident
  * worker from the serf pool — an idle serf walks over and *becomes* the
  * worker — and the barracks consumes an arriving serf as each soldier's recruit.
  * People, not buildings, are the limiting resource.
+ *
+ * Recruitment sweeps every 25 ticks, and there is a race in that: the haul
+ * dispatcher runs every tick and wants the same idle serfs. A serf goes idle
+ * the moment a dropoff lands (logistics runs just before this system), and by
+ * the next tick dispatch has claimed him for the next open job — so the sweep
+ * finds an empty pool whenever the job board is non-empty. Mostly that is the
+ * tuned balance (hauls keep the economy moving; posts fill when the pressure
+ * ebbs), but a site that is fully supplied and waiting for its builder can
+ * lose that race indefinitely under sustained mid-game haul pressure, with
+ * the whole build order stalled behind a finished pile of materials. So a
+ * site's wait is bounded: once it has stood builder-ready past
+ * BUILDER_STARVED_TICKS, it claims every tick — beating dispatch to the next
+ * serf who frees up, because this system runs after logistics in the tick.
  */
 export function staffingSystem(world: World): void {
   handleArrivals(world);
-  if (world.tick % REQUEST_INTERVAL === 0) {
-    releaseObsoletePosts(world);
-    requestRecruits(world);
-  }
+  if (world.tick % REQUEST_INTERVAL === 0) releaseObsoletePosts(world);
+  requestRecruits(world, world.tick % REQUEST_INTERVAL !== 0);
 }
 
 /**
@@ -114,25 +131,45 @@ function handleArrivals(world: World): void {
   }
 }
 
-function requestRecruits(world: World): void {
-  // Idle serfs available for recruitment this pass, bucketed by faction —
-  // buildings only ever draw staff from their own owner's pool.
-  const idleByOwner = new Map<Owner, Unit[]>();
-  for (const u of world.units.values()) {
-    if (u.dead || u.kind !== 'serf' || !isPlayerOwner(u.owner) || u.jobId !== undefined) continue;
-    // A serf walking under a player's move order is spoken for; recruiting
-    // him mid-stride would make the order look ignored. Nor do we hire a
-    // serf still holding a good — he owes that delivery first, and taking
-    // a post would strand it in his hands forever.
-    if (u.task.t === 'idle' && u.carrying === undefined) {
-      let bucket = idleByOwner.get(u.owner);
-      if (!bucket) idleByOwner.set(u.owner, (bucket = []));
-      bucket.push(u);
+/**
+ * Between sweeps (starvedOnly) this runs every tick but considers nothing
+ * except sites past their builder-starvation bound — most ticks that is no
+ * building at all, and the early return keeps the pass near-free.
+ */
+function requestRecruits(world: World, starvedOnly: boolean): void {
+  // Buildings wanting staff right now — found first because most passes find
+  // none, and then the (larger) unit scan below can be skipped entirely.
+  const wanting: Building[] = [];
+  // Deliveries already on an assigned carrier's route, per destination. A
+  // site may only summon its builder once every outstanding need is covered
+  // by one of these: an unclaimed job still needs an idle serf, and the serf
+  // this sweep would recruit may be the only one — stolen for the frame, the
+  // last plank never arrives and the site deadlocks at one-to-go.
+  //
+  // Built lazily: it means a scan of the job board, and on the every-tick
+  // passes the common case is that no site is starved enough to ask.
+  let assignedInbound: Map<number, number> | undefined;
+  const assignedTo = (id: number): number => {
+    if (!assignedInbound) {
+      assignedInbound = new Map();
+      for (const job of world.jobs.values()) {
+        if (job.serfId !== undefined) {
+          assignedInbound.set(job.to, (assignedInbound.get(job.to) ?? 0) + 1);
+        }
+      }
     }
-  }
-
+    return assignedInbound.get(id) ?? 0;
+  };
   for (const b of world.buildings.values()) {
     if (b.dead || !isPlayerOwner(b.owner)) continue;
+    if (
+      starvedOnly &&
+      (b.state !== 'site' ||
+        b.builderWantedSince === undefined ||
+        world.tick - b.builderWantedSince < BUILDER_STARVED_TICKS)
+    ) {
+      continue;
+    }
     // A freshly dismissed post stands open for a while: the player emptied
     // it on purpose, and re-capturing the freed serf the moment he goes
     // idle between haul trips would silently undo the order.
@@ -151,16 +188,51 @@ function requestRecruits(world: World): void {
       }
     }
 
-    // Builders are recruited only once the site is nearly supplied — any
-    // earlier and they'd stand idle at the frame while the haul pool
-    // starves. The walk overlaps the last delivery.
+    // Builders are recruited only once the site is nearly supplied AND the
+    // remainder is in assigned hands — any earlier and they'd stand idle at
+    // the frame while the haul pool starves (or worse, *be* the hand the
+    // last haul needed, see assignedInbound above). The walk overlaps the
+    // last delivery.
     const needsLeft = GOODS.reduce((n, g) => n + (b.siteNeeds?.[g] ?? 0), 0);
-    const wantsBuilder = b.state === 'site' && needsLeft <= 1 && !liveWorker(world, b);
+    const wantsBuilder =
+      b.state === 'site' &&
+      needsLeft <= 1 &&
+      needsLeft <= assignedTo(b.id) &&
+      !liveWorker(world, b);
+    if (b.state === 'site') {
+      // The starvation clock: starts on the first sweep that finds the site
+      // builder-ready and unfilled, stops when it no longer is. (A site with
+      // a recruit already walking never reaches this line, so the clock
+      // keeps running until the builder is actually bound — a recruit who
+      // dies en route does not reset the wait.)
+      if (wantsBuilder) b.builderWantedSince ??= world.tick;
+      else delete b.builderWantedSince;
+    }
     const wantsWorker =
       b.state === 'built' && def.workerKind !== undefined && !liveWorker(world, b);
     const wantsRecruit =
       b.state === 'built' && def.trains !== undefined && firstReadyTraining(b) >= 0;
-    if (!wantsBuilder && !wantsWorker && !wantsRecruit) continue;
+    if (wantsBuilder || wantsWorker || wantsRecruit) wanting.push(b);
+  }
+  if (wanting.length === 0) return;
+
+  // Idle serfs available for recruitment this pass, bucketed by faction —
+  // buildings only ever draw staff from their own owner's pool.
+  const idleByOwner = new Map<Owner, Unit[]>();
+  for (const u of world.units.values()) {
+    if (u.dead || u.kind !== 'serf' || !isPlayerOwner(u.owner) || u.jobId !== undefined) continue;
+    // A serf walking under a player's move order is spoken for; recruiting
+    // him mid-stride would make the order look ignored. Nor do we hire a
+    // serf still holding a good — he owes that delivery first, and taking
+    // a post would strand it in his hands forever.
+    if (u.task.t === 'idle' && u.carrying === undefined) {
+      let bucket = idleByOwner.get(u.owner);
+      if (!bucket) idleByOwner.set(u.owner, (bucket = []));
+      bucket.push(u);
+    }
+  }
+
+  for (const b of wanting) {
     const idle = idleByOwner.get(b.owner);
     if (!idle || idle.length === 0) continue; // nobody of this faction left
 
@@ -187,7 +259,14 @@ function requestRecruits(world: World): void {
       b.w,
       b.h,
     );
-    if (!path) continue;
+    if (!path) {
+      // Walled off for now. Same field the dismiss order uses — both mean
+      // "don't recruit until" — but a short hold: re-pathing every tick to
+      // a building that cannot be reached is the one cost running the sweep
+      // per tick would otherwise add.
+      b.staffBackoffUntil = world.tick + UNREACHABLE_BACKOFF;
+      continue;
+    }
     idle.splice(bestIdx, 1);
     serf.path = path;
     serf.pathIdx = 0;
