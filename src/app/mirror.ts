@@ -56,8 +56,12 @@ export class WorldMirror {
       this.map.buildingAt[d.idx] = d.buildingAt;
     }
 
-    this.buildings.clear();
-    for (const b of msg.buildings) this.buildings.set(b.id, b);
+    // Absent = unchanged: frames that only carry map news leave the
+    // building mirror exactly as it stands.
+    if (msg.buildings) {
+      this.buildings.clear();
+      for (const b of msg.buildings) this.buildings.set(b.id, b);
+    }
     return changes;
   }
 }

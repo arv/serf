@@ -1,5 +1,5 @@
 import { createServer, type ServerResponse } from 'node:http';
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -51,6 +51,24 @@ const DIST_DIR = resolve(
 );
 const SERVES_GAME = existsSync(join(DIST_DIR, 'index.html'));
 
+/**
+ * The dist/ tree as a set, walked once at boot. A deploy replaces the whole
+ * image, so the tree is immutable for this process's lifetime — which frees
+ * the request path of its per-request existsSync/statSync, sync calls that
+ * ran on the same thread that pumps every room's simulation.
+ */
+const STATIC_FILES = new Set<string>();
+if (SERVES_GAME) {
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else STATIC_FILES.add(full);
+    }
+  };
+  walk(DIST_DIR);
+}
+
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript',
@@ -93,7 +111,7 @@ const http = createServer((req, res) => {
     '',
   );
   let file = join(DIST_DIR, urlPath);
-  if (!file.startsWith(DIST_DIR) || !existsSync(file) || statSync(file).isDirectory()) {
+  if (!file.startsWith(DIST_DIR) || !STATIC_FILES.has(file)) {
     file = join(DIST_DIR, 'index.html');
   }
   const ext = extname(file);
@@ -132,7 +150,8 @@ type LobbyMsg =
   | { t: 'join'; code: string }
   | { t: 'config'; config?: unknown }
   | { t: 'start' }
-  | { t: 'rejoin'; token: string };
+  | { t: 'rejoin'; token: string }
+  | { t: 'debug'; enabled?: boolean };
 
 function sendJson(ws: WebSocket, msg: unknown): void {
   ws.send(JSON.stringify(msg));
@@ -323,6 +342,13 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
           sendJson(s.ws, { t: 'peer', playerId: seat.playerId, connected: true });
         }
       }
+      break;
+    }
+    case 'debug': {
+      // The debug overlay opened (or closed) on this seat's client: jobs
+      // ride its struct frames only while someone is actually watching.
+      const { seat } = conn;
+      if (seat) seat.wantsJobs = msg.enabled === true;
       break;
     }
   }

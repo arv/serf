@@ -397,14 +397,16 @@ async function runMatch(
     // damage must stay on the canvas. With the old order an exception
     // there silently froze stock, outcome and the selection panel for the
     // rest of the match while the sim ran on.
-    const mine = msg.players[myPlayerId()];
+    // Rosters are optional: a frame that carries only map news leaves the
+    // HUD's signals (and their subscribers) untouched.
+    const mine = msg.players?.[myPlayerId()];
     if (mine) {
       setStock(mine.stock);
       setTechs(mine.techs);
       setPopulation({ pop: mine.pop, cap: mine.popCap });
     }
-    setPlayersMeta(msg.players);
-    setDebugJobs(msg.jobs);
+    if (msg.players) setPlayersMeta(msg.players);
+    if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
     setAdminState(msg.admin);
@@ -417,7 +419,7 @@ async function runMatch(
     }
     // Keep the selected building's panel fresh (or clear it if destroyed).
     const sel = selectedBuilding();
-    if (sel) {
+    if (sel && msg.buildings) {
       const fresh = msg.buildings.find((b) => b.id === sel.id);
       setSelectedBuilding(fresh ?? null);
     }
@@ -435,9 +437,11 @@ async function runMatch(
     if (changes.refreshAll) scatter.resyncAll(mirror.map);
     if (changes.refreshAll) terrain.repaintAll();
     else if (changes.repaintTiles.length > 0) terrain.repaintTiles(changes.repaintTiles);
-    buildingSync.update(msg.buildings);
-    roster = msg.buildings;
-    feedWells();
+    if (msg.buildings) {
+      buildingSync.update(msg.buildings);
+      roster = msg.buildings;
+      feedWells();
+    }
   });
 
   mountHud(host, {

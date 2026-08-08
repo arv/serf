@@ -9,7 +9,7 @@ import { SAB_BYTES, SabWriter } from '../protocol/sabLayout';
 import { snapBuildings, snapJobs, snapPlayers, unitSnapshots } from '../protocol/snapshot';
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { PlayerCommand } from '../sim/tick';
-import type { MainToWorker, WorkerToMain } from '../protocol/messages';
+import type { MainToWorker, StructuralUpdate, WorkerToMain } from '../protocol/messages';
 
 /**
  * Single player: owns the World and the fixed-timestep loop, publishes unit
@@ -45,6 +45,8 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       break;
     case 'setSpeed':
       speed = msg.speed;
+      // Pausing stopped the pump timer (see pump); waking restarts it.
+      if (speed > 0) startPump();
       break;
     case 'setDebug':
       debugEnabled = msg.enabled;
@@ -106,16 +108,20 @@ let pumpTimer: ReturnType<typeof setInterval> | null = null;
  * Dedicated-worker timers are not throttled like main-thread timers, so a
  * plain interval drives the sim at full rate however the page is displayed —
  * until the main thread says it isn't displayed at all, and the timer stops
- * outright (see 'setHidden'). The pump is finer than the tick so an
- * accumulator carries the remainder, rather than the loop quantising to
- * whatever the timer actually did. Starting always resets the clock and
- * drops banked time: a resume continues, it does not catch up.
+ * outright (see 'setHidden'). The accumulator carries the remainder, so the
+ * loop never quantises to whatever the timer actually did — which is what
+ * lets the interval run at half a tick rather than finer: frequent timer
+ * wakeups are exactly the thing that keeps a phone's CPU out of its deep
+ * idle states, and 100 wakes a second for a 20 Hz sim bought only command
+ * latency nobody could feel below half a tick anyway. Starting always
+ * resets the clock and drops banked time: a resume continues, it does not
+ * catch up.
  */
 function startPump(): void {
   if (pumpTimer !== null || hidden || !world) return;
   lastPump = performance.now();
   acc = 0;
-  pumpTimer = setInterval(pump, 10);
+  pumpTimer = setInterval(pump, TICK_MS / 2);
 }
 
 function stopPump(): void {
@@ -130,9 +136,12 @@ function pump(): void {
   acc = Math.min(acc + (now - lastPump), TICK_MS * MAX_CATCHUP_QUANTA);
   lastPump = now;
   // While paused, commands stay queued and apply on unpause — the classic
-  // "issue orders during pause" affordance. Banked time is dropped.
+  // "issue orders during pause" affordance. Banked time is dropped, and so
+  // is the timer itself: nothing can happen until setSpeed restarts it, so
+  // ticking an interval just to return here would be wakeups for nothing.
   if (speed <= 0) {
     acc = 0;
+    stopPump();
     return;
   }
   let ran = false;
@@ -164,23 +173,62 @@ function pump(): void {
   }
 }
 
+/** Each roster as last posted, stringified — how an unchanged section is
+ * recognized and left out of the frame (see postStructural). */
+let lastBuildingsBody = '';
+let lastPlayersBody = '';
+let lastMiscBody = '';
+
 function postStructural(): void {
   if (!world) return;
-  post({
+  // A village changes its rosters far less often than the struct cadence,
+  // yet each full frame made the main thread — the battery-relevant one —
+  // rebuild its building mirror, re-key the roster and republish the
+  // selected building. So each section ships only when it changed: deltas
+  // and events are one-shot news and always do, and an entirely news-less
+  // frame is not posted at all. (Stringifying to compare costs this worker
+  // about what the structured clone would have.)
+  const buildings = snapBuildings(world);
+  const players = snapPlayers(world);
+  const mapDeltas = world.pendingDeltas.splice(0);
+  const events = world.pendingEvents.splice(0);
+  // Every job while the debug overlay is open: there is nobody here to
+  // hide the AI's logistics from, and watching them (ages ticking) is the
+  // point — so an open overlay counts as news every interval. Closed (the
+  // normal case), serializing them at 4 Hz is waste.
+  const jobs = debugEnabled ? snapJobs(world) : undefined;
+  const buildingsBody = JSON.stringify(buildings);
+  const playersBody = JSON.stringify(players);
+  const miscBody = JSON.stringify([world.admin, world.outcome, lastInvariantViolations]);
+  const buildingsChanged = buildingsBody !== lastBuildingsBody;
+  const playersChanged = playersBody !== lastPlayersBody;
+  const miscChanged = miscBody !== lastMiscBody;
+  if (
+    mapDeltas.length === 0 &&
+    events.length === 0 &&
+    !buildingsChanged &&
+    !playersChanged &&
+    !miscChanged &&
+    jobs === undefined
+  ) {
+    return;
+  }
+  lastBuildingsBody = buildingsBody;
+  lastPlayersBody = playersBody;
+  lastMiscBody = miscBody;
+  const msg: StructuralUpdate = {
     type: 'structural',
     tick: world.tick,
-    buildings: snapBuildings(world),
-    mapDeltas: world.pendingDeltas.splice(0),
-    players: snapPlayers(world),
+    mapDeltas,
     admin: { ...world.admin },
-    events: world.pendingEvents.splice(0),
+    events,
     outcome: world.outcome,
-    // Every job while the debug overlay is open: there is nobody here to
-    // hide the AI's logistics from, and watching them is the point of the
-    // overlay. Closed (the normal case), serializing them at 4 Hz is waste.
-    jobs: debugEnabled ? snapJobs(world) : [],
     invariantViolations: lastInvariantViolations,
-  });
+    ...(buildingsChanged ? { buildings } : {}),
+    ...(playersChanged ? { players } : {}),
+    ...(jobs ? { jobs } : {}),
+  };
+  post(msg);
 }
 
 function publish(): void {
