@@ -1,6 +1,12 @@
 # Plan: research tree refresh + brewery utilization
 
-Status: proposal (no sim changes in this commit).
+Status: implemented. Millstones, Ale Rations and Bellows are in the tree;
+the brewery brews on a 20 s batch; the barracks keeps an ale cask once Ale
+Rations lands (each recruit drinks 1 and trains 25% faster — never a gate);
+the Abbot's playbook researches Brewing → Festivals and raises a brewery.
+Open questions resolved: rations went to training speed (not HP), Bellows
+made the first pass, and the bellows buff covers bowstaves too — one roof,
+one bellows.
 
 ## Why now
 
