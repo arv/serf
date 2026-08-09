@@ -100,13 +100,17 @@ Three complementary moves; the goal is a brewery whose duty cycle tracks
 how hard the player is pushing, instead of a flat 25%.
 
 1. **Add the second sink — Ale Rations.** The barracks accepts ale up to a
-   cap of 2 (mirror `ABBEY_ALE_CAP` plumbing: a demand in `logistics.ts`,
-   an accept branch on delivery). When training starts and ale is in
-   stock, `training.ts` consumes 1 and scales that order's
-   `durationTicks` by 1/1.25. No ale → normal speed, never blocked: ale is
-   an accelerant, not a gate, so a raided brewery can't stall the army.
-   Demand scales with war tempo: a busy barracks at 2–3 soldiers/min
-   drinks 2–3 ale/min on top of the festival's 1.
+   cap of 2 (`BARRACKS_ALE_CAP`, a standing demand in `logistics.ts`
+   mirroring the abbey's; delivery needed no new branch — the existing
+   `def.trains` accept path already lands ale in the input buffer). The
+   drink happens at enlistment in `staffing.ts`, where a training order
+   starts: if ale is in the cask, 1 is consumed and the order's
+   `durationTicks` is divided by 1.25 (`ALE_TRAIN_SPEEDUP`). No ale →
+   normal speed, never blocked: ale is an accelerant, not a gate, so a
+   raided brewery can't stall the army. And since ale is not part of the
+   training cost, a cancelled order refunds its ingredients but not the
+   drink already drunk. Demand scales with war tempo: a busy barracks at
+   2–3 soldiers/min drinks 2–3 ale/min on top of the festival's 1.
 
 2. **Slow the brewery to fit its market: 15 s → 20 s per ale (3 ale/min).**
    With both sinks active (festival 1/min + rations 2–3/min at war) a
@@ -114,13 +118,15 @@ how hard the player is pushing, instead of a flat 25%.
    1/min market. Wheat math stays sane: 3 wheat/min is half a farm's
    6/min, alongside the mill's draw.
 
-3. **Teach the campaign AI to drink.** Extend the long-game playbook (the
-   one already researching `irrigation`) with `brewing`, `festivals` in
-   its `researchOrder`, and add a brewery build step
-   (`anchor: 'base'`, `after: 'brewing'`, `needs: 'abbey'`) plus a second
-   well if the first is saturated. Gate: `winnable.test.ts` must stay
-   green — if the extra spend costs the AI its army timing, the brewery
-   step waits on `ironworking` the way the fishery does.
+3. **Teach the campaign AI to drink.** Extend the Abbot (the long-game
+   playbook, the one already researching `irrigation`) with `brewing`,
+   `festivals` at the *end* of its `researchOrder` — last, so a dry spell
+   at the brewery (Festivals costs 2 ale) can never block a tech the war
+   effort waits on — and a brewery build step (`anchor: 'base'`,
+   `after: 'brewing'`). No extra well needed: the Abbot's wide half
+   already raises a second farm and well before Brewing lands, so the
+   brewery drinks surplus rather than the bread chain's inputs. Gate:
+   `winnable.test.ts` must stay green — it does.
 
 Festival tuning itself (duration, buff size) is deliberately untouched in
 this pass — change the sinks first, measure, then reach for the
