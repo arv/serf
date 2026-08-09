@@ -145,8 +145,13 @@ export interface WorldConfig {
  * center start; 2-4 players sit symmetrically on a ring around the middle
  * (the contested ore ring stays equidistant). Integer literals on purpose —
  * worldgen must not depend on runtime trig.
+ *
+ * Exported as public knowledge: the server tells every seat this much (see
+ * sync.ts — "start positions come from a fixed table anyone can read in
+ * the source"), so the AI brain may aim its scouts at rival doorsteps
+ * without cheating.
  */
-const START_LAYOUTS: Record<number, [number, number][]> = {
+export const START_LAYOUTS: Record<number, [number, number][]> = {
   1: [[MAP_SIZE / 2 - 2, MAP_SIZE / 2 - 2]],
   2: [
     [18, 18],
