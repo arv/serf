@@ -250,8 +250,25 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       { type: 'well', count: 2, anchor: 'base', after: 'ironworking' },
       // The second field is where this plan's spare hand goes, which is why
       // no fishery follows it — see the Fletcher's note.
+      //
+      // The ale economy, and only on this seat: the Abbot is the one plan
+      // wide enough to spare the wheat, the water and the hand — its second
+      // farm and well stand before Brewing lands, so the brewery drinks
+      // surplus rather than the bread chain's inputs. Festivals then turns
+      // that surplus into +25% work speed across the whole village.
+      { type: 'brewery', count: 1, anchor: 'base', after: 'brewing' },
     ],
-    researchOrder: ['soldiery', 'cobbledBoots', 'ironworking', 'irrigation', 'masonry'],
+    researchOrder: [
+      'soldiery',
+      'cobbledBoots',
+      'ironworking',
+      'irrigation',
+      'masonry',
+      // Last, so a dry spell at the brewery (Festivals costs 2 ale) can
+      // never block a tech the war effort is waiting on.
+      'brewing',
+      'festivals',
+    ],
     // The smallest purse in the deck, on the longest research order. This is
     // the widest plan and the one that runs closest to the edge: it staffs
     // more posts than anyone, and every post is a hand that stops hauling.

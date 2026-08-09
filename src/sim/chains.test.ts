@@ -145,7 +145,7 @@ describe('convert chains', () => {
     expect(brewery.inputs.wheat).toBe(1); // nothing consumed
 
     brewery.inputs.water = 1;
-    run(world, 20 * 16);
+    run(world, 20 * 21);
     expect(brewery.stock.ale).toBe(1);
     expect(brewery.inputs.wheat ?? 0).toBe(0);
     expect(brewery.inputs.water ?? 0).toBe(0);
