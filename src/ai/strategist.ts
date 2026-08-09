@@ -169,6 +169,10 @@ export class LlmStrategist {
   #fail(reason: string): void {
     this.#dead = true;
     this.#engine = null;
+    // Inert is inert: a strategist that gave up must not keep a worker —
+    // and the model's VRAM — alive for the rest of the match.
+    this.#worker?.terminate();
+    this.#worker = null;
     if (!this.#disposed) this.#opts.onStatus({ state: 'failed', reason });
   }
 
@@ -188,14 +192,38 @@ export class LlmStrategist {
         }
       },
     });
+    // Schema-constrained JSON (xgrammar) is supported by the engine, but
+    // whether a given model + schema actually compiles is a runtime
+    // question. If it breaks, plain json_object mode is nearly as good —
+    // parseAdvice treats every reply as hostile regardless — and far
+    // better than three constrained failures making the strategist inert.
+    let schemaBroken = false;
     return {
       complete: async (messages, schemaJson) => {
-        const reply = await engine.chat.completions.create({
-          messages,
-          temperature: 0.6,
-          max_tokens: 192,
-          response_format: { type: 'json_object', schema: schemaJson },
-        });
+        const ask = (withSchema: boolean) =>
+          engine.chat.completions.create({
+            messages,
+            temperature: 0.6,
+            max_tokens: 192,
+            response_format: withSchema
+              ? { type: 'json_object', schema: schemaJson }
+              : { type: 'json_object' },
+          });
+        let reply;
+        if (schemaBroken) {
+          reply = await ask(false);
+        } else {
+          try {
+            reply = await ask(true);
+          } catch (err) {
+            schemaBroken = true;
+            console.warn(
+              `[strategist] schema-constrained generation failed, ` +
+                `falling back to plain JSON mode: ${err instanceof Error ? err.message : String(err)}`,
+            );
+            reply = await ask(false);
+          }
+        }
         return reply.choices[0]?.message.content ?? '';
       },
     };

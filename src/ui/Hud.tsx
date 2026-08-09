@@ -113,6 +113,15 @@ export function Hud(props: {
     return Array.isArray(req) ? req.some((t) => researched.includes(t)) : researched.includes(req);
   };
   const soloMode = (): boolean => playersMeta().length <= 1;
+  /** The strategist badge's one line, or null for no badge. Discriminates
+   * on state: only loading and ready have anything to show — a failure is
+   * a one-time toast, not a standing shrug. */
+  const llmBadge = (): string | null => {
+    const s = llmStatus();
+    if (s?.state === 'loading') return `Strategist: downloading ${s.pct}%`;
+    if (s?.state === 'ready') return 'Strategist: on';
+    return null;
+  };
   /** This seat has fallen while the match plays on (multiplayer). */
   const eliminated = (): boolean =>
     outcome().state === 'playing' && playersMeta()[myPlayerId()]?.alive === false;
@@ -795,15 +804,7 @@ export function Hud(props: {
         <div class="hud-festival panel">Festival! Everyone works faster</div>
       </Show>
 
-      <Show when={llmStatus()}>
-        {(status) => (
-          <div class="hud-llm panel">
-            {status().state === 'ready'
-              ? 'Strategist: on'
-              : `Strategist: downloading ${(status() as { pct: number }).pct}%`}
-          </div>
-        )}
-      </Show>
+      <Show when={llmBadge()}>{(text) => <div class="hud-llm panel">{text()}</div>}</Show>
 
       <div class="hud-toasts">
         <For each={toasts()}>{(t) => <div class="panel toast">{t.text}</div>}</For>
