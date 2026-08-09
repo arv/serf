@@ -668,7 +668,10 @@ export function approachPoint(goal: number): { x: number; y: number } {
  * can graze the goal close enough to start the very chase the watch point
  * exists to avoid. So the scout travels in two legs — first to a gate well
  * north of the goal, then a short straight descent to the watch point.
- * The descent is short enough that its detours stay honest.
+ * The descent is short enough that its detours stay honest — which is why
+ * the descent is only issued from INSIDE the gate band: a scout merely
+ * somewhere north of it would get one long move whose path is free to
+ * wander exactly as far as the two-leg route forbids.
  */
 const GATE_NORTH = 13;
 
@@ -676,7 +679,7 @@ export function scoutLeg(goal: number, sx: number, sy: number): { x: number; y: 
   const gx = tileX(goal);
   const gy = tileY(goal);
   const gateY = Math.max(0, gy - GATE_NORTH);
-  const atGate = Math.abs(sx - gx) <= 3 && sy <= gateY + 2;
+  const atGate = Math.abs(sx - gx) <= 3 && Math.abs(sy - gateY) <= 2;
   if (atGate) return approachPoint(goal);
   return { x: gx, y: gateY };
 }
