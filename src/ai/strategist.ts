@@ -50,6 +50,9 @@ interface SeatMemory {
   busy: boolean;
   /** Every knob changed so far, newest over oldest. */
   advice: StrategyAdvice | null;
+  /** The override as last posted, stringified — a model that repeats its
+   * standing advice every consultation should not repeat the message. */
+  sentKey: string | null;
   prevSummary: AiWorldSummary | null;
 }
 
@@ -95,7 +98,7 @@ export class LlmStrategist {
     if (!this.#engine || this.#dead || this.#disposed) return;
     let seat = this.#seats.get(playerId);
     if (!seat) {
-      seat = { busy: false, advice: null, prevSummary: null };
+      seat = { busy: false, advice: null, sentKey: null, prevSummary: null };
       this.#seats.set(playerId, seat);
     }
     if (seat.busy) return;
@@ -123,11 +126,15 @@ export class LlmStrategist {
       if (import.meta.env.DEV) {
         console.log(`[strategist] seat ${playerId} advises`, advice);
       }
-      // Only a reply that turned a knob goes downstairs; "keep everything
-      // as it is" is a valid answer that costs no message.
-      if (Object.keys(toOverride(advice)).length > 0) {
-        seat.advice = { ...seat.advice, ...advice };
-        this.#opts.sendAdvice(playerId, toOverride(seat.advice));
+      // Only a reply that actually moved a dial goes downstairs: "keep
+      // everything as it is" is a valid answer, and so is repeating the
+      // standing advice word for word — neither costs a message.
+      seat.advice = { ...seat.advice, ...advice };
+      const override = toOverride(seat.advice);
+      const key = JSON.stringify(override);
+      if (Object.keys(override).length > 0 && key !== seat.sentKey) {
+        seat.sentKey = key;
+        this.#opts.sendAdvice(playerId, override);
       }
     } catch (err) {
       if (++this.#failures >= MAX_CONSECUTIVE_FAILURES && !this.#dead) {
