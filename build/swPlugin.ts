@@ -27,6 +27,16 @@ const ASSET_PREFIX = '/models/';
  * developer-facing, and nothing offline reads them. */
 const SKIP = /\.(map|txt)$/;
 
+/**
+ * The WebLLM chunks — the 'llm' manual chunk and the llmWorker entry
+ * (vite.config.ts names them so). Megabytes of inference glue that only
+ * the opt-in LLM opponent ever fetches: in the shell list, `addAll` would
+ * force them onto every visitor's disk at install. Not cached at all — the
+ * model's weights live in WebLLM's own cache, and a strategist that cannot
+ * be fetched offline degrades to the playbook AI by design.
+ */
+const LLM_CHUNK = /^\/assets\/llm[^/]*\.js$/;
+
 function walk(dir: string, root: string, out: string[]): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
@@ -62,7 +72,7 @@ export function serviceWorkerPlugin(): Plugin {
     closeBundle() {
       const dist = join(config.root, config.build.outDir);
       const files = walk(dist, dist, [])
-        .filter((f) => f !== '/sw.js' && !SKIP.test(f))
+        .filter((f) => f !== '/sw.js' && !SKIP.test(f) && !LLM_CHUNK.test(f))
         .sort();
       const assets = files.filter((f) => f.startsWith(ASSET_PREFIX));
       const shell = files.filter((f) => !f.startsWith(ASSET_PREFIX));

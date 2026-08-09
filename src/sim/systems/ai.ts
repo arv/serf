@@ -74,10 +74,24 @@ export class AiBrain {
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
+  /**
+   * Knobs laid over the playbook — the LLM strategist's dial (src/ai/).
+   * Worker memory only, never serialized: the world's determinism story is
+   * untouched because overrides reach the sim solely through the commands
+   * this brain already emits, and a reloaded save simply runs the printed
+   * playbook until the next advice lands.
+   */
+  #override: Partial<AiStrategy> | null = null;
 
   constructor(playerId: Owner, strategy: AiStrategy) {
     this.playerId = playerId;
     this.strategy = strategy;
+  }
+
+  /** Lay advice over the playbook (null clears it). The caller vouches for
+   * the values — parseAdvice in src/ai/advice.ts is the gate. */
+  setOverride(override: Partial<AiStrategy> | null): void {
+    this.#override = override;
   }
 
   /** Is `tick` one of this seat's decision beats? (Seats stagger so two
@@ -90,7 +104,7 @@ export class AiBrain {
   /** Read the world, emit this beat's commands. Pure apart from the brain's
    * own pacing memory. */
   decide(world: World): SimCommand[] {
-    const s = this.strategy;
+    const s = this.#override ? { ...this.strategy, ...this.#override } : this.strategy;
     const p = world.players[this.playerId];
     if (!p || !p.alive || world.outcome.state !== 'playing') return [];
     const commands: SimCommand[] = [];

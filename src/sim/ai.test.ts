@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createWorld, type World, type WorldConfig } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
 import { AiBrain } from './systems/ai.ts';
-import { strategyOf } from './defs/aiStrategies.ts';
+import { AiSeats } from './aiSeats.ts';
+import { strategyOf, type AiStrategy } from './defs/aiStrategies.ts';
 import { checkInvariants } from './debug/invariants.ts';
 
 function digest(world: World): unknown {
@@ -65,5 +66,74 @@ describe('the AI opponent', () => {
       players: [{ kind: 'human' }, { kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }],
     };
     expect(digest(runWithBrains(config, 3000))).toEqual(digest(runWithBrains(config, 3000)));
+  });
+});
+
+/**
+ * The strategist override (src/ai/): a Partial<AiStrategy> the LLM lays
+ * over a brain's playbook. What is covered is the two promises the seam
+ * makes — laid and cleared it leaves no trace, and laid with real values
+ * the brain actually plays differently.
+ */
+describe('strategist overrides', () => {
+  /** Ticks until the brain first marches away from home — the observable a
+   * changed muster size moves. A rally is also a moveUnits, but it always
+   * targets the spot just south of the castle; a march goes elsewhere. */
+  function firstMarchTick(override: Partial<AiStrategy> | null, maxTicks: number): number {
+    const world = createWorld({ seed: 20260724, players: [{ kind: 'ai', strategy: 'steward' }] });
+    const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy));
+    if (override) brain.setOverride(override);
+    const castle = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const home = { x: castle.x + 1, y: castle.y + 1 + 4 };
+    for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
+      const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+      for (const cmd of commands) {
+        if (cmd.kind === 'moveUnits' && (cmd.x !== home.x || cmd.y !== home.y)) return world.tick;
+      }
+      tickWorld(
+        world,
+        commands.map((cmd) => ({ playerId: 0, cmd })),
+      );
+    }
+    return maxTicks;
+  }
+
+  it('laid empty and cleared again, the seam leaves the game untouched', () => {
+    const config: WorldConfig = { seed: 7, players: [{ kind: 'human' }, { kind: 'ai' }] };
+    const baseline = digest(runWithBrains(config, 3000));
+
+    const world = createWorld(config);
+    const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy));
+    for (let t = 0; t < 3000 && world.outcome.state === 'playing'; t++) {
+      // An empty override spreads to the same values; clearing goes back to
+      // the playbook object itself. Either way: the identical game.
+      if (t === 1000) brain.setOverride({});
+      if (t === 2000) brain.setOverride(null);
+      const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+      tickWorld(
+        world,
+        commands.map((cmd) => ({ playerId: 1, cmd })),
+      );
+    }
+    expect(digest(world)).toEqual(baseline);
+  });
+
+  it('an eager override marches the army sooner', () => {
+    const patient = firstMarchTick(null, 20_000);
+    const eager = firstMarchTick({ armyAttackSize: 3, attackCooldown: 200 }, 20_000);
+    expect(eager).toBeLessThan(patient);
+  }, 120_000);
+
+  it('AiSeats routes advice to the seat it names, and shrugs at one it cannot find', () => {
+    const world = createWorld({
+      seed: 7,
+      players: [{ kind: 'human' }, { kind: 'ai' }, { kind: 'ai' }],
+    });
+    const seats = new AiSeats(world);
+    expect(seats.seatIds()).toEqual([1, 2]);
+    seats.applyAdvice(1, { armyAttackSize: 3 });
+    // Advice can outlive the brain it was meant for; a seat that is not
+    // there is a no-op, not a crash.
+    seats.applyAdvice(9, { armyAttackSize: 3 });
   });
 });

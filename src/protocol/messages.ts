@@ -1,4 +1,6 @@
+import type { AiWorldSummary } from '../ai/summary.ts';
 import type { EntityId, Owner } from '../sim/entities.ts';
+import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 import type { BuildingTypeId } from '../sim/defs/buildings.ts';
 import type { GoodAmounts } from '../sim/defs/goods.ts';
 import type { TechId } from '../sim/defs/techs.ts';
@@ -111,8 +113,15 @@ export type MainToWorker =
       config: WorldConfig;
       loadData?: string;
       net?: NetInfo;
+      /** Solo only: post aiSummary messages so the main thread's LLM
+       * strategist (src/ai/) can advise the AI seats. */
+      llm?: boolean;
     }
   | { type: 'commands'; commands: PlayerCommand[] }
+  /** Strategist advice for one AI seat: playbook knobs to lay over its
+   * strategy. Validated and clamped on the main thread (src/ai/advice.ts)
+   * before it is ever posted. */
+  | { type: 'aiAdvice'; playerId: number; override: Partial<AiStrategy> }
   | { type: 'setSpeed'; speed: number }
   /** Debug overlay visibility: the worker only serializes its jobs table
    * into structural updates while someone is actually watching. */
@@ -173,4 +182,8 @@ export type WorkerToMain =
   | StructuralUpdate
   | { type: 'saved'; data: string }
   | { type: 'netStatus'; status: NetStatus }
+  /** One AI seat's folded-down view of the match, on the advice cadence
+   * (~45 s) — the input the LLM strategist prompts from. Only sent when
+   * init asked with `llm`. */
+  | { type: 'aiSummary'; playerId: number; summary: AiWorldSummary }
   | { type: 'log'; message: string };

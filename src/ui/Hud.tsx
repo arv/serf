@@ -28,6 +28,7 @@ import {
   debugJobs,
   debugOpen,
   invariantViolations,
+  llmStatus,
   myPlayerId,
   netMode,
   netStatus,
@@ -369,6 +370,10 @@ export function Hud(props: {
           border-color: rgba(214, 106, 80, 0.5); color: #f0b9a8; max-width: 70vw;
         }
         .hud-festival { position: absolute; top: 56px; right: 12px; padding: 6px 12px; pointer-events: auto; }
+        /* The LLM strategist's little health line: download progress while
+           the model fetches, a short-lived "on" once it answers. Left side,
+           clear of the festival banner and the toasts on the right. */
+        .hud-llm { position: absolute; top: 56px; left: 12px; padding: 6px 12px; opacity: 0.85; }
         .hud-toasts {
           position: absolute; top: 96px; right: 12px; display: flex;
           flex-direction: column; gap: 6px; align-items: flex-end;
@@ -788,6 +793,16 @@ export function Hud(props: {
 
       <Show when={techs().festivalTicksLeft > 0}>
         <div class="hud-festival panel">Festival! Everyone works faster</div>
+      </Show>
+
+      <Show when={llmStatus()}>
+        {(status) => (
+          <div class="hud-llm panel">
+            {status().state === 'ready'
+              ? 'Strategist: on'
+              : `Strategist: downloading ${(status() as { pct: number }).pct}%`}
+          </div>
+        )}
       </Show>
 
       <div class="hud-toasts">

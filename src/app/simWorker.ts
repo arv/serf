@@ -5,6 +5,7 @@ import { tickWorld } from '../sim/tick';
 import { MATCHER_INTERVAL, TICK_MS } from '../sim/defs/balance';
 import { checkInvariants, checkLedger, countGoods } from '../sim/debug/invariants';
 import { AiSeats } from '../sim/aiSeats';
+import { summarizeForSeat } from '../ai/summary';
 import { SAB_BYTES, SabWriter } from '../protocol/sabLayout';
 import { snapBuildings, snapJobs, snapPlayers, unitSnapshots } from '../protocol/snapshot';
 import type { GoodAmounts } from '../sim/defs/goods';
@@ -29,6 +30,15 @@ let lastInvariantViolations: string[] = [];
 let ai: AiSeats | null = null;
 /** Debug overlay open on the main thread — only then serialize jobs. */
 let debugEnabled = false;
+/**
+ * The LLM strategist's cadence (init asked with `llm`): when each AI seat
+ * next reports upstairs. ~45 s apart per seat, staggered so two seats
+ * never summarize on the same pump — the summaries feed prompts whose
+ * replies take seconds anyway, so slower is fine and faster is waste.
+ */
+const ADVICE_PERIOD = 900;
+const ADVICE_STAGGER = 300;
+let summaryDue: Map<number, number> | null = null;
 
 const post = (msg: WorkerToMain): void => {
   (self as unknown as DedicatedWorkerGlobalScope).postMessage(msg);
@@ -38,10 +48,15 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
   const msg = e.data;
   switch (msg.type) {
     case 'init':
-      init(msg.config, msg.loadData);
+      init(msg.config, msg.loadData, msg.llm);
       break;
     case 'commands':
       pendingCommands.push(...msg.commands);
+      break;
+    case 'aiAdvice':
+      // Pre-validated on the main thread; the brain merges it over its
+      // playbook and plays on. Reaches the sim only as ordinary commands.
+      ai?.applyAdvice(msg.playerId, msg.override);
       break;
     case 'setSpeed':
       speed = msg.speed;
@@ -69,10 +84,15 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
   }
 };
 
-function init(config: import('../sim/world').WorldConfig, loadData?: string): void {
+function init(config: import('../sim/world').WorldConfig, loadData?: string, llm?: boolean): void {
   world = loadData !== undefined ? deserializeWorld(loadData) : createWorld(config);
   // AI seats think next to the world, the same way the server runs them.
   ai = new AiSeats(world);
+  // First summaries only after the opening has taken shape — advice on an
+  // empty valley would just be the model guessing at the map.
+  summaryDue = llm
+    ? new Map(ai.seatIds().map((id, i) => [id, ADVICE_PERIOD + i * ADVICE_STAGGER]))
+    : null;
   initialGoods = countGoods(world);
   const sab = new SharedArrayBuffer(SAB_BYTES);
   writer = new SabWriter(sab);
@@ -170,6 +190,19 @@ function pump(): void {
     if (world.tick % MATCHER_INTERVAL === 0 || world.pendingDeltas.length > 0) {
       postStructural();
     }
+    postSummaries();
+  }
+}
+
+/** Report each AI seat upstairs when its consultation comes due. Outside
+ * the tick loop on purpose: summaries are advisory, so "at least every
+ * period" is the contract, not "on an exact tick". */
+function postSummaries(): void {
+  if (!world || !summaryDue || world.outcome.state !== 'playing') return;
+  for (const [playerId, due] of summaryDue) {
+    if (world.tick < due) continue;
+    summaryDue.set(playerId, world.tick + ADVICE_PERIOD);
+    post({ type: 'aiSummary', playerId, summary: summarizeForSeat(world, playerId) });
   }
 }
 

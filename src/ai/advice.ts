@@ -1,0 +1,169 @@
+import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
+import type { UnitTypeId } from '../sim/defs/units.ts';
+
+/**
+ * The contract between the LLM strategist and the AI brain: which playbook
+ * knobs the model may turn, and how far. Everything else in this directory
+ * exists to produce or consume this shape.
+ *
+ * The whitelist is deliberately narrow. The build order and research line
+ * are NOT here: they encode hard-won opening knowledge (see the notes in
+ * defs/aiStrategies.ts), and a 1B model rewriting them is how a seat bricks
+ * itself. The model steers posture — how big an army, how soon it marches,
+ * what it trains, how deep the economy grows — and the playbook keeps its
+ * opening.
+ *
+ * Every reply is treated as hostile until parseAdvice has been over it:
+ * keys are picked one by one (never spread, so __proto__ and friends stay
+ * inert), numbers are rounded and clamped into the ranges below, enum
+ * arrays are filtered to known ids. What survives is safe to merge over an
+ * AiStrategy sight unseen.
+ */
+
+/** What the model may say. Every field optional: omitted means unchanged. */
+export interface StrategyAdvice {
+  /** Serfs hired up to. */
+  serfTarget?: number;
+  /** Soldiers standing before the army marches. */
+  armyAttackSize?: number;
+  /** Ticks between marches. */
+  attackCooldown?: number;
+  /** Recall radius around the castle; 0 leaves the army out. */
+  homeGuard?: number;
+  /** March on rivals even when a bandit camp is nearer. */
+  prefersRivals?: boolean;
+  /** Trained in order of preference. */
+  trainPreference?: UnitTypeId[];
+  /** Forge assignment by smith age: recipe index [spear, sword, bow]. */
+  weaponMix?: number[];
+  barracksQueueDepth?: number;
+  houseLimit?: number;
+  housingHeadroom?: number;
+  /** Silver held back from hiring while research is pending. */
+  researchReserve?: number;
+  /** The model's one-line rationale. Debug overlay only — never the sim. */
+  reason?: string;
+}
+
+/** [min, max] per numeric knob — the ranges quoted to the model in the
+ * prompt and enforced on whatever comes back. */
+export const ADVICE_RANGES = {
+  serfTarget: [6, 20],
+  armyAttackSize: [3, 16],
+  attackCooldown: [200, 2000],
+  homeGuard: [0, 20],
+  barracksQueueDepth: [1, 4],
+  houseLimit: [2, 8],
+  housingHeadroom: [1, 6],
+  researchReserve: [0, 20],
+} as const satisfies Partial<Record<keyof StrategyAdvice, readonly [number, number]>>;
+
+/** The soldiers a barracks can train — the only ids trainPreference keeps. */
+export const ADVISABLE_UNITS: readonly UnitTypeId[] = ['knight', 'spearman', 'archer'];
+
+/** Recipe indices a forge understands: 0 spear, 1 sword, 2 bow. */
+const WEAPON_MIX_MAX = 2;
+const REASON_MAX = 200;
+
+/** Handed to WebLLM as response_format, so a conforming engine cannot even
+ * emit a key outside the whitelist. parseAdvice still assumes it did. */
+export const ADVICE_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    serfTarget: { type: 'integer', minimum: 6, maximum: 20 },
+    armyAttackSize: { type: 'integer', minimum: 3, maximum: 16 },
+    attackCooldown: { type: 'integer', minimum: 200, maximum: 2000 },
+    homeGuard: { type: 'integer', minimum: 0, maximum: 20 },
+    prefersRivals: { type: 'boolean' },
+    trainPreference: {
+      type: 'array',
+      items: { type: 'string', enum: [...ADVISABLE_UNITS] },
+      maxItems: 3,
+    },
+    weaponMix: {
+      type: 'array',
+      items: { type: 'integer', minimum: 0, maximum: 2 },
+      minItems: 1,
+      maxItems: 3,
+    },
+    barracksQueueDepth: { type: 'integer', minimum: 1, maximum: 4 },
+    houseLimit: { type: 'integer', minimum: 2, maximum: 8 },
+    housingHeadroom: { type: 'integer', minimum: 1, maximum: 6 },
+    researchReserve: { type: 'integer', minimum: 0, maximum: 20 },
+    reason: { type: 'string' },
+  },
+  additionalProperties: false,
+} as const;
+
+function clampedInt(raw: unknown, range: readonly [number, number]): number | undefined {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined;
+  return Math.min(range[1], Math.max(range[0], Math.round(raw)));
+}
+
+/**
+ * Raw model text → validated advice, or null when there is nothing to
+ * salvage. A reply that parses but offers no usable knob comes back as {}:
+ * "change nothing" is valid advice, garbage is not.
+ */
+export function parseAdvice(raw: string): StrategyAdvice | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+  // Read through a null-prototype copy is overkill; reading own properties
+  // one key at a time is enough, since nothing here walks the prototype.
+  const obj = parsed as Record<string, unknown>;
+  const advice: StrategyAdvice = {};
+
+  for (const key of Object.keys(ADVICE_RANGES) as (keyof typeof ADVICE_RANGES)[]) {
+    if (!Object.hasOwn(obj, key)) continue;
+    const v = clampedInt(obj[key], ADVICE_RANGES[key]);
+    if (v !== undefined) advice[key] = v;
+  }
+
+  if (Object.hasOwn(obj, 'prefersRivals') && typeof obj['prefersRivals'] === 'boolean') {
+    advice.prefersRivals = obj['prefersRivals'];
+  }
+
+  if (Object.hasOwn(obj, 'trainPreference') && Array.isArray(obj['trainPreference'])) {
+    const seen = new Set<UnitTypeId>();
+    for (const entry of obj['trainPreference']) {
+      if (typeof entry !== 'string') continue;
+      if (!(ADVISABLE_UNITS as readonly string[]).includes(entry)) continue;
+      seen.add(entry as UnitTypeId);
+      if (seen.size >= 3) break;
+    }
+    // An empty preference would leave the barracks training nothing — a
+    // list that filtered to nothing is dropped, not applied.
+    if (seen.size > 0) advice.trainPreference = [...seen];
+  }
+
+  if (Object.hasOwn(obj, 'weaponMix') && Array.isArray(obj['weaponMix'])) {
+    const mix: number[] = [];
+    for (const entry of obj['weaponMix'].slice(0, 3)) {
+      const v = clampedInt(entry, [0, WEAPON_MIX_MAX]);
+      if (v === undefined) {
+        mix.length = 0; // one bad entry poisons the list: partial mixes lie
+        break;
+      }
+      mix.push(v);
+    }
+    if (mix.length > 0) advice.weaponMix = mix;
+  }
+
+  if (Object.hasOwn(obj, 'reason') && typeof obj['reason'] === 'string') {
+    advice.reason = obj['reason'].slice(0, REASON_MAX);
+  }
+
+  return advice;
+}
+
+/** Advice → the override AiBrain merges over its playbook. `reason` is for
+ * humans and stays behind. */
+export function toOverride(advice: StrategyAdvice): Partial<AiStrategy> {
+  const { reason: _reason, ...knobs } = advice;
+  return knobs;
+}

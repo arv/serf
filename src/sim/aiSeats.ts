@@ -13,8 +13,9 @@
  * one the worker version had, and it matters: deciding after the tick would
  * give the AI a frame of hindsight nobody else gets.
  */
-import { strategyOf } from './defs/aiStrategies.ts';
+import { strategyOf, type AiStrategy } from './defs/aiStrategies.ts';
 import { AiBrain } from './systems/ai.ts';
+import type { Owner } from './entities.ts';
 import type { PlayerCommand } from './tick.ts';
 import type { World } from './world.ts';
 
@@ -32,6 +33,19 @@ export class AiSeats {
 
   get count(): number {
     return this.#brains.length;
+  }
+
+  /** The seats with a brain, for anyone pacing per-seat work (the LLM
+   * strategist's summary cadence). */
+  seatIds(): Owner[] {
+    return this.#brains.map((b) => b.playerId);
+  }
+
+  /** Lay strategist advice over one seat's playbook. Values arrive already
+   * validated (src/ai/advice.ts); an unknown seat is a no-op, since advice
+   * can outlive the brain it was meant for. */
+  applyAdvice(playerId: Owner, override: Partial<AiStrategy>): void {
+    this.#brains.find((b) => b.playerId === playerId)?.setOverride(override);
   }
 
   /** This tick's AI orders, ready to apply alongside the players'. */

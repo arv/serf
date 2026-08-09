@@ -119,6 +119,16 @@ export const [fogEnabled, setFogEnabled] = createSignal(
   !(CHEATS_ALLOWED && new URLSearchParams(location.search).has('nofog')),
 );
 
+/**
+ * The LLM strategist's health, when one was asked for (?llm=1): download
+ * progress while the model fetches, a short-lived "on", null when there is
+ * nothing to show. Failures surface as a toast instead — the seats keep
+ * playing their playbooks either way.
+ */
+export const [llmStatus, setLlmStatus] = createSignal<
+  import('../ai/strategist').LlmStatus | null
+>(null);
+
 /** Debug overlay (backquote). */
 export const [debugOpen, setDebugOpen] = createSignal(false);
 export const [debugJobs, setDebugJobs] = createSignal<JobSnap[]>([]);

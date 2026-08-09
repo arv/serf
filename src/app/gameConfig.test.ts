@@ -54,4 +54,13 @@ describe('configFromUrl', () => {
     expect(configFromUrl('?seed=abc').seed).toBe(20260724);
     expect(configFromUrl('?seed=').seed).toBe(20260724);
   });
+
+  it('reads ?llm=1, but only where there is an opponent to advise', () => {
+    expect(configFromUrl('?ai=2&llm=1').llmOpponent).toBe(true);
+    expect(configFromUrl('?ai=2').llmOpponent).toBe(false);
+    expect(configFromUrl('?ai=2&llm=yes').llmOpponent).toBe(false);
+    // A sandbox has no AI seats: a strategist with nobody to advise stays
+    // off however the URL asks.
+    expect(configFromUrl('?llm=1').llmOpponent).toBe(false);
+  });
 });

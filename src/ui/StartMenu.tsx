@@ -134,6 +134,11 @@ export function StartMenu(props: StartMenuProps) {
   const [ai, setAi] = createSignal(2);
   // One entry per opponent seat; undefined means 'let the seed deal it'.
   const [bots, setBots] = createSignal<(AiStrategyId | undefined)[]>([]);
+  // The LLM strategist (an on-device model advising the AI seats). Off by
+  // default — it is a ~600 MB first-time download — and the row only exists
+  // where WebGPU does, since without it there is nothing to offer.
+  const [llm, setLlm] = createSignal(false);
+  const webgpu = 'gpu' in navigator;
   const [seed, setSeed] = createSignal(DEFAULT_SEED);
   const [bandits, setBandits] = createSignal(true);
   const [room, setRoom] = createSignal('');
@@ -226,6 +231,7 @@ export function StartMenu(props: StartMenuProps) {
     // is dealt from the seed at the other end.
     const named = bots().slice(0, ai());
     if (named.some(Boolean)) p.set('bots', named.map((b) => b ?? '').join(','));
+    if (ai() > 0 && llm()) p.set('llm', '1');
     p.set('seed', String(seed()));
     if (!bandits()) p.set('bandits', '0');
     return '?' + p.toString();
@@ -497,6 +503,26 @@ export function StartMenu(props: StartMenuProps) {
                         )}
                       </Index>
                     </div>
+                  </div>
+                </Show>
+
+                <Show when={ai() > 0 && webgpu}>
+                  <div class="row">
+                    <div>
+                      <div class="row-label">LLM strategist (experimental)</div>
+                      <div class="row-hint">
+                        Opponents consult an on-device language model (~600 MB one-time download)
+                      </div>
+                    </div>
+                    <button
+                      class={`toggle ${llm() ? 'on' : ''}`}
+                      role="switch"
+                      aria-checked={llm()}
+                      aria-label="LLM strategist"
+                      onClick={() => setLlm(!llm())}
+                    >
+                      <span />
+                    </button>
                   </div>
                 </Show>
 
