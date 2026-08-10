@@ -8,6 +8,8 @@ import {
   type SabReader,
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
+import { UNIT_DEFS } from '../sim/defs/units';
+import type { PierInfo } from './buildingSync';
 import type { ViewBounds } from './cameraRig';
 import type { FogQuery } from './fogOfWar';
 import { makeCarryProp } from './models';
@@ -53,24 +55,9 @@ interface Well {
   grip: THREE.Object3D;
 }
 
-/** A built fishery's pier: the deck line from its landward end to the
- * fishing spot near the tip, plank height, and the yaw that faces the
- * water. Fed from buildingSync.fisheryPiers(). */
-interface Pier {
-  /** Building center, the anchor a fisherman is matched to his pier by. */
-  bx: number;
-  bz: number;
-  baseX: number;
-  baseZ: number;
-  spotX: number;
-  spotZ: number;
-  yaw: number;
-  deckY: number;
-}
-
-/** The render-walk speed out along the pier — the worker's sim gait
- * (UNIT_DEFS worker speed), so the commute reads like every other one. */
-const PIER_WALK_SPEED = 1.7;
+/** The render-walk speed out along the pier — the worker's own sim gait,
+ * so the commute reads like every other one. */
+const PIER_WALK_SPEED = UNIT_DEFS.worker.speed;
 
 /** GLTFLoader sanitizes bone names ('upperarm.r' → 'upperarmr'). */
 function findArm(group: THREE.Group): ArmChain | null {
@@ -194,9 +181,9 @@ export class SceneSync {
    * fisherman belongs at the end of his pier, but the sim parks him on
    * whichever adjacent tile the path found — so the render walks him out
    * along the deck and stands him there, line in the water. */
-  #piers: Pier[] = [];
+  #piers: PierInfo[] = [];
 
-  setPiers(piers: Pier[]): void {
+  setPiers(piers: PierInfo[]): void {
     this.#piers = piers;
   }
 
@@ -228,8 +215,8 @@ export class SceneSync {
     return well;
   }
 
-  #nearestPier(x: number, y: number): Pier | null {
-    let pier: Pier | null = null;
+  #nearestPier(x: number, y: number): PierInfo | null {
+    let pier: PierInfo | null = null;
     let best = 9; // parked on the ring around a 3x3 footprint: within 3 tiles
     for (const p of this.#piers) {
       const dx = p.bx - x;

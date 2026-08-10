@@ -17,8 +17,9 @@ import type { HeightField } from './heightField';
 
 /** A built fishery's pier, in world space: the deck line from its landward
  * end to the fishing spot near the tip, plank height, and the yaw that
- * faces the water. */
-interface PierInfo {
+ * faces the water. Shared with sceneSync, which walks the fisherman out
+ * along it. */
+export interface PierInfo {
   /** Building center, the anchor a fisherman is matched to his pier by. */
   bx: number;
   bz: number;
