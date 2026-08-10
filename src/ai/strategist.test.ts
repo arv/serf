@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createWorld } from '../sim/world.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
 import { strategyOf } from '../sim/defs/aiStrategies.ts';
-import { LlmStrategist, type ChatEngine, type LlmStatus } from './strategist.ts';
+import { LlmStrategist, warmModel, type ChatEngine, type LlmStatus } from './strategist.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 
 /**
@@ -14,16 +14,24 @@ import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
  */
 type CreateReq = { response_format?: { type?: string; schema?: string } };
 type CreateReply = { choices: { message: { content: string } }[] };
+type CreateOpts = { initProgressCallback?: (r: { progress: number; text: string }) => void };
 const engineMock = vi.hoisted(() => ({
   create: (() => Promise.reject(new Error('engineMock.create unset'))) as (
     req: CreateReq,
   ) => Promise<CreateReply>,
+  /** What hasModelInCache answers (warmModel's fast path). */
+  hasCache: false,
+  /** Override the engine construction itself; null = default success. */
+  createEngine: null as null | ((opts?: CreateOpts) => Promise<unknown>),
 }));
 vi.mock('@mlc-ai/web-llm', () => ({
-  CreateWebWorkerMLCEngine: () =>
-    Promise.resolve({
-      chat: { completions: { create: (req: CreateReq) => engineMock.create(req) } },
-    }),
+  hasModelInCache: () => Promise.resolve(engineMock.hasCache),
+  CreateWebWorkerMLCEngine: (_worker: unknown, _model: unknown, opts?: CreateOpts) =>
+    engineMock.createEngine
+      ? engineMock.createEngine(opts)
+      : Promise.resolve({
+          chat: { completions: { create: (req: CreateReq) => engineMock.create(req) } },
+        }),
 }));
 
 /** Stands in for the DOM Worker the adapter constructs (node has none). */
@@ -76,6 +84,8 @@ const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  engineMock.hasCache = false;
+  engineMock.createEngine = null;
 });
 
 describe('LlmStrategist', () => {
@@ -247,5 +257,73 @@ describe('LlmStrategist', () => {
     resolveReply('{"homeGuard": 4}');
     await settle();
     expect(sent).toEqual([]);
+  });
+});
+
+/**
+ * warmModel: the start menu's prefetch. Same mocked module boundary — what
+ * matters is that the cache fast-path builds nothing, the cold path frees
+ * its worker the moment the download lands, and dispose (toggle off, menu
+ * unmount) both kills the worker and silences the status stream.
+ */
+describe('warmModel', () => {
+  it('an already-cached model reports ready without touching a worker', async () => {
+    vi.stubGlobal('Worker', FakeWorker);
+    workers.length = 0;
+    engineMock.hasCache = true;
+    const statuses: LlmStatus[] = [];
+    warmModel((s) => statuses.push(s));
+    await settle();
+    expect(statuses).toEqual([{ state: 'ready' }]);
+    expect(workers).toHaveLength(0);
+  });
+
+  it('a cold cache downloads through a worker, then frees it', async () => {
+    vi.stubGlobal('Worker', FakeWorker);
+    workers.length = 0;
+    engineMock.createEngine = (opts) => {
+      opts?.initProgressCallback?.({ progress: 0.5, text: 'fetching shard 3/9' });
+      return Promise.resolve({});
+    };
+    const statuses: LlmStatus[] = [];
+    warmModel((s) => statuses.push(s));
+    await settle();
+    expect(statuses[0]).toMatchObject({ state: 'loading', pct: 50 });
+    expect(statuses.at(-1)).toEqual({ state: 'ready' });
+    // The menu holds no GPU: the worker existed only for its download.
+    expect(workers).toHaveLength(1);
+    expect(workers[0]!.terminated).toBe(1);
+  });
+
+  it('a failed download reports and frees the worker', async () => {
+    vi.stubGlobal('Worker', FakeWorker);
+    workers.length = 0;
+    engineMock.createEngine = () => Promise.reject(new Error('403 from the weights CDN'));
+    const statuses: LlmStatus[] = [];
+    warmModel((s) => statuses.push(s));
+    await settle();
+    expect(statuses.at(-1)).toMatchObject({ state: 'failed' });
+    expect((statuses.at(-1) as { reason: string }).reason).toContain('403');
+    expect(workers[0]!.terminated).toBe(1);
+  });
+
+  it('disposed mid-download, it kills the worker and goes silent', async () => {
+    vi.stubGlobal('Worker', FakeWorker);
+    workers.length = 0;
+    let report: ((r: { progress: number; text: string }) => void) | undefined;
+    engineMock.createEngine = (opts) => {
+      report = opts?.initProgressCallback;
+      return new Promise(() => {}); // the download never finishes
+    };
+    const statuses: LlmStatus[] = [];
+    const handle = warmModel((s) => statuses.push(s));
+    await settle();
+    expect(workers).toHaveLength(1);
+    handle.dispose();
+    expect(workers[0]!.terminated).toBe(1);
+    const seen = statuses.length;
+    report?.({ progress: 0.9, text: 'late shard' });
+    await settle();
+    expect(statuses).toHaveLength(seen);
   });
 });

@@ -139,6 +139,31 @@ export function StartMenu(props: StartMenuProps) {
   // where WebGPU does, since without it there is nothing to offer.
   const [llm, setLlm] = createSignal(false);
   const webgpu = 'gpu' in navigator;
+  // The menu is the waiting room: flipping the toggle starts the model
+  // download right here, so the weights are cached (or well underway) by
+  // the time the match boots. The warm-up survives the launch reload —
+  // WebLLM keeps weights in Cache storage — and toggling off cancels it.
+  const [llmWarm, setLlmWarm] = createSignal<import('../ai/strategist').LlmStatus | null>(null);
+  let warmHandle: { dispose: () => void } | null = null;
+  const setLlmAndWarm = (on: boolean): void => {
+    setLlm(on);
+    warmHandle?.dispose();
+    warmHandle = null;
+    setLlmWarm(null);
+    if (!on) return;
+    void import('../ai/strategist').then(({ warmModel }) => {
+      // The toggle may have flipped back while the chunk loaded.
+      if (llm()) warmHandle = warmModel(setLlmWarm);
+    });
+  };
+  onCleanup(() => warmHandle?.dispose());
+  const llmHint = (): string => {
+    const s = llmWarm();
+    if (s?.state === 'loading') return `Downloading the model — ${s.pct}%`;
+    if (s?.state === 'ready') return 'Model ready — opponents will consult it from the start';
+    if (s?.state === 'failed') return 'Download failed — opponents will use standard tactics';
+    return 'Opponents consult an on-device language model (~600 MB one-time download)';
+  };
   const [seed, setSeed] = createSignal(DEFAULT_SEED);
   const [bandits, setBandits] = createSignal(true);
   const [room, setRoom] = createSignal('');
@@ -510,16 +535,14 @@ export function StartMenu(props: StartMenuProps) {
                   <div class="row">
                     <div>
                       <div class="row-label">LLM strategist (experimental)</div>
-                      <div class="row-hint">
-                        Opponents consult an on-device language model (~600 MB one-time download)
-                      </div>
+                      <div class="row-hint">{llmHint()}</div>
                     </div>
                     <button
                       class={`toggle ${llm() ? 'on' : ''}`}
                       role="switch"
                       aria-checked={llm()}
                       aria-label="LLM strategist"
-                      onClick={() => setLlm(!llm())}
+                      onClick={() => setLlmAndWarm(!llm())}
                     >
                       <span />
                     </button>
