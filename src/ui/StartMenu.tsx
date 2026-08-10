@@ -138,25 +138,38 @@ export function StartMenu(props: StartMenuProps) {
   // default — it is a ~400 MB first-time download. CPU inference, so it
   // needs no WebGPU; the wasm threads ride the cross-origin isolation the
   // app already requires to boot.
-  const [llm, setLlm] = createSignal(false);
-  // The menu is the waiting room: flipping the toggle starts the model
-  // download right here, so the GGUF is cached (or well underway) by the
+  //
+  // The choice is remembered: a defeat's "Play again" reloads straight into
+  // the match and keeps ?llm=1, but any road that passes back through this
+  // menu — quit, a lost match restarted by hand, tomorrow's session — used
+  // to land on a toggle silently reset to off. Remembered also means the
+  // warm-up resumes on arrival, so a download the last session never
+  // finished keeps going while the player picks opponents.
+  const LLM_PREF_KEY = 'serf-llm';
+  const [llm, setLlm] = createSignal(localStorage.getItem(LLM_PREF_KEY) === '1');
+  // The menu is the waiting room: while the toggle is on, the model
+  // downloads right here, so the GGUF is cached (or well underway) by the
   // time the match boots. The warm-up survives the launch reload —
   // wllama's ModelManager writes into cache storage, no engine involved
   // (see warmModel in strategist.ts) — and toggling off cancels it.
   const [llmWarm, setLlmWarm] = createSignal<import('../ai/strategist').LlmStatus | null>(null);
   let warmHandle: { dispose: () => void } | null = null;
+  const beginWarm = (): void => {
+    void import('../ai/strategist').then(({ warmModel }) => {
+      // The toggle may have flipped back while the chunk loaded.
+      if (llm() && !warmHandle) warmHandle = warmModel(setLlmWarm);
+    });
+  };
   const setLlmAndWarm = (on: boolean): void => {
     setLlm(on);
+    if (on) localStorage.setItem(LLM_PREF_KEY, '1');
+    else localStorage.removeItem(LLM_PREF_KEY);
     warmHandle?.dispose();
     warmHandle = null;
     setLlmWarm(null);
-    if (!on) return;
-    void import('../ai/strategist').then(({ warmModel }) => {
-      // The toggle may have flipped back while the chunk loaded.
-      if (llm()) warmHandle = warmModel(setLlmWarm);
-    });
+    if (on) beginWarm();
   };
+  if (llm()) beginWarm();
   onCleanup(() => warmHandle?.dispose());
   const llmHint = (): string => {
     const s = llmWarm();
