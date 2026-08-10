@@ -156,6 +156,12 @@ export class AiBrain {
   /** What scouting has seen of each rival's army: the freshest useful
    * look, by owner. This is what the counter-forging reads. */
   #intel = new Map<Owner, Sighting>();
+  /** When each rival's doorstep was last read — or the read failed — by
+   * owner. Kept apart from the sightings on purpose: a walk that saw
+   * nothing must reset the clock without erasing what an earlier look
+   * actually saw, or a failed errand would blind the counter-forging to
+   * a picture that is still inside its trust window. */
+  #intelAttempt = new Map<Owner, number>();
   /** The rival whose doorstep the scout is walking to read, -1 when the
    * scout is on discovery (or home). */
   #scoutIntel: Owner = -1;
@@ -550,18 +556,21 @@ export class AiBrain {
     }
   }
 
-  /** The living rival whose picture is stalest and past due, or -1. A seat
-   * never heard of ranks stalest of all. */
+  /** The living rival whose picture is stalest and past due, or -1. The
+   * clock reads whichever is newer of the last real sighting and the last
+   * read attempt, and a seat never heard of ranks stalest of all. */
   #staleRival(world: World): Owner {
     let best: Owner = -1;
     let bestTick = Infinity;
     for (const p of world.players) {
       if (p.id === this.playerId || !p.alive) continue;
-      const s = this.#intel.get(p.id);
-      if (s && world.tick - s.tick <= AI_INTEL.refreshAfter) continue;
-      const tick = s?.tick ?? -Infinity;
-      if (tick < bestTick) {
-        bestTick = tick;
+      const last = Math.max(
+        this.#intel.get(p.id)?.tick ?? -Infinity,
+        this.#intelAttempt.get(p.id) ?? -Infinity,
+      );
+      if (world.tick - last <= AI_INTEL.refreshAfter) continue;
+      if (last < bestTick) {
+        bestTick = last;
         best = p.id;
       }
     }
@@ -570,15 +579,10 @@ export class AiBrain {
 
   /** Mark a rival's doorstep as read this beat — even when nothing stood
    * there, an empty yard is an answer, and the clock must reset or the
-   * scout would bounce straight back. A fresh real sighting is kept. */
+   * scout would bounce straight back. Only the clock: whatever an earlier
+   * look actually saw stays on file until its trust window closes. */
   #stampIntel(world: World, owner: Owner): void {
-    const s = this.#intel.get(owner);
-    if (s && world.tick - s.tick <= AI_INTEL.refreshAfter) return;
-    this.#intel.set(owner, {
-      tick: world.tick,
-      counts: { heavy: 0, light: 0, ranged: 0 },
-      total: 0,
-    });
+    this.#intelAttempt.set(owner, world.tick);
   }
 
   /**
