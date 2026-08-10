@@ -154,11 +154,22 @@ export function StartMenu(props: StartMenuProps) {
   // (see warmModel in strategist.ts) — and toggling off cancels it.
   const [llmWarm, setLlmWarm] = createSignal<import('../ai/strategist').LlmStatus | null>(null);
   let warmHandle: { dispose: () => void } | null = null;
+  // Set at cleanup: the dynamic import below may resolve after the menu
+  // has handed over to a match, and a warm-up started then would download
+  // with nobody left to dispose it.
+  let menuGone = false;
   const beginWarm = (): void => {
-    void import('../ai/strategist').then(({ warmModel }) => {
-      // The toggle may have flipped back while the chunk loaded.
-      if (llm() && !warmHandle) warmHandle = warmModel(setLlmWarm);
-    });
+    void import('../ai/strategist')
+      .then(({ warmModel }) => {
+        // The toggle may have flipped back — or the menu may be gone —
+        // while the chunk loaded.
+        if (llm() && !warmHandle && !menuGone) warmHandle = warmModel(setLlmWarm);
+      })
+      .catch(() => {
+        // The strategist chunk itself failed to fetch (offline, deploy in
+        // flight): same story as a failed model download.
+        if (!menuGone) setLlmWarm({ state: 'failed', reason: 'strategist code failed to load' });
+      });
   };
   const setLlmAndWarm = (on: boolean): void => {
     setLlm(on);
@@ -170,7 +181,10 @@ export function StartMenu(props: StartMenuProps) {
     if (on) beginWarm();
   };
   if (llm()) beginWarm();
-  onCleanup(() => warmHandle?.dispose());
+  onCleanup(() => {
+    menuGone = true;
+    warmHandle?.dispose();
+  });
   const llmHint = (): string => {
     const s = llmWarm();
     if (s?.state === 'loading') return `Downloading the model — ${s.pct}%`;
