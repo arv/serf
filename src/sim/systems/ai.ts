@@ -137,6 +137,14 @@ export class AiBrain {
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
+  /**
+   * Knobs laid over the playbook — the LLM strategist's dial (src/ai/).
+   * Worker memory only, never serialized: the world's determinism story is
+   * untouched because overrides reach the sim solely through the commands
+   * this brain already emits, and a reloaded save simply runs the printed
+   * playbook until the next advice lands.
+   */
+  #override: Partial<AiStrategy> | null = null;
   /** What this seat has actually observed — the same filter humans play
    * under. Recomputed at every decision beat, remembered between them. */
   #vision = new SeatVision();
@@ -171,6 +179,33 @@ export class AiBrain {
     this.strategy = strategy;
   }
 
+  /** Lay advice over the playbook (null clears it). The caller vouches for
+   * the values — parseAdvice in src/ai/advice.ts is the gate. */
+  setOverride(override: Partial<AiStrategy> | null): void {
+    this.#override = override;
+  }
+
+  /**
+   * What this seat has observed, for the LLM strategist's summary
+   * (src/ai/summary.ts) — the strategist must know exactly what the brain
+   * knows, no more. As of the last decision beat, so at most one beat
+   * stale; read-only by convention.
+   */
+  get vision(): SeatVision {
+    return this.#vision;
+  }
+
+  /** Copies of the current intel pictures, freshness included: the summary
+   * shows the model stale sightings AS stale rather than hiding them. */
+  intelReport(): { owner: Owner; tick: number; total: number; counts: Sighting['counts'] }[] {
+    return [...this.#intel].map(([owner, s]) => ({
+      owner,
+      tick: s.tick,
+      total: s.total,
+      counts: { ...s.counts },
+    }));
+  }
+
   /** Is `tick` one of this seat's decision beats? (Seats stagger so two
    * brains never fire on the same tick.) */
   shouldDecide(tick: number): boolean {
@@ -181,7 +216,7 @@ export class AiBrain {
   /** Read the world, emit this beat's commands. Pure apart from the brain's
    * own pacing memory. */
   decide(world: World): SimCommand[] {
-    const s = this.strategy;
+    const s = this.#override ? { ...this.strategy, ...this.#override } : this.strategy;
     const p = world.players[this.playerId];
     if (!p || !p.alive || world.outcome.state !== 'playing') return [];
     this.#vision.recompute(world, this.playerId);

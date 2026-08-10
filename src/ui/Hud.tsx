@@ -28,6 +28,7 @@ import {
   debugJobs,
   debugOpen,
   invariantViolations,
+  llmStatus,
   myPlayerId,
   netMode,
   netStatus,
@@ -112,6 +113,15 @@ export function Hud(props: {
     return Array.isArray(req) ? req.some((t) => researched.includes(t)) : researched.includes(req);
   };
   const soloMode = (): boolean => playersMeta().length <= 1;
+  /** The strategist badge's one line, or null for no badge. Discriminates
+   * on state: only loading and ready have anything to show — a failure is
+   * a one-time toast, not a standing shrug. */
+  const llmBadge = (): string | null => {
+    const s = llmStatus();
+    if (s?.state === 'loading') return `Strategist: downloading ${s.pct}%`;
+    if (s?.state === 'ready') return 'Strategist: on';
+    return null;
+  };
   /** This seat has fallen while the match plays on (multiplayer). */
   const eliminated = (): boolean =>
     outcome().state === 'playing' && playersMeta()[myPlayerId()]?.alive === false;
@@ -369,6 +379,10 @@ export function Hud(props: {
           border-color: rgba(214, 106, 80, 0.5); color: #f0b9a8; max-width: 70vw;
         }
         .hud-festival { position: absolute; top: 56px; right: 12px; padding: 6px 12px; pointer-events: auto; }
+        /* The LLM strategist's little health line: download progress while
+           the model fetches, a short-lived "on" once it answers. Left side,
+           clear of the festival banner and the toasts on the right. */
+        .hud-llm { position: absolute; top: 56px; left: 12px; padding: 6px 12px; opacity: 0.85; }
         .hud-toasts {
           position: absolute; top: 96px; right: 12px; display: flex;
           flex-direction: column; gap: 6px; align-items: flex-end;
@@ -789,6 +803,8 @@ export function Hud(props: {
       <Show when={techs().festivalTicksLeft > 0}>
         <div class="hud-festival panel">Festival! Everyone works faster</div>
       </Show>
+
+      <Show when={llmBadge()}>{(text) => <div class="hud-llm panel">{text()}</div>}</Show>
 
       <div class="hud-toasts">
         <For each={toasts()}>{(t) => <div class="panel toast">{t.text}</div>}</For>

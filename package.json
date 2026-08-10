@@ -1,6 +1,6 @@
 {
   "name": "serf",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "A medieval Settlers-like RTS in the browser",
   "private": true,
   "type": "module",
@@ -23,6 +23,7 @@
   },
   "license": "ISC",
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.84",
     "solid-js": "^1.9.14",
     "three": "^0.185.1"
   },

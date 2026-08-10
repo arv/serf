@@ -7,7 +7,9 @@ import type {
   StructuralUpdate,
   WorkerToMain,
 } from '../protocol/messages';
+import type { AiWorldSummary } from '../ai/summary';
 import type { SimCommand } from '../sim/commands';
+import type { AiStrategy } from '../sim/defs/aiStrategies';
 import type { GameConfig } from './gameConfig';
 import type { NetInfo } from '../protocol/messages';
 
@@ -35,6 +37,10 @@ export interface SimHost {
   requestSave(): Promise<string>;
   onStructural(cb: (msg: StructuralUpdate) => void): void;
   onNetStatus?(cb: (status: NetStatus) => void): void;
+  /** LLM strategist plumbing (solo, when the config asked for it): seat
+   * summaries coming up, validated advice going down. */
+  onAiSummary?(cb: (playerId: number, summary: AiWorldSummary) => void): void;
+  sendAiAdvice?(playerId: number, override: Partial<AiStrategy>): void;
 }
 
 export class WorkerSimHost implements SimHost {
@@ -49,6 +55,7 @@ export class WorkerSimHost implements SimHost {
   #structuralCb: ((msg: StructuralUpdate) => void) | null = null;
   #saveCb: ((data: string) => void) | null = null;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
+  #aiSummaryCb: ((playerId: number, summary: AiWorldSummary) => void) | null = null;
   /** Seat the UI's commands are issued as. */
   playerId = 0;
 
@@ -84,11 +91,19 @@ export class WorkerSimHost implements SimHost {
           this.#saveCb = null;
         } else if (msg.type === 'netStatus') {
           this.#netStatusCb?.(msg.status);
+        } else if (msg.type === 'aiSummary') {
+          this.#aiSummaryCb?.(msg.playerId, msg.summary);
         } else if (msg.type === 'log') {
           console.log(msg.message);
         }
       };
-      this.#worker.postMessage({ type: 'init', config, loadData, net } satisfies MainToWorker);
+      this.#worker.postMessage({
+        type: 'init',
+        config,
+        loadData,
+        net,
+        llm: config.llmOpponent,
+      } satisfies MainToWorker);
     });
   }
 
@@ -105,6 +120,14 @@ export class WorkerSimHost implements SimHost {
 
   onNetStatus(cb: (status: NetStatus) => void): void {
     this.#netStatusCb = cb;
+  }
+
+  onAiSummary(cb: (playerId: number, summary: AiWorldSummary) => void): void {
+    this.#aiSummaryCb = cb;
+  }
+
+  sendAiAdvice(playerId: number, override: Partial<AiStrategy>): void {
+    this.#post({ type: 'aiAdvice', playerId, override });
   }
 
   sendCommands(commands: SimCommand[]): void {

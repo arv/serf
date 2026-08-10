@@ -19,6 +19,7 @@ import { mountHud } from '../ui/mount';
 import {
   myPlayerId,
   playersMeta,
+  setLlmStatus,
   setMyPlayerId,
   setNetMode,
   setNetStatus,
@@ -219,6 +220,33 @@ async function startNetMatch(lobby: LobbyResult): Promise<void> {
 }
 
 /**
+ * Boot the LLM strategist beside a solo match: model in a worker via
+ * WebLLM, summaries up from the sim worker, validated advice back down.
+ * Every failure mode ends the same way — the AI seats keep playing their
+ * playbooks and the player hears about it once.
+ */
+async function bootLlmStrategist(host: WorkerSimHost): Promise<void> {
+  const { LlmStrategist } = await import('../ai/strategist');
+  const strategist = new LlmStrategist({
+    sendAdvice: (playerId, override) => host.sendAiAdvice(playerId, override),
+    onStatus: (status) => {
+      if (status.state === 'failed') {
+        // The badge would just be a standing shrug; say it once and move on.
+        console.warn(`[strategist] ${status.reason}`);
+        pushToast('The LLM strategist is unavailable — opponents use standard tactics');
+        setLlmStatus(null);
+        return;
+      }
+      setLlmStatus(status);
+      // "On" has nothing more to report; linger long enough to be seen.
+      if (status.state === 'ready') setTimeout(() => setLlmStatus(null), 10_000);
+    },
+  });
+  host.onAiSummary((playerId, summary) => strategist.onSummary(playerId, summary));
+  await strategist.start();
+}
+
+/**
  * The match itself: worker, renderer, HUD and the frame loop. Reached
  * either from a launch URL or from the council handing over in place, and
  * exactly once per page either way — everything below assumes it owns the
@@ -234,6 +262,17 @@ async function runMatch(
   holdServiceWorkerUpdates();
   setMyPlayerId(config.myPlayerId);
   setNetMode(net !== undefined);
+
+  // The LLM strategist is browser inference on WebGPU, so it only exists
+  // where the browser owns the world (solo) and the GPU answers. Asked for
+  // without either, the seats play their plain playbooks — said out loud,
+  // not silently. The worker is told only when a strategist will actually
+  // listen, so it never builds summaries for nobody.
+  const llm = config.llmOpponent === true && net === undefined && 'gpu' in navigator;
+  if (config.llmOpponent && !llm && net === undefined) {
+    pushToast('The LLM strategist needs WebGPU — opponents use standard tactics');
+  }
+  config = { ...config, llmOpponent: llm };
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   // The context comes first, before the world is built and the models are
@@ -304,6 +343,10 @@ async function runMatch(
   // one. Sent through the host so this line, too, needn't know which.
   document.addEventListener('visibilitychange', () => host.setHidden(document.hidden));
   host.setHidden(document.hidden);
+  // Fire-and-forget beside the match: the model downloads while the game
+  // already runs on plain playbooks, and the first advice lands whenever it
+  // lands. Dynamic import, so no strategist means none of its code either.
+  if (llm) void bootLlmStrategist(host);
   // Character/building GLBs load while the world is prepared; if they fail,
   // the renderer falls back to the procedural models.
   const [init] = await Promise.all([
