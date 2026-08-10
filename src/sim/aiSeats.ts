@@ -48,6 +48,12 @@ export class AiSeats {
     this.#brains.find((b) => b.playerId === playerId)?.setOverride(override);
   }
 
+  /** One seat's brain — how the LLM summary reads what the seat has
+   * scouted (vision + intel) instead of the raw world. */
+  brainFor(playerId: Owner): AiBrain | undefined {
+    return this.#brains.find((b) => b.playerId === playerId);
+  }
+
   /** This tick's AI orders, ready to apply alongside the players'. */
   decide(world: World): PlayerCommand[] {
     const out: PlayerCommand[] = [];

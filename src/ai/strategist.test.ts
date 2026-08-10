@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createWorld } from '../sim/world.ts';
+import { AiBrain } from '../sim/systems/ai.ts';
+import { strategyOf } from '../sim/defs/aiStrategies.ts';
 import { LlmStrategist, type ChatEngine, type LlmStatus } from './strategist.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 
@@ -46,7 +48,9 @@ class FakeWorker {
 
 function testSummary(): AiWorldSummary {
   const world = createWorld({ seed: 5, players: [{ kind: 'human' }, { kind: 'ai' }] });
-  return summarizeForSeat(world, 1);
+  const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy));
+  brain.decide(world); // one beat, so vision exists
+  return summarizeForSeat(world, brain);
 }
 
 interface Harness {

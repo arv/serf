@@ -185,6 +185,27 @@ export class AiBrain {
     this.#override = override;
   }
 
+  /**
+   * What this seat has observed, for the LLM strategist's summary
+   * (src/ai/summary.ts) — the strategist must know exactly what the brain
+   * knows, no more. As of the last decision beat, so at most one beat
+   * stale; read-only by convention.
+   */
+  get vision(): SeatVision {
+    return this.#vision;
+  }
+
+  /** Copies of the current intel pictures, freshness included: the summary
+   * shows the model stale sightings AS stale rather than hiding them. */
+  intelReport(): { owner: Owner; tick: number; total: number; counts: Sighting['counts'] }[] {
+    return [...this.#intel].map(([owner, s]) => ({
+      owner,
+      tick: s.tick,
+      total: s.total,
+      counts: { ...s.counts },
+    }));
+  }
+
   /** Is `tick` one of this seat's decision beats? (Seats stagger so two
    * brains never fire on the same tick.) */
   shouldDecide(tick: number): boolean {

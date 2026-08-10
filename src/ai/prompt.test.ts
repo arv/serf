@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createWorld } from '../sim/world.ts';
+import { AiBrain } from '../sim/systems/ai.ts';
+import { strategyOf } from '../sim/defs/aiStrategies.ts';
 import { buildMessages } from './prompt.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 
@@ -11,8 +13,23 @@ import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 
 function summaries(): { first: AiWorldSummary; later: AiWorldSummary } {
   const world = createWorld({ seed: 5, players: [{ kind: 'human' }, { kind: 'ai' }] });
-  const first = summarizeForSeat(world, 1);
-  const later = { ...first, minutes: first.minutes + 2, tick: first.tick + 2400 };
+  const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy));
+  brain.decide(world); // one beat, so vision exists
+  const first = summarizeForSeat(world, brain);
+  // Two minutes on, the scout has found the rival and taken a first look.
+  const later: AiWorldSummary = {
+    ...first,
+    minutes: first.minutes + 2,
+    tick: first.tick + 2400,
+    rivals: [
+      {
+        ...first.rivals[0]!,
+        found: true,
+        distance: 30,
+        intel: { ageTicks: 200, heavy: 2, light: 1, ranged: 0, total: 3 },
+      },
+    ],
+  };
   return { first, later };
 }
 
@@ -37,7 +54,11 @@ describe('buildMessages', () => {
     ]) {
       expect(messages[0]!.content).toContain(knob);
     }
-    // And the report carries the whole summary, not a paraphrase of it.
+    // And it teaches the fog: found rivals, intel age, scouting handled.
+    expect(messages[0]!.content).toContain('Fog of war');
+    expect(messages[0]!.content).toContain('found=false');
+    expect(messages[0]!.content).toContain('intel');
+    // The report carries the whole summary, not a paraphrase of it.
     expect(messages[1]!.content).toContain(JSON.stringify(first));
     expect(messages[1]!.content).toContain('first consultation');
   });
@@ -51,11 +72,13 @@ describe('buildMessages', () => {
     expect(without[1]!.content).toContain('printed values');
   });
 
-  it('carries the deltas since the previous consultation', () => {
+  it('calls out what scouting turned up since the previous consultation', () => {
     const { first, later } = summaries();
     const content = buildMessages(later, null, first)[1]!.content;
     expect(content).toContain('Since last consultation (2 min ago)');
-    expect(content).toContain('rival');
+    expect(content).toContain('FOUND, 30 tiles away');
+    expect(content).toContain('first sighting');
+    expect(content).toContain('3 soldiers (2 heavy, 1 light, 0 ranged)');
   });
 
   it('holds the token budget: the whole prompt stays small', () => {
@@ -63,8 +86,8 @@ describe('buildMessages', () => {
     const total = buildMessages(later, { armyAttackSize: 12 }, first)
       .map((m) => m.content)
       .join('').length;
-    // ~4 chars per token: 4000 chars keeps the prompt near the 800-token
+    // ~4 chars per token: 4500 chars keeps the prompt near the 900-token
     // budget the module header promises.
-    expect(total).toBeLessThan(4000);
+    expect(total).toBeLessThan(4500);
   });
 });

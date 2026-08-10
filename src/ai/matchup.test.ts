@@ -84,7 +84,8 @@ async function playAdvisedMatch(
     for (const [playerId, due] of summaryDue) {
       if (world.tick < due) continue;
       summaryDue.set(playerId, world.tick + ADVICE_PERIOD);
-      strategists.get(playerId)?.onSummary(playerId, summarizeForSeat(world, playerId));
+      const brain = seats.brainFor(playerId);
+      if (brain) strategists.get(playerId)?.onSummary(playerId, summarizeForSeat(world, brain));
       // The consultation is fire-and-forget; a scripted engine resolves in
       // a microtask, so one yield is the whole "inference latency".
       await new Promise((r) => setTimeout(r, 0));

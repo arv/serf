@@ -76,9 +76,10 @@ describe('the AI opponent', () => {
  * the brain actually plays differently.
  */
 describe('strategist overrides', () => {
-  /** Ticks until the brain first marches away from home — the observable a
-   * changed muster size moves. A rally is also a moveUnits, but it always
-   * targets the spot just south of the castle; a march goes elsewhere. */
+  /** Ticks until the brain first marches its army away from home — the
+   * observable a changed muster size moves. Under fog a brain also emits
+   * one-soldier scout errands and whole-army rallies to the spot south of
+   * the castle; a march is the whole muster ordered anywhere else. */
   function firstMarchTick(override: Partial<AiStrategy> | null, maxTicks: number): number {
     const world = createWorld({ seed: 20260724, players: [{ kind: 'ai', strategy: 'steward' }] });
     const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy));
@@ -88,7 +89,13 @@ describe('strategist overrides', () => {
     for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
       const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
       for (const cmd of commands) {
-        if (cmd.kind === 'moveUnits' && (cmd.x !== home.x || cmd.y !== home.y)) return world.tick;
+        if (
+          cmd.kind === 'moveUnits' &&
+          cmd.unitIds.length >= 3 &&
+          (cmd.x !== home.x || cmd.y !== home.y)
+        ) {
+          return world.tick;
+        }
       }
       tickWorld(
         world,

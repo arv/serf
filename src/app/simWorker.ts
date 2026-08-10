@@ -198,11 +198,14 @@ function pump(): void {
  * the tick loop on purpose: summaries are advisory, so "at least every
  * period" is the contract, not "on an exact tick". */
 function postSummaries(): void {
-  if (!world || !summaryDue || world.outcome.state !== 'playing') return;
+  if (!world || !ai || !summaryDue || world.outcome.state !== 'playing') return;
   for (const [playerId, due] of summaryDue) {
     if (world.tick < due) continue;
     summaryDue.set(playerId, world.tick + ADVICE_PERIOD);
-    post({ type: 'aiSummary', playerId, summary: summarizeForSeat(world, playerId) });
+    // Through the brain, not the raw world: the strategist may know only
+    // what the seat has scouted.
+    const brain = ai.brainFor(playerId);
+    if (brain) post({ type: 'aiSummary', playerId, summary: summarizeForSeat(world, brain) });
   }
 }
 

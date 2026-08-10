@@ -6,14 +6,16 @@ import { strategyOf } from '../sim/defs/aiStrategies.ts';
 import { summarizeForSeat } from './summary.ts';
 
 /**
- * The summary is the strategist's only eyes: what is covered here is that
- * it stays honest against a real match — counts that match the world,
- * distances that make sense — and that it stays small, because its size is
- * the model's latency.
+ * The summary is the strategist's only eyes, and the brain it serves plays
+ * under fog — so what is covered here is honesty in both directions: the
+ * seat's own village reported the way the world holds it, and everything
+ * across the fog reported only as far as scouting has actually seen. The
+ * omniscient leak (true rival armies off the raw world) is the regression
+ * this file exists to keep dead.
  */
 
 /** A skirmish driven by the real brains, far enough in to have villages. */
-function playedWorld(ticks: number): World {
+function playedWorld(ticks: number): { world: World; brains: AiBrain[] } {
   const world = createWorld({
     seed: 11,
     players: [{ kind: 'ai', strategy: 'steward' }, { kind: 'ai', strategy: 'warlord' }],
@@ -27,20 +29,20 @@ function playedWorld(ticks: number): World {
     }
     tickWorld(world, commands);
   }
-  return world;
+  return { world, brains };
 }
 
 describe('summarizeForSeat', () => {
-  it('reports a mid-game village the way the world holds it', () => {
-    const world = playedWorld(4_000);
-    const summary = summarizeForSeat(world, 0);
+  it('reports the seat\'s own village the way the world holds it', () => {
+    const { world, brains } = playedWorld(4_000);
+    const summary = summarizeForSeat(world, brains[0]!);
 
     expect(summary.tick).toBe(world.tick);
     expect(summary.minutes).toBe(Math.round(world.tick / 1200)); // 20 Hz
     expect(summary.seat).toMatchObject({ id: 0, strategyId: 'steward' });
     expect(summary.seat.knobs.armyAttackSize).toBe(strategyOf('steward').armyAttackSize);
 
-    // Counts agree with a straight scan of the world.
+    // Own counts agree with a straight scan — a seat always knows itself.
     const myBuildings = [...world.buildings.values()].filter((b) => !b.dead && b.owner === 0);
     const counted = Object.values(summary.me.buildings).reduce((a, n) => a + n, 0);
     expect(counted).toBe(myBuildings.length);
@@ -52,41 +54,74 @@ describe('summarizeForSeat', () => {
     // Stock carries no zero lines — dead weight in every prompt otherwise.
     expect(Object.values(summary.me.stock).every((n) => n > 0)).toBe(true);
 
-    // The rival is seat 1, seen from the outside: alive, at a distance.
-    expect(summary.rivals).toHaveLength(1);
-    expect(summary.rivals[0]).toMatchObject({ id: 1, alive: true });
-    expect(summary.rivals[0]!.distance).toBeGreaterThan(0);
-    expect(summary.rivals[0]!.buildings).toBeGreaterThan(0);
+    // The village lights its own surroundings, nothing more this early.
+    expect(summary.explored).toBeGreaterThan(0);
+    expect(summary.explored).toBeLessThan(0.6);
+  });
 
-    // The campaign map seeds a bandit camp; the seat can see how far.
-    expect(summary.bandits.camps).toBeGreaterThan(0);
-    expect(summary.bandits.nearestCamp).toBeGreaterThan(0);
+  it('reports across the fog only what scouting has seen', () => {
+    // Early: nobody has walked anywhere yet. The rival exists as a rumor —
+    // not found, no distance, no intel, no true army count anywhere.
+    const early = playedWorld(200);
+    const dark = summarizeForSeat(early.world, early.brains[0]!);
+    expect(dark.rivals).toHaveLength(1);
+    expect(dark.rivals[0]).toMatchObject({
+      id: 1,
+      alive: true,
+      found: false,
+      distance: -1,
+      intel: null,
+    });
+    expect(dark.rivals[0]).not.toHaveProperty('army'); // the omniscient leak
+    expect(dark.bandits.camps).toBe(0); // the camp sits in dark ground
+
+    // The same moment with the map fully explored (through the same getter
+    // the summary reads): everything scouting could deliver appears.
+    early.brains[0]!.vision.explored.fill(1);
+    const lit = summarizeForSeat(early.world, early.brains[0]!);
+    expect(lit.explored).toBe(1);
+    expect(lit.rivals[0]!.found).toBe(true);
+    expect(lit.rivals[0]!.distance).toBeGreaterThan(0);
+    expect(lit.rivals[0]!.buildings).toBeGreaterThan(0);
+    expect(lit.bandits.camps).toBeGreaterThan(0);
+    expect(lit.bandits.nearestCamp).toBeGreaterThan(0);
+    // Intel is a scout's sighting, not a map property: exploring ground
+    // does not conjure a look at an army nobody watched march.
+    expect(lit.rivals[0]!.intel).toBeNull();
+  });
+
+  it('carries intel as the brain holds it, age attached', () => {
+    const { world, brains } = playedWorld(12_000);
+    for (const brain of brains) {
+      const summary = summarizeForSeat(world, brain);
+      for (const rival of summary.rivals) {
+        if (rival.intel === null) continue;
+        expect(rival.intel.ageTicks).toBeGreaterThanOrEqual(0);
+        expect(rival.intel.ageTicks).toBeLessThanOrEqual(8_000); // trustFor
+        expect(rival.intel.heavy + rival.intel.light + rival.intel.ranged).toBe(
+          rival.intel.total,
+        );
+        expect(rival.intel.total).toBeGreaterThan(0);
+      }
+    }
   });
 
   it('stays under the prompt budget however the match sprawls', () => {
-    const world = playedWorld(12_000);
-    for (const p of world.players) {
-      expect(JSON.stringify(summarizeForSeat(world, p.id)).length).toBeLessThan(2000);
+    const { world, brains } = playedWorld(12_000);
+    for (const brain of brains) {
+      expect(JSON.stringify(summarizeForSeat(world, brain)).length).toBeLessThan(2000);
     }
-  });
-
-  it('mirrors the two seats: my army is the rival count seen from the other side', () => {
-    const world = playedWorld(12_000);
-    const mine = summarizeForSeat(world, 0);
-    const theirs = summarizeForSeat(world, 1);
-    const myArmy = mine.me.army.knight + mine.me.army.spearman + mine.me.army.archer;
-    expect(theirs.rivals[0]!.army).toBe(myArmy);
-    expect(mine.rivals[0]!.distance).toBe(theirs.rivals[0]!.distance);
   });
 
   it('does not crash on a seat whose castle has fallen', () => {
-    const world = playedWorld(500);
+    const { world, brains } = playedWorld(500);
     for (const b of world.buildings.values()) {
       if (b.owner === 0 && b.type === 'storehouse') b.dead = true;
     }
-    const summary = summarizeForSeat(world, 0);
+    const summary = summarizeForSeat(world, brains[0]!);
     expect(summary.me.stock).toEqual({});
     expect(summary.rivals[0]!.distance).toBe(-1);
     expect(summary.bandits.nearestCamp).toBe(-1);
+    expect(summary.me.underAttack).toBe(false);
   });
 });
