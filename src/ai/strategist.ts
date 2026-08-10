@@ -6,93 +6,60 @@ import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 /**
  * The LLM strategist: the main-thread controller that turns seat summaries
  * from the sim worker into playbook advice, by way of a small language
- * model running in its own worker (llmWorker.ts).
+ * model running on the CPU (llama.cpp via wllama, whose compute lives in
+ * its own worker with wasm threads).
+ *
+ * CPU on purpose. The first cut ran WebGPU inference, and the game froze
+ * on every consultation: the model and the renderer shared one GPU, and a
+ * prompt's prefill starved WebGL of the frames the valley is drawn with.
+ * A CPU model is slower to answer — tens of seconds instead of a few —
+ * but the strategist is fire-and-forget on a slow cadence, so nobody is
+ * waiting; what matters is that thinking never costs a frame. The wasm
+ * threads wllama wants come free here: the app already ships
+ * cross-origin isolation for its SharedArrayBuffer hot path.
  *
  * Built to lose gracefully, because everything about it is best-effort:
- * the model is a ~600 MB download that may never finish, WebGPU may be
- * missing, inference takes seconds and may return nonsense. So the brain
- * never waits — it plays its playbook until advice lands — and any failure
- * just means the advice stops coming. Three strikes and the strategist
- * goes permanently inert for the match, telling the UI why.
+ * the model is a ~400 MB download that may never finish, inference may
+ * time out or return nonsense. So the brain never waits — it plays its
+ * playbook until advice lands — and any failure just means the advice
+ * stops coming. Three strikes and the strategist goes permanently inert
+ * for the match, telling the UI why.
  *
  * Advice accumulates per seat: the model is told to reply only with the
  * knobs it wants changed, so each reply merges over the last and the whole
- * pile is what rides down to the brain.
+ * pile is what rides down to the brain. One consultation runs at a time
+ * ACROSS seats — a second model chewing in parallel would double the CPU
+ * bill for advice that can wait a beat.
  *
  * Nothing here persists. A reloaded save plays the printed playbook until
- * the next consultation (~45 s) — documented, accepted.
+ * the next consultation — documented, accepted.
  */
 
-/** ~1 GB of VRAM, quick answers, and in WebLLM's prebuilt list. */
-export const LLM_MODEL_ID = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC';
+/** Small enough that CPU prefill stays in seconds, and in llama.cpp's
+ * best-supported format. ~400 MB, cached by wllama after the first game. */
+export const LLM_MODEL_URL =
+  'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf';
 
-/** An inference reply that takes this long is a machine that cannot run
- * the model usefully; counted as a failure rather than waited out. */
-const DEFAULT_TIMEOUT_MS = 30_000;
+/** CPU inference is slow but must not be unbounded: a consultation that
+ * cannot finish inside this is a machine too weak to advise on. */
+const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_CONSECUTIVE_FAILURES = 3;
+/** Short replies: a handful of JSON knobs, decoded on a CPU. */
+const MAX_TOKENS = 128;
+/** Room for the ~900-token prompt and the reply, nothing more — context
+ * is memory, and llama.cpp allocates it up front. */
+const N_CTX = 2048;
 
-export function webgpuAvailable(): boolean {
-  return typeof navigator !== 'undefined' && 'gpu' in navigator;
-}
-
-/**
- * Warm the model cache from the start menu, so the download runs while the
- * player is still picking opponents instead of through the opening minutes
- * of the match. WebLLM keeps weights in Cache storage, which survives the
- * page reload a solo launch does — so the match-side strategist simply
- * finds them on disk and reaches ready in seconds. A launch mid-download
- * loses nothing either: the partial cache persists and the match fetches
- * only what is missing.
- *
- * The engine is built solely for its download side effect: the moment it
- * is ready the worker is terminated, because a menu must not sit on a
- * model's worth of VRAM. An already-warm cache skips the engine entirely.
- */
-export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () => void } {
-  let worker: Worker | null = null;
-  let disposed = false;
-  const report = (status: LlmStatus): void => {
-    if (!disposed) onStatus(status);
-  };
-  void (async () => {
-    try {
-      const webllm = await import('@mlc-ai/web-llm');
-      if (await webllm.hasModelInCache(LLM_MODEL_ID)) {
-        report({ state: 'ready' });
-        return;
-      }
-      if (disposed) return;
-      worker = new Worker(new URL('./llmWorker.ts', import.meta.url), { type: 'module' });
-      await webllm.CreateWebWorkerMLCEngine(worker, LLM_MODEL_ID, {
-        initProgressCallback: (r) =>
-          report({ state: 'loading', pct: Math.round(r.progress * 100), text: r.text }),
-      });
-      report({ state: 'ready' });
-    } catch (err) {
-      report({
-        state: 'failed',
-        reason: `model failed to download: ${err instanceof Error ? err.message : String(err)}`,
-      });
-    } finally {
-      // Ready, failed or disposed alike: the cache is whatever it is now,
-      // and the menu holds no GPU either way.
-      worker?.terminate();
-      worker = null;
-    }
-  })();
-  return {
-    dispose: (): void => {
-      disposed = true;
-      worker?.terminate();
-      worker = null;
-    },
-  };
+/** Wasm threads want SharedArrayBuffer, which the app's cross-origin
+ * isolation already guarantees everywhere it boots at all. */
+export function llmSupported(): boolean {
+  return typeof SharedArrayBuffer !== 'undefined';
 }
 
 /** The one seam the engine is used through — tests inject a fake and the
- * whole strategist runs without WebLLM, WebGPU, or a worker. */
+ * whole strategist runs without wllama or a model. */
 export interface ChatEngine {
-  complete(messages: ChatMessage[], schemaJson: string): Promise<string>;
+  complete(messages: ChatMessage[], schemaJson: string, signal?: AbortSignal): Promise<string>;
 }
 
 export type LlmStatus =
@@ -114,7 +81,7 @@ export interface LlmStrategistOpts {
   /** Validated, clamped advice for one seat — wire to SimHost.sendAiAdvice. */
   sendAdvice: (playerId: number, override: Partial<AiStrategy>) => void;
   onStatus: (status: LlmStatus) => void;
-  /** Test injection; the default builds the real WebLLM worker engine. */
+  /** Test injection; the default builds the real wllama engine. */
   engineFactory?: () => Promise<ChatEngine>;
   timeoutMs?: number;
 }
@@ -122,9 +89,12 @@ export interface LlmStrategistOpts {
 export class LlmStrategist {
   #opts: LlmStrategistOpts;
   #engine: ChatEngine | null = null;
-  #worker: Worker | null = null;
+  /** The live wllama instance, for freeing its worker and model memory. */
+  #wllama: { exit(): Promise<void> } | null = null;
   #seats = new Map<number, SeatMemory>();
   #failures = 0;
+  /** One consultation at a time across every seat — the load-shedding. */
+  #thinking = false;
   #dead = false;
   #disposed = false;
 
@@ -146,10 +116,11 @@ export class LlmStrategist {
   }
 
   /** A seat's summary arrived from the sim worker. Fire-and-forget: if the
-   * engine is missing, dead, or already thinking about this seat, the
-   * summary is simply dropped — another comes along in ~45 s. */
+   * engine is missing, dead, or a consultation is already running — this
+   * seat's or anyone's — the summary is simply dropped; another comes
+   * along on the next cadence. */
   onSummary(playerId: number, summary: AiWorldSummary): void {
-    if (!this.#engine || this.#dead || this.#disposed) return;
+    if (!this.#engine || this.#dead || this.#disposed || this.#thinking) return;
     let seat = this.#seats.get(playerId);
     if (!seat) {
       seat = { busy: false, advice: null, sentKey: null, prevSummary: null };
@@ -157,21 +128,21 @@ export class LlmStrategist {
     }
     if (seat.busy) return;
     seat.busy = true;
+    this.#thinking = true;
     void this.#consult(playerId, seat, summary);
   }
 
   dispose(): void {
     this.#disposed = true;
     this.#engine = null;
-    this.#worker?.terminate();
-    this.#worker = null;
+    this.#releaseWllama();
   }
 
   async #consult(playerId: number, seat: SeatMemory, summary: AiWorldSummary): Promise<void> {
     try {
       const messages = buildMessages(summary, seat.advice, seat.prevSummary);
-      const raw = await this.#withTimeout(
-        this.#engine!.complete(messages, JSON.stringify(ADVICE_JSON_SCHEMA)),
+      const raw = await this.#withTimeout((signal) =>
+        this.#engine!.complete(messages, JSON.stringify(ADVICE_JSON_SCHEMA), signal),
       );
       const advice = parseAdvice(raw);
       if (advice === null) throw new Error(`unparseable advice: ${raw.slice(0, 120)}`);
@@ -199,15 +170,23 @@ export class LlmStrategist {
       }
     } finally {
       seat.busy = false;
+      this.#thinking = false;
       seat.prevSummary = summary;
     }
   }
 
-  #withTimeout(work: Promise<string>): Promise<string> {
+  /** Run one consultation under the clock. The signal reaches the engine
+   * so a timeout actually stops the model chewing — an abandoned CPU
+   * inference would otherwise keep burning cores for nobody. */
+  #withTimeout(work: (signal: AbortSignal) => Promise<string>): Promise<string> {
     const ms = this.#opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const controller = new AbortController();
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`inference timed out (${ms}ms)`)), ms);
-      work.then(
+      const timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error(`inference timed out (${ms}ms)`));
+      }, ms);
+      work(controller.signal).then(
         (v) => {
           clearTimeout(timer);
           resolve(v);
@@ -223,44 +202,61 @@ export class LlmStrategist {
   #fail(reason: string): void {
     this.#dead = true;
     this.#engine = null;
-    // Inert is inert: a strategist that gave up must not keep a worker —
-    // and the model's VRAM — alive for the rest of the match.
-    this.#worker?.terminate();
-    this.#worker = null;
+    // Inert is inert: a strategist that gave up must not keep the model —
+    // and its memory and worker — alive for the rest of the match.
+    this.#releaseWllama();
     if (!this.#disposed) this.#opts.onStatus({ state: 'failed', reason });
   }
 
-  /** The real thing: WebLLM in its own worker, engine package loaded only
-   * now — no LLM opponent, no megabytes of inference glue. */
+  #releaseWllama(): void {
+    const wllama = this.#wllama;
+    this.#wllama = null;
+    if (wllama) void wllama.exit().catch(() => {});
+  }
+
+  /** The real thing: wllama loaded only now — no LLM opponent, none of
+   * its code or wasm either. The engine keeps the schema constraint as
+   * long as it compiles; a model+schema pair that fails at runtime falls
+   * back to plain JSON mode, where parseAdvice was the real gate anyway. */
   async #buildEngine(): Promise<ChatEngine> {
-    const webllm = await import('@mlc-ai/web-llm');
-    this.#worker = new Worker(new URL('./llmWorker.ts', import.meta.url), { type: 'module' });
-    const engine = await webllm.CreateWebWorkerMLCEngine(this.#worker, LLM_MODEL_ID, {
-      initProgressCallback: (report) => {
-        if (!this.#disposed) {
+    // The built entry, not the package root: the package also ships its
+    // .ts sources, which the root specifier resolves to — dragging their
+    // code into this project's (stricter) typecheck.
+    const [{ Wllama, LoggerWithoutDebug }, wasm] = await Promise.all([
+      import('@wllama/wllama/esm/index.js'),
+      import('@wllama/wllama/esm/wasm/wllama.wasm?url'),
+    ]);
+    const wllama = new Wllama(
+      { default: wasm.default },
+      { logger: LoggerWithoutDebug, allowOffline: true },
+    );
+    this.#wllama = wllama;
+    await wllama.loadModelFromUrl(LLM_MODEL_URL, {
+      n_ctx: N_CTX,
+      progressCallback: ({ loaded, total }) => {
+        if (!this.#disposed && total > 0) {
           this.#opts.onStatus({
             state: 'loading',
-            pct: Math.round(report.progress * 100),
-            text: report.text,
+            pct: Math.round((loaded / total) * 100),
+            text: 'downloading model',
           });
         }
       },
     });
-    // Schema-constrained JSON (xgrammar) is supported by the engine, but
-    // whether a given model + schema actually compiles is a runtime
-    // question. If it breaks, plain json_object mode is nearly as good —
-    // parseAdvice treats every reply as hostile regardless — and far
-    // better than three constrained failures making the strategist inert.
     let schemaBroken = false;
     return {
-      complete: async (messages, schemaJson) => {
+      complete: async (messages, schemaJson, signal) => {
         const ask = (withSchema: boolean) =>
-          engine.chat.completions.create({
+          wllama.createChatCompletion({
             messages,
             temperature: 0.6,
-            max_tokens: 192,
+            max_tokens: MAX_TOKENS,
+            abortSignal: signal,
             response_format: withSchema
-              ? { type: 'json_object', schema: schemaJson }
+              ? {
+                  type: 'json_schema',
+                  json_schema: { name: 'advice', schema: JSON.parse(schemaJson) as unknown },
+                }
               : { type: 'json_object' },
           });
         let reply;
@@ -270,6 +266,7 @@ export class LlmStrategist {
           try {
             reply = await ask(true);
           } catch (err) {
+            if (signal?.aborted) throw err instanceof Error ? err : new Error(String(err));
             schemaBroken = true;
             console.warn(
               `[strategist] schema-constrained generation failed, ` +
@@ -282,4 +279,58 @@ export class LlmStrategist {
       },
     };
   }
+}
+
+/**
+ * Warm the model cache from the start menu, so the download runs while the
+ * player is still picking opponents instead of through the opening minutes
+ * of the match. Pure download — wllama's ModelManager writes the GGUF into
+ * cache storage without loading a byte of it, so the menu spends no CPU
+ * and no memory beyond the fetch. The cache survives the launch reload;
+ * the match-side strategist finds the file on disk and skips the network.
+ * A launch mid-download keeps the partial cache and the match fetches only
+ * what is missing.
+ */
+export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () => void } {
+  const controller = new AbortController();
+  let disposed = false;
+  const report = (status: LlmStatus): void => {
+    if (!disposed) onStatus(status);
+  };
+  void (async () => {
+    try {
+      const { ModelManager } = await import('@wllama/wllama/esm/index.js');
+      const manager = new ModelManager();
+      const models = await manager.getModels();
+      if (models.some((m) => m.url === LLM_MODEL_URL)) {
+        report({ state: 'ready' });
+        return;
+      }
+      if (disposed) return;
+      await manager.downloadModel(LLM_MODEL_URL, {
+        signal: controller.signal,
+        progressCallback: ({ loaded, total }) => {
+          if (total > 0) {
+            report({
+              state: 'loading',
+              pct: Math.round((loaded / total) * 100),
+              text: 'downloading model',
+            });
+          }
+        },
+      });
+      report({ state: 'ready' });
+    } catch (err) {
+      report({
+        state: 'failed',
+        reason: `model failed to download: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  })();
+  return {
+    dispose: (): void => {
+      disposed = true;
+      controller.abort();
+    },
+  };
 }

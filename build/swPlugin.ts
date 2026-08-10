@@ -28,14 +28,15 @@ const ASSET_PREFIX = '/models/';
 const SKIP = /\.(map|txt)$/;
 
 /**
- * The WebLLM chunks — the 'llm' manual chunk and the llmWorker entry
- * (vite.config.ts names them so). Megabytes of inference glue that only
- * the opt-in LLM opponent ever fetches: in the shell list, `addAll` would
- * force them onto every visitor's disk at install. Not cached at all — the
- * model's weights live in WebLLM's own cache, and a strategist that cannot
- * be fetched offline degrades to the playbook AI by design.
+ * The LLM inference files — the 'llm' manual chunk (vite.config.ts names
+ * wllama's code so) and wllama's wasm asset, which keeps its own name.
+ * Megabytes that only the opt-in LLM opponent ever fetches: in the shell
+ * list, `addAll` would force them onto every visitor's disk at install.
+ * Not cached at all — the model itself lives in wllama's own cache, and a
+ * strategist that cannot be fetched offline degrades to the playbook AI
+ * by design.
  */
-const LLM_CHUNK = /^\/assets\/llm[^/]*\.js$/;
+const LLM_CHUNK = /^\/assets\/(llm|wllama)[^/]*\.(js|wasm)$/;
 
 function walk(dir: string, root: string, out: string[]): string[] {
   for (const entry of readdirSync(dir)) {

@@ -6,45 +6,69 @@ import { LlmStrategist, warmModel, type ChatEngine, type LlmStatus } from './str
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 
 /**
- * The engine-adapter tests at the bottom go through the strategist's real
- * #buildEngine path, so the WebLLM module is mocked at the boundary: the
- * mock stands in for CreateWebWorkerMLCEngine and delegates to whatever
- * behavior the test hangs on `engineMock.create`. Tests that inject their
- * own engineFactory never touch this.
+ * The engine-adapter and warmModel tests go through the strategist's real
+ * #buildEngine / download paths, so the wllama module is mocked at the
+ * boundary: a stand-in Wllama class whose chat behavior each test hangs
+ * on `wllamaMock.chat`, and a stand-in ModelManager over an in-memory
+ * cache. Tests that inject their own engineFactory never touch this.
  */
-type CreateReq = { response_format?: { type?: string; schema?: string } };
-type CreateReply = { choices: { message: { content: string } }[] };
-type CreateOpts = { initProgressCallback?: (r: { progress: number; text: string }) => void };
-const engineMock = vi.hoisted(() => ({
-  create: (() => Promise.reject(new Error('engineMock.create unset'))) as (
-    req: CreateReq,
-  ) => Promise<CreateReply>,
-  /** What hasModelInCache answers (warmModel's fast path). */
-  hasCache: false,
-  /** Override the engine construction itself; null = default success. */
-  createEngine: null as null | ((opts?: CreateOpts) => Promise<unknown>),
+type ChatOpts = {
+  response_format?: { type?: string };
+  abortSignal?: AbortSignal;
+};
+type ChatReply = { choices: { message: { content: string } }[] };
+type Progress = (p: { loaded: number; total: number }) => void;
+const wllamaMock = vi.hoisted(() => ({
+  /** Every Wllama the adapter constructed, with its exit count. */
+  instances: [] as { exited: number }[],
+  loadFails: false,
+  /** The model's answer; null = tests must not reach inference. */
+  chat: null as null | ((opts: ChatOpts) => Promise<ChatReply>),
+  /** Model URLs ModelManager reports as already downloaded. */
+  cachedUrls: [] as string[],
+  downloads: [] as { url: string; signal: AbortSignal | undefined }[],
+  /** Override the download itself; null = instant success with progress. */
+  downloadGate: null as
+    | null
+    | ((opts?: { signal?: AbortSignal; progressCallback?: Progress }) => Promise<unknown>),
 }));
-vi.mock('@mlc-ai/web-llm', () => ({
-  hasModelInCache: () => Promise.resolve(engineMock.hasCache),
-  CreateWebWorkerMLCEngine: (_worker: unknown, _model: unknown, opts?: CreateOpts) =>
-    engineMock.createEngine
-      ? engineMock.createEngine(opts)
-      : Promise.resolve({
-          chat: { completions: { create: (req: CreateReq) => engineMock.create(req) } },
-        }),
+vi.mock('@wllama/wllama/esm/index.js', () => ({
+  LoggerWithoutDebug: {},
+  Wllama: class {
+    exited = 0;
+    constructor() {
+      wllamaMock.instances.push(this);
+    }
+    loadModelFromUrl(_url: string, params?: { progressCallback?: Progress }): Promise<void> {
+      if (wllamaMock.loadFails) return Promise.reject(new Error('403 from the weights CDN'));
+      params?.progressCallback?.({ loaded: 1, total: 2 });
+      return Promise.resolve();
+    }
+    createChatCompletion(opts: ChatOpts): Promise<ChatReply> {
+      if (!wllamaMock.chat) return Promise.reject(new Error('wllamaMock.chat unset'));
+      return wllamaMock.chat(opts);
+    }
+    exit(): Promise<void> {
+      this.exited++;
+      return Promise.resolve();
+    }
+  },
+  ModelManager: class {
+    getModels(): Promise<{ url: string }[]> {
+      return Promise.resolve(wllamaMock.cachedUrls.map((url) => ({ url })));
+    }
+    downloadModel(
+      url: string,
+      opts?: { signal?: AbortSignal; progressCallback?: Progress },
+    ): Promise<unknown> {
+      wllamaMock.downloads.push({ url, signal: opts?.signal });
+      if (wllamaMock.downloadGate) return wllamaMock.downloadGate(opts);
+      opts?.progressCallback?.({ loaded: 1, total: 4 });
+      return Promise.resolve({ url });
+    }
+  },
 }));
-
-/** Stands in for the DOM Worker the adapter constructs (node has none). */
-const workers: FakeWorker[] = [];
-class FakeWorker {
-  terminated = 0;
-  constructor(..._args: unknown[]) {
-    workers.push(this);
-  }
-  terminate(): void {
-    this.terminated++;
-  }
-}
+vi.mock('@wllama/wllama/esm/wasm/wllama.wasm?url', () => ({ default: 'wllama.wasm' }));
 
 /**
  * The strategist run against fake engines — the failure half is the point.
@@ -83,9 +107,12 @@ function harness(engine: ChatEngine, timeoutMs?: number): Harness {
 const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
 afterEach(() => {
-  vi.unstubAllGlobals();
-  engineMock.hasCache = false;
-  engineMock.createEngine = null;
+  wllamaMock.instances.length = 0;
+  wllamaMock.loadFails = false;
+  wllamaMock.chat = null;
+  wllamaMock.cachedUrls.length = 0;
+  wllamaMock.downloads.length = 0;
+  wllamaMock.downloadGate = null;
 });
 
 describe('LlmStrategist', () => {
@@ -195,34 +222,53 @@ describe('LlmStrategist', () => {
     expect(sent).toEqual([]);
   });
 
-  it('a permanent failure terminates the inference worker', async () => {
-    vi.stubGlobal('Worker', FakeWorker);
-    workers.length = 0;
-    engineMock.create = () => Promise.reject(new Error('device lost'));
+  it('a permanent failure frees the model and its worker', async () => {
+    wllamaMock.chat = () => Promise.reject(new Error('inference exploded'));
     const statuses: LlmStatus[] = [];
-    // No engineFactory: this runs the real WebLLM adapter over the mocks.
+    // No engineFactory: this runs the real wllama adapter over the mocks.
     const strategist = new LlmStrategist({
       sendAdvice: () => {},
       onStatus: (s) => statuses.push(s),
     });
     await strategist.start();
-    expect(workers).toHaveLength(1);
+    expect(wllamaMock.instances).toHaveLength(1);
     for (let i = 0; i < 3; i++) {
       strategist.onSummary(1, testSummary());
       await settle();
     }
     expect(statuses.at(-1)!.state).toBe('failed');
-    // Inert must not keep the model's worker — and its VRAM — alive.
-    expect(workers[0]!.terminated).toBe(1);
+    // Inert must not keep the model — and its memory — alive.
+    expect(wllamaMock.instances[0]!.exited).toBe(1);
+  });
+
+  it('one consultation at a time, across every seat', async () => {
+    let resolveReply!: (v: string) => void;
+    let calls = 0;
+    const { strategist, sent } = harness({
+      complete: () => {
+        calls++;
+        return new Promise((r) => {
+          resolveReply = r;
+        });
+      },
+    });
+    await strategist.start();
+    strategist.onSummary(1, testSummary());
+    strategist.onSummary(2, testSummary()); // another SEAT: still dropped
+    expect(calls).toBe(1);
+    resolveReply('{"homeGuard": 4}');
+    await settle();
+    expect(sent).toHaveLength(1);
+    strategist.onSummary(2, testSummary()); // free again afterwards
+    expect(calls).toBe(2);
   });
 
   it('falls back to plain JSON mode when the schema breaks the engine', async () => {
-    vi.stubGlobal('Worker', FakeWorker);
-    const schemaSeen: boolean[] = [];
-    engineMock.create = (req) => {
-      schemaSeen.push(req.response_format?.schema !== undefined);
-      if (req.response_format?.schema !== undefined) {
-        return Promise.reject(new Error('xgrammar: schema failed to compile'));
+    const formats: (string | undefined)[] = [];
+    wllamaMock.chat = (opts) => {
+      formats.push(opts.response_format?.type);
+      if (opts.response_format?.type === 'json_schema') {
+        return Promise.reject(new Error('grammar failed to compile'));
       }
       return Promise.resolve({ choices: [{ message: { content: '{"homeGuard": 6}' } }] });
     };
@@ -240,7 +286,17 @@ describe('LlmStrategist', () => {
     // A broken schema stays broken: the next consultation skips it.
     strategist.onSummary(1, testSummary());
     await settle();
-    expect(schemaSeen).toEqual([true, false, false]);
+    expect(formats).toEqual(['json_schema', 'json_object', 'json_object']);
+  });
+
+  it('a load that fails through the real adapter reports and frees the model', async () => {
+    wllamaMock.loadFails = true;
+    const statuses: LlmStatus[] = [];
+    const strategist = new LlmStrategist({ sendAdvice: () => {}, onStatus: (s) => statuses.push(s) });
+    await strategist.start();
+    expect(statuses.at(-1)).toMatchObject({ state: 'failed' });
+    expect((statuses.at(-1) as { reason: string }).reason).toContain('403');
+    expect(wllamaMock.instances[0]!.exited).toBe(1);
   });
 
   it('disposed mid-flight, it stops speaking', async () => {
@@ -261,69 +317,63 @@ describe('LlmStrategist', () => {
 });
 
 /**
- * warmModel: the start menu's prefetch. Same mocked module boundary — what
- * matters is that the cache fast-path builds nothing, the cold path frees
- * its worker the moment the download lands, and dispose (toggle off, menu
- * unmount) both kills the worker and silences the status stream.
+ * warmModel: the start menu's prefetch. Pure download through wllama's
+ * ModelManager — what matters is that the cache fast-path fetches nothing,
+ * a cold download reports progress and lands ready without ever building
+ * an engine, and dispose (toggle off, menu unmount) aborts the fetch and
+ * silences the status stream.
  */
 describe('warmModel', () => {
-  it('an already-cached model reports ready without touching a worker', async () => {
-    vi.stubGlobal('Worker', FakeWorker);
-    workers.length = 0;
-    engineMock.hasCache = true;
+  it('an already-cached model reports ready without downloading', async () => {
+    const { LLM_MODEL_URL } = await import('./strategist.ts');
+    wllamaMock.cachedUrls.push(LLM_MODEL_URL);
     const statuses: LlmStatus[] = [];
     warmModel((s) => statuses.push(s));
     await settle();
     expect(statuses).toEqual([{ state: 'ready' }]);
-    expect(workers).toHaveLength(0);
+    expect(wllamaMock.downloads).toHaveLength(0);
   });
 
-  it('a cold cache downloads through a worker, then frees it', async () => {
-    vi.stubGlobal('Worker', FakeWorker);
-    workers.length = 0;
-    engineMock.createEngine = (opts) => {
-      opts?.initProgressCallback?.({ progress: 0.5, text: 'fetching shard 3/9' });
-      return Promise.resolve({});
-    };
+  it('a cold cache downloads with progress, and never builds an engine', async () => {
     const statuses: LlmStatus[] = [];
     warmModel((s) => statuses.push(s));
     await settle();
-    expect(statuses[0]).toMatchObject({ state: 'loading', pct: 50 });
+    expect(statuses[0]).toMatchObject({ state: 'loading', pct: 25 });
     expect(statuses.at(-1)).toEqual({ state: 'ready' });
-    // The menu holds no GPU: the worker existed only for its download.
-    expect(workers).toHaveLength(1);
-    expect(workers[0]!.terminated).toBe(1);
+    expect(wllamaMock.downloads).toHaveLength(1);
+    // Download only — the menu spends no CPU and holds no model memory.
+    expect(wllamaMock.instances).toHaveLength(0);
   });
 
-  it('a failed download reports and frees the worker', async () => {
-    vi.stubGlobal('Worker', FakeWorker);
-    workers.length = 0;
-    engineMock.createEngine = () => Promise.reject(new Error('403 from the weights CDN'));
+  it('a failed download reports why', async () => {
+    wllamaMock.downloadGate = () => Promise.reject(new Error('403 from the weights CDN'));
     const statuses: LlmStatus[] = [];
     warmModel((s) => statuses.push(s));
     await settle();
     expect(statuses.at(-1)).toMatchObject({ state: 'failed' });
     expect((statuses.at(-1) as { reason: string }).reason).toContain('403');
-    expect(workers[0]!.terminated).toBe(1);
   });
 
-  it('disposed mid-download, it kills the worker and goes silent', async () => {
-    vi.stubGlobal('Worker', FakeWorker);
-    workers.length = 0;
-    let report: ((r: { progress: number; text: string }) => void) | undefined;
-    engineMock.createEngine = (opts) => {
-      report = opts?.initProgressCallback;
-      return new Promise(() => {}); // the download never finishes
-    };
+  it('disposed mid-download, it aborts the fetch and goes silent', async () => {
+    let report: Progress | undefined;
+    wllamaMock.downloadGate = (opts) =>
+      new Promise((_resolve, reject) => {
+        report = opts?.progressCallback;
+        opts?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      });
     const statuses: LlmStatus[] = [];
     const handle = warmModel((s) => statuses.push(s));
     await settle();
-    expect(workers).toHaveLength(1);
+    expect(wllamaMock.downloads).toHaveLength(1);
     handle.dispose();
-    expect(workers[0]!.terminated).toBe(1);
-    const seen = statuses.length;
-    report?.({ progress: 0.9, text: 'late shard' });
     await settle();
+    expect(wllamaMock.downloads[0]!.signal?.aborted).toBe(true);
+    const seen = statuses.length;
+    report?.({ loaded: 3, total: 4 });
+    await settle();
+    // The abort's rejection and the late progress both land after dispose:
+    // neither reaches the menu.
     expect(statuses).toHaveLength(seen);
+    expect(statuses.every((s) => s.state !== 'failed')).toBe(true);
   });
 });

@@ -135,10 +135,10 @@ export function StartMenu(props: StartMenuProps) {
   // One entry per opponent seat; undefined means 'let the seed deal it'.
   const [bots, setBots] = createSignal<(AiStrategyId | undefined)[]>([]);
   // The LLM strategist (an on-device model advising the AI seats). Off by
-  // default — it is a ~600 MB first-time download — and the row only exists
-  // where WebGPU does, since without it there is nothing to offer.
+  // default — it is a ~400 MB first-time download. CPU inference, so it
+  // needs no WebGPU; the wasm threads ride the cross-origin isolation the
+  // app already requires to boot.
   const [llm, setLlm] = createSignal(false);
-  const webgpu = 'gpu' in navigator;
   // The menu is the waiting room: flipping the toggle starts the model
   // download right here, so the weights are cached (or well underway) by
   // the time the match boots. The warm-up survives the launch reload —
@@ -162,7 +162,7 @@ export function StartMenu(props: StartMenuProps) {
     if (s?.state === 'loading') return `Downloading the model — ${s.pct}%`;
     if (s?.state === 'ready') return 'Model ready — opponents will consult it from the start';
     if (s?.state === 'failed') return 'Download failed — opponents will use standard tactics';
-    return 'Opponents consult an on-device language model (~600 MB one-time download)';
+    return 'Opponents consult an on-device language model (~400 MB one-time download)';
   };
   const [seed, setSeed] = createSignal(DEFAULT_SEED);
   const [bandits, setBandits] = createSignal(true);
@@ -531,7 +531,7 @@ export function StartMenu(props: StartMenuProps) {
                   </div>
                 </Show>
 
-                <Show when={ai() > 0 && webgpu}>
+                <Show when={ai() > 0}>
                   <div class="row">
                     <div>
                       <div class="row-label">LLM strategist (experimental)</div>

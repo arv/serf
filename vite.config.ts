@@ -47,18 +47,18 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // The WebLLM engine into its own 'llm-*' chunk: it is megabytes of
-        // inference glue that only the opt-in LLM opponent ever imports,
-        // and the service worker plugin recognizes llm chunks by this name
-        // to keep them out of the all-or-nothing shell precache.
-        manualChunks: (id) => (id.includes('@mlc-ai/web-llm') ? 'llm' : undefined),
+        // The wllama engine into its own 'llm-*' chunk: inference glue
+        // that only the opt-in LLM opponent ever imports, and the service
+        // worker plugin recognizes llm/wllama-named files to keep them out
+        // of the all-or-nothing shell precache (the 7 MB wasm keeps its
+        // own name as an asset).
+        manualChunks: (id) => (id.includes('@wllama/wllama') ? 'llm' : undefined),
       },
     },
   },
   // Prebundling the engine in dev drags a multi-MB dependency through
-  // esbuild on every cold start for a feature most sessions never touch —
-  // and web-llm's worker internals are a known prebundle headache.
-  optimizeDeps: { exclude: ['@mlc-ai/web-llm'] },
+  // esbuild on every cold start for a feature most sessions never touch.
+  optimizeDeps: { exclude: ['@wllama/wllama'] },
   server: { headers: crossOriginIsolation, port },
   preview: { headers: crossOriginIsolation, port },
   // Sim tests are headless node — no DOM environment needed or wanted.
