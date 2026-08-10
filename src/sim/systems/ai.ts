@@ -67,6 +67,16 @@ export const AI_PACING = {
   staleAfter: 20_000,
   stalePeriod: 2_000,
   staleFloor: 3,
+  /**
+   * Past staleness lies desperation. The impatience rule walks the bar
+   * down to `staleFloor`, but a war of mutual exhaustion can leave every
+   * surviving seat unable to field even that — seed 42 under fog reaches
+   * exactly there: one seat with two archers and no wood for a third bow,
+   * the other with no army and no silver, forever. After this long without
+   * a march the floor gives way too, and a seat sends whatever it has —
+   * two archers razing an undefended castle end a game nothing else would.
+   */
+  forlornAfter: 30_000,
 } as const;
 
 const MILITARY = new Set<UnitTypeId>(['knight', 'spearman', 'archer']);
@@ -409,12 +419,14 @@ export class AiBrain {
 }
 
 /** The muster this beat asks for: the playbook's size, less one soldier for
- * every `stalePeriod` the army has stood idle past `staleAfter`. */
+ * every `stalePeriod` the army has stood idle past `staleAfter` — down to
+ * `staleFloor`, and past `forlornAfter` down to a single soldier. */
 export function mustersNeeded(armyAttackSize: number, idleFor: number): number {
-  const { staleAfter, stalePeriod, staleFloor } = AI_PACING;
+  const { staleAfter, stalePeriod, staleFloor, forlornAfter } = AI_PACING;
   if (idleFor <= staleAfter) return armyAttackSize;
   const impatience = Math.floor((idleFor - staleAfter) / stalePeriod) + 1;
-  return Math.max(staleFloor, armyAttackSize - impatience);
+  const floor = idleFor > forlornAfter ? 1 : staleFloor;
+  return Math.max(floor, armyAttackSize - impatience);
 }
 
 /** Is every line of this cost sitting in the storehouse? */
