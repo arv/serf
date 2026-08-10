@@ -221,8 +221,12 @@ describe('the AI playbooks', () => {
     expect(mustersNeeded(7, 19_999)).toBe(7);
     expect(mustersNeeded(7, 20_001)).toBe(6);
     expect(mustersNeeded(7, 26_001)).toBe(3);
-    // Never below the floor, however long the standoff runs.
-    expect(mustersNeeded(7, 500_000)).toBe(3);
-    expect(mustersNeeded(3, 500_000)).toBe(3);
+    // The floor holds through ordinary staleness...
+    expect(mustersNeeded(7, 30_000)).toBe(3);
+    expect(mustersNeeded(3, 30_000)).toBe(3);
+    // ...but a forlorn standoff — both economies spent, the floor itself
+    // unreachable — sends whatever still stands, down to a single soldier.
+    expect(mustersNeeded(7, 30_001)).toBe(1);
+    expect(mustersNeeded(3, 500_000)).toBe(1);
   });
 });
