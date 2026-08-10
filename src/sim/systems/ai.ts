@@ -4,7 +4,7 @@ import { SeatVision } from '../visibility.ts';
 import { START_LAYOUTS } from '../world.ts';
 import { BUILDING_DEFS, buildingDef, type BuildingTypeId } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
-import { UNIT_DEFS, type UnitTypeId } from '../defs/units.ts';
+import { UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
 import { HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
 import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
@@ -44,9 +44,17 @@ import type { SimCommand } from '../commands.ts';
  * while the muster builds, the fastest idle soldier tours the map's
  * landmarks (rival starts and camp seeds — public map lore) as a lone
  * scout; and a full muster with nothing on its map to march at sweeps the
- * dark ground itself. The vision is brain-local memory like the pacing
- * fields: a host restart hands the seat a darkened map and it simply
- * scouts again.
+ * dark ground itself.
+ *
+ * Scouting is also what a counter is made of. Every rival fighter seen in
+ * lit ground goes into a per-rival intelligence picture, and once war has
+ * an address the scout re-walks living rivals' doorsteps as that picture
+ * goes stale. What it brings back bends production: smiths beyond the
+ * first forge the weapon that beats the enemy's dominant class, and the
+ * barracks trains its bearer first when it is at hand — hedges, both,
+ * with the playbook's own line kept alongside. Vision and intel are
+ * brain-local memory like the pacing fields: a host restart hands the
+ * seat a darkened map and it simply scouts again.
  */
 
 export const AI_PACING = {
@@ -78,6 +86,34 @@ export const AI_PACING = {
    */
   forlornAfter: 30_000,
 } as const;
+
+export const AI_INTEL = {
+  /** A sighting older than this says nothing about tomorrow's battle. */
+  trustFor: 8_000,
+  /** Walk a rival's doorstep again when its picture is older than this. */
+  refreshAfter: 4_000,
+  /** Fewer fighters than this in one look is an anecdote, not an army. */
+  minSighting: 3,
+} as const;
+
+/** One look at a rival's forces: when it was taken, and what stood there. */
+interface Sighting {
+  tick: number;
+  counts: { heavy: number; light: number; ranged: number };
+  total: number;
+}
+
+/**
+ * The counter to each enemy class, straight off COUNTER_TABLE's rows: the
+ * class that deals 1.5x INTO it, as the unit to train and the forge recipe
+ * that arms one. (Ranged beats heavy, heavy beats light, light beats
+ * ranged; recipeOptions order is [spear, sword, bow].)
+ */
+const COUNTER_PICK: Record<UnitClass, { unit: UnitTypeId; recipe: number }> = {
+  heavy: { unit: 'archer', recipe: 2 },
+  light: { unit: 'knight', recipe: 1 },
+  ranged: { unit: 'spearman', recipe: 0 },
+};
 
 const MILITARY = new Set<UnitTypeId>(['knight', 'spearman', 'archer']);
 
@@ -117,6 +153,12 @@ export class AiBrain {
    * unexplored island or a walled-off valley never lights up, and without
    * this the search would re-pick the same impossible tile forever. */
   #unreachable = new Set<number>();
+  /** What scouting has seen of each rival's army: the freshest useful
+   * look, by owner. This is what the counter-forging reads. */
+  #intel = new Map<Owner, Sighting>();
+  /** The rival whose doorstep the scout is walking to read, -1 when the
+   * scout is on discovery (or home). */
+  #scoutIntel: Owner = -1;
 
   constructor(playerId: Owner, strategy: AiStrategy) {
     this.playerId = playerId;
@@ -137,6 +179,7 @@ export class AiBrain {
     const p = world.players[this.playerId];
     if (!p || !p.alive || world.outcome.state !== 'playing') return [];
     this.#vision.recompute(world, this.playerId);
+    this.#observeRivals(world);
     const commands: SimCommand[] = [];
     const mine = ownedBuildings(world, this.playerId);
     const sh = mine.find((b) => b.type === 'storehouse' && b.state === 'built');
@@ -228,11 +271,23 @@ export class AiBrain {
     }
 
     // --- Forge assignments: the playbook's weapon mix, by smith age ---------
+    // Bent by intelligence: smiths beyond the first switch to the weapon
+    // that beats what scouting has seen of a living rival's army. The
+    // first smith keeps the playbook's own line — a sighting is a reason
+    // to hedge, not to stampede — and a counter the seat cannot forge
+    // (tech-gated recipe) leaves the mix as written.
+    const counter = this.#counterPlan(world);
     const smiths = mine
       .filter((b) => b.type === 'weaponsmith' && b.state === 'built')
       .sort((a, z) => a.id - z.id);
     smiths.forEach((smith, i) => {
-      const want = s.weaponMix[Math.min(i, s.weaponMix.length - 1)]!;
+      let want = s.weaponMix[Math.min(i, s.weaponMix.length - 1)]!;
+      if (counter && i > 0) {
+        const opt = BUILDING_DEFS.weaponsmith.recipeOptions?.[counter.recipe];
+        if (opt && (opt.requiresTech === undefined || researched(opt.requiresTech))) {
+          want = counter.recipe;
+        }
+      }
       const option = BUILDING_DEFS.weaponsmith.recipeOptions?.[want];
       if (!option) return;
       if (option.requiresTech !== undefined && !researched(option.requiresTech)) return;
@@ -242,11 +297,15 @@ export class AiBrain {
     });
 
     // --- Keep the barracks queue warm --------------------------------------------
+    // The counter unit jumps the queue when its weapon is at hand — the
+    // around() check is the feasibility test, so a counter the economy
+    // cannot arm falls straight through to the playbook's own preference.
     const barracks = mine.find((b) => b.type === 'barracks' && b.state === 'built');
     if (barracks && (barracks.trainQueue?.length ?? 0) < s.barracksQueueDepth) {
       const around = (good: GoodId): boolean =>
         (stock[good] ?? 0) + (barracks.inputs[good] ?? 0) + (barracks.inbound[good] ?? 0) > 0;
-      const ready = s.trainPreference.find((unit) => {
+      const prefs = counter ? [counter.unit, ...s.trainPreference] : s.trainPreference;
+      const ready = prefs.find((unit) => {
         const weapon = WEAPON_OF[unit];
         return weapon !== undefined && around(weapon);
       });
@@ -266,17 +325,20 @@ export class AiBrain {
     const idleFor = world.tick - this.#lastAttackTick;
     const mustered =
       army.length >= mustersNeeded(s.armyAttackSize, idleFor) && idleFor > s.attackCooldown;
-    // Bookkeeping on the lone scout: a dead one gives up its post (and its
-    // goal is written off — whatever killed it, walking a second soldier
-    // down the same road alone is not intelligence work, it is tribute),
-    // and one that outlived its purpose is called home before it wanders
-    // into a camp's guards.
+    // Bookkeeping on the lone scout: a dead one gives up its post, and one
+    // that outlived its purpose is called home before it wanders into a
+    // camp's guards. A discovery goal that killed its scout is written off
+    // — whatever killed it, walking a second soldier down the same road
+    // alone is not intelligence work, it is tribute. A rival's doorstep is
+    // not: that ground stays worth reading, so only its clock is stamped
+    // and the next round goes in knowing more.
     const scout = this.#scoutId >= 0 ? world.units.get(this.#scoutId) : undefined;
+    const staleRival = this.#staleRival(world);
     if (this.#scoutId >= 0 && (!scout || scout.dead)) {
-      if (this.#scoutGoal >= 0) this.#unreachable.add(this.#scoutGoal);
-      this.#scoutId = -1;
-      this.#scoutGoal = -1;
-    } else if (scout && target) {
+      if (this.#scoutGoal >= 0 && this.#scoutIntel < 0) this.#unreachable.add(this.#scoutGoal);
+      if (this.#scoutIntel >= 0) this.#stampIntel(world, this.#scoutIntel);
+      this.#clearScout();
+    } else if (scout && target && this.#scoutIntel < 0 && staleRival < 0) {
       // Not straight home: the way home from a camp's watch point can be
       // pathfound right past its guards (the same detour hazard the gate
       // legs exist for — see scoutLeg). Step due north first; the garrison
@@ -287,9 +349,7 @@ export class AiBrain {
         x: Math.floor(scout.x),
         y: Math.max(0, Math.floor(scout.y) - GATE_NORTH),
       });
-      this.#scoutId = -1;
-      this.#scoutGoal = -1;
-      this.#scoutLeg = -1;
+      this.#clearScout();
     }
 
     if (target && mustered) {
@@ -314,8 +374,7 @@ export class AiBrain {
       // lingering raider could pin the army at home for the whole game.
       // And ahead of the searches: defense outranks exploration.
       this.#attacking = false;
-      this.#scoutId = -1;
-      this.#scoutGoal = -1;
+      this.#clearScout();
       this.#sweepGoal = -1;
       this.#lastRallyTick = world.tick;
       commands.push({
@@ -332,8 +391,7 @@ export class AiBrain {
       // above takes over. Marching at muster strength on purpose — this is
       // the fallback for the seeds and standoffs the lone scout missed, and
       // whatever is hiding out there has already killed or outlasted him.
-      this.#scoutId = -1;
-      this.#scoutGoal = -1;
+      this.#clearScout();
       const arrived = army.every((u) => u.task.t === 'idle');
       if (this.#sweepGoal >= 0 && arrived && !this.#vision.explored[this.#sweepGoal]) {
         // Stood down short of the goal and it never lit up: not reachable.
@@ -356,13 +414,15 @@ export class AiBrain {
         }
       }
     } else {
-      // --- Scouting: one soldier walks the landmarks while the muster builds --
-      // The campaign's clock is what makes this matter: by the time the
-      // muster stands, the first raid wave is nearly due, and an army that
-      // has to FIND the camp after mustering loses the race home. So the
-      // looking happens early and cheap — the fastest idle soldier tours
-      // the spots worth looking at while everyone else stays on the walls.
-      if (!target && army.length > 0) {
+      // --- Scouting: one soldier keeps looking while the muster builds ---------
+      // Two jobs share the scout. Discovery: while no target is known, tour
+      // the landmarks and the frontier — the campaign's clock demands the
+      // camp be found before the muster stands, or the army loses the race
+      // home against the first raid wave. Intelligence: once war has an
+      // address, what matters is what stands there — the scout re-walks
+      // living rivals' doorsteps as their picture goes stale, and the
+      // counter-forging above reads what it brings back.
+      if ((!target || staleRival >= 0) && army.length > 0) {
         if (this.#scoutId < 0) {
           const idle = army.filter((u) => u.task.t === 'idle');
           const pick = idle.sort(
@@ -370,15 +430,45 @@ export class AiBrain {
           )[0];
           if (pick) {
             this.#scoutId = pick.id;
-            this.#scoutGoal = -1;
-            this.#scoutLeg = -1;
+            this.#clearScoutGoal();
           }
         }
         const su = this.#scoutId >= 0 ? world.units.get(this.#scoutId) : undefined;
         if (su) {
           let fresh = false;
-          if (this.#scoutGoal < 0 || this.#vision.explored[this.#scoutGoal]) {
-            this.#scoutGoal = nextSearchGoal(world, this.#vision, this.#unreachable, su.x, su.y);
+          // Retire the goal once it is answered. Discovery is done when the
+          // ground lights up — or the moment a target turns up, since
+          // finding one was the point. An intel run is done when the scout
+          // has stood close enough to read the yard; explored is no bar
+          // there, a doorstep is re-read precisely because it was seen
+          // before.
+          if (this.#scoutIntel >= 0) {
+            const gx = tileX(this.#scoutGoal) + 0.5;
+            const gy = tileY(this.#scoutGoal) + 0.5;
+            if (Math.abs(su.x - gx) + Math.abs(su.y - gy) <= 5) {
+              this.#stampIntel(world, this.#scoutIntel);
+              this.#clearScoutGoal();
+            }
+          } else if (this.#scoutGoal >= 0 && (target || this.#vision.explored[this.#scoutGoal])) {
+            this.#clearScoutGoal();
+          }
+          // The next objective: discovery while no target is known, else
+          // the stalest living rival's doorstep.
+          if (this.#scoutGoal < 0) {
+            if (!target) {
+              this.#scoutGoal = nextSearchGoal(world, this.#vision, this.#unreachable, su.x, su.y);
+            }
+            if (this.#scoutGoal < 0 && staleRival >= 0) {
+              const door = rivalDoorstep(world, staleRival);
+              if (door >= 0) {
+                this.#scoutGoal = door;
+                this.#scoutIntel = staleRival;
+              } else {
+                // No table entry to walk to: call it read, or the scout
+                // would ask again every beat forever.
+                this.#stampIntel(world, staleRival);
+              }
+            }
             this.#scoutLeg = -1;
             fresh = this.#scoutGoal >= 0;
             if (!fresh) this.#scoutId = -1; // nothing left worth walking to
@@ -387,11 +477,12 @@ export class AiBrain {
             const at = scoutLeg(this.#scoutGoal, su.x, su.y);
             const leg = tileIdx(at.x, at.y);
             if (!fresh && leg === this.#scoutLeg) {
-              // Ordered there already and the walk has ended with the goal
-              // still dark: the way is shut. Write it off and move on.
-              this.#unreachable.add(this.#scoutGoal);
-              this.#scoutGoal = -1;
-              this.#scoutLeg = -1;
+              // Ordered there already and the walk has ended short: the way
+              // is shut. A discovery goal is written off for good; a
+              // doorstep merely waits out its clock and is tried again.
+              if (this.#scoutIntel < 0) this.#unreachable.add(this.#scoutGoal);
+              else this.#stampIntel(world, this.#scoutIntel);
+              this.#clearScoutGoal();
             } else {
               this.#scoutLeg = leg;
               commands.push({ kind: 'moveUnits', unitIds: [su.id], x: at.x, y: at.y });
@@ -415,6 +506,105 @@ export class AiBrain {
     }
 
     return commands;
+  }
+
+  /** The scout stands down entirely. */
+  #clearScout(): void {
+    this.#scoutId = -1;
+    this.#clearScoutGoal();
+  }
+
+  /** The scout keeps its post but its current errand is over. */
+  #clearScoutGoal(): void {
+    this.#scoutGoal = -1;
+    this.#scoutLeg = -1;
+    this.#scoutIntel = -1;
+  }
+
+  /**
+   * Passive intelligence: every rival fighter standing in lit ground this
+   * beat is a data point. A bigger look replaces a smaller one — eight
+   * knights marching on the village say more than the one straggler seen
+   * since — and anything replaces a picture past its trust window.
+   */
+  #observeRivals(world: World): void {
+    const seen = new Map<Owner, Sighting>();
+    for (const u of world.units.values()) {
+      if (u.dead || u.owner === this.playerId || !isPlayerOwner(u.owner)) continue;
+      const cls = UNIT_DEFS[u.kind].combat?.class;
+      if (!cls) continue;
+      if (!this.#vision.canSee(u.x, u.y)) continue;
+      let s = seen.get(u.owner);
+      if (!s) {
+        s = { tick: world.tick, counts: { heavy: 0, light: 0, ranged: 0 }, total: 0 };
+        seen.set(u.owner, s);
+      }
+      s.counts[cls]++;
+      s.total++;
+    }
+    for (const [owner, s] of seen) {
+      const old = this.#intel.get(owner);
+      if (!old || s.total >= old.total || world.tick - old.tick > AI_INTEL.trustFor) {
+        this.#intel.set(owner, s);
+      }
+    }
+  }
+
+  /** The living rival whose picture is stalest and past due, or -1. A seat
+   * never heard of ranks stalest of all. */
+  #staleRival(world: World): Owner {
+    let best: Owner = -1;
+    let bestTick = Infinity;
+    for (const p of world.players) {
+      if (p.id === this.playerId || !p.alive) continue;
+      const s = this.#intel.get(p.id);
+      if (s && world.tick - s.tick <= AI_INTEL.refreshAfter) continue;
+      const tick = s?.tick ?? -Infinity;
+      if (tick < bestTick) {
+        bestTick = tick;
+        best = p.id;
+      }
+    }
+    return best;
+  }
+
+  /** Mark a rival's doorstep as read this beat — even when nothing stood
+   * there, an empty yard is an answer, and the clock must reset or the
+   * scout would bounce straight back. A fresh real sighting is kept. */
+  #stampIntel(world: World, owner: Owner): void {
+    const s = this.#intel.get(owner);
+    if (s && world.tick - s.tick <= AI_INTEL.refreshAfter) return;
+    this.#intel.set(owner, {
+      tick: world.tick,
+      counts: { heavy: 0, light: 0, ranged: 0 },
+      total: 0,
+    });
+  }
+
+  /**
+   * What to build against what scouting has seen: the counter (per
+   * COUNTER_PICK) to the dominant class in the freshest trustworthy
+   * sighting of a living rival. Ties in the sighting break toward the
+   * scarier read — heavy first, then ranged — and null means the map has
+   * shown nothing worth retooling for, so the playbook stands as written.
+   */
+  #counterPlan(world: World): { unit: UnitTypeId; recipe: number } | null {
+    let best: Sighting | undefined;
+    let bestOwner: Owner = -1;
+    for (const [owner, s] of this.#intel) {
+      if (!world.players[owner]?.alive) continue;
+      if (world.tick - s.tick > AI_INTEL.trustFor) continue;
+      if (s.total < AI_INTEL.minSighting) continue;
+      if (!best || s.tick > best.tick || (s.tick === best.tick && owner < bestOwner)) {
+        best = s;
+        bestOwner = owner;
+      }
+    }
+    if (!best) return null;
+    const { heavy, light, ranged } = best.counts;
+    const dominant: UnitClass =
+      heavy >= light && heavy >= ranged ? 'heavy' : ranged >= light ? 'ranged' : 'light';
+    return COUNTER_PICK[dominant];
   }
 }
 
@@ -672,6 +862,18 @@ const WATCH_FROM = 6;
 
 export function approachPoint(goal: number): { x: number; y: number } {
   return { x: tileX(goal), y: Math.max(0, tileY(goal) - WATCH_FROM) };
+}
+
+/**
+ * Where a rival's garrison stands: four tiles south of their castle door —
+ * derived from the same public start table the landmarks come from, and
+ * the very spot this brain rallies its own army to. Walking a scout there
+ * is how a seat learns what a rival's army is made of.
+ */
+export function rivalDoorstep(world: World, owner: Owner): number {
+  const start = START_LAYOUTS[world.players.length]?.[owner];
+  if (!start) return -1;
+  return tileIdx(start[0] + 1, Math.min(MAP_SIZE - 1, start[1] + 5));
 }
 
 /**
