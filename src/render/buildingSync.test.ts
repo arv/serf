@@ -129,6 +129,26 @@ describe("the fishery's pier", () => {
     expect(p.deckY).toBeLessThan(0.2);
   });
 
+  it('swings 45 degrees toward the wet diagonal on a corner-only shore', () => {
+    const { sync, scene } = makeSync();
+    // Facing 2 sends the pier north, but only the north-WEST diagonal is
+    // water — the corner-pegged placement the quarter-turn facing can't
+    // express.
+    sync.update([snap({ type: 'fishery', w: 3, h: 3, facing: 2 })]);
+    sync.setWater((tx) => tx <= 9);
+    const p = sync.fisheryPiers()[0]!;
+    expect(p.yaw).toBeCloseTo(Math.PI + Math.PI / 4);
+    // The fishing spot moved out along the diagonal, west of the deck line.
+    expect(p.spotX).toBeLessThan(11);
+    expect(p.spotZ).toBeLessThan(p.baseZ);
+    // The decor itself turned with it, pivoting on the landward end...
+    const pier = scene.getObjectByName('fisheryPier')!;
+    expect(pier.rotation.y).toBeCloseTo(Math.PI / 4);
+    // ...and the measurement is cached: asking again must not swing twice.
+    expect(sync.fisheryPiers()[0]!.yaw).toBeCloseTo(p.yaw);
+    expect(pier.rotation.y).toBeCloseTo(Math.PI / 4);
+  });
+
   it('is absent while the fishery is still a site', () => {
     const { sync } = makeSync();
     sync.update([snap({ type: 'fishery', w: 3, h: 3, facing: 1, state: 'site', siteNeeds: {} })]);

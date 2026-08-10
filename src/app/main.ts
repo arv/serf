@@ -38,6 +38,8 @@ import {
   fogEnabled,
   placing,
 } from '../ui/store';
+import { Terrain } from '../sim/map';
+import { inBounds, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
 import { envelopeSave, splitSave } from './saveEnvelope';
 import { WorkerSimHost } from './simHost';
@@ -378,6 +380,11 @@ async function runMatch(
   renderer.scene.add(mist.group);
 
   const buildingSync = new BuildingSync(renderer.scene, heights, config.myPlayerId);
+  // Terrain feed for the pier measurement: on a corner-only shore the
+  // fishery's deck swings 45 degrees toward the wet diagonal.
+  buildingSync.setWater(
+    (tx, tz) => inBounds(tx, tz) && mirror.map.terrain[tileIdx(tx, tz)] === Terrain.Water,
+  );
   buildingSync.update(init.buildings);
 
   const sync = new SceneSync(renderer.scene, init.reader, heights, config.myPlayerId);
