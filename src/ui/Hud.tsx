@@ -185,9 +185,16 @@ export function Hud(props: {
           border-style: dashed;
           border-color: rgba(255, 255, 255, 0.12);
         }
-        #ui button.active {
-          background: rgba(229, 196, 105, 0.16);
-          border-color: rgba(229, 196, 105, 0.5);
+        /* The hover rule above outranks a bare .active (:not() counts
+           toward specificity), so the paired :hover selector is load-
+           bearing: without it a selected button under the cursor shows
+           plain hover styling — invisible right when the player clicks.
+           The solid border keeps "chosen" readable next to "merely under
+           the cursor". */
+        #ui button.active,
+        #ui button.active:hover:not(:disabled) {
+          background: rgba(229, 196, 105, 0.3);
+          border-color: #e5c469;
         }
         #ui button:focus-visible { outline: 2px solid #e5c469; outline-offset: 2px; }
         #ui .cost {
@@ -337,7 +344,11 @@ export function Hud(props: {
           background: rgba(14, 16, 15, 0.72);
           -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
         }
-        #ui .hud-touch button.active {
+        /* The :hover twin outlives a tap: touch leaves the button stuck
+           in :hover, and the coarse-pointer hover neutralizer would
+           otherwise strip the armed state right as it is switched on. */
+        #ui .hud-touch button.active,
+        #ui .hud-touch button.active:hover {
           background: rgba(229, 196, 105, 0.35);
           border-color: #e5c469;
         }
@@ -423,9 +434,14 @@ export function Hud(props: {
           }
           #ui .hud-tabs button.active { background: #e5c469; color: #0e100f; }
           #ui .hud-speed button.active { background: #e5c469; color: #0e100f; }
-          #ui button.active {
-            background: rgba(229, 196, 105, 0.16);
-            border-color: rgba(229, 196, 105, 0.5);
+          /* The :hover twin is what makes this stick: a tap leaves the
+             button in :hover, and the neutralizer above outranks a bare
+             .active — without the pair, a picked forge weapon never
+             showed as selected on a touchscreen. */
+          #ui button.active,
+          #ui button.active:hover:not(:disabled) {
+            background: rgba(229, 196, 105, 0.3);
+            border-color: #e5c469;
           }
         }
 
