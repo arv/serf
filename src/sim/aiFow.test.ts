@@ -119,6 +119,95 @@ describe('the AI under fog of war', () => {
     expect(moves[0]).toMatchObject({ x: 6, y: 6 });
   });
 
+  it('forges and trains the counter to what scouting has seen', () => {
+    // Steward vs a spear wall: light is countered by heavy, so the smiths
+    // turn to swords (the second one against its playbook line of spears)
+    // and the barracks trains the knight the sword in stock can arm.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, { sword: 1, spear: 1 });
+    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
+    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
+    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);
+    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
+    for (let i = 0; i < 4; i++) spawnUnit(world, 'spearman', 1, 35.5, 30.5 + i);
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    const commands = brain.decide(world);
+    const recipes = commands.filter((c) => c.kind === 'setBuildingRecipe');
+    expect(recipes).toHaveLength(2);
+    for (const r of recipes) expect(r).toMatchObject({ index: 1 }); // sword
+    expect(commands.find((c) => c.kind === 'trainUnit')).toMatchObject({ unit: 'knight' });
+  });
+
+  it('keeps the playbook line when the counter is out of its reach', () => {
+    // Fletcher vs archers: the counter is spears, but the spear recipe is
+    // behind ironworking the fletcher never researches — the forges stay
+    // on bows and the barracks trains the archer it can actually arm.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, { bow: 2 });
+    world.players[0]!.techs.researched.push('soldiery', 'archery');
+    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
+    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);
+    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
+    for (let i = 0; i < 4; i++) spawnUnit(world, 'archer', 1, 35.5, 30.5 + i);
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.fletcher);
+    const commands = brain.decide(world);
+    const recipes = commands.filter((c) => c.kind === 'setBuildingRecipe');
+    expect(recipes).toHaveLength(2);
+    for (const r of recipes) expect(r).toMatchObject({ index: 2 }); // bowstaves
+    expect(commands.find((c) => c.kind === 'trainUnit')).toMatchObject({ unit: 'archer' });
+  });
+
+  it('keeps a trusted sighting through a doorstep read that saw nothing', () => {
+    // The picture: four rival spearmen, seen and filed. They march off, the
+    // clock goes stale, and the scout re-reads an empty doorstep. The read
+    // resets the clock — but must not erase what was actually seen: the
+    // sighting is still inside its trust window, and the forges keep
+    // answering it with swords.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, { sword: 1, spear: 1 });
+    addStorehouse(world, 44, 44, {}, 1);
+    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
+    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);
+    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
+    const foes = Array.from({ length: 4 }, (_, i) => spawnUnit(world, 'spearman', 1, 35.5, 30.5 + i));
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    expect(brain.decide(world).filter((c) => c.kind === 'setBuildingRecipe')).toHaveLength(2);
+    // The spearmen vanish; the scout finds their yard empty well past the
+    // refresh clock but well inside the trust window.
+    for (const u of foes) u.dead = true;
+    spawnUnit(world, 'knight', 0, 45.5, 48.5); // already standing at the doorstep
+    world.tick = 5200;
+    brain.decide(world); // the errand starts
+    world.tick = 5220;
+    brain.decide(world); // standing at the yard: the read stamps the clock
+    world.tick = 5240;
+    const recipes = brain.decide(world).filter((c) => c.kind === 'setBuildingRecipe');
+    expect(recipes).toHaveLength(2); // both smiths still ordered to swords
+    for (const r of recipes) expect(r).toMatchObject({ index: 1 });
+  });
+
+  it('sends the scout to read a rival doorstep once a target is known', () => {
+    // Discovery found the castle; intelligence asks what defends it. With
+    // a target on the map and no picture of the rival's army, the scout
+    // heads for their garrison ground — gate leg first, as always.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 44, 44, {}, 1); // the rival's castle, on its start
+    for (let i = 0; i < 3; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
+    spawnUnit(world, 'knight', 0, 42.5, 43.5); // close enough to have seen it
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    const commands = brain.decide(world);
+    const single = moveOrders(commands).filter((c) => c.unitIds.length === 1);
+    expect(single).toHaveLength(1);
+    // The doorstep sits at (45, 49): south of the rival castle, where their
+    // garrison stands. The scout's first leg is the gate 13 north of it.
+    expect(single[0]).toMatchObject({ x: 45, y: 36 });
+  });
+
   it('abandons sweep goals the army stood down in front of', () => {
     const world = musterWorld();
     const brain = new AiBrain(0, AI_STRATEGIES.steward);
