@@ -1,4 +1,9 @@
-import { JOB_BLOCKED_BACKOFF, MATCHER_INTERVAL, ABBEY_ALE_CAP } from '../defs/balance.ts';
+import {
+  JOB_BLOCKED_BACKOFF,
+  MATCHER_INTERVAL,
+  ABBEY_ALE_CAP,
+  BARRACKS_ALE_CAP,
+} from '../defs/balance.ts';
 import { INPUT_CAP, buildingDef, convertRecipeOf, outputGoodsOf } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
@@ -157,6 +162,20 @@ function match(world: World): void {
     // Festivals: the abbey sips ale.
     if (b.type === 'abbey' && !b.paused && world.players[b.owner]?.techs.researched.includes('festivals')) {
       const want = ABBEY_ALE_CAP - (b.inputs.ale ?? 0) - (b.inbound.ale ?? 0);
+      if (want > 0) demands.push(demandOf(world, b, 'ale', want, 2));
+      else delete b.demandSince.ale;
+    }
+
+    // Ale Rations: the barracks keeps its cask topped up. Standing demand
+    // like the abbey's, not per-order like the training goods below — the
+    // drink speeds whatever trains next, so it should be waiting when the
+    // recruit walks in rather than racing him to the door.
+    if (
+      def.trains &&
+      !b.paused &&
+      world.players[b.owner]?.techs.researched.includes('aleRations')
+    ) {
+      const want = BARRACKS_ALE_CAP - (b.inputs.ale ?? 0) - (b.inbound.ale ?? 0);
       if (want > 0) demands.push(demandOf(world, b, 'ale', want, 2));
       else delete b.demandSince.ale;
     }

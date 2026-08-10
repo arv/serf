@@ -84,7 +84,9 @@ function convertStep(
   }
   const speedup =
     getModifier(world, b.owner, 'workSpeed') *
-    (b.type === 'wheatFarm' ? getModifier(world, b.owner, 'farmSpeed') : 1);
+    (b.type === 'wheatFarm' ? getModifier(world, b.owner, 'farmSpeed') : 1) *
+    (b.type === 'mill' || b.type === 'bakery' ? getModifier(world, b.owner, 'foodSpeed') : 1) *
+    (b.type === 'weaponsmith' ? getModifier(world, b.owner, 'forgeSpeed') : 1);
   b.prodTicksLeft = Math.max(1, Math.round(recipe.durationTicks / speedup));
   if (def.recipeOptions) b.prodRecipeIndex = b.recipeIndex ?? 0;
 }

@@ -10,11 +10,14 @@ import type { UnitTypeId } from './units.ts';
  */
 export type TechId =
   | 'irrigation'
+  | 'millstones'
   | 'brewing'
   | 'festivals'
+  | 'aleRations'
   | 'cobbledBoots'
   | 'ironworking'
   | 'deepMining'
+  | 'bellows'
   | 'masonry'
   | 'soldiery'
   | 'archery'
@@ -23,6 +26,8 @@ export type TechId =
 
 export type ModifierKey =
   | 'farmSpeed' // wheat farm batch speed
+  | 'foodSpeed' // mill + bakery batch speed
+  | 'forgeSpeed' // weaponsmith batch speed
   | 'mineSpeed' // mine gather speed
   | 'serfSpeed' // serf + worker walk speed
   | 'workSpeed' // all production speed (festival buff)
@@ -61,6 +66,21 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     effects: [{ kind: 'modifier', key: 'farmSpeed', multiplier: 1.3 }],
     desc: 'Field channels: farms grow wheat 30% faster.',
   },
+  millstones: {
+    id: 'millstones',
+    name: 'Millstones',
+    branch: 'agriculture',
+    prereqs: ['irrigation'],
+    // Stone for the stones: the one agriculture tech the quarry pays for.
+    cost: { stone: 6, silver: 5 },
+    durationTicks: 30 * S,
+    // The chain's designed bottleneck is the mill (one mill serves two
+    // farms), so this is the lever on bread itself. Deliberately not the
+    // fishery: the shore is the poor village's option, and a late-game
+    // buff to it would undercut the fish-then-bake fork.
+    effects: [{ kind: 'modifier', key: 'foodSpeed', multiplier: 1.3 }],
+    desc: 'Dressed millstones: the mill and the bakery work 30% faster.',
+  },
   brewing: {
     id: 'brewing',
     name: 'Brewing',
@@ -80,6 +100,22 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     durationTicks: 30 * S,
     effects: [], // enables the abbey's ale-fed festival buff
     desc: 'Ale delivered to the Abbey holds festivals: everyone works 25% faster for a while.',
+  },
+  aleRations: {
+    id: 'aleRations',
+    name: 'Ale Rations',
+    branch: 'agriculture',
+    prereqs: ['festivals'],
+    // Paying the unlock in ale means the brewery is already employed
+    // before the effect ever lands.
+    cost: { ale: 4, silver: 6 },
+    durationTicks: 30 * S,
+    // Like festivals, a mechanic rather than a modifier: the barracks
+    // stocks ale, and each soldier drinks one at training start for a
+    // faster course (staffing.ts). No ale never blocks training — the
+    // drink is an accelerant, not an ingredient.
+    effects: [],
+    desc: 'The barracks keeps a cask: each soldier drinks 1 ale and trains 25% faster.',
   },
 
   // — Craft —
@@ -118,6 +154,19 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
       { kind: 'unlockBuilding', building: 'goldMine' },
     ],
     desc: 'Mines work 30% faster; unlocks the Gold Mine.',
+  },
+  bellows: {
+    id: 'bellows',
+    name: 'Bellows',
+    branch: 'craft',
+    prereqs: ['ironworking'],
+    cost: { iron: 3, silver: 6 },
+    durationTicks: 30 * S,
+    // Deep Mining's rival for the post-ironworking slot: faster ore or
+    // faster weapons out of the same forge. One roof, one bellows — the
+    // buff covers every recipe the smith runs, bowstaves included.
+    effects: [{ kind: 'modifier', key: 'forgeSpeed', multiplier: 1.3 }],
+    desc: 'Forced draft at the forge: the Weaponsmith works 30% faster.',
   },
   masonry: {
     id: 'masonry',
