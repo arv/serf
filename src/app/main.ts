@@ -263,15 +263,13 @@ async function runMatch(
   setMyPlayerId(config.myPlayerId);
   setNetMode(net !== undefined);
 
-  // The LLM strategist is browser inference on WebGPU, so it only exists
-  // where the browser owns the world (solo) and the GPU answers. Asked for
-  // without either, the seats play their plain playbooks — said out loud,
-  // not silently. The worker is told only when a strategist will actually
-  // listen, so it never builds summaries for nobody.
-  const llm = config.llmOpponent === true && net === undefined && 'gpu' in navigator;
-  if (config.llmOpponent && !llm && net === undefined) {
-    pushToast('The LLM strategist needs WebGPU — opponents use standard tactics');
-  }
+  // The LLM strategist runs on the CPU (llama.cpp wasm), so it exists
+  // wherever the browser owns the world — solo only. Its wasm threads
+  // want the same cross-origin isolation the SAB hot path already made a
+  // boot requirement, so there is no capability to probe. The worker is
+  // told only when a strategist will actually listen, so it never builds
+  // summaries for nobody.
+  const llm = config.llmOpponent === true && net === undefined;
   config = { ...config, llmOpponent: llm };
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;

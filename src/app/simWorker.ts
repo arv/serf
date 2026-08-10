@@ -32,12 +32,14 @@ let ai: AiSeats | null = null;
 let debugEnabled = false;
 /**
  * The LLM strategist's cadence (init asked with `llm`): when each AI seat
- * next reports upstairs. ~45 s apart per seat, staggered so two seats
- * never summarize on the same pump — the summaries feed prompts whose
- * replies take seconds anyway, so slower is fine and faster is waste.
+ * next reports upstairs. ~90 s apart per seat, staggered so two seats
+ * never summarize on the same pump. Deliberately slow: inference runs on
+ * the CPU and the strategist consults one seat at a time, so a faster
+ * drumbeat would only queue summaries to be dropped — and posture advice
+ * that arrives a minute later is still posture advice.
  */
-const ADVICE_PERIOD = 900;
-const ADVICE_STAGGER = 300;
+const ADVICE_PERIOD = 1800;
+const ADVICE_STAGGER = 600;
 let summaryDue: Map<number, number> | null = null;
 
 const post = (msg: WorkerToMain): void => {
