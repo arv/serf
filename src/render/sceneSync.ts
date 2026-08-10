@@ -53,6 +53,25 @@ interface Well {
   grip: THREE.Object3D;
 }
 
+/** A built fishery's pier: the deck line from its landward end to the
+ * fishing spot near the tip, plank height, and the yaw that faces the
+ * water. Fed from buildingSync.fisheryPiers(). */
+interface Pier {
+  /** Building center, the anchor a fisherman is matched to his pier by. */
+  bx: number;
+  bz: number;
+  baseX: number;
+  baseZ: number;
+  spotX: number;
+  spotZ: number;
+  yaw: number;
+  deckY: number;
+}
+
+/** The render-walk speed out along the pier — the worker's sim gait
+ * (UNIT_DEFS worker speed), so the commute reads like every other one. */
+const PIER_WALK_SPEED = 1.7;
+
 /** GLTFLoader sanitizes bone names ('upperarm.r' → 'upperarmr'). */
 function findArm(group: THREE.Group): ArmChain | null {
   const bone = (n: string): THREE.Object3D | undefined =>
@@ -110,6 +129,8 @@ function workAnimKey(workKind: number): AnimKey {
       return 'tend';
     case WORK.draw:
       return 'draw';
+    case WORK.fish:
+      return 'fish';
     default:
       return 'work';
   }
@@ -169,6 +190,16 @@ export class SceneSync {
     this.#wells = wells;
   }
 
+  /** Built fisheries' piers (from main's structural feed). The resident
+   * fisherman belongs at the end of his pier, but the sim parks him on
+   * whichever adjacent tile the path found — so the render walks him out
+   * along the deck and stands him there, line in the water. */
+  #piers: Pier[] = [];
+
+  setPiers(piers: Pier[]): void {
+    this.#piers = piers;
+  }
+
   /** Fog test; enemies standing in unlit ground are not drawn at all. */
   #fog: FogQuery | null = null;
 
@@ -195,6 +226,21 @@ export class SceneSync {
       }
     }
     return well;
+  }
+
+  #nearestPier(x: number, y: number): Pier | null {
+    let pier: Pier | null = null;
+    let best = 9; // parked on the ring around a 3x3 footprint: within 3 tiles
+    for (const p of this.#piers) {
+      const dx = p.bx - x;
+      const dz = p.bz - y;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < best) {
+        best = d2;
+        pier = p;
+      }
+    }
+    return pier;
   }
 
   // Scratch buffers for the per-frame visual de-overlap pass. The cell
@@ -499,6 +545,48 @@ export class SceneSync {
         this.#spun.add(crankWell.crank);
         crankWell.crank.rotation.x += dt * ((Math.PI * 2) / 1.6);
       }
+      // The fisherman's post is the end of his pier: while he holds it
+      // (mid-batch or stalled on a full buffer alike), the render walks
+      // him out along the deck and stands him at the spot, line in the
+      // water. Render-side like the well crank — the sim keeps him parked
+      // on whatever adjacent tile the path found.
+      const pier =
+        !offScreen && !dead && !moving && action !== ACTION.fight && workKind === WORK.fish
+          ? this.#nearestPier(x, y)
+          : null;
+      let fishing = false;
+      let onDeck = false;
+      if (pier) {
+        const curX = x + visual.sepX;
+        const curZ = y + visual.sepY;
+        const dirX = Math.sin(pier.yaw);
+        const dirZ = Math.cos(pier.yaw);
+        // Where he stands relative to the deck line, from the landward end.
+        const along = (curX - pier.baseX) * dirX + (curZ - pier.baseZ) * dirZ;
+        const drift = Math.abs((curX - pier.baseX) * dirZ - (curZ - pier.baseZ) * dirX);
+        onDeck = along > -0.1 && drift < 0.3;
+        // Two legs, not a beeline: converge on the landward end first — a
+        // straight run at the tip would cut the corner through open water.
+        const tx = onDeck ? pier.spotX : pier.baseX;
+        const tz = onDeck ? pier.spotZ : pier.baseZ;
+        const dx = tx - curX;
+        const dz = tz - curZ;
+        const dist = Math.hypot(dx, dz);
+        fishing = onDeck && dist < 0.08;
+        if (fishing) {
+          visual.sepX = this.#sepTX[i] = pier.spotX - x;
+          visual.sepY = this.#sepTY[i] = pier.spotZ - y;
+          visual.group.rotation.y = pier.yaw; // face the water
+        } else if (dist > 1e-4) {
+          // Walk, don't slide: advance at the worker's own gait, written
+          // straight through the de-overlap channel (easing toward a
+          // moving target would glide him at a fraction of the speed).
+          const step = Math.min(dist, PIER_WALK_SPEED * dt);
+          visual.sepX = this.#sepTX[i] = curX + (dx / dist) * step - x;
+          visual.sepY = this.#sepTY[i] = curZ + (dz / dist) * step - y;
+          visual.group.rotation.y = Math.atan2(dx, dz);
+        }
+      }
       if (visual.char && offScreen) {
         // Culled: drop the current clip so re-entry restarts it cleanly
         // (playAnimation is a no-op while `current` matches).
@@ -508,6 +596,7 @@ export class SceneSync {
         let key: AnimKey;
         if (dead) key = 'death';
         else if (moving) key = heldCarry ? 'carry' : visual.char.jog ? 'jog' : 'walk';
+        else if (pier) key = fishing ? 'fish' : 'walk';
         else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
         else if (action === ACTION.work) key = crankWell ? 'idle' : workAnimKey(workKind);
         else key = heldCarry ? 'carryIdle' : 'idle';
@@ -546,7 +635,11 @@ export class SceneSync {
       }
       const px = x + visual.sepX;
       const pz = y + visual.sepY;
-      visual.group.position.set(px, this.#heights.at(px, pz) + bob, pz);
+      // On the planks the deck carries him — the ground under a pier is
+      // lake bed, and the height field would sink him to it.
+      const groundY = this.#heights.at(px, pz);
+      const standY = pier && onDeck ? Math.max(groundY, pier.deckY) : groundY;
+      visual.group.position.set(px, standY + bob, pz);
       // Glue the cranking hand to the grip — after the group transform is
       // final for this frame, override the clip's right arm with a CCD
       // reach toward the grip's current world position.

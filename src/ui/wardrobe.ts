@@ -55,6 +55,7 @@ function columns(): Column[] {
       out.push({ code: def.kindCode, profession: 0, label: 'Woodcutter', workKind: WORK.chop });
       out.push({ code: def.kindCode, profession: 1, label: 'Farmer', workKind: WORK.dig });
       out.push({ code: def.kindCode, profession: 2, label: 'Miner', workKind: WORK.pickaxe });
+      out.push({ code: def.kindCode, profession: 0, label: 'Fisher', workKind: WORK.fish });
     } else {
       out.push({ code: def.kindCode, profession: 0, label: unitName(def.id) });
     }
@@ -70,6 +71,7 @@ const WORK_ANIM: Record<number, AnimKey> = {
   [WORK.dig]: 'dig',
   [WORK.tend]: 'tend',
   [WORK.draw]: 'draw',
+  [WORK.fish]: 'fish',
 };
 
 type Mode = 'idle' | 'walk' | 'carry' | 'work' | 'death';

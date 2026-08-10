@@ -381,9 +381,13 @@ async function runMatch(
   buildingSync.update(init.buildings);
 
   const sync = new SceneSync(renderer.scene, init.reader, heights, config.myPlayerId);
-  // Where the well cranks are: drawing serfs stand beside them and their
-  // hand is IK-glued to the grip.
-  const feedWells = (): void => sync.setWells(buildingSync.wellCranks());
+  // Where the well cranks are (drawing serfs stand beside them, hand
+  // IK-glued to the grip) and where the fishery piers run (fishermen walk
+  // out and cast off the end).
+  const feedWells = (): void => {
+    sync.setWells(buildingSync.wellCranks());
+    sync.setPiers(buildingSync.fisheryPiers());
+  };
   feedWells();
   const fog = new FogOfWar(config.myPlayerId);
   // The fog's memory across sessions: multiplayer seats get the server's
@@ -397,7 +401,14 @@ async function runMatch(
     envelopeSave(await host.requestSave(), fog.exportExplored());
   rescue = saveGame;
   if (import.meta.env.DEV) {
-    Object.assign(window as unknown as Record<string, unknown>, { __fog: fog });
+    // Console handles for forensics and screenshot tooling: the fog for
+    // visibility checks, the rig and heights for scripted camera jumps and
+    // world->screen math (the wardrobe exposes its own pair).
+    Object.assign(window as unknown as Record<string, unknown>, {
+      __fog: fog,
+      __rig: renderer.rig,
+      __heights: heights,
+    });
   }
   sync.setFog(fog);
   buildingSync.setFog(fog);
