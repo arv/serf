@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
 import { TECH_DEFS } from './defs/techs.ts';
-import { FESTIVAL_DURATION } from './defs/balance.ts';
+import { BARRACKS_ALE_CAP, FESTIVAL_DURATION } from './defs/balance.ts';
 import { getModifier, isBuildingUnlocked } from './techHelpers.ts';
-import { cmds, addStorehouse, bareWorld, staffBuilding } from './testUtils.ts';
+import { cmds, addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -102,5 +102,72 @@ describe('research', () => {
     world.players[0]!.techs.researched.push('irrigation');
     run(world, 2); // batch starts with the modifier applied
     expect(farm.prodTicksLeft).toBeLessThan(200); // 200 base / 1.3 ≈ 154
+  });
+
+  it('millstones speeds the mill and the bakery', () => {
+    const world = bareWorld();
+    const mill = placeBuiltBuilding(world, 'mill', 0, 30, 30);
+    mill.inputs.wheat = 1;
+    const bakery = placeBuiltBuilding(world, 'bakery', 0, 40, 30);
+    staffBuilding(world, bakery);
+    bakery.inputs.flour = 1;
+    bakery.inputs.water = 1;
+    world.players[0]!.techs.researched.push('irrigation', 'millstones');
+    expect(getModifier(world, 0, 'foodSpeed')).toBeCloseTo(1.3);
+    run(world, 2);
+    expect(mill.prodTicksLeft).toBeLessThan(160); // 160 base / 1.3 ≈ 123
+    expect(bakery.prodTicksLeft).toBeLessThan(240); // 240 base / 1.3 ≈ 185
+  });
+
+  it('bellows speeds the weaponsmith', () => {
+    const world = bareWorld();
+    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 30, 30);
+    staffBuilding(world, smith);
+    smith.inputs.iron = 1;
+    smith.inputs.wood = 2;
+    world.players[0]!.techs.researched.push('cobbledBoots', 'ironworking', 'bellows');
+    run(world, 2);
+    expect(smith.prodTicksLeft).toBeLessThan(200); // spear: 200 base / 1.3 ≈ 154
+  });
+
+  it('ale rations: the barracks cask is kept topped up', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, { ale: 10 });
+    world.players[0]!.techs.researched.push(
+      'irrigation',
+      'brewing',
+      'festivals',
+      'aleRations',
+    );
+    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    addSerf(world, 34, 34);
+    run(world, 20 * 60);
+    expect(barracks.inputs.ale).toBe(BARRACKS_ALE_CAP);
+  });
+
+  it('ale rations: the recruit drinks from the cask and trains faster', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, { food: 10, spear: 1 });
+    world.players[0]!.techs.researched.push(
+      'irrigation',
+      'brewing',
+      'festivals',
+      'aleRations',
+      'soldiery',
+    );
+    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    barracks.inputs.ale = 1;
+    addSerf(world, 34, 34);
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'spearman' }));
+
+    let guard = 20 * 120;
+    while (!barracks.trainQueue?.[0]?.started && guard-- > 0) tickWorld(world, []);
+    const head = barracks.trainQueue?.[0];
+    expect(head?.started).toBe(true);
+    // The 200-tick course was set to 200 / 1.25 = 160 at enlistment (the
+    // range absorbs the decrements of the tick that flipped `started`).
+    expect(head!.ticksLeft).toBeGreaterThan(150);
+    expect(head!.ticksLeft).toBeLessThanOrEqual(160);
+    expect(barracks.inputs.ale ?? 0).toBe(0); // the drink was drunk
   });
 });

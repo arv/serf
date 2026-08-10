@@ -1,4 +1,4 @@
-import { TICKS_PER_SECOND } from '../defs/balance.ts';
+import { ALE_TRAIN_SPEEDUP, TICKS_PER_SECOND } from '../defs/balance.ts';
 import { buildingDef } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
@@ -122,6 +122,17 @@ function handleArrivals(world: World): void {
       }
       head.started = true;
       head.ticksLeft = option.durationTicks;
+      // Ale Rations: the recruit drinks from the cask and trains faster.
+      // Checked here and not in cost — no ale never blocks the course, and
+      // a cancelled order doesn't refund a drink already drunk.
+      if (
+        (b.inputs.ale ?? 0) > 0 &&
+        world.players[b.owner]?.techs.researched.includes('aleRations')
+      ) {
+        b.inputs.ale = (b.inputs.ale ?? 0) - 1;
+        world.ledger.consumed.ale = (world.ledger.consumed.ale ?? 0) + 1;
+        head.ticksLeft = Math.max(1, Math.round(option.durationTicks / ALE_TRAIN_SPEEDUP));
+      }
       unit.dead = true; // the person is now inside, training
     } else if (def.workerKind && !liveWorker(world, b)) {
       // The serf takes up the post and becomes this building's worker.

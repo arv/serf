@@ -310,11 +310,18 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 160,
     sight: 5.5,
     workerKind: 'worker',
+    // Twenty seconds, up from fifteen: sized to its market rather than its
+    // model. Ale's sinks are the abbey's festival sip (1/min at full buff
+    // uptime) and, with Ale Rations, the barracks cask (2-3/min at war
+    // tempo) — at 3/min one brewery runs near full duty against both,
+    // where the old 4/min filled its buffer and idled at a quarter duty
+    // on a market the festival alone capped at 1/min. Wheat stays sane
+    // too: 3/min is half a farm, alongside the mill's draw.
     recipe: {
       kind: 'convert',
       inputs: { wheat: 1, water: 1 },
       outputs: { ale: 1 },
-      durationTicks: 15 * S,
+      durationTicks: 20 * S,
     },
   },
   ironMine: {

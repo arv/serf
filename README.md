@@ -13,13 +13,16 @@ pnpm dev
 ```
 
 - **Goal**: destroy the bandit camp in the far corner. If your castle falls,
-  the game is lost. First raid arrives after ~5 peaceful minutes.
-- **Goods** (11): water, wheat, wood, stone, iron, silver, gold, sword, spear,
-  bow, ale. Everything is hauled by serfs — there is no magic global
-  stockpile; the resource bar shows what's physically in the castle.
-- **Chains**: wells feed wheat farms; iron + wood become weapons at the
-  smiths; wheat + weapons train soldiers at the barracks; wheat + water become
-  ale, and ale delivered to the abbey throws festivals (+25% work speed).
+  the game is lost. First raid arrives after ~9 peaceful minutes.
+- **Goods** (13): water, wheat, wood, stone, iron, silver, gold, sword, spear,
+  bow, ale, flour, food. Everything is hauled by serfs — there is no magic
+  global stockpile; the resource bar shows what's physically in the castle.
+- **Chains**: wells feed wheat farms; the mill grinds wheat to flour and the
+  bakery bakes it into food (the fishery lands food straight off the shore);
+  iron + wood become weapons at the smiths; food + weapons train soldiers at
+  the barracks; wheat + water become ale, and ale delivered to the abbey
+  throws festivals (+25% work speed) — or, with Ale Rations, fills the
+  barracks cask so every recruit drinks and trains faster.
 - **Siting gatherers**: the woodcutter, the quarry and the mines only stand
   where their worker has something in reach — the trees, the outcrop, the
   seam. Aiming one draws the square that worker will search, and the hut
@@ -31,7 +34,9 @@ pnpm dev
   wide and mustering an army compete for the same roofs.
 - **Tech**: build an Abbey and research across Agriculture / Craft / Warfare.
   Unlocks are real strategic forks — Ironworking opens the sword economy,
-  Archery opens the bow line, Masonry paves your roads.
+  Archery opens the bow line, Masonry paves your roads, Millstones speeds the
+  bread chain, Bellows rivals Deep Mining for the forge's favor, and the ale
+  line runs Brewing → Festivals → Ale Rations.
 - **Combat triangle**: Knights (heavy) ⟶ beat Spearmen (light) ⟶ catch
   Archers (ranged) ⟶ kite Knights. Bandit waves mix all three classes (the
   raid warning tells you the composition) — countering them means retooling

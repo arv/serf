@@ -64,6 +64,12 @@ export const CORPSE_TICKS = 30;
 export const FESTIVAL_DURATION = 60 * TICKS_PER_SECOND;
 export const ABBEY_ALE_CAP = 2;
 
+// Ale Rations (ale -> faster training at the barracks)
+export const BARRACKS_ALE_CAP = 2;
+/** Divides the training duration when a soldier drinks (never a gate: no
+ * ale in the cask just means the course runs at normal speed). */
+export const ALE_TRAIN_SPEEDUP = 1.25;
+
 // Raids — paced for the population economy's slower ramp (staffing every
 // building and mustering an army both consume people). Stretched by a fifth
 // when housing became a gate on that ramp: the castle sleeps ten, so the
