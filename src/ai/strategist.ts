@@ -35,6 +35,60 @@ export function webgpuAvailable(): boolean {
   return typeof navigator !== 'undefined' && 'gpu' in navigator;
 }
 
+/**
+ * Warm the model cache from the start menu, so the download runs while the
+ * player is still picking opponents instead of through the opening minutes
+ * of the match. WebLLM keeps weights in Cache storage, which survives the
+ * page reload a solo launch does — so the match-side strategist simply
+ * finds them on disk and reaches ready in seconds. A launch mid-download
+ * loses nothing either: the partial cache persists and the match fetches
+ * only what is missing.
+ *
+ * The engine is built solely for its download side effect: the moment it
+ * is ready the worker is terminated, because a menu must not sit on a
+ * model's worth of VRAM. An already-warm cache skips the engine entirely.
+ */
+export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () => void } {
+  let worker: Worker | null = null;
+  let disposed = false;
+  const report = (status: LlmStatus): void => {
+    if (!disposed) onStatus(status);
+  };
+  void (async () => {
+    try {
+      const webllm = await import('@mlc-ai/web-llm');
+      if (await webllm.hasModelInCache(LLM_MODEL_ID)) {
+        report({ state: 'ready' });
+        return;
+      }
+      if (disposed) return;
+      worker = new Worker(new URL('./llmWorker.ts', import.meta.url), { type: 'module' });
+      await webllm.CreateWebWorkerMLCEngine(worker, LLM_MODEL_ID, {
+        initProgressCallback: (r) =>
+          report({ state: 'loading', pct: Math.round(r.progress * 100), text: r.text }),
+      });
+      report({ state: 'ready' });
+    } catch (err) {
+      report({
+        state: 'failed',
+        reason: `model failed to download: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    } finally {
+      // Ready, failed or disposed alike: the cache is whatever it is now,
+      // and the menu holds no GPU either way.
+      worker?.terminate();
+      worker = null;
+    }
+  })();
+  return {
+    dispose: (): void => {
+      disposed = true;
+      worker?.terminate();
+      worker = null;
+    },
+  };
+}
+
 /** The one seam the engine is used through — tests inject a fake and the
  * whole strategist runs without WebLLM, WebGPU, or a worker. */
 export interface ChatEngine {
