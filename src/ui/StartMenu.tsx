@@ -140,9 +140,10 @@ export function StartMenu(props: StartMenuProps) {
   // app already requires to boot.
   const [llm, setLlm] = createSignal(false);
   // The menu is the waiting room: flipping the toggle starts the model
-  // download right here, so the weights are cached (or well underway) by
-  // the time the match boots. The warm-up survives the launch reload —
-  // WebLLM keeps weights in Cache storage — and toggling off cancels it.
+  // download right here, so the GGUF is cached (or well underway) by the
+  // time the match boots. The warm-up survives the launch reload —
+  // wllama's ModelManager writes into cache storage, no engine involved
+  // (see warmModel in strategist.ts) — and toggling off cancels it.
   const [llmWarm, setLlmWarm] = createSignal<import('../ai/strategist').LlmStatus | null>(null);
   let warmHandle: { dispose: () => void } | null = null;
   const setLlmAndWarm = (on: boolean): void => {
