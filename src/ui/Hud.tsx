@@ -185,12 +185,14 @@ export function Hud(props: {
           border-style: dashed;
           border-color: rgba(255, 255, 255, 0.12);
         }
-        /* The hover rule above outranks a bare .active (:not() counts
-           toward specificity), so the paired :hover selector is load-
-           bearing: without it a selected button under the cursor shows
-           plain hover styling — invisible right when the player clicks.
-           The solid border keeps "chosen" readable next to "merely under
-           the cursor". */
+        /* Selected must beat hovered. The hover rule above outranks a
+           bare .active (its :not() counts toward specificity), which
+           left a clicked button showing plain hover styling — invisible
+           right when the player clicks. The twin selector restates the
+           choice with :hover attached, which is strictly more specific
+           than the hover rule itself, so it wins wherever either sits
+           in the sheet. The solid border keeps "chosen" readable next
+           to "merely under the cursor". */
         #ui button.active,
         #ui button.active:hover:not(:disabled) {
           background: rgba(229, 196, 105, 0.3);
