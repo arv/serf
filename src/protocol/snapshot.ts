@@ -213,6 +213,7 @@ function workKindOf(w: World, u: Unit): number {
   if (home.type === 'weaponsmith') return WORK.hammer;
   if (home.type === 'wheatFarm') return WORK.dig;
   if (home.type === 'well') return WORK.draw; // cranking the bucket up
+  if (home.type === 'fishery') return WORK.fish; // pole out on the pier
   return WORK.tend;
 }
 

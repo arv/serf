@@ -15,6 +15,22 @@ import type { FogQuery } from './fogOfWar';
 import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
 
+/** A built fishery's pier, in world space: the deck line from its landward
+ * end to the fishing spot near the tip, plank height, and the yaw that
+ * faces the water. Shared with sceneSync, which walks the fisherman out
+ * along it. */
+export interface PierInfo {
+  /** Building center, the anchor a fisherman is matched to his pier by. */
+  bx: number;
+  bz: number;
+  baseX: number;
+  baseZ: number;
+  spotX: number;
+  spotZ: number;
+  yaw: number;
+  deckY: number;
+}
+
 interface BuildingVisual {
   root: THREE.Group;
   state: 'site' | 'built';
@@ -35,6 +51,14 @@ interface BuildingVisual {
   /** The well's windlass, spun per frame while the well is staffed. */
   crank?: THREE.Object3D;
   shoal?: THREE.Object3D;
+  /** The fishery's pier decor — the deck the fisherman walks out on. */
+  pier?: THREE.Object3D;
+  /** Measured deck line, cached: measuring may also swing the decor 45°
+   * on a corner-only shore, and that must happen exactly once. */
+  pierLine?: PierInfo;
+  /** Quarter turns from "front faces +z" (shore buildings turn to their
+   * water); kept for deriving where the pier runs. */
+  facing: number;
   staffed: boolean;
   /** Longest footprint side, for sizing the teardown dust. */
   span: number;
@@ -301,6 +325,8 @@ export class BuildingSync {
       pileKey: '',
       crank: model.getObjectByName('wellCrank') ?? undefined,
       shoal: model.getObjectByName('fisheryShoal') ?? undefined,
+      pier: model.getObjectByName('fisheryPier') ?? undefined,
+      facing: b.facing ?? 0,
       staffed: false,
       span: Math.max(b.w, b.h),
     };
@@ -317,6 +343,107 @@ export class BuildingSync {
       if (grip) out.push({ x: v.root.position.x, z: v.root.position.z, crank: v.crank, grip });
     }
     return out;
+  }
+
+  /** Terrain lookup (tile ints -> is water?), fed from main's map mirror.
+   * The pier measurement uses it to tell a wet tip from a dry one. */
+  #water: ((tx: number, tz: number) => boolean) | null = null;
+
+  setWater(query: (tx: number, tz: number) => boolean): void {
+    this.#water = query;
+  }
+
+  /** Built fisheries' piers, in world space: where the deck line runs
+   * (landward end -> fishing spot near the tip), the height of the planks,
+   * and the yaw that faces the water. sceneSync walks the resident
+   * fisherman out along it and stands him at the spot, line in the water —
+   * the same render-side move as the well serfs, because the sim parks him
+   * on whatever tile the path found. */
+  fisheryPiers(): PierInfo[] {
+    const out: PierInfo[] = [];
+    for (const v of this.#visuals.values()) {
+      if (v.state !== 'built' || !v.pier) continue;
+      out.push((v.pierLine ??= this.#measurePier(v)));
+    }
+    return out;
+  }
+
+  #measurePier(v: BuildingVisual): PierInfo {
+    // This runs on structural updates, possibly before the next render
+    // ticks world matrices — settle them before measuring.
+    v.root.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(v.pier!);
+    let yaw = (v.facing * Math.PI) / 2;
+    let dirX = Math.sin(yaw);
+    let dirZ = Math.cos(yaw);
+    const cx = (box.min.x + box.max.x) / 2;
+    const cz = (box.min.z + box.max.z) / 2;
+    // Facing is a quarter turn, so the deck line lies along one axis.
+    const half = (Math.abs(dirX) > 0.5 ? box.max.x - box.min.x : box.max.z - box.min.z) / 2;
+    const baseX = cx - dirX * half;
+    const baseZ = cz - dirZ * half;
+    let tipX = cx + dirX * half;
+    let tipZ = cz + dirZ * half;
+    // Corner-only shores: placement guarantees water touching the
+    // footprint, but facing is a quarter turn — when the water sits on
+    // the diagonal, a straight pier ends on grass. Swing the deck 45°
+    // about its landward end toward whichever diagonal is wet. Without a
+    // terrain feed (tests, or before main wires it) the tip counts as
+    // wet and the pier stays straight.
+    const wet = (x: number, z: number): boolean =>
+      this.#water?.(Math.floor(x), Math.floor(z)) ?? true;
+    if (!wet(tipX, tipZ)) {
+      for (const theta of [Math.PI / 4, -Math.PI / 4]) {
+        const c = Math.cos(theta);
+        const s = Math.sin(theta);
+        const rx = tipX - baseX;
+        const rz = tipZ - baseZ;
+        const tx = baseX + rx * c + rz * s;
+        const tz = baseZ - rx * s + rz * c;
+        if (!wet(tx, tz)) continue;
+        this.#swingDecor(v, baseX, baseZ, theta);
+        yaw += theta;
+        dirX = Math.sin(yaw);
+        dirZ = Math.cos(yaw);
+        tipX = tx;
+        tipZ = tz;
+        break;
+      }
+    }
+    return {
+      bx: v.root.position.x,
+      bz: v.root.position.z,
+      baseX,
+      baseZ,
+      // A step short of the tip, so the toes stay on the planks.
+      spotX: tipX - dirX * 0.4,
+      spotZ: tipZ - dirZ * 0.4,
+      yaw,
+      // The docks model's plank top sits at 0.04 of its own units; after
+      // the decor scale that is ~0.05 over the building's ground. The
+      // pier bbox can't say (its mooring posts top out well above the
+      // deck), so the constant it is.
+      deckY: v.root.position.y + 0.05,
+    };
+  }
+
+  /** Rotate the pier — and the shoal working the water off its end — about
+   * the vertical line through the deck's landward end. The parent chain is
+   * Y-rotation plus uniform scale, so a world-space angle carries into the
+   * local frame unchanged. */
+  #swingDecor(v: BuildingVisual, baseX: number, baseZ: number, theta: number): void {
+    const c = Math.cos(theta);
+    const s = Math.sin(theta);
+    const p = new THREE.Vector3();
+    for (const obj of [v.pier, v.shoal]) {
+      if (!obj?.parent) continue;
+      obj.parent.worldToLocal(p.set(baseX, 0, baseZ));
+      const rx = obj.position.x - p.x;
+      const rz = obj.position.z - p.z;
+      obj.position.x = p.x + rx * c + rz * s;
+      obj.position.z = p.z - rx * s + rz * c;
+      obj.rotation.y += theta;
+    }
   }
 
   /** Per render frame: the decor that moves. dt in seconds (pass 0 while

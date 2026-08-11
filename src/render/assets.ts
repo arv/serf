@@ -79,6 +79,9 @@ interface Decor {
   at: [number, number];
   size: number;
   rot?: number;
+  /** Object name, for decor other systems need to find again (the pier the
+   * fisherman walks out on, the shoal buildingSync swims). */
+  name?: string;
 }
 
 const DECOR_PROP_FILES = [
@@ -114,7 +117,16 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // but on a corner-only shore the pier's own tile can still be dry. It
     // reads right at village zoom either way, which is the bar decor has to
     // clear.
-    { prop: 'extra/building_docks_green', at: [0, 0.68], span: 0.8, size: 1, rot: -Math.PI / 2 },
+    {
+      prop: 'extra/building_docks_green',
+      at: [0, 0.68],
+      span: 0.8,
+      size: 1,
+      rot: -Math.PI / 2,
+      // buildingSync finds the pier by name and tells sceneSync where it
+      // runs: the fisherman walks out on it and fishes off the end.
+      name: 'fisheryPier',
+    },
     // On the ridge, where the pack's sailing ship was — turned 45 degrees so
     // it stands broadside to the fixed camera yaw. Along either axis the
     // fish would be read end-on and vanish.
@@ -481,6 +493,7 @@ export async function loadGlbAssets(): Promise<boolean> {
           obj = g;
         }
         if (!obj) continue;
+        if (d.name) obj.name = d.name;
         obj.position.set(d.at[0], d.y ?? 0, d.at[1]);
         obj.rotation.y = d.rot ?? 0;
         group.add(obj);

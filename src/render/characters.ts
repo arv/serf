@@ -26,6 +26,7 @@ export type AnimKey =
   | 'dig'
   | 'tend'
   | 'draw'
+  | 'fish'
   | 'carry'
   | 'carryIdle'
   | 'death';
@@ -58,6 +59,8 @@ const KK_CLIP_NAMES: Record<AnimKey, string> = {
   tend: 'Working_A',
   // Hand-over-hand reeling doubles as cranking the well bucket up.
   draw: 'Fishing_Reeling',
+  // The patient hold, rod out over the water — the actual fisherman.
+  fish: 'Fishing_Idle',
   // Composited at load: gait legs + holding-pose arms.
   carry: 'Carry_Walk',
   carryIdle: 'Carry_Idle',
@@ -356,6 +359,44 @@ function spadeProp(): THREE.Group {
   return g;
 }
 
+function fishingPoleProp(): THREE.Group {
+  // The animation library ships the Fishing_* clips but no rod to go with
+  // them, so the pole is built here like the mallet and spade: grip at the
+  // origin, haft up +Y, sized to the pack's chibi exaggeration (the rod
+  // runs over half a body, or it vanishes next to the KayKit axe).
+  const g = new THREE.Group();
+  const rod = toolMesh(new THREE.CylinderGeometry(0.008, 0.02, 0.85, 6), 0x8a6a42);
+  rod.position.y = 0.31;
+  const grip = toolMesh(new THREE.CylinderGeometry(0.024, 0.026, 0.16, 6), 0x6b4e2e);
+  grip.position.y = -0.02;
+  // The reel: a little drum proud of the haft above the grip.
+  const reel = toolMesh(new THREE.CylinderGeometry(0.034, 0.034, 0.028, 8), 0x77848e);
+  reel.rotation.x = Math.PI / 2;
+  reel.position.set(0, 0.1, 0.04);
+  // A stiff stylized line with a bobber: tip at (0, 0.735, 0) down to the
+  // bobber at (0, 0.30, 0.52). It tilts with the rod rather than hanging
+  // plumb — at village zoom the read is "line in the water", which is all
+  // it is for.
+  const line = toolMesh(new THREE.CylinderGeometry(0.004, 0.004, 0.68, 4), 0xe8e4d8);
+  line.position.set(0, 0.52, 0.26);
+  line.rotation.x = 2.27;
+  const bobber = toolMesh(new THREE.SphereGeometry(0.022, 6, 5), 0xb8452e);
+  bobber.position.set(0, 0.3, 0.52);
+  g.add(rod, grip, reel, line, bobber);
+  // The relaxed gripPose that suits the swung tools lays a rod tip-down.
+  // Cancel it (inverse rotation, hence the reversed order) back to the
+  // bare handslot axis, then pitch the rod forward out of the two-handed
+  // hold — tip out over the water, line clear of the face.
+  const tilt = new THREE.Group();
+  tilt.rotation.x = 1.0;
+  tilt.add(g);
+  const wrap = new THREE.Group();
+  wrap.rotation.order = 'ZYX';
+  wrap.rotation.set(-0.35, 0, 0.55);
+  wrap.add(tilt);
+  return wrap;
+}
+
 /** Relaxed grip: mid-haft, head tipped out and a touch forward. Tools sat
  * grip-at-end pointing straight down the idle arm, which parked the spade
  * blade at the ankle and read as dropped rather than held; these angles
@@ -372,6 +413,7 @@ const WORK_TOOLS: Record<number, () => THREE.Group> = {
   2: pickaxeProp, // WORK.pickaxe
   4: spadeProp, // WORK.dig
   6: () => new THREE.Group(), // WORK.draw — bare hands on the well crank
+  7: fishingPoleProp, // WORK.fish
 };
 
 /** setWorkTool sentinel: hands are full (carrying goods) — no tool shows,
