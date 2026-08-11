@@ -1,5 +1,7 @@
 import { DEFAULT_SEED } from '../protocol/lobby';
 import { parseStrategyId } from '../sim/defs/aiStrategies';
+import { parseMissionId } from '../sim/defs/missions';
+import { missionWorldConfig } from '../sim/world';
 import type { WorldConfig } from '../sim/world';
 
 /**
@@ -20,6 +22,14 @@ export interface GameConfig extends WorldConfig {
 
 export function configFromUrl(search: string): GameConfig {
   const params = new URLSearchParams(search);
+  // ?mission=<id>: a campaign mission. The def is the whole recipe — its
+  // pinned seed and seats win over any stray ?seed/?ai in the URL. An
+  // unknown id is no id (the URL is hand-editable); the ordinary parsing
+  // below then applies.
+  const mission = parseMissionId(params.get('mission'));
+  if (mission) {
+    return { ...missionWorldConfig(mission), myPlayerId: 0, adminEnabled: true };
+  }
   // A non-numeric seed used to reach createWorld as NaN and generate a
   // broken world; fall back instead. The menu only ever sends digits, but
   // the URL is hand-editable.

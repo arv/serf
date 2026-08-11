@@ -21,6 +21,7 @@ import {
   type BuildingTypeId,
 } from './defs/buildings.ts';
 import { dealStrategies, type AiStrategyId } from './defs/aiStrategies.ts';
+import { MISSION_DEFS, type MissionId } from './defs/missions.ts';
 import { makeUnit, type Unit } from './units.ts';
 import { nearestWalkable } from './path.ts';
 import type { GoodAmounts, GoodId } from './defs/goods.ts';
@@ -89,6 +90,13 @@ export interface World {
   /** One-shot events drained into structural messages (toasts, game over). */
   pendingEvents: GameEvent[];
   outcome: MatchOutcome;
+  /** Campaign mission this world is playing, if any. The id rides the world
+   * (and the save) rather than the URL, so a loaded game still knows. */
+  missionId?: MissionId;
+  /** Latch bits, one per mission objective: a stock objective met and then
+   * spent stays met, and the completion event fires exactly once. The latch
+   * is why this is world state — it must survive save/load. */
+  objectivesDone?: boolean[];
 }
 
 export type MatchOutcome =
@@ -109,7 +117,8 @@ export interface AdminState {
 export type GameEvent =
   | { kind: 'raidIncoming'; text: string; player: Owner }
   | { kind: 'playerEliminated'; player: Owner }
-  | { kind: 'gameOver'; winner: Owner | null };
+  | { kind: 'gameOver'; winner: Owner | null }
+  | { kind: 'objectiveComplete'; index: number; player: Owner };
 
 export interface TechState {
   researched: TechId[];
@@ -138,6 +147,22 @@ export interface WorldConfig {
   /** Bandits exist. Default true; false places no camp, no guards, and
    * runs no raids — a peaceful sandbox (solo never auto-wins there). */
   banditsEnabled?: boolean;
+  /** Campaign mission recipe to apply (defs/missions.ts). The id, not the
+   * spec: config and save stay small, and two hosts resolving the same id
+   * read the same table. */
+  mission?: MissionId;
+}
+
+/** The full WorldConfig a mission def prescribes. Callers may override
+ * seats (the headless tests put an AI in the human's chair). */
+export function missionWorldConfig(id: MissionId): WorldConfig {
+  const def = MISSION_DEFS[id];
+  return {
+    seed: def.seed,
+    players: def.players.map((p) => ({ ...p })),
+    banditsEnabled: def.bandits,
+    mission: id,
+  };
 }
 
 /**
@@ -176,6 +201,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
       ? { seed: seedOrConfig, players: [{ kind: 'human' }] }
       : seedOrConfig;
   const seed = config.seed | 0;
+  const mission = config.mission ? MISSION_DEFS[config.mission] : undefined;
   const layout = START_LAYOUTS[config.players.length];
   if (!layout) throw new Error(`no start layout for ${config.players.length} players`);
   const starts = layout.map(([x, y]) => ({ x, y }));
@@ -199,7 +225,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
     // The seed deals the AI seats their playbooks here, once, and the
     // world carries the result from then on (see PlayerState.strategy).
     players: config.players.map((p, i) => makePlayer(i, p.kind, deal[i])),
-    raidState: { nextRaidTick: FIRST_RAID_TICK, wave: 0 },
+    raidState: { nextRaidTick: mission?.firstRaidTick ?? FIRST_RAID_TICK, wave: 0 },
     admin: {
       enabled: config.adminEnabled ?? true,
       raidsEnabled: config.banditsEnabled ?? true,
@@ -217,7 +243,9 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
     const { x: shX, y: shY } = starts[p]!;
     clearResources(map, shX - 1, shY - 1, 5, 5);
     const storehouse = placeBuiltBuilding(world, 'storehouse', p, shX, shY);
-    storehouse.stock = { ...START_STOCK };
+    // Mission overrides apply to the human's seat only (seat 0); a mission
+    // rival opens with the standard larder.
+    storehouse.stock = { ...(p === 0 && mission?.startStock ? mission.startStock : START_STOCK) };
   }
 
   // Bandit camp. Solo: a random far corner (the classic campaign). With
@@ -271,15 +299,83 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
   // Starting serfs, scattered just south of each storehouse.
   for (let p = 0; p < starts.length; p++) {
     const { x: shX, y: shY } = starts[p]!;
-    for (let i = 0; i < START_SERFS; i++) {
+    const serfs = p === 0 && mission?.startSerfs !== undefined ? mission.startSerfs : START_SERFS;
+    for (let i = 0; i < serfs; i++) {
       const x = shX - 1 + (i % 5) + 0.5;
       const y = shY + 4 + Math.floor(i / 5) + 0.5;
       spawnUnit(world, 'serf', p, x, y);
     }
   }
 
+  // Mission dressing, after the classic worldgen so a mission with no
+  // overrides (the finale) is tile- and id-identical to the solo game the
+  // winnable test proves takeable.
+  if (mission) {
+    world.missionId = mission.id;
+    world.objectivesDone = mission.objectives.map(() => false);
+    if (mission.startTechs) {
+      const techs = world.players[0]!.techs;
+      for (const tech of mission.startTechs) {
+        if (!techs.researched.includes(tech)) techs.researched.push(tech);
+        // Of the techs the campaign grants none carries a side flag; only
+        // masonry would need pavingUnlocked mirrored here if a mission ever
+        // grants it.
+      }
+    }
+    if (mission.prebuilt) {
+      const origin = starts[0]!;
+      for (const spec of mission.prebuilt) {
+        placePrebuiltNear(world, spec.type, origin.x + spec.dx, origin.y + spec.dy);
+      }
+    }
+  }
+
   world.rngState = rng.state;
   return world;
+}
+
+/**
+ * Stand a mission's pre-built building at the requested spot, or the nearest
+ * one the ordinary placement rules accept — the same ring-spiral search the
+ * bandit camp placement uses, and deterministic for the same reason: no rng
+ * draw, fixed scan order. A gatherer spirals until its resource is in reach
+ * (canPlace enforces that), so a woodcutter asked for at an offset lands
+ * where the trees actually are. Tiles under a standing unit are refused so
+ * worldgen never walls a starting serf in. Silently places nothing when 15
+ * rings find no ground — the mission tests assert every prebuilt landed.
+ */
+function placePrebuiltNear(
+  world: World,
+  type: BuildingTypeId,
+  cx: number,
+  cy: number,
+): Building | undefined {
+  const def = buildingDef(type);
+  const occupied = new Set<number>();
+  for (const u of world.units.values()) {
+    if (!u.dead) occupied.add(tileIdx(Math.floor(u.x), Math.floor(u.y)));
+  }
+  const footprintFree = (x: number, y: number): boolean => {
+    for (let ty = y; ty < y + def.h; ty++) {
+      for (let tx = x; tx < x + def.w; tx++) {
+        if (!inBounds(tx, ty) || occupied.has(tileIdx(tx, ty))) return false;
+      }
+    }
+    return true;
+  };
+  for (let r = 0; r < 15; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = cx + dx;
+        const y = cy + dy;
+        if (canPlace(world.map, type, x, y) && footprintFree(x, y)) {
+          return placeBuiltBuilding(world, type, 0, x, y);
+        }
+      }
+    }
+  }
+  return undefined;
 }
 
 export function spawnUnit(

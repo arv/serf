@@ -53,6 +53,13 @@ export class WorkerSimHost implements SimHost {
    */
   #worker: Worker;
   #structuralCb: ((msg: StructuralUpdate) => void) | null = null;
+  /** The newest structural frame that arrived before anyone listened. The
+   * worker posts its first one right after 'ready', and it dispatches while
+   * runMatch is still awaiting the asset loads — before onStructural has
+   * registered. Losing it is invisible at speed 1 (the next frame is 250 ms
+   * away) but a mission match starts paused, and that first frame is then
+   * the only one carrying stock and the mission block. */
+  #pendingStructural: StructuralUpdate | null = null;
   #saveCb: ((data: string) => void) | null = null;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
   #aiSummaryCb: ((playerId: number, summary: AiWorldSummary) => void) | null = null;
@@ -85,7 +92,8 @@ export class WorkerSimHost implements SimHost {
             explored: msg.explored,
           });
         } else if (msg.type === 'structural') {
-          this.#structuralCb?.(msg);
+          if (this.#structuralCb) this.#structuralCb(msg);
+          else this.#pendingStructural = msg;
         } else if (msg.type === 'saved') {
           this.#saveCb?.(msg.data);
           this.#saveCb = null;
@@ -116,6 +124,11 @@ export class WorkerSimHost implements SimHost {
 
   onStructural(cb: (msg: StructuralUpdate) => void): void {
     this.#structuralCb = cb;
+    const pending = this.#pendingStructural;
+    if (pending) {
+      this.#pendingStructural = null;
+      cb(pending);
+    }
   }
 
   onNetStatus(cb: (status: NetStatus) => void): void {

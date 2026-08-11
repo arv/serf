@@ -72,6 +72,20 @@ export const setTechPanelOpen = (open: boolean): void => {
   setOpenPanel(open ? 'tech' : null);
 };
 
+/**
+ * Campaign mission riding this match, latch bits included — the worker's
+ * structural updates keep it fresh (the world, not the URL, is the source
+ * of truth, so a loaded save still knows its mission). Null = free play.
+ */
+export const [mission, setMission] = createSignal<{
+  id: import('../sim/defs/missions').MissionId;
+  done: boolean[];
+} | null>(null);
+
+/** The mission briefing card: shown at boot for mission matches, dismissed
+ * by its Begin button, reopenable from the objectives panel. */
+export const [briefingOpen, setBriefingOpen] = createSignal(false);
+
 /** Selected building (mutually exclusive with unit selection). */
 export const [selectedBuilding, setSelectedBuilding] = createSignal<BuildingSnap | null>(null);
 

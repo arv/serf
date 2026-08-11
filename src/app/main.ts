@@ -35,9 +35,14 @@ import {
   setStock,
   setTechs,
   speed,
+  setSpeed,
   fogEnabled,
   placing,
+  setMission,
+  setBriefingOpen,
 } from '../ui/store';
+import { markMissionComplete } from '../ui/campaign';
+import { MISSION_DEFS } from '../sim/defs/missions';
 import { Terrain } from '../sim/map';
 import { inBounds, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
@@ -119,7 +124,7 @@ if (!crossOriginIsolated) {
  * that proves it: a room is chosen, but the choosing happens in the
  * council, which is a menu screen.
  */
-const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu'];
+const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu', 'mission'];
 
 /**
  * A room's opening settings, from the URL a link or a reload arrived on.
@@ -469,11 +474,26 @@ async function runMatch(
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
     setAdminState(msg.admin);
+    // The worker, not the URL, says which mission this is: a loaded save
+    // reboots on ?seed=…, but the world remembers.
+    if (msg.mission) {
+      setMission(msg.mission);
+      // Finishing writes the profile. Idempotent, so every structural frame
+      // after the win may say it again.
+      if (msg.outcome.state === 'over' && msg.outcome.winner === myPlayerId()) {
+        markMissionComplete(msg.mission.id);
+      }
+    }
     for (const event of msg.events) {
       if (event.kind === 'raidIncoming' && event.player === myPlayerId()) {
         pushToast(event.text);
       } else if (event.kind === 'playerEliminated' && event.player !== myPlayerId()) {
         pushToast('A rival banner has fallen!');
+      } else if (event.kind === 'objectiveComplete' && event.player === myPlayerId()) {
+        const label = msg.mission
+          ? MISSION_DEFS[msg.mission.id].objectives[event.index]?.label
+          : undefined;
+        pushToast(label ? `Objective complete: ${label}` : 'Objective complete');
       }
     }
     // Keep the selected building's panel fresh (or clear it if destroyed).
@@ -509,6 +529,21 @@ async function runMatch(
     place: (type) => controls.setPlacement(type),
     save: saveGame,
   });
+
+  // A fresh mission opens on its briefing card over a still valley; the
+  // card's Begin button starts the clock. A loaded mission save skips the
+  // ceremony — the player has read it before. The mission signal is seeded
+  // from the config rather than awaited from the worker: the match is about
+  // to be paused, so the next structural frame may be a Begin-press away.
+  if (config.mission && loadData === undefined) {
+    setMission({
+      id: config.mission,
+      done: MISSION_DEFS[config.mission].objectives.map(() => false),
+    });
+    setBriefingOpen(true);
+    setSpeed(0);
+    host.setSpeed(0);
+  }
 
   // The camera never rotates: hp bars copy its live orientation once to
   // sit parallel with the screen plane.

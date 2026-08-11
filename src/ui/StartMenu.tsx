@@ -11,6 +11,8 @@ import {
   parseStrategyId,
   type AiStrategyId,
 } from '../sim/defs/aiStrategies';
+import { MISSION_DEFS, MISSION_ORDER, type MissionId } from '../sim/defs/missions';
+import { isMissionComplete, isMissionUnlocked } from './campaign';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -55,7 +57,7 @@ function opponentHint(picks: (AiStrategyId | undefined)[]): string {
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
 
-export type Mode = 'single' | 'multi';
+export type Mode = 'single' | 'campaign' | 'multi';
 export type MpMode = 'host' | 'join';
 type Visibility = 'open' | 'private';
 
@@ -126,6 +128,12 @@ const ManyIcon = (
     <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
     <path d="M16.5 6.2a3.1 3.1 0 0 1 0 5.9" />
     <path d="M18 15.2A6.5 6.5 0 0 1 21.5 20" />
+  </svg>
+);
+const BannerIcon = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 3v18" />
+    <path d="M6 4h12l-3 4 3 4H6" />
   </svg>
 );
 export function StartMenu(props: StartMenuProps) {
@@ -221,7 +229,15 @@ export function StartMenu(props: StartMenuProps) {
   const [online, setOnline] = createSignal(navigator.onLine);
 
   const isMulti = (): boolean => mode() === 'multi';
+  const isSingle = (): boolean => mode() === 'single';
+  const isCampaign = (): boolean => mode() === 'campaign';
   const isJoin = (): boolean => isMulti() && mp() === 'join';
+
+  // The campaign pane opens on the frontier: the first commission not yet
+  // fulfilled (everything done = the finale stays selected).
+  const frontier = (): MissionId =>
+    MISSION_ORDER.find((id) => !isMissionComplete(id)) ?? MISSION_ORDER[MISSION_ORDER.length - 1]!;
+  const [pickedMission, setPickedMission] = createSignal<MissionId>(frontier());
 
   /** One entry per opponent seat: the playbook the player named for it, or
    * undefined for the ones left to the seed. What the seed will actually
@@ -292,6 +308,7 @@ export function StartMenu(props: StartMenuProps) {
 
   const target = (): string => picked() ?? room();
   const ctaLabel = (): string => {
+    if (isCampaign()) return `Begin: ${MISSION_DEFS[pickedMission()].title}`;
     if (!isMulti()) return ai() > 0 ? 'Begin skirmish' : 'Begin sandbox';
     if (isJoin()) return target() ? 'Join ' + target() : 'Pick a room';
     return vis() === 'private' ? 'Create private room' : 'Create open room';
@@ -300,6 +317,13 @@ export function StartMenu(props: StartMenuProps) {
   const launch = (): void => {
     if (isJoin() && !target()) return;
     clearSeatStash(); // a menu launch is fresh intent, never a reconnect
+    if (isCampaign()) {
+      // A mission is a navigation like any single-player launch: the def's
+      // id is the whole query string, the recipe lives in the sim's table.
+      releaseMenuBackdrop();
+      location.search = '?mission=' + pickedMission();
+      return;
+    }
     if (isMulti()) {
       props.onCouncil({
         mp: isJoin() ? target().toUpperCase() : 'new',
@@ -348,6 +372,10 @@ export function StartMenu(props: StartMenuProps) {
               <button class={mode() === 'single' ? 'on' : ''} onClick={() => setMode('single')}>
                 {OneIcon}
                 Single player
+              </button>
+              <button class={mode() === 'campaign' ? 'on' : ''} onClick={() => setMode('campaign')}>
+                {BannerIcon}
+                Campaign
               </button>
               <button
                 class={mode() === 'multi' ? 'on' : ''}
@@ -514,7 +542,52 @@ export function StartMenu(props: StartMenuProps) {
                 </div>
               </Show>
 
-              <Show when={!isMulti()}>
+              <Show when={isCampaign()}>
+                <div class="browser">
+                  <div class="browser-head">
+                    <div style="display:flex;align-items:baseline;gap:8px">
+                      <span class="row-label">The reeve’s commissions</span>
+                      <span class="count">
+                        {MISSION_ORDER.filter((id) => isMissionComplete(id)).length}/
+                        {MISSION_ORDER.length} fulfilled
+                      </span>
+                    </div>
+                  </div>
+                  <div class="room-list" style="max-height:236px">
+                    <For each={MISSION_ORDER}>
+                      {(id, i) => {
+                        const def = MISSION_DEFS[id];
+                        const locked = (): boolean => !isMissionUnlocked(id);
+                        return (
+                          <button
+                            class={`room ${pickedMission() === id ? 'on' : ''}`}
+                            disabled={locked()}
+                            title={locked() ? 'Fulfill the commission before it' : undefined}
+                            onClick={() => setPickedMission(id)}
+                            onDblClick={launch}
+                          >
+                            <span style="min-width:0">
+                              <span class="code" style="letter-spacing:0.02em">
+                                {i() + 1}. {def.title}
+                              </span>
+                              <span class="meta">{def.tagline}</span>
+                            </span>
+                            <span style="flex:none;color:#e5c469">
+                              {isMissionComplete(id) ? '✓' : locked() ? '🔒' : ''}
+                            </span>
+                          </button>
+                        );
+                      }}
+                    </For>
+                  </div>
+                  <div class="row-hint">
+                    A tutorial in six commissions — hints can be hidden in the first minute.
+                    Finishing one unseals the next.
+                  </div>
+                </div>
+              </Show>
+
+              <Show when={isSingle()}>
                 <div class="row">
                   <div>
                     <div class="row-label">Computer opponents</div>
@@ -602,7 +675,7 @@ export function StartMenu(props: StartMenuProps) {
                 </Show>
               </Show>
 
-              <Show when={!isMulti() && OPTIONS.showBanditsRow}>
+              <Show when={isSingle() && OPTIONS.showBanditsRow}>
                 <div class="row">
                   <div>
                     <div class="row-label">Bandit raids</div>

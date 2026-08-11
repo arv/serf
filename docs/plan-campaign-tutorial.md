@@ -1,10 +1,20 @@
 # Plan: single-player campaign + tutorial
 
-Status: proposed. Six missions, pinned-seed procedural maps, objectives
+Status: implemented. Six missions, pinned-seed procedural maps, objectives
 evaluated in the sim (a `mission` on `WorldConfig`, checked in
 `victory.ts`), hints driven entirely on the main thread from
 `StructuralUpdate` snapshots. No map editor, no new save format, no
 rewrite of the solo mode — the finale *is* the solo mode.
+
+Notes from the landing: seeds pinned at 101 / 202 / 303 / 404 /
+20260724 / 606, each held by `missions.test.ts`; hints advance on the
+objective latch bits (plus a Got-it button for lore steps) instead of
+their own snapshot predicates — the latches already ride
+`StructuralUpdate`, so hints needed no plumbing of their own; mission 3's
+winnability test is scripted like mission 1's rather than AI-driven (the
+brain trains soldiers the moment it can and eats every spear the
+checklist wants stockpiled); and the objectives panel carries a "brief"
+button that reopens the commission card mid-match.
 
 ## Why now
 

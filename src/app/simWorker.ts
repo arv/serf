@@ -237,7 +237,11 @@ function postStructural(): void {
   const jobs = debugEnabled ? snapJobs(world) : undefined;
   const buildingsBody = JSON.stringify(buildings);
   const playersBody = JSON.stringify(players);
-  const miscBody = JSON.stringify([world.admin, world.outcome, lastInvariantViolations]);
+  const mission =
+    world.missionId !== undefined
+      ? { id: world.missionId, done: [...(world.objectivesDone ?? [])] }
+      : undefined;
+  const miscBody = JSON.stringify([world.admin, world.outcome, lastInvariantViolations, mission]);
   const buildingsChanged = buildingsBody !== lastBuildingsBody;
   const playersChanged = playersBody !== lastPlayersBody;
   const miscChanged = miscBody !== lastMiscBody;
@@ -265,6 +269,7 @@ function postStructural(): void {
     ...(buildingsChanged ? { buildings } : {}),
     ...(playersChanged ? { players } : {}),
     ...(jobs ? { jobs } : {}),
+    ...(mission ? { mission } : {}),
   };
   post(msg);
 }

@@ -32,6 +32,10 @@ interface SaveFile {
     raidState: World['raidState'];
     admin?: World['admin'];
     outcome: MatchOutcome;
+    /** Campaign mission fields; absent on sandbox/skirmish saves (the
+     * banditsEnabled precedent — optional, no version bump). */
+    missionId?: World['missionId'];
+    objectivesDone?: boolean[];
   };
 }
 
@@ -62,6 +66,9 @@ export function serializeWorld(world: World): string {
       raidState: world.raidState,
       admin: world.admin,
       outcome: world.outcome,
+      ...(world.missionId !== undefined
+        ? { missionId: world.missionId, objectivesDone: world.objectivesDone }
+        : {}),
     },
   };
   return JSON.stringify(file);
@@ -105,5 +112,8 @@ export function deserializeWorld(json: string): World {
     admin: w.admin ?? { enabled: true, raidsEnabled: true, instantBuild: false },
     pendingEvents: [],
     outcome: w.outcome,
+    ...(w.missionId !== undefined
+      ? { missionId: w.missionId, objectivesDone: w.objectivesDone ?? [] }
+      : {}),
   };
 }
