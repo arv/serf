@@ -251,6 +251,11 @@ async function bootLlmStrategist(host: WorkerSimHost): Promise<void> {
     },
   });
   host.onAiSummary((playerId, summary) => strategist.onSummary(playerId, summary));
+  // The frozen sim stops new summaries when the page hides; this stops the
+  // consultation already chewing — a minute of wasm inference is exactly
+  // the CPU a backgrounded phone cannot afford.
+  document.addEventListener('visibilitychange', () => strategist.setHidden(document.hidden));
+  strategist.setHidden(document.hidden);
   await strategist.start();
 }
 
@@ -345,8 +350,10 @@ async function runMatch(
   // Switching apps (or the screen going dark) freezes the solo sim: the
   // worker's timers are deliberately unthrottled, so without this a
   // backgrounded phone keeps simulating — and draining — a valley nobody
-  // is watching. The net worker ignores it; a shared world waits for no
-  // one. Sent through the host so this line, too, needn't know which.
+  // is watching. The net worker can't pause a shared world, but it goes
+  // quiet the same way: the relay stops streaming to a hidden seat and
+  // catches it up on return. Sent through the host so this line, too,
+  // needn't know which.
   document.addEventListener('visibilitychange', () => host.setHidden(document.hidden));
   host.setHidden(document.hidden);
   // Fire-and-forget beside the match: the model downloads while the game

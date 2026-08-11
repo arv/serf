@@ -97,6 +97,12 @@ export class LlmStrategist {
   #thinking = false;
   #dead = false;
   #disposed = false;
+  /** Page hidden: no consultations. The sim freezes alongside, so no new
+   * summaries arrive anyway — this exists to stop the one already chewing. */
+  #hidden = false;
+  /** The in-flight consultation's abort, so hiding can stop the CPU now
+   * rather than a minute of inference later. */
+  #current: AbortController | null = null;
 
   constructor(opts: LlmStrategistOpts) {
     this.#opts = opts;
@@ -120,7 +126,7 @@ export class LlmStrategist {
    * seat's or anyone's — the summary is simply dropped; another comes
    * along on the next cadence. */
   onSummary(playerId: number, summary: AiWorldSummary): void {
-    if (!this.#engine || this.#dead || this.#disposed || this.#thinking) return;
+    if (!this.#engine || this.#dead || this.#disposed || this.#thinking || this.#hidden) return;
     let seat = this.#seats.get(playerId);
     if (!seat) {
       seat = { busy: false, advice: null, sentKey: null, prevSummary: null };
@@ -136,6 +142,15 @@ export class LlmStrategist {
     this.#disposed = true;
     this.#engine = null;
     this.#releaseWllama();
+  }
+
+  /** Backgrounded: a phone in a pocket must not spend a minute of CPU on
+   * advice, so the running consultation is aborted mid-thought and dropped
+   * — a pause, not a strike against the model (see #consult's catch). The
+   * next summary after the page returns starts a fresh one. */
+  setHidden(hidden: boolean): void {
+    this.#hidden = hidden;
+    if (hidden) this.#current?.abort();
   }
 
   async #consult(playerId: number, seat: SeatMemory, summary: AiWorldSummary): Promise<void> {
@@ -162,7 +177,9 @@ export class LlmStrategist {
         this.#opts.sendAdvice(playerId, override);
       }
     } catch (err) {
-      if (++this.#failures >= MAX_CONSECUTIVE_FAILURES && !this.#dead) {
+      // A hide aborts the consultation on purpose; only genuine failures
+      // count toward giving up.
+      if (!this.#hidden && ++this.#failures >= MAX_CONSECUTIVE_FAILURES && !this.#dead) {
         this.#fail(
           `giving up after ${MAX_CONSECUTIVE_FAILURES} failed consultations ` +
             `(${err instanceof Error ? err.message : String(err)})`,
@@ -171,6 +188,7 @@ export class LlmStrategist {
     } finally {
       seat.busy = false;
       this.#thinking = false;
+      this.#current = null;
       seat.prevSummary = summary;
     }
   }
@@ -181,6 +199,7 @@ export class LlmStrategist {
   #withTimeout(work: (signal: AbortSignal) => Promise<string>): Promise<string> {
     const ms = this.#opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const controller = new AbortController();
+    this.#current = controller;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         controller.abort();

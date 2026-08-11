@@ -151,7 +151,8 @@ type LobbyMsg =
   | { t: 'config'; config?: unknown }
   | { t: 'start' }
   | { t: 'rejoin'; token: string }
-  | { t: 'debug'; enabled?: boolean };
+  | { t: 'debug'; enabled?: boolean }
+  | { t: 'hidden'; hidden?: boolean };
 
 function sendJson(ws: WebSocket, msg: unknown): void {
   ws.send(JSON.stringify(msg));
@@ -326,6 +327,9 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       if (conn.seat !== seat) releaseRoom(conn, ws);
       seat.ws = ws;
       seat.connected = true;
+      // A fresh socket is a watching client until it says otherwise (the
+      // worker re-sends its hidden state right after this if it isn't).
+      seat.hidden = false;
       room.emptySinceMs = undefined;
       conn.room = room;
       conn.seat = seat;
@@ -349,6 +353,23 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       // ride its struct frames only while someone is actually watching.
       const { seat } = conn;
       if (seat) seat.wantsJobs = msg.enabled === true;
+      break;
+    }
+    case 'hidden': {
+      // The page behind this seat went to (or came back from) the
+      // background. The seat keeps its chair and its socket — it still
+      // counts as connected, so the room is not abandoned — but the stream
+      // stops, and a pocketed phone spends neither radio nor CPU on a
+      // match it cannot show.
+      const { room, seat } = conn;
+      if (!room || !seat) break;
+      const hidden = msg.hidden === true;
+      if (seat.hidden === hidden) break;
+      seat.hidden = hidden;
+      // Coming back: everything since the hide was deliberately never
+      // sent, so catch the seat up the way a rejoin does — one init frame
+      // with the current state. (No-op in a lobby: no view yet.)
+      if (!hidden && room.state === 'running') sendInit(room, seat);
       break;
     }
   }

@@ -281,12 +281,14 @@ export function sendHot(room: Room): void {
   if (!world) return;
   // Nobody on the line, nothing to snapshot. Rooms restored after a deploy
   // simulate with every seat disconnected for up to five minutes before the
-  // sweep — snapping every unit at 20 Hz for them was pure waste.
-  if (!room.seats.some((s) => s.view && s.connected && s.ws)) return;
+  // sweep — snapping every unit at 20 Hz for them was pure waste. Hidden
+  // seats count as off the line too: a backgrounded phone told us not to
+  // spend its radio on frames nobody is watching.
+  if (!room.seats.some((s) => s.view && s.connected && s.ws && !s.hidden)) return;
   const all: UnitSnapshot[] = [...unitSnapshots(world)];
   for (const seat of room.seats) {
     const view = seat.view;
-    if (!view || !seat.connected || !seat.ws) continue;
+    if (!view || !seat.connected || !seat.ws || seat.hidden) continue;
     const spectator = world.players[seat.playerId]?.alive === false;
     const mine: UnitSnapshot[] = [];
     for (const u of all) {
@@ -307,9 +309,10 @@ export function sendStruct(room: Room, deltas: MapDelta[], events: GameEvent[]):
   for (const seat of room.seats) {
     const view = seat.view;
     if (!view) continue;
-    if (!seat.connected || !seat.ws) {
-      // Nothing to hold: a reconnect is answered with a fresh init frame
-      // carrying the whole map, so a growing backlog would be waste.
+    if (!seat.connected || !seat.ws || seat.hidden) {
+      // Nothing to hold: a reconnect — and an unhide, which works the same
+      // way — is answered with a fresh init frame carrying the whole map,
+      // so a growing backlog would be waste.
       view.owedTiles.clear();
       view.owedEvents.length = 0;
       continue;

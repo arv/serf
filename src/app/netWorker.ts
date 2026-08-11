@@ -144,6 +144,21 @@ function onFrame(data: Uint8Array): void {
 /** Set when the relay disowns our token: the match is gone for good. */
 let gone = false;
 
+/**
+ * Page hidden (the main thread's report). The world is shared and waits for
+ * no one, so unlike the solo sim nothing pauses — but this seat goes quiet:
+ * the relay is told to stop streaming to it (and answers the return with a
+ * full init resync), pings stop, and a socket that drops waits for the page
+ * to be visible again before redialing. Worker timers are unthrottled, so
+ * without this a backgrounded phone kept its radio and CPU busy decoding
+ * 20 Hz frames nobody was watching.
+ */
+let hidden = false;
+/** The connection info, kept for the redial an unhide may owe. */
+let netInfo: NetInfo | null = null;
+/** A drop (or a due retry) arrived while hidden; dial again when visible. */
+let redialWhenVisible = false;
+
 /** Debug overlay open on the main thread. The server only serializes the
  * jobs table into this seat's struct frames while it is told someone is
  * watching, so the toggle is forwarded — and re-sent on every reconnect,
@@ -155,6 +170,13 @@ function sendDebug(ws: WebSocket): void {
 }
 
 function connect(net: NetInfo, attempt: number): void {
+  // Every dial funnels through here, including the reconnect loop's timers:
+  // a backgrounded phone must not spend its radio retrying, so the attempt
+  // is parked and the unhide redials at once instead.
+  if (hidden) {
+    redialWhenVisible = true;
+    return;
+  }
   const ws = new WebSocket(net.relayUrl);
   socket = ws;
   ws.binaryType = 'arraybuffer';
@@ -164,6 +186,9 @@ function connect(net: NetInfo, attempt: number): void {
     // token — the same path a genuine reconnect takes.
     ws.send(JSON.stringify({ t: 'rejoin', token: net.token }));
     if (debugWanted) sendDebug(ws);
+    // Hidden already? The page hid while this socket was dialing — say so
+    // before the relay starts streaming to a seat nobody is watching.
+    if (hidden) ws.send(JSON.stringify({ t: 'hidden', hidden: true }));
     ws.send(encodePing(Date.now() % 0xffffffff));
   };
   ws.onmessage = (e: MessageEvent<ArrayBuffer | string>) => {
@@ -198,9 +223,14 @@ function connect(net: NetInfo, attempt: number): void {
 }
 
 function init(net: NetInfo): void {
+  netInfo = net;
   connect(net, 0);
   setInterval(() => {
-    if (socket?.readyState === WebSocket.OPEN) socket.send(encodePing(Date.now() % 0xffffffff));
+    // Not while hidden: the RTT it measures has no reader, and each ping
+    // costs a backgrounded phone a radio wake-up.
+    if (!hidden && socket?.readyState === WebSocket.OPEN) {
+      socket.send(encodePing(Date.now() % 0xffffffff));
+    }
   }, 2000);
 }
 
@@ -238,11 +268,25 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
         if (socket?.readyState === WebSocket.OPEN) sendDebug(socket);
       }
       break;
-    // Speed, save and hiding are single-player affairs: a shared world runs
-    // at one rate whoever looks away, and there is nothing local to
-    // serialize.
-    case 'setSpeed':
     case 'setHidden':
+      // The shared world runs on whoever looks away — but this seat's
+      // stream needn't. Tell the relay; it stops sending while we are
+      // hidden and answers the return with a full init resync (the same
+      // frame a rejoin gets), which onInit applies wholesale.
+      if (hidden === msg.hidden) break;
+      hidden = msg.hidden;
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ t: 'hidden', hidden }));
+        // Back in view: refresh the RTT the paused pings let go stale.
+        if (!hidden) socket.send(encodePing(Date.now() % 0xffffffff));
+      } else if (!hidden && redialWhenVisible && netInfo && !gone) {
+        redialWhenVisible = false;
+        connect(netInfo, 0);
+      }
+      break;
+    // Speed and saving are single-player affairs: a shared world runs at
+    // one rate whoever looks away, and there is nothing local to serialize.
+    case 'setSpeed':
     case 'requestSave':
       break;
   }
