@@ -39,6 +39,7 @@ import {
   fogEnabled,
   placing,
   setMission,
+  briefingOpen,
   setBriefingOpen,
 } from '../ui/store';
 import { markMissionComplete } from '../ui/campaign';
@@ -452,6 +453,23 @@ async function runMatch(
   // what stops the build ghost being used to probe the dark.
   controls.setFog(fog);
 
+  // A fresh mission opens on its briefing card over a still valley; the
+  // card's Begin button starts the clock. A loaded mission save skips the
+  // ceremony — the player has read it before. The mission signal is seeded
+  // from the config rather than awaited from the worker: the match is about
+  // to be paused, so the next structural frame may be a Begin-press away.
+  // Seeded before onStructural registers — real frames (latch bits and all)
+  // replay at registration and must win over this all-false stand-in.
+  if (config.mission && loadData === undefined) {
+    setMission({
+      id: config.mission,
+      done: MISSION_DEFS[config.mission].objectives.map(() => false),
+    });
+    setBriefingOpen(true);
+    setSpeed(0);
+    host.setSpeed(0);
+  }
+
   host.onNetStatus((status) => setNetStatus(status));
   host.onStructural((msg) => {
     // A reconnect resync carries the seat's ever-seen grid afresh.
@@ -475,14 +493,18 @@ async function runMatch(
     setOutcome(msg.outcome);
     setAdminState(msg.admin);
     // The worker, not the URL, says which mission this is: a loaded save
-    // reboots on ?seed=…, but the world remembers.
+    // reboots on ?seed=…, but the world remembers. Synced both ways — a
+    // frame without a mission block clears the signal (and any briefing),
+    // so no mission UI can outlive its world.
+    setMission(msg.mission ?? null);
     if (msg.mission) {
-      setMission(msg.mission);
       // Finishing writes the profile. Idempotent, so every structural frame
       // after the win may say it again.
       if (msg.outcome.state === 'over' && msg.outcome.winner === myPlayerId()) {
         markMissionComplete(msg.mission.id);
       }
+    } else if (briefingOpen()) {
+      setBriefingOpen(false);
     }
     for (const event of msg.events) {
       if (event.kind === 'raidIncoming' && event.player === myPlayerId()) {
@@ -529,21 +551,6 @@ async function runMatch(
     place: (type) => controls.setPlacement(type),
     save: saveGame,
   });
-
-  // A fresh mission opens on its briefing card over a still valley; the
-  // card's Begin button starts the clock. A loaded mission save skips the
-  // ceremony — the player has read it before. The mission signal is seeded
-  // from the config rather than awaited from the worker: the match is about
-  // to be paused, so the next structural frame may be a Begin-press away.
-  if (config.mission && loadData === undefined) {
-    setMission({
-      id: config.mission,
-      done: MISSION_DEFS[config.mission].objectives.map(() => false),
-    });
-    setBriefingOpen(true);
-    setSpeed(0);
-    host.setSpeed(0);
-  }
 
   // The camera never rotates: hp bars copy its live orientation once to
   // sit parallel with the screen plane.
