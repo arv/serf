@@ -13,6 +13,7 @@ import {
 } from '../sim/defs/aiStrategies';
 import { MISSION_DEFS, MISSION_ORDER, type MissionId } from '../sim/defs/missions';
 import { isMissionComplete, isMissionUnlocked } from './campaign';
+import { LockIcon } from './icons';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -573,7 +574,7 @@ export function StartMenu(props: StartMenuProps) {
                               <span class="meta">{def.tagline}</span>
                             </span>
                             <span style="flex:none;color:#e5c469">
-                              {isMissionComplete(id) ? '✓' : locked() ? '🔒' : ''}
+                              {isMissionComplete(id) ? '✓' : locked() ? <LockIcon size={13} /> : ''}
                             </span>
                           </button>
                         );
