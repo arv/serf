@@ -35,9 +35,15 @@ import {
   setStock,
   setTechs,
   speed,
+  setSpeed,
   fogEnabled,
   placing,
+  setMission,
+  briefingOpen,
+  setBriefingOpen,
 } from '../ui/store';
+import { markMissionComplete } from '../ui/campaign';
+import { MISSION_DEFS } from '../sim/defs/missions';
 import { Terrain } from '../sim/map';
 import { inBounds, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
@@ -119,7 +125,7 @@ if (!crossOriginIsolated) {
  * that proves it: a room is chosen, but the choosing happens in the
  * council, which is a menu screen.
  */
-const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu'];
+const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu', 'mission'];
 
 /**
  * A room's opening settings, from the URL a link or a reload arrived on.
@@ -447,6 +453,23 @@ async function runMatch(
   // what stops the build ghost being used to probe the dark.
   controls.setFog(fog);
 
+  // A fresh mission opens on its briefing card over a still valley; the
+  // card's Begin button starts the clock. A loaded mission save skips the
+  // ceremony — the player has read it before. The mission signal is seeded
+  // from the config rather than awaited from the worker: the match is about
+  // to be paused, so the next structural frame may be a Begin-press away.
+  // Seeded before onStructural registers — real frames (latch bits and all)
+  // replay at registration and must win over this all-false stand-in.
+  if (config.mission && loadData === undefined) {
+    setMission({
+      id: config.mission,
+      done: MISSION_DEFS[config.mission].objectives.map(() => false),
+    });
+    setBriefingOpen(true);
+    setSpeed(0);
+    host.setSpeed(0);
+  }
+
   host.onNetStatus((status) => setNetStatus(status));
   host.onStructural((msg) => {
     // A reconnect resync carries the seat's ever-seen grid afresh.
@@ -469,11 +492,30 @@ async function runMatch(
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
     setAdminState(msg.admin);
+    // The worker, not the URL, says which mission this is: a loaded save
+    // reboots on ?seed=…, but the world remembers. Synced both ways — a
+    // frame without a mission block clears the signal (and any briefing),
+    // so no mission UI can outlive its world.
+    setMission(msg.mission ?? null);
+    if (msg.mission) {
+      // Finishing writes the profile. Idempotent, so every structural frame
+      // after the win may say it again.
+      if (msg.outcome.state === 'over' && msg.outcome.winner === myPlayerId()) {
+        markMissionComplete(msg.mission.id);
+      }
+    } else if (briefingOpen()) {
+      setBriefingOpen(false);
+    }
     for (const event of msg.events) {
       if (event.kind === 'raidIncoming' && event.player === myPlayerId()) {
         pushToast(event.text);
       } else if (event.kind === 'playerEliminated' && event.player !== myPlayerId()) {
         pushToast('A rival banner has fallen!');
+      } else if (event.kind === 'objectiveComplete' && event.player === myPlayerId()) {
+        const label = msg.mission
+          ? MISSION_DEFS[msg.mission.id].objectives[event.index]?.label
+          : undefined;
+        pushToast(label ? `Objective complete: ${label}` : 'Objective complete');
       }
     }
     // Keep the selected building's panel fresh (or clear it if destroyed).

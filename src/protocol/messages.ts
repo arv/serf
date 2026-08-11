@@ -3,6 +3,7 @@ import type { EntityId, Owner } from '../sim/entities.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 import type { BuildingTypeId } from '../sim/defs/buildings.ts';
 import type { GoodAmounts } from '../sim/defs/goods.ts';
+import type { MissionId } from '../sim/defs/missions.ts';
 import type { TechId } from '../sim/defs/techs.ts';
 import type { PlayerCommand } from '../sim/tick.ts';
 import type { GameEvent, MapDelta, WorldConfig } from '../sim/world.ts';
@@ -163,6 +164,10 @@ export interface StructuralUpdate {
   admin: { enabled: boolean; raidsEnabled: boolean; instantBuild: boolean };
   events: GameEvent[];
   outcome: OutcomeSnap;
+  /** Campaign mission riding this world, latch bits included. From the
+   * worker rather than the URL on purpose: a loaded save reboots on
+   * ?seed=…, but the world remembers which mission it is. */
+  mission?: { id: MissionId; done: boolean[] };
   /** Debug-overlay rows; absent while nobody is watching. */
   jobs?: JobSnap[];
   invariantViolations: string[];

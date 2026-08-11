@@ -55,6 +55,33 @@ describe('configFromUrl', () => {
     expect(configFromUrl('?seed=').seed).toBe(20260724);
   });
 
+  it('boots a campaign mission from ?mission=, def over URL', () => {
+    const c = configFromUrl('?mission=levy');
+    expect(c.mission).toBe('levy');
+    expect(c.seed).toBe(404);
+    expect(c.banditsEnabled).toBe(true);
+    expect(c.players).toEqual([{ kind: 'human' }]);
+    expect(c.myPlayerId).toBe(0);
+    // The def is the whole recipe: a stray ?seed or ?ai does not perturb
+    // the mission's pinned world.
+    const pinned = configFromUrl('?mission=clearing&seed=999&ai=2');
+    expect(pinned.seed).toBe(101);
+    expect(pinned.players).toEqual([{ kind: 'human' }]);
+    expect(pinned.banditsEnabled).toBe(false);
+    // The bonus mission carries its rival.
+    expect(configFromUrl('?mission=rivalBanner').players).toEqual([
+      { kind: 'human' },
+      { kind: 'ai', strategy: 'steward' },
+    ]);
+  });
+
+  it('ignores a mission nobody has heard of', () => {
+    expect(configFromUrl('?mission=nonesuch').mission).toBeUndefined();
+    expect(configFromUrl('?mission=nonesuch').seed).toBe(20260724);
+    expect(configFromUrl('?mission=constructor').mission).toBeUndefined();
+    expect(configFromUrl('?mission=').mission).toBeUndefined();
+  });
+
   it('reads ?llm=1, but only where there is an opponent to advise', () => {
     expect(configFromUrl('?ai=2&llm=1').llmOpponent).toBe(true);
     expect(configFromUrl('?ai=2').llmOpponent).toBe(false);

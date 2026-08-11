@@ -14,6 +14,12 @@ pnpm dev
 
 - **Goal**: destroy the bandit camp in the far corner. If your castle falls,
   the game is lost. First raid arrives after ~9 peaceful minutes.
+- **Campaign**: six commissions that double as the tutorial (start menu →
+  Campaign, or `?mission=<id>`): camp-raising, the bread chain, silver and
+  research, the first raid, then the full game — and a bonus first rival.
+  Objectives are judged by the sim; hints are a separate layer you can hide
+  and finishing a commission unseals the next (see
+  `docs/plan-campaign-tutorial.md`).
 - **Goods** (13): water, wheat, wood, stone, iron, silver, gold, sword, spear,
   bow, ale, flour, food. Everything is hauled by serfs — there is no magic
   global stockpile; the resource bar shows what's physically in the castle.

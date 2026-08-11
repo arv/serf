@@ -53,6 +53,16 @@ export class WorkerSimHost implements SimHost {
    */
   #worker: Worker;
   #structuralCb: ((msg: StructuralUpdate) => void) | null = null;
+  /** Structural frames that arrived before anyone listened, oldest first.
+   * The worker posts its first one right after 'ready', and it dispatches
+   * while runMatch is still awaiting the asset loads — before onStructural
+   * has registered. Losing them is invisible at speed 1 (the next frame is
+   * 250 ms away) but a mission match starts paused, and the first frame is
+   * then the only one carrying stock and the mission block. A queue rather
+   * than a latest-wins slot: sections (players, buildings) ship only when
+   * changed and events are one-shot, so a later partial frame must not
+   * replace the full first one — every missed frame replays, in order. */
+  #pendingStructural: StructuralUpdate[] = [];
   #saveCb: ((data: string) => void) | null = null;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
   #aiSummaryCb: ((playerId: number, summary: AiWorldSummary) => void) | null = null;
@@ -85,7 +95,8 @@ export class WorkerSimHost implements SimHost {
             explored: msg.explored,
           });
         } else if (msg.type === 'structural') {
-          this.#structuralCb?.(msg);
+          if (this.#structuralCb) this.#structuralCb(msg);
+          else this.#pendingStructural.push(msg);
         } else if (msg.type === 'saved') {
           this.#saveCb?.(msg.data);
           this.#saveCb = null;
@@ -116,6 +127,9 @@ export class WorkerSimHost implements SimHost {
 
   onStructural(cb: (msg: StructuralUpdate) => void): void {
     this.#structuralCb = cb;
+    const pending = this.#pendingStructural;
+    this.#pendingStructural = [];
+    for (const msg of pending) cb(msg);
   }
 
   onNetStatus(cb: (status: NetStatus) => void): void {

@@ -8,6 +8,7 @@ import { clearSeatStash } from '../net/lobbyClient';
 import { TechTreePanel } from './TechTreePanel';
 import { SelectionPanel } from './SelectionPanel';
 import { AdminPanel } from './AdminPanel';
+import { MissionPanel, continueTarget } from './MissionPanel';
 import {
   FastIcon,
   GoodIcon,
@@ -29,6 +30,7 @@ import {
   debugOpen,
   invariantViolations,
   llmStatus,
+  mission,
   myPlayerId,
   netMode,
   netStatus,
@@ -818,6 +820,8 @@ export function Hud(props: {
         <TechTreePanel onResearch={props.onResearch} />
       </Show>
 
+      <MissionPanel onSpeed={props.onSpeed} />
+
       <Show when={techs().festivalTicksLeft > 0}>
         <div class="hud-festival panel">Festival! Everyone works faster</div>
       </Show>
@@ -877,11 +881,27 @@ export function Hud(props: {
             <h1>{won() ? 'Victory' : 'Defeat'}</h1>
             <p>
               {won()
-                ? soloMode()
-                  ? 'The bandit camp lies in ruins. The valley is yours.'
-                  : 'The last rival banner has fallen. The valley is yours.'
+                ? mission()
+                  ? 'The commission is fulfilled. The crown takes note, reeve.'
+                  : soloMode()
+                    ? 'The bandit camp lies in ruins. The valley is yours.'
+                    : 'The last rival banner has fallen. The valley is yours.'
                 : 'The storehouse has fallen. The village scatters to the winds.'}
             </p>
+            <Show when={won() ? continueTarget() : undefined}>
+              {(next) => (
+                <button
+                  onClick={() => {
+                    sessionStorage.removeItem('serf-load-pending');
+                    // The same navigation launch() uses: a fresh page, the
+                    // next mission's recipe in the query string.
+                    location.search = `?mission=${next().id}`;
+                  }}
+                >
+                  Continue: {next().title}
+                </button>
+              )}
+            </Show>
             <button
               onClick={() => {
                 sessionStorage.removeItem('serf-load-pending');
