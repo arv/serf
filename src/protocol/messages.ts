@@ -62,6 +62,10 @@ export interface BuildingSnap {
   facing?: 0 | 1 | 2 | 3;
   /** Staffing state (undefined = building needs no worker). */
   staffing?: 'staffed' | 'recruiting' | 'needed';
+  /** A convert batch is mid-grind (and not paused) — the cue for decor
+   * that moves with production rather than with staff (the mill's sails,
+   * which have no resident to key off). */
+  working?: true;
   paused?: boolean;
   /** Active recipeOptions index (weaponsmith forge menu). */
   recipeIndex?: number;

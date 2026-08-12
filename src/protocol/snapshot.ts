@@ -56,6 +56,9 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
         ? 1 - q.ticksLeft / (def.trains?.find((o) => o.unit === q.unit)?.durationTicks ?? 1)
         : undefined,
     })),
+    // A paused building keeps its half-done batch (prodTicksLeft freezes),
+    // so the flag needs both: batch underway AND actually ticking.
+    working: b.prodTicksLeft !== undefined && !b.paused ? true : undefined,
     paused: b.paused,
     recipeIndex: b.recipeIndex,
     hireQueue: b.hireQueue,

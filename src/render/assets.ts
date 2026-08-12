@@ -459,6 +459,14 @@ export async function loadGlbAssets(): Promise<boolean> {
         crank.position.set(0, 0.336, 0);
         scene.add(crank);
       }
+      if (type === 'mill') {
+        // No surgery needed here: the pack ships the sails as their own
+        // node, hub-centered with the blades in its local x/y plane — made
+        // to be spun. Name it so buildingSync can find it and turn it
+        // while the mill grinds.
+        const fan = scene.getObjectByName('building_windmill_top_fan_green');
+        if (fan) fan.name = 'millFan';
+      }
       const tint = TINTS[type];
       if (tint !== undefined) {
         scene.traverse((o) => {

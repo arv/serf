@@ -36,6 +36,13 @@ vi.mock('./assets', () => ({
       pier.add(deck);
       group.add(pier);
     }
+    // The real mill carries its sails as a named node (renamed from the
+    // pack's in assets.ts); frame() only needs something to rotate.
+    if (type === 'mill') {
+      const fan = new THREE.Group();
+      fan.name = 'millFan';
+      group.add(fan);
+    }
     return group;
   },
 }));
@@ -153,6 +160,36 @@ describe("the fishery's pier", () => {
     const { sync } = makeSync();
     sync.update([snap({ type: 'fishery', w: 3, h: 3, facing: 1, state: 'site', siteNeeds: {} })]);
     expect(sync.fisheryPiers().length).toBe(0);
+  });
+});
+
+describe("the mill's sails", () => {
+  it('turn while a batch grinds and coast to rest when it ends', () => {
+    const { sync, scene } = makeSync();
+    // A mill mid-batch: no staffing (the wind is the worker), just working.
+    sync.update([snap({ type: 'mill', working: true })]);
+    const fan = scene.getObjectByName('millFan')!;
+    expect(fan.rotation.z).toBe(0);
+    for (let i = 0; i < 20; i++) sync.frame(0.1);
+    const turned = fan.rotation.z;
+    expect(turned).toBeGreaterThan(0.5);
+
+    // Batch over: momentum keeps the sails moving just after...
+    sync.update([snap({ type: 'mill' })]);
+    sync.frame(0.1);
+    expect(fan.rotation.z).toBeGreaterThan(turned);
+    // ...but they coast to a stop rather than turning forever.
+    for (let i = 0; i < 100; i++) sync.frame(0.1);
+    const rest = fan.rotation.z;
+    sync.frame(0.1);
+    expect(fan.rotation.z).toBe(rest);
+  });
+
+  it('stand still on a mill that is not grinding', () => {
+    const { sync, scene } = makeSync();
+    sync.update([snap({ type: 'mill' })]);
+    for (let i = 0; i < 10; i++) sync.frame(0.1);
+    expect(scene.getObjectByName('millFan')!.rotation.z).toBe(0);
   });
 });
 
