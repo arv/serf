@@ -156,8 +156,6 @@ let gone = false;
 let hidden = false;
 /** The connection info, kept for the redial an unhide may owe. */
 let netInfo: NetInfo | null = null;
-/** A drop (or a due retry) arrived while hidden; dial again when visible. */
-let redialWhenVisible = false;
 
 /** Debug overlay open on the main thread. The server only serializes the
  * jobs table into this seat's struct frames while it is told someone is
@@ -172,9 +170,15 @@ function sendDebug(ws: WebSocket): void {
 function connect(net: NetInfo, attempt: number): void {
   // Every dial funnels through here, including the reconnect loop's timers:
   // a backgrounded phone must not spend its radio retrying, so the attempt
-  // is parked and the unhide redials at once instead.
-  if (hidden) {
-    redialWhenVisible = true;
+  // is dropped and the unhide redials at once instead (see 'setHidden').
+  if (hidden) return;
+  // One socket at a time. The unhide redial and a retry timer scheduled
+  // before the hide can both land here; whoever finds a dial already live
+  // yields to it rather than opening a second socket.
+  if (
+    socket &&
+    (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)
+  ) {
     return;
   }
   const ws = new WebSocket(net.relayUrl);
@@ -279,8 +283,11 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
         socket.send(JSON.stringify({ t: 'hidden', hidden }));
         // Back in view: refresh the RTT the paused pings let go stale.
         if (!hidden) socket.send(encodePing(Date.now() % 0xffffffff));
-      } else if (!hidden && redialWhenVisible && netInfo && !gone) {
-        redialWhenVisible = false;
+      } else if (!hidden && netInfo && !gone) {
+        // Back in view without a live socket — it dropped while hidden, or
+        // the match booted backgrounded and the first dial was skipped.
+        // Redial now rather than wait out a retry timer's backoff; connect
+        // itself yields if a dial is already in flight.
         connect(netInfo, 0);
       }
       break;

@@ -207,6 +207,50 @@ describe('LlmStrategist', () => {
     expect(statuses.at(-1)!.state).toBe('failed');
   });
 
+  it('a hide aborts the consultation mid-thought, and it never counts as a strike', async () => {
+    let calls = 0;
+    const { strategist, sent, statuses } = harness({
+      complete: (_messages, _schema, signal) =>
+        new Promise((_resolve, reject) => {
+          calls++;
+          signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        }),
+    });
+    await strategist.start();
+    // Three hide-aborts in a row — the giving-up threshold, were they
+    // counted. Unhiding again *before* each rejection lands is the trap:
+    // the catch must remember the abort was a pause, not read the current
+    // visibility.
+    for (let i = 0; i < 3; i++) {
+      strategist.onSummary(1, testSummary());
+      expect(calls).toBe(i + 1);
+      strategist.setHidden(true);
+      strategist.setHidden(false);
+      await settle();
+    }
+    expect(sent).toEqual([]);
+    expect(statuses).toEqual([{ state: 'ready' }]); // never 'failed'
+  });
+
+  it('consults nobody while hidden, and picks up again on return', async () => {
+    let calls = 0;
+    const { strategist } = harness({
+      complete: async () => {
+        calls++;
+        return '{}';
+      },
+    });
+    await strategist.start();
+    strategist.setHidden(true);
+    strategist.onSummary(1, testSummary());
+    await settle();
+    expect(calls).toBe(0);
+    strategist.setHidden(false);
+    strategist.onSummary(1, testSummary());
+    await settle();
+    expect(calls).toBe(1);
+  });
+
   it('a load that fails reports and stays inert', async () => {
     const sent: unknown[] = [];
     const statuses: LlmStatus[] = [];

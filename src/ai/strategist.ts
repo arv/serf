@@ -103,6 +103,11 @@ export class LlmStrategist {
   /** The in-flight consultation's abort, so hiding can stop the CPU now
    * rather than a minute of inference later. */
   #current: AbortController | null = null;
+  /** Set when #current was aborted by a hide, cleared as the consultation
+   * settles. The catch reads this, not #hidden: the page may already be
+   * visible again by the time the abort's rejection lands, and the flag is
+   * what keeps that late rejection from counting as a model failure. */
+  #currentPaused = false;
 
   constructor(opts: LlmStrategistOpts) {
     this.#opts = opts;
@@ -150,7 +155,10 @@ export class LlmStrategist {
    * next summary after the page returns starts a fresh one. */
   setHidden(hidden: boolean): void {
     this.#hidden = hidden;
-    if (hidden) this.#current?.abort();
+    if (hidden && this.#current) {
+      this.#currentPaused = true;
+      this.#current.abort();
+    }
   }
 
   async #consult(playerId: number, seat: SeatMemory, summary: AiWorldSummary): Promise<void> {
@@ -179,7 +187,7 @@ export class LlmStrategist {
     } catch (err) {
       // A hide aborts the consultation on purpose; only genuine failures
       // count toward giving up.
-      if (!this.#hidden && ++this.#failures >= MAX_CONSECUTIVE_FAILURES && !this.#dead) {
+      if (!this.#currentPaused && ++this.#failures >= MAX_CONSECUTIVE_FAILURES && !this.#dead) {
         this.#fail(
           `giving up after ${MAX_CONSECUTIVE_FAILURES} failed consultations ` +
             `(${err instanceof Error ? err.message : String(err)})`,
@@ -189,6 +197,7 @@ export class LlmStrategist {
       seat.busy = false;
       this.#thinking = false;
       this.#current = null;
+      this.#currentPaused = false;
       seat.prevSummary = summary;
     }
   }
