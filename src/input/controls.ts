@@ -614,13 +614,13 @@ export class Controls {
   }
 
   /** A ring blooming at the tap/click plus a tick of haptics: order taken.
-   * Attack-moves pulse red, plain moves gold — the only glanceable place
-   * the two orders read differently. */
+   * Attack-moves pulse a solid red ring, plain moves a dashed gold one —
+   * the shape carries the difference where color vision cannot. */
   #orderPulse(px: number, py: number, attack: boolean): void {
     const el = document.createElement('div');
     el.style.cssText =
       `position:fixed;left:${px}px;top:${py}px;width:44px;height:44px;` +
-      `margin:-22px 0 0 -22px;border:2px solid ${attack ? '#bf4342' : '#e5c469'};` +
+      `margin:-22px 0 0 -22px;border:2px ${attack ? 'solid #bf4342' : 'dashed #e5c469'};` +
       'border-radius:50%;pointer-events:none;z-index:10;opacity:0.9;' +
       'animation:serf-order-pulse 0.45s ease-out forwards;';
     if (!document.getElementById('serf-order-pulse-style')) {

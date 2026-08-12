@@ -129,6 +129,12 @@ export function combatSystem(world: World): void {
         if (b && distToBuilding(unit, b) <= combat.acquireRadius) {
           unit.targetId = b.id;
           unit.targetIsBuilding = true;
+          // Drop any path in hand so the engage step plans toward the
+          // building now. An attack-move otherwise kept walking its route
+          // with the target stuck on — building targets never drop by
+          // distance, so it would double back after arriving instead of
+          // fighting what it found on the way.
+          unit.path = null;
         }
       }
     }

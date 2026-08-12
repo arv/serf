@@ -254,6 +254,28 @@ describe('the two move orders', () => {
     expect(knight.task.t).toBe('idle');
   });
 
+  it('an attack-move besieges an enemy building on the way, not after a round trip', () => {
+    const world = bareWorld();
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 36, 33);
+    camp.hp = 60;
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 44, y: 30, attack: true }));
+
+    // Acquiring the camp must also drop the marching path: with the path
+    // kept, the knight walked to the goal with the target stuck on and only
+    // then doubled back to raze it.
+    let maxXBeforeRazed = 0;
+    for (let i = 0; i < 20 * 60; i++) {
+      tickWorld(world, []);
+      if (!camp.dead) maxXBeforeRazed = Math.max(maxXBeforeRazed, knight.x);
+    }
+    expect(camp.dead).toBe(true);
+    expect(maxXBeforeRazed).toBeLessThan(42);
+    expect(Math.floor(knight.x)).toBe(44);
+    expect(Math.floor(knight.y)).toBe(30);
+    expect(knight.task.t).toBe('idle');
+  });
+
   it('a plain move walks past enemies without raising a hand', () => {
     const world = bareWorld();
     const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
