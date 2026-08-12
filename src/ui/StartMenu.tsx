@@ -266,9 +266,18 @@ export function StartMenu(props: StartMenuProps) {
   };
 
   const poll = setInterval(() => {
-    if (isJoin() && online()) void refresh();
+    // Not while hidden: a backgrounded menu owes the relay no traffic.
+    if (isJoin() && online() && !document.hidden) void refresh();
   }, POLL_MS);
   onCleanup(() => clearInterval(poll));
+
+  // Back from the background: the poll skipped every beat while hidden, so
+  // the room list is stale the moment the page is looked at again.
+  const syncVisible = (): void => {
+    if (!document.hidden && isJoin() && online()) void refresh();
+  };
+  document.addEventListener('visibilitychange', syncVisible);
+  onCleanup(() => document.removeEventListener('visibilitychange', syncVisible));
 
   const syncOnline = (): void => {
     setOnline(navigator.onLine);

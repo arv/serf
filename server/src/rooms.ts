@@ -35,6 +35,11 @@ export interface Seat {
   ws: WebSocket | null;
   lastSeq: number;
   connected: boolean;
+  /** The page behind this socket reports itself hidden (a backgrounded
+   * phone). The seat keeps its chair and its socket — this is a battery
+   * saver, not a disconnect — but no frames are sent until it returns,
+   * when one init frame catches it up. Cleared on every fresh bind. */
+  hidden?: boolean;
   /** What this seat has observed, and what it has been told. Created when
    * the match starts — a lobby seat has nothing to see yet, and an AI seat
    * never gets one: its brain reads the world directly, so a filtered view
