@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { parseReplay } from '../../src/app/replay.ts';
-import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { deserializeWorld, serializeWorld } from '../../src/sim/save.ts';
 import { createWorld } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
 import type { SimCommand } from '../../src/sim/commands.ts';
 import type { ReplayData } from '../../src/app/replay.ts';
 import {
+  GAME_VERSION,
   TICK_MS,
   addSeat,
   createRoom,
@@ -32,12 +32,11 @@ function order(room: Room, seat: Seat, ...commands: SimCommand[]): void {
 }
 
 /** Re-run a parsed replay the way the client's sim worker does: boot from
- * its loadData or config, feed logged commands at their ticks, let the AI
- * seats re-decide. Returns the world at endTick. */
+ * its loadData or config and feed the logged commands at their ticks. No
+ * AiSeats anywhere — the log already holds the brains' moves. */
 function playBack(replay: ReplayData) {
   const world =
     replay.loadData !== undefined ? deserializeWorld(replay.loadData) : createWorld(replay.config);
-  const ai = new AiSeats(world);
   let cursor = 0;
   while (world.tick < replay.endTick) {
     const executed: PlayerCommand[] = [];
@@ -45,7 +44,6 @@ function playBack(replay: ReplayData) {
       executed.push(...replay.commands[cursor]!.commands);
       cursor++;
     }
-    executed.push(...ai.decide(world));
     tickWorld(world, executed);
   }
   return world;
@@ -60,7 +58,7 @@ describe('server replay recording', () => {
     expect(replayFor(room, seat)).toBeNull();
   });
 
-  it('reproduces the pumped match, AI seats and all', () => {
+  it('reproduces the pumped match without re-running the AI', () => {
     const room = createRoom('closed', { ai: 1, bandits: false, seed: 900, bots: [] });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
@@ -81,13 +79,16 @@ describe('server replay recording', () => {
     expect(data).not.toBeNull();
     const replay = parseReplay(data)!;
     expect(replay).not.toBeNull();
+    expect(replay.gameVersion).toBe(GAME_VERSION);
     expect(replay.config.myPlayerId).toBe(seat.playerId);
     expect(replay.endTick).toBe(room.world!.tick);
+    // The AI seat's moves are in the log, not left for playback to invent.
+    expect(replay.commands.some((e) => e.commands.some((c) => c.playerId === 1))).toBe(true);
 
     expect(serializeWorld(playBack(replay))).toBe(expected);
   });
 
-  it('rebases onto the snapshot across a restore, so playback matches what players saw', () => {
+  it('carries the log across a same-version restore, whole match intact', () => {
     const room = createRoom('closed', { ai: 1, bandits: false, seed: 4141, bots: [] });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
@@ -95,12 +96,12 @@ describe('server replay recording', () => {
     order(room, seat, { kind: 'hireSerf' });
     advance(room, 60);
 
-    // Deploy: the room goes to disk and comes back in a new process. Its
-    // AI brains are rebuilt from the restored world, which is exactly what
-    // a playback booted from the snapshot will do too.
+    // Deploy under the same version: the log rides the snapshot and keeps
+    // being written; the brains being rebuilt doesn't matter, since their
+    // moves land in the log as they actually happen.
     const record = roomToRecord(room)!;
     const revived = roomFromRecord(JSON.parse(JSON.stringify(record)), Date.now());
-    expect(revived.replay?.loadData).toBe(record.world);
+    expect(revived.replay?.loadData).toBeUndefined();
 
     const seat2 = revived.seats[0]!;
     advance(revived, 40);
@@ -111,10 +112,39 @@ describe('server replay recording', () => {
     revived.world!.outcome = { state: 'over', winner: 0 };
 
     const replay = parseReplay(replayFor(revived, seat2)!)!;
-    expect(replay.loadData).toBe(record.world);
-    // The log speaks absolute ticks, so it starts where the snapshot did.
-    expect(replay.commands[0]!.tick).toBeGreaterThanOrEqual(120);
+    // From the very beginning: pre-restore commands are in the log too.
+    expect(replay.loadData).toBeUndefined();
+    expect(replay.commands[0]!.tick).toBeLessThan(120);
 
+    expect(serializeWorld(playBack(replay))).toBe(expected);
+  });
+
+  it('rebases onto the snapshot when the version changed across the deploy', () => {
+    const room = createRoom('closed', { ai: 1, bandits: false, seed: 660, bots: [] });
+    const seat = addSeat(room, 'human', null);
+    startMatch(room);
+    advance(room, 80);
+    order(room, seat, { kind: 'hireSerf' });
+    advance(room, 40);
+
+    const record = roomToRecord(room)!;
+    // The next process runs a different build: its sim cannot be trusted
+    // to re-simulate the old ticks, so the recording restarts from the
+    // snapshot world itself.
+    const tampered = JSON.parse(JSON.stringify(record)) as typeof record;
+    tampered.replay!.gameVersion = '0.0.0-previous';
+    const revived = roomFromRecord(tampered, Date.now());
+    expect(revived.replay?.gameVersion).toBe(GAME_VERSION);
+    expect(revived.replay?.loadData).toBe(record.world);
+    expect(revived.replay?.commands).toEqual([]);
+
+    const seat2 = revived.seats[0]!;
+    advance(revived, 120);
+    const expected = serializeWorld(revived.world!);
+    revived.world!.outcome = { state: 'over', winner: 0 };
+
+    const replay = parseReplay(replayFor(revived, seat2)!)!;
+    expect(replay.loadData).toBe(record.world);
     expect(serializeWorld(playBack(replay))).toBe(expected);
   });
 });

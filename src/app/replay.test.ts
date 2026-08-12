@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { parseReplay, replayName, serializeReplay, REPLAY_FORMAT, type ReplayData } from './replay';
+import {
+  parseReplay,
+  readReplayVersion,
+  replayName,
+  serializeReplay,
+  REPLAY_FORMAT,
+  type ReplayData,
+} from './replay';
 import { AiSeats } from '../sim/aiSeats';
 import { createWorld, type World, type WorldConfig } from '../sim/world';
 import { tickWorld, type PlayerCommand } from '../sim/tick';
@@ -8,16 +15,20 @@ import type { SimCommand } from '../sim/commands';
 function sample(): ReplayData {
   return {
     format: REPLAY_FORMAT,
+    gameVersion: '0.4.4',
     savedAt: '2026-08-12T10:00:00.000Z',
     config: { seed: 42, players: [{ kind: 'human' }, { kind: 'ai' }], myPlayerId: 0 },
     commands: [
       { tick: 10, commands: [{ playerId: 0, cmd: { kind: 'hireSerf' } }] },
       {
         tick: 25,
-        commands: [{ playerId: 0, cmd: { kind: 'placeBuilding', building: 'well', x: 3, y: 4 } }],
+        commands: [
+          { playerId: 0, cmd: { kind: 'placeBuilding', building: 'well', x: 3, y: 4 } },
+          // An AI seat's move rides the same log — playback never runs brains.
+          { playerId: 1, cmd: { kind: 'hireSerf' } },
+        ],
       },
     ],
-    advice: [{ tick: 40, playerId: 1, override: { serfTarget: 12 } }],
     endTick: 500,
   };
 }
@@ -32,9 +43,12 @@ describe('replay format', () => {
     expect(parseReplay('not json')).toBeNull();
     expect(parseReplay('{}')).toBeNull();
     expect(parseReplay(JSON.stringify({ format: 'serf-save-v2' }))).toBeNull();
+    expect(parseReplay(JSON.stringify({ format: 'serf-replay-v1' }))).toBeNull(); // old format
     expect(parseReplay(JSON.stringify({ format: REPLAY_FORMAT }))).toBeNull();
+    const unversioned = { ...sample(), gameVersion: undefined };
+    expect(parseReplay(JSON.stringify(unversioned))).toBeNull();
     expect(
-      parseReplay(JSON.stringify({ format: REPLAY_FORMAT, config: { seed: 1 }, endTick: 5 })),
+      parseReplay(JSON.stringify({ format: REPLAY_FORMAT, gameVersion: '1', config: { seed: 1 }, endTick: 5 })),
     ).toBeNull(); // players missing
   });
 
@@ -53,13 +67,17 @@ describe('replay format', () => {
     expect(parsed!.commands[0]!.commands).toEqual([{ playerId: 0, cmd: { kind: 'hireSerf' } }]);
   });
 
-  it('restates ascending tick order on both logs', () => {
+  it('restates ascending tick order on the log', () => {
     const data = sample();
     data.commands.reverse();
-    data.advice.reverse();
     const parsed = parseReplay(serializeReplay(data))!;
     expect(parsed.commands.map((e) => e.tick)).toEqual([10, 25]);
-    expect(parsed.advice.map((e) => e.tick)).toEqual([40]);
+  });
+
+  it('exposes the version stamp from the file head alone', () => {
+    const raw = serializeReplay(sample());
+    expect(readReplayVersion(raw)).toBe('0.4.4');
+    expect(readReplayVersion('{}')).toBeUndefined();
   });
 
   it('names replays by datetime, filename-safe', () => {
@@ -91,26 +109,32 @@ function playerScript(tick: number): SimCommand[] {
 }
 
 describe('replay determinism', () => {
-  it('the recorded command log reproduces the live match, AI seats included', () => {
-    // Live: the worker's loop — the player's commands recorded at the tick
-    // they apply on, the AI deciding beside the world, nothing else stored.
+  it('the recorded log reproduces the live match without ever running the AI', () => {
+    // Live: the worker's loop — brains decide beside the world, and the
+    // log captures everything each tick executed, their moves included.
     const live = createWorld(CONFIG);
     const liveAi = new AiSeats(live);
     const log: ReplayData['commands'] = [];
     for (let t = 0; t < 1500; t++) {
-      const player: PlayerCommand[] = playerScript(live.tick).map((cmd) => ({ playerId: 0, cmd }));
-      if (player.length > 0) log.push({ tick: live.tick, commands: player.slice() });
-      player.push(...liveAi.decide(live));
-      tickWorld(live, player);
+      const executed: PlayerCommand[] = playerScript(live.tick).map((cmd) => ({ playerId: 0, cmd }));
+      executed.push(...liveAi.decide(live));
+      if (executed.length > 0) log.push({ tick: live.tick, commands: executed.slice() });
+      tickWorld(live, executed);
     }
 
     // Playback through the wire format: same config, logged commands at
-    // their ticks, the AI re-deciding from the identical world.
+    // their ticks, and no AiSeats anywhere — the brains could have been
+    // rewritten since and this must not care.
     const parsed = parseReplay(
-      serializeReplay({ format: REPLAY_FORMAT, config: CONFIG, commands: log, advice: [], endTick: 1500 }),
+      serializeReplay({
+        format: REPLAY_FORMAT,
+        gameVersion: '0.4.4',
+        config: CONFIG,
+        commands: log,
+        endTick: 1500,
+      }),
     )!;
     const replayed = createWorld(parsed.config);
-    const replayAi = new AiSeats(replayed);
     let cursor = 0;
     for (let t = 0; t < 1500; t++) {
       const executed: PlayerCommand[] = [];
@@ -118,7 +142,6 @@ describe('replay determinism', () => {
         executed.push(...parsed.commands[cursor]!.commands);
         cursor++;
       }
-      executed.push(...replayAi.decide(replayed));
       tickWorld(replayed, executed);
     }
 

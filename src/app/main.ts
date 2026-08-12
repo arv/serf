@@ -50,6 +50,7 @@ import { MISSION_DEFS } from '../sim/defs/missions';
 import { Terrain } from '../sim/map';
 import { inBounds, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
+import { APP_VERSION } from './buildInfo';
 import { envelopeSave, splitSave } from './saveEnvelope';
 import { parseReplay, replayName, type ReplayData } from './replay';
 import { readReplayFile, saveReplayFile } from './replayStore';
@@ -200,6 +201,16 @@ async function boot(): Promise<void> {
     const replay = raw !== null ? parseReplay(raw) : null;
     if (!replay) {
       fatal(`The replay "${replayParam}" could not be loaded — it may have been deleted.`);
+    }
+    // Playback re-runs the sim, and the sim is version-bound: the same
+    // commands against a retuned tick produce a different match. Refuse
+    // rather than diverge silently — the menu greys these rows out, but
+    // the URL is hand-editable.
+    if (replay.gameVersion !== APP_VERSION) {
+      fatal(
+        `The replay "${replayParam}" was recorded on version ${replay.gameVersion}; ` +
+          `this build is ${APP_VERSION}, and playback would not match what was played.`,
+      );
     }
     await runMatch(
       { ...replay.config, myPlayerId: replay.config.myPlayerId ?? 0, llmOpponent: false },

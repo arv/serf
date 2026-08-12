@@ -1,6 +1,6 @@
 import { For, Index, Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import { BUILD_LABEL } from '../app/buildInfo';
+import { APP_VERSION, BUILD_LABEL } from '../app/buildInfo';
 import { clearSeatStash, relayUrl, type CouncilRequest } from '../net/lobbyClient';
 import { DiceIcon } from './menuChrome';
 import { releaseMenuBackdrop } from './menuBackdrop';
@@ -658,19 +658,36 @@ export function StartMenu(props: StartMenuProps) {
                   <Show when={replays().length > 0}>
                     <div class="room-list" style="max-height:236px">
                       <For each={replays()}>
-                        {(r) => (
+                        {(r) => {
+                          // Playback re-runs the sim, so only this build's
+                          // own recordings play. Not `disabled` — that
+                          // would swallow the delete button's clicks, and
+                          // an unplayable replay is exactly the one that
+                          // needs deleting.
+                          const ok = r.gameVersion === APP_VERSION;
+                          return (
                           <button
                             class={`room ${pickedReplay() === r.name ? 'on' : ''}`}
-                            onClick={() =>
-                              setPickedReplay(pickedReplay() === r.name ? null : r.name)
+                            style={ok ? undefined : 'opacity:0.55;cursor:default'}
+                            title={
+                              ok
+                                ? undefined
+                                : `Recorded on version ${r.gameVersion ?? 'unknown'} — ` +
+                                  `this build is ${APP_VERSION} and cannot play it back`
                             }
-                            onDblClick={launch}
+                            onClick={() =>
+                              ok && setPickedReplay(pickedReplay() === r.name ? null : r.name)
+                            }
+                            onDblClick={ok ? launch : undefined}
                           >
                             <span style="min-width:0">
                               <span class="code" style="letter-spacing:0.02em">
                                 {r.name}
                               </span>
-                              <span class="meta">{fmtSize(r.size)}</span>
+                              <span class="meta">
+                                {fmtSize(r.size)}
+                                {ok ? '' : ` · needs v${r.gameVersion ?? '?'}`}
+                              </span>
                             </span>
                             {/* A span, not a button: the row is already a
                                 button, and buttons must not nest. */}
@@ -694,7 +711,8 @@ export function StartMenu(props: StartMenuProps) {
                               ✕
                             </span>
                           </button>
-                        )}
+                          );
+                        }}
                       </For>
                     </div>
                   </Show>

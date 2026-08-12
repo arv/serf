@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { WebSocket } from 'ws';
 import { TILE_COUNT } from '../../src/shared/grid.ts';
 import { createWorld, type World, type WorldConfig } from '../../src/sim/world.ts';
@@ -12,6 +13,19 @@ import type { GameEvent, MapDelta } from '../../src/sim/world.ts';
 import { SeatView, recomputeVision, sendHot, sendStruct } from './sync.ts';
 
 export { TICK_MS };
+
+/**
+ * The version replays record under — the client bakes the same value in as
+ * APP_VERSION (vite's define), but this process runs on plain node, so it
+ * reads the shared package.json itself. Playback demands an exact match:
+ * the sim must reproduce the recorded ticks command-for-command, and any
+ * release may retune it.
+ */
+export const GAME_VERSION: string = (
+  JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
+    version: string;
+  }
+).version;
 
 /**
  * A pump that woke up very late (GC, a suspended container) must not try to
@@ -91,15 +105,17 @@ export interface Room {
   ai?: AiSeats;
   /**
    * The match's replay log, written as it happens (see src/app/replay.ts):
-   * what the world booted from plus every player command at the tick it
-   * applied on — the AI seats are re-derived on playback. Started by
-   * startMatch; a room restored from a snapshot rebases onto the snapshot
-   * world instead (loadData), because its AI brains were rebuilt fresh at
-   * restore and a from-boot replay would diverge from what players saw.
-   * Handed out by replayFor, and only once the match is decided — before
-   * that the log is a full-information view of a fogged world.
+   * what the world booted from plus every command each tick executed, the
+   * AI seats' moves included — playback never re-runs the brains, so the
+   * AI is free to change between builds. Started by startMatch and carried
+   * through deploy snapshots while the version holds (persist.ts); a
+   * cross-version restore rebases onto the snapshot world instead, since
+   * the new sim cannot be trusted to re-simulate the old ticks. Handed out
+   * by replayFor, and only once the match is decided — before that the log
+   * is a full-information view of a fogged world.
    */
   replay?: {
+    gameVersion: string;
     config: ReplayData['config'];
     loadData?: string;
     commands: ReplayData['commands'];
@@ -260,7 +276,7 @@ export function startMatch(room: Room): void {
   for (let i = 0; i < aiFill; i++) addSeat(room, 'ai', null);
   const config = matchWorldConfig(room);
   room.world = createWorld(config);
-  room.replay = { config, commands: [] };
+  room.replay = { gameVersion: GAME_VERSION, config, commands: [] };
   room.ai = new AiSeats(room.world);
   room.state = 'running';
   room.closedTick = 0;
@@ -323,14 +339,15 @@ export function pumpRoom(room: Room, nowMs: number): void {
   for (let i = 0; i < ticks; i++) {
     const commands = room.queued;
     room.queued = [];
-    // Log the players' orders under the tick they actually apply on —
-    // before the AI's are appended, since playback re-derives those.
-    if (room.replay && commands.length > 0) {
-      room.replay.commands.push({ tick: world.tick, commands: commands.slice() });
-    }
     // Brains decide from the state this tick starts in, and their orders
     // go in with the players' — no frame of hindsight.
     if (room.ai) commands.push(...room.ai.decide(world));
+    // Log everything this tick executes, the AI's moves included, under
+    // the tick it applies on — playback replays the log verbatim rather
+    // than re-running the brains.
+    if (room.replay && commands.length > 0) {
+      room.replay.commands.push({ tick: world.tick, commands: commands.slice() });
+    }
     tickWorld(world, commands);
     // Drain every tick of the burst: these are outboxes, and the next tick
     // would otherwise pile onto news nobody has been handed yet.
@@ -380,13 +397,15 @@ export function pumpRoom(room: Room, nowMs: number): void {
 export function replayFor(room: Room, seat: Seat): string | null {
   const world = room.world;
   if (!world || !room.replay || world.outcome.state !== 'over') return null;
+  // gameVersion right after format — readReplayVersion scans only the head
+  // of the file for it.
   return serializeReplay({
     format: REPLAY_FORMAT,
+    gameVersion: room.replay.gameVersion,
     savedAt: new Date().toISOString(),
     config: { ...room.replay.config, myPlayerId: seat.playerId },
     ...(room.replay.loadData !== undefined ? { loadData: room.replay.loadData } : {}),
     commands: room.replay.commands,
-    advice: [],
     endTick: world.tick,
   });
 }

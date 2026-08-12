@@ -29,7 +29,15 @@ import { AiSeats } from '../../src/sim/aiSeats.ts';
 import type { EntityId } from '../../src/sim/entities.ts';
 import type { LobbyConfig } from '../../src/protocol/lobby.ts';
 import type { BuildingSnap } from '../../src/protocol/messages.ts';
-import { TICK_MS, adoptRoom, matchWorldConfig, roomsIterable, type Room, type Seat } from './rooms.ts';
+import {
+  GAME_VERSION,
+  TICK_MS,
+  adoptRoom,
+  matchWorldConfig,
+  roomsIterable,
+  type Room,
+  type Seat,
+} from './rooms.ts';
 import { SeatView, recomputeVision } from './sync.ts';
 
 interface PersistedSeat {
@@ -54,6 +62,9 @@ interface PersistedRoom {
   /** serializeWorld output, kept as the string that function already
    * speaks; deserializeWorld guards its own version on the way back. */
   world: string;
+  /** The match's replay log so far, carried across the deploy. Optional:
+   * snapshots from before the field existed simply have none. */
+  replay?: Room['replay'];
 }
 
 interface Snapshot {
@@ -103,6 +114,7 @@ export function roomToRecord(room: Room): PersistedRoom | undefined {
       lastSeen: s.view ? [...s.view.lastSeen] : [],
     })),
     world: serializeWorld(room.world),
+    ...(room.replay ? { replay: room.replay } : {}),
   };
 }
 
@@ -165,20 +177,24 @@ export function roomFromRecord(record: PersistedRoom, nowMs: number): Room {
     // nobody reclaims within five minutes of boot goes the usual way.
     emptySinceMs: nowMs,
   };
-  // The replay log restarts here, based on the snapshot itself. Not an
-  // economy — the old log could have been persisted — but a correctness
-  // choice: the AI brains above are rebuilt fresh from the restored world,
-  // so a replay from the original config would re-decide the pre-restore
-  // ticks with state the live match no longer had, and diverge exactly
-  // where the deploy happened. Booting playback from the very string this
-  // world was deserialized from reproduces the restore instead, brains and
-  // all. The config rides along for its seat roster (and the parse gate);
-  // loadData is what actually builds the world.
-  room.replay = {
-    config: matchWorldConfig(room),
-    loadData: record.world,
-    commands: [],
-  };
+  // The replay log rides the snapshot, so a same-version restore simply
+  // keeps writing it: every command the ticks executed is in there — the
+  // AI seats' moves included, which is why the brains being rebuilt fresh
+  // above doesn't matter; playback replays their recorded moves and never
+  // consults them. What playback does re-run is the sim itself, so a
+  // restore under a *different* version rebases instead: a new build
+  // cannot be trusted to re-simulate the old build's ticks, but booting
+  // from the very string this world was deserialized from reproduces the
+  // restore exactly. (Snapshots from before replays existed rebase too.)
+  room.replay =
+    record.replay && record.replay.gameVersion === GAME_VERSION
+      ? record.replay
+      : {
+          gameVersion: GAME_VERSION,
+          config: matchWorldConfig(room),
+          loadData: record.world,
+          commands: [],
+        };
   // Same reason startMatch does it: a rejoin can arrive before the first
   // pump, and its init frame must already know what this seat may see.
   recomputeVision(room);

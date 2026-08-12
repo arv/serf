@@ -4,39 +4,42 @@
 import { sanitizeCommand } from '../sim/commands.ts';
 import type { PlayerCommand } from '../sim/tick.ts';
 import type { WorldConfig } from '../sim/world.ts';
-import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 
 /**
  * A replay is the sim's whole diet, written down: the world recipe (and the
- * save it booted from, if any) plus every outside command stamped with the
- * tick it was applied on. The sim is deterministic — same world, same
- * commands at the same ticks, same match — so nothing else needs storing:
- * the AI seats re-decide from the world exactly as they did live, and only
- * the two nondeterministic inflows (the player's orders and the LLM
- * strategist's advice) ride the log.
+ * save it booted from, if any) plus every command that reached the tick —
+ * the players' and the AI seats' alike — stamped with the tick it applied
+ * on. The sim is deterministic, so that log replays the match exactly.
  *
- * Recorded in the sim worker (single player only — multiplayer's world
- * lives on the server), saved to OPFS by the main thread, played back by
- * booting the same worker with the log instead of a live command stream.
+ * The AI's moves are stored rather than re-derived on purpose: playback
+ * never runs the brains at all, so the AI algorithm is free to change
+ * between builds without rewriting history. What playback does re-run is
+ * the sim itself, and that is version-bound — a tick system tuned in a
+ * later build replays yesterday's commands into a different world. Every
+ * replay therefore carries the game version it was recorded on, and
+ * playback refuses a file from a different one rather than diverge
+ * silently.
+ *
+ * Recorded in the sim worker (single player) or on the server (multiplayer
+ * — see server/src/rooms.ts), saved to OPFS by the main thread, played
+ * back by booting the sim worker with the log instead of a live command
+ * stream.
  */
 
-export const REPLAY_FORMAT = 'serf-replay-v1';
+export const REPLAY_FORMAT = 'serf-replay-v2';
 
-/** Player commands applied on one tick (AI commands are re-derived, not stored). */
+/** Every command applied on one tick, the AI seats' included. */
 export interface ReplayCommandEntry {
   tick: number;
   commands: PlayerCommand[];
 }
 
-/** One strategist consultation landing on a seat, at the tick it landed. */
-export interface ReplayAdviceEntry {
-  tick: number;
-  playerId: number;
-  override: Partial<AiStrategy>;
-}
-
 export interface ReplayData {
   format: typeof REPLAY_FORMAT;
+  /** The version of the game that recorded this (package.json's). The sim
+   * must match tick-for-tick for playback to mean anything, so a replay
+   * only plays on the version that wrote it. */
+  gameVersion: string;
   /** When the replay was saved (informational only). */
   savedAt?: string;
   /** The config the worker booted with. Carries myPlayerId when the match
@@ -46,14 +49,22 @@ export interface ReplayData {
   loadData?: string;
   /** Ascending by tick. */
   commands: ReplayCommandEntry[];
-  /** Ascending by tick. */
-  advice: ReplayAdviceEntry[];
   /** Where the recording stopped; playback pauses here. */
   endTick: number;
 }
 
 export function serializeReplay(data: ReplayData): string {
   return JSON.stringify(data);
+}
+
+/**
+ * The version stamp alone, cheaply, for the menu's shelf — where a dozen
+ * files may need labeling and full parses would be waste. Serializers put
+ * gameVersion right after format, so the head of the file is enough.
+ */
+export function readReplayVersion(raw: string): string | undefined {
+  const m = /"gameVersion":"([^"\\]{0,64})"/.exec(raw.slice(0, 512));
+  return m?.[1];
 }
 
 function isTick(v: unknown): v is number {
@@ -77,6 +88,7 @@ export function parseReplay(raw: string): ReplayData | null {
   if (typeof doc !== 'object' || doc === null) return null;
   const d = doc as Record<string, unknown>;
   if (d.format !== REPLAY_FORMAT) return null;
+  if (typeof d.gameVersion !== 'string') return null;
   const config = d.config;
   if (typeof config !== 'object' || config === null) return null;
   if (typeof (config as { seed?: unknown }).seed !== 'number') return null;
@@ -101,34 +113,17 @@ export function parseReplay(raw: string): ReplayData | null {
     }
   }
 
-  const advice: ReplayAdviceEntry[] = [];
-  if (Array.isArray(d.advice)) {
-    for (const entry of d.advice as unknown[]) {
-      if (typeof entry !== 'object' || entry === null) continue;
-      const e = entry as { tick?: unknown; playerId?: unknown; override?: unknown };
-      if (!isTick(e.tick)) continue;
-      if (typeof e.playerId !== 'number' || !Number.isInteger(e.playerId)) continue;
-      if (typeof e.override !== 'object' || e.override === null) continue;
-      advice.push({
-        tick: e.tick,
-        playerId: e.playerId,
-        override: e.override as Partial<AiStrategy>,
-      });
-    }
-  }
-
-  // The worker walks both logs with a cursor, so order is a correctness
+  // The worker walks the log with a cursor, so order is a correctness
   // property of the file — restate it rather than trust it.
   commands.sort((a, b) => a.tick - b.tick);
-  advice.sort((a, b) => a.tick - b.tick);
 
   return {
     format: REPLAY_FORMAT,
+    gameVersion: d.gameVersion,
     ...(typeof d.savedAt === 'string' ? { savedAt: d.savedAt } : {}),
     config: config as ReplayData['config'],
     ...(typeof d.loadData === 'string' ? { loadData: d.loadData } : {}),
     commands,
-    advice,
     endTick: d.endTick,
   };
 }
