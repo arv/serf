@@ -43,6 +43,22 @@ describe('HiddenSync', () => {
     expect(calls).toEqual([false, true, false]);
   });
 
+  it('wakes on the second callback after a short hide the gap cannot see', () => {
+    // App switch briefer than WAKE_GAP_MS, return event dropped: the gap
+    // on the first frame back is under the threshold, so the callbacks
+    // continuing at all must do the waking — by the second one.
+    const sync = new HiddenSync(false);
+    const { calls, sink } = recordingSink();
+    sync.add(sink);
+    sync.frame(0);
+    sync.frame(16);
+    sync.set(true); // page hid for half a second; the return event is dropped
+    sync.frame(16 + 500);
+    expect(calls).toEqual([false, true]); // one frame back is not yet proof
+    sync.frame(16 + 516);
+    expect(calls).toEqual([false, true, false]);
+  });
+
   it('does not mistake visible jank for a return', () => {
     const sync = new HiddenSync(false);
     const { calls, sink } = recordingSink();
@@ -52,18 +68,31 @@ describe('HiddenSync', () => {
     expect(calls).toEqual([false]);
   });
 
-  it('never wakes off the very first frame', () => {
-    // Boot with the page hidden: the first rAF callback has no predecessor,
-    // so its timestamp alone must not read as a gap.
+  it('is not fooled by one stray callback racing the hide', () => {
+    // A callback already queued when the page hides may still run after
+    // the event. Alone it must not restart the sim on a page going dark —
+    // rAF stops after it, so no second callback ever arrives.
+    const sync = new HiddenSync(false);
+    const { calls, sink } = recordingSink();
+    sync.add(sink);
+    sync.frame(0);
+    sync.frame(16);
+    sync.set(true);
+    sync.frame(32); // the straggler
+    expect(calls).toEqual([false, true]);
+  });
+
+  it('wakes a boot whose initial hidden reading was stale', () => {
+    // Told hidden from birth, yet rAF ticks — callbacks only run on a
+    // visible page, so by the second one the reading is known wrong. The
+    // first alone stays inconclusive: no predecessor for a gap, and one
+    // callback could be the stray above.
     const sync = new HiddenSync(true);
     const { calls, sink } = recordingSink();
     sync.add(sink);
     sync.frame(60_000);
     expect(calls).toEqual([true]);
-    // The next frame is proof of visibility only through its gap — and
-    // 16ms after the first is no gap. (visibilitychange or a later real
-    // gap does the waking here.)
     sync.frame(60_016);
-    expect(calls).toEqual([true]);
+    expect(calls).toEqual([true, false]);
   });
 });

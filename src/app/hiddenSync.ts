@@ -30,6 +30,8 @@ export class HiddenSync {
   #sinks: ((hidden: boolean) => void)[] = [];
   #hidden: boolean;
   #lastFrame: number | undefined;
+  /** rAF callbacks seen since the state last changed to hidden. */
+  #framesWhileHidden = 0;
 
   constructor(initialHidden: boolean) {
     this.#hidden = initialHidden;
@@ -45,19 +47,29 @@ export class HiddenSync {
   set(hidden: boolean): void {
     if (hidden === this.#hidden) return;
     this.#hidden = hidden;
+    this.#framesWhileHidden = 0;
     for (const sink of this.#sinks) sink(hidden);
   }
 
   /**
    * Called once per rAF callback with its timestamp, before any pacing —
-   * a skipped frame must still count as proof of visibility. Only ever
-   * wakes: a stopped rAF clock cannot run code to notice its own silence,
-   * so the missed-hide direction has no watchdog (the cost there is
-   * battery, not a frozen game).
+   * a skipped frame must still count as proof of visibility. Two wake
+   * rules, because a hide can be any length: a gap since the last
+   * callback (the long absence, woken on the first frame back), and a
+   * second callback while still told-hidden (the short one, where the gap
+   * never grows — rAF does not run on a hidden page, so callbacks that
+   * keep coming are themselves the return). Two rather than one, so a
+   * single stray callback racing the hide itself cannot quietly restart
+   * the sim on a page that really is going dark. Only ever wakes: a
+   * stopped rAF clock cannot run code to notice its own silence, so the
+   * missed-hide direction has no watchdog (the cost there is battery,
+   * not a frozen game).
    */
   frame(now: number): void {
-    if (this.#lastFrame !== undefined && now - this.#lastFrame > WAKE_GAP_MS) {
-      this.set(false);
+    if (this.#hidden) {
+      this.#framesWhileHidden++;
+      const longGap = this.#lastFrame !== undefined && now - this.#lastFrame > WAKE_GAP_MS;
+      if (longGap || this.#framesWhileHidden >= 2) this.set(false);
     }
     this.#lastFrame = now;
   }
