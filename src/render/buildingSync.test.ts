@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { TILE_COUNT } from '../shared/grid';
+import { WATER_LEVEL } from '../sim/map';
 import { HeightField } from './heightField';
 import type { BuildingSnap } from '../protocol/messages';
 
@@ -157,6 +158,16 @@ describe("the fishery's pier", () => {
 });
 
 describe("the fishery's shoal", () => {
+  it('swims under the waterline, not at the deck height the template bakes', () => {
+    const { sync, scene } = makeSync();
+    sync.update([snap({ type: 'fishery', staffing: 'staffed' })]);
+    const shoal = scene.getObjectByName('fisheryShoal')!;
+    // The test heightfield is flat zero, so the shore sits at y=0 — well
+    // above the water plane. The group must have been re-seated below it.
+    const y = shoal.getWorldPosition(new THREE.Vector3()).y;
+    expect(y).toBeLessThan(WATER_LEVEL);
+  });
+
   it('swims nose-first, whichever way round its circle it goes', () => {
     const { sync, scene } = makeSync();
     sync.update([snap({ type: 'fishery', staffing: 'staffed' })]);
