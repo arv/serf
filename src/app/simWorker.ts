@@ -242,6 +242,9 @@ function pump(): void {
         if (!replayEndedPosted) {
           replayEndedPosted = true;
           post({ type: 'replayEnded' });
+          // The pause skips future matcher intervals, so whatever the HUD
+          // is still owed (outcome, rosters) ships now or never.
+          postStructural();
         }
         break outer;
       }
@@ -259,6 +262,10 @@ function pump(): void {
       // the player's orders — no frame of hindsight.
       if (ai) executed.push(...ai.decide(world));
       tickWorld(world, executed);
+      // Per tick, not per quantum: the replay's end can break out of the
+      // middle of a quantum, and the ticks that ran before it still owe
+      // the SAB their final positions.
+      ran = true;
       if (import.meta.env.DEV && world.tick % 20 === 0) {
         const report = checkInvariants(world);
         const ledger = checkLedger(world, initialGoods);
@@ -266,7 +273,6 @@ function pump(): void {
         for (const v of lastInvariantViolations) console.warn(`[invariant] t${world.tick} ${v}`);
       }
     }
-    ran = true;
   }
   if (ran) {
     publish();
