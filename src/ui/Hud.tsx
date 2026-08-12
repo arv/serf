@@ -700,18 +700,23 @@ export function Hud(props: {
       <div class="hud-bottom">
         <Show when={isCoarse() || isPhone()}>
           <div class="hud-touch">
-            <button
-              classList={{ active: bandArm() }}
-              {...tooltip(() => (
-                <TextTip
-                  title="Band select"
-                  body="Arm it, then drag a box over your people. The camera holds still for that one drag."
-                />
-              ))}
-              onClick={() => setBandArm(!bandArm())}
-            >
-              <BandIcon />
-            </button>
+            {/* The lasso and the ✕ stand in for a drag-band and Esc. A
+                proven keyboard travels with a trackpad or mouse that has
+                both, so the stand-ins bow out and leave the muster. */}
+            <Show when={!hasKeyboard()}>
+              <button
+                classList={{ active: bandArm() }}
+                {...tooltip(() => (
+                  <TextTip
+                    title="Band select"
+                    body="Arm it, then drag a box over your people. The camera holds still for that one drag."
+                  />
+                ))}
+                onClick={() => setBandArm(!bandArm())}
+              >
+                <BandIcon />
+              </button>
+            </Show>
             <button
               {...tooltip(() => (
                 <TextTip title="Muster the army" body="Selects every soldier you own, wherever they are." />
@@ -720,15 +725,12 @@ export function Hud(props: {
             >
               <SwordsIcon />
             </button>
-            <Show when={selection().size > 0}>
+            <Show when={selection().size > 0 && !hasKeyboard()}>
               <button
                 {...tooltip(() => (
                   <TextTip
                     title="Deselect"
-                    body={
-                      'Lets the current selection go — taps stop being move orders.' +
-                      (hasKeyboard() ? ' Esc does the same.' : '')
-                    }
+                    body="Lets the current selection go — taps stop being move orders."
                   />
                 ))}
                 onClick={() => props.onDeselect()}

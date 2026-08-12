@@ -25,8 +25,10 @@ if (import.meta.hot) {
  *   see.
  *
  * Presence can be proven; absence never can — a keyboard may simply not
- * have been touched yet. So gate additions on this ("mention Esc"), never
- * removals ("hide the touch buttons").
+ * have been touched yet. So anything hidden behind this must stay
+ * reachable another way (the ✕ button retires because Esc exists, the
+ * lasso because the trackpad drags a band), and a false stays false for
+ * the session rather than flickering on a guess.
  */
 const [hasKeyboard, setHasKeyboard] = createSignal(
   window.matchMedia('(any-pointer: fine)').matches,
