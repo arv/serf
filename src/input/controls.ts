@@ -43,10 +43,11 @@ const MILITARY_CODES = new Set(
  * rectangle is an HTML div, not WebGL.
  *
  * Touch speaks selection-first, like every phone RTS: tap a unit to select,
- * then tap the ground to send the selection there as an attack-move —
- * soldiers engage what they meet on the way (an order pulse + a tick
- * of haptics confirm it) — though a tap on one of your own buildings opens
- * that building instead of marching onto it. The HUD's marquee button arms
+ * then tap the ground to send the selection there as a half attack-move —
+ * plain for the front half of the route so a retreat breaks clean, live for
+ * the back half so soldiers still fight where they were sent (an order
+ * pulse + a tick of haptics confirm it) — though a tap on one of your own
+ * buildings opens that building instead of marching onto it. The HUD's marquee button arms
  * a one-shot band select — the next finger drag draws the band while the
  * camera holds still — and its army button grabs every soldier at once.
  * Placement has no Esc and no right click there either, so the way out of
@@ -443,9 +444,12 @@ export class Controls {
       return;
     }
     if (this.#selection.size > 0) {
-      // The phone default is the attack-move: a tapped army fights whatever
-      // it meets on the way rather than filing politely past a raid.
-      this.#issueMove(px, py, true);
+      // The phone default is the half attack-move: one gesture has to serve
+      // both "go fight over there" and "get out of there". Quiet for the
+      // front half of the walk, so a tap away from a lost fight actually
+      // escapes it; live for the back half, so a tapped army still fights
+      // what it finds where it was sent.
+      this.#issueMove(px, py, 'half');
       return;
     }
     this.deselectAll();
@@ -591,13 +595,15 @@ export class Controls {
   }
 
   /**
-   * Send the selection somewhere. `attack` picks between the two orders:
-   * an attack-move engages enemies met along the way, a plain move ignores
-   * them. Touch taps default to attack-move (a phone has no second button
-   * to say "and fight what you find"); desktop right-click stays the plain
-   * move until the `m`/`a` shortcuts land.
+   * Send the selection somewhere. `attack` picks between the three orders:
+   * `true` is an attack-move that engages enemies met along the way,
+   * `'half'` walks the front half of the route as a plain move before going
+   * live, and `false` is the plain move that ignores enemies throughout.
+   * Touch taps default to the half order (a phone has one gesture for both
+   * charging and fleeing); desktop right-click stays the plain move until
+   * the `m`/`a` shortcuts land.
    */
-  #issueMove(px: number, py: number, attack: boolean): void {
+  #issueMove(px: number, py: number, attack: boolean | 'half'): void {
     if (this.#selection.size === 0) return;
     const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
     if (!ground) return;
@@ -607,20 +613,27 @@ export class Controls {
         unitIds: [...this.#selection],
         x: Math.floor(ground.x),
         y: Math.floor(ground.z),
-        ...(attack ? { attack: true } : {}),
+        ...(attack ? { attack } : {}),
       },
     ]);
     this.#orderPulse(px, py, attack);
   }
 
   /** A ring blooming at the tap/click plus a tick of haptics: order taken.
-   * Attack-moves pulse a solid red ring, plain moves a dashed gold one —
-   * the shape carries the difference where color vision cannot. */
-  #orderPulse(px: number, py: number, attack: boolean): void {
+   * Attack-moves pulse a solid red ring, plain moves a dashed gold one, and
+   * the half order a dotted red — three border styles, so the shape carries
+   * the difference where color vision cannot. */
+  #orderPulse(px: number, py: number, attack: boolean | 'half'): void {
+    const border =
+      attack === true
+        ? 'solid #bf4342'
+        : attack === 'half'
+          ? 'dotted #bf4342'
+          : 'dashed #e5c469';
     const el = document.createElement('div');
     el.style.cssText =
       `position:fixed;left:${px}px;top:${py}px;width:44px;height:44px;` +
-      `margin:-22px 0 0 -22px;border:2px ${attack ? 'solid #bf4342' : 'dashed #e5c469'};` +
+      `margin:-22px 0 0 -22px;border:2px ${border};` +
       'border-radius:50%;pointer-events:none;z-index:10;opacity:0.9;' +
       'animation:serf-order-pulse 0.45s ease-out forwards;';
     if (!document.getElementById('serf-order-pulse-style')) {

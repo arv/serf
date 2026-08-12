@@ -10,6 +10,7 @@ describe('command screening', () => {
     const cases: SimCommand[] = [
       { kind: 'moveUnits', unitIds: [1, 2, 3], x: 10, y: 12 },
       { kind: 'moveUnits', unitIds: [1, 2, 3], x: 10, y: 12, attack: true },
+      { kind: 'moveUnits', unitIds: [1, 2, 3], x: 10, y: 12, attack: 'half' },
       { kind: 'placeBuilding', building: 'woodcutter', x: 4, y: 5 },
       { kind: 'hireSerf' },
       { kind: 'dismissWorker', buildingId: 3 },

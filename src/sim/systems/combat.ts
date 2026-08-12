@@ -58,6 +58,20 @@ export function combatSystem(world: World): void {
     // attack-move stays in this system and fights its way there.
     if (unit.task.t === 'move') continue;
 
+    // The half order: quiet like a plain move until the path cursor crosses
+    // engageIdx (the ordered route's midpoint), then a live attack-move for
+    // the back leg. Going live re-acquires from scratch — being struck while
+    // fleeing set targetId to exactly what the front leg was running from.
+    // A path lost to new construction goes live early rather than quiet:
+    // resumeAttackMove re-plans, but the original midpoint is meaningless
+    // on a route that no longer exists.
+    if (unit.task.t === 'attackMove' && unit.task.engageIdx !== undefined) {
+      if (unit.path !== null && unit.pathIdx < unit.task.engageIdx) continue;
+      unit.task = { t: 'attackMove', destX: unit.task.destX, destY: unit.task.destY };
+      unit.targetId = undefined;
+      unit.targetIsBuilding = undefined;
+    }
+
     // Validate or acquire a target.
     let targetUnit: Unit | undefined;
     let targetBuilding: Building | undefined;

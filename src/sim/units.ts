@@ -12,7 +12,10 @@ export type UnitTask =
   // Attack-move: walk toward the ordered tile, engaging whatever comes into
   // acquire range on the way. The destination lives here because fighting
   // consumes the path — the combat system re-plans to it between fights.
-  | { t: 'attackMove'; destX: number; destY: number }
+  // `engageIdx` quiets the front leg: until the path cursor reaches it the
+  // unit walks like a plain move (so a squad ordered away from a lost fight
+  // breaks past its attackers instead of wheeling around), then goes live.
+  | { t: 'attackMove'; destX: number; destY: number; engageIdx?: number }
   // Serf hauling (job id lives on the unit; phase lives on the job):
   | { t: 'haul' }
   // Resident worker gather loop:
