@@ -27,6 +27,11 @@ import type { BuildingSnap } from '../protocol/messages';
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
 const TOUCH_SLOP_PX = 12;
+/** Repeat-tap window for escalating a half move into a full attack-move.
+ * Generous on radius: two quick presses of the same finger land farther
+ * apart than one aimed tap. */
+const DOUBLE_TAP_MS = 350;
+const DOUBLE_TAP_RADIUS_PX = 24;
 
 /** Kind codes that count as army for the select-army shortcut. */
 const MILITARY_CODES = new Set(
@@ -43,10 +48,13 @@ const MILITARY_CODES = new Set(
  * rectangle is an HTML div, not WebGL.
  *
  * Touch speaks selection-first, like every phone RTS: tap a unit to select,
- * then tap the ground to send the selection there as an attack-move —
- * soldiers engage what they meet on the way (an order pulse + a tick
- * of haptics confirm it) — though a tap on one of your own buildings opens
- * that building instead of marching onto it. The HUD's marquee button arms
+ * then tap the ground to send the selection there as a half attack-move —
+ * plain for the front half of the route so a retreat breaks clean, live for
+ * the back half so soldiers still fight where they were sent (an order
+ * pulse + a tick of haptics confirm it). Tapping the same spot again within
+ * a beat escalates the order to a full attack-move for a deliberate charge.
+ * A tap on one of your own buildings opens that building instead of
+ * marching onto it. The HUD's marquee button arms
  * a one-shot band select — the next finger drag draws the band while the
  * camera holds still — and its army button grabs every soldier at once.
  * Placement has no Esc and no right click there either, so the way out of
@@ -80,6 +88,12 @@ export class Controls {
   #scratchPos = { x: 0, y: 0 };
   #scratchScreen = { x: 0, y: 0 };
   #touchOrigin: { x: number; y: number } | null = null;
+  /** The last ground move a tap ordered — a repeat tap on the spot inside
+   * the double-tap window escalates it to a full attack-move. Screen point
+   * for the "same spot" test, ordered tile so the escalation re-aims at
+   * exactly what the first tap ordered even if the finger drifted. */
+  #lastMoveTap: { px: number; py: number; tileX: number; tileY: number; time: number } | null =
+    null;
   /** A marquee drag in flight (armed by the HUD's band button). */
   #bandTouch = false;
   /** Camera gate — closed while a marquee drag owns the finger. */
@@ -432,20 +446,47 @@ export class Controls {
   #touchTap(px: number, py: number): void {
     const unitId = this.#unitAt(px, py);
     if (unitId >= 0) {
+      this.#lastMoveTap = null;
       setSelectedBuilding(null);
       this.#setSel(new Set([unitId]));
       return;
     }
     const building = this.#ownBuildingAt(px, py);
     if (building) {
+      this.#lastMoveTap = null;
       this.#setSel(new Set());
       setSelectedBuilding(building);
       return;
     }
     if (this.#selection.size > 0) {
-      // The phone default is the attack-move: a tapped army fights whatever
-      // it meets on the way rather than filing politely past a raid.
-      this.#issueMove(px, py, true);
+      const now = performance.now();
+      const prev = this.#lastMoveTap;
+      const dx = prev ? px - prev.px : 0;
+      const dy = prev ? py - prev.py : 0;
+      if (
+        prev &&
+        now - prev.time <= DOUBLE_TAP_MS &&
+        dx * dx + dy * dy <= DOUBLE_TAP_RADIUS_PX * DOUBLE_TAP_RADIUS_PX
+      ) {
+        // A repeat tap on the spot escalates the standing order to a full
+        // attack-move. It re-aims at the tile the first tap ordered — the
+        // second tap is a modifier, not a new aim, so the squad's goal
+        // doesn't wobble a tile between two presses of one finger. Further
+        // taps land in this branch again and simply keep the order standing.
+        this.#sendMove(prev.tileX, prev.tileY, true);
+        this.#orderPulse(px, py, true);
+        prev.px = px;
+        prev.py = py;
+        prev.time = now;
+        return;
+      }
+      // The phone default is the half attack-move: one gesture has to serve
+      // both "go fight over there" and "get out of there". Quiet for the
+      // front half of the walk, so a tap away from a lost fight actually
+      // escapes it; live for the back half, so a tapped army still fights
+      // what it finds where it was sent.
+      const tile = this.#issueMove(px, py, 'half');
+      this.#lastMoveTap = tile ? { px, py, tileX: tile.x, tileY: tile.y, time: now } : null;
       return;
     }
     this.deselectAll();
@@ -591,36 +632,58 @@ export class Controls {
   }
 
   /**
-   * Send the selection somewhere. `attack` picks between the two orders:
-   * an attack-move engages enemies met along the way, a plain move ignores
-   * them. Touch taps default to attack-move (a phone has no second button
-   * to say "and fight what you find"); desktop right-click stays the plain
-   * move until the `m`/`a` shortcuts land.
+   * Send the selection somewhere. `attack` picks between the three orders:
+   * `true` is an attack-move that engages enemies met along the way,
+   * `'half'` walks the front half of the route as a plain move before going
+   * live, and `false` is the plain move that ignores enemies throughout.
+   * A single touch tap sends the half order (safe to flee with); a repeat
+   * tap escalates it to the full attack-move; desktop right-click stays the
+   * plain move until the `m`/`a` shortcuts land.
+   *
+   * Returns the ordered tile, so the touch double-tap can re-aim its
+   * escalation at exactly what the first tap ordered; null if the point
+   * missed the ground.
    */
-  #issueMove(px: number, py: number, attack: boolean): void {
-    if (this.#selection.size === 0) return;
+  #issueMove(px: number, py: number, attack: boolean | 'half'): { x: number; y: number } | null {
+    if (this.#selection.size === 0) return null;
     const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
-    if (!ground) return;
+    if (!ground) return null;
+    const x = Math.floor(ground.x);
+    const y = Math.floor(ground.z);
+    this.#sendMove(x, y, attack);
+    this.#orderPulse(px, py, attack);
+    return { x, y };
+  }
+
+  /** The wire half of a move order, aimed at a tile directly. */
+  #sendMove(x: number, y: number, attack: boolean | 'half'): void {
+    if (this.#selection.size === 0) return;
     this.#host.sendCommands([
       {
         kind: 'moveUnits',
         unitIds: [...this.#selection],
-        x: Math.floor(ground.x),
-        y: Math.floor(ground.z),
-        ...(attack ? { attack: true } : {}),
+        x,
+        y,
+        ...(attack ? { attack } : {}),
       },
     ]);
-    this.#orderPulse(px, py, attack);
   }
 
   /** A ring blooming at the tap/click plus a tick of haptics: order taken.
-   * Attack-moves pulse a solid red ring, plain moves a dashed gold one —
-   * the shape carries the difference where color vision cannot. */
-  #orderPulse(px: number, py: number, attack: boolean): void {
+   * Attack-moves pulse a solid red ring, plain moves a dashed gold one, and
+   * the half order a dotted red — three border styles, so the shape carries
+   * the difference where color vision cannot. */
+  #orderPulse(px: number, py: number, attack: boolean | 'half'): void {
+    const border =
+      attack === true
+        ? 'solid #bf4342'
+        : attack === 'half'
+          ? 'dotted #bf4342'
+          : 'dashed #e5c469';
     const el = document.createElement('div');
     el.style.cssText =
       `position:fixed;left:${px}px;top:${py}px;width:44px;height:44px;` +
-      `margin:-22px 0 0 -22px;border:2px ${attack ? 'solid #bf4342' : 'dashed #e5c469'};` +
+      `margin:-22px 0 0 -22px;border:2px ${border};` +
       'border-radius:50%;pointer-events:none;z-index:10;opacity:0.9;' +
       'animation:serf-order-pulse 0.45s ease-out forwards;';
     if (!document.getElementById('serf-order-pulse-style')) {
@@ -638,6 +701,7 @@ export class Controls {
 
   /** Clear both unit selection and the building panel (HUD ✕ button). */
   deselectAll(): void {
+    this.#lastMoveTap = null;
     this.#setSel(new Set());
     setSelectedBuilding(null);
   }

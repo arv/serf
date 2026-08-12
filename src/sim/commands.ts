@@ -12,9 +12,12 @@ import type { UnitTypeId } from './defs/units.ts';
  * revalidates everything (the UI's checks are advisory only).
  */
 export type SimCommand =
-  // `attack` splits the two move orders: an attack-move engages enemies met
-  // along the way (the mobile tap default), a plain move ignores them.
-  | { kind: 'moveUnits'; unitIds: EntityId[]; x: number; y: number; attack?: boolean }
+  // `attack` picks between the move orders: absent is a plain move that
+  // ignores enemies until arrival, `true` an attack-move that engages
+  // whatever it meets, and `'half'` walks the front half of the route as a
+  // plain move before going live (the mobile tap default: one gesture must
+  // both send an army out to fight and let it flee without reengaging).
+  | { kind: 'moveUnits'; unitIds: EntityId[]; x: number; y: number; attack?: true | 'half' }
   | { kind: 'placeBuilding'; building: BuildingTypeId; x: number; y: number }
   | { kind: 'hireSerf' }
   | { kind: 'dismissWorker'; buildingId: EntityId }
@@ -93,9 +96,10 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
         unitIds: [...(c.unitIds as EntityId[])],
         x: c.x,
         y: c.y,
-        // Anything but literal `true` means a plain move — the safe reading
-        // of a garbled flag is the order that starts no fights.
-        ...(c.attack === true ? { attack: true } : {}),
+        // Anything but the two literal fight values means a plain move —
+        // the safe reading of a garbled flag is the order that starts no
+        // fights.
+        ...(c.attack === true || c.attack === 'half' ? { attack: c.attack } : {}),
       };
     }
     case 'placeBuilding':

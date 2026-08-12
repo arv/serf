@@ -281,13 +281,14 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
  * order) so squads don't stack on one tile. A right-click on an enemy
  * building is an attack order: military units take the same 'raid' task
  * bandits use, and the combat system does the rest. Ground orders come in
- * two kinds — an attack-move fights whatever it meets on the way, a plain
- * move ignores enemies until it arrives.
+ * three kinds — an attack-move fights whatever it meets on the way, a plain
+ * move ignores enemies until it arrives, and the 'half' order walks the
+ * front half of the route as a plain move before turning attack-move.
  */
 function applyMoveUnits(
   world: World,
   playerId: Owner,
-  cmd: { unitIds: number[]; x: number; y: number; attack?: boolean },
+  cmd: { unitIds: number[]; x: number; y: number; attack?: true | 'half' },
 ): void {
   if (inBounds(cmd.x, cmd.y)) {
     const bId = world.map.buildingAt[tileIdx(cmd.x, cmd.y)]!;
@@ -336,10 +337,15 @@ function applyMoveUnits(
     unit.path = path;
     unit.pathIdx = 0;
     // An attack-move keeps the combat system live on the way; civilians have
-    // no combat to keep live, so for them both orders are the same walk.
+    // no combat to keep live, so for them every order is the same walk. The
+    // 'half' order quiets the front leg of the route — far enough to carry a
+    // fleeing squad clear of its fight before the order starts answering back.
+    const engageIdx = Math.ceil(path.length / 2);
     unit.task =
       cmd.attack && UNIT_DEFS[unit.kind].combat
-        ? { t: 'attackMove', destX: goalX, destY: goalY }
+        ? cmd.attack === 'half' && engageIdx > 0
+          ? { t: 'attackMove', destX: goalX, destY: goalY, engageIdx }
+          : { t: 'attackMove', destX: goalX, destY: goalY }
         : { t: 'move' };
     // Explicit orders disengage combat; an attack-move re-acquires freely.
     unit.targetId = undefined;
