@@ -1,6 +1,7 @@
 import { For, Index, Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import { APP_VERSION, BUILD_LABEL } from '../app/buildInfo';
+import { BUILD_LABEL } from '../app/buildInfo';
+import { REPLAY_VERSION } from '../shared/replayVersion';
 import { clearSeatStash, relayUrl, type CouncilRequest } from '../net/lobbyClient';
 import { DiceIcon } from './menuChrome';
 import { releaseMenuBackdrop } from './menuBackdrop';
@@ -664,7 +665,7 @@ export function StartMenu(props: StartMenuProps) {
                           // would swallow the delete button's clicks, and
                           // an unplayable replay is exactly the one that
                           // needs deleting.
-                          const ok = r.gameVersion === APP_VERSION;
+                          const ok = r.replayVersion === REPLAY_VERSION;
                           return (
                           <button
                             class={`room ${pickedReplay() === r.name ? 'on' : ''}`}
@@ -672,8 +673,8 @@ export function StartMenu(props: StartMenuProps) {
                             title={
                               ok
                                 ? undefined
-                                : `Recorded on version ${r.gameVersion ?? 'unknown'} — ` +
-                                  `this build is ${APP_VERSION} and cannot play it back`
+                                : `Recorded under replay version ${r.replayVersion ?? 'unknown'} — ` +
+                                  `this build plays version ${REPLAY_VERSION} and cannot play it back`
                             }
                             onClick={() =>
                               ok && setPickedReplay(pickedReplay() === r.name ? null : r.name)
@@ -686,7 +687,7 @@ export function StartMenu(props: StartMenuProps) {
                               </span>
                               <span class="meta">
                                 {fmtSize(r.size)}
-                                {ok ? '' : ` · needs v${r.gameVersion ?? '?'}`}
+                                {ok ? '' : ' · from an older build'}
                               </span>
                             </span>
                             {/* A span, not a button: the row is already a

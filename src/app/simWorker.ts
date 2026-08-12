@@ -8,7 +8,7 @@ import { AiSeats } from '../sim/aiSeats';
 import { summarizeForSeat } from '../ai/summary';
 import { SAB_BYTES, SabWriter } from '../protocol/sabLayout';
 import { snapBuildings, snapJobs, snapPlayers, unitSnapshots } from '../protocol/snapshot';
-import { APP_VERSION } from './buildInfo';
+import { REPLAY_VERSION } from '../shared/replayVersion';
 import { REPLAY_FORMAT, serializeReplay, type ReplayData } from './replay';
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { PlayerCommand } from '../sim/tick';
@@ -50,7 +50,7 @@ let summaryDue: Map<number, number> | null = null;
  * and the AI seats' alike. Storing the AI's moves (rather than re-deciding
  * them on playback) is what frees the AI algorithm to change between
  * builds without invalidating old replays; the sim itself must still
- * match, which is what the gameVersion stamp guards. Always on for a live
+ * match, which is what the REPLAY_VERSION stamp guards. Always on for a live
  * solo match (the cost is a few bytes per order); null while *playing
  * back* a replay.
  */
@@ -115,11 +115,11 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       if (world && recording) {
         post({
           type: 'replayData',
-          // gameVersion right after format — readReplayVersion scans only
-          // the head of the file for it.
+          // replayVersion right after format — readReplayVersion scans
+          // only the head of the file for it.
           data: serializeReplay({
             format: REPLAY_FORMAT,
-            gameVersion: APP_VERSION,
+            replayVersion: REPLAY_VERSION,
             savedAt: new Date().toISOString(),
             config: recording.config,
             ...(recording.loadData !== undefined ? { loadData: recording.loadData } : {}),

@@ -20,10 +20,10 @@ export interface ReplayFileInfo {
   name: string;
   size: number;
   lastModified: number;
-  /** The version the replay was recorded on; undefined when the file's
-   * head doesn't say (a truncated or foreign file). Only the matching
-   * build can play it back. */
-  gameVersion?: string;
+  /** The REPLAY_VERSION the file was recorded under; undefined when its
+   * head doesn't say (a truncated or foreign file). Only a build carrying
+   * the same number can play it back. */
+  replayVersion?: number;
 }
 
 async function replaysDir(create: boolean): Promise<FileSystemDirectoryHandle | null> {
@@ -74,12 +74,12 @@ export async function listReplayFiles(): Promise<ReplayFileInfo[]> {
       // The version stamp sits in the file's head by construction; half a
       // KB per row keeps the listing cheap however long the logs get.
       const head = await file.slice(0, 512).text();
-      const gameVersion = readReplayVersion(head);
+      const replayVersion = readReplayVersion(head);
       out.push({
         name: handle.name.slice(0, -EXT.length),
         size: file.size,
         lastModified: file.lastModified,
-        ...(gameVersion !== undefined ? { gameVersion } : {}),
+        ...(replayVersion !== undefined ? { replayVersion } : {}),
       });
     }
   } catch {

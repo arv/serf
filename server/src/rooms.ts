@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
 import type { WebSocket } from 'ws';
 import { TILE_COUNT } from '../../src/shared/grid.ts';
+import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
 import { createWorld, type World, type WorldConfig } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
 import { AiSeats } from '../../src/sim/aiSeats.ts';
@@ -13,19 +13,6 @@ import type { GameEvent, MapDelta } from '../../src/sim/world.ts';
 import { SeatView, recomputeVision, sendHot, sendStruct } from './sync.ts';
 
 export { TICK_MS };
-
-/**
- * The version replays record under — the client bakes the same value in as
- * APP_VERSION (vite's define), but this process runs on plain node, so it
- * reads the shared package.json itself. Playback demands an exact match:
- * the sim must reproduce the recorded ticks command-for-command, and any
- * release may retune it.
- */
-export const GAME_VERSION: string = (
-  JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
-    version: string;
-  }
-).version;
 
 /**
  * A pump that woke up very late (GC, a suspended container) must not try to
@@ -115,7 +102,7 @@ export interface Room {
    * is a full-information view of a fogged world.
    */
   replay?: {
-    gameVersion: string;
+    replayVersion: number;
     config: ReplayData['config'];
     loadData?: string;
     commands: ReplayData['commands'];
@@ -276,7 +263,7 @@ export function startMatch(room: Room): void {
   for (let i = 0; i < aiFill; i++) addSeat(room, 'ai', null);
   const config = matchWorldConfig(room);
   room.world = createWorld(config);
-  room.replay = { gameVersion: GAME_VERSION, config, commands: [] };
+  room.replay = { replayVersion: REPLAY_VERSION, config, commands: [] };
   room.ai = new AiSeats(room.world);
   room.state = 'running';
   room.closedTick = 0;
@@ -397,11 +384,11 @@ export function pumpRoom(room: Room, nowMs: number): void {
 export function replayFor(room: Room, seat: Seat): string | null {
   const world = room.world;
   if (!world || !room.replay || world.outcome.state !== 'over') return null;
-  // gameVersion right after format — readReplayVersion scans only the head
-  // of the file for it.
+  // replayVersion right after format — readReplayVersion scans only the
+  // head of the file for it.
   return serializeReplay({
     format: REPLAY_FORMAT,
-    gameVersion: room.replay.gameVersion,
+    replayVersion: room.replay.replayVersion,
     savedAt: new Date().toISOString(),
     config: { ...room.replay.config, myPlayerId: seat.playerId },
     ...(room.replay.loadData !== undefined ? { loadData: room.replay.loadData } : {}),

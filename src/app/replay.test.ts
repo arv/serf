@@ -8,6 +8,7 @@ import {
   type ReplayData,
 } from './replay';
 import { AiSeats } from '../sim/aiSeats';
+import { REPLAY_VERSION } from '../shared/replayVersion';
 import { createWorld, type World, type WorldConfig } from '../sim/world';
 import { tickWorld, type PlayerCommand } from '../sim/tick';
 import type { SimCommand } from '../sim/commands';
@@ -15,7 +16,7 @@ import type { SimCommand } from '../sim/commands';
 function sample(): ReplayData {
   return {
     format: REPLAY_FORMAT,
-    gameVersion: '0.4.4',
+    replayVersion: REPLAY_VERSION,
     savedAt: '2026-08-12T10:00:00.000Z',
     config: { seed: 42, players: [{ kind: 'human' }, { kind: 'ai' }], myPlayerId: 0 },
     commands: [
@@ -43,12 +44,12 @@ describe('replay format', () => {
     expect(parseReplay('not json')).toBeNull();
     expect(parseReplay('{}')).toBeNull();
     expect(parseReplay(JSON.stringify({ format: 'serf-save-v2' }))).toBeNull();
-    expect(parseReplay(JSON.stringify({ format: 'serf-replay-v1' }))).toBeNull(); // old format
+    expect(parseReplay(JSON.stringify({ format: 'serf-replay-v1' }))).toBeNull(); // old format string
     expect(parseReplay(JSON.stringify({ format: REPLAY_FORMAT }))).toBeNull();
-    const unversioned = { ...sample(), gameVersion: undefined };
+    const unversioned = { ...sample(), replayVersion: undefined };
     expect(parseReplay(JSON.stringify(unversioned))).toBeNull();
     expect(
-      parseReplay(JSON.stringify({ format: REPLAY_FORMAT, gameVersion: '1', config: { seed: 1 }, endTick: 5 })),
+      parseReplay(JSON.stringify({ format: REPLAY_FORMAT, replayVersion: 1, config: { seed: 1 }, endTick: 5 })),
     ).toBeNull(); // players missing
   });
 
@@ -76,7 +77,7 @@ describe('replay format', () => {
 
   it('exposes the version stamp from the file head alone', () => {
     const raw = serializeReplay(sample());
-    expect(readReplayVersion(raw)).toBe('0.4.4');
+    expect(readReplayVersion(raw)).toBe(REPLAY_VERSION);
     expect(readReplayVersion('{}')).toBeUndefined();
   });
 
@@ -128,7 +129,7 @@ describe('replay determinism', () => {
     const parsed = parseReplay(
       serializeReplay({
         format: REPLAY_FORMAT,
-        gameVersion: '0.4.4',
+        replayVersion: REPLAY_VERSION,
         config: CONFIG,
         commands: log,
         endTick: 1500,

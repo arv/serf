@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { parseReplay } from '../../src/app/replay.ts';
+import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
 import { deserializeWorld, serializeWorld } from '../../src/sim/save.ts';
 import { createWorld } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
 import type { SimCommand } from '../../src/sim/commands.ts';
 import type { ReplayData } from '../../src/app/replay.ts';
 import {
-  GAME_VERSION,
   TICK_MS,
   addSeat,
   createRoom,
@@ -79,7 +79,7 @@ describe('server replay recording', () => {
     expect(data).not.toBeNull();
     const replay = parseReplay(data)!;
     expect(replay).not.toBeNull();
-    expect(replay.gameVersion).toBe(GAME_VERSION);
+    expect(replay.replayVersion).toBe(REPLAY_VERSION);
     expect(replay.config.myPlayerId).toBe(seat.playerId);
     expect(replay.endTick).toBe(room.world!.tick);
     // The AI seat's moves are in the log, not left for playback to invent.
@@ -132,9 +132,9 @@ describe('server replay recording', () => {
     // to re-simulate the old ticks, so the recording restarts from the
     // snapshot world itself.
     const tampered = JSON.parse(JSON.stringify(record)) as typeof record;
-    tampered.replay!.gameVersion = '0.0.0-previous';
+    tampered.replay!.replayVersion = REPLAY_VERSION - 1;
     const revived = roomFromRecord(tampered, Date.now());
-    expect(revived.replay?.gameVersion).toBe(GAME_VERSION);
+    expect(revived.replay?.replayVersion).toBe(REPLAY_VERSION);
     expect(revived.replay?.loadData).toBe(record.world);
     expect(revived.replay?.commands).toEqual([]);
 

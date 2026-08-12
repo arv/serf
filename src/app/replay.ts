@@ -16,8 +16,9 @@ import type { WorldConfig } from '../sim/world.ts';
  * between builds without rewriting history. What playback does re-run is
  * the sim itself, and that is version-bound — a tick system tuned in a
  * later build replays yesterday's commands into a different world. Every
- * replay therefore carries the game version it was recorded on, and
- * playback refuses a file from a different one rather than diverge
+ * replay therefore carries the REPLAY_VERSION it was recorded under
+ * (shared/replayVersion.ts, whose honesty a hash-pinning test enforces),
+ * and playback refuses a file stamped differently rather than diverge
  * silently.
  *
  * Recorded in the sim worker (single player) or on the server (multiplayer
@@ -26,7 +27,9 @@ import type { WorldConfig } from '../sim/world.ts';
  * stream.
  */
 
-export const REPLAY_FORMAT = 'serf-replay-v2';
+/** What kind of document this is. Unversioned on purpose: compatibility —
+ * structural and behavioral alike — is REPLAY_VERSION's whole job. */
+export const REPLAY_FORMAT = 'serf-replay';
 
 /** Every command applied on one tick, the AI seats' included. */
 export interface ReplayCommandEntry {
@@ -36,10 +39,10 @@ export interface ReplayCommandEntry {
 
 export interface ReplayData {
   format: typeof REPLAY_FORMAT;
-  /** The version of the game that recorded this (package.json's). The sim
-   * must match tick-for-tick for playback to mean anything, so a replay
-   * only plays on the version that wrote it. */
-  gameVersion: string;
+  /** The REPLAY_VERSION this was recorded under. The sim must match
+   * tick-for-tick for playback to mean anything, so a replay only plays
+   * on a build carrying the same number. */
+  replayVersion: number;
   /** When the replay was saved (informational only). */
   savedAt?: string;
   /** The config the worker booted with. Carries myPlayerId when the match
@@ -60,11 +63,11 @@ export function serializeReplay(data: ReplayData): string {
 /**
  * The version stamp alone, cheaply, for the menu's shelf — where a dozen
  * files may need labeling and full parses would be waste. Serializers put
- * gameVersion right after format, so the head of the file is enough.
+ * replayVersion right after format, so the head of the file is enough.
  */
-export function readReplayVersion(raw: string): string | undefined {
-  const m = /"gameVersion":"([^"\\]{0,64})"/.exec(raw.slice(0, 512));
-  return m?.[1];
+export function readReplayVersion(raw: string): number | undefined {
+  const m = /"replayVersion":(\d{1,9})\b/.exec(raw.slice(0, 512));
+  return m ? Number(m[1]) : undefined;
 }
 
 function isTick(v: unknown): v is number {
@@ -88,7 +91,7 @@ export function parseReplay(raw: string): ReplayData | null {
   if (typeof doc !== 'object' || doc === null) return null;
   const d = doc as Record<string, unknown>;
   if (d.format !== REPLAY_FORMAT) return null;
-  if (typeof d.gameVersion !== 'string') return null;
+  if (typeof d.replayVersion !== 'number' || !Number.isInteger(d.replayVersion)) return null;
   const config = d.config;
   if (typeof config !== 'object' || config === null) return null;
   if (typeof (config as { seed?: unknown }).seed !== 'number') return null;
@@ -119,7 +122,7 @@ export function parseReplay(raw: string): ReplayData | null {
 
   return {
     format: REPLAY_FORMAT,
-    gameVersion: d.gameVersion,
+    replayVersion: d.replayVersion,
     ...(typeof d.savedAt === 'string' ? { savedAt: d.savedAt } : {}),
     config: config as ReplayData['config'],
     ...(typeof d.loadData === 'string' ? { loadData: d.loadData } : {}),

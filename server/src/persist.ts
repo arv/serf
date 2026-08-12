@@ -29,8 +29,8 @@ import { AiSeats } from '../../src/sim/aiSeats.ts';
 import type { EntityId } from '../../src/sim/entities.ts';
 import type { LobbyConfig } from '../../src/protocol/lobby.ts';
 import type { BuildingSnap } from '../../src/protocol/messages.ts';
+import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
 import {
-  GAME_VERSION,
   TICK_MS,
   adoptRoom,
   matchWorldConfig,
@@ -187,10 +187,10 @@ export function roomFromRecord(record: PersistedRoom, nowMs: number): Room {
   // from the very string this world was deserialized from reproduces the
   // restore exactly. (Snapshots from before replays existed rebase too.)
   room.replay =
-    record.replay && record.replay.gameVersion === GAME_VERSION
+    record.replay && record.replay.replayVersion === REPLAY_VERSION
       ? record.replay
       : {
-          gameVersion: GAME_VERSION,
+          replayVersion: REPLAY_VERSION,
           config: matchWorldConfig(room),
           loadData: record.world,
           commands: [],

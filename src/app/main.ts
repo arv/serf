@@ -50,7 +50,7 @@ import { MISSION_DEFS } from '../sim/defs/missions';
 import { Terrain } from '../sim/map';
 import { inBounds, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
-import { APP_VERSION } from './buildInfo';
+import { REPLAY_VERSION } from '../shared/replayVersion';
 import { envelopeSave, splitSave } from './saveEnvelope';
 import { parseReplay, replayName, type ReplayData } from './replay';
 import { readReplayFile, saveReplayFile } from './replayStore';
@@ -206,10 +206,11 @@ async function boot(): Promise<void> {
     // commands against a retuned tick produce a different match. Refuse
     // rather than diverge silently — the menu greys these rows out, but
     // the URL is hand-editable.
-    if (replay.gameVersion !== APP_VERSION) {
+    if (replay.replayVersion !== REPLAY_VERSION) {
       fatal(
-        `The replay "${replayParam}" was recorded on version ${replay.gameVersion}; ` +
-          `this build is ${APP_VERSION}, and playback would not match what was played.`,
+        `The replay "${replayParam}" was recorded under replay version ` +
+          `${replay.replayVersion}; this build plays version ${REPLAY_VERSION}, ` +
+          `and the match would not come out the way it was played.`,
       );
     }
     await runMatch(
