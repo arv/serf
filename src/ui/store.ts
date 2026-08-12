@@ -89,13 +89,19 @@ export const [briefingOpen, setBriefingOpen] = createSignal(false);
 /** Selected building (mutually exclusive with unit selection). */
 export const [selectedBuilding, setSelectedBuilding] = createSignal<BuildingSnap | null>(null);
 
-/** Toast messages (raid warnings etc.), newest last. */
-export const [toasts, setToasts] = createSignal<{ id: number; text: string }[]>([]);
+/** Toast messages (raid warnings etc.), newest last. A toast with a focus
+ * target is clickable and pans the camera there. */
+export const [toasts, setToasts] = createSignal<
+  { id: number; text: string; focus?: { x: number; y: number } }[]
+>([]);
 let toastId = 0;
-export function pushToast(text: string): void {
+export function pushToast(text: string, focus?: { x: number; y: number }): void {
   const id = ++toastId;
-  setToasts([...toasts(), { id, text }]);
+  setToasts([...toasts(), { id, text, focus }]);
   setTimeout(() => setToasts(toasts().filter((t) => t.id !== id)), 8000);
+}
+export function dismissToast(id: number): void {
+  setToasts(toasts().filter((t) => t.id !== id));
 }
 
 /** Match outcome (drives the end screen). */

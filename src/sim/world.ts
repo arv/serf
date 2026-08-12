@@ -118,7 +118,10 @@ export type GameEvent =
   | { kind: 'raidIncoming'; text: string; player: Owner }
   | { kind: 'playerEliminated'; player: Owner }
   | { kind: 'gameOver'; winner: Owner | null }
-  | { kind: 'objectiveComplete'; index: number; player: Owner };
+  | { kind: 'objectiveComplete'; index: number; player: Owner }
+  /** A player's building or unit lost hp. One event per strike, addressed
+   * to the victim's owner; the client aggregates them into alerts. */
+  | { kind: 'damage'; player: Owner; x: number; y: number; building: boolean };
 
 export interface TechState {
   researched: TechId[];

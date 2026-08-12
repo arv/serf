@@ -190,9 +190,12 @@ function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
   );
 }
 
-/** Raid warnings are addressed; eliminations and the result are public. */
+/** Raid warnings and damage are addressed; eliminations and the result are
+ * public. Damage stays private so fights don't leak through rivals' fog. */
 function eventsFor(events: GameEvent[], seatId: number): GameEvent[] {
-  return events.filter((e) => e.kind !== 'raidIncoming' || e.player === seatId);
+  return events.filter((e) =>
+    (e.kind === 'raidIncoming' || e.kind === 'damage') ? e.player === seatId : true,
+  );
 }
 
 /** Every live building snapped once, shared by all seats in a pump — the
