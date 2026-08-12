@@ -9,6 +9,7 @@ describe('command screening', () => {
   it('accepts what the client actually sends', () => {
     const cases: SimCommand[] = [
       { kind: 'moveUnits', unitIds: [1, 2, 3], x: 10, y: 12 },
+      { kind: 'moveUnits', unitIds: [1, 2, 3], x: 10, y: 12, attack: true },
       { kind: 'placeBuilding', building: 'woodcutter', x: 4, y: 5 },
       { kind: 'hireSerf' },
       { kind: 'dismissWorker', buildingId: 3 },
@@ -48,6 +49,13 @@ describe('command screening', () => {
     expect(sanitizeCommand({ kind: 'moveUnits', unitIds: ['a'], x: 1, y: 1 })).toBeNull();
     expect(sanitizeCommand({ kind: 'moveUnits', unitIds: [1.5], x: 1, y: 1 })).toBeNull();
     expect(sanitizeCommand({ kind: 'moveUnits', unitIds: [1], x: NaN, y: 1 })).toBeNull();
+    // A garbled attack flag degrades to the order that starts no fights.
+    expect(sanitizeCommand({ kind: 'moveUnits', unitIds: [1], x: 1, y: 1, attack: 'yes' })).toEqual({
+      kind: 'moveUnits',
+      unitIds: [1],
+      x: 1,
+      y: 1,
+    });
     expect(sanitizeCommand({ kind: 'placeBuilding', building: 'woodcutter' })).toBeNull();
     expect(sanitizeCommand(null)).toBeNull();
     expect(sanitizeCommand('moveUnits')).toBeNull();

@@ -280,12 +280,14 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
  * Group moves fan out over the walkable tiles nearest the target (spiral
  * order) so squads don't stack on one tile. A right-click on an enemy
  * building is an attack order: military units take the same 'raid' task
- * bandits use, and the combat system does the rest.
+ * bandits use, and the combat system does the rest. Ground orders come in
+ * two kinds — an attack-move fights whatever it meets on the way, a plain
+ * move ignores enemies until it arrives.
  */
 function applyMoveUnits(
   world: World,
   playerId: Owner,
-  cmd: { unitIds: number[]; x: number; y: number },
+  cmd: { unitIds: number[]; x: number; y: number; attack?: boolean },
 ): void {
   if (inBounds(cmd.x, cmd.y)) {
     const bId = world.map.buildingAt[tileIdx(cmd.x, cmd.y)]!;
@@ -310,13 +312,9 @@ function applyMoveUnits(
     const unit = world.units.get(id);
     if (!unit || unit.dead || unit.owner !== playerId) continue;
     const goal = targets[Math.min(t++, targets.length - 1)]!;
-    const path = findPath(
-      world.map,
-      Math.floor(unit.x),
-      Math.floor(unit.y),
-      tileX(goal),
-      tileY(goal),
-    );
+    const goalX = tileX(goal);
+    const goalY = tileY(goal);
+    const path = findPath(world.map, Math.floor(unit.x), Math.floor(unit.y), goalX, goalY);
     // An order that cannot be walked changes nothing. Quitting first and
     // asking afterwards stranded a resident worker for good: unbindWorker
     // had already cleared homeId and turned him back into a serf, so
@@ -337,8 +335,13 @@ function applyMoveUnits(
     if (unit.homeId !== undefined) unbindWorker(world, unit);
     unit.path = path;
     unit.pathIdx = 0;
-    unit.task = { t: 'move' };
-    // Explicit orders disengage combat until arrival.
+    // An attack-move keeps the combat system live on the way; civilians have
+    // no combat to keep live, so for them both orders are the same walk.
+    unit.task =
+      cmd.attack && UNIT_DEFS[unit.kind].combat
+        ? { t: 'attackMove', destX: goalX, destY: goalY }
+        : { t: 'move' };
+    // Explicit orders disengage combat; an attack-move re-acquires freely.
     unit.targetId = undefined;
     unit.targetIsBuilding = undefined;
   }

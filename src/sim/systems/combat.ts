@@ -54,7 +54,8 @@ export function combatSystem(world: World): void {
 
     if (unit.cooldownLeft > 0) unit.cooldownLeft--;
 
-    // Explicit move orders suppress auto-acquire until arrival.
+    // A plain move order suppresses auto-acquire until arrival; an
+    // attack-move stays in this system and fights its way there.
     if (unit.task.t === 'move') continue;
 
     // Validate or acquire a target.
@@ -128,11 +129,20 @@ export function combatSystem(world: World): void {
         if (b && distToBuilding(unit, b) <= combat.acquireRadius) {
           unit.targetId = b.id;
           unit.targetIsBuilding = true;
+          // Drop any path in hand so the engage step plans toward the
+          // building now. An attack-move otherwise kept walking its route
+          // with the target stuck on — building targets never drop by
+          // distance, so it would double back after arriving instead of
+          // fighting what it found on the way.
+          unit.path = null;
         }
       }
     }
 
-    if (unit.targetId === undefined) continue;
+    if (unit.targetId === undefined) {
+      if (unit.task.t === 'attackMove') resumeAttackMove(world, unit);
+      continue;
+    }
 
     // Engage: in range -> strike on cooldown; out of range -> close in.
     // Ranged units kite: they back off from anything closing to melee.
@@ -198,6 +208,30 @@ export function combatSystem(world: World): void {
 
 /** How far a camp guard may stray from home before it turns back. */
 const GUARD_LEASH = 9;
+
+/**
+ * An attack-move with no fight on: keep walking toward the ordered tile.
+ * Chasing and stand-and-fight consume the original path, so the leg back to
+ * the destination is re-planned here; standing on the goal tile (or finding
+ * no way to it) ends the order the way a plain move ends — going idle.
+ */
+function resumeAttackMove(world: World, unit: Unit): void {
+  if (unit.task.t !== 'attackMove' || unit.path !== null) return;
+  const { destX, destY } = unit.task;
+  const ux = Math.floor(unit.x);
+  const uy = Math.floor(unit.y);
+  if (ux === destX && uy === destY) {
+    unit.task = { t: 'idle', until: world.tick };
+    return;
+  }
+  const path = findPath(world.map, ux, uy, destX, destY);
+  if (path && path.length > 0) {
+    unit.path = path;
+    unit.pathIdx = 0;
+  } else {
+    unit.task = { t: 'idle', until: world.tick };
+  }
+}
 
 /** Nearest enemy unit in radius, preferring countered classes. */
 function acquireUnit(units: readonly Unit[], unit: Unit, radius: number): Unit | undefined {
