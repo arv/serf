@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BANDIT } from './entities.ts';
+import { BANDIT, centerOf } from './entities.ts';
 import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, spawnUnit, spawnUnitNearby, type World } from './world.ts';
 import { Terrain } from './map.ts';
@@ -228,5 +228,41 @@ describe('raids and victory', () => {
       const u = world.units.get(id);
       if (u) expect(u.targetIsBuilding ?? false).toBe(false);
     }
+  });
+});
+
+describe('damage events', () => {
+  it('a player unit taking hits emits damage events', () => {
+    const world = bareWorld();
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    spawnUnit(world, 'spearman', BANDIT, 31.5, 30.5);
+    run(world, 40);
+    const hits = world.pendingEvents.filter((e) => e.kind === 'damage');
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((e) => e.player === 0 && e.building === false)).toBe(true);
+    expect(knight.hp).toBeLessThan(UNIT_DEFS.knight.hp);
+  });
+
+  it('a player building under siege emits damage events at its center', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, {});
+    const bandit = spawnUnit(world, 'bandit', BANDIT, 29.5, 30.5);
+    bandit.task = { t: 'raid', buildingId: sh.id };
+    run(world, 20 * 10);
+    const hits = world.pendingEvents.filter((e) => e.kind === 'damage').filter((e) => e.building);
+    expect(hits.length).toBeGreaterThan(0);
+    const c = centerOf(sh);
+    expect(hits.every((e) => e.player === 0 && e.x === c.x && e.y === c.y)).toBe(true);
+  });
+
+  it('bandit victims are silent — no events for razing their camp', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 38, 30);
+    camp.hp = 60;
+    spawnUnit(world, 'knight', 0, 36.5, 30.5);
+    run(world, 20 * 60);
+    expect(camp.dead).toBe(true);
+    expect(world.pendingEvents.filter((e) => e.kind === 'damage')).toEqual([]);
   });
 });

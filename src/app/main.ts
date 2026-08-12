@@ -15,6 +15,7 @@ import { batteryFramePacer } from '../render/framePacer';
 import { loadCharacterAssets } from '../render/characters';
 import { loadGlbAssets } from '../render/assets';
 import { Controls } from '../input/controls';
+import { DamageAlerts } from './damageAlerts';
 import { mountHud } from '../ui/mount';
 import {
   myPlayerId,
@@ -413,6 +414,12 @@ async function runMatch(
   const saveGame = async (): Promise<string> =>
     envelopeSave(await host.requestSave(), fog.exportExplored());
   rescue = saveGame;
+  const damageAlerts = new DamageAlerts({
+    scene: renderer.scene,
+    heights,
+    camera: renderer.rig.camera,
+    canvas,
+  });
   if (import.meta.env.DEV) {
     // Console handles for forensics and screenshot tooling: the fog for
     // visibility checks, the rig and heights for scripted camera jumps and
@@ -421,6 +428,7 @@ async function runMatch(
       __fog: fog,
       __rig: renderer.rig,
       __heights: heights,
+      __damageAlerts: damageAlerts,
     });
   }
   sync.setFog(fog);
@@ -491,6 +499,7 @@ async function runMatch(
     if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
+    if (msg.outcome.state === 'over') damageAlerts.clear();
     setAdminState(msg.admin);
     // The worker, not the URL, says which mission this is: a loaded save
     // reboots on ?seed=…, but the world remembers. Synced both ways — a
@@ -511,6 +520,9 @@ async function runMatch(
         pushToast(event.text);
       } else if (event.kind === 'playerEliminated' && event.player !== myPlayerId()) {
         pushToast('A rival banner has fallen!');
+      } else if (event.kind === 'damage' && event.player === myPlayerId()) {
+        // The solo worker delivers every seat's events; filter like raids.
+        damageAlerts.report(event);
       } else if (event.kind === 'objectiveComplete' && event.player === myPlayerId()) {
         const label = msg.mission
           ? MISSION_DEFS[msg.mission.id].objectives[event.index]?.label
@@ -550,6 +562,7 @@ async function runMatch(
     deselect: () => controls.deselectAll(),
     place: (type) => controls.setPlacement(type),
     save: saveGame,
+    focus: (x, z) => renderer.rig.glideTo(x, z),
   });
 
   // The camera never rotates: hp bars copy its live orientation once to
@@ -596,6 +609,7 @@ async function runMatch(
     selectedReach.update(placing() ? null : selectedBuilding());
     controls.prune();
     selectionFx.update(controls.selected, sync, now);
+    damageAlerts.update(now);
     water.update(now);
     mist.update(now);
     const dt = renderer.frame();

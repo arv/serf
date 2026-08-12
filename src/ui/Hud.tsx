@@ -33,6 +33,7 @@ import {
   mission,
   myPlayerId,
   netMode,
+  dismissToast,
   netStatus,
   openPanel,
   outcome,
@@ -77,6 +78,7 @@ export function Hud(props: {
   onCancelTrain: (buildingId: number, index: number, unit: UnitTypeId) => void;
   onSave: () => void;
   onAdmin: (action: AdminAction) => void;
+  onFocus: (x: number, y: number) => void;
   onSelectArmy: () => void;
   onDeselect: () => void;
   onDismiss: (buildingId: number) => void;
@@ -404,6 +406,9 @@ export function Hud(props: {
           z-index: 30;
         }
         .toast { padding: 7px 13px; pointer-events: auto; }
+        /* A toast that knows a place: click pans the camera there. */
+        #ui .toast.clickable { cursor: pointer; border-color: rgba(214, 106, 80, 0.55); }
+        #ui .toast.clickable:hover { border-color: rgba(214, 106, 80, 0.9); }
         .hud-end {
           position: absolute; inset: 0; display: grid; place-items: center;
           background: rgba(8, 10, 8, 0.6); pointer-events: auto;
@@ -829,7 +834,21 @@ export function Hud(props: {
       <Show when={llmBadge()}>{(text) => <div class="hud-llm panel">{text()}</div>}</Show>
 
       <div class="hud-toasts">
-        <For each={toasts()}>{(t) => <div class="panel toast">{t.text}</div>}</For>
+        <For each={toasts()}>
+          {(t) => (
+            <div
+              class="panel toast"
+              classList={{ clickable: !!t.focus }}
+              onClick={() => {
+                if (!t.focus) return;
+                props.onFocus(t.focus.x, t.focus.y);
+                dismissToast(t.id);
+              }}
+            >
+              {t.text}
+            </div>
+          )}
+        </For>
       </div>
 
       <Show when={netMode() && netStatus()?.state === 'disconnected'}>
