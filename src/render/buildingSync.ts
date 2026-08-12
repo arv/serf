@@ -32,6 +32,11 @@ export interface PierInfo {
   deckY: number;
 }
 
+/** How far below the waterline the shoal group is re-seated, in world
+ * units — enough that the tallest swim circle and the fish bodies stay
+ * submerged rather than breaking the surface. */
+const SHOAL_DRAFT = 0.14;
+
 interface BuildingVisual {
   root: THREE.Group;
   state: 'site' | 'built';
@@ -317,10 +322,9 @@ export class BuildingSync {
     // edge, but the water surface is a world plane well below the shore the
     // building stands on — left there, the fish circle in the air over the
     // waterline. Re-seat the group so they swim just under the surface: a
-    // world-unit drop (clearing the tallest circle and the fish bodies),
-    // folded back into the model's uniform scale.
+    // world-unit drop, folded back into the model's vertical scale.
     const shoal = model.getObjectByName('fisheryShoal') ?? undefined;
-    if (shoal) shoal.position.y = (WATER_LEVEL - 0.14 - root.position.y) / model.scale.x;
+    if (shoal) shoal.position.y = (WATER_LEVEL - SHOAL_DRAFT - root.position.y) / model.scale.y;
 
     const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
     this.#scene.add(root);
