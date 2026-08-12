@@ -194,7 +194,7 @@ function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
  * public. Damage stays private so fights don't leak through rivals' fog. */
 function eventsFor(events: GameEvent[], seatId: number): GameEvent[] {
   return events.filter((e) =>
-    e.kind === 'raidIncoming' || e.kind === 'damage' ? e.player === seatId : true,
+    (e.kind === 'raidIncoming' || e.kind === 'damage') ? e.player === seatId : true,
   );
 }
 

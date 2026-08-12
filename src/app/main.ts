@@ -562,7 +562,8 @@ async function runMatch(
     deselect: () => controls.deselectAll(),
     place: (type) => controls.setPlacement(type),
     save: saveGame,
-    focus: (x, z) => renderer.rig.glideTo(x, z),
+    // Tile y is world z — the same straight mapping as the home focusOn.
+    focus: (x, y) => renderer.rig.glideTo(x, y),
   });
 
   // The camera never rotates: hp bars copy its live orientation once to

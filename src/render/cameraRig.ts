@@ -177,6 +177,10 @@ export class CameraRig {
   /** Glide the camera to a spot instead of snapping — the toast's "take me
    * there". Any manual pan or focusOn cancels the glide mid-flight. */
   glideTo(x: number, z: number, durationMs = 400): void {
+    if (durationMs <= 0) {
+      this.focusOn(x, z);
+      return;
+    }
     this.#glide = {
       fromX: this.#target.x,
       fromZ: this.#target.z,
