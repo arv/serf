@@ -29,6 +29,13 @@ export const [playersMeta, setPlayersMeta] = createSignal<PlayerSnap[]>([]);
 /** Networked match: one shared clock (no pause/FF), no save, no cheats. */
 export const [netMode, setNetMode] = createSignal(false);
 
+/** Watching a saved replay: the sim feeds itself from the log, orders are
+ * ignored, and the HUD trades its command surfaces for an extra speed. */
+export const [replayMode, setReplayMode] = createSignal(false);
+
+/** Playback walked off the end of the recording (the sim paused itself). */
+export const [replayOver, setReplayOver] = createSignal(false);
+
 /** Live connection health (netMode only). */
 export const [netStatus, setNetStatus] = createSignal<
   import('../protocol/messages').NetStatus | null

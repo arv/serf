@@ -14,6 +14,9 @@ export interface HudActions {
   place(type: BuildingTypeId | null): void;
   /** The full save string — the worker's world plus the fog's memory. */
   save(): Promise<string>;
+  /** Write the match's replay log to OPFS; the saved name, or null when
+   * the browser has no OPFS to write into. */
+  saveReplay(): Promise<string | null>;
   /** Pan the camera to a tile — clickable toasts' "take me there". Sim
    * tile coords; the rig call maps tile y onto world z. */
   focus(x: number, y: number): void;
@@ -52,6 +55,15 @@ export function mountHud(host: SimHost, actions: HudActions): void {
           void actions.save().then((data) => {
             localStorage.setItem('serf-save', data);
             pushToast('Game saved');
+          });
+        }}
+        onSaveReplay={() => {
+          void actions.saveReplay().then((name) => {
+            pushToast(
+              name !== null
+                ? `Replay saved — ${name}`
+                : 'Replay could not be saved (this browser has no private file storage)',
+            );
           });
         }}
         onAdmin={(action) => host.sendCommands([{ kind: 'admin', action }])}

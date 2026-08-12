@@ -122,6 +122,10 @@ export type MainToWorker =
       /** Solo only: post aiSummary messages so the main thread's LLM
        * strategist (src/ai/) can advise the AI seats. */
       llm?: boolean;
+      /** Play back a recorded match instead of a live one: the sim feeds
+       * itself from the log and ignores incoming commands. config/loadData
+       * above are ignored — the replay carries its own. */
+      replay?: import('../app/replay.ts').ReplayData;
     }
   | { type: 'commands'; commands: PlayerCommand[] }
   /** Strategist advice for one AI seat: playbook knobs to lay over its
@@ -137,7 +141,10 @@ export type MainToWorker =
    * nobody is watching. Multiplayer ignores it — the server's world keeps
    * running either way, and the socket has to stay warm. */
   | { type: 'setHidden'; hidden: boolean }
-  | { type: 'requestSave' };
+  | { type: 'requestSave' }
+  /** Solo only: serialize the recording so the main thread can write it to
+   * OPFS. Answered with 'replayData'. */
+  | { type: 'requestReplay' };
 
 /**
  * Low-frequency structural state (every 5 ticks / on change): building
@@ -191,6 +198,10 @@ export type WorkerToMain =
     }
   | StructuralUpdate
   | { type: 'saved'; data: string }
+  /** The recording, serialized — the answer to 'requestReplay'. */
+  | { type: 'replayData'; data: string }
+  /** Replay playback reached the log's end tick; the sim has paused itself. */
+  | { type: 'replayEnded' }
   | { type: 'netStatus'; status: NetStatus }
   /** One AI seat's folded-down view of the match, on the advice cadence
    * (~45 s) — the input the LLM strategist prompts from. Only sent when

@@ -12,6 +12,7 @@ import type { SimCommand } from '../sim/commands';
 import type { AiStrategy } from '../sim/defs/aiStrategies';
 import type { GameConfig } from './gameConfig';
 import type { NetInfo } from '../protocol/messages';
+import type { ReplayData } from './replay';
 
 export interface SimInit {
   reader: SabReader;
@@ -27,7 +28,7 @@ export interface SimInit {
  * same interface later because the sim is pure.
  */
 export interface SimHost {
-  start(config: GameConfig, loadData?: string, net?: NetInfo): Promise<SimInit>;
+  start(config: GameConfig, loadData?: string, net?: NetInfo, replay?: ReplayData): Promise<SimInit>;
   sendCommands(commands: SimCommand[]): void;
   setSpeed(speed: number): void;
   /** Tell the worker whether the debug overlay is watching (jobs feed). */
@@ -35,7 +36,11 @@ export interface SimHost {
   /** Tell the worker whether the page is hidden (freezes the solo sim). */
   setHidden(hidden: boolean): void;
   requestSave(): Promise<string>;
+  /** The match's replay log, serialized (solo sim only). */
+  requestReplay?(): Promise<string>;
   onStructural(cb: (msg: StructuralUpdate) => void): void;
+  /** Playback reached the recording's end and the sim paused itself. */
+  onReplayEnded?(cb: () => void): void;
   onNetStatus?(cb: (status: NetStatus) => void): void;
   /** LLM strategist plumbing (solo, when the config asked for it): seat
    * summaries coming up, validated advice going down. */
@@ -64,6 +69,8 @@ export class WorkerSimHost implements SimHost {
    * replace the full first one — every missed frame replays, in order. */
   #pendingStructural: StructuralUpdate[] = [];
   #saveCb: ((data: string) => void) | null = null;
+  #replayCb: ((data: string) => void) | null = null;
+  #replayEndedCb: (() => void) | null = null;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
   #aiSummaryCb: ((playerId: number, summary: AiWorldSummary) => void) | null = null;
   /** Seat the UI's commands are issued as. */
@@ -76,7 +83,7 @@ export class WorkerSimHost implements SimHost {
         : new Worker(new URL('./simWorker.ts', import.meta.url), { type: 'module' });
   }
 
-  start(config: GameConfig, loadData?: string, net?: NetInfo): Promise<SimInit> {
+  start(config: GameConfig, loadData?: string, net?: NetInfo, replay?: ReplayData): Promise<SimInit> {
     this.playerId = config.myPlayerId;
     return new Promise((resolve, reject) => {
       // A worker that dies after start would otherwise fail silently: the
@@ -100,6 +107,11 @@ export class WorkerSimHost implements SimHost {
         } else if (msg.type === 'saved') {
           this.#saveCb?.(msg.data);
           this.#saveCb = null;
+        } else if (msg.type === 'replayData') {
+          this.#replayCb?.(msg.data);
+          this.#replayCb = null;
+        } else if (msg.type === 'replayEnded') {
+          this.#replayEndedCb?.();
         } else if (msg.type === 'netStatus') {
           this.#netStatusCb?.(msg.status);
         } else if (msg.type === 'aiSummary') {
@@ -114,6 +126,7 @@ export class WorkerSimHost implements SimHost {
         loadData,
         net,
         llm: config.llmOpponent,
+        replay,
       } satisfies MainToWorker);
     });
   }
@@ -123,6 +136,17 @@ export class WorkerSimHost implements SimHost {
       this.#saveCb = resolve;
       this.#post({ type: 'requestSave' });
     });
+  }
+
+  requestReplay(): Promise<string> {
+    return new Promise((resolve) => {
+      this.#replayCb = resolve;
+      this.#post({ type: 'requestReplay' });
+    });
+  }
+
+  onReplayEnded(cb: () => void): void {
+    this.#replayEndedCb = cb;
   }
 
   onStructural(cb: (msg: StructuralUpdate) => void): void {

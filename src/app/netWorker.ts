@@ -291,10 +291,12 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
         connect(netInfo, 0);
       }
       break;
-    // Speed and saving are single-player affairs: a shared world runs at
-    // one rate whoever looks away, and there is nothing local to serialize.
+    // Speed, saving and replays are single-player affairs: a shared world
+    // runs at one rate whoever looks away, and there is nothing local to
+    // serialize.
     case 'setSpeed':
     case 'requestSave':
+    case 'requestReplay':
       break;
   }
 };
