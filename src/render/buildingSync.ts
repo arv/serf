@@ -56,6 +56,11 @@ interface BuildingVisual {
   pileKey: string;
   /** The well's windlass, spun per frame while the well is staffed. */
   crank?: THREE.Object3D;
+  /** The mill's sail assembly, turned per frame while the mill grinds. */
+  fan?: THREE.Object3D;
+  /** Current sail speed, eased toward grinding/idle — heavy sails spin up
+   * and coast down instead of snapping with the batch boundary. */
+  fanSpeed: number;
   shoal?: THREE.Object3D;
   /** The fishery's pier decor — the deck the fisherman walks out on. */
   pier?: THREE.Object3D;
@@ -66,6 +71,8 @@ interface BuildingVisual {
    * water); kept for deriving where the pier runs. */
   facing: number;
   staffed: boolean;
+  /** Latest BuildingSnap.working — a convert batch actually ticking. */
+  working: boolean;
   /** Longest footprint side, for sizing the teardown dust. */
   span: number;
 }
@@ -94,6 +101,10 @@ const MINE_SPOTS: [number, number, number, number][] = [
 ];
 
 const HP_BAR_W = 1.1;
+
+/** Grinding-speed sail rotation, rad/s — brisk enough to read as working
+ * at village zoom, slow enough to stay a windmill and not a propeller. */
+const MILL_FAN_SPEED = 1.5;
 
 /** One low-poly ball shared by every dust puff; scaled per puff. */
 const PUFF_GEO = new THREE.IcosahedronGeometry(1, 0);
@@ -194,6 +205,7 @@ export class BuildingSync {
       }
 
       v.staffed = b.staffing === 'staffed';
+      v.working = b.working === true;
       this.#syncPiles(v, b);
 
       // Damage bar: appears once hurt (hover() shows it on healthy ones).
@@ -338,10 +350,13 @@ export class BuildingSync {
       pct: 1,
       pileKey: '',
       crank: model.getObjectByName('wellCrank') ?? undefined,
+      fan: model.getObjectByName('millFan') ?? undefined,
+      fanSpeed: 0,
       shoal,
       pier: model.getObjectByName('fisheryPier') ?? undefined,
       facing: b.facing ?? 0,
       staffed: false,
+      working: false,
       span: Math.max(b.w, b.h),
     };
   }
@@ -467,6 +482,17 @@ export class BuildingSync {
   frame(dt: number): void {
     if (dt <= 0) return;
     for (const v of this.#visuals.values()) {
+      if (v.fan) {
+        // The sails turn while the mill grinds — the mill keeps no resident
+        // (the wind is the worker), so the cue is the batch itself
+        // (BuildingSnap.working), not staffing. Speed eases toward the
+        // target: heavy sails carry momentum, and the coast also bridges
+        // the one-tick gap between back-to-back batches, which would
+        // otherwise read as a stutter whenever a publish lands in it.
+        const target = v.working && v.state === 'built' ? MILL_FAN_SPEED : 0;
+        v.fanSpeed += (target - v.fanSpeed) * Math.min(1, dt * 1.6);
+        if (v.fanSpeed > 0.01) v.fan.rotation.z += v.fanSpeed * dt;
+      }
       if (v.shoal && v.staffed && v.state === 'built') {
         // Each fish carries its own circle, direction and depth. Advancing
         // the phase and pointing the nose down the tangent is the whole
