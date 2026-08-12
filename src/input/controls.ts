@@ -43,7 +43,8 @@ const MILITARY_CODES = new Set(
  * rectangle is an HTML div, not WebGL.
  *
  * Touch speaks selection-first, like every phone RTS: tap a unit to select,
- * then tap the ground to send the selection there (an order pulse + a tick
+ * then tap the ground to send the selection there as an attack-move —
+ * soldiers engage what they meet on the way (an order pulse + a tick
  * of haptics confirm it) — though a tap on one of your own buildings opens
  * that building instead of marching onto it. The HUD's marquee button arms
  * a one-shot band select — the next finger drag draws the band while the
@@ -258,7 +259,7 @@ export class Controls {
         }
       }
     } else if (e.button === 2) {
-      this.#issueMove(e.clientX, e.clientY);
+      this.#issueMove(e.clientX, e.clientY, false);
     }
   };
 
@@ -442,7 +443,9 @@ export class Controls {
       return;
     }
     if (this.#selection.size > 0) {
-      this.#issueMove(px, py);
+      // The phone default is the attack-move: a tapped army fights whatever
+      // it meets on the way rather than filing politely past a raid.
+      this.#issueMove(px, py, true);
       return;
     }
     this.deselectAll();
@@ -587,7 +590,14 @@ export class Controls {
     this.#setSel(sel);
   }
 
-  #issueMove(px: number, py: number): void {
+  /**
+   * Send the selection somewhere. `attack` picks between the two orders:
+   * an attack-move engages enemies met along the way, a plain move ignores
+   * them. Touch taps default to attack-move (a phone has no second button
+   * to say "and fight what you find"); desktop right-click stays the plain
+   * move until the `m`/`a` shortcuts land.
+   */
+  #issueMove(px: number, py: number, attack: boolean): void {
     if (this.#selection.size === 0) return;
     const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
     if (!ground) return;
@@ -597,18 +607,21 @@ export class Controls {
         unitIds: [...this.#selection],
         x: Math.floor(ground.x),
         y: Math.floor(ground.z),
+        ...(attack ? { attack: true } : {}),
       },
     ]);
-    this.#orderPulse(px, py);
+    this.#orderPulse(px, py, attack);
   }
 
-  /** A ring blooming at the tap/click plus a tick of haptics: order taken. */
-  #orderPulse(px: number, py: number): void {
+  /** A ring blooming at the tap/click plus a tick of haptics: order taken.
+   * Attack-moves pulse red, plain moves gold — the only glanceable place
+   * the two orders read differently. */
+  #orderPulse(px: number, py: number, attack: boolean): void {
     const el = document.createElement('div');
     el.style.cssText =
       `position:fixed;left:${px}px;top:${py}px;width:44px;height:44px;` +
-      'margin:-22px 0 0 -22px;border:2px solid #e5c469;border-radius:50%;' +
-      'pointer-events:none;z-index:10;opacity:0.9;' +
+      `margin:-22px 0 0 -22px;border:2px solid ${attack ? '#bf4342' : '#e5c469'};` +
+      'border-radius:50%;pointer-events:none;z-index:10;opacity:0.9;' +
       'animation:serf-order-pulse 0.45s ease-out forwards;';
     if (!document.getElementById('serf-order-pulse-style')) {
       const style = document.createElement('style');

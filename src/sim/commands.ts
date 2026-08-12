@@ -12,7 +12,9 @@ import type { UnitTypeId } from './defs/units.ts';
  * revalidates everything (the UI's checks are advisory only).
  */
 export type SimCommand =
-  | { kind: 'moveUnits'; unitIds: EntityId[]; x: number; y: number }
+  // `attack` splits the two move orders: an attack-move engages enemies met
+  // along the way (the mobile tap default), a plain move ignores them.
+  | { kind: 'moveUnits'; unitIds: EntityId[]; x: number; y: number; attack?: boolean }
   | { kind: 'placeBuilding'; building: BuildingTypeId; x: number; y: number }
   | { kind: 'hireSerf' }
   | { kind: 'dismissWorker'; buildingId: EntityId }
@@ -86,7 +88,15 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       if (c.unitIds.length > MAX_UNITS_PER_ORDER) return null;
       if (!c.unitIds.every(isId)) return null;
       if (!isTile(c.x) || !isTile(c.y)) return null;
-      return { kind: 'moveUnits', unitIds: [...(c.unitIds as EntityId[])], x: c.x, y: c.y };
+      return {
+        kind: 'moveUnits',
+        unitIds: [...(c.unitIds as EntityId[])],
+        x: c.x,
+        y: c.y,
+        // Anything but literal `true` means a plain move — the safe reading
+        // of a garbled flag is the order that starts no fights.
+        ...(c.attack === true ? { attack: true } : {}),
+      };
     }
     case 'placeBuilding':
       if (!isDefined(BUILDING_DEFS, c.building)) return null;
