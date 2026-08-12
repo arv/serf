@@ -137,7 +137,9 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // the fishery is staffed — an idle fishery's water is still. (It used to
     // say "the same way it turns a staffed well's windlass"; the well keeps
     // no staff now, and sceneSync turns that crank under the serf drawing
-    // from it.)
+    // from it.) The y here is template-space only: the waterline is a world
+    // plane below the shore, so buildingSync re-seats the group under it
+    // once the building stands on real terrain.
     { make: (prop) => makeShoal(prop), at: [0, 1.02], y: 0.02, size: 1 },
   ],
   quarry: [{ prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 }],

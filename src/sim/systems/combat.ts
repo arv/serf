@@ -162,6 +162,16 @@ export function combatSystem(world: World): void {
         unit.path = null;
         if (unit.cooldownLeft <= 0) {
           targetBuilding.hp -= UNIT_DEFS[unit.kind].combat!.damage;
+          if (isPlayerOwner(targetBuilding.owner)) {
+            const c = centerOf(targetBuilding);
+            world.pendingEvents.push({
+              kind: 'damage',
+              player: targetBuilding.owner,
+              x: c.x,
+              y: c.y,
+              building: true,
+            });
+          }
           unit.cooldownLeft = combat.cooldownTicks;
           if (targetBuilding.hp <= 0) {
             destroyBuilding(world, targetBuilding);
@@ -222,6 +232,15 @@ function strikeUnit(world: World, attacker: Unit, defender: Unit): void {
   const defClass = UNIT_DEFS[defender.kind].combat?.class;
   const mult = defClass ? COUNTER_TABLE[a.class][defClass] : 1;
   defender.hp -= a.damage * mult;
+  if (isPlayerOwner(defender.owner)) {
+    world.pendingEvents.push({
+      kind: 'damage',
+      player: defender.owner,
+      x: defender.x,
+      y: defender.y,
+      building: false,
+    });
+  }
   // Fighting back: an idle victim with combat stats turns on its attacker.
   if (!defender.dead && UNIT_DEFS[defender.kind].combat && defender.targetId === undefined) {
     defender.targetId = attacker.id;

@@ -32,6 +32,10 @@ export class CameraRig {
   /** Touch pan/pinch gate: Controls closes it while a marquee drag owns
    * the finger, so the map holds still under the selection band. */
   touchPanEnabled = true;
+  /** In-flight glideTo tween; null when the camera is at rest or the
+   * player grabbed it back (any manual pan or focusOn cancels the glide). */
+  #glide: { fromX: number; fromZ: number; toX: number; toZ: number; t: number; dur: number } | null =
+    null;
 
   /**
    * `interactive: false` builds a rig nobody can drive — no key, wheel or
@@ -160,6 +164,7 @@ export class CameraRig {
   /** Per-frame: apply held pan keys. dt in seconds. */
   /** Point the camera at a spot on the ground, optionally reframing. */
   focusOn(x: number, z: number, viewHeight?: number): void {
+    this.#glide = null;
     this.#target.set(x, 0, z);
     if (viewHeight !== undefined) {
       this.#viewHeight = clamp(viewHeight, MIN_VIEW, MAX_VIEW);
@@ -169,7 +174,35 @@ export class CameraRig {
     this.#apply();
   }
 
+  /** Glide the camera to a spot instead of snapping — the toast's "take me
+   * there". Any manual pan or focusOn cancels the glide mid-flight. */
+  glideTo(x: number, z: number, durationMs = 400): void {
+    if (durationMs <= 0) {
+      this.focusOn(x, z);
+      return;
+    }
+    this.#glide = {
+      fromX: this.#target.x,
+      fromZ: this.#target.z,
+      toX: clamp(x, -PAN_MARGIN, MAP_SIZE + PAN_MARGIN),
+      toZ: clamp(z, -PAN_MARGIN, MAP_SIZE + PAN_MARGIN),
+      t: 0,
+      dur: durationMs / 1000,
+    };
+  }
+
   tick(dt: number): void {
+    const glide = this.#glide;
+    if (glide) {
+      glide.t = Math.min(glide.t + dt, glide.dur);
+      const p = glide.t / glide.dur;
+      // Ease-in-out cubic: gentle start, gentle landing.
+      const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+      this.#target.x = glide.fromX + (glide.toX - glide.fromX) * e;
+      this.#target.z = glide.fromZ + (glide.toZ - glide.fromZ) * e;
+      this.#apply();
+      if (glide.t >= glide.dur) this.#glide = null;
+    }
     if (!this.#interactive) return;
     const speed = this.#viewHeight * 0.9 * dt;
     let dx = 0;
@@ -183,6 +216,7 @@ export class CameraRig {
 
   /** Pan in screen space: x = right on screen, z = down on screen. */
   #panScreen(x: number, z: number): void {
+    this.#glide = null;
     // Screen right in world space (yaw only), screen "up" projected on ground.
     const rx = Math.cos(YAW);
     const rz = -Math.sin(YAW);

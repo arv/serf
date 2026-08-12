@@ -9,6 +9,7 @@ import {
 import { glbYardProp, glbYardRock, makeGlbBuilding } from './assets';
 import { eachMaterial, mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
+import { WATER_LEVEL } from '../sim/map';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
 import type { FogQuery } from './fogOfWar';
@@ -30,6 +31,11 @@ export interface PierInfo {
   yaw: number;
   deckY: number;
 }
+
+/** How far below the waterline the shoal group is re-seated, in world
+ * units — enough that the tallest swim circle and the fish bodies stay
+ * submerged rather than breaking the surface. */
+const SHOAL_DRAFT = 0.14;
 
 interface BuildingVisual {
   root: THREE.Group;
@@ -324,6 +330,14 @@ export class BuildingSync {
     // root's own x/z rotation belongs to the collapse animation.
     if (b.facing) model.rotation.y = (b.facing * Math.PI) / 2;
 
+    // The template bakes the fishery's shoal at deck height off the front
+    // edge, but the water surface is a world plane well below the shore the
+    // building stands on — left there, the fish circle in the air over the
+    // waterline. Re-seat the group so they swim just under the surface: a
+    // world-unit drop, folded back into the model's vertical scale.
+    const shoal = model.getObjectByName('fisheryShoal') ?? undefined;
+    if (shoal) shoal.position.y = (WATER_LEVEL - SHOAL_DRAFT - root.position.y) / model.scale.y;
+
     const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
     this.#scene.add(root);
     return {
@@ -338,7 +352,7 @@ export class BuildingSync {
       crank: model.getObjectByName('wellCrank') ?? undefined,
       fan: model.getObjectByName('millFan') ?? undefined,
       fanSpeed: 0,
-      shoal: model.getObjectByName('fisheryShoal') ?? undefined,
+      shoal,
       pier: model.getObjectByName('fisheryPier') ?? undefined,
       facing: b.facing ?? 0,
       staffed: false,

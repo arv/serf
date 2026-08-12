@@ -14,6 +14,9 @@ export interface HudActions {
   place(type: BuildingTypeId | null): void;
   /** The full save string — the worker's world plus the fog's memory. */
   save(): Promise<string>;
+  /** Pan the camera to a tile — clickable toasts' "take me there". Sim
+   * tile coords; the rig call maps tile y onto world z. */
+  focus(x: number, y: number): void;
 }
 
 /** Mount the Solid HUD into the overlay div. Solid never touches the canvas. */
@@ -52,6 +55,7 @@ export function mountHud(host: SimHost, actions: HudActions): void {
           });
         }}
         onAdmin={(action) => host.sendCommands([{ kind: 'admin', action }])}
+        onFocus={(x, y) => actions.focus(x, y)}
       />
     ),
     root,
