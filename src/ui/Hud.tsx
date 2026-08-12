@@ -23,6 +23,7 @@ import {
 import { BuildingTip, GoodTip, TextTip, TipWrap, TooltipLayer, tooltip } from './tooltip';
 import { buildingName, techName } from './names';
 import { BUILD_GROUPS } from './buildMenu';
+import { hasKeyboard } from '../input/keyboard';
 import {
   CHEATS_ALLOWED,
   bandArm,
@@ -724,7 +725,10 @@ export function Hud(props: {
                 {...tooltip(() => (
                   <TextTip
                     title="Deselect"
-                    body="Lets the current selection go — taps stop being move orders."
+                    body={
+                      'Lets the current selection go — taps stop being move orders.' +
+                      (hasKeyboard() ? ' Esc does the same.' : '')
+                    }
                   />
                 ))}
                 onClick={() => props.onDeselect()}
@@ -742,7 +746,7 @@ export function Hud(props: {
                 <MalletIcon /> Tap the map to place <b>{buildingName(type())}</b>
               </span>
               <button class="cancel" onClick={() => place(null)}>
-                ✕ Cancel
+                ✕ Cancel{hasKeyboard() ? ' (Esc)' : ''}
               </button>
             </div>
           )}
