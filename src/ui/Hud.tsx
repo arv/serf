@@ -993,11 +993,12 @@ export function Hud(props: {
             </Show>
             {/* The recording runs from boot to this moment; saving names
                 it by the clock and files it for the menu's Replays shelf.
-                The world lives on behind the card, so a later save (from
-                the menu, after observing) simply records more. */}
-            <Show when={!netMode()}>
-              <button onClick={() => props.onSaveReplay()}>Save replay</button>
-            </Show>
+                Solo, the world lives on behind the card, so a later save
+                (from the menu, after observing) simply records more.
+                Multiplayer records on the server, which hands each seat
+                its copy — but only for a decided match, which this card
+                is the proof of. */}
+            <button onClick={() => props.onSaveReplay()}>Save replay</button>
           </div>
         </div>
       </Show>

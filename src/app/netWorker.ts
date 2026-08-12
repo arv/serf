@@ -197,11 +197,14 @@ function connect(net: NetInfo, attempt: number): void {
   };
   ws.onmessage = (e: MessageEvent<ArrayBuffer | string>) => {
     if (typeof e.data === 'string') {
-      // The one string that matters: the relay refusing our token. The
+      // Two strings matter here. The relay refusing our token: the
       // reconnect loop used to skip every string frame, so a swept room
-      // meant retrying forever behind a 'Reconnecting...' bar.
+      // meant retrying forever behind a 'Reconnecting...' bar. And the
+      // replay answer: the server's recording of the match, requested at
+      // the end card's Save replay button (null while undecided — the
+      // main thread reads the empty string as "nothing to save").
       try {
-        const msg = JSON.parse(e.data) as { t?: string };
+        const msg = JSON.parse(e.data) as { t?: string; data?: unknown };
         if (msg.t === 'error') {
           gone = true;
           postStatus({
@@ -209,6 +212,8 @@ function connect(net: NetInfo, attempt: number): void {
             message: 'The room has wound down — the match is over.',
           });
           ws.close();
+        } else if (msg.t === 'replay') {
+          post({ type: 'replayData', data: typeof msg.data === 'string' ? msg.data : '' });
         }
       } catch {
         // Non-JSON lobby chatter; nothing to do.
@@ -291,12 +296,22 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
         connect(netInfo, 0);
       }
       break;
-    // Speed, saving and replays are single-player affairs: a shared world
-    // runs at one rate whoever looks away, and there is nothing local to
+    case 'requestReplay':
+      // The server holds the world, so it holds the recording too. Ask for
+      // this seat's copy; the answer comes back as a {t:'replay'} string
+      // frame. With no live socket, answer empty ourselves — the promise
+      // behind this must resolve so the Save button can report failure.
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ t: 'replay' }));
+      } else {
+        post({ type: 'replayData', data: '' });
+      }
+      break;
+    // Speed and saving are single-player affairs: a shared world runs at
+    // one rate whoever looks away, and there is nothing local to
     // serialize.
     case 'setSpeed':
     case 'requestSave':
-    case 'requestReplay':
       break;
   }
 };

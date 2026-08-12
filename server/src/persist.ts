@@ -29,7 +29,7 @@ import { AiSeats } from '../../src/sim/aiSeats.ts';
 import type { EntityId } from '../../src/sim/entities.ts';
 import type { LobbyConfig } from '../../src/protocol/lobby.ts';
 import type { BuildingSnap } from '../../src/protocol/messages.ts';
-import { TICK_MS, adoptRoom, roomsIterable, type Room, type Seat } from './rooms.ts';
+import { TICK_MS, adoptRoom, matchWorldConfig, roomsIterable, type Room, type Seat } from './rooms.ts';
 import { SeatView, recomputeVision } from './sync.ts';
 
 interface PersistedSeat {
@@ -164,6 +164,20 @@ export function roomFromRecord(record: PersistedRoom, nowMs: number): Room {
     // Every seat starts disconnected, so the standard sweep applies: a room
     // nobody reclaims within five minutes of boot goes the usual way.
     emptySinceMs: nowMs,
+  };
+  // The replay log restarts here, based on the snapshot itself. Not an
+  // economy — the old log could have been persisted — but a correctness
+  // choice: the AI brains above are rebuilt fresh from the restored world,
+  // so a replay from the original config would re-decide the pre-restore
+  // ticks with state the live match no longer had, and diverge exactly
+  // where the deploy happened. Booting playback from the very string this
+  // world was deserialized from reproduces the restore instead, brains and
+  // all. The config rides along for its seat roster (and the parse gate);
+  // loadData is what actually builds the world.
+  room.replay = {
+    config: matchWorldConfig(room),
+    loadData: record.world,
+    commands: [],
   };
   // Same reason startMatch does it: a rejoin can arrive before the first
   // pump, and its init frame must already know what this seat may see.

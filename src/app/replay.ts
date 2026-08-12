@@ -1,7 +1,10 @@
-import { sanitizeCommand } from '../sim/commands';
-import type { PlayerCommand } from '../sim/tick';
-import type { WorldConfig } from '../sim/world';
-import type { AiStrategy } from '../sim/defs/aiStrategies';
+// Explicit .ts extensions: the server compiles this file too (it records
+// multiplayer replays), and node/nodenext resolution insists on them the
+// way the rest of the shared sim tree already does.
+import { sanitizeCommand } from '../sim/commands.ts';
+import type { PlayerCommand } from '../sim/tick.ts';
+import type { WorldConfig } from '../sim/world.ts';
+import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 
 /**
  * A replay is the sim's whole diet, written down: the world recipe (and the

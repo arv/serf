@@ -59,11 +59,7 @@ export function mountHud(host: SimHost, actions: HudActions): void {
         }}
         onSaveReplay={() => {
           void actions.saveReplay().then((name) => {
-            pushToast(
-              name !== null
-                ? `Replay saved — ${name}`
-                : 'Replay could not be saved (this browser has no private file storage)',
-            );
+            pushToast(name !== null ? `Replay saved — ${name}` : 'Replay could not be saved');
           });
         }}
         onAdmin={(action) => host.sendCommands([{ kind: 'admin', action }])}
