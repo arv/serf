@@ -11,6 +11,7 @@ import { AdminPanel } from './AdminPanel';
 import { MissionPanel, continueTarget } from './MissionPanel';
 import {
   FastIcon,
+  FastestIcon,
   GoodIcon,
   LockIcon,
   PauseIcon,
@@ -41,6 +42,8 @@ import {
   placing,
   playersMeta,
   population,
+  replayMode,
+  replayOver,
   selection,
   setBandArm,
   setOpenPanel,
@@ -70,6 +73,15 @@ const SPEEDS = [
   { value: 3, icon: FastIcon, label: 'Fast forward', hint: 'Runs the village at 3× speed.' },
 ];
 
+/** Replays get one speed beyond the live game's fastest: nobody is issuing
+ * orders, so there is no reaction time to protect. */
+const REPLAY_SPEED = {
+  value: 8,
+  icon: FastestIcon,
+  label: 'Full gallop',
+  hint: 'Replay only — runs the recording at 8× speed.',
+};
+
 export function Hud(props: {
   onSpeed: (speed: number) => void;
   onPlace: (type: BuildingTypeId | null) => void;
@@ -78,6 +90,7 @@ export function Hud(props: {
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
   onCancelTrain: (buildingId: number, index: number, unit: UnitTypeId) => void;
   onSave: () => void;
+  onSaveReplay: () => void;
   onAdmin: (action: AdminAction) => void;
   onFocus: (x: number, y: number) => void;
   onSelectArmy: () => void;
@@ -127,10 +140,14 @@ export function Hud(props: {
     if (s?.state === 'ready') return 'Strategist: on';
     return null;
   };
+  /** The speed strip: replays add one gear past the live game's fastest. */
+  const speeds = (): typeof SPEEDS => (replayMode() ? [...SPEEDS, REPLAY_SPEED] : SPEEDS);
   /** This seat has fallen while the match plays on (multiplayer). */
   const eliminated = (): boolean =>
     outcome().state === 'playing' && playersMeta()[myPlayerId()]?.alive === false;
   const [spectating, setSpectating] = createSignal(false);
+  /** The outcome card was waved away to watch the world play on. */
+  const [observing, setObserving] = createSignal(false);
   const won = (): boolean => {
     const o = outcome();
     return o.state === 'over' && o.winner === myPlayerId();
@@ -143,8 +160,11 @@ export function Hud(props: {
    * decided match outranks transport news: "Defeat" is the story, a swept
    * room is plumbing.
    */
-  const endCard = (): 'outcome' | 'gone' | 'eliminated' | undefined => {
-    if (outcome().state === 'over') return 'outcome';
+  const endCard = (): 'outcome' | 'gone' | 'eliminated' | 'replayOver' | undefined => {
+    // A replay's outcome was decided when it was recorded; the only card
+    // playback owes is the one that says the recording has run out.
+    if (replayMode()) return replayOver() ? 'replayOver' : undefined;
+    if (outcome().state === 'over') return observing() ? undefined : 'outcome';
     if (netMode() && netStatus()?.state === 'gone') return 'gone';
     if (eliminated() && !spectating()) return 'eliminated';
     return undefined;
@@ -218,8 +238,11 @@ export function Hud(props: {
              (auto) the HUD proper: top strips, build card, selection card
              11     floating touch actions, over the map
              19/20  the tech sheet's scrim and the sheet itself — modal
-             30     notices that outrank an open sheet: toasts, net trouble
-             35     end-of-match cards, which outrank everything but a tip
+             30     notices that outrank an open sheet: net trouble
+             35     end-of-match cards, which outrank everything but the two
+                    layers that must land on them: toasts and tips
+             36     toasts — "Replay saved" answers a button on an end card,
+                    so it has to read over the card's scrim
              40     tooltips (see tooltip.tsx) */
 
         /* Wrapper for the two top strips: invisible on desktop (children
@@ -404,7 +427,7 @@ export function Hud(props: {
         .hud-toasts {
           position: absolute; top: 96px; right: 12px; display: flex;
           flex-direction: column; gap: 6px; align-items: flex-end;
-          z-index: 30;
+          z-index: 36;
         }
         .toast { padding: 7px 13px; pointer-events: auto; }
         /* A toast that knows a place: click pans the camera there. */
@@ -603,10 +626,20 @@ export function Hud(props: {
         </Show>
         <Show when={!netMode()}>
           <span class="div"></span>
+          <Show when={replayMode()}>
+            <span
+              class="net-chip"
+              {...tooltip(() => (
+                <TextTip title="Replay" body="Watching a recording — orders have no effect." />
+              ))}
+            >
+              Replay
+            </span>
+          </Show>
           <Show
             when={isPhone()}
             fallback={
-              <For each={SPEEDS}>
+              <For each={speeds()}>
                 {(s) => (
                   <button
                     class="icon"
@@ -628,18 +661,18 @@ export function Hud(props: {
               classList={{ active: speed() !== 1 }}
               {...tooltip(() => (
                 <TextTip
-                  title={SPEEDS.find((s) => s.value === speed())?.label ?? 'Speed'}
+                  title={speeds().find((s) => s.value === speed())?.label ?? 'Speed'}
                   body="Taps cycle play, fast forward, pause."
                 />
               ))}
               onClick={() => {
-                const order = [1, 3, 0];
+                const order = replayMode() ? [1, 3, REPLAY_SPEED.value, 0] : [1, 3, 0];
                 const next = order[(order.indexOf(speed()) + 1) % order.length]!;
                 props.onSpeed(next);
               }}
             >
               {(() => {
-                const s = SPEEDS.find((x) => x.value === speed()) ?? SPEEDS[1]!;
+                const s = speeds().find((x) => x.value === speed()) ?? SPEEDS[1]!;
                 return <s.icon />;
               })()}
             </button>
@@ -656,7 +689,7 @@ export function Hud(props: {
               ✕
             </button>
           </div>
-          <Show when={!netMode()}>
+          <Show when={!netMode() && !replayMode()}>
             <button
               onClick={() => {
                 props.onSave();
@@ -666,7 +699,20 @@ export function Hud(props: {
               Save village
             </button>
           </Show>
-          <Show when={!netMode()}>
+          {/* Only once the match is decided — the recorders refuse before
+              that anyway (a replay is a finished game's record). Here for
+              the player who chose Observe and outlived the end card. */}
+          <Show when={!netMode() && !replayMode() && outcome().state === 'over'}>
+            <button
+              onClick={() => {
+                props.onSaveReplay();
+                setMenuOpen(false);
+              }}
+            >
+              Save replay
+            </button>
+          </Show>
+          <Show when={!netMode() && !replayMode()}>
             <button
               disabled={!localStorage.getItem('serf-save')}
               onClick={() => {
@@ -741,7 +787,7 @@ export function Hud(props: {
           </div>
         </Show>
 
-        <Show when={(isCoarse() || isPhone()) && placing()}>
+        <Show when={(isCoarse() || isPhone()) && !replayMode() && placing()}>
           {(type) => (
             <div class="hud-placing panel">
               <span class="what">
@@ -754,13 +800,17 @@ export function Hud(props: {
           )}
         </Show>
 
+        {/* A replay takes no orders, so it offers no build card: the map
+            and the goods strip are the whole story. */}
         <Show
-          when={buildVisible()}
+          when={buildVisible() && !replayMode()}
           fallback={
-            <button class="hud-build-pill panel" onClick={() => setBuildOpen(true)}>
-              <MalletIcon /> Build
-              <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
-            </button>
+            <Show when={!replayMode()}>
+              <button class="hud-build-pill panel" onClick={() => setBuildOpen(true)}>
+                <MalletIcon /> Build
+                <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
+              </button>
+            </Show>
           }
         >
           <div class="hud-build panel">
@@ -943,6 +993,32 @@ export function Hud(props: {
             >
               Play again
             </button>
+            {/* The decision is made, but the valley plays on behind this
+                card — waving it away watches the rest unfold. Solo only:
+                a multiplayer loss already has its own spectator path, and
+                a won room is winding down. */}
+            <Show when={!netMode()}>
+              <button onClick={() => setObserving(true)}>Observe the rest</button>
+            </Show>
+            {/* The recording runs from boot to this moment; saving names
+                it by the clock and files it for the menu's Replays shelf.
+                Solo, the world lives on behind the card, so a later save
+                (from the menu, after observing) simply records more.
+                Multiplayer records on the server, which hands each seat
+                its copy — but only for a decided match, which this card
+                is the proof of. */}
+            <button onClick={() => props.onSaveReplay()}>Save replay</button>
+          </div>
+        </div>
+      </Show>
+
+      <Show when={endCard() === 'replayOver'}>
+        <div class="hud-end">
+          <div class="panel end-card">
+            <h1>Replay over</h1>
+            <p>The recording ends here.</p>
+            <button onClick={() => location.reload()}>Watch again</button>
+            <button onClick={() => (location.href = location.pathname)}>Back to the menu</button>
           </div>
         </div>
       </Show>

@@ -231,6 +231,136 @@ describe('raids and victory', () => {
   });
 });
 
+describe('the three move orders', () => {
+  it('an attack-move engages enemies met on the way, then walks on to its goal', () => {
+    const world = bareWorld();
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    const bandit = spawnUnit(world, 'bandit', BANDIT, 36.5, 32.5);
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 42, y: 30, attack: true }));
+    expect(knight.task.t).toBe('attackMove');
+
+    // Where the knight stood when the bandit fell: en route, not at the goal.
+    let deathX = -1;
+    for (let i = 0; i < 20 * 60; i++) {
+      tickWorld(world, []);
+      if (bandit.dead && deathX < 0) deathX = knight.x;
+    }
+    expect(bandit.dead).toBe(true);
+    expect(knight.dead).toBe(false);
+    expect(deathX).toBeLessThan(40);
+    // The order then resumes: the knight stands on the goal tile, order done.
+    expect(Math.floor(knight.x)).toBe(42);
+    expect(Math.floor(knight.y)).toBe(30);
+    expect(knight.task.t).toBe('idle');
+  });
+
+  it('an attack-move besieges an enemy building on the way, not after a round trip', () => {
+    const world = bareWorld();
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 36, 33);
+    camp.hp = 60;
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 44, y: 30, attack: true }));
+
+    // Acquiring the camp must also drop the marching path: with the path
+    // kept, the knight walked to the goal with the target stuck on and only
+    // then doubled back to raze it.
+    let maxXBeforeRazed = 0;
+    for (let i = 0; i < 20 * 60; i++) {
+      tickWorld(world, []);
+      if (!camp.dead) maxXBeforeRazed = Math.max(maxXBeforeRazed, knight.x);
+    }
+    expect(camp.dead).toBe(true);
+    expect(maxXBeforeRazed).toBeLessThan(42);
+    expect(Math.floor(knight.x)).toBe(44);
+    expect(Math.floor(knight.y)).toBe(30);
+    expect(knight.task.t).toBe('idle');
+  });
+
+  it('a plain move walks past enemies without raising a hand', () => {
+    const world = bareWorld();
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    const bandit = spawnUnit(world, 'bandit', BANDIT, 36.5, 32.5);
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 42, y: 30 }));
+    expect(knight.task.t).toBe('move');
+
+    // The bandit charges and gnaws at the knight the whole way; the knight
+    // never strikes back until the walk is over. (Arrival flips the task to
+    // idle mid-tick, so the first legal strike can land that same tick —
+    // only ticks that END still on 'move' prove restraint.)
+    let struckWhileMoving = false;
+    let guard = 20 * 30;
+    while (knight.task.t === 'move' && guard-- > 0) {
+      tickWorld(world, []);
+      if (knight.task.t === 'move' && bandit.hp < UNIT_DEFS.bandit.hp) struckWhileMoving = true;
+    }
+    expect(struckWhileMoving).toBe(false);
+    expect(knight.dead).toBe(false);
+    expect(Math.floor(knight.x)).toBe(42);
+    expect(Math.floor(knight.y)).toBe(30);
+  });
+
+  it('a half order holds fire while fleeing, then answers past the midpoint', () => {
+    const world = bareWorld();
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    const bandit = spawnUnit(world, 'bandit', BANDIT, 31.5, 31.5);
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 44, y: 30, attack: 'half' }));
+    expect(knight.task.t).toBe('attackMove');
+    const quiet = (): boolean =>
+      knight.task.t === 'attackMove' && knight.task.engageIdx !== undefined;
+    expect(quiet()).toBe(true);
+
+    // The bandit gives chase and gnaws at the knight the whole front leg;
+    // the knight never answers while the order is quiet — the point of the
+    // half order is that fleeing does not reengage.
+    let struckWhileQuiet = false;
+    let guard = 20 * 30;
+    while (quiet() && guard-- > 0) {
+      tickWorld(world, []);
+      if (quiet() && bandit.hp < UNIT_DEFS.bandit.hp) struckWhileQuiet = true;
+    }
+    expect(struckWhileQuiet).toBe(false);
+
+    // Past the midpoint the order is a live attack-move: the pursuer that
+    // followed it into the back leg gets fought there, not back at the start,
+    // and the order still ends standing on the goal tile.
+    let deathX = -1;
+    for (let i = 0; i < 20 * 60 && !bandit.dead; i++) tickWorld(world, []);
+    deathX = knight.x;
+    run(world, 20 * 30);
+    expect(bandit.dead).toBe(true);
+    expect(knight.dead).toBe(false);
+    expect(deathX).toBeGreaterThan(35);
+    expect(Math.floor(knight.x)).toBe(44);
+    expect(Math.floor(knight.y)).toBe(30);
+    expect(knight.task.t).toBe('idle');
+  });
+
+  it('a half order walks clear of the camp beside its start instead of besieging it', () => {
+    const world = bareWorld();
+    // The camp sits in acquire range of the start tile: a full attack-move
+    // from here besieges at once. The half order is past its midpoint before
+    // it goes live, and by then the camp is out of reach behind it.
+    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 27, 32);
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 46, y: 30, attack: 'half' }));
+    run(world, 20 * 30);
+    expect(camp.dead).toBe(false);
+    expect(camp.hp).toBe(600);
+    expect(Math.floor(knight.x)).toBe(46);
+    expect(Math.floor(knight.y)).toBe(30);
+    expect(knight.task.t).toBe('idle');
+  });
+
+  it('civilians in an attack-move selection just walk — there is nothing to fight with', () => {
+    const world = bareWorld();
+    const serf = addSerf(world, 30, 31);
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 34, y: 31, attack: true }));
+    expect(serf.task.t).toBe('move');
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 30, y: 31, attack: 'half' }));
+    expect(serf.task.t).toBe('move');
+  });
+});
+
 describe('damage events', () => {
   it('a player unit taking hits emits damage events', () => {
     const world = bareWorld();

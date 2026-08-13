@@ -21,6 +21,7 @@ import {
   pumpRoom,
   queueCommands,
   removeSeat,
+  replayFor,
   serverStats,
   startMatch,
   type Room,
@@ -152,7 +153,8 @@ type LobbyMsg =
   | { t: 'start' }
   | { t: 'rejoin'; token: string }
   | { t: 'debug'; enabled?: boolean }
-  | { t: 'hidden'; hidden?: boolean };
+  | { t: 'hidden'; hidden?: boolean }
+  | { t: 'replay' };
 
 function sendJson(ws: WebSocket, msg: unknown): void {
   ws.send(JSON.stringify(msg));
@@ -353,6 +355,17 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       // ride its struct frames only while someone is actually watching.
       const { seat } = conn;
       if (seat) seat.wantsJobs = msg.enabled === true;
+      break;
+    }
+    case 'replay': {
+      // This seat's copy of the match's replay log. Answered with null —
+      // never a thrown error, which would cost the seat its socket — while
+      // the match is still undecided: the log is a full-information view
+      // of a fogged world, so it only leaves the server once the outcome
+      // has nothing left to hide.
+      const { room, seat } = conn;
+      if (!room || !seat) break;
+      sendJson(ws, { t: 'replay', data: replayFor(room, seat) });
       break;
     }
     case 'hidden': {

@@ -12,6 +12,7 @@ import { GhostPlacement } from '../render/ghost';
 import { SelectedReach } from '../render/reachOutline';
 import { FogOfWar } from '../render/fogOfWar';
 import { batteryFramePacer } from '../render/framePacer';
+import { HiddenSync } from './hiddenSync';
 import { loadCharacterAssets } from '../render/characters';
 import { loadGlbAssets } from '../render/assets';
 import { Controls } from '../input/controls';
@@ -35,6 +36,8 @@ import {
   setPopulation,
   setStock,
   setTechs,
+  setReplayMode,
+  setReplayOver,
   speed,
   setSpeed,
   fogEnabled,
@@ -48,7 +51,10 @@ import { MISSION_DEFS } from '../sim/defs/missions';
 import { Terrain } from '../sim/map';
 import { inBounds, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
-import { envelopeSave, splitSave } from './saveEnvelope';
+import { REPLAY_VERSION } from '../shared/replayVersion';
+import { envelopeSave, packExplored, splitSave, unpackExplored } from './saveEnvelope';
+import { parseReplay, replayName, type ReplayData } from './replay';
+import { readReplayFile, saveReplayFile } from './replayStore';
 import { WorkerSimHost } from './simHost';
 import { mountMenu } from '../ui/MenuApp';
 import { holdServiceWorkerUpdates, registerServiceWorker } from './serviceWorker';
@@ -126,7 +132,7 @@ if (!crossOriginIsolated) {
  * that proves it: a room is chosen, but the choosing happens in the
  * council, which is a menu screen.
  */
-const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu', 'mission'];
+const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu', 'mission', 'replay'];
 
 /**
  * A room's opening settings, from the URL a link or a reload arrived on.
@@ -187,6 +193,39 @@ async function boot(): Promise<void> {
     return;
   }
 
+  // ?replay=<name>: watch a saved replay from OPFS. The name is the menu's
+  // pick (or a hand-edited URL — readReplayFile screens it); the log itself
+  // carries the whole world recipe, so nothing else in the URL matters.
+  const replayParam = launchParams.get('replay');
+  if (replayParam !== null) {
+    const raw = await readReplayFile(replayParam);
+    const replay = raw !== null ? parseReplay(raw) : null;
+    if (!replay) {
+      fatal(`The replay "${replayParam}" could not be loaded — it may have been deleted.`);
+    }
+    // Playback re-runs the sim, and the sim is version-bound: the same
+    // commands against a retuned tick produce a different match. Refuse
+    // rather than diverge silently — the menu greys these rows out, but
+    // the URL is hand-editable.
+    if (replay.replayVersion !== REPLAY_VERSION) {
+      fatal(
+        `The replay "${replayParam}" was recorded under replay version ` +
+          `${replay.replayVersion}; this build plays version ${REPLAY_VERSION}, ` +
+          `and the match would not come out the way it was played.`,
+      );
+    }
+    await runMatch(
+      { ...replay.config, myPlayerId: replay.config.myPlayerId ?? 0, llmOpponent: false },
+      {
+        replay,
+        // A replay that resumes from a save resumes its fog too, or the
+        // playback would darken ground the player had already scouted.
+        fogSeed: replay.explored ? unpackExplored(replay.explored) : undefined,
+      },
+    );
+    return;
+  }
+
   // A pending load (set by the Load button before its reload) boots the
   // worker straight into the saved world. sessionStorage on purpose: it is
   // per-tab, so a second open tab (e.g. the dev preview) can never steal or
@@ -234,7 +273,7 @@ async function startNetMatch(lobby: LobbyResult): Promise<void> {
  * Every failure mode ends the same way — the AI seats keep playing their
  * playbooks and the player hears about it once.
  */
-async function bootLlmStrategist(host: WorkerSimHost): Promise<void> {
+async function bootLlmStrategist(host: WorkerSimHost, hidden: HiddenSync): Promise<void> {
   const { LlmStrategist } = await import('../ai/strategist');
   const strategist = new LlmStrategist({
     sendAdvice: (playerId, override) => host.sendAiAdvice(playerId, override),
@@ -255,8 +294,7 @@ async function bootLlmStrategist(host: WorkerSimHost): Promise<void> {
   // The frozen sim stops new summaries when the page hides; this stops the
   // consultation already chewing — a minute of wasm inference is exactly
   // the CPU a backgrounded phone cannot afford.
-  document.addEventListener('visibilitychange', () => strategist.setHidden(document.hidden));
-  strategist.setHidden(document.hidden);
+  hidden.add((h) => strategist.setHidden(h));
   await strategist.start();
 }
 
@@ -268,14 +306,15 @@ async function bootLlmStrategist(host: WorkerSimHost): Promise<void> {
  */
 async function runMatch(
   config: GameConfig,
-  opts: { loadData?: string; fogSeed?: Uint8Array; net?: NetInfo },
+  opts: { loadData?: string; fogSeed?: Uint8Array; net?: NetInfo; replay?: ReplayData },
 ): Promise<void> {
-  const { loadData, fogSeed, net } = opts;
+  const { loadData, fogSeed, net, replay } = opts;
   // From here on the page is a match, not a menu: a service worker that
   // finishes installing must not swap the shell out from under it.
   holdServiceWorkerUpdates();
   setMyPlayerId(config.myPlayerId);
   setNetMode(net !== undefined);
+  setReplayMode(replay !== undefined);
 
   // The LLM strategist runs on the CPU (llama.cpp wasm), so it exists
   // wherever the browser owns the world — solo only. Its wasm threads
@@ -283,7 +322,7 @@ async function runMatch(
   // boot requirement, so there is no capability to probe. The worker is
   // told only when a strategist will actually listen, so it never builds
   // summaries for nobody.
-  const llm = config.llmOpponent === true && net === undefined;
+  const llm = config.llmOpponent === true && net === undefined && replay === undefined;
   config = { ...config, llmOpponent: llm };
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -354,17 +393,23 @@ async function runMatch(
   // is watching. The net worker can't pause a shared world, but it goes
   // quiet the same way: the relay stops streaming to a hidden seat and
   // catches it up on return. Sent through the host so this line, too,
-  // needn't know which.
-  document.addEventListener('visibilitychange', () => host.setHidden(document.hidden));
-  host.setHidden(document.hidden);
+  // needn't know which. HiddenSync rather than the raw event, because the
+  // return-to-visible event is the one mobile browsers sometimes drop —
+  // and a dropped return left the sim frozen under a live screen until
+  // the player minimized and came back a second time. The frame loop
+  // below reports its rAF ticks to the sync, whose gap watchdog wakes the
+  // workers even when the event never arrives.
+  const hidden = new HiddenSync(document.hidden);
+  hidden.add((h) => host.setHidden(h));
+  document.addEventListener('visibilitychange', () => hidden.set(document.hidden));
   // Fire-and-forget beside the match: the model downloads while the game
   // already runs on plain playbooks, and the first advice lands whenever it
   // lands. Dynamic import, so no strategist means none of its code either.
-  if (llm) void bootLlmStrategist(host);
+  if (llm) void bootLlmStrategist(host, hidden);
   // Character/building GLBs load while the world is prepared; if they fail,
   // the renderer falls back to the procedural models.
   const [init] = await Promise.all([
-    host.start(config, loadData, net),
+    host.start(config, loadData, net, replay),
     loadCharacterAssets(),
     loadGlbAssets(),
   ]);
@@ -420,7 +465,9 @@ async function runMatch(
   // handoff alike: the world from the worker, the fog's memory from here.
   const saveGame = async (): Promise<string> =>
     envelopeSave(await host.requestSave(), fog.exportExplored());
-  rescue = saveGame;
+  // Not while watching a replay: a GPU-loss reload comes back on the same
+  // ?replay= URL and restarts playback — there is no world of ours to keep.
+  if (!replay) rescue = saveGame;
   const damageAlerts = new DamageAlerts({
     scene: renderer.scene,
     heights,
@@ -475,7 +522,9 @@ async function runMatch(
   // to be paused, so the next structural frame may be a Begin-press away.
   // Seeded before onStructural registers — real frames (latch bits and all)
   // replay at registration and must win over this all-false stand-in.
-  if (config.mission && loadData === undefined) {
+  // A replayed mission skips the ceremony too: the briefing's pause is an
+  // invitation to read before playing, and nobody is playing.
+  if (config.mission && loadData === undefined && !replay) {
     setMission({
       id: config.mission,
       done: MISSION_DEFS[config.mission].objectives.map(() => false),
@@ -484,6 +533,13 @@ async function runMatch(
     setSpeed(0);
     host.setSpeed(0);
   }
+
+  // Playback pauses itself at the recording's end; tell the HUD both halves
+  // of that (the pause, and why) so it can show the replay-over card.
+  host.onReplayEnded(() => {
+    setSpeed(0);
+    setReplayOver(true);
+  });
 
   host.onNetStatus((status) => setNetStatus(status));
   host.onStructural((msg) => {
@@ -569,6 +625,19 @@ async function runMatch(
     deselect: () => controls.deselectAll(),
     place: (type) => controls.setPlacement(type),
     save: saveGame,
+    saveReplay: async () => {
+      // Empty means there is nothing to save: both recorders decline while
+      // the match is still undecided for any human — the server until the
+      // room's outcome is over, the solo worker until its own is.
+      // The fog this match booted with — not the fog now: it belongs to
+      // the world the recording starts from, which for a loaded save is
+      // the moment that save was written.
+      const data = await host.requestReplay(fogSeed ? packExplored(fogSeed) : undefined);
+      if (data === '') return null;
+      // The store may suffix the name ("… (2)") when two saves land in the
+      // same second; what it returns is what the file is actually called.
+      return saveReplayFile(replayName(new Date()), data);
+    },
     // Tile y is world z — the same straight mapping as the home focusOn.
     focus: (x, y) => renderer.rig.glideTo(x, y),
   });
@@ -588,6 +657,11 @@ async function runMatch(
   const pacer = batteryFramePacer();
   function loop(): void {
     const now = performance.now();
+    // Every rAF callback is proof the page is visible — before the pacer,
+    // so a skipped frame still counts. A long gap since the last one means
+    // we were away and are back, and wakes the workers even when the
+    // visibilitychange that should have said so was dropped.
+    hidden.frame(now);
     if (!pacer.due(now)) {
       requestAnimationFrame(loop);
       return;

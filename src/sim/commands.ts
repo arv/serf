@@ -12,7 +12,12 @@ import type { UnitTypeId } from './defs/units.ts';
  * revalidates everything (the UI's checks are advisory only).
  */
 export type SimCommand =
-  | { kind: 'moveUnits'; unitIds: EntityId[]; x: number; y: number }
+  // `attack` picks between the move orders: absent is a plain move that
+  // ignores enemies until arrival, `true` an attack-move that engages
+  // whatever it meets, and `'half'` walks the front half of the route as a
+  // plain move before going live (the mobile tap default: one gesture must
+  // both send an army out to fight and let it flee without reengaging).
+  | { kind: 'moveUnits'; unitIds: EntityId[]; x: number; y: number; attack?: true | 'half' }
   | { kind: 'placeBuilding'; building: BuildingTypeId; x: number; y: number }
   | { kind: 'hireSerf' }
   | { kind: 'dismissWorker'; buildingId: EntityId }
@@ -86,7 +91,16 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       if (c.unitIds.length > MAX_UNITS_PER_ORDER) return null;
       if (!c.unitIds.every(isId)) return null;
       if (!isTile(c.x) || !isTile(c.y)) return null;
-      return { kind: 'moveUnits', unitIds: [...(c.unitIds as EntityId[])], x: c.x, y: c.y };
+      return {
+        kind: 'moveUnits',
+        unitIds: [...(c.unitIds as EntityId[])],
+        x: c.x,
+        y: c.y,
+        // Anything but the two literal fight values means a plain move —
+        // the safe reading of a garbled flag is the order that starts no
+        // fights.
+        ...(c.attack === true || c.attack === 'half' ? { attack: c.attack } : {}),
+      };
     }
     case 'placeBuilding':
       if (!isDefined(BUILDING_DEFS, c.building)) return null;

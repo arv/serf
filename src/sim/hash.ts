@@ -42,7 +42,15 @@ export function hashWorld(world: World): number {
     mixU32(u.owner);
     mix(u.dead ? 1 : 0);
     mixU32(u.pathIdx);
-    mix(u.task.t.length); // cheap task-tag discriminator
+    for (let i = 0; i < u.task.t.length; i++) mix(u.task.t.charCodeAt(i)); // task tag
+    if (u.task.t === 'attackMove') {
+      // The stored destination steers behavior for many ticks — a clone or
+      // save that garbled it must not hash as "the same world".
+      mixU32(u.task.destX);
+      mixU32(u.task.destY);
+      // 0 is a safe "no quiet leg" sentinel: a real engageIdx is never 0.
+      mixU32(u.task.engageIdx ?? 0);
+    }
   }
   for (const b of world.buildings.values()) {
     mixU32(b.id);
