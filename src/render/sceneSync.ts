@@ -516,6 +516,13 @@ export class SceneSync {
       const workKind = latest.aux[a + 5]!;
       const dead = action === ACTION.dead;
       if (dead) moving = false; // corpses don't turn or bob
+      // A fighter who has stopped to swing has no movement delta to face by,
+      // so it would keep the yaw it walked in with and hack at the air beside
+      // its enemy. The sim sends the bearing to whatever it is actually
+      // hitting; a chaser is still moving, so this only lands once it stands.
+      if (!moving && !dead && action === ACTION.fight) {
+        visual.group.rotation.y = (latest.aux[a + 7]! / 256) * Math.PI * 2;
+      }
       // Drawing at a well with a crank: the serf stands beside the windlass
       // and their hand is IK-glued to the grip, so the base pose is a calm
       // idle — the cranking motion IS the crank's.

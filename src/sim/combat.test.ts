@@ -6,6 +6,10 @@ import { Terrain } from './map.ts';
 import { COUNTER_TABLE, UNIT_DEFS } from './defs/units.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { cmds, addSerf, addStorehouse, bareWorld } from './testUtils.ts';
+import { ACTION, type UnitSnapshot } from '../protocol/sabLayout.ts';
+import { unitSnapshots } from '../protocol/snapshot.ts';
+import type { Building } from './entities.ts';
+import type { Unit } from './units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -394,5 +398,90 @@ describe('damage events', () => {
     run(world, 20 * 60);
     expect(camp.dead).toBe(true);
     expect(world.pendingEvents.filter((e) => e.kind === 'damage')).toEqual([]);
+  });
+});
+
+/**
+ * What the renderer is told is a separate question from who the unit has
+ * marked. Holding a target id is a plan; swinging at it is an act, and only
+ * the second one may reach the animation — otherwise units hack at thin air
+ * halfway across the map from the enemy they are "fighting".
+ */
+describe('the fight the renderer is shown', () => {
+  const snapOf = (world: World, id: number): UnitSnapshot => {
+    for (const snap of unitSnapshots(world)) if (snap.id === id) return snap;
+    throw new Error(`unit ${id} is not in the snapshot`);
+  };
+
+  /** Distance from a unit to a building's footprint — the combat reach test. */
+  const reachTo = (u: Unit, b: Building): number =>
+    Math.hypot(u.x - Math.max(b.x, Math.min(u.x, b.x + b.w)), u.y - Math.max(b.y, Math.min(u.y, b.y + b.h)));
+
+  it('a unit ordered onto a far building only swings once it is at the wall', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
+    camp.hp = 60;
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    // Right-click on the camp: the target is set on the spot and held for the
+    // whole march, which is exactly why it cannot be what drives the swing.
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 45, y: 31 }));
+    expect(knight.targetId).toBe(camp.id);
+    expect(snapOf(world, knight.id).action).not.toBe(ACTION.fight);
+
+    let farthestSwing = 0;
+    let everSwung = false;
+    for (let i = 0; i < 20 * 60 && !camp.dead; i++) {
+      tickWorld(world, []);
+      if (snapOf(world, knight.id).action === ACTION.fight) {
+        everSwung = true;
+        farthestSwing = Math.max(farthestSwing, reachTo(knight, camp));
+      }
+    }
+    expect(camp.dead).toBe(true);
+    expect(everSwung).toBe(true);
+    expect(farthestSwing).toBeLessThanOrEqual(1.4); // melee reach, not the whole valley
+  });
+
+  it('a chased unit walking away under a plain move never looks like it fights back', () => {
+    const world = bareWorld();
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    spawnUnit(world, 'bandit', BANDIT, 31.5, 30.5);
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 42, y: 30 }));
+
+    // The bandit gnaws at him the whole way. Being struck used to hand the
+    // fleeing knight his attacker as a target — one no system would act on,
+    // so he walked off swinging at a pursuer he had left behind.
+    let guard = 20 * 30;
+    while (knight.task.t === 'move' && guard-- > 0) {
+      tickWorld(world, []);
+      if (knight.task.t !== 'move') break; // arrival re-engages, legitimately
+      expect(knight.targetId).toBeUndefined();
+      expect(snapOf(world, knight.id).action).not.toBe(ACTION.fight);
+    }
+    expect(knight.hp).toBeLessThan(UNIT_DEFS.knight.hp); // he really was hit
+  });
+
+  it('an attacker faces what it is hitting', () => {
+    const world = bareWorld();
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    spawnUnit(world, 'bandit', BANDIT, 31.5, 30.5); // due east, already in reach
+    run(world, 3);
+    const snap = snapOf(world, knight.id);
+    expect(snap.action).toBe(ACTION.fight);
+    // atan2(+1, 0) is a quarter turn clockwise from north: 256 / 4.
+    expect(snap.facing).toBe(64);
+  });
+
+  it('a target that dies stops the swing the same tick the corpse appears', () => {
+    const world = bareWorld();
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    const bandit = spawnUnit(world, 'bandit', BANDIT, 31.5, 30.5);
+    for (let i = 0; i < 20 * 30 && !bandit.dead; i++) tickWorld(world, []);
+    expect(bandit.dead).toBe(true);
+    // The corpse lingers for its death animation; the killer must not stand
+    // over it still swinging.
+    expect(knight.targetId).toBeUndefined();
+    expect(snapOf(world, knight.id).action).not.toBe(ACTION.fight);
   });
 });

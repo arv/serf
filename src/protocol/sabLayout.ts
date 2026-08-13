@@ -23,7 +23,7 @@ const COUNT_BYTES = 4;
 const IDS_BYTES = 4 * MAX_UNITS;
 const XS_BYTES = 4 * MAX_UNITS;
 const YS_BYTES = 4 * MAX_UNITS;
-/** Bytes of per-unit auxiliary state: kind, owner, hpPct, carrying, action, workKind, profession, 1 spare. */
+/** Bytes of per-unit auxiliary state: kind, owner, hpPct, carrying, action, workKind, profession, facing. */
 export const AUX_STRIDE = 8;
 const AUX_BYTES = AUX_STRIDE * MAX_UNITS;
 
@@ -84,6 +84,13 @@ export interface UnitSnapshot {
   workKind?: number;
   /** PROFESSION.* workplace flavor (defaults to none). */
   profession?: number;
+  /**
+   * Yaw toward the unit's target over a full turn (0..255 = 0..2π), for the
+   * frames where the sim knows which way a unit should look and the renderer
+   * cannot tell: a fighter standing still has no movement delta to face by.
+   * Only meaningful while action is fight.
+   */
+  facing?: number;
 }
 
 export class SabWriter {
@@ -118,6 +125,7 @@ export class SabWriter {
       slot.aux[a + 4] = u.action;
       slot.aux[a + 5] = u.workKind ?? 0;
       slot.aux[a + 6] = u.profession ?? 0;
+      slot.aux[a + 7] = u.facing ?? 0;
       n++;
     }
     slot.count[0] = n;

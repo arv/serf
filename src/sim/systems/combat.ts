@@ -1,15 +1,10 @@
 import { COUNTER_TABLE, UNIT_DEFS } from '../defs/units.ts';
 import { BANDIT, centerOf, isPlayerOwner, type Building } from '../entities.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
+import { exactDist } from '../../shared/math.ts';
 import { findPath, findPathToAdjacent, nearestWalkable } from '../path.ts';
 import { destroyBuilding, killUnit, type World } from '../world.ts';
 import type { Unit } from '../units.ts';
-
-/** Euclidean distance via sqrt (correctly rounded per IEEE-754, unlike
- * Math.hypot) — lockstep clients on different JS engines must agree. */
-function exactDist(dx: number, dy: number): number {
-  return Math.sqrt(dx * dx + dy * dy);
-}
 
 /**
  * Thin, quarantined combat: reads positions, writes hp and movement intents.
@@ -55,8 +50,15 @@ export function combatSystem(world: World): void {
     if (unit.cooldownLeft > 0) unit.cooldownLeft--;
 
     // A plain move order suppresses auto-acquire until arrival; an
-    // attack-move stays in this system and fights its way there.
-    if (unit.task.t === 'move') continue;
+    // attack-move stays in this system and fights its way there. Dropping the
+    // target rather than just skipping matters: retaliation (in strikeUnit)
+    // can hang one on a unit that is walking away, and nothing below this
+    // point would ever act on it or clear it, so the unit would keep
+    // reporting itself as fighting an enemy it has left behind.
+    if (unit.task.t === 'move') {
+      disengage(unit);
+      continue;
+    }
 
     // The half order: quiet like a plain move until the path cursor crosses
     // engageIdx (the ordered route's midpoint), then a live attack-move for
@@ -66,10 +68,12 @@ export function combatSystem(world: World): void {
     // resumeAttackMove re-plans, but the original midpoint is meaningless
     // on a route that no longer exists.
     if (unit.task.t === 'attackMove' && unit.task.engageIdx !== undefined) {
-      if (unit.path !== null && unit.pathIdx < unit.task.engageIdx) continue;
+      if (isDisengaging(unit)) {
+        disengage(unit);
+        continue;
+      }
       unit.task = { t: 'attackMove', destX: unit.task.destX, destY: unit.task.destY };
-      unit.targetId = undefined;
-      unit.targetIsBuilding = undefined;
+      disengage(unit);
     }
 
     // Validate or acquire a target.
@@ -82,8 +86,7 @@ export function combatSystem(world: World): void {
         ? !targetBuilding || targetBuilding.dead
         : !targetUnit || targetUnit.dead;
       if (gone) {
-        unit.targetId = undefined;
-        unit.targetIsBuilding = undefined;
+        disengage(unit);
         targetUnit = undefined;
         targetBuilding = undefined;
       }
@@ -93,8 +96,7 @@ export function combatSystem(world: World): void {
     // one into the village, and the pack follows it home.
     const guard = unit.owner === BANDIT && unit.task.t !== 'raid' ? campOf() : undefined;
     if (guard && distToBuilding(unit, guard) > GUARD_LEASH) {
-      unit.targetId = undefined;
-      unit.targetIsBuilding = undefined;
+      disengage(unit);
       if (unit.path === null) {
         unit.path = findPathToAdjacent(
           world.map,
@@ -176,7 +178,7 @@ export function combatSystem(world: World): void {
           unit.cooldownLeft = combat.cooldownTicks;
         }
       } else if (dist > combat.acquireRadius * 1.6) {
-        unit.targetId = undefined; // it got away
+        disengage(unit); // it got away
       } else {
         chaseUnit(world, unit, targetUnit);
       }
@@ -199,8 +201,7 @@ export function combatSystem(world: World): void {
           unit.cooldownLeft = combat.cooldownTicks;
           if (targetBuilding.hp <= 0) {
             destroyBuilding(world, targetBuilding);
-            unit.targetId = undefined;
-            unit.targetIsBuilding = undefined;
+            disengage(unit);
           }
         }
       } else if (unit.path === null) {
@@ -214,7 +215,7 @@ export function combatSystem(world: World): void {
           targetBuilding.h,
         );
         unit.pathIdx = 0;
-        if (!unit.path) unit.targetId = undefined; // unreachable for now
+        if (!unit.path) disengage(unit); // unreachable for now
       }
     }
   }
@@ -222,6 +223,32 @@ export function combatSystem(world: World): void {
 
 /** How far a camp guard may stray from home before it turns back. */
 const GUARD_LEASH = 9;
+
+/**
+ * Drop the fight. Both halves of the target go together: `targetIsBuilding`
+ * is the discriminator that decides which map `targetId` is looked up in, so
+ * a stale one left behind resolves the next target against the wrong map.
+ */
+function disengage(unit: Unit): void {
+  unit.targetId = undefined;
+  unit.targetIsBuilding = undefined;
+}
+
+/**
+ * Is this unit under an order that says *walk away, don't fight*? A plain
+ * move, or the quiet front leg of a half order. Such a unit is skipped by the
+ * loop above, so anything that hands it a target hands it one that will never
+ * be chased, struck or cleared.
+ */
+function isDisengaging(unit: Unit): boolean {
+  if (unit.task.t === 'move') return true;
+  return (
+    unit.task.t === 'attackMove' &&
+    unit.task.engageIdx !== undefined &&
+    unit.path !== null &&
+    unit.pathIdx < unit.task.engageIdx
+  );
+}
 
 /**
  * An attack-move with no fight on: keep walking toward the ordered tile.
@@ -290,13 +317,21 @@ function strikeUnit(world: World, attacker: Unit, defender: Unit): void {
     });
   }
   // Fighting back: an idle victim with combat stats turns on its attacker.
-  if (!defender.dead && UNIT_DEFS[defender.kind].combat && defender.targetId === undefined) {
+  // A victim under a disengage order is not idle — it was told to walk away,
+  // and the systems above will neither chase nor swing on its behalf, so
+  // handing it a target would only make it look like it is fighting back.
+  if (
+    !defender.dead &&
+    UNIT_DEFS[defender.kind].combat &&
+    defender.targetId === undefined &&
+    !isDisengaging(defender)
+  ) {
     defender.targetId = attacker.id;
     defender.targetIsBuilding = false;
   }
   if (defender.hp <= 0) {
     killUnit(world, defender);
-    attacker.targetId = undefined;
+    disengage(attacker);
   }
 }
 
