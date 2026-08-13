@@ -48,6 +48,8 @@ export function hashWorld(world: World): number {
       // save that garbled it must not hash as "the same world".
       mixU32(u.task.destX);
       mixU32(u.task.destY);
+      // 0 is a safe "no quiet leg" sentinel: a real engageIdx is never 0.
+      mixU32(u.task.engageIdx ?? 0);
     }
   }
   for (const b of world.buildings.values()) {
