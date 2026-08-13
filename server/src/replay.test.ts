@@ -58,6 +58,29 @@ describe('server replay recording', () => {
     expect(replayFor(room, seat)).toBeNull();
   });
 
+  it('gives an eliminated human nothing while the others still fight', () => {
+    // The information-leak case the gate exists for: the log reconstructs
+    // the whole world at every tick, so a replay handed to a beaten player
+    // while their rivals play on is a maphack by proxy — their game being
+    // over is not the game being over.
+    const room = createRoom('closed', { ai: 0, bandits: false, seed: 21, bots: [] });
+    const winner = addSeat(room, 'human', null);
+    addSeat(room, 'human', null);
+    const fallen = addSeat(room, 'human', null);
+    startMatch(room);
+    advance(room, 50);
+    // Seat 2's castle falls; seats 0 and 1 fight on, so the match is
+    // still undecided — victory waits for a single banner.
+    room.world!.players[fallen.playerId]!.alive = false;
+    advance(room, 10);
+    expect(room.world!.outcome.state).toBe('playing');
+    expect(replayFor(room, fallen)).toBeNull();
+    // Decided: now every seat may take its copy home, the fallen included.
+    room.world!.outcome = { state: 'over', winner: winner.playerId };
+    expect(replayFor(room, fallen)).not.toBeNull();
+    expect(replayFor(room, winner)).not.toBeNull();
+  });
+
   it('reproduces the pumped match without re-running the AI', () => {
     const room = createRoom('closed', { ai: 1, bandits: false, seed: 900, bots: [] });
     const seat = addSeat(room, 'human', null);
