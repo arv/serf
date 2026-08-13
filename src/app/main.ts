@@ -12,6 +12,7 @@ import { GhostPlacement } from '../render/ghost';
 import { SelectedReach } from '../render/reachOutline';
 import { FogOfWar } from '../render/fogOfWar';
 import { batteryFramePacer } from '../render/framePacer';
+import { HiddenSync } from './hiddenSync';
 import { loadCharacterAssets } from '../render/characters';
 import { loadGlbAssets } from '../render/assets';
 import { Controls } from '../input/controls';
@@ -234,7 +235,7 @@ async function startNetMatch(lobby: LobbyResult): Promise<void> {
  * Every failure mode ends the same way — the AI seats keep playing their
  * playbooks and the player hears about it once.
  */
-async function bootLlmStrategist(host: WorkerSimHost): Promise<void> {
+async function bootLlmStrategist(host: WorkerSimHost, hidden: HiddenSync): Promise<void> {
   const { LlmStrategist } = await import('../ai/strategist');
   const strategist = new LlmStrategist({
     sendAdvice: (playerId, override) => host.sendAiAdvice(playerId, override),
@@ -255,8 +256,7 @@ async function bootLlmStrategist(host: WorkerSimHost): Promise<void> {
   // The frozen sim stops new summaries when the page hides; this stops the
   // consultation already chewing — a minute of wasm inference is exactly
   // the CPU a backgrounded phone cannot afford.
-  document.addEventListener('visibilitychange', () => strategist.setHidden(document.hidden));
-  strategist.setHidden(document.hidden);
+  hidden.add((h) => strategist.setHidden(h));
   await strategist.start();
 }
 
@@ -354,13 +354,19 @@ async function runMatch(
   // is watching. The net worker can't pause a shared world, but it goes
   // quiet the same way: the relay stops streaming to a hidden seat and
   // catches it up on return. Sent through the host so this line, too,
-  // needn't know which.
-  document.addEventListener('visibilitychange', () => host.setHidden(document.hidden));
-  host.setHidden(document.hidden);
+  // needn't know which. HiddenSync rather than the raw event, because the
+  // return-to-visible event is the one mobile browsers sometimes drop —
+  // and a dropped return left the sim frozen under a live screen until
+  // the player minimized and came back a second time. The frame loop
+  // below reports its rAF ticks to the sync, whose gap watchdog wakes the
+  // workers even when the event never arrives.
+  const hidden = new HiddenSync(document.hidden);
+  hidden.add((h) => host.setHidden(h));
+  document.addEventListener('visibilitychange', () => hidden.set(document.hidden));
   // Fire-and-forget beside the match: the model downloads while the game
   // already runs on plain playbooks, and the first advice lands whenever it
   // lands. Dynamic import, so no strategist means none of its code either.
-  if (llm) void bootLlmStrategist(host);
+  if (llm) void bootLlmStrategist(host, hidden);
   // Character/building GLBs load while the world is prepared; if they fail,
   // the renderer falls back to the procedural models.
   const [init] = await Promise.all([
@@ -588,6 +594,11 @@ async function runMatch(
   const pacer = batteryFramePacer();
   function loop(): void {
     const now = performance.now();
+    // Every rAF callback is proof the page is visible — before the pacer,
+    // so a skipped frame still counts. A long gap since the last one means
+    // we were away and are back, and wakes the workers even when the
+    // visibilitychange that should have said so was dropped.
+    hidden.frame(now);
     if (!pacer.due(now)) {
       requestAnimationFrame(loop);
       return;
