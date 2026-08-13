@@ -2,6 +2,8 @@
 // multiplayer replays), and node/nodenext resolution insists on them the
 // way the rest of the shared sim tree already does.
 import { sanitizeCommand } from '../sim/commands.ts';
+import { parseStrategyId } from '../sim/defs/aiStrategies.ts';
+import { parseMissionId } from '../sim/defs/missions.ts';
 import type { PlayerCommand } from '../sim/tick.ts';
 import type { WorldConfig } from '../sim/world.ts';
 
@@ -66,12 +68,55 @@ export function serializeReplay(data: ReplayData): string {
  * replayVersion right after format, so the head of the file is enough.
  */
 export function readReplayVersion(raw: string): number | undefined {
-  const m = /"replayVersion":(\d{1,9})\b/.exec(raw.slice(0, 512));
+  // Whitespace-tolerant: our serializers write compactly, but a replay a
+  // player pretty-printed by hand is still that replay.
+  const m = /"replayVersion"\s*:\s*(\d{1,9})\b/.exec(raw.slice(0, 512));
   return m ? Number(m[1]) : undefined;
 }
 
 function isTick(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 0;
+}
+
+/**
+ * Rebuild the config from scratch rather than trust the file's object: a
+ * replay in OPFS is hand-editable, and createWorld reads config fields
+ * without checking them — a crafted `players: [null]` would crash it, and
+ * an unknown mission id would half-apply. Only known fields cross over,
+ * each screened. Null means the document cannot describe a world.
+ */
+function sanitizeConfig(raw: unknown): ReplayData['config'] | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const c = raw as Record<string, unknown>;
+  if (typeof c.seed !== 'number' || !Number.isFinite(c.seed)) return null;
+  // 1..4 seats — the world has no start layout past four.
+  if (!Array.isArray(c.players) || c.players.length < 1 || c.players.length > 4) return null;
+  const players: WorldConfig['players'] = [];
+  for (const entry of c.players as unknown[]) {
+    if (typeof entry !== 'object' || entry === null) return null;
+    const kind = (entry as { kind?: unknown }).kind;
+    if (kind !== 'human' && kind !== 'ai') return null;
+    // Strategy is decorative on playback (the brains never run — their
+    // moves are in the log), so an unknown one degrades to "dealt" rather
+    // than sinking the file.
+    const strategy = parseStrategyId((entry as { strategy?: unknown }).strategy);
+    players.push({ kind, ...(strategy ? { strategy } : {}) });
+  }
+  const mission = parseMissionId(c.mission);
+  const myPlayerId = c.myPlayerId;
+  return {
+    seed: c.seed,
+    players,
+    ...(typeof c.adminEnabled === 'boolean' ? { adminEnabled: c.adminEnabled } : {}),
+    ...(typeof c.banditsEnabled === 'boolean' ? { banditsEnabled: c.banditsEnabled } : {}),
+    ...(mission ? { mission } : {}),
+    ...(typeof myPlayerId === 'number' &&
+    Number.isInteger(myPlayerId) &&
+    myPlayerId >= 0 &&
+    myPlayerId < players.length
+      ? { myPlayerId }
+      : {}),
+  };
 }
 
 /**
@@ -92,10 +137,8 @@ export function parseReplay(raw: string): ReplayData | null {
   const d = doc as Record<string, unknown>;
   if (d.format !== REPLAY_FORMAT) return null;
   if (typeof d.replayVersion !== 'number' || !Number.isInteger(d.replayVersion)) return null;
-  const config = d.config;
-  if (typeof config !== 'object' || config === null) return null;
-  if (typeof (config as { seed?: unknown }).seed !== 'number') return null;
-  if (!Array.isArray((config as { players?: unknown }).players)) return null;
+  const config = sanitizeConfig(d.config);
+  if (!config) return null;
   if (!isTick(d.endTick)) return null;
 
   const commands: ReplayCommandEntry[] = [];
@@ -124,7 +167,7 @@ export function parseReplay(raw: string): ReplayData | null {
     format: REPLAY_FORMAT,
     replayVersion: d.replayVersion,
     ...(typeof d.savedAt === 'string' ? { savedAt: d.savedAt } : {}),
-    config: config as ReplayData['config'],
+    config,
     ...(typeof d.loadData === 'string' ? { loadData: d.loadData } : {}),
     commands,
     endTick: d.endTick,

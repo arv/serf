@@ -698,7 +698,10 @@ export function Hud(props: {
               Save village
             </button>
           </Show>
-          <Show when={!netMode() && !replayMode()}>
+          {/* Only once the match is decided — the recorders refuse before
+              that anyway (a replay is a finished game's record). Here for
+              the player who chose Observe and outlived the end card. */}
+          <Show when={!netMode() && !replayMode() && outcome().state === 'over'}>
             <button
               onClick={() => {
                 props.onSaveReplay();

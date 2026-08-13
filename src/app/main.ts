@@ -615,13 +615,14 @@ async function runMatch(
     place: (type) => controls.setPlacement(type),
     save: saveGame,
     saveReplay: async () => {
-      // Empty means there is nothing to save — the server declines while a
-      // match is undecided (or the socket is down); the solo worker always
-      // answers with its recording.
+      // Empty means there is nothing to save: both recorders decline while
+      // the match is still undecided for any human — the server until the
+      // room's outcome is over, the solo worker until its own is.
       const data = await host.requestReplay();
       if (data === '') return null;
-      const name = replayName(new Date());
-      return (await saveReplayFile(name, data)) ? name : null;
+      // The store may suffix the name ("… (2)") when two saves land in the
+      // same second; what it returns is what the file is actually called.
+      return saveReplayFile(replayName(new Date()), data);
     },
     // Tile y is world z — the same straight mapping as the home focusOn.
     focus: (x, y) => renderer.rig.glideTo(x, y),

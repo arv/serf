@@ -15,7 +15,8 @@ export interface HudActions {
   /** The full save string — the worker's world plus the fog's memory. */
   save(): Promise<string>;
   /** Write the match's replay log to OPFS; the saved name, or null when
-   * the browser has no OPFS to write into. */
+   * there is nothing to save yet (the match is still undecided) or the
+   * browser has no OPFS to write into. */
   saveReplay(): Promise<string | null>;
   /** Pan the camera to a tile — clickable toasts' "take me there". Sim
    * tile coords; the rig call maps tile y onto world z. */

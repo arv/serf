@@ -37,29 +37,46 @@ async function replaysDir(create: boolean): Promise<FileSystemDirectoryHandle | 
   }
 }
 
-/** Keep names to what replayName() mints — the one place a filename comes
- * from user-adjacent input (the ?replay= URL param on playback). */
+/** Keep names to what replayName() mints — plus the collision suffix below
+ * — since a filename also arrives as user-adjacent input (the ?replay= URL
+ * param on playback). */
 function fileNameFor(name: string): string | null {
   if (name.length === 0 || name.length > 64) return null;
-  if (!/^[\w .-]+$/.test(name)) return null;
+  if (!/^[\w .()-]+$/.test(name)) return null;
   return name + EXT;
 }
 
-/** Write one replay under `name`; false when OPFS is unavailable. */
-export async function saveReplayFile(name: string, data: string): Promise<boolean> {
-  const fileName = fileNameFor(name);
-  if (!fileName) return false;
+/**
+ * Write one replay under `name`, or under "name (2)" and so on when that
+ * file already exists — the datetime names carry seconds only, so two
+ * saves in one second (a double-click on the end card) must land as two
+ * files rather than the second silently overwriting the first. Returns
+ * the name actually used, or null when OPFS is unavailable.
+ */
+export async function saveReplayFile(name: string, data: string): Promise<string | null> {
   const dir = await replaysDir(true);
-  if (!dir) return false;
-  try {
-    const handle = await dir.getFileHandle(fileName, { create: true });
-    const writable = await handle.createWritable();
-    await writable.write(data);
-    await writable.close();
-    return true;
-  } catch {
-    return false;
+  if (!dir) return null;
+  for (let attempt = 1; attempt <= 9; attempt++) {
+    const candidate = attempt === 1 ? name : `${name} (${attempt})`;
+    const fileName = fileNameFor(candidate);
+    if (!fileName) return null;
+    try {
+      await dir.getFileHandle(fileName);
+      continue; // taken — try the next suffix
+    } catch {
+      // Not there: this name is free.
+    }
+    try {
+      const handle = await dir.getFileHandle(fileName, { create: true });
+      const writable = await handle.createWritable();
+      await writable.write(data);
+      await writable.close();
+      return candidate;
+    } catch {
+      return null;
+    }
   }
+  return null; // nine saves in one second is not a hand on a button
 }
 
 /** Every saved replay, newest first. */
