@@ -107,6 +107,12 @@ export function Hud(props: {
   const [activeTab, setActiveTab] = createSignal(0);
   const isPhone = useMedia('(max-width: 760px)');
   const isCoarse = useMedia('(pointer: coarse)');
+  // A mouse or trackpad — the thing that makes a drag draw a selection
+  // band instead of panning the camera (controls.ts hands plain touch
+  // drags to the rig). Not the same question as "is there a keyboard":
+  // an iPad on a Folio, or any tablet with a Bluetooth keyboard, types
+  // without ever gaining a pointer.
+  const hasFinePointer = useMedia('(any-pointer: fine)');
   // Phones start with the build card folded to a pill; arming a placement
   // folds it again so the map is visible while you aim the ghost.
   const [buildOpen, setBuildOpen] = createSignal(false);
@@ -746,10 +752,13 @@ export function Hud(props: {
       <div class="hud-bottom">
         <Show when={isCoarse() || isPhone()}>
           <div class="hud-touch">
-            {/* The lasso and the ✕ stand in for a drag-band and Esc. A
-                proven keyboard travels with a trackpad or mouse that has
-                both, so the stand-ins bow out and leave the muster. */}
-            <Show when={!hasKeyboard()}>
+            {/* The lasso is the only way to band-select without a pointer
+                that drags one: bandArm() is what tells Controls to draw a
+                band rather than let the camera have the drag, and this
+                button is its only writer. So it retires for a mouse or
+                trackpad — never for a keyboard, which types but cannot
+                drag. */}
+            <Show when={!hasFinePointer()}>
               <button
                 classList={{ active: bandArm() }}
                 {...tooltip(() => (
@@ -771,6 +780,8 @@ export function Hud(props: {
             >
               <SwordsIcon />
             </button>
+            {/* This one really does answer to the keyboard: Esc clears the
+                selection, and every hardware keyboard has one. */}
             <Show when={selection().size > 0 && !hasKeyboard()}>
               <button
                 {...tooltip(() => (

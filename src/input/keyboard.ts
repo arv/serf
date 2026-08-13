@@ -25,10 +25,16 @@ if (import.meta.hot) {
  *   see.
  *
  * Presence can be proven; absence never can — a keyboard may simply not
- * have been touched yet. So anything hidden behind this must stay
- * reachable another way (the ✕ button retires because Esc exists, the
- * lasso because the trackpad drags a band), and a false stays false for
- * the session rather than flickering on a guess.
+ * have been touched yet — so a false here stays false for the session
+ * rather than flickering on a guess.
+ *
+ * Ask this only about things a keyboard genuinely answers for: the HUD's
+ * ✕ retires against it because Esc clears a selection. It is the wrong
+ * question for anything a *pointer* answers for, however much the two
+ * travel together — the band-select lasso reads `(any-pointer: fine)`
+ * instead, because a Folio or a Bluetooth keyboard types all day without
+ * ever gaining something that can drag a band. Hiding that button here
+ * did not retire a stand-in, it deleted the only way to band-select.
  */
 const [hasKeyboard, setHasKeyboard] = createSignal(
   window.matchMedia('(any-pointer: fine)').matches,
