@@ -4,6 +4,7 @@ import { hashWorld } from './hash.ts';
 import { deserializeWorld, serializeWorld } from './save.ts';
 import { createWorld, type World } from './world.ts';
 import { tickWorld } from './tick.ts';
+import type { Unit } from './units.ts';
 
 function run(world: World, ticks: number): void {
   for (let t = 0; t < ticks; t++) tickWorld(world, []);
@@ -80,5 +81,36 @@ describe('hashWorld', () => {
     run(c, 400);
     expect(hashWorld(a)).toBe(hashWorld(b));
     expect(hashWorld(a)).not.toBe(hashWorld(c));
+  });
+
+  it('sees the state that steers a unit before it has moved a step', () => {
+    // Each of these changes what a unit will do for many ticks while leaving
+    // every position, hp and task tag identical. A digest blind to them calls
+    // two worlds the same right up until the fight resolves differently —
+    // which is exactly when it is too late to be told.
+    const world = createWorld({ seed: 21, players: [{ kind: 'ai' }] });
+    run(world, 400);
+    const base = hashWorld(world);
+    const mutations: ((u: Unit) => void)[] = [
+      (u) => {
+        u.targetId = 4242;
+        u.targetIsBuilding = false;
+      },
+      (u) => {
+        u.targetIsBuilding = !u.targetIsBuilding;
+      },
+      (u) => {
+        u.cooldownLeft += 1;
+      },
+      (u) => {
+        u.path = [...(u.path ?? []), 999];
+      },
+    ];
+    for (const mutate of mutations) {
+      const w = cloneWorld(world);
+      const first = [...w.units.values()][0]!;
+      mutate(first);
+      expect(hashWorld(w)).not.toBe(base);
+    }
   });
 });

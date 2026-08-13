@@ -109,6 +109,14 @@ export function checkInvariants(world: World): InvariantReport {
     if (u.task.t === 'move' && u.targetId !== undefined) {
       violations.push(`unit ${u.id}: holds target ${u.targetId} under a plain move order`);
     }
+
+    // A plain move is the one task with no owner system behind it: movement
+    // is the only thing that drives it, and it skips units with no route.
+    // Every other system filters for idle units, so a move that has lost its
+    // path is a unit that will stand there for the rest of the match.
+    if (u.task.t === 'move' && u.path === null) {
+      violations.push(`unit ${u.id}: plain move with no route — nothing will move it again`);
+    }
   }
 
   return { tick: world.tick, violations };
