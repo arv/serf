@@ -75,6 +75,23 @@ describe('replay format', () => {
     expect(parsed.commands.map((e) => e.tick)).toEqual([10, 25]);
   });
 
+  it('carries the fog memory a save-resumed replay needs', () => {
+    const data: ReplayData = {
+      ...sample(),
+      loadData: 'world-string',
+      explored: 'AQID', // opaque here; the fog unpacks it at playback
+    };
+    const parsed = parseReplay(serializeReplay(data))!;
+    expect(parsed.loadData).toBe('world-string');
+    expect(parsed.explored).toBe('AQID');
+    // A garbled grid must not cost the file its world — it is dropped, and
+    // playback simply re-accumulates fog from the resumed tick.
+    const bad = parseReplay(JSON.stringify({ ...data, explored: 42 }))!;
+    expect(bad).not.toBeNull();
+    expect(bad.explored).toBeUndefined();
+    expect(bad.loadData).toBe('world-string');
+  });
+
   it('exposes the version stamp from the file head alone', () => {
     const raw = serializeReplay(sample());
     expect(readReplayVersion(raw)).toBe(REPLAY_VERSION);

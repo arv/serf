@@ -129,6 +129,12 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
             savedAt: new Date().toISOString(),
             config: recording.config,
             ...(recording.loadData !== undefined ? { loadData: recording.loadData } : {}),
+            // The fog the match booted with, from the main thread (this
+            // worker has no notion of what a seat has seen). Only rides a
+            // replay that resumes from a save — the world it belongs to.
+            ...(recording.loadData !== undefined && msg.explored
+              ? { explored: msg.explored }
+              : {}),
             commands: recording.commands,
             endTick: world.tick,
           }),

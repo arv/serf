@@ -51,7 +51,7 @@ import { Terrain } from '../sim/map';
 import { inBounds, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
 import { REPLAY_VERSION } from '../shared/replayVersion';
-import { envelopeSave, splitSave } from './saveEnvelope';
+import { envelopeSave, packExplored, splitSave, unpackExplored } from './saveEnvelope';
 import { parseReplay, replayName, type ReplayData } from './replay';
 import { readReplayFile, saveReplayFile } from './replayStore';
 import { WorkerSimHost } from './simHost';
@@ -215,7 +215,12 @@ async function boot(): Promise<void> {
     }
     await runMatch(
       { ...replay.config, myPlayerId: replay.config.myPlayerId ?? 0, llmOpponent: false },
-      { replay },
+      {
+        replay,
+        // A replay that resumes from a save resumes its fog too, or the
+        // playback would darken ground the player had already scouted.
+        fogSeed: replay.explored ? unpackExplored(replay.explored) : undefined,
+      },
     );
     return;
   }
@@ -618,7 +623,10 @@ async function runMatch(
       // Empty means there is nothing to save: both recorders decline while
       // the match is still undecided for any human — the server until the
       // room's outcome is over, the solo worker until its own is.
-      const data = await host.requestReplay();
+      // The fog this match booted with — not the fog now: it belongs to
+      // the world the recording starts from, which for a loaded save is
+      // the moment that save was written.
+      const data = await host.requestReplay(fogSeed ? packExplored(fogSeed) : undefined);
       if (data === '') return null;
       // The store may suffix the name ("… (2)") when two saves land in the
       // same second; what it returns is what the file is actually called.

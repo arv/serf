@@ -47,36 +47,53 @@ function fileNameFor(name: string): string | null {
 }
 
 /**
+ * Name of the lock that serializes saves. OPFS has no exclusive-create —
+ * `getFileHandle({create:true})` opens whatever is there — so picking a
+ * free name and writing it are two steps that a second save can interleave
+ * with, both seeing the same name free and the later write winning. Web
+ * Locks closes that across every tab of this origin, which is the whole
+ * surface OPFS is shared over.
+ */
+const SAVE_LOCK = 'serf-replay-save';
+
+/**
  * Write one replay under `name`, or under "name (2)" and so on when that
  * file already exists — the datetime names carry seconds only, so two
- * saves in one second (a double-click on the end card) must land as two
- * files rather than the second silently overwriting the first. Returns
- * the name actually used, or null when OPFS is unavailable.
+ * saves in one second (a double-click on the end card, or two tabs) must
+ * land as two files rather than the second silently overwriting the
+ * first. Returns the name actually used, or null when OPFS is
+ * unavailable.
  */
 export async function saveReplayFile(name: string, data: string): Promise<string | null> {
   const dir = await replaysDir(true);
   if (!dir) return null;
-  for (let attempt = 1; attempt <= 9; attempt++) {
-    const candidate = attempt === 1 ? name : `${name} (${attempt})`;
-    const fileName = fileNameFor(candidate);
-    if (!fileName) return null;
-    try {
-      await dir.getFileHandle(fileName);
-      continue; // taken — try the next suffix
-    } catch {
-      // Not there: this name is free.
+  const write = async (): Promise<string | null> => {
+    for (let attempt = 1; attempt <= 9; attempt++) {
+      const candidate = attempt === 1 ? name : `${name} (${attempt})`;
+      const fileName = fileNameFor(candidate);
+      if (!fileName) return null;
+      try {
+        await dir.getFileHandle(fileName);
+        continue; // taken — try the next suffix
+      } catch {
+        // Not there: this name is free.
+      }
+      try {
+        const handle = await dir.getFileHandle(fileName, { create: true });
+        const writable = await handle.createWritable();
+        await writable.write(data);
+        await writable.close();
+        return candidate;
+      } catch {
+        return null;
+      }
     }
-    try {
-      const handle = await dir.getFileHandle(fileName, { create: true });
-      const writable = await handle.createWritable();
-      await writable.write(data);
-      await writable.close();
-      return candidate;
-    } catch {
-      return null;
-    }
-  }
-  return null; // nine saves in one second is not a hand on a button
+    return null; // nine saves in one second is not a hand on a button
+  };
+  // Without Web Locks (older browsers), the check-then-write above is
+  // still the best available: unserialized, it is exactly the behavior
+  // this lock exists to improve on, not a reason to refuse the save.
+  return navigator.locks ? navigator.locks.request(SAVE_LOCK, write) : write();
 }
 
 /** Every saved replay, newest first. */

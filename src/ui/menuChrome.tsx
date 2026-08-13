@@ -115,6 +115,13 @@ export const MENU_STYLE = `
 #menu .room:disabled:hover { border-color: rgba(255,255,255,0.1); }
 #menu .room .code { display: block; font-size: 14px; font-weight: 600; letter-spacing: 0.16em; }
 #menu .room .meta { display: block; margin-top: 2px; font-size: 11px; color: #85857c; font-variant-numeric: tabular-nums; }
+/* A replay's row and its delete button, side by side. Siblings rather
+   than one nested in the other: both are real buttons, which nesting
+   would forbid — so the row keeps its own flex:1 and the ✕ sits beside
+   it, each separately focusable. */
+#menu .replay-row { display: flex; align-items: stretch; gap: 6px; }
+#menu .replay-row .room { flex: 1; min-width: 0; }
+#menu .replay-row .icon-btn { flex: none; align-self: center; width: 30px; height: 30px; border-radius: 8px; }
 #menu .pips { display: flex; align-items: center; gap: 4px; flex: none; }
 #menu .pips span { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.16); }
 #menu .pips span.filled { background: #8fbb56; }

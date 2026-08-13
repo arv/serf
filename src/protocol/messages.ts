@@ -143,8 +143,11 @@ export type MainToWorker =
   | { type: 'setHidden'; hidden: boolean }
   | { type: 'requestSave' }
   /** Solo only: serialize the recording so the main thread can write it to
-   * OPFS. Answered with 'replayData'. */
-  | { type: 'requestReplay' };
+   * OPFS. Answered with 'replayData'. `explored` is the packed fog memory
+   * the match booted with (a loaded save's), which the worker cannot know
+   * — fog is render-side — and carries into the file unread, so playback
+   * from that save resumes with the ground the player had scouted. */
+  | { type: 'requestReplay'; explored?: string };
 
 /**
  * Low-frequency structural state (every 5 ticks / on change): building

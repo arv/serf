@@ -36,8 +36,10 @@ export interface SimHost {
   /** Tell the worker whether the page is hidden (freezes the solo sim). */
   setHidden(hidden: boolean): void;
   requestSave(): Promise<string>;
-  /** The match's replay log, serialized (solo sim only). */
-  requestReplay?(): Promise<string>;
+  /** The match's replay log, serialized (solo sim only). `explored` is
+   * the packed fog memory the match booted with, for a replay that will
+   * resume from a save. */
+  requestReplay?(explored?: string): Promise<string>;
   onStructural(cb: (msg: StructuralUpdate) => void): void;
   /** Playback reached the recording's end and the sim paused itself. */
   onReplayEnded?(cb: () => void): void;
@@ -69,8 +71,18 @@ export class WorkerSimHost implements SimHost {
    * replace the full first one — every missed frame replays, in order. */
   #pendingStructural: StructuralUpdate[] = [];
   #saveCb: ((data: string) => void) | null = null;
-  #replayCb: ((data: string) => void) | null = null;
+  /** Waiting requestReplay callers, oldest first. A queue rather than one
+   * slot: both Save replay buttons stay clickable while a request is in
+   * flight, and a second click used to overwrite the first's resolver —
+   * leaving that promise pending forever, so the save it belonged to
+   * never reported anything at all. Answers arrive in request order. */
+  #replayCbs: ((data: string) => void)[] = [];
   #replayEndedCb: (() => void) | null = null;
+  /** Playback ended before anyone registered for it. The worker posts
+   * this the moment it reaches the log's end, which for a replay booted
+   * at its own end tick is before runMatch finishes loading assets and
+   * registers — and an unlatched signal left the HUD with no end card. */
+  #replayEndedPending = false;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
   #aiSummaryCb: ((playerId: number, summary: AiWorldSummary) => void) | null = null;
   /** Seat the UI's commands are issued as. */
@@ -108,10 +120,10 @@ export class WorkerSimHost implements SimHost {
           this.#saveCb?.(msg.data);
           this.#saveCb = null;
         } else if (msg.type === 'replayData') {
-          this.#replayCb?.(msg.data);
-          this.#replayCb = null;
+          this.#replayCbs.shift()?.(msg.data);
         } else if (msg.type === 'replayEnded') {
-          this.#replayEndedCb?.();
+          if (this.#replayEndedCb) this.#replayEndedCb();
+          else this.#replayEndedPending = true;
         } else if (msg.type === 'netStatus') {
           this.#netStatusCb?.(msg.status);
         } else if (msg.type === 'aiSummary') {
@@ -138,15 +150,19 @@ export class WorkerSimHost implements SimHost {
     });
   }
 
-  requestReplay(): Promise<string> {
+  requestReplay(explored?: string): Promise<string> {
     return new Promise((resolve) => {
-      this.#replayCb = resolve;
-      this.#post({ type: 'requestReplay' });
+      this.#replayCbs.push(resolve);
+      this.#post({ type: 'requestReplay', explored });
     });
   }
 
   onReplayEnded(cb: () => void): void {
     this.#replayEndedCb = cb;
+    if (this.#replayEndedPending) {
+      this.#replayEndedPending = false;
+      cb();
+    }
   }
 
   onStructural(cb: (msg: StructuralUpdate) => void): void {

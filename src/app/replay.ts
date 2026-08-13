@@ -52,6 +52,16 @@ export interface ReplayData {
   config: WorldConfig & { myPlayerId?: number };
   /** The serialized world the match booted from, when it was a loaded save. */
   loadData?: string;
+  /**
+   * The watching seat's explored grid at that same moment, packed the way
+   * a save envelope packs it. Fog is render-side and lives outside the
+   * world, so a replay resuming from `loadData` would otherwise start
+   * blind and re-darken ground the player had long since scouted — the
+   * playback would not look like the match it records. Only meaningful
+   * alongside loadData: a replay from tick 0 accumulates its own fog
+   * exactly as the live match did.
+   */
+  explored?: string;
   /** Ascending by tick. */
   commands: ReplayCommandEntry[];
   /** Where the recording stopped; playback pauses here. */
@@ -169,6 +179,9 @@ export function parseReplay(raw: string): ReplayData | null {
     ...(typeof d.savedAt === 'string' ? { savedAt: d.savedAt } : {}),
     config,
     ...(typeof d.loadData === 'string' ? { loadData: d.loadData } : {}),
+    // Opaque here: unpacking is the fog's business, and a corrupt grid
+    // costs the replay its memory of scouted ground, never its world.
+    ...(typeof d.explored === 'string' ? { explored: d.explored } : {}),
     commands,
     endTick: d.endTick,
   };

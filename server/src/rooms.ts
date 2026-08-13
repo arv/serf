@@ -105,6 +105,11 @@ export interface Room {
     replayVersion: number;
     config: ReplayData['config'];
     loadData?: string;
+    /** Beside a rebased loadData: each seat's explored grid as of that
+     * snapshot, packed, indexed by playerId. Fog is per seat, so the
+     * requester's is the one that ships — a replay must show the seat its
+     * own memory of the map, never another's. */
+    exploredBySeat?: string[];
     commands: ReplayData['commands'];
   };
   matchStartMs?: number;
@@ -392,6 +397,9 @@ export function replayFor(room: Room, seat: Seat): string | null {
     savedAt: new Date().toISOString(),
     config: { ...room.replay.config, myPlayerId: seat.playerId },
     ...(room.replay.loadData !== undefined ? { loadData: room.replay.loadData } : {}),
+    ...(room.replay.exploredBySeat?.[seat.playerId]
+      ? { explored: room.replay.exploredBySeat[seat.playerId] }
+      : {}),
     commands: room.replay.commands,
     endTick: world.tick,
   });

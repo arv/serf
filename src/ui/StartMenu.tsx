@@ -355,15 +355,18 @@ export function StartMenu(props: StartMenuProps) {
     return vis() === 'private' ? 'Create private room' : 'Create open room';
   };
 
+  /** Watch one replay. A navigation like any single-player launch: the
+   * name is the whole query string, the log itself lives in OPFS. */
+  const launchReplay = (name: string): void => {
+    releaseMenuBackdrop();
+    location.search = '?replay=' + encodeURIComponent(name);
+  };
+
   const launch = (): void => {
     if (isJoin() && !target()) return;
     if (isReplays()) {
       const name = pickedReplay();
-      if (name === null) return;
-      // A replay is a navigation like any single-player launch: the name
-      // is the whole query string, the log itself lives in OPFS.
-      releaseMenuBackdrop();
-      location.search = '?replay=' + encodeURIComponent(name);
+      if (name !== null) launchReplay(name);
       return;
     }
     clearSeatStash(); // a menu launch is fresh intent, never a reconnect
@@ -661,57 +664,53 @@ export function StartMenu(props: StartMenuProps) {
                       <For each={replays()}>
                         {(r) => {
                           // Playback re-runs the sim, so only this build's
-                          // own recordings play. Not `disabled` — that
-                          // would swallow the delete button's clicks, and
-                          // an unplayable replay is exactly the one that
-                          // needs deleting.
+                          // own recordings play. Not `disabled` — a replay
+                          // this build cannot play is exactly the one worth
+                          // deleting, and the row still has to read.
                           const ok = r.replayVersion === REPLAY_VERSION;
                           return (
-                          <button
-                            class={`room ${pickedReplay() === r.name ? 'on' : ''}`}
-                            style={ok ? undefined : 'opacity:0.55;cursor:default'}
-                            title={
-                              ok
-                                ? undefined
-                                : `Recorded under replay version ${r.replayVersion ?? 'unknown'} — ` +
-                                  `this build plays version ${REPLAY_VERSION} and cannot play it back`
-                            }
-                            onClick={() =>
-                              ok && setPickedReplay(pickedReplay() === r.name ? null : r.name)
-                            }
-                            onDblClick={ok ? launch : undefined}
-                          >
-                            <span style="min-width:0">
-                              <span class="code" style="letter-spacing:0.02em">
-                                {r.name}
-                              </span>
-                              <span class="meta">
-                                {fmtSize(r.size)}
-                                {ok ? '' : ' · from an older build'}
-                              </span>
-                            </span>
-                            {/* A span, not a button: the row is already a
-                                button, and buttons must not nest. */}
-                            <span
-                              role="button"
-                              tabindex="0"
-                              class="icon-btn"
-                              style="flex:none;width:26px;height:26px;border-radius:8px"
-                              title="Delete this replay"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void deleteReplayFile(r.name).then(refreshReplays);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key !== 'Enter' && e.key !== ' ') return;
-                                e.preventDefault();
-                                e.stopPropagation();
-                                void deleteReplayFile(r.name).then(refreshReplays);
-                              }}
-                            >
-                              ✕
-                            </span>
-                          </button>
+                            // Row and delete are siblings, not nested: an
+                            // interactive control inside a button is an
+                            // invalid a11y tree, and the wrapper is what
+                            // lets both be real buttons.
+                            <div class="replay-row">
+                              <button
+                                class={`room ${pickedReplay() === r.name ? 'on' : ''}`}
+                                disabled={!ok}
+                                title={
+                                  ok
+                                    ? undefined
+                                    : `Recorded under replay version ${r.replayVersion ?? 'unknown'} — ` +
+                                      `this build plays version ${REPLAY_VERSION} and cannot play it back`
+                                }
+                                onClick={() =>
+                                  setPickedReplay(pickedReplay() === r.name ? null : r.name)
+                                }
+                                // This row's own name, not the selection:
+                                // the two clicks a double-click is made of
+                                // have already toggled the pick back off by
+                                // the time this fires.
+                                onDblClick={() => launchReplay(r.name)}
+                              >
+                                <span style="min-width:0">
+                                  <span class="code" style="letter-spacing:0.02em">
+                                    {r.name}
+                                  </span>
+                                  <span class="meta">
+                                    {fmtSize(r.size)}
+                                    {ok ? '' : ' · from an older build'}
+                                  </span>
+                                </span>
+                              </button>
+                              <button
+                                class="icon-btn"
+                                title="Delete this replay"
+                                aria-label={`Delete replay ${r.name}`}
+                                onClick={() => void deleteReplayFile(r.name).then(refreshReplays)}
+                              >
+                                ✕
+                              </button>
+                            </div>
                           );
                         }}
                       </For>

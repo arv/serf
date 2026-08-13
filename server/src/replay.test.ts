@@ -168,6 +168,10 @@ describe('server replay recording', () => {
 
     const replay = parseReplay(replayFor(revived, seat2)!)!;
     expect(replay.loadData).toBe(record.world);
+    // A rebased replay opens mid-match, so it carries the seat's own fog
+    // from the snapshot — otherwise playback would darken ground the
+    // player had scouted long before the deploy.
+    expect(replay.explored).toBe(record.seats[seat2.playerId]!.explored);
     expect(serializeWorld(playBack(replay))).toBe(expected);
   });
 });

@@ -193,6 +193,11 @@ export function roomFromRecord(record: PersistedRoom, nowMs: number): Room {
           replayVersion: REPLAY_VERSION,
           config: matchWorldConfig(room),
           loadData: record.world,
+          // The seats' fog as of this snapshot, kept packed exactly as it
+          // sits on disk (the client unpacks the same format). A rebased
+          // replay resumes mid-match, so without it playback would open on
+          // a dark map the seat had long since scouted.
+          exploredBySeat: record.seats.map((s) => s.explored),
           commands: [],
         };
   // Same reason startMatch does it: a rejoin can arrive before the first
