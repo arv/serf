@@ -186,6 +186,15 @@ export function FastIcon() {
   );
 }
 
+/** Triple chevron: the replay-only speed above fast forward. */
+export function FastestIcon() {
+  return (
+    <svg viewBox="0 0 18 16" width="15" height="12">
+      <path d="M1 3v10l5.5-5L1 3Zm5.5 0v10L12 8 6.5 3Zm5.5 0v10l5.5-5L12 3Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 /** Band-select: viewfinder corners, the box you are about to drag. */
 export function BandIcon() {
   return (

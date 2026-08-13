@@ -8,6 +8,8 @@ import { AiSeats } from '../sim/aiSeats';
 import { summarizeForSeat } from '../ai/summary';
 import { SAB_BYTES, SabWriter } from '../protocol/sabLayout';
 import { snapBuildings, snapJobs, snapPlayers, unitSnapshots } from '../protocol/snapshot';
+import { REPLAY_VERSION } from '../shared/replayVersion';
+import { REPLAY_FORMAT, serializeReplay, type ReplayData } from './replay';
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { PlayerCommand } from '../sim/tick';
 import type { MainToWorker, StructuralUpdate, WorkerToMain } from '../protocol/messages';
@@ -42,6 +44,27 @@ const ADVICE_PERIOD = 1800;
 const ADVICE_STAGGER = 600;
 let summaryDue: Map<number, number> | null = null;
 
+/**
+ * The match's replay log, written as it happens: the config and save the
+ * world booted from, plus every command each tick executed — the player's
+ * and the AI seats' alike. Storing the AI's moves (rather than re-deciding
+ * them on playback) is what frees the AI algorithm to change between
+ * builds without invalidating old replays; the sim itself must still
+ * match, which is what the REPLAY_VERSION stamp guards. Always on for a live
+ * solo match (the cost is a few bytes per order); null while *playing
+ * back* a replay.
+ */
+let recording: {
+  config: ReplayData['config'];
+  loadData?: string;
+  commands: ReplayData['commands'];
+} | null = null;
+
+/** Playback mode: the log being replayed, and a cursor into it. */
+let replay: ReplayData | null = null;
+let replayCmdIdx = 0;
+let replayEndedPosted = false;
+
 const post = (msg: WorkerToMain): void => {
   (self as unknown as DedicatedWorkerGlobalScope).postMessage(msg);
 };
@@ -50,14 +73,19 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
   const msg = e.data;
   switch (msg.type) {
     case 'init':
-      init(msg.config, msg.loadData, msg.llm);
+      init(msg.config, msg.loadData, msg.llm, msg.replay);
       break;
     case 'commands':
+      // A replay's diet is the log, nothing else: a stray order clicked
+      // during playback must not fork the recorded history.
+      if (replay) break;
       pendingCommands.push(...msg.commands);
       break;
     case 'aiAdvice':
       // Pre-validated on the main thread; the brain merges it over its
-      // playbook and plays on. Reaches the sim only as ordinary commands.
+      // playbook and plays on. Nothing to log: whatever the advice changes
+      // shows up in the AI commands the recording already captures. (In
+      // playback there are no brains at all — the log speaks for them.)
       ai?.applyAdvice(msg.playerId, msg.override);
       break;
     case 'setSpeed':
@@ -83,16 +111,65 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
     case 'requestSave':
       if (world) post({ type: 'saved', data: serializeWorld(world) });
       break;
+    case 'requestReplay':
+      // Same rule as the server's replayFor: no replay leaves a match that
+      // is still being played. Solo has one human, so "over for every
+      // human" is simply the outcome being decided — until then the answer
+      // is empty, which the Save button reports as nothing to save. (The
+      // recording itself never pauses; observing past the end and saving
+      // later just captures more.)
+      if (world && recording && world.outcome.state === 'over') {
+        post({
+          type: 'replayData',
+          // replayVersion right after format — readReplayVersion scans
+          // only the head of the file for it.
+          data: serializeReplay({
+            format: REPLAY_FORMAT,
+            replayVersion: REPLAY_VERSION,
+            savedAt: new Date().toISOString(),
+            config: recording.config,
+            ...(recording.loadData !== undefined ? { loadData: recording.loadData } : {}),
+            // The fog the match booted with, from the main thread (this
+            // worker has no notion of what a seat has seen). Only rides a
+            // replay that resumes from a save — the world it belongs to.
+            ...(recording.loadData !== undefined && msg.explored
+              ? { explored: msg.explored }
+              : {}),
+            commands: recording.commands,
+            endTick: world.tick,
+          }),
+        });
+      } else {
+        post({ type: 'replayData', data: '' });
+      }
+      break;
   }
 };
 
-function init(config: import('../sim/world').WorldConfig, loadData?: string, llm?: boolean): void {
+function init(
+  config: import('../sim/world').WorldConfig,
+  loadData?: string,
+  llm?: boolean,
+  replayData?: ReplayData,
+): void {
+  if (replayData) {
+    // Playback: the log carries its own recipe; whatever rode the init
+    // message beside it is ignored, and nothing is re-recorded.
+    replay = replayData;
+    config = replayData.config;
+    loadData = replayData.loadData;
+    llm = false;
+  }
   world = loadData !== undefined ? deserializeWorld(loadData) : createWorld(config);
-  // AI seats think next to the world, the same way the server runs them.
-  ai = new AiSeats(world);
+  if (!replay) recording = { config, loadData, commands: [] };
+  // AI seats think next to the world, the same way the server runs them —
+  // live only. Playback never boots the brains: the log already holds
+  // every move they made, which is exactly what lets their algorithm
+  // change under an old replay's feet.
+  ai = replay ? null : new AiSeats(world);
   // First summaries only after the opening has taken shape — advice on an
   // empty valley would just be the model guessing at the map.
-  summaryDue = llm
+  summaryDue = llm && ai
     ? new Map(ai.seatIds().map((id, i) => [id, ADVICE_PERIOD + i * ADVICE_STAGGER]))
     : null;
   initialGoods = countGoods(world);
@@ -167,17 +244,41 @@ function pump(): void {
     return;
   }
   let ran = false;
-  while (acc >= TICK_MS) {
+  outer: while (acc >= TICK_MS) {
     acc -= TICK_MS;
-    // One 50ms quantum = `speed` ticks (0/1/3), commands on its first tick.
+    // One 50ms quantum = `speed` ticks, commands on its first tick.
     const commands = pendingCommands;
     pendingCommands = [];
     for (let i = 0; i < speed; i++) {
-      const executed = i === 0 ? commands : [];
+      // Playback stops where the recording stopped: pause in place rather
+      // than run on into ticks the log never saw.
+      if (replay && world.tick >= replay.endTick) {
+        speed = 0;
+        if (!replayEndedPosted) {
+          replayEndedPosted = true;
+          post({ type: 'replayEnded' });
+          // The pause skips future matcher intervals, so whatever the HUD
+          // is still owed (outcome, rosters) ships now or never.
+          postStructural();
+        }
+        break outer;
+      }
+      const executed = replay ? replayCommandsFor(world.tick) : i === 0 ? commands : [];
       // Brains decide from the state this tick starts in, and go in with
-      // the player's orders — no frame of hindsight.
+      // the player's orders — no frame of hindsight. (Playback has no
+      // brains; their moves are already in `executed`, off the log.)
       if (ai) executed.push(...ai.decide(world));
+      // Log everything this tick executes — the player's orders and the
+      // AI's — under the tick it actually applies on, which is this one,
+      // not the tick it was sent on.
+      if (recording && executed.length > 0) {
+        recording.commands.push({ tick: world.tick, commands: executed.slice() });
+      }
       tickWorld(world, executed);
+      // Per tick, not per quantum: the replay's end can break out of the
+      // middle of a quantum, and the ticks that ran before it still owe
+      // the SAB their final positions.
+      ran = true;
       if (import.meta.env.DEV && world.tick % 20 === 0) {
         const report = checkInvariants(world);
         const ledger = checkLedger(world, initialGoods);
@@ -185,7 +286,6 @@ function pump(): void {
         for (const v of lastInvariantViolations) console.warn(`[invariant] t${world.tick} ${v}`);
       }
     }
-    ran = true;
   }
   if (ran) {
     publish();
@@ -194,6 +294,21 @@ function pump(): void {
     }
     postSummaries();
   }
+}
+
+/** The logged commands for one tick — players' and AI seats' alike — as a
+ * fresh array. The log is sorted, so a cursor walks it once. */
+function replayCommandsFor(tick: number): PlayerCommand[] {
+  const out: PlayerCommand[] = [];
+  if (!replay) return out;
+  const entries = replay.commands;
+  while (replayCmdIdx < entries.length && entries[replayCmdIdx]!.tick <= tick) {
+    // `<` can only mean a log from a save the world has already moved past;
+    // dropping is safer than applying an order to the wrong tick.
+    if (entries[replayCmdIdx]!.tick === tick) out.push(...entries[replayCmdIdx]!.commands);
+    replayCmdIdx++;
+  }
+  return out;
 }
 
 /** Report each AI seat upstairs when its consultation comes due. Outside

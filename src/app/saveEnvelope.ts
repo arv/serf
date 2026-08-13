@@ -16,8 +16,10 @@ import { TILE_COUNT } from '../shared/grid';
 
 const FMT = 'serf-save-v2';
 
-/** One byte per tile in, six bits per char out (packed + base64). */
-function packBits(explored: Uint8Array): string {
+/** One byte per tile in, six bits per char out (packed + base64). Shared
+ * with replays, which carry the same grid when one boots from a save —
+ * and with the server, whose own packing (persist.ts) is bit-compatible. */
+export function packExplored(explored: Uint8Array): string {
   const bytes = new Uint8Array(Math.ceil(TILE_COUNT / 8));
   for (let i = 0; i < TILE_COUNT; i++) {
     if (explored[i]) bytes[i >> 3] = bytes[i >> 3]! | (1 << (i & 7));
@@ -27,7 +29,7 @@ function packBits(explored: Uint8Array): string {
   return btoa(bin);
 }
 
-function unpackBits(packed: string): Uint8Array | undefined {
+export function unpackExplored(packed: string): Uint8Array | undefined {
   try {
     const bin = atob(packed);
     const out = new Uint8Array(TILE_COUNT);
@@ -43,7 +45,7 @@ function unpackBits(packed: string): Uint8Array | undefined {
 }
 
 export function envelopeSave(world: string, explored: Uint8Array): string {
-  return JSON.stringify({ fmt: FMT, world, explored: packBits(explored) });
+  return JSON.stringify({ fmt: FMT, world, explored: packExplored(explored) });
 }
 
 export function splitSave(data: string): { world: string; explored?: Uint8Array } {
@@ -53,7 +55,7 @@ export function splitSave(data: string): { world: string; explored?: Uint8Array 
       return {
         world: parsed.world,
         explored:
-          typeof parsed.explored === 'string' ? unpackBits(parsed.explored) : undefined,
+          typeof parsed.explored === 'string' ? unpackExplored(parsed.explored) : undefined,
       };
     }
   } catch {

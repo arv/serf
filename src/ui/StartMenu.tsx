@@ -1,6 +1,7 @@
 import { For, Index, Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { BUILD_LABEL } from '../app/buildInfo';
+import { REPLAY_VERSION } from '../shared/replayVersion';
 import { clearSeatStash, relayUrl, type CouncilRequest } from '../net/lobbyClient';
 import { DiceIcon } from './menuChrome';
 import { releaseMenuBackdrop } from './menuBackdrop';
@@ -14,6 +15,7 @@ import {
 import { MISSION_DEFS, MISSION_ORDER, type MissionId } from '../sim/defs/missions';
 import { isMissionComplete, isMissionUnlocked } from './campaign';
 import { LockIcon } from './icons';
+import { deleteReplayFile, listReplayFiles, type ReplayFileInfo } from '../app/replayStore';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -58,7 +60,7 @@ function opponentHint(picks: (AiStrategyId | undefined)[]): string {
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
 
-export type Mode = 'single' | 'campaign' | 'multi';
+export type Mode = 'single' | 'campaign' | 'multi' | 'replays';
 export type MpMode = 'host' | 'join';
 type Visibility = 'open' | 'private';
 
@@ -135,6 +137,14 @@ const BannerIcon = (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
     <path d="M6 3v18" />
     <path d="M6 4h12l-3 4 3 4H6" />
+  </svg>
+);
+/** A wound scroll: matches watched back off the shelf. */
+const ScrollIcon = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 21h9a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H8" />
+    <path d="M8 3a2 2 0 0 0-2 2v14a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2h4" />
+    <path d="M11 8h5M11 12h5" />
   </svg>
 );
 export function StartMenu(props: StartMenuProps) {
@@ -232,7 +242,27 @@ export function StartMenu(props: StartMenuProps) {
   const isMulti = (): boolean => mode() === 'multi';
   const isSingle = (): boolean => mode() === 'single';
   const isCampaign = (): boolean => mode() === 'campaign';
+  const isReplays = (): boolean => mode() === 'replays';
   const isJoin = (): boolean => isMulti() && mp() === 'join';
+
+  // The replay shelf: what OPFS holds under /replays, newest first. Read
+  // when the pane is opened (and re-read after a delete) — the list only
+  // changes from inside a match, which is a navigation away.
+  const [replays, setReplays] = createSignal<ReplayFileInfo[]>([]);
+  const [replaysLoaded, setReplaysLoaded] = createSignal(false);
+  const [pickedReplay, setPickedReplay] = createSignal<string | null>(null);
+  const refreshReplays = async (): Promise<void> => {
+    const found = await listReplayFiles();
+    setReplays(found);
+    setReplaysLoaded(true);
+    if (pickedReplay() !== null && !found.some((r) => r.name === pickedReplay())) {
+      setPickedReplay(null);
+    }
+  };
+  const fmtSize = (bytes: number): string =>
+    bytes >= 1048576
+      ? `${(bytes / 1048576).toFixed(1)} MB`
+      : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
   // The campaign pane opens on the frontier: the first commission not yet
   // fulfilled (everything done = the finale stays selected).
@@ -319,13 +349,26 @@ export function StartMenu(props: StartMenuProps) {
   const target = (): string => picked() ?? room();
   const ctaLabel = (): string => {
     if (isCampaign()) return `Begin: ${MISSION_DEFS[pickedMission()].title}`;
+    if (isReplays()) return pickedReplay() !== null ? 'Watch replay' : 'Pick a replay';
     if (!isMulti()) return ai() > 0 ? 'Begin skirmish' : 'Begin sandbox';
     if (isJoin()) return target() ? 'Join ' + target() : 'Pick a room';
     return vis() === 'private' ? 'Create private room' : 'Create open room';
   };
 
+  /** Watch one replay. A navigation like any single-player launch: the
+   * name is the whole query string, the log itself lives in OPFS. */
+  const launchReplay = (name: string): void => {
+    releaseMenuBackdrop();
+    location.search = '?replay=' + encodeURIComponent(name);
+  };
+
   const launch = (): void => {
     if (isJoin() && !target()) return;
+    if (isReplays()) {
+      const name = pickedReplay();
+      if (name !== null) launchReplay(name);
+      return;
+    }
     clearSeatStash(); // a menu launch is fresh intent, never a reconnect
     if (isCampaign()) {
       // A mission is a navigation like any single-player launch: the def's
@@ -398,6 +441,16 @@ export function StartMenu(props: StartMenuProps) {
               >
                 {ManyIcon}
                 Multiplayer
+              </button>
+              <button
+                class={mode() === 'replays' ? 'on' : ''}
+                onClick={() => {
+                  setMode('replays');
+                  void refreshReplays();
+                }}
+              >
+                {ScrollIcon}
+                Replays
               </button>
             </div>
 
@@ -597,6 +650,90 @@ export function StartMenu(props: StartMenuProps) {
                 </div>
               </Show>
 
+              <Show when={isReplays()}>
+                <div class="browser">
+                  <div class="browser-head">
+                    <div style="display:flex;align-items:baseline;gap:8px">
+                      <span class="row-label">Saved replays</span>
+                      <span class="count">{replays().length} saved</span>
+                    </div>
+                  </div>
+
+                  <Show when={replays().length > 0}>
+                    <div class="room-list" style="max-height:236px">
+                      <For each={replays()}>
+                        {(r) => {
+                          // Playback re-runs the sim, so only this build's
+                          // own recordings play. Not `disabled` — a replay
+                          // this build cannot play is exactly the one worth
+                          // deleting, and the row still has to read.
+                          const ok = r.replayVersion === REPLAY_VERSION;
+                          return (
+                            // Row and delete are siblings, not nested: an
+                            // interactive control inside a button is an
+                            // invalid a11y tree, and the wrapper is what
+                            // lets both be real buttons.
+                            <div class="replay-row">
+                              <button
+                                class={`room ${pickedReplay() === r.name ? 'on' : ''}`}
+                                disabled={!ok}
+                                title={
+                                  ok
+                                    ? undefined
+                                    : `Recorded under replay version ${r.replayVersion ?? 'unknown'} — ` +
+                                      `this build plays version ${REPLAY_VERSION} and cannot play it back`
+                                }
+                                onClick={() =>
+                                  setPickedReplay(pickedReplay() === r.name ? null : r.name)
+                                }
+                                // This row's own name, not the selection:
+                                // the two clicks a double-click is made of
+                                // have already toggled the pick back off by
+                                // the time this fires.
+                                onDblClick={() => launchReplay(r.name)}
+                              >
+                                <span style="min-width:0">
+                                  <span class="code" style="letter-spacing:0.02em">
+                                    {r.name}
+                                  </span>
+                                  <span class="meta">
+                                    {fmtSize(r.size)}
+                                    {ok ? '' : ' · from an older build'}
+                                  </span>
+                                </span>
+                              </button>
+                              <button
+                                class="icon-btn"
+                                title="Delete this replay"
+                                aria-label={`Delete replay ${r.name}`}
+                                onClick={() => void deleteReplayFile(r.name).then(refreshReplays)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          );
+                        }}
+                      </For>
+                    </div>
+                  </Show>
+
+                  <Show when={replaysLoaded() && replays().length === 0}>
+                    <div class="browser-none">
+                      <div class="t">No replays saved yet</div>
+                      <div class="s">
+                        Finish a match and choose “Save replay” — it is filed here under the
+                        date it was saved.
+                      </div>
+                    </div>
+                  </Show>
+
+                  <div class="row-hint">
+                    A replay re-runs the match exactly as it was played, with an extra
+                    speed beyond fast forward.
+                  </div>
+                </div>
+              </Show>
+
               <Show when={isSingle()}>
                 <div class="row">
                   <div>
@@ -705,7 +842,10 @@ export function StartMenu(props: StartMenuProps) {
             </div>
 
             <div class="cta-wrap">
-              <button class={`cta ${isJoin() && !target() ? 'dim' : ''}`} onClick={launch}>
+              <button
+                class={`cta ${(isJoin() && !target()) || (isReplays() && pickedReplay() === null) ? 'dim' : ''}`}
+                onClick={launch}
+              >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8 5.5v13l11-6.5z" />
                 </svg>
