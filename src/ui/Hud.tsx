@@ -738,7 +738,7 @@ export function Hud(props: {
               Load last save
             </button>
           </Show>
-          <Show when={fs.supported}>
+          <Show when={fs.offerable()}>
             <button
               aria-pressed={fs.active()}
               onClick={() => {

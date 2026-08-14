@@ -70,9 +70,12 @@ the in-game menu, and no way for the page to help itself. The answer is
 remembered — and because beginning a match reloads the page, which exits
 fullscreen, the match re-enters on your first click there. Leaving by any
 other road (Esc, the browser's own control) is an answer too, and is not
-argued with. Installed to a home screen the question never arises: the
-manifest asks for `display: fullscreen`, which is also the only fullscreen
-iOS has for a page at all — there the buttons hide themselves.
+argued with. Installed to a home screen neither control appears at all: the
+manifest asks for `display: fullscreen` and is given it, so there is nothing
+left to offer — and that install is the only fullscreen iOS has for a page
+in the first place. A desktop install usually lands on `standalone` instead,
+which is an ordinary window with a screen still to fill, so there the offer
+stands.
 
 ### Controls
 

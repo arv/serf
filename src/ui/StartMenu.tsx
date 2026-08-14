@@ -854,7 +854,7 @@ export function StartMenu(props: StartMenuProps) {
                   to a skirmish. Switched here rather than merely armed — a
                   toggle is a gesture, and a gesture is the only thing a
                   browser takes a fullscreen request from. */}
-              <Show when={fs.supported}>
+              <Show when={fs.offerable()}>
                 <div class="row">
                   {/* No hint under this one: the label is the whole story,
                       and a row of small print explaining what full screen
