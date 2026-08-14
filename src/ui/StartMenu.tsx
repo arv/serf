@@ -16,6 +16,7 @@ import { MISSION_DEFS, MISSION_ORDER, type MissionId } from '../sim/defs/mission
 import { isMissionComplete, isMissionUnlocked } from './campaign';
 import { LockIcon } from './icons';
 import { deleteReplayFile, listReplayFiles, type ReplayFileInfo } from '../app/replayStore';
+import { fullscreen } from './fullscreen';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -330,6 +331,13 @@ export function StartMenu(props: StartMenuProps) {
   });
 
   const hasSave = localStorage.getItem('serf-save') !== null;
+
+  // Full screen is offered here rather than imposed: no browser grants it
+  // outside a gesture, so the button below is the only thing that can ask
+  // for it. The answer is remembered, and since a single-player launch
+  // reloads the page — which exits fullscreen — the match on the far side
+  // re-enters on the player's first click (see fullscreen.ts).
+  const fs = fullscreen();
 
   /** The single-player launch URL. Multiplayer has none: it walks into the
    * council in place, and the room's settings live on the relay. */
@@ -876,6 +884,38 @@ export function StartMenu(props: StartMenuProps) {
               </svg>
               Load save
             </button>
+            <Show when={fs.supported}>
+              <button
+                title={
+                  fs.active()
+                    ? 'Give the browser its chrome back'
+                    : 'Fill the screen — the match keeps it'
+                }
+                aria-pressed={fs.active()}
+                onClick={() => fs.toggle()}
+              >
+                <Show
+                  when={fs.active()}
+                  fallback={
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M9 3H5a2 2 0 0 0-2 2v4" />
+                      <path d="M15 3h4a2 2 0 0 1 2 2v4" />
+                      <path d="M21 15v4a2 2 0 0 1-2 2h-4" />
+                      <path d="M3 15v4a2 2 0 0 0 2 2h4" />
+                    </svg>
+                  }
+                >
+                  {/* The same corners, folded inwards. */}
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9h4a2 2 0 0 0 2-2V3" />
+                    <path d="M21 9h-4a2 2 0 0 1-2-2V3" />
+                    <path d="M15 21v-4a2 2 0 0 1 2-2h4" />
+                    <path d="M9 21v-4a2 2 0 0 0-2-2H3" />
+                  </svg>
+                </Show>
+                {fs.active() ? 'Exit full screen' : 'Full screen'}
+              </button>
+            </Show>
           </div>
         </div>
 

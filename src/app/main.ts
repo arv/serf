@@ -57,6 +57,7 @@ import { parseReplay, replayName, type ReplayData } from './replay';
 import { readReplayFile, saveReplayFile } from './replayStore';
 import { WorkerSimHost } from './simHost';
 import { mountMenu } from '../ui/MenuApp';
+import { armFullscreen } from '../ui/fullscreen';
 import { holdServiceWorkerUpdates, registerServiceWorker } from './serviceWorker';
 import { configFromUrl, type GameConfig } from './gameConfig';
 import { defaultLobbyConfig, sanitizeLobbyConfig, type LobbyConfig } from '../protocol/lobby';
@@ -151,6 +152,11 @@ function lobbyInitFromUrl(params: URLSearchParams): LobbyConfig {
 }
 
 async function boot(): Promise<void> {
+  // Before anything else takes a click: a launch is a navigation, which
+  // exits fullscreen, and a player who asked for it in the menu gets it
+  // back on their first gesture here (see ui/fullscreen.ts). Cheap and
+  // silent when nobody ever asked.
+  armFullscreen();
   const launchParams = new URLSearchParams(location.search);
   if (launchParams.has('wardrobe')) {
     // The costume fitting room: every unit of every faction, labeled,

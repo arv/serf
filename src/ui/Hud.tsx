@@ -25,6 +25,7 @@ import { BuildingTip, GoodTip, TextTip, TipWrap, TooltipLayer, tooltip } from '.
 import { buildingName, techName } from './names';
 import { BUILD_GROUPS } from './buildMenu';
 import { hasKeyboard } from '../input/keyboard';
+import { fullscreen } from './fullscreen';
 import {
   CHEATS_ALLOWED,
   bandArm,
@@ -104,6 +105,9 @@ export function Hud(props: {
   // false), so every button here no-ops — except the fog toggle, which
   // never reaches the sim. Hide the panel rather than leave that one live.
   const adminMode = CHEATS_ALLOWED && new URLSearchParams(location.search).has('admin');
+  // Mid-match, the menu is the only place to ask. The browser will not take
+  // the request from anywhere but a gesture, and this button is one.
+  const fs = fullscreen();
   const [activeTab, setActiveTab] = createSignal(0);
   const isPhone = useMedia('(max-width: 760px)');
   const isCoarse = useMedia('(pointer: coarse)');
@@ -732,6 +736,17 @@ export function Hud(props: {
               }}
             >
               Load last save
+            </button>
+          </Show>
+          <Show when={fs.supported}>
+            <button
+              aria-pressed={fs.active()}
+              onClick={() => {
+                fs.toggle();
+                setMenuOpen(false);
+              }}
+            >
+              {fs.active() ? 'Exit full screen' : 'Full screen'}
             </button>
           </Show>
           <button
