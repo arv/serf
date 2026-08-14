@@ -856,14 +856,10 @@ export function StartMenu(props: StartMenuProps) {
                   browser takes a fullscreen request from. */}
               <Show when={fs.supported}>
                 <div class="row">
-                  <div>
-                    <div class="row-label">Full screen</div>
-                    <div class="row-hint">
-                      {fs.active()
-                        ? 'Esc gives the window back'
-                        : 'Fills the screen — the match you begin keeps it'}
-                    </div>
-                  </div>
+                  {/* No hint under this one: the label is the whole story,
+                      and a row of small print explaining what full screen
+                      means would be the loudest thing on the card. */}
+                  <div class="row-label">Full screen</div>
                   <button
                     class={`toggle ${fs.active() ? 'on' : ''}`}
                     role="switch"
