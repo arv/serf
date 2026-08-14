@@ -16,6 +16,7 @@ import { MISSION_DEFS, MISSION_ORDER, type MissionId } from '../sim/defs/mission
 import { isMissionComplete, isMissionUnlocked } from './campaign';
 import { LockIcon } from './icons';
 import { deleteReplayFile, listReplayFiles, type ReplayFileInfo } from '../app/replayStore';
+import { fullscreen } from './fullscreen';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -330,6 +331,13 @@ export function StartMenu(props: StartMenuProps) {
   });
 
   const hasSave = localStorage.getItem('serf-save') !== null;
+
+  // Full screen is offered here rather than imposed: no browser grants it
+  // outside a gesture, so the switch below is the only thing that can ask
+  // for it. The answer is remembered, and since a single-player launch
+  // reloads the page — which exits fullscreen — the match on the far side
+  // re-enters on the player's first click (see fullscreen.ts).
+  const fs = fullscreen();
 
   /** The single-player launch URL. Multiplayer has none: it walks into the
    * council in place, and the room's settings live on the relay. */
@@ -834,6 +842,30 @@ export function StartMenu(props: StartMenuProps) {
                     aria-checked={bandits()}
                     aria-label="Bandit raids"
                     onClick={() => setBandits(!bandits())}
+                  >
+                    <span />
+                  </button>
+                </div>
+              </Show>
+
+              {/* Last row, and the only one outside every mode's Show: this
+                  is not a match setting but a property of the window, and
+                  it belongs to a replay and a multiplayer room as much as
+                  to a skirmish. Switched here rather than merely armed — a
+                  toggle is a gesture, and a gesture is the only thing a
+                  browser takes a fullscreen request from. */}
+              <Show when={fs.supported}>
+                <div class="row">
+                  {/* No hint under this one: the label is the whole story,
+                      and a row of small print explaining what full screen
+                      means would be the loudest thing on the card. */}
+                  <div class="row-label">Full screen</div>
+                  <button
+                    class={`toggle ${fs.active() ? 'on' : ''}`}
+                    role="switch"
+                    aria-checked={fs.active()}
+                    aria-label="Full screen"
+                    onClick={() => fs.toggle()}
                   >
                     <span />
                   </button>
