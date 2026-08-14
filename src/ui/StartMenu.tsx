@@ -333,7 +333,7 @@ export function StartMenu(props: StartMenuProps) {
   const hasSave = localStorage.getItem('serf-save') !== null;
 
   // Full screen is offered here rather than imposed: no browser grants it
-  // outside a gesture, so the button below is the only thing that can ask
+  // outside a gesture, so the switch below is the only thing that can ask
   // for it. The answer is remembered, and since a single-player launch
   // reloads the page — which exits fullscreen — the match on the far side
   // re-enters on the player's first click (see fullscreen.ts).
@@ -847,6 +847,34 @@ export function StartMenu(props: StartMenuProps) {
                   </button>
                 </div>
               </Show>
+
+              {/* Last row, and the only one outside every mode's Show: this
+                  is not a match setting but a property of the window, and
+                  it belongs to a replay and a multiplayer room as much as
+                  to a skirmish. Switched here rather than merely armed — a
+                  toggle is a gesture, and a gesture is the only thing a
+                  browser takes a fullscreen request from. */}
+              <Show when={fs.supported}>
+                <div class="row">
+                  <div>
+                    <div class="row-label">Full screen</div>
+                    <div class="row-hint">
+                      {fs.active()
+                        ? 'Esc gives the window back'
+                        : 'Fills the screen — the match you begin keeps it'}
+                    </div>
+                  </div>
+                  <button
+                    class={`toggle ${fs.active() ? 'on' : ''}`}
+                    role="switch"
+                    aria-checked={fs.active()}
+                    aria-label="Full screen"
+                    onClick={() => fs.toggle()}
+                  >
+                    <span />
+                  </button>
+                </div>
+              </Show>
             </div>
 
             <div class="cta-wrap">
@@ -884,38 +912,6 @@ export function StartMenu(props: StartMenuProps) {
               </svg>
               Load save
             </button>
-            <Show when={fs.supported}>
-              <button
-                title={
-                  fs.active()
-                    ? 'Give the browser its chrome back'
-                    : 'Fill the screen — the match keeps it'
-                }
-                aria-pressed={fs.active()}
-                onClick={() => fs.toggle()}
-              >
-                <Show
-                  when={fs.active()}
-                  fallback={
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M9 3H5a2 2 0 0 0-2 2v4" />
-                      <path d="M15 3h4a2 2 0 0 1 2 2v4" />
-                      <path d="M21 15v4a2 2 0 0 1-2 2h-4" />
-                      <path d="M3 15v4a2 2 0 0 0 2 2h4" />
-                    </svg>
-                  }
-                >
-                  {/* The same corners, folded inwards. */}
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 9h4a2 2 0 0 0 2-2V3" />
-                    <path d="M21 9h-4a2 2 0 0 1-2-2V3" />
-                    <path d="M15 21v-4a2 2 0 0 1 2-2h4" />
-                    <path d="M9 21v-4a2 2 0 0 0-2-2H3" />
-                  </svg>
-                </Show>
-                {fs.active() ? 'Exit full screen' : 'Full screen'}
-              </button>
-            </Show>
           </div>
         </div>
 

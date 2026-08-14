@@ -65,8 +65,8 @@ until the player is back at the menu.
 ### Full screen
 
 Offered, never taken: browsers grant fullscreen only from inside a click,
-tap or keypress, so there is a button on the start screen and one in the
-in-game menu, and no way for the page to help itself. The answer is
+tap or keypress, so there is a switch on the start screen and a button in
+the in-game menu, and no way for the page to help itself. The answer is
 remembered — and because beginning a match reloads the page, which exits
 fullscreen, the match re-enters on your first click there. Leaving by any
 other road (Esc, the browser's own control) is an answer too, and is not
