@@ -1,4 +1,5 @@
 import { MAP_SIZE, TILE_COUNT, tileIdx, tileX, tileY } from '../../shared/grid.ts';
+import { exactDist } from '../../shared/math.ts';
 import { Terrain, TileResource, resourceBlocks } from '../map.ts';
 import { SeatVision } from '../visibility.ts';
 import { START_LAYOUTS } from '../world.ts';
@@ -421,6 +422,7 @@ export class AiBrain {
       commands.push({
         kind: 'moveUnits',
         unitIds: army.map((u) => u.id),
+        attack: true,
         x: baseX,
         y: baseY + 4,
       });
@@ -429,29 +431,54 @@ export class AiBrain {
       // the search party. Head for the nearest dark landmark (then any dark
       // ground); sight lights it up on approach, the goal is re-picked when
       // it does, and the moment a camp or a castle turns up the branch
-      // above takes over. Marching at muster strength on purpose — this is
-      // the fallback for the seeds and standoffs the lone scout missed, and
+      // above takes over. Marching in force on purpose — this is the
+      // fallback for the seeds and standoffs the lone scout missed, and
       // whatever is hiding out there has already killed or outlasted him.
+      // In force, but not to the last man: see SWEEP_GARRISON.
       this.#clearScout();
-      const arrived = army.every((u) => u.task.t === 'idle');
+      // The castle is never left empty for it: the nearest few soldiers stay
+      // as a garrison and the rest are the party. Ties break on id, so the
+      // split is as deterministic as everything else here.
+      const byHome = [...army].sort(
+        (a, z) => exactDist(a.x - baseX, a.y - baseY) - exactDist(z.x - baseX, z.y - baseY) || a.id - z.id,
+      );
+      const held = Math.min(SWEEP_GARRISON, Math.floor(army.length / 2));
+      const garrison = byHome.slice(0, held);
+      const party = byHome.slice(held);
+      const arrived = party.every((u) => u.task.t === 'idle');
       if (this.#sweepGoal >= 0 && arrived && !this.#vision.explored[this.#sweepGoal]) {
         // Stood down short of the goal and it never lit up: not reachable.
         this.#unreachable.add(this.#sweepGoal);
         this.#sweepGoal = -1;
       }
-      if (this.#sweepGoal < 0 || this.#vision.explored[this.#sweepGoal]) {
-        // From the army's own position, not home: the sweep walks the
+      if ((this.#sweepGoal < 0 || this.#vision.explored[this.#sweepGoal]) && party.length > 0) {
+        // From the party's own position, not home: the sweep walks the
         // frontier tile to tile instead of ping-ponging across the base.
-        const from = army[0]!;
+        const from = party[0]!;
         this.#sweepGoal = nextSearchGoal(world, this.#vision, this.#unreachable, from.x, from.y);
         if (this.#sweepGoal >= 0) {
           const at = approachPoint(this.#sweepGoal);
           commands.push({
             kind: 'moveUnits',
-            unitIds: army.map((u) => u.id),
+            unitIds: party.map((u) => u.id),
+            attack: true,
             x: at.x,
             y: at.y,
           });
+          // Whoever is holding the castle should be standing at it, not
+          // wherever the last march happened to end — so the ones still out
+          // are called in with the same beat. Only those: re-ordering a
+          // soldier already at his post just restarts his walk.
+          const strays = garrison.filter((u) => exactDist(u.x - baseX, u.y - baseY) > GARRISON_POST);
+          if (strays.length > 0) {
+            commands.push({
+              kind: 'moveUnits',
+              unitIds: strays.map((u) => u.id),
+              attack: true,
+              x: baseX,
+              y: baseY + 4,
+            });
+          }
         }
       }
     } else {
@@ -927,6 +954,20 @@ export function rivalDoorstep(world: World, owner: Owner): number {
  * wander exactly as far as the two-leg route forbids.
  */
 const GATE_NORTH = 13;
+
+/**
+ * Soldiers the search party leaves standing at the castle.
+ *
+ * The sweep is speculative; the raid clock is not. A party that takes every
+ * soldier to the far corner of the map leaves nobody at home to lose the
+ * race back with — and the recall cannot cover for it, because a seat only
+ * sees raiders once they are already at the gates. Small enough that the
+ * rest still march in the force the fallback is meant to march in.
+ */
+const SWEEP_GARRISON = 3;
+
+/** How far from the castle a garrison soldier still counts as at his post. */
+const GARRISON_POST = 6;
 
 export function scoutLeg(goal: number, sx: number, sy: number): { x: number; y: number } {
   const gx = tileX(goal);

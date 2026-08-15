@@ -2,6 +2,7 @@ import { ALE_TRAIN_SPEEDUP, TICKS_PER_SECOND } from '../defs/balance.ts';
 import { buildingDef } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
+import { atBuilding, walkToBuilding } from '../arrival.ts';
 import { bindWorker, unbindWorker } from './production.ts';
 import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
 import type { Unit } from '../units.ts';
@@ -92,6 +93,11 @@ function handleArrivals(world: World): void {
   for (const unit of world.units.values()) {
     if (unit.dead || unit.task.t !== 'staff' || unit.path !== null) continue;
     const b = world.buildings.get(unit.task.buildingId);
+    // Arrived, or just out of road? A walk ended short by new construction
+    // would otherwise bind a worker to a post he is nowhere near — or, at a
+    // barracks, enlist a recruit who never reached the door. The post stays
+    // reserved for him while there is still a way to it.
+    if (b && !b.dead && !atBuilding(unit, b) && walkToBuilding(world.map, unit, b)) continue;
     if (b?.recruitId === unit.id) b.recruitId = undefined;
     unit.task = { t: 'idle', until: world.tick };
     if (!b || b.dead) continue;

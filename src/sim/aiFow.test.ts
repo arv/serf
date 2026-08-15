@@ -208,6 +208,35 @@ describe('the AI under fog of war', () => {
     expect(single[0]).toMatchObject({ x: 45, y: 36 });
   });
 
+  it('sweeps in force but never to the last man, and calls the garrison in', () => {
+    // The whole army is out in the field when the next sweep leg is picked.
+    // Losing the race home against a raid wave is the failure this guards:
+    // a seat only sees raiders once they are at the gates, so a recall
+    // cannot cover for a castle that was left empty in the first place.
+    const world = musterWorld();
+    for (const u of world.units.values()) {
+      if (u.kind === 'knight') {
+        u.x = 55.5;
+        u.y = 55.5;
+      }
+    }
+    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    const moves = moveOrders(brain.decide(world));
+    expect(moves).toHaveLength(2);
+
+    const home = moves.find((m) => m.x === 31 && m.y === 35); // base is sh.x+1, +4 south
+    const sweep = moves.find((m) => m !== home);
+    expect(home, 'the garrison is called back to the castle').toBeDefined();
+    expect(sweep, 'the party still marches on the frontier').toBeDefined();
+    // Seven knights: three hold the castle, four search. Both orders are
+    // attack-moves — an army that walks past a raid it meets is no army.
+    expect(home!.unitIds).toHaveLength(3);
+    expect(sweep!.unitIds).toHaveLength(4);
+    for (const m of moves) expect(m.attack).toBe(true);
+    // Nobody is in both, and between them they are the whole army.
+    expect(new Set([...home!.unitIds, ...sweep!.unitIds]).size).toBe(7);
+  });
+
   it('abandons sweep goals the army stood down in front of', () => {
     const world = musterWorld();
     const brain = new AiBrain(0, AI_STRATEGIES.steward);

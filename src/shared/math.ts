@@ -1,3 +1,12 @@
+/**
+ * Euclidean distance via sqrt (correctly rounded per IEEE-754, unlike
+ * Math.hypot) — lockstep clients on different JS engines must agree, and the
+ * renderer must judge "in reach" by exactly the rule combat strikes by.
+ */
+export function exactDist(dx: number, dy: number): number {
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 export function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }

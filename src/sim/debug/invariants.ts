@@ -96,6 +96,27 @@ export function checkInvariants(world: World): InvariantReport {
         violations.push(`serf ${u.id}: carrying ${u.carrying} in task ${u.task.t} with no job`);
       }
     }
+
+    // Combat target consistency. `targetIsBuilding` is the discriminator that
+    // picks which map `targetId` is read from, so the two must be cleared
+    // together or the next target resolves against the wrong one. And a unit
+    // told to walk away holds no target at all: the combat system skips it
+    // entirely, so a target left on it is one nothing will ever act on or
+    // clear — it just keeps reporting a fight it is not in.
+    if (u.targetId === undefined && u.targetIsBuilding !== undefined) {
+      violations.push(`unit ${u.id}: targetIsBuilding=${u.targetIsBuilding} with no targetId`);
+    }
+    if (u.task.t === 'move' && u.targetId !== undefined) {
+      violations.push(`unit ${u.id}: holds target ${u.targetId} under a plain move order`);
+    }
+
+    // A plain move is the one task with no owner system behind it: movement
+    // is the only thing that drives it, and it skips units with no route.
+    // Every other system filters for idle units, so a move that has lost its
+    // path is a unit that will stand there for the rest of the match.
+    if (u.task.t === 'move' && u.path === null) {
+      violations.push(`unit ${u.id}: plain move with no route — nothing will move it again`);
+    }
   }
 
   return { tick: world.tick, violations };

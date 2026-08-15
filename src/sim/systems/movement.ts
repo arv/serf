@@ -1,15 +1,15 @@
 import { tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { TICKS_PER_SECOND } from '../defs/balance.ts';
 import { UNIT_DEFS } from '../defs/units.ts';
-import { tileSpeedMult } from '../path.ts';
+import { findPath, nearestWalkable, tileSpeedMult } from '../path.ts';
 import { getModifier } from '../techHelpers.ts';
+import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
 
 /**
  * Advance every unit along its path. Waypoints are tile centers; speed is the
  * unit's tiles/sec scaled by the tile's trail/road multiplier. If the next
- * cell has become blocked (a building landed on it), drop the path — the
- * owner task re-plans on its next decision.
+ * cell has become blocked (a building landed on it), route around it.
  */
 export function movementSystem(world: World): void {
   // serfSpeed tech multiplier per player, computed once per tick instead of
@@ -42,7 +42,7 @@ export function movementSystem(world: World): void {
     while (budget > 0 && unit.pathIdx < path.length) {
       const next = path[unit.pathIdx]!;
       if (world.map.blocked[next]) {
-        unit.path = null;
+        routeAround(world, unit, path[path.length - 1]!);
         break;
       }
       const wx = tileX(next) + 0.5;
@@ -68,3 +68,48 @@ export function movementSystem(world: World): void {
     }
   }
 }
+
+/**
+ * A building landed on the route: plan a new one to the same goal.
+ *
+ * Simply dropping the path was wrong in two different ways, because a null
+ * path is how every owner system reads "the walk is over" and it cannot tell
+ * that from "the walk failed". Owners that act on arrival acted at a
+ * distance — a hauler drew a good out of a storehouse tiles away, a recruit
+ * was consumed by a barracks he never reached. And a plain move has no owner
+ * system at all: nothing re-plans it and every other system filters for idle
+ * units, so it stood on that tile for the rest of the match, taking its
+ * cargo and (for an AI army waiting on the whole squad to arrive) the
+ * attack it was part of with it.
+ *
+ * When the goal tile itself is what got built over, the walk aims at the
+ * nearest open ground beside it instead. Every errand that ends at a
+ * building already ends on a tile next to it, so this is the difference
+ * between finishing the errand where it was headed and finishing it from
+ * wherever the unit happened to be standing.
+ *
+ * A goal genuinely sealed off still leaves a null path — the state owners
+ * already handle, and the one they can recover from. Holding the blocked
+ * route instead would re-run a failed search every tick and freeze the unit
+ * in a task no system recruits from, which is the very shape of bug this is
+ * here to remove. A plain move is released to idle, where wander and the job
+ * dispatcher can pick the unit up again.
+ */
+function routeAround(world: World, unit: Unit, goal: number): void {
+  const ux = Math.floor(unit.x);
+  const uy = Math.floor(unit.y);
+  let p = findPath(world.map, ux, uy, tileX(goal), tileY(goal));
+  if (!p) {
+    const beside = nearestWalkable(world.map, tileX(goal), tileY(goal), GOAL_SLIP);
+    if (beside >= 0) p = findPath(world.map, ux, uy, tileX(beside), tileY(beside));
+  }
+  unit.path = p && p.length > 0 ? p : null;
+  unit.pathIdx = 0;
+  if (unit.path === null && unit.task.t === 'move') {
+    unit.task = { t: 'idle', until: world.tick };
+  }
+}
+
+/** How far off a built-over goal the walk may re-aim and still be the same
+ * errand. Past this the destination is not "beside the building" any more. */
+const GOAL_SLIP = 3;
