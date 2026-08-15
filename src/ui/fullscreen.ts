@@ -16,19 +16,26 @@ if (import.meta.hot) {
  * again on a timer is refused again. What can be built is the honest
  * version: offer it, and remember the answer.
  *
- * Remembering is the whole difficulty, because a single-player launch is a
- * navigation (StartMenu writes location.search) and unloading a document
- * fully exits fullscreen. So the preference outlives the page in
- * localStorage while the fullscreen itself does not, and the match on the
- * far side re-enters on the player's first click or keypress — the earliest
- * moment the browser will take the request. That first gesture is the
- * "prompt": nothing is asked of the player they were not already going to
- * do.
+ * Remembering matters because unloading a document fully exits fullscreen.
+ * Screen changes no longer unload one — the launch that used to write
+ * location.search now routes in place (app/router.ts), and this module is
+ * the reason that mattered — but a real reload still happens: a shared
+ * link, the GPU-loss recovery, a service worker swapping the shell,
+ * tomorrow's session. So the preference outlives the page in localStorage
+ * while the fullscreen itself does not, and the page that comes back
+ * re-enters on the player's first click or keypress — the earliest moment
+ * the browser will take the request. That first gesture is the "prompt":
+ * nothing is asked of the player they were not already going to do.
  *
  * The preference follows reality rather than intent. Esc, the browser's own
  * control and the OS all leave fullscreen without touching our buttons, and
  * a player who left that way has answered the question — the next launch
  * must not drag them back in.
+ *
+ * And where the question is already settled, it is not asked: an installed
+ * app launches on the manifest's `display: fullscreen` with no chrome to
+ * trade away, so both controls hide themselves rather than offer a player
+ * something they are already looking at.
  */
 
 /** The browser's fullscreen machinery, behind a seam the tests can fake. */
@@ -45,6 +52,15 @@ export interface FullscreenPort {
   exit(): Promise<void>;
   /** Enter and exit both, however they came about. */
   onChange(fn: () => void): void;
+  /**
+   * Is the window filling the screen already — installed to a home screen
+   * with the manifest's `display: fullscreen` honored, or a tab someone
+   * pressed F11 in? A different question from `active()`, which is only
+   * ever about the Fullscreen API, though the platform answers this one
+   * true for that too (see the controller for why that matters).
+   */
+  displayFullscreen(): boolean;
+  onDisplayChange(fn: () => void): void;
 }
 
 /** Where the answer is kept between visits. */
@@ -60,7 +76,17 @@ export interface PrefStore {
 export type GestureSource = (fire: () => void) => () => void;
 
 export interface Fullscreen {
+  /** Can the browser do it at all? The capability, not the offer. */
   readonly supported: boolean;
+  /**
+   * Live: is there anything to offer? False where the browser cannot, and
+   * false where the window already fills the screen without us — an
+   * installed app whose manifest asked for `display: fullscreen` has no
+   * chrome left to trade away, and a switch there would read "off" while
+   * the player looks at a full screen. This is what the UI should ask;
+   * `supported` is what the machinery asks.
+   */
+  readonly offerable: Accessor<boolean>;
   /** Live: is the page full screen this instant? */
   readonly active: Accessor<boolean>;
   /** Live: the remembered answer — true across a launch's reload, while
@@ -72,8 +98,8 @@ export interface Fullscreen {
   /**
    * Restore a remembered fullscreen on the first gesture of this page. A
    * no-op when the preference is off, when the browser cannot, or when the
-   * page is full screen already — and it disarms itself the moment it
-   * fires, so a player who then leaves with Esc stays left.
+   * screen is full already by any road — and it disarms itself the moment
+   * it fires, so a player who then leaves with Esc stays left.
    */
   arm(gestures: GestureSource): void;
 }
@@ -81,6 +107,22 @@ export interface Fullscreen {
 export function createFullscreen(port: FullscreenPort, store: PrefStore): Fullscreen {
   const [active, setActive] = createSignal(port.supported && port.active());
   const [wanted, setWanted] = createSignal(port.supported && store.read());
+  // "The screen is full and we did not do it." An installed app answers
+  // true forever; a tab answers false until someone presses F11.
+  const [foreign, setForeign] = createSignal(port.displayFullscreen() && !port.active());
+
+  // Read live and unfiltered, this query would be a trap: the manifest
+  // spec has the display mode read `fullscreen` whenever the document is
+  // fullscreen, by the API as much as by an install, so on an engine that
+  // implements that literally the switch would delete itself the instant it
+  // was used — clicked once and gone, with only Esc for a way back.
+  // (Chromium, today, does not report ours that way. The filter costs a
+  // line and does not depend on which of them is right.) It holds whichever
+  // way round the two events arrive, too: both are read off the document,
+  // so `active()` already tells the truth by the time either lands.
+  port.onDisplayChange(() => {
+    if (!port.active()) setForeign(port.displayFullscreen());
+  });
 
   port.onChange(() => {
     const now = port.active();
@@ -106,12 +148,16 @@ export function createFullscreen(port: FullscreenPort, store: PrefStore): Fullsc
 
   return {
     supported: port.supported,
+    offerable: () => port.supported && !foreign(),
     active,
     wanted,
     set,
     toggle: () => set(!port.active()),
     arm: (gestures) => {
-      if (!port.supported || !wanted() || port.active()) return;
+      // `foreign` covers the installed app: the preference may well be set
+      // (the same player, the same origin, in a tab yesterday) and there is
+      // nothing left for it to buy.
+      if (!port.supported || !wanted() || port.active() || foreign()) return;
       let off: (() => void) | null = null;
       let fired = false;
       const fire = (): void => {
@@ -149,6 +195,7 @@ export function domFullscreenPort(target: HTMLElement, doc: Document): Fullscree
   const canRequest =
     typeof el.requestFullscreen === 'function' || typeof el.webkitRequestFullscreen === 'function';
   const allowed = doc.fullscreenEnabled || d.webkitFullscreenEnabled || false;
+  const display = (doc.defaultView ?? window).matchMedia('(display-mode: fullscreen)');
 
   // A page on its way out loses fullscreen as part of being unloaded, and
   // that exit says nothing about what the player wants — the launch they
@@ -180,6 +227,13 @@ export function domFullscreenPort(target: HTMLElement, doc: Document): Fullscree
       doc.addEventListener('fullscreenchange', relay);
       doc.addEventListener('webkitfullscreenchange', relay);
     },
+    // The manifest asks for display: fullscreen, and an install that gets
+    // it launches with no browser chrome at all. Note the fallback chain
+    // this deliberately does not catch: a desktop install usually lands on
+    // 'standalone' instead, and a standalone window is an ordinary window —
+    // it has a screen left to fill, so the offer stands there.
+    displayFullscreen: () => display.matches,
+    onDisplayChange: (fn) => display.addEventListener('change', fn),
   };
 }
 

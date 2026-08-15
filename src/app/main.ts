@@ -45,6 +45,7 @@ import {
   setMission,
   briefingOpen,
   setBriefingOpen,
+  resetMatchState,
 } from '../ui/store';
 import { markMissionComplete } from '../ui/campaign';
 import { MISSION_DEFS } from '../sim/defs/missions';
@@ -56,9 +57,14 @@ import { envelopeSave, packExplored, splitSave, unpackExplored } from './saveEnv
 import { parseReplay, replayName, type ReplayData } from './replay';
 import { readReplayFile, saveReplayFile } from './replayStore';
 import { WorkerSimHost } from './simHost';
-import { mountMenu } from '../ui/MenuApp';
+import { mountMenu, unmountMenu } from '../ui/MenuApp';
 import { armFullscreen } from '../ui/fullscreen';
-import { holdServiceWorkerUpdates, registerServiceWorker } from './serviceWorker';
+import { startRouter } from './router';
+import {
+  holdServiceWorkerUpdates,
+  registerServiceWorker,
+  releaseServiceWorkerUpdates,
+} from './serviceWorker';
 import { configFromUrl, type GameConfig } from './gameConfig';
 import { defaultLobbyConfig, sanitizeLobbyConfig, type LobbyConfig } from '../protocol/lobby';
 import type { LobbyResult } from '../net/lobbyClient';
@@ -151,12 +157,93 @@ function lobbyInitFromUrl(params: URLSearchParams): LobbyConfig {
   });
 }
 
-async function boot(): Promise<void> {
-  // Before anything else takes a click: a launch is a navigation, which
-  // exits fullscreen, and a player who asked for it in the menu gets it
-  // back on their first gesture here (see ui/fullscreen.ts). Cheap and
-  // silent when nobody ever asked.
-  armFullscreen();
+/**
+ * What is on the page, and how to take it off again.
+ *
+ * Screens change in this document now (see app/router.ts), so exactly one
+ * of these is mounted at a time and the previous one is disposed before the
+ * next is built — the canvas, the WebGL context and the #ui overlay are
+ * singular, and two screens cannot share them.
+ */
+interface Screen {
+  /** Which screen this is; see screenKey(). */
+  key: string;
+  dispose(): void;
+}
+let current: Screen | null = null;
+
+/**
+ * Has a game been chosen? A pending load counts: the Load button stashes
+ * the save and navigates, and that handoff must not bounce back to the
+ * menu.
+ */
+function gameChosen(params: URLSearchParams): boolean {
+  return (
+    LAUNCH_PARAMS.some((k) => params.has(k)) ||
+    sessionStorage.getItem('serf-load-pending') !== null
+  );
+}
+
+/**
+ * What screen a URL names. Two URLs with the same key are the same screen,
+ * and routing between them does nothing — which is what lets the menu edit
+ * its own address bar freely. It does that a lot: the council writes the
+ * room code in as soon as the relay says it, and both pushState and
+ * replaceState announce themselves as navigations.
+ *
+ * A match's key carries its whole query string, so one match never
+ * silently stands in for another: Play again on the same seed and Continue
+ * into the next mission are both real screen changes.
+ */
+function screenKey(): string {
+  const params = new URLSearchParams(location.search);
+  const chosen = gameChosen(params);
+  // A room is chosen, but the choosing happens in the council — a menu
+  // screen, and the one whose URL moves under it.
+  if (!chosen || params.get('mp') !== null) return 'menu';
+  return `match:${location.search}`;
+}
+
+/** The key a match handed over by the council wears. Its URL says 'menu'
+ * (?mp=CODE is the council's own address), so it needs one of its own or
+ * the next navigation would think the room was already on the glass. */
+const NET_MATCH_KEY = 'match:net';
+
+/**
+ * Which routing attempt is the live one. Building a screen is asynchronous
+ * — assets, a world, sometimes a socket — and the player can navigate again
+ * inside that gap: Back out of a launch, or press Quit while a replay is
+ * still being read off disk. The screen that arrives late has to notice
+ * that the page moved on and take itself apart, or it would mount on top of
+ * whatever replaced it and leak everything it built.
+ */
+let generation = 0;
+
+/**
+ * Put the screen the URL names on the page, taking down whatever is there.
+ * Every screen change goes through here — the menu's launch, the end
+ * card's buttons, and the browser's own back gesture alike.
+ */
+async function route(opts: { force?: boolean } = {}): Promise<void> {
+  const key = screenKey();
+  // The same screen asking for itself is the menu moving its own address
+  // bar, and tearing it down and rebuilding it would be visible. `force`
+  // is how the two genuine exceptions say so: Play again and Watch again
+  // both mean "this exact screen, from the top".
+  if (!opts.force && current && current.key === key) return;
+  const gen = ++generation;
+  /** Hand a freshly built screen the page, or take it apart if the page has
+   * already gone somewhere else. */
+  const present = (screen: Screen): void => {
+    if (gen === generation) current = screen;
+    else screen.dispose();
+  };
+  current?.dispose();
+  current = null;
+  // Between screens the page owns nothing: no world, no HUD state, no
+  // stock from a village that has already fallen.
+  resetMatchState();
+
   const launchParams = new URLSearchParams(location.search);
   if (launchParams.has('wardrobe')) {
     // The costume fitting room: every unit of every faction, labeled,
@@ -165,18 +252,8 @@ async function boot(): Promise<void> {
     await mountWardrobe(document.getElementById('canvas') as HTMLCanvasElement);
     return;
   }
-  // A pending load is a launch too: the Load button stashes the save and
-  // reloads, and that handoff must not bounce back to the menu.
-  const chosen =
-    LAUNCH_PARAMS.some((k) => launchParams.has(k)) ||
-    sessionStorage.getItem('serf-load-pending') !== null;
-  // Single player is a local sim, so with the shell and the models on disk
-  // it plays with the network off entirely. A pending update only takes
-  // over on the menu — never behind a live match.
-  registerServiceWorker({ applyUpdates: !chosen });
-
   const mp = launchParams.get('mp');
-  if (!chosen || mp !== null) {
+  if (key === 'menu') {
     // The pre-boot screens are one page. A bare '/' opens on the start
     // screen; ?mp=CODE (an invite link, or a reload) opens straight into
     // that room, and ?open=0 hosts an unlisted one — joinable by code,
@@ -184,18 +261,37 @@ async function boot(): Promise<void> {
     // the lobby and hands the match over in place, so the only reload
     // between the menu and a multiplayer match is the one nobody asked
     // for.
+    // The menu is safe ground: nothing is at stake, so a service worker
+    // that finished installing behind a match may take over now.
+    releaseServiceWorkerUpdates();
     mountMenu(
       mp === null
         ? null
         : { mp, open: launchParams.get('open') !== '0', init: lobbyInitFromUrl(launchParams) },
       {
-        onBegin: (lobby) => void startNetMatch(lobby).catch(fatalFrom),
+        onBegin: (lobby) => {
+          // The shell has already torn itself down (the match needs the
+          // canvas and the pointer events it was holding), so the menu
+          // screen is gone whether or not this succeeds.
+          current = null;
+          void startNetMatch(lobby)
+            .then((match) => {
+              // Building a match takes a moment (assets, the world, a
+              // socket), and the player can leave inside it — Back out of
+              // the room, say. Whoever took the page in the meantime keeps
+              // it; this one was born too late.
+              if (current === null) current = match;
+              else match.dispose();
+            })
+            .catch(fatalFrom);
+        },
         // The relay refused or could not be reached. Offer the reload: it
         // lands back on this same URL, which is the room if one was named
         // and the start screen if the trouble came before that.
         onError: (message) => showFatal(message, { retry: true }),
       },
     );
+    present({ key, dispose: unmountMenu });
     return;
   }
 
@@ -220,14 +316,17 @@ async function boot(): Promise<void> {
           `and the match would not come out the way it was played.`,
       );
     }
-    await runMatch(
-      { ...replay.config, myPlayerId: replay.config.myPlayerId ?? 0, llmOpponent: false },
-      {
-        replay,
-        // A replay that resumes from a save resumes its fog too, or the
-        // playback would darken ground the player had already scouted.
-        fogSeed: replay.explored ? unpackExplored(replay.explored) : undefined,
-      },
+    present(
+      await runMatch(
+        { ...replay.config, myPlayerId: replay.config.myPlayerId ?? 0, llmOpponent: false },
+        {
+          replay,
+          // A replay that resumes from a save resumes its fog too, or the
+          // playback would darken ground the player had already scouted.
+          fogSeed: replay.explored ? unpackExplored(replay.explored) : undefined,
+        },
+        key,
+      ),
     );
     return;
   }
@@ -249,7 +348,27 @@ async function boot(): Promise<void> {
     loadData = split.world;
     fogSeed = split.explored;
   }
-  await runMatch(configFromUrl(location.search), { loadData, fogSeed });
+  present(await runMatch(configFromUrl(location.search), { loadData, fogSeed }, key));
+}
+
+async function boot(): Promise<void> {
+  // Before anything else takes a click: a player who asked for fullscreen
+  // gets it back on their first gesture (see ui/fullscreen.ts). It survives
+  // a screen change on its own now — nothing unloads — but a real reload
+  // still lands here, and so does a cold start.
+  armFullscreen();
+  // Single player is a local sim, so with the shell and the models on disk
+  // it plays with the network off entirely. A pending update only takes
+  // over on the menu — never behind a live match — and route() hands the
+  // hold back every time the menu comes up again.
+  //
+  // Not screenKey() here, close as it looks: ?mp=CODE is a menu screen by
+  // that reckoning, but arriving on one may be a match reloading itself
+  // back into its seat (see MenuApp's silent rejoin), and a worker swap
+  // under that is exactly what this handshake exists to prevent.
+  registerServiceWorker({ applyUpdates: !gameChosen(new URLSearchParams(location.search)) });
+  startRouter(route);
+  await route();
 }
 
 /**
@@ -261,8 +380,8 @@ async function boot(): Promise<void> {
  * calling), so the canvas, the pointer events and a WebGL context are all
  * free to take.
  */
-async function startNetMatch(lobby: LobbyResult): Promise<void> {
-  await runMatch(
+async function startNetMatch(lobby: LobbyResult): Promise<Screen> {
+  return runMatch(
     {
       ...configFromUrl(location.search),
       players: lobby.seats,
@@ -270,6 +389,7 @@ async function startNetMatch(lobby: LobbyResult): Promise<void> {
       adminEnabled: false,
     },
     { net: lobby.net },
+    NET_MATCH_KEY,
   );
 }
 
@@ -279,7 +399,13 @@ async function startNetMatch(lobby: LobbyResult): Promise<void> {
  * Every failure mode ends the same way — the AI seats keep playing their
  * playbooks and the player hears about it once.
  */
-async function bootLlmStrategist(host: WorkerSimHost, hidden: HiddenSync): Promise<void> {
+async function bootLlmStrategist(
+  host: WorkerSimHost,
+  hidden: HiddenSync,
+  // Filled in as soon as the chunk resolves, so a match that ends while the
+  // import is still in flight still gets to stop the download.
+  handle: { dispose?: () => void },
+): Promise<void> {
   const { LlmStrategist } = await import('../ai/strategist');
   const strategist = new LlmStrategist({
     sendAdvice: (playerId, override) => host.sendAiAdvice(playerId, override),
@@ -296,6 +422,7 @@ async function bootLlmStrategist(host: WorkerSimHost, hidden: HiddenSync): Promi
       if (status.state === 'ready') setTimeout(() => setLlmStatus(null), 10_000);
     },
   });
+  handle.dispose = () => strategist.dispose();
   host.onAiSummary((playerId, summary) => strategist.onSummary(playerId, summary));
   // The frozen sim stops new summaries when the page hides; this stops the
   // consultation already chewing — a minute of wasm inference is exactly
@@ -307,14 +434,47 @@ async function bootLlmStrategist(host: WorkerSimHost, hidden: HiddenSync): Promi
 /**
  * The match itself: worker, renderer, HUD and the frame loop. Reached
  * either from a launch URL or from the council handing over in place, and
- * exactly once per page either way — everything below assumes it owns the
- * canvas.
+ * once at a time either way — everything below assumes it owns the canvas.
+ *
+ * Returns the screen handle that gives all of it back. What has to be
+ * released by hand is exactly what would otherwise outlive the world: the
+ * sim worker (its timers are unthrottled on purpose, so a forgotten one
+ * keeps simulating behind the menu), the listeners on window and document,
+ * the Solid root, and the WebGL context. The scene graph is not on that
+ * list — its buffers live in the context, and die with it.
  */
 async function runMatch(
   config: GameConfig,
   opts: { loadData?: string; fogSeed?: Uint8Array; net?: NetInfo; replay?: ReplayData },
-): Promise<void> {
+  key: string,
+): Promise<Screen> {
   const { loadData, fogSeed, net, replay } = opts;
+  // Run in reverse at teardown, so each entry can assume everything pushed
+  // before it is still standing.
+  const teardown: (() => void)[] = [];
+  /**
+   * Set before the first teardown step, and read by the handlers that
+   * outlive their own removal. Taking a match apart is itself eventful —
+   * releasing the WebGL context announces itself as context loss — and a
+   * handler that answers those events is answering about a match that no
+   * longer exists.
+   */
+  let over = false;
+  const screen: Screen = {
+    key,
+    dispose: () => {
+      over = true;
+      while (teardown.length > 0) {
+        try {
+          teardown.pop()!();
+        } catch (err) {
+          // One stubborn resource must not strand the rest — the next
+          // screen is already on its way in.
+          console.warn('[match] teardown step failed:', err);
+        }
+      }
+    },
+  };
   // From here on the page is a match, not a menu: a service worker that
   // finishes installing must not swap the shell out from under it.
   holdServiceWorkerUpdates();
@@ -332,6 +492,24 @@ async function runMatch(
   config = { ...config, llmOpponent: llm };
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+  /**
+   * Every listener this function registers, on one signal.
+   *
+   * Taking them off matters even for the ones on the canvas, which is
+   * replaced below and might therefore look self-cleaning. It is not:
+   * three.js keeps a match's GPU buffers in WeakMaps keyed by its own
+   * module-level geometries, and those live as long as the page, so a
+   * detached canvas stays reachable through them — with every closure
+   * hanging off it, and through those the worker, the scene and the
+   * megabytes behind them.
+   */
+  const off = new AbortController();
+  teardown.push(() => off.abort());
+  // A canvas hands out one WebGL context in its life and no more, so the
+  // match after this one cannot have this element. Swapping it for a clean
+  // copy also releases what the GPU is holding: every buffer, texture and
+  // program this match uploaded belongs to the context that goes with it.
+  teardown.push(() => canvas.replaceWith(canvas.cloneNode(false)));
   // The context comes first, before the world is built and the models are
   // fetched. Two reasons, both about the phone this fails on: asking while
   // the page is at its lightest is the ask most likely to be granted, and
@@ -347,6 +525,7 @@ async function runMatch(
   let renderer: GameRenderer;
   try {
     renderer = new GameRenderer(canvas);
+    teardown.push(() => renderer.dispose());
     sessionStorage.removeItem('serf-gl-fails');
   } catch (err) {
     const fails = Number(sessionStorage.getItem('serf-gl-fails') ?? '0') + 1;
@@ -376,23 +555,38 @@ async function runMatch(
   // Assigned once the world is up, further down. Until then a loss has
   // nothing worth keeping and the reload is the whole recovery.
   let rescue: (() => Promise<string>) | undefined;
-  canvas.addEventListener('webglcontextlost', () => {
-    restoreTimer = setTimeout(() => {
-      if (net || !rescue) {
-        location.reload();
-        return;
-      }
-      void rescue()
-        .then((data) => sessionStorage.setItem('serf-load-pending', data))
-        .finally(() => location.reload());
-    }, 4000);
+  canvas.addEventListener(
+    'webglcontextlost',
+    () => {
+      // Not while the match is being taken down. Giving the context back is
+      // how a match ends now, and three's dispose() does it by *losing* the
+      // context — so this fires on the way out, every time. Unguarded it
+      // armed the recovery: four seconds after quitting to the menu, the
+      // page would save a world nobody was playing and reload itself.
+      if (over) return;
+      restoreTimer = setTimeout(() => {
+        if (net || !rescue) {
+          location.reload();
+          return;
+        }
+        void rescue()
+          .then((data) => sessionStorage.setItem('serf-load-pending', data))
+          .finally(() => location.reload());
+      }, 4000);
+    },
+    { signal: off.signal },
+  );
+  canvas.addEventListener('webglcontextrestored', () => clearTimeout(restoreTimer), {
+    signal: off.signal,
   });
-  canvas.addEventListener('webglcontextrestored', () => clearTimeout(restoreTimer));
+  // A match ending on its own terms must not leave a reload armed behind it.
+  teardown.push(() => clearTimeout(restoreTimer));
 
   // Single player owns a World in a worker; multiplayer owns a socket and
   // renders what the server sends. Both speak the same worker protocol, so
   // nothing below this line knows the difference.
   const host = new WorkerSimHost(net ? 'net' : 'sim');
+  teardown.push(() => host.dispose());
   // Switching apps (or the screen going dark) freezes the solo sim: the
   // worker's timers are deliberately unthrottled, so without this a
   // backgrounded phone keeps simulating — and draining — a valley nobody
@@ -407,11 +601,17 @@ async function runMatch(
   // workers even when the event never arrives.
   const hidden = new HiddenSync(document.hidden);
   hidden.add((h) => host.setHidden(h));
-  document.addEventListener('visibilitychange', () => hidden.set(document.hidden));
+  document.addEventListener('visibilitychange', () => hidden.set(document.hidden), {
+    signal: off.signal,
+  });
   // Fire-and-forget beside the match: the model downloads while the game
   // already runs on plain playbooks, and the first advice lands whenever it
   // lands. Dynamic import, so no strategist means none of its code either.
-  if (llm) void bootLlmStrategist(host, hidden);
+  if (llm) {
+    const strategist: { dispose?: () => void } = {};
+    teardown.push(() => strategist.dispose?.());
+    void bootLlmStrategist(host, hidden, strategist);
+  }
   // Character/building GLBs load while the world is prepared; if they fail,
   // the renderer falls back to the procedural models.
   const [init] = await Promise.all([
@@ -462,6 +662,10 @@ async function runMatch(
   };
   feedWells();
   const fog = new FogOfWar(config.myPlayerId);
+  // Ahead of everything else at teardown: the materials it patched are
+  // cached for the whole document, so they outlive this match and meet the
+  // next one.
+  teardown.push(() => fog.dispose());
   // The fog's memory across sessions: multiplayer seats get the server's
   // authoritative explored grid; a loaded solo game gets the one its save
   // carried. Never both — solo has no server, multiplayer has no save.
@@ -480,6 +684,9 @@ async function runMatch(
     camera: renderer.rig.camera,
     canvas,
   });
+  // Its haze layer is a child of document.body, so nothing else takes it
+  // down: not the canvas swap, not the HUD's Solid root.
+  teardown.push(() => damageAlerts.dispose());
   if (import.meta.env.DEV) {
     // Console handles for forensics and screenshot tooling: the fog for
     // visibility checks, the rig and heights for scripted camera jumps and
@@ -517,6 +724,7 @@ async function runMatch(
     heights,
     renderer.rig,
   );
+  teardown.push(() => controls.dispose());
   // Placement consults the fog: unscouted ground is not buildable, which is
   // what stops the build ghost being used to probe the dark.
   controls.setFog(fog);
@@ -626,7 +834,7 @@ async function runMatch(
     }
   });
 
-  mountHud(host, {
+  const unmountHud = mountHud(host, {
     selectArmy: () => controls.selectArmy(),
     deselect: () => controls.deselectAll(),
     place: (type) => controls.setPlacement(type),
@@ -647,6 +855,7 @@ async function runMatch(
     // Tile y is world z — the same straight mapping as the home focusOn.
     focus: (x, y) => renderer.rig.glideTo(x, y),
   });
+  teardown.push(unmountHud);
 
   // The camera never rotates: hp bars copy its live orientation once to
   // sit parallel with the screen plane.
@@ -661,7 +870,17 @@ async function runMatch(
   // A skipped frame does nothing at all — every update below is time-based,
   // so play continues at full speed, drawn less often.
   const pacer = batteryFramePacer();
+  // The loop renders through a context the teardown is about to drop, so it
+  // has to be the first thing that stops — one more frame after dispose
+  // would be drawing into nothing.
+  let frame = 0;
+  let running = true;
+  teardown.push(() => {
+    running = false;
+    cancelAnimationFrame(frame);
+  });
   function loop(): void {
+    if (!running) return;
     const now = performance.now();
     // Every rAF callback is proof the page is visible — before the pacer,
     // so a skipped frame still counts. A long gap since the last one means
@@ -669,7 +888,7 @@ async function runMatch(
     // visibilitychange that should have said so was dropped.
     hidden.frame(now);
     if (!pacer.due(now)) {
-      requestAnimationFrame(loop);
+      frame = requestAnimationFrame(loop);
       return;
     }
     // Fog first: the entity syncs below ask it what may be drawn, so it
@@ -702,9 +921,10 @@ async function runMatch(
     mist.update(now);
     const dt = renderer.frame();
     buildingSync.frame(speed() === 0 ? 0 : dt);
-    requestAnimationFrame(loop);
+    frame = requestAnimationFrame(loop);
   }
-  requestAnimationFrame(loop);
+  frame = requestAnimationFrame(loop);
+  return screen;
 }
 
 void boot().catch((err: unknown) => fatal(err instanceof Error ? err.message : String(err)));

@@ -66,13 +66,53 @@ until the player is back at the menu.
 
 Offered, never taken: browsers grant fullscreen only from inside a click,
 tap or keypress, so there is a switch on the start screen and a button in
-the in-game menu, and no way for the page to help itself. The answer is
-remembered — and because beginning a match reloads the page, which exits
-fullscreen, the match re-enters on your first click there. Leaving by any
+the in-game menu, and no way for the page to help itself. It survives the
+walk into a match and back out again, because neither costs a document
+(see Navigation below); the answer is also remembered, so the reloads that
+do still happen come back into it on your first click. Leaving by any
 other road (Esc, the browser's own control) is an answer too, and is not
-argued with. Installed to a home screen the question never arises: the
-manifest asks for `display: fullscreen`, which is also the only fullscreen
-iOS has for a page at all — there the buttons hide themselves.
+argued with. Installed to a home screen neither control appears at all: the
+manifest asks for `display: fullscreen` and is given it, so there is nothing
+left to offer — and that install is the only fullscreen iOS has for a page
+in the first place. A desktop install usually lands on `standalone` instead,
+which is an ordinary window with a screen still to fill, so there the offer
+stands.
+
+### Navigation
+
+Every screen change happens in one document. The start menu, the War
+Council, a skirmish, a campaign mission, a replay and the walk back to the
+menu are all the same page rearranging itself — `src/app/router.ts`
+intercepts navigations (the Navigation API where it exists, pushState and
+popstate elsewhere) and `route()` in `src/app/main.ts` disposes the screen
+that was up and builds the one the URL names. Multiplayer always worked
+this way; now everything does, which is why fullscreen survives a launch
+and why Back out of a match is not a reload.
+
+The URL stays the source of truth rather than becoming decoration: every
+screen is still fully described by its query string, so a shared link, the
+GPU-loss recovery reload and a service worker's update swap all land
+exactly where they did before. Routing is keyed on which screen a URL
+names, not on the URL itself — the council rewrites its own address bar as
+the relay names the room, and that must not tear the room down.
+
+A match owns a WebGL context, a sim worker whose timers are deliberately
+unthrottled, listeners on window and document, and a Solid root; ending one
+gives all of it back. Its canvas is replaced rather than reused, since a
+canvas hands out one context in its lifetime — which doubles as the scene
+teardown, because every buffer and texture the match uploaded lives in the
+context that goes with it.
+
+Replacing the canvas is not on its own enough to drop what a match built,
+and the reason is worth knowing before adding a listener to one: three.js
+keeps a context's GPU buffers in WeakMaps keyed by its own module-level
+geometries, and those live as long as the page — so a detached canvas stays
+reachable, and every listener still on it holds its closure, and those
+closures hold the sim worker, the mirror and the scene. `Controls`, the
+`CameraRig` and the match itself therefore register every listener against
+an `AbortController` and abort it on teardown. Walking menu → match → menu
+repeatedly used to cost ~13 MB a round (14 MB, then 33, 46, 59, 72 across
+four cycles, forced GC); it now sits flat at 21–22 MB.
 
 ### Controls
 

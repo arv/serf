@@ -160,3 +160,47 @@ export const [llmStatus, setLlmStatus] = createSignal<
 export const [debugOpen, setDebugOpen] = createSignal(false);
 export const [debugJobs, setDebugJobs] = createSignal<JobSnap[]>([]);
 export const [invariantViolations, setInvariantViolations] = createSignal<string[]>([]);
+
+/**
+ * Put every match-scoped signal back where it starts.
+ *
+ * A page used to hold exactly one match, so these were as good as constants
+ * — the document died with the world. Now a match ends in place and the
+ * menu comes back up over the same signals, so anything not reset here
+ * outlives its world: a resource bar still showing the fallen village's
+ * grain, an end card over the next match, a selection pointing at units
+ * that no longer exist.
+ *
+ * Deliberately not reset: the fullscreen preference and the campaign
+ * profile (they belong to the player, not the match), and CHEATS_ALLOWED,
+ * which is a const read once at module load.
+ */
+export function resetMatchState(): void {
+  setSpeed(1);
+  setSelection(new Set<number>());
+  setMyPlayerId(0);
+  setPlayersMeta([]);
+  setNetMode(false);
+  setReplayMode(false);
+  setReplayOver(false);
+  setNetStatus(null);
+  setStock({});
+  setPopulation({ pop: 0, cap: 0 });
+  setPlacing(null);
+  setBandArm(false);
+  setTechs({ researched: [], festivalTicksLeft: 0, pavingUnlocked: false, hasAbbey: false });
+  setOpenPanel(null);
+  setMission(null);
+  setBriefingOpen(false);
+  setSelectedBuilding(null);
+  setToasts([]);
+  setOutcome({ state: 'playing' });
+  setAdminState({ enabled: true, raidsEnabled: true, instantBuild: false });
+  setLlmStatus(null);
+  setDebugOpen(false);
+  setDebugJobs([]);
+  setInvariantViolations([]);
+  // Read afresh rather than restored: ?nofog belongs to the match being
+  // started, and the URL has already become the next one by here.
+  setFogEnabled(!(CHEATS_ALLOWED && new URLSearchParams(location.search).has('nofog')));
+}

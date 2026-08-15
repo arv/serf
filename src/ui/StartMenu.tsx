@@ -17,6 +17,7 @@ import { isMissionComplete, isMissionUnlocked } from './campaign';
 import { LockIcon } from './icons';
 import { deleteReplayFile, listReplayFiles, type ReplayFileInfo } from '../app/replayStore';
 import { fullscreen } from './fullscreen';
+import { goto } from '../app/router';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -334,9 +335,9 @@ export function StartMenu(props: StartMenuProps) {
 
   // Full screen is offered here rather than imposed: no browser grants it
   // outside a gesture, so the switch below is the only thing that can ask
-  // for it. The answer is remembered, and since a single-player launch
-  // reloads the page — which exits fullscreen — the match on the far side
-  // re-enters on the player's first click (see fullscreen.ts).
+  // for it. It carries into the match on its own — launching no longer
+  // costs a document (app/router.ts) — and the answer is remembered for
+  // the reloads that still happen (see fullscreen.ts).
   const fs = fullscreen();
 
   /** The single-player launch URL. Multiplayer has none: it walks into the
@@ -367,7 +368,7 @@ export function StartMenu(props: StartMenuProps) {
    * name is the whole query string, the log itself lives in OPFS. */
   const launchReplay = (name: string): void => {
     releaseMenuBackdrop();
-    location.search = '?replay=' + encodeURIComponent(name);
+    goto('?replay=' + encodeURIComponent(name));
   };
 
   const launch = (): void => {
@@ -382,7 +383,7 @@ export function StartMenu(props: StartMenuProps) {
       // A mission is a navigation like any single-player launch: the def's
       // id is the whole query string, the recipe lives in the sim's table.
       releaseMenuBackdrop();
-      location.search = '?mission=' + pickedMission();
+      goto('?mission=' + pickedMission());
       return;
     }
     if (isMulti()) {
@@ -395,12 +396,12 @@ export function StartMenu(props: StartMenuProps) {
       });
       return;
     }
-    // Single player reboots the page into the sim, and the first thing it
-    // asks for is a WebGL context. Give the backdrop's back before leaving:
-    // multiplayer's handover already does (the shell unmounts first), and a
-    // phone that has to hold two at once is a phone that grants neither.
+    // The sim's first act is to ask for a WebGL context. Give the
+    // backdrop's back before leaving: multiplayer's handover already does
+    // (the shell unmounts first), and a phone that has to hold two at once
+    // is a phone that grants neither.
     releaseMenuBackdrop();
-    location.search = search();
+    goto(search());
   };
   const onEnter = (e: KeyboardEvent): void => {
     if (e.key === 'Enter') launch();
@@ -409,9 +410,13 @@ export function StartMenu(props: StartMenuProps) {
   const loadSave = (): void => {
     const data = localStorage.getItem('serf-save');
     if (!data) return;
+    // Still the sessionStorage handoff rather than an argument: the screen
+    // has to be reconstructible from the URL alone, because a real reload
+    // (the GPU-loss recovery, a service worker swap) can happen at any
+    // moment and must come back into the same saved world.
     sessionStorage.setItem('serf-load-pending', data);
     releaseMenuBackdrop();
-    location.search = '?seed=' + seed();
+    goto('?seed=' + seed());
   };
 
   return (
@@ -854,7 +859,7 @@ export function StartMenu(props: StartMenuProps) {
                   to a skirmish. Switched here rather than merely armed — a
                   toggle is a gesture, and a gesture is the only thing a
                   browser takes a fullscreen request from. */}
-              <Show when={fs.supported}>
+              <Show when={fs.offerable()}>
                 <div class="row">
                   {/* No hint under this one: the label is the whole story,
                       and a row of small print explaining what full screen

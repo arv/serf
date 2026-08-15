@@ -26,6 +26,7 @@ import { buildingName, techName } from './names';
 import { BUILD_GROUPS } from './buildMenu';
 import { hasKeyboard } from '../input/keyboard';
 import { fullscreen } from './fullscreen';
+import { goto } from '../app/router';
 import {
   CHEATS_ALLOWED,
   bandArm,
@@ -731,14 +732,16 @@ export function Hud(props: {
                   // sessionStorage: survives this tab's reload but is invisible
                   // to other tabs — two open tabs must never race for it.
                   sessionStorage.setItem('serf-load-pending', data);
-                  location.reload();
+                  // Same URL as the match already running, so the router
+                  // would otherwise call this the screen it is already on.
+                  goto(location.search, { force: true });
                 }
               }}
             >
               Load last save
             </button>
           </Show>
-          <Show when={fs.supported}>
+          <Show when={fs.offerable()}>
             <button
               aria-pressed={fs.active()}
               onClick={() => {
@@ -755,7 +758,7 @@ export function Hud(props: {
               // multiplayer: the room plays on and the seat token can
               // rejoin) — but the player is leaving either way, so ask.
               if (confirm('Leave the match and return to the menu?')) {
-                location.href = location.pathname;
+                goto(location.pathname);
               }
             }}
           >
@@ -949,7 +952,7 @@ export function Hud(props: {
               minutes after its last player leaves, then winds down — and
               this one wound down. It can't be resumed.
             </p>
-            <button onClick={() => (location.href = location.pathname)}>Back to the menu</button>
+            <button onClick={() => goto(location.pathname)}>Back to the menu</button>
           </div>
         </div>
       </Show>
@@ -966,7 +969,7 @@ export function Hud(props: {
             <button
               onClick={() => {
                 if (confirm('Leave the match and return to the menu?')) {
-                  location.href = location.pathname;
+                  goto(location.pathname);
                 }
               }}
             >
@@ -994,9 +997,9 @@ export function Hud(props: {
                 <button
                   onClick={() => {
                     sessionStorage.removeItem('serf-load-pending');
-                    // The same navigation launch() uses: a fresh page, the
-                    // next mission's recipe in the query string.
-                    location.search = `?mission=${next().id}`;
+                    // The same navigation launch() uses: the next
+                    // mission's recipe as the whole query string.
+                    goto(`?mission=${next().id}`);
                   }}
                 >
                   Continue: {next().title}
@@ -1011,9 +1014,11 @@ export function Hud(props: {
                   // and lands right back on this screen. Drop the seat and
                   // host a fresh council instead.
                   clearSeatStash();
-                  location.href = `${location.pathname}?mp=new`;
+                  goto(`${location.pathname}?mp=new`);
                 } else {
-                  location.reload();
+                  // This very URL, from the top — the one navigation that
+                  // means "again" rather than "elsewhere".
+                  goto(location.search, { force: true });
                 }
               }}
             >
@@ -1043,8 +1048,8 @@ export function Hud(props: {
           <div class="panel end-card">
             <h1>Replay over</h1>
             <p>The recording ends here.</p>
-            <button onClick={() => location.reload()}>Watch again</button>
-            <button onClick={() => (location.href = location.pathname)}>Back to the menu</button>
+            <button onClick={() => goto(location.search, { force: true })}>Watch again</button>
+            <button onClick={() => goto(location.pathname)}>Back to the menu</button>
           </div>
         </div>
       </Show>
