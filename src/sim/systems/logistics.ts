@@ -8,6 +8,7 @@ import { INPUT_CAP, buildingDef, convertRecipeOf, outputGoodsOf } from '../defs/
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
+import { atBuilding, walkToBuilding } from '../arrival.ts';
 import { trainingDemand } from './training.ts';
 import type { Unit } from '../units.ts';
 import type { HaulJob, World } from '../world.ts';
@@ -493,6 +494,15 @@ function progress(world: World): void {
         abortJob(world, job, 'source vanished before pickup');
         continue;
       }
+      // The walk ended, but did it arrive? A route lost to new construction
+      // ends it short, and only a serf actually standing at the source may
+      // draw from it — otherwise the good leaves the building by post.
+      if (!atBuilding(unit, from)) {
+        if (!walkToBuilding(world.map, unit, from)) {
+          abortJob(world, job, 'no way back to the source');
+        }
+        continue;
+      }
       if ((from.stock[job.good] ?? 0) < 1) {
         // Reservation should prevent this; reconcile will warn. Retry later.
         abortJob(world, job, 'source out of stock at pickup');
@@ -541,6 +551,15 @@ function progress(world: World): void {
       const to = world.buildings.get(job.to);
       if (!to || to.dead) {
         abortJob(world, job, 'destination vanished before dropoff');
+        continue;
+      }
+      // Same again at the other end: the good is on his shoulders, so it
+      // arrives when he does. Cargo is kept on a give-up — he walks away
+      // holding it, and rehomeCarriedGoods finds it a home from idle.
+      if (!atBuilding(unit, to)) {
+        if (!walkToBuilding(world.map, unit, to)) {
+          abortJob(world, job, 'no way back to the destination', true);
+        }
         continue;
       }
       deliver(world, to, job.good);

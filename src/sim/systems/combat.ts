@@ -2,6 +2,7 @@ import { COUNTER_TABLE, UNIT_DEFS } from '../defs/units.ts';
 import { BANDIT, centerOf, isPlayerOwner, type Building } from '../entities.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
 import { exactDist } from '../../shared/math.ts';
+import { distToFootprint } from '../arrival.ts';
 import { findPath, findPathToAdjacent, nearestWalkable } from '../path.ts';
 import { destroyBuilding, killUnit, type World } from '../world.ts';
 import type { Unit } from '../units.ts';
@@ -375,9 +376,7 @@ function kiteAway(world: World, unit: Unit, threat: Unit): void {
 }
 
 function distToBuilding(unit: Unit, b: Building): number {
-  const cx = Math.max(b.x, Math.min(unit.x, b.x + b.w));
-  const cy = Math.max(b.y, Math.min(unit.y, b.y + b.h));
-  return exactDist(unit.x - cx, unit.y - cy);
+  return distToFootprint(unit, b.x, b.y, b.w, b.h);
 }
 
 function nearestEnemyBuilding(buildings: readonly Building[], unit: Unit): Building | undefined {

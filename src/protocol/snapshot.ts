@@ -16,6 +16,7 @@ import { UNIT_DEFS, carryingCode } from '../sim/defs/units.ts';
 import { ACTION, PROFESSION, WORK, type UnitSnapshot } from './sabLayout.ts';
 import { centerOf } from '../sim/entities.ts';
 import { exactDist } from '../shared/math.ts';
+import { distToFootprint } from '../sim/arrival.ts';
 import type { World } from '../sim/world.ts';
 import type { Building, Owner } from '../sim/entities.ts';
 import type { Unit } from '../sim/units.ts';
@@ -177,9 +178,7 @@ function engagedTarget(w: World, u: Unit): { x: number; y: number } | undefined 
     const b = w.buildings.get(u.targetId);
     if (!b || b.dead) return undefined;
     // Reach to the footprint, not the center — a besieger stands at the wall.
-    const nx = Math.max(b.x, Math.min(u.x, b.x + b.w));
-    const ny = Math.max(b.y, Math.min(u.y, b.y + b.h));
-    if (exactDist(u.x - nx, u.y - ny) > Math.max(combat.range, 1.4)) return undefined;
+    if (distToFootprint(u, b.x, b.y, b.w, b.h) > Math.max(combat.range, 1.4)) return undefined;
     return centerOf(b);
   }
   const t = w.units.get(u.targetId);

@@ -10,6 +10,7 @@ import {
   type Recipe,
 } from '../defs/buildings.ts';
 import { RESOURCE_CODE, TileResource, findResourceNear } from '../map.ts';
+import { atBuilding, atTile, walkToBuilding, walkToTile } from '../arrival.ts';
 import type { Building } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { depleteResourceTile, type World } from '../world.ts';
@@ -98,6 +99,18 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
   switch (worker.task.t) {
     case 'idle': {
       if (world.tick < worker.task.until) return;
+      // Still holding the last trip's output — the walk home gave up short.
+      // Get it in before starting another trip: gatherWork writes `carrying`
+      // outright, so a second load would overwrite the first and the
+      // conservation ledger would come up a good short.
+      if (worker.carrying !== undefined) {
+        if (!walkToBuilding(world.map, worker, b)) {
+          worker.task = { t: 'idle', until: world.tick + 40 };
+          return;
+        }
+        worker.task = { t: 'gatherHome' };
+        return;
+      }
       // Output full? Wait — full buffers stall production (Settlers rule).
       if ((b.stock[recipe.output] ?? 0) >= OUTPUT_CAP) {
         worker.task = { t: 'idle', until: world.tick + 20 };
@@ -136,6 +149,14 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
     case 'gatherOut': {
       if (worker.path !== null) return; // walking
       const tile = worker.task.tile;
+      // Only a worker standing at the tile may work it — a walk cut short by
+      // new construction would otherwise fell a tree from across the valley.
+      if (!atTile(worker, tile)) {
+        if (!walkToTile(world.map, worker, tile)) {
+          worker.task = { t: 'idle', until: world.tick + 40 };
+        }
+        return;
+      }
       if (
         world.map.resource[tile] !== RESOURCE_CODE[recipe.resource] ||
         world.map.resourceAmt[tile]! <= 0
@@ -180,6 +201,15 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
     }
     case 'gatherHome': {
       if (worker.path !== null) return; // walking
+      // Not home yet: the load goes in the hut's stock, not through its wall.
+      // Idling with it in hand is safe — the idle case above walks him back
+      // rather than sending him out again on top of it.
+      if (!atBuilding(worker, b)) {
+        if (!walkToBuilding(world.map, worker, b)) {
+          worker.task = { t: 'idle', until: world.tick + 40 };
+        }
+        return;
+      }
       if (worker.carrying !== undefined) {
         b.stock[worker.carrying] = (b.stock[worker.carrying] ?? 0) + 1;
         worker.carrying = undefined;
