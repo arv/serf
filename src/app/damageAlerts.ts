@@ -212,4 +212,16 @@ export class DamageAlerts {
     for (const blob of this.#blobs) blob.style.display = 'none';
     for (const ring of this.#rings) ring.visible = false;
   }
+
+  /**
+   * Match gone: take the haze layer off the page with it. The rings live in
+   * the scene and go when its context does, but this layer is a child of
+   * document.body — outside the canvas, outside #ui, outside anything the
+   * next screen replaces — so without this every match would leave one
+   * behind, each still holding its pooled blobs.
+   */
+  dispose(): void {
+    this.clear();
+    this.#hazeLayer.remove();
+  }
 }

@@ -75,6 +75,8 @@ export class Controls {
   #dragStart: { x: number; y: number } | null = null;
   #dragging = false;
   #bandEl: HTMLDivElement;
+  /** Held so dispose() can take it off the window again. */
+  #onKey: (e: KeyboardEvent) => void;
   #hoverUnit = -1;
   #hoverBuilding = -1;
   /** Last pointer position + dirty flag: pointermove can fire at hundreds
@@ -132,7 +134,7 @@ export class Controls {
     // Nothing it was building up should land afterwards.
     canvas.addEventListener('pointercancel', this.#onCancel);
     canvas.addEventListener('lostpointercapture', this.#onCancel);
-    window.addEventListener('keydown', (e) => {
+    this.#onKey = (e) => {
       if (e.code === 'Escape') {
         if (placing()) this.setPlacement(null);
         else {
@@ -145,7 +147,21 @@ export class Controls {
         // The worker skips serializing its jobs table until told to.
         this.#host.setDebug(open);
       }
-    });
+    };
+    window.addEventListener('keydown', this.#onKey);
+  }
+
+  /**
+   * Let the match's input go. The canvas listeners above would die with the
+   * element anyway — a match's canvas is replaced when it ends, since a
+   * canvas hands out only one WebGL context in its life — but the keydown
+   * is on the window and the band is a child of document.body, and both
+   * would otherwise outlive the world they steer: Esc clearing a selection
+   * in a menu, through a Controls holding a terminated worker.
+   */
+  dispose(): void {
+    window.removeEventListener('keydown', this.#onKey);
+    this.#bandEl.remove();
   }
 
   /**

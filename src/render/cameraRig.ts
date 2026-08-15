@@ -22,6 +22,8 @@ export interface ViewBounds {
  * ground-plane target, zoom scales the frustum height.
  */
 export class CameraRig {
+  /** Window-level listeners, kept for dispose(); see the constructor. */
+  #onWindow: [string, (e: Event) => void][] = [];
   readonly camera: THREE.OrthographicCamera;
   #canvas: HTMLCanvasElement;
   #target = new THREE.Vector3(MAP_SIZE / 2, 0, MAP_SIZE / 2);
@@ -56,11 +58,23 @@ export class CameraRig {
     this.#apply();
     if (!interactive) return;
 
-    window.addEventListener('keydown', (e) => {
-      if (!e.repeat) this.#keys.add(e.code);
-    });
-    window.addEventListener('keyup', (e) => this.#keys.delete(e.code));
-    window.addEventListener('blur', () => this.#keys.clear());
+    // Window listeners are held so dispose() can take them off again.
+    // The canvas ones below are not: a match's canvas is replaced when it
+    // ends (a canvas hands out one WebGL context in its life), and they go
+    // with the element.
+    this.#onWindow = [
+      [
+        'keydown',
+        (e: Event) => {
+          const k = e as KeyboardEvent;
+          if (!k.repeat) this.#keys.add(k.code);
+        },
+      ],
+      ['keyup', (e: Event) => this.#keys.delete((e as KeyboardEvent).code)],
+      ['blur', () => this.#keys.clear()],
+      ['resize', () => this.resize()],
+    ];
+    for (const [type, fn] of this.#onWindow) window.addEventListener(type, fn);
 
     canvas.addEventListener(
       'wheel',
@@ -157,8 +171,23 @@ export class CameraRig {
     };
     canvas.addEventListener('touchend', endTouch);
     canvas.addEventListener('touchcancel', endTouch);
+  }
 
-    window.addEventListener('resize', () => this.resize());
+  /**
+   * Give the window back.
+   *
+   * These four closures each capture `this`, and a rig is reachable from
+   * its renderer, its scene, and every mesh, geometry and texture in it. A
+   * page used to hold one match for its lifetime, so leaving them attached
+   * cost nothing; now the menu comes back and another match follows, and
+   * each one that had gone would still be held here in full — some fifteen
+   * megabytes a match, and a keydown feeding phantom pan keys to a camera
+   * nobody can see.
+   */
+  dispose(): void {
+    for (const [type, fn] of this.#onWindow) window.removeEventListener(type, fn);
+    this.#onWindow = [];
+    this.#keys.clear();
   }
 
   /** Per-frame: apply held pan keys. dt in seconds. */

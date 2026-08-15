@@ -27,6 +27,17 @@ export function holdServiceWorkerUpdates(): void {
 }
 
 /**
+ * Start waving them through again. A match used to end by unloading the
+ * page, so the hold ended with the document; now the player walks back to
+ * the menu in place, and an update parked during the match would stay
+ * parked for the rest of the session — through every later launch — unless
+ * the menu says it is safe again. Which is exactly what the menu means.
+ */
+export function releaseServiceWorkerUpdates(): void {
+  held = false;
+}
+
+/**
  * @param opts.applyUpdates true on the start menu — no sim, no unsaved
  * village, so a pending update can take over and the page reload straight
  * into it. False once a match has been launched: the update stays parked

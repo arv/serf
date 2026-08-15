@@ -23,10 +23,14 @@ export interface HudActions {
   focus(x: number, y: number): void;
 }
 
-/** Mount the Solid HUD into the overlay div. Solid never touches the canvas. */
-export function mountHud(host: SimHost, actions: HudActions): void {
+/**
+ * Mount the Solid HUD into the overlay div. Solid never touches the canvas.
+ * Returns the teardown: a match that ends in place has to take its HUD off
+ * the glass, or the menu behind it would come up under a resource bar.
+ */
+export function mountHud(host: SimHost, actions: HudActions): () => void {
   const root = document.getElementById('ui')!;
-  render(
+  return render(
     () => (
       <Hud
         onSelectArmy={() => actions.selectArmy()}

@@ -72,14 +72,21 @@ export class GameRenderer {
   }
 
   /**
-   * Give the GPU back. Only the menu backdrop needs this: it renders on its
-   * own canvas so that handing over to a match can drop the whole context
-   * rather than share one — a canvas cannot hand out a second WebGL
-   * context, and a renderer that has released its own cannot be revived.
+   * Give the GPU back. The menu backdrop needs this so that handing over to
+   * a match can drop the whole context rather than share one — a canvas
+   * cannot hand out a second WebGL context, and a renderer that has
+   * released its own cannot be revived — and so does every match, now that
+   * one ends without the document ending with it.
+   *
+   * The rig goes too. Its listeners are on the window rather than the
+   * canvas, so nothing else would ever take them off, and each one holds
+   * the rig — and through it this renderer, the scene, and every geometry
+   * and texture the match uploaded.
    */
   dispose(): void {
     this.#observer.disconnect();
     window.removeEventListener('resize', this.#onWindowResize);
+    this.rig.dispose();
     this.#webgl.dispose();
     this.#webgl.forceContextLoss();
   }

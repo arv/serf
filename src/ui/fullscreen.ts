@@ -16,14 +16,16 @@ if (import.meta.hot) {
  * again on a timer is refused again. What can be built is the honest
  * version: offer it, and remember the answer.
  *
- * Remembering is the whole difficulty, because a single-player launch is a
- * navigation (StartMenu writes location.search) and unloading a document
- * fully exits fullscreen. So the preference outlives the page in
- * localStorage while the fullscreen itself does not, and the match on the
- * far side re-enters on the player's first click or keypress — the earliest
- * moment the browser will take the request. That first gesture is the
- * "prompt": nothing is asked of the player they were not already going to
- * do.
+ * Remembering matters because unloading a document fully exits fullscreen.
+ * Screen changes no longer unload one — the launch that used to write
+ * location.search now routes in place (app/router.ts), and this module is
+ * the reason that mattered — but a real reload still happens: a shared
+ * link, the GPU-loss recovery, a service worker swapping the shell,
+ * tomorrow's session. So the preference outlives the page in localStorage
+ * while the fullscreen itself does not, and the page that comes back
+ * re-enters on the player's first click or keypress — the earliest moment
+ * the browser will take the request. That first gesture is the "prompt":
+ * nothing is asked of the player they were not already going to do.
  *
  * The preference follows reality rather than intent. Esc, the browser's own
  * control and the OS all leave fullscreen without touching our buttons, and
