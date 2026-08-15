@@ -25,7 +25,15 @@ export const MENU_STYLE = `
 @keyframes menu-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { #menu .stack { animation: none; } }
 
-#menu .shell { position: relative; min-height: 100%; display: grid; grid-template-rows: 1fr auto; padding: 0 0 14px; }
+/* One column, floored at zero. Left implicit, the column is 'auto', and an
+   auto track never shrinks below its items' min-content — so anything in
+   here that cannot shrink (a tab bar with one long word in it, say) widens
+   the whole screen instead of itself. Everything then centres on that wider
+   screen and the overflow-x above eats the difference, unreachably. The
+   floor makes the column the window and leaves the card to deal with its
+   own contents. */
+#menu .shell { position: relative; min-height: 100%; display: grid;
+  grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr auto; padding: 0 0 14px; }
 /* 'safe' centering matters: plain centering makes the overflow unreachable
    on short windows, which is exactly when this screen needs to scroll. */
 #menu .stack { min-height: 0; display: flex; flex-direction: column; align-items: center;
@@ -44,8 +52,14 @@ export const MENU_STYLE = `
 #menu .card { width: 100%; max-width: 486px; display: flex; flex-direction: column;
   background: rgba(14,16,15,0.74); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   border: 1px solid rgba(255,255,255,0.09); border-radius: 16px; box-shadow: 0 18px 60px rgba(0,0,0,0.5); }
-#menu .seg { display: flex; gap: 2px; padding: 4px; margin: 10px 10px 0; background: rgba(0,0,0,0.38); border-radius: 11px; }
-#menu .seg button { flex: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px;
+/* Equal tracks with a zero floor, not flex:1. A flex tab cannot shrink past
+   its longest word — "MULTIPLAYER" is one — so on a narrow card the bar used
+   to push the card, and through it the whole screen, wider than the window.
+   A 1fr track has no such floor: the label gives way, never the layout. */
+#menu .seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+  gap: 2px; padding: 4px; margin: 10px 10px 0; background: rgba(0,0,0,0.38); border-radius: 11px; }
+#menu .seg button { min-width: 0; overflow-wrap: anywhere;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px;
   padding: 8px 10px; font: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
   color: #94958c; background: transparent; border: none; border-radius: 9px; transition: background 0.15s, color 0.15s; }
 #menu .seg button:hover { color: #f0ede4; }
@@ -53,6 +67,16 @@ export const MENU_STYLE = `
 /* Offline: the relay-backed half of the menu stands down (StartMenu.tsx). */
 #menu .seg button:disabled { opacity: 0.4; cursor: default; }
 #menu .seg button:disabled:hover { color: #94958c; }
+
+/* The shelf's header, in the tab bar's slot and wearing its well, so
+   opening a replay swaps the card's top rather than growing it. */
+#menu .pane-head { display: flex; align-items: center; gap: 10px; padding: 4px; margin: 10px 10px 0;
+  background: rgba(0,0,0,0.38); border-radius: 11px; }
+#menu .pane-head .icon-btn { flex: none; width: 30px; height: 30px; border-radius: 9px; }
+#menu .pane-head .title { min-width: 0; font-size: 12.5px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: #f5e4b6; }
+#menu .pane-head .count { margin-left: auto; padding-right: 6px; font-size: 11px; color: #85857c;
+  font-variant-numeric: tabular-nums; }
 
 #menu .rows { display: flex; flex-direction: column; padding: 6px 16px 0; }
 #menu .row { display: flex; align-items: center; justify-content: space-between; gap: 16px;
@@ -115,6 +139,13 @@ export const MENU_STYLE = `
 #menu .room:disabled:hover { border-color: rgba(255,255,255,0.1); }
 #menu .room .code { display: block; font-size: 14px; font-weight: 600; letter-spacing: 0.16em; }
 #menu .room .meta { display: block; margin-top: 2px; font-size: 11px; color: #85857c; font-variant-numeric: tabular-nums; }
+/* A replay's row and its delete button, side by side. Siblings rather
+   than one nested in the other: both are real buttons, which nesting
+   would forbid — so the row keeps its own flex:1 and the ✕ sits beside
+   it, each separately focusable. */
+#menu .replay-row { display: flex; align-items: stretch; gap: 6px; }
+#menu .replay-row .room { flex: 1; min-width: 0; }
+#menu .replay-row .icon-btn { flex: none; align-self: center; width: 30px; height: 30px; border-radius: 8px; }
 #menu .pips { display: flex; align-items: center; gap: 4px; flex: none; }
 #menu .pips span { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.16); }
 #menu .pips span.filled { background: #8fbb56; }
@@ -158,13 +189,29 @@ export const MENU_STYLE = `
   #menu .kicker i { display: none; }
   #menu .footer { justify-content: center; }
   #menu .stack { gap: 14px; justify-content: flex-start; }
+  /* Three tabs and their icons do not sit in a phone-width card: the icon
+     and its gap are 22px of the ~100px a tab gets here, and "MULTIPLAYER"
+     wants most of the rest. The labels already name the modes — the icons
+     were the decoration, so they are what goes. */
+  #menu .seg button svg { display: none; }
+  #menu .seg button { gap: 0; padding: 10px 6px; letter-spacing: 0.03em; }
   #menu .pills button { width: 40px; height: 34px; }
   #menu .icon-btn { width: 40px; height: 40px; }
+  #menu .pane-head .icon-btn { width: 34px; height: 34px; }
   /* Proximity, not mandatory: a flick settles with a row against the top
      rather than sliced across the middle, but a deliberate nudge still
      goes where it was put. */
   #menu .room-list { scroll-snap-type: y proximity; }
   #menu .room { scroll-snap-align: start; }
+}
+/* The narrowest phones still in service. Two things do not fit at full
+   size here: a tab label, which the 1fr track would otherwise break across
+   lines mid-word, and the four opponent pills, which are the one control
+   that cannot give — 4x40px is a specified size, so they push out through
+   the card's padding instead. Shave both rather than wear either. */
+@media (max-width: 359px) {
+  #menu .seg button { padding: 10px 4px; font-size: 11px; }
+  #menu .pills button { width: 34px; }
 }
 /* The desktop card floats in a big window, so a 132px list costs it
    nothing. A tall phone is all card and no window: that same peephole

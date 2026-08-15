@@ -14,15 +14,23 @@ export interface HudActions {
   place(type: BuildingTypeId | null): void;
   /** The full save string — the worker's world plus the fog's memory. */
   save(): Promise<string>;
+  /** Write the match's replay log to OPFS; the saved name, or null when
+   * there is nothing to save yet (the match is still undecided) or the
+   * browser has no OPFS to write into. */
+  saveReplay(): Promise<string | null>;
   /** Pan the camera to a tile — clickable toasts' "take me there". Sim
    * tile coords; the rig call maps tile y onto world z. */
   focus(x: number, y: number): void;
 }
 
-/** Mount the Solid HUD into the overlay div. Solid never touches the canvas. */
-export function mountHud(host: SimHost, actions: HudActions): void {
+/**
+ * Mount the Solid HUD into the overlay div. Solid never touches the canvas.
+ * Returns the teardown: a match that ends in place has to take its HUD off
+ * the glass, or the menu behind it would come up under a resource bar.
+ */
+export function mountHud(host: SimHost, actions: HudActions): () => void {
   const root = document.getElementById('ui')!;
-  render(
+  return render(
     () => (
       <Hud
         onSelectArmy={() => actions.selectArmy()}
@@ -52,6 +60,11 @@ export function mountHud(host: SimHost, actions: HudActions): void {
           void actions.save().then((data) => {
             localStorage.setItem('serf-save', data);
             pushToast('Game saved');
+          });
+        }}
+        onSaveReplay={() => {
+          void actions.saveReplay().then((name) => {
+            pushToast(name !== null ? `Replay saved — ${name}` : 'Replay could not be saved');
           });
         }}
         onAdmin={(action) => host.sendCommands([{ kind: 'admin', action }])}

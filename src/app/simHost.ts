@@ -12,6 +12,7 @@ import type { SimCommand } from '../sim/commands';
 import type { AiStrategy } from '../sim/defs/aiStrategies';
 import type { GameConfig } from './gameConfig';
 import type { NetInfo } from '../protocol/messages';
+import type { ReplayData } from './replay';
 
 export interface SimInit {
   reader: SabReader;
@@ -27,7 +28,7 @@ export interface SimInit {
  * same interface later because the sim is pure.
  */
 export interface SimHost {
-  start(config: GameConfig, loadData?: string, net?: NetInfo): Promise<SimInit>;
+  start(config: GameConfig, loadData?: string, net?: NetInfo, replay?: ReplayData): Promise<SimInit>;
   sendCommands(commands: SimCommand[]): void;
   setSpeed(speed: number): void;
   /** Tell the worker whether the debug overlay is watching (jobs feed). */
@@ -35,7 +36,13 @@ export interface SimHost {
   /** Tell the worker whether the page is hidden (freezes the solo sim). */
   setHidden(hidden: boolean): void;
   requestSave(): Promise<string>;
+  /** The match's replay log, serialized (solo sim only). `explored` is
+   * the packed fog memory the match booted with, for a replay that will
+   * resume from a save. */
+  requestReplay?(explored?: string): Promise<string>;
   onStructural(cb: (msg: StructuralUpdate) => void): void;
+  /** Playback reached the recording's end and the sim paused itself. */
+  onReplayEnded?(cb: () => void): void;
   onNetStatus?(cb: (status: NetStatus) => void): void;
   /** LLM strategist plumbing (solo, when the config asked for it): seat
    * summaries coming up, validated advice going down. */
@@ -64,6 +71,18 @@ export class WorkerSimHost implements SimHost {
    * replace the full first one — every missed frame replays, in order. */
   #pendingStructural: StructuralUpdate[] = [];
   #saveCb: ((data: string) => void) | null = null;
+  /** Waiting requestReplay callers, oldest first. A queue rather than one
+   * slot: both Save replay buttons stay clickable while a request is in
+   * flight, and a second click used to overwrite the first's resolver —
+   * leaving that promise pending forever, so the save it belonged to
+   * never reported anything at all. Answers arrive in request order. */
+  #replayCbs: ((data: string) => void)[] = [];
+  #replayEndedCb: (() => void) | null = null;
+  /** Playback ended before anyone registered for it. The worker posts
+   * this the moment it reaches the log's end, which for a replay booted
+   * at its own end tick is before runMatch finishes loading assets and
+   * registers — and an unlatched signal left the HUD with no end card. */
+  #replayEndedPending = false;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
   #aiSummaryCb: ((playerId: number, summary: AiWorldSummary) => void) | null = null;
   /** Seat the UI's commands are issued as. */
@@ -76,7 +95,7 @@ export class WorkerSimHost implements SimHost {
         : new Worker(new URL('./simWorker.ts', import.meta.url), { type: 'module' });
   }
 
-  start(config: GameConfig, loadData?: string, net?: NetInfo): Promise<SimInit> {
+  start(config: GameConfig, loadData?: string, net?: NetInfo, replay?: ReplayData): Promise<SimInit> {
     this.playerId = config.myPlayerId;
     return new Promise((resolve, reject) => {
       // A worker that dies after start would otherwise fail silently: the
@@ -100,6 +119,11 @@ export class WorkerSimHost implements SimHost {
         } else if (msg.type === 'saved') {
           this.#saveCb?.(msg.data);
           this.#saveCb = null;
+        } else if (msg.type === 'replayData') {
+          this.#replayCbs.shift()?.(msg.data);
+        } else if (msg.type === 'replayEnded') {
+          if (this.#replayEndedCb) this.#replayEndedCb();
+          else this.#replayEndedPending = true;
         } else if (msg.type === 'netStatus') {
           this.#netStatusCb?.(msg.status);
         } else if (msg.type === 'aiSummary') {
@@ -114,8 +138,32 @@ export class WorkerSimHost implements SimHost {
         loadData,
         net,
         llm: config.llmOpponent,
+        replay,
       } satisfies MainToWorker);
     });
+  }
+
+  /**
+   * End the match this host was speaking for. Terminating rather than
+   * asking politely: the sim worker's timers are deliberately unthrottled,
+   * so one left running behind a menu would go on simulating a world
+   * nobody can see, and the net worker's socket would hold a seat in a
+   * room the player has left.
+   *
+   * Callbacks are dropped first. A worker can post one last frame between
+   * the terminate call and the thread actually stopping, and delivering it
+   * would write a dead match's stock into a live HUD.
+   */
+  dispose(): void {
+    this.#structuralCb = null;
+    this.#saveCb = null;
+    this.#replayCbs = [];
+    this.#replayEndedCb = null;
+    this.#netStatusCb = null;
+    this.#aiSummaryCb = null;
+    this.#worker.onmessage = null;
+    this.#worker.onerror = null;
+    this.#worker.terminate();
   }
 
   requestSave(): Promise<string> {
@@ -123,6 +171,21 @@ export class WorkerSimHost implements SimHost {
       this.#saveCb = resolve;
       this.#post({ type: 'requestSave' });
     });
+  }
+
+  requestReplay(explored?: string): Promise<string> {
+    return new Promise((resolve) => {
+      this.#replayCbs.push(resolve);
+      this.#post({ type: 'requestReplay', explored });
+    });
+  }
+
+  onReplayEnded(cb: () => void): void {
+    this.#replayEndedCb = cb;
+    if (this.#replayEndedPending) {
+      this.#replayEndedPending = false;
+      cb();
+    }
   }
 
   onStructural(cb: (msg: StructuralUpdate) => void): void {

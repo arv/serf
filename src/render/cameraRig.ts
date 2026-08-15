@@ -22,6 +22,17 @@ export interface ViewBounds {
  * ground-plane target, zoom scales the frustum height.
  */
 export class CameraRig {
+  /**
+   * Every listener this rig registers, on one signal. A match ends without
+   * the document ending now, so all of them have to come off — the window
+   * ones because nothing else would ever remove them, and the canvas ones
+   * because a detached canvas is not necessarily a dead one: three keeps
+   * GPU buffers in WeakMaps keyed by its own module-level geometries, which
+   * live as long as the page does, and a canvas reachable through those
+   * would drag this rig — and its renderer, scene and every geometry in it
+   * — along behind it.
+   */
+  #off = new AbortController();
   readonly camera: THREE.OrthographicCamera;
   #canvas: HTMLCanvasElement;
   #target = new THREE.Vector3(MAP_SIZE / 2, 0, MAP_SIZE / 2);
@@ -56,11 +67,13 @@ export class CameraRig {
     this.#apply();
     if (!interactive) return;
 
+    const signal = this.#off.signal;
     window.addEventListener('keydown', (e) => {
       if (!e.repeat) this.#keys.add(e.code);
-    });
-    window.addEventListener('keyup', (e) => this.#keys.delete(e.code));
-    window.addEventListener('blur', () => this.#keys.clear());
+    }, { signal });
+    window.addEventListener('keyup', (e) => this.#keys.delete(e.code), { signal });
+    window.addEventListener('blur', () => this.#keys.clear(), { signal });
+    window.addEventListener('resize', () => this.resize(), { signal });
 
     canvas.addEventListener(
       'wheel',
@@ -73,7 +86,7 @@ export class CameraRig {
         );
         this.resize();
       },
-      { passive: false },
+      { passive: false, signal },
     );
 
     canvas.addEventListener('pointerdown', (e) => {
@@ -82,15 +95,15 @@ export class CameraRig {
         this.#dragging = true;
         canvas.setPointerCapture(e.pointerId);
       }
-    });
+    }, { signal });
     canvas.addEventListener('pointerup', (e) => {
       if (e.button === 1) this.#dragging = false;
-    });
+    }, { signal });
     canvas.addEventListener('pointermove', (e) => {
       if (!this.#dragging) return;
       const worldPerPixel = this.#viewHeight / this.#canvas.clientHeight;
       this.#panScreen(-e.movementX * worldPerPixel, -e.movementY * worldPerPixel);
-    });
+    }, { signal });
 
     // --- Touch: one finger drags the map, two fingers pinch to zoom ------
     // (There is no wheel, middle button, or keyboard on a phone.) Selection
@@ -106,7 +119,7 @@ export class CameraRig {
         touches.set(t.identifier, { x: t.clientX, y: t.clientY });
       }
       if (touches.size === 2) pinchDist = spread();
-    });
+    }, { signal });
     canvas.addEventListener(
       'touchmove',
       (e) => {
@@ -149,16 +162,29 @@ export class CameraRig {
           pinchDist = d;
         }
       },
-      { passive: false },
+      { passive: false, signal },
     );
     const endTouch = (e: TouchEvent): void => {
       for (const t of e.changedTouches) touches.delete(t.identifier);
       if (touches.size < 2) pinchDist = 0;
     };
-    canvas.addEventListener('touchend', endTouch);
-    canvas.addEventListener('touchcancel', endTouch);
+    canvas.addEventListener('touchend', endTouch, { signal });
+    canvas.addEventListener('touchcancel', endTouch, { signal });
+  }
 
-    window.addEventListener('resize', () => this.resize());
+  /**
+   * Let every listener go at once.
+   *
+   * Each closure captures `this`, and a rig is reachable from its
+   * renderer, its scene, and every mesh, geometry and texture in it. A
+   * page used to hold one match for its lifetime, so leaving them attached
+   * cost nothing; now the menu comes back and another match follows, and
+   * each match that had gone would still be held here in full — plus a
+   * keydown feeding phantom pan keys to a camera nobody can see.
+   */
+  dispose(): void {
+    this.#off.abort();
+    this.#keys.clear();
   }
 
   /** Per-frame: apply held pan keys. dt in seconds. */

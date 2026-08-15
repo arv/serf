@@ -1,10 +1,12 @@
 import type { WebSocket } from 'ws';
 import { TILE_COUNT } from '../../src/shared/grid.ts';
-import { createWorld, type World } from '../../src/sim/world.ts';
+import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
+import { createWorld, type World, type WorldConfig } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
 import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { parseStrategyId } from '../../src/sim/defs/aiStrategies.ts';
 import { TICK_MS } from '../../src/sim/defs/balance.ts';
+import { REPLAY_FORMAT, serializeReplay, type ReplayData } from '../../src/app/replay.ts';
 import { MAX_SEATS, type LobbyConfig } from '../../src/protocol/lobby.ts';
 import type { SimCommand } from '../../src/sim/commands.ts';
 import type { GameEvent, MapDelta } from '../../src/sim/world.ts';
@@ -88,6 +90,28 @@ export interface Room {
   world?: World;
   /** Brains for this room's AI seats, run in-process next to the world. */
   ai?: AiSeats;
+  /**
+   * The match's replay log, written as it happens (see src/app/replay.ts):
+   * what the world booted from plus every command each tick executed, the
+   * AI seats' moves included — playback never re-runs the brains, so the
+   * AI is free to change between builds. Started by startMatch and carried
+   * through deploy snapshots while the version holds (persist.ts); a
+   * cross-version restore rebases onto the snapshot world instead, since
+   * the new sim cannot be trusted to re-simulate the old ticks. Handed out
+   * by replayFor, and only once the match is decided — before that the log
+   * is a full-information view of a fogged world.
+   */
+  replay?: {
+    replayVersion: number;
+    config: ReplayData['config'];
+    loadData?: string;
+    /** Beside a rebased loadData: each seat's explored grid as of that
+     * snapshot, packed, indexed by playerId. Fog is per seat, so the
+     * requester's is the one that ships — a replay must show the seat its
+     * own memory of the map, never another's. */
+    exploredBySeat?: string[];
+    commands: ReplayData['commands'];
+  };
   matchStartMs?: number;
   /** Mirrors world.tick; -1 until the match starts (the PONG sentinel). */
   closedTick: number;
@@ -209,21 +233,20 @@ export function removeSeat(room: Room, seat: Seat): void {
   room.seats.forEach((s, i) => (s.playerId = i));
 }
 
-/** Build the world and start the clock. The server generates it from the
- * room's own sanitized settings: with one simulator there is no
- * cross-engine worldgen risk, and no blob to ship. */
-export function startMatch(room: Room): void {
-  // The computer seats the host asked for, minus the chairs humans took —
-  // AI fills in, it never holds a seat against a person.
-  const aiFill = Math.max(0, Math.min(room.config.ai, MAX_SEATS - room.seats.length));
-  for (let i = 0; i < aiFill; i++) addSeat(room, 'ai', null);
+/**
+ * The exact WorldConfig this room's match is built from — one function so
+ * the world and its replay log can never describe two different matches.
+ * Requires the AI seats to be materialized already (playerId order is the
+ * players array).
+ */
+export function matchWorldConfig(room: Room): WorldConfig {
   // The council's picks, in the order the computer seats filled up. A seat
   // the host left on Random names nothing and the seed deals it one. The
   // fallback is for a room restored from a snapshot written before the
   // field existed: no picks recorded means every seat is dealt.
   const bots = room.config.bots ?? [];
   let picked = 0;
-  room.world = createWorld({
+  return {
     seed: room.config.seed,
     players: room.seats.map((s) => ({
       kind: s.kind,
@@ -232,7 +255,20 @@ export function startMatch(room: Room): void {
     // Cheats are a single-player affair; a networked world never honors them.
     adminEnabled: false,
     banditsEnabled: room.config.bandits,
-  });
+  };
+}
+
+/** Build the world and start the clock. The server generates it from the
+ * room's own sanitized settings: with one simulator there is no
+ * cross-engine worldgen risk, and no blob to ship. */
+export function startMatch(room: Room): void {
+  // The computer seats the host asked for, minus the chairs humans took —
+  // AI fills in, it never holds a seat against a person.
+  const aiFill = Math.max(0, Math.min(room.config.ai, MAX_SEATS - room.seats.length));
+  for (let i = 0; i < aiFill; i++) addSeat(room, 'ai', null);
+  const config = matchWorldConfig(room);
+  room.world = createWorld(config);
+  room.replay = { replayVersion: REPLAY_VERSION, config, commands: [] };
   room.ai = new AiSeats(room.world);
   room.state = 'running';
   room.closedTick = 0;
@@ -298,6 +334,12 @@ export function pumpRoom(room: Room, nowMs: number): void {
     // Brains decide from the state this tick starts in, and their orders
     // go in with the players' — no frame of hindsight.
     if (room.ai) commands.push(...room.ai.decide(world));
+    // Log everything this tick executes, the AI's moves included, under
+    // the tick it applies on — playback replays the log verbatim rather
+    // than re-running the brains.
+    if (room.replay && commands.length > 0) {
+      room.replay.commands.push({ tick: world.tick, commands: commands.slice() });
+    }
     tickWorld(world, commands);
     // Drain every tick of the burst: these are outboxes, and the next tick
     // would otherwise pile onto news nobody has been handed yet.
@@ -333,6 +375,34 @@ export function pumpRoom(room: Room, nowMs: number): void {
     );
     room.pumpMsAvg = 0; // re-arm rather than warn every pump
   }
+}
+
+/**
+ * One seat's copy of the room's replay, serialized for the wire — or null
+ * while the match is still being played. The gate is the whole security
+ * story: the log plus the config reconstructs the entire world at every
+ * tick, so handing it out mid-match would hand out everything the fog
+ * exists to withhold. Once the outcome is decided there is nothing left to
+ * protect. myPlayerId is stamped per request, so playback opens on the
+ * requester's own seat.
+ */
+export function replayFor(room: Room, seat: Seat): string | null {
+  const world = room.world;
+  if (!world || !room.replay || world.outcome.state !== 'over') return null;
+  // replayVersion right after format — readReplayVersion scans only the
+  // head of the file for it.
+  return serializeReplay({
+    format: REPLAY_FORMAT,
+    replayVersion: room.replay.replayVersion,
+    savedAt: new Date().toISOString(),
+    config: { ...room.replay.config, myPlayerId: seat.playerId },
+    ...(room.replay.loadData !== undefined ? { loadData: room.replay.loadData } : {}),
+    ...(room.replay.exploredBySeat?.[seat.playerId]
+      ? { explored: room.replay.exploredBySeat[seat.playerId] }
+      : {}),
+    commands: room.replay.commands,
+    endTick: world.tick,
+  });
 }
 
 /** A snapshot for /health: is this process comfortable? */
