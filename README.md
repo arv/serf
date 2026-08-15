@@ -103,14 +103,16 @@ canvas hands out one context in its lifetime — which doubles as the scene
 teardown, because every buffer and texture the match uploaded lives in the
 context that goes with it.
 
-**Known: a session that walks between menu and match repeatedly grows by
-roughly 13 MB a round** (measured with forced GC: 14 MB at the menu, then
-33, 46, 59, 72 across four cycles). Something still retains a match after
-its teardown — a heap snapshot puts a `DOMTimer` on the retaining path,
-holding the `WorkerSimHost` and the scene behind it — and it is not the
-context-loss recovery timer, which was ruled out by fixing it and
-re-measuring. It cost nothing when a match was a document; now it
-accumulates, so it wants finding before long sessions are common.
+Replacing the canvas is not on its own enough to drop what a match built,
+and the reason is worth knowing before adding a listener to one: three.js
+keeps a context's GPU buffers in WeakMaps keyed by its own module-level
+geometries, and those live as long as the page — so a detached canvas stays
+reachable, and every listener still on it holds its closure, and those
+closures hold the sim worker, the mirror and the scene. `Controls`, the
+`CameraRig` and the match itself therefore register every listener against
+an `AbortController` and abort it on teardown. Walking menu → match → menu
+repeatedly used to cost ~13 MB a round (14 MB, then 33, 46, 59, 72 across
+four cycles, forced GC); it now sits flat at 21–22 MB.
 
 ### Controls
 

@@ -75,8 +75,16 @@ export class Controls {
   #dragStart: { x: number; y: number } | null = null;
   #dragging = false;
   #bandEl: HTMLDivElement;
-  /** Held so dispose() can take it off the window again. */
-  #onKey: (e: KeyboardEvent) => void;
+  /**
+   * Every listener this Controls registers, on one signal — window and
+   * canvas alike. The canvas ones matter as much as the window one: a
+   * match's canvas is detached when the match ends, but detached is not
+   * dead, because three keeps GPU buffers in WeakMaps keyed by its own
+   * module-level geometries and those live as long as the page. A canvas
+   * still reachable that way would hold these closures, and they hold the
+   * sim worker, the mirror and the scene.
+   */
+  #off = new AbortController();
   #hoverUnit = -1;
   #hoverBuilding = -1;
   /** Last pointer position + dirty flag: pointermove can fire at hundreds
@@ -125,16 +133,17 @@ export class Controls {
       'position:fixed; border:1px solid #bf4342; background:rgba(191,67,66,0.12); display:none; pointer-events:none; z-index:10;';
     document.body.appendChild(this.#bandEl);
 
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-    canvas.addEventListener('pointerdown', this.#onDown);
-    canvas.addEventListener('pointermove', this.#onMove);
-    canvas.addEventListener('pointerup', this.#onUp);
+    const signal = this.#off.signal;
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault(), { signal });
+    canvas.addEventListener('pointerdown', this.#onDown, { signal });
+    canvas.addEventListener('pointermove', this.#onMove, { signal });
+    canvas.addEventListener('pointerup', this.#onUp, { signal });
     // The gesture can also end without a pointerup: the system takes it (a
     // notification shade, a browser back-swipe) or the capture is lost.
     // Nothing it was building up should land afterwards.
-    canvas.addEventListener('pointercancel', this.#onCancel);
-    canvas.addEventListener('lostpointercapture', this.#onCancel);
-    this.#onKey = (e) => {
+    canvas.addEventListener('pointercancel', this.#onCancel, { signal });
+    canvas.addEventListener('lostpointercapture', this.#onCancel, { signal });
+    const onKey = (e: KeyboardEvent): void => {
       if (e.code === 'Escape') {
         if (placing()) this.setPlacement(null);
         else {
@@ -148,19 +157,17 @@ export class Controls {
         this.#host.setDebug(open);
       }
     };
-    window.addEventListener('keydown', this.#onKey);
+    window.addEventListener('keydown', onKey, { signal });
   }
 
   /**
-   * Let the match's input go. The canvas listeners above would die with the
-   * element anyway — a match's canvas is replaced when it ends, since a
-   * canvas hands out only one WebGL context in its life — but the keydown
-   * is on the window and the band is a child of document.body, and both
-   * would otherwise outlive the world they steer: Esc clearing a selection
-   * in a menu, through a Controls holding a terminated worker.
+   * Let the match's input go: every listener at once, and the band element
+   * with them. Without this they outlive the world they steer — Esc
+   * clearing a selection in a menu, through a Controls holding a
+   * terminated worker.
    */
   dispose(): void {
-    window.removeEventListener('keydown', this.#onKey);
+    this.#off.abort();
     this.#bandEl.remove();
   }
 

@@ -492,11 +492,23 @@ async function runMatch(
   config = { ...config, llmOpponent: llm };
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+  /**
+   * Every listener this function registers, on one signal.
+   *
+   * Taking them off matters even for the ones on the canvas, which is
+   * replaced below and might therefore look self-cleaning. It is not:
+   * three.js keeps a match's GPU buffers in WeakMaps keyed by its own
+   * module-level geometries, and those live as long as the page, so a
+   * detached canvas stays reachable through them — with every closure
+   * hanging off it, and through those the worker, the scene and the
+   * megabytes behind them.
+   */
+  const off = new AbortController();
+  teardown.push(() => off.abort());
   // A canvas hands out one WebGL context in its life and no more, so the
   // match after this one cannot have this element. Swapping it for a clean
-  // copy is also the cheapest possible scene teardown: every buffer, every
-  // texture and every program this match uploaded belongs to the context
-  // that goes with it.
+  // copy also releases what the GPU is holding: every buffer, texture and
+  // program this match uploaded belongs to the context that goes with it.
   teardown.push(() => canvas.replaceWith(canvas.cloneNode(false)));
   // The context comes first, before the world is built and the models are
   // fetched. Two reasons, both about the phone this fails on: asking while
@@ -543,27 +555,30 @@ async function runMatch(
   // Assigned once the world is up, further down. Until then a loss has
   // nothing worth keeping and the reload is the whole recovery.
   let rescue: (() => Promise<string>) | undefined;
-  canvas.addEventListener('webglcontextlost', () => {
-    // Not while the match is being taken down. Giving the context back is
-    // how a match ends now, and three's dispose() does it by *losing* the
-    // context — so this fires on the way out, every time. Left unguarded it
-    // armed the recovery: four seconds after quitting to the menu, the page
-    // saved a world nobody was playing and reloaded itself. The timer also
-    // held this closure, and through `rescue` the worker, the fog and the
-    // whole scene behind them — which is what a match-shaped leak looked
-    // like from the outside.
-    if (over) return;
-    restoreTimer = setTimeout(() => {
-      if (net || !rescue) {
-        location.reload();
-        return;
-      }
-      void rescue()
-        .then((data) => sessionStorage.setItem('serf-load-pending', data))
-        .finally(() => location.reload());
-    }, 4000);
+  canvas.addEventListener(
+    'webglcontextlost',
+    () => {
+      // Not while the match is being taken down. Giving the context back is
+      // how a match ends now, and three's dispose() does it by *losing* the
+      // context — so this fires on the way out, every time. Unguarded it
+      // armed the recovery: four seconds after quitting to the menu, the
+      // page would save a world nobody was playing and reload itself.
+      if (over) return;
+      restoreTimer = setTimeout(() => {
+        if (net || !rescue) {
+          location.reload();
+          return;
+        }
+        void rescue()
+          .then((data) => sessionStorage.setItem('serf-load-pending', data))
+          .finally(() => location.reload());
+      }, 4000);
+    },
+    { signal: off.signal },
+  );
+  canvas.addEventListener('webglcontextrestored', () => clearTimeout(restoreTimer), {
+    signal: off.signal,
   });
-  canvas.addEventListener('webglcontextrestored', () => clearTimeout(restoreTimer));
   // A match ending on its own terms must not leave a reload armed behind it.
   teardown.push(() => clearTimeout(restoreTimer));
 
@@ -586,9 +601,9 @@ async function runMatch(
   // workers even when the event never arrives.
   const hidden = new HiddenSync(document.hidden);
   hidden.add((h) => host.setHidden(h));
-  const onVisibility = (): void => hidden.set(document.hidden);
-  document.addEventListener('visibilitychange', onVisibility);
-  teardown.push(() => document.removeEventListener('visibilitychange', onVisibility));
+  document.addEventListener('visibilitychange', () => hidden.set(document.hidden), {
+    signal: off.signal,
+  });
   // Fire-and-forget beside the match: the model downloads while the game
   // already runs on plain playbooks, and the first advice lands whenever it
   // lands. Dynamic import, so no strategist means none of its code either.
