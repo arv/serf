@@ -67,8 +67,18 @@ let handler: RouteHandler | null = null;
  */
 let forceNext = false;
 
-/** Run the handler, logging rather than leaking — the caller of a
- * navigation is usually a click handler with nowhere to put a rejection. */
+/**
+ * Run the handler, and let a failure stop here.
+ *
+ * Nothing above this is in a position to handle one. A navigation's caller
+ * is usually a click handler with nowhere to put a rejection, and a back
+ * gesture has no caller at all — so rethrowing only chose where the
+ * complaint surfaced: the Navigation API path would reject out of
+ * intercept()'s handler as an unhandled rejection, while the popstate path
+ * swallowed it. The screen that failed has already said so on its own
+ * terms (fatal() puts its own page up), so this logs and stops, the same
+ * way on both.
+ */
 async function run(): Promise<void> {
   const force = forceNext;
   forceNext = false;
@@ -76,7 +86,6 @@ async function run(): Promise<void> {
     await handler?.({ force });
   } catch (err) {
     console.error('[router] the screen failed to come up:', err);
-    throw err instanceof Error ? err : new Error(String(err));
   }
 }
 
@@ -104,11 +113,7 @@ export function startRouter(onRoute: RouteHandler): void {
   }
   // No Navigation API: pushState moves the URL and popstate is how the
   // back gesture arrives. Same two jobs, more seams.
-  window.addEventListener('popstate', () => {
-    void run().catch(() => {
-      /* already logged; a failed screen must not break the listener */
-    });
-  });
+  window.addEventListener('popstate', () => void run());
 }
 
 /**
@@ -124,8 +129,9 @@ export function goto(url: string, opts: { force?: boolean } = {}): void {
   const mode = force ? 'replace' : 'push';
   const nav = navigationApi();
   if (nav) {
-    // Both promises reject when a navigation is superseded or the handler
-    // throws, and neither is anyone's to await here.
+    // Both promises reject when a navigation is superseded or aborted —
+    // a second click while the first screen is still building — and
+    // neither is anyone's to await here.
     const { committed, finished } = nav.navigate(url, { history: mode });
     void committed.catch(() => undefined);
     void finished.catch(() => undefined);
@@ -133,7 +139,7 @@ export function goto(url: string, opts: { force?: boolean } = {}): void {
   }
   if (mode === 'replace') history.replaceState(null, '', url);
   else history.pushState(null, '', url);
-  void run().catch(() => undefined);
+  void run();
 }
 
 /** True where a screen change costs no document. Only for telling the

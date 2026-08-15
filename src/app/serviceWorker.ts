@@ -14,6 +14,36 @@ const SW_URL = '/sw.js';
 
 let reloading = false;
 let held = false;
+/** Whether a worker has already been asked to take over. */
+let waved = false;
+/** The registration this page is watching, once install() has one. */
+let watched: ServiceWorkerRegistration | null = null;
+
+function takeOver(worker: ServiceWorker): void {
+  // Nothing is controlling this page yet, so this is a first install:
+  // there is no stale shell to replace and nothing to reload for.
+  if (!navigator.serviceWorker.controller || waved || held) return;
+  waved = true;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // A match may have started since the wave-through; a reload under a
+    // running game is exactly what the handshake exists to avoid.
+    if (reloading || held) return;
+    reloading = true;
+    location.reload();
+  });
+  worker.postMessage({ type: 'skip-waiting' });
+}
+
+function track(worker: ServiceWorker | null): void {
+  if (!worker) return;
+  if (worker.state === 'installed') {
+    takeOver(worker);
+    return;
+  }
+  worker.addEventListener('statechange', () => {
+    if (worker.state === 'installed') takeOver(worker);
+  });
+}
 
 /**
  * Stop waving updates through. The menu registers with applyUpdates on —
@@ -28,22 +58,43 @@ export function holdServiceWorkerUpdates(): void {
 
 /**
  * Start waving them through again. A match used to end by unloading the
- * page, so the hold ended with the document; now the player walks back to
- * the menu in place, and an update parked during the match would stay
- * parked for the rest of the session — through every later launch — unless
- * the menu says it is safe again. Which is exactly what the menu means.
+ * page, so the hold ended with the document — and the reload that brought
+ * the menu back re-ran the whole handshake, which is what actually
+ * collected a parked worker. Now the player walks back to the menu in
+ * place and nothing re-runs, so lowering the flag has to do that work
+ * itself: a worker that reached 'installed' while the match was up was
+ * offered to takeOver() then and turned away, and 'installed' is not a
+ * state it enters twice, so without asking again it would sit in `waiting`
+ * for the rest of the session.
  */
 export function releaseServiceWorkerUpdates(): void {
   held = false;
+  const registration = watched;
+  // Still resolving: install() tracks both workers itself when it lands,
+  // and by then the flag is down.
+  if (!registration) return;
+  track(registration.waiting);
+  track(registration.installing);
+  // The menu is also where asking is affordable — the check below is
+  // skipped while a match is booting so it does not compete for
+  // connections with the models.
+  if (navigator.onLine) void registration.update().catch(() => undefined);
 }
 
 /**
  * @param opts.applyUpdates true on the start menu — no sim, no unsaved
  * village, so a pending update can take over and the page reload straight
- * into it. False once a match has been launched: the update stays parked
- * until the player next passes through the menu.
+ * into it. False when the page boots straight into a match: the update
+ * stays parked until the player next passes through the menu, which is
+ * releaseServiceWorkerUpdates()'s job to notice.
+ *
+ * It is the opening value of the same hold the menu and a match raise and
+ * lower, rather than a separate switch — one flag decides throughout, so
+ * the worker found by a boot that went straight into a match is still
+ * being watched when the flag comes down.
  */
 export function registerServiceWorker(opts: { applyUpdates: boolean }): void {
+  held = !opts.applyUpdates;
   if (!('serviceWorker' in navigator)) return;
   if (import.meta.env.DEV) {
     // Dev serves from Vite with no hashed names; a worker left over from a
@@ -58,14 +109,14 @@ export function registerServiceWorker(opts: { applyUpdates: boolean }): void {
   // bundle — for connections. Losing that race costs the first launch
   // nothing and wins nothing either, so wait until the page has its bytes.
   window.addEventListener('load', () => {
-    void install(opts.applyUpdates).catch((err: unknown) => {
+    void install().catch((err: unknown) => {
       // Offline support is a bonus; the game does not depend on it.
       console.warn('[sw] not registered:', err);
     });
   });
 }
 
-async function install(applyUpdates: boolean): Promise<void> {
+async function install(): Promise<void> {
   const script = new URL(SW_URL, location.href).href;
   const existing = await navigator.serviceWorker.getRegistration('/');
   const current = existing?.active ?? existing?.waiting ?? existing?.installing;
@@ -85,33 +136,10 @@ async function install(applyUpdates: boolean): Promise<void> {
           // ever seen.
           updateViaCache: 'none',
         });
-  if (!applyUpdates) return;
-
-  let waved = false;
-  const takeOver = (worker: ServiceWorker): void => {
-    // Nothing is controlling this page yet, so this is a first install:
-    // there is no stale shell to replace and nothing to reload for.
-    if (!navigator.serviceWorker.controller || waved || held) return;
-    waved = true;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      // A match may have started since the wave-through; a reload under a
-      // running game is exactly what the handshake exists to avoid.
-      if (reloading || held) return;
-      reloading = true;
-      location.reload();
-    });
-    worker.postMessage({ type: 'skip-waiting' });
-  };
-  const track = (worker: ServiceWorker | null): void => {
-    if (!worker) return;
-    if (worker.state === 'installed') {
-      takeOver(worker);
-      return;
-    }
-    worker.addEventListener('statechange', () => {
-      if (worker.state === 'installed') takeOver(worker);
-    });
-  };
+  // Watched either way. Whether a worker may take over is `held`'s business
+  // alone now, and a page that booted straight into a match still has to
+  // notice the worker it will be handed when the player reaches the menu.
+  watched = registration;
 
   // Three ways a new worker can be in play by now: parked from an earlier
   // visit that was mid-match when it arrived, still installing from one, or
@@ -126,5 +154,9 @@ async function install(applyUpdates: boolean): Promise<void> {
   // free to defer the update that navigation implies. Asking costs one GET
   // of a few KB; the answer lands whenever it lands (a minute is normal),
   // and the handover above is waiting for it.
-  if (navigator.onLine) await registration.update();
+  //
+  // Not while a match is booting, though: there it would compete with the
+  // models for connections, and releaseServiceWorkerUpdates() asks on the
+  // way back to the menu instead.
+  if (!held && navigator.onLine) await registration.update();
 }
