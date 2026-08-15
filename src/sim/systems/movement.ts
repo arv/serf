@@ -1,7 +1,7 @@
 import { tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { TICKS_PER_SECOND } from '../defs/balance.ts';
 import { UNIT_DEFS } from '../defs/units.ts';
-import { findPath, tileSpeedMult } from '../path.ts';
+import { findPath, nearestWalkable, tileSpeedMult } from '../path.ts';
 import { getModifier } from '../techHelpers.ts';
 import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
@@ -82,15 +82,34 @@ export function movementSystem(world: World): void {
  * cargo and (for an AI army waiting on the whole squad to arrive) the
  * attack it was part of with it.
  *
- * A goal that is genuinely walled off still leaves a null path — the state
- * owners already handle — except for a plain move, which is released to idle
- * where wander and the job dispatcher can pick the unit up again.
+ * When the goal tile itself is what got built over, the walk aims at the
+ * nearest open ground beside it instead. Every errand that ends at a
+ * building already ends on a tile next to it, so this is the difference
+ * between finishing the errand where it was headed and finishing it from
+ * wherever the unit happened to be standing.
+ *
+ * A goal genuinely sealed off still leaves a null path — the state owners
+ * already handle, and the one they can recover from. Holding the blocked
+ * route instead would re-run a failed search every tick and freeze the unit
+ * in a task no system recruits from, which is the very shape of bug this is
+ * here to remove. A plain move is released to idle, where wander and the job
+ * dispatcher can pick the unit up again.
  */
 function routeAround(world: World, unit: Unit, goal: number): void {
-  const p = findPath(world.map, Math.floor(unit.x), Math.floor(unit.y), tileX(goal), tileY(goal));
+  const ux = Math.floor(unit.x);
+  const uy = Math.floor(unit.y);
+  let p = findPath(world.map, ux, uy, tileX(goal), tileY(goal));
+  if (!p) {
+    const beside = nearestWalkable(world.map, tileX(goal), tileY(goal), GOAL_SLIP);
+    if (beside >= 0) p = findPath(world.map, ux, uy, tileX(beside), tileY(beside));
+  }
   unit.path = p && p.length > 0 ? p : null;
   unit.pathIdx = 0;
   if (unit.path === null && unit.task.t === 'move') {
     unit.task = { t: 'idle', until: world.tick };
   }
 }
+
+/** How far off a built-over goal the walk may re-aim and still be the same
+ * errand. Past this the destination is not "beside the building" any more. */
+const GOAL_SLIP = 3;

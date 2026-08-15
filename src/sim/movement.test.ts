@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tileIdx } from '../shared/grid.ts';
+import { tileIdx, tileX, tileY } from '../shared/grid.ts';
 import { tickWorld } from './tick.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { addStorehouse, bareWorld, cmds } from './testUtils.ts';
@@ -43,7 +43,32 @@ describe('a route obstructed mid-walk', () => {
     expect(knight.task.t).toBe('idle');
   });
 
-  it('releases a unit whose goal is walled off, rather than stranding it', () => {
+  it('re-aims beside a destination that was built over, not back where it stands', () => {
+    const world = bareWorld();
+    addStorehouse(world, 50, 50, {});
+    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 40, y: 30 }));
+    run(world, 10);
+
+    const goal = knight.path![knight.path!.length - 1]!;
+    world.map.blocked[goal] = 1; // a building lands on the destination itself
+    world.map.blocked[knight.path![knight.pathIdx]!] = 1; // and breaks the walk
+    tickWorld(world, []);
+
+    // Every errand that ends at a building ends on a tile beside it, so
+    // aiming at the open ground next door is the errand, still. Reporting
+    // the walk finished here would have run it from ten tiles out.
+    expect(knight.path).not.toBeNull();
+    expect(knight.x).toBeLessThan(35);
+
+    run(world, 20 * 30);
+    expect(knight.task.t).toBe('idle');
+    const gx = tileX(goal) + 0.5;
+    const gy = tileY(goal) + 0.5;
+    expect(Math.hypot(knight.x - gx, knight.y - gy)).toBeLessThanOrEqual(4);
+  });
+
+  it('releases a unit whose goal is sealed off, rather than stranding it', () => {
     const world = bareWorld();
     addStorehouse(world, 50, 50, {});
     const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
@@ -51,7 +76,14 @@ describe('a route obstructed mid-walk', () => {
     run(world, 10);
 
     const path = knight.path!;
-    world.map.blocked[path[path.length - 1]!] = 1; // the destination itself
+    const goal = path[path.length - 1]!;
+    // Not just the goal tile: everything the walk could sensibly re-aim at
+    // beside it, so there is genuinely nowhere left to go.
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        world.map.blocked[tileIdx(tileX(goal) + dx, tileY(goal) + dy)] = 1;
+      }
+    }
     world.map.blocked[path[knight.pathIdx]!] = 1; // and the step that breaks the walk
     tickWorld(world, []);
 
