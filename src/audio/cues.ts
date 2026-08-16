@@ -289,6 +289,54 @@ export const CUES = {
       tone({ wave: 'sine', freq: 50, gain: 0.5, attack: 0.05, decay: 0.8 }),
     ],
   },
+  objectiveDone: {
+    bus: 'world',
+    gain: 0.45,
+    cooldownMs: 400,
+    priority: 5,
+    layers: [
+      tone({ wave: 'triangle', freq: 659, gain: 0.3, decay: 0.22 }),
+      tone({ wave: 'triangle', freq: 784, gain: 0.3, decay: 0.24, delay: 0.1 }),
+      tone({ wave: 'triangle', freq: 988, gain: 0.3, decay: 0.26, delay: 0.2 }),
+      tone({ wave: 'triangle', freq: 1319, gain: 0.3, decay: 0.45, delay: 0.3 }),
+    ],
+  },
+  distantBell: {
+    bus: 'world',
+    gain: 0.35,
+    cooldownMs: 1000,
+    priority: 4,
+    layers: [
+      // Two inharmonic partials read as bronze; long and quiet reads as far.
+      tone({ wave: 'sine', freq: 440, gain: 0.35, decay: 1.2 }),
+      tone({ wave: 'sine', freq: 587, gain: 0.2, decay: 0.9 }),
+    ],
+  },
+  victory: {
+    bus: 'music',
+    gain: 0.55,
+    cooldownMs: 5000,
+    priority: 6,
+    layers: [
+      tone({ wave: 'triangle', freq: 523, gain: 0.3, decay: 0.5 }),
+      tone({ wave: 'triangle', freq: 659, gain: 0.3, decay: 0.55, delay: 0.15 }),
+      tone({ wave: 'triangle', freq: 784, gain: 0.3, decay: 0.6, delay: 0.3 }),
+      tone({ wave: 'triangle', freq: 1046, gain: 0.35, decay: 1.1, delay: 0.45 }),
+      tone({ wave: 'sine', freq: 131, gain: 0.3, attack: 0.05, decay: 1.4 }),
+    ],
+  },
+  defeat: {
+    bus: 'music',
+    gain: 0.5,
+    cooldownMs: 5000,
+    priority: 6,
+    layers: [
+      tone({ wave: 'sawtooth', freq: 392, gain: 0.18, decay: 0.7 }),
+      tone({ wave: 'sawtooth', freq: 311, gain: 0.18, decay: 0.8, delay: 0.35 }),
+      tone({ wave: 'sawtooth', freq: 262, gain: 0.2, decay: 1.4, delay: 0.7 }),
+      tone({ wave: 'sine', freq: 65, gain: 0.3, attack: 0.1, decay: 1.6, delay: 0.7 }),
+    ],
+  },
 } as const satisfies Record<string, CueDef>;
 
 export type CueId = keyof typeof CUES;

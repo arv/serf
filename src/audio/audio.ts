@@ -115,15 +115,16 @@ export function play(cue: CueId): void {
 /**
  * A world cue at world (x, z). Primitives only — this is called from
  * inside render loops that pool everything, and an options object per
- * request would undo that work.
+ * request would undo that work. `delaySec` schedules the voice ahead
+ * (loop-event percussion lands its impact mid-clip, not at the wrap).
  */
-export function playAt(cue: CueId, x: number, z: number, gainScale = 1): void {
+export function playAt(cue: CueId, x: number, z: number, gainScale = 1, delaySec = 0): void {
   if (!scheduler || muted || !hasView) return;
   const s = spatialize(x, z, view, spatialScratch);
   if (!s.audible) return;
   const gain = s.gain * gainScale;
   if (gain <= MIN_AUDIBLE) return;
-  scheduler.request(cue, s.pan, gain);
+  scheduler.request(cue, s.pan, gain, delaySec);
   armFallbackFlush();
 }
 

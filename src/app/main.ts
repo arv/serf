@@ -49,7 +49,15 @@ import {
   muted,
   volume,
 } from '../ui/store';
-import { audioFrame, initAudio, setAudioHidden, setAudioPaused, setAudioView } from '../audio/audio';
+import {
+  audioFrame,
+  initAudio,
+  play,
+  playAt,
+  setAudioHidden,
+  setAudioPaused,
+  setAudioView,
+} from '../audio/audio';
 import { volumeToGain } from '../audio/settings';
 import { markMissionComplete } from '../ui/campaign';
 import { MISSION_DEFS } from '../sim/defs/missions';
@@ -664,9 +672,13 @@ async function runMatch(
   buildingSync.setWater(
     (tx, tz) => inBounds(tx, tz) && mirror.map.terrain[tileIdx(tx, tz)] === Terrain.Water,
   );
+  // Presentation cues flow render -> audio, injected like the fog: the
+  // sync knows when and where, the audio layer knows whether and how loud.
+  buildingSync.onCue = (cue, x, z) => playAt(cue, x, z);
   buildingSync.update(init.buildings);
 
   const sync = new SceneSync(renderer.scene, init.reader, heights, config.myPlayerId);
+  sync.onCue = (cue, x, z, delaySec) => playAt(cue, x, z, 1, delaySec);
   // Where the well cranks are (drawing serfs stand beside them, hand
   // IK-glued to the grip) and where the fishery piers run (fishermen walk
   // out and cast off the end).
@@ -808,17 +820,29 @@ async function runMatch(
     }
     for (const event of msg.events) {
       if (event.kind === 'raidIncoming' && event.player === myPlayerId()) {
+        // Non-positional on purpose: a warning must be heard wherever the
+        // camera happens to be looking.
+        play('raidHorn');
         pushToast(event.text);
       } else if (event.kind === 'playerEliminated' && event.player !== myPlayerId()) {
+        play('distantBell');
         pushToast('A rival banner has fallen!');
       } else if (event.kind === 'damage' && event.player === myPlayerId()) {
         // The solo worker delivers every seat's events; filter like raids.
+        // Only struck *buildings* sound from here — this event exists for
+        // player-owned damage alone (combat.ts filters at the source), so
+        // it is an alarm bell, not the battle's soundtrack. Unit combat
+        // sounds come from the animation layer, which sees every side.
+        if (event.building) playAt('buildingHit', event.x, event.y);
         damageAlerts.report(event);
       } else if (event.kind === 'objectiveComplete' && event.player === myPlayerId()) {
+        play('objectiveDone');
         const label = msg.mission
           ? MISSION_DEFS[msg.mission.id].objectives[event.index]?.label
           : undefined;
         pushToast(label ? `Objective complete: ${label}` : 'Objective complete');
+      } else if (event.kind === 'gameOver') {
+        play(event.winner === myPlayerId() ? 'victory' : 'defeat');
       }
     }
     // Keep the selected building's panel fresh (or clear it if destroyed).

@@ -41,6 +41,11 @@ export interface PlayRequest {
   cue: string;
   pan: number;
   gain: number;
+  /** Seconds ahead to schedule — the loop-event percussion fires at a
+   * clip's wrap point but the impact lands mid-clip. Collapsed voices
+   * carry the gain-weighted mean; the spread inside one collapse window
+   * is the crowd's natural stagger and one voice cannot keep it anyway. */
+  delay: number;
   /** Deterministic per-voice jitter seed in [0, 1). */
   seed: number;
 }
@@ -68,6 +73,7 @@ interface Side {
   maxGain: number;
   gainSum: number;
   panGainSum: number;
+  delayGainSum: number;
 }
 
 interface Group {
@@ -83,6 +89,7 @@ interface Candidate {
   bus: string;
   pan: number;
   gain: number;
+  delay: number;
   score: number;
 }
 
@@ -91,6 +98,7 @@ const resetSide = (s: Side): void => {
   s.maxGain = 0;
   s.gainSum = 0;
   s.panGainSum = 0;
+  s.delayGainSum = 0;
 };
 
 export class CueScheduler {
@@ -102,6 +110,7 @@ export class CueScheduler {
   #cues: string[] = [];
   #pans: number[] = [];
   #gains: number[] = [];
+  #delays: number[] = [];
   #len = 0;
 
   #last = new Map<string, number>();
@@ -130,12 +139,13 @@ export class CueScheduler {
 
   /** Queue one cue for this frame. Sub-audible requests vanish here, before
    * they can touch a cooldown. */
-  request(cue: string, pan: number, gain: number): void {
+  request(cue: string, pan: number, gain: number, delaySec = 0): void {
     if (gain <= MIN_AUDIBLE || this.#defs[cue] === undefined) return;
     const i = this.#len++;
     this.#cues[i] = cue;
     this.#pans[i] = pan;
     this.#gains[i] = gain;
+    this.#delays[i] = delaySec;
   }
 
   /**
@@ -161,8 +171,8 @@ export class CueScheduler {
             cue,
             minPan: 0,
             maxPan: 0,
-            left: { n: 0, maxGain: 0, gainSum: 0, panGainSum: 0 },
-            right: { n: 0, maxGain: 0, gainSum: 0, panGainSum: 0 },
+            left: { n: 0, maxGain: 0, gainSum: 0, panGainSum: 0, delayGainSum: 0 },
+            right: { n: 0, maxGain: 0, gainSum: 0, panGainSum: 0, delayGainSum: 0 },
           };
         }
         g.cue = cue;
@@ -180,6 +190,7 @@ export class CueScheduler {
       side.n++;
       side.gainSum += gain;
       side.panGainSum += pan * gain;
+      side.delayGainSum += this.#delays[i]! * gain;
       if (gain > side.maxGain) side.maxGain = gain;
     }
     this.#len = 0;
@@ -193,25 +204,27 @@ export class CueScheduler {
       if (last !== undefined && now - last < def.cooldownMs) continue;
       const split = g.maxPan - g.minPan > CLUSTER_SPREAD;
       for (const side of split ? [g.left, g.right] : [null]) {
-        let n: number, maxGain: number, gainSum: number, panGainSum: number;
+        let n: number, maxGain: number, gainSum: number, panGainSum: number, delayGainSum: number;
         if (side) {
           if (side.n === 0) continue;
-          ({ n, maxGain, gainSum, panGainSum } = side);
+          ({ n, maxGain, gainSum, panGainSum, delayGainSum } = side);
         } else {
           n = g.left.n + g.right.n;
           maxGain = Math.max(g.left.maxGain, g.right.maxGain);
           gainSum = g.left.gainSum + g.right.gainSum;
           panGainSum = g.left.panGainSum + g.right.panGainSum;
+          delayGainSum = g.left.delayGainSum + g.right.delayGainSum;
         }
         const ceiling = def.collapseCeiling ?? DEFAULT_CEILING;
         const gain = Math.min(maxGain * (1 + COLLAPSE_SLOPE * Math.log2(n)), ceiling);
         const ci = candLen++;
         let c = this.#cands[ci];
-        if (!c) c = this.#cands[ci] = { cue: '', bus: '', pan: 0, gain: 0, score: 0 };
+        if (!c) c = this.#cands[ci] = { cue: '', bus: '', pan: 0, gain: 0, delay: 0, score: 0 };
         c.cue = g.cue;
         c.bus = def.bus;
         c.pan = gainSum > 0 ? panGainSum / gainSum : 0;
         c.gain = gain;
+        c.delay = gainSum > 0 ? delayGainSum / gainSum : 0;
         c.score = gain * def.priority;
       }
     }
@@ -232,10 +245,11 @@ export class CueScheduler {
       this.#busUsed.set(c.bus, used + 1);
       budget--;
       let slot = out[outLen];
-      if (!slot) slot = out[outLen] = { cue: '', pan: 0, gain: 0, seed: 0 };
+      if (!slot) slot = out[outLen] = { cue: '', pan: 0, gain: 0, delay: 0, seed: 0 };
       slot.cue = c.cue;
       slot.pan = c.pan;
       slot.gain = c.gain;
+      slot.delay = c.delay;
       slot.seed = hash2(this.#flushSeq, outLen);
       outLen++;
       // Only what actually sounded claims the cooldown window; a candidate

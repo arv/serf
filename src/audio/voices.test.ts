@@ -135,6 +135,19 @@ describe('CueScheduler', () => {
     expect(flush(s, 1001)).toHaveLength(0);
   });
 
+  it('carries schedule-ahead delays through, gain-weighted on collapse', () => {
+    const s = new CueScheduler(DEFS, CAPS);
+    s.request('chop', 0, 0.8, 0.5);
+    const [solo] = flush(s, 1000);
+    expect(solo!.delay).toBeCloseTo(0.5);
+    s.request('chop', 0, 0.6, 0.2);
+    s.request('chop', 0, 0.6, 0.4);
+    const [merged] = flush(s, 2000);
+    expect(merged!.delay).toBeCloseTo(0.3, 5);
+    s.request('click', 0, 1);
+    expect(flush(s, 3000)[0]!.delay).toBe(0);
+  });
+
   it('seeds are deterministic across identical runs', () => {
     const run = (): number[] => {
       const s = new CueScheduler(DEFS, CAPS);

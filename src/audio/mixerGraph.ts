@@ -115,11 +115,11 @@ export class MixerGraph {
   }
 
   /**
-   * Start one voice. `when` is absolute context time (0 = now) — the
-   * loop-event percussion hook schedules impacts a fraction of a clip
-   * ahead, and Web Audio honors that exactly.
+   * Start one voice, `req.delay` seconds ahead when asked — the
+   * loop-event percussion schedules impacts a fraction of a clip early,
+   * and Web Audio keeps absolute-time appointments exactly.
    */
-  play(buffer: AudioBuffer, def: CueDef, req: PlayRequest, when = 0): void {
+  play(buffer: AudioBuffer, def: CueDef, req: PlayRequest): void {
     const ctx = this.ctx;
     const source = ctx.createBufferSource();
     source.buffer = buffer;
@@ -139,6 +139,6 @@ export class MixerGraph {
       gain.disconnect();
       panner.disconnect();
     };
-    source.start(when === 0 ? 0 : when);
+    source.start(req.delay > 0 ? ctx.currentTime + req.delay : 0);
   }
 }
