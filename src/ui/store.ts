@@ -60,6 +60,26 @@ export const [population, setPopulation] = createSignal<{ pop: number; cap: numb
 export const [placing, setPlacing] = createSignal<BuildingTypeId | null>(null);
 
 /**
+ * The build chord is half-typed: B has been pressed and the next letter
+ * picks the building. A signal rather than a local in Controls because the
+ * build card has to say so — a mode nothing on screen acknowledges reads as
+ * a swallowed keystroke, and the player presses B again.
+ */
+export const [buildChord, setBuildChord] = createSignal(false);
+
+/**
+ * An order armed and waiting for its target: A or M pressed (or the
+ * selection card's buttons tapped) with people selected, and the next click
+ * on the map says where. `'attack'` is the attack-move that engages what it
+ * meets, `'move'` the plain walk that ignores it.
+ *
+ * Controls owns the writing — see armOrder there — because leaving the mode
+ * also has to put the cursor back.
+ */
+export type OrderMode = 'attack' | 'move';
+export const [orderMode, setOrderMode] = createSignal<OrderMode | null>(null);
+
+/**
  * One-shot touch marquee: the HUD button arms it, and the next one-finger
  * drag draws a selection band instead of panning the camera (Controls
  * consumes the flag; CameraRig yields while it is set).
@@ -104,9 +124,22 @@ export const [toasts, setToasts] = createSignal<
   { id: number; text: string; focus?: { x: number; y: number } }[]
 >([]);
 let toastId = 0;
+
+/**
+ * Where the last thing worth looking at happened — what Space jumps to, the
+ * way both Warcraft III and StarCraft II jump to the last alert.
+ *
+ * Separate from the toasts themselves because it has to outlive them. A
+ * toast is gone in eight seconds; the raid it announced is still going on,
+ * and a player who was mid-build when it landed is exactly the one who
+ * needs to be taken there afterwards.
+ */
+export const [lastAlert, setLastAlert] = createSignal<{ x: number; y: number } | null>(null);
+
 export function pushToast(text: string, focus?: { x: number; y: number }): void {
   // Every notification passes through here, so this is where they rustle.
   play('uiToast');
+  if (focus) setLastAlert(focus);
   const id = ++toastId;
   setToasts([...toasts(), { id, text, focus }]);
   setTimeout(() => setToasts(toasts().filter((t) => t.id !== id)), 8000);
@@ -266,6 +299,8 @@ export function resetMatchState(): void {
   setStock({});
   setPopulation({ pop: 0, cap: 0 });
   setPlacing(null);
+  setBuildChord(false);
+  setOrderMode(null);
   setBandArm(false);
   setTechs({ researched: [], festivalTicksLeft: 0, pavingUnlocked: false, hasAbbey: false });
   setOpenPanel(null);
@@ -273,6 +308,7 @@ export function resetMatchState(): void {
   setBriefingOpen(false);
   setSelectedBuilding(null);
   setToasts([]);
+  setLastAlert(null);
   setOutcome({ state: 'playing' });
   setAdminState({ enabled: true, raidsEnabled: true, instantBuild: false });
   setLlmStatus(null);

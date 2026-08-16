@@ -1,6 +1,6 @@
 import { render } from 'solid-js/web';
 import { Hud } from './Hud';
-import { pushToast, setSpeed } from './store';
+import { pushToast, setSpeed, type OrderMode } from './store';
 import { play } from '../audio/audio';
 import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { SimHost } from '../app/simHost';
@@ -13,6 +13,10 @@ export interface HudActions {
   /** Arm or disarm placement. Controls owns it, because dropping the mode
    * also has to take the ghost off the map. */
   place(type: BuildingTypeId | null): void;
+  /** Arm or disarm an order waiting for its target — the A/M shortcuts'
+   * other half. Controls owns it for the same reason as placement: leaving
+   * the mode has to take the crosshair off the canvas. */
+  armOrder(mode: OrderMode | null): void;
   /** The full save string — the worker's world plus the fog's memory. */
   save(): Promise<string>;
   /** Write the match's replay log to OPFS; the saved name, or null when
@@ -54,6 +58,10 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
         onPlace={(type) => {
           play('uiClick');
           actions.place(type);
+        }}
+        onArmOrder={(mode) => {
+          play('uiClick');
+          actions.armOrder(mode);
         }}
         onHire={() => {
           play('uiCoin');

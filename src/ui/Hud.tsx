@@ -1,4 +1,4 @@
-import { For, Show, createSignal, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { TechId } from '../sim/defs/techs';
@@ -25,13 +25,15 @@ import {
 } from './icons';
 import { BuildingTip, GoodTip, TextTip, TipWrap, TooltipLayer, tooltip } from './tooltip';
 import { buildingName, techName } from './names';
-import { BUILD_GROUPS } from './buildMenu';
+import { BUILD_GROUPS, buildAffordable, buildKey, buildUnlocked } from './buildMenu';
+import { Key } from './shortcut';
 import { hasKeyboard } from '../input/keyboard';
 import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
 import {
   CHEATS_ALLOWED,
   bandArm,
+  buildChord,
   debugJobs,
   debugOpen,
   invariantViolations,
@@ -61,6 +63,7 @@ import {
   toasts,
   toggleMuted,
   volume,
+  type OrderMode,
 } from './store';
 import { play } from '../audio/audio';
 
@@ -94,6 +97,7 @@ const REPLAY_SPEED = {
 export function Hud(props: {
   onSpeed: (speed: number) => void;
   onPlace: (type: BuildingTypeId | null) => void;
+  onArmOrder: (mode: OrderMode | null) => void;
   onHire: () => void;
   onResearch: (tech: TechId) => void;
   onTrain: (buildingId: number, unit: UnitTypeId) => void;
@@ -139,16 +143,25 @@ export function Hud(props: {
     setOpenPanel(open ? 'menu' : null);
   };
   const cost = (type: BuildingTypeId) => Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
-  const affordable = (type: BuildingTypeId): boolean => {
-    const s = stock();
-    return cost(type).every(([good, n]) => (s[good] ?? 0) >= n);
-  };
-  const unlocked = (type: BuildingTypeId): boolean => {
-    const req = BUILDING_DEFS[type].requiresTech;
-    if (req === undefined) return true;
-    const researched = techs().researched;
-    return Array.isArray(req) ? req.some((t) => researched.includes(t)) : researched.includes(req);
-  };
+  const affordable = (type: BuildingTypeId): boolean => buildAffordable(type, stock());
+  const unlocked = (type: BuildingTypeId): boolean => buildUnlocked(type, techs().researched);
+
+  // A building armed from the keyboard has to bring its tab with it: the
+  // chord can reach a mine while the Food tab is showing, and a placement
+  // whose button is on a tab nobody is looking at is a ghost on the map
+  // with nothing on the HUD claiming it. Clicking a button lands here too
+  // and changes nothing — that tab was already the open one.
+  createEffect(() => {
+    const type = placing();
+    if (!type) return;
+    const i = BUILD_GROUPS.findIndex((g) => g.types.includes(type));
+    if (i >= 0) setActiveTab(i);
+  });
+  // Phones fold the card down to a pill, and a chord typed at a folded card
+  // would arm a building with nothing on screen to show for it.
+  createEffect(() => {
+    if (buildChord()) setBuildOpen(true);
+  });
   const soloMode = (): boolean => playersMeta().length <= 1;
   /** The strategist badge's one line, or null for no badge. Discriminates
    * on state: only loading and ready have anything to show — a failure is
@@ -243,6 +256,13 @@ export function Hud(props: {
           border-color: #e5c469;
         }
         #ui button:focus-visible { outline: 2px solid #e5c469; outline-offset: 2px; }
+        /* The shortcut letter, bolded in place inside its own label (see
+           shortcut.tsx). Same gold as every other "this is live" accent. */
+        #ui .kbd { font-weight: 700; color: #e5c469; }
+        /* A locked or unaffordable button is not a shortcut worth teaching
+           right now, so the letter goes grey with the rest of the label —
+           gold on a dashed disabled button reads as "press me". */
+        #ui button:disabled .kbd { color: inherit; }
         #ui .cost {
           margin-left: 6px; white-space: nowrap;
           font-size: 11.5px; color: #b6b3a6;
@@ -362,6 +382,18 @@ export function Hud(props: {
           pointer-events: auto; flex: 0 1 auto; min-width: 0;
           display: flex; flex-direction: column; gap: 8px; padding: 10px;
         }
+        /* A half-typed chord is a mode, and a mode has to be visible or the
+           next keystroke goes somewhere the player didn't mean it to. The
+           whole card lights rather than a word inside it: the letter being
+           waited for could be any of the fifteen buttons below. */
+        .hud-build.chording { border-color: #e5c469; }
+        .build-head {
+          display: flex; align-items: baseline; gap: 8px;
+          font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+          color: #cfccc2;
+        }
+        .build-head .chord-hint { font-size: 11.5px; font-weight: 400; color: #8f8c83; }
+        .hud-build.chording .build-head .chord-hint { color: #e5c469; }
         .hud-tabs {
           display: flex; gap: 2px; padding: 3px; align-self: flex-start;
           background: rgba(0, 0, 0, 0.35); border-radius: 9px;
@@ -771,7 +803,13 @@ export function Hud(props: {
             <button
               class="menu-mute"
               aria-pressed={muted()}
-              title={muted() ? 'Sound off (M)' : 'Sound on (M)'}
+              // M only mutes while nothing is selected — with a squad
+              // standing it is the move order. Advertising a key that
+              // would march the army instead is worse than no hint.
+              title={
+                (muted() ? 'Sound off' : 'Sound on') +
+                (hasKeyboard() && selection().size === 0 ? ' (M)' : '')
+              }
               onClick={() => toggleMuted()}
             >
               {muted() ? <SpeakerOffIcon /> : <SpeakerIcon />}
@@ -872,13 +910,29 @@ export function Hud(props: {
           fallback={
             <Show when={!replayMode()}>
               <button class="hud-build-pill panel" onClick={() => setBuildOpen(true)}>
-                <MalletIcon /> Build
+                <MalletIcon /> <Key label="Build" k="B" />
                 <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
               </button>
             </Show>
           }
         >
-          <div class="hud-build panel">
+          <div class="hud-build panel" classList={{ chording: buildChord() }}>
+            {/* The card's own name, which it never needed until it had a
+                shortcut to teach. Keyboard only — with nothing to press,
+                a header saying "Build" over the build card is furniture. */}
+            <Show when={hasKeyboard()}>
+              <div class="build-head">
+                {/* Wrapped, because this row is a flex container: bare, the
+                    gold B and the "uild" after it are two flex items and
+                    the row's gap opens up inside the word. */}
+                <span>
+                  <Key label="Build" k="B" />
+                </span>
+                <span class="chord-hint">
+                  {buildChord() ? 'now a letter…' : 'then a letter'}
+                </span>
+              </div>
+            </Show>
             <div class="hud-tabs">
               <For each={BUILD_GROUPS}>
                 {(group, i) => (
@@ -901,7 +955,7 @@ export function Hud(props: {
                       when={unlocked(type)}
                       fallback={
                         <button disabled>
-                          <LockIcon /> {buildingName(type)}
+                          <LockIcon /> <Key label={buildingName(type)} k={buildKey(type)} />
                         </button>
                       }
                     >
@@ -910,7 +964,7 @@ export function Hud(props: {
                         disabled={!affordable(type) && placing() !== type}
                         onClick={() => place(placing() === type ? null : type)}
                       >
-                        {buildingName(type)}
+                        <Key label={buildingName(type)} k={buildKey(type)} />
                         <span class="cost">
                           <For each={cost(type)}>
                             {([good, n]) => (
@@ -935,6 +989,7 @@ export function Hud(props: {
           onCancelTrain={props.onCancelTrain}
           onHire={props.onHire}
           onDeselect={props.onDeselect}
+          onArmOrder={props.onArmOrder}
           onDismiss={props.onDismiss}
           onSell={props.onSell}
           onRepair={props.onRepair}
