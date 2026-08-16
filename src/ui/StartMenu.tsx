@@ -64,6 +64,13 @@ function opponentHint(picks: (AiStrategyId | undefined)[]): string {
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
 
+/** Whether to spend hint words on dragging replays out of the shelf: a
+ * fine pointer is the desktop tell (same matchMedia shape as
+ * edgeScroll.ts — jsdom ships without one). The rows are draggable
+ * regardless; only the hint is gated. */
+const DRAG_OFFERED =
+  typeof window !== 'undefined' && (window.matchMedia?.('(any-pointer: fine)').matches ?? false);
+
 export type Mode = 'single' | 'campaign' | 'multi';
 export type MpMode = 'host' | 'join';
 type Visibility = 'open' | 'private';
@@ -707,12 +714,39 @@ export function StartMenu(props: StartMenuProps) {
                           // this build cannot play is exactly the one worth
                           // deleting, and the row still has to read.
                           const ok = r.replayVersion === REPLAY_VERSION;
+                          // The file's blob URL, minted with the row and
+                          // revoked with it. A drag must hand this over
+                          // synchronously at dragstart, and dragend is too
+                          // soon to revoke — the desktop drop may still be
+                          // streaming from it. One URL per visible row is
+                          // a registry entry, not a copy of the log.
+                          const dragUrl = URL.createObjectURL(r.file);
+                          onCleanup(() => URL.revokeObjectURL(dragUrl));
                           return (
                             // Row and delete are siblings, not nested: an
                             // interactive control inside a button is an
                             // invalid a11y tree, and the wrapper is what
                             // lets both be real buttons.
-                            <div class="replay-row">
+                            <div
+                              class="replay-row"
+                              draggable={true}
+                              onDragStart={(e) => {
+                                const dt = e.dataTransfer;
+                                if (!dt) return;
+                                // Two spellings of "this file": the item is
+                                // what a web drop target (an upload box,
+                                // another tab) reads, and DownloadURL is
+                                // Chromium's contract for a drop onto the
+                                // desktop. Colons delimit its triple;
+                                // fileNameFor keeps names clear of them.
+                                dt.items.add(r.file);
+                                dt.setData(
+                                  'DownloadURL',
+                                  `application/json:${r.file.name}:${dragUrl}`,
+                                );
+                                dt.effectAllowed = 'copy';
+                              }}
+                            >
                               <button
                                 class={`room ${pickedReplay() === r.name ? 'on' : ''}`}
                                 disabled={!ok}
@@ -769,6 +803,7 @@ export function StartMenu(props: StartMenuProps) {
                   <div class="row-hint">
                     A replay re-runs the match exactly as it was played, with an extra
                     speed beyond fast forward.
+                    {DRAG_OFFERED ? ' Drag one out of the list to save it as a file.' : ''}
                   </div>
                 </div>
               </Show>

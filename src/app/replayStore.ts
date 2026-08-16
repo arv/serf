@@ -20,6 +20,11 @@ export interface ReplayFileInfo {
   name: string;
   size: number;
   lastModified: number;
+  /** The OPFS-backed File itself. Lazy — holding it reads nothing — and
+   * carried because dragging a replay out of the menu must hand the
+   * payload over synchronously at dragstart, with no room for an async
+   * OPFS round-trip. */
+  file: File;
   /** The REPLAY_VERSION the file was recorded under; undefined when its
    * head doesn't say (a truncated or foreign file). Only a build carrying
    * the same number can play it back. */
@@ -113,6 +118,7 @@ export async function listReplayFiles(): Promise<ReplayFileInfo[]> {
         name: handle.name.slice(0, -EXT.length),
         size: file.size,
         lastModified: file.lastModified,
+        file,
         ...(replayVersion !== undefined ? { replayVersion } : {}),
       });
     }
