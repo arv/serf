@@ -99,7 +99,7 @@ function showFatal(message: string, opts?: { retry?: boolean }): void {
   el.style.display = 'grid';
   const card = document.createElement('div');
   const title = document.createElement('h1');
-  title.textContent = 'Serf cannot start';
+  title.textContent = 'Serf Valley cannot start';
   const body = document.createElement('p');
   // Text, never markup. Relay error messages land here (runLobby's fail
   // rejects with them and boot's catch brings them straight in), and the

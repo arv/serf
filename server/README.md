@@ -1,4 +1,4 @@
-# Serf server
+# Serf Valley server
 
 One process, one port: this Node server serves the built game over HTTP
 (with the COOP/COEP headers SharedArrayBuffer needs) and speaks the

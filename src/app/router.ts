@@ -1,7 +1,7 @@
 /**
  * The page's one navigator.
  *
- * Serf used to change screens by changing `location`: the start menu wrote
+ * Serf Valley used to change screens by changing `location`: the start menu wrote
  * `location.search` and the whole document came back up in a match. It
  * worked, and it cost a full reload for every launch — the bundle re-parsed,
  * the models re-fetched from cache, the WebGL context re-negotiated. It also
