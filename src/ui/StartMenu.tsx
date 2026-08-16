@@ -19,6 +19,7 @@ import {
   deleteReplayFile,
   importReplayFile,
   listReplayFiles,
+  type ImportResult,
   type ReplayFileInfo,
 } from '../app/replayStore';
 import { fullscreen } from './fullscreen';
@@ -319,7 +320,7 @@ export function StartMenu(props: StartMenuProps) {
     void (async () => {
       // One at a time: parallel imports of same-named files would race
       // the free-name check where Web Locks is absent.
-      const results = [];
+      const results: ImportResult[] = [];
       for (const f of files) results.push(await importReplayFile(f));
       const filed = results.flatMap((r) => (r.ok ? [r.name] : []));
       const bad = results.length - filed.length;
@@ -346,12 +347,16 @@ export function StartMenu(props: StartMenuProps) {
       );
     })();
   };
-  // A drop that misses the shelf must not become a navigation: the
+  // A file drop that misses the shelf must not become a navigation: the
   // browser's default for a dropped file is to open it, replacing the
-  // game with a screenful of JSON. Swallowed at the window rather than
-  // the card so the whole viewport is covered; the shelf's own drop
-  // handler has already run by the time these fire.
-  const swallowDrop = (e: DragEvent): void => e.preventDefault();
+  // game with a screenful of JSON. Only drags carrying files are
+  // swallowed — preventing everything here would also cancel the default
+  // a text drag relies on to land in the seed or room-code inputs — and
+  // at the window rather than the card so the whole viewport is covered;
+  // the shelf's own drop handler has already run by the time these fire.
+  const swallowDrop = (e: DragEvent): void => {
+    if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+  };
   window.addEventListener('dragover', swallowDrop);
   window.addEventListener('drop', swallowDrop);
   onCleanup(() => {
