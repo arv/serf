@@ -327,8 +327,17 @@ export class Controls {
     // While the quit question stands, the rest of the keyboard belongs to
     // its buttons: B must not open the build chord behind a modal card.
     // Enter and Tab never land in this handler, so answering and moving
-    // between the two buttons still work.
-    if (quitConfirm()) return;
+    // between the two buttons still work. The two browser defaults this
+    // handler always swallows stay swallowed even now — Backspace's legacy
+    // navigation and Space's document scroll — but Space on the dialog's
+    // focused button is left alone: that is how it is pressed.
+    if (quitConfirm()) {
+      if (e.key === 'Backspace' || e.code === 'Backspace') e.preventDefault();
+      if ((e.key === ' ' || e.code === 'Space') && !(t instanceof HTMLButtonElement)) {
+        e.preventDefault();
+      }
+      return;
+    }
 
     const letter = keyLetter(e);
 

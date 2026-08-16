@@ -293,14 +293,14 @@ export function Hud(props: {
              11     floating touch actions, over the map
              19/20  the tech sheet's scrim and the sheet itself — modal
              30     notices that outrank an open sheet: net trouble
-             35     end-of-match cards, which outrank everything but the
-                    layers that must land on them: the quit question,
-                    toasts and tips
+             35     end-of-match cards, which outrank everything but the two
+                    layers that must land on them: toasts and tips
              36     toasts — "Replay saved" answers a button on an end card,
                     so it has to read over the card's scrim
-             37     the quit question — asked from the menu strip or from an
-                    end card's own button, so it must land on either
-             40     tooltips (see tooltip.tsx) */
+             40     tooltips (see tooltip.tsx)
+           The quit question is not on this scale: it is a modal <dialog>,
+           and showModal() lifts it into the browser's top layer, over
+           every number above. */
 
         /* Wrapper for the two top strips: invisible on desktop (children
            keep their absolute spots), a flow column on phones so they can
@@ -521,15 +521,16 @@ export function Hud(props: {
           margin: 0 0 8px; font-size: 26px; font-weight: 600; color: #e5c469;
         }
         .end-card button { margin-top: 12px; padding: 8px 24px; font-size: 14px; }
-        /* The "really leave?" card. Same full-screen band as .hud-end; the
-           scrim absorbs the map's taps the way the tech sheet's does, and
-           only the two buttons answer. */
-        .hud-confirm {
-          position: absolute; inset: 0; display: grid; place-items: center;
-          background: rgba(8, 10, 8, 0.6); pointer-events: auto;
-          z-index: 37;
+        /* The "really leave?" card — a real <dialog>, so the browser does
+           the modality itself: the page behind goes inert, focus is held
+           to the two buttons, and the scrim is the ::backdrop. #ui's
+           pointer-events:none inherits even into the top layer, so the
+           card opts back in. */
+        #ui dialog.confirm-card {
+          pointer-events: auto;
+          padding: 26px 36px; text-align: center; max-width: min(380px, 86vw);
         }
-        .confirm-card { padding: 26px 36px; text-align: center; max-width: min(380px, 86vw); }
+        .confirm-card::backdrop { background: rgba(8, 10, 8, 0.6); }
         .confirm-card h1 {
           margin: 0 0 8px; font-size: 20px; font-weight: 600; color: #e5c469;
         }
@@ -1194,25 +1195,33 @@ export function Hud(props: {
       </Show>
 
       <Show when={quitConfirm()}>
-        <div class="hud-confirm">
-          <div class="panel confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="quit-title">
-            <h1 id="quit-title">Leave the match?</h1>
-            <p>{quitStakes()}</p>
-            <div class="confirm-actions">
-              <button onClick={() => setQuitConfirm(false)}>Stay{hasKeyboard() ? ' (Esc)' : ''}</button>
-              <button
-                // Focused on open so Enter answers yes — the reflex the
-                // native dialog taught. Deferred a tick: a ref runs before
-                // Solid puts the card in the document, and focus() on a
-                // detached button is a no-op.
-                ref={(el) => queueMicrotask(() => el.focus())}
-                onClick={() => goto(location.pathname)}
-              >
-                Quit to menu
-              </button>
-            </div>
+        <dialog
+          class="panel confirm-card"
+          aria-labelledby="quit-title"
+          // A <dialog> in the DOM is merely closed; modality is asked for.
+          // Deferred a tick because refs run before Solid puts the element
+          // in the document, and showModal() on a detached dialog throws.
+          ref={(el) => queueMicrotask(() => el.isConnected && el.showModal())}
+          // Esc lands in controls.ts first (keydown outruns the browser's
+          // cancel) and unmounts the card; this catches any close the game
+          // did not order, so the signal never says open over a closed
+          // dialog.
+          onClose={() => setQuitConfirm(false)}
+        >
+          <h1 id="quit-title">Leave the match?</h1>
+          <p>{quitStakes()}</p>
+          <div class="confirm-actions">
+            <button onClick={() => setQuitConfirm(false)}>Stay{hasKeyboard() ? ' (Esc)' : ''}</button>
+            <button
+              // showModal() hands focus to the autofocus element, so Enter
+              // answers yes — the reflex the native dialog taught.
+              autofocus
+              onClick={() => goto(location.pathname)}
+            >
+              Quit to menu
+            </button>
           </div>
-        </div>
+        </dialog>
       </Show>
 
       <Show when={invariantViolations().length > 0}>

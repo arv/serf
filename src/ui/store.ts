@@ -101,9 +101,10 @@ export const setTechPanelOpen = (open: boolean): void => {
   setOpenPanel(open ? 'tech' : null);
 };
 
-/** The "leave the match?" question, asked as a HUD card rather than a
- * native confirm(): the browser drops out of fullscreen to show its own
- * dialog, and quitting is exactly when the player may still say no. */
+/** The "leave the match?" question, asked by the HUD's own <dialog>
+ * rather than a native confirm(): the browser drops out of fullscreen to
+ * show its own dialog, and quitting is exactly when the player may still
+ * say no. */
 export const [quitConfirm, setQuitConfirm] = createSignal(false);
 
 /**
