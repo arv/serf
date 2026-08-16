@@ -73,7 +73,11 @@ export function hashWorld(world: World): number {
     for (const good of GOODS) {
       mix(b.stock[good] ?? 0);
       mix(b.inputs[good] ?? 0);
+      // An ordered repair steers hauls for many ticks before it moves the
+      // hp above; a save that lost the order must not hash as the same world.
+      mix(b.repairNeeds?.[good] ?? 0);
     }
+    mixF64(b.repairHpPerGood ?? 0);
   }
   for (const j of world.jobs.values()) {
     mixU32(j.id);

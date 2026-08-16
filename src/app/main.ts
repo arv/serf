@@ -895,6 +895,7 @@ async function runMatch(
     selectArmy: () => controls.selectArmy(),
     deselect: () => controls.deselectAll(),
     place: (type) => controls.setPlacement(type),
+    armOrder: (mode) => controls.armOrder(mode),
     save: saveGame,
     saveReplay: async () => {
       // Empty means there is nothing to save: both recorders decline while

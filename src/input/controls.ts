@@ -3,20 +3,46 @@ import { inBounds, tileIdx } from '../shared/grid';
 import { buildingDef, type BuildingTypeId } from '../sim/defs/buildings';
 import { canPlace } from '../sim/world';
 import { UNIT_DEFS } from '../sim/defs/units';
+import { HIRE_SERF_COST } from '../sim/defs/balance';
 import {
   bandArm,
+  buildChord,
   debugOpen,
+  lastAlert,
   muted,
   myPlayerId,
+  openPanel,
+  orderMode,
   placing,
+  population,
   pushToast,
+  replayMode,
+  selectedBuilding,
   setBandArm,
+  setBuildChord,
   setDebugOpen,
+  setOpenPanel,
+  setOrderMode,
   setPlacing,
   setSelectedBuilding,
   setSelection,
+  setTechPanelOpen,
+  stock,
+  techPanelOpen,
+  techs,
   toggleMuted,
+  type OrderMode,
 } from '../ui/store';
+import { buildAffordable, buildUnlocked, buildingForKey } from '../ui/buildMenu';
+import {
+  HIRE_KEY,
+  RESEARCH_KEY,
+  canHire,
+  canTrain,
+  trainingForKey,
+  unitTechGate,
+} from '../ui/commands';
+import { techName, unitName } from '../ui/names';
 import { play } from '../audio/audio';
 import { screenToGround, worldToScreen } from './picking';
 import type { SceneSync } from '../render/sceneSync';
@@ -36,6 +62,30 @@ const TOUCH_SLOP_PX = 12;
 const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_RADIUS_PX = 24;
 
+/**
+ * The A–Z letter a keypress means, or '' for anything else.
+ *
+ * `key` before `code`, which is the opposite of the usual game answer, and
+ * on purpose: every letter this game binds is one the HUD prints — the gold
+ * W inside **W**oodcutter. `key` is the letter on the keycap under the
+ * player's finger, whatever their layout, so it is the one that agrees with
+ * what they just read. `code` is the physical QWERTY position, which is the
+ * right answer for WASD (a square has to stay a square) and the wrong one
+ * here: it would send a Dvorak player hunting for their comma.
+ *
+ * `code` still backstops it, because `key` is the softer of the two — it
+ * comes back 'Dead' mid-accent and empty from some synthetic and remote
+ * input paths, and a shortcut that quietly stops existing is worse than one
+ * that lands a row over.
+ */
+function keyLetter(e: KeyboardEvent): string {
+  if (e.key.length === 1) {
+    const k = e.key.toUpperCase();
+    if (k >= 'A' && k <= 'Z') return k;
+  }
+  return e.code.startsWith('Key') ? e.code.slice(3) : '';
+}
+
 /** Kind codes that count as army for the select-army shortcut. */
 const MILITARY_CODES = new Set(
   Object.values(UNIT_DEFS)
@@ -49,6 +99,12 @@ const MILITARY_CODES = new Set(
  * validity-tinted ghost, left click places, right click / Esc cancels. A
  * small mode machine avoids the classic click-vs-drag papercuts; the band
  * rectangle is an HTML div, not WebGL.
+ *
+ * The keyboard adds two more modes on the same machine (see #onKey): A or M
+ * with people selected arms an attack-move or a plain move for the next
+ * click, and B opens a build chord whose next letter arms a building. Both
+ * are modes that claim the next click, so both are mutually exclusive with
+ * placement and with each other, and Esc unwinds them one at a time.
  *
  * Touch speaks selection-first, like every phone RTS: tap a unit to select,
  * then tap the ground to send the selection there as a half attack-move —
@@ -109,8 +165,13 @@ export class Controls {
     null;
   /** A marquee drag in flight (armed by the HUD's band button). */
   #bandTouch = false;
-  /** Camera gate — closed while a marquee drag owns the finger. */
-  #rig: { touchPanEnabled: boolean } | null;
+  /**
+   * The camera, as much of it as this file has business touching: the touch
+   * gate it closes while a marquee drag owns the finger, and the glide the
+   * jump keys ride. Structural rather than the CameraRig type so a test can
+   * hand in the two members instead of a renderer.
+   */
+  #rig: { touchPanEnabled: boolean; glideTo: (x: number, z: number) => void } | null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -120,7 +181,7 @@ export class Controls {
     mirror: WorldMirror,
     ghost: GhostPlacement,
     heights: HeightField,
-    rig?: { touchPanEnabled: boolean },
+    rig?: { touchPanEnabled: boolean; glideTo: (x: number, z: number) => void },
   ) {
     this.#canvas = canvas;
     this.#camera = camera;
@@ -146,26 +207,7 @@ export class Controls {
     // Nothing it was building up should land afterwards.
     canvas.addEventListener('pointercancel', this.#onCancel, { signal });
     canvas.addEventListener('lostpointercapture', this.#onCancel, { signal });
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.code === 'Escape') {
-        if (placing()) this.setPlacement(null);
-        else {
-          this.#setSel(new Set());
-          setSelectedBuilding(null);
-        }
-      } else if (e.code === 'Backquote') {
-        const open = !debugOpen();
-        setDebugOpen(open);
-        // The worker skips serializing its jobs table until told to.
-        this.#host.setDebug(open);
-      } else if (e.code === 'KeyM') {
-        toggleMuted();
-        // Unmuting clicks so the change is audible either way; muting's
-        // confirmation is the silence itself.
-        if (!muted()) play('uiClick');
-      }
-    };
-    window.addEventListener('keydown', onKey, { signal });
+    window.addEventListener('keydown', this.#onKey, { signal });
   }
 
   /**
@@ -188,6 +230,219 @@ export class Controls {
   setPlacement(type: BuildingTypeId | null): void {
     setPlacing(type);
     if (type === null) this.#ghost.hide();
+    // Two modes that both claim the next click cannot both be armed.
+    else this.armOrder(null);
+    setBuildChord(false);
+  }
+
+  /**
+   * Arm (or disarm) an order waiting for its target — the A/M shortcuts and
+   * the selection card's buttons both land here.
+   *
+   * A method rather than a bare setter because arming one mode has to
+   * disarm the others: placement and an order both claim the next click,
+   * and two things claiming one click is one of them losing silently.
+   */
+  armOrder(mode: OrderMode | null): void {
+    // Nobody to order about — an armed order over an empty selection would
+    // eat the click that was going to select someone.
+    if (mode !== null && (this.#selection.size === 0 || replayMode())) return;
+    setOrderMode(mode);
+    if (mode !== null) {
+      this.setPlacement(null);
+      // An explicit order supersedes the tap that came before it: the
+      // double-tap escalation must not treat the next tap as a repeat.
+      this.#lastMoveTap = null;
+    }
+  }
+
+  /**
+   * Keyboard shortcuts.
+   *
+   * The order they are tested in is the design:
+   *
+   * - Esc unwinds one mode per press, innermost first — a half-typed build
+   *   chord, then an armed order, then a placement, and only once nothing
+   *   is armed does it let the selection go. One key, one undo, no state
+   *   the player cannot see their way out of.
+   * - A half-typed build chord swallows the next letter whole. B, W is a
+   *   woodcutter and nothing else; while the chord stands, M cannot mute
+   *   the game out from under it.
+   * - Otherwise A and M are orders while people are selected, B opens the
+   *   chord, and the odds and ends (mute, the debug overlay) have what is
+   *   left. M is the one key that answers to two things, and the selection
+   *   decides which: with a squad standing it is the move order every RTS
+   *   binds it to, and only with nothing selected does it still mute.
+   * - The two camera jumps sit here rather than in CameraRig because they
+   *   are aimed at things only this layer can see: Backspace at your own
+   *   keep, Space at the last alert. The rig owns the directions (arrows,
+   *   the edge push); this owns the destinations.
+   */
+  #onKey = (e: KeyboardEvent): void => {
+    // Chords belong to the browser and the OS (⌘M minimises), and a key
+    // typed into a field is being typed, not pressed.
+    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+    const t = e.target;
+    if (
+      t instanceof HTMLInputElement ||
+      t instanceof HTMLTextAreaElement ||
+      (t instanceof HTMLElement && t.isContentEditable)
+    ) {
+      return;
+    }
+
+    // Both spellings, for the reason keyLetter gives: `code` comes back
+    // empty on some input paths, and Esc is the one key that must never be
+    // the thing that stopped working — it is how every mode is left.
+    if (e.key === 'Escape' || e.code === 'Escape') {
+      if (buildChord()) setBuildChord(false);
+      else if (orderMode()) this.armOrder(null);
+      else if (placing()) this.setPlacement(null);
+      // An open sheet is the outermost thing on screen, so it goes before
+      // the selection under it. The tech tree had only its ✕ until now,
+      // which is the one exit a player never looks for.
+      else if (openPanel() !== null) setOpenPanel(null);
+      else this.deselectAll();
+      return;
+    }
+
+    const letter = keyLetter(e);
+
+    if (buildChord()) {
+      setBuildChord(false);
+      const type = letter ? buildingForKey(letter) : null;
+      if (type) this.#armBuild(type);
+      else play('uiRefused');
+      return;
+    }
+
+    // The selected building's own command panel, and it goes first: these
+    // letters overlap the global ones on purpose (a barracks' Archer is the
+    // attack-move's A), and the overlap is only safe because a building
+    // selection is never a unit selection.
+    const b = selectedBuilding();
+    if (b && b.owner === myPlayerId() && this.#buildingCommand(b, letter)) return;
+
+    if (letter === RESEARCH_KEY) {
+      // Not contextual: the tree is a sheet to read, not an order to give.
+      setTechPanelOpen(!techPanelOpen());
+      play('uiClick');
+    } else if (letter === 'B') {
+      // A replay takes no orders, so it offers no build card to chord into.
+      if (replayMode()) return;
+      setBuildChord(true);
+      play('uiClick');
+    } else if (letter === 'A' || letter === 'M') {
+      if (this.#selection.size > 0 && !replayMode()) {
+        this.armOrder(letter === 'A' ? 'attack' : 'move');
+        play('uiClick');
+      } else if (letter === 'M') {
+        toggleMuted();
+        // Unmuting clicks so the change is audible either way; muting's
+        // confirmation is the silence itself.
+        if (!muted()) play('uiClick');
+      }
+    } else if (e.key === 'Backspace' || e.code === 'Backspace') {
+      this.#jumpHome();
+    } else if (e.key === ' ' || e.code === 'Space') {
+      // Both games put "take me to the last thing that happened" here, and
+      // it is the one camera key that answers a notification rather than a
+      // direction. Swallowed so it cannot also scroll the page.
+      const at = lastAlert();
+      if (at) {
+        e.preventDefault();
+        this.#rig?.glideTo(at.x, at.y);
+      }
+    } else if (e.key === '`' || e.code === 'Backquote') {
+      const open = !debugOpen();
+      setDebugOpen(open);
+      // The worker skips serializing its jobs table until told to.
+      this.#host.setDebug(open);
+    }
+  };
+
+  /**
+   * Run a command off the selected building's panel, if this letter names
+   * one. Returns whether the letter was spoken for — a building that has no
+   * command on that key lets it fall through to the global bindings, so
+   * selecting your castle does not cost you the build chord.
+   *
+   * Every refusal says which gate it hit, for the reason the build chord
+   * does: the greyed button is the explanation, and someone typing instead
+   * of looking never sees it.
+   */
+  #buildingCommand(b: BuildingSnap, letter: string): boolean {
+    if (!letter || replayMode()) return false;
+
+    if (letter === HIRE_KEY && b.type === 'storehouse' && b.state === 'built') {
+      if (!canHire(b, stock(), population())) {
+        const queued = b.hireQueue ?? 0;
+        pushToast(
+          (stock().silver ?? 0) < HIRE_SERF_COST
+            ? `Not enough silver to hire — a serf costs ${HIRE_SERF_COST}.`
+            : population().pop + queued >= population().cap
+              ? 'Every bed is taken — build a house before you hire again.'
+              : 'The recruiting queue is full.',
+        );
+        play('uiRefused');
+        return true;
+      }
+      this.#host.sendCommands([{ kind: 'hireSerf' }]);
+      play('uiCoin');
+      return true;
+    }
+
+    const unit = trainingForKey(b, letter);
+    if (unit !== null) {
+      if (b.state !== 'built') return true;
+      const gate = unitTechGate(unit);
+      if (!canTrain(b, unit, techs().researched)) {
+        pushToast(
+          gate !== undefined && !techs().researched.includes(gate)
+            ? `The ${unitName(unit)} needs ${techName(gate)} first.`
+            : 'The drill queue is full.',
+        );
+        play('uiRefused');
+        return true;
+      }
+      this.#host.sendCommands([{ kind: 'trainUnit', buildingId: b.id, unit }]);
+      play('uiClick');
+      return true;
+    }
+
+    return false;
+  }
+
+  /** Backspace: back to your own keep, the way both games spend that key. */
+  #jumpHome(): void {
+    for (const b of this.#mirror.buildings.values()) {
+      if (b.type === 'storehouse' && b.owner === myPlayerId()) {
+        this.#rig?.glideTo(b.x + b.w / 2, b.y + b.h / 2);
+        return;
+      }
+    }
+  }
+
+  /**
+   * Commit a chord to a placement, under the same two gates the ribbon's
+   * buttons wear. A refusal says which one it was: the button the player
+   * cannot see (they typed instead of looked) is greyed for a reason, and
+   * "nothing happened" is the one answer that teaches nothing.
+   */
+  #armBuild(type: BuildingTypeId): void {
+    const name = buildingDef(type).name;
+    if (!buildUnlocked(type, techs().researched)) {
+      pushToast(`The ${name} needs researching first.`);
+      play('uiRefused');
+      return;
+    }
+    if (!buildAffordable(type, stock())) {
+      pushToast(`Not enough in the stores for a ${name}.`);
+      play('uiRefused');
+      return;
+    }
+    this.setPlacement(type);
+    play('uiClick');
   }
 
   /** Footprint origin tile for a ghost centered under the cursor. */
@@ -240,6 +495,10 @@ export class Controls {
     if (sel !== this.#selection && sel.size > this.#selection.size) play('uiSelect');
     this.#selection = sel;
     setSelection(new Set(sel));
+    // An order with nobody left to carry it out: the squad was let go, or
+    // prune() just buried the last of them. Disarm rather than leave a
+    // crosshair waiting for a click that can only order thin air.
+    if (sel.size === 0 && orderMode()) this.armOrder(null);
   }
 
   /**
@@ -269,6 +528,22 @@ export class Controls {
   #onDown = (e: PointerEvent): void => {
     if (this.#secondaryTouch(e)) {
       this.#abortGesture();
+      return;
+    }
+    const order = orderMode();
+    if (order) {
+      if (e.button === 0) {
+        if (e.pointerType === 'touch') {
+          // Same deal as placement: the finger may be starting a map drag,
+          // so the order commits on release and only if it stayed put.
+          this.#touchOrigin = { x: e.clientX, y: e.clientY };
+          return;
+        }
+        this.#issueMove(e.clientX, e.clientY, order === 'attack');
+        this.armOrder(null);
+      } else if (e.button === 2) {
+        this.armOrder(null);
+      }
       return;
     }
     const type = placing();
@@ -400,6 +675,11 @@ export class Controls {
       return;
     }
     this.#ghost.hide();
+    if (orderMode()) {
+      // A travelling finger is panning the map, not aiming the order.
+      if (e.pointerType === 'touch') this.#cancelTap(e.clientX, e.clientY);
+      return;
+    }
     if (!this.#dragStart) return;
     if (e.pointerType === 'touch' && !this.#bandTouch) {
       // The camera owns plain finger drags; only an armed marquee selects.
@@ -427,6 +707,17 @@ export class Controls {
     if (this.#secondaryTouch(e)) return;
     const heldStill = this.#touchOrigin !== null;
     this.#touchOrigin = null;
+
+    // An armed order takes the release the same way placement does, and for
+    // the same reason: on touch the press only staked a claim.
+    const order = orderMode();
+    if (order) {
+      if (e.pointerType === 'touch' && e.button === 0 && heldStill) {
+        this.#issueMove(e.clientX, e.clientY, order === 'attack');
+        this.armOrder(null);
+      }
+      return;
+    }
 
     // Placement mode never arms a drag, so it has to be handled before the
     // drag guard below: touch commits here (a mouse placed on press).
@@ -674,8 +965,9 @@ export class Controls {
    * `'half'` walks the front half of the route as a plain move before going
    * live, and `false` is the plain move that ignores enemies throughout.
    * A single touch tap sends the half order (safe to flee with); a repeat
-   * tap escalates it to the full attack-move; desktop right-click stays the
-   * plain move until the `m`/`a` shortcuts land.
+   * tap escalates it to the full attack-move; desktop right-click is the
+   * plain move, and A or M arms the explicit attack-move or move for the
+   * next click.
    *
    * Returns the ordered tile, so the touch double-tap can re-aim its
    * escalation at exactly what the first tap ordered; null if the point

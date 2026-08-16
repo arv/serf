@@ -46,6 +46,8 @@ export interface BuildingSnap {
   state: 'site' | 'built';
   /** Remaining materials, present for sites. */
   siteNeeds?: GoodAmounts;
+  /** Remaining materials of an ordered repair; absent when none is running. */
+  repairNeeds?: GoodAmounts;
   /** Build timer progress 0..1 once materials are complete. */
   progress01?: number;
   stock: GoodAmounts;
