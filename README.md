@@ -155,3 +155,11 @@ pnpm test        # headless sim suite (58 tests)
 pnpm typecheck   # TS 7, strict + erasableSyntaxOnly
 pnpm build       # typecheck + production bundle
 ```
+
+## Credits
+
+- 3D models: [KayKit Medieval Hexagon Pack](https://kaylousberg.itch.io/kaykit-medieval-hexagon)
+  by Kay Lousberg (CC0) — `public/models/kaykit/`
+- Audio samples: [Kenney](https://kenney.nl) impact / RPG / interface /
+  jingle packs (CC0) — `public/audio/`; every cue also has a synthesized
+  fallback, so the samples only ever improve what is already audible

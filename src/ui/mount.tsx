@@ -1,6 +1,7 @@
 import { render } from 'solid-js/web';
 import { Hud } from './Hud';
 import { pushToast, setSpeed } from './store';
+import { play } from '../audio/audio';
 import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { SimHost } from '../app/simHost';
 
@@ -27,48 +28,86 @@ export interface HudActions {
  * Mount the Solid HUD into the overlay div. Solid never touches the canvas.
  * Returns the teardown: a match that ends in place has to take its HUD off
  * the glass, or the menu behind it would come up under a resource bar.
+ *
+ * Every HUD action funnels through this one file, which is why the click
+ * sounds live here and not on 60-odd onClick handlers in the components:
+ * one wrapper per action, and a new action cannot forget its sound.
  */
 export function mountHud(host: SimHost, actions: HudActions): () => void {
   const root = document.getElementById('ui')!;
   return render(
     () => (
       <Hud
-        onSelectArmy={() => actions.selectArmy()}
-        onDeselect={() => actions.deselect()}
+        onSelectArmy={() => {
+          play('uiClick');
+          actions.selectArmy();
+        }}
+        onDeselect={() => {
+          play('uiClick');
+          actions.deselect();
+        }}
         onSpeed={(speed) => {
+          play('uiClick');
           host.setSpeed(speed);
           setSpeed(speed);
         }}
-        onPlace={(type) => actions.place(type)}
-        onHire={() => host.sendCommands([{ kind: 'hireSerf' }])}
-        onDismiss={(buildingId) => host.sendCommands([{ kind: 'dismissWorker', buildingId }])}
-        onSell={(buildingId) => host.sendCommands([{ kind: 'sellBuilding', buildingId }])}
-        onTogglePause={(buildingId, paused) =>
-          host.sendCommands([{ kind: 'setBuildingPaused', buildingId, paused }])
-        }
-        onSetRecipe={(buildingId, index) =>
-          host.sendCommands([{ kind: 'setBuildingRecipe', buildingId, index }])
-        }
-        onResearch={(tech) => host.sendCommands([{ kind: 'research', tech }])}
-        onTrain={(buildingId, unit) =>
-          host.sendCommands([{ kind: 'trainUnit', buildingId, unit }])
-        }
-        onCancelTrain={(buildingId, index, unit) =>
-          host.sendCommands([{ kind: 'cancelTraining', buildingId, index, unit }])
-        }
+        onPlace={(type) => {
+          play('uiClick');
+          actions.place(type);
+        }}
+        onHire={() => {
+          play('uiCoin');
+          host.sendCommands([{ kind: 'hireSerf' }]);
+        }}
+        onDismiss={(buildingId) => {
+          play('uiClick');
+          host.sendCommands([{ kind: 'dismissWorker', buildingId }]);
+        }}
+        onSell={(buildingId) => {
+          play('uiCoin');
+          host.sendCommands([{ kind: 'sellBuilding', buildingId }]);
+        }}
+        onTogglePause={(buildingId, paused) => {
+          play('uiClick');
+          host.sendCommands([{ kind: 'setBuildingPaused', buildingId, paused }]);
+        }}
+        onSetRecipe={(buildingId, index) => {
+          play('uiClick');
+          host.sendCommands([{ kind: 'setBuildingRecipe', buildingId, index }]);
+        }}
+        onResearch={(tech) => {
+          play('uiClick');
+          host.sendCommands([{ kind: 'research', tech }]);
+        }}
+        onTrain={(buildingId, unit) => {
+          play('uiClick');
+          host.sendCommands([{ kind: 'trainUnit', buildingId, unit }]);
+        }}
+        onCancelTrain={(buildingId, index, unit) => {
+          play('uiClick');
+          host.sendCommands([{ kind: 'cancelTraining', buildingId, index, unit }]);
+        }}
         onSave={() => {
+          play('uiClick');
           void actions.save().then((data) => {
             localStorage.setItem('serf-save', data);
             pushToast('Game saved');
           });
         }}
         onSaveReplay={() => {
+          play('uiClick');
           void actions.saveReplay().then((name) => {
             pushToast(name !== null ? `Replay saved — ${name}` : 'Replay could not be saved');
           });
         }}
-        onAdmin={(action) => host.sendCommands([{ kind: 'admin', action }])}
-        onFocus={(x, y) => actions.focus(x, y)}
+        onAdmin={(action) => {
+          play('uiClick');
+          host.sendCommands([{ kind: 'admin', action }]);
+        }}
+        onFocus={(x, y) => {
+          play('uiClick');
+          actions.focus(x, y);
+        }}
       />
     ),
     root,

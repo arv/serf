@@ -14,14 +14,20 @@ import type { Plugin, ResolvedConfig } from 'vite';
  * and what the worker must cache is exactly what the server will serve.
  *
  * Two lists, two versions: the shell (document, bundle, fonts, icons)
- * turns over on every code change, while the ~10 MB of KayKit models keeps
- * its cache across the deploys that did not touch them.
+ * turns over on every code change, while the ~10 MB of KayKit models (and
+ * the audio samples beside them) keep their cache across the deploys that
+ * did not touch them.
  */
 
 const SW_SOURCE = 'src/app/sw.js';
 
-/** Built files that belong to the heavy, slow-moving asset cache. */
-const ASSET_PREFIX = '/models/';
+/** Built files that belong to the heavy, slow-moving asset cache: the
+ * KayKit models and the audio samples. Both are best-effort by design —
+ * the renderer falls back to procedural models, the mixer to procedural
+ * synthesis — so neither belongs in the all-or-nothing shell install,
+ * where one failed fetch would cost every visitor offline support. */
+const ASSET_PREFIXES = ['/models/', '/audio/'];
+const isAsset = (f: string): boolean => ASSET_PREFIXES.some((p) => f.startsWith(p));
 
 /** Never worth a place in the cache: licence texts and sourcemaps are
  * developer-facing, and nothing offline reads them. */
@@ -75,8 +81,8 @@ export function serviceWorkerPlugin(): Plugin {
       const files = walk(dist, dist, [])
         .filter((f) => f !== '/sw.js' && !SKIP.test(f) && !LLM_CHUNK.test(f))
         .sort();
-      const assets = files.filter((f) => f.startsWith(ASSET_PREFIX));
-      const shell = files.filter((f) => !f.startsWith(ASSET_PREFIX));
+      const assets = files.filter(isAsset);
+      const shell = files.filter((f) => !isAsset(f));
       if (!shell.includes('/index.html')) {
         this.error('no index.html in the build output — the worker would cache no document');
       }

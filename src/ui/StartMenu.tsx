@@ -18,6 +18,7 @@ import { LockIcon } from './icons';
 import { deleteReplayFile, listReplayFiles, type ReplayFileInfo } from '../app/replayStore';
 import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
+import { muted, toggleMuted } from './store';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -877,7 +878,24 @@ export function StartMenu(props: StartMenuProps) {
                 </div>
               </Show>
 
-              {/* Last row, and the only one outside every mode's Show: this
+              {/* Player properties, not match settings — outside every
+                  mode's Show, like fullscreen below: a player muting the
+                  game wants it muted before the first match sound, not
+                  after. */}
+              <div class="row">
+                <div class="row-label">Sound</div>
+                <button
+                  class={`toggle ${!muted() ? 'on' : ''}`}
+                  role="switch"
+                  aria-checked={!muted()}
+                  aria-label="Sound"
+                  onClick={() => toggleMuted()}
+                >
+                  <span />
+                </button>
+              </div>
+
+              {/* The only other row outside every mode's Show: this
                   is not a match setting but a property of the window, and
                   it belongs to a replay and a multiplayer room as much as
                   to a skirmish. Switched here rather than merely armed — a
