@@ -42,6 +42,18 @@ export function hashWorld(world: World): number {
     mixU32(u.owner);
     mix(u.dead ? 1 : 0);
     mixU32(u.pathIdx);
+    // The route, not just the cursor into it. Two worlds can hold identical
+    // positions and still be walking to different places.
+    mixU32(u.path?.length ?? 0);
+    if (u.path) for (const tile of u.path) mixU32(tile);
+    // Combat runtime. Who a unit is fighting, and how far it is through the
+    // swing, steer many ticks of behavior before anyone moves a step — which
+    // is exactly the window a digest is supposed to close. A save that
+    // restored the wrong target hashed as the same world until the fight
+    // resolved differently.
+    mixU32(u.cooldownLeft);
+    mixU32(u.targetId ?? 0); // 0 is a safe sentinel: entity ids start at 1
+    mix(u.targetIsBuilding ? 1 : 0);
     for (let i = 0; i < u.task.t.length; i++) mix(u.task.t.charCodeAt(i)); // task tag
     if (u.task.t === 'attackMove') {
       // The stored destination steers behavior for many ticks — a clone or

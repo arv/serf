@@ -18,6 +18,8 @@ import { LockIcon } from './icons';
 import { deleteReplayFile, listReplayFiles, type ReplayFileInfo } from '../app/replayStore';
 import { fullscreen } from './fullscreen';
 import { edgeScrollEnabled, edgeScrollOffered, setEdgeScroll } from '../input/edgeScroll';
+import { goto } from '../app/router';
+import { muted, toggleMuted } from './store';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -62,7 +64,7 @@ function opponentHint(picks: (AiStrategyId | undefined)[]): string {
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
 
-export type Mode = 'single' | 'campaign' | 'multi' | 'replays';
+export type Mode = 'single' | 'campaign' | 'multi';
 export type MpMode = 'host' | 'join';
 type Visibility = 'open' | 'private';
 
@@ -139,6 +141,13 @@ const BannerIcon = (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
     <path d="M6 3v18" />
     <path d="M6 4h12l-3 4 3 4H6" />
+  </svg>
+);
+/** Out of the shelf, back to the tab bar. */
+const BackIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 12H5" />
+    <path d="M11 6l-6 6 6 6" />
   </svg>
 );
 /** A wound scroll: matches watched back off the shelf. */
@@ -241,15 +250,22 @@ export function StartMenu(props: StartMenuProps) {
   // the direction that matters here: false means definitely not hosting.
   const [online, setOnline] = createSignal(navigator.onLine);
 
-  const isMulti = (): boolean => mode() === 'multi';
-  const isSingle = (): boolean => mode() === 'single';
-  const isCampaign = (): boolean => mode() === 'campaign';
-  const isReplays = (): boolean => mode() === 'replays';
+  // The replay shelf is not a fourth way to set up a match — it is somewhere
+  // you go and look, like a save — so it hangs off the secondary row rather
+  // than the tab bar, and covers the card while it is open. Keeping it out
+  // of `.seg` is also what keeps three tabs inside a phone-width card: four
+  // could not shrink below "MULTIPLAYER" and pushed the whole screen wide.
+  const [shelf, setShelf] = createSignal(false);
+  const isMulti = (): boolean => !shelf() && mode() === 'multi';
+  const isSingle = (): boolean => !shelf() && mode() === 'single';
+  const isCampaign = (): boolean => !shelf() && mode() === 'campaign';
+  const isReplays = (): boolean => shelf();
   const isJoin = (): boolean => isMulti() && mp() === 'join';
 
-  // The replay shelf: what OPFS holds under /replays, newest first. Read
-  // when the pane is opened (and re-read after a delete) — the list only
-  // changes from inside a match, which is a navigation away.
+  // The replay shelf: what OPFS holds under /replays, newest first. Read on
+  // arrival — the secondary button reports the count and stands down without
+  // one — and again after a delete. Nothing else changes it: recordings are
+  // written from inside a match, which is a navigation away.
   const [replays, setReplays] = createSignal<ReplayFileInfo[]>([]);
   const [replaysLoaded, setReplaysLoaded] = createSignal(false);
   const [pickedReplay, setPickedReplay] = createSignal<string | null>(null);
@@ -260,6 +276,13 @@ export function StartMenu(props: StartMenuProps) {
     if (pickedReplay() !== null && !found.some((r) => r.name === pickedReplay())) {
       setPickedReplay(null);
     }
+  };
+  /** Leave the shelf empty-handed: a pick left armed would sit behind the
+   * tab bar with nothing on screen naming it, and still read as "Watch
+   * replay" on the button. */
+  const closeShelf = (): void => {
+    setPickedReplay(null);
+    setShelf(false);
   };
   const fmtSize = (bytes: number): string =>
     bytes >= 1048576
@@ -329,15 +352,18 @@ export function StartMenu(props: StartMenuProps) {
   // by definition, and the poll is up to three seconds away.
   onMount(() => {
     if (isJoin() && online()) void refresh();
+    // The shelf button reports its own count and stands down at zero, so
+    // the shelf has to be read before anyone opens it.
+    void refreshReplays();
   });
 
   const hasSave = localStorage.getItem('serf-save') !== null;
 
   // Full screen is offered here rather than imposed: no browser grants it
   // outside a gesture, so the switch below is the only thing that can ask
-  // for it. The answer is remembered, and since a single-player launch
-  // reloads the page — which exits fullscreen — the match on the far side
-  // re-enters on the player's first click (see fullscreen.ts).
+  // for it. It carries into the match on its own — launching no longer
+  // costs a document (app/router.ts) — and the answer is remembered for
+  // the reloads that still happen (see fullscreen.ts).
   const fs = fullscreen();
 
   /** The single-player launch URL. Multiplayer has none: it walks into the
@@ -368,7 +394,7 @@ export function StartMenu(props: StartMenuProps) {
    * name is the whole query string, the log itself lives in OPFS. */
   const launchReplay = (name: string): void => {
     releaseMenuBackdrop();
-    location.search = '?replay=' + encodeURIComponent(name);
+    goto('?replay=' + encodeURIComponent(name));
   };
 
   const launch = (): void => {
@@ -383,7 +409,7 @@ export function StartMenu(props: StartMenuProps) {
       // A mission is a navigation like any single-player launch: the def's
       // id is the whole query string, the recipe lives in the sim's table.
       releaseMenuBackdrop();
-      location.search = '?mission=' + pickedMission();
+      goto('?mission=' + pickedMission());
       return;
     }
     if (isMulti()) {
@@ -396,12 +422,12 @@ export function StartMenu(props: StartMenuProps) {
       });
       return;
     }
-    // Single player reboots the page into the sim, and the first thing it
-    // asks for is a WebGL context. Give the backdrop's back before leaving:
-    // multiplayer's handover already does (the shell unmounts first), and a
-    // phone that has to hold two at once is a phone that grants neither.
+    // The sim's first act is to ask for a WebGL context. Give the
+    // backdrop's back before leaving: multiplayer's handover already does
+    // (the shell unmounts first), and a phone that has to hold two at once
+    // is a phone that grants neither.
     releaseMenuBackdrop();
-    location.search = search();
+    goto(search());
   };
   const onEnter = (e: KeyboardEvent): void => {
     if (e.key === 'Enter') launch();
@@ -410,9 +436,13 @@ export function StartMenu(props: StartMenuProps) {
   const loadSave = (): void => {
     const data = localStorage.getItem('serf-save');
     if (!data) return;
+    // Still the sessionStorage handoff rather than an argument: the screen
+    // has to be reconstructible from the URL alone, because a real reload
+    // (the GPU-loss recovery, a service worker swap) can happen at any
+    // moment and must come back into the same saved world.
     sessionStorage.setItem('serf-load-pending', data);
     releaseMenuBackdrop();
-    location.search = '?seed=' + seed();
+    goto('?seed=' + seed());
   };
 
   return (
@@ -430,41 +460,48 @@ export function StartMenu(props: StartMenuProps) {
           </div>
 
           <div class="card">
-            <div class="seg">
-              <button class={mode() === 'single' ? 'on' : ''} onClick={() => setMode('single')}>
-                {OneIcon}
-                Single player
-              </button>
-              <button class={mode() === 'campaign' ? 'on' : ''} onClick={() => setMode('campaign')}>
-                {BannerIcon}
-                Campaign
-              </button>
-              <button
-                class={mode() === 'multi' ? 'on' : ''}
-                disabled={!online()}
-                title={online() ? undefined : 'Needs a connection to the relay'}
-                onClick={() => {
-                  setMode('multi');
-                  if (mp() === 'join') void refresh();
-                }}
-              >
-                {ManyIcon}
-                Multiplayer
-              </button>
-              <button
-                class={mode() === 'replays' ? 'on' : ''}
-                onClick={() => {
-                  setMode('replays');
-                  void refreshReplays();
-                }}
-              >
-                {ScrollIcon}
-                Replays
-              </button>
-            </div>
+            {/* The shelf takes the tab bar's slot rather than sitting under
+                it: a highlighted "Single player" above a list of replays
+                would be a lie, and swapping in place keeps the card from
+                jumping. */}
+            <Show
+              when={!isReplays()}
+              fallback={
+                <div class="pane-head">
+                  <button class="icon-btn" aria-label="Back to the menu" onClick={closeShelf}>
+                    {BackIcon}
+                  </button>
+                  <span class="title">Replays</span>
+                  <span class="count">{replays().length} saved</span>
+                </div>
+              }
+            >
+              <div class="seg">
+                <button class={mode() === 'single' ? 'on' : ''} onClick={() => setMode('single')}>
+                  {OneIcon}
+                  Single player
+                </button>
+                <button class={mode() === 'campaign' ? 'on' : ''} onClick={() => setMode('campaign')}>
+                  {BannerIcon}
+                  Campaign
+                </button>
+                <button
+                  class={mode() === 'multi' ? 'on' : ''}
+                  disabled={!online()}
+                  title={online() ? undefined : 'Needs a connection to the relay'}
+                  onClick={() => {
+                    setMode('multi');
+                    if (mp() === 'join') void refresh();
+                  }}
+                >
+                  {ManyIcon}
+                  Multiplayer
+                </button>
+              </div>
+            </Show>
 
             <div class="rows">
-              <Show when={!online()}>
+              <Show when={!online() && !isReplays()}>
                 <div class="row">
                   <div>
                     <div class="row-label">Offline</div>
@@ -661,13 +698,6 @@ export function StartMenu(props: StartMenuProps) {
 
               <Show when={isReplays()}>
                 <div class="browser">
-                  <div class="browser-head">
-                    <div style="display:flex;align-items:baseline;gap:8px">
-                      <span class="row-label">Saved replays</span>
-                      <span class="count">{replays().length} saved</span>
-                    </div>
-                  </div>
-
                   <Show when={replays().length > 0}>
                     <div class="room-list" style="max-height:236px">
                       <For each={replays()}>
@@ -849,13 +879,30 @@ export function StartMenu(props: StartMenuProps) {
                 </div>
               </Show>
 
-              {/* Last row, and the only one outside every mode's Show: this
+              {/* Player properties, not match settings — outside every
+                  mode's Show, like fullscreen below: a player muting the
+                  game wants it muted before the first match sound, not
+                  after. */}
+              <div class="row">
+                <div class="row-label">Sound</div>
+                <button
+                  class={`toggle ${!muted() ? 'on' : ''}`}
+                  role="switch"
+                  aria-checked={!muted()}
+                  aria-label="Sound"
+                  onClick={() => toggleMuted()}
+                >
+                  <span />
+                </button>
+              </div>
+
+              {/* The only other row outside every mode's Show: this
                   is not a match setting but a property of the window, and
                   it belongs to a replay and a multiplayer room as much as
                   to a skirmish. Switched here rather than merely armed — a
                   toggle is a gesture, and a gesture is the only thing a
                   browser takes a fullscreen request from. */}
-              <Show when={fs.supported}>
+              <Show when={fs.offerable()}>
                 <div class="row">
                   {/* No hint under this one: the label is the whole story,
                       and a row of small print explaining what full screen
@@ -927,6 +974,19 @@ export function StartMenu(props: StartMenuProps) {
                 <path d="M12 15V3" />
               </svg>
               Load save
+            </button>
+            {/* Beside the save, not up in the tab bar: both are ways back
+                into a match that already happened. */}
+            <button
+              disabled={replays().length === 0}
+              title={replays().length > 0 ? 'Watch a recorded match' : 'No replays on this device'}
+              onClick={() => {
+                setShelf(true);
+                void refreshReplays();
+              }}
+            >
+              {ScrollIcon}
+              Replays{replays().length > 0 ? ` (${replays().length})` : ''}
             </button>
           </div>
         </div>

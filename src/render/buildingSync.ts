@@ -15,6 +15,7 @@ import { hash2 } from '../shared/math';
 import type { FogQuery } from './fogOfWar';
 import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
+import type { CueId } from '../audio/cues';
 
 /** A built fishery's pier, in world space: the deck line from its landward
  * end to the fishing spot near the tip, plank height, and the yaw that
@@ -162,6 +163,14 @@ export class BuildingSync {
   cameraQuaternion: THREE.Quaternion | null = null;
   /** Fog test; enemy buildings hide until their ground has been explored. */
   #fog: FogQuery | null = null;
+  /**
+   * Presentation cue channel, injected from main. Every call is guarded
+   * on `v.root.visible`: unlike sceneSync, this loop does NOT skip fogged
+   * buildings (they stay in the scene, merely invisible), so an unguarded
+   * cue here would announce construction inside unexplored enemy ground —
+   * a maphack by ear, the exact leak the fog exists to close.
+   */
+  onCue: ((cue: CueId, x: number, z: number) => void) | null = null;
 
   setFog(fog: FogQuery): void {
     this.#fog = fog;
@@ -179,6 +188,14 @@ export class BuildingSync {
       seen.add(b.id);
       let v = this.#visuals.get(b.id);
       if (v && v.state !== b.state) {
+        // The site's scaffolding comes down and the finished building
+        // stands: the one moment construction is worth hearing. Only for
+        // a swap the player can see (fog guard — see onCue), and only on
+        // a real transition: a boot or a resync builds every visual
+        // fresh and must not arrive as a fanfare salvo.
+        if (this.onCue && v.state === 'site' && b.state === 'built' && v.root.visible) {
+          this.onCue('buildingComplete', b.x + b.w / 2, b.y + b.h / 2);
+        }
         this.#dispose(b.id);
         v = undefined;
       }
@@ -229,6 +246,11 @@ export class BuildingSync {
     const v = this.#visuals.get(id);
     if (!v) return;
     this.#visuals.delete(id);
+    // The rumble belongs to the dust cloud below — and only where the
+    // cloud is drawn (fog guard — see onCue).
+    if (this.onCue && v.root.visible) {
+      this.onCue('buildingCollapse', v.root.position.x, v.root.position.z);
+    }
     if (v.hpBar) {
       v.root.remove(v.hpBar.group);
       // Geometry and the bg material are shared; only fg's tinted material

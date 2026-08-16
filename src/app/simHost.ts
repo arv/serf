@@ -143,6 +143,29 @@ export class WorkerSimHost implements SimHost {
     });
   }
 
+  /**
+   * End the match this host was speaking for. Terminating rather than
+   * asking politely: the sim worker's timers are deliberately unthrottled,
+   * so one left running behind a menu would go on simulating a world
+   * nobody can see, and the net worker's socket would hold a seat in a
+   * room the player has left.
+   *
+   * Callbacks are dropped first. A worker can post one last frame between
+   * the terminate call and the thread actually stopping, and delivering it
+   * would write a dead match's stock into a live HUD.
+   */
+  dispose(): void {
+    this.#structuralCb = null;
+    this.#saveCb = null;
+    this.#replayCbs = [];
+    this.#replayEndedCb = null;
+    this.#netStatusCb = null;
+    this.#aiSummaryCb = null;
+    this.#worker.onmessage = null;
+    this.#worker.onerror = null;
+    this.#worker.terminate();
+  }
+
   requestSave(): Promise<string> {
     return new Promise((resolve) => {
       this.#saveCb = resolve;

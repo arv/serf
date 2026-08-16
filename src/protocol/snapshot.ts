@@ -14,6 +14,9 @@ import { TECH_DEFS } from '../sim/defs/techs.ts';
 import { GOODS } from '../sim/defs/goods.ts';
 import { UNIT_DEFS, carryingCode } from '../sim/defs/units.ts';
 import { ACTION, PROFESSION, WORK, type UnitSnapshot } from './sabLayout.ts';
+import { centerOf } from '../sim/entities.ts';
+import { exactDist } from '../shared/math.ts';
+import { distToFootprint } from '../sim/arrival.ts';
 import type { World } from '../sim/world.ts';
 import type { Building, Owner } from '../sim/entities.ts';
 import type { Unit } from '../sim/units.ts';
@@ -155,11 +158,52 @@ function drawingAt(w: World, u: Unit): Building | undefined {
   return w.buildings.get(job.from);
 }
 
+/**
+ * Where a unit's target stands, but only while it is genuinely being fought:
+ * alive, and inside the weapon reach the combat system strikes at. Undefined
+ * otherwise.
+ *
+ * Holding a `targetId` is not the same as fighting. A squad right-clicked
+ * onto the bandit camp is given the camp as its target on the spot and keeps
+ * it for the whole march; a chaser keeps its quarry while running it down;
+ * one whose path is blocked keeps a target it can't reach. Animating on the
+ * id alone put every one of them into an attack swing at empty ground the
+ * moment they stopped walking — the renderer only masks it while the unit is
+ * visibly moving.
+ */
+function engagedTarget(w: World, u: Unit): { x: number; y: number } | undefined {
+  const combat = UNIT_DEFS[u.kind].combat;
+  if (!combat || u.targetId === undefined) return undefined;
+  if (u.targetIsBuilding) {
+    const b = w.buildings.get(u.targetId);
+    if (!b || b.dead) return undefined;
+    // Reach to the footprint, not the center — a besieger stands at the wall.
+    if (distToFootprint(u, b.x, b.y, b.w, b.h) > Math.max(combat.range, 1.4)) return undefined;
+    return centerOf(b);
+  }
+  const t = w.units.get(u.targetId);
+  if (!t || t.dead) return undefined;
+  if (exactDist(t.x - u.x, t.y - u.y) > combat.range) return undefined;
+  return { x: t.x, y: t.y };
+}
+
+/**
+ * Bearing from a unit to what it is hitting, quantized to a byte over a full
+ * turn. A stationary unit's yaw is otherwise frozen at whatever direction it
+ * last walked in, so fighters swung and loosed arrows facing away from the
+ * enemy they were killing.
+ */
+function facingByte(u: Unit, at: { x: number; y: number }): number {
+  // atan2(dx, dy) is the renderer's yaw convention (x east, y south).
+  const turns = Math.atan2(at.x - u.x, at.y - u.y) / (Math.PI * 2);
+  return Math.round((turns - Math.floor(turns)) * 256) & 255;
+}
+
 /** What is this unit visibly doing? Drives limb animation in the renderer. */
-function actionOf(w: World, u: Unit): number {
+function actionOf(w: World, u: Unit, engaged: boolean): number {
   if (u.dead) return ACTION.dead;
   // Engaged fighters swing (the renderer overrides with a walk while moving).
-  if (UNIT_DEFS[u.kind].combat && u.targetId !== undefined) return ACTION.fight;
+  if (engaged) return ACTION.fight;
   // Gather workers swinging at a resource tile.
   if (u.task.t === 'gatherWork') return ACTION.work;
   // A hauler on the well's windlass. The well keeps no resident, so this is
@@ -225,7 +269,8 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
     // Combat corpses (deathTick set) stay visible for the death animation;
     // other dead units (barracks consumption) vanish immediately.
     if (u.dead && u.deathTick === undefined) continue;
-    const action = actionOf(w, u);
+    const engaged = u.dead ? undefined : engagedTarget(w, u);
+    const action = actionOf(w, u, engaged !== undefined);
     yield {
       id: u.id,
       x: u.x,
@@ -243,6 +288,7 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
       // to the trees (goods occupy the hands on the walk back).
       workKind: action === ACTION.work || u.homeId !== undefined ? workKindOf(w, u) : WORK.none,
       profession: professionOf(w, u),
+      facing: engaged ? facingByte(u, engaged) : 0,
     };
   }
 }

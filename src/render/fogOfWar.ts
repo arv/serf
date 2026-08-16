@@ -69,7 +69,20 @@ export class FogOfWar implements FogQuery {
     uFogSize: { value: number };
     uUnknown: { value: THREE.Color };
   };
-  #patched = new WeakSet<THREE.Material>();
+  /**
+   * Every material this fog has spliced itself into, and what its
+   * onBeforeCompile was beforehand — `undefined` where the material had
+   * none of its own and inherited the prototype's.
+   *
+   * A Map rather than the WeakSet this used to be, because the patch now
+   * has to be undoable. The character and building GLBs are loaded once per
+   * document and cached there, so their materials outlive any one match —
+   * and a second match patching an already-patched material declares
+   * `varying vec2 vFogXZ` twice and every shader on it fails to compile.
+   * Holding them strongly costs nothing that matters: this map dies with
+   * the match, and the assets it points at are the ones deliberately kept.
+   */
+  #patched = new Map<THREE.Material, THREE.Material['onBeforeCompile'] | undefined>();
   /** Objects already listening for children, so the sweep can be skipped
    * while the graph is unchanged. */
   #watched = new WeakSet<THREE.Object3D>();
@@ -309,9 +322,31 @@ export class FogOfWar implements FogQuery {
     this.#pending.push(event.child);
   };
 
+  /**
+   * Unpick every splice, so the materials that outlive this match meet the
+   * next one's fog as they were. Skipping this leaves a shared GLB material
+   * carrying a dead match's fog uniforms and, on the second patch, a shader
+   * that will not compile at all.
+   */
+  dispose(): void {
+    for (const [material, previous] of this.#patched) {
+      if (previous) material.onBeforeCompile = previous;
+      // No own property before us: hand it back to the prototype's no-op
+      // rather than leaving a copy of it shadowing one.
+      else delete (material as Partial<THREE.Material>).onBeforeCompile;
+      // The compiled program still has the patch baked in; this is what
+      // makes the next context build a clean one.
+      material.needsUpdate = true;
+    }
+    this.#patched.clear();
+  }
+
   #patch(material: THREE.Material): void {
     if (this.#patched.has(material)) return;
-    this.#patched.add(material);
+    this.#patched.set(
+      material,
+      Object.hasOwn(material, 'onBeforeCompile') ? material.onBeforeCompile : undefined,
+    );
     // Screen-space overlays (hp bars, selection rings) opt out: they only
     // ever show for things the player can already see.
     if (material.userData?.noFog) return;

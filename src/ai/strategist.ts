@@ -1,4 +1,5 @@
 import { ADVICE_JSON_SCHEMA, parseAdvice, toOverride, type StrategyAdvice } from './advice.ts';
+import { discardPartialModel, type ModelCache } from './modelCache.ts';
 import { buildMessages, type ChatMessage } from './prompt.ts';
 import type { AiWorldSummary } from './summary.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
@@ -259,6 +260,10 @@ export class LlmStrategist {
       { logger: LoggerWithoutDebug, allowOffline: true },
     );
     this.#wllama = wllama;
+    // Before the load, not after a failure: a half-written GGUF from an
+    // earlier session is a permanent "Model file not found" otherwise —
+    // and the menu's aborted warm-up is the likeliest way to have one.
+    await sweepPartialModel(wllama.cacheManager);
     await wllama.loadModelFromUrl(LLM_MODEL_URL, {
       n_ctx: N_CTX,
       progressCallback: ({ loaded, total }) => {
@@ -310,14 +315,33 @@ export class LlmStrategist {
 }
 
 /**
+ * A partial download is worse than none — see modelCache.ts. Best-effort:
+ * a cache that cannot even be listed is not a reason to skip the attempt,
+ * since the download is what the player is waiting for.
+ */
+async function sweepPartialModel(cache: ModelCache): Promise<void> {
+  try {
+    const discarded = await discardPartialModel(cache, LLM_MODEL_URL);
+    if (discarded > 0) {
+      console.warn('[strategist] discarded an unfinished model download; fetching it again');
+    }
+  } catch (err) {
+    console.warn(`[strategist] could not check the model cache: ${String(err)}`);
+  }
+}
+
+/**
  * Warm the model cache from the start menu, so the download runs while the
  * player is still picking opponents instead of through the opening minutes
  * of the match. Pure download — wllama's ModelManager writes the GGUF into
  * cache storage without loading a byte of it, so the menu spends no CPU
- * and no memory beyond the fetch. The cache survives the launch reload;
- * the match-side strategist finds the file on disk and skips the network.
- * A launch mid-download keeps the partial cache and the match fetches only
- * what is missing.
+ * and no memory beyond the fetch. A finished download survives into the
+ * match, where the strategist finds the file on disk and skips the network.
+ *
+ * A launch mid-download does NOT resume: wllama has no notion of a partial
+ * file, so the match starts the fetch over — and the leftover bytes are
+ * swept first, because left in place they would poison every later attempt
+ * (modelCache.ts).
  */
 export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () => void } {
   const controller = new AbortController();
@@ -334,6 +358,11 @@ export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () 
         report({ state: 'ready' });
         return;
       }
+      if (disposed) return;
+      // getModels only lists whole models, so reaching here means either a
+      // clean cache or the wreckage of an earlier attempt. Clear the second
+      // out before asking for the file, or wllama mistakes it for a hit.
+      await sweepPartialModel(manager.cacheManager);
       if (disposed) return;
       await manager.downloadModel(LLM_MODEL_URL, {
         signal: controller.signal,

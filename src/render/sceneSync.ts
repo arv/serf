@@ -9,6 +9,8 @@ import {
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
 import { UNIT_DEFS } from '../sim/defs/units';
+import { animCue, LOOP_CUES } from '../audio/animCues';
+import type { CueId } from '../audio/cues';
 import type { PierInfo } from './buildingSync';
 import type { ViewBounds } from './cameraRig';
 import type { FogQuery } from './fogOfWar';
@@ -35,6 +37,22 @@ interface UnitVisual {
    * stay untouched (no unit collision by design). */
   sepX: number;
   sepY: number;
+  /**
+   * The audio layer's own last-clip memory — deliberately NOT
+   * `char.current`, which the off-screen cull nulls so re-entry restarts
+   * the clip cleanly. Audio must not inherit that: a null-and-replay on
+   * every camera pan would machine-gun re-entry cues. This one survives
+   * culling and only ever changes on screen (animCues.ts owns the
+   * transition rules).
+   */
+  audioKey: AnimKey | null;
+  /** Last on-screen world position, for the mixer-loop percussion —
+   * the 'loop' event fires inside mixer.update, after the per-unit loop's
+   * locals are gone. */
+  ax: number;
+  az: number;
+  /** The mixer 'loop' listener, kept for symmetric removal. */
+  loopCb?: (e: { action: THREE.AnimationAction }) => void;
   /** Right-arm bone chain for the well-crank IK. undefined = not looked
    * up yet, null = this rig has no such bones. */
   arm?: ArmChain | null;
@@ -160,6 +178,16 @@ export class SceneSync {
   /** Live reference to the (fixed-angle) camera orientation, set at boot;
    * hp bars copy it to stay parallel with the screen plane. */
   cameraQuaternion: THREE.Quaternion | null = null;
+
+  /**
+   * Presentation cue channel, injected from main like the fog and wells —
+   * the render sync decides *when* something is worth hearing (it alone
+   * knows position, culling and clip phase), the audio layer decides
+   * whether it actually sounds. `delaySec` schedules ahead: a mixer
+   * 'loop' event fires at the clip's wrap point, but the axe lands
+   * mid-clip, and Web Audio keeps that appointment exactly.
+   */
+  onCue: ((cue: CueId, x: number, z: number, delaySec: number) => void) | null = null;
 
   /** Built wells' world centers, windlasses + grip handles (from main's
    * structural feed). A drawing serf belongs at the windlass, but the sim
@@ -430,9 +458,13 @@ export class SceneSync {
           char: skinned.visual,
           sepX: 0,
           sepY: 0,
+          audioKey: null,
+          ax: latest.xs[i]!,
+          az: latest.ys[i]!,
         };
         this.#visuals.set(id, visual);
         this.#scene.add(visual.group);
+        this.#attachLoopCues(visual);
       }
 
       // Enemies vanish in unlit ground. Only current visibility counts —
@@ -516,6 +548,13 @@ export class SceneSync {
       const workKind = latest.aux[a + 5]!;
       const dead = action === ACTION.dead;
       if (dead) moving = false; // corpses don't turn or bob
+      // A fighter who has stopped to swing has no movement delta to face by,
+      // so it would keep the yaw it walked in with and hack at the air beside
+      // its enemy. The sim sends the bearing to whatever it is actually
+      // hitting; a chaser is still moving, so this only lands once it stands.
+      if (!moving && !dead && action === ACTION.fight) {
+        visual.group.rotation.y = (latest.aux[a + 7]! / 256) * Math.PI * 2;
+      }
       // Drawing at a well with a crank: the serf stands beside the windlass
       // and their hand is IK-glued to the grip, so the base pose is a calm
       // idle — the cranking motion IS the crank's.
@@ -598,6 +637,17 @@ export class SceneSync {
         } else {
           playAnimation(visual.char, key, key === 'death' ? 0 : hash2(id, 3));
         }
+        // State-entry sound, from audio's own memory — char.current is
+        // nulled by the cull above and would re-announce every re-entry.
+        if (this.onCue && visual.audioKey !== key) {
+          const cue = animCue(visual.audioKey, key);
+          if (cue) this.onCue(cue, x, y, 0);
+        }
+        visual.audioKey = key;
+        // Where this unit is, for the loop-event percussion firing inside
+        // mixer.update below (the closure outlives this frame's locals).
+        visual.ax = x;
+        visual.az = y;
         visual.char.mixer.update(dt);
       }
 
@@ -662,6 +712,41 @@ export class SceneSync {
   }
 
   /**
+   * Per-cycle percussion — footfalls, axe bites, hammer blows, sword
+   * swings — driven by the mixer's own 'loop' events rather than a timer,
+   * because the mixer already has exactly the semantics the sounds need:
+   * off-screen units skip mixer.update entirely (free culling), a paused
+   * game advances it by 0 (free silence), and each unit's per-id clip
+   * offset (the crowd desync) staggers the events for free. A hand-rolled
+   * timer would have to re-derive all three and would drift.
+   */
+  #attachLoopCues(visual: UnitVisual): void {
+    const char = visual.char;
+    if (!char) return;
+    // Which clip wrapped: the event carries the action, not the key.
+    const keyOf = new Map<THREE.AnimationAction, AnimKey>();
+    for (const [key, action] of char.actions) keyOf.set(action, key);
+    const cb = (e: { action: THREE.AnimationAction }): void => {
+      const fn = this.onCue;
+      if (!fn) return;
+      const key = keyOf.get(e.action);
+      const spec = key !== undefined ? LOOP_CUES[key] : undefined;
+      if (!spec) return;
+      // During the 0.16s crossfade the outgoing action still wraps; a
+      // clip that has already lost the blend is not the one being watched.
+      if (e.action.getEffectiveWeight() < 0.5) return;
+      const dur = e.action.getClip().duration;
+      fn(spec.cue, visual.ax, visual.az, spec.impactPhase01 * dur);
+      // A gait cycle is two footfalls; the second lands half a clip later.
+      if (spec.perCycle === 2) {
+        fn(spec.cue, visual.ax, visual.az, (spec.impactPhase01 + 0.5) * dur);
+      }
+    };
+    visual.loopCb = cb;
+    char.mixer.addEventListener('loop', cb as Parameters<typeof char.mixer.addEventListener>[1]);
+  }
+
+  /**
    * Remove a unit visual AND free what it uniquely owns on the GPU. The
    * GLB clone shares geometry and materials with the loaded assets, but
    * every SkeletonUtils.clone gets its own Skeleton — and a skeleton
@@ -675,6 +760,12 @@ export class SceneSync {
     visual.group.traverse((o) => {
       if (o instanceof THREE.SkinnedMesh) o.skeleton.dispose();
     });
+    if (visual.char && visual.loopCb) {
+      visual.char.mixer.removeEventListener(
+        'loop',
+        visual.loopCb as Parameters<typeof visual.char.mixer.removeEventListener>[1],
+      );
+    }
     this.#visuals.delete(id);
   }
 }
