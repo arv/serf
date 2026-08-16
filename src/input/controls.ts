@@ -511,8 +511,8 @@ export class Controls {
     this.#selection = sel;
     setSelection(new Set(sel));
     // An order with nobody left to carry it out: the squad was let go, or
-    // prune() just buried the last of them. Disarm rather than leave a
-    // crosshair waiting for a click that can only order thin air.
+    // prune() just buried the last of them. Disarm rather than leave the
+    // card lit and the next click swallowed to order thin air.
     if (sel.size === 0 && orderMode()) this.armOrder(null);
   }
 

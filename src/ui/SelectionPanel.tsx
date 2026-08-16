@@ -466,9 +466,10 @@ export function SelectionPanel(props: {
             {selection().size} {selection().size === 1 ? 'unit' : 'units'} selected
             <span style={{ opacity: 0.6, 'margin-left': '8px', 'font-size': '12px' }}>
               {/* An armed order outranks the standing advice: what the next
-                  click does has just changed, and saying "right-click to
-                  send them" underneath a crosshair is the HUD contradicting
-                  the cursor. */}
+                  click does has just changed, and "right-click to send
+                  them" beside a lit Attack button is the card contradicting
+                  itself. This line is the only thing that says so — the
+                  cursor deliberately does not change. */}
               {orderMode() === 'attack'
                 ? 'click where to attack-move'
                 : orderMode() === 'move'
