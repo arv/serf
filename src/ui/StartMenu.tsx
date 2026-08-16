@@ -17,6 +17,7 @@ import { isMissionComplete, isMissionUnlocked } from './campaign';
 import { LockIcon } from './icons';
 import { deleteReplayFile, listReplayFiles, type ReplayFileInfo } from '../app/replayStore';
 import { fullscreen } from './fullscreen';
+import { edgeScrollEnabled, edgeScrollOffered, setEdgeScroll } from '../input/edgeScroll';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -866,6 +867,25 @@ export function StartMenu(props: StartMenuProps) {
                     aria-checked={fs.active()}
                     aria-label="Full screen"
                     onClick={() => fs.toggle()}
+                  >
+                    <span />
+                  </button>
+                </div>
+              </Show>
+
+              {/* Its neighbour above, and for the same reason: a property of
+                  the window rather than of the match. Offered only where a
+                  pointer can rest against an edge — a finger drags the map
+                  itself and has nothing to gain. */}
+              <Show when={edgeScrollOffered()}>
+                <div class="row">
+                  <div class="row-label">Edge scrolling</div>
+                  <button
+                    class={`toggle ${edgeScrollEnabled() ? 'on' : ''}`}
+                    role="switch"
+                    aria-checked={edgeScrollEnabled()}
+                    aria-label="Edge scrolling"
+                    onClick={() => setEdgeScroll(!edgeScrollEnabled())}
                   >
                     <span />
                   </button>
