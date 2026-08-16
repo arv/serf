@@ -343,16 +343,31 @@ export class Controls {
         if (!muted()) play('uiClick');
       }
     } else if (e.key === 'Backspace' || e.code === 'Backspace') {
+      // Browsers stopped navigating Back on this years ago, but the guard
+      // is free and this listener is on window — the one place a stray
+      // default would take the whole page with it.
+      e.preventDefault();
       this.#jumpHome();
     } else if (e.key === ' ' || e.code === 'Space') {
-      // Both games put "take me to the last thing that happened" here, and
-      // it is the one camera key that answers a notification rather than a
-      // direction. Swallowed so it cannot also scroll the page.
-      const at = lastAlert();
-      if (at) {
-        e.preventDefault();
-        this.#rig?.glideTo(at.x, at.y);
+      // A focused control owns Space: that is how someone presses a button
+      // without a mouse, and taking it would leave the HUD reachable by
+      // keyboard but not operable by one.
+      if (
+        t instanceof HTMLButtonElement ||
+        t instanceof HTMLAnchorElement ||
+        t instanceof HTMLSelectElement
+      ) {
+        return;
       }
+      // Otherwise it is ours whether or not there is anywhere to jump to.
+      // The default is a page scroll, and scrolling the document out from
+      // under the map is a worse answer than doing nothing at all — so the
+      // key is swallowed first and the jump is what may or may not follow.
+      e.preventDefault();
+      // Both games put "take me to the last thing that happened" here: the
+      // one camera key that answers a notification rather than a direction.
+      const at = lastAlert();
+      if (at) this.#rig?.glideTo(at.x, at.y);
     } else if (e.key === '`' || e.code === 'Backquote') {
       const open = !debugOpen();
       setDebugOpen(open);
