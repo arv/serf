@@ -15,7 +15,12 @@ import {
 import { MISSION_DEFS, MISSION_ORDER, type MissionId } from '../sim/defs/missions';
 import { isMissionComplete, isMissionUnlocked } from './campaign';
 import { LockIcon } from './icons';
-import { deleteReplayFile, listReplayFiles, type ReplayFileInfo } from '../app/replayStore';
+import {
+  deleteReplayFile,
+  importReplayFile,
+  listReplayFiles,
+  type ReplayFileInfo,
+} from '../app/replayStore';
 import { fullscreen } from './fullscreen';
 import { edgeScrollEnabled, edgeScrollOffered, setEdgeScroll } from '../input/edgeScroll';
 import { goto } from '../app/router';
@@ -64,10 +69,11 @@ function opponentHint(picks: (AiStrategyId | undefined)[]): string {
 /** How often the join view asks the server for open rooms. */
 const POLL_MS = 3000;
 
-/** Whether to spend hint words on dragging replays out of the shelf: a
- * fine pointer is the desktop tell (same matchMedia shape as
- * edgeScroll.ts — jsdom ships without one). The rows are draggable
- * regardless; only the hint is gated. */
+/** Whether drag-and-drop is worth words: a fine pointer is the desktop
+ * tell (same matchMedia shape as edgeScroll.ts — jsdom ships without
+ * one). The rows are draggable and the shelf catches drops regardless;
+ * this gates only the hints — and the shelf button's empty-handed state,
+ * which exists so there is somewhere to drop a first replay. */
 const DRAG_OFFERED =
   typeof window !== 'undefined' && (window.matchMedia?.('(any-pointer: fine)').matches ?? false);
 
@@ -284,13 +290,74 @@ export function StartMenu(props: StartMenuProps) {
       setPickedReplay(null);
     }
   };
+  /** What the last drop came to — filed, refused, or a mix. Stands until
+   * the next drop or the shelf closes; a timer would take it away
+   * mid-read. */
+  const [importNote, setImportNote] = createSignal<string | null>(null);
   /** Leave the shelf empty-handed: a pick left armed would sit behind the
    * tab bar with nothing on screen naming it, and still read as "Watch
    * replay" on the button. */
   const closeShelf = (): void => {
     setPickedReplay(null);
+    setImportNote(null);
     setShelf(false);
   };
+  /** True while one of the shelf's own rows is the thing in flight: the
+   * list must not catch its outbound drag and file a duplicate. */
+  let dragOut = false;
+  /** Depth of dragenter minus dragleave over the shelf. Crossing into a
+   * row fires both, so a plain boolean would flicker the highlight. */
+  const [dropDepth, setDropDepth] = createSignal(0);
+  /** A drag the shelf wants: someone else's files, not its own row. */
+  const fileDrag = (e: DragEvent): boolean =>
+    !dragOut && (e.dataTransfer?.types.includes('Files') ?? false);
+  const onShelfDrop = (e: DragEvent): void => {
+    e.preventDefault();
+    setDropDepth(0);
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (dragOut || files.length === 0) return;
+    void (async () => {
+      // One at a time: parallel imports of same-named files would race
+      // the free-name check where Web Locks is absent.
+      const results = [];
+      for (const f of files) results.push(await importReplayFile(f));
+      const filed = results.flatMap((r) => (r.ok ? [r.name] : []));
+      const bad = results.length - filed.length;
+      await refreshReplays();
+      const last = filed.at(-1);
+      // Arm the newcomer, so drop-then-watch is one click — but only one
+      // this build can play: an import from another build lands on a row
+      // the shelf shows disabled, and the pick must not outrun the row.
+      if (last !== undefined && replays().find((r) => r.name === last)?.replayVersion === REPLAY_VERSION) {
+        setPickedReplay(last);
+      }
+      setImportNote(
+        filed.length === 0
+          ? results.some((r) => !r.ok && r.reason === 'storage')
+            ? 'Import failed — replay storage is unavailable here'
+            : files.length === 1
+              ? 'That file is not a replay'
+              : 'None of those files are replays'
+          : bad === 0
+            ? filed.length === 1
+              ? `Filed as “${last}”`
+              : `Filed ${filed.length} replays`
+            : `Filed ${filed.length} — the other ${bad === 1 ? 'file is' : `${bad} are`} not replays`,
+      );
+    })();
+  };
+  // A drop that misses the shelf must not become a navigation: the
+  // browser's default for a dropped file is to open it, replacing the
+  // game with a screenful of JSON. Swallowed at the window rather than
+  // the card so the whole viewport is covered; the shelf's own drop
+  // handler has already run by the time these fire.
+  const swallowDrop = (e: DragEvent): void => e.preventDefault();
+  window.addEventListener('dragover', swallowDrop);
+  window.addEventListener('drop', swallowDrop);
+  onCleanup(() => {
+    window.removeEventListener('dragover', swallowDrop);
+    window.removeEventListener('drop', swallowDrop);
+  });
   const fmtSize = (bytes: number): string =>
     bytes >= 1048576
       ? `${(bytes / 1048576).toFixed(1)} MB`
@@ -704,7 +771,24 @@ export function StartMenu(props: StartMenuProps) {
               </Show>
 
               <Show when={isReplays()}>
-                <div class="browser">
+                <div
+                  class="browser"
+                  classList={{ dropping: dropDepth() > 0 }}
+                  onDragEnter={(e) => {
+                    if (!fileDrag(e)) return;
+                    e.preventDefault();
+                    setDropDepth((d) => d + 1);
+                  }}
+                  onDragLeave={() => setDropDepth((d) => Math.max(0, d - 1))}
+                  onDragOver={(e) => {
+                    // preventDefault is how a drop target says yes; the
+                    // default answer is no.
+                    if (!fileDrag(e) || !e.dataTransfer) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
+                  }}
+                  onDrop={onShelfDrop}
+                >
                   <Show when={replays().length > 0}>
                     <div class="room-list" style="max-height:236px">
                       <For each={replays()}>
@@ -730,7 +814,14 @@ export function StartMenu(props: StartMenuProps) {
                             <div
                               class="replay-row"
                               draggable={true}
+                              onDragEnd={() => {
+                                dragOut = false;
+                              }}
                               onDragStart={(e) => {
+                                // Flagged before anything else: the shelf
+                                // is a drop target now, and must not
+                                // catch its own row on the way out.
+                                dragOut = true;
                                 const dt = e.dataTransfer;
                                 if (!dt) return;
                                 // Two spellings of "this file": the item is
@@ -796,14 +887,23 @@ export function StartMenu(props: StartMenuProps) {
                       <div class="s">
                         Finish a match and choose “Save replay” — it is filed here under the
                         date it was saved.
+                        {DRAG_OFFERED
+                          ? ' A replay someone shared with you can be dropped anywhere on this panel.'
+                          : ''}
                       </div>
                     </div>
+                  </Show>
+
+                  <Show when={importNote() !== null}>
+                    <div class="row-hint" style="color:#d9c37a">{importNote()}</div>
                   </Show>
 
                   <div class="row-hint">
                     A replay re-runs the match exactly as it was played, with an extra
                     speed beyond fast forward.
-                    {DRAG_OFFERED ? ' Drag one out of the list to save it as a file.' : ''}
+                    {DRAG_OFFERED
+                      ? ' Drag one out of the list to save it as a file, or drop a replay file here to add it.'
+                      : ''}
                   </div>
                 </div>
               </Show>
@@ -1013,8 +1113,14 @@ export function StartMenu(props: StartMenuProps) {
             {/* Beside the save, not up in the tab bar: both are ways back
                 into a match that already happened. */}
             <button
-              disabled={replays().length === 0}
-              title={replays().length > 0 ? 'Watch a recorded match' : 'No replays on this device'}
+              disabled={replays().length === 0 && !DRAG_OFFERED}
+              title={
+                replays().length > 0
+                  ? 'Watch a recorded match'
+                  : DRAG_OFFERED
+                    ? 'No replays saved — a dropped replay file is filed here'
+                    : 'No replays on this device'
+              }
               onClick={() => {
                 setShelf(true);
                 void refreshReplays();
