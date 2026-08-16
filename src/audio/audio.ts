@@ -24,12 +24,16 @@
 import { type CueId, CUES } from './cues';
 import { MixerGraph } from './mixerGraph';
 import { MIN_AUDIBLE, type Rect, type Spatial, spatialize } from './pan';
+import { loadSamples } from './samples';
 import { renderCue } from './synth';
 import { CueScheduler, type PlayRequest } from './voices';
 
 let graph: MixerGraph | null = null;
 let scheduler: CueScheduler | null = null;
 const buffers = new Map<CueId, AudioBuffer>();
+/** Decoded sample files, kept apart from the synth renders so a sample
+ * always wins the lookup and a late-arriving render can never shadow it. */
+const sampleBuffers = new Map<CueId, AudioBuffer>();
 
 let initialized = false;
 let volumeGain = 1;
@@ -95,6 +99,9 @@ export function unlockAudio(): void {
         () => undefined, // a failed render is just a cue that stays silent
       );
     }
+    // Vendored recordings, where the catalogue names them — upgrading
+    // cues from synth to sample as they decode, never blocking anything.
+    void loadSamples(ctx, sampleBuffers);
     // iOS parks the context on 'interrupted' after a phone call or Siri
     // and never resumes it unprompted; any state droop while we're
     // visible gets nudged back. (While hidden, suspended is correct.)
@@ -144,7 +151,7 @@ export function audioFrame(now: number): void {
   for (let i = 0; i < n; i++) {
     const req = playPool[i]!;
     const cue = req.cue as CueId;
-    const buffer = buffers.get(cue);
+    const buffer = sampleBuffers.get(cue) ?? buffers.get(cue);
     if (buffer) graph.play(buffer, CUES[cue], req);
   }
 }
