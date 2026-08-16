@@ -60,6 +60,16 @@ export const DISMISS_RESTAFF_BACKOFF = 30 * TICKS_PER_SECOND;
 /** Combat corpses linger this long so the death animation can play. */
 export const CORPSE_TICKS = 30;
 
+// Repairs
+/**
+ * A repair's material bill, as a share of what the building cost to raise
+ * (scaled by how much of it is broken). Half, to pair with the sell refund:
+ * tearing a ruin down and building it again gets you half the cost back and
+ * pays the whole cost, so mending is always the cheaper road — as it should
+ * be, since it also keeps the ground, the worker and the deliveries.
+ */
+export const REPAIR_COST_SHARE = 0.5;
+
 // Festivals (ale -> global work-speed buff)
 export const FESTIVAL_DURATION = 60 * TICKS_PER_SECOND;
 export const ABBEY_ALE_CAP = 2;

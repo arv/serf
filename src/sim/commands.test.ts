@@ -15,6 +15,7 @@ describe('command screening', () => {
       { kind: 'hireSerf' },
       { kind: 'dismissWorker', buildingId: 3 },
       { kind: 'sellBuilding', buildingId: 3 },
+      { kind: 'setBuildingRepair', buildingId: 3, repair: true },
       { kind: 'research', tech: 'irrigation' },
       { kind: 'trainUnit', buildingId: 7, unit: 'spearman' },
       { kind: 'cancelTraining', buildingId: 7, index: 2, unit: 'spearman' },
@@ -58,6 +59,14 @@ describe('command screening', () => {
       y: 1,
     });
     expect(sanitizeCommand({ kind: 'placeBuilding', building: 'woodcutter' })).toBeNull();
+    expect(sanitizeCommand({ kind: 'setBuildingRepair', buildingId: 'x', repair: true })).toBeNull();
+    // A garbled flag reads as the cancel — of the two readings, the one
+    // that spends nothing.
+    expect(sanitizeCommand({ kind: 'setBuildingRepair', buildingId: 3, repair: 'yes' })).toEqual({
+      kind: 'setBuildingRepair',
+      buildingId: 3,
+      repair: false,
+    });
     expect(sanitizeCommand(null)).toBeNull();
     expect(sanitizeCommand('moveUnits')).toBeNull();
   });

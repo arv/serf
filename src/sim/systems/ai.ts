@@ -3,7 +3,7 @@ import { exactDist } from '../../shared/math.ts';
 import { Terrain, TileResource, resourceBlocks } from '../map.ts';
 import { SeatVision } from '../visibility.ts';
 import { START_LAYOUTS } from '../world.ts';
-import { BUILDING_DEFS, buildingDef, type BuildingTypeId } from '../defs/buildings.ts';
+import { BUILDING_DEFS, buildingDef, repairBill, type BuildingTypeId } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
 import { HIRE_SERF_COST } from '../defs/balance.ts';
@@ -87,6 +87,14 @@ export const AI_PACING = {
    */
   forlornAfter: 30_000,
 } as const;
+
+/**
+ * How battered a building has to be before a seat pays to mend it. Not every
+ * scratch is worth a mason: the bill is charged per point of damage, so
+ * repairing at the first arrow costs the same materials in the end and spends
+ * the haulage pool in dribs.
+ */
+export const AI_REPAIR_BELOW = 0.7;
 
 export const AI_INTEL = {
   /** A sighting older than this says nothing about tomorrow's battle. */
@@ -271,6 +279,26 @@ export class AiBrain {
     ) {
       const spot = findSpot(world, 'house', baseX, baseY);
       if (spot) commands.push({ kind: 'placeBuilding', building: 'house', x: spot.x, y: spot.y });
+    }
+
+    // --- Repairs: patch what the raiders left standing -----------------------
+    // Mending is half the price of raising the building again and it keeps
+    // the post staffed, so the worst-hurt building gets the order — but only
+    // when the bill is already on the shelf. A repair ordered against an
+    // empty storehouse would pin the haulage pool to a wall while the
+    // village waits for stone it hasn't quarried yet.
+    let worst: Building | undefined;
+    for (const b of mine) {
+      if (b.state !== 'built' || b.repairNeeds) continue;
+      const max = BUILDING_DEFS[b.type].hp;
+      if (b.hp >= max * AI_REPAIR_BELOW) continue;
+      if (!worst || b.hp / max < worst.hp / BUILDING_DEFS[worst.type].hp) worst = b;
+    }
+    if (worst) {
+      const bill = repairBill(worst.type, BUILDING_DEFS[worst.type].hp - worst.hp);
+      if (affordable(bill as Record<string, number>, stock)) {
+        commands.push({ kind: 'setBuildingRepair', buildingId: worst.id, repair: true });
+      }
     }
 
     // --- Population: keep loose serfs around ---------------------------------

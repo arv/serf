@@ -46,6 +46,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     maxHp: def.hp,
     state: b.state,
     siteNeeds: b.siteNeeds ? { ...b.siteNeeds } : undefined,
+    repairNeeds: b.repairNeeds ? { ...b.repairNeeds } : undefined,
     progress01:
       b.state === 'site' && def.buildTicks > 0 ? (b.buildProgress ?? 0) / def.buildTicks : undefined,
     stock: { ...b.stock },
