@@ -127,19 +127,20 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | **H** (castle selected) | Hire Serf |
 | **K** / **S** / **A** (barracks selected) | Train **K**night / **S**pearman / **A**rcher |
 | M (nothing selected) | Mute |
-| Cursor at screen edge / arrows / middle-drag | Pan camera |
+| Cursor at screen edge / arrows / middle-drag | Pan camera (edge scroll has a start-menu toggle) |
 | Backspace | Jump to your keep |
 | Space | Jump to the last alert |
 | Mouse wheel | Zoom |
-| Esc | Unwind one mode: chord → order → placement → selection |
+| Esc | Unwind one mode: chord → order → placement → open sheet → selection |
 | ` (backquote) | Logistics debug overlay |
 | `?seed=123` URL param | Pick a map seed |
 
 Shortcut letters are taught in place — the HUD bolds the letter inside its
 own label (**B**uild, We**l**l, **H**ire Serf) and shows nothing at all on a
 device with no keyboard. Camera control follows Warcraft III / StarCraft II:
-edge scroll, arrows, middle-drag, wheel zoom. WASD deliberately does *not*
-pan — those letters belong to the orders and the build chord.
+edge scroll (`input/edgeScroll.ts`), arrows, middle-drag, wheel zoom. WASD
+deliberately does *not* pan — those letters belong to the orders and the
+build chord, and `A` cannot both pan left and attack-move.
 
 The letters on a selected building's panel are contextual, as in both those
 games, so they may reuse a global letter: the barracks' **A**rcher is the
