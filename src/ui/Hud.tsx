@@ -52,12 +52,14 @@ import {
   placing,
   playersMeta,
   population,
+  quitConfirm,
   replayMode,
   replayOver,
   selection,
   setBandArm,
   setFogEnabled,
   setOpenPanel,
+  setQuitConfirm,
   setTechPanelOpen,
   setVolumePref,
   speed,
@@ -205,6 +207,15 @@ export function Hud(props: {
     if (eliminated() && !spectating()) return 'eliminated';
     return undefined;
   };
+  /** What quitting walks away from — the one line the player should weigh
+   * before answering, and it differs by mode: a solo world dies with the
+   * tab, a room plays on, a recording loses nothing at all. */
+  const quitStakes = (): string =>
+    replayMode()
+      ? 'The recording stays on the menu — you can watch it again.'
+      : netMode()
+        ? 'The room plays on without you, and your seat is held if you come back.'
+        : 'The village ends here — anything unsaved is gone.';
 
   return (
     <>
@@ -286,7 +297,10 @@ export function Hud(props: {
                     layers that must land on them: toasts and tips
              36     toasts — "Replay saved" answers a button on an end card,
                     so it has to read over the card's scrim
-             40     tooltips (see tooltip.tsx) */
+             40     tooltips (see tooltip.tsx)
+           The quit question is not on this scale: it is a modal <dialog>,
+           and showModal() lifts it into the browser's top layer, over
+           every number above. */
 
         /* Wrapper for the two top strips: invisible on desktop (children
            keep their absolute spots), a flow column on phones so they can
@@ -507,6 +521,22 @@ export function Hud(props: {
           margin: 0 0 8px; font-size: 26px; font-weight: 600; color: #e5c469;
         }
         .end-card button { margin-top: 12px; padding: 8px 24px; font-size: 14px; }
+        /* The "really leave?" card — a real <dialog>, so the browser does
+           the modality itself: the page behind goes inert, focus is held
+           to the two buttons, and the scrim is the ::backdrop. #ui's
+           pointer-events:none inherits even into the top layer, so the
+           card opts back in. */
+        #ui dialog.confirm-card {
+          pointer-events: auto;
+          padding: 26px 36px; text-align: center; max-width: min(380px, 86vw);
+        }
+        .confirm-card::backdrop { background: rgba(8, 10, 8, 0.6); }
+        .confirm-card h1 {
+          margin: 0 0 8px; font-size: 20px; font-weight: 600; color: #e5c469;
+        }
+        .confirm-card p { margin: 0; color: #b6b3a6; }
+        .confirm-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
+        .confirm-actions button { padding: 8px 22px; font-size: 14px; }
 
         /* ——— Progressive layer ———
            One HUD, adapting to what the device can do. Desktop keeps
@@ -857,9 +887,9 @@ export function Hud(props: {
               // In a match the world lives on (solo: gone unless saved;
               // multiplayer: the room plays on and the seat token can
               // rejoin) — but the player is leaving either way, so ask.
-              if (confirm('Leave the match and return to the menu?')) {
-                goto(location.pathname);
-              }
+              // Asked by our own card, not confirm(): the browser climbs
+              // out of fullscreen to show a native dialog.
+              setQuitConfirm(true);
             }}
           >
             Quit to menu
@@ -1084,15 +1114,7 @@ export function Hud(props: {
               for the valley rages on without you.
             </p>
             <button onClick={() => setSpectating(true)}>Watch the rest</button>
-            <button
-              onClick={() => {
-                if (confirm('Leave the match and return to the menu?')) {
-                  goto(location.pathname);
-                }
-              }}
-            >
-              Quit to menu
-            </button>
+            <button onClick={() => setQuitConfirm(true)}>Quit to menu</button>
           </div>
         </div>
       </Show>
@@ -1170,6 +1192,36 @@ export function Hud(props: {
             <button onClick={() => goto(location.pathname)}>Back to the menu</button>
           </div>
         </div>
+      </Show>
+
+      <Show when={quitConfirm()}>
+        <dialog
+          class="panel confirm-card"
+          aria-labelledby="quit-title"
+          // A <dialog> in the DOM is merely closed; modality is asked for.
+          // Deferred a tick because refs run before Solid puts the element
+          // in the document, and showModal() on a detached dialog throws.
+          ref={(el) => queueMicrotask(() => el.isConnected && el.showModal())}
+          // Esc lands in controls.ts first (keydown outruns the browser's
+          // cancel) and unmounts the card; this catches any close the game
+          // did not order, so the signal never says open over a closed
+          // dialog.
+          onClose={() => setQuitConfirm(false)}
+        >
+          <h1 id="quit-title">Leave the match?</h1>
+          <p>{quitStakes()}</p>
+          <div class="confirm-actions">
+            <button onClick={() => setQuitConfirm(false)}>Stay{hasKeyboard() ? ' (Esc)' : ''}</button>
+            <button
+              // showModal() hands focus to the autofocus element, so Enter
+              // answers yes — the reflex the native dialog taught.
+              autofocus
+              onClick={() => goto(location.pathname)}
+            >
+              Quit to menu
+            </button>
+          </div>
+        </dialog>
       </Show>
 
       <Show when={invariantViolations().length > 0}>

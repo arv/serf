@@ -101,6 +101,12 @@ export const setTechPanelOpen = (open: boolean): void => {
   setOpenPanel(open ? 'tech' : null);
 };
 
+/** The "leave the match?" question, asked by the HUD's own <dialog>
+ * rather than a native confirm(): the browser drops out of fullscreen to
+ * show its own dialog, and quitting is exactly when the player may still
+ * say no. */
+export const [quitConfirm, setQuitConfirm] = createSignal(false);
+
 /**
  * Campaign mission riding this match, latch bits included — the worker's
  * structural updates keep it fresh (the world, not the URL, is the source
@@ -304,6 +310,7 @@ export function resetMatchState(): void {
   setBandArm(false);
   setTechs({ researched: [], festivalTicksLeft: 0, pavingUnlocked: false, hasAbbey: false });
   setOpenPanel(null);
+  setQuitConfirm(false);
   setMission(null);
   setBriefingOpen(false);
   setSelectedBuilding(null);
