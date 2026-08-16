@@ -2,7 +2,11 @@ import * as THREE from 'three';
 import { MAP_SIZE } from '../shared/grid';
 import { clamp } from '../shared/math';
 
-const YAW = Math.PI / 4; // fixed 45° — models only need to read from one angle
+/** Fixed 45° — models only need to read from one angle. Exported because
+ * audio/pan.ts hard-codes the screen basis this yaw induces (a subtraction,
+ * no trig); its test pins the two together so they cannot drift apart. */
+export const CAMERA_YAW = Math.PI / 4;
+const YAW = CAMERA_YAW;
 const PITCH = (35 * Math.PI) / 180;
 const DISTANCE = 90;
 const MIN_VIEW = 5;

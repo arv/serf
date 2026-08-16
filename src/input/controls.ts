@@ -6,6 +6,7 @@ import { UNIT_DEFS } from '../sim/defs/units';
 import {
   bandArm,
   debugOpen,
+  muted,
   myPlayerId,
   placing,
   pushToast,
@@ -14,7 +15,9 @@ import {
   setPlacing,
   setSelectedBuilding,
   setSelection,
+  toggleMuted,
 } from '../ui/store';
+import { play } from '../audio/audio';
 import { screenToGround, worldToScreen } from './picking';
 import type { SceneSync } from '../render/sceneSync';
 import type { GhostPlacement } from '../render/ghost';
@@ -155,6 +158,11 @@ export class Controls {
         setDebugOpen(open);
         // The worker skips serializing its jobs table until told to.
         this.#host.setDebug(open);
+      } else if (e.code === 'KeyM') {
+        toggleMuted();
+        // Unmuting clicks so the change is audible either way; muting's
+        // confirmation is the silence itself.
+        if (!muted()) play('uiClick');
       }
     };
     window.addEventListener('keydown', onKey, { signal });
@@ -226,6 +234,10 @@ export class Controls {
   }
 
   #setSel(sel: Set<number>): void {
+    // A selection that grew is a player picking people up — worth a click.
+    // Shrinking is not: prune() feeds deaths through here every frame, and
+    // a death knell per battle casualty belongs to combat, not selection.
+    if (sel !== this.#selection && sel.size > this.#selection.size) play('uiSelect');
     this.#selection = sel;
     setSelection(new Set(sel));
   }
@@ -337,6 +349,7 @@ export class Controls {
       this.#host.sendCommands([
         { kind: 'placeBuilding', building: type, x: origin.x, y: origin.y },
       ]);
+      play('uiPlace');
       if (!keepArmed) this.setPlacement(null);
       return;
     }
@@ -354,6 +367,7 @@ export class Controls {
           : 'Too dark to build — nobody has scouted that ground.',
       );
       navigator.vibrate?.(30);
+      play('uiRefused');
     }
   }
 
@@ -720,6 +734,7 @@ export class Controls {
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 500);
     navigator.vibrate?.(12);
+    play('uiOrder');
   }
 
   /** Clear both unit selection and the building panel (HUD ✕ button). */

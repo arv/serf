@@ -18,24 +18,49 @@ type ChatOpts = {
 };
 type ChatReply = { choices: { message: { content: string } }[] };
 type Progress = (p: { loaded: number; total: number }) => void;
-const wllamaMock = vi.hoisted(() => ({
-  /** Every Wllama the adapter constructed, with its exit count. */
-  instances: [] as { exited: number }[],
-  loadFails: false,
-  /** The model's answer; null = tests must not reach inference. */
-  chat: null as null | ((opts: ChatOpts) => Promise<ChatReply>),
-  /** Model URLs ModelManager reports as already downloaded. */
-  cachedUrls: [] as string[],
-  downloads: [] as { url: string; signal: AbortSignal | undefined }[],
-  /** Override the download itself; null = instant success with progress. */
-  downloadGate: null as
-    | null
-    | ((opts?: { signal?: AbortSignal; progressCallback?: Progress }) => Promise<unknown>),
-}));
+type CacheEntry = {
+  name: string;
+  size: number;
+  metadata: { originalURL: string; originalSize: number };
+};
+const wllamaMock = vi.hoisted(() => {
+  /** Files on the fake disk, as CacheManager.list() reports them. */
+  const cacheEntries: CacheEntry[] = [];
+  const cacheDeletes: string[] = [];
+  return {
+    /** Every Wllama the adapter constructed, with its exit count. */
+    instances: [] as { exited: number }[],
+    loadFails: false,
+    /** The model's answer; null = tests must not reach inference. */
+    chat: null as null | ((opts: ChatOpts) => Promise<ChatReply>),
+    /** Model URLs ModelManager reports as already downloaded. */
+    cachedUrls: [] as string[],
+    downloads: [] as { url: string; signal: AbortSignal | undefined }[],
+    /** Override the download itself; null = instant success with progress. */
+    downloadGate: null as
+      | null
+      | ((opts?: { signal?: AbortSignal; progressCallback?: Progress }) => Promise<unknown>),
+    cacheEntries,
+    cacheDeletes,
+    /** The one cache both stand-ins hand out — the same OPFS directory
+     * wllama's ModelManager and Wllama share in the browser. */
+    cacheManager: {
+      list: (): Promise<CacheEntry[]> => Promise.resolve(cacheEntries.slice()),
+      getNameFromURL: (url: string): Promise<string> => Promise.resolve(`key:${url}`),
+      delete: (name: string): Promise<void> => {
+        cacheDeletes.push(name);
+        const at = cacheEntries.findIndex((e) => e.name === name);
+        if (at >= 0) cacheEntries.splice(at, 1);
+        return Promise.resolve();
+      },
+    },
+  };
+});
 vi.mock('@wllama/wllama/esm/index.js', () => ({
   LoggerWithoutDebug: {},
   Wllama: class {
     exited = 0;
+    cacheManager = wllamaMock.cacheManager;
     constructor() {
       wllamaMock.instances.push(this);
     }
@@ -54,6 +79,7 @@ vi.mock('@wllama/wllama/esm/index.js', () => ({
     }
   },
   ModelManager: class {
+    cacheManager = wllamaMock.cacheManager;
     getModels(): Promise<{ url: string }[]> {
       return Promise.resolve(wllamaMock.cachedUrls.map((url) => ({ url })));
     }
@@ -113,7 +139,19 @@ afterEach(() => {
   wllamaMock.cachedUrls.length = 0;
   wllamaMock.downloads.length = 0;
   wllamaMock.downloadGate = null;
+  wllamaMock.cacheEntries.length = 0;
+  wllamaMock.cacheDeletes.length = 0;
 });
+
+/** The leftovers of an interrupted download: bytes under the model's key
+ * with no metadata beside them (see modelCache.ts). */
+function leaveUnfinishedDownload(url: string): void {
+  wllamaMock.cacheEntries.push({
+    name: `key:${url}`,
+    size: 1024,
+    metadata: { originalURL: '', originalSize: 1024 },
+  });
+}
 
 describe('LlmStrategist', () => {
   it('turns a valid reply into clamped advice for the right seat', async () => {
@@ -343,6 +381,18 @@ describe('LlmStrategist', () => {
     expect(wllamaMock.instances[0]!.exited).toBe(1);
   });
 
+  /** The match side sweeps too: the warm-up that left the partial behind
+   * belongs to a menu that is already gone, and nobody else will. */
+  it('throws away an interrupted download before loading the model', async () => {
+    const { LLM_MODEL_URL } = await import('./strategist.ts');
+    leaveUnfinishedDownload(LLM_MODEL_URL);
+    const statuses: LlmStatus[] = [];
+    const strategist = new LlmStrategist({ sendAdvice: () => {}, onStatus: (s) => statuses.push(s) });
+    await strategist.start();
+    expect(wllamaMock.cacheDeletes).toEqual([`key:${LLM_MODEL_URL}`]);
+    expect(statuses.at(-1)).toEqual({ state: 'ready' });
+  });
+
   it('disposed mid-flight, it stops speaking', async () => {
     let resolveReply!: (v: string) => void;
     const { strategist, sent } = harness({
@@ -387,6 +437,41 @@ describe('warmModel', () => {
     expect(wllamaMock.downloads).toHaveLength(1);
     // Download only — the menu spends no CPU and holds no model memory.
     expect(wllamaMock.instances).toHaveLength(0);
+  });
+
+  /**
+   * The player who turns the toggle on and launches before the download
+   * finishes — which is most of them — leaves a partial file behind, and
+   * wllama would mistake it for a finished one ever after. The warm-up
+   * throws it away before asking for the file, not after failing on it.
+   */
+  it('throws away an interrupted download before fetching again', async () => {
+    const { LLM_MODEL_URL } = await import('./strategist.ts');
+    leaveUnfinishedDownload(LLM_MODEL_URL);
+    // The sweep has to come first: once the download starts, the leftovers
+    // are already the thing being mistaken for a hit.
+    wllamaMock.downloadGate = (opts) => {
+      expect(wllamaMock.cacheDeletes).toEqual([`key:${LLM_MODEL_URL}`]);
+      opts?.progressCallback?.({ loaded: 1, total: 4 });
+      return Promise.resolve({});
+    };
+    const statuses: LlmStatus[] = [];
+    warmModel((s) => statuses.push(s));
+    await settle();
+    expect(statuses.at(-1)).toEqual({ state: 'ready' });
+    expect(wllamaMock.downloads).toHaveLength(1);
+  });
+
+  it('leaves a finished download in the cache', async () => {
+    const { LLM_MODEL_URL } = await import('./strategist.ts');
+    wllamaMock.cacheEntries.push({
+      name: `key:${LLM_MODEL_URL}`,
+      size: 4096,
+      metadata: { originalURL: LLM_MODEL_URL, originalSize: 4096 },
+    });
+    warmModel(() => {});
+    await settle();
+    expect(wllamaMock.cacheDeletes).toEqual([]);
   });
 
   it('a failed download reports why', async () => {
