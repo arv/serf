@@ -363,7 +363,29 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
   present(await runMatch(configFromUrl(location.search), { loadData, fogSeed }, key));
 }
 
+/**
+ * Is this something the player types into? The context menu (and text
+ * selection, handled in index.html's stylesheet) is suppressed everywhere
+ * else. An <input> with no type attribute reports type 'text', so the
+ * bare seed and room-code fields land in the list.
+ */
+function isTextEntry(target: EventTarget | null): boolean {
+  if (target instanceof HTMLTextAreaElement) return true;
+  if (target instanceof HTMLInputElement) {
+    return ['text', 'search', 'password', 'email', 'url', 'number', 'tel'].includes(target.type);
+  }
+  return target instanceof HTMLElement && target.isContentEditable;
+}
+
 async function boot(): Promise<void> {
+  // The context menu is the browser talking over the game: right-click
+  // gives orders in a match (the canvas has its own guard in
+  // input/controls.ts, but the HUD, the menu and the end card are just as
+  // much game surface) and long-press is a command gesture on phones.
+  // Text fields keep theirs — copy and paste are how room codes travel.
+  document.addEventListener('contextmenu', (e) => {
+    if (!isTextEntry(e.target)) e.preventDefault();
+  });
   // Before anything else takes a click: a player who asked for fullscreen
   // gets it back on their first gesture (see ui/fullscreen.ts). It survives
   // a screen change on its own now — nothing unloads — but a real reload

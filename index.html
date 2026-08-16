@@ -77,6 +77,23 @@
         overflow: hidden;
         background: #0e1210;
         font-family: 'Space Grotesk', system-ui, sans-serif;
+        /* This is a game, not a document: a drag is the camera or a
+           marquee and a long-press is a command, and none of it should
+           paint blue highlight across the HUD. The -webkit- twin is for
+           iOS Safari, which still ignores the plain property. */
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      /* The one place selection means something: fields the player types
+         in (room codes, seeds). input types are enumerated because the
+         non-text kinds — range, checkbox and friends — have nothing to
+         select; a bare <input> is type=text and the :not([type]) arm
+         catches it. */
+      input:where(:not([type]), [type='text'], [type='search'], [type='password'], [type='email'], [type='url'], [type='number'], [type='tel']),
+      textarea,
+      [contenteditable]:not([contenteditable='false']) {
+        user-select: text;
+        -webkit-user-select: text;
       }
       /* Fixed to the viewport so the game always fills the window, even
          when body layout lags an emulated/embedded viewport change. */
@@ -94,7 +111,6 @@
         position: fixed;
         inset: 0;
         pointer-events: none; /* children opt back in */
-        user-select: none;
       }
       /* Atmosphere pass: color grade over the 3D view, under the UI — a
          light warm daylight polish: sunny stylized RTS. */
