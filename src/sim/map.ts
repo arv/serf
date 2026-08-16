@@ -90,8 +90,28 @@ export function findResourceNear(
   code: TileResourceKind,
   radius: number,
 ): number {
-  for (let r = 1; r <= radius; r++) {
-    for (let dy = -r; dy <= r; dy++) {
+  return findResourcesNear(map, cx, cy, code, radius, 1)[0] ?? -1;
+}
+
+/**
+ * The nearest workable tiles in ring order, up to `limit` of them. The
+ * gather loop asks for a handful rather than one: the nearest tile can be
+ * permanently unreachable — a tree walled in by its own grove, a seam tile
+ * pinched shut by construction — and a worker that only ever retries the
+ * nearest starves in front of workable ground it could have walked to
+ * (see gatherStep in systems/production.ts).
+ */
+export function findResourcesNear(
+  map: MapView & { resourceAmt?: ArrayLike<number> },
+  cx: number,
+  cy: number,
+  code: TileResourceKind,
+  radius: number,
+  limit: number,
+): number[] {
+  const out: number[] = [];
+  for (let r = 1; r <= radius && out.length < limit; r++) {
+    for (let dy = -r; dy <= r && out.length < limit; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const x = cx + dx;
@@ -100,11 +120,12 @@ export function findResourceNear(
         const i = tileIdx(x, y);
         if (map.resource[i] !== code) continue;
         if (map.resourceAmt && map.resourceAmt[i]! <= 0) continue;
-        return i;
+        out.push(i);
+        if (out.length >= limit) break;
       }
     }
   }
-  return -1;
+  return out;
 }
 
 /** A faction's home: storehouse footprint origin tile. */
