@@ -88,8 +88,17 @@
          in (room codes, seeds). input types are enumerated because the
          non-text kinds — range, checkbox and friends — have nothing to
          select; a bare <input> is type=text and the :not([type]) arm
-         catches it. */
-      input:where(:not([type]), [type='text'], [type='search'], [type='password'], [type='email'], [type='url'], [type='number'], [type='tel']),
+         catches it. Plain selectors rather than one :where() list on
+         purpose: a browser that doesn't know the pseudo-class would drop
+         the whole rule and lock every field shut. */
+      input:not([type]),
+      input[type='text'],
+      input[type='search'],
+      input[type='password'],
+      input[type='email'],
+      input[type='url'],
+      input[type='number'],
+      input[type='tel'],
       textarea,
       [contenteditable]:not([contenteditable='false']) {
         user-select: text;
