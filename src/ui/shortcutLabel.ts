@@ -11,7 +11,7 @@ export type ShortcutLabel =
   | { kind: 'none' }
   /** The letter lives in the label: bold it where it stands. */
   | { kind: 'split'; before: string; letter: string; after: string }
-  /** There is a key, but not one this label contains — say it in brackets. */
+  /** A key the label does not contain — append it in parentheses: "Foo (Q)". */
   | { kind: 'appended'; key: string };
 
 export function shortcutLabel(label: string, k: string): ShortcutLabel {

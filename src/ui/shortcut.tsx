@@ -9,7 +9,7 @@ import { shortcutLabel } from './shortcutLabel';
  * footnote the eye files under punctuation; the gold letter sitting in the
  * word is the word, so the shortcut is learned by reading the button you
  * were going to click anyway. Every letter this game hands out is chosen to
- * live in its own label (see BUILD_KEYS, TRAIN_KEYS) — the bracketed
+ * live in its own label (see BUILD_KEYS, TRAIN_KEYS) — the parenthesised
  * fallback exists for the odd label that cannot, not as a licence to skip
  * the choosing.
  *

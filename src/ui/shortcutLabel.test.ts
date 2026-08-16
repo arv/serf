@@ -28,7 +28,7 @@ describe('a label with its shortcut in it', () => {
     expect(shortcutLabel('Barracks', 'A')).toMatchObject({ before: 'B', letter: 'a' });
   });
 
-  it('falls back to brackets when the label has no such letter', () => {
+  it('falls back to a parenthesised key when the label has no such letter', () => {
     expect(shortcutLabel('Muster', 'Q')).toEqual({ kind: 'appended', key: 'Q' });
   });
 
