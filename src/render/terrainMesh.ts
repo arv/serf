@@ -1,46 +1,44 @@
 import * as THREE from 'three';
 import { MAP_SIZE, TILE_COUNT, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
-import { PathLevel, Terrain, TileResource, type MapView } from '../sim/map';
+import { Terrain, TileResource, type MapView } from '../sim/map';
 import { palette } from './palette';
 import { makeGroundTexture } from './groundTexture';
+import { vnoise } from './noise';
+import {
+  ROAD_HALF,
+  TRAIL_HALF,
+  newRibbonDist,
+  ribbonDistances,
+  ribbonStrength,
+  ribbonWarpX,
+  ribbonWarpZ,
+  ribbonWidth,
+} from './pathRibbon';
 import type { HeightField } from './heightField';
 
-/** Sub-tile vertices per tile edge: painting resolution beneath the grid. */
-const SEG = 3;
+/**
+ * Sub-tile vertices per tile edge: painting resolution beneath the grid. Set
+ * by the narrowest thing painted here — a trail ribbon is about 0.6 tiles
+ * wide with a soft edge, and below ~6 steps per tile its shoulders turn into
+ * visible staircases.
+ */
+const SEG = 6;
 const GRID = MAP_SIZE * SEG;
-
-/** Smooth value noise in [0,1] over world coords. */
-function vnoise(seed: number, x: number, y: number, scale: number): number {
-  const fx = x / scale;
-  const fy = y / scale;
-  const x0 = Math.floor(fx);
-  const y0 = Math.floor(fy);
-  const tx = fx - x0;
-  const ty = fy - y0;
-  const sx = tx * tx * (3 - 2 * tx);
-  const sy = ty * ty * (3 - 2 * ty);
-  const h = (cx: number, cy: number): number => hash2(seed + cx * 149, seed * 11 + cy * 331);
-  const a = h(x0, y0);
-  const b = h(x0 + 1, y0);
-  const c = h(x0, y0 + 1);
-  const d = h(x0 + 1, y0 + 1);
-  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
-}
 
 // Tile paint classes (per-tile pass output, consumed by the vertex pass).
 const CLASS_GRASS = 0;
 const CLASS_WATER = 1;
-const CLASS_TRAIL = 2;
-const CLASS_ROAD = 3;
 
 /**
  * The ground: one high-resolution mesh painted like a stylized RTS map.
- * Macro layer: per-tile classes (grass, water, trails, roads) sampled through
- * a noise-warped lookup so boundaries wander organically. Meso layer: meadow
- * noise blends lush -> olive -> sun-dried gold patches; banks darken into
- * moss, ground near buildings is trampled to earth. Micro layer: a generated
- * blade-speckle detail texture multiplied over everything.
+ * Macro layer: per-tile classes (grass, water) sampled through a noise-warped
+ * lookup so shorelines wander organically. Meso layer: meadow noise blends
+ * lush -> olive -> sun-dried gold patches; banks darken into moss, ground
+ * near buildings is trampled to earth. Trails and roads ride on top as
+ * ribbons threaded between neighboring path tiles (see pathRibbon), not as
+ * filled squares. Micro layer: a generated blade-speckle detail texture
+ * multiplied over everything.
  */
 export class TerrainMesh {
   readonly mesh: THREE.Mesh;
@@ -52,6 +50,9 @@ export class TerrainMesh {
   // Static per-vertex fields, computed once.
   #warpX: Float32Array;
   #warpZ: Float32Array;
+  #pathWarpX: Float32Array;
+  #pathWarpZ: Float32Array;
+  #pathWidth: Float32Array;
   #meadow: Float32Array;
   #speck: Float32Array;
   #vertY: Float32Array;
@@ -75,6 +76,9 @@ export class TerrainMesh {
 
     this.#warpX = new Float32Array(count);
     this.#warpZ = new Float32Array(count);
+    this.#pathWarpX = new Float32Array(count);
+    this.#pathWarpZ = new Float32Array(count);
+    this.#pathWidth = new Float32Array(count);
     this.#meadow = new Float32Array(count);
     this.#speck = new Float32Array(count);
     this.#vertY = new Float32Array(count);
@@ -85,9 +89,15 @@ export class TerrainMesh {
       const y = this.#heights.at(x, z);
       pos.setY(v, y);
       this.#vertY[v] = y;
-      // Boundary warp: where class edges wander (trails, shores, dirt).
+      // Boundary warp: where class edges wander (shores, dirt).
       this.#warpX[v] = (vnoise(41, x, z, 2.1) - 0.5) * 1.1;
       this.#warpZ[v] = (vnoise(43, x, z, 2.1) - 0.5) * 1.1;
+      // Paths get their own, much tighter wobble (shared with everything else
+      // drawn along them) — cached here because a full repaint touches every
+      // vertex and noise is the expensive part.
+      this.#pathWarpX[v] = ribbonWarpX(x, z);
+      this.#pathWarpZ[v] = ribbonWarpZ(x, z);
+      this.#pathWidth[v] = ribbonWidth(x, z);
       // Meadow patches at three scales.
       this.#meadow[v] =
         vnoise(51, x, z, 9) * 0.5 + vnoise(53, x, z, 3.4) * 0.34 + vnoise(57, x, z, 1.2) * 0.16;
@@ -125,9 +135,10 @@ export class TerrainMesh {
   /**
    * Recolor only around the given changed tiles. Per-tile fields are
    * recomputed in a 1-tile ring (the trampled-earth feather reaches that
-   * far); vertices are repainted in a 2-tile apron (feather plus the
-   * boundary warp of at most ±0.55 tiles), and only the touched spans of
-   * the color buffer are re-uploaded.
+   * far); vertices are repainted in a 2-tile apron (feather, the boundary
+   * warp of at most ±0.55 tiles, and the ribbon a new path tile grows into
+   * its neighbors), and only the touched spans of the color buffer are
+   * re-uploaded.
    */
   repaintTiles(tiles: readonly number[]): void {
     if (tiles.length === 0) return;
@@ -188,15 +199,7 @@ export class TerrainMesh {
   #recomputeTile(x: number, y: number): void {
     const map = this.#map;
     const i = tileIdx(x, y);
-    const level = map.pathLevel[i];
-    this.#tileClass[i] =
-      map.terrain[i] === Terrain.Water
-        ? CLASS_WATER
-        : level === PathLevel.Road
-          ? CLASS_ROAD
-          : level === PathLevel.Trail
-            ? CLASS_TRAIL
-            : CLASS_GRASS;
+    this.#tileClass[i] = map.terrain[i] === Terrain.Water ? CLASS_WATER : CLASS_GRASS;
     const res = map.resource[i];
     this.#tileDeposit[i] =
       res === TileResource.IronDep
@@ -238,10 +241,6 @@ export class TerrainMesh {
 
     if (cls === CLASS_WATER) {
       c.copy(COL.bed).lerp(COL.water, Math.min(Math.max((-y - 0.2) * 1.4, 0), 1) * 0.75);
-    } else if (cls === CLASS_ROAD) {
-      c.copy(COL.road);
-    } else if (cls === CLASS_TRAIL) {
-      c.copy(COL.trail).lerp(COL.earth, 0.3);
     } else {
       // Meadow: lush -> olive -> sun-dried gold.
       const m = this.#meadow[v]!;
@@ -264,9 +263,25 @@ export class TerrainMesh {
     }
 
     // Banks sink into dark moss; anything below the waterline goes murky.
-    if (y < 0.5 && cls !== CLASS_ROAD) {
+    if (y < 0.5) {
       const wet = Math.min((0.5 - y) / 1.1, 0.8);
       c.lerp(COL.moss, wet);
+    }
+
+    // Trails and roads lie on top of whatever ground they cross: a ribbon
+    // threaded tile-center to tile-center, wobbled and pinched by noise so
+    // its shoulders fray instead of running ruler-straight.
+    if (cls !== CLASS_WATER) {
+      ribbonDistances(this.#map.pathLevel, x + this.#pathWarpX[v]!, z + this.#pathWarpZ[v]!, DIST);
+      const wob = this.#pathWidth[v]!;
+      const trail = ribbonStrength(DIST.trail, TRAIL_HALF * wob);
+      if (trail > 0) {
+        c.lerp(COL.trail, trail * 0.94);
+        // The middle of a trail is walked barest; the fringe keeps some turf.
+        c.lerp(COL.earth, trail * trail * 0.32);
+      }
+      const road = ribbonStrength(DIST.road, ROAD_HALF * wob);
+      if (road > 0) c.lerp(COL.road, road);
     }
 
     const s = this.#speck[v]!;
@@ -293,3 +308,5 @@ const COL = {
   snow: new THREE.Color(palette.peakSnow),
 };
 const SCRATCH = new THREE.Color();
+/** Ribbon distances for the vertex being painted — one, reused. */
+const DIST = newRibbonDist();

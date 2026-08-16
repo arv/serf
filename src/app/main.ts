@@ -3,6 +3,7 @@ import { TerrainMesh } from '../render/terrainMesh';
 import { ScatterMesh } from '../render/scatterMesh';
 import { HeightField } from '../render/heightField';
 import { GrassField } from '../render/grassField';
+import { RoadDecal } from '../render/roadDecal';
 import { WaterMesh } from '../render/waterMesh';
 import { Mist } from '../render/mist';
 import { SceneSync } from '../render/sceneSync';
@@ -679,6 +680,16 @@ async function runMatch(
   const heights = new HeightField(init.map.height);
   const terrain = new TerrainMesh(init.map, heights);
   renderer.scene.add(terrain.mesh);
+  const roads = new RoadDecal(init.map, heights);
+  renderer.scene.add(roads.mesh);
+  if (import.meta.env.DEV) {
+    // Ground-paint experiments: poke __mirror.map.pathLevel, then
+    // __terrain.repaintAll() and __roads.rebuild(__mirror.map).
+    Object.assign(window as unknown as Record<string, unknown>, {
+      __terrain: terrain,
+      __roads: roads,
+    });
+  }
   const scatter = new ScatterMesh(init.map, heights);
   renderer.scene.add(scatter.group);
   const grass = new GrassField(init.map, heights);
@@ -874,15 +885,23 @@ async function runMatch(
       setSelectedBuilding(fresh ?? null);
     }
 
-    // Grass and shore rocks make way for buildings and worn trails (checked
-    // against the mirror's pre-update state, so compare before applying).
+    // Grass and shore rocks make way for buildings (checked against the
+    // mirror's pre-update state, so compare before applying).
     for (const d of msg.mapDeltas) {
-      if (d.buildingAt >= 0 || d.pathLevel !== 0) {
+      if (d.buildingAt >= 0) {
         grass.removeTile(d.idx);
-        if (d.buildingAt >= 0) scatter.removeTile(d.idx);
+        scatter.removeTile(d.idx);
       }
     }
+    const wornTiles = msg.mapDeltas.filter((d) => d.pathLevel !== 0).map((d) => d.idx);
+    const paved = msg.mapDeltas.some(
+      (d) => (d.pathLevel === 2) !== (mirror.map.pathLevel[d.idx] === 2),
+    );
     const changes = mirror.apply(msg);
+    // Trails thread between tiles, so which clumps they trample is only
+    // knowable once the new path levels are in the mirror.
+    if (wornTiles.length > 0) grass.clearUnderPaths(mirror.map, wornTiles);
+    if (paved || changes.refreshAll) roads.rebuild(mirror.map);
     for (const tile of changes.resourceCleared) scatter.removeTile(tile);
     if (changes.refreshAll) scatter.resyncAll(mirror.map);
     if (changes.refreshAll) terrain.repaintAll();
