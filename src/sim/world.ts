@@ -41,6 +41,13 @@ export interface HaulJob {
   phase: 'open' | 'toPickup' | 'toDropoff';
   serfId?: EntityId;
   /**
+   * This haul was booked by an ordered repair. Cancelling the repair stands
+   * exactly these down and leaves everything else walking: a weaponsmith
+   * mends with the same wood it forges from, and without the mark the two
+   * errands are indistinguishable at the destination's door.
+   */
+  repair?: true;
+  /**
    * Set on arrival at a source with `drawTicks` (the well): the tick the
    * hauler finishes drawing and the good is finally in its hands. Lives on
    * the job rather than the building so two haulers at one well each pay

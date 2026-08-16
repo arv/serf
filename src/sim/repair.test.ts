@@ -140,6 +140,28 @@ describe('repairing a building', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
+  it("calling it off leaves the building's other deliveries walking", () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, { wood: 20, stone: 10, iron: 6 });
+    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    staffBuilding(world, smith);
+    smith.hp = 100;
+
+    // The smith forges from wood and mends with wood, so both errands book
+    // hauls of the same good to the same door.
+    tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: smith.id, repair: true }));
+    run(world, 5); // the matcher books them
+    const woodJobs = () => [...world.jobs.values()].filter((j) => j.to === smith.id && j.good === 'wood');
+    expect(woodJobs().filter((j) => j.repair).length).toBe(smith.repairNeeds!.wood);
+    const forging = woodJobs().filter((j) => !j.repair).length;
+    expect(forging).toBeGreaterThan(0);
+
+    tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: smith.id, repair: false }));
+    expect(woodJobs().filter((j) => j.repair)).toEqual([]);
+    expect(woodJobs().length).toBe(forging); // the forge's wood is still coming
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
   it('refuses what has nothing to mend: whole buildings, sites, rivals', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, { wood: 20 });

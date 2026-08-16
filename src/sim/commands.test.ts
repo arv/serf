@@ -60,7 +60,8 @@ describe('command screening', () => {
     });
     expect(sanitizeCommand({ kind: 'placeBuilding', building: 'woodcutter' })).toBeNull();
     expect(sanitizeCommand({ kind: 'setBuildingRepair', buildingId: 'x', repair: true })).toBeNull();
-    // A garbled flag reads as the order that spends nothing.
+    // A garbled flag reads as the cancel — of the two readings, the one
+    // that spends nothing.
     expect(sanitizeCommand({ kind: 'setBuildingRepair', buildingId: 3, repair: 'yes' })).toEqual({
       kind: 'setBuildingRepair',
       buildingId: 3,

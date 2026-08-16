@@ -168,7 +168,7 @@ function match(world: World): void {
       for (const good of GOODS) {
         const want = (b.repairNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0 && !suspended(world, b, good)) {
-          demands.push(demandOf(world, b, good, want, 1));
+          demands.push({ ...demandOf(world, b, good, want, 1), repair: true });
         }
       }
     }
@@ -256,7 +256,7 @@ function match(world: World): void {
         source = d.pinnedSource ?? nearestSupply(world, d.building, d.good);
         if (!source || availableOut(source, d.good) <= 0) break;
       }
-      createJob(world, d.good, source.id, d.building.id, d.priority);
+      createJob(world, d.good, source.id, d.building.id, d.priority, d.repair);
       want--;
     }
   }
@@ -267,6 +267,8 @@ const GOOD_INDEX = Object.fromEntries(GOODS.map((g, i) => [g, i])) as Record<Goo
 
 interface DemandFull extends Demand {
   pinnedSource?: Building;
+  /** Booked by an ordered repair — the mark rides onto the jobs it makes. */
+  repair?: true;
 }
 
 function demandOf(
@@ -316,6 +318,7 @@ function createJob(
   from: EntityId,
   to: EntityId,
   priority: 1 | 2 | 3,
+  repair?: true,
 ): void {
   const source = world.buildings.get(from)!;
   const dest = world.buildings.get(to)!;
@@ -332,6 +335,7 @@ function createJob(
     priority,
     createdTick: world.tick,
     phase: 'open',
+    ...(repair ? { repair } : {}),
   });
   world.nextJobId++;
 }
@@ -654,6 +658,13 @@ function reconcile(world: World): void {
         abortJob(world, job, 'reconcile: carried good mismatch');
         continue;
       }
+    }
+    // A repair haul with nothing left to mend — the building settled the
+    // last of the bill out of its own stores while this one was walking.
+    // The plank stays in his hands; logistics finds it another home.
+    if (job.repair && (to.repairNeeds?.[job.good] ?? 0) === 0) {
+      abortJob(world, job, 'reconcile: repair no longer needs good', true);
+      continue;
     }
     // Sites whose need for this good vanished (e.g. completed early or
     // over-provisioned): cancel surplus inbound jobs.

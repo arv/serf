@@ -1,5 +1,5 @@
 import { buildingDef, repairBill } from '../defs/buildings.ts';
-import { GOODS, type GoodAmounts, type GoodId } from '../defs/goods.ts';
+import { GOODS, type GoodId } from '../defs/goods.ts';
 import { PathLevel } from '../map.ts';
 import { abortJob, availableOut } from './logistics.ts';
 import {
@@ -142,19 +142,16 @@ export function orderRepair(world: World, b: Building): void {
  * Call the repair off (or clear a finished one). Materials still walking
  * toward it stand down — the good stays in the serf's hands and logistics
  * finds it another home, since a cancelled order is no reason to burn a
- * plank. Only the hauls this repair asked for are stopped: a weaponsmith
- * mends with the same wood it forges from, and its input deliveries are
- * nobody's business here.
+ * plank. Only the hauls this repair booked are stopped, which is what the
+ * mark on the job is for: a weaponsmith mends with the same wood it forges
+ * from, and by the time a plank is on the road nothing else distinguishes
+ * the errand it was sent on.
  */
 export function cancelRepair(world: World, b: Building): void {
   const needs = b.repairNeeds;
   if (!needs) return;
   clearRepairOrder(b, Object.keys(needs) as GoodId[]);
-  const owed: GoodAmounts = { ...needs };
   for (const job of world.jobs.values()) {
-    if (job.to !== b.id) continue;
-    if ((owed[job.good] ?? 0) <= 0) continue;
-    owed[job.good] = (owed[job.good] ?? 0) - 1;
-    abortJob(world, job, 'repair called off', true);
+    if (job.repair && job.to === b.id) abortJob(world, job, 'repair called off', true);
   }
 }
