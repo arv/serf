@@ -13,9 +13,12 @@ const UV_TILES = 1.6;
 const LIFT = 0.02;
 /**
  * Stones stop a little short of the painted band's edge, so a road ends in
- * a fringe of trodden dirt rather than a hard cut line of masonry.
+ * a fringe of trodden dirt rather than a hard cut line of masonry: stone
+ * alpha hits zero while the band's coverage is still STONE_CUT, and ramps
+ * to solid over the next STONE_RAMP of coverage.
  */
-const STONE_BITE = 1.35;
+const STONE_CUT = 0.18;
+const STONE_RAMP = 0.5;
 
 const cover: RibbonCover = { trail: 0, road: 0 };
 
@@ -89,7 +92,7 @@ export class RoadDecal {
           const px = ox + c / SUB;
           const pz = oy + r / SUB;
           ribbonCover(map.pathLevel, px, pz, cover);
-          const a = Math.min(cover.road * STONE_BITE, 1);
+          const a = Math.min(Math.max((cover.road - STONE_CUT) / STONE_RAMP, 0), 1);
           alpha[r * (SUB + 1) + c] = a;
           if (a > 0) any = true;
         }
