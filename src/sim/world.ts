@@ -671,6 +671,38 @@ export function destroyBuilding(world: World, b: Building): void {
   }
 }
 
+/**
+ * Nail one repair material onto a building: the hp it buys was fixed when
+ * the order was placed, and the last of the bill is what clears the order.
+ *
+ * Lives here beside the other world mutations because both ends of a repair
+ * reach for it — the hauler arriving with a plank (logistics) and the
+ * building spending one it already had in its own stores (construction).
+ */
+export function applyRepairMaterial(world: World, b: Building, good: GoodId): void {
+  if ((b.repairNeeds?.[good] ?? 0) <= 0) return;
+  b.repairNeeds![good] = (b.repairNeeds![good] ?? 0) - 1;
+  b.hp = Math.min(buildingDef(b.type).hp, b.hp + (b.repairHpPerGood ?? 0));
+  world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + 1;
+  const bill = Object.keys(b.repairNeeds!) as GoodId[];
+  for (const g of bill) {
+    if ((b.repairNeeds![g] ?? 0) > 0) return;
+  }
+  clearRepairOrder(b, bill);
+}
+
+/**
+ * Drop a repair order and the FIFO clocks it was keeping. The age of an
+ * unmet demand lives per (building, good) — leave a finished repair's behind
+ * and the next thing that building asks for inherits it, jumping a queue it
+ * never stood in.
+ */
+export function clearRepairOrder(b: Building, bill: GoodId[]): void {
+  delete b.repairNeeds;
+  delete b.repairHpPerGood;
+  for (const g of bill) delete b.demandSince[g];
+}
+
 /** Deplete one unit of a tile resource; clears + unblocks the tile at zero. */
 export function depleteResourceTile(world: World, idx: number): void {
   const amt = world.map.resourceAmt[idx]!;

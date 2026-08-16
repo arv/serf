@@ -67,6 +67,10 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiCoin');
           host.sendCommands([{ kind: 'sellBuilding', buildingId }]);
         }}
+        onRepair={(buildingId, repair) => {
+          play('uiClick');
+          host.sendCommands([{ kind: 'setBuildingRepair', buildingId, repair }]);
+        }}
         onTogglePause={(buildingId, paused) => {
           play('uiClick');
           host.sendCommands([{ kind: 'setBuildingPaused', buildingId, paused }]);

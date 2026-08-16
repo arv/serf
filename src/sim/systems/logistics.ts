@@ -10,6 +10,7 @@ import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } fro
 import { findPathToAdjacent } from '../path.ts';
 import { atBuilding, walkToBuilding } from '../arrival.ts';
 import { trainingDemand } from './training.ts';
+import { applyRepairMaterial } from '../world.ts';
 import type { Unit } from '../units.ts';
 import type { HaulJob, World } from '../world.ts';
 
@@ -119,6 +120,18 @@ function suspended(world: World, b: Building, good: GoodId): boolean {
   return (b.demandBackoff?.[good] ?? 0) > world.tick;
 }
 
+/**
+ * Forget when a demand went unmet, because it is met. The FIFO age is per
+ * (building, good) while the demands are not: a damaged woodcutter wants
+ * wood for its repair *and* has wood to evacuate, and the branch that has
+ * nothing to say must not reset the other's clock — a demand whose age is
+ * wiped every matcher pass sorts last forever.
+ */
+function clearDemandAge(b: Building, good: GoodId): void {
+  if ((b.repairNeeds?.[good] ?? 0) > 0) return;
+  delete b.demandSince[good];
+}
+
 function match(world: World): void {
   const demands: DemandFull[] = [];
   // Evacuation targets resolve per producer owner; cache the lookup — it
@@ -139,13 +152,26 @@ function match(world: World): void {
         if (want > 0 && !suspended(world, b, good)) {
           demands.push(demandOf(world, b, good, want, 1));
         } else if (want <= 0) {
-          delete b.demandSince[good];
+          clearDemandAge(b, good);
         }
       }
       continue;
     }
 
     if (b.state !== 'built') continue;
+
+    // An ordered repair calls for its materials at construction priority:
+    // a wall being patched under fire is not a lesser errand than the mill's
+    // next sack of wheat. Deliberately outside the `paused` gate — halting a
+    // workshop stops it working, it does not stop the masons.
+    if (b.repairNeeds) {
+      for (const good of GOODS) {
+        const want = (b.repairNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
+        if (want > 0 && !suspended(world, b, good)) {
+          demands.push(demandOf(world, b, good, want, 1));
+        }
+      }
+    }
 
     // Convert recipes demand their input goods (priority 2).
     const convert = convertRecipeOf(def, b);
@@ -155,7 +181,7 @@ function match(world: World): void {
         if (want > 0 && !suspended(world, b, good)) {
           demands.push(demandOf(world, b, good, want, 2));
         } else if (want <= 0) {
-          delete b.demandSince[good];
+          clearDemandAge(b, good);
         }
       }
     }
@@ -164,7 +190,7 @@ function match(world: World): void {
     if (b.type === 'abbey' && !b.paused && world.players[b.owner]?.techs.researched.includes('festivals')) {
       const want = ABBEY_ALE_CAP - (b.inputs.ale ?? 0) - (b.inbound.ale ?? 0);
       if (want > 0) demands.push(demandOf(world, b, 'ale', want, 2));
-      else delete b.demandSince.ale;
+      else clearDemandAge(b, 'ale');
     }
 
     // Ale Rations: the barracks keeps its cask topped up. Standing demand
@@ -178,7 +204,7 @@ function match(world: World): void {
     ) {
       const want = BARRACKS_ALE_CAP - (b.inputs.ale ?? 0) - (b.inbound.ale ?? 0);
       if (want > 0) demands.push(demandOf(world, b, 'ale', want, 2));
-      else delete b.demandSince.ale;
+      else clearDemandAge(b, 'ale');
     }
 
     // Training queues demand their wheat + weapons (priority 2).
@@ -187,7 +213,7 @@ function match(world: World): void {
       for (const [good, n] of Object.entries(need) as [GoodId, number][]) {
         const want = n - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0) demands.push(demandOf(world, b, good, want, 2));
-        else delete b.demandSince[good];
+        else clearDemandAge(b, good);
       }
     }
 
@@ -204,7 +230,7 @@ function match(world: World): void {
             demands.push(demandOf(world, storehouse, good, surplus, 3, b));
           }
         } else {
-          delete b.demandSince[good];
+          clearDemandAge(b, good);
         }
       }
     }
@@ -372,6 +398,7 @@ function deliveryTargetFor(world: World, owner: Owner, good: GoodId): Building |
       if ((b.siteNeeds?.[good] ?? 0) > (b.inbound[good] ?? 0)) return b;
       continue;
     }
+    if ((b.repairNeeds?.[good] ?? 0) > (b.inbound[good] ?? 0)) return b;
     const def = buildingDef(b.type);
     const convert = convertRecipeOf(def, b);
     const wantsInput =
@@ -577,6 +604,11 @@ function deliver(world: World, to: Building, good: GoodId): void {
     // Construction materials are consumed by the site.
     to.siteNeeds[good] = Math.max(0, (to.siteNeeds[good] ?? 0) - 1);
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + 1;
+    return;
+  }
+  if ((to.repairNeeds?.[good] ?? 0) > 0) {
+    // A repair material is nailed on where it lands — no store, no timer.
+    applyRepairMaterial(world, to, good);
     return;
   }
   const def = buildingDef(to.type);

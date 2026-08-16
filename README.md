@@ -38,6 +38,13 @@ pnpm dev
   first. The castle sleeps 10 and you start with 8, so growth needs **houses**:
   10 more beds each, and a hire is refused while every bed is taken. Building
   wide and mustering an army compete for the same roofs.
+- **Repairs**: a building the raiders left standing can be mended instead of
+  written off — select it and hit **Repair**. The bill is half its build
+  price scaled by the damage, and the materials are hauled in like a site's,
+  so the walls come back up as fast as your serfs can carry stone. Always
+  cheaper than tearing it down and paying full price again, and the worker
+  never leaves the post. The castle repairs too, out of the stores already
+  inside it, against a notional price of its own (it cost nothing to raise).
 - **Tech**: build an Abbey and research across Agriculture / Craft / Warfare.
   Unlocks are real strategic forks — Ironworking opens the sword economy,
   Archery opens the bow line, Masonry paves your roads, Millstones speeds the

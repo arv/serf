@@ -7,7 +7,7 @@ import { movementSystem } from './systems/movement.ts';
 import { wanderSystem } from './systems/wander.ts';
 import { abortJob, logisticsSystem } from './systems/logistics.ts';
 import { productionSystem, unbindWorker } from './systems/production.ts';
-import { constructionSystem } from './systems/construction.ts';
+import { cancelRepair, constructionSystem, orderRepair } from './systems/construction.ts';
 import { trailsSystem } from './systems/trails.ts';
 import { canPlace, destroyBuilding, killUnit, placeSite, spawnUnit, type World } from './world.ts';
 import { GOODS } from './defs/goods.ts';
@@ -155,6 +155,17 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       const def = buildingDef(b.type);
       if (def.storage || def.isRoad || def.systemOnly) break;
       b.paused = cmd.paused || undefined;
+      break;
+    }
+    case 'setBuildingRepair': {
+      // Mend the walls: the building calls for materials like a site and
+      // heals as they arrive. The bill is struck against the damage it has
+      // right now, so a building that keeps taking hits is ordered again
+      // rather than mended for free.
+      const b = world.buildings.get(cmd.buildingId);
+      if (!b || b.dead || b.owner !== playerId) break;
+      if (cmd.repair) orderRepair(world, b);
+      else cancelRepair(world, b);
       break;
     }
     case 'setBuildingRecipe': {
