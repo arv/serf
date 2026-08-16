@@ -14,8 +14,9 @@ export interface HudActions {
    * also has to take the ghost off the map. */
   place(type: BuildingTypeId | null): void;
   /** Arm or disarm an order waiting for its target — the A/M shortcuts'
-   * other half. Controls owns it for the same reason as placement: leaving
-   * the mode has to take the crosshair off the canvas. */
+   * other half. Controls owns it because arming one mode has to disarm the
+   * others: placement and an order both claim the next click, and two
+   * things claiming one click is one of them losing silently. */
   armOrder(mode: OrderMode | null): void;
   /** The full save string — the worker's world plus the fog's memory. */
   save(): Promise<string>;
