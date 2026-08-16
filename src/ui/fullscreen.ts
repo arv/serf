@@ -30,7 +30,8 @@ if (import.meta.hot) {
  * The preference follows reality rather than intent. Esc, the browser's own
  * control and the OS all leave fullscreen without touching our buttons, and
  * a player who left that way has answered the question — the next launch
- * must not drag them back in.
+ * must not drag them back in. (Mid-match, Esc has a game to run first; see
+ * guardEsc below for how the key is borrowed without closing that road.)
  *
  * And where the question is already settled, it is not asked: an installed
  * app launches on the manifest's `display: fullscreen` with no chrome to
@@ -282,6 +283,45 @@ export function domGestures(target: EventTarget): GestureSource {
     target.addEventListener('keydown', onKey);
     return off;
   };
+}
+
+/** The Keyboard Lock API, Chromium's alone so far; absent everywhere else. */
+interface KeyboardLockNavigator extends Navigator {
+  keyboard?: {
+    lock?: (keys?: string[]) => Promise<void>;
+    unlock?: () => void;
+  };
+}
+
+/**
+ * Borrow the Esc key from the browser until the returned release is called.
+ *
+ * Inside fullscreen the browser answers Esc itself: the exit is its own
+ * act, and no preventDefault touches it — the Fullscreen spec makes that
+ * deliberate, so no page can trap a visitor behind a swallowed key. Right
+ * for pages in general, wrong for this game in particular, whose most-worn
+ * key is Esc (input/controls.ts unwinds one mode per press): without help,
+ * every mid-match cancel would also be an exit nobody asked for.
+ *
+ * The Keyboard Lock API is the one sanctioned way to ask anyway. With
+ * 'Escape' locked, a press arrives as an ordinary keydown and the browser
+ * moves its own exit to press-and-hold — announced in its own overlay, and
+ * beyond the reach of page code, so the no-trapping guarantee stands.
+ * Elsewhere (Firefox, Safari) the API is absent, this returns having done
+ * nothing, and Esc keeps both of its meanings, as it always has.
+ *
+ * The lock is defined to bite only while the document is fullscreen and
+ * lies dormant the rest of the time, which is why the caller holds it for
+ * a match's whole lifetime instead of chasing every fullscreen change:
+ * there is no state to mirror, so none to fall out of sync.
+ */
+export function guardEsc(nav: Navigator = navigator): () => void {
+  const kb = (nav as KeyboardLockNavigator).keyboard;
+  if (!kb?.lock || !kb.unlock) return () => {};
+  // A refusal (an embedding policy, a flag) leaves the browser's answer in
+  // place — nothing happened, so there is nothing to undo or report.
+  void kb.lock(['Escape']).catch(() => {});
+  return () => kb.unlock?.();
 }
 
 /** How the preference travels between the menu's page and the match's. */

@@ -45,6 +45,7 @@ import {
   unitTechGate,
 } from '../ui/commands';
 import { techName, unitName } from '../ui/names';
+import { fullscreen, guardEsc } from '../ui/fullscreen';
 import { play } from '../audio/audio';
 import { screenToGround, worldToScreen } from './picking';
 import type { SceneSync } from '../render/sceneSync';
@@ -210,6 +211,11 @@ export class Controls {
     canvas.addEventListener('pointercancel', this.#onCancel, { signal });
     canvas.addEventListener('lostpointercapture', this.#onCancel, { signal });
     window.addEventListener('keydown', this.#onKey, { signal });
+    // Esc is this game's most-worn key, and inside fullscreen the browser
+    // answers it too, with an exit no preventDefault can stop. Borrow the
+    // key for the match (where the engine lends it at all); the menu keeps
+    // the plain arrangement, having no modes for Esc to unwind.
+    signal.addEventListener('abort', guardEsc(), { once: true });
   }
 
   /**
@@ -264,9 +270,9 @@ export class Controls {
    * The order they are tested in is the design:
    *
    * - Esc unwinds one mode per press, innermost first — a half-typed build
-   *   chord, then an armed order, then a placement, and only once nothing
-   *   is armed does it let the selection go. One key, one undo, no state
-   *   the player cannot see their way out of.
+   *   chord, then an armed order, then a placement, then the selection, and
+   *   with nothing at all left it lets go of fullscreen itself. One key,
+   *   one undo, no state the player cannot see their way out of.
    * - A half-typed build chord swallows the next letter whole. B, W is a
    *   woodcutter and nothing else; while the chord stands, M cannot mute
    *   the game out from under it.
@@ -304,7 +310,12 @@ export class Controls {
       // the selection under it. The tech tree had only its ✕ until now,
       // which is the one exit a player never looks for.
       else if (openPanel() !== null) setOpenPanel(null);
-      else this.deselectAll();
+      else if (this.#selection.size > 0 || selectedBuilding() !== null) this.deselectAll();
+      // Nothing left to unwind. The guard held the short press inside
+      // fullscreen so the branches above could run at all; this rung keeps
+      // Esc's outermost meaning — and going through our own switch, the
+      // exit is remembered as the player's answer.
+      else fullscreen().set(false);
       return;
     }
 
