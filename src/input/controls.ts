@@ -17,6 +17,7 @@ import {
   placing,
   population,
   pushToast,
+  quitConfirm,
   replayMode,
   selectedBuilding,
   setBandArm,
@@ -26,6 +27,7 @@ import {
   setOpenPanel,
   setOrderMode,
   setPlacing,
+  setQuitConfirm,
   setSelectedBuilding,
   setSelection,
   setTechPanelOpen,
@@ -303,7 +305,10 @@ export class Controls {
     // empty on some input paths, and Esc is the one key that must never be
     // the thing that stopped working — it is how every mode is left.
     if (e.key === 'Escape' || e.code === 'Escape') {
-      if (buildChord()) setBuildChord(false);
+      // The quit question sits on top of everything, wherever it was asked
+      // from, so it is the first thing Esc takes back down.
+      if (quitConfirm()) setQuitConfirm(false);
+      else if (buildChord()) setBuildChord(false);
       else if (orderMode()) this.armOrder(null);
       else if (placing()) this.setPlacement(null);
       // An open sheet is the outermost thing on screen, so it goes before
@@ -316,6 +321,21 @@ export class Controls {
       // Esc's outermost meaning — and going through our own switch, the
       // exit is remembered as the player's answer.
       else fullscreen().set(false);
+      return;
+    }
+
+    // While the quit question stands, the rest of the keyboard belongs to
+    // its buttons: B must not open the build chord behind a modal card.
+    // Enter and Tab never land in this handler, so answering and moving
+    // between the two buttons still work. The two browser defaults this
+    // handler always swallows stay swallowed even now — Backspace's legacy
+    // navigation and Space's document scroll — but Space on the dialog's
+    // focused button is left alone: that is how it is pressed.
+    if (quitConfirm()) {
+      if (e.key === 'Backspace' || e.code === 'Backspace') e.preventDefault();
+      if ((e.key === ' ' || e.code === 'Space') && !(t instanceof HTMLButtonElement)) {
+        e.preventDefault();
+      }
       return;
     }
 
