@@ -119,6 +119,8 @@ export class CueScheduler {
   #groups: Group[] = [];
   #groupIdx = new Map<string, number>();
   #cands: Candidate[] = [];
+  /** Indices into #cands, sorted in place — see the sort in flush(). */
+  #order: number[] = [];
   #busUsed = new Map<string, number>();
   #flushSeq = 0;
 
@@ -229,16 +231,22 @@ export class CueScheduler {
       }
     }
 
-    // Loudest-times-priority first. n stays small (< 40), so sorting an
-    // index-free slice of the pool is fine; the pool itself keeps its
-    // high-water length.
-    const live = this.#cands.slice(0, candLen).sort((a, b) => b.score - a.score);
+    // Loudest-times-priority first. Sorting indices rather than a slice of
+    // the pool keeps the steady state allocation-free: setting length on the
+    // kept array reuses it, where slice() would hand back a new one every
+    // frame. Ties hold their order either way — Array#sort is stable, and
+    // the indices enter in candidate order.
+    const order = this.#order;
+    order.length = candLen;
+    for (let i = 0; i < candLen; i++) order[i] = i;
+    order.sort((a, b) => this.#cands[b]!.score - this.#cands[a]!.score);
 
     this.#busUsed.clear();
     let outLen = 0;
     let budget = this.#globalCap - activeVoices;
     this.#flushSeq++;
-    for (const c of live) {
+    for (let oi = 0; oi < candLen; oi++) {
+      const c = this.#cands[order[oi]!]!;
       if (budget <= 0) break;
       const used = this.#busUsed.get(c.bus) ?? 0;
       if (used >= (this.#caps[c.bus] ?? Infinity)) continue;

@@ -177,17 +177,62 @@ const audioBoot = ((): { volume: number; muted: boolean } => {
 export const [volume, setVolumeSignal] = createSignal(audioBoot.volume);
 export const [muted, setMutedSignal] = createSignal(audioBoot.muted);
 
+/**
+ * The slider drives setVolumePref from `input`, so a single drag lands
+ * dozens of calls, and localStorage.setItem is synchronous. The signal and
+ * the mixer still move on every one of them — only the write is deferred,
+ * to at most one per window. The timer reads the signal when it fires, so
+ * whatever the drag ended on is what gets stored.
+ */
+const PREFS_WRITE_MS = 300;
+let prefsTimer = 0;
+let flushHooked = false;
+
+function writeAudioPrefs(): void {
+  saveAudioPrefs({ v: 1, volume: volume(), muted: muted() });
+}
+
+function cancelPendingWrite(): void {
+  if (prefsTimer === 0) return;
+  clearTimeout(prefsTimer);
+  prefsTimer = 0;
+}
+
+/** Write anything still pending — the drag that ends by closing the tab. */
+function flushAudioPrefs(): void {
+  if (prefsTimer === 0) return;
+  cancelPendingWrite();
+  writeAudioPrefs();
+}
+
+function writeAudioPrefsSoon(): void {
+  if (!flushHooked) {
+    // Hooked on first use, never at module scope: importing this store must
+    // stay free of side effects for the screens that never touch sound.
+    flushHooked = true;
+    window.addEventListener('pagehide', flushAudioPrefs);
+  }
+  if (prefsTimer !== 0) return;
+  prefsTimer = window.setTimeout(() => {
+    prefsTimer = 0;
+    writeAudioPrefs();
+  }, PREFS_WRITE_MS);
+}
+
 export function setVolumePref(v: number): void {
   setVolumeSignal(v);
   setAudioVolume(volumeToGain(v));
-  saveAudioPrefs({ v: 1, volume: v, muted: muted() });
+  writeAudioPrefsSoon();
 }
 
 export function toggleMuted(): void {
   const m = !muted();
   setMutedSignal(m);
   setAudioMuted(m);
-  saveAudioPrefs({ v: 1, volume: volume(), muted: m });
+  // A discrete choice, not a drag: store it now. The write carries the
+  // live volume, so a pending one has nothing left to say.
+  cancelPendingWrite();
+  writeAudioPrefs();
 }
 
 /** Debug overlay (backquote). */
