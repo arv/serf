@@ -125,7 +125,12 @@ const PREF_KEY = 'serf-edge-scroll';
  * could add; the guard also lets this module be imported where there is no
  * window at all. */
 function finePointer(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia('(any-pointer: fine)').matches;
+  if (typeof window === 'undefined') return false;
+  // Same shape as renderer.ts and framePacer.ts: a window without
+  // matchMedia is rare but real (jsdom ships without it), and this one runs
+  // at import, where a throw would take the whole module down rather than
+  // costing a query.
+  return window.matchMedia?.('(any-pointer: fine)').matches ?? false;
 }
 
 /** Whether the start screen has any reason to show the switch. */
