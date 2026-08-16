@@ -182,7 +182,7 @@ export function WarCouncil(props: CouncilHooks) {
           <div class="title">
             <div class="kicker">
               <i />
-              <span>Serf · Multiplayer</span>
+              <span>Serf Valley · Multiplayer</span>
               <i class="r" />
             </div>
             <h1>WAR COUNCIL</h1>
@@ -352,7 +352,7 @@ export function WarCouncil(props: CouncilHooks) {
         </div>
 
         <div class="footer">
-          <span>SERF · war council</span>
+          <span>SERF VALLEY · war council</span>
         </div>
       </div>
     </>

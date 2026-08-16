@@ -31,7 +31,7 @@ import { sendInit } from './sync.ts';
 import { persistRooms, restorePersistedRooms } from './persist.ts';
 
 /**
- * The Serf server: rooms, the simulation, and per-client state frames. It
+ * The Serf Valley server: rooms, the simulation, and per-client state frames. It
  * owns the world — clients send orders and render what they are told, and
  * never hold state their seat has not observed. Lobby traffic is JSON text
  * frames; in-match traffic is the binary protocol from
