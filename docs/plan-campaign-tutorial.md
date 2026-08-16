@@ -18,7 +18,7 @@ button that reopens the commission card mid-match.
 
 ## Why now
 
-Two things make Serf hard to hand to a new player today:
+Two things make Serf Valley hard to hand to a new player today:
 
 1. **The game teaches nothing.** Solo mode drops the player at a castle
    with a 9-minute clock already running (`FIRST_RAID_TICK`,

@@ -455,7 +455,7 @@ export function StartMenu(props: StartMenuProps) {
               <span>Medieval Economy · RTS</span>
               <i class="r" />
             </div>
-            <h1>SERF</h1>
+            <h1>SERF VALLEY</h1>
             <p class="tagline">Settle the valley. Feed the levy. Hold the road.</p>
           </div>
 
@@ -993,7 +993,7 @@ export function StartMenu(props: StartMenuProps) {
 
         <div class="footer">
           <span>
-            SERF · build {BUILD_LABEL} ·{' '}
+            SERF VALLEY · build {BUILD_LABEL} ·{' '}
             {isMulti() ? 'server lobby' : online() ? 'local sim' : 'local sim · offline'}
           </span>
         </div>

@@ -1,5 +1,5 @@
 /**
- * Serf's offline service worker.
+ * Serf Valley's offline service worker.
  *
  * Single player is entirely local — a World in a Web Worker, no server in
  * the loop — so once the bytes are on the device there is no reason a

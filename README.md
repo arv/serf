@@ -1,4 +1,4 @@
-# Serf ⚔️
+# Serf Valley ⚔️
 
 A medieval Settlers-like RTS in the browser: ~80% economy and logistics, ~20%
 combat. Watch your serfs physically carry every good across the valley, wear
