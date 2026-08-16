@@ -10,6 +10,8 @@ import { SelectionPanel } from './SelectionPanel';
 import { AdminPanel } from './AdminPanel';
 import { MissionPanel, continueTarget } from './MissionPanel';
 import {
+  EyeIcon,
+  EyeOffIcon,
   FastIcon,
   FastestIcon,
   GoodIcon,
@@ -36,6 +38,7 @@ import {
   buildChord,
   debugJobs,
   debugOpen,
+  fogEnabled,
   invariantViolations,
   llmStatus,
   mission,
@@ -53,6 +56,7 @@ import {
   replayOver,
   selection,
   setBandArm,
+  setFogEnabled,
   setOpenPanel,
   setTechPanelOpen,
   setVolumePref,
@@ -693,6 +697,28 @@ export function Hud(props: {
             >
               Replay
             </span>
+            {/* The recording is a finished match, so lifting the fog is
+                spectating rather than cheating — the live game keeps this
+                behind the admin panel. Render-only: playback is unchanged. */}
+            <button
+              class="icon"
+              classList={{ active: !fogEnabled() }}
+              {...tooltip(() => (
+                <TextTip
+                  title={fogEnabled() ? 'Reveal the valley' : 'Fog of war'}
+                  body={
+                    (fogEnabled()
+                      ? 'Turns fog of war off to watch the whole map, rivals and all.'
+                      : 'Turns fog of war back on — see only what this seat saw.') +
+                    (hasKeyboard() ? ' (F)' : '')
+                  }
+                />
+              ))}
+              onClick={() => setFogEnabled(!fogEnabled())}
+            >
+              {fogEnabled() ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+            <span class="div"></span>
           </Show>
           <Show
             when={isPhone()}

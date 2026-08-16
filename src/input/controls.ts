@@ -8,6 +8,7 @@ import {
   bandArm,
   buildChord,
   debugOpen,
+  fogEnabled,
   lastAlert,
   muted,
   myPlayerId,
@@ -21,6 +22,7 @@ import {
   setBandArm,
   setBuildChord,
   setDebugOpen,
+  setFogEnabled,
   setOpenPanel,
   setOrderMode,
   setPlacing,
@@ -353,6 +355,11 @@ export class Controls {
         // confirmation is the silence itself.
         if (!muted()) play('uiClick');
       }
+    } else if (letter === 'F' && replayMode()) {
+      // Replay only: a recording has nobody left to hide from, so the fog
+      // is the viewer's choice — in a live match this stays a cheat.
+      setFogEnabled(!fogEnabled());
+      play('uiClick');
     } else if (e.key === 'Backspace' || e.code === 'Backspace') {
       // Browsers stopped navigating Back on this years ago, but the guard
       // is free and this listener is on window — the one place a stray
