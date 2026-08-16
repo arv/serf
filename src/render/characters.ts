@@ -377,8 +377,14 @@ function fishingPoleProp(): THREE.Group {
   const K = 1.8;
   const line = rod.getObjectByName('fishing_rod_line');
   if (line) {
-    line.scale.y = K;
-    for (const child of line.children) child.scale.y = 1 / K;
+    line.scale.y *= K;
+    // By name, not "all children": if the loader ever splits the line
+    // node's own mesh into a child primitive, a blanket counter-scale
+    // would catch it and cancel the stretch.
+    for (const name of ['fishing_rod_floater', 'fishing_rod_hook']) {
+      const o = rod.getObjectByName(name);
+      if (o) o.scale.y /= K;
+    }
   }
   // The relaxed gripPose that suits the swung tools lays a rod tip-down.
   // Cancel it (inverse rotation, hence the reversed order) back to the
