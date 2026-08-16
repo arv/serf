@@ -78,7 +78,19 @@ walk into a match and back out again, because neither costs a document
 (see Navigation below); the answer is also remembered, so the reloads that
 do still happen come back into it on your first click. Leaving by any
 other road (Esc, the browser's own control) is an answer too, and is not
-argued with. Installed to a home screen neither control appears at all: the
+argued with.
+
+Esc is also the game's busiest key, and inside fullscreen the browser
+answers it first — with an exit that no `preventDefault` can stop, by
+design of the Fullscreen spec, so that no page can trap anyone. The one
+sanctioned way to ask for the key anyway is the Keyboard Lock API, and a
+match holds it for its lifetime where it exists (Chromium): a short press
+stays in the game to cancel what it meant to cancel, the browser moves its
+own exit to press-and-hold Esc, and a press with nothing left to unwind
+leaves fullscreen through the game's own switch. Where the API is absent
+(Firefox, Safari) Esc keeps both meanings, as it always did.
+
+Installed to a home screen neither control appears at all: the
 manifest asks for `display: fullscreen` and is given it, so there is nothing
 left to offer — and that install is the only fullscreen iOS has for a page
 in the first place. A desktop install usually lands on `standalone` instead,
@@ -138,7 +150,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Backspace | Jump to your keep |
 | Space | Jump to the last alert |
 | Mouse wheel | Zoom |
-| Esc | Unwind one mode: chord → order → placement → open sheet → selection |
+| Esc | Unwind one mode: chord → order → placement → open sheet → selection → fullscreen |
 | ` (backquote) | Logistics debug overlay |
 | `?seed=123` URL param | Pick a map seed |
 

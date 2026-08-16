@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFullscreen, type FullscreenPort, type PrefStore } from './fullscreen';
+import { createFullscreen, guardEsc, type FullscreenPort, type PrefStore } from './fullscreen';
 
 /**
  * A browser that grants fullscreen, refuses it, or cannot do it at all —
@@ -246,6 +246,59 @@ describe('fullscreen', () => {
       fs.arm(gestures.source);
 
       expect(gestures.live()).toBe(false);
+    });
+  });
+
+  describe('guardEsc', () => {
+    /** A Chromium: a keyboard that lends its keys and takes them back. */
+    function fakeKeyboardNav(opts?: { refuse?: boolean }): {
+      nav: Navigator;
+      locked: () => string[] | null;
+    } {
+      let locked: string[] | null = null;
+      const nav = {
+        keyboard: {
+          lock: (keys?: string[]) => {
+            if (opts?.refuse) return Promise.reject(new Error('policy'));
+            locked = keys ?? [];
+            return Promise.resolve();
+          },
+          unlock: () => {
+            locked = null;
+          },
+        },
+      };
+      return { nav: nav as unknown as Navigator, locked: () => locked };
+    }
+
+    it('borrows exactly Esc, and gives it back on release', () => {
+      const { nav, locked } = fakeKeyboardNav();
+
+      const release = guardEsc(nav);
+      expect(locked()).toEqual(['Escape']);
+
+      release();
+      expect(locked()).toBe(null);
+    });
+
+    it('does nothing where the platform has no keys to lend', () => {
+      // Firefox, Safari: no navigator.keyboard at all. The release must be
+      // as safe to call as the guard was to arm.
+      const release = guardEsc({} as Navigator);
+      expect(() => release()).not.toThrow();
+    });
+
+    it('swallows a lock the browser refuses', async () => {
+      // An embedding policy can reject the promise after the call returns;
+      // the refusal leaves Esc meaning what it always did, which is not an
+      // error anyone can act on — it must not surface as one.
+      const { nav, locked } = fakeKeyboardNav({ refuse: true });
+
+      const release = guardEsc(nav);
+      await settle();
+
+      expect(locked()).toBe(null);
+      release();
     });
   });
 });
