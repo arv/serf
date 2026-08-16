@@ -1,38 +1,25 @@
 import { For, Show } from 'solid-js';
 import { BUILDING_DEFS } from '../sim/defs/buildings';
-import { TECH_DEFS, type TechId } from '../sim/defs/techs';
-import {
-  HIRE_QUEUE_CAP,
-  HIRE_SERF_COST,
-  HIRE_SERF_TICKS,
-  TICKS_PER_SECOND,
-  TRAIN_QUEUE_CAP,
-} from '../sim/defs/balance';
+import { HIRE_SERF_COST, HIRE_SERF_TICKS, TICKS_PER_SECOND, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
 import { TextTip, TipWrap, UnitTip } from './tooltip';
+import { Key } from './shortcut';
 import {
   myPlayerId,
+  orderMode,
   population,
   selectedBuilding,
   selection,
   setTechPanelOpen,
   stock,
   techs,
+  type OrderMode,
 } from './store';
 
 import { buildingName, goodName, techName, unitName } from './names';
-
-/** Which tech gates a trainable unit (mirrors unlockUnit effects). */
-function unitTechGate(unit: UnitTypeId): TechId | undefined {
-  for (const def of Object.values(TECH_DEFS)) {
-    for (const e of def.effects) {
-      if (e.kind === 'unlockUnit' && e.unit === unit) return def.id;
-    }
-  }
-  return undefined;
-}
+import { HIRE_KEY, RESEARCH_KEY, canHire, canTrain, trainKey, unitTechGate } from './commands';
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
   const entries = () =>
@@ -57,6 +44,7 @@ export function SelectionPanel(props: {
   onCancelTrain: (buildingId: number, index: number, unit: UnitTypeId) => void;
   onHire: () => void;
   onDeselect: () => void;
+  onArmOrder: (mode: OrderMode | null) => void;
   onDismiss: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
   onTogglePause: (buildingId: number, paused: boolean) => void;
@@ -64,7 +52,7 @@ export function SelectionPanel(props: {
 }) {
   /**
    * No bed free, so a recruit has nowhere to walk in to. Advisory — the sim
-   * refuses the order too, this only stops the button lying.
+   * refuses the order too, this only stops the tooltip lying about why.
    *
    * `queued` is what keeps it honest: a recruit who is paid for and still
    * walking holds a bed the head count cannot see yet, and the sim's gate
@@ -273,11 +261,7 @@ export function SelectionPanel(props: {
                     )}
                   >
                     <button
-                      disabled={
-                        (stock().silver ?? 0) < HIRE_SERF_COST ||
-                        (b().hireQueue ?? 0) >= HIRE_QUEUE_CAP ||
-                        noRoom(b().hireQueue ?? 0)
-                      }
+                      disabled={!canHire(b(), stock(), population())}
                       onClick={() => props.onHire()}
                       style={{ position: 'relative', overflow: 'hidden' }}
                     >
@@ -293,7 +277,7 @@ export function SelectionPanel(props: {
                         }}
                       />
                       <span style={{ position: 'relative' }}>
-                        Hire Serf
+                        <Key label="Hire Serf" k={HIRE_KEY} />
                         <Show when={(b().hireQueue ?? 0) > 1}>
                           {' '}
                           ×{b().hireQueue}
@@ -309,7 +293,9 @@ export function SelectionPanel(props: {
               </Show>
               <Show when={b().type === 'abbey' && b().state === 'built'}>
                 <div style={{ 'margin-top': '6px', display: 'flex', 'flex-wrap': 'wrap', gap: '8px', 'align-items': 'center' }}>
-                  <button onClick={() => setTechPanelOpen(true)}>Research…</button>
+                  <button onClick={() => setTechPanelOpen(true)}>
+                    <Key label="Research…" k={RESEARCH_KEY} />
+                  </button>
                   <Show when={techs().active}>
                     {(a) => (
                       <span style={{ opacity: 0.85 }}>
@@ -329,7 +315,6 @@ export function SelectionPanel(props: {
                     {(option) => {
                       const gate = unitTechGate(option.unit);
                       const locked = () => gate !== undefined && !techs().researched.includes(gate);
-                      const full = () => (b().trainQueue?.length ?? 0) >= TRAIN_QUEUE_CAP;
                       return (
                         <TipWrap
                           tip={() => (
@@ -341,13 +326,13 @@ export function SelectionPanel(props: {
                           )}
                         >
                           <button
-                            disabled={locked() || full()}
+                            disabled={!canTrain(b(), option.unit, techs().researched)}
                             onClick={() => props.onTrain(b().id, option.unit)}
                           >
                             <Show when={locked()}>
                               <LockIcon />{' '}
                             </Show>
-                            {unitName(option.unit)}
+                            <Key label={unitName(option.unit)} k={trainKey(option.unit)} />
                             <span class="cost">
                               <GoodsLine amounts={option.cost} />
                             </span>
@@ -430,16 +415,61 @@ export function SelectionPanel(props: {
       <Show when={!selectedBuilding() && selection().size > 0}>
         <div
           class="hud-selection panel"
-          style={{ display: 'flex', 'align-items': 'center', gap: '10px' }}
+          style={{ display: 'flex', 'align-items': 'center', gap: '8px', 'flex-wrap': 'wrap' }}
         >
-          <span style={{ flex: '1' }}>
+          <span style={{ flex: '1', 'min-width': '150px' }}>
             {selection().size} {selection().size === 1 ? 'unit' : 'units'} selected
             <span style={{ opacity: 0.6, 'margin-left': '8px', 'font-size': '12px' }}>
-              {matchMedia('(pointer: coarse)').matches
-                ? 'tap the ground to send them'
-                : 'right-click to send them'}
+              {/* An armed order outranks the standing advice: what the next
+                  click does has just changed, and saying "right-click to
+                  send them" underneath a crosshair is the HUD contradicting
+                  the cursor. */}
+              {orderMode() === 'attack'
+                ? 'click where to attack-move'
+                : orderMode() === 'move'
+                  ? 'click where to walk'
+                  : matchMedia('(pointer: coarse)').matches
+                    ? 'tap the ground to send them'
+                    : 'right-click to send them'}
             </span>
           </span>
+          {/* The A/M shortcuts' home on screen — and, tapped, the touch way
+              to the two orders a finger otherwise cannot ask for: the plain
+              walk that ignores what it passes, and the full attack-move.
+              A single tap on the map still sends the half order between
+              them. Clicking an armed button again calls the order off. */}
+          <TipWrap
+            tip={() => (
+              <TextTip
+                title="Attack-move"
+                body="Then click a spot: they advance on it and engage anything they meet on the way."
+              />
+            )}
+          >
+            <button
+              classList={{ active: orderMode() === 'attack' }}
+              style={{ 'min-height': '0', padding: '4px 12px' }}
+              onClick={() => props.onArmOrder(orderMode() === 'attack' ? null : 'attack')}
+            >
+              <Key label="Attack" k="A" />
+            </button>
+          </TipWrap>
+          <TipWrap
+            tip={() => (
+              <TextTip
+                title="Move"
+                body="Then click a spot: they walk there and ignore every fight on the way — the order to retreat with."
+              />
+            )}
+          >
+            <button
+              classList={{ active: orderMode() === 'move' }}
+              style={{ 'min-height': '0', padding: '4px 12px' }}
+              onClick={() => props.onArmOrder(orderMode() === 'move' ? null : 'move')}
+            >
+              <Key label="Move" k="M" />
+            </button>
+          </TipWrap>
           <button
             style={{ 'min-height': '0', padding: '4px 12px' }}
             onClick={() => props.onDeselect()}

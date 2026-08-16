@@ -12,6 +12,13 @@ const DISTANCE = 90;
 const MIN_VIEW = 5;
 const MAX_VIEW = 52;
 const PAN_MARGIN = 4;
+/**
+ * How near an edge the cursor has to be to push the camera. Warcraft III
+ * and StarCraft II both use a band of a few pixels; wider than this and a
+ * player reaching for the build card at the bottom of the screen sets the
+ * map sliding under them.
+ */
+const EDGE_PX = 14;
 
 /** Conservative world-space XZ rectangle of the visible ground. */
 export interface ViewBounds {
@@ -47,6 +54,18 @@ export class CameraRig {
   /** Touch pan/pinch gate: Controls closes it while a marquee drag owns
    * the finger, so the map holds still under the selection band. */
   touchPanEnabled = true;
+  /**
+   * Edge-scroll gate. The app closes it while a modal sheet is up: the tech
+   * tree is a full-screen band, and a camera sliding along behind one is
+   * motion the player did not ask for and cannot see the result of.
+   */
+  edgePanEnabled = true;
+  /** Last mouse position in client pixels, and whether the pointer is still
+   * in the window at all — a cursor parked on the edge and then moved to
+   * another app leaves no event saying "stop", only the leave. */
+  #pointerX = -1;
+  #pointerY = -1;
+  #pointerIn = false;
   /** In-flight glideTo tween; null when the camera is at rest or the
    * player grabbed it back (any manual pan or focusOn cancels the glide). */
   #glide: { fromX: number; fromZ: number; toX: number; toZ: number; t: number; dur: number } | null =
@@ -76,8 +95,36 @@ export class CameraRig {
       if (!e.repeat) this.#keys.add(e.code);
     }, { signal });
     window.addEventListener('keyup', (e) => this.#keys.delete(e.code), { signal });
-    window.addEventListener('blur', () => this.#keys.clear(), { signal });
+    window.addEventListener('blur', () => {
+      this.#keys.clear();
+      // A window that lost focus must not go on scrolling: the player has
+      // alt-tabbed away, and the cursor they left on the edge is not an
+      // instruction any more.
+      this.#pointerIn = false;
+    }, { signal });
     window.addEventListener('resize', () => this.resize(), { signal });
+
+    // --- Edge scroll -----------------------------------------------------
+    // On window rather than the canvas, and deliberately: the HUD's panels
+    // sit over the map, and in both games the edge still pushes when the
+    // cursor is over the interface. Our panels are inset from every edge,
+    // so the band is bare map anyway — but a panel that grows to the corner
+    // must not become a dead zone.
+    window.addEventListener('pointermove', (e) => {
+      // A finger has no hover, so "resting near the edge" is not a state it
+      // can be in; a tap that lands there would scroll once and stop.
+      if (e.pointerType === 'touch') {
+        this.#pointerIn = false;
+        return;
+      }
+      this.#pointerX = e.clientX;
+      this.#pointerY = e.clientY;
+      this.#pointerIn = true;
+    }, { signal });
+    // Leaving the window for another app, or for the browser's own chrome.
+    document.addEventListener('mouseleave', () => {
+      this.#pointerIn = false;
+    }, { signal });
 
     canvas.addEventListener(
       'wheel',
@@ -237,10 +284,23 @@ export class CameraRig {
     const speed = this.#viewHeight * 0.9 * dt;
     let dx = 0;
     let dz = 0;
-    if (this.#keys.has('KeyW') || this.#keys.has('ArrowUp')) dz -= speed;
-    if (this.#keys.has('KeyS') || this.#keys.has('ArrowDown')) dz += speed;
-    if (this.#keys.has('KeyA') || this.#keys.has('ArrowLeft')) dx -= speed;
-    if (this.#keys.has('KeyD') || this.#keys.has('ArrowRight')) dx += speed;
+    // Arrows only. WASD panned here too until the letters were needed for
+    // orders and the build chord — A cannot both pan left and attack-move,
+    // and a square with its left corner missing is worse than no square.
+    // Nothing lost a home: the arrows do this, and a drag does it faster.
+    if (this.#keys.has('ArrowUp')) dz -= speed;
+    if (this.#keys.has('ArrowDown')) dz += speed;
+    if (this.#keys.has('ArrowLeft')) dx -= speed;
+    if (this.#keys.has('ArrowRight')) dx += speed;
+    // The edge push, at the same rate the arrows give — one camera speed,
+    // however the player asks for it. A held arrow and a cornered cursor
+    // simply add, which is what a diagonal corner push is made of anyway.
+    if (this.#pointerIn && this.edgePanEnabled && !this.#dragging) {
+      if (this.#pointerX <= EDGE_PX) dx -= speed;
+      else if (this.#pointerX >= window.innerWidth - 1 - EDGE_PX) dx += speed;
+      if (this.#pointerY <= EDGE_PX) dz -= speed;
+      else if (this.#pointerY >= window.innerHeight - 1 - EDGE_PX) dz += speed;
+    }
     if (dx !== 0 || dz !== 0) this.#panScreen(dx, dz);
   }
 

@@ -41,6 +41,7 @@ import {
   speed,
   setSpeed,
   fogEnabled,
+  openPanel,
   placing,
   setMission,
   briefingOpen,
@@ -876,6 +877,7 @@ async function runMatch(
     selectArmy: () => controls.selectArmy(),
     deselect: () => controls.deselectAll(),
     place: (type) => controls.setPlacement(type),
+    armOrder: (mode) => controls.armOrder(mode),
     save: saveGame,
     saveReplay: async () => {
       // Empty means there is nothing to save: both recorders decline while
@@ -940,6 +942,11 @@ async function runMatch(
     // Hover picking is deferred from pointermove (which can fire at
     // hundreds of Hz) to at most once per frame, here.
     controls.updateHoverIfDirty();
+    // An open sheet is a full-screen band with a scrim, so the cursor can
+    // easily be resting in the edge band with the map nowhere in sight.
+    // Told here rather than read by the rig: which panels are modal is the
+    // HUD's business, and render/ has no reason to know the HUD exists.
+    renderer.rig.edgePanEnabled = openPanel() === null;
     // The view rect reaches the audio layer before the sync runs: the sync
     // is what files this frame's positional cues, and they pan and fade
     // against the rect of the frame they were heard in.
