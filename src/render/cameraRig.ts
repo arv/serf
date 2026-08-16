@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MAP_SIZE } from '../shared/grid';
 import { clamp } from '../shared/math';
+import { EdgeScroll, edgeScrollEnabled } from '../input/edgeScroll';
 
 /** Fixed 45° — models only need to read from one angle. Exported because
  * audio/pan.ts hard-codes the screen basis this yaw induces (a subtraction,
@@ -44,6 +45,7 @@ export class CameraRig {
   #keys = new Set<string>();
   #dragging = false;
   #interactive: boolean;
+  #edge = new EdgeScroll();
   /** Touch pan/pinch gate: Controls closes it while a marquee drag owns
    * the finger, so the map holds still under the selection band. */
   touchPanEnabled = true;
@@ -76,8 +78,44 @@ export class CameraRig {
       if (!e.repeat) this.#keys.add(e.code);
     }, { signal });
     window.addEventListener('keyup', (e) => this.#keys.delete(e.code), { signal });
-    window.addEventListener('blur', () => this.#keys.clear(), { signal });
+    window.addEventListener('blur', () => {
+      this.#keys.clear();
+      this.#edge.clear();
+    }, { signal });
     window.addEventListener('resize', () => this.resize(), { signal });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.#edge.clear();
+    }, { signal });
+
+    // --- Edge scroll ------------------------------------------------------
+    // On the window rather than the canvas, because the HUD's own strips sit
+    // inside the bands: a canvas listener would go dead wherever a control
+    // opts back into pointer events, and the scroll would cut out over the
+    // resource strip in the very corner it was crossing.
+    window.addEventListener('pointermove', (e) => {
+      // A finger has its own way to move the map, and turning the switch
+      // off mid-match has to stop a push already under way.
+      if (!edgeScrollEnabled() || e.pointerType !== 'mouse') {
+        this.#edge.clear();
+        return;
+      }
+      // A left-drag band is deliberately not blocked: it resolves against
+      // live screen positions on release (controls.ts #selectInRect), so
+      // dragging into an edge extends the selection past the view exactly
+      // the way the genre does, and what the band covers on screen is what
+      // it catches.
+      const target = e.target;
+      const blocked =
+        this.#dragging || // a middle-drag is already panning
+        (target instanceof Element && target.closest('#ui, #menu') !== null);
+      this.#edge.moved(e.clientX, e.clientY, window.innerWidth, window.innerHeight, blocked);
+    });
+    // A null relatedTarget is the pointer leaving the window altogether —
+    // onto the menu bar, or off the display. Every other pointerout is just
+    // a boundary between two elements of ours.
+    window.addEventListener('pointerout', (e) => {
+      if (e.relatedTarget === null) this.#edge.left();
+    }, { signal });
 
     canvas.addEventListener(
       'wheel',
@@ -241,6 +279,13 @@ export class CameraRig {
     if (this.#keys.has('KeyS') || this.#keys.has('ArrowDown')) dz += speed;
     if (this.#keys.has('KeyA') || this.#keys.has('ArrowLeft')) dx -= speed;
     if (this.#keys.has('KeyD') || this.#keys.has('ArrowRight')) dx += speed;
+    // Same units as a held key, so a corner pushing both axes travels at the
+    // diagonal rate WD already does rather than being normalized apart.
+    const push = this.#edge.tick(dt);
+    if (push) {
+      dx += push.x * speed;
+      dz += push.z * speed;
+    }
     if (dx !== 0 || dz !== 0) this.#panScreen(dx, dz);
   }
 
