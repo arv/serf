@@ -67,9 +67,10 @@ export interface CueDef {
   pitchJitter?: number;
   layers: SynthLayer[];
   /**
-   * Step-4 seam: a path under /audio/ whose decoded buffer replaces the
-   * rendered recipe. Nothing reads this yet; the manifest test already
-   * keeps it honest.
+   * A path under /audio/ whose decoded buffer replaces the rendered
+   * recipe at play time (samples.ts). The files are Kenney CC0 takes,
+   * transcoded to mono AAC because Safari's decodeAudioData refuses Ogg
+   * Vorbis; the manifest test keeps the path shape honest.
    */
   sample?: string;
 }
@@ -91,6 +92,7 @@ export const CUES = {
     cooldownMs: 30,
     priority: 4,
     layers: [tone({ wave: 'square', freq: 900, gain: 0.5, decay: 0.03 })],
+    sample: '/audio/uiClick.m4a',
   },
   uiOpen: {
     bus: 'ui',
@@ -101,6 +103,7 @@ export const CUES = {
       tone({ wave: 'triangle', freq: 520, gain: 0.5, decay: 0.06 }),
       tone({ wave: 'triangle', freq: 660, gain: 0.5, decay: 0.08, delay: 0.05 }),
     ],
+    sample: '/audio/uiOpen.m4a',
   },
   uiClose: {
     bus: 'ui',
@@ -111,6 +114,7 @@ export const CUES = {
       tone({ wave: 'triangle', freq: 660, gain: 0.5, decay: 0.06 }),
       tone({ wave: 'triangle', freq: 520, gain: 0.5, decay: 0.08, delay: 0.05 }),
     ],
+    sample: '/audio/uiClose.m4a',
   },
   uiSelect: {
     bus: 'ui',
@@ -118,6 +122,7 @@ export const CUES = {
     cooldownMs: 50,
     priority: 4,
     layers: [tone({ wave: 'triangle', freq: 880, gain: 0.5, decay: 0.06 })],
+    sample: '/audio/uiSelect.m4a',
   },
   uiOrder: {
     bus: 'ui',
@@ -128,6 +133,7 @@ export const CUES = {
       noise({ filter: 'bandpass', freq: 1200, q: 2, gain: 0.4, decay: 0.05 }),
       tone({ wave: 'sine', freq: 220, gain: 0.5, decay: 0.05 }),
     ],
+    sample: '/audio/uiOrder.m4a',
   },
   uiPlace: {
     bus: 'ui',
@@ -138,6 +144,7 @@ export const CUES = {
       tone({ wave: 'sine', freq: 180, freqEnd: 120, gain: 0.6, decay: 0.09 }),
       noise({ filter: 'lowpass', freq: 400, gain: 0.4, decay: 0.08 }),
     ],
+    sample: '/audio/uiPlace.m4a',
   },
   uiRefused: {
     bus: 'ui',
@@ -148,6 +155,7 @@ export const CUES = {
       tone({ wave: 'square', freq: 330, gain: 0.35, decay: 0.09 }),
       tone({ wave: 'square', freq: 311, gain: 0.35, decay: 0.12, delay: 0.1 }),
     ],
+    sample: '/audio/uiRefused.m4a',
   },
   uiToast: {
     bus: 'ui',
@@ -155,6 +163,7 @@ export const CUES = {
     cooldownMs: 200,
     priority: 3,
     layers: [noise({ filter: 'highpass', freq: 3000, gain: 0.3, decay: 0.1 })],
+    sample: '/audio/uiToast.m4a',
   },
   uiCoin: {
     bus: 'ui',
@@ -166,6 +175,7 @@ export const CUES = {
       tone({ wave: 'triangle', freq: 2700, gain: 0.25, decay: 0.14, delay: 0.03 }),
       tone({ wave: 'triangle', freq: 3300, gain: 0.2, decay: 0.16, delay: 0.06 }),
     ],
+    sample: '/audio/uiCoin.m4a',
   },
 
   // ---- work -------------------------------------------------------------
@@ -179,6 +189,7 @@ export const CUES = {
       noise({ filter: 'bandpass', freq: 900, q: 1.5, gain: 0.55, decay: 0.07 }),
       tone({ wave: 'sine', freq: 120, gain: 0.4, decay: 0.05 }),
     ],
+    sample: '/audio/chop.m4a',
   },
   pickaxe: {
     bus: 'work',
@@ -190,6 +201,7 @@ export const CUES = {
       noise({ filter: 'bandpass', freq: 2500, q: 3, gain: 0.45, decay: 0.05 }),
       tone({ wave: 'triangle', freq: 300, gain: 0.35, decay: 0.12 }),
     ],
+    sample: '/audio/pickaxe.m4a',
   },
   hammer: {
     bus: 'work',
@@ -201,6 +213,7 @@ export const CUES = {
       noise({ filter: 'bandpass', freq: 600, q: 1.5, gain: 0.5, decay: 0.06 }),
       tone({ wave: 'sine', freq: 150, gain: 0.4, decay: 0.05 }),
     ],
+    sample: '/audio/hammer.m4a',
   },
   footstep: {
     bus: 'work',
@@ -209,6 +222,7 @@ export const CUES = {
     priority: 1,
     pitchJitter: 0.1,
     layers: [noise({ filter: 'lowpass', freq: 500, gain: 0.35, decay: 0.04 })],
+    sample: '/audio/footstep.m4a',
   },
 
   // ---- combat -----------------------------------------------------------
@@ -221,6 +235,7 @@ export const CUES = {
     layers: [
       noise({ filter: 'bandpass', freq: 400, freqEnd: 3000, q: 1.2, gain: 0.5, decay: 0.12 }),
     ],
+    sample: '/audio/swordSwing.m4a',
   },
   bowRelease: {
     bus: 'combat',
@@ -243,6 +258,7 @@ export const CUES = {
       tone({ wave: 'sawtooth', freq: 220, freqEnd: 70, gain: 0.35, decay: 0.45 }),
       noise({ filter: 'lowpass', freq: 300, gain: 0.4, decay: 0.12, delay: 0.28 }),
     ],
+    sample: '/audio/unitDeath.m4a',
   },
   buildingHit: {
     bus: 'combat',
@@ -253,6 +269,7 @@ export const CUES = {
       noise({ filter: 'lowpass', freq: 250, gain: 0.55, decay: 0.3 }),
       tone({ wave: 'sine', freq: 60, gain: 0.5, decay: 0.25 }),
     ],
+    sample: '/audio/buildingHit.m4a',
   },
 
   // ---- world ------------------------------------------------------------
@@ -278,6 +295,7 @@ export const CUES = {
       tone({ wave: 'triangle', freq: 784, gain: 0.35, decay: 0.4, delay: 0.24 }),
       noise({ filter: 'lowpass', freq: 350, gain: 0.25, decay: 0.1 }),
     ],
+    sample: '/audio/buildingComplete.m4a',
   },
   buildingCollapse: {
     bus: 'world',
@@ -288,6 +306,7 @@ export const CUES = {
       noise({ filter: 'lowpass', freq: 400, freqEnd: 80, gain: 0.55, attack: 0.05, decay: 1.0 }),
       tone({ wave: 'sine', freq: 50, gain: 0.5, attack: 0.05, decay: 0.8 }),
     ],
+    sample: '/audio/buildingCollapse.m4a',
   },
   objectiveDone: {
     bus: 'world',
@@ -300,6 +319,7 @@ export const CUES = {
       tone({ wave: 'triangle', freq: 988, gain: 0.3, decay: 0.26, delay: 0.2 }),
       tone({ wave: 'triangle', freq: 1319, gain: 0.3, decay: 0.45, delay: 0.3 }),
     ],
+    sample: '/audio/objectiveDone.m4a',
   },
   distantBell: {
     bus: 'world',
@@ -311,6 +331,7 @@ export const CUES = {
       tone({ wave: 'sine', freq: 440, gain: 0.35, decay: 1.2 }),
       tone({ wave: 'sine', freq: 587, gain: 0.2, decay: 0.9 }),
     ],
+    sample: '/audio/distantBell.m4a',
   },
   victory: {
     bus: 'music',
@@ -324,6 +345,7 @@ export const CUES = {
       tone({ wave: 'triangle', freq: 1046, gain: 0.35, decay: 1.1, delay: 0.45 }),
       tone({ wave: 'sine', freq: 131, gain: 0.3, attack: 0.05, decay: 1.4 }),
     ],
+    sample: '/audio/victory.m4a',
   },
   defeat: {
     bus: 'music',
@@ -336,6 +358,7 @@ export const CUES = {
       tone({ wave: 'sawtooth', freq: 262, gain: 0.2, decay: 1.4, delay: 0.7 }),
       tone({ wave: 'sine', freq: 65, gain: 0.3, attack: 0.1, decay: 1.6, delay: 0.7 }),
     ],
+    sample: '/audio/defeat.m4a',
   },
 } as const satisfies Record<string, CueDef>;
 

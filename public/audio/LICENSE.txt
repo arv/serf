@@ -1,0 +1,21 @@
+	Kenney Audio: Impact Sounds, RPG Audio, Interface Sounds, Music Jingles
+
+	Created/distributed by Kenney (www.kenney.nl)
+
+			------------------------------
+
+	License: (Creative Commons Zero, CC0)
+	http://creativecommons.org/publicdomain/zero/1.0/
+
+	This content is free to use in personal, educational and commercial projects.
+
+	Support by crediting Kenney or www.kenney.nl (this is not mandatory)
+
+			------------------------------
+
+	The .m4a files in this directory are a hand-picked subset of the four
+	packs above, renamed after the game's cue ids and transcoded to mono
+	AAC (Safari's decodeAudioData does not decode the original Ogg Vorbis).
+
+	Donate:   http://support.kenney.nl
+	Patreon:  http://patreon.com/kenney

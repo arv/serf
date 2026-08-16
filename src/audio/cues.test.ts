@@ -48,7 +48,7 @@ describe('cue catalogue', () => {
   it('samples, once named, point under /audio/ (the step-4 seam)', () => {
     for (const [id, def] of entries) {
       if (def.sample !== undefined) {
-        expect(def.sample, id).toMatch(/^\/audio\/.+\.(ogg|mp3|wav)$/);
+        expect(def.sample, id).toMatch(/^\/audio\/.+\.(m4a|ogg|mp3|wav)$/);
       }
     }
   });

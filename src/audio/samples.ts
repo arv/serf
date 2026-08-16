@@ -21,8 +21,9 @@ export async function loadSamples(
 ): Promise<void> {
   const jobs: Promise<void>[] = [];
   for (const id of Object.keys(CUES) as CueId[]) {
-    // Through the interface, not the literal: no entry names a sample yet,
-    // so the narrowed const type would (rightly) call the field absent.
+    // Through the interface, not the literal: not every entry names a
+    // sample, so the narrowed const type would (rightly) call the field
+    // absent on the union.
     const path = (CUES[id] as CueDef).sample;
     if (path === undefined) continue;
     jobs.push(
