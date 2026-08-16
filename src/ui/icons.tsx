@@ -232,6 +232,37 @@ export function PopIcon() {
   );
 }
 
+/** An open eye: the whole valley in view (replay fog toggle). */
+export function EyeIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
+      <path
+        d="M1.5 8C3 4.9 5.3 3.4 8 3.4S13 4.9 14.5 8C13 11.1 10.7 12.6 8 12.6S3 11.1 1.5 8Z"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.4"
+      />
+      <circle cx="8" cy="8" r="2" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** The same eye struck out: fog of war hides what the seat never saw. */
+export function EyeOffIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
+      <path
+        d="M1.5 8C3 4.9 5.3 3.4 8 3.4S13 4.9 14.5 8C13 11.1 10.7 12.6 8 12.6S3 11.1 1.5 8Z"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.4"
+      />
+      <circle cx="8" cy="8" r="2" fill="currentColor" />
+      <path d="M3 13L13 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+    </svg>
+  );
+}
+
 /** Speaker and cone, for the sound toggle. */
 export function SpeakerIcon() {
   return (
