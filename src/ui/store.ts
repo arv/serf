@@ -10,6 +10,8 @@ if (import.meta.hot) {
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { BuildingSnap, JobSnap, OutcomeSnap, PlayerSnap, TechSnap } from '../protocol/messages';
+import { play, setAudioMuted, setAudioVolume } from '../audio/audio';
+import { audioFromUrl, loadAudioPrefs, saveAudioPrefs, volumeToGain } from '../audio/settings';
 
 /**
  * Main-thread UI state. Worker structural updates write into this; Solid
@@ -103,6 +105,8 @@ export const [toasts, setToasts] = createSignal<
 >([]);
 let toastId = 0;
 export function pushToast(text: string, focus?: { x: number; y: number }): void {
+  // Every notification passes through here, so this is where they rustle.
+  play('uiToast');
   const id = ++toastId;
   setToasts([...toasts(), { id, text, focus }]);
   setTimeout(() => setToasts(toasts().filter((t) => t.id !== id)), 8000);
@@ -155,6 +159,81 @@ export const [fogEnabled, setFogEnabled] = createSignal(
 export const [llmStatus, setLlmStatus] = createSignal<
   import('../ai/strategist').LlmStatus | null
 >(null);
+
+/**
+ * Sound preferences — player-scoped like the campaign profile, so
+ * deliberately absent from resetMatchState(). The signals are the single
+ * source of truth for the UI; every write also lands on the audio engine
+ * and (for real choices) in the `serf-audio` record. URL flags (?mute=1,
+ * ?vol=) seed the signals for this visit without persisting — a flag is a
+ * visit, not a choice — though touching the controls afterwards persists
+ * what the player then sees, which is what they'd expect it to mean.
+ */
+const audioBoot = ((): { volume: number; muted: boolean } => {
+  const prefs = loadAudioPrefs();
+  const url = audioFromUrl(location.search);
+  return { volume: url.volume ?? prefs.volume, muted: url.mute === true || prefs.muted };
+})();
+export const [volume, setVolumeSignal] = createSignal(audioBoot.volume);
+export const [muted, setMutedSignal] = createSignal(audioBoot.muted);
+
+/**
+ * The slider drives setVolumePref from `input`, so a single drag lands
+ * dozens of calls, and localStorage.setItem is synchronous. The signal and
+ * the mixer still move on every one of them — only the write is deferred,
+ * to at most one per window. The timer reads the signal when it fires, so
+ * whatever the drag ended on is what gets stored.
+ */
+const PREFS_WRITE_MS = 300;
+let prefsTimer = 0;
+let flushHooked = false;
+
+function writeAudioPrefs(): void {
+  saveAudioPrefs({ v: 1, volume: volume(), muted: muted() });
+}
+
+function cancelPendingWrite(): void {
+  if (prefsTimer === 0) return;
+  clearTimeout(prefsTimer);
+  prefsTimer = 0;
+}
+
+/** Write anything still pending — the drag that ends by closing the tab. */
+function flushAudioPrefs(): void {
+  if (prefsTimer === 0) return;
+  cancelPendingWrite();
+  writeAudioPrefs();
+}
+
+function writeAudioPrefsSoon(): void {
+  if (!flushHooked) {
+    // Hooked on first use, never at module scope: importing this store must
+    // stay free of side effects for the screens that never touch sound.
+    flushHooked = true;
+    window.addEventListener('pagehide', flushAudioPrefs);
+  }
+  if (prefsTimer !== 0) return;
+  prefsTimer = window.setTimeout(() => {
+    prefsTimer = 0;
+    writeAudioPrefs();
+  }, PREFS_WRITE_MS);
+}
+
+export function setVolumePref(v: number): void {
+  setVolumeSignal(v);
+  setAudioVolume(volumeToGain(v));
+  writeAudioPrefsSoon();
+}
+
+export function toggleMuted(): void {
+  const m = !muted();
+  setMutedSignal(m);
+  setAudioMuted(m);
+  // A discrete choice, not a drag: store it now. The write carries the
+  // live volume, so a pending one has nothing left to say.
+  cancelPendingWrite();
+  writeAudioPrefs();
+}
 
 /** Debug overlay (backquote). */
 export const [debugOpen, setDebugOpen] = createSignal(false);
