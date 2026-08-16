@@ -147,6 +147,10 @@ export class Controls {
     canvas.addEventListener('pointercancel', this.#onCancel, { signal });
     canvas.addEventListener('lostpointercapture', this.#onCancel, { signal });
     const onKey = (e: KeyboardEvent): void => {
+      // Every shortcut below is a discrete act — a toggle or a clear — so a
+      // held key must fire once, not stream. Auto-repeat would land mute in
+      // whichever state the platform's repeat rate happened to stop on.
+      if (e.repeat) return;
       if (e.code === 'Escape') {
         if (placing()) this.setPlacement(null);
         else {

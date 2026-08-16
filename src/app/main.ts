@@ -52,6 +52,7 @@ import {
 import {
   audioFrame,
   initAudio,
+  resetMatchAudio,
   play,
   playAt,
   setAudioHidden,
@@ -679,6 +680,10 @@ async function runMatch(
 
   const sync = new SceneSync(renderer.scene, init.reader, heights, config.myPlayerId);
   sync.onCue = (cue, x, z, delaySec) => playAt(cue, x, z, 1, delaySec);
+  // The audio layer outlives every screen (one context, unlocked once), so
+  // the world's share of it is this screen's to hand back — queued cues,
+  // sounding voices, the view rect and the pause duck all go when it does.
+  teardown.push(resetMatchAudio);
   // Where the well cranks are (drawing serfs stand beside them, hand
   // IK-glued to the grip) and where the fishery piers run (fishermen walk
   // out and cast off the end).

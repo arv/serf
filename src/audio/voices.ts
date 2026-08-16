@@ -139,6 +139,16 @@ export class CueScheduler {
     return this.#len;
   }
 
+  /**
+   * Forget the frame's requests and every cooldown. For teardown: the match
+   * that queued these is gone, and its unflushed percussion must not arrive
+   * over whatever screen replaced it.
+   */
+  reset(): void {
+    this.#len = 0;
+    this.#last.clear();
+  }
+
   /** Queue one cue for this frame. Sub-audible requests vanish here, before
    * they can touch a cooldown. */
   request(cue: string, pan: number, gain: number, delaySec = 0): void {
@@ -205,7 +215,11 @@ export class CueScheduler {
       const last = this.#last.get(g.cue);
       if (last !== undefined && now - last < def.cooldownMs) continue;
       const split = g.maxPan - g.minPan > CLUSTER_SPREAD;
-      for (const side of split ? [g.left, g.right] : [null]) {
+      // Index rather than iterate a literal: `[g.left, g.right]` would be a
+      // fresh array per group per flush, which is the allocation the pools
+      // above exist to avoid.
+      for (let si = 0; si < (split ? 2 : 1); si++) {
+        const side = split ? (si === 0 ? g.left : g.right) : null;
         let n: number, maxGain: number, gainSum: number, panGainSum: number, delayGainSum: number;
         if (side) {
           if (side.n === 0) continue;

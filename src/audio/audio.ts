@@ -75,6 +75,13 @@ export function initAudio(initial: { gain: number; muted: boolean }): void {
   window.addEventListener('pointerdown', unlockAudio, opts);
   window.addEventListener('keydown', unlockAudio, opts);
   window.addEventListener('touchend', unlockAudio, opts);
+  // Document-lifetime, because the context is: a match's HiddenSync dies
+  // with its screen, and the menu is a screen too — one the player may sit
+  // on, hide, and leave the audio hardware awake behind. The match's sync
+  // stays as the watchdog for the return-to-visible event mobile browsers
+  // drop; setAudioHidden ignores anything that isn't a change, so the two
+  // reporting the same truth costs nothing.
+  document.addEventListener('visibilitychange', () => setAudioHidden(document.hidden));
 }
 
 /**
@@ -154,6 +161,21 @@ export function audioFrame(now: number): void {
     const buffer = sampleBuffers.get(cue) ?? buffers.get(cue);
     if (buffer) graph.play(buffer, CUES[cue], req);
   }
+}
+
+/**
+ * The match is over and its screen is gone. Drop what the world had queued,
+ * cut the voices it already started, and forget the camera it was panned
+ * against — otherwise a chop lands over the menu, or the next match's first
+ * frame spatializes against a view that no longer exists. The pause duck
+ * goes with it: quitting while paused must not leave the next match's world
+ * ducked to a whisper.
+ */
+export function resetMatchAudio(): void {
+  scheduler?.reset();
+  graph?.stopWorldVoices();
+  setAudioPaused(false);
+  hasView = false;
 }
 
 /** speed() === 0, mirrored: the world holds its breath, the UI stays live. */

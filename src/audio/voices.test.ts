@@ -176,6 +176,28 @@ describe('CueScheduler', () => {
     expect(out.length).toBeLessThanOrEqual(4);
   });
 
+  it('reset() drops the queue, so a dead match cannot sound over its successor', () => {
+    const s = new CueScheduler(DEFS, CAPS);
+    s.request('chop', 0, 0.8);
+    s.request('step', 0, 0.6);
+    expect(s.pending).toBe(2);
+    s.reset();
+    expect(s.pending).toBe(0);
+    expect(flush(s, 1000)).toHaveLength(0);
+  });
+
+  it('reset() clears cooldowns, so the next match starts unmuffled', () => {
+    const s = new CueScheduler(DEFS, CAPS);
+    s.request('horn', 0, 0.9); // cooldownMs 2000, the longest in the catalogue
+    expect(flush(s, 1000)).toHaveLength(1);
+    // Same instant, and the cooldown would normally still be swallowing it.
+    s.request('horn', 0, 0.9);
+    expect(flush(s, 1000)).toHaveLength(0);
+    s.reset();
+    s.request('horn', 0, 0.9);
+    expect(flush(s, 1000)).toHaveLength(1);
+  });
+
   it('default caps exist for every bus the catalogue uses', () => {
     expect(GLOBAL_CAP).toBeGreaterThan(0);
   });

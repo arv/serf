@@ -46,6 +46,8 @@ export class MixerGraph {
   #muted = false;
   #paused = false;
   #active = 0;
+  /** Sounding voices by bus, so teardown can cut the world and spare the UI. */
+  #live = new Map<AudioBufferSourceNode, BusId>();
 
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
@@ -133,12 +135,30 @@ export class MixerGraph {
     gain.connect(panner);
     panner.connect(this.#buses[def.bus]);
     this.#active++;
+    this.#live.set(source, def.bus);
     source.onended = () => {
       this.#active--;
+      this.#live.delete(source);
       source.disconnect();
       gain.disconnect();
       panner.disconnect();
     };
     source.start(req.delay > 0 ? ctx.currentTime + req.delay : 0);
+  }
+
+  /**
+   * Cut every voice the match owned. The UI bus plays on: the click that
+   * quit is still sounding, and the menu it lands on has cues of its own.
+   * Each stop() fires onended, which is what unhooks the nodes.
+   */
+  stopWorldVoices(): void {
+    for (const [source, bus] of this.#live) {
+      if (bus === 'ui') continue;
+      try {
+        source.stop();
+      } catch {
+        // Already ended between the frame and here: nothing to stop.
+      }
+    }
   }
 }
