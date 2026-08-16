@@ -232,6 +232,32 @@ export function PopIcon() {
   );
 }
 
+/** Speaker and cone, for the sound toggle. */
+export function SpeakerIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
+      <path d="M2.6 6.1h2.3L8.2 3.2v9.6L4.9 9.9H2.6a.9.9 0 0 1-.9-.9V7a.9.9 0 0 1 .9-.9Z" fill="currentColor" />
+      <g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+        <path d="M10.5 6.3a2.6 2.6 0 0 1 0 3.4" />
+        <path d="M12.5 4.5a5.2 5.2 0 0 1 0 7" />
+      </g>
+    </svg>
+  );
+}
+
+/** The same cone with the waves struck out: sound off. */
+export function SpeakerOffIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
+      <path d="M2.6 6.1h2.3L8.2 3.2v9.6L4.9 9.9H2.6a.9.9 0 0 1-.9-.9V7a.9.9 0 0 1 .9-.9Z" fill="currentColor" />
+      <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+        <path d="M10.9 6.4l3.5 3.4" />
+        <path d="M14.4 6.4l-3.5 3.4" />
+      </g>
+    </svg>
+  );
+}
+
 /** The builder's mallet, for the build menu. */
 export function MalletIcon() {
   return (

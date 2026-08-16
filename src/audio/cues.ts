@@ -217,7 +217,12 @@ export const CUES = {
   },
   footstep: {
     bus: 'work',
-    gain: 0.18,
+    // Quieter than its siblings on purpose: this is the only cue every
+    // walking unit fires twice a stride, so it is heard as a crowd, not
+    // as one sound. The recording is trimmed to a single footfall — the
+    // pack's takes are mostly two-step pairs, which at this rate read as
+    // a stampede.
+    gain: 0.12,
     cooldownMs: 45,
     priority: 1,
     pitchJitter: 0.1,

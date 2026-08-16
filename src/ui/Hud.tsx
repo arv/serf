@@ -19,6 +19,8 @@ import {
   BandIcon,
   MalletIcon,
   PopIcon,
+  SpeakerIcon,
+  SpeakerOffIcon,
   SwordsIcon,
 } from './icons';
 import { BuildingTip, GoodTip, TextTip, TipWrap, TooltipLayer, tooltip } from './tooltip';
@@ -344,7 +346,10 @@ export function Hud(props: {
         }
         .hud-menu .menu-close { min-width: 0; padding: 2px 8px; }
         .hud-menu .menu-sound { display: flex; align-items: center; gap: 8px; }
-        #ui .menu-sound .menu-mute { min-width: 0; padding: 2px 8px; font-size: 14px; }
+        #ui .menu-sound .menu-mute {
+          min-width: 0; padding: 4px 8px; line-height: 0;
+          display: flex; align-items: center; justify-content: center;
+        }
         .menu-sound input[type='range'] { flex: 1; min-width: 0; accent-color: #e5c469; }
         .menu-sound input[type='range']:disabled { opacity: 0.4; }
 
@@ -768,7 +773,7 @@ export function Hud(props: {
               title={muted() ? 'Sound off (M)' : 'Sound on (M)'}
               onClick={() => toggleMuted()}
             >
-              {muted() ? '🔇' : '🔊'}
+              {muted() ? <SpeakerOffIcon /> : <SpeakerIcon />}
             </button>
             <input
               type="range"
