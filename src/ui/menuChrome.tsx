@@ -38,7 +38,7 @@ export const MENU_STYLE = `
    on short windows, which is exactly when this screen needs to scroll. */
 #menu .stack { min-height: 0; display: flex; flex-direction: column; align-items: center;
   justify-content: safe center; gap: 18px; animation: menu-rise 0.5s ease-out both;
-  padding: calc(24px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 4px calc(20px + env(safe-area-inset-left)); }
+  padding: calc(24px + var(--safe-top)) calc(20px + var(--safe-right)) 4px calc(20px + var(--safe-left)); }
 
 #menu .kicker { display: flex; align-items: center; gap: 12px; font-size: 11px; font-weight: 600;
   letter-spacing: 0.34em; text-align: center; color: #cbbd93; text-transform: uppercase; }
@@ -182,7 +182,7 @@ export const MENU_STYLE = `
 #menu .secondary button:disabled { opacity: 0.45; cursor: default; }
 
 #menu .footer { display: flex; align-items: center; justify-content: flex-start;
-  padding: 0 20px env(safe-area-inset-bottom); font-size: 11px; color: #5f6159; letter-spacing: 0.06em; }
+  padding: 0 20px var(--safe-bottom); font-size: 11px; color: #5f6159; letter-spacing: 0.06em; }
 
 /* Phones and short windows: same DOM, tighter stack, bigger touch targets. */
 @media (max-width: 560px) {
