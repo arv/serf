@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILD_GROUPS, playerBuildable } from './buildMenu';
+import { BUILD_GROUPS, BUILD_KEYS, buildKey, buildingForKey, playerBuildable } from './buildMenu';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 
 const TYPES = Object.keys(BUILDING_DEFS) as BuildingTypeId[];
@@ -39,5 +39,44 @@ describe('the build ribbon', () => {
       return false;
     });
     expect(dupes).toEqual([]);
+  });
+});
+
+/**
+ * The build chord (B, then a letter). Three ways for this table to rot,
+ * each of them silent at runtime: a new building joins the ribbon with no
+ * letter and simply cannot be reached from the keyboard; two buildings
+ * claim one letter and the second is unreachable; or a letter drifts out of
+ * the name it is meant to be bolded inside, which turns a taught shortcut
+ * into a parenthesised footnote.
+ */
+describe('the build chord', () => {
+  it('gives every building in the ribbon a letter', () => {
+    expect(inMenu.filter((t) => buildKey(t) === '')).toEqual([]);
+  });
+
+  it('gives no letter to anything the ribbon does not offer', () => {
+    const stray = (Object.keys(BUILD_KEYS) as BuildingTypeId[]).filter((t) => !inMenu.includes(t));
+    expect(stray).toEqual([]);
+  });
+
+  it('never spends one letter twice', () => {
+    const keys = inMenu.map((t) => buildKey(t));
+    expect(keys.length).toBe(new Set(keys).size);
+  });
+
+  it('picks letters the building name can bold', () => {
+    const unbolded = inMenu.filter(
+      (t) => !BUILDING_DEFS[t].name.toUpperCase().includes(buildKey(t)),
+    );
+    expect(unbolded).toEqual([]);
+  });
+
+  it('resolves a letter back to its building, in either case', () => {
+    for (const type of inMenu) {
+      expect(buildingForKey(buildKey(type))).toBe(type);
+      expect(buildingForKey(buildKey(type).toLowerCase())).toBe(type);
+    }
+    expect(buildingForKey('Z')).toBeNull();
   });
 });

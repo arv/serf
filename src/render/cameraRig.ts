@@ -109,7 +109,7 @@ export class CameraRig {
         this.#dragging || // a middle-drag is already panning
         (target instanceof Element && target.closest('#ui, #menu') !== null);
       this.#edge.moved(e.clientX, e.clientY, window.innerWidth, window.innerHeight, blocked);
-    });
+    }, { signal });
     // A null relatedTarget is the pointer leaving the window altogether —
     // onto the menu bar, or off the display. Every other pointerout is just
     // a boundary between two elements of ours.
@@ -275,12 +275,18 @@ export class CameraRig {
     const speed = this.#viewHeight * 0.9 * dt;
     let dx = 0;
     let dz = 0;
-    if (this.#keys.has('KeyW') || this.#keys.has('ArrowUp')) dz -= speed;
-    if (this.#keys.has('KeyS') || this.#keys.has('ArrowDown')) dz += speed;
-    if (this.#keys.has('KeyA') || this.#keys.has('ArrowLeft')) dx -= speed;
-    if (this.#keys.has('KeyD') || this.#keys.has('ArrowRight')) dx += speed;
+    // Arrows only. WASD panned here too until the letters were needed for
+    // orders and the build chord — A cannot both pan left and attack-move,
+    // and a square with its left corner missing is worse than no square.
+    // Nothing lost a home: the arrows do this, the edge push does it without
+    // a key at all, and a middle-drag does it faster than either.
+    if (this.#keys.has('ArrowUp')) dz -= speed;
+    if (this.#keys.has('ArrowDown')) dz += speed;
+    if (this.#keys.has('ArrowLeft')) dx -= speed;
+    if (this.#keys.has('ArrowRight')) dx += speed;
     // Same units as a held key, so a corner pushing both axes travels at the
-    // diagonal rate WD already does rather than being normalized apart.
+    // diagonal rate two held arrows already do rather than being normalized
+    // apart.
     const push = this.#edge.tick(dt);
     if (push) {
       dx += push.x * speed;

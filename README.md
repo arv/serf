@@ -121,11 +121,33 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Left click / drag | Select units (shift = add) |
 | Right click | Move order / attack enemy building |
 | Click building | Building panel (barracks: train units) |
-| WASD / arrows / middle-drag | Pan camera |
+| **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target |
+| **B** then a letter | Build: **H**ouse, **W**oodcutter, **Q**uarry, **A**bbey, We**l**l, Wheat **F**arm, **M**ill, **B**akery, Fi**s**hery, B**r**ewery, **I**ron Mine, Sil**v**er Mine, **G**old Mine, Wea**p**onsmith, Barrac**k**s |
+| **R** | Tech tree |
+| **H** (castle selected) | Hire Serf |
+| **K** / **S** / **A** (barracks selected) | Train **K**night / **S**pearman / **A**rcher |
+| M (nothing selected) | Mute |
+| Cursor at screen edge / arrows / middle-drag | Pan camera (edge scroll has a start-menu toggle) |
+| Backspace | Jump to your keep |
+| Space | Jump to the last alert |
 | Mouse wheel | Zoom |
-| Esc | Cancel placement / clear selection |
+| Esc | Unwind one mode: chord → order → placement → open sheet → selection |
 | ` (backquote) | Logistics debug overlay |
 | `?seed=123` URL param | Pick a map seed |
+
+Shortcut letters are taught in place — the HUD bolds the letter inside its
+own label (**B**uild, We**l**l, **H**ire Serf) and shows nothing at all on a
+device with no keyboard. Camera control follows Warcraft III / StarCraft II:
+edge scroll (`input/edgeScroll.ts`), arrows, middle-drag, wheel zoom. WASD
+deliberately does *not* pan — those letters belong to the orders and the
+build chord, and `A` cannot both pan left and attack-move.
+
+The letters on a selected building's panel are contextual, as in both those
+games, so they may reuse a global letter: the barracks' **A**rcher is the
+attack-move's A, which is only safe because a building selection and a unit
+selection cannot both stand. The gates are shared between the button and the
+key (`ui/commands.ts`, `ui/buildMenu.ts`), so a shortcut can never fire where
+its button is greyed out — and every refusal names which gate it hit.
 
 ## Architecture
 
