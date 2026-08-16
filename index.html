@@ -2,9 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- viewport-fit=cover lets the HUD reach under notches (it pads itself
-         back out with env(safe-area-inset-*)); the scale locks stop a
-         two-finger map pinch from zooming the page instead. -->
+    <!-- viewport-fit=cover is the opt-in for drawing edge to edge: without
+         it the browser boxes the page inside the system bars and every
+         safe-area inset reads 0. With it the world fills the screen and the
+         HUD pads itself back out (the --safe-* variables below). The scale
+         locks stop a two-finger map pinch from zooming the page instead. -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -50,6 +52,22 @@
         unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
           U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
           U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+
+      /* One name per edge for the space the system's own chrome wants back.
+         Android lets its bars come and go while the app runs, and the plain
+         inset tracks that live — a HUD pinned to it slides up and down as
+         the navigation bar hides and returns. The max- variants (Chrome 135
+         and up) are the largest value that edge will ever take, so the
+         layout is placed once and stays put. Every browser that lacks them
+         falls through to the live inset, and the last 0px covers the ones
+         with no env() at all — without it an unknown name would take the
+         whole declaration down and unpin the element completely. */
+      :root {
+        --safe-top: env(safe-area-max-inset-top, env(safe-area-inset-top, 0px));
+        --safe-right: env(safe-area-max-inset-right, env(safe-area-inset-right, 0px));
+        --safe-bottom: env(safe-area-max-inset-bottom, env(safe-area-inset-bottom, 0px));
+        --safe-left: env(safe-area-max-inset-left, env(safe-area-inset-left, 0px));
       }
 
       html,

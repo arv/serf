@@ -373,7 +373,7 @@ export function Hud(props: {
            HUD hasn't claimed. Hidden entirely on fine pointers. */
         .hud-touch {
           position: fixed;
-          right: calc(10px + env(safe-area-inset-right));
+          right: calc(10px + var(--safe-right));
           bottom: 38vh;
           display: flex; flex-direction: column; gap: 8px;
           pointer-events: auto; z-index: 11;
@@ -499,9 +499,9 @@ export function Hud(props: {
           .hud-top {
             display: flex; flex-direction: column; gap: 8px;
             inset: auto;
-            top: calc(10px + env(safe-area-inset-top));
-            left: calc(10px + env(safe-area-inset-left));
-            right: calc(10px + env(safe-area-inset-right));
+            top: calc(10px + var(--safe-top));
+            left: calc(10px + var(--safe-left));
+            right: calc(10px + var(--safe-right));
           }
           .hud-speed {
             position: static;
@@ -523,9 +523,9 @@ export function Hud(props: {
           .hud-resources span.res { flex: 0 0 auto; padding: 4px 8px; font-size: 13px; }
 
           .hud-bottom {
-            left: calc(10px + env(safe-area-inset-left));
-            right: calc(10px + env(safe-area-inset-right));
-            bottom: calc(10px + env(safe-area-inset-bottom));
+            left: calc(10px + var(--safe-left));
+            right: calc(10px + var(--safe-right));
+            bottom: calc(10px + var(--safe-bottom));
             flex-direction: column;
             align-items: stretch;
             gap: 8px;
@@ -542,15 +542,15 @@ export function Hud(props: {
             -webkit-overflow-scrolling: touch;
           }
           .hud-menu {
-            top: calc(120px + env(safe-area-inset-top));
-            right: calc(10px + env(safe-area-inset-right));
+            top: calc(120px + var(--safe-top));
+            right: calc(10px + var(--safe-right));
           }
           /* .tech-panel's phone layout lives in TechTreePanel's own <style>:
              that component renders later, so rules here lost the tie and
              a stale max-height silently capped the sheet. */
           .hud-toasts {
-            top: calc(120px + env(safe-area-inset-top));
-            right: calc(10px + env(safe-area-inset-right));
+            top: calc(120px + var(--safe-top));
+            right: calc(10px + var(--safe-right));
           }
           .hud-debug { display: none; } /* desktop-only diagnostics */
         }

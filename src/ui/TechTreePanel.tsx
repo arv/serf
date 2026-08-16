@@ -115,10 +115,10 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
                the taps. */
             background: rgba(11, 13, 12, 0.98);
             box-shadow: 0 0 0 100vmax rgba(6, 8, 7, 0.55);
-            top: calc(64px + env(safe-area-inset-top));
-            bottom: calc(10px + env(safe-area-inset-bottom));
-            left: calc(10px + env(safe-area-inset-left));
-            right: calc(10px + env(safe-area-inset-right));
+            top: calc(64px + var(--safe-top));
+            bottom: calc(10px + var(--safe-bottom));
+            left: calc(10px + var(--safe-left));
+            right: calc(10px + var(--safe-right));
             transform: none;
             max-width: none;
             max-height: none;
