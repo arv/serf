@@ -10,6 +10,8 @@ if (import.meta.hot) {
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { BuildingSnap, JobSnap, OutcomeSnap, PlayerSnap, TechSnap } from '../protocol/messages';
+import { play, setAudioMuted, setAudioVolume } from '../audio/audio';
+import { audioFromUrl, loadAudioPrefs, saveAudioPrefs, volumeToGain } from '../audio/settings';
 
 /**
  * Main-thread UI state. Worker structural updates write into this; Solid
@@ -103,6 +105,8 @@ export const [toasts, setToasts] = createSignal<
 >([]);
 let toastId = 0;
 export function pushToast(text: string, focus?: { x: number; y: number }): void {
+  // Every notification passes through here, so this is where they rustle.
+  play('uiToast');
   const id = ++toastId;
   setToasts([...toasts(), { id, text, focus }]);
   setTimeout(() => setToasts(toasts().filter((t) => t.id !== id)), 8000);
@@ -155,6 +159,36 @@ export const [fogEnabled, setFogEnabled] = createSignal(
 export const [llmStatus, setLlmStatus] = createSignal<
   import('../ai/strategist').LlmStatus | null
 >(null);
+
+/**
+ * Sound preferences — player-scoped like the campaign profile, so
+ * deliberately absent from resetMatchState(). The signals are the single
+ * source of truth for the UI; every write also lands on the audio engine
+ * and (for real choices) in the `serf-audio` record. URL flags (?mute=1,
+ * ?vol=) seed the signals for this visit without persisting — a flag is a
+ * visit, not a choice — though touching the controls afterwards persists
+ * what the player then sees, which is what they'd expect it to mean.
+ */
+const audioBoot = ((): { volume: number; muted: boolean } => {
+  const prefs = loadAudioPrefs();
+  const url = audioFromUrl(location.search);
+  return { volume: url.volume ?? prefs.volume, muted: url.mute === true || prefs.muted };
+})();
+export const [volume, setVolumeSignal] = createSignal(audioBoot.volume);
+export const [muted, setMutedSignal] = createSignal(audioBoot.muted);
+
+export function setVolumePref(v: number): void {
+  setVolumeSignal(v);
+  setAudioVolume(volumeToGain(v));
+  saveAudioPrefs({ v: 1, volume: v, muted: muted() });
+}
+
+export function toggleMuted(): void {
+  const m = !muted();
+  setMutedSignal(m);
+  setAudioMuted(m);
+  saveAudioPrefs({ v: 1, volume: volume(), muted: m });
+}
 
 /** Debug overlay (backquote). */
 export const [debugOpen, setDebugOpen] = createSignal(false);

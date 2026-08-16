@@ -35,6 +35,7 @@ import {
   invariantViolations,
   llmStatus,
   mission,
+  muted,
   myPlayerId,
   netMode,
   dismissToast,
@@ -50,12 +51,16 @@ import {
   setBandArm,
   setOpenPanel,
   setTechPanelOpen,
+  setVolumePref,
   speed,
   stock,
   techPanelOpen,
   techs,
   toasts,
+  toggleMuted,
+  volume,
 } from './store';
+import { play } from '../audio/audio';
 
 /** Reactive media query (no dependency; one listener per call site). */
 function useMedia(query: string): () => boolean {
@@ -338,6 +343,10 @@ export function Hud(props: {
           margin-bottom: 2px; font-weight: 600; color: #f0ede4;
         }
         .hud-menu .menu-close { min-width: 0; padding: 2px 8px; }
+        .hud-menu .menu-sound { display: flex; align-items: center; gap: 8px; }
+        #ui .menu-sound .menu-mute { min-width: 0; padding: 2px 8px; font-size: 14px; }
+        .menu-sound input[type='range'] { flex: 1; min-width: 0; accent-color: #e5c469; }
+        .menu-sound input[type='range']:disabled { opacity: 0.4; }
 
         .hud-bottom {
           position: absolute; left: 12px; right: 12px; bottom: 12px;
@@ -752,6 +761,27 @@ export function Hud(props: {
               {fs.active() ? 'Exit full screen' : 'Full screen'}
             </button>
           </Show>
+          <div class="menu-sound">
+            <button
+              class="menu-mute"
+              aria-pressed={muted()}
+              title={muted() ? 'Sound off (M)' : 'Sound on (M)'}
+              onClick={() => toggleMuted()}
+            >
+              {muted() ? '🔇' : '🔊'}
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={volume()}
+              disabled={muted()}
+              aria-label="Sound volume"
+              onInput={(e) => setVolumePref(Number(e.currentTarget.value))}
+              onChange={() => play('uiClick')}
+            />
+          </div>
           <button
             onClick={() => {
               // In a match the world lives on (solo: gone unless saved;

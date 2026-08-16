@@ -46,7 +46,11 @@ import {
   briefingOpen,
   setBriefingOpen,
   resetMatchState,
+  muted,
+  volume,
 } from '../ui/store';
+import { audioFrame, initAudio, setAudioHidden, setAudioPaused, setAudioView } from '../audio/audio';
+import { volumeToGain } from '../audio/settings';
 import { markMissionComplete } from '../ui/campaign';
 import { MISSION_DEFS } from '../sim/defs/missions';
 import { Terrain } from '../sim/map';
@@ -357,6 +361,12 @@ async function boot(): Promise<void> {
   // a screen change on its own now — nothing unloads — but a real reload
   // still lands here, and so does a cold start.
   armFullscreen();
+  // Same posture for sound: autoplay policy keys the AudioContext to a
+  // user gesture, and a launch URL can boot a match without one, so the
+  // audio layer arms capture-phase listeners now and unlocks on whatever
+  // the first real click turns out to be. The store's signals carry the
+  // persisted (or ?mute=1/?vol=) starting point.
+  initAudio({ gain: volumeToGain(volume()), muted: muted() });
   // Single player is a local sim, so with the shell and the models on disk
   // it plays with the network off entirely. A pending update only takes
   // over on the menu — never behind a live match — and route() hands the
@@ -601,6 +611,10 @@ async function runMatch(
   // workers even when the event never arrives.
   const hidden = new HiddenSync(document.hidden);
   hidden.add((h) => host.setHidden(h));
+  // Audio holds its breath with the sim: a suspended AudioContext is what
+  // lets the device's audio hardware sleep — the same battery argument as
+  // the worker freeze above, one line down. Inherits the gap watchdog too.
+  hidden.add((h) => setAudioHidden(h));
   document.addEventListener('visibilitychange', () => hidden.set(document.hidden), {
     signal: off.signal,
   });
@@ -902,13 +916,13 @@ async function runMatch(
     // Hover picking is deferred from pointermove (which can fire at
     // hundreds of Hz) to at most once per frame, here.
     controls.updateHoverIfDirty();
-    sync.update(
-      now,
-      controls.hoverUnit,
-      controls.selected,
-      speed() === 0,
-      renderer.rig.viewBounds(3, boundsScratch),
-    );
+    // The view rect reaches the audio layer before the sync runs: the sync
+    // is what files this frame's positional cues, and they pan and fade
+    // against the rect of the frame they were heard in.
+    const bounds = renderer.rig.viewBounds(3, boundsScratch);
+    setAudioView(bounds);
+    setAudioPaused(speed() === 0);
+    sync.update(now, controls.hoverUnit, controls.selected, speed() === 0, bounds);
     buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
     // While a new hut is being aimed, the ghost's own outline is the one
     // that answers the question — two squares over the same ground, in two
@@ -921,6 +935,8 @@ async function runMatch(
     mist.update(now);
     const dt = renderer.frame();
     buildingSync.frame(speed() === 0 ? 0 : dt);
+    // Last: the frame's queued cues become at most a couple dozen voices.
+    audioFrame(now);
     frame = requestAnimationFrame(loop);
   }
   frame = requestAnimationFrame(loop);
