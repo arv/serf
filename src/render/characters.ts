@@ -43,6 +43,9 @@ const KK_PROP_FILES = [
   'bow_withString',
   'dagger',
   'quiver',
+  // From RPG Tools Bits (CC0) rather than the character packs — the one
+  // pack Kay ships a fishing rod in. Line, floater and hook included.
+  'tools/fishing_rod',
 ];
 
 const KK_CLIP_NAMES: Record<AnimKey, string> = {
@@ -360,36 +363,36 @@ function spadeProp(): THREE.Group {
 }
 
 function fishingPoleProp(): THREE.Group {
-  // The animation library ships the Fishing_* clips but no rod to go with
-  // them, so the pole is built here like the mallet and spade: grip at the
-  // origin, haft up +Y, sized to the pack's chibi exaggeration (the rod
-  // runs over half a body, or it vanishes next to the KayKit axe).
-  const g = new THREE.Group();
-  const rod = toolMesh(new THREE.CylinderGeometry(0.008, 0.02, 0.85, 6), 0x8a6a42);
-  rod.position.y = 0.31;
-  const grip = toolMesh(new THREE.CylinderGeometry(0.024, 0.026, 0.16, 6), 0x6b4e2e);
-  grip.position.y = -0.02;
-  // The reel: a little drum proud of the haft above the grip.
-  const reel = toolMesh(new THREE.CylinderGeometry(0.034, 0.034, 0.028, 8), 0x77848e);
-  reel.rotation.x = Math.PI / 2;
-  reel.position.set(0, 0.1, 0.04);
-  // A stiff stylized line with a bobber: tip at (0, 0.735, 0) down to the
-  // bobber at (0, 0.30, 0.52). It tilts with the rod rather than hanging
-  // plumb — at village zoom the read is "line in the water", which is all
-  // it is for.
-  const line = toolMesh(new THREE.CylinderGeometry(0.004, 0.004, 0.68, 4), 0xe8e4d8);
-  line.position.set(0, 0.52, 0.26);
-  line.rotation.x = 2.27;
-  const bobber = toolMesh(new THREE.SphereGeometry(0.022, 6, 5), 0xb8452e);
-  bobber.position.set(0, 0.3, 0.52);
-  g.add(rod, grip, reel, line, bobber);
+  // The RPG Tools Bits rod: grip at the origin, rod up +Y with a built-in
+  // forward sweep toward +z, line + floater + hook hanging off the tip
+  // node. Source scale puts the tip at y=2.37 — scale it to the same
+  // over-half-a-body length the other tools wear.
+  const rod = kkAssets!.props.get('tools/fishing_rod')!.clone();
+  const s = 0.36;
+  rod.scale.setScalar(s);
+  // The authored line stops 1.94 under the tip, which at this scale
+  // strands the hook chest-high over the pier. Stretch the line node (its
+  // mesh hangs from the tip) and counter-scale the floater and hook it
+  // carries so they keep their shape while riding down to the water.
+  const K = 1.8;
+  const line = rod.getObjectByName('fishing_rod_line');
+  if (line) {
+    line.scale.y *= K;
+    // By name, not "all children": if the loader ever splits the line
+    // node's own mesh into a child primitive, a blanket counter-scale
+    // would catch it and cancel the stretch.
+    for (const name of ['fishing_rod_floater', 'fishing_rod_hook']) {
+      const o = rod.getObjectByName(name);
+      if (o) o.scale.y /= K;
+    }
+  }
   // The relaxed gripPose that suits the swung tools lays a rod tip-down.
   // Cancel it (inverse rotation, hence the reversed order) back to the
-  // bare handslot axis, then pitch the rod forward out of the two-handed
-  // hold — tip out over the water, line clear of the face.
+  // bare handslot axis, then a modest forward pitch — the rod's own sweep
+  // does the rest, and the hanging line stays near plumb.
   const tilt = new THREE.Group();
-  tilt.rotation.x = 1.0;
-  tilt.add(g);
+  tilt.rotation.x = 0.5;
+  tilt.add(rod);
   const wrap = new THREE.Group();
   wrap.rotation.order = 'ZYX';
   wrap.rotation.set(-0.35, 0, 0.55);
