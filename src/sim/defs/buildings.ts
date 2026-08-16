@@ -1,3 +1,4 @@
+import { REPAIR_COST_SHARE } from './balance.ts';
 import type { GoodAmounts, GoodId } from './goods.ts';
 import type { UnitTypeId } from './units.ts';
 import type { TechId } from './techs.ts';
@@ -37,6 +38,13 @@ export interface BuildingDef {
   h: number;
   /** Construction materials (delivered to the site before building starts). */
   cost: GoodAmounts;
+  /**
+   * What a repair is billed against, when `cost` cannot speak for the
+   * building — the castle, which nobody paid to raise and which would
+   * otherwise mend itself out of thin air. Everything else bills against
+   * its own build cost (see REPAIR_COST_SHARE).
+   */
+  repairCost?: GoodAmounts;
   buildTicks: number;
   hp: number;
   /** How far this building reveals the map from its footprint edge, in
@@ -126,6 +134,10 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     w: 3,
     h: 3,
     cost: {},
+    // The keep costs nothing to raise (it is where you start) but masons
+    // still want paying to patch it: a notional price, dearer than a
+    // barracks, so mending 500 hp of wall is a real decision after a raid.
+    repairCost: { wood: 20, stone: 12 },
     buildTicks: 0,
     hp: 500,
     sight: 9,
@@ -482,6 +494,27 @@ export function convertRecipeOf(
 ): (Recipe & { kind: 'convert' }) | undefined {
   if (def.recipe?.kind === 'convert') return def.recipe;
   return def.recipeOptions?.[b?.recipeIndex ?? 0]?.recipe;
+}
+
+/**
+ * What mending `missingHp` of this building costs: its build price (or the
+ * notional `repairCost` for the ones nobody paid for), scaled by the share
+ * of the building that is broken and by REPAIR_COST_SHARE, and rounded up
+ * so no repair is ever free.
+ *
+ * Priced from the def alone, so the panel can quote the bill under the
+ * cursor with exactly the arithmetic the sim will charge.
+ */
+export function repairBill(id: BuildingTypeId, missingHp: number): GoodAmounts {
+  const def = buildingDef(id);
+  const price = def.repairCost ?? def.cost;
+  const share = Math.max(0, Math.min(1, missingHp / Math.max(def.hp, 1))) * REPAIR_COST_SHARE;
+  const bill: GoodAmounts = {};
+  for (const [good, n] of Object.entries(price) as [GoodId, number][]) {
+    const owed = Math.ceil(n * share);
+    if (owed > 0) bill[good] = owed;
+  }
+  return bill;
 }
 
 /** Every good this building can ever emit — evacuation must keep hauling

@@ -1,5 +1,5 @@
 import { For, Show } from 'solid-js';
-import { BUILDING_DEFS } from '../sim/defs/buildings';
+import { BUILDING_DEFS, repairBill } from '../sim/defs/buildings';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS, TICKS_PER_SECOND, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
@@ -47,6 +47,7 @@ export function SelectionPanel(props: {
   onArmOrder: (mode: OrderMode | null) => void;
   onDismiss: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
+  onRepair: (buildingId: number, repair: boolean) => void;
   onTogglePause: (buildingId: number, paused: boolean) => void;
   onSetRecipe: (buildingId: number, index: number) => void;
 }) {
@@ -156,6 +157,50 @@ export function SelectionPanel(props: {
                     onClick={() => props.onDismiss(b().id)}
                   >
                     Dismiss
+                  </button>
+                </TipWrap>
+              </Show>
+              {/* Repairs. Its own gate rather than a line in the block
+                  below, because the castle — which may be neither paused
+                  nor sold — is exactly the building you most want mended. */}
+              <Show
+                when={
+                  b().owner === myPlayerId() &&
+                  b().state === 'built' &&
+                  !def().isRoad &&
+                  !def().systemOnly &&
+                  (b().repairNeeds !== undefined || b().hp < b().maxHp)
+                }
+              >
+                <Show when={b().repairNeeds}>
+                  {(needs) => (
+                    <span style={{ 'margin-left': '10px', color: '#9fb06a' }}>
+                      repairing · wants <GoodsLine amounts={needs()} />
+                    </span>
+                  )}
+                </Show>
+                <TipWrap
+                  tip={() => (
+                    <TextTip
+                      title={b().repairNeeds ? 'Call off the repair' : 'Repair building'}
+                      body={
+                        b().repairNeeds
+                          ? 'Stops the order. Materials already nailed on stay nailed on; the ones still walking over turn around and go back into the stores.'
+                          : 'Calls for materials — half the build price, scaled by the damage — and the serfs who carry them patch the walls as they arrive. Cheaper than rebuilding, and the worker never leaves the post.'
+                      }
+                    />
+                  )}
+                >
+                  <button
+                    style={{ 'margin-left': '8px', 'min-height': '0', padding: '3px 10px' }}
+                    onClick={() => props.onRepair(b().id, b().repairNeeds === undefined)}
+                  >
+                    {b().repairNeeds ? 'Cancel repair' : 'Repair'}
+                    <Show when={!b().repairNeeds}>
+                      <span class="cost">
+                        <GoodsLine amounts={repairBill(b().type, b().maxHp - b().hp)} />
+                      </span>
+                    </Show>
                   </button>
                 </TipWrap>
               </Show>

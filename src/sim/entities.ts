@@ -83,6 +83,18 @@ export interface Building {
    * no construction progress. The worker keeps the post; outputs still
    * evacuate to the storehouse. */
   paused?: boolean;
+  /**
+   * Ordered repairs (built buildings only): materials still to be hauled in,
+   * exactly like a site's siteNeeds. Each one that arrives is nailed on by
+   * the serf who carried it — no timer, no second builder — so a repair runs
+   * as fast as the haulage pool can carry stone.
+   */
+  repairNeeds?: GoodAmounts;
+  /** Hit points each delivered repair material buys, fixed when the order
+   * was placed: the damage then, split over the bill then. Damage taken
+   * *during* a repair is therefore not mended for free — the order patches
+   * what was broken when it was given, and the rest wants a new one. */
+  repairHpPerGood?: number;
   /** Recruiting pause after the player dismissed the worker on purpose. */
   staffBackoffUntil?: number;
   /** Since when this site has been ready for a builder and without one.
