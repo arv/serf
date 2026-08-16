@@ -122,6 +122,10 @@ export const MENU_STYLE = `
 #menu .toggle.on span { background: ${GOLD}; }
 
 #menu .browser { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid rgba(255,255,255,0.07); }
+/* The shelf while a file hovers over it: the dashed edge the empty state
+   already wears, promoted to gold — "this is a place files land". */
+#menu .browser.dropping { outline: 1.5px dashed rgba(229,196,105,0.5); outline-offset: 3px;
+  border-radius: 8px; background: rgba(229,196,105,0.04); }
 #menu .browser-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 #menu .browser-head .count { font-size: 11px; color: #85857c; font-variant-numeric: tabular-nums; }
 /* Two rows and a slice of the third: the cut row is the affordance, and it

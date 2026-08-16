@@ -10,7 +10,7 @@
  * the menu then simply has no replays to offer.
  */
 
-import { readReplayVersion } from './replay';
+import { parseReplay, readReplayVersion, replayName } from './replay';
 
 const DIR = 'replays';
 const EXT = '.json';
@@ -20,6 +20,11 @@ export interface ReplayFileInfo {
   name: string;
   size: number;
   lastModified: number;
+  /** The OPFS-backed File itself. Lazy — holding it reads nothing — and
+   * carried because dragging a replay out of the menu must hand the
+   * payload over synchronously at dragstart, with no room for an async
+   * OPFS round-trip. */
+  file: File;
   /** The REPLAY_VERSION the file was recorded under; undefined when its
    * head doesn't say (a truncated or foreign file). Only a build carrying
    * the same number can play it back. */
@@ -96,6 +101,40 @@ export async function saveReplayFile(name: string, data: string): Promise<string
   return navigator.locks ? navigator.locks.request(SAVE_LOCK, write) : write();
 }
 
+/** What became of one file offered to importReplayFile. */
+export type ImportResult =
+  | { ok: true; name: string }
+  | { ok: false; reason: 'not-a-replay' | 'storage' };
+
+/**
+ * File a replay brought in from outside — the receiving half of sharing,
+ * dragging a row out of the shelf being the sending half. The document is
+ * screened before a byte lands in OPFS: parseReplay is the same gate
+ * playback runs every file through, so anything filed here is at least a
+ * replay-shaped document. Its version may still be foreign — the shelf
+ * already knows how to show those as unplayable, and a place on the shelf
+ * is worth more than a refusal. What gets saved is the raw text, not the
+ * parse: playback re-screens on read anyway, and keeping the bytes means
+ * a re-export hands back the file that came in.
+ */
+export async function importReplayFile(file: File): Promise<ImportResult> {
+  let raw: string;
+  try {
+    raw = await file.text();
+  } catch {
+    return { ok: false, reason: 'storage' };
+  }
+  if (parseReplay(raw) === null) return { ok: false, reason: 'not-a-replay' };
+  // Filed under the dropped file's own name where that fits the shelf's
+  // charset, today's datetime where it does not — an import is a save, so
+  // the fallback is honest. A collision gets saveReplayFile's " (2)"
+  // suffix like any same-second pair of saves.
+  const base = file.name.replace(/\.json$/i, '').trim();
+  const name = fileNameFor(base) !== null ? base : replayName(new Date());
+  const saved = await saveReplayFile(name, raw);
+  return saved !== null ? { ok: true, name: saved } : { ok: false, reason: 'storage' };
+}
+
 /** Every saved replay, newest first. */
 export async function listReplayFiles(): Promise<ReplayFileInfo[]> {
   const dir = await replaysDir(false);
@@ -113,6 +152,7 @@ export async function listReplayFiles(): Promise<ReplayFileInfo[]> {
         name: handle.name.slice(0, -EXT.length),
         size: file.size,
         lastModified: file.lastModified,
+        file,
         ...(replayVersion !== undefined ? { replayVersion } : {}),
       });
     }
