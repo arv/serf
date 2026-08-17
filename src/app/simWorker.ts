@@ -112,13 +112,14 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       if (world) post({ type: 'saved', data: serializeWorld(world) });
       break;
     case 'requestReplay':
-      // Same rule as the server's replayFor: no replay leaves a match that
-      // is still being played. Solo has one human, so "over for every
-      // human" is simply the outcome being decided — until then the answer
-      // is empty, which the Save button reports as nothing to save. (The
-      // recording itself never pauses; observing past the end and saving
-      // later just captures more.)
-      if (world && recording && world.outcome.state === 'over') {
+      // Unlike the server's replayFor, solo answers at any point in the
+      // match: the only human whose game could be spoiled is the one
+      // asking. endTick marks where the recording was cut — playback
+      // pauses there — and the recording itself never pauses, so saving
+      // again later simply captures more. Empty only in playback (no
+      // recording to hand out), which the Save button reports as nothing
+      // to save.
+      if (world && recording) {
         post({
           type: 'replayData',
           // replayVersion right after format — readReplayVersion scans
