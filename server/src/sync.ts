@@ -19,7 +19,7 @@
 import { encodeHot, encodeInit, encodeStructBody } from '../../src/protocol/state.ts';
 import { snapBuilding, snapJobs, snapPlayers, unitSnapshots } from '../../src/protocol/snapshot.ts';
 import { tileCount } from '../../src/shared/grid.ts';
-import { Terrain, resourceBlocks } from '../../src/sim/map.ts';
+import { tileBlocks } from '../../src/sim/map.ts';
 import { SeatVision } from '../../src/sim/visibility.ts';
 import type { UnitSnapshot } from '../../src/protocol/sabLayout.ts';
 import type { BuildingSnap, MapSnapshot, PlayerSnap } from '../../src/protocol/messages.ts';
@@ -151,8 +151,7 @@ function initialMap(world: World, view: SeatView): MapSnapshot {
       pathLevel[i] = world.map.pathLevel[i]!;
       blocked[i] = world.map.blocked[i]!;
     } else {
-      blocked[i] =
-        world.map.terrain[i] === Terrain.Water || resourceBlocks(world.map.resource[i]!) ? 1 : 0;
+      blocked[i] = tileBlocks(world.map.terrain[i]!, world.map.resource[i]!) ? 1 : 0;
     }
   }
   return {

@@ -28,6 +28,7 @@ const SEG = 6;
 // Tile paint classes (per-tile pass output, consumed by the vertex pass).
 const CLASS_GRASS = 0;
 const CLASS_WATER = 1;
+const CLASS_ROCK = 2;
 
 /**
  * The ground: one high-resolution mesh painted like a stylized RTS map.
@@ -210,7 +211,12 @@ export class TerrainMesh {
     const map = this.#map;
     const size = this.#size;
     const i = tileIdx(x, y, size);
-    this.#tileClass[i] = map.terrain[i] === Terrain.Water ? CLASS_WATER : CLASS_GRASS;
+    this.#tileClass[i] =
+      map.terrain[i] === Terrain.Water
+        ? CLASS_WATER
+        : map.terrain[i] === Terrain.Rock
+          ? CLASS_ROCK
+          : CLASS_GRASS;
     const res = map.resource[i];
     this.#tileDeposit[i] =
       res === TileResource.IronDep
@@ -258,6 +264,10 @@ export class TerrainMesh {
       const m = this.#meadow[v]!;
       if (m < 0.52) c.copy(COL.lush).lerp(COL.olive, m / 0.52);
       else c.copy(COL.olive).lerp(COL.gold, (m - 0.52) / 0.48);
+      // Border-ridge rock is stone all the way down: the altitude pass
+      // below paints its peaks anyway, but the cliff feet the shore ease
+      // pulls low would otherwise read as walkable green slope.
+      if (cls === CLASS_ROCK) c.lerp(m < 0.5 ? COL.rock : COL.rockDark, 0.45);
       // Altitude: meadow dries into bare rock, and the peaks catch snow.
       if (y > 0.9) {
         const rocky = Math.min((y - 0.9) / 0.55, 1);
@@ -267,7 +277,7 @@ export class TerrainMesh {
       // Trampled ground near buildings.
       const e = this.#tileEarth[tile]!;
       if (e > 0) c.lerp(COL.earth, e * 0.7);
-      // Deposits tint the rocky ground.
+      // Deposits tint the rocky ground (never on the rim — it carries none).
       const dep = this.#tileDeposit[tile];
       if (dep === 1) c.lerp(COL.iron, 0.5);
       else if (dep === 2) c.lerp(COL.silver, 0.45);

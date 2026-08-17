@@ -87,6 +87,9 @@ export class ScatterMesh {
     let rockTiles = 0;
     let oreTiles = 0;
     const shoreTiles: number[] = [];
+    // Border-ridge dressing: boulders strewn over the rim rock, thinned by
+    // hash so the range reads craggy rather than tiled.
+    const ridgeTiles: number[] = [];
     for (let i = 0; i < tiles; i++) {
       const res = map.resource[i];
       if (res === TileResource.Wood) groveTiles++;
@@ -96,6 +99,7 @@ export class ScatterMesh {
       if (map.terrain[i] === Terrain.Grass && hash2(i, 91) < 0.45 && touchesWater(map, i)) {
         shoreTiles.push(i);
       }
+      if (map.terrain[i] === Terrain.Rock && hash2(i, 93) < 0.3) ridgeTiles.push(i);
     }
 
     const lambert = (color: number) => new THREE.MeshLambertMaterial({ color });
@@ -145,7 +149,7 @@ export class ScatterMesh {
           i === 0 ? 'rock' : `rock${i}`,
           geo,
           rocks.material,
-          rockTiles * 2 + shoreTiles.length * 2 + oreTiles * 4,
+          rockTiles * 2 + shoreTiles.length * 2 + ridgeTiles.length * 2 + oreTiles * 4,
         );
       });
     } else {
@@ -153,7 +157,7 @@ export class ScatterMesh {
         'rock',
         new THREE.DodecahedronGeometry(0.32),
         flat(0xffffff),
-        rockTiles * 2 + shoreTiles.length * 2,
+        rockTiles * 2 + shoreTiles.length * 2 + ridgeTiles.length * 2,
       );
       this.#addArchetype('ore', new THREE.OctahedronGeometry(0.16), flat(0xffffff), oreTiles * 4);
     }
@@ -190,6 +194,10 @@ export class ScatterMesh {
     for (const i of shoreTiles) {
       this.#placeShoreRocks(i);
       this.#cosmetic.add(i); // never resource-driven; a full resync skips it
+    }
+    for (const i of ridgeTiles) {
+      this.#placeShoreRocks(i); // same craggy dressing, on the rim rock
+      this.#cosmetic.add(i);
     }
 
     for (const a of this.#archetypes.values()) {

@@ -15,6 +15,7 @@ import {
   generateMap,
   rectClear,
   resourceBlocks,
+  tileBlocks,
   type GameMap,
   type MapView,
 } from './map.ts';
@@ -708,10 +709,7 @@ export function destroyBuilding(world: World, b: Building): void {
       const i = tileIdx(tx, ty, world.map.size);
       if (world.map.buildingAt[i] === b.id) {
         world.map.buildingAt[i] = -1;
-        world.map.blocked[i] =
-          world.map.terrain[i] === Terrain.Water || resourceBlocks(world.map.resource[i]!)
-            ? 1
-            : 0;
+        world.map.blocked[i] = tileBlocks(world.map.terrain[i]!, world.map.resource[i]!) ? 1 : 0;
         pushDelta(world, i);
       }
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MAP_SIZE, tileCount, tileX, tileY } from '../shared/grid.ts';
+import { DEFAULT_MAP_SIZE, edgeDist, tileCount, tileX, tileY } from '../shared/grid.ts';
 import { createWorld, type World } from './world.ts';
 import { CASTLE_OPENING_SIGHT, TileResource, type TileResourceKind } from './map.ts';
 
@@ -51,7 +51,13 @@ describe('map fairness', () => {
         const world = makeWorld(seed, players);
         const homes = anchors(world);
         expect(homes.length).toBe(players);
-        const wood = tilesOf(world, TileResource.Wood);
+        // Border-belt timber doesn't count as home wood: a 3-player edge
+        // anchor's 17-circle can graze a max-wobble forest rim, and rim
+        // trees masking a missing home grove is exactly the false pass
+        // this test exists to refuse.
+        const wood = tilesOf(world, TileResource.Wood).filter(
+          ([x, y]) => edgeDist(x, y, world.map.size) >= 10,
+        );
         const rock = tilesOf(world, TileResource.Rock);
         const iron = tilesOf(world, TileResource.IronDep);
         const silver = tilesOf(world, TileResource.SilverDep);

@@ -1,11 +1,18 @@
 import { Rng } from '../shared/rng.ts';
 import { edgeDist, inBounds, tileCount, tileIdx } from '../shared/grid.ts';
 import { hash2 } from '../shared/math.ts';
+import { WOOD_MAX_AMT } from './defs/balance.ts';
 import { buildingDef, type TileResourceName } from './defs/buildings.ts';
 import { buildingSight } from './visibility.ts';
 
-export const Terrain = { Grass: 0, Water: 1 } as const;
+export const Terrain = { Grass: 0, Water: 1, Rock: 2 } as const;
 export type TerrainKind = (typeof Terrain)[keyof typeof Terrain];
+
+/** Border styles an edge can draw (see the rim pass in generateMap). */
+const RIM_SEA = 0;
+const RIM_RIDGE = 1;
+const RIM_FOREST = 2;
+type RimStyle = typeof RIM_SEA | typeof RIM_RIDGE | typeof RIM_FOREST;
 
 export const TileResource = {
   None: 0,
@@ -62,6 +69,18 @@ export type MapView = Pick<
 /** Walking resources block movement; ore deposits are walkable rocky ground. */
 export function resourceBlocks(res: number): boolean {
   return res === TileResource.Wood || res === TileResource.Rock;
+}
+
+/**
+ * The landscape's share of walkability: only clear grass is walkable —
+ * water and rim rock (Terrain.Rock) are terrain-blocked, standing wood and
+ * stone are resource-blocked. THE rule, shared by recomputeBlocked,
+ * destroyBuilding's footprint release, and the server's unexplored-tile
+ * masking, so the three can never drift apart. (Building footprints are
+ * the one other blocker, layered on by the callers that know about them.)
+ */
+export function tileBlocks(terrain: number, res: number): boolean {
+  return terrain !== Terrain.Grass || resourceBlocks(res);
 }
 
 /** A gather recipe's resource name, as the tile code the map stores. */
@@ -201,11 +220,22 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
   };
   const heightSeed = rng.int(0x7fffffff);
 
-  // Irregular water fringe: per-edge-position depth wobble, smoothed. The
-  // base depth grows with the map — the border sea is decorative margin
-  // (Warcraft-style: the camera stays inside the grid, so this fringe is
-  // all the breathing room the shoreline gets), and a bigger island earns
-  // proportionally more of it. ~4–8 tiles at the default 96.
+  // The rim: each edge draws its own border style from the seed — open sea,
+  // an impassable mountain ridge, or a deep (choppable) forest belt — so
+  // maps stop being the same island every game. One side is forced to sea:
+  // the fishery's price is tuned against real shoreline, and the AI's
+  // fishery step wants honest coast to anchor on. Five draws, always, so
+  // the rng stream stays aligned whatever the styles come out as.
+  const seaSide = rng.int(4);
+  const rimStyles = [rng.int(3), rng.int(3), rng.int(3), rng.int(3)] as RimStyle[];
+  rimStyles[seaSide] = RIM_SEA;
+
+  // Irregular rim depth: per-edge-position wobble, smoothed. The base depth
+  // grows with the map — the rim is decorative margin (Warcraft-style: the
+  // camera stays inside the grid, so this band is all the breathing room
+  // the border gets). ~4–8 tiles at the default 96. The smoothing wraps
+  // around the whole perimeter, which is also what keeps the band's depth
+  // continuous where two styles meet at a corner.
   const fringe = Math.max(1, Math.floor(size / 24));
   const wobble = new Float32Array(size * 4);
   for (let i = 0; i < wobble.length; i++) wobble[i] = rng.range(0, fringe);
@@ -216,6 +246,22 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
       wobble[i] = (prev + wobble[i]! * 2 + next) / 4;
     }
   }
+
+  // The outermost ring is water on EVERY edge, whatever the style. This
+  // one rule does a lot of quiet work: the water shader's clamp-to-edge
+  // bed keeps extending open sea past every border (no void behind a
+  // ridge), corners always meet over water so no grass pocket can be
+  // stranded outside a ridge for the one-landmass pass to drown, mist
+  // always has anchors, and a ridge rises straight out of the sea — a
+  // cliff coastline — while a forest belt runs down to a wooded shore.
+  const strip = Math.max(1, Math.floor(size / 48));
+
+  // Ridge profile (0 = no rim rock, 1 = outermost rock row), fed into
+  // computeTerrain so the heightfield raises the range under the rock.
+  const rimRamp = new Float32Array(tiles);
+  // Forest-belt tiles: 1 = full belt, 2 = ragged inner treeline row.
+  const beltMask = new Uint8Array(tiles);
+
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       // Which edge is nearest determines which wobble entry applies.
@@ -224,13 +270,47 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
       for (let s = 1; s < 4; s++) if (dists[s]! < dists[side]!) side = s;
       const along = side % 2 === 0 ? x : y;
       const depth = fringe + wobble[side * size + along]!;
-      if (dists[side]! < depth) map.terrain[tileIdx(x, y, size)] = Terrain.Water;
+      const d = dists[side]!;
+      const i = tileIdx(x, y, size);
+      if (d < strip) {
+        map.terrain[i] = Terrain.Water;
+      } else if (d < depth) {
+        switch (rimStyles[side]!) {
+          case RIM_SEA:
+            map.terrain[i] = Terrain.Water;
+            break;
+          case RIM_RIDGE:
+            map.terrain[i] = Terrain.Rock;
+            rimRamp[i] = (depth - d) / Math.max(1, depth - strip);
+            break;
+          case RIM_FOREST:
+            // Terrain stays grass; the trees are planted after the
+            // heightfield settles, so lakes and drowning have their say.
+            beltMask[i] = depth - d <= 1 ? 2 : 1;
+            break;
+        }
+      }
     }
   }
 
   // Terrain shape before resources: basins flood into lakes, so clusters
   // must only ever land on the ground that survives.
-  computeTerrain(map, heightSeed, starts);
+  computeTerrain(map, heightSeed, starts, rimRamp);
+
+  // Plant the border forest, now that the ground under it is final: every
+  // belt tile still grass gets standing wood at full amount, so regrowth
+  // keeps the un-felled wall topped up — a deep timber reserve that IS
+  // choppable (tunneling out is a strategy, not a bug). hash2 rather than
+  // rng on purpose: the number of draws must not depend on which styles
+  // the sides drew, or every downstream draw would shift.
+  for (let i = 0; i < tiles; i++) {
+    if (!beltMask[i] || map.terrain[i] !== Terrain.Grass) continue;
+    if (map.resource[i] !== TileResource.None) continue;
+    // The inner treeline thins out so the wall ends ragged, not ruled.
+    if (beltMask[i] === 2 && hash2(i, heightSeed) < 0.55) continue;
+    map.resource[i] = TileResource.Wood;
+    map.resourceAmt[i] = WOOD_MAX_AMT;
+  }
 
   /** Returns how many tiles were actually written — a center inside an
    * existing grove or against water can yield zero, and callers that
@@ -550,7 +630,12 @@ function connected(map: GameMap, from: number, to: number): boolean {
  * middle of the map is eased toward gentle meadow: the starting town needs
  * buildable land.
  */
-function computeTerrain(map: GameMap, seed: number, starts: readonly StartSpot[]): void {
+function computeTerrain(
+  map: GameMap,
+  seed: number,
+  starts: readonly StartSpot[],
+  rimRamp: Float32Array,
+): void {
   const size = map.size;
   const tiles = tileCount(size);
   // Raw shape in ~[0, 1]: rolling base + squared ridge lines for ranges.
@@ -579,9 +664,21 @@ function computeTerrain(map: GameMap, seed: number, starts: readonly StartSpot[]
     raw[i] = r;
   }
 
-  // Basins flood.
+  // The border ridge: raise the raw field under the rim rock so the range
+  // is real geometry, ramping from full height at the outermost rock row
+  // down to the meadow over the band's width (the SEG=6 ground mesh then
+  // draws a slope rather than a wall). Forcing raw well above the lake
+  // level also keeps basins from flooding wet notches through the rim.
   for (let i = 0; i < tiles; i++) {
-    if (raw[i]! < LAKE_LEVEL_T) map.terrain[i] = Terrain.Water;
+    const t = rimRamp[i]!;
+    if (t <= 0) continue;
+    const ease = t * t * (3 - 2 * t);
+    raw[i] = Math.max(raw[i]!, 0.55 + 0.45 * ease);
+  }
+
+  // Basins flood (grass only — rim rock stands above any basin).
+  for (let i = 0; i < tiles; i++) {
+    if (map.terrain[i] === Terrain.Grass && raw[i]! < LAKE_LEVEL_T) map.terrain[i] = Terrain.Water;
   }
 
   // Rival plateaus must share the landmass: if the lakes cut a start off
@@ -646,11 +743,11 @@ function computeTerrain(map: GameMap, seed: number, starts: readonly StartSpot[]
   // banks that dive toward the waterline, and to the nearest land tile,
   // for beds that shelve. Both are capped — past a few tiles the shaping
   // has already saturated.
-  const bfs = (seedKind: number): Float32Array => {
+  const bfs = (isSeed: (t: number) => boolean): Float32Array => {
     const dist = new Float32Array(tiles).fill(99);
     const queue: number[] = [];
     for (let i = 0; i < tiles; i++) {
-      if (map.terrain[i] === seedKind) {
+      if (isSeed(map.terrain[i]!)) {
         dist[i] = 0;
         queue.push(i);
       }
@@ -677,8 +774,10 @@ function computeTerrain(map: GameMap, seed: number, starts: readonly StartSpot[]
     }
     return dist;
   };
-  const dist = bfs(Terrain.Water);
-  const landDist = bfs(Terrain.Grass);
+  const dist = bfs((t) => t === Terrain.Water);
+  // Land = anything that isn't water: rim rock counts, so the sea strip's
+  // bed shelves off a cliff foot the same way it shelves off a beach.
+  const landDist = bfs((t) => t !== Terrain.Water);
 
   for (let i = 0; i < tiles; i++) {
     const x = i % size;
@@ -695,9 +794,17 @@ function computeTerrain(map: GameMap, seed: number, starts: readonly StartSpot[]
       // ridges climb steeply into peaks.
       const t = (raw[i]! - LAKE_LEVEL_T) / (1 - LAKE_LEVEL_T);
       const peak = 0.05 + Math.pow(t, 1.7) * 2.5;
-      const shore = Math.min(dist[i]! / 3.5, 1);
-      const ease = shore * shore * (3 - 2 * shore);
-      map.height[i] = 0.04 + (peak - 0.04) * ease;
+      // Meadows ease down to the waterline over a few tiles; border-ridge
+      // rock does NOT — its tallest rows stand right against the outer sea
+      // strip, and easing them flattened the whole range to beach height.
+      // A cliff coastline rises straight out of the water by definition.
+      if (map.terrain[i] === Terrain.Rock) {
+        map.height[i] = peak;
+      } else {
+        const shore = Math.min(dist[i]! / 3.5, 1);
+        const ease = shore * shore * (3 - 2 * shore);
+        map.height[i] = 0.04 + (peak - 0.04) * ease;
+      }
     }
   }
 }
@@ -706,9 +813,7 @@ function computeTerrain(map: GameMap, seed: number, starts: readonly StartSpot[]
 export function recomputeBlocked(map: GameMap): void {
   for (let i = 0; i < tileCount(map.size); i++) {
     map.blocked[i] =
-      map.terrain[i] === Terrain.Water || resourceBlocks(map.resource[i]!) || map.buildingAt[i]! >= 0
-        ? 1
-        : 0;
+      tileBlocks(map.terrain[i]!, map.resource[i]!) || map.buildingAt[i]! >= 0 ? 1 : 0;
   }
 }
 

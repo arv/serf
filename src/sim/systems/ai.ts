@@ -1,6 +1,6 @@
 import { tileCount, tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { exactDist } from '../../shared/math.ts';
-import { Terrain, TileResource, resourceBlocks } from '../map.ts';
+import { Terrain, TileResource, tileBlocks } from '../map.ts';
 import { SeatVision } from '../visibility.ts';
 import { campCorners, startLayout } from '../world.ts';
 import { BUILDING_DEFS, buildingDef, repairBill, type BuildingTypeId } from '../defs/buildings.ts';
@@ -811,14 +811,37 @@ function findSpot(
   return null;
 }
 
-/** Nearest open water to a point — the fishery's anchor. */
+/**
+ * Nearest open water to a point — the fishery's anchor. Only water with at
+ * least one walkable bank tile counts: the strip of sea behind a mountain
+ * rim (or an un-chopped border forest) is real water no fishery could ever
+ * stand beside, and anchoring on it sent the build step spiraling around
+ * ground with no legal site.
+ */
 function nearestWater(world: World, cx: number, cy: number): number {
   const size = world.map.size;
   let best = -1;
   let bestDist = Infinity;
   for (let i = 0; i < tileCount(size); i++) {
     if (world.map.terrain[i] !== Terrain.Water) continue;
-    const d = Math.abs(tileX(i, size) - cx) + Math.abs(tileY(i, size) - cy);
+    const x = tileX(i, size);
+    const y = tileY(i, size);
+    let banked = false;
+    for (const [nx, ny] of [
+      [x - 1, y],
+      [x + 1, y],
+      [x, y - 1],
+      [x, y + 1],
+    ] as const) {
+      if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+      const n = ny * size + nx;
+      if (!tileBlocks(world.map.terrain[n]!, world.map.resource[n]!)) {
+        banked = true;
+        break;
+      }
+    }
+    if (!banked) continue;
+    const d = Math.abs(x - cx) + Math.abs(y - cy);
     if (d < bestDist) {
       bestDist = d;
       best = i;
@@ -963,7 +986,7 @@ export function nextSearchGoal(
   for (const [px, py] of searchLandmarks(world)) {
     const i = tileIdx(px, py, world.map.size);
     if (vision.explored[i] || skip.has(i)) continue;
-    if (world.map.terrain[i] === Terrain.Water || resourceBlocks(world.map.resource[i]!)) continue;
+    if (tileBlocks(world.map.terrain[i]!, world.map.resource[i]!)) continue;
     const d = Math.abs(px - cx) + Math.abs(py - cy);
     if (d < bestDist || (d === bestDist && i < best)) {
       bestDist = d;
@@ -1059,7 +1082,7 @@ export function nearestUnexplored(
   let bestDist = Infinity;
   for (let i = 0; i < tileCount(size); i++) {
     if (vision.explored[i] || skip.has(i)) continue;
-    if (world.map.terrain[i] === Terrain.Water || resourceBlocks(world.map.resource[i]!)) continue;
+    if (tileBlocks(world.map.terrain[i]!, world.map.resource[i]!)) continue;
     const d = Math.abs(tileX(i, size) - cx) + Math.abs(tileY(i, size) - cy);
     if (d < bestDist) {
       bestDist = d;
