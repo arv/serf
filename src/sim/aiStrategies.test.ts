@@ -30,8 +30,8 @@ const IDS = Object.keys(AI_STRATEGIES) as AiStrategyId[];
 
 /** Drive one playbook alone on the campaign map, the way its host does. */
 function playCampaign(id: AiStrategyId, maxTicks: number): World {
-  const world = createWorld({ seed: 20260724, players: [{ kind: 'ai' }] });
-  const brain = new AiBrain(0, AI_STRATEGIES[id]);
+  const world = createWorld({ seed: 17, players: [{ kind: 'ai' }] });
+  const brain = new AiBrain(0, AI_STRATEGIES[id], world.map.size);
   for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
     const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     tickWorld(
@@ -45,7 +45,7 @@ function playCampaign(id: AiStrategyId, maxTicks: number): World {
 function playSeats(config: WorldConfig, maxTicks: number): World {
   const world = createWorld(config);
   const brains = world.players.map((p) =>
-    p.kind === 'ai' ? new AiBrain(p.id, strategyOf(p.strategy)) : null,
+    p.kind === 'ai' ? new AiBrain(p.id, strategyOf(p.strategy), world.map.size) : null,
   );
   for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
     const commands: PlayerCommand[] = [];
@@ -204,12 +204,15 @@ describe('the AI playbooks', () => {
 
   it('four different playbooks still reach an ending', () => {
     // Seed 42 is the standoff that found the impatience rule: two exhausted
-    // villages, each below its own muster size, neither ever marching.
+    // villages, each below its own muster size, neither ever marching. That
+    // standoff lives on seed 42's classic 64 map, so the size is pinned
+    // with it — what is under test is the impatience rule, not map scale.
     const world = playSeats(
       {
         seed: 42,
         players: [{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }],
         banditsEnabled: false,
+        mapSize: 64,
       },
       90_000,
     );

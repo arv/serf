@@ -6,7 +6,7 @@ import * as THREE from 'three';
  * vertex colors it breaks up the flat "plastic" look the way hand-painted
  * ground textures do. Mean brightness sits near white so it darkens little.
  */
-export function makeGroundTexture(): THREE.Texture {
+export function makeGroundTexture(mapSize: number): THREE.Texture {
   const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -59,7 +59,7 @@ export function makeGroundTexture(): THREE.Texture {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(16, 16); // ~4 tiles per repeat across the 64-tile map
+  texture.repeat.set(mapSize / 4, mapSize / 4); // ~4 tiles per repeat, whatever the map size
   texture.anisotropy = 8;
   texture.colorSpace = THREE.NoColorSpace;
   return texture;

@@ -19,8 +19,12 @@ function playedWorld(ticks: number): { world: World; brains: AiBrain[] } {
   const world = createWorld({
     seed: 11,
     players: [{ kind: 'ai', strategy: 'steward' }, { kind: 'ai', strategy: 'warlord' }],
+    // What is under test is the summary's shape and budget, at the tempo
+    // its tick horizons were written for — the classic 64 map keeps these
+    // sims inside vitest's default timeout. Map scale has its own tests.
+    mapSize: 64,
   });
-  const brains = world.players.map((p) => new AiBrain(p.id, strategyOf(p.strategy)));
+  const brains = world.players.map((p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
   for (let t = 0; t < ticks && world.outcome.state === 'playing'; t++) {
     const commands: PlayerCommand[] = [];
     for (const brain of brains) {
@@ -104,14 +108,14 @@ describe('summarizeForSeat', () => {
         expect(rival.intel.total).toBeGreaterThan(0);
       }
     }
-  });
+  }, 60_000);
 
   it('stays under the prompt budget however the match sprawls', () => {
     const { world, brains } = playedWorld(12_000);
     for (const brain of brains) {
       expect(JSON.stringify(summarizeForSeat(world, brain)).length).toBeLessThan(2000);
     }
-  });
+  }, 60_000);
 
   it('does not crash on a seat whose castle has fallen', () => {
     const { world, brains } = playedWorld(500);

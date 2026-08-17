@@ -927,8 +927,8 @@ export class Controls {
       if (ground) {
         const tx = Math.floor(ground.x);
         const ty = Math.floor(ground.z);
-        if (inBounds(tx, ty)) {
-          this.#hoverBuilding = this.#mirror.map.buildingAt[tileIdx(tx, ty)]!;
+        if (inBounds(tx, ty, this.#mirror.map.size)) {
+          this.#hoverBuilding = this.#mirror.map.buildingAt[tileIdx(tx, ty, this.#mirror.map.size)]!;
         }
       }
     }
@@ -969,8 +969,8 @@ export class Controls {
     if (!ground) return null;
     const tx = Math.floor(ground.x);
     const ty = Math.floor(ground.z);
-    if (!inBounds(tx, ty)) return null;
-    const bId = this.#mirror.map.buildingAt[tileIdx(tx, ty)]!;
+    if (!inBounds(tx, ty, this.#mirror.map.size)) return null;
+    const bId = this.#mirror.map.buildingAt[tileIdx(tx, ty, this.#mirror.map.size)]!;
     const snap = bId >= 0 ? this.#mirror.buildings.get(bId) : undefined;
     return snap && snap.owner === myPlayerId() ? snap : null;
   }

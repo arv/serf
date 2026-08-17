@@ -12,7 +12,7 @@
  * change slowly and ride JSON. Commands stay JSON too — they are
  * click-rate, and binary only pays on the 20 Hz frame.
  */
-import { TILE_COUNT } from '../shared/grid.ts';
+import { MAX_MAP_SIZE, MIN_MAP_SIZE, tileCount } from '../shared/grid.ts';
 import { AUX_STRIDE, type UnitSnapshot } from './sabLayout.ts';
 import type { SimCommand } from '../sim/commands.ts';
 import type { MapSnapshot } from './messages.ts';
@@ -30,15 +30,18 @@ export const CMD_SUBMIT = 0x13;
 /** id (i32) + x (f32) + y (f32) + aux. */
 const UNIT_BYTES = 12 + AUX_STRIDE;
 
-/** Byte size of each map array in a STATE_INIT frame, in wire order. */
-const MAP_BYTES =
-  TILE_COUNT + // terrain    u8
-  TILE_COUNT + // resource   u8
-  TILE_COUNT + // blocked    u8
-  TILE_COUNT + // pathLevel  u8
-  TILE_COUNT * 2 + // buildingAt i16
-  TILE_COUNT * 4 + // height     f32
-  TILE_COUNT; // explored   u8
+/** Byte size of the map arrays in a STATE_INIT frame, in wire order. */
+function mapBytes(tiles: number): number {
+  return (
+    tiles + // terrain    u8
+    tiles + // resource   u8
+    tiles + // blocked    u8
+    tiles + // pathLevel  u8
+    tiles * 2 + // buildingAt i16
+    tiles * 4 + // height     f32
+    tiles // explored   u8
+  );
+}
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -49,8 +52,8 @@ function rawBytes(a: ArrayBufferView): Uint8Array {
 
 /**
  * Match start (and rejoin): the immutable map plus everything the client
- * needs to build its mirror. Sent once per client — the map arrays are 40 KiB
- * and worldgen never rewrites terrain or height.
+ * needs to build its mirror. Sent once per client — the map arrays are tens
+ * of KiB and worldgen never rewrites terrain or height.
  *
  * `explored` is the seat's ever-seen grid, straight from the server's own
  * visibility filter. It exists so a reload keeps its memory of the map:
@@ -65,24 +68,26 @@ export function encodeInit(
   explored: Uint8Array,
   json: unknown,
 ): Uint8Array<ArrayBuffer> {
+  const tiles = tileCount(map.size);
   const body = enc.encode(JSON.stringify(json));
-  const out = new Uint8Array(10 + MAP_BYTES + body.length);
+  const out = new Uint8Array(12 + mapBytes(tiles) + body.length);
   const view = new DataView(out.buffer);
   out[0] = STATE_INIT;
   view.setUint32(1, tick, true);
   out[5] = playerId;
   view.setUint32(6, body.length, true);
-  let off = 10;
+  view.setUint16(10, map.size, true);
+  let off = 12;
   for (const arr of [map.terrain, map.resource, map.blocked, map.pathLevel]) {
     out.set(arr, off);
-    off += TILE_COUNT;
+    off += tiles;
   }
   out.set(rawBytes(map.buildingAt), off);
-  off += TILE_COUNT * 2;
+  off += tiles * 2;
   out.set(rawBytes(map.height), off);
-  off += TILE_COUNT * 4;
+  off += tiles * 4;
   out.set(explored, off);
-  off += TILE_COUNT;
+  off += tiles;
   out.set(body, off);
   return out;
 }
@@ -102,31 +107,43 @@ function decodeInit(data: Uint8Array): InitFrame {
   const tick = view.getUint32(1, true);
   const playerId = data[5]!;
   const jsonLen = view.getUint32(6, true);
-  let off = 10;
+  const size = view.getUint16(10, true);
+  // Nothing off the wire earns an allocation on its own say-so: the size
+  // must be one the game can actually generate, and the frame must really
+  // hold the arrays (and JSON) it claims — a corrupt or hostile frame gets
+  // an exception here, not a multi-gigabyte Float32Array further down.
+  if (size < MIN_MAP_SIZE || size > MAX_MAP_SIZE) {
+    throw new Error(`corrupt init frame: map size ${size}`);
+  }
+  const tiles = tileCount(size);
+  if (data.byteLength < 12 + mapBytes(tiles) + jsonLen) {
+    throw new Error('corrupt init frame: truncated');
+  }
+  let off = 12;
   const u8 = (): Uint8Array => {
     // Copy, never view: the frame's byte offset has no alignment guarantee,
     // and the mirror owns these arrays for the rest of the match.
-    const a = data.slice(off, off + TILE_COUNT);
-    off += TILE_COUNT;
+    const a = data.slice(off, off + tiles);
+    off += tiles;
     return a;
   };
   const terrain = u8();
   const resource = u8();
   const blocked = u8();
   const pathLevel = u8();
-  const buildingAt = new Int16Array(TILE_COUNT);
-  rawBytes(buildingAt).set(data.subarray(off, off + TILE_COUNT * 2));
-  off += TILE_COUNT * 2;
-  const height = new Float32Array(TILE_COUNT);
-  rawBytes(height).set(data.subarray(off, off + TILE_COUNT * 4));
-  off += TILE_COUNT * 4;
+  const buildingAt = new Int16Array(tiles);
+  rawBytes(buildingAt).set(data.subarray(off, off + tiles * 2));
+  off += tiles * 2;
+  const height = new Float32Array(tiles);
+  rawBytes(height).set(data.subarray(off, off + tiles * 4));
+  off += tiles * 4;
   const explored = u8();
   const json = jsonLen > 0 ? JSON.parse(dec.decode(data.subarray(off, off + jsonLen))) : undefined;
   return {
     kind: 'init',
     tick,
     playerId,
-    map: { terrain, resource, blocked, pathLevel, buildingAt, height },
+    map: { size, terrain, resource, blocked, pathLevel, buildingAt, height },
     explored,
     json,
   };
@@ -289,7 +306,15 @@ export function decodeState(data: Uint8Array): StateFrame | null {
         serverTimeMs: view.getUint32(5, true),
       };
     case STATE_INIT:
-      return decodeInit(data);
+      // A frame that fails validation (impossible size, truncated arrays,
+      // unparseable JSON) is dropped like a foreign tag rather than thrown:
+      // this runs in the net worker's socket handler, and one corrupt frame
+      // must not crash the whole worker.
+      try {
+        return decodeInit(data);
+      } catch {
+        return null;
+      }
     case STATE_HOT:
       return decodeHot(data);
     case STATE_STRUCT:

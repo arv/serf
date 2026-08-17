@@ -1,4 +1,4 @@
-import { RAID_CAP, RAID_INTERVAL } from '../defs/balance.ts';
+import { RAID_CAP, raidIntervalFor } from '../defs/balance.ts';
 import { type UnitTypeId } from '../defs/units.ts';
 import { BANDIT, isPlayerOwner, type Building } from '../entities.ts';
 import { spawnUnitNearby, type World } from '../world.ts';
@@ -17,7 +17,7 @@ export function banditsSystem(world: World, rng: Rng): void {
   if (!camp) return; // camp destroyed — no more raids
 
   world.raidState.wave++;
-  world.raidState.nextRaidTick = world.tick + RAID_INTERVAL;
+  world.raidState.nextRaidTick = world.tick + raidIntervalFor(world.map.size);
   const wave = world.raidState.wave;
 
   const roster: UnitTypeId[] = [];

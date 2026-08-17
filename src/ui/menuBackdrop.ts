@@ -124,7 +124,8 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   // Not interactive: the rig must not bind keys or the wheel, or typing a
   // room code in the menu above would pan the scene behind it.
   const renderer = new GameRenderer(canvas, false);
-  const heights = new HeightField(world.map.height);
+  renderer.setWorldExtent(world.map.size);
+  const heights = new HeightField(world.map.height, world.map.size);
   const terrain = new TerrainMesh(world.map, heights);
   const scatter = new ScatterMesh(world.map, heights);
   const grass = new GrassField(world.map, heights);
@@ -138,7 +139,7 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
 
   // Frame the player's keep — the castle at the map's heart.
   const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse');
-  const half = world.map.terrain.length ** 0.5 / 2;
+  const half = world.map.size / 2;
   const cx = keep ? keep.x + keep.w / 2 : half;
   const cz = keep ? keep.y + keep.h / 2 : half;
   const groundY = heights.at(cx, cz);

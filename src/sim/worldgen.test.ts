@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_SIZE, tileIdx } from '../shared/grid.ts';
+import { tileCount, tileIdx } from '../shared/grid.ts';
 import { Terrain } from './map.ts';
 import { createWorld } from './world.ts';
 import { BANDIT, isPlayerOwner } from './entities.ts';
@@ -7,23 +7,24 @@ import { START_SERFS } from './defs/balance.ts';
 import { tickWorld } from './tick.ts';
 
 /** 4-connected grass reachability between two tiles. */
-function reachable(map: { terrain: Uint8Array }, from: number, to: number): boolean {
-  const seen = new Uint8Array(MAP_SIZE * MAP_SIZE);
+function reachable(map: { size: number; terrain: Uint8Array }, from: number, to: number): boolean {
+  const size = map.size;
+  const seen = new Uint8Array(tileCount(size));
   const queue = [from];
   seen[from] = 1;
   for (let head = 0; head < queue.length; head++) {
     const i = queue[head]!;
     if (i === to) return true;
-    const x = i % MAP_SIZE;
-    const y = (i / MAP_SIZE) | 0;
+    const x = i % size;
+    const y = (i / size) | 0;
     for (const [nx, ny] of [
       [x - 1, y],
       [x + 1, y],
       [x, y - 1],
       [x, y + 1],
     ] as const) {
-      if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
-      const n = tileIdx(nx, ny);
+      if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+      const n = tileIdx(nx, ny, size);
       if (seen[n] || map.terrain[n] !== Terrain.Grass) continue;
       seen[n] = 1;
       queue.push(n);
@@ -52,7 +53,7 @@ describe('N-player worldgen', () => {
         }
         // Every pair of starts shares the landmass (door tiles south of each
         // storehouse — the footprint itself is blocked).
-        const doors = storehouses.map((b) => tileIdx(b.x + 1, b.y + b.h));
+        const doors = storehouses.map((b) => tileIdx(b.x + 1, b.y + b.h, world.map.size));
         for (const door of doors) {
           expect(world.map.terrain[door]).toBe(Terrain.Grass);
         }

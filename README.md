@@ -13,7 +13,8 @@ pnpm dev
 ```
 
 - **Goal**: destroy the bandit camp in the far corner. If your castle falls,
-  the game is lost. First raid arrives after ~9 peaceful minutes.
+  the game is lost. The first raid waits out an opening peace that scales
+  with the map — about 13.5 minutes on the default 96×96 valley.
 - **Campaign**: six commissions that double as the tutorial (start menu →
   Campaign, or `?mission=<id>`): camp-raising, the bread chain, silver and
   research, the first raid, then the full game — and a bonus first rival.

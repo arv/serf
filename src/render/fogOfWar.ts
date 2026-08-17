@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MAP_SIZE, TILE_COUNT, tileIdx } from '../shared/grid';
+import { tileCount, tileIdx } from '../shared/grid';
 import { AUX_STRIDE, ACTION, type SabReader } from '../protocol/sabLayout';
 import { palette } from './palette';
 import { UNIT_DEFS } from '../sim/defs/units';
@@ -50,19 +50,21 @@ export interface FogQuery {
  * per fragment, every pixel is judged by the ground it actually stands on.
  */
 export class FogOfWar implements FogQuery {
+  /** Map grid size (tiles per side) for this match. */
+  #size: number;
   /** Smoothed current visibility, 0..1 per tile. */
-  #vis = new Float32Array(TILE_COUNT);
+  #vis: Float32Array;
   /** Target for this update, before smoothing. */
-  #target = new Float32Array(TILE_COUNT);
+  #target: Float32Array;
   /** Ever-seen, 0..1 per tile (never decreases). */
-  #explored = new Float32Array(TILE_COUNT);
+  #explored: Float32Array;
   /** Blurred copies — what the texture carries. The crisp arrays above stay
    * authoritative for gameplay queries, so softening the look never makes
    * "can I see that raider" a fuzzy question. */
-  #visSoft = new Float32Array(TILE_COUNT);
-  #expSoft = new Float32Array(TILE_COUNT);
-  #scratch = new Float32Array(TILE_COUNT);
-  #bytes = new Uint8Array(TILE_COUNT * 4);
+  #visSoft: Float32Array;
+  #expSoft: Float32Array;
+  #scratch: Float32Array;
+  #bytes: Uint8Array;
   #texture: THREE.DataTexture;
   #uniforms: {
     uFogTex: { value: THREE.Texture };
@@ -108,9 +110,18 @@ export class FogOfWar implements FogQuery {
     }
   }
 
-  constructor(owner = 0) {
+  constructor(owner: number, size: number) {
     this.#owner = owner;
-    this.#texture = new THREE.DataTexture(this.#bytes, MAP_SIZE, MAP_SIZE);
+    this.#size = size;
+    const tiles = tileCount(size);
+    this.#vis = new Float32Array(tiles);
+    this.#target = new Float32Array(tiles);
+    this.#explored = new Float32Array(tiles);
+    this.#visSoft = new Float32Array(tiles);
+    this.#expSoft = new Float32Array(tiles);
+    this.#scratch = new Float32Array(tiles);
+    this.#bytes = new Uint8Array(tiles * 4);
+    this.#texture = new THREE.DataTexture(this.#bytes, size, size);
     this.#texture.format = THREE.RGBAFormat;
     this.#texture.type = THREE.UnsignedByteType;
     // Linear so the tile grid dissolves into a soft frontier.
@@ -127,7 +138,7 @@ export class FogOfWar implements FogQuery {
     const unknown = new THREE.Color(palette.background).convertLinearToSRGB();
     this.#uniforms = {
       uFogTex: { value: this.#texture },
-      uFogSize: { value: MAP_SIZE },
+      uFogSize: { value: size },
       uUnknown: { value: unknown },
     };
   }
@@ -140,7 +151,7 @@ export class FogOfWar implements FogQuery {
    * ever rise: local memory is kept where it is already brighter.
    */
   seedExplored(explored: Uint8Array): void {
-    const n = Math.min(explored.length, TILE_COUNT);
+    const n = Math.min(explored.length, tileCount(this.#size));
     for (let i = 0; i < n; i++) {
       if (explored[i] && this.#explored[i]! < 1) this.#explored[i] = 1;
     }
@@ -151,8 +162,9 @@ export class FogOfWar implements FogQuery {
    * gameplay queries use — what the solo save carries so a loaded game
    * remembers its map (multiplayer gets the server's grid instead). */
   exportExplored(): Uint8Array {
-    const out = new Uint8Array(TILE_COUNT);
-    for (let i = 0; i < TILE_COUNT; i++) {
+    const tiles = tileCount(this.#size);
+    const out = new Uint8Array(tiles);
+    for (let i = 0; i < tiles; i++) {
       if (this.#explored[i]! > SEEN) out[i] = 1;
     }
     return out;
@@ -161,8 +173,8 @@ export class FogOfWar implements FogQuery {
   #at(field: Float32Array, x: number, z: number): number {
     const tx = Math.floor(x);
     const tz = Math.floor(z);
-    if (tx < 0 || tz < 0 || tx >= MAP_SIZE || tz >= MAP_SIZE) return 0;
-    return field[tileIdx(tx, tz)]!;
+    if (tx < 0 || tz < 0 || tx >= this.#size || tz >= this.#size) return 0;
+    return field[tileIdx(tx, tz, this.#size)]!;
   }
 
   visibleAt(x: number, z: number): boolean {
@@ -175,11 +187,12 @@ export class FogOfWar implements FogQuery {
 
   /** Stamp one sight circle into the target mask. */
   #stamp(cx: number, cz: number, radius: number): void {
+    const size = this.#size;
     const r = Math.ceil(radius + RIM);
     const x0 = Math.max(0, Math.floor(cx) - r);
-    const x1 = Math.min(MAP_SIZE - 1, Math.floor(cx) + r);
+    const x1 = Math.min(size - 1, Math.floor(cx) + r);
     const z0 = Math.max(0, Math.floor(cz) - r);
-    const z1 = Math.min(MAP_SIZE - 1, Math.floor(cz) + r);
+    const z1 = Math.min(size - 1, Math.floor(cz) + r);
     for (let z = z0; z <= z1; z++) {
       for (let x = x0; x <= x1; x++) {
         const dx = x + 0.5 - cx;
@@ -188,7 +201,7 @@ export class FogOfWar implements FogQuery {
         // Soft rim so the frontier is a gradient, not a cookie cutter.
         const t = Math.min(Math.max((radius - d) / RIM, 0), 1);
         if (t <= 0) continue;
-        const i = tileIdx(x, z);
+        const i = tileIdx(x, z, size);
         if (t > this.#target[i]!) this.#target[i] = t;
       }
     }
@@ -228,9 +241,10 @@ export class FogOfWar implements FogQuery {
       this.#stamp(b.x + b.w / 2, b.y + b.h / 2, buildingSight(b.type, b.w, b.h));
     }
 
+    const tiles = tileCount(this.#size);
     const up = 1 - Math.exp(-step * REVEAL_RATE);
     const down = 1 - Math.exp(-step * CONCEAL_RATE);
-    for (let i = 0; i < TILE_COUNT; i++) {
+    for (let i = 0; i < tiles; i++) {
       const t = this.#target[i]!;
       const v = this.#vis[i]!;
       const next = v + (t - v) * (t > v ? up : down);
@@ -245,7 +259,7 @@ export class FogOfWar implements FogQuery {
     this.#blur(this.#visSoft, this.#visSoft);
     this.#blur(this.#explored, this.#expSoft);
     this.#blur(this.#expSoft, this.#expSoft);
-    for (let i = 0; i < TILE_COUNT; i++) {
+    for (let i = 0; i < tiles; i++) {
       const o = i * 4;
       this.#bytes[o] = Math.round(this.#visSoft[i]! * 255);
       this.#bytes[o + 1] = Math.round(this.#expSoft[i]! * 255);
@@ -255,21 +269,22 @@ export class FogOfWar implements FogQuery {
 
   /** Separable 1-2-1 blur, clamped at the map edge. */
   #blur(src: Float32Array, out: Float32Array): void {
+    const size = this.#size;
     const s = this.#scratch;
-    for (let z = 0; z < MAP_SIZE; z++) {
-      const row = z * MAP_SIZE;
-      for (let x = 0; x < MAP_SIZE; x++) {
+    for (let z = 0; z < size; z++) {
+      const row = z * size;
+      for (let x = 0; x < size; x++) {
         const l = src[row + (x > 0 ? x - 1 : 0)]!;
         const c = src[row + x]!;
-        const r = src[row + (x < MAP_SIZE - 1 ? x + 1 : MAP_SIZE - 1)]!;
+        const r = src[row + (x < size - 1 ? x + 1 : size - 1)]!;
         s[row + x] = (l + 2 * c + r) * 0.25;
       }
     }
-    for (let z = 0; z < MAP_SIZE; z++) {
-      const row = z * MAP_SIZE;
-      const upRow = (z > 0 ? z - 1 : 0) * MAP_SIZE;
-      const dnRow = (z < MAP_SIZE - 1 ? z + 1 : MAP_SIZE - 1) * MAP_SIZE;
-      for (let x = 0; x < MAP_SIZE; x++) {
+    for (let z = 0; z < size; z++) {
+      const row = z * size;
+      const upRow = (z > 0 ? z - 1 : 0) * size;
+      const dnRow = (z < size - 1 ? z + 1 : size - 1) * size;
+      for (let x = 0; x < size; x++) {
         out[row + x] = (s[upRow + x]! + 2 * s[row + x]! + s[dnRow + x]!) * 0.25;
       }
     }

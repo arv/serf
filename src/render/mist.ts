@@ -1,9 +1,13 @@
 import * as THREE from 'three';
-import { TILE_COUNT, tileX, tileY } from '../shared/grid';
+import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, WATER_LEVEL, type MapView } from '../sim/map';
 
-const MIST_COUNT = 16;
+/** One wisp per 256 tiles — the classic 16 on a 64 map, denser seas get
+ * proportionally more so the mist never thins out with the map. */
+function mistCount(size: number): number {
+  return Math.round(tileCount(size) / 256);
+}
 
 interface Wisp {
   sprite: THREE.Sprite;
@@ -42,15 +46,16 @@ export class Mist {
   #wisps: Wisp[] = [];
 
   constructor(map: MapView) {
+    const size = map.size;
     // Candidate anchors: water tiles, thinned deterministically.
     const anchors: number[] = [];
-    for (let i = 0; i < TILE_COUNT; i++) {
+    for (let i = 0; i < tileCount(size); i++) {
       if (map.terrain[i] === Terrain.Water && hash2(i, 77) < 0.12) anchors.push(i);
     }
     if (anchors.length === 0) return;
 
     const texture = makeMistTexture();
-    for (let k = 0; k < MIST_COUNT; k++) {
+    for (let k = 0; k < mistCount(size); k++) {
       const anchor = anchors[Math.floor(hash2(k, 3) * anchors.length)]!;
       const material = new THREE.SpriteMaterial({
         map: texture,
@@ -65,8 +70,8 @@ export class Mist {
       this.group.add(sprite);
       this.#wisps.push({
         sprite,
-        originX: tileX(anchor) + 0.5,
-        originZ: tileY(anchor) + 0.5,
+        originX: tileX(anchor, size) + 0.5,
+        originZ: tileY(anchor, size) + 0.5,
         driftX: (hash2(k, 11) - 0.5) * 0.35,
         driftZ: (hash2(k, 13) - 0.5) * 0.25,
         phase: hash2(k, 17) * Math.PI * 2,

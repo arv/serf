@@ -88,6 +88,8 @@ export interface JobSnap {
 
 /** Copies of the map's typed arrays for the main-thread mirror (worldgen). */
 export interface MapSnapshot {
+  /** Grid side length in tiles — how the render side learns the map size. */
+  size: number;
   terrain: Uint8Array;
   resource: Uint8Array;
   blocked: Uint8Array;

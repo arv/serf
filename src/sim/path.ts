@@ -1,14 +1,14 @@
-import { MAP_SIZE, TILE_COUNT, inBounds, tileIdx, tileX, tileY } from '../shared/grid.ts';
+import { MAX_MAP_SIZE, inBounds, tileCount, tileIdx, tileX, tileY } from '../shared/grid.ts';
 import { PathLevel, type GameMap } from './map.ts';
 
 /**
- * All the pathfinder actually reads: where it cannot go, and what a step
- * costs. Narrower than GameMap on purpose — the multiplayer client holds
- * only a map snapshot, and this is what lets it predict its own movement
- * with the very same pathfinder the server moves with, rather than an
- * approximation that would drift.
+ * All the pathfinder actually reads: where it cannot go, what a step
+ * costs, and the grid side length. Narrower than GameMap on purpose — the
+ * multiplayer client holds only a map snapshot, and this is what lets it
+ * predict its own movement with the very same pathfinder the server moves
+ * with, rather than an approximation that would drift.
  */
-export type PathMap = Pick<GameMap, 'blocked' | 'pathLevel'>;
+export type PathMap = Pick<GameMap, 'blocked' | 'pathLevel' | 'size'>;
 
 /**
  * A* over the tile grid: 8-directional, corner cutting forbidden, path-aware
@@ -17,7 +17,6 @@ export type PathMap = Pick<GameMap, 'blocked' | 'pathLevel'>;
  */
 
 const SQRT2 = Math.SQRT2;
-const EXPANSION_CAP = 4096;
 
 /** Movement cost multiplier per path level: grass, dirt trail, stone road. */
 const LEVEL_COST = [1.0, 0.85, 0.72] as const;
@@ -47,17 +46,18 @@ export function tileSpeedMult(map: PathMap, idx: number): number {
  * across ticks. Any of those needs per-room scratch instead — pass it in, or
  * allocate per world.
  */
-const gScore = new Float32Array(TILE_COUNT);
-const cameFrom = new Int32Array(TILE_COUNT);
+const SCRATCH_TILES = tileCount(MAX_MAP_SIZE);
+const gScore = new Float32Array(SCRATCH_TILES);
+const cameFrom = new Int32Array(SCRATCH_TILES);
 /** Generation stamps: a tile counts as visited when its stamp is current,
  * which avoids clearing 16 KiB per search. */
-const visited = new Int32Array(TILE_COUNT);
+const visited = new Int32Array(SCRATCH_TILES);
 let generation = 0;
 
 // Binary min-heap of tile indices keyed by fScore. Lazy decrease-key pushes
-// duplicates, so the heap is sized well beyond TILE_COUNT.
-const heap = new Int32Array(TILE_COUNT * 8);
-const fScore = new Float32Array(TILE_COUNT);
+// duplicates, so the heap is sized well beyond the tile count.
+const heap = new Int32Array(SCRATCH_TILES * 8);
+const fScore = new Float32Array(SCRATCH_TILES);
 let heapSize = 0;
 
 /**
@@ -137,7 +137,8 @@ function search(
   rx1: number,
   ry1: number,
 ): number[] | null {
-  const start = tileIdx(sx, sy);
+  const size = map.size;
+  const start = tileIdx(sx, sy, size);
   if (isGoal(start)) return [];
 
   const h = (x: number, y: number): number => {
@@ -157,21 +158,29 @@ function search(
   while (heapSize > 0) {
     const current = heapPop();
     if (isGoal(current)) return reconstruct(start, current);
-    if (++expansions > EXPANSION_CAP) return null;
+    // The runaway-search cap: half the grid, floored at the classic 4096
+    // (the whole 64 map). A flat 4096 under-served bigger maps — a legal
+    // long detour on a 128 grid can honestly expand more than a 64 map
+    // holds — but the cap's real job is bounding UNREACHABLE searches,
+    // which expand the entire walkable component before failing; letting
+    // those touch the whole grid made every stuck hauler 2.25x more
+    // expensive at 96 and pushed the winnable sim past its clock. Half
+    // the grid clears any plausible real path in these open valleys.
+    if (++expansions > Math.max(4096, tileCount(size) >> 1)) return null;
 
-    const cx = tileX(current);
-    const cy = tileY(current);
+    const cx = tileX(current, size);
+    const cy = tileY(current, size);
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue;
         const nx = cx + dx;
         const ny = cy + dy;
-        if (!inBounds(nx, ny)) continue;
-        const n = tileIdx(nx, ny);
+        if (!inBounds(nx, ny, size)) continue;
+        const n = tileIdx(nx, ny, size);
         if (map.blocked[n]) continue;
         // No corner cutting: a diagonal needs both orthogonal neighbors open.
         if (dx !== 0 && dy !== 0) {
-          if (map.blocked[tileIdx(cx + dx, cy)] || map.blocked[tileIdx(cx, cy + dy)]) continue;
+          if (map.blocked[tileIdx(cx + dx, cy, size)] || map.blocked[tileIdx(cx, cy + dy, size)]) continue;
         }
         const stepLen = dx !== 0 && dy !== 0 ? SQRT2 : 1;
         const g = gScore[current]! + stepLen * tileStepCost(map, n);
@@ -197,8 +206,9 @@ export function findPath(
   tx: number,
   ty: number,
 ): number[] | null {
-  if (!inBounds(tx, ty) || map.blocked[tileIdx(tx, ty)]) return null;
-  const goal = tileIdx(tx, ty);
+  const size = map.size;
+  if (!inBounds(tx, ty, size) || map.blocked[tileIdx(tx, ty, size)]) return null;
+  const goal = tileIdx(tx, ty, size);
   return search(map, sx, sy, (i) => i === goal, tx, ty, tx, ty);
 }
 
@@ -218,13 +228,14 @@ function reconstruct(start: number, goal: number): number[] {
  * -1. Useful for right-click targets on blocked tiles.
  */
 export function nearestWalkable(map: PathMap, tx: number, ty: number, maxR = 8): number {
+  const size = map.size;
   for (let r = 0; r <= maxR; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const x = tx + dx;
         const y = ty + dy;
-        if (inBounds(x, y) && !map.blocked[tileIdx(x, y)]) return tileIdx(x, y);
+        if (inBounds(x, y, size) && !map.blocked[tileIdx(x, y, size)]) return tileIdx(x, y, size);
       }
     }
   }
@@ -245,14 +256,12 @@ export function findPathToAdjacent(
   bw: number,
   bh: number,
 ): number[] | null {
+  const size = map.size;
   const isGoal = (idx: number): boolean => {
-    const x = tileX(idx);
-    const y = tileY(idx);
+    const x = tileX(idx, size);
+    const y = tileY(idx, size);
     return x >= bx - 1 && x <= bx + bw && y >= by - 1 && y <= by + bh;
   };
   // Heuristic rect is the ring's bounding box (admissible).
   return search(map, sx, sy, isGoal, bx - 1, by - 1, bx + bw, by + bh);
 }
-
-/** MAP_SIZE re-export spares sim systems a second import site. */
-export { MAP_SIZE };

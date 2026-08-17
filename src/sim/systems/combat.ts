@@ -341,8 +341,8 @@ function chaseUnit(world: World, unit: Unit, target: Unit): void {
   const path = unit.path;
   if (path && unit.pathIdx < path.length) {
     const last = path[path.length - 1]!;
-    const lx = tileX(last) + 0.5;
-    const ly = tileY(last) + 0.5;
+    const lx = tileX(last, world.map.size) + 0.5;
+    const ly = tileY(last, world.map.size) + 0.5;
     if (exactDist(target.x - lx, target.y - ly) < 1.6) return; // path still good
   }
   const p = findPath(
@@ -368,7 +368,8 @@ function kiteAway(world: World, unit: Unit, threat: Unit): void {
   const ty = Math.round(unit.y + (dy / len) * 3);
   const idx = nearestWalkable(world.map, tx, ty, 3);
   if (idx < 0) return;
-  const p = findPath(world.map, Math.floor(unit.x), Math.floor(unit.y), tileX(idx), tileY(idx));
+  const size = world.map.size;
+  const p = findPath(world.map, Math.floor(unit.x), Math.floor(unit.y), tileX(idx, size), tileY(idx, size));
   if (p && p.length > 0) {
     unit.path = p;
     unit.pathIdx = 0;

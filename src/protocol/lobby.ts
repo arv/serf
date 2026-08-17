@@ -10,6 +10,8 @@
  * message and to every later adjustment.
  */
 
+import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE } from '../shared/grid.ts';
+
 export interface LobbyConfig {
   /** Computer seats to fill at match start. Fillers, not reservations: a
    * human joining always takes priority, so the AI only gets the chairs
@@ -19,6 +21,10 @@ export interface LobbyConfig {
   bandits: boolean;
   /** Worldgen seed — same seed, same valley. */
   seed: number;
+  /** Grid side in tiles — same size, same valley footprint. The waiting
+   * room has no picker for it yet; until it grows one this stays the
+   * default, but the wire contract already carries and sanitizes it. */
+  size: number;
   /**
    * Which playbook each computer seat runs, in the order they fill the
    * table. A null (or a short list) leaves that seat to the seed's deal,
@@ -33,11 +39,13 @@ export interface LobbyConfig {
  * layouts for one through four players. */
 export const MAX_SEATS = 4;
 
-/** The default valley, shared with the start screen and configFromUrl. */
-export const DEFAULT_SEED = 20260724;
+/** The default valley, shared with the start screen and configFromUrl.
+ * Kept in step with winnable.test.ts's pinned seed: the map every new
+ * player boots into carries the standing guarantee that it can be won. */
+export const DEFAULT_SEED = 17;
 
 export function defaultLobbyConfig(): LobbyConfig {
-  return { ai: 0, bandits: true, seed: DEFAULT_SEED, bots: [] };
+  return { ai: 0, bandits: true, seed: DEFAULT_SEED, size: DEFAULT_MAP_SIZE, bots: [] };
 }
 
 /**
@@ -57,6 +65,11 @@ export function sanitizeLobbyConfig(base: LobbyConfig, patch: unknown): LobbyCon
     // Same coercion the old start message used: any finite number becomes
     // a deterministic int32, so every seat derives the identical world.
     out.seed = p.seed | 0;
+  }
+  if (typeof p.size === 'number' && Number.isFinite(p.size)) {
+    // Even, like resolveMapSize: the world builder rounds odd sizes down,
+    // and the lobby must display the size the match will actually use.
+    out.size = Math.max(MIN_MAP_SIZE, Math.min(MAX_MAP_SIZE, Math.floor(p.size))) & ~1;
   }
   if (Array.isArray(p.bots)) {
     // Shape only: a name this file has never heard of is not an error, it

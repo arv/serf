@@ -13,7 +13,7 @@ import {
 } from './defs/missions.ts';
 import { hashWorld } from './hash.ts';
 import { deserializeWorld, serializeWorld } from './save.ts';
-import { FIRST_RAID_TICK } from './defs/balance.ts';
+import { firstRaidTickFor } from './defs/balance.ts';
 import type { BuildingTypeId } from './defs/buildings.ts';
 import type { SimCommand } from './commands.ts';
 
@@ -63,7 +63,7 @@ function playMission(id: MissionId, strategy: AiStrategyId, maxTicks: number): W
   const config = missionWorldConfig(id);
   config.players = config.players.map((p, i) => (i === 0 ? { kind: 'ai' as const } : p));
   const world = createWorld(config);
-  const brain = new AiBrain(0, AI_STRATEGIES[strategy]);
+  const brain = new AiBrain(0, AI_STRATEGIES[strategy], world.map.size);
   for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
     const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     tickWorld(
@@ -82,8 +82,11 @@ describe('the campaign missions', () => {
 
     // The taught opening: woodcutter at the trees, quarry at the rocks, a
     // house by the castle. Search order matches the reach rule the mission
-    // teaches — canPlace refuses a hut out of range of its resource.
-    const castle = { x: 32, y: 32 };
+    // teaches — canPlace refuses a hut out of range of its resource. The
+    // castle is wherever worldgen put the solo start (the map's middle,
+    // whatever the size), not a pinned coordinate.
+    const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const castle = { x: keep.x + 1, y: keep.y + 1 };
     const place = (type: BuildingTypeId): SimCommand => {
       const spot = findSpot(world, type, castle.x, castle.y);
       return { kind: 'placeBuilding', building: type, x: spot.x, y: spot.y };
@@ -131,7 +134,8 @@ describe('the campaign missions', () => {
     // it can and eats every spear the checklist wants stockpiled. A player
     // in a bandit-free mission has no barracks and no such leak.
     const world = createWorld(missionWorldConfig('ledger'));
-    const castle = { x: 32, y: 32 };
+    const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const castle = { x: keep.x + 1, y: keep.y + 1 };
     const researched = (tech: 'cobbledBoots' | 'ironworking'): boolean =>
       world.players[0]!.techs.researched.includes(tech);
     const place = (type: BuildingTypeId): SimCommand => {
@@ -186,7 +190,7 @@ describe('the campaign missions', () => {
     config.players = config.players.map((p, i) => (i === 0 ? { kind: 'ai' as const } : p));
     const world = createWorld(config);
     expect(world.players[1]!.strategy).toBe('steward');
-    const brains = world.players.map((p) => new AiBrain(p.id, AI_STRATEGIES[p.strategy ?? 'steward']));
+    const brains = world.players.map((p) => new AiBrain(p.id, AI_STRATEGIES[p.strategy ?? 'steward'], world.map.size));
     for (let t = 0; t < 90_000 && world.outcome.state === 'playing'; t++) {
       const commands = [];
       for (const brain of brains) {
@@ -209,9 +213,10 @@ describe('the campaign missions', () => {
     expect(world.players[0]!.techs.researched).toEqual(['soldiery', 'cobbledBoots', 'ironworking']);
     expect(world.raidState.nextRaidTick).toBe(def.firstRaidTick);
     expect(stockOf(world, 'silver')).toBe(def.startStock!.silver);
-    // And a mission with no clock override keeps the default.
+    // And a mission with no clock override keeps the default — the
+    // size-scaled peace period, since raid pacing follows the commutes.
     const finale = createWorld(missionWorldConfig('holdTheValley'));
-    expect(finale.raidState.nextRaidTick).toBe(FIRST_RAID_TICK);
+    expect(finale.raidState.nextRaidTick).toBe(firstRaidTickFor(finale.map.size));
   });
 
   it('mission worlds are deterministic: same id, same world, tick for tick', () => {

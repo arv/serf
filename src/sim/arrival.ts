@@ -49,8 +49,8 @@ export function atBuilding(unit: Unit, b: Building): boolean {
 }
 
 /** Is the unit standing at this map tile? */
-export function atTile(unit: Unit, tile: number): boolean {
-  return distToFootprint(unit, tileX(tile), tileY(tile), 1, 1) <= ARRIVAL_REACH;
+export function atTile(unit: Unit, tile: number, size: number): boolean {
+  return distToFootprint(unit, tileX(tile, size), tileY(tile, size), 1, 1) <= ARRIVAL_REACH;
 }
 
 /**
@@ -72,9 +72,18 @@ export function walkToBuilding(map: GameMap, unit: Unit, b: Building): boolean {
 
 /** Put the unit back on the road to this tile. False when there is no way. */
 export function walkToTile(map: GameMap, unit: Unit, tile: number): boolean {
+  const size = map.size;
   return walk(
     unit,
-    findPathToAdjacent(map, Math.floor(unit.x), Math.floor(unit.y), tileX(tile), tileY(tile), 1, 1),
+    findPathToAdjacent(
+      map,
+      Math.floor(unit.x),
+      Math.floor(unit.y),
+      tileX(tile, size),
+      tileY(tile, size),
+      1,
+      1,
+    ),
   );
 }
 

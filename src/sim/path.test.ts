@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_SIZE, TILE_COUNT, tileIdx, tileX, tileY } from '../shared/grid.ts';
+import { DEFAULT_MAP_SIZE, tileCount, tileIdx, tileX, tileY } from '../shared/grid.ts';
 import { PathLevel, type GameMap } from './map.ts';
 import { findPath, findPathToAdjacent, nearestWalkable } from './path.ts';
 
+const MAP_SIZE = DEFAULT_MAP_SIZE;
+const TILE_COUNT = tileCount(MAP_SIZE);
+
 function emptyMap(): GameMap {
   return {
+    size: MAP_SIZE,
     terrain: new Uint8Array(TILE_COUNT),
     resource: new Uint8Array(TILE_COUNT),
     resourceAmt: new Uint8Array(TILE_COUNT),
@@ -17,7 +21,7 @@ function emptyMap(): GameMap {
 }
 
 function block(map: GameMap, x: number, y: number): void {
-  map.blocked[tileIdx(x, y)] = 1;
+  map.blocked[tileIdx(x, y, map.size)] = 1;
 }
 
 describe('A* pathfinding', () => {
@@ -26,7 +30,7 @@ describe('A* pathfinding', () => {
     const path = findPath(map, 0, 0, 5, 0)!;
     expect(path).not.toBeNull();
     expect(path.length).toBe(5);
-    expect(path[4]).toBe(tileIdx(5, 0));
+    expect(path[4]).toBe(tileIdx(5, 0, map.size));
   });
 
   it('uses diagonals when free', () => {
@@ -63,7 +67,7 @@ describe('A* pathfinding', () => {
     const map = emptyMap();
     // Straight line (5,5)->(15,5) costs 10. Pave a parallel detour via y=6:
     // road cost 0.72 makes 5,5 -> …road… -> 15,5 cheaper despite extra steps.
-    for (let x = 5; x <= 15; x++) map.pathLevel[tileIdx(x, 6)] = PathLevel.Road;
+    for (let x = 5; x <= 15; x++) map.pathLevel[tileIdx(x, 6, map.size)] = PathLevel.Road;
     const path = findPath(map, 5, 5, 15, 5)!;
     const onRoad = path.filter((i) => map.pathLevel[i] === PathLevel.Road).length;
     expect(onRoad).toBeGreaterThan(5);
@@ -76,8 +80,8 @@ describe('A* pathfinding', () => {
     const path = findPathToAdjacent(map, 5, 21, 20, 20, 3, 3)!;
     expect(path).not.toBeNull();
     const last = path[path.length - 1]!;
-    const lx = tileX(last);
-    const ly = tileY(last);
+    const lx = tileX(last, map.size);
+    const ly = tileY(last, map.size);
     expect(lx).toBeGreaterThanOrEqual(19);
     expect(lx).toBeLessThanOrEqual(23);
     expect(map.blocked[last]).toBe(0);
@@ -89,7 +93,7 @@ describe('A* pathfinding', () => {
     const found = nearestWalkable(map, 30, 30);
     expect(found).not.toBe(-1);
     expect(map.blocked[found]).toBe(0);
-    const dist = Math.max(Math.abs(tileX(found) - 30), Math.abs(tileY(found) - 30));
+    const dist = Math.max(Math.abs(tileX(found, map.size) - 30), Math.abs(tileY(found, map.size) - 30));
     expect(dist).toBe(1);
   });
 

@@ -47,6 +47,10 @@ async function playAdvisedMatch(
       { kind: 'ai', strategy: 'steward' },
     ],
     banditsEnabled: false,
+    // What is under test is the advice plumbing and its fingerprints on
+    // the field, at the tempo the tick horizons below were tuned for —
+    // the classic 64 map. Map scale has its own tests.
+    mapSize: 64,
   });
   const seats = new AiSeats(world);
   const adviceApplied = new Map<number, number>();
@@ -159,6 +163,7 @@ describe('an LLM-advised match, seat against seat', () => {
         { kind: 'ai', strategy: 'steward' },
       ],
       banditsEnabled: false,
+      mapSize: 64, // must mirror playAdvisedMatch's world exactly
     });
     const controlSeats = new AiSeats(control);
     for (let t = 0; t < 12_000 && control.outcome.state === 'playing'; t++) {

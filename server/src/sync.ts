@@ -18,11 +18,11 @@
  */
 import { encodeHot, encodeInit, encodeStructBody } from '../../src/protocol/state.ts';
 import { snapBuilding, snapJobs, snapPlayers, unitSnapshots } from '../../src/protocol/snapshot.ts';
-import { TILE_COUNT } from '../../src/shared/grid.ts';
-import { Terrain, resourceBlocks } from '../../src/sim/map.ts';
+import { tileCount } from '../../src/shared/grid.ts';
+import { tileBlocks } from '../../src/sim/map.ts';
 import { SeatVision } from '../../src/sim/visibility.ts';
 import type { UnitSnapshot } from '../../src/protocol/sabLayout.ts';
-import type { BuildingSnap, PlayerSnap } from '../../src/protocol/messages.ts';
+import type { BuildingSnap, MapSnapshot, PlayerSnap } from '../../src/protocol/messages.ts';
 import type { EntityId } from '../../src/sim/entities.ts';
 import type { GameEvent, MapDelta, World } from '../../src/sim/world.ts';
 import type { Room, Seat } from './rooms.ts';
@@ -42,9 +42,9 @@ const MIN_STRUCT_GAP = 5;
 const HOT_DROP_BUFFERED = 64 * 1024;
 const STALLED_BUFFERED = 1024 * 1024;
 
-/** Per-seat filtering state. */
+/** Per-seat filtering state, sized to the room's world. */
 export class SeatView {
-  readonly vision = new SeatVision();
+  readonly vision: SeatVision;
   /** Enemy buildings as this seat last saw them, by id. */
   readonly lastSeen = new Map<EntityId, BuildingSnap>();
   /** Map news owed to this seat, held until the next structural frame. */
@@ -64,7 +64,12 @@ export class SeatView {
    * `tick + 1` so 0 means "never" even for a send at tick 0. Compared
    * against Room.tileChangedTick (same offset) when ground is re-revealed,
    * so a tile the seat already knows correctly owes it nothing. */
-  readonly tileSentTick = new Uint32Array(TILE_COUNT);
+  readonly tileSentTick: Uint32Array;
+
+  constructor(size: number) {
+    this.vision = new SeatVision(size);
+    this.tileSentTick = new Uint32Array(tileCount(size));
+  }
 }
 
 function send(seat: Seat, frame: Uint8Array, droppable = false): void {
@@ -118,7 +123,8 @@ export function recomputeVision(room: Room): void {
  * Terrain, height and the natural resource layout go out whole: that is the
  * shape of the world, hiding it would mean streaming terrain geometry, and
  * the map reads as an empty void without it. Start positions come from a
- * fixed table anyone can read in the source.
+ * fixed function of the map size and seat count anyone can read in the
+ * source (startLayout in world.ts).
  *
  * What is withheld is the part that carries ongoing intelligence:
  * `buildingAt` and `pathLevel` — what a rival has built, and where they
@@ -134,28 +140,22 @@ export function recomputeVision(room: Room): void {
  * derives from the arrays already sent); the building share arrives with
  * the map deltas, as ground is explored.
  */
-function initialMap(world: World, view: SeatView): {
-  terrain: Uint8Array;
-  resource: Uint8Array;
-  blocked: Uint8Array;
-  pathLevel: Uint8Array;
-  buildingAt: Int16Array;
-  height: Float32Array;
-} {
-  const buildingAt = new Int16Array(TILE_COUNT).fill(-1);
-  const pathLevel = new Uint8Array(TILE_COUNT);
-  const blocked = new Uint8Array(TILE_COUNT);
-  for (let i = 0; i < TILE_COUNT; i++) {
+function initialMap(world: World, view: SeatView): MapSnapshot {
+  const tiles = tileCount(world.map.size);
+  const buildingAt = new Int16Array(tiles).fill(-1);
+  const pathLevel = new Uint8Array(tiles);
+  const blocked = new Uint8Array(tiles);
+  for (let i = 0; i < tiles; i++) {
     if (view.vision.explored[i]) {
       buildingAt[i] = world.map.buildingAt[i]!;
       pathLevel[i] = world.map.pathLevel[i]!;
       blocked[i] = world.map.blocked[i]!;
     } else {
-      blocked[i] =
-        world.map.terrain[i] === Terrain.Water || resourceBlocks(world.map.resource[i]!) ? 1 : 0;
+      blocked[i] = tileBlocks(world.map.terrain[i]!, world.map.resource[i]!) ? 1 : 0;
     }
   }
   return {
+    size: world.map.size,
     terrain: world.map.terrain,
     resource: world.map.resource,
     blocked,
@@ -258,7 +258,7 @@ export function sendInit(room: Room, seat: Seat): void {
   // explored ground is current as of this tick, unexplored ground has
   // never been sent and owes its first reveal.
   view.owedTiles.clear();
-  for (let i = 0; i < TILE_COUNT; i++) {
+  for (let i = 0; i < tileCount(world.map.size); i++) {
     view.tileSentTick[i] = view.vision.explored[i] ? world.tick + 1 : 0;
   }
   // The rosters ride the init frame itself, so the next struct frame must

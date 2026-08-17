@@ -58,6 +58,10 @@ export interface MissionDef {
   seed: number;
   players: { kind: 'human' | 'ai'; strategy?: AiStrategyId }[];
   bandits: boolean;
+  /** Pin a grid size for this mission's world; absent = the game default.
+   * A mission whose tuning depends on its exact world can hold it here
+   * while the default marches on. */
+  mapSize?: number;
   /** Overrides FIRST_RAID_TICK (bandit missions only). */
   firstRaidTick?: number;
   /** Overrides START_SERFS for the human seat. */
@@ -81,7 +85,10 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'stone for the hearth, beds for the hands you hire — put a roof ' +
       'over them, reeve, and lay in timber for what comes next.',
     tagline: 'Raise a camp: wood, stone, and beds.',
-    seed: 101,
+    // Re-pinned (101 -> 104) when the border waterline re-rolled the
+    // worlds: the taught line must finish comfortably, and this roll wins
+    // it by tick ~4.2k of the 36k budget.
+    seed: 104,
     players: [{ kind: 'human' }],
     bandits: false,
     startSerfs: 6,
@@ -164,7 +171,9 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'The crown expects them gone. Raise the barracks, feed your ' +
       'soldiers, and answer for the valley.',
     tagline: 'Face the first raid, then take the camp.',
-    seed: 404,
+    // Re-pinned (404 -> 405) with the border waterline: the early raid
+    // must be survivable, and this roll is won by tick ~6.6k.
+    seed: 405,
     players: [{ kind: 'human' }],
     bandits: true,
     // Five minutes — the point of this mission IS the raid, arriving before
@@ -211,7 +220,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     tagline: 'The full game: no help, no headstart.',
     // The seed winnable.test.ts proves takeable — the one map with a
     // standing guarantee that it can be held.
-    seed: 20260724,
+    seed: 17,
     players: [{ kind: 'human' }],
     bandits: true,
     objectives: [
@@ -227,7 +236,10 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'charter, and the crown does not care which of you it honors. The ' +
       'bandits in the middle care even less. Last banner standing.',
     tagline: 'Bonus: your first rival. Last banner standing.',
-    seed: 606,
+    // Re-pinned (606 -> 609) after the A*-cap rebalance: 606's war still
+    // ended, but only at ~30k ticks — three times this roll's ~9.6k, and
+    // past what the elimination test can afford under a loaded suite.
+    seed: 609,
     players: [{ kind: 'human' }, { kind: 'ai', strategy: 'steward' }],
     bandits: true,
     // No checklist: the ordinary last-faction-standing rules decide it.

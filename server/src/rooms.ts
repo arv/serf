@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import { TILE_COUNT } from '../../src/shared/grid.ts';
+import { tileCount } from '../../src/shared/grid.ts';
 import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
 import { createWorld, type World, type WorldConfig } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
@@ -177,7 +177,7 @@ export function createRoom(visibility: 'open' | 'closed', config: LobbyConfig): 
     closedTick: -1,
     queued: [],
     lastVisionTick: -1,
-    tileChangedTick: new Uint32Array(TILE_COUNT).fill(1),
+    tileChangedTick: new Uint32Array(tileCount(config.size)).fill(1),
     pumpMsAvg: 0,
     pumpMsPeak: 0,
   };
@@ -248,6 +248,9 @@ export function matchWorldConfig(room: Room): WorldConfig {
   let picked = 0;
   return {
     seed: room.config.seed,
+    // A running (or restored) world already knows its size; before the
+    // match starts, the sanitized lobby setting is the promise.
+    mapSize: room.world?.map.size ?? room.config.size,
     players: room.seats.map((s) => ({
       kind: s.kind,
       strategy: s.kind === 'ai' ? parseStrategyId(bots[picked++]) : undefined,
@@ -268,6 +271,11 @@ export function startMatch(room: Room): void {
   for (let i = 0; i < aiFill; i++) addSeat(room, 'ai', null);
   const config = matchWorldConfig(room);
   room.world = createWorld(config);
+  // Re-sized to the world actually built: the array was allocated when the
+  // room was created, and the host may have changed the lobby's map size
+  // since — a stale, smaller array would silently drop the change stamps
+  // for every high-index tile.
+  room.tileChangedTick = new Uint32Array(tileCount(room.world.map.size)).fill(1);
   room.replay = { replayVersion: REPLAY_VERSION, config, commands: [] };
   room.ai = new AiSeats(room.world);
   room.state = 'running';
@@ -277,7 +285,7 @@ export function startMatch(room: Room): void {
   // server does per room, and an AI seat would never consume its view — the
   // brain reads the world directly, and no socket ever asks for its frames.
   for (const seat of room.seats) {
-    if (seat.kind === 'human') seat.view = new SeatView();
+    if (seat.kind === 'human') seat.view = new SeatView(room.world.map.size);
   }
   // Seats must be able to see their own starting village before the first
   // frame goes out, or the opening init would arrive with an empty map.

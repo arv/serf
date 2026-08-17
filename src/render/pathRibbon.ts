@@ -1,4 +1,4 @@
-import { MAP_SIZE, tileIdx } from '../shared/grid';
+import { tileIdx } from '../shared/grid';
 import { PathLevel } from '../sim/map';
 import { vnoise } from './noise';
 
@@ -57,13 +57,16 @@ export function ribbonDistances(
 ): void {
   out.trail = Infinity;
   out.road = Infinity;
+  // The path grid is square (size² tiles), so the grid size rides along in
+  // the array itself — no separate parameter to thread through every caller.
+  const size = Math.sqrt(path.length) | 0;
   const bx = Math.floor(px);
   const bz = Math.floor(pz);
   for (let ty = bz - 1; ty <= bz + 1; ty++) {
-    if (ty < 0 || ty >= MAP_SIZE) continue;
+    if (ty < 0 || ty >= size) continue;
     for (let tx = bx - 1; tx <= bx + 1; tx++) {
-      if (tx < 0 || tx >= MAP_SIZE) continue;
-      const level = path[tileIdx(tx, ty)]!;
+      if (tx < 0 || tx >= size) continue;
+      const level = path[tileIdx(tx, ty, size)]!;
       if (level === PathLevel.None) continue;
       // Sample point relative to this tile's center, where its segments start.
       const wx = px - (tx + 0.5);
@@ -73,8 +76,8 @@ export function ribbonDistances(
       for (let k = 0; k < 8; k++) {
         const nx = tx + DX[k]!;
         const ny = ty + DY[k]!;
-        if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
-        if (path[tileIdx(nx, ny)] === PathLevel.None) continue;
+        if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+        if (path[tileIdx(nx, ny, size)] === PathLevel.None) continue;
         // Center -> shared edge (or corner); the neighbor draws the other half.
         const vx = DX[k]! * 0.5;
         const vz = DY[k]! * 0.5;

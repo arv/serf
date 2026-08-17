@@ -1,4 +1,4 @@
-import { TILE_COUNT, tileIdx } from '../shared/grid.ts';
+import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid.ts';
 import { placeBuiltBuilding, placeSite, spawnUnit, type World } from './world.ts';
 import { makePlayer } from './player.ts';
 import { bindWorker } from './systems/production.ts';
@@ -11,16 +11,18 @@ import type { Building, Owner } from './entities.ts';
 import type { Unit } from './units.ts';
 
 /** An all-grass, empty 64x64 map for deterministic logistics tests. */
-export function bareMap(): GameMap {
+export function bareMap(size = DEFAULT_MAP_SIZE): GameMap {
+  const tiles = tileCount(size);
   return {
-    terrain: new Uint8Array(TILE_COUNT),
-    resource: new Uint8Array(TILE_COUNT),
-    resourceAmt: new Uint8Array(TILE_COUNT),
-    blocked: new Uint8Array(TILE_COUNT),
-    buildingAt: new Int16Array(TILE_COUNT).fill(-1),
-    wear: new Float32Array(TILE_COUNT),
-    pathLevel: new Uint8Array(TILE_COUNT),
-    height: new Float32Array(TILE_COUNT),
+    size,
+    terrain: new Uint8Array(tiles),
+    resource: new Uint8Array(tiles),
+    resourceAmt: new Uint8Array(tiles),
+    blocked: new Uint8Array(tiles),
+    buildingAt: new Int16Array(tiles).fill(-1),
+    wear: new Float32Array(tiles),
+    pathLevel: new Uint8Array(tiles),
+    height: new Float32Array(tiles),
   };
 }
 
@@ -71,7 +73,7 @@ export function addResourceTile(
   res: TileResourceKind = TileResource.Wood,
   amt = 6,
 ): void {
-  const i = tileIdx(x, y);
+  const i = tileIdx(x, y, world.map.size);
   world.map.resource[i] = res;
   world.map.resourceAmt[i] = amt;
   if (resourceBlocks(res)) world.map.blocked[i] = 1;

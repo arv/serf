@@ -13,7 +13,7 @@ import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 
 function summaries(): { first: AiWorldSummary; later: AiWorldSummary } {
   const world = createWorld({ seed: 5, players: [{ kind: 'human' }, { kind: 'ai' }] });
-  const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy));
+  const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
   brain.decide(world); // one beat, so vision exists
   const first = summarizeForSeat(world, brain);
   // Two minutes on, the scout has found the rival and taken a first look.

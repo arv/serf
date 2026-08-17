@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MAP_SIZE, TILE_COUNT, tileIdx, tileX, tileY } from '../shared/grid';
+import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, TileResource, type MapView } from '../sim/map';
 import { palette } from './palette';
@@ -24,11 +24,11 @@ import type { HeightField } from './heightField';
  * visible staircases.
  */
 const SEG = 6;
-const GRID = MAP_SIZE * SEG;
 
 // Tile paint classes (per-tile pass output, consumed by the vertex pass).
 const CLASS_GRASS = 0;
 const CLASS_WATER = 1;
+const CLASS_ROCK = 2;
 
 /**
  * The ground: one high-resolution mesh painted like a stylized RTS map.
@@ -46,6 +46,9 @@ export class TerrainMesh {
   #geometry: THREE.PlaneGeometry;
   #map: MapView;
   #heights: HeightField;
+  #size: number;
+  /** Sub-tile lattice edge: #size * SEG. */
+  #grid: number;
 
   // Static per-vertex fields, computed once.
   #warpX: Float32Array;
@@ -58,16 +61,22 @@ export class TerrainMesh {
   #vertY: Float32Array;
 
   // Per-tile scratch, refilled on every repaint.
-  #tileClass = new Uint8Array(TILE_COUNT);
-  #tileEarth = new Float32Array(TILE_COUNT);
-  #tileDeposit = new Int8Array(TILE_COUNT);
+  #tileClass: Uint8Array;
+  #tileEarth: Float32Array;
+  #tileDeposit: Int8Array;
 
   constructor(map: MapView, heights: HeightField) {
     this.#map = map;
     this.#heights = heights;
-    this.#geometry = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, GRID, GRID);
+    const size = map.size;
+    this.#size = size;
+    this.#grid = size * SEG;
+    this.#tileClass = new Uint8Array(tileCount(size));
+    this.#tileEarth = new Float32Array(tileCount(size));
+    this.#tileDeposit = new Int8Array(tileCount(size));
+    this.#geometry = new THREE.PlaneGeometry(size, size, this.#grid, this.#grid);
     this.#geometry.rotateX(-Math.PI / 2);
-    this.#geometry.translate(MAP_SIZE / 2, 0, MAP_SIZE / 2);
+    this.#geometry.translate(size / 2, 0, size / 2);
 
     const pos = this.#geometry.attributes.position!;
     const count = pos.count;
@@ -109,7 +118,7 @@ export class TerrainMesh {
 
     const material = new THREE.MeshLambertMaterial({
       vertexColors: true,
-      map: makeGroundTexture(),
+      map: makeGroundTexture(size),
     });
     this.mesh = new THREE.Mesh(this.#geometry, material);
     this.mesh.receiveShadow = true;
@@ -118,8 +127,8 @@ export class TerrainMesh {
   /** Recolor every vertex from current map state. */
   repaintAll(): void {
     // --- Per-tile pass: classify + trampled-earth mask -----------------------
-    for (let y = 0; y < MAP_SIZE; y++) {
-      for (let x = 0; x < MAP_SIZE; x++) this.#recomputeTile(x, y);
+    for (let y = 0; y < this.#size; y++) {
+      for (let x = 0; x < this.#size; x++) this.#recomputeTile(x, y);
     }
 
     // --- Per-vertex pass -----------------------------------------------------
@@ -143,34 +152,36 @@ export class TerrainMesh {
   repaintTiles(tiles: readonly number[]): void {
     if (tiles.length === 0) return;
 
+    const size = this.#size;
+    const grid = this.#grid;
     const dirty = new Set<number>(tiles);
     const recompute = new Set<number>();
     for (const t of dirty) {
-      const tx = tileX(t);
-      const ty = tileY(t);
+      const tx = tileX(t, size);
+      const ty = tileY(t, size);
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           const nx = tx + dx;
           const ny = ty + dy;
-          if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
-          recompute.add(tileIdx(nx, ny));
+          if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+          recompute.add(tileIdx(nx, ny, size));
         }
       }
     }
-    for (const i of recompute) this.#recomputeTile(tileX(i), tileY(i));
+    for (const i of recompute) this.#recomputeTile(tileX(i, size), tileY(i, size));
 
-    // Vertices live on a (GRID+1)^2 lattice, SEG per tile edge, row-major —
+    // Vertices live on a (grid+1)^2 lattice, SEG per tile edge, row-major —
     // vertex (row, col) sits at world (col/SEG, row/SEG).
     const dirtyVerts = new Set<number>();
     for (const t of dirty) {
-      const tx = tileX(t);
-      const ty = tileY(t);
+      const tx = tileX(t, size);
+      const ty = tileY(t, size);
       const c0 = Math.max(0, (tx - 2) * SEG);
-      const c1 = Math.min(GRID, (tx + 3) * SEG);
+      const c1 = Math.min(grid, (tx + 3) * SEG);
       const r0 = Math.max(0, (ty - 2) * SEG);
-      const r1 = Math.min(GRID, (ty + 3) * SEG);
+      const r1 = Math.min(grid, (ty + 3) * SEG);
       for (let r = r0; r <= r1; r++) {
-        const base = r * (GRID + 1);
+        const base = r * (grid + 1);
         for (let col = c0; col <= c1; col++) dirtyVerts.add(base + col);
       }
     }
@@ -198,8 +209,14 @@ export class TerrainMesh {
   /** Refresh one tile's paint class, deposit tint, and trampled-earth mask. */
   #recomputeTile(x: number, y: number): void {
     const map = this.#map;
-    const i = tileIdx(x, y);
-    this.#tileClass[i] = map.terrain[i] === Terrain.Water ? CLASS_WATER : CLASS_GRASS;
+    const size = this.#size;
+    const i = tileIdx(x, y, size);
+    this.#tileClass[i] =
+      map.terrain[i] === Terrain.Water
+        ? CLASS_WATER
+        : map.terrain[i] === Terrain.Rock
+          ? CLASS_ROCK
+          : CLASS_GRASS;
     const res = map.resource[i];
     this.#tileDeposit[i] =
       res === TileResource.IronDep
@@ -219,8 +236,8 @@ export class TerrainMesh {
       for (let dx = -1; dx <= 1 && !near; dx++) {
         const nx = x + dx;
         const ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
-        if (map.buildingAt[tileIdx(nx, ny)]! >= 0) near = 1;
+        if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+        if (map.buildingAt[tileIdx(nx, ny, size)]! >= 0) near = 1;
       }
     }
     this.#tileEarth[i] = near ? 0.55 : 0;
@@ -232,10 +249,11 @@ export class TerrainMesh {
     const c = SCRATCH;
     const x = pos.getX(v);
     const z = pos.getZ(v);
+    const size = this.#size;
     // Warped tile lookup: organic macro boundaries.
-    const tx = Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(x + this.#warpX[v]!)));
-    const tz = Math.max(0, Math.min(MAP_SIZE - 1, Math.floor(z + this.#warpZ[v]!)));
-    const tile = tileIdx(tx, tz);
+    const tx = Math.max(0, Math.min(size - 1, Math.floor(x + this.#warpX[v]!)));
+    const tz = Math.max(0, Math.min(size - 1, Math.floor(z + this.#warpZ[v]!)));
+    const tile = tileIdx(tx, tz, size);
     const cls = this.#tileClass[tile];
     const y = this.#vertY[v]!;
 
@@ -246,6 +264,10 @@ export class TerrainMesh {
       const m = this.#meadow[v]!;
       if (m < 0.52) c.copy(COL.lush).lerp(COL.olive, m / 0.52);
       else c.copy(COL.olive).lerp(COL.gold, (m - 0.52) / 0.48);
+      // Border-ridge rock is stone all the way down: the altitude pass
+      // below paints its peaks anyway, but the cliff feet the shore ease
+      // pulls low would otherwise read as walkable green slope.
+      if (cls === CLASS_ROCK) c.lerp(m < 0.5 ? COL.rock : COL.rockDark, 0.45);
       // Altitude: meadow dries into bare rock, and the peaks catch snow.
       if (y > 0.9) {
         const rocky = Math.min((y - 0.9) / 0.55, 1);
@@ -255,7 +277,7 @@ export class TerrainMesh {
       // Trampled ground near buildings.
       const e = this.#tileEarth[tile]!;
       if (e > 0) c.lerp(COL.earth, e * 0.7);
-      // Deposits tint the rocky ground.
+      // Deposits tint the rocky ground (never on the rim — it carries none).
       const dep = this.#tileDeposit[tile];
       if (dep === 1) c.lerp(COL.iron, 0.5);
       else if (dep === 2) c.lerp(COL.silver, 0.45);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TILE_COUNT } from '../shared/grid';
+import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
 import {
   decodeState,
   encodeCmd,
@@ -12,16 +12,19 @@ import {
 import type { UnitSnapshot } from './sabLayout';
 import type { MapSnapshot } from './messages';
 
+const TILES = tileCount(DEFAULT_MAP_SIZE);
+
 function fakeMap(): MapSnapshot {
   const map: MapSnapshot = {
-    terrain: new Uint8Array(TILE_COUNT),
-    resource: new Uint8Array(TILE_COUNT),
-    blocked: new Uint8Array(TILE_COUNT),
-    pathLevel: new Uint8Array(TILE_COUNT),
-    buildingAt: new Int16Array(TILE_COUNT),
-    height: new Float32Array(TILE_COUNT),
+    size: DEFAULT_MAP_SIZE,
+    terrain: new Uint8Array(TILES),
+    resource: new Uint8Array(TILES),
+    blocked: new Uint8Array(TILES),
+    pathLevel: new Uint8Array(TILES),
+    buildingAt: new Int16Array(TILES),
+    height: new Float32Array(TILES),
   };
-  for (let i = 0; i < TILE_COUNT; i++) {
+  for (let i = 0; i < TILES; i++) {
     map.terrain[i] = i % 7;
     map.resource[i] = i % 5;
     map.blocked[i] = i % 2;
@@ -36,7 +39,7 @@ function fakeMap(): MapSnapshot {
 describe('state frames', () => {
   it('round-trips the init frame, map arrays and all', () => {
     const map = fakeMap();
-    const explored = new Uint8Array(TILE_COUNT).map((_, i) => (i % 4 === 0 ? 1 : 0));
+    const explored = new Uint8Array(TILES).map((_, i) => (i % 4 === 0 ? 1 : 0));
     const frame = decodeState(encodeInit(42, 3, map, explored, { buildings: [{ id: 1 }] }));
     expect(frame?.kind).toBe('init');
     if (frame?.kind !== 'init') return;
@@ -56,7 +59,7 @@ describe('state frames', () => {
     // WebSocket payloads arrive as views into a larger pooled buffer, so the
     // decoder must never assume a zero (or aligned) byteOffset.
     const map = fakeMap();
-    const encoded = encodeInit(1, 0, map, new Uint8Array(TILE_COUNT), null);
+    const encoded = encodeInit(1, 0, map, new Uint8Array(TILES), null);
     const padded = new Uint8Array(encoded.length + 3);
     padded.set(encoded, 3);
     const frame = decodeState(padded.subarray(3));
@@ -126,5 +129,19 @@ describe('state frames', () => {
 
   it('returns null for tags it does not own', () => {
     expect(decodeState(new Uint8Array([0x7f, 0, 0, 0, 0]))).toBeNull();
+  });
+
+  it('drops a corrupt init frame instead of allocating for it', () => {
+    const good = encodeInit(1, 0, fakeMap(), new Uint8Array(TILES), null);
+
+    // An impossible map size (the u16 at offset 10 maxed out) must not
+    // reach the tile-array allocations.
+    const oversize = good.slice();
+    new DataView(oversize.buffer).setUint16(10, 0xffff, true);
+    expect(decodeState(oversize)).toBeNull();
+
+    // A frame that claims more map than it carries is refused, not read
+    // off the end of the buffer.
+    expect(decodeState(good.subarray(0, good.length - 1000))).toBeNull();
   });
 });

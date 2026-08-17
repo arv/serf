@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { TILE_COUNT, tileIdx } from '../shared/grid';
+import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
 import { PathLevel } from '../sim/map';
 import { ROAD_HALF, TRAIL_HALF, newRibbonDist, ribbonCover, ribbonDistances } from './pathRibbon';
 
 function mapWith(tiles: readonly (readonly [number, number, number])[]): Uint8Array {
-  const path = new Uint8Array(TILE_COUNT);
-  for (const [x, y, level] of tiles) path[tileIdx(x, y)] = level;
+  const path = new Uint8Array(tileCount(DEFAULT_MAP_SIZE));
+  for (const [x, y, level] of tiles) path[tileIdx(x, y, DEFAULT_MAP_SIZE)] = level;
   return path;
 }
 

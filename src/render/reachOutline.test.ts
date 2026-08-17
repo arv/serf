@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { TILE_COUNT } from '../shared/grid';
+import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
 import { HeightField } from './heightField';
 import { SelectedReach } from './reachOutline';
 import { buildingDef, gatherRecipeOf } from '../sim/defs/buildings';
@@ -28,7 +28,13 @@ function snap(over: Partial<BuildingSnap>): BuildingSnap {
 
 function makeReach(): { reach: SelectedReach; scene: THREE.Scene } {
   const scene = new THREE.Scene();
-  return { reach: new SelectedReach(scene, new HeightField(new Float32Array(TILE_COUNT))), scene };
+  return {
+    reach: new SelectedReach(
+      scene,
+      new HeightField(new Float32Array(tileCount(DEFAULT_MAP_SIZE)), DEFAULT_MAP_SIZE),
+    ),
+    scene,
+  };
 }
 
 /** The outline is the only mesh this class ever adds to the scene. */

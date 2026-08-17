@@ -4,7 +4,7 @@ import { buildingDef, type BuildingTypeId } from '../sim/defs/buildings.ts';
 import { AI_INTEL, hostileNear, type AiBrain } from '../sim/systems/ai.ts';
 import type { Building, Owner } from '../sim/entities.ts';
 import { popCapOf, populationOf } from '../sim/population.ts';
-import { TILE_COUNT } from '../shared/grid.ts';
+import { tileCount } from '../shared/grid.ts';
 import type { World } from '../sim/world.ts';
 
 /**
@@ -188,13 +188,14 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
   }
 
   let exploredTiles = 0;
-  for (let i = 0; i < TILE_COUNT; i++) exploredTiles += vision.explored[i]!;
+  const tiles = tileCount(world.map.size);
+  for (let i = 0; i < tiles; i++) exploredTiles += vision.explored[i]!;
 
   const techs = player?.techs;
   return {
     tick: world.tick,
     minutes: Math.round((world.tick * TICK_MS) / 60_000),
-    explored: Math.round((exploredTiles / TILE_COUNT) * 100) / 100,
+    explored: Math.round((exploredTiles / tiles) * 100) / 100,
     seat: {
       id: playerId,
       strategyId: strategy.id,

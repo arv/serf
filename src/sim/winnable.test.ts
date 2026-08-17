@@ -15,11 +15,15 @@ import { strategyOf } from './defs/aiStrategies.ts';
  */
 describe('the campaign is winnable', () => {
   it('the AI player beats the default map', () => {
-    const world = createWorld({ seed: 20260724, players: [{ kind: 'ai' }] });
+    // Seed 17: the pinned default valley. Chosen by sweep after the mixed
+    // borders re-rolled every world — fair at 2/3/4 seats, and every
+    // playbook takes it with the widest margin of the candidates (all
+    // four win by tick ~16k of the 45k budget).
+    const world = createWorld({ seed: 17, players: [{ kind: 'ai' }] });
     // Whichever playbook this seed dealt the seat — every one of them can
     // take this map (aiStrategies.test.ts holds that line); what is tested
     // here is that the map stays takeable.
-    const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy));
+    const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy), world.map.size);
 
     const MAX_TICKS = 45_000; // ~37 minutes of game time
     for (let t = 0; t < MAX_TICKS; t++) {

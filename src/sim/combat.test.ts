@@ -180,17 +180,18 @@ describe('raids and victory', () => {
 
   it('musters raiders on dry land when the camp sits against water', () => {
     const world = bareWorld();
+    const size = world.map.size;
     // Flood everything south of the camp — where guards would normally form up.
     for (let y = 33; y < 40; y++) {
       for (let x = 26; x < 40; x++) {
-        const i = y * 64 + x;
+        const i = y * size + x;
         world.map.terrain[i] = Terrain.Water;
         world.map.blocked[i] = 1;
       }
     }
     const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 30, 30);
     const raider = spawnUnitNearby(world, 'bandit', BANDIT, camp.x + 1.5, camp.y + camp.h + 1.5);
-    const tile = Math.floor(raider.y) * 64 + Math.floor(raider.x);
+    const tile = Math.floor(raider.y) * size + Math.floor(raider.x);
     expect(world.map.blocked[tile]).toBe(0);
   });
 

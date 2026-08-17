@@ -119,6 +119,7 @@ export function cancelTraining(world: World, b: Building, index: number, unit: s
 
 function doorOf(world: World, b: Building): { x: number; y: number } {
   const idx = nearestWalkable(world.map, Math.floor(b.x + b.w / 2), b.y + b.h, 6);
-  if (idx >= 0) return { x: tileX(idx) + 0.5, y: tileY(idx) + 0.5 };
+  const size = world.map.size;
+  if (idx >= 0) return { x: tileX(idx, size) + 0.5, y: tileY(idx, size) + 0.5 };
   return { x: b.x + b.w / 2, y: b.y + b.h + 0.5 };
 }

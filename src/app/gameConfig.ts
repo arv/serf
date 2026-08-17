@@ -36,6 +36,12 @@ export function configFromUrl(search: string): GameConfig {
   const parsedSeed = Number(params.get('seed'));
   const seed = Number.isFinite(parsedSeed) && params.get('seed') ? parsedSeed : DEFAULT_SEED;
 
+  // ?size=N: grid side in tiles. Same hand-editable-URL hygiene as ?seed —
+  // non-numeric falls back to the default, and createWorld clamps the rest
+  // to [MIN_MAP_SIZE, MAX_MAP_SIZE].
+  const parsedSize = Number(params.get('size'));
+  const mapSize = Number.isFinite(parsedSize) && params.get('size') ? parsedSize : undefined;
+
   // ?ai=N: skirmish vs N computer opponents (seat 0 = you). ?players=N is
   // the dev testbed: N human seats, the extras sitting inert.
   const aiParam = Number(params.get('ai') ?? '0');
@@ -60,6 +66,7 @@ export function configFromUrl(search: string): GameConfig {
   return {
     seed,
     players,
+    ...(mapSize !== undefined ? { mapSize } : {}),
     myPlayerId: 0,
     adminEnabled: true, // solo modes keep the sandbox switches live
     // ?bandits=0 turns the neutral hostiles off (the start screen's toggle).

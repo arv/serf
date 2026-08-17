@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { configFromUrl } from './gameConfig';
+import { MISSION_DEFS } from '../sim/defs/missions';
 
 /**
  * The start screen speaks to the game entirely through the query string, so
@@ -11,7 +12,7 @@ describe('configFromUrl', () => {
     const c = configFromUrl('');
     expect(c.players).toEqual([{ kind: 'human' }]);
     expect(c.banditsEnabled).toBe(true);
-    expect(c.seed).toBe(20260724);
+    expect(c.seed).toBe(17);
   });
 
   it('reads ?bandits=0 — and only that exact value', () => {
@@ -51,21 +52,23 @@ describe('configFromUrl', () => {
   it('ignores junk rather than booting a broken world', () => {
     expect(configFromUrl('?ai=abc').players).toEqual([{ kind: 'human' }]);
     // A NaN seed used to reach worldgen and produce nonsense.
-    expect(configFromUrl('?seed=abc').seed).toBe(20260724);
-    expect(configFromUrl('?seed=').seed).toBe(20260724);
+    expect(configFromUrl('?seed=abc').seed).toBe(17);
+    expect(configFromUrl('?seed=').seed).toBe(17);
   });
 
   it('boots a campaign mission from ?mission=, def over URL', () => {
     const c = configFromUrl('?mission=levy');
     expect(c.mission).toBe('levy');
-    expect(c.seed).toBe(404);
+    // Off the def, not a literal: mission seeds are re-pinned data and this
+    // test is about the def winning over the URL, not about which seed.
+    expect(c.seed).toBe(MISSION_DEFS.levy.seed);
     expect(c.banditsEnabled).toBe(true);
     expect(c.players).toEqual([{ kind: 'human' }]);
     expect(c.myPlayerId).toBe(0);
     // The def is the whole recipe: a stray ?seed or ?ai does not perturb
     // the mission's pinned world.
     const pinned = configFromUrl('?mission=clearing&seed=999&ai=2');
-    expect(pinned.seed).toBe(101);
+    expect(pinned.seed).toBe(MISSION_DEFS.clearing.seed);
     expect(pinned.players).toEqual([{ kind: 'human' }]);
     expect(pinned.banditsEnabled).toBe(false);
     // The bonus mission carries its rival.
@@ -77,7 +80,7 @@ describe('configFromUrl', () => {
 
   it('ignores a mission nobody has heard of', () => {
     expect(configFromUrl('?mission=nonesuch').mission).toBeUndefined();
-    expect(configFromUrl('?mission=nonesuch').seed).toBe(20260724);
+    expect(configFromUrl('?mission=nonesuch').seed).toBe(17);
     expect(configFromUrl('?mission=constructor').mission).toBeUndefined();
     expect(configFromUrl('?mission=').mission).toBeUndefined();
   });

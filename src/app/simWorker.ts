@@ -181,6 +181,7 @@ function init(
     type: 'ready',
     sab,
     map: {
+      size: world.map.size,
       terrain: world.map.terrain.slice(),
       resource: world.map.resource.slice(),
       blocked: world.map.blocked.slice(),

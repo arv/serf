@@ -86,9 +86,36 @@ export const ALE_TRAIN_SPEEDUP = 1.25;
 // first raid now has to wait out a house as well as a barracks. At the old
 // seven minutes every playbook met the first wave a squad short and the
 // campaign stopped being winnable.
-export const FIRST_RAID_TICK = 540 * TICKS_PER_SECOND; // 9 minutes of peace
+export const FIRST_RAID_TICK = 540 * TICKS_PER_SECOND; // 9 minutes of peace on the classic 64 map
 export const RAID_INTERVAL = 180 * TICKS_PER_SECOND;
 export const RAID_CAP = 8;
+
+/**
+ * The peace period, scaled to the map being played. The 9 minutes above
+ * were tuned against 64-tile commutes; every haul on a bigger map walks
+ * proportionally further, the economy ramps proportionally slower, and a
+ * raid clock that ignored that made every playbook meet the first wave a
+ * squad short again (measured: 8 of 9 seeds unwinnable at 96 on the flat
+ * clock). Linear in the map side, exact integer math, and exactly
+ * FIRST_RAID_TICK at 64. Mission overrides bypass this — a mission's
+ * pinned clock is tuned against its pinned world.
+ */
+export function firstRaidTickFor(mapSize: number): number {
+  return Math.floor((FIRST_RAID_TICK * mapSize) / 64);
+}
+
+/**
+ * The between-waves clock, scaled the same way and for the same reason:
+ * on a bigger map the defender's whole answer to a wave — the march home,
+ * the rebuild, the next batch through the barracks — walks proportionally
+ * further, while a flat 3-minute respawn kept the classic pressure. The
+ * raiders' own longer march absorbs some of it, but the interval starts
+ * counting at SPAWN, so back-to-back waves overlapped harder at 96 than
+ * 64 ever saw. Exactly RAID_INTERVAL at 64.
+ */
+export function raidIntervalFor(mapSize: number): number {
+  return Math.floor((RAID_INTERVAL * mapSize) / 64);
+}
 
 // Training
 export const TRAIN_QUEUE_CAP = 5;
