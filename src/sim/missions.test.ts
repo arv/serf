@@ -216,7 +216,7 @@ describe('the campaign missions', () => {
     // And a mission with no clock override keeps the default — the
     // size-scaled peace period, since raid pacing follows the commutes.
     const finale = createWorld(missionWorldConfig('holdTheValley'));
-    expect(finale.raidState.nextRaidTick).toBe(firstRaidTickFor(finale.map.size));
+    expect(finale.raidState.nextRaidTick).toBe(firstRaidTickFor(finale.map.play));
   });
 
   it('mission worlds are deterministic: same id, same world, tick for tick', () => {

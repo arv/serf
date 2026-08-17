@@ -219,10 +219,16 @@ function scaleCoord(size: number, n: number): number {
  * seat count anyone can read in the source"), so the AI brain may aim its
  * scouts at rival doorsteps without cheating.
  */
-export function startLayout(play: number, seats: number): [number, number][] | undefined {
-  // Grid coordinates: the classic play-relative literals, shifted by the
-  // scenery margin the grid carries around the play square.
-  const off = marginFor(play);
+export function startLayout(
+  play: number,
+  margin: number,
+  seats: number,
+): [number, number][] | undefined {
+  // Grid coordinates: the classic play-relative literals, shifted by
+  // whatever scenery margin the grid actually carries — passed in rather
+  // than derived, because hand-built worlds (tests, one day the editor)
+  // may run margin-less while generated grids use the canonical ring.
+  const off = margin;
   const sc = (n: number): number => off + scaleCoord(play, n);
   switch (seats) {
     case 1:
@@ -256,8 +262,8 @@ export function startLayout(play: number, seats: number): [number, number][] | u
  * 10/51 pair at 64). Exported so the AI's scout landmarks are the same
  * spots worldgen actually used, never a drifted copy.
  */
-export function campCorners(play: number): [number, number][] {
-  const off = marginFor(play);
+export function campCorners(play: number, margin: number = marginFor(play)): [number, number][] {
+  const off = margin;
   const a = off + scaleCoord(play, 10);
   const far = off + play - scaleCoord(play, 10) - 3;
   return [
@@ -276,7 +282,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
   const seed = config.seed | 0;
   const size = resolveMapSize(config.mapSize);
   const mission = config.mission ? MISSION_DEFS[config.mission] : undefined;
-  const layout = startLayout(size, config.players.length);
+  const layout = startLayout(size, marginFor(size), config.players.length);
   if (!layout) throw new Error(`no start layout for ${config.players.length} players`);
   const starts = layout.map(([x, y]) => ({ x, y }));
 

@@ -968,13 +968,13 @@ function searchLandmarks(world: World): [number, number][] {
   const pts: [number, number][] = [];
   // Rival doorsteps (the seat's own start is explored from tick 0 and
   // drops out on its own). Storehouses are 3x3, so +1 is the center.
-  for (const [sx, sy] of startLayout(world.map.play, world.players.length) ?? []) {
+  for (const [sx, sy] of startLayout(world.map.play, playMin(world.map), world.players.length) ?? []) {
     pts.push([sx + 1, sy + 1]);
   }
   // Camp seeds: the middle, then the corners — the very spots worldgen
   // seeds from (campCorners), at their 3x3 centers.
   pts.push([size / 2, size / 2]);
-  for (const [cx, cy] of campCorners(world.map.play)) pts.push([cx + 1, cy + 1]);
+  for (const [cx, cy] of campCorners(world.map.play, playMin(world.map))) pts.push([cx + 1, cy + 1]);
   return pts;
 }
 
@@ -1039,7 +1039,7 @@ export function approachPoint(goal: number, size: number): { x: number; y: numbe
  */
 export function rivalDoorstep(world: World, owner: Owner): number {
   const size = world.map.size;
-  const start = startLayout(world.map.play, world.players.length)?.[owner];
+  const start = startLayout(world.map.play, playMin(world.map), world.players.length)?.[owner];
   if (!start) return -1;
   return tileIdx(start[0] + 1, Math.min(size - 1, start[1] + 5), size);
 }
