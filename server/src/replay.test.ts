@@ -6,6 +6,7 @@ import { createWorld } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
 import type { SimCommand } from '../../src/sim/commands.ts';
 import type { ReplayData } from '../../src/app/replay.ts';
+import { DEFAULT_MAP_SIZE } from '../../src/shared/grid.ts';
 import {
   TICK_MS,
   addSeat,
@@ -51,7 +52,7 @@ function playBack(replay: ReplayData) {
 
 describe('server replay recording', () => {
   it('is withheld while the match is undecided', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 555, bots: [] });
+    const room = createRoom('closed', { ai: 1, bandits: false, seed: 555, size: DEFAULT_MAP_SIZE, bots: [] });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 20);
@@ -63,7 +64,7 @@ describe('server replay recording', () => {
     // the whole world at every tick, so a replay handed to a beaten player
     // while their rivals play on is a maphack by proxy — their game being
     // over is not the game being over.
-    const room = createRoom('closed', { ai: 0, bandits: false, seed: 21, bots: [] });
+    const room = createRoom('closed', { ai: 0, bandits: false, seed: 21, size: DEFAULT_MAP_SIZE, bots: [] });
     const winner = addSeat(room, 'human', null);
     addSeat(room, 'human', null);
     const fallen = addSeat(room, 'human', null);
@@ -82,7 +83,7 @@ describe('server replay recording', () => {
   });
 
   it('reproduces the pumped match without re-running the AI', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 900, bots: [] });
+    const room = createRoom('closed', { ai: 1, bandits: false, seed: 900, size: DEFAULT_MAP_SIZE, bots: [] });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
 
@@ -112,7 +113,7 @@ describe('server replay recording', () => {
   });
 
   it('carries the log across a same-version restore, whole match intact', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 4141, bots: [] });
+    const room = createRoom('closed', { ai: 1, bandits: false, seed: 4141, size: DEFAULT_MAP_SIZE, bots: [] });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 60);
@@ -143,7 +144,7 @@ describe('server replay recording', () => {
   });
 
   it('rebases onto the snapshot when the version changed across the deploy', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 660, bots: [] });
+    const room = createRoom('closed', { ai: 1, bandits: false, seed: 660, size: DEFAULT_MAP_SIZE, bots: [] });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 80);

@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { MAP_SIZE } from '../shared/grid';
 import { WATER_LEVEL, type MapView } from '../sim/map';
 import { palette } from './palette';
 
@@ -22,17 +21,21 @@ export class WaterMesh {
   #time = { value: 0 };
 
   constructor(map: MapView) {
-    const geometry = new THREE.PlaneGeometry(MAP_SIZE + 40, MAP_SIZE + 40, 1, 1);
+    const size = map.size;
+    // Twice the map on a side: open sea past every shore, wide enough that
+    // no camera position inside the pan bounds ever sees its rim — the
+    // fog band (renderer.ts) hazes it out long before that.
+    const geometry = new THREE.PlaneGeometry(size * 2, size * 2, 1, 1);
     geometry.rotateX(-Math.PI / 2);
-    geometry.translate(MAP_SIZE / 2, WATER_LEVEL, MAP_SIZE / 2);
+    geometry.translate(size / 2, WATER_LEVEL, size / 2);
 
     // Bed elevations as a single-channel float texture. Nearest sampling on
     // purpose: the shader does its own bilinear so it matches HeightField
     // (samples at tile centers) and never depends on float-filtering support.
     const bed = new THREE.DataTexture(
       map.height,
-      MAP_SIZE,
-      MAP_SIZE,
+      size,
+      size,
       THREE.RedFormat,
       THREE.FloatType,
     );
@@ -54,7 +57,7 @@ export class WaterMesh {
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = this.#time;
       shader.uniforms.uBed = { value: bed };
-      shader.uniforms.uMapSize = { value: MAP_SIZE };
+      shader.uniforms.uMapSize = { value: size };
       shader.uniforms.uWaterLevel = { value: WATER_LEVEL };
       shader.uniforms.uShallow = { value: new THREE.Color(palette.waterShore) };
       shader.uniforms.uMid = { value: new THREE.Color(palette.water) };

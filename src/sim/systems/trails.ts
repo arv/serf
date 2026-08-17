@@ -72,13 +72,14 @@ function paveStep(world: World): void {
     picks.push(i);
   }
   picks.sort((a, z) => map.wear[z]! - map.wear[a]! || a - z);
+  const size = map.size;
   for (const idx of picks.slice(0, MAX_CONCURRENT_PAVING - active)) {
     // The stone bill goes to whoever wore the trail: attribute the tile to
     // the nearest live storage building's owner — and only pave when that
     // owner has actually researched Masonry.
-    const owner = nearestStorageOwner(world, tileX(idx), tileY(idx));
+    const owner = nearestStorageOwner(world, tileX(idx, size), tileY(idx, size));
     if (owner === undefined || !world.players[owner]?.pavingUnlocked) continue;
-    placeSite(world, 'roadSite', owner, tileX(idx), tileY(idx));
+    placeSite(world, 'roadSite', owner, tileX(idx, size), tileY(idx, size));
   }
 }
 

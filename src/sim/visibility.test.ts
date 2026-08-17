@@ -12,7 +12,7 @@ describe('seat vision', () => {
     spawnUnit(world, 'serf', 0, 20.5, 20.5);
     spawnUnit(world, 'serf', 1, 40.5, 40.5);
 
-    const mine = new SeatVision();
+    const mine = new SeatVision(world.map.size);
     mine.recompute(world, 0);
 
     expect(mine.canSee(20.5, 20.5)).toBe(true);
@@ -23,7 +23,7 @@ describe('seat vision', () => {
   it('sees exactly as far as the sight radius', () => {
     const world = bareWorld();
     spawnUnit(world, 'serf', 0, 32.5, 32.5);
-    const v = new SeatVision();
+    const v = new SeatVision(world.map.size);
     v.recompute(world, 0);
 
     // Tile centers line up with the unit's, so distance is the tile offset.
@@ -35,7 +35,7 @@ describe('seat vision', () => {
   it('remembers explored ground after the unit walks away', () => {
     const world = bareWorld();
     const scout = spawnUnit(world, 'serf', 0, 10.5, 10.5);
-    const v = new SeatVision();
+    const v = new SeatVision(world.map.size);
     v.recompute(world, 0);
     expect(v.canSee(10.5, 10.5)).toBe(true);
 
@@ -50,7 +50,7 @@ describe('seat vision', () => {
   it('reports newly lit tiles once, when they light up', () => {
     const world = bareWorld();
     const scout = spawnUnit(world, 'serf', 0, 10.5, 10.5);
-    const v = new SeatVision();
+    const v = new SeatVision(world.map.size);
     v.recompute(world, 0);
     const first = v.revealed.length;
     expect(first).toBeGreaterThan(0);
@@ -83,7 +83,7 @@ describe('seat vision', () => {
   it('gives a storehouse a wider view than a unit', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const v = new SeatVision();
+    const v = new SeatVision(world.map.size);
     v.recompute(world, 0);
     // Storehouse sight is 9 plus half its footprint, well beyond a serf's.
     expect(v.canSee(30 + 10.5, 31.5)).toBe(true);
@@ -93,7 +93,7 @@ describe('seat vision', () => {
     const world = bareWorld();
     const u = spawnUnit(world, 'serf', 0, 15.5, 15.5);
     u.dead = true;
-    const v = new SeatVision();
+    const v = new SeatVision(world.map.size);
     v.recompute(world, 0);
     expect(v.canSee(15.5, 15.5)).toBe(false);
   });
@@ -101,9 +101,9 @@ describe('seat vision', () => {
   it('keeps the visible grid consistent with canSee', () => {
     const world = bareWorld();
     spawnUnit(world, 'serf', 0, 25.5, 25.5);
-    const v = new SeatVision();
+    const v = new SeatVision(world.map.size);
     v.recompute(world, 0);
-    expect(v.visible[tileIdx(25, 25)]).toBe(1);
-    expect(v.visible[tileIdx(0, 0)]).toBe(0);
+    expect(v.visible[tileIdx(25, 25, world.map.size)]).toBe(1);
+    expect(v.visible[tileIdx(0, 0, world.map.size)]).toBe(0);
   });
 });

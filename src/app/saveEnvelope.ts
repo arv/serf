@@ -1,5 +1,3 @@
-import { TILE_COUNT } from '../shared/grid';
-
 /**
  * The solo save as it sits in storage: the worker's world serialization
  * plus the renderer's fog memory. The world alone used to be the whole
@@ -20,8 +18,8 @@ const FMT = 'serf-save-v2';
  * with replays, which carry the same grid when one boots from a save —
  * and with the server, whose own packing (persist.ts) is bit-compatible. */
 export function packExplored(explored: Uint8Array): string {
-  const bytes = new Uint8Array(Math.ceil(TILE_COUNT / 8));
-  for (let i = 0; i < TILE_COUNT; i++) {
+  const bytes = new Uint8Array(Math.ceil(explored.length / 8));
+  for (let i = 0; i < explored.length; i++) {
     if (explored[i]) bytes[i >> 3] = bytes[i >> 3]! | (1 << (i & 7));
   }
   let bin = '';
@@ -29,11 +27,11 @@ export function packExplored(explored: Uint8Array): string {
   return btoa(bin);
 }
 
-export function unpackExplored(packed: string): Uint8Array | undefined {
+export function unpackExplored(packed: string, tiles: number): Uint8Array | undefined {
   try {
     const bin = atob(packed);
-    const out = new Uint8Array(TILE_COUNT);
-    for (let i = 0; i < TILE_COUNT; i++) {
+    const out = new Uint8Array(tiles);
+    for (let i = 0; i < tiles; i++) {
       const byte = bin.charCodeAt(i >> 3);
       if (Number.isNaN(byte)) break; // truncated: keep what decoded
       if (byte & (1 << (i & 7))) out[i] = 1;
@@ -48,14 +46,17 @@ export function envelopeSave(world: string, explored: Uint8Array): string {
   return JSON.stringify({ fmt: FMT, world, explored: packExplored(explored) });
 }
 
-export function splitSave(data: string): { world: string; explored?: Uint8Array } {
+/** Split the envelope without unpacking the fog: at load time the world's
+ * grid size is not known yet (it only arrives with the init frame), so the
+ * explored grid stays packed here and the caller unpacks it — via
+ * `unpackExplored(str, tiles)` — once the size is in hand. */
+export function splitSave(data: string): { world: string; explored?: string } {
   try {
     const parsed = JSON.parse(data) as { fmt?: string; world?: string; explored?: string };
     if (parsed?.fmt === FMT && typeof parsed.world === 'string') {
       return {
         world: parsed.world,
-        explored:
-          typeof parsed.explored === 'string' ? unpackExplored(parsed.explored) : undefined,
+        explored: typeof parsed.explored === 'string' ? parsed.explored : undefined,
       };
     }
   } catch {

@@ -2,6 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_MAP_SIZE } from '../../src/shared/grid.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
 import { serializeWorld } from '../../src/sim/save.ts';
 import {
@@ -20,7 +21,7 @@ import { persistRooms, restorePersistedRooms, roomFromRecord, roomToRecord } fro
 
 /** A running two-seat match (one human, one AI), a few hundred ticks in. */
 function runningRoom(seed: number) {
-  const room = createRoom('closed', { ai: 1, bandits: false, seed, bots: [] });
+  const room = createRoom('closed', { ai: 1, bandits: false, seed, size: DEFAULT_MAP_SIZE, bots: [] });
   const seat = addSeat(room, 'human', null);
   startMatch(room);
   for (let i = 0; i < 200; i++) tickWorld(room.world!, []);
@@ -61,7 +62,7 @@ describe('room persistence', () => {
   });
 
   it('lobby rooms have no record — their tokens were never dealt', () => {
-    const lobby = createRoom('open', { ai: 0, bandits: true, seed: 1, bots: [] });
+    const lobby = createRoom('open', { ai: 0, bandits: true, seed: 1, size: DEFAULT_MAP_SIZE, bots: [] });
     addSeat(lobby, 'human', null);
     expect(roomToRecord(lobby)).toBeUndefined();
   });

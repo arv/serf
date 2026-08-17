@@ -151,7 +151,8 @@ export class MovePredictor {
   #advance(p: Prediction): void {
     const path = p.path;
     if (!path) return;
-    const here = tileIdx(Math.floor(p.x), Math.floor(p.y));
+    const size = this.#map.size;
+    const here = tileIdx(Math.floor(p.x), Math.floor(p.y), size);
     let budget = p.baseSpeed * tileSpeedMult(this.#map, here);
     while (budget > 0 && p.pathIdx < path.length) {
       const next = path[p.pathIdx]!;
@@ -159,8 +160,8 @@ export class MovePredictor {
         p.path = null;
         return;
       }
-      const wx = tileX(next) + 0.5;
-      const wy = tileY(next) + 0.5;
+      const wx = tileX(next, size) + 0.5;
+      const wy = tileY(next, size) + 0.5;
       const dx = wx - p.x;
       const dy = wy - p.y;
       const dist = Math.sqrt(dx * dx + dy * dy);

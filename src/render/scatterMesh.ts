@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MAP_SIZE, TILE_COUNT, tileX, tileY } from '../shared/grid';
+import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, TileResource, type MapView } from '../sim/map';
 import { palette } from './palette';
@@ -29,16 +29,17 @@ export function crossedQuads(width: number, height: number): THREE.BufferGeometr
 }
 
 function touchesWater(map: MapView, idx: number): boolean {
-  const x = idx % MAP_SIZE;
-  const y = (idx / MAP_SIZE) | 0;
+  const size = map.size;
+  const x = tileX(idx, size);
+  const y = tileY(idx, size);
   for (const [nx, ny] of [
     [x - 1, y],
     [x + 1, y],
     [x, y - 1],
     [x, y + 1],
   ] as const) {
-    if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
-    if (map.terrain[ny * MAP_SIZE + nx] === Terrain.Water) return true;
+    if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+    if (map.terrain[ny * size + nx] === Terrain.Water) return true;
   }
   return false;
 }
@@ -65,6 +66,7 @@ export class ScatterMesh {
   readonly group = new THREE.Group();
   #archetypes = new Map<string, Archetype>();
   #heights: HeightField;
+  #size: number;
   #trees = false;
   #treeSpecies = 0;
   #rockSpecies = 0;
@@ -78,12 +80,14 @@ export class ScatterMesh {
 
   constructor(map: MapView, heights: HeightField) {
     this.#heights = heights;
+    this.#size = map.size;
+    const tiles = tileCount(map.size);
     // Count instances per archetype first (instanced meshes need fixed capacity).
     let groveTiles = 0;
     let rockTiles = 0;
     let oreTiles = 0;
     const shoreTiles: number[] = [];
-    for (let i = 0; i < TILE_COUNT; i++) {
+    for (let i = 0; i < tiles; i++) {
       const res = map.resource[i];
       if (res === TileResource.Wood) groveTiles++;
       else if (res === TileResource.Rock) rockTiles++;
@@ -154,20 +158,21 @@ export class ScatterMesh {
       this.#addArchetype('ore', new THREE.OctahedronGeometry(0.16), flat(0xffffff), oreTiles * 4);
     }
 
-    for (let i = 0; i < TILE_COUNT; i++) {
+    for (let i = 0; i < tiles; i++) {
       const res = map.resource[i];
       // A resource tile with all its neighbors blocked sits in the middle
       // of a formation: nothing walks there, so its rocks may sprawl big.
       // Edge tiles keep their rocks contained — a miner stands next door.
       const interior = ((): boolean => {
-        const x = tileX(i);
-        const y = tileY(i);
+        const size = map.size;
+        const x = tileX(i, size);
+        const y = tileY(i, size);
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
             const nx = x + dx;
             const ny = y + dy;
-            if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
-            if (map.blocked[ny * MAP_SIZE + nx] === 0) return false;
+            if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+            if (map.blocked[ny * size + nx] === 0) return false;
           }
         }
         return true;
@@ -273,8 +278,8 @@ export class ScatterMesh {
   }
 
   #placeGrove(tile: number): void {
-    const tx = tileX(tile);
-    const ty = tileY(tile);
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
     if (this.#trees) {
       // A mixed stand: two trees per tile, species/size/lean/tint all
       // hash-varied so no two copses repeat.
@@ -354,8 +359,8 @@ export class ScatterMesh {
   }
 
   #placeRock(tile: number, interior = false): void {
-    const tx = tileX(tile);
-    const ty = tileY(tile);
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
     const tex = this.#rockSpecies > 0;
     for (let k = 0; k < 2; k++) {
       // KayKit rocks are span-normalized (hex-tile authoring is wider than
@@ -394,8 +399,8 @@ export class ScatterMesh {
 
   /** Boulders spilling down the bank toward the water. */
   #placeShoreRocks(tile: number): void {
-    const tx = tileX(tile);
-    const ty = tileY(tile);
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
     const tex = this.#rockSpecies > 0;
     for (let k = 0; k < 2; k++) {
       if (k === 1 && hash2(tile, 95) < 0.5) continue;
@@ -419,8 +424,8 @@ export class ScatterMesh {
   }
 
   #placeOre(tile: number, res: number, interior = false): void {
-    const tx = tileX(tile);
-    const ty = tileY(tile);
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
     const tex = this.#rockSpecies > 0;
     const color =
       res === TileResource.IronDep

@@ -63,8 +63,8 @@ describe('a route obstructed mid-walk', () => {
 
     run(world, 20 * 30);
     expect(knight.task.t).toBe('idle');
-    const gx = tileX(goal) + 0.5;
-    const gy = tileY(goal) + 0.5;
+    const gx = tileX(goal, world.map.size) + 0.5;
+    const gy = tileY(goal, world.map.size) + 0.5;
     expect(Math.hypot(knight.x - gx, knight.y - gy)).toBeLessThanOrEqual(4);
   });
 
@@ -81,7 +81,13 @@ describe('a route obstructed mid-walk', () => {
     // beside it, so there is genuinely nowhere left to go.
     for (let dy = -3; dy <= 3; dy++) {
       for (let dx = -3; dx <= 3; dx++) {
-        world.map.blocked[tileIdx(tileX(goal) + dx, tileY(goal) + dy)] = 1;
+        world.map.blocked[
+          tileIdx(
+            tileX(goal, world.map.size) + dx,
+            tileY(goal, world.map.size) + dy,
+            world.map.size,
+          )
+        ] = 1;
       }
     }
     world.map.blocked[path[knight.pathIdx]!] = 1; // and the step that breaks the walk
@@ -109,7 +115,7 @@ describe('a route obstructed mid-walk', () => {
 
     // A wall across the whole column's route, bar one gap far to the south.
     for (let y = 20; y < 42; y++) {
-      if (y !== 38) world.map.blocked[tileIdx(35, y)] = 1;
+      if (y !== 38) world.map.blocked[tileIdx(35, y, world.map.size)] = 1;
     }
     run(world, 20 * 90);
 

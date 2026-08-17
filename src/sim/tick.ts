@@ -301,8 +301,9 @@ function applyMoveUnits(
   playerId: Owner,
   cmd: { unitIds: number[]; x: number; y: number; attack?: true | 'half' },
 ): void {
-  if (inBounds(cmd.x, cmd.y)) {
-    const bId = world.map.buildingAt[tileIdx(cmd.x, cmd.y)]!;
+  const size = world.map.size;
+  if (inBounds(cmd.x, cmd.y, size)) {
+    const bId = world.map.buildingAt[tileIdx(cmd.x, cmd.y, size)]!;
     const target = bId >= 0 ? world.buildings.get(bId) : undefined;
     if (target && !target.dead && target.owner !== playerId) {
       for (const id of cmd.unitIds) {
@@ -324,8 +325,8 @@ function applyMoveUnits(
     const unit = world.units.get(id);
     if (!unit || unit.dead || unit.owner !== playerId) continue;
     const goal = targets[Math.min(t++, targets.length - 1)]!;
-    const goalX = tileX(goal);
-    const goalY = tileY(goal);
+    const goalX = tileX(goal, size);
+    const goalY = tileY(goal, size);
     const path = findPath(world.map, Math.floor(unit.x), Math.floor(unit.y), goalX, goalY);
     // An order that cannot be walked changes nothing. Quitting first and
     // asking afterwards stranded a resident worker for good: unbindWorker
@@ -369,8 +370,8 @@ function collectSpreadTargets(world: World, x: number, y: number, count: number)
   const seen = new Set<number>();
   const first = nearestWalkable(world.map, x, y);
   if (first < 0) return out;
-  const fx = tileX(first);
-  const fy = tileY(first);
+  const fx = tileX(first, world.map.size);
+  const fy = tileY(first, world.map.size);
   for (let r = 0; r <= 6 && out.length < count; r++) {
     for (let dy = -r; dy <= r && out.length < count; dy++) {
       for (let dx = -r; dx <= r && out.length < count; dx++) {

@@ -28,7 +28,7 @@ export class AiSeats {
     // and restart since.
     this.#brains = world.players
       .filter((p) => p.kind === 'ai')
-      .map((p) => new AiBrain(p.id, strategyOf(p.strategy)));
+      .map((p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
   }
 
   get count(): number {

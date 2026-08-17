@@ -1,4 +1,4 @@
-import { TILE_COUNT } from '../shared/grid.ts';
+import { tileCount } from '../shared/grid.ts';
 import type { GameMap } from './map.ts';
 import type { PlayerState } from './player.ts';
 import type { MatchOutcome, World } from './world.ts';
@@ -10,12 +10,14 @@ import type { MatchOutcome, World } from './world.ts';
  * `blocked` is part of the map state and round-trips as data.
  *
  * Version 3 renamed every sim id (goods, buildings, units, techs) to its
- * medieval form. Older saves store the old id strings, so they are refused
- * rather than silently mis-loaded.
+ * medieval form. Version 4 made the grid size per-game data (and grew the
+ * default world), so a v3 save's arrays no longer describe any world this
+ * build can generate. Older saves are refused rather than silently
+ * mis-loaded.
  */
 
 interface SaveFile {
-  version: 3;
+  version: 4;
   world: {
     /** Absent in saves from before the toggle existed; those ran bandits. */
     banditsEnabled?: boolean;
@@ -23,7 +25,8 @@ interface SaveFile {
     rngState: number;
     nextId: number;
     nextJobId: number;
-    map: Record<keyof GameMap, number[]>;
+    mapSize: number;
+    map: Record<Exclude<keyof GameMap, 'size'>, number[]>;
     units: unknown[];
     buildings: unknown[];
     jobs: unknown[];
@@ -41,13 +44,14 @@ interface SaveFile {
 
 export function serializeWorld(world: World): string {
   const file: SaveFile = {
-    version: 3,
+    version: 4,
     world: {
       banditsEnabled: world.banditsEnabled,
       tick: world.tick,
       rngState: world.rngState,
       nextId: world.nextId,
       nextJobId: world.nextJobId,
+      mapSize: world.map.size,
       map: {
         terrain: [...world.map.terrain],
         resource: [...world.map.resource],
@@ -76,12 +80,13 @@ export function serializeWorld(world: World): string {
 
 export function deserializeWorld(json: string): World {
   const file = JSON.parse(json) as SaveFile;
-  if (file.version !== 3) {
+  if (file.version !== 4) {
     throw new Error('save is from an older version of the game');
   }
   const w = file.world;
 
   const map: GameMap = {
+    size: w.mapSize,
     terrain: Uint8Array.from(w.map.terrain),
     resource: Uint8Array.from(w.map.resource),
     resourceAmt: Uint8Array.from(w.map.resourceAmt),
@@ -91,7 +96,9 @@ export function deserializeWorld(json: string): World {
     pathLevel: Uint8Array.from(w.map.pathLevel),
     height: Float32Array.from(w.map.height),
   };
-  if (map.terrain.length !== TILE_COUNT) throw new Error('corrupt save: bad map size');
+  if (!Number.isInteger(map.size) || map.terrain.length !== tileCount(map.size)) {
+    throw new Error('corrupt save: bad map size');
+  }
 
   return {
     banditsEnabled: w.banditsEnabled ?? true,

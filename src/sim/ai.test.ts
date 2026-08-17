@@ -25,7 +25,7 @@ function runWithBrains(config: WorldConfig, maxTicks: number, onTick?: (w: World
   // the same lookup AiSeats does for the hosts.
   const brains = world.players
     .filter((p) => p.kind === 'ai')
-    .map((p) => new AiBrain(p.id, strategyOf(p.strategy)));
+    .map((p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
   for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
     const commands: PlayerCommand[] = [];
     for (const brain of brains) {
@@ -82,7 +82,7 @@ describe('strategist overrides', () => {
    * the castle; a march is the whole muster ordered anywhere else. */
   function firstMarchTick(override: Partial<AiStrategy> | null, maxTicks: number): number {
     const world = createWorld({ seed: 20260724, players: [{ kind: 'ai', strategy: 'steward' }] });
-    const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy));
+    const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy), world.map.size);
     if (override) brain.setOverride(override);
     const castle = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
     const home = { x: castle.x + 1, y: castle.y + 1 + 4 };
@@ -110,7 +110,7 @@ describe('strategist overrides', () => {
     const baseline = digest(runWithBrains(config, 3000));
 
     const world = createWorld(config);
-    const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy));
+    const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
     for (let t = 0; t < 3000 && world.outcome.state === 'playing'; t++) {
       // An empty override spreads to the same values; clearing goes back to
       // the playbook object itself. Either way: the identical game.

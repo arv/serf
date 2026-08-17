@@ -63,10 +63,10 @@ import { volumeToGain } from '../audio/settings';
 import { markMissionComplete } from '../ui/campaign';
 import { MISSION_DEFS } from '../sim/defs/missions';
 import { Terrain } from '../sim/map';
-import { inBounds, tileIdx } from '../shared/grid';
+import { inBounds, tileCount, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
 import { REPLAY_VERSION } from '../shared/replayVersion';
-import { envelopeSave, packExplored, splitSave, unpackExplored } from './saveEnvelope';
+import { envelopeSave, splitSave, unpackExplored } from './saveEnvelope';
 import { parseReplay, replayName, type ReplayData } from './replay';
 import { readReplayFile, saveReplayFile } from './replayStore';
 import { WorkerSimHost } from './simHost';
@@ -336,7 +336,9 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
           replay,
           // A replay that resumes from a save resumes its fog too, or the
           // playback would darken ground the player had already scouted.
-          fogSeed: replay.explored ? unpackExplored(replay.explored) : undefined,
+          // Kept packed: the world's size — and so the grid's length — is
+          // only known once the init frame arrives.
+          fogSeed: replay.explored,
         },
         key,
       ),
@@ -355,7 +357,7 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
   // A solo save is an envelope: the worker's world string plus the fog's
   // memory. Split it here — the worker gets exactly the string it wrote,
   // and the explored grid waits for the fog to exist.
-  let fogSeed: Uint8Array | undefined;
+  let fogSeed: string | undefined;
   if (loadData !== undefined) {
     const split = splitSave(loadData);
     loadData = split.world;
@@ -486,7 +488,7 @@ async function bootLlmStrategist(
  */
 async function runMatch(
   config: GameConfig,
-  opts: { loadData?: string; fogSeed?: Uint8Array; net?: NetInfo; replay?: ReplayData },
+  opts: { loadData?: string; fogSeed?: string; net?: NetInfo; replay?: ReplayData },
   key: string,
 ): Promise<Screen> {
   const { loadData, fogSeed, net, replay } = opts;
@@ -677,7 +679,11 @@ async function runMatch(
   if (import.meta.env.DEV) {
     Object.assign(window as unknown as Record<string, unknown>, { __mirror: mirror });
   }
-  const heights = new HeightField(init.map.height);
+  // The init frame is where this side learns the world's actual size: fog
+  // band, shadow box and camera bounds all resize to it before any content
+  // is added to the scene.
+  renderer.setWorldExtent(init.map.size);
+  const heights = new HeightField(init.map.height, init.map.size);
   const terrain = new TerrainMesh(init.map, heights);
   renderer.scene.add(terrain.mesh);
   const roads = new RoadDecal(init.map, heights);
@@ -703,7 +709,9 @@ async function runMatch(
   // Terrain feed for the pier measurement: on a corner-only shore the
   // fishery's deck swings 45 degrees toward the wet diagonal.
   buildingSync.setWater(
-    (tx, tz) => inBounds(tx, tz) && mirror.map.terrain[tileIdx(tx, tz)] === Terrain.Water,
+    (tx, tz) =>
+      inBounds(tx, tz, init.map.size) &&
+      mirror.map.terrain[tileIdx(tx, tz, init.map.size)] === Terrain.Water,
   );
   // Presentation cues flow render -> audio, injected like the fog: the
   // sync knows when and where, the audio layer knows whether and how loud.
@@ -720,7 +728,7 @@ async function runMatch(
     sync.setPiers(buildingSync.fisheryPiers());
   };
   feedWells();
-  const fog = new FogOfWar(config.myPlayerId);
+  const fog = new FogOfWar(config.myPlayerId, init.map.size);
   // Ahead of everything else at teardown: the materials it patched are
   // cached for the whole document, so they outlive this match and meet the
   // next one.
@@ -728,8 +736,12 @@ async function runMatch(
   // The fog's memory across sessions: multiplayer seats get the server's
   // authoritative explored grid; a loaded solo game gets the one its save
   // carried. Never both — solo has no server, multiplayer has no save.
-  if (init.explored) fog.seedExplored(init.explored);
-  else if (fogSeed) fog.seedExplored(fogSeed);
+  if (init.explored) {
+    fog.seedExplored(init.explored);
+  } else if (fogSeed) {
+    const seed = unpackExplored(fogSeed, tileCount(init.map.size));
+    if (seed) fog.seedExplored(seed);
+  }
   // One save string for every writer — the menu button and the GPU-crash
   // handoff alike: the world from the worker, the fog's memory from here.
   const saveGame = async (): Promise<string> =>
@@ -926,7 +938,7 @@ async function runMatch(
       // The fog this match booted with — not the fog now: it belongs to
       // the world the recording starts from, which for a loaded save is
       // the moment that save was written.
-      const data = await host.requestReplay(fogSeed ? packExplored(fogSeed) : undefined);
+      const data = await host.requestReplay(fogSeed);
       if (data === '') return null;
       // The store may suffix the name ("… (2)") when two saves land in the
       // same second; what it returns is what the file is actually called.

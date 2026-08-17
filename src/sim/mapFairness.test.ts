@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_SIZE, TILE_COUNT, tileX, tileY } from '../shared/grid.ts';
+import { DEFAULT_MAP_SIZE, tileCount, tileX, tileY } from '../shared/grid.ts';
 import { createWorld, type World } from './world.ts';
 import { CASTLE_OPENING_SIGHT, TileResource, type TileResourceKind } from './map.ts';
 
@@ -10,12 +10,14 @@ import { CASTLE_OPENING_SIGHT, TileResource, type TileResourceKind } from './map
  */
 
 const SEEDS = [1, 7, 1337, 20260724];
-const MID = MAP_SIZE / 2;
+const MID = DEFAULT_MAP_SIZE / 2;
 
 function tilesOf(world: World, code: TileResourceKind): [number, number][] {
+  const size = world.map.size;
   const out: [number, number][] = [];
-  for (let i = 0; i < TILE_COUNT; i++) {
-    if (world.map.resource[i] === code) out.push([tileX(i), tileY(i)]);
+  const tiles = tileCount(size);
+  for (let i = 0; i < tiles; i++) {
+    if (world.map.resource[i] === code) out.push([tileX(i, size), tileY(i, size)]);
   }
   return out;
 }

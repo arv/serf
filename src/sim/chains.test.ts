@@ -66,7 +66,7 @@ describe('convert chains', () => {
     // ...and water two tiles off is still inland. The pier is part of the
     // building, so the rule is "touching", not "near".
     for (let tx = 29; tx < 35; tx++) {
-      const i = tileIdx(tx, 27);
+      const i = tileIdx(tx, 27, world.map.size);
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
@@ -78,14 +78,14 @@ describe('convert chains', () => {
     // inland (waterFacing, searching the correct box, found nothing and
     // fell back to facing 0).
     for (let tx = 29; tx < 35; tx++) {
-      const i = tileIdx(tx, 34); // footprint y = 30..32, so this is 2 off
+      const i = tileIdx(tx, 34, world.map.size); // footprint y = 30..32, so this is 2 off
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
     expect(canPlace(world.map, 'fishery', 30, 30)).toBe(false);
     // ...and two off the east edge (footprint x = 30..32).
     for (let ty = 29; ty < 35; ty++) {
-      const i = tileIdx(34, ty);
+      const i = tileIdx(34, ty, world.map.size);
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
@@ -93,7 +93,7 @@ describe('convert chains', () => {
 
     // Water along the footprint's north edge (y = 29, footprint y = 30..32).
     for (let tx = 29; tx < 35; tx++) {
-      const i = tileIdx(tx, 29);
+      const i = tileIdx(tx, 29, world.map.size);
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
@@ -112,7 +112,7 @@ describe('convert chains', () => {
   it('the fishery faces east when the water is east', () => {
     const world = bareWorld();
     for (let ty = 29; ty < 35; ty++) {
-      const i = tileIdx(33, ty);
+      const i = tileIdx(33, ty, world.map.size);
       world.map.terrain[i] = Terrain.Water;
       world.map.blocked[i] = 1;
     }
@@ -173,7 +173,7 @@ describe('gatherer placement', () => {
     const world = bareWorld();
     expect(canPlace(world.map, 'ironMine', 30, 30)).toBe(false);
 
-    const dep = tileIdx(33, 31);
+    const dep = tileIdx(33, 31, world.map.size);
     world.map.resource[dep] = TileResource.IronDep;
     world.map.resourceAmt[dep] = 10;
     expect(canPlace(world.map, 'ironMine', 30, 30)).toBe(true);
@@ -212,7 +212,7 @@ describe('gatherer placement', () => {
     addResourceTile(world, 36, 31, TileResource.Wood, 1);
     expect(canPlace(world.map, 'woodcutter', 30, 30)).toBe(true);
 
-    depleteResourceTile(world, tileIdx(36, 31));
+    depleteResourceTile(world, tileIdx(36, 31, world.map.size));
     expect(canPlace(world.map, 'woodcutter', 30, 30)).toBe(false);
   });
 
@@ -229,7 +229,7 @@ describe('gatherer placement', () => {
 
   it('miner works the seam like any gather building', () => {
     const world = bareWorld();
-    const dep = tileIdx(33, 31);
+    const dep = tileIdx(33, 31, world.map.size);
     world.map.resource[dep] = TileResource.IronDep;
     world.map.resourceAmt[dep] = 10;
     const mine = placeBuiltBuilding(world, 'ironMine', 0, 30, 30);
@@ -250,7 +250,7 @@ describe('stone-road paving', () => {
     addSerf(world, 29, 34);
 
     // A hot trail tile: keep wear topped up like real traffic would.
-    const idx = tileIdx(30, 36);
+    const idx = tileIdx(30, 36, world.map.size);
     world.map.pathLevel[idx] = PathLevel.Trail;
     for (let t = 0; t < 20 * 60; t++) {
       world.map.wear[idx] = PAVE_WEAR_THRESHOLD + 10;
@@ -270,7 +270,7 @@ describe('stone-road paving', () => {
     const world = bareWorld();
     world.players[0]!.pavingUnlocked = false;
     addStorehouse(world, 30, 30, { stone: 10 });
-    const idx = tileIdx(30, 36);
+    const idx = tileIdx(30, 36, world.map.size);
     world.map.pathLevel[idx] = PathLevel.Trail;
     for (let t = 0; t < 300; t++) {
       world.map.wear[idx] = PAVE_WEAR_THRESHOLD + 10;

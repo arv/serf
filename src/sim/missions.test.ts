@@ -63,7 +63,7 @@ function playMission(id: MissionId, strategy: AiStrategyId, maxTicks: number): W
   const config = missionWorldConfig(id);
   config.players = config.players.map((p, i) => (i === 0 ? { kind: 'ai' as const } : p));
   const world = createWorld(config);
-  const brain = new AiBrain(0, AI_STRATEGIES[strategy]);
+  const brain = new AiBrain(0, AI_STRATEGIES[strategy], world.map.size);
   for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
     const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     tickWorld(
@@ -186,7 +186,7 @@ describe('the campaign missions', () => {
     config.players = config.players.map((p, i) => (i === 0 ? { kind: 'ai' as const } : p));
     const world = createWorld(config);
     expect(world.players[1]!.strategy).toBe('steward');
-    const brains = world.players.map((p) => new AiBrain(p.id, AI_STRATEGIES[p.strategy ?? 'steward']));
+    const brains = world.players.map((p) => new AiBrain(p.id, AI_STRATEGIES[p.strategy ?? 'steward'], world.map.size));
     for (let t = 0; t < 90_000 && world.outcome.state === 'playing'; t++) {
       const commands = [];
       for (const brain of brains) {

@@ -17,7 +17,7 @@
  * standing in lit ground who was never sent, which reads as a hole in the
  * world rather than as fog.
  */
-import { MAP_SIZE, TILE_COUNT, tileIdx } from '../shared/grid.ts';
+import { tileCount, tileIdx } from '../shared/grid.ts';
 import { UNIT_DEFS } from './defs/units.ts';
 import { buildingDef } from './defs/buildings.ts';
 import type { Owner } from './entities.ts';
@@ -36,16 +36,26 @@ export function buildingSight(type: Parameters<typeof buildingDef>[0], w: number
  * (a camp does not walk away).
  */
 export class SeatVision {
+  /** Grid side length of the map this vision watches. */
+  readonly size: number;
   /** 1 = observed this recompute. */
-  readonly visible = new Uint8Array(TILE_COUNT);
+  readonly visible: Uint8Array;
   /** 1 = observed at some point. Never goes back to 0. */
-  readonly explored = new Uint8Array(TILE_COUNT);
+  readonly explored: Uint8Array;
   /** Tiles that were dark last recompute and are lit now. The server owes
    * the client the current contents of these — a delta only fires when a
    * tile *changes*, so ground that was built on while unobserved would
    * otherwise stay wrong in the client's memory forever. */
   readonly revealed: number[] = [];
-  #prev = new Uint8Array(TILE_COUNT);
+  #prev: Uint8Array;
+
+  constructor(size: number) {
+    this.size = size;
+    const tiles = tileCount(size);
+    this.visible = new Uint8Array(tiles);
+    this.explored = new Uint8Array(tiles);
+    this.#prev = new Uint8Array(tiles);
+  }
 
   recompute(world: World, owner: Owner): void {
     this.visible.fill(0);
@@ -58,7 +68,8 @@ export class SeatVision {
       this.#stamp(b.x + b.w / 2, b.y + b.h / 2, buildingSight(b.type, b.w, b.h));
     }
     this.revealed.length = 0;
-    for (let i = 0; i < TILE_COUNT; i++) {
+    const tiles = tileCount(this.size);
+    for (let i = 0; i < tiles; i++) {
       const lit = this.visible[i]!;
       if (lit && !this.#prev[i]) this.revealed.push(i);
       if (lit) this.explored[i] = 1;
@@ -69,28 +80,29 @@ export class SeatVision {
   canSee(x: number, y: number): boolean {
     const tx = Math.floor(x);
     const ty = Math.floor(y);
-    if (tx < 0 || ty < 0 || tx >= MAP_SIZE || ty >= MAP_SIZE) return false;
-    return this.visible[tileIdx(tx, ty)] === 1;
+    if (tx < 0 || ty < 0 || tx >= this.size || ty >= this.size) return false;
+    return this.visible[tileIdx(tx, ty, this.size)] === 1;
   }
 
   hasExplored(x: number, y: number): boolean {
     const tx = Math.floor(x);
     const ty = Math.floor(y);
-    if (tx < 0 || ty < 0 || tx >= MAP_SIZE || ty >= MAP_SIZE) return false;
-    return this.explored[tileIdx(tx, ty)] === 1;
+    if (tx < 0 || ty < 0 || tx >= this.size || ty >= this.size) return false;
+    return this.explored[tileIdx(tx, ty, this.size)] === 1;
   }
 
   /** Light every tile whose center is within `radius` of (cx, cy). */
   #stamp(cx: number, cy: number, radius: number): void {
+    const size = this.size;
     const r = Math.ceil(radius);
     const x0 = Math.max(0, Math.floor(cx) - r);
-    const x1 = Math.min(MAP_SIZE - 1, Math.floor(cx) + r);
+    const x1 = Math.min(size - 1, Math.floor(cx) + r);
     const y0 = Math.max(0, Math.floor(cy) - r);
-    const y1 = Math.min(MAP_SIZE - 1, Math.floor(cy) + r);
+    const y1 = Math.min(size - 1, Math.floor(cy) + r);
     const rr = radius * radius; // squared: no sqrt in the inner loop
     for (let y = y0; y <= y1; y++) {
       const dy = y + 0.5 - cy;
-      const row = y * MAP_SIZE;
+      const row = y * size;
       for (let x = x0; x <= x1; x++) {
         const dx = x + 0.5 - cx;
         if (dx * dx + dy * dy <= rr) this.visible[row + x] = 1;

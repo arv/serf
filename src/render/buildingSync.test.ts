@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { TILE_COUNT } from '../shared/grid';
+import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
 import { WATER_LEVEL } from '../sim/map';
 import { HeightField } from './heightField';
 import type { BuildingSnap } from '../protocol/messages';
@@ -74,7 +74,11 @@ function snap(over: Partial<BuildingSnap>): BuildingSnap {
 
 function makeSync(): { sync: InstanceType<typeof BuildingSync>; scene: THREE.Scene } {
   const scene = new THREE.Scene();
-  const sync = new BuildingSync(scene, new HeightField(new Float32Array(TILE_COUNT)), 0);
+  const sync = new BuildingSync(
+    scene,
+    new HeightField(new Float32Array(tileCount(DEFAULT_MAP_SIZE)), DEFAULT_MAP_SIZE),
+    0,
+  );
   return { sync, scene };
 }
 

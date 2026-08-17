@@ -15,7 +15,7 @@ import { UNIT_DEFS } from '../sim/defs/units';
 import { WORK } from '../protocol/sabLayout';
 import { unitName } from './names';
 import { BANDIT } from '../sim/entities';
-import { MAP_SIZE } from '../shared/grid';
+import { DEFAULT_MAP_SIZE as MAP_SIZE } from '../shared/grid';
 
 /**
  * ?wardrobe — the costume fitting room. Every unit kind of every faction

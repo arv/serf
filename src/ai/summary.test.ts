@@ -20,7 +20,7 @@ function playedWorld(ticks: number): { world: World; brains: AiBrain[] } {
     seed: 11,
     players: [{ kind: 'ai', strategy: 'steward' }, { kind: 'ai', strategy: 'warlord' }],
   });
-  const brains = world.players.map((p) => new AiBrain(p.id, strategyOf(p.strategy)));
+  const brains = world.players.map((p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
   for (let t = 0; t < ticks && world.outcome.state === 'playing'; t++) {
     const commands: PlayerCommand[] = [];
     for (const brain of brains) {

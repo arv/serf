@@ -19,7 +19,7 @@ describe('the campaign is winnable', () => {
     // Whichever playbook this seed dealt the seat — every one of them can
     // take this map (aiStrategies.test.ts holds that line); what is tested
     // here is that the map stays takeable.
-    const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy));
+    const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy), world.map.size);
 
     const MAX_TICKS = 45_000; // ~37 minutes of game time
     for (let t = 0; t < MAX_TICKS; t++) {

@@ -147,8 +147,8 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
           world.map,
           Math.floor(worker.x),
           Math.floor(worker.y),
-          tileX(cand),
-          tileY(cand),
+          tileX(cand, world.map.size),
+          tileY(cand, world.map.size),
           1,
           1,
         );
@@ -171,7 +171,7 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
       const tile = worker.task.tile;
       // Only a worker standing at the tile may work it — a walk cut short by
       // new construction would otherwise fell a tree from across the valley.
-      if (!atTile(worker, tile)) {
+      if (!atTile(worker, tile, world.map.size)) {
         if (!walkToTile(world.map, worker, tile)) {
           worker.task = { t: 'idle', until: world.tick + 40 };
         }

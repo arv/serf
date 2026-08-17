@@ -1,5 +1,11 @@
 import { Rng } from '../shared/rng.ts';
-import { MAP_SIZE, inBounds, tileIdx } from '../shared/grid.ts';
+import {
+  DEFAULT_MAP_SIZE,
+  MAX_MAP_SIZE,
+  MIN_MAP_SIZE,
+  inBounds,
+  tileIdx,
+} from '../shared/grid.ts';
 import {
   RESOURCE_CODE,
   Terrain,
@@ -161,6 +167,16 @@ export interface WorldConfig {
    * spec: config and save stay small, and two hosts resolving the same id
    * read the same table. */
   mission?: MissionId;
+  /** Grid side length in tiles. Defaults to DEFAULT_MAP_SIZE; clamped to
+   * [MIN_MAP_SIZE, MAX_MAP_SIZE]. Per-game data so a level editor (or a
+   * mission) can pick its own. */
+  mapSize?: number;
+}
+
+/** The one place a config's size request becomes the size a world uses. */
+export function resolveMapSize(mapSize: number | undefined): number {
+  const size = (mapSize ?? DEFAULT_MAP_SIZE) | 0;
+  return Math.min(MAX_MAP_SIZE, Math.max(MIN_MAP_SIZE, size));
 }
 
 /** The full WorldConfig a mission def prescribes. Callers may override
@@ -172,38 +188,76 @@ export function missionWorldConfig(id: MissionId): WorldConfig {
     players: def.players.map((p) => ({ ...p })),
     banditsEnabled: def.bandits,
     mission: id,
+    ...(def.mapSize !== undefined ? { mapSize: def.mapSize } : {}),
   };
+}
+
+/**
+ * The classic 64-map worldgen coordinates, rescaled to the live size:
+ * exact integer arithmetic (floor of size*n/64) so the answer is the same
+ * on every host — worldgen must not depend on runtime trig, and this is
+ * multiply/shift, not trig. At size 64 every value reproduces the classic
+ * literal it was tuned as.
+ */
+function scaleCoord(size: number, n: number): number {
+  return Math.floor((size * n) / 64);
 }
 
 /**
  * Storehouse footprint origins per player count. Solo keeps the classic
  * center start; 2-4 players sit symmetrically on a ring around the middle
- * (the contested ore ring stays equidistant). Integer literals on purpose —
- * worldgen must not depend on runtime trig.
+ * (the contested ore ring stays equidistant). The numerators are the
+ * classic 64-map integer literals, rescaled by scaleCoord.
  *
  * Exported as public knowledge: the server tells every seat this much (see
- * sync.ts — "start positions come from a fixed table anyone can read in
- * the source"), so the AI brain may aim its scouts at rival doorsteps
- * without cheating.
+ * sync.ts — "start positions come from a fixed function of the size and
+ * seat count anyone can read in the source"), so the AI brain may aim its
+ * scouts at rival doorsteps without cheating.
  */
-export const START_LAYOUTS: Record<number, [number, number][]> = {
-  1: [[MAP_SIZE / 2 - 2, MAP_SIZE / 2 - 2]],
-  2: [
-    [18, 18],
-    [44, 44],
-  ],
-  3: [
-    [30, 49],
-    [14, 20],
-    [46, 20],
-  ],
-  4: [
-    [18, 18],
-    [44, 44],
-    [44, 18],
-    [18, 44],
-  ],
-};
+export function startLayout(size: number, seats: number): [number, number][] | undefined {
+  const sc = (n: number): number => scaleCoord(size, n);
+  switch (seats) {
+    case 1:
+      return [[size / 2 - 2, size / 2 - 2]];
+    case 2:
+      return [
+        [sc(18), sc(18)],
+        [sc(44), sc(44)],
+      ];
+    case 3:
+      return [
+        [sc(30), sc(49)],
+        [sc(14), sc(20)],
+        [sc(46), sc(20)],
+      ];
+    case 4:
+      return [
+        [sc(18), sc(18)],
+        [sc(44), sc(44)],
+        [sc(44), sc(18)],
+        [sc(18), sc(44)],
+      ];
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * The bandit camp's candidate corners — one inset from each map corner,
+ * sized so the 3-wide footprint mirrors exactly (reproduces the classic
+ * 10/51 pair at 64). Exported so the AI's scout landmarks are the same
+ * spots worldgen actually used, never a drifted copy.
+ */
+export function campCorners(size: number): [number, number][] {
+  const a = scaleCoord(size, 10);
+  const far = size - a - 3;
+  return [
+    [a, a],
+    [far, a],
+    [a, far],
+    [far, far],
+  ];
+}
 
 export function createWorld(seedOrConfig: number | WorldConfig): World {
   const config: WorldConfig =
@@ -211,15 +265,16 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
       ? { seed: seedOrConfig, players: [{ kind: 'human' }] }
       : seedOrConfig;
   const seed = config.seed | 0;
+  const size = resolveMapSize(config.mapSize);
   const mission = config.mission ? MISSION_DEFS[config.mission] : undefined;
-  const layout = START_LAYOUTS[config.players.length];
+  const layout = startLayout(size, config.players.length);
   if (!layout) throw new Error(`no start layout for ${config.players.length} players`);
   const starts = layout.map(([x, y]) => ({ x, y }));
 
   const deal = dealStrategies(seed, config.players);
 
   const rng = new Rng(seed);
-  const map = generateMap(rng, starts);
+  const map = generateMap(rng, starts, size);
 
   const world: World = {
     tick: 0,
@@ -263,12 +318,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
   // equidistant menace standing guard over the contested gold that
   // worldgen put there. Corners stay on the list as fallbacks, farthest
   // from any doorstep first, for seeds whose middle is all lake.
-  const corners: [number, number][] = [
-    [10, 10],
-    [MAP_SIZE - 13, 10],
-    [10, MAP_SIZE - 13],
-    [MAP_SIZE - 13, MAP_SIZE - 13],
-  ];
+  const corners = campCorners(size);
   let campSeeds: [number, number][];
   if (starts.length === 1) {
     const first = rng.int(corners.length);
@@ -282,7 +332,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
       }
       return best;
     };
-    const middle: [number, number] = [MAP_SIZE / 2 - 1, MAP_SIZE / 2 - 1];
+    const middle: [number, number] = [size / 2 - 1, size / 2 - 1];
     campSeeds = [middle, ...corners.sort((a, z) => nearestStart(z) - nearestStart(a))];
   }
   // Mountains and lakes can swallow a whole seed area, so widen the search
@@ -361,14 +411,15 @@ function placePrebuiltNear(
   cy: number,
 ): Building | undefined {
   const def = buildingDef(type);
+  const size = world.map.size;
   const occupied = new Set<number>();
   for (const u of world.units.values()) {
-    if (!u.dead) occupied.add(tileIdx(Math.floor(u.x), Math.floor(u.y)));
+    if (!u.dead) occupied.add(tileIdx(Math.floor(u.x), Math.floor(u.y), size));
   }
   const footprintFree = (x: number, y: number): boolean => {
     for (let ty = y; ty < y + def.h; ty++) {
       for (let tx = x; tx < x + def.w; tx++) {
-        if (!inBounds(tx, ty) || occupied.has(tileIdx(tx, ty))) return false;
+        if (!inBounds(tx, ty, size) || occupied.has(tileIdx(tx, ty, size))) return false;
       }
     }
     return true;
@@ -413,14 +464,15 @@ export function spawnUnitNearby(
   x: number,
   y: number,
 ): Unit {
+  const size = world.map.size;
   const tx = Math.floor(x);
   const ty = Math.floor(y);
-  if (inBounds(tx, ty) && !world.map.blocked[tileIdx(tx, ty)]) {
+  if (inBounds(tx, ty, size) && !world.map.blocked[tileIdx(tx, ty, size)]) {
     return spawnUnit(world, kind, owner, x, y);
   }
   const idx = nearestWalkable(world.map, tx, ty, 8);
   if (idx < 0) return spawnUnit(world, kind, owner, x, y); // nowhere dry nearby
-  return spawnUnit(world, kind, owner, (idx % MAP_SIZE) + 0.5, Math.floor(idx / MAP_SIZE) + 0.5);
+  return spawnUnit(world, kind, owner, (idx % size) + 0.5, Math.floor(idx / size) + 0.5);
 }
 
 /**
@@ -446,8 +498,8 @@ function waterFacing(
   let bestD = Infinity;
   for (let ty = y - radius; ty < y + h + radius; ty++) {
     for (let tx = x - radius; tx < x + w + radius; tx++) {
-      if (!inBounds(tx, ty)) continue;
-      if (map.terrain[tileIdx(tx, ty)] !== Terrain.Water) continue;
+      if (!inBounds(tx, ty, map.size)) continue;
+      if (map.terrain[tileIdx(tx, ty, map.size)] !== Terrain.Water) continue;
       const dx = tx + 0.5 - cx;
       const dy = ty + 0.5 - cy;
       const d = dx * dx + dy * dy;
@@ -493,7 +545,7 @@ function occupyFootprint(world: World, b: Building): void {
   const blocks = !buildingDef(b.type).noBlock;
   for (let ty = b.y; ty < b.y + b.h; ty++) {
     for (let tx = b.x; tx < b.x + b.w; tx++) {
-      const i = tileIdx(tx, ty);
+      const i = tileIdx(tx, ty, world.map.size);
       world.map.buildingAt[i] = b.id;
       if (blocks) world.map.blocked[i] = 1;
       pushDelta(world, i);
@@ -542,10 +594,11 @@ export function placeSite(
  */
 export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: number): boolean {
   const def = buildingDef(type);
+  const size = map.size;
   if (!rectClear(map, x, y, def.w, def.h)) return false;
   for (let ty = y; ty < y + def.h; ty++) {
     for (let tx = x; tx < x + def.w; tx++) {
-      if (map.terrain[tileIdx(tx, ty)] !== Terrain.Grass) return false;
+      if (map.terrain[tileIdx(tx, ty, size)] !== Terrain.Grass) return false;
     }
   }
 
@@ -563,8 +616,8 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
         for (let dx = -1; dx <= 0; dx++) {
           const tx = vx + dx;
           const ty = vy + dy;
-          if (!inBounds(tx, ty)) continue;
-          sum += map.height[tileIdx(tx, ty)]!;
+          if (!inBounds(tx, ty, size)) continue;
+          sum += map.height[tileIdx(tx, ty, size)]!;
           n++;
         }
       }
@@ -588,8 +641,8 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
   for (let tx = x - 1; tx <= x + def.w && !hasDoor; tx++) {
     for (let ty = y - 1; ty <= y + def.h && !hasDoor; ty++) {
       const onRing = tx === x - 1 || tx === x + def.w || ty === y - 1 || ty === y + def.h;
-      if (!onRing || !inBounds(tx, ty)) continue;
-      if (!map.blocked[tileIdx(tx, ty)]) hasDoor = true;
+      if (!onRing || !inBounds(tx, ty, size)) continue;
+      if (!map.blocked[tileIdx(tx, ty, size)]) hasDoor = true;
     }
   }
   if (!hasDoor) return false;
@@ -620,8 +673,8 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
     let found = false;
     for (let ty = y - r; ty < y + def.h + r && !found; ty++) {
       for (let tx = x - r; tx < x + def.w + r && !found; tx++) {
-        if (!inBounds(tx, ty)) continue;
-        if (map.terrain[tileIdx(tx, ty)] === Terrain.Water) found = true;
+        if (!inBounds(tx, ty, size)) continue;
+        if (map.terrain[tileIdx(tx, ty, size)] === Terrain.Water) found = true;
       }
     }
     if (!found) return false;
@@ -652,7 +705,7 @@ export function destroyBuilding(world: World, b: Building): void {
   b.dead = true;
   for (let ty = b.y; ty < b.y + b.h; ty++) {
     for (let tx = b.x; tx < b.x + b.w; tx++) {
-      const i = tileIdx(tx, ty);
+      const i = tileIdx(tx, ty, world.map.size);
       if (world.map.buildingAt[i] === b.id) {
         world.map.buildingAt[i] = -1;
         world.map.blocked[i] =

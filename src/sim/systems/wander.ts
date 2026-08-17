@@ -21,8 +21,9 @@ const LANE_CHANCE = 0.6;
  */
 function strollTarget(world: World, from: number, rng: Rng): number {
   const map = world.map;
-  const ox = tileX(from);
-  const oy = tileY(from);
+  const size = map.size;
+  const ox = tileX(from, size);
+  const oy = tileY(from, size);
 
   // Look before drawing: a serf with no lane in reach must consume no
   // randomness deciding that, or the whole sim's stream shifts the moment
@@ -33,8 +34,8 @@ function strollTarget(world: World, from: number, rng: Rng): number {
     for (let dx = -RANGE; dx <= RANGE; dx++) {
       const tx = ox + dx;
       const ty = oy + dy;
-      if (!inBounds(tx, ty)) continue;
-      const idx = tileIdx(tx, ty);
+      if (!inBounds(tx, ty, size)) continue;
+      const idx = tileIdx(tx, ty, size);
       if (idx === from || map.blocked[idx]) continue;
       const level = map.pathLevel[idx]!;
       if (level === PathLevel.None) continue;
@@ -46,8 +47,8 @@ function strollTarget(world: World, from: number, rng: Rng): number {
 
   const tx = ox + rng.int(RANGE * 2 + 1) - RANGE;
   const ty = oy + rng.int(RANGE * 2 + 1) - RANGE;
-  if (!inBounds(tx, ty) || map.blocked[tileIdx(tx, ty)]) return -1;
-  return tileIdx(tx, ty);
+  if (!inBounds(tx, ty, size) || map.blocked[tileIdx(tx, ty, size)]) return -1;
+  return tileIdx(tx, ty, size);
 }
 
 /**
@@ -56,6 +57,7 @@ function strollTarget(world: World, from: number, rng: Rng): number {
  * serfs, which keeps villages feeling alive).
  */
 export function wanderSystem(world: World, rng: Rng): void {
+  const size = world.map.size;
   for (const unit of world.units.values()) {
     // Only truly idle, jobless serfs stroll; workers are run by production
     // and anyone with a job is owned by logistics.
@@ -70,14 +72,14 @@ export function wanderSystem(world: World, rng: Rng): void {
 
     const ux = Math.floor(unit.x);
     const uy = Math.floor(unit.y);
-    const target = strollTarget(world, tileIdx(ux, uy), rng);
+    const target = strollTarget(world, tileIdx(ux, uy, size), rng);
     if (target < 0) {
       unit.task = { t: 'idle', until: world.tick + 20 + rng.int(40) };
       continue;
     }
     // A* already charges less for trails and roads, so a serf headed for a
     // lane joins it early and follows it in rather than cutting across.
-    const path = findPath(world.map, ux, uy, tileX(target), tileY(target));
+    const path = findPath(world.map, ux, uy, tileX(target, size), tileY(target, size));
     if (path && path.length > 0) {
       unit.path = path;
       unit.pathIdx = 0;

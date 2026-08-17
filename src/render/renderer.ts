@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MAP_SIZE } from '../shared/grid';
+import { DEFAULT_MAP_SIZE } from '../shared/grid';
 import { palette } from './palette';
 import { CameraRig } from './cameraRig';
 
@@ -11,6 +11,7 @@ export class GameRenderer {
   readonly scene = new THREE.Scene();
   readonly rig: CameraRig;
   #webgl: THREE.WebGLRenderer;
+  #sun: THREE.DirectionalLight;
   #lastTime = performance.now();
   #observer: ResizeObserver;
   #onWindowResize: () => void;
@@ -31,27 +32,19 @@ export class GameRenderer {
     this.#webgl.toneMappingExposure = 1.32;
 
     this.scene.background = new THREE.Color(palette.background);
-    // Bright stylized daylight: distant pale haze.
-    this.scene.fog = new THREE.Fog(palette.fog, 125, 270);
     this.rig = new CameraRig(canvas, interactive);
 
     const hemi = new THREE.HemisphereLight(palette.skyLight, palette.groundBounce, 1.05);
     this.scene.add(hemi);
 
     const sun = new THREE.DirectionalLight(0xfff1cf, 2.7);
-    sun.position.set(MAP_SIZE / 2 - 28, 55, MAP_SIZE / 2 + 18);
-    sun.target.position.set(MAP_SIZE / 2, 0, MAP_SIZE / 2);
     sun.castShadow = true;
     sun.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048);
-    const half = MAP_SIZE * 0.75;
-    sun.shadow.camera.left = -half;
-    sun.shadow.camera.right = half;
-    sun.shadow.camera.top = half;
-    sun.shadow.camera.bottom = -half;
     sun.shadow.camera.near = 5;
-    sun.shadow.camera.far = 160;
     sun.shadow.bias = -0.0004;
     this.scene.add(sun, sun.target);
+    this.#sun = sun;
+    this.setWorldExtent(DEFAULT_MAP_SIZE);
 
     // ResizeObserver over a window listener: it fires whenever the canvas
     // box actually changes — including viewport changes that never dispatch
@@ -69,6 +62,31 @@ export class GameRenderer {
     this.#onWindowResize = resize;
     window.addEventListener('resize', resize);
     resize();
+  }
+
+  /**
+   * Size the world-extent-dependent pieces — fog band, sun placement, and
+   * the shadow camera's box — to the map actually being shown. Called with
+   * the default at construction and again when the init frame announces the
+   * real size (the rig learns it in the same breath). The formulas
+   * reproduce the classic hand-tuned values at 64 (fog 124/268 ≈ 125/270,
+   * shadow far 164 ≈ 160) and scale up from there.
+   */
+  setWorldExtent(size: number): void {
+    // Bright stylized daylight: distant pale haze that swallows the far
+    // shore before the water plane runs out.
+    this.scene.fog = new THREE.Fog(palette.fog, size + 60, size * 2 + 140);
+    const sun = this.#sun;
+    sun.position.set(size / 2 - 28, 55, size / 2 + 18);
+    sun.target.position.set(size / 2, 0, size / 2);
+    const half = size * 0.75;
+    sun.shadow.camera.left = -half;
+    sun.shadow.camera.right = half;
+    sun.shadow.camera.top = half;
+    sun.shadow.camera.bottom = -half;
+    sun.shadow.camera.far = size + 100;
+    sun.shadow.camera.updateProjectionMatrix();
+    this.rig.setMapSize(size);
   }
 
   /**

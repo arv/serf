@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MAP_SIZE, TILE_COUNT, tileIdx, tileX, tileY } from '../shared/grid';
+import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { PathLevel, type MapView } from '../sim/map';
 import { ribbonCover, type RibbonCover } from './pathRibbon';
 import { makeCobbleTexture } from './roadTexture';
@@ -59,19 +59,20 @@ export class RoadDecal {
 
   /** Regenerate the paving from the map's current road tiles. */
   rebuild(map: MapView): void {
+    const size = map.size;
     // Every tile a road's ribbon can reach: the road tiles and their ring,
     // since the wobble carries the band a little past its own tile.
     const candidates = new Set<number>();
-    for (let i = 0; i < TILE_COUNT; i++) {
+    for (let i = 0; i < tileCount(size); i++) {
       if (map.pathLevel[i] !== PathLevel.Road) continue;
-      const x = tileX(i);
-      const y = tileY(i);
+      const x = tileX(i, size);
+      const y = tileY(i, size);
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           const nx = x + dx;
           const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
-          candidates.add(tileIdx(nx, ny));
+          if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+          candidates.add(tileIdx(nx, ny, size));
         }
       }
     }
@@ -83,8 +84,8 @@ export class RoadDecal {
     const alpha = new Float32Array((SUB + 1) * (SUB + 1));
 
     for (const tile of candidates) {
-      const ox = tileX(tile);
-      const oy = tileY(tile);
+      const ox = tileX(tile, size);
+      const oy = tileY(tile, size);
 
       let any = false;
       for (let r = 0; r <= SUB; r++) {

@@ -48,7 +48,7 @@ export function constructionSystem(world: World): void {
 
     if (def.isRoad) {
       // Road "sites" don't become buildings — they pave their tile and vanish.
-      world.map.pathLevel[tileIdx(b.x, b.y)] = PathLevel.Road;
+      world.map.pathLevel[tileIdx(b.x, b.y, world.map.size)] = PathLevel.Road;
       destroyBuilding(world, b);
       continue;
     }

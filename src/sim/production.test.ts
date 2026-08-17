@@ -12,7 +12,7 @@ function run(world: World, ticks: number): void {
 }
 
 function plantGrove(world: World, x: number, y: number, amt = 6): number {
-  const idx = tileIdx(x, y);
+  const idx = tileIdx(x, y, world.map.size);
   world.map.resource[idx] = TileResource.Wood;
   world.map.resourceAmt[idx] = amt;
   world.map.blocked[idx] = 1;
@@ -43,7 +43,7 @@ describe('gather production', () => {
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue;
-        const i = tileIdx(33 + dx, 31 + dy);
+        const i = tileIdx(33 + dx, 31 + dy, world.map.size);
         world.map.resource[i] = TileResource.Rock;
         world.map.resourceAmt[i] = 6;
         world.map.blocked[i] = 1;
@@ -118,7 +118,7 @@ describe('gather production', () => {
 describe('trails', () => {
   it('worn grass becomes a dirt trail; unused trails revert', () => {
     const world = bareWorld();
-    const idx = tileIdx(10, 10);
+    const idx = tileIdx(10, 10, world.map.size);
     world.map.wear[idx] = TRAIL_WEAR_THRESHOLD + 2;
     run(world, TRAILS_INTERVAL + 1);
     expect(world.map.pathLevel[idx]).toBe(PathLevel.Trail);

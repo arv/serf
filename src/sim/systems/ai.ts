@@ -1,8 +1,8 @@
-import { MAP_SIZE, TILE_COUNT, tileIdx, tileX, tileY } from '../../shared/grid.ts';
+import { tileCount, tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { exactDist } from '../../shared/math.ts';
 import { Terrain, TileResource, resourceBlocks } from '../map.ts';
 import { SeatVision } from '../visibility.ts';
-import { START_LAYOUTS } from '../world.ts';
+import { campCorners, startLayout } from '../world.ts';
 import { BUILDING_DEFS, buildingDef, repairBill, type BuildingTypeId } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
@@ -156,7 +156,7 @@ export class AiBrain {
   #override: Partial<AiStrategy> | null = null;
   /** What this seat has actually observed — the same filter humans play
    * under. Recomputed at every decision beat, remembered between them. */
-  #vision = new SeatVision();
+  #vision: SeatVision;
   /** The lone scout out walking the landmarks, -1 when nobody is. */
   #scoutId = -1;
   /** Where the scout is currently headed, -1 when it has no goal. */
@@ -183,9 +183,10 @@ export class AiBrain {
    * scout is on discovery (or home). */
   #scoutIntel: Owner = -1;
 
-  constructor(playerId: Owner, strategy: AiStrategy) {
+  constructor(playerId: Owner, strategy: AiStrategy, mapSize: number) {
     this.playerId = playerId;
     this.strategy = strategy;
+    this.#vision = new SeatVision(mapSize);
   }
 
   /** Lay advice over the playbook (null clears it). The caller vouches for
@@ -513,7 +514,7 @@ export class AiBrain {
         const from = party[0]!;
         this.#sweepGoal = nextSearchGoal(world, this.#vision, this.#unreachable, from.x, from.y);
         if (this.#sweepGoal >= 0) {
-          const at = approachPoint(this.#sweepGoal);
+          const at = approachPoint(this.#sweepGoal, world.map.size);
           commands.push({
             kind: 'moveUnits',
             unitIds: party.map((u) => u.id),
@@ -567,8 +568,8 @@ export class AiBrain {
           // there, a doorstep is re-read precisely because it was seen
           // before.
           if (this.#scoutIntel >= 0) {
-            const gx = tileX(this.#scoutGoal) + 0.5;
-            const gy = tileY(this.#scoutGoal) + 0.5;
+            const gx = tileX(this.#scoutGoal, world.map.size) + 0.5;
+            const gy = tileY(this.#scoutGoal, world.map.size) + 0.5;
             if (Math.abs(su.x - gx) + Math.abs(su.y - gy) <= 5) {
               this.#stampIntel(world, this.#scoutIntel);
               this.#clearScoutGoal();
@@ -598,8 +599,8 @@ export class AiBrain {
             if (!fresh) this.#scoutId = -1; // nothing left worth walking to
           }
           if (this.#scoutGoal >= 0 && (fresh || su.task.t === 'idle')) {
-            const at = scoutLeg(this.#scoutGoal, su.x, su.y);
-            const leg = tileIdx(at.x, at.y);
+            const at = scoutLeg(this.#scoutGoal, su.x, su.y, world.map.size);
+            const leg = tileIdx(at.x, at.y, world.map.size);
             if (!fresh && leg === this.#scoutLeg) {
               // Ordered there already and the walk has ended short: the way
               // is shut. A discovery goal is written off for good; a
@@ -764,11 +765,13 @@ function spotFor(
   if (step.anchor === 'water') {
     const shore = nearestWater(world, baseX, baseY);
     if (shore < 0) return null;
-    return findSpot(world, step.type, tileX(shore), tileY(shore), step.radius);
+    const size = world.map.size;
+    return findSpot(world, step.type, tileX(shore, size), tileY(shore, size), step.radius);
   }
   const tile = nearestResource(world, ANCHOR_RESOURCE[step.anchor], baseX, baseY);
   if (tile < 0) return null;
-  return findSpot(world, step.type, tileX(tile), tileY(tile), step.radius);
+  const size = world.map.size;
+  return findSpot(world, step.type, tileX(tile, size), tileY(tile, size), step.radius);
 }
 
 /**
@@ -785,11 +788,12 @@ function findSpot(
   maxR = 14,
 ): { x: number; y: number } | null {
   const def = BUILDING_DEFS[type];
+  const size = world.map.size;
   const spaced = (x: number, y: number): boolean => {
     for (let ty = y - 1; ty < y + def.h + 1; ty++) {
       for (let tx = x - 1; tx < x + def.w + 1; tx++) {
-        if (tx < 0 || ty < 0 || tx >= 64 || ty >= 64) continue;
-        if (world.map.buildingAt[ty * 64 + tx]! >= 0) return false;
+        if (tx < 0 || ty < 0 || tx >= size || ty >= size) continue;
+        if (world.map.buildingAt[ty * size + tx]! >= 0) return false;
       }
     }
     return true;
@@ -809,11 +813,12 @@ function findSpot(
 
 /** Nearest open water to a point — the fishery's anchor. */
 function nearestWater(world: World, cx: number, cy: number): number {
+  const size = world.map.size;
   let best = -1;
   let bestDist = Infinity;
-  for (let i = 0; i < TILE_COUNT; i++) {
+  for (let i = 0; i < tileCount(size); i++) {
     if (world.map.terrain[i] !== Terrain.Water) continue;
-    const d = Math.abs(tileX(i) - cx) + Math.abs(tileY(i) - cy);
+    const d = Math.abs(tileX(i, size) - cx) + Math.abs(tileY(i, size) - cy);
     if (d < bestDist) {
       bestDist = d;
       best = i;
@@ -824,11 +829,12 @@ function nearestWater(world: World, cx: number, cy: number): number {
 
 /** Nearest tile with a given resource to a point. */
 function nearestResource(world: World, code: number, cx: number, cy: number): number {
+  const size = world.map.size;
   let best = -1;
   let bestDist = Infinity;
-  for (let i = 0; i < TILE_COUNT; i++) {
+  for (let i = 0; i < tileCount(size); i++) {
     if (world.map.resource[i] !== code || world.map.resourceAmt[i]! <= 0) continue;
-    const d = Math.abs(tileX(i) - cx) + Math.abs(tileY(i) - cy);
+    const d = Math.abs(tileX(i, size) - cx) + Math.abs(tileY(i, size) - cy);
     if (d < bestDist) {
       bestDist = d;
       best = i;
@@ -923,13 +929,15 @@ export function pickAttackTarget(
  * game; the scout still has to walk there and look.
  */
 function searchLandmarks(world: World): [number, number][] {
+  const size = world.map.size;
   const pts: [number, number][] = [];
   // Rival doorsteps (the seat's own start is explored from tick 0 and
   // drops out on its own). Storehouses are 3x3, so +1 is the center.
-  for (const [sx, sy] of START_LAYOUTS[world.players.length] ?? []) pts.push([sx + 1, sy + 1]);
-  // Camp seeds: the middle, then the corners (their 3x3 centers).
-  pts.push([MAP_SIZE / 2, MAP_SIZE / 2]);
-  pts.push([11, 11], [MAP_SIZE - 12, 11], [11, MAP_SIZE - 12], [MAP_SIZE - 12, MAP_SIZE - 12]);
+  for (const [sx, sy] of startLayout(size, world.players.length) ?? []) pts.push([sx + 1, sy + 1]);
+  // Camp seeds: the middle, then the corners — the very spots worldgen
+  // seeds from (campCorners), at their 3x3 centers.
+  pts.push([size / 2, size / 2]);
+  for (const [cx, cy] of campCorners(size)) pts.push([cx + 1, cy + 1]);
   return pts;
 }
 
@@ -953,7 +961,7 @@ export function nextSearchGoal(
   let best = -1;
   let bestDist = Infinity;
   for (const [px, py] of searchLandmarks(world)) {
-    const i = tileIdx(px, py);
+    const i = tileIdx(px, py, world.map.size);
     if (vision.explored[i] || skip.has(i)) continue;
     if (world.map.terrain[i] === Terrain.Water || resourceBlocks(world.map.resource[i]!)) continue;
     const d = Math.abs(px - cx) + Math.abs(py - cy);
@@ -982,8 +990,8 @@ export function nextSearchGoal(
  */
 const WATCH_FROM = 6;
 
-export function approachPoint(goal: number): { x: number; y: number } {
-  return { x: tileX(goal), y: Math.max(0, tileY(goal) - WATCH_FROM) };
+export function approachPoint(goal: number, size: number): { x: number; y: number } {
+  return { x: tileX(goal, size), y: Math.max(0, tileY(goal, size) - WATCH_FROM) };
 }
 
 /**
@@ -993,9 +1001,10 @@ export function approachPoint(goal: number): { x: number; y: number } {
  * is how a seat learns what a rival's army is made of.
  */
 export function rivalDoorstep(world: World, owner: Owner): number {
-  const start = START_LAYOUTS[world.players.length]?.[owner];
+  const size = world.map.size;
+  const start = startLayout(size, world.players.length)?.[owner];
   if (!start) return -1;
-  return tileIdx(start[0] + 1, Math.min(MAP_SIZE - 1, start[1] + 5));
+  return tileIdx(start[0] + 1, Math.min(size - 1, start[1] + 5), size);
 }
 
 /**
@@ -1025,12 +1034,12 @@ const SWEEP_GARRISON = 3;
 /** How far from the castle a garrison soldier still counts as at his post. */
 const GARRISON_POST = 6;
 
-export function scoutLeg(goal: number, sx: number, sy: number): { x: number; y: number } {
-  const gx = tileX(goal);
-  const gy = tileY(goal);
+export function scoutLeg(goal: number, sx: number, sy: number, size: number): { x: number; y: number } {
+  const gx = tileX(goal, size);
+  const gy = tileY(goal, size);
   const gateY = Math.max(0, gy - GATE_NORTH);
   const atGate = Math.abs(sx - gx) <= 3 && Math.abs(sy - gateY) <= 2;
-  if (atGate) return approachPoint(goal);
+  if (atGate) return approachPoint(goal, size);
   return { x: gx, y: gateY };
 }
 
@@ -1045,12 +1054,13 @@ export function nearestUnexplored(
   cx: number,
   cy: number,
 ): number {
+  const size = world.map.size;
   let best = -1;
   let bestDist = Infinity;
-  for (let i = 0; i < TILE_COUNT; i++) {
+  for (let i = 0; i < tileCount(size); i++) {
     if (vision.explored[i] || skip.has(i)) continue;
     if (world.map.terrain[i] === Terrain.Water || resourceBlocks(world.map.resource[i]!)) continue;
-    const d = Math.abs(tileX(i) - cx) + Math.abs(tileY(i) - cy);
+    const d = Math.abs(tileX(i, size) - cx) + Math.abs(tileY(i, size) - cy);
     if (d < bestDist) {
       bestDist = d;
       best = i;

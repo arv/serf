@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MAP_SIZE } from '../shared/grid';
+import { DEFAULT_MAP_SIZE } from '../shared/grid';
 import { clamp } from '../shared/math';
 import { EdgeScroll, edgeScrollEnabled } from '../input/edgeScroll';
 
@@ -11,7 +11,14 @@ const YAW = CAMERA_YAW;
 const PITCH = (35 * Math.PI) / 180;
 const DISTANCE = 90;
 const MIN_VIEW = 5;
-const MAX_VIEW = 52;
+/** Zoom-out cap as a fraction of the map side — the whole island plus a
+ * ring of open water frames at full zoom, whatever the map size (matches
+ * the classic 52-on-64 feel). */
+const MAX_VIEW_FRACTION = 0.8;
+/** How far past the grid edge the pan target may go. Kept small on
+ * purpose: the camera stays bounded to the map (Warcraft-style) — the
+ * breathing room at the shore is the map's own sea fringe, not free
+ * panning into the void. */
 const PAN_MARGIN = 4;
 
 /** Conservative world-space XZ rectangle of the visible ground. */
@@ -40,7 +47,10 @@ export class CameraRig {
   #off = new AbortController();
   readonly camera: THREE.OrthographicCamera;
   #canvas: HTMLCanvasElement;
-  #target = new THREE.Vector3(MAP_SIZE / 2, 0, MAP_SIZE / 2);
+  /** Grid side of the world being viewed; setMapSize updates it when the
+   * init frame announces the real one. */
+  #mapSize = DEFAULT_MAP_SIZE;
+  #target = new THREE.Vector3(DEFAULT_MAP_SIZE / 2, 0, DEFAULT_MAP_SIZE / 2);
   #viewHeight = 30;
   #keys = new Set<string>();
   #dragging = false;
@@ -67,7 +77,7 @@ export class CameraRig {
     // ?zoom=6 boots close-in — handy for inspecting people and props.
     const zoom = Number(new URLSearchParams(location.search).get('zoom'));
     if (Number.isFinite(zoom) && zoom > 0) {
-      this.#viewHeight = clamp(zoom, MIN_VIEW, MAX_VIEW);
+      this.#viewHeight = clamp(zoom, MIN_VIEW, this.#maxView());
     }
     this.resize();
     this.#apply();
@@ -124,7 +134,7 @@ export class CameraRig {
         this.#viewHeight = clamp(
           this.#viewHeight * Math.exp(e.deltaY * 0.0012),
           MIN_VIEW,
-          MAX_VIEW,
+          this.#maxView(),
         );
         this.resize();
       },
@@ -198,7 +208,7 @@ export class CameraRig {
         if (touches.size === 2) {
           const d = spread();
           if (pinchDist > 0 && d > 0) {
-            this.#viewHeight = clamp(this.#viewHeight * (pinchDist / d), MIN_VIEW, MAX_VIEW);
+            this.#viewHeight = clamp(this.#viewHeight * (pinchDist / d), MIN_VIEW, this.#maxView());
             this.resize();
           }
           pinchDist = d;
@@ -229,13 +239,30 @@ export class CameraRig {
     this.#keys.clear();
   }
 
+  #maxView(): number {
+    return Math.round(this.#mapSize * MAX_VIEW_FRACTION);
+  }
+
+  /**
+   * The world's actual grid side, once known (the init frame carries it).
+   * Recenters on the new middle and re-clamps the zoom — callers focus the
+   * camera on their castle right after, so the recenter is just a sane
+   * default for viewers with no home to look at.
+   */
+  setMapSize(size: number): void {
+    this.#mapSize = size;
+    this.#target.set(size / 2, 0, size / 2);
+    this.#viewHeight = clamp(this.#viewHeight, MIN_VIEW, this.#maxView());
+    this.resize();
+  }
+
   /** Per-frame: apply held pan keys. dt in seconds. */
   /** Point the camera at a spot on the ground, optionally reframing. */
   focusOn(x: number, z: number, viewHeight?: number): void {
     this.#glide = null;
     this.#target.set(x, 0, z);
     if (viewHeight !== undefined) {
-      this.#viewHeight = clamp(viewHeight, MIN_VIEW, MAX_VIEW);
+      this.#viewHeight = clamp(viewHeight, MIN_VIEW, this.#maxView());
       this.resize(); // recomputes the frustum, then applies
       return;
     }
@@ -252,8 +279,8 @@ export class CameraRig {
     this.#glide = {
       fromX: this.#target.x,
       fromZ: this.#target.z,
-      toX: clamp(x, -PAN_MARGIN, MAP_SIZE + PAN_MARGIN),
-      toZ: clamp(z, -PAN_MARGIN, MAP_SIZE + PAN_MARGIN),
+      toX: clamp(x, -PAN_MARGIN, this.#mapSize + PAN_MARGIN),
+      toZ: clamp(z, -PAN_MARGIN, this.#mapSize + PAN_MARGIN),
       t: 0,
       dur: durationMs / 1000,
     };
@@ -303,8 +330,8 @@ export class CameraRig {
     const rz = -Math.sin(YAW);
     const fx = -Math.sin(YAW);
     const fz = -Math.cos(YAW);
-    this.#target.x = clamp(this.#target.x + rx * x - fx * z, -PAN_MARGIN, MAP_SIZE + PAN_MARGIN);
-    this.#target.z = clamp(this.#target.z + rz * x - fz * z, -PAN_MARGIN, MAP_SIZE + PAN_MARGIN);
+    this.#target.x = clamp(this.#target.x + rx * x - fx * z, -PAN_MARGIN, this.#mapSize + PAN_MARGIN);
+    this.#target.z = clamp(this.#target.z + rz * x - fz * z, -PAN_MARGIN, this.#mapSize + PAN_MARGIN);
     this.#apply();
   }
 

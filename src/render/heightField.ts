@@ -1,4 +1,4 @@
-import { MAP_SIZE, tileIdx } from '../shared/grid';
+import { tileIdx } from '../shared/grid';
 
 /**
  * Bilinear sampler over the per-tile elevation map. Tile heights are treated
@@ -7,15 +7,17 @@ import { MAP_SIZE, tileIdx } from '../shared/grid';
  */
 export class HeightField {
   #heights: Float32Array;
+  readonly size: number;
 
-  constructor(heights: Float32Array) {
+  constructor(heights: Float32Array, size: number) {
     this.#heights = heights;
+    this.size = size;
   }
 
   #tile(x: number, y: number): number {
-    const cx = Math.max(0, Math.min(MAP_SIZE - 1, x));
-    const cy = Math.max(0, Math.min(MAP_SIZE - 1, y));
-    return this.#heights[tileIdx(cx, cy)]!;
+    const cx = Math.max(0, Math.min(this.size - 1, x));
+    const cy = Math.max(0, Math.min(this.size - 1, y));
+    return this.#heights[tileIdx(cx, cy, this.size)]!;
   }
 
   /** Ground height at world (x, z). */
@@ -41,8 +43,8 @@ export class HeightField {
       for (let dx = -1; dx <= 0; dx++) {
         const tx = vx + dx;
         const tz = vz + dz;
-        if (tx < 0 || tz < 0 || tx >= MAP_SIZE || tz >= MAP_SIZE) continue;
-        sum += this.#heights[tileIdx(tx, tz)]!;
+        if (tx < 0 || tz < 0 || tx >= this.size || tz >= this.size) continue;
+        sum += this.#heights[tileIdx(tx, tz, this.size)]!;
         n++;
       }
     }

@@ -180,7 +180,7 @@ describe('cancellation table', () => {
     // Wall the storehouse ring completely.
     for (let x = sh.x - 1; x <= sh.x + sh.w; x++) {
       for (let y = sh.y - 1; y <= sh.y + sh.h; y++) {
-        world.map.blocked[tileIdx(x, y)] = 1;
+        world.map.blocked[tileIdx(x, y, world.map.size)] = 1;
       }
     }
     addSite(world, 22, 30);
@@ -203,7 +203,7 @@ describe('fuzz: 10k ticks of random destruction never corrupts the economy', () 
     addStorehouse(world, 30, 30, { wood: 60, stone: 20 });
     // Real wood for the huts to gather.
     for (let i = 0; i < 40; i++) {
-      const idx = tileIdx(20 + rng.int(8), 20 + rng.int(8));
+      const idx = tileIdx(20 + rng.int(8), 20 + rng.int(8), world.map.size);
       if (world.map.buildingAt[idx]! >= 0) continue;
       world.map.resource[idx] = TileResource.Wood;
       world.map.resourceAmt[idx] = 6;
@@ -358,7 +358,7 @@ describe('move orders outrank employment', () => {
     // destination, but nothing can reach it.
     for (let y = 49; y <= 51; y++) {
       for (let x = 49; x <= 51; x++) {
-        if (x !== 50 || y !== 50) world.map.blocked[tileIdx(x, y)] = 1;
+        if (x !== 50 || y !== 50) world.map.blocked[tileIdx(x, y, world.map.size)] = 1;
       }
     }
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [worker.id], x: 50, y: 50 }));

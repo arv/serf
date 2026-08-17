@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MAP_SIZE, TILE_COUNT, tileIdx, tileX, tileY } from '../shared/grid';
+import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, type MapView } from '../sim/map';
 import { palette } from './palette';
@@ -61,8 +61,10 @@ export class GrassField {
   #cursor = 0;
 
   constructor(map: MapView, heights: HeightField) {
+    const size = map.size;
+    const tiles = tileCount(size);
     let grassTiles = 0;
-    for (let i = 0; i < TILE_COUNT; i++) {
+    for (let i = 0; i < tiles; i++) {
       if (map.terrain[i] === Terrain.Grass) grassTiles++;
     }
 
@@ -78,13 +80,13 @@ export class GrassField {
     const lush = new THREE.Color(0xffffff);
     const gold = new THREE.Color(0xe8d494);
 
-    for (let i = 0; i < TILE_COUNT; i++) {
+    for (let i = 0; i < tiles; i++) {
       if (map.terrain[i] !== Terrain.Grass) continue;
       if (map.buildingAt[i]! >= 0) continue;
       // Above the meadow line the ground is bare rock — no blades.
       if (map.height[i]! > 1.1) continue;
-      const x = tileX(i);
-      const y = tileY(i);
+      const x = tileX(i, size);
+      const y = tileY(i, size);
       // Cluster density: meadow patches, not a uniform lawn.
       const density = hash2(Math.floor(x / 3) * 17, Math.floor(y / 3) * 29);
       const n = Math.round(density * MAX_PER_TILE * hash2(i, 401) * 1.6);
@@ -128,17 +130,18 @@ export class GrassField {
    * the neighbor's half of a fresh link is drawn on the neighbor's ground.
    */
   clearUnderPaths(map: MapView, tiles: readonly number[]): void {
+    const size = map.size;
     let touched = false;
     const swept = new Set<number>();
     for (const t of tiles) {
-      const tx = tileX(t);
-      const ty = tileY(t);
+      const tx = tileX(t, size);
+      const ty = tileY(t, size);
       for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
           const nx = tx + dx;
           const ny = ty + dy;
-          if (nx < 0 || ny < 0 || nx >= MAP_SIZE || ny >= MAP_SIZE) continue;
-          const idx = tileIdx(nx, ny);
+          if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+          const idx = tileIdx(nx, ny, size);
           if (swept.has(idx)) continue;
           swept.add(idx);
           const clumps = this.#byTile.get(idx);

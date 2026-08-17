@@ -35,7 +35,7 @@ function moveOrders(commands: SimCommand[]): Extract<SimCommand, { kind: 'moveUn
 describe('the AI under fog of war', () => {
   it('does not target a camp it has never seen', () => {
     const world = musterWorld();
-    const vision = new SeatVision();
+    const vision = new SeatVision(world.map.size);
     vision.recompute(world, 0);
     expect(pickAttackTarget(world, vision, 0, 31, 31, false)).toBeUndefined();
   });
@@ -43,7 +43,7 @@ describe('the AI under fog of war', () => {
   it('targets the camp once someone has stood close enough to see it', () => {
     const world = musterWorld();
     spawnUnit(world, 'knight', 0, 8.5, 8.5); // a scout within sight of the camp
-    const vision = new SeatVision();
+    const vision = new SeatVision(world.map.size);
     vision.recompute(world, 0);
     expect(pickAttackTarget(world, vision, 0, 31, 31, false)?.type).toBe('banditCamp');
   });
@@ -53,7 +53,7 @@ describe('the AI under fog of war', () => {
     addStorehouse(world, 30, 30, {});
     // Well inside a homeGuard radius of 14, but beyond the castle's sight.
     spawnUnit(world, 'bandit', BANDIT, 43.5, 31.5);
-    const vision = new SeatVision();
+    const vision = new SeatVision(world.map.size);
     vision.recompute(world, 0);
     expect(hostileNear(world, vision, 0, 31, 31, 14)).toBe(false);
     // A watchman near the raider lights the ground under it.
@@ -64,7 +64,7 @@ describe('the AI under fog of war', () => {
 
   it('sends a full muster scouting when its map holds no target', () => {
     const world = musterWorld();
-    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     const moves = moveOrders(brain.decide(world));
     expect(moves).toHaveLength(1);
     const { x, y } = moves[0]!;
@@ -73,7 +73,7 @@ describe('the AI under fog of war', () => {
     // …but a march that will light ground the seat has never observed
     // (the destination stops a few tiles short of the goal on purpose, so
     // it is the sight circle around it that must reach into the dark).
-    const vision = new SeatVision();
+    const vision = new SeatVision(world.map.size);
     vision.recompute(world, 0);
     let lightsNewGround = false;
     for (let dy = -6; dy <= 6 && !lightsNewGround; dy++) {
@@ -82,7 +82,7 @@ describe('the AI under fog of war', () => {
         const ty = y + dy;
         if (tx < 0 || ty < 0 || tx >= 64 || ty >= 64) continue;
         if (dx * dx + dy * dy > 6.5 * 6.5) continue;
-        if (!vision.explored[tileIdx(tx, ty)]) lightsNewGround = true;
+        if (!vision.explored[tileIdx(tx, ty, world.map.size)]) lightsNewGround = true;
       }
     }
     expect(lightsNewGround).toBe(true);
@@ -90,7 +90,7 @@ describe('the AI under fog of war', () => {
 
   it('keeps the sweep goal while marching, and re-aims once it lights up', () => {
     const world = musterWorld();
-    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     const first = moveOrders(brain.decide(world))[0]!;
     // Mid-march (units busy, goal still dark) the brain leaves the army be.
     for (const u of world.units.values()) {
@@ -112,7 +112,7 @@ describe('the AI under fog of war', () => {
   it('marches on the camp as soon as the sweep uncovers it', () => {
     const world = musterWorld();
     spawnUnit(world, 'knight', 0, 8.5, 8.5); // the sweep got this far
-    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     const moves = moveOrders(brain.decide(world));
     expect(moves).toHaveLength(1);
     // The camp's footprint origin is (5,5); the brain aims at its center.
@@ -131,7 +131,7 @@ describe('the AI under fog of war', () => {
     placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
     for (let i = 0; i < 4; i++) spawnUnit(world, 'spearman', 1, 35.5, 30.5 + i);
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     const commands = brain.decide(world);
     const recipes = commands.filter((c) => c.kind === 'setBuildingRecipe');
     expect(recipes).toHaveLength(2);
@@ -151,7 +151,7 @@ describe('the AI under fog of war', () => {
     placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
     for (let i = 0; i < 4; i++) spawnUnit(world, 'archer', 1, 35.5, 30.5 + i);
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.fletcher);
+    const brain = new AiBrain(0, AI_STRATEGIES.fletcher, world.map.size);
     const commands = brain.decide(world);
     const recipes = commands.filter((c) => c.kind === 'setBuildingRecipe');
     expect(recipes).toHaveLength(2);
@@ -173,7 +173,7 @@ describe('the AI under fog of war', () => {
     placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
     const foes = Array.from({ length: 4 }, (_, i) => spawnUnit(world, 'spearman', 1, 35.5, 30.5 + i));
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     expect(brain.decide(world).filter((c) => c.kind === 'setBuildingRecipe')).toHaveLength(2);
     // The spearmen vanish; the scout finds their yard empty well past the
     // refresh clock but well inside the trust window.
@@ -199,7 +199,7 @@ describe('the AI under fog of war', () => {
     for (let i = 0; i < 3; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
     spawnUnit(world, 'knight', 0, 42.5, 43.5); // close enough to have seen it
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     const commands = brain.decide(world);
     const single = moveOrders(commands).filter((c) => c.unitIds.length === 1);
     expect(single).toHaveLength(1);
@@ -220,7 +220,7 @@ describe('the AI under fog of war', () => {
         u.y = 55.5;
       }
     }
-    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     const moves = moveOrders(brain.decide(world));
     expect(moves).toHaveLength(2);
 
@@ -239,7 +239,7 @@ describe('the AI under fog of war', () => {
 
   it('abandons sweep goals the army stood down in front of', () => {
     const world = musterWorld();
-    const brain = new AiBrain(0, AI_STRATEGIES.steward);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     // The army never goes anywhere (every order falls on deaf feet in this
     // fixture — decide() output is never applied): each beat finds everyone
     // idle with the goal still dark. The brain must write goals off and try

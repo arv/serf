@@ -58,6 +58,10 @@ export interface MissionDef {
   seed: number;
   players: { kind: 'human' | 'ai'; strategy?: AiStrategyId }[];
   bandits: boolean;
+  /** Pin a grid size for this mission's world; absent = the game default.
+   * A mission whose tuning depends on its exact world can hold it here
+   * while the default marches on. */
+  mapSize?: number;
   /** Overrides FIRST_RAID_TICK (bandit missions only). */
   firstRaidTick?: number;
   /** Overrides START_SERFS for the human seat. */

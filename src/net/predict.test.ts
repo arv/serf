@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { MovePredictor } from './predict';
-import { TILE_COUNT, tileIdx } from '../shared/grid';
+import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { ACTION } from '../protocol/sabLayout';
 import type { UnitSnapshot } from '../protocol/sabLayout';
 
 const openMap = () => ({
-  blocked: new Uint8Array(TILE_COUNT),
-  pathLevel: new Uint8Array(TILE_COUNT),
+  size: DEFAULT_MAP_SIZE,
+  blocked: new Uint8Array(tileCount(DEFAULT_MAP_SIZE)),
+  pathLevel: new Uint8Array(tileCount(DEFAULT_MAP_SIZE)),
 });
 
 function unit(id: number, x: number, y: number, owner = 0): UnitSnapshot {
@@ -130,7 +131,7 @@ describe('move prediction', () => {
   it('does not predict through walls', () => {
     const map = openMap();
     // A blocking wall across the unit's route.
-    for (let y = 0; y < 64; y++) map.blocked[tileIdx(15, y)] = 1;
+    for (let y = 0; y < 64; y++) map.blocked[tileIdx(15, y, map.size)] = 1;
     const p = new MovePredictor(map);
     const u = unit(1, 10.5, 10.5);
     p.order([1], 20, 10, new Map([[1, u]]));

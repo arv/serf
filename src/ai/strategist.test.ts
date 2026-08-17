@@ -106,7 +106,7 @@ vi.mock('@wllama/wllama/esm/wasm/wllama.wasm?url', () => ({ default: 'wllama.was
 
 function testSummary(): AiWorldSummary {
   const world = createWorld({ seed: 5, players: [{ kind: 'human' }, { kind: 'ai' }] });
-  const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy));
+  const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
   brain.decide(world); // one beat, so vision exists
   return summarizeForSeat(world, brain);
 }

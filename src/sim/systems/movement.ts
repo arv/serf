@@ -12,6 +12,7 @@ import type { World } from '../world.ts';
  * cell has become blocked (a building landed on it), route around it.
  */
 export function movementSystem(world: World): void {
+  const size = world.map.size;
   // serfSpeed tech multiplier per player, computed once per tick instead of
   // per civilian (getModifier walks every researched tech's effects). Owners
   // without a player entry (BANDIT) fall back to the same baseline of 1.
@@ -24,7 +25,7 @@ export function movementSystem(world: World): void {
     if (unit.dead || !unit.path) continue;
     const path = unit.path;
 
-    const here = tileIdx(Math.floor(unit.x), Math.floor(unit.y));
+    const here = tileIdx(Math.floor(unit.x), Math.floor(unit.y), size);
     // Trail wear: bump the tile the unit just left.
     if (unit.lastTile !== here) {
       if (unit.lastTile >= 0) {
@@ -45,8 +46,8 @@ export function movementSystem(world: World): void {
         routeAround(world, unit, path[path.length - 1]!);
         break;
       }
-      const wx = tileX(next) + 0.5;
-      const wy = tileY(next) + 0.5;
+      const wx = tileX(next, size) + 0.5;
+      const wy = tileY(next, size) + 0.5;
       const dx = wx - unit.x;
       const dy = wy - unit.y;
       const dist = Math.sqrt(dx * dx + dy * dy); // sqrt is IEEE-exact; hypot is not
@@ -96,12 +97,13 @@ export function movementSystem(world: World): void {
  * dispatcher can pick the unit up again.
  */
 function routeAround(world: World, unit: Unit, goal: number): void {
+  const size = world.map.size;
   const ux = Math.floor(unit.x);
   const uy = Math.floor(unit.y);
-  let p = findPath(world.map, ux, uy, tileX(goal), tileY(goal));
+  let p = findPath(world.map, ux, uy, tileX(goal, size), tileY(goal, size));
   if (!p) {
-    const beside = nearestWalkable(world.map, tileX(goal), tileY(goal), GOAL_SLIP);
-    if (beside >= 0) p = findPath(world.map, ux, uy, tileX(beside), tileY(beside));
+    const beside = nearestWalkable(world.map, tileX(goal, size), tileY(goal, size), GOAL_SLIP);
+    if (beside >= 0) p = findPath(world.map, ux, uy, tileX(beside, size), tileY(beside, size));
   }
   unit.path = p && p.length > 0 ? p : null;
   unit.pathIdx = 0;
