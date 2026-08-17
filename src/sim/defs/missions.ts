@@ -236,7 +236,10 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'charter, and the crown does not care which of you it honors. The ' +
       'bandits in the middle care even less. Last banner standing.',
     tagline: 'Bonus: your first rival. Last banner standing.',
-    seed: 606,
+    // Re-pinned (606 -> 609) after the A*-cap rebalance: 606's war still
+    // ended, but only at ~30k ticks — three times this roll's ~9.6k, and
+    // past what the elimination test can afford under a loaded suite.
+    seed: 609,
     players: [{ kind: 'human' }, { kind: 'ai', strategy: 'steward' }],
     bandits: true,
     // No checklist: the ordinary last-faction-standing rules decide it.
