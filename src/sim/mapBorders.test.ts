@@ -19,25 +19,32 @@ function solo(seed: number): World {
   return createWorld({ seed, players: [{ kind: 'human' }] });
 }
 
-/** Classify one edge by probing its band at several positions. */
+/** Classify one edge by walking inward at several positions and reading
+ * the first non-water tile: rock = ridge, standing wood = forest, and a
+ * band that stays wet all the way in (or opens on clear grass) = sea. The
+ * walk-in matters — the waterline wobbles, so no fixed depth is reliable. */
 function edgeStyle(map: GameMap, side: number): 'sea' | 'ridge' | 'forest' {
   const size = map.size;
   let rock = 0;
   let wood = 0;
-  let water = 0;
-  // Probe just inside the strip at many positions along the edge; the
-  // wobble keeps depth >= FRINGE so d = STRIP is always inside the band.
+  let sea = 0;
   for (let along = 10; along < size - 10; along += 3) {
-    const d = STRIP;
-    const [x, y] =
-      side === 0 ? [along, d] : side === 1 ? [size - 1 - d, along] : side === 2 ? [along, size - 1 - d] : [d, along];
-    const i = tileIdx(x, y, size);
-    if (map.terrain[i] === Terrain.Rock) rock++;
-    else if (map.terrain[i] === Terrain.Water) water++;
-    else if (map.resource[i] === TileResource.Wood) wood++;
+    let vote: 'sea' | 'ridge' | 'forest' = 'sea';
+    for (let d = 0; d < 2 * FRINGE; d++) {
+      const [x, y] =
+        side === 0 ? [along, d] : side === 1 ? [size - 1 - d, along] : side === 2 ? [along, size - 1 - d] : [d, along];
+      const i = tileIdx(x, y, size);
+      if (map.terrain[i] === Terrain.Water) continue;
+      if (map.terrain[i] === Terrain.Rock) vote = 'ridge';
+      else if (map.resource[i] === TileResource.Wood) vote = 'forest';
+      break;
+    }
+    if (vote === 'ridge') rock++;
+    else if (vote === 'forest') wood++;
+    else sea++;
   }
-  if (rock > wood && rock > water) return 'ridge';
-  if (wood > rock && wood > water) return 'forest';
+  if (rock > wood && rock > sea) return 'ridge';
+  if (wood > rock && wood > sea) return 'forest';
   return 'sea';
 }
 

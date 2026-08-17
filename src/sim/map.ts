@@ -254,7 +254,21 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
   // stranded outside a ridge for the one-landmass pass to drown, mist
   // always has anchors, and a ridge rises straight out of the sea — a
   // cliff coastline — while a forest belt runs down to a wooded shore.
+  //
+  // The strip carries its OWN wobble, rougher than the band's (one
+  // smoothing pass instead of two): the band wobble only bends the rim's
+  // inner edge, and a constant-width strip left every ridge and forest
+  // wall standing on a ruler-straight coastline.
   const strip = Math.max(1, Math.floor(size / 48));
+  const stripWobble = new Float32Array(size * 4);
+  for (let i = 0; i < stripWobble.length; i++) {
+    stripWobble[i] = rng.range(0, Math.max(1, fringe * 0.75));
+  }
+  for (let i = 0; i < stripWobble.length; i++) {
+    const prev = stripWobble[(i + stripWobble.length - 1) % stripWobble.length]!;
+    const next = stripWobble[(i + 1) % stripWobble.length]!;
+    stripWobble[i] = (prev + stripWobble[i]! * 2 + next) / 4;
+  }
 
   // Ridge profile (0 = no rim rock, 1 = outermost rock row), fed into
   // computeTerrain so the heightfield raises the range under the rock.
@@ -272,7 +286,16 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
       const depth = fringe + wobble[side * size + along]!;
       const d = dists[side]!;
       const i = tileIdx(x, y, size);
-      if (d < strip) {
+      // The waterline: the wobbled strip, clamped so at least one rim row
+      // always survives inland of it, bitten by per-tile notches (hash2,
+      // not rng — draw counts must not depend on geometry) so the coast
+      // frays at tile scale on top of the low-frequency meander.
+      const notch = hash2(i, 137) < 0.3 ? 1 : 0;
+      const waterline = Math.min(
+        strip + stripWobble[side * size + along]! + notch,
+        depth - 1,
+      );
+      if (d < Math.max(strip, waterline)) {
         map.terrain[i] = Terrain.Water;
       } else if (d < depth) {
         switch (rimStyles[side]!) {
@@ -281,7 +304,7 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
             break;
           case RIM_RIDGE:
             map.terrain[i] = Terrain.Rock;
-            rimRamp[i] = (depth - d) / Math.max(1, depth - strip);
+            rimRamp[i] = (depth - d) / Math.max(1, depth - waterline);
             break;
           case RIM_FOREST:
             // Terrain stays grass; the trees are planted after the
