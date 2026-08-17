@@ -11,7 +11,7 @@ describe('configFromUrl', () => {
     const c = configFromUrl('');
     expect(c.players).toEqual([{ kind: 'human' }]);
     expect(c.banditsEnabled).toBe(true);
-    expect(c.seed).toBe(20260724);
+    expect(c.seed).toBe(7);
   });
 
   it('reads ?bandits=0 — and only that exact value', () => {
@@ -51,8 +51,8 @@ describe('configFromUrl', () => {
   it('ignores junk rather than booting a broken world', () => {
     expect(configFromUrl('?ai=abc').players).toEqual([{ kind: 'human' }]);
     // A NaN seed used to reach worldgen and produce nonsense.
-    expect(configFromUrl('?seed=abc').seed).toBe(20260724);
-    expect(configFromUrl('?seed=').seed).toBe(20260724);
+    expect(configFromUrl('?seed=abc').seed).toBe(7);
+    expect(configFromUrl('?seed=').seed).toBe(7);
   });
 
   it('boots a campaign mission from ?mission=, def over URL', () => {
@@ -77,7 +77,7 @@ describe('configFromUrl', () => {
 
   it('ignores a mission nobody has heard of', () => {
     expect(configFromUrl('?mission=nonesuch').mission).toBeUndefined();
-    expect(configFromUrl('?mission=nonesuch').seed).toBe(20260724);
+    expect(configFromUrl('?mission=nonesuch').seed).toBe(7);
     expect(configFromUrl('?mission=constructor').mission).toBeUndefined();
     expect(configFromUrl('?mission=').mission).toBeUndefined();
   });

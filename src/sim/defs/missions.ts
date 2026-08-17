@@ -215,7 +215,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     tagline: 'The full game: no help, no headstart.',
     // The seed winnable.test.ts proves takeable — the one map with a
     // standing guarantee that it can be held.
-    seed: 20260724,
+    seed: 7,
     players: [{ kind: 'human' }],
     bandits: true,
     objectives: [
