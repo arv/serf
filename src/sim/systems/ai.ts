@@ -371,7 +371,7 @@ export class AiBrain {
     // around() check is the feasibility test, so a counter the economy
     // cannot arm falls straight through to the playbook's own preference.
     const barracks = mine.find((b) => b.type === 'barracks' && b.state === 'built');
-    if (barracks && (barracks.trainQueue?.length ?? 0) < s.barracksQueueDepth) {
+    if (barracks) {
       const around = (good: GoodId): boolean =>
         (stock[good] ?? 0) + (barracks.inputs[good] ?? 0) + (barracks.inbound[good] ?? 0) > 0;
       const prefs = counter ? [counter.unit, ...s.trainPreference] : s.trainPreference;
@@ -379,11 +379,39 @@ export class AiBrain {
         const weapon = WEAPON_OF[unit];
         return weapon !== undefined && around(weapon);
       });
-      commands.push({
-        kind: 'trainUnit',
-        buildingId: barracks.id,
-        unit: ready ?? s.trainFallback,
-      });
+      // A queue can go stale: an unstarted entry whose weapon the village
+      // neither holds nor has on the way pins its slot forever — the iron
+      // ran out under a spearman order while swords piled up in the store,
+      // and a queue at depth stops this rule from ever running again. One
+      // stale entry makes way per beat, and only while a unit the seat CAN
+      // arm is waiting for the slot. An empty-handed queue keeps its
+      // entries: unstarted orders are what summon their weapons at all
+      // (trainingDemand reads them), so a seat with nothing in reach must
+      // hold its place in line, not clear it.
+      let cancelled = 0;
+      if (ready !== undefined) {
+        const staleIdx = (barracks.trainQueue ?? []).findIndex((item) => {
+          if (item.started) return false;
+          const weapon = WEAPON_OF[item.unit];
+          return weapon !== undefined && !around(weapon);
+        });
+        if (staleIdx >= 0) {
+          commands.push({
+            kind: 'cancelTraining',
+            buildingId: barracks.id,
+            index: staleIdx,
+            unit: barracks.trainQueue![staleIdx]!.unit,
+          });
+          cancelled = 1;
+        }
+      }
+      if ((barracks.trainQueue?.length ?? 0) - cancelled < s.barracksQueueDepth) {
+        commands.push({
+          kind: 'trainUnit',
+          buildingId: barracks.id,
+          unit: ready ?? s.trainFallback,
+        });
+      }
     }
 
     // --- Army: rally at home until strong, then march ------------------------

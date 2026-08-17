@@ -9,7 +9,7 @@ import {
   type BuildingDef,
   type Recipe,
 } from '../defs/buildings.ts';
-import { RESOURCE_CODE, TileResource, findResourceNear } from '../map.ts';
+import { RESOURCE_CODE, TileResource, findResourcesNear } from '../map.ts';
 import { atBuilding, atTile, walkToBuilding, walkToTile } from '../arrival.ts';
 import type { Building } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
@@ -17,6 +17,14 @@ import { depleteResourceTile, type World } from '../world.ts';
 import { getModifier } from '../techHelpers.ts';
 import type { GoodId } from '../defs/goods.ts';
 import type { Unit } from '../units.ts';
+
+/**
+ * How many nearby resource tiles one trip-start will try to path to before
+ * giving up until the next attempt. Enough to see past a walled-in pocket
+ * of its own seam; small enough that a fully shut-in hut costs a bounded
+ * handful of path searches per 40-tick retry.
+ */
+const GATHER_REACH_TRIES = 8;
 
 /**
  * Gather production: each producer's resident worker commutes to resource
@@ -117,27 +125,39 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
         return;
       }
       const c = gatherOrigin(buildingDef(b.type), b.x, b.y);
-      const tile = findResourceNear(
+      // Nearest first, but never nearest only. The nearest tile can be
+      // permanently unreachable — a tree walled in by its own grove was
+      // enough — and retrying it alone idled the worker 40 ticks at a
+      // time forever while workable tiles sat in radius, starving the
+      // village of the good everything else is built from. The trip goes
+      // to the nearest tile a path actually reaches; the candidate cap
+      // bounds the pathfinding bill on beats where everything is shut.
+      const candidates = findResourcesNear(
         world.map,
         c.x,
         c.y,
         RESOURCE_CODE[recipe.resource]!,
         recipe.radius,
+        GATHER_REACH_TRIES,
       );
-      if (tile < 0) {
-        worker.task = { t: 'idle', until: world.tick + 40 };
-        return;
+      let tile = -1;
+      let path: number[] | null = null;
+      for (const cand of candidates) {
+        path = findPathToAdjacent(
+          world.map,
+          Math.floor(worker.x),
+          Math.floor(worker.y),
+          tileX(cand),
+          tileY(cand),
+          1,
+          1,
+        );
+        if (path) {
+          tile = cand;
+          break;
+        }
       }
-      const path = findPathToAdjacent(
-        world.map,
-        Math.floor(worker.x),
-        Math.floor(worker.y),
-        tileX(tile),
-        tileY(tile),
-        1,
-        1,
-      );
-      if (!path) {
+      if (tile < 0 || !path) {
         worker.task = { t: 'idle', until: world.tick + 40 };
         return;
       }

@@ -32,6 +32,33 @@ describe('gather production', () => {
     expect(world.ledger.produced.wood).toBeGreaterThan(0);
   });
 
+  it('an unreachable nearest tile does not starve the hut (walled-in tree)', () => {
+    const world = bareWorld();
+    const hut = addBuiltHut(world, 30, 30);
+    // The nearest tree to the hut's gather origin (31,31), sealed inside a
+    // ring of blocking rock: no adjacent tile is walkable, so no path ever
+    // reaches it. Before reachability-aware trips, the worker re-picked
+    // exactly this tile every retry and idled forever.
+    const walled = plantGrove(world, 33, 31, 6);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const i = tileIdx(33 + dx, 31 + dy);
+        world.map.resource[i] = TileResource.Rock;
+        world.map.resourceAmt[i] = 6;
+        world.map.blocked[i] = 1;
+      }
+    }
+    // A workable tree farther out but still inside the recipe radius.
+    const open = plantGrove(world, 37, 31, 6);
+    run(world, 3000);
+
+    expect(hut.stock.wood ?? 0).toBeGreaterThan(0);
+    // The yield came from the reachable grove; the sealed one stands.
+    expect(world.map.resourceAmt[walled]).toBe(6);
+    expect(world.map.resourceAmt[open]!).toBeLessThan(6);
+  });
+
   it('full output buffer stalls production (Settlers rule)', () => {
     const world = bareWorld();
     const hut = addBuiltHut(world, 30, 30);
