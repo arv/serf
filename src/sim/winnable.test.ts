@@ -15,11 +15,11 @@ import { strategyOf } from './defs/aiStrategies.ts';
  */
 describe('the campaign is winnable', () => {
   it('the AI player beats the default map', () => {
-    // Seed 23: the pinned default valley. Chosen by sweep after the moat
-    // removal re-rolled every world — fair at 2/3/4 seats with water in
-    // reach of every start, and every playbook takes it inside the budget
-    // (steward and warlord by ~12k, abbot and fletcher by ~27k of 45k).
-    const world = createWorld({ seed: 23, players: [{ kind: 'ai' }] });
+    // Seed 17: the pinned default valley, home again after the margin
+    // grid re-rolled every world. Chosen by sweep — fair at 2/3/4 seats
+    // with water in reach of every start, and every playbook takes it
+    // with a wide margin (all four win by tick ~19k of the 45k budget).
+    const world = createWorld({ seed: 17, players: [{ kind: 'ai' }] });
     // Whichever playbook this seed dealt the seat — every one of them can
     // take this map (aiStrategies.test.ts holds that line); what is tested
     // here is that the map stays takeable.
