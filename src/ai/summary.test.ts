@@ -19,6 +19,10 @@ function playedWorld(ticks: number): { world: World; brains: AiBrain[] } {
   const world = createWorld({
     seed: 11,
     players: [{ kind: 'ai', strategy: 'steward' }, { kind: 'ai', strategy: 'warlord' }],
+    // What is under test is the summary's shape and budget, at the tempo
+    // its tick horizons were written for — the classic 64 map keeps these
+    // sims inside vitest's default timeout. Map scale has its own tests.
+    mapSize: 64,
   });
   const brains = world.players.map((p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
   for (let t = 0; t < ticks && world.outcome.state === 'playing'; t++) {
