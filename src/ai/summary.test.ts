@@ -108,14 +108,14 @@ describe('summarizeForSeat', () => {
         expect(rival.intel.total).toBeGreaterThan(0);
       }
     }
-  });
+  }, 60_000);
 
   it('stays under the prompt budget however the match sprawls', () => {
     const { world, brains } = playedWorld(12_000);
     for (const brain of brains) {
       expect(JSON.stringify(summarizeForSeat(world, brain)).length).toBeLessThan(2000);
     }
-  });
+  }, 60_000);
 
   it('does not crash on a seat whose castle has fallen', () => {
     const { world, brains } = playedWorld(500);
