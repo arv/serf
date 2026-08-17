@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { configFromUrl } from './gameConfig';
+import { MISSION_DEFS } from '../sim/defs/missions';
 
 /**
  * The start screen speaks to the game entirely through the query string, so
@@ -58,14 +59,16 @@ describe('configFromUrl', () => {
   it('boots a campaign mission from ?mission=, def over URL', () => {
     const c = configFromUrl('?mission=levy');
     expect(c.mission).toBe('levy');
-    expect(c.seed).toBe(404);
+    // Off the def, not a literal: mission seeds are re-pinned data and this
+    // test is about the def winning over the URL, not about which seed.
+    expect(c.seed).toBe(MISSION_DEFS.levy.seed);
     expect(c.banditsEnabled).toBe(true);
     expect(c.players).toEqual([{ kind: 'human' }]);
     expect(c.myPlayerId).toBe(0);
     // The def is the whole recipe: a stray ?seed or ?ai does not perturb
     // the mission's pinned world.
     const pinned = configFromUrl('?mission=clearing&seed=999&ai=2');
-    expect(pinned.seed).toBe(101);
+    expect(pinned.seed).toBe(MISSION_DEFS.clearing.seed);
     expect(pinned.players).toEqual([{ kind: 'human' }]);
     expect(pinned.banditsEnabled).toBe(false);
     // The bonus mission carries its rival.
