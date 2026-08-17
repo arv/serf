@@ -104,6 +104,19 @@ export function firstRaidTickFor(mapSize: number): number {
   return Math.floor((FIRST_RAID_TICK * mapSize) / 64);
 }
 
+/**
+ * The between-waves clock, scaled the same way and for the same reason:
+ * on a bigger map the defender's whole answer to a wave — the march home,
+ * the rebuild, the next batch through the barracks — walks proportionally
+ * further, while a flat 3-minute respawn kept the classic pressure. The
+ * raiders' own longer march absorbs some of it, but the interval starts
+ * counting at SPAWN, so back-to-back waves overlapped harder at 96 than
+ * 64 ever saw. Exactly RAID_INTERVAL at 64.
+ */
+export function raidIntervalFor(mapSize: number): number {
+  return Math.floor((RAID_INTERVAL * mapSize) / 64);
+}
+
 // Training
 export const TRAIN_QUEUE_CAP = 5;
 
