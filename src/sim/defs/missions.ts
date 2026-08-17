@@ -85,7 +85,10 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'stone for the hearth, beds for the hands you hire — put a roof ' +
       'over them, reeve, and lay in timber for what comes next.',
     tagline: 'Raise a camp: wood, stone, and beds.',
-    seed: 101,
+    // Re-pinned (101 -> 104) when the border waterline re-rolled the
+    // worlds: the taught line must finish comfortably, and this roll wins
+    // it by tick ~4.2k of the 36k budget.
+    seed: 104,
     players: [{ kind: 'human' }],
     bandits: false,
     startSerfs: 6,
@@ -168,7 +171,9 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'The crown expects them gone. Raise the barracks, feed your ' +
       'soldiers, and answer for the valley.',
     tagline: 'Face the first raid, then take the camp.',
-    seed: 404,
+    // Re-pinned (404 -> 405) with the border waterline: the early raid
+    // must be survivable, and this roll is won by tick ~6.6k.
+    seed: 405,
     players: [{ kind: 'human' }],
     bandits: true,
     // Five minutes — the point of this mission IS the raid, arriving before
