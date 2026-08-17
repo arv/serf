@@ -90,7 +90,26 @@ export function findResourceNear(
   code: TileResourceKind,
   radius: number,
 ): number {
-  return findResourcesNear(map, cx, cy, code, radius, 1)[0] ?? -1;
+  // A direct scan rather than findResourcesNear(..., 1): this runs under
+  // canPlace on every build-cursor move, and the single answer should not
+  // buy an array per frame. The twin below must keep walking the same
+  // rings in the same order — the gather loop's first candidate has to be
+  // exactly this function's answer.
+  for (let r = 1; r <= radius; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = cx + dx;
+        const y = cy + dy;
+        if (!inBounds(x, y)) continue;
+        const i = tileIdx(x, y);
+        if (map.resource[i] !== code) continue;
+        if (map.resourceAmt && map.resourceAmt[i]! <= 0) continue;
+        return i;
+      }
+    }
+  }
+  return -1;
 }
 
 /**
