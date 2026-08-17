@@ -297,6 +297,10 @@ export class EdgeSkirt {
       if (m < 0.52) out.copy(COL.lush).lerp(COL.olive, m / 0.52);
       else out.copy(COL.olive).lerp(COL.gold, (m - 0.52) / 0.48);
       if (y > 0.9) out.lerp(m < 0.5 ? COL.rock : COL.rockDark, Math.min((y - 0.9) / 0.55, 1) * 0.9);
+      // Forest floor: the wood above is near-solid, and lawn-bright gaps
+      // between the stands read as clearings. Shade the ground toward
+      // moss so the canopy reads continuous where the trees thin out.
+      out.lerp(COL.moss, 0.34 + (vnoise(59, x, z, 5) - 0.5) * 0.24);
     }
     // Banks sink into dark moss near the waterline, like the map's own.
     if (y < 0.5) out.lerp(COL.moss, Math.min((0.5 - y) / 1.1, 0.8));
@@ -362,16 +366,23 @@ export class EdgeSkirt {
   }
 
   /**
-   * The forest continues as forest: instanced tree stands over every
-   * skirt tile whose style mix is mostly forest belt, matching the in-map
-   * groves' species and stature so the wall reads as one wood.
+   * The forest continues as forest — a full wood, not a thin scatter. The
+   * stands mirror the in-map groves exactly: the same KayKit species mix,
+   * two trees per tile at the groves' own stature, jitter, lean, and tint,
+   * so the belt and the horizon read as one canopy. Near-solid density for
+   * the first rows tapers with distance (the far field leans on the
+   * forest-floor ground shade and the fog); trees in the near band cast
+   * real shadows like their in-map neighbors — the flat, shadowless wall
+   * was half of what made the old scatter look pasted on.
    */
   #plantTrees(): void {
     const size = this.#size;
     const ext = this.#ext;
     if (!this.#styles.includes('forest')) return;
 
-    const spots: { x: number; z: number; y: number; seed: number }[] = [];
+    /** How far out the stands still cast shadows (and hold full density). */
+    const NEAR = 14;
+    const spots: { x: number; z: number; y: number; seed: number; near: boolean; d: number }[] = [];
     for (let tz = -ext; tz < size + ext; tz++) {
       for (let tx = -ext; tx < size + ext; tx++) {
         const cx = tx + 0.5;
@@ -389,16 +400,18 @@ export class EdgeSkirt {
         }
         if (forestW < 0.6) continue;
         const seed = (tz + ext) * (size + 2 * ext) + (tx + ext);
-        // Denser than the in-map scatter reads from afar; thins with
-        // distance so the far field softens toward the fog.
-        if (hash2(seed, 61) > 0.55 - (d / ext) * 0.18) continue;
-        const jx = 0.15 + hash2(seed, 62) * 0.7;
-        const jz = 0.15 + hash2(seed, 63) * 0.7;
-        const x = tx + jx;
-        const z = tz + jz;
-        const y = this.#heightOnly(x, z);
-        if (y < 0.12) continue; // no trees standing in a bay
-        spots.push({ x, z, y, seed });
+        const density = d < NEAR ? 0.95 : Math.max(0.42, 0.95 - (d - NEAR) * 0.02);
+        if (hash2(seed, 61) > density) continue;
+        for (let k = 0; k < 2; k++) {
+          const ts = seed * 2 + k;
+          const jx = 0.18 + hash2(ts, 1) * 0.64;
+          const jz = 0.18 + hash2(ts, 2) * 0.64;
+          const x = tx + jx;
+          const z = tz + jz;
+          const y = this.#heightOnly(x, z);
+          if (y < 0.12) continue; // no trees standing in a bay
+          spots.push({ x, z, y, seed: ts, near: d < NEAR, d });
+        }
       }
     }
     if (spots.length === 0) return;
@@ -407,34 +420,46 @@ export class EdgeSkirt {
     const tint = new THREE.Color();
     const trees = glbTrees();
     if (trees) {
-      const perSpecies: number[][] = trees.geometries.map(() => []);
+      // One instanced mesh per (species, shadow band): the near band pays
+      // for the shadow pass, the far field skips it.
+      const buckets: number[][] = trees.geometries.flatMap(() => [[], []]);
       spots.forEach((spot, i) => {
-        perSpecies[(hash2(spot.seed, 11) * perSpecies.length) | 0]!.push(i);
+        const species = (hash2(spot.seed, 11) * trees.geometries.length) | 0;
+        buckets[species * 2 + (spot.near ? 1 : 0)]!.push(i);
       });
       trees.geometries.forEach((geo, si) => {
-        const ids = perSpecies[si]!;
-        if (ids.length === 0) return;
-        const mesh = new THREE.InstancedMesh(geo, trees.material, ids.length);
-        mesh.castShadow = false;
-        mesh.receiveShadow = false;
-        ids.forEach((spotIdx, k) => {
-          const spot = spots[spotIdx]!;
-          const h = 1.1 + hash2(spot.seed, 3) * 0.9;
-          dummy.position.set(spot.x, spot.y, spot.z);
-          dummy.rotation.set(0, hash2(spot.seed, 4) * Math.PI * 2, 0);
-          dummy.scale.set(h * (0.8 + hash2(spot.seed, 5) * 0.35), h, h * (0.8 + hash2(spot.seed, 5) * 0.35));
-          dummy.updateMatrix();
-          mesh.setMatrixAt(k, dummy.matrix);
-          const warm = hash2(spot.seed, 6);
-          tint.setHex(0xffffff).lerp(
-            TREE_TINT.setHex(warm > 0.85 ? 0xc8a050 : 0x6a8f4a),
-            warm > 0.85 ? 0.35 : warm * 0.22,
-          );
-          mesh.setColorAt(k, tint);
-        });
-        mesh.instanceMatrix.needsUpdate = true;
-        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-        this.group.add(mesh);
+        for (const near of [0, 1]) {
+          const ids = buckets[si * 2 + near]!;
+          if (ids.length === 0) continue;
+          const mesh = new THREE.InstancedMesh(geo, trees.material, ids.length);
+          mesh.castShadow = near === 1;
+          mesh.receiveShadow = false;
+          ids.forEach((spotIdx, k) => {
+            const spot = spots[spotIdx]!;
+            const ts = spot.seed;
+            // The groves' own stature: each tile pairs one tall tree with
+            // one smaller companion (ts parity is the pair index). Far
+            // stands grow a little with distance, so the thinning density
+            // still closes into one canopy by the time the fog takes over.
+            const far = 1 + Math.min(spot.d / 45, 1) * 0.3;
+            const h = ((ts % 2 === 0 ? 1.5 : 1.0) + hash2(ts, 3) * 0.8) * far;
+            const w = h * (0.8 + hash2(ts, 5) * 0.35);
+            dummy.position.set(spot.x, spot.y, spot.z);
+            dummy.rotation.set(0, hash2(ts, 4) * Math.PI * 2, (hash2(ts, 7) - 0.5) * 0.1);
+            dummy.scale.set(w, h, w);
+            dummy.updateMatrix();
+            mesh.setMatrixAt(k, dummy.matrix);
+            const warm = hash2(ts, 6);
+            tint.setHex(0xffffff).lerp(
+              TREE_TINT.setHex(warm > 0.85 ? 0xc8a050 : 0x6a8f4a),
+              warm > 0.85 ? 0.35 : warm * 0.22,
+            );
+            mesh.setColorAt(k, tint);
+          });
+          mesh.instanceMatrix.needsUpdate = true;
+          if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+          this.group.add(mesh);
+        }
       });
       return;
     }
