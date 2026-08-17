@@ -5,6 +5,7 @@ import { tileIdx } from '../shared/grid';
 import { Terrain, TileResource, type MapView } from '../sim/map';
 import { palette } from './palette';
 import { vnoise } from './noise';
+import { makeGroundTexture } from './groundTexture';
 import { glbRocks, glbTrees } from './assets';
 import type { HeightField } from './heightField';
 
@@ -112,9 +113,14 @@ export class EdgeSkirt {
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.computeVertexNormals();
 
+    // The same blade-speckle detail texture the terrain multiplies over
+    // its paint — without it the skirt's flat color drew a visible line
+    // where the two grounds meet. Same 4-tiles-per-repeat density; the
+    // extent is a whole multiple of the repeat, so the pattern stays in
+    // phase across the boundary.
     const mesh = new THREE.Mesh(
       geometry,
-      new THREE.MeshLambertMaterial({ vertexColors: true }),
+      new THREE.MeshLambertMaterial({ vertexColors: true, map: makeGroundTexture(span) }),
     );
     mesh.receiveShadow = true;
     this.group.add(mesh);
@@ -270,8 +276,13 @@ export class EdgeSkirt {
     out.copy(COL.bed).lerp(COL.water, Math.min(Math.max((-y - 0.2) * 1.4, 0), 1) * 0.75);
   }
 
-  /** One style's ground color at (x, z), given its final height. */
-  #styleColor(style: RimStyle, x: number, z: number, y: number, out: THREE.Color): void {
+  /**
+   * One style's ground color at (x, z), given its final height. `d` is
+   * the distance past the map edge: the first rows paint by the terrain
+   * mesh's own rules and ease into the skirt's far-field rules over a few
+   * tiles, so no rule change ever lands exactly on the boundary as a line.
+   */
+  #styleColor(style: RimStyle, x: number, z: number, y: number, d: number, out: THREE.Color): void {
     if (style === 'sea' || y < -0.6) {
       this.#bedColor(out, y);
       return;
@@ -280,27 +291,34 @@ export class EdgeSkirt {
     // ground tone continues across the boundary instead of re-rolling.
     const m = vnoise(51, x, z, 9) * 0.5 + vnoise(53, x, z, 3.4) * 0.34 + vnoise(57, x, z, 1.2) * 0.16;
     if (style === 'ridge') {
-      // Foothills keep some turf; the rock takes over with altitude, the
-      // way the map's own peaks dry out of the meadow.
+      // The terrain mesh's own rim-rock paint, step for step: meadow base,
+      // the flat rock tint, then altitude rock — so the seam row is
+      // pixel-close to the map's.
       if (m < 0.52) out.copy(COL.lush).lerp(COL.olive, m / 0.52);
       else out.copy(COL.olive).lerp(COL.gold, (m - 0.52) / 0.48);
-      const rocky = Math.min(Math.max((y + 0.4) / 1.6, 0), 1) * 0.95;
-      out.lerp(m < 0.5 ? COL.rock : COL.rockDark, rocky);
-      // The skirt's snow line sits higher than the map's: only the
-      // tallest crests cap out, so the range reads grey stone with white
-      // crests instead of a snowfield.
-      if (y > 2.3) out.lerp(COL.snow, Math.min((y - 2.3) / 0.5, 1) * 0.85);
-      // Faked valley shade: feet dim, crests catch the light — the 1-tile
-      // lattice's soft normals alone leave the relief unreadable.
-      out.multiplyScalar(0.78 + 0.22 * Math.min(Math.max(y / 2.8, 0), 1));
+      const rockCol = m < 0.5 ? COL.rock : COL.rockDark;
+      out.lerp(rockCol, 0.45);
+      if (y > 0.9) out.lerp(rockCol, Math.min((y - 0.9) / 0.55, 1) * 0.9);
+      // The snow line climbs from the map's 1.95 at the seam to 2.3 in
+      // the far field (a whole horizon parked above the line read as a
+      // snowfield), and the faked valley shade — feet dim, crests catch
+      // the light — eases in the same way: the terrain mesh has neither
+      // rule, so applying either at d=0 drew the boundary as a line.
+      const settle = ease01(d / 8);
+      const snowLine = 1.95 + 0.35 * settle;
+      if (y > snowLine) out.lerp(COL.snow, Math.min((y - snowLine) / 0.45, 1) * 0.85);
+      const shade = 0.22 * (1 - Math.min(Math.max(y / 2.8, 0), 1)) * ease01(d / 6);
+      out.multiplyScalar(1 - shade);
     } else {
       if (m < 0.52) out.copy(COL.lush).lerp(COL.olive, m / 0.52);
       else out.copy(COL.olive).lerp(COL.gold, (m - 0.52) / 0.48);
       if (y > 0.9) out.lerp(m < 0.5 ? COL.rock : COL.rockDark, Math.min((y - 0.9) / 0.55, 1) * 0.9);
       // Forest floor: the wood above is near-solid, and lawn-bright gaps
       // between the stands read as clearings. Shade the ground toward
-      // moss so the canopy reads continuous where the trees thin out.
-      out.lerp(COL.moss, 0.34 + (vnoise(59, x, z, 5) - 0.5) * 0.24);
+      // moss so the canopy reads continuous where the trees thin out —
+      // eased in from the seam, where the map's belt ground has no such
+      // shade.
+      out.lerp(COL.moss, (0.34 + (vnoise(59, x, z, 5) - 0.5) * 0.24) * ease01(d / 5));
     }
     // Banks sink into dark moss near the waterline, like the map's own.
     if (y < 0.5) out.lerp(COL.moss, Math.min((0.5 - y) / 1.1, 0.8));
@@ -332,14 +350,24 @@ export class EdgeSkirt {
     let h = 0;
     for (const s of sides) h += this.#styleHeight(s.style, s.side, s.u, s.d) * s.w;
 
-    // Feather up from the map's own edge bed over the first tiles out.
+    // Feather up from the map's own edge row over the first tiles out.
+    // The under-terrain tuck (-0.15) fades to near-flush within the first
+    // tile — carried any further, the step ran along the whole border as
+    // a shadowed ledge line.
     const t = ease01(d / 2.2);
-    const edgeY = this.#heights.at(x, z) - 0.15;
-    const y = edgeY + (h - edgeY) * t;
+    const edgeY = this.#heights.at(x, z) - 0.15 + 0.13 * ease01(d / 1.2);
+    let y = edgeY + (h - edgeY) * t;
+    // Behind a land border the ground may descend from the edge row, but
+    // only gradually: without this floor, the blend dug a continuous
+    // green gutter along the seam wherever the profile's first valley
+    // landed right behind the map's crest — a straight line by another
+    // name. Farther out the floor drops below any real valley and the
+    // profile is on its own.
+    if (edgeY > 0.3) y = Math.max(y, edgeY - d * 0.4);
 
-    this.#styleColor(sides[0]!.style, x, z, y, out);
+    this.#styleColor(sides[0]!.style, x, z, y, d, out);
     if (sides.length === 2) {
-      this.#styleColor(sides[1]!.style, x, z, y, SCRATCH2);
+      this.#styleColor(sides[1]!.style, x, z, y, d, SCRATCH2);
       out.lerp(SCRATCH2, sides[1]!.w);
     }
     // Only a wet edge row blends toward bed color at the seam — painting
