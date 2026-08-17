@@ -158,11 +158,15 @@ function search(
   while (heapSize > 0) {
     const current = heapPop();
     if (isGoal(current)) return reconstruct(start, current);
-    // The runaway-search cap is the whole grid — 4096 on the classic 64
-    // map, exactly the old constant. A fixed cap under-served bigger maps:
-    // a legal long detour on a 96/128 grid can honestly expand more tiles
-    // than a 64 map even holds.
-    if (++expansions > tileCount(size)) return null;
+    // The runaway-search cap: half the grid, floored at the classic 4096
+    // (the whole 64 map). A flat 4096 under-served bigger maps — a legal
+    // long detour on a 128 grid can honestly expand more than a 64 map
+    // holds — but the cap's real job is bounding UNREACHABLE searches,
+    // which expand the entire walkable component before failing; letting
+    // those touch the whole grid made every stuck hauler 2.25x more
+    // expensive at 96 and pushed the winnable sim past its clock. Half
+    // the grid clears any plausible real path in these open valleys.
+    if (++expansions > Math.max(4096, tileCount(size) >> 1)) return null;
 
     const cx = tileX(current, size);
     const cy = tileY(current, size);
