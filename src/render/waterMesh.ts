@@ -22,10 +22,11 @@ export class WaterMesh {
 
   constructor(map: MapView) {
     const size = map.size;
-    // Twice the map on a side: open sea past every shore, wide enough that
-    // no camera position inside the pan bounds ever sees its rim — the
-    // fog band (renderer.ts) hazes it out long before that.
-    const geometry = new THREE.PlaneGeometry(size * 2, size * 2, 1, 1);
+    // Three times the map on a side: open sea past every shore, matching
+    // the edge skirt's reach (skirtExtent), so the two horizons end
+    // together — far enough out that a corner camera at full zoom-out
+    // meets the fog band (renderer.ts) before either rim.
+    const geometry = new THREE.PlaneGeometry(size * 3, size * 3, 1, 1);
     geometry.rotateX(-Math.PI / 2);
     geometry.translate(size / 2, WATER_LEVEL, size / 2);
 

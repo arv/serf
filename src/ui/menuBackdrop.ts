@@ -5,6 +5,7 @@ import { ScatterMesh } from '../render/scatterMesh';
 import { HeightField } from '../render/heightField';
 import { GrassField } from '../render/grassField';
 import { WaterMesh } from '../render/waterMesh';
+import { EdgeSkirt } from '../render/edgeSkirt';
 import { Mist } from '../render/mist';
 import { BuildingSync } from '../render/buildingSync';
 import { loadGlbAssets } from '../render/assets';
@@ -130,8 +131,9 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   const scatter = new ScatterMesh(world.map, heights);
   const grass = new GrassField(world.map, heights);
   const water = new WaterMesh(world.map);
+  const skirt = new EdgeSkirt(world.map, heights);
   const mist = new Mist(world.map);
-  renderer.scene.add(terrain.mesh, scatter.group, grass.mesh, water.mesh, mist.group);
+  renderer.scene.add(terrain.mesh, scatter.group, grass.mesh, water.mesh, skirt.group, mist.group);
 
   const buildings = new BuildingSync(renderer.scene, heights);
   buildings.cameraQuaternion = renderer.rig.camera.quaternion;

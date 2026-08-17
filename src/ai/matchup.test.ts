@@ -166,7 +166,11 @@ describe('an LLM-advised match, seat against seat', () => {
       mapSize: 64, // must mirror playAdvisedMatch's world exactly
     });
     const controlSeats = new AiSeats(control);
-    for (let t = 0; t < 12_000 && control.outcome.state === 'playing'; t++) {
+    // 16k ticks: far enough for the advised attack cadence to leave the
+    // first marks on the field — this seed's roll develops both economies
+    // identically for the first ~12k, and the horizon must sit past where
+    // the armies start moving differently.
+    for (let t = 0; t < 16_000 && control.outcome.state === 'playing'; t++) {
       tickWorld(control, controlSeats.decide(control));
     }
 
@@ -174,7 +178,7 @@ describe('an LLM-advised match, seat against seat', () => {
       [0, scriptedEngine({ armyAttackSize: 4, attackCooldown: 300, prefersRivals: true })],
       [1, scriptedEngine({ armyAttackSize: 14, homeGuard: 14, serfTarget: 14 })],
     ]);
-    const { world: advised } = await playAdvisedMatch(42, engines, 12_000);
+    const { world: advised } = await playAdvisedMatch(42, engines, 16_000);
 
     // Same valley, same tick horizon — different game on the field. (Tick
     // counts can differ only if one match already ended; the state digest

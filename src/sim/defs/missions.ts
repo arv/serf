@@ -85,10 +85,10 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'stone for the hearth, beds for the hands you hire — put a roof ' +
       'over them, reeve, and lay in timber for what comes next.',
     tagline: 'Raise a camp: wood, stone, and beds.',
-    // Re-pinned (101 -> 104) when the border waterline re-rolled the
+    // Re-pinned (101 -> 104 -> 110) as border passes re-rolled the
     // worlds: the taught line must finish comfortably, and this roll wins
-    // it by tick ~4.2k of the 36k budget.
-    seed: 104,
+    // it by tick ~3.6k of the 36k budget.
+    seed: 110,
     players: [{ kind: 'human' }],
     bandits: false,
     startSerfs: 6,
