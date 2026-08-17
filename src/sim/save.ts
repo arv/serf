@@ -1,4 +1,4 @@
-import { tileCount } from '../shared/grid.ts';
+import { MAX_MAP_SIZE, MIN_MAP_SIZE, tileCount } from '../shared/grid.ts';
 import type { GameMap } from './map.ts';
 import type { PlayerState } from './player.ts';
 import type { MatchOutcome, World } from './world.ts';
@@ -96,7 +96,12 @@ export function deserializeWorld(json: string): World {
     pathLevel: Uint8Array.from(w.map.pathLevel),
     height: Float32Array.from(w.map.height),
   };
-  if (!Number.isInteger(map.size) || map.terrain.length !== tileCount(map.size)) {
+  if (
+    !Number.isInteger(map.size) ||
+    map.size < MIN_MAP_SIZE ||
+    map.size > MAX_MAP_SIZE ||
+    map.terrain.length !== tileCount(map.size)
+  ) {
     throw new Error('corrupt save: bad map size');
   }
 

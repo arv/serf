@@ -67,7 +67,9 @@ export function sanitizeLobbyConfig(base: LobbyConfig, patch: unknown): LobbyCon
     out.seed = p.seed | 0;
   }
   if (typeof p.size === 'number' && Number.isFinite(p.size)) {
-    out.size = Math.max(MIN_MAP_SIZE, Math.min(MAX_MAP_SIZE, Math.floor(p.size)));
+    // Even, like resolveMapSize: the world builder rounds odd sizes down,
+    // and the lobby must display the size the match will actually use.
+    out.size = Math.max(MIN_MAP_SIZE, Math.min(MAX_MAP_SIZE, Math.floor(p.size))) & ~1;
   }
   if (Array.isArray(p.bots)) {
     // Shape only: a name this file has never heard of is not an error, it

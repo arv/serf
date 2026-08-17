@@ -271,6 +271,11 @@ export function startMatch(room: Room): void {
   for (let i = 0; i < aiFill; i++) addSeat(room, 'ai', null);
   const config = matchWorldConfig(room);
   room.world = createWorld(config);
+  // Re-sized to the world actually built: the array was allocated when the
+  // room was created, and the host may have changed the lobby's map size
+  // since — a stale, smaller array would silently drop the change stamps
+  // for every high-index tile.
+  room.tileChangedTick = new Uint32Array(tileCount(room.world.map.size)).fill(1);
   room.replay = { replayVersion: REPLAY_VERSION, config, commands: [] };
   room.ai = new AiSeats(room.world);
   room.state = 'running';

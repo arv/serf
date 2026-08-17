@@ -17,7 +17,6 @@ export type PathMap = Pick<GameMap, 'blocked' | 'pathLevel' | 'size'>;
  */
 
 const SQRT2 = Math.SQRT2;
-const EXPANSION_CAP = 4096;
 
 /** Movement cost multiplier per path level: grass, dirt trail, stone road. */
 const LEVEL_COST = [1.0, 0.85, 0.72] as const;
@@ -159,7 +158,11 @@ function search(
   while (heapSize > 0) {
     const current = heapPop();
     if (isGoal(current)) return reconstruct(start, current);
-    if (++expansions > EXPANSION_CAP) return null;
+    // The runaway-search cap is the whole grid — 4096 on the classic 64
+    // map, exactly the old constant. A fixed cap under-served bigger maps:
+    // a legal long detour on a 96/128 grid can honestly expand more tiles
+    // than a 64 map even holds.
+    if (++expansions > tileCount(size)) return null;
 
     const cx = tileX(current, size);
     const cy = tileY(current, size);

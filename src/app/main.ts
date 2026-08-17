@@ -152,7 +152,7 @@ if (!crossOriginIsolated) {
  * that proves it: a room is chosen, but the choosing happens in the
  * council, which is a menu screen.
  */
-const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu', 'mission', 'replay'];
+const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'size', 'skipMenu', 'mission', 'replay'];
 
 /**
  * A room's opening settings, from the URL a link or a reload arrived on.

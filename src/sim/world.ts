@@ -174,10 +174,14 @@ export interface WorldConfig {
   mapSize?: number;
 }
 
-/** The one place a config's size request becomes the size a world uses. */
+/** The one place a config's size request becomes the size a world uses.
+ * Rounded down to EVEN: the solo start, the camp's middle seed, and the
+ * AI's landmark scan all sit on size/2-derived tile coordinates, and an
+ * odd size would make those fractional — occupancy writes landing between
+ * tiles. */
 export function resolveMapSize(mapSize: number | undefined): number {
   const size = (mapSize ?? DEFAULT_MAP_SIZE) | 0;
-  return Math.min(MAX_MAP_SIZE, Math.max(MIN_MAP_SIZE, size));
+  return Math.min(MAX_MAP_SIZE, Math.max(MIN_MAP_SIZE, size)) & ~1;
 }
 
 /** The full WorldConfig a mission def prescribes. Callers may override
