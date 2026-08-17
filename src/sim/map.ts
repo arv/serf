@@ -205,6 +205,14 @@ function castleCenter(s: StartSpot): { x: number; y: number } {
 export const CASTLE_OPENING_SIGHT =
   buildingSight('storehouse', buildingDef('storehouse').w, buildingDef('storehouse').h) - 1;
 
+/**
+ * How far from home (castle center, tile-center metric) worldgen promises
+ * fishable water — a pond, a lake, or the sea itself. Enforced by the
+ * water-access audit in computeTerrain, which carves a pond for any start
+ * the noise left dry.
+ */
+export const WATER_ACCESS_RADIUS = 16;
+
 export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number): GameMap {
   const tiles = tileCount(size);
   const map: GameMap = {
@@ -230,45 +238,56 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
   const rimStyles = [rng.int(3), rng.int(3), rng.int(3), rng.int(3)] as RimStyle[];
   rimStyles[seaSide] = RIM_SEA;
 
-  // Irregular rim depth: per-edge-position wobble, smoothed. The base depth
-  // grows with the map — the rim is decorative margin (Warcraft-style: the
-  // camera stays inside the grid, so this band is all the breathing room
-  // the border gets). ~4–8 tiles at the default 96. The smoothing wraps
-  // around the whole perimeter, which is also what keeps the band's depth
-  // continuous where two styles meet at a corner.
+  // Irregular rim depth: two scales of wander. Per-edge-position jitter
+  // (rng, one smoothing pass — the two-pass original averaged the band
+  // nearly straight) rides on a long hash-driven meander a few dozen tiles
+  // across, so the border swings in and out in bays and headlands instead
+  // of holding one depth. The base depth grows with the map — the rim is
+  // decorative margin (Warcraft-style: the camera stays inside the grid,
+  // so this band is all the breathing room the border gets). The smoothing
+  // wraps around the whole perimeter, which is also what keeps the band's
+  // depth continuous where two styles meet at a corner.
   const fringe = Math.max(1, Math.floor(size / 24));
-  const wobble = new Float32Array(size * 4);
-  for (let i = 0; i < wobble.length; i++) wobble[i] = rng.range(0, fringe);
-  for (let pass = 0; pass < 2; pass++) {
-    for (let i = 0; i < wobble.length; i++) {
-      const prev = wobble[(i + wobble.length - 1) % wobble.length]!;
-      const next = wobble[(i + 1) % wobble.length]!;
-      wobble[i] = (prev + wobble[i]! * 2 + next) / 4;
+  const perimeter = size * 4;
+  const smoothLoop = (arr: Float32Array): void => {
+    for (let i = 0; i < arr.length; i++) {
+      const prev = arr[(i + arr.length - 1) % arr.length]!;
+      const next = arr[(i + 1) % arr.length]!;
+      arr[i] = (prev + arr[i]! * 2 + next) / 4;
     }
-  }
+  };
+  const wobble = new Float32Array(perimeter);
+  for (let i = 0; i < wobble.length; i++) wobble[i] = rng.range(0, fringe);
+  smoothLoop(wobble);
+  // 1D value noise around the perimeter — hash2 off heightSeed, no rng
+  // draws, so the stream downstream of the rim stays aligned draw for
+  // draw whatever the meander does.
+  const meander = (salt: number, p: number, wavelength: number): number => {
+    const cells = Math.max(4, Math.round(perimeter / wavelength));
+    const f = ((p % perimeter) / perimeter) * cells;
+    const i0 = Math.floor(f);
+    const t = f - i0;
+    const s = t * t * (3 - 2 * t);
+    const a = hash2(heightSeed + salt, i0 % cells);
+    const b = hash2(heightSeed + salt, (i0 + 1) % cells);
+    return a + (b - a) * s;
+  };
 
-  // The outermost ring is water on EVERY edge, whatever the style. This
-  // one rule does a lot of quiet work: the water shader's clamp-to-edge
-  // bed keeps extending open sea past every border (no void behind a
-  // ridge), corners always meet over water so no grass pocket can be
-  // stranded outside a ridge for the one-landmass pass to drown, mist
-  // always has anchors, and a ridge rises straight out of the sea — a
-  // cliff coastline — while a forest belt runs down to a wooded shore.
+  // Only a SEA edge carries open water; a ridge or forest edge runs its
+  // rock or timber to the very last row. The old rule — outermost ring
+  // water on every edge — read on screen as a moat around the whole
+  // island, with the horizon's mountains standing across a channel from
+  // the map's own. The renderer no longer needs the strip either: the
+  // water shader fades its bed to open-sea depth past the map bounds on
+  // its own, and the edge skirt continues a land border AS land. Mist
+  // still has anchors (one edge is always sea, and the lakes count), and
+  // the one-landmass pass never meets a stranded pocket: a rock band has
+  // no grass to strand, and a belt's grass stays joined to the interior.
   //
-  // The strip carries its OWN wobble, rougher than the band's (one
-  // smoothing pass instead of two): the band wobble only bends the rim's
-  // inner edge, and a constant-width strip left every ridge and forest
-  // wall standing on a ruler-straight coastline.
-  const strip = Math.max(1, Math.floor(size / 48));
-  const stripWobble = new Float32Array(size * 4);
-  for (let i = 0; i < stripWobble.length; i++) {
-    stripWobble[i] = rng.range(0, Math.max(1, fringe * 0.75));
-  }
-  for (let i = 0; i < stripWobble.length; i++) {
-    const prev = stripWobble[(i + stripWobble.length - 1) % stripWobble.length]!;
-    const next = stripWobble[(i + 1) % stripWobble.length]!;
-    stripWobble[i] = (prev + stripWobble[i]! * 2 + next) / 4;
-  }
+  // The old strip wobble's draws are kept even though nothing reads them
+  // now: they are part of every seed's draw stream, and dropping them
+  // would re-roll even the all-sea worlds this change does not touch.
+  for (let i = 0; i < perimeter; i++) rng.range(0, Math.max(1, fringe * 0.75));
 
   // Ridge profile (0 = no rim rock, 1 = outermost rock row), fed into
   // computeTerrain so the heightfield raises the range under the rock.
@@ -283,42 +302,53 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
       let side = 0;
       for (let s = 1; s < 4; s++) if (dists[s]! < dists[side]!) side = s;
       const along = side % 2 === 0 ? x : y;
-      const depth = fringe + wobble[side * size + along]!;
-      const d = dists[side]!;
+      const p = side * size + along;
       const i = tileIdx(x, y, size);
-      // The waterline: the wobbled strip, clamped so at least one rim row
-      // always survives inland of it, bitten by per-tile notches (hash2,
-      // not rng — draw counts must not depend on geometry) so the coast
-      // frays at tile scale on top of the low-frequency meander.
-      const notch = hash2(i, 137) < 0.3 ? 1 : 0;
-      const waterline = Math.min(
-        strip + stripWobble[side * size + along]! + notch,
-        depth - 1,
-      );
-      if (d < Math.max(strip, waterline)) {
-        map.terrain[i] = Terrain.Water;
-      } else if (d < depth) {
-        switch (rimStyles[side]!) {
-          case RIM_SEA:
-            map.terrain[i] = Terrain.Water;
-            break;
-          case RIM_RIDGE:
-            map.terrain[i] = Terrain.Rock;
-            rimRamp[i] = (depth - d) / Math.max(1, depth - waterline);
-            break;
-          case RIM_FOREST:
-            // Terrain stays grass; the trees are planted after the
-            // heightfield settles, so lakes and drowning have their say.
-            beltMask[i] = depth - d <= 1 ? 2 : 1;
-            break;
+      // Band depth: base + jitter + meander, capped so the rim never eats
+      // more than 3x its base into the playfield — and never less than the
+      // base, which the blocked-band contract leans on. Per-tile teeth
+      // (hash2, not rng — draw counts must not depend on geometry) fray
+      // the band's inner edge on top of both.
+      const tooth = hash2(i, 211);
+      const depth =
+        fringe +
+        Math.min(wobble[p]! + meander(1, p, size / 5) * fringe * 1.2, 2 * fringe) +
+        (tooth < 0.2 ? 2 : tooth < 0.5 ? 1 : 0);
+      const d = dists[side]!;
+      if (d >= depth) continue;
+      switch (rimStyles[side]!) {
+        case RIM_SEA:
+          // Sea to the band's inner edge: the coast is that edge, already
+          // frayed by the wobble, the meander, and the per-tile teeth in
+          // `depth` above.
+          map.terrain[i] = Terrain.Water;
+          break;
+        case RIM_RIDGE: {
+          // Rock from the very last row: the range IS the border, no moat
+          // in front of it. The ramp peaks at the map edge and slopes
+          // inland over the band — modulated along the edge, because a
+          // full-strength ramp at d=0 in every column put one constant
+          // crest along the whole border, a ruler-straight snowy wall
+          // (the old waterline used to hide it under its wobble).
+          map.terrain[i] = Terrain.Rock;
+          const crest = 0.62 + meander(9, p, size / 9) * 0.5 + (hash2(i, 251) - 0.5) * 0.24;
+          rimRamp[i] = Math.min(1, ((depth - d) / depth) * crest);
+          break;
         }
+        case RIM_FOREST:
+          // Terrain stays grass; the trees are planted after the
+          // heightfield settles, so lakes and drowning have their say.
+          beltMask[i] = depth - d <= 1 ? 2 : 1;
+          break;
       }
     }
   }
 
   // Terrain shape before resources: basins flood into lakes, so clusters
-  // must only ever land on the ground that survives.
-  computeTerrain(map, heightSeed, starts, rimRamp);
+  // must only ever land on the ground that survives. The belt mask rides
+  // along so the water-access audit can refuse a bank the forest wall is
+  // about to swallow.
+  computeTerrain(map, heightSeed, starts, rimRamp, beltMask);
 
   // Plant the border forest, now that the ground under it is final: every
   // belt tile still grass gets standing wood at full amount, so regrowth
@@ -658,6 +688,7 @@ function computeTerrain(
   seed: number,
   starts: readonly StartSpot[],
   rimRamp: Float32Array,
+  beltMask: Uint8Array,
 ): void {
   const size = map.size;
   const tiles = tileCount(size);
@@ -760,6 +791,111 @@ function computeTerrain(
   }
   for (let i = 0; i < tiles; i++) {
     if (map.terrain[i] === Terrain.Grass && !reached[i]) map.terrain[i] = Terrain.Water;
+  }
+
+  // Every start keeps fishable water within a short walk: a pond, a lake,
+  // or the sea itself. The noise owes nobody a basin, and a start whose
+  // surroundings all rolled high opened with the fishery a forced march
+  // away — or, boxed in by a ridge rim, with no usable shore at all.
+  // Audited here, after the lakes have flooded and the cut-off pockets
+  // have drowned (so "water" means water that survived), and repaired only
+  // where the audit fails. No rng draws on either path: the pond site is a
+  // deterministic scan, so every seed that already had its water keeps its
+  // world byte for byte.
+  // Distances run from `castleCenter` to tile centers — the visibility
+  // stamp's own metric — and a bank only counts if it is grass ON the main
+  // landmass and OFF the border belt: a frayed sea notch lapping the
+  // forest wall is real water no fishery could ever stand beside (the same
+  // refusal the AI's nearestWater makes), and it must not satisfy the
+  // audit either.
+  const hasShore = (c: { x: number; y: number }): boolean => {
+    const r = WATER_ACCESS_RADIUS;
+    const x0 = Math.max(0, Math.floor(c.x - r));
+    const x1 = Math.min(size - 1, Math.ceil(c.x + r));
+    const y0 = Math.max(0, Math.floor(c.y - r));
+    const y1 = Math.min(size - 1, Math.ceil(c.y + r));
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        if (Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y) > r) continue;
+        if (map.terrain[tileIdx(x, y, size)] !== Terrain.Water) continue;
+        for (const [nx, ny] of [
+          [x - 1, y],
+          [x + 1, y],
+          [x, y - 1],
+          [x, y + 1],
+        ] as const) {
+          if (!inBounds(nx, ny, size)) continue;
+          const n = tileIdx(nx, ny, size);
+          if (map.terrain[n] === Terrain.Grass && reached[n] && !beltMask[n]) return true;
+        }
+      }
+    }
+    return false;
+  };
+  const fringe = Math.max(1, Math.floor(size / 24));
+  for (const s of starts) {
+    const c = castleCenter(s);
+    if (hasShore(c)) continue;
+    // Site the pond on the lowest reachable meadow in a ring just past the
+    // home plateau. The candidate must clear a full Chebyshev square of
+    // grass: the square's outer ring is a 4-connected cycle the carve
+    // (strictly inside it) can never touch, so digging the pond can never
+    // sever the landmass — any path through the pond detours around its
+    // own bank. `reached` keeps that bank on the main landmass; the rim
+    // margin keeps the dig out of every border band the deepest wobble
+    // could draw.
+    const dig = (clearK: number, dMin: number, dMax: number): number => {
+      let best = -1;
+      let bestRaw = Infinity;
+      const rimClear = 3 * fringe + 3;
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const dc = Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y);
+          if (dc < dMin || dc > dMax) continue;
+          if (edgeDist(x, y, size) < rimClear + clearK) continue;
+          let clear = true;
+          for (let dy = -clearK; dy <= clearK && clear; dy++) {
+            for (let dx = -clearK; dx <= clearK; dx++) {
+              const n = tileIdx(x + dx, y + dy, size);
+              if (map.terrain[n] !== Terrain.Grass || !reached[n]) {
+                clear = false;
+                break;
+              }
+            }
+          }
+          const i = tileIdx(x, y, size);
+          if (clear && raw[i]! < bestRaw) {
+            bestRaw = raw[i]!;
+            best = i;
+          }
+        }
+      }
+      return best;
+    };
+    let center = dig(4, 9.5, 15.5);
+    let pondR = 2.4;
+    if (center < 0) {
+      // Pathological seed: a smaller pool, wider ring, up against the
+      // plateau's toe if it must — still beats a start with no shore.
+      center = dig(3, 8, 15.5);
+      pondR = 1.6;
+    }
+    if (center < 0) continue; // no meadow at all within reach; live with it
+    const cx = center % size;
+    const cy = (center / size) | 0;
+    const pr = Math.ceil(pondR * 1.3);
+    for (let dy = -pr; dy <= pr; dy++) {
+      for (let dx = -pr; dx <= pr; dx++) {
+        const x = cx + dx;
+        const y = cy + dy;
+        const i = tileIdx(x, y, size);
+        // Ragged edge: each tile draws its own threshold, so the pond
+        // comes out lobed rather than stamped as a circle.
+        const rim = pondR * (0.72 + 0.58 * hash2(i, seed + 9));
+        if (Math.hypot(dx, dy) > rim) continue;
+        map.terrain[i] = Terrain.Water;
+      }
+    }
   }
 
   // 4-neighbor BFS distances (in tiles): to the nearest water tile, for

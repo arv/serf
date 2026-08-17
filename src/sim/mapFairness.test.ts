@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MAP_SIZE, edgeDist, tileCount, tileX, tileY } from '../shared/grid.ts';
 import { createWorld, type World } from './world.ts';
-import { CASTLE_OPENING_SIGHT, TileResource, type TileResourceKind } from './map.ts';
+import {
+  CASTLE_OPENING_SIGHT,
+  Terrain,
+  TileResource,
+  WATER_ACCESS_RADIUS,
+  type TileResourceKind,
+} from './map.ts';
 
 /**
  * The fairness contract for generated maps: every faction has its own wood,
@@ -11,11 +17,10 @@ import { CASTLE_OPENING_SIGHT, TileResource, type TileResourceKind } from './map
 
 // Pinned representative seeds; a seed here is pure data, swapped when a
 // worldgen change rolls it a world that breaks an incidental bound (1337
-// fell to the 96 rescale; 7, 20260724 and then 17 to the border passes —
-// the default valley, seed 17, stays fair at every seat count but its
-// solo roll parks the gold outside the classic ring, so it holds no
-// chair here).
-const SEEDS = [3, 5, 2, 11];
+// fell to the 96 rescale; 7, 20260724 and then 17 to the border passes;
+// 5 to the edge-noise pass — the default valley, seed 23, has its own
+// standing coverage in winnable.test.ts and holds no chair here).
+const SEEDS = [3, 4, 2, 11];
 const MID = DEFAULT_MAP_SIZE / 2;
 
 function tilesOf(world: World, code: TileResourceKind): [number, number][] {
@@ -114,6 +119,44 @@ describe('map fairness', () => {
             countNear(rock, h.x, h.y, 13),
             `${label}: a seam worth quarrying`,
           ).toBeGreaterThanOrEqual(5);
+        }
+      }
+    }
+  });
+
+  it('every start, any seat count, has fishable water in reach', () => {
+    // The water-access audit's observable: a pond, lake, or the open sea
+    // within WATER_ACCESS_RADIUS of every castle, with a grass bank to
+    // stand on. The bank is asserted at terrain level on purpose — a grove
+    // planted over a lakeshore is choppable ground, not lost access —
+    // while rim water locked behind a mountain ridge has no grass bank at
+    // all and never counts.
+    for (const players of [1, 2, 3, 4]) {
+      for (const seed of SEEDS) {
+        const world = makeWorld(seed, players);
+        const size = world.map.size;
+        const grassBank = (x: number, y: number): boolean => {
+          for (const [nx, ny] of [
+            [x - 1, y],
+            [x + 1, y],
+            [x, y - 1],
+            [x, y + 1],
+          ] as const) {
+            if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+            if (world.map.terrain[ny * size + nx] === Terrain.Grass) return true;
+          }
+          return false;
+        };
+        for (const h of anchors(world)) {
+          let found = false;
+          for (let i = 0; i < tileCount(size) && !found; i++) {
+            if (world.map.terrain[i] !== Terrain.Water) continue;
+            const x = tileX(i, size);
+            const y = tileY(i, size);
+            if (Math.hypot(x + 0.5 - h.x, y + 0.5 - h.y) > WATER_ACCESS_RADIUS) continue;
+            found = grassBank(x, y);
+          }
+          expect(found, `seed ${seed}, ${players}p, start ${h.x},${h.y}: water access`).toBe(true);
         }
       }
     }

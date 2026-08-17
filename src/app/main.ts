@@ -5,6 +5,7 @@ import { HeightField } from '../render/heightField';
 import { GrassField } from '../render/grassField';
 import { RoadDecal } from '../render/roadDecal';
 import { WaterMesh } from '../render/waterMesh';
+import { EdgeSkirt } from '../render/edgeSkirt';
 import { Mist } from '../render/mist';
 import { SceneSync } from '../render/sceneSync';
 import { SelectionFx } from '../render/selectionFx';
@@ -702,6 +703,10 @@ async function runMatch(
   renderer.scene.add(grass.mesh);
   const water = new WaterMesh(init.map);
   renderer.scene.add(water.mesh);
+  // The world past the edge: ridges keep ranging, forests keep rolling,
+  // the sea stays open — under the same water plane and fog band.
+  const skirt = new EdgeSkirt(init.map, heights);
+  renderer.scene.add(skirt.group);
   const mist = new Mist(init.map);
   renderer.scene.add(mist.group);
 

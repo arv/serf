@@ -22,10 +22,11 @@ export class WaterMesh {
 
   constructor(map: MapView) {
     const size = map.size;
-    // Twice the map on a side: open sea past every shore, wide enough that
-    // no camera position inside the pan bounds ever sees its rim — the
-    // fog band (renderer.ts) hazes it out long before that.
-    const geometry = new THREE.PlaneGeometry(size * 2, size * 2, 1, 1);
+    // Three times the map on a side: open sea past every shore, matching
+    // the edge skirt's reach (skirtExtent), so the two horizons end
+    // together — far enough out that a corner camera at full zoom-out
+    // meets the fog band (renderer.ts) before either rim.
+    const geometry = new THREE.PlaneGeometry(size * 3, size * 3, 1, 1);
     geometry.rotateX(-Math.PI / 2);
     geometry.translate(size / 2, WATER_LEVEL, size / 2);
 
@@ -101,6 +102,17 @@ export class WaterMesh {
             return mix(mix(a, b, s.x), mix(c, d, s.x), s.y);
           }
 
+          // Past the map bounds the bed slides to open-sea depth on its
+          // own: the edge row is no longer guaranteed wet (a ridge or
+          // forest border runs its land to the last tile), and clamping a
+          // rock row outward would dry up the whole horizon. Where the
+          // edge skirt stands above the waterline it simply occludes this
+          // surface; where it dips, open water shows.
+          float bedAt(vec2 w) {
+            vec2 ov = max(max(-w, w - uMapSize), vec2(0.0));
+            return mix(bedHeight(w), -1.6, smoothstep(0.0, 5.0, length(ov)));
+          }
+
           float hash21(vec2 p) {
             p = fract(p * vec2(123.34, 456.21));
             p += dot(p, p + 45.32);
@@ -131,7 +143,7 @@ export class WaterMesh {
           /* glsl */ `#include <color_fragment>
           {
             vec2 p = vWorldPos.xz;
-            float depth = uWaterLevel - bedHeight(p);
+            float depth = uWaterLevel - bedAt(p);
             // Land: the terrain already occludes us, but bail rather than
             // shade a surface that is not there.
             if (depth <= 0.0) discard;
@@ -159,7 +171,7 @@ export class WaterMesh {
           /* glsl */ `#include <emissivemap_fragment>
           {
             vec2 p = vWorldPos.xz;
-            float depth = uWaterLevel - bedHeight(p);
+            float depth = uWaterLevel - bedAt(p);
             float d01 = clamp((depth - 0.06) / 1.15, 0.0, 1.0);
             // Shimmer: a faster, finer field clipped near its peaks, so
             // only the crests catch the light. Fades out in the shallows,
