@@ -1,12 +1,12 @@
 import { Rng } from '../shared/rng.ts';
-import {
+import { marginFor,
   DEFAULT_MAP_SIZE,
   MAX_MAP_SIZE,
   MIN_MAP_SIZE,
   inBounds,
   tileIdx,
 } from '../shared/grid.ts';
-import {
+import { inPlayArea,
   RESOURCE_CODE,
   Terrain,
   TileResource,
@@ -219,11 +219,14 @@ function scaleCoord(size: number, n: number): number {
  * seat count anyone can read in the source"), so the AI brain may aim its
  * scouts at rival doorsteps without cheating.
  */
-export function startLayout(size: number, seats: number): [number, number][] | undefined {
-  const sc = (n: number): number => scaleCoord(size, n);
+export function startLayout(play: number, seats: number): [number, number][] | undefined {
+  // Grid coordinates: the classic play-relative literals, shifted by the
+  // scenery margin the grid carries around the play square.
+  const off = marginFor(play);
+  const sc = (n: number): number => off + scaleCoord(play, n);
   switch (seats) {
     case 1:
-      return [[size / 2 - 2, size / 2 - 2]];
+      return [[off + play / 2 - 2, off + play / 2 - 2]];
     case 2:
       return [
         [sc(18), sc(18)],
@@ -253,9 +256,10 @@ export function startLayout(size: number, seats: number): [number, number][] | u
  * 10/51 pair at 64). Exported so the AI's scout landmarks are the same
  * spots worldgen actually used, never a drifted copy.
  */
-export function campCorners(size: number): [number, number][] {
-  const a = scaleCoord(size, 10);
-  const far = size - a - 3;
+export function campCorners(play: number): [number, number][] {
+  const off = marginFor(play);
+  const a = off + scaleCoord(play, 10);
+  const far = off + play - scaleCoord(play, 10) - 3;
   return [
     [a, a],
     [far, a],
@@ -337,7 +341,8 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
       }
       return best;
     };
-    const middle: [number, number] = [size / 2 - 1, size / 2 - 1];
+    // Grid center == play center (the margin is symmetric).
+    const middle: [number, number] = [map.size / 2 - 1, map.size / 2 - 1];
     campSeeds = [middle, ...corners.sort((a, z) => nearestStart(z) - nearestStart(a))];
   }
   // Mountains and lakes can swallow a whole seed area, so widen the search
@@ -503,7 +508,7 @@ function waterFacing(
   let bestD = Infinity;
   for (let ty = y - radius; ty < y + h + radius; ty++) {
     for (let tx = x - radius; tx < x + w + radius; tx++) {
-      if (!inBounds(tx, ty, map.size)) continue;
+      if (!inPlayArea(map, tx, ty)) continue;
       if (map.terrain[tileIdx(tx, ty, map.size)] !== Terrain.Water) continue;
       const dx = tx + 0.5 - cx;
       const dy = ty + 0.5 - cy;
@@ -678,7 +683,9 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
     let found = false;
     for (let ty = y - r; ty < y + def.h + r && !found; ty++) {
       for (let tx = x - r; tx < x + def.w + r && !found; tx++) {
-        if (!inBounds(tx, ty, size)) continue;
+        // Playable water only: a margin cove past the border is scenery,
+        // and a pier pointed at it would fish ground no one owns.
+        if (!inPlayArea(map, tx, ty)) continue;
         if (map.terrain[tileIdx(tx, ty, size)] === Terrain.Water) found = true;
       }
     }

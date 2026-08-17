@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
-import { Terrain, type MapView } from '../sim/map';
+import { Terrain, inPlayArea, type MapView } from '../sim/map';
 import { palette } from './palette';
 import { crossedQuads } from './scatterMesh';
 import { ribbonCover, type RibbonCover } from './pathRibbon';
@@ -63,9 +63,13 @@ export class GrassField {
   constructor(map: MapView, heights: HeightField) {
     const size = map.size;
     const tiles = tileCount(size);
+    // Play-area blades only: the margin's forest floor sits under solid
+    // timber and coarse paint — clumps out there are instances nobody sees.
     let grassTiles = 0;
     for (let i = 0; i < tiles; i++) {
-      if (map.terrain[i] === Terrain.Grass) grassTiles++;
+      if (map.terrain[i] === Terrain.Grass && inPlayArea(map, i % size, (i / size) | 0)) {
+        grassTiles++;
+      }
     }
 
     this.mesh = new THREE.InstancedMesh(
@@ -82,6 +86,7 @@ export class GrassField {
 
     for (let i = 0; i < tiles; i++) {
       if (map.terrain[i] !== Terrain.Grass) continue;
+      if (!inPlayArea(map, i % size, (i / size) | 0)) continue;
       if (map.buildingAt[i]! >= 0) continue;
       // Above the meadow line the ground is bare rock — no blades.
       if (map.height[i]! > 1.1) continue;

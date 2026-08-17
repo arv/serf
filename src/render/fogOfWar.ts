@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { tileCount, tileIdx } from '../shared/grid';
+import { inPlayArea, type PlayArea } from '../sim/map';
 import { AUX_STRIDE, ACTION, type SabReader } from '../protocol/sabLayout';
 import { palette } from './palette';
 import { UNIT_DEFS } from '../sim/defs/units';
@@ -93,6 +94,8 @@ export class FogOfWar implements FogQuery {
   #enabled = true;
   /** Seat whose eyes we see through: its units and buildings light the map. */
   #owner: number;
+  /** 1 = always lit (the scenery margin outside the play square). */
+  #lit!: Uint8Array;
 
   /**
    * Turn the layer on or off. Off lights the whole map rather than
@@ -110,10 +113,19 @@ export class FogOfWar implements FogQuery {
     }
   }
 
-  constructor(owner: number, size: number) {
+  constructor(owner: number, area: PlayArea) {
+    const size = area.size;
     this.#owner = owner;
     this.#size = size;
     const tiles = tileCount(size);
+    // The scenery ring is always in full light: fog of war is a gameplay
+    // veil, and the margin has no gameplay — Warcraft draws its borders
+    // lit, and so do we. Baked as a mask so the update loop holds the
+    // ring at 1 against the usual decay.
+    this.#lit = new Uint8Array(tiles);
+    for (let i = 0; i < tiles; i++) {
+      if (!inPlayArea(area, i % size, (i / size) | 0)) this.#lit[i] = 1;
+    }
     this.#vis = new Float32Array(tiles);
     this.#target = new Float32Array(tiles);
     this.#explored = new Float32Array(tiles);
@@ -245,7 +257,7 @@ export class FogOfWar implements FogQuery {
     const up = 1 - Math.exp(-step * REVEAL_RATE);
     const down = 1 - Math.exp(-step * CONCEAL_RATE);
     for (let i = 0; i < tiles; i++) {
-      const t = this.#target[i]!;
+      const t = this.#lit[i] ? 1 : this.#target[i]!;
       const v = this.#vis[i]!;
       const next = v + (t - v) * (t > v ? up : down);
       this.#vis[i] = next;

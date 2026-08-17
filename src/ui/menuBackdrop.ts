@@ -5,7 +5,7 @@ import { ScatterMesh } from '../render/scatterMesh';
 import { HeightField } from '../render/heightField';
 import { GrassField } from '../render/grassField';
 import { WaterMesh } from '../render/waterMesh';
-import { EdgeSkirt } from '../render/edgeSkirt';
+import { MarginMesh } from '../render/marginMesh';
 import { Mist } from '../render/mist';
 import { BuildingSync } from '../render/buildingSync';
 import { loadGlbAssets } from '../render/assets';
@@ -125,15 +125,22 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   // Not interactive: the rig must not bind keys or the wheel, or typing a
   // room code in the menu above would pan the scene behind it.
   const renderer = new GameRenderer(canvas, false);
-  renderer.setWorldExtent(world.map.size);
+  renderer.setWorldExtent(world.map.play, world.map.size);
   const heights = new HeightField(world.map.height, world.map.size);
   const terrain = new TerrainMesh(world.map, heights);
   const scatter = new ScatterMesh(world.map, heights);
   const grass = new GrassField(world.map, heights);
   const water = new WaterMesh(world.map);
-  const skirt = new EdgeSkirt(world.map, heights);
+  const marginMesh = new MarginMesh(world.map, heights);
   const mist = new Mist(world.map);
-  renderer.scene.add(terrain.mesh, scatter.group, grass.mesh, water.mesh, skirt.group, mist.group);
+  renderer.scene.add(
+    terrain.mesh,
+    scatter.group,
+    grass.mesh,
+    water.mesh,
+    marginMesh.mesh,
+    mist.group,
+  );
 
   const buildings = new BuildingSync(renderer.scene, heights);
   buildings.cameraQuaternion = renderer.rig.camera.quaternion;
