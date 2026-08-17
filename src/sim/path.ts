@@ -8,7 +8,7 @@ import { PathLevel, type GameMap } from './map.ts';
  * predict its own movement with the very same pathfinder the server moves
  * with, rather than an approximation that would drift.
  */
-export type PathMap = Pick<GameMap, 'blocked' | 'pathLevel' | 'size'>;
+export type PathMap = Pick<GameMap, 'blocked' | 'pathLevel' | 'size' | 'play'>;
 
 /**
  * A* over the tile grid: 8-directional, corner cutting forbidden, path-aware
@@ -169,7 +169,12 @@ function search(
     // those touch the whole grid made every stuck hauler 2.25x more
     // expensive at 96 and pushed the winnable sim past its clock. Half
     // the grid clears any plausible real path in these open valleys.
-    if (++expansions > Math.max(4096, tileCount(size) >> 1)) return null;
+    // The runaway-search cap: half the PLAY area, floored at the classic
+    // 4096 (the whole 64 map). The grid is bigger, but its margin is all
+    // blocked scenery no search can enter — an unreachable search still
+    // exhausts at most the playable component, and sizing the cap off the
+    // grid quadrupled the price of every stuck unit for nothing.
+    if (++expansions > Math.max(4096, (map.play * map.play) >> 1)) return null;
 
     const cx = tileX(current, size);
     const cy = tileY(current, size);

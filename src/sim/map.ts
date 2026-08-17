@@ -776,6 +776,94 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
     }
   }
 
+  // Rival starts must be able to REACH each other, not merely share a
+  // landmass. The land-bridge pass in computeTerrain guarantees connected
+  // TERRAIN, but standing timber is grass a unit cannot walk: a belt arm
+  // or a grove line across the only isthmus seals two villages apart —
+  // soldiers cannot chop, so a war of elimination never ends (the exact
+  // stall the Rival Banner playtest caught). Audited on the walkable
+  // grid resources included, repaired by felling a 2-wide lane of
+  // standing wood and rock along the straight line between the anchors.
+  // Deterministic, no rng draws; ore seams are never touched (they are
+  // walkable ground already).
+  if (starts.length > 1) {
+    const walkable = (i: number): boolean =>
+      inPlayArea(map, i % size, (i / size) | 0) &&
+      !tileBlocks(map.terrain[i]!, map.resource[i]!);
+    const reach = (from: number): Uint8Array => {
+      const seen = new Uint8Array(tiles);
+      const queue = [from];
+      seen[from] = 1;
+      for (let head = 0; head < queue.length; head++) {
+        const i = queue[head]!;
+        const x = i % size;
+        const y = (i / size) | 0;
+        for (const [nx, ny] of [
+          [x - 1, y],
+          [x + 1, y],
+          [x, y - 1],
+          [x, y + 1],
+        ] as const) {
+          if (!inBounds(nx, ny, size)) continue;
+          const n = tileIdx(nx, ny, size);
+          if (seen[n] || !walkable(n)) continue;
+          seen[n] = 1;
+          queue.push(n);
+        }
+      }
+      return seen;
+    };
+    const anchorIdx = (s: StartSpot): number => tileIdx(s.x + 2, s.y + 2, size);
+    // A grass route always exists: the one-landmass pass drowned every
+    // grass pocket start 0 cannot reach, so all surviving play-area grass
+    // is one 4-connected component. Find the route that fells the FEWEST
+    // standing tiles (0-1 BFS: clear grass is free, a wood/rock tile costs
+    // one fell) and clear exactly those — a straight line was blind to
+    // lakes, and chewing through a guaranteed home grove for no reason is
+    // its own kind of damage.
+    const fellLane = (from: number, to: number): void => {
+      const INF = 0x7fffffff;
+      const cost = new Int32Array(tiles).fill(INF);
+      const parent = new Int32Array(tiles).fill(-1);
+      const deque: number[] = [from]; // 0-1 BFS: unshift for free steps
+      cost[from] = 0;
+      while (deque.length > 0) {
+        const i = deque.shift()!;
+        if (i === to) break;
+        const x = i % size;
+        const y = (i / size) | 0;
+        for (const [nx, ny] of [
+          [x - 1, y],
+          [x + 1, y],
+          [x, y - 1],
+          [x, y + 1],
+        ] as const) {
+          if (!inPlayArea(map, nx, ny)) continue;
+          const n = tileIdx(nx, ny, size);
+          if (map.terrain[n] !== Terrain.Grass) continue;
+          const step = resourceBlocks(map.resource[n]!) ? 1 : 0;
+          if (cost[i]! + step >= cost[n]!) continue;
+          cost[n] = cost[i]! + step;
+          parent[n] = i;
+          if (step === 0) deque.unshift(n);
+          else deque.push(n);
+        }
+      }
+      for (let i = to; i >= 0; i = parent[i]!) {
+        if (resourceBlocks(map.resource[i]!)) {
+          map.resource[i] = TileResource.None;
+          map.resourceAmt[i] = 0;
+        }
+        if (i === from) break;
+      }
+    };
+    for (let si = 1; si < starts.length; si++) {
+      const seen = reach(anchorIdx(starts[0]!));
+      if (seen[anchorIdx(starts[si]!)]) continue;
+      fellLane(anchorIdx(starts[0]!), anchorIdx(starts[si]!));
+    }
+  }
+
   recomputeBlocked(map);
   return map;
 }
