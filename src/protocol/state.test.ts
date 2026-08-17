@@ -130,4 +130,18 @@ describe('state frames', () => {
   it('returns null for tags it does not own', () => {
     expect(decodeState(new Uint8Array([0x7f, 0, 0, 0, 0]))).toBeNull();
   });
+
+  it('drops a corrupt init frame instead of allocating for it', () => {
+    const good = encodeInit(1, 0, fakeMap(), new Uint8Array(TILES), null);
+
+    // An impossible map size (the u16 at offset 10 maxed out) must not
+    // reach the tile-array allocations.
+    const oversize = good.slice();
+    new DataView(oversize.buffer).setUint16(10, 0xffff, true);
+    expect(decodeState(oversize)).toBeNull();
+
+    // A frame that claims more map than it carries is refused, not read
+    // off the end of the buffer.
+    expect(decodeState(good.subarray(0, good.length - 1000))).toBeNull();
+  });
 });

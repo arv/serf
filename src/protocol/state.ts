@@ -12,7 +12,7 @@
  * change slowly and ride JSON. Commands stay JSON too — they are
  * click-rate, and binary only pays on the 20 Hz frame.
  */
-import { tileCount } from '../shared/grid.ts';
+import { MAX_MAP_SIZE, MIN_MAP_SIZE, tileCount } from '../shared/grid.ts';
 import { AUX_STRIDE, type UnitSnapshot } from './sabLayout.ts';
 import type { SimCommand } from '../sim/commands.ts';
 import type { MapSnapshot } from './messages.ts';
@@ -108,7 +108,17 @@ function decodeInit(data: Uint8Array): InitFrame {
   const playerId = data[5]!;
   const jsonLen = view.getUint32(6, true);
   const size = view.getUint16(10, true);
+  // Nothing off the wire earns an allocation on its own say-so: the size
+  // must be one the game can actually generate, and the frame must really
+  // hold the arrays (and JSON) it claims — a corrupt or hostile frame gets
+  // an exception here, not a multi-gigabyte Float32Array further down.
+  if (size < MIN_MAP_SIZE || size > MAX_MAP_SIZE) {
+    throw new Error(`corrupt init frame: map size ${size}`);
+  }
   const tiles = tileCount(size);
+  if (data.byteLength < 12 + mapBytes(tiles) + jsonLen) {
+    throw new Error('corrupt init frame: truncated');
+  }
   let off = 12;
   const u8 = (): Uint8Array => {
     // Copy, never view: the frame's byte offset has no alignment guarantee,
@@ -296,7 +306,15 @@ export function decodeState(data: Uint8Array): StateFrame | null {
         serverTimeMs: view.getUint32(5, true),
       };
     case STATE_INIT:
-      return decodeInit(data);
+      // A frame that fails validation (impossible size, truncated arrays,
+      // unparseable JSON) is dropped like a foreign tag rather than thrown:
+      // this runs in the net worker's socket handler, and one corrupt frame
+      // must not crash the whole worker.
+      try {
+        return decodeInit(data);
+      } catch {
+        return null;
+      }
     case STATE_HOT:
       return decodeHot(data);
     case STATE_STRUCT:

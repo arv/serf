@@ -110,7 +110,7 @@ export class FogOfWar implements FogQuery {
     }
   }
 
-  constructor(owner = 0, size: number) {
+  constructor(owner: number, size: number) {
     this.#owner = owner;
     this.#size = size;
     const tiles = tileCount(size);
