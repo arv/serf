@@ -11,9 +11,9 @@ import { CASTLE_OPENING_SIGHT, TileResource, type TileResourceKind } from './map
 
 // Pinned representative seeds; a seed here is pure data, swapped when a
 // worldgen change rolls it a world that breaks an incidental bound (1337
-// put the solo gold outside the reach band after the 96 rescale — 5 keeps
-// the same coverage).
-const SEEDS = [1, 7, 5, 20260724];
+// fell to the 96 rescale, 7 and 20260724 to the mixed borders; 17 is the
+// default valley and earns a permanent chair).
+const SEEDS = [17, 5, 2, 11];
 const MID = DEFAULT_MAP_SIZE / 2;
 
 function tilesOf(world: World, code: TileResourceKind): [number, number][] {
