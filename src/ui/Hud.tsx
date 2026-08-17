@@ -813,10 +813,12 @@ export function Hud(props: {
               Save village
             </button>
           </Show>
-          {/* Only once the match is decided — the recorders refuse before
-              that anyway (a replay is a finished game's record). Here for
-              the player who chose Observe and outlived the end card. */}
-          <Show when={!netMode() && !replayMode() && outcome().state === 'over'}>
+          {/* Any time in a solo match: the log runs from boot, so a
+              mid-match save records everything up to this moment and
+              playback pauses there. Multiplayer still records on the
+              server, which only hands the log out once the match is
+              decided — its button lives on the end card. */}
+          <Show when={!netMode() && !replayMode()}>
             <button
               onClick={() => {
                 props.onSaveReplay();
