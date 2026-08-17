@@ -18,9 +18,8 @@ import {
 // Pinned representative seeds; a seed here is pure data, swapped when a
 // worldgen change rolls it a world that breaks an incidental bound (1337
 // fell to the 96 rescale; 7, 20260724 and then 17 to the border passes;
-// 5 to the edge-noise pass — the default valley, seed 17, stays fair at
-// every seat count but its solo roll parks the gold outside the classic
-// ring, so it holds no chair here).
+// 5 to the edge-noise pass — the default valley, seed 23, has its own
+// standing coverage in winnable.test.ts and holds no chair here).
 const SEEDS = [3, 4, 2, 11];
 const MID = DEFAULT_MAP_SIZE / 2;
 

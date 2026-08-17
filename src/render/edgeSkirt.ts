@@ -67,9 +67,9 @@ function ease01(t: number): number {
 /**
  * The world beyond the map's edge. The playfield ends at the grid, but the
  * horizon must not: each border continues as what its rim already is — a
- * ridge edge keeps rising into ranges behind the coast, a forest edge rolls
- * on as wooded hills, a sea edge stays open water (the deep bed laid here
- * is what the water plane shades against). One low-resolution vertex-colored
+ * ridge edge's range keeps ranging with no break at the boundary, a forest
+ * edge rolls on as wooded hills, a sea edge stays open water (the deep bed
+ * laid here is what the water plane shades against). One low-resolution vertex-colored
  * plane ringing the map, plus instanced trees over the forest reaches;
  * corners blend the two adjoining styles by how far past each edge a point
  * sits. Pure scenery: nothing here is pickable, pathable, or lit by fog of
@@ -144,7 +144,7 @@ export class EdgeSkirt {
         const { ox, oz } = this.#overhang(cx, cz);
         if (ox === 0 && oz === 0) continue;
         const d = Math.hypot(ox, oz);
-        if (d < 1.5 || d > 14) continue;
+        if (d < 0.4 || d > 14) continue;
         let ridgeW = 0;
         for (const s of this.#sides(cx, cz, ox, oz)) {
           if (s.style === 'ridge') ridgeW += s.w;
@@ -240,29 +240,29 @@ export class EdgeSkirt {
   #styleHeight(style: RimStyle, side: number, u: number, d: number): number {
     if (style === 'sea') return -1.5 - vnoise(171 + side * 7, u, d, 6) * 0.5;
     if (style === 'ridge') {
-      // Rises out of the water a couple of tiles past the strip and stays
-      // mountainous to the horizon. Crest features stretch ~12 tiles along
-      // the edge but only ~5 across it; the massif mask keeps whole
-      // stretches below the snow line so the peaks read as ranges, not as
-      // one white lace; a rough high-frequency layer breaks the
-      // 1-vertex-per-tile lattice's soft lumps into crags.
-      const rise = ease01((d - 0.8) / 4.2);
+      // Stands at range height from the map's edge on out — the border
+      // ridge and this field are one chain, with no channel between them
+      // (the near blend in #surface ties the first rows to the rim's own
+      // crest). Crest features stretch ~12 tiles along the edge but only
+      // ~5 across it; the massif mask keeps whole stretches below the
+      // snow line so the peaks read as ranges, not as one white lace; a
+      // rough high-frequency layer breaks the 1-vertex-per-tile lattice's
+      // soft lumps into crags.
       const r0 = 1 - Math.abs(2 * vnoise(173 + side * 7, u, d * 2.4, 12) - 1);
       const ridged = r0 * r0;
       const massif = vnoise(178 + side * 7, u, d, 34);
       const rough =
         (vnoise(177 + side * 7, u * 1.7, d * 1.7, 2.7) - 0.5) * 0.5 +
         (hash2(Math.round(u) * 31 + side, Math.round(d) * 57) - 0.5) * 0.25;
-      const peak =
-        0.45 + ridged * (1.8 + massif * 1.8) + (vnoise(174 + side * 7, u, d, 21) - 0.5) * 0.6 + rough;
-      return -1.4 + (peak + 1.4) * rise;
+      return (
+        0.45 + ridged * (1.8 + massif * 1.8) + (vnoise(174 + side * 7, u, d, 21) - 0.5) * 0.6 + rough
+      );
     }
-    // Forest: a wooded shore climbing into gentle rolling hills.
-    const rise = ease01((d - 0.3) / 2.4);
+    // Forest: rolling wooded hills straight from the belt's last row.
     const roll =
       0.34 + (vnoise(175 + side * 7, u, d, 8) - 0.5) * 0.8 +
       (vnoise(176 + side * 7, u, d, 3.1) - 0.5) * 0.3;
-    return -1.4 + (Math.max(roll, 0.1) + 1.4) * rise;
+    return Math.max(roll, 0.1);
   }
 
   /** Bed color under open water, graded by depth like the terrain paint. */
@@ -305,8 +305,9 @@ export class EdgeSkirt {
   /**
    * Height at (x, z) with the vertex color written into `out`. Inside the
    * map the skirt tucks itself under the terrain mesh; across the first
-   * couple of tiles beyond the edge it blends up from the map's own bed so
-   * the seam hides under the water strip worldgen keeps on every border.
+   * couple of tiles beyond the edge it blends from the map's own edge-row
+   * height — sea bed on a sea border, rim crest on a ridge, belt meadow
+   * on a forest — so land continues as land with no seam and no channel.
    */
   #surface(x: number, z: number, out: THREE.Color): number {
     const { ox, oz } = this.#overhang(x, z);
@@ -337,13 +338,21 @@ export class EdgeSkirt {
       this.#styleColor(sides[1]!.style, x, z, y, SCRATCH2);
       out.lerp(SCRATCH2, sides[1]!.w);
     }
-    this.#bedColor(SCRATCH2, edgeY);
-    out.lerp(SCRATCH2, 1 - t);
+    // Only a wet edge row blends toward bed color at the seam — painting
+    // the first rows of a LAND border riverbed-dark drew a trench line
+    // along the whole boundary.
+    if (edgeY < 0) {
+      this.#bedColor(SCRATCH2, edgeY);
+      out.lerp(SCRATCH2, 1 - t);
+    }
     // The far field melts into the haze: the outer quarter of the skirt
     // fades to the fog color, so the horizon dissolves the same way at
-    // every camera distance instead of ending on a cut edge.
+    // every camera distance instead of ending on a cut edge. Dry land
+    // only — a pale-faded bed under the semi-transparent sea read as a
+    // milky sheet on the water; submerged ground keeps its bed color and
+    // lets the real distance fog do the hazing.
     const ext = this.#ext;
-    out.lerp(COL.fog, ease01((d - ext * 0.72) / (ext * 0.28)));
+    if (y > -0.3) out.lerp(COL.fog, ease01((d - ext * 0.72) / (ext * 0.28)));
     return y;
   }
 
@@ -370,9 +379,10 @@ export class EdgeSkirt {
         const { ox, oz } = this.#overhang(cx, cz);
         if (ox === 0 && oz === 0) continue;
         const d = Math.hypot(ox, oz);
-        // No stands past the haze line — a crisp tree on fog-melted ground
-        // would give the fade away.
-        if (d < 1.4 || d > ext * 0.72) continue;
+        // From the very first row out (the belt's own trees stand right up
+        // to the boundary), but never past the haze line — a crisp tree on
+        // fog-melted ground would give the fade away.
+        if (d < 0.4 || d > ext * 0.72) continue;
         let forestW = 0;
         for (const s of this.#sides(cx, cz, ox, oz)) {
           if (s.style === 'forest') forestW += s.w;

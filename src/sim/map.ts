@@ -273,24 +273,21 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
     return a + (b - a) * s;
   };
 
-  // The outermost ring is water on EVERY edge, whatever the style. This
-  // one rule does a lot of quiet work: the water shader's clamp-to-edge
-  // bed keeps extending open sea past every border (no void behind a
-  // ridge), corners always meet over water so no grass pocket can be
-  // stranded outside a ridge for the one-landmass pass to drown, mist
-  // always has anchors, and a ridge rises straight out of the sea — a
-  // cliff coastline — while a forest belt runs down to a wooded shore.
+  // Only a SEA edge carries open water; a ridge or forest edge runs its
+  // rock or timber to the very last row. The old rule — outermost ring
+  // water on every edge — read on screen as a moat around the whole
+  // island, with the horizon's mountains standing across a channel from
+  // the map's own. The renderer no longer needs the strip either: the
+  // water shader fades its bed to open-sea depth past the map bounds on
+  // its own, and the edge skirt continues a land border AS land. Mist
+  // still has anchors (one edge is always sea, and the lakes count), and
+  // the one-landmass pass never meets a stranded pocket: a rock band has
+  // no grass to strand, and a belt's grass stays joined to the interior.
   //
-  // The strip carries its OWN wobble, rougher than the band's (one
-  // smoothing pass instead of two): the band wobble only bends the rim's
-  // inner edge, and a constant-width strip left every ridge and forest
-  // wall standing on a ruler-straight coastline.
-  const strip = Math.max(1, Math.floor(size / 48));
-  const stripWobble = new Float32Array(perimeter);
-  for (let i = 0; i < stripWobble.length; i++) {
-    stripWobble[i] = rng.range(0, Math.max(1, fringe * 0.75));
-  }
-  smoothLoop(stripWobble);
+  // The old strip wobble's draws are kept even though nothing reads them
+  // now: they are part of every seed's draw stream, and dropping them
+  // would re-roll even the all-sea worlds this change does not touch.
+  for (let i = 0; i < perimeter; i++) rng.range(0, Math.max(1, fringe * 0.75));
 
   // Ridge profile (0 = no rim rock, 1 = outermost rock row), fed into
   // computeTerrain so the heightfield raises the range under the rock.
@@ -318,33 +315,31 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
         Math.min(wobble[p]! + meander(1, p, size / 5) * fringe * 1.2, 2 * fringe) +
         (tooth < 0.2 ? 2 : tooth < 0.5 ? 1 : 0);
       const d = dists[side]!;
-      // The waterline: the wobbled strip plus its own shorter meander,
-      // clamped so at least one rim row always survives inland of it,
-      // bitten by one- and two-tile notches so the coast frays at tile
-      // scale on top of the low-frequency wander.
-      const bite = hash2(i, 137);
-      const notch = bite < 0.14 ? 2 : bite < 0.45 ? 1 : 0;
-      const waterline = Math.min(
-        strip + stripWobble[p]! + meander(5, p, size / 7) * fringe * 0.8 + notch,
-        depth - 1,
-      );
-      if (d < Math.max(strip, waterline)) {
-        map.terrain[i] = Terrain.Water;
-      } else if (d < depth) {
-        switch (rimStyles[side]!) {
-          case RIM_SEA:
-            map.terrain[i] = Terrain.Water;
-            break;
-          case RIM_RIDGE:
-            map.terrain[i] = Terrain.Rock;
-            rimRamp[i] = (depth - d) / Math.max(1, depth - waterline);
-            break;
-          case RIM_FOREST:
-            // Terrain stays grass; the trees are planted after the
-            // heightfield settles, so lakes and drowning have their say.
-            beltMask[i] = depth - d <= 1 ? 2 : 1;
-            break;
+      if (d >= depth) continue;
+      switch (rimStyles[side]!) {
+        case RIM_SEA:
+          // Sea to the band's inner edge: the coast is that edge, already
+          // frayed by the wobble, the meander, and the per-tile teeth in
+          // `depth` above.
+          map.terrain[i] = Terrain.Water;
+          break;
+        case RIM_RIDGE: {
+          // Rock from the very last row: the range IS the border, no moat
+          // in front of it. The ramp peaks at the map edge and slopes
+          // inland over the band — modulated along the edge, because a
+          // full-strength ramp at d=0 in every column put one constant
+          // crest along the whole border, a ruler-straight snowy wall
+          // (the old waterline used to hide it under its wobble).
+          map.terrain[i] = Terrain.Rock;
+          const crest = 0.62 + meander(9, p, size / 9) * 0.5 + (hash2(i, 251) - 0.5) * 0.24;
+          rimRamp[i] = Math.min(1, ((depth - d) / depth) * crest);
+          break;
         }
+        case RIM_FOREST:
+          // Terrain stays grass; the trees are planted after the
+          // heightfield settles, so lakes and drowning have their say.
+          beltMask[i] = depth - d <= 1 ? 2 : 1;
+          break;
       }
     }
   }

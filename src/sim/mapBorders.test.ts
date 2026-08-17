@@ -6,13 +6,13 @@ import { WOOD_MAX_AMT } from './defs/balance.ts';
 
 /**
  * The mixed-border contract: every edge draws sea, ridge, or forest from
- * the seed; the outermost strip is always water (the renderer's endless
- * sea and the corner rule both lean on it); the whole rim is impassable
- * as generated; and at least one edge per map is honest coast.
+ * the seed; a land border runs its rock or timber to the very last row
+ * (no moat — the renderer continues it as land), while a sea border is
+ * open water to the map edge; the whole rim is impassable as generated;
+ * and at least one edge per map is honest coast.
  */
 
 const SIZE = 96;
-const STRIP = 2; // floor(96 / 48)
 const FRINGE = 4; // floor(96 / 24)
 // Deepest band any edge can draw: base + capped jitter/meander + teeth.
 const MAX_DEPTH = 3 * FRINGE + 2;
@@ -62,21 +62,49 @@ describe('map borders', () => {
     expect([...seen].sort()).toEqual(['forest', 'ridge', 'sea']);
   });
 
-  it('keeps the outermost strip water and the whole band blocked', () => {
+  it('runs each border to the last row in its own style, all of it blocked', () => {
     for (const seed of [1, 7, 11]) {
       const map = solo(seed).map;
+      // Everything inside the minimum band depth is rim of SOME style:
+      // water, rock, or belt wood — all of which block. (Belt inner rows
+      // are thinned, so only the guaranteed-depth band is asserted.)
       for (let i = 0; i < tileCount(SIZE); i++) {
         const x = i % SIZE;
         const y = (i / SIZE) | 0;
-        const d = edgeDist(x, y, SIZE);
-        if (d < STRIP) {
-          expect(map.terrain[i], `seed ${seed}: strip tile ${x},${y}`).toBe(Terrain.Water);
-        }
-        // Everything inside the minimum band depth is rim of SOME style:
-        // water, rock, or belt wood — all of which block. (Belt inner rows
-        // are thinned, so only the guaranteed-depth band is asserted.)
-        if (d < FRINGE - 1) {
+        if (edgeDist(x, y, SIZE) < FRINGE - 1) {
           expect(map.blocked[i], `seed ${seed}: rim tile ${x},${y} walkable`).toBe(1);
+        }
+      }
+      // The outermost row IS the border's own material — open sea on a
+      // sea side, standing rock on a ridge side (the ramp holds it above
+      // any flood), and belt ground on a forest side, where a basin may
+      // cut the odd cove but timber must dominate.
+      for (let side = 0; side < 4; side++) {
+        const style = edgeStyle(map, side);
+        let wood = 0;
+        let samples = 0;
+        for (let along = 10; along < SIZE - 10; along += 3) {
+          const [x, y] =
+            side === 0
+              ? [along, 0]
+              : side === 1
+                ? [SIZE - 1, along]
+                : side === 2
+                  ? [along, SIZE - 1]
+                  : [0, along];
+          const i = tileIdx(x, y, SIZE);
+          samples++;
+          const label = `seed ${seed}, side ${side} (${style}): edge tile ${x},${y}`;
+          if (style === 'sea') {
+            expect(map.terrain[i], label).toBe(Terrain.Water);
+          } else if (style === 'ridge') {
+            expect(map.terrain[i], label).toBe(Terrain.Rock);
+          } else if (map.resource[i] === TileResource.Wood) {
+            wood++;
+          }
+        }
+        if (style === 'forest') {
+          expect(wood / samples, `seed ${seed}, side ${side}: forest edge thin`).toBeGreaterThan(0.5);
         }
       }
     }
