@@ -78,6 +78,39 @@ const POLL_MS = 3000;
 const DRAG_OFFERED =
   typeof window !== 'undefined' && (window.matchMedia?.('(any-pointer: fine)').matches ?? false);
 
+/** Whether the platform can hand a replay file to its share sheet — the
+ * road out of OPFS where drag-and-drop does not exist (phones, tablets),
+ * and AirDrop's front door where it does. Probed with a stand-in file
+ * rather than assumed from navigator.share alone: canShare answers per
+ * payload, and some platforms share links but not files. */
+const SHARE_OFFERED =
+  typeof navigator !== 'undefined' &&
+  typeof navigator.share === 'function' &&
+  typeof navigator.canShare === 'function' &&
+  (() => {
+    try {
+      return navigator.canShare({
+        files: [new File(['{}'], 'probe.json', { type: 'application/json' })],
+      });
+    } catch {
+      return false;
+    }
+  })();
+
+/** Hand one replay to the share sheet. Must run inside the tap's transient
+ * activation, so nothing is awaited before share is called. The wrap into
+ * a fresh File pins the MIME type — OPFS files carry none, and a typeless
+ * payload is exactly what pickier share targets refuse. */
+const shareReplay = async (r: ReplayFileInfo): Promise<void> => {
+  const file = new File([r.file], r.file.name, { type: 'application/json' });
+  try {
+    await navigator.share({ files: [file], title: r.name });
+  } catch {
+    // The sheet was dismissed, or the chosen target refused the file —
+    // either way the player watched it happen; nothing to add.
+  }
+};
+
 export type Mode = 'single' | 'campaign' | 'multi';
 export type MpMode = 'host' | 'join';
 type Visibility = 'open' | 'private';
@@ -170,6 +203,14 @@ const ScrollIcon = (
     <path d="M8 21h9a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H8" />
     <path d="M8 3a2 2 0 0 0-2 2v14a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2h4" />
     <path d="M11 8h5M11 12h5" />
+  </svg>
+);
+/** A replay leaving through the share sheet. */
+const ShareIcon = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 13v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" />
+    <path d="M8 6l4-4 4 4" />
+    <path d="M12 2v13" />
   </svg>
 );
 export function StartMenu(props: StartMenuProps) {
@@ -871,6 +912,16 @@ export function StartMenu(props: StartMenuProps) {
                                   </span>
                                 </span>
                               </button>
+                              <Show when={SHARE_OFFERED}>
+                                <button
+                                  class="icon-btn"
+                                  title="Share this replay"
+                                  aria-label={`Share replay ${r.name}`}
+                                  onClick={() => void shareReplay(r)}
+                                >
+                                  {ShareIcon}
+                                </button>
+                              </Show>
                               <button
                                 class="icon-btn"
                                 title="Delete this replay"
@@ -908,7 +959,9 @@ export function StartMenu(props: StartMenuProps) {
                     speed beyond fast forward.
                     {DRAG_OFFERED
                       ? ' Drag one out of the list to save it as a file, or drop a replay file here to add it.'
-                      : ''}
+                      : SHARE_OFFERED
+                        ? ' The share button on a row sends the file to another app.'
+                        : ''}
                   </div>
                 </div>
               </Show>
