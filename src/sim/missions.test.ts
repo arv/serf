@@ -134,7 +134,8 @@ describe('the campaign missions', () => {
     // it can and eats every spear the checklist wants stockpiled. A player
     // in a bandit-free mission has no barracks and no such leak.
     const world = createWorld(missionWorldConfig('ledger'));
-    const castle = { x: 32, y: 32 };
+    const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const castle = { x: keep.x + 1, y: keep.y + 1 };
     const researched = (tech: 'cobbledBoots' | 'ironworking'): boolean =>
       world.players[0]!.techs.researched.includes(tech);
     const place = (type: BuildingTypeId): SimCommand => {
