@@ -78,12 +78,14 @@ const POLL_MS = 3000;
 const DRAG_OFFERED =
   typeof window !== 'undefined' && (window.matchMedia?.('(any-pointer: fine)').matches ?? false);
 
-/** Whether the platform can hand a replay file to its share sheet — the
- * road out of OPFS where drag-and-drop does not exist (phones, tablets),
- * and AirDrop's front door where it does. Probed with a stand-in file
- * rather than assumed from navigator.share alone: canShare answers per
- * payload, and some platforms share links but not files. */
+/** Whether the shelf offers the share sheet — the road out of OPFS where
+ * drag-and-drop does not exist (phones, tablets). Where dragging works it
+ * stays the one story, so a fine pointer stands the button down. Probed
+ * with a stand-in file rather than assumed from navigator.share alone:
+ * canShare answers per payload, and some platforms share links but not
+ * files. */
 const SHARE_OFFERED =
+  !DRAG_OFFERED &&
   typeof navigator !== 'undefined' &&
   typeof navigator.share === 'function' &&
   typeof navigator.canShare === 'function' &&
