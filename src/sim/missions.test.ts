@@ -82,8 +82,11 @@ describe('the campaign missions', () => {
 
     // The taught opening: woodcutter at the trees, quarry at the rocks, a
     // house by the castle. Search order matches the reach rule the mission
-    // teaches — canPlace refuses a hut out of range of its resource.
-    const castle = { x: 32, y: 32 };
+    // teaches — canPlace refuses a hut out of range of its resource. The
+    // castle is wherever worldgen put the solo start (the map's middle,
+    // whatever the size), not a pinned coordinate.
+    const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const castle = { x: keep.x + 1, y: keep.y + 1 };
     const place = (type: BuildingTypeId): SimCommand => {
       const spot = findSpot(world, type, castle.x, castle.y);
       return { kind: 'placeBuilding', building: type, x: spot.x, y: spot.y };

@@ -41,7 +41,12 @@ export function checkInvariants(world: World): InvariantReport {
       if (!serf) violations.push(`job ${job.id}: assigned serf ${job.serfId} missing`);
       else if (serf.jobId !== job.id) {
         violations.push(`job ${job.id}: serf ${serf.id} jobId=${serf.jobId} (link broken)`);
-      } else if (job.phase === 'toDropoff' && serf.carrying !== job.good) {
+      } else if (job.phase === 'toDropoff' && !serf.dead && serf.carrying !== job.good) {
+        // A carrier killed mid-haul is not a violation yet: killUnit ledgers
+        // the cargo away immediately, and the job waits (at most
+        // MATCHER_INTERVAL ticks, well inside the corpse's linger) for the
+        // next reconcile pass to abort it. Only a LIVE serf whose hands
+        // disagree with the job is broken bookkeeping.
         violations.push(`job ${job.id}: serf carrying ${serf.carrying}, expected ${job.good}`);
       }
     }

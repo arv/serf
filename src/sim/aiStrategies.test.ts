@@ -204,12 +204,15 @@ describe('the AI playbooks', () => {
 
   it('four different playbooks still reach an ending', () => {
     // Seed 42 is the standoff that found the impatience rule: two exhausted
-    // villages, each below its own muster size, neither ever marching.
+    // villages, each below its own muster size, neither ever marching. That
+    // standoff lives on seed 42's classic 64 map, so the size is pinned
+    // with it — what is under test is the impatience rule, not map scale.
     const world = playSeats(
       {
         seed: 42,
         players: [{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }],
         banditsEnabled: false,
+        mapSize: 64,
       },
       90_000,
     );

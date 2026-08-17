@@ -195,17 +195,18 @@ describe('the AI under fog of war', () => {
     // heads for their garrison ground — gate leg first, as always.
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, {});
-    addStorehouse(world, 44, 44, {}, 1); // the rival's castle, on its start
+    addStorehouse(world, 66, 66, {}, 1); // the rival's castle, on its start
     for (let i = 0; i < 3; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
-    spawnUnit(world, 'knight', 0, 42.5, 43.5); // close enough to have seen it
+    spawnUnit(world, 'knight', 0, 64.5, 65.5); // close enough to have seen it
     world.tick = 1000;
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     const commands = brain.decide(world);
     const single = moveOrders(commands).filter((c) => c.unitIds.length === 1);
     expect(single).toHaveLength(1);
-    // The doorstep sits at (45, 49): south of the rival castle, where their
-    // garrison stands. The scout's first leg is the gate 13 north of it.
-    expect(single[0]).toMatchObject({ x: 45, y: 36 });
+    // The doorstep sits at (67, 71): south of the rival castle (start
+    // 66,66 on the 96-map two-seat layout), where their garrison stands.
+    // The scout's first leg is the gate 13 north of it.
+    expect(single[0]).toMatchObject({ x: 67, y: 58 });
   });
 
   it('sweeps in force but never to the last man, and calls the garrison in', () => {
