@@ -333,9 +333,16 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
     }
   }
 
+  // Scattered cluster counts are densities, not quotas: the classic 64 map
+  // carried 11 groves and 5 outcrops over 4096 tiles, and a bigger map
+  // earns proportionally more of both (exact integer math, the classic
+  // counts at 64). A fixed count spread over 2.25x the land starved the
+  // mid-game — woodcutters walked half the valley for the next grove.
+  const clusterCount = (classic: number): number => Math.floor((classic * tiles) / 4096);
+
   // Tree groves in the valleys — but off the immediate shoreline, so a
   // hut's commute never dead-ends against the water.
-  for (let c = 0; c < 11; c++) {
+  for (let c = 0; c < clusterCount(11); c++) {
     const [x, y] = spotPref(4, 10, [
       (x0, y0) => heightAt(x0, y0) > 0.3 && heightAt(x0, y0) < 0.8,
       (x0, y0) => heightAt(x0, y0) < 0.8,
@@ -343,7 +350,7 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], size: number
     placeCluster(TileResource.Wood, 6, x, y, rng.range(2, 4), 0.75);
   }
   // Rock outcrops on the high ground.
-  for (let c = 0; c < 5; c++) {
+  for (let c = 0; c < clusterCount(5); c++) {
     const [x, y] = spotPref(4, 10, [(x0, y0) => heightAt(x0, y0) > 0.7]);
     placeCluster(TileResource.Rock, 10, x, y, rng.range(1.4, 2.6), 0.85);
   }
