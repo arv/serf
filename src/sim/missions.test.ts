@@ -13,7 +13,7 @@ import {
 } from './defs/missions.ts';
 import { hashWorld } from './hash.ts';
 import { deserializeWorld, serializeWorld } from './save.ts';
-import { FIRST_RAID_TICK } from './defs/balance.ts';
+import { firstRaidTickFor } from './defs/balance.ts';
 import type { BuildingTypeId } from './defs/buildings.ts';
 import type { SimCommand } from './commands.ts';
 
@@ -209,9 +209,10 @@ describe('the campaign missions', () => {
     expect(world.players[0]!.techs.researched).toEqual(['soldiery', 'cobbledBoots', 'ironworking']);
     expect(world.raidState.nextRaidTick).toBe(def.firstRaidTick);
     expect(stockOf(world, 'silver')).toBe(def.startStock!.silver);
-    // And a mission with no clock override keeps the default.
+    // And a mission with no clock override keeps the default — the
+    // size-scaled peace period, since raid pacing follows the commutes.
     const finale = createWorld(missionWorldConfig('holdTheValley'));
-    expect(finale.raidState.nextRaidTick).toBe(FIRST_RAID_TICK);
+    expect(finale.raidState.nextRaidTick).toBe(firstRaidTickFor(finale.map.size));
   });
 
   it('mission worlds are deterministic: same id, same world, tick for tick', () => {

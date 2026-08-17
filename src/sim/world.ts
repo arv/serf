@@ -18,7 +18,7 @@ import {
   type GameMap,
   type MapView,
 } from './map.ts';
-import { FIRST_RAID_TICK, START_SERFS, START_STOCK } from './defs/balance.ts';
+import { START_SERFS, START_STOCK, firstRaidTickFor } from './defs/balance.ts';
 import { UNIT_DEFS } from './defs/units.ts';
 import {
   buildingDef,
@@ -290,7 +290,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
     // The seed deals the AI seats their playbooks here, once, and the
     // world carries the result from then on (see PlayerState.strategy).
     players: config.players.map((p, i) => makePlayer(i, p.kind, deal[i])),
-    raidState: { nextRaidTick: mission?.firstRaidTick ?? FIRST_RAID_TICK, wave: 0 },
+    raidState: { nextRaidTick: mission?.firstRaidTick ?? firstRaidTickFor(size), wave: 0 },
     admin: {
       enabled: config.adminEnabled ?? true,
       raidsEnabled: config.banditsEnabled ?? true,
