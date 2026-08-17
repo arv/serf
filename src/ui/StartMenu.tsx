@@ -890,8 +890,9 @@ export function StartMenu(props: StartMenuProps) {
                     <div class="browser-none">
                       <div class="t">No replays saved yet</div>
                       <div class="s">
-                        Finish a match and choose “Save replay” — it is filed here under the
-                        date it was saved.
+                        Choose “Save replay” from a match&#8217;s menu — any time in single
+                        player, once the match is decided in multiplayer — and it is filed
+                        here under the date it was saved.
                         {DRAG_OFFERED
                           ? ' A replay someone shared with you can be dropped anywhere on this panel.'
                           : ''}

@@ -920,9 +920,9 @@ async function runMatch(
     armOrder: (mode) => controls.armOrder(mode),
     save: saveGame,
     saveReplay: async () => {
-      // Empty means there is nothing to save: both recorders decline while
-      // the match is still undecided for any human — the server until the
-      // room's outcome is over, the solo worker until its own is.
+      // Empty means there is nothing to save: the server declines while
+      // the room's outcome is undecided (another seat's game is not ours
+      // to spoil); the solo worker answers at any point in the match.
       // The fog this match booted with — not the fog now: it belongs to
       // the world the recording starts from, which for a loaded save is
       // the moment that save was written.
