@@ -12,7 +12,7 @@
  * change slowly and ride JSON. Commands stay JSON too — they are
  * click-rate, and binary only pays on the 20 Hz frame.
  */
-import { MAX_MAP_SIZE, MIN_MAP_SIZE, tileCount } from '../shared/grid.ts';
+import { gridFor, MAX_MAP_SIZE, MIN_MAP_SIZE, tileCount } from '../shared/grid.ts';
 import { AUX_STRIDE, type UnitSnapshot } from './sabLayout.ts';
 import type { SimCommand } from '../sim/commands.ts';
 import type { MapSnapshot } from './messages.ts';
@@ -70,14 +70,15 @@ export function encodeInit(
 ): Uint8Array<ArrayBuffer> {
   const tiles = tileCount(map.size);
   const body = enc.encode(JSON.stringify(json));
-  const out = new Uint8Array(12 + mapBytes(tiles) + body.length);
+  const out = new Uint8Array(14 + mapBytes(tiles) + body.length);
   const view = new DataView(out.buffer);
   out[0] = STATE_INIT;
   view.setUint32(1, tick, true);
   out[5] = playerId;
   view.setUint32(6, body.length, true);
   view.setUint16(10, map.size, true);
-  let off = 12;
+  view.setUint16(12, map.play, true);
+  let off = 14;
   for (const arr of [map.terrain, map.resource, map.blocked, map.pathLevel]) {
     out.set(arr, off);
     off += tiles;
@@ -108,18 +109,26 @@ function decodeInit(data: Uint8Array): InitFrame {
   const playerId = data[5]!;
   const jsonLen = view.getUint32(6, true);
   const size = view.getUint16(10, true);
-  // Nothing off the wire earns an allocation on its own say-so: the size
-  // must be one the game can actually generate, and the frame must really
+  const play = view.getUint16(12, true);
+  // Nothing off the wire earns an allocation on its own say-so: the sizes
+  // must be ones the game can actually generate, and the frame must really
   // hold the arrays (and JSON) it claims — a corrupt or hostile frame gets
   // an exception here, not a multi-gigabyte Float32Array further down.
-  if (size < MIN_MAP_SIZE || size > MAX_MAP_SIZE) {
-    throw new Error(`corrupt init frame: map size ${size}`);
+  if (
+    play < MIN_MAP_SIZE ||
+    play > MAX_MAP_SIZE ||
+    play % 2 !== 0 || // play sizes are even by contract (resolveMapSize)
+    size < play ||
+    size > gridFor(MAX_MAP_SIZE) ||
+    (size - play) % 2 !== 0
+  ) {
+    throw new Error(`corrupt init frame: map size ${size}/${play}`);
   }
   const tiles = tileCount(size);
-  if (data.byteLength < 12 + mapBytes(tiles) + jsonLen) {
+  if (data.byteLength < 14 + mapBytes(tiles) + jsonLen) {
     throw new Error('corrupt init frame: truncated');
   }
-  let off = 12;
+  let off = 14;
   const u8 = (): Uint8Array => {
     // Copy, never view: the frame's byte offset has no alignment guarantee,
     // and the mirror owns these arrays for the rest of the match.
@@ -143,7 +152,7 @@ function decodeInit(data: Uint8Array): InitFrame {
     kind: 'init',
     tick,
     playerId,
-    map: { size, terrain, resource, blocked, pathLevel, buildingAt, height },
+    map: { size, play, terrain, resource, blocked, pathLevel, buildingAt, height },
     explored,
     json,
   };

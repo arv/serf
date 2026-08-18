@@ -1,13 +1,32 @@
-/** Default skirmish grid; missions and (one day) the level editor may pick
- * their own within [MIN_MAP_SIZE, MAX_MAP_SIZE]. The live size is per-game
- * data — `map.size` in the sim, `MapSnapshot.size` on the render side. */
+/** Default PLAYABLE area side; missions and (one day) the level editor may
+ * pick their own within [MIN_MAP_SIZE, MAX_MAP_SIZE]. The live sizes are
+ * per-game data — `map.size` is the full grid, `map.play` the playable
+ * square centered in it. */
 export const DEFAULT_MAP_SIZE = 96;
 /** Floor: the start-relative gameplay radii (home plateau 9, ore rings
  * 13–17) are fixed distances and need at least this much room. */
 export const MIN_MAP_SIZE = 64;
-/** Ceiling: the single terrain mesh (6 segments per tile) is the cost that
- * grows fastest; beyond this it wants chunking, not a bigger allowance. */
+/** Ceiling: the high-resolution terrain mesh (6 segments per tile) over the
+ * playable area is the cost that grows fastest; beyond this it wants
+ * chunking, not a bigger allowance. */
 export const MAX_MAP_SIZE = 128;
+
+/**
+ * Warcraft-style world layout: the grid is larger than the playable area,
+ * and the ring around the play square is real, editable tiles — scenery the
+ * camera can see but nothing can walk, build, or gather on. Half the play
+ * side per edge: at full zoom-out in a corner the camera sees about that
+ * far past the boundary, and the horizon melt (margin mesh) takes over
+ * before the grid runs out.
+ */
+export function marginFor(play: number): number {
+  return play / 2;
+}
+
+/** Full grid side for a playable side (play sizes are even by contract). */
+export function gridFor(play: number): number {
+  return play + 2 * marginFor(play);
+}
 
 export function tileCount(size: number): number {
   return size * size;

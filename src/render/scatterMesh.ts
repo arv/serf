@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
-import { Terrain, TileResource, type MapView } from '../sim/map';
+import { Terrain, TileResource, playEdgeDist, type MapView } from '../sim/map';
 import { palette } from './palette';
 import { foliageMaterial, makeStalkTexture, makeLeafSprite } from './spriteTextures';
 import { glbRocks, glbTrees } from './assets';
@@ -66,10 +66,22 @@ export class ScatterMesh {
   readonly group = new THREE.Group();
   #archetypes = new Map<string, Archetype>();
   #heights: HeightField;
+  #map: MapView;
   #size: number;
   #trees = false;
   #treeSpecies = 0;
   #rockSpecies = 0;
+
+  /**
+   * Does scatter on this tile pay for the shadow pass? The playable field
+   * and the first margin rows do — their shadows land where the player
+   * looks. The deep margin's timber is thousands of instances of pure
+   * horizon; skipping their shadow pass is what makes drawing the whole
+   * ring affordable.
+   */
+  #nearShadow(tile: number): boolean {
+    return playEdgeDist(this.#map, tileX(tile, this.#size), tileY(tile, this.#size)) >= -8;
+  }
 
   /** Rock archetype for a seed — a KayKit variant, or the one procedural. */
   #rockName(seed: number): string {
@@ -80,26 +92,36 @@ export class ScatterMesh {
 
   constructor(map: MapView, heights: HeightField) {
     this.#heights = heights;
+    this.#map = map;
     this.#size = map.size;
     const tiles = tileCount(map.size);
     // Count instances per archetype first (instanced meshes need fixed capacity).
     let groveTiles = 0;
+    let farGroveTiles = 0;
     let rockTiles = 0;
     let oreTiles = 0;
     const shoreTiles: number[] = [];
     // Border-ridge dressing: boulders strewn over the rim rock, thinned by
-    // hash so the range reads craggy rather than tiled.
+    // hash so the range reads craggy rather than tiled — and thinned much
+    // harder in the deep margin, where whole ranges are rock.
     const ridgeTiles: number[] = [];
     for (let i = 0; i < tiles; i++) {
       const res = map.resource[i];
-      if (res === TileResource.Wood) groveTiles++;
-      else if (res === TileResource.Rock) rockTiles++;
+      if (res === TileResource.Wood) {
+        if (this.#nearShadow(i)) groveTiles++;
+        else farGroveTiles++;
+      } else if (res === TileResource.Rock) rockTiles++;
       else if (res !== TileResource.None) oreTiles++;
       // Rocky banks: grass tiles touching water, thinned by hash.
       if (map.terrain[i] === Terrain.Grass && hash2(i, 91) < 0.45 && touchesWater(map, i)) {
         shoreTiles.push(i);
       }
-      if (map.terrain[i] === Terrain.Rock && hash2(i, 93) < 0.3) ridgeTiles.push(i);
+      if (
+        map.terrain[i] === Terrain.Rock &&
+        hash2(i, 93) < (this.#nearShadow(i) ? 0.3 : 0.12)
+      ) {
+        ridgeTiles.push(i);
+      }
     }
 
     const lambert = (color: number) => new THREE.MeshLambertMaterial({ color });
@@ -115,6 +137,11 @@ export class ScatterMesh {
     if (trees) {
       trees.geometries.forEach((geo, i) => {
         this.#addArchetype(`tree${i}`, geo, trees.material, groveTiles * TREES_PER_TILE, {
+          receiveShadow: false,
+        });
+        // The horizon's stands: identical geometry, no shadow pass.
+        this.#addArchetype(`treeFar${i}`, geo, trees.material, farGroveTiles * TREES_PER_TILE, {
+          castShadow: false,
           receiveShadow: false,
         });
       });
@@ -291,6 +318,7 @@ export class ScatterMesh {
     if (this.#trees) {
       // A mixed stand: two trees per tile, species/size/lean/tint all
       // hash-varied so no two copses repeat.
+      const far = this.#nearShadow(tile) ? '' : 'Far';
       for (let k = 0; k < TREES_PER_TILE; k++) {
         const seed = tile * TREES_PER_TILE + k;
         const species = (hash2(seed, 11) * this.#treeSpecies) | 0;
@@ -301,7 +329,7 @@ export class ScatterMesh {
         // shifts, the odd tree going ochre.
         const warm = hash2(seed, 6);
         this.#put(
-          `tree${species}`,
+          `tree${far}${species}`,
           tile,
           tx + jx,
           this.#heights.at(tx + jx, ty + jz),

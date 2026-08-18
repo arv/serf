@@ -42,7 +42,7 @@ export const MAX_SEATS = 4;
 /** The default valley, shared with the start screen and configFromUrl.
  * Kept in step with winnable.test.ts's pinned seed: the map every new
  * player boots into carries the standing guarantee that it can be won. */
-export const DEFAULT_SEED = 23;
+export const DEFAULT_SEED = 17;
 
 export function defaultLobbyConfig(): LobbyConfig {
   return { ai: 0, bandits: true, seed: DEFAULT_SEED, size: DEFAULT_MAP_SIZE, bots: [] };

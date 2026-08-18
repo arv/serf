@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MAP_SIZE, edgeDist, tileCount, tileX, tileY } from '../shared/grid.ts';
+import { DEFAULT_MAP_SIZE, gridFor, tileCount, tileX, tileY } from '../shared/grid.ts';
 import { createWorld, type World } from './world.ts';
 import {
   CASTLE_OPENING_SIGHT,
   Terrain,
   TileResource,
   WATER_ACCESS_RADIUS,
+  playEdgeDist,
   type TileResourceKind,
 } from './map.ts';
 
@@ -18,10 +19,12 @@ import {
 // Pinned representative seeds; a seed here is pure data, swapped when a
 // worldgen change rolls it a world that breaks an incidental bound (1337
 // fell to the 96 rescale; 7, 20260724 and then 17 to the border passes;
-// 5 to the edge-noise pass — the default valley, seed 23, has its own
-// standing coverage in winnable.test.ts and holds no chair here).
-const SEEDS = [3, 4, 2, 11];
-const MID = DEFAULT_MAP_SIZE / 2;
+// 5 to the edge-noise pass; 3 to the margin grid — the default valley
+// has its own standing coverage in winnable.test.ts and holds no chair
+// here).
+const SEEDS = [4, 2, 11, 7];
+// Grid center == play center: the scenery margin is symmetric.
+const MID = gridFor(DEFAULT_MAP_SIZE) / 2;
 
 function tilesOf(world: World, code: TileResourceKind): [number, number][] {
   const size = world.map.size;
@@ -63,7 +66,7 @@ describe('map fairness', () => {
         // trees masking a missing home grove is exactly the false pass
         // this test exists to refuse.
         const wood = tilesOf(world, TileResource.Wood).filter(
-          ([x, y]) => edgeDist(x, y, world.map.size) >= 10,
+          ([x, y]) => playEdgeDist(world.map, x, y) >= 10,
         );
         const rock = tilesOf(world, TileResource.Rock);
         const iron = tilesOf(world, TileResource.IronDep);

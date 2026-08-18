@@ -182,6 +182,7 @@ function init(
     sab,
     map: {
       size: world.map.size,
+      play: world.map.play,
       terrain: world.map.terrain.slice(),
       resource: world.map.resource.slice(),
       blocked: world.map.blocked.slice(),

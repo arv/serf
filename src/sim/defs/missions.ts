@@ -85,10 +85,10 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'stone for the hearth, beds for the hands you hire — put a roof ' +
       'over them, reeve, and lay in timber for what comes next.',
     tagline: 'Raise a camp: wood, stone, and beds.',
-    // Re-pinned (101 -> 104 -> 110) as border passes re-rolled the
-    // worlds: the taught line must finish comfortably, and this roll wins
-    // it by tick ~3.6k of the 36k budget.
-    seed: 110,
+    // Re-pinned (101 -> 104 -> 110 -> 106) as border and grid passes
+    // re-rolled the worlds: the taught line must finish comfortably, and
+    // this roll wins it by tick ~4.3k of the 36k budget.
+    seed: 106,
     players: [{ kind: 'human' }],
     bandits: false,
     startSerfs: 6,
@@ -220,7 +220,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     tagline: 'The full game: no help, no headstart.',
     // The seed winnable.test.ts proves takeable — the one map with a
     // standing guarantee that it can be held.
-    seed: 23,
+    seed: 17,
     players: [{ kind: 'human' }],
     bandits: true,
     objectives: [
@@ -239,7 +239,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // Re-pinned (606 -> 609) after the A*-cap rebalance: 606's war still
     // ended, but only at ~30k ticks — three times this roll's ~9.6k, and
     // past what the elimination test can afford under a loaded suite.
-    seed: 609,
+    seed: 11,
     players: [{ kind: 'human' }, { kind: 'ai', strategy: 'steward' }],
     bandits: true,
     // No checklist: the ordinary last-faction-standing rules decide it.

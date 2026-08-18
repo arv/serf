@@ -1,4 +1,4 @@
-import { MAX_MAP_SIZE, MIN_MAP_SIZE, tileCount } from '../shared/grid.ts';
+import { MAX_MAP_SIZE, MIN_MAP_SIZE, gridFor, tileCount } from '../shared/grid.ts';
 import type { GameMap } from './map.ts';
 import type { PlayerState } from './player.ts';
 import type { MatchOutcome, World } from './world.ts';
@@ -26,7 +26,10 @@ interface SaveFile {
     nextId: number;
     nextJobId: number;
     mapSize: number;
-    map: Record<Exclude<keyof GameMap, 'size'>, number[]>;
+    /** Playable side; absent in saves from before the margin existed —
+     * those worlds were playable wall to wall. */
+    mapPlay?: number;
+    map: Record<Exclude<keyof GameMap, 'size' | 'play'>, number[]>;
     units: unknown[];
     buildings: unknown[];
     jobs: unknown[];
@@ -52,6 +55,7 @@ export function serializeWorld(world: World): string {
       nextId: world.nextId,
       nextJobId: world.nextJobId,
       mapSize: world.map.size,
+      mapPlay: world.map.play,
       map: {
         terrain: [...world.map.terrain],
         resource: [...world.map.resource],
@@ -87,6 +91,7 @@ export function deserializeWorld(json: string): World {
 
   const map: GameMap = {
     size: w.mapSize,
+    play: w.mapPlay ?? w.mapSize,
     terrain: Uint8Array.from(w.map.terrain),
     resource: Uint8Array.from(w.map.resource),
     resourceAmt: Uint8Array.from(w.map.resourceAmt),
@@ -98,8 +103,13 @@ export function deserializeWorld(json: string): World {
   };
   if (
     !Number.isInteger(map.size) ||
-    map.size < MIN_MAP_SIZE ||
-    map.size > MAX_MAP_SIZE ||
+    !Number.isInteger(map.play) ||
+    map.play < MIN_MAP_SIZE ||
+    map.play > MAX_MAP_SIZE ||
+    map.play % 2 !== 0 || // play sizes are even by contract (resolveMapSize)
+    map.play > map.size ||
+    (map.size - map.play) % 2 !== 0 ||
+    map.size > gridFor(MAX_MAP_SIZE) ||
     map.terrain.length !== tileCount(map.size)
   ) {
     throw new Error('corrupt save: bad map size');

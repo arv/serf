@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DEFAULT_MAP_SIZE } from '../shared/grid';
+import { DEFAULT_MAP_SIZE, gridFor } from '../shared/grid';
 import { palette } from './palette';
 import { CameraRig } from './cameraRig';
 
@@ -44,7 +44,7 @@ export class GameRenderer {
     sun.shadow.bias = -0.0004;
     this.scene.add(sun, sun.target);
     this.#sun = sun;
-    this.setWorldExtent(DEFAULT_MAP_SIZE);
+    this.setWorldExtent(DEFAULT_MAP_SIZE, gridFor(DEFAULT_MAP_SIZE));
 
     // ResizeObserver over a window listener: it fires whenever the canvas
     // box actually changes — including viewport changes that never dispatch
@@ -80,21 +80,25 @@ export class GameRenderer {
    * reproduce the classic hand-tuned values at 64 (fog 124/268 ≈ 125/270,
    * shadow far 164 ≈ 160) and scale up from there.
    */
-  setWorldExtent(size: number): void {
-    // Bright stylized daylight: distant pale haze that swallows the far
-    // shore before the water plane runs out.
-    this.scene.fog = new THREE.Fog(palette.fog, size + 60, size * 2 + 140);
+  setWorldExtent(play: number, grid = gridFor(play)): void {
+    // Everything scales with the PLAYABLE span (the world the camera can
+    // frame), centered on the grid's middle — which is the play square's
+    // middle too, the margin being symmetric. Bright stylized daylight:
+    // distant pale haze that swallows the far scenery before the grid
+    // runs out.
+    this.scene.fog = new THREE.Fog(palette.fog, play + 60, play * 2 + 140);
     const sun = this.#sun;
-    sun.position.set(size / 2 - 28, 55, size / 2 + 18);
-    sun.target.position.set(size / 2, 0, size / 2);
-    const half = size * 0.75;
+    const mid = grid / 2;
+    sun.position.set(mid - 28, 55, mid + 18);
+    sun.target.position.set(mid, 0, mid);
+    const half = play * 0.75;
     sun.shadow.camera.left = -half;
     sun.shadow.camera.right = half;
     sun.shadow.camera.top = half;
     sun.shadow.camera.bottom = -half;
-    sun.shadow.camera.far = size + 100;
+    sun.shadow.camera.far = grid + 100;
     sun.shadow.camera.updateProjectionMatrix();
-    this.rig.setMapSize(size);
+    this.rig.setPlayBounds(mid - play / 2, mid + play / 2);
   }
 
   /**

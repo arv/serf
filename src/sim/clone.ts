@@ -57,6 +57,7 @@ export function cloneWorld(world: World): World {
     nextJobId: world.nextJobId,
     map: {
       size: world.map.size,
+      play: world.map.play,
       terrain: world.map.terrain, // worldgen-only: shared
       height: world.map.height, // worldgen-only: shared
       resource: world.map.resource.slice(),
