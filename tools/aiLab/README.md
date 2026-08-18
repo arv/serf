@@ -18,6 +18,11 @@ pnpm bakeoff --engine http://localhost:8080/v1 --seeds 1-40 --out runs/qwen.json
 pnpm bakeoff --help   # every flag
 ```
 
+Sim-only sweeps run one match per `--jobs` process (`--jobs max` uses the
+machine); results are byte-identical to `--jobs 1` for every engine except
+`http`, where it also means concurrent requests — size the server's
+`--parallel` to match.
+
 ## The experiment
 
 Per seed, up to three headless matches on one valley, both seats running the

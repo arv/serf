@@ -408,4 +408,12 @@ describe('the command line', () => {
   it('will not silently swallow a flag that wanted a value', () => {
     expect(() => parseArgs(['--seeds', '--trace'])).toThrow(/wants a value/);
   });
+
+  it('reads --jobs as a count or as max, and refuses nonsense', () => {
+    expect(parseArgs([]).jobs).toBe(1);
+    expect(parseArgs(['--jobs', '4']).jobs).toBe(4);
+    expect(parseArgs(['--jobs', 'max']).jobs).toBeGreaterThanOrEqual(1);
+    expect(() => parseArgs(['--jobs', '0'])).toThrow(/positive integer/);
+    expect(() => parseArgs(['--jobs', '2.5'])).toThrow(/positive integer/);
+  });
 });

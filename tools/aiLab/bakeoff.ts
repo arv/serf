@@ -1,6 +1,8 @@
+import { spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { dirname } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   buildEngine,
   describeSpec,
@@ -8,11 +10,12 @@ import {
   type EngineSpec,
   type LabEngine,
 } from './engines.ts';
-import { playMatch, type MatchRecord } from './match.ts';
+import { playMatch, type MatchConfig, type MatchRecord } from './match.ts';
 import { renderReport, type ReportHeader } from './report.ts';
 import { summarize, type SeedRun } from './stats.ts';
 import type { AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
 import type { Owner } from '../../src/sim/entities.ts';
+import type { WorkerTask } from './matchWorker.ts';
 
 /**
  * The bake-off: does putting a model in the strategist's seat beat not
@@ -62,6 +65,7 @@ interface Options {
   trace: boolean;
   checkInvariantsEvery: number;
   out: string | undefined;
+  jobs: number;
 }
 
 const USAGE = `
@@ -89,6 +93,10 @@ serf-valley LLM strategist bake-off
   --no-control         skip the unadvised control match per seed
   --trace              keep every prompt and reply in the JSONL
   --check <n>          run sim invariants every n ticks, 0 to disable (default: 0)
+  --jobs <n|max>       matches to play in parallel, each in its own process
+                       (default: 1). Identical results to --jobs 1 for every
+                       engine except http, where it also means concurrent
+                       requests — size the server's --parallel to match.
   --out <path>         write one JSON line per match here
   --help
 
@@ -140,6 +148,11 @@ export function parseArgs(argv: string[]): Options {
   };
 
   const seedLabel = get('--seeds') ?? '1-24';
+  const jobsRaw = get('--jobs') ?? '1';
+  const jobs = jobsRaw === 'max' ? Math.max(1, availableParallelism() - 1) : Number(jobsRaw);
+  if (!Number.isInteger(jobs) || jobs < 1) {
+    throw new Error(`--jobs wants a positive integer or "max", got "${jobsRaw}"`);
+  }
   const latencyRaw = get('--latency') ?? '0';
   if (latencyRaw !== 'measured' && !Number.isFinite(Number(latencyRaw))) {
     throw new Error(`--latency wants a number of ticks or "measured", got "${latencyRaw}"`);
@@ -162,15 +175,92 @@ export function parseArgs(argv: string[]): Options {
     trace: argv.includes('--trace'),
     checkInvariantsEvery: num('--check', 0),
     out: get('--out'),
+    jobs,
   };
 }
 
 /** The two mirrored trials, in the order they are played. */
 const ARM_SEATS: Owner[] = [0, 1];
 
+/** One match the sweep owes: a seed's control, or one of its arms. */
+interface Trial {
+  seed: number;
+  seedIndex: number;
+  advisedSeat: Owner | null;
+}
+
+/** How the serial path salts buildEngine, and how the worker must too. */
+const saltOf = (t: Trial): number => t.seed * 2 + (t.advisedSeat ?? 0);
+
+/** Play one trial in this process — the --jobs 1 path, and the tests'. */
+async function playHere(t: Trial, opts: Options, base: Omit<MatchConfig, 'engines' | 'seed'>): Promise<MatchRecord> {
+  const engines = new Map<Owner, LabEngine>();
+  if (t.advisedSeat !== null) {
+    // `--engine none` builds nothing: the arm is then the control played
+    // again, which is exactly the calibration case the header describes.
+    const engine = buildEngine(opts.spec, saltOf(t));
+    if (engine) engines.set(t.advisedSeat, engine);
+  }
+  return playMatch({ ...base, seed: t.seed, engines });
+}
+
+/** Play one trial in a child process — the --jobs N path. The child gets
+ * the same salt the serial path would use, so N and 1 agree byte for byte
+ * (http engines aside, which sample). */
+function playInWorker(t: Trial, opts: Options, base: Omit<MatchConfig, 'engines' | 'seed'>): Promise<MatchRecord> {
+  const task: WorkerTask = {
+    config: { ...base, seed: t.seed },
+    advisedSeat: t.advisedSeat,
+    spec: opts.spec,
+    salt: saltOf(t),
+  };
+  const workerPath = fileURLToPath(new URL('./matchWorker.ts', import.meta.url));
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['--experimental-strip-types', workerPath], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const out: Buffer[] = [];
+    const errText: Buffer[] = [];
+    child.stdout.on('data', (chunk: Buffer) => out.push(chunk));
+    child.stderr.on('data', (chunk: Buffer) => errText.push(chunk));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(Buffer.concat(errText).toString('utf8').trim() || `worker exited ${code}`));
+        return;
+      }
+      try {
+        resolve(JSON.parse(Buffer.concat(out).toString('utf8')) as MatchRecord);
+      } catch {
+        reject(new Error('worker produced unparseable output'));
+      }
+    });
+    child.stdin.end(JSON.stringify(task));
+  });
+}
+
+/** Run `work` over every item, at most `width` at a time, order preserved
+ * in the result. Rejections surface as the item's settled error. */
+async function pool<T, R>(items: T[], width: number, work: (item: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  let cursor = 0;
+  const lane = async (): Promise<void> => {
+    for (;;) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      try {
+        results[i] = { status: 'fulfilled', value: await work(items[i]!) };
+      } catch (err) {
+        results[i] = { status: 'rejected', reason: err };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(width, items.length) }, lane));
+  return results;
+}
+
 export async function runBakeoff(opts: Options, log: (line: string) => void): Promise<string> {
   const startedAt = Date.now();
-  const runs: SeedRun[] = [];
   const crashes: string[] = [];
 
   if (opts.out) {
@@ -182,7 +272,7 @@ export async function runBakeoff(opts: Options, log: (line: string) => void): Pr
     appendFileSync(opts.out, `${JSON.stringify({ kind, advisedSeat, ...record })}\n`);
   };
 
-  const base = {
+  const base: Omit<MatchConfig, 'engines' | 'seed'> = {
     mapSize: opts.mapSize,
     bandits: opts.bandits,
     strategy: opts.strategy,
@@ -195,39 +285,45 @@ export async function runBakeoff(opts: Options, log: (line: string) => void): Pr
     ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
   };
 
-  for (const [i, seed] of opts.seeds.entries()) {
-    const run: SeedRun = { seed, control: null, arms: [] };
-    const where = `seed ${seed} (${i + 1}/${opts.seeds.length})`;
+  const trials: Trial[] = opts.seeds.flatMap((seed, seedIndex) => [
+    ...(opts.control ? [{ seed, seedIndex, advisedSeat: null }] : []),
+    ...ARM_SEATS.map((advisedSeat) => ({ seed, seedIndex, advisedSeat })),
+  ]);
 
-    if (opts.control) {
-      try {
-        run.control = await playMatch({ ...base, seed, engines: new Map<Owner, LabEngine>() });
-        emit('control', null, run.control);
-      } catch (err) {
-        crashes.push(`${where} control: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
+  let played = 0;
+  const playOne = async (t: Trial): Promise<MatchRecord> => {
+    const record = await (opts.jobs > 1 ? playInWorker(t, opts, base) : playHere(t, opts, base));
+    played++;
+    const who = t.advisedSeat === null ? 'control' : `seat ${t.advisedSeat} advised`;
+    log(
+      `seed ${t.seed} ${who} → ` +
+        `${record.decided ? `winner ${record.winner ?? 'nobody'}` : 'undecided'} ` +
+        `at ${record.ticks} ticks (${(record.wallMs / 1000).toFixed(1)}s, ${played}/${trials.length})`,
+    );
+    return record;
+  };
 
-    for (const seat of ARM_SEATS) {
-      const engine = buildEngine(opts.spec, seed * 2 + seat);
-      // `--engine none` builds nothing: the arm is then the control played
-      // again, which is exactly the calibration case the header describes.
-      const engines = new Map<Owner, LabEngine>();
-      if (engine) engines.set(seat, engine);
-      try {
-        const record = await playMatch({ ...base, seed, engines });
-        run.arms.push({ advisedSeat: seat, record });
-        emit('arm', seat, record);
-        log(
-          `${where} seat ${seat} advised → ` +
-            `${record.decided ? `winner ${record.winner ?? 'nobody'}` : 'undecided'} ` +
-            `at ${record.ticks} ticks (${(record.wallMs / 1000).toFixed(1)}s)`,
-        );
-      } catch (err) {
-        crashes.push(`${where} seat ${seat}: ${err instanceof Error ? err.message : String(err)}`);
-      }
+  const settled = await pool(trials, opts.jobs, playOne);
+
+  // Reassemble in seed order whatever order the pool finished in, so the
+  // JSONL and the report read the same for every --jobs.
+  const runs: SeedRun[] = opts.seeds.map((seed) => ({ seed, control: null, arms: [] }));
+  for (const [i, t] of trials.entries()) {
+    const result = settled[i]!;
+    const run = runs[t.seedIndex]!;
+    if (result.status === 'rejected') {
+      const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      const who = t.advisedSeat === null ? 'control' : `seat ${t.advisedSeat}`;
+      crashes.push(`seed ${t.seed} ${who}: ${reason}`);
+      continue;
     }
-    runs.push(run);
+    if (t.advisedSeat === null) {
+      run.control = result.value;
+      emit('control', null, result.value);
+    } else {
+      run.arms.push({ advisedSeat: t.advisedSeat, record: result.value });
+      emit('arm', t.advisedSeat, result.value);
+    }
   }
 
   const report = summarize(runs, (Date.now() - startedAt) / 1000);
