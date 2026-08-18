@@ -1,0 +1,107 @@
+import { MAX_MAP_SIZE, MIN_MAP_SIZE, tileCount } from '../shared/grid.ts';
+import { Terrain, TileResource, recomputeBlocked, type GameMap } from '../sim/map.ts';
+import type { EditorMapState } from './editorMap.ts';
+
+/**
+ * The editor's map file: authored ground only. Derived state (`blocked`)
+ * and match state (`buildingAt`, `wear`, `pathLevel`) are not part of an
+ * authored map — they're rebuilt or zeroed on load, so an exported map is
+ * always pristine. Typed arrays ride as plain number arrays, the save.ts
+ * precedent.
+ */
+export interface EditorMapFile {
+  format: 'serf-map';
+  version: 1;
+  name: string;
+  size: number;
+  players: number;
+  starts: { x: number; y: number }[];
+  terrain: number[];
+  resource: number[];
+  resourceAmt: number[];
+  height: number[];
+}
+
+export function serializeEditorMap(state: EditorMapState): string {
+  const file: EditorMapFile = {
+    format: 'serf-map',
+    version: 1,
+    name: state.name,
+    size: state.map.size,
+    players: state.players,
+    starts: state.starts.map((s) => ({ x: s.x, y: s.y })),
+    terrain: [...state.map.terrain],
+    resource: [...state.map.resource],
+    resourceAmt: [...state.map.resourceAmt],
+    // Heights are visual, three decimals is beyond what the mesh resolves —
+    // and it halves the file.
+    height: [...state.map.height].map((h) => Math.round(h * 1000) / 1000),
+  };
+  return JSON.stringify(file);
+}
+
+const TERRAIN_VALUES = new Set<number>(Object.values(Terrain));
+const RESOURCE_VALUES = new Set<number>(Object.values(TileResource));
+
+function bad(reason: string): never {
+  throw new Error(`not a valid map file: ${reason}`);
+}
+
+/** Parse and validate a map file; throws a descriptive Error on anything off. */
+export function parseEditorMap(json: string): EditorMapState {
+  let file: EditorMapFile;
+  try {
+    file = JSON.parse(json) as EditorMapFile;
+  } catch {
+    bad('not JSON');
+  }
+  if (file?.format !== 'serf-map') bad('wrong format tag');
+  if (file.version !== 1) bad(`unsupported version ${String(file.version)}`);
+  const size = file.size;
+  if (!Number.isInteger(size) || size < MIN_MAP_SIZE || size > MAX_MAP_SIZE || size % 2 !== 0) {
+    bad(`bad size ${String(size)}`);
+  }
+  const tiles = tileCount(size);
+  for (const key of ['terrain', 'resource', 'resourceAmt', 'height'] as const) {
+    const arr = file[key];
+    if (!Array.isArray(arr) || arr.length !== tiles) bad(`${key} is not ${tiles} tiles`);
+  }
+  if (!file.terrain.every((t) => TERRAIN_VALUES.has(t))) bad('unknown terrain value');
+  if (!file.resource.every((r) => RESOURCE_VALUES.has(r))) bad('unknown resource value');
+  if (!file.resourceAmt.every((a) => Number.isInteger(a) && a >= 0 && a <= 255)) {
+    bad('resource amount out of range');
+  }
+  if (!file.height.every((h) => Number.isFinite(h) && h >= -2 && h <= 3)) {
+    bad('height out of range');
+  }
+  const players = file.players;
+  if (!Number.isInteger(players) || players < 1 || players > 4) {
+    bad(`bad player count ${String(players)}`);
+  }
+  if (!Array.isArray(file.starts) || file.starts.length !== players) {
+    bad('starts do not match player count');
+  }
+  for (const s of file.starts) {
+    if (!Number.isInteger(s?.x) || !Number.isInteger(s?.y)) bad('bad start spot');
+    if (s.x < 0 || s.y < 0 || s.x + 3 > size || s.y + 3 > size) bad('start out of bounds');
+  }
+
+  const map: GameMap = {
+    size,
+    terrain: Uint8Array.from(file.terrain),
+    resource: Uint8Array.from(file.resource),
+    resourceAmt: Uint8Array.from(file.resourceAmt),
+    blocked: new Uint8Array(tiles),
+    buildingAt: new Int16Array(tiles).fill(-1),
+    wear: new Float32Array(tiles),
+    pathLevel: new Uint8Array(tiles),
+    height: Float32Array.from(file.height),
+  };
+  recomputeBlocked(map);
+  return {
+    map,
+    players,
+    starts: file.starts.map((s) => ({ x: s.x, y: s.y })),
+    name: typeof file.name === 'string' && file.name.trim() !== '' ? file.name : 'Untitled',
+  };
+}
