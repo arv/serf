@@ -294,6 +294,11 @@ export async function runBakeoff(opts: Options, log: (line: string) => void): Pr
   const playOne = async (t: Trial): Promise<MatchRecord> => {
     const record = await (opts.jobs > 1 ? playInWorker(t, opts, base) : playHere(t, opts, base));
     played++;
+    // Emitted as it lands, not when the sweep ends: a three-hour run
+    // killed at match 400 must leave 399 lines behind, not zero. Line
+    // order therefore varies with --jobs; every line is self-describing
+    // and compare.ts joins on fields, so order is presentation only.
+    emit(t.advisedSeat === null ? 'control' : 'arm', t.advisedSeat, record);
     const who = t.advisedSeat === null ? 'control' : `seat ${t.advisedSeat} advised`;
     log(
       `seed ${t.seed} ${who} → ` +
@@ -317,13 +322,8 @@ export async function runBakeoff(opts: Options, log: (line: string) => void): Pr
       crashes.push(`seed ${t.seed} ${who}: ${reason}`);
       continue;
     }
-    if (t.advisedSeat === null) {
-      run.control = result.value;
-      emit('control', null, result.value);
-    } else {
-      run.arms.push({ advisedSeat: t.advisedSeat, record: result.value });
-      emit('arm', t.advisedSeat, result.value);
-    }
+    if (t.advisedSeat === null) run.control = result.value;
+    else run.arms.push({ advisedSeat: t.advisedSeat, record: result.value });
   }
 
   const report = summarize(runs, (Date.now() - startedAt) / 1000);
