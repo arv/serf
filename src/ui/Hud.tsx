@@ -207,6 +207,15 @@ export function Hud(props: {
     if (eliminated() && !spectating()) return 'eliminated';
     return undefined;
   };
+  // The menu now sits above the toasts (37 > 36), which sit above the end
+  // cards (36 > 35) — so no number is left that keeps a decided match's
+  // card over an open menu. Close the menu instead: the card takes the
+  // screen, and the ☰ button under its scrim can't reopen it while the
+  // card stands. The tech sheet is untouched — it still loses to the card
+  // on z-index alone.
+  createEffect(() => {
+    if (endCard() !== undefined && menuOpen()) setMenuOpen(false);
+  });
   /** What quitting walks away from — the one line the player should weigh
    * before answering, and it differs by mode: a solo world dies with the
    * tab, a room plays on, a recording loses nothing at all. */
@@ -297,6 +306,13 @@ export function Hud(props: {
                     layers that must land on them: toasts and tips
              36     toasts — "Replay saved" answers a button on an end card,
                     so it has to read over the card's scrim
+             37     the ☰ menu — it shares the top-right corner with the
+                    toasts, and a notification sliding in over the buttons
+                    the player is aiming at would also steal their clicks.
+                    Numerically this puts the menu over the end cards too,
+                    which the cards must not allow; an effect below closes
+                    the menu the moment a card comes up, so the two never
+                    actually stack.
              40     tooltips (see tooltip.tsx)
            The quit question is not on this scale: it is a modal <dialog>,
            and showModal() lifts it into the browser's top layer, over
@@ -378,6 +394,7 @@ export function Hud(props: {
           position: absolute; top: 52px; right: 12px; width: 200px;
           display: flex; flex-direction: column; gap: 6px;
           padding: 10px 12px; pointer-events: auto;
+          z-index: 37;
         }
         .hud-menu .menu-head {
           display: flex; justify-content: space-between; align-items: center;
