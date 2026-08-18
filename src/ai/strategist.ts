@@ -127,8 +127,9 @@ export interface LlmStrategistOpts {
   /** Test injection; the default builds the real wllama engine. */
   engineFactory?: () => Promise<ChatEngine>;
   timeoutMs?: number;
-  /** Every settled consultation, whole — see ConsultTrace. Unset costs
-   * nothing, which is what production passes. */
+  /** Every settled consultation, whole — see ConsultTrace. Production
+   * leaves it unset, and pays only a timestamp and a dead closure per
+   * consultation — nothing next to the seconds of inference beside them. */
   onTrace?: (trace: ConsultTrace) => void;
 }
 
