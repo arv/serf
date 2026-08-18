@@ -46,6 +46,8 @@ export const [kaleido, setKaleido] = createSignal(true);
 /** Fold count 1..4; New re-defaults it to the map's player count. */
 export const [folds, setFolds] = createSignal(2);
 export const [viewMode, setViewMode] = createSignal<ViewMode>('topDown');
+/** The play-area boundary band + margin veil (B toggles it). */
+export const [showBounds, setShowBounds] = createSignal(true);
 export const [dialog, setDialog] = createSignal<'new' | 'play' | 'maps' | null>(null);
 /** validateForPlay's output, refreshed after every stroke that could change it. */
 export const [problems, setProblems] = createSignal<string[]>([]);

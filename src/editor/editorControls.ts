@@ -14,8 +14,10 @@ import {
   brushRadius,
   setBrushRadius,
   setKaleido,
+  setShowBounds,
   setTool,
   kaleido,
+  showBounds,
   tool,
 } from './uiState.ts';
 
@@ -185,6 +187,10 @@ export class EditorControls {
       case 'k':
       case 'K':
         setKaleido(!kaleido());
+        break;
+      case 'b':
+      case 'B':
+        setShowBounds(!showBounds());
         break;
     }
   }

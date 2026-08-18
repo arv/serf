@@ -22,7 +22,9 @@ import {
   setFolds,
   setKaleido,
   setMapName,
+  setShowBounds,
   setTool,
+  showBounds,
   showNotice,
   tool,
   viewMode,
@@ -144,6 +146,13 @@ function EditorUi(props: { actions: EditorActions }) {
           onClick={() => props.actions.toggleView()}
         >
           {viewMode() === 'topDown' ? 'View: top-down' : 'View: game'}
+        </button>
+        <button
+          classList={{ active: showBounds() }}
+          title="Play area (B): outline the playable square and press the scenery ring back"
+          onClick={() => setShowBounds(!showBounds())}
+        >
+          ⬚ Play area
         </button>
       </div>
 

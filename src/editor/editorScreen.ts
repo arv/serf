@@ -22,6 +22,7 @@ import {
 } from './editorMap.ts';
 import { serializeEditorMap } from './format.ts';
 import { StartMarkers } from './markers.ts';
+import { PlayAreaOverlay } from './playAreaOverlay.ts';
 import { worldFromEditor, type EditorPlayConfig } from './playWorld.ts';
 import { loadDraft, saveDraft } from './storage.ts';
 import { rotateStart } from './symmetry.ts';
@@ -34,6 +35,7 @@ import {
   setDirtySinceSave,
   setProblems,
   setViewMode,
+  showBounds,
   showNotice,
   viewMode,
 } from './uiState.ts';
@@ -130,6 +132,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     scatter: ScatterMesh;
     grass: GrassField;
     markers: StartMarkers;
+    bounds: PlayAreaOverlay;
     cursor: BrushCursor;
     controls: EditorControls;
   }
@@ -183,6 +186,8 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       renderer.scene.add(sc.margin.mesh);
     }
     sc.markers.refreshHeights();
+    // Sculpting moved the ground under the band and the veil; re-hug it.
+    sc.bounds.refresh();
   }
 
   const surface: EditorSurface = {
@@ -267,9 +272,11 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     );
     const markers = new StartMarkers(renderer.scene, heights, overlay);
     markers.set(state.starts);
+    const bounds = new PlayAreaOverlay(renderer.scene, heights, map);
+    bounds.setVisible(showBounds());
     const cursor = new BrushCursor(renderer.scene, heights);
     const controls = new EditorControls(canvas, renderer.rig, heights, cursor, markers, surface);
-    sc = { heights, terrain, water, margin, scatter, grass, markers, cursor, controls };
+    sc = { heights, terrain, water, margin, scatter, grass, markers, bounds, cursor, controls };
     // Open framing the play square plus a strip of scenery.
     renderer.rig.focusOn(map.size / 2, map.size / 2, Math.round(map.play * 1.1));
     refreshProblems();
@@ -279,6 +286,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     if (!sc) return;
     sc.controls.dispose();
     sc.cursor.dispose();
+    sc.bounds.dispose();
     sc.markers.clear();
     disposeOwnedSubtree(sc.scatter.group);
     disposeOwnedSubtree(sc.grass.mesh);
@@ -361,9 +369,15 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   // ---- frame loop ----------------------------------------------------------
 
   let raf = 0;
+  /** The toggle's last applied value — visibility flips are edge-driven. */
+  let boundsShown: boolean | null = null;
   const loop = (): void => {
     if (over) return;
     if (sc) {
+      if (boundsShown !== showBounds()) {
+        boundsShown = showBounds();
+        sc.bounds.setVisible(boundsShown);
+      }
       if (pendingReheight.size > 0) {
         sc.terrain.reheightTiles([...pendingReheight]);
         sc.water.refreshBed();
