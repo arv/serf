@@ -52,8 +52,8 @@ describe('tileImages', () => {
       [0, 95],
       [48, 48],
     ] as const) {
-      let x = x0;
-      let y = y0;
+      let x: number = x0;
+      let y: number = y0;
       for (let k = 0; k < 4; k++) [x, y] = image(x, y, size, 4, 1);
       expect([x, y]).toEqual([x0, y0]);
     }
@@ -67,8 +67,8 @@ describe('tileImages', () => {
       [48, 20],
     ] as const) {
       // Chain the 1/3 turn three times through the rounded tile map.
-      let x = x0;
-      let y = y0;
+      let x: number = x0;
+      let y: number = y0;
       for (let k = 0; k < 3; k++) [x, y] = image(x, y, size, 3, 1);
       expect(Math.max(Math.abs(x - x0), Math.abs(y - y0))).toBeLessThanOrEqual(1);
     }
