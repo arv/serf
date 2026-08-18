@@ -15,10 +15,10 @@ const MIN_VIEW = 5;
  * ring of open water frames at full zoom, whatever the map size (matches
  * the classic 52-on-64 feel). */
 const MAX_VIEW_FRACTION = 0.8;
-/** How far past the grid edge the pan target may go. Kept small on
- * purpose: the camera stays bounded to the map (Warcraft-style) — the
- * breathing room at the shore is the map's own sea fringe, not free
- * panning into the void. */
+/** Shore breathing room: how far past the play square the pan target may
+ * reach at the closest zooms, before the view's own footprint is what
+ * bounds it (see #panRange). The scenery margin beyond is for looking
+ * at, not for visiting. */
 const PAN_MARGIN = 4;
 
 /** Conservative world-space XZ rectangle of the visible ground. */
@@ -246,6 +246,42 @@ export class CameraRig {
     return Math.round((this.#max - this.#min) * MAX_VIEW_FRACTION);
   }
 
+  /** Half-extent, along each world axis, of the AABB around the view
+   * frustum's ground footprint (a 45° parallelogram whose screen-vertical
+   * extent stretches by 1/sin(pitch)). */
+  #footprintExt(): number {
+    const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
+    const halfH = this.#viewHeight / 2;
+    // Both screen axes project onto world X/Z with |cos 45°| = |sin 45°|.
+    return Math.SQRT1_2 * (halfH * aspect + halfH / Math.sin(PITCH));
+  }
+
+  /**
+   * How far the pan target may stray from the play square's center: the
+   * play half-span plus a little shore allowance, less half the view's
+   * own ground footprint — so at least half of what is on screen is
+   * always the playable map, never mostly the scenery ring (which exists
+   * to keep the world from looking cut off, not to be scrolled to).
+   * Close in that is nearly the whole square; zoomed all the way out the
+   * island frames itself near-centered, Warcraft-style.
+   */
+  #panRange(): number {
+    return Math.max(0, (this.#max - this.#min) / 2 + PAN_MARGIN - this.#footprintExt() / 2);
+  }
+
+  /**
+   * Clamp one axis of a prospective pan target, ratcheted against where
+   * the camera already is: focusOn centers border castles without asking,
+   * and a target parked beyond the range is never yanked back for it —
+   * it just cannot be pushed further out. So neither a focus nor a
+   * zoom-out ever makes the next arrow key snap the view sideways.
+   */
+  #clampAxis(next: number, current: number): number {
+    const mid = (this.#min + this.#max) / 2;
+    const bound = Math.max(this.#panRange(), Math.abs(current - mid));
+    return clamp(next, mid - bound, mid + bound);
+  }
+
   /**
    * The world's actual grid side, once known (the init frame carries it).
    * Recenters on the new middle and re-clamps the zoom — callers focus the
@@ -283,8 +319,8 @@ export class CameraRig {
     this.#glide = {
       fromX: this.#target.x,
       fromZ: this.#target.z,
-      toX: clamp(x, this.#min - PAN_MARGIN, this.#max + PAN_MARGIN),
-      toZ: clamp(z, this.#min - PAN_MARGIN, this.#max + PAN_MARGIN),
+      toX: this.#clampAxis(x, this.#target.x),
+      toZ: this.#clampAxis(z, this.#target.z),
       t: 0,
       dur: durationMs / 1000,
     };
@@ -334,33 +370,18 @@ export class CameraRig {
     const rz = -Math.sin(YAW);
     const fx = -Math.sin(YAW);
     const fz = -Math.cos(YAW);
-    this.#target.x = clamp(
-      this.#target.x + rx * x - fx * z,
-      this.#min - PAN_MARGIN,
-      this.#max + PAN_MARGIN,
-    );
-    this.#target.z = clamp(
-      this.#target.z + rz * x - fz * z,
-      this.#min - PAN_MARGIN,
-      this.#max + PAN_MARGIN,
-    );
+    this.#target.x = this.#clampAxis(this.#target.x + rx * x - fx * z, this.#target.x);
+    this.#target.z = this.#clampAxis(this.#target.z + rz * x - fz * z, this.#target.z);
     this.#apply();
   }
 
   /**
-   * Conservative world-space XZ bounds of the visible ground, with margin —
-   * the axis-aligned box around the ortho frustum's ground footprint (a 45°
-   * parallelogram whose screen-vertical extent stretches by 1/sin(pitch)).
+   * Conservative world-space XZ bounds of the visible ground, with margin.
    * Used to skip per-frame animation work for units nobody can see; the
    * margin also absorbs the screen shift terrain height introduces.
    */
   viewBounds(margin = 3, out: ViewBounds = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 }): ViewBounds {
-    const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
-    const halfH = this.#viewHeight / 2;
-    const halfW = halfH * aspect;
-    const halfG = halfH / Math.sin(PITCH);
-    // Both screen axes project onto world X/Z with |cos 45°| = |sin 45°|.
-    const ext = Math.SQRT1_2 * (halfW + halfG) + margin;
+    const ext = this.#footprintExt() + margin;
     out.minX = this.#target.x - ext;
     out.maxX = this.#target.x + ext;
     out.minZ = this.#target.z - ext;
