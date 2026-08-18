@@ -811,8 +811,9 @@ export function destroyBuilding(world: World, b: Building): void {
 }
 
 /**
- * Nail one repair material onto a building: the hp it buys was fixed when
- * the order was placed, and the last of the bill is what clears the order.
+ * Hand one repair material to a building's masons: the hp it buys was fixed
+ * when the order was placed and is banked for them to work in over the
+ * ticks that follow, and the last of the bill is what clears the order.
  *
  * Lives here beside the other world mutations because both ends of a repair
  * reach for it — the hauler arriving with a plank (logistics) and the
@@ -821,7 +822,9 @@ export function destroyBuilding(world: World, b: Building): void {
 export function applyRepairMaterial(world: World, b: Building, good: GoodId): void {
   if ((b.repairNeeds?.[good] ?? 0) <= 0) return;
   b.repairNeeds![good] = (b.repairNeeds![good] ?? 0) - 1;
-  b.hp = Math.min(buildingDef(b.type).hp, b.hp + (b.repairHpPerGood ?? 0));
+  // The hp it buys is banked, not granted: a plank on the ground is not a
+  // mended wall. constructionSystem's masons work the bank down.
+  b.repairPending = (b.repairPending ?? 0) + (b.repairHpPerGood ?? 0);
   world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + 1;
   const bill = Object.keys(b.repairNeeds!) as GoodId[];
   for (const g of bill) {
