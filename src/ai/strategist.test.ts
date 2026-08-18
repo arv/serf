@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createWorld } from '../sim/world.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
 import { strategyOf } from '../sim/defs/aiStrategies.ts';
-import { LlmStrategist, warmModel, type ChatEngine, type LlmStatus } from './strategist.ts';
+import {
+  LlmStrategist,
+  warmModel,
+  type ChatEngine,
+  type ConsultTrace,
+  type LlmStatus,
+} from './strategist.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 
 /**
@@ -118,18 +124,21 @@ interface Harness {
   strategist: LlmStrategist;
   sent: { playerId: number; override: Record<string, unknown> }[];
   statuses: LlmStatus[];
+  traces: ConsultTrace[];
 }
 
 function harness(engine: ChatEngine, timeoutMs?: number): Harness {
   const sent: Harness['sent'] = [];
   const statuses: LlmStatus[] = [];
+  const traces: ConsultTrace[] = [];
   const strategist = new LlmStrategist({
     sendAdvice: (playerId, override) => sent.push({ playerId, override }),
     onStatus: (s) => statuses.push(s),
     engineFactory: () => Promise.resolve(engine),
     timeoutMs,
+    onTrace: (t) => traces.push(t),
   });
-  return { strategist, sent, statuses };
+  return { strategist, sent, statuses, traces };
 }
 
 /** Let the fire-and-forget consultation settle. */
@@ -196,6 +205,58 @@ describe('LlmStrategist', () => {
     expect(statuses).toEqual([{ state: 'ready' }]);
   });
 
+  it('traces a consultation whole: prompt, reply, timing, and what was sent', async () => {
+    const reply = '{"armyAttackSize": 99, "reason": "overwhelm them"}';
+    const { strategist, traces } = harness({ complete: async () => reply });
+    await strategist.start();
+    strategist.onSummary(1, testSummary());
+    await settle();
+    expect(traces).toHaveLength(1);
+    const t = traces[0]!;
+    expect(t).toMatchObject({
+      playerId: 1,
+      outcome: 'sent',
+      raw: reply,
+      // Clamped like the advice itself; reason rides along for the overlay
+      // but stays out of the override, exactly as sendAdvice saw it.
+      advice: { armyAttackSize: 16, reason: 'overwhelm them' },
+      standing: { armyAttackSize: 16, reason: 'overwhelm them' },
+      override: { armyAttackSize: 16 },
+    });
+    // The prompt verbatim — system glossary plus the match state.
+    expect(t.messages.map((m) => m.role)).toEqual(['system', 'user']);
+    expect(t.ms).toBeGreaterThanOrEqual(0);
+    expect(t.minutes).toBeGreaterThanOrEqual(0);
+    // The playbook print rides along, so the overlay can show the delta.
+    expect(t.knobs.armyAttackSize).toBeTypeOf('number');
+  });
+
+  it('traces "change nothing" and repeats as kept, standing pile attached', async () => {
+    let call = 0;
+    const replies = ['{"homeGuard": 8}', '{"homeGuard": 8, "reason": "hold"}', '{}'];
+    const { strategist, sent, traces } = harness({ complete: async () => replies[call++]! });
+    await strategist.start();
+    for (let i = 0; i < 3; i++) {
+      strategist.onSummary(1, testSummary());
+      await settle();
+    }
+    // One message downstairs, three entries in the ledger.
+    expect(sent).toHaveLength(1);
+    expect(traces.map((t) => t.outcome)).toEqual(['sent', 'kept', 'kept']);
+    expect(traces[2]!.advice).toEqual({});
+    expect(traces[2]!.standing).toEqual({ homeGuard: 8, reason: 'hold' });
+  });
+
+  it('traces a failure with the reply that caused it', async () => {
+    const { strategist, traces } = harness({ complete: async () => 'the peasants are revolting' });
+    await strategist.start();
+    strategist.onSummary(1, testSummary());
+    await settle();
+    expect(traces).toHaveLength(1);
+    expect(traces[0]).toMatchObject({ outcome: 'failed', raw: 'the peasants are revolting' });
+    expect(traces[0]!.error).toContain('unparseable advice');
+  });
+
   it('drops a summary while the seat is still being thought about', async () => {
     let resolveFirst!: (v: string) => void;
     let calls = 0;
@@ -251,7 +312,7 @@ describe('LlmStrategist', () => {
 
   it('a hide aborts the consultation mid-thought, and it never counts as a strike', async () => {
     let calls = 0;
-    const { strategist, sent, statuses } = harness({
+    const { strategist, sent, statuses, traces } = harness({
       complete: (_messages, _schema, signal) =>
         new Promise((_resolve, reject) => {
           calls++;
@@ -272,6 +333,8 @@ describe('LlmStrategist', () => {
     }
     expect(sent).toEqual([]);
     expect(statuses).toEqual([{ state: 'ready' }]); // never 'failed'
+    // A pause is not model behavior: nothing for the ledger either.
+    expect(traces).toEqual([]);
   });
 
   it('consults nobody while hidden, and picks up again on return', async () => {
@@ -411,7 +474,7 @@ describe('LlmStrategist', () => {
 
   it('disposed mid-flight, it stops speaking', async () => {
     let resolveReply!: (v: string) => void;
-    const { strategist, sent } = harness({
+    const { strategist, sent, traces } = harness({
       complete: () =>
         new Promise((r) => {
           resolveReply = r;
@@ -423,6 +486,8 @@ describe('LlmStrategist', () => {
     resolveReply('{"homeGuard": 4}');
     await settle();
     expect(sent).toEqual([]);
+    // Silence includes the ledger — the match this belonged to is gone.
+    expect(traces).toEqual([]);
   });
 });
 
