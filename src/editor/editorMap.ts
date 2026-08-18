@@ -59,10 +59,24 @@ export function defaultStarts(size: number, players: number): StartSpot[] {
 const START_W = 3;
 
 /**
- * Blocking problems that must be fixed before Play. Buildable means: the
- * whole 3x3 footprint on grass with a one-tile margin inside the map (the
- * play path clears resources 5x5 around it, so standing wood is fine).
+ * Can a storehouse legally stand here? The whole 3x3 footprint on grass
+ * with a one-tile margin inside the map (the play path clears resources
+ * 5x5 around it, so standing wood is fine). The drag tool's green/red and
+ * validateForPlay agree by construction — this is the one rule.
  */
+export function startSpotLegal(map: GameMap, s: StartSpot): boolean {
+  if (!inBounds(s.x - 1, s.y - 1, map.size) || !inBounds(s.x + START_W, s.y + START_W, map.size)) {
+    return false;
+  }
+  for (let dy = 0; dy < START_W; dy++) {
+    for (let dx = 0; dx < START_W; dx++) {
+      if (map.terrain[tileIdx(s.x + dx, s.y + dy, map.size)] !== Terrain.Grass) return false;
+    }
+  }
+  return true;
+}
+
+/** Blocking problems that must be fixed before Play. */
 export function validateForPlay(state: EditorMapState): string[] {
   const { map, players, starts } = state;
   const problems: string[] = [];
@@ -70,18 +84,8 @@ export function validateForPlay(state: EditorMapState): string[] {
     problems.push(`map is set for ${players} player(s) but has ${starts.length} start(s)`);
   }
   starts.forEach((s, p) => {
-    const seat = `player ${p + 1}`;
-    if (!inBounds(s.x - 1, s.y - 1, map.size) || !inBounds(s.x + START_W, s.y + START_W, map.size)) {
-      problems.push(`${seat}'s start is too close to the map edge`);
-      return;
-    }
-    for (let dy = 0; dy < START_W; dy++) {
-      for (let dx = 0; dx < START_W; dx++) {
-        if (map.terrain[tileIdx(s.x + dx, s.y + dy, map.size)] !== Terrain.Grass) {
-          problems.push(`${seat}'s start must sit fully on grass`);
-          return;
-        }
-      }
+    if (!startSpotLegal(map, s)) {
+      problems.push(`player ${p + 1}'s start needs a full 3×3 of grass clear of the map edge`);
     }
   });
   for (let a = 0; a < starts.length; a++) {

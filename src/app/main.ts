@@ -211,6 +211,10 @@ function gameChosen(params: URLSearchParams): boolean {
  */
 function screenKey(): string {
   const params = new URLSearchParams(location.search);
+  // The map editor is its own screen kind — and the check comes before
+  // gameChosen, because a stale load-pending handoff (or a ?seed left in
+  // the URL) must not turn ?editor into a match.
+  if (params.has('editor')) return 'editor';
   const chosen = gameChosen(params);
   // A room is chosen, but the choosing happens in the council — a menu
   // screen, and the one whose URL moves under it.
@@ -264,6 +268,13 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     // under the real camera and sun. Render-only — no sim, no HUD.
     const { mountWardrobe } = await import('../ui/wardrobe');
     await mountWardrobe(document.getElementById('canvas') as HTMLCanvasElement);
+    return;
+  }
+  if (key === 'editor') {
+    // The map editor: the game's render stack over an authored map, no
+    // sim worker. Its chunk loads on demand — most sessions never edit.
+    const { mountEditor } = await import('../editor/editorScreen');
+    present(await mountEditor(document.getElementById('canvas') as HTMLCanvasElement));
     return;
   }
   const mp = launchParams.get('mp');

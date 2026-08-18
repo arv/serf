@@ -200,4 +200,13 @@ export class WaterMesh {
   refreshBed(): void {
     this.#bed.needsUpdate = true;
   }
+
+  /** Editor only: free this mesh inside a live context (the game drops the
+   * whole context instead). The bed texture is ours; nothing is shared. */
+  dispose(): void {
+    this.mesh.removeFromParent();
+    this.mesh.geometry.dispose();
+    (this.mesh.material as THREE.Material).dispose();
+    this.#bed.dispose();
+  }
 }

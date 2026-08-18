@@ -19,7 +19,7 @@ import { glbRocks, glbTrees } from './assets';
  * Everything else in these subtrees — procedural geometry, materials and
  * their canvas textures — is per-instance and freed here.
  */
-export function disposeScatterTree(root: THREE.Object3D): void {
+export function disposeOwnedSubtree(root: THREE.Object3D): void {
   const shared = new Set<object>();
   const trees = glbTrees();
   if (trees) {
