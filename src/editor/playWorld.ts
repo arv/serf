@@ -102,6 +102,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
     campSeeds = [middle, ...corners.sort((a, z) => nearestStart(z) - nearestStart(a))];
   }
   if (!cfg.banditsEnabled) campSeeds = [];
+  let campPlaced = false;
   outer: for (const [cx, cy] of campSeeds) {
     for (let r = 0; r < 16; r++) {
       for (let dy = -r; dy <= r; dy++) {
@@ -112,11 +113,21 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
             for (let g = 0; g < 3; g++) {
               spawnUnitNearby(world, 'bandit', BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
             }
+            campPlaced = true;
             break outer;
           }
         }
       }
     }
+  }
+  // A campless world with bandits on is an instant win: the solo victory
+  // check reads "no camp stands" as "the camp fell" on the very first
+  // tick. Worldgen guarantees itself a spot; an authored map owes no such
+  // promise, so refuse the launch rather than hand out a hollow victory.
+  if (cfg.banditsEnabled && !campPlaced) {
+    throw new Error(
+      'no room for the bandit camp: clear a 3×3 near the middle or a corner of the playable area, or turn bandits off',
+    );
   }
 
   // Starting serfs, scattered just south of each storehouse. Nearby, not

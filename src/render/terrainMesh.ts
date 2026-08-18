@@ -195,6 +195,10 @@ export class TerrainMesh {
         for (let col = c0; col <= c1; col++) dirtyVerts.add(base + col);
       }
     }
+    // A stroke entirely in the scenery margin reaches no play vertex at
+    // all — and flagging needsUpdate with no ranges queued would re-upload
+    // the whole color buffer for nothing.
+    if (dirtyVerts.size === 0) return;
     for (const v of dirtyVerts) this.#paintVertex(v);
 
     this.#uploadRuns(this.#colorAttr, dirtyVerts);
@@ -301,6 +305,7 @@ export class TerrainMesh {
    */
   #uploadRuns(attr: THREE.BufferAttribute, dirtyVerts: Set<number>): void {
     const sorted = [...dirtyVerts].sort((a, z) => a - z);
+    if (sorted.length === 0) return; // belt for callers' braces
     let runStart = sorted[0]!;
     let prev = sorted[0]!;
     for (let k = 1; k <= sorted.length; k++) {

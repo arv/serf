@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid.ts';
 import { BANDIT } from '../sim/entities.ts';
 import { START_SERFS, START_STOCK } from '../sim/defs/balance.ts';
-import { Terrain, TileResource } from '../sim/map.ts';
+import { Terrain, TileResource, recomputeBlocked } from '../sim/map.ts';
 import { deserializeWorld, serializeWorld } from '../sim/save.ts';
 import { tickWorld } from '../sim/tick.ts';
 import { checkInvariants } from '../sim/debug/invariants.ts';
@@ -101,5 +101,29 @@ describe('worldFromEditor', () => {
     expect(() =>
       worldFromEditor(authoredState(), { ...PLAY, players: [{ kind: 'human' }] }),
     ).toThrow(/seat/);
+  });
+
+  it('refuses bandits on a map with no room for their camp', () => {
+    // All water except the solo center start's ground: every camp seed
+    // (the four corners, solo) and its whole 16-ring search is drowned.
+    // Launching that with bandits on would win instantly — the victory
+    // check reads "no camp stands" as "the camp fell" on tick one.
+    const state = createBlankMap({ size: 64, players: 1 });
+    const size = state.map.size;
+    state.map.terrain.fill(Terrain.Water);
+    state.map.height.fill(-0.8);
+    const s = state.starts[0]!;
+    for (let y = s.y - 1; y < s.y + 4; y++) {
+      for (let x = s.x - 1; x < s.x + 4; x++) {
+        state.map.terrain[y * size + x] = Terrain.Grass;
+        state.map.height[y * size + x] = 0.35;
+      }
+    }
+    recomputeBlocked(state.map);
+    const solo = { seed: 7, players: [{ kind: 'human' as const }], banditsEnabled: true };
+    expect(() => worldFromEditor(state, solo)).toThrow(/bandit camp/);
+    // The same map is a fine peaceful sandbox.
+    const world = worldFromEditor(state, { ...solo, banditsEnabled: false });
+    expect([...world.buildings.values()].some((b) => b.type === 'banditCamp')).toBe(false);
   });
 });
