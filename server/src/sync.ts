@@ -156,6 +156,7 @@ function initialMap(world: World, view: SeatView): MapSnapshot {
   }
   return {
     size: world.map.size,
+    play: world.map.play,
     terrain: world.map.terrain,
     resource: world.map.resource,
     blocked,

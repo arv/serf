@@ -1,18 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { edgeDist, tileCount, tileIdx } from '../shared/grid.ts';
+import { gridFor, tileCount, tileIdx } from '../shared/grid.ts';
 import { createWorld, campCorners, type World } from './world.ts';
-import { Terrain, TileResource, type GameMap } from './map.ts';
+import {
+  Terrain,
+  TileResource,
+  inPlayArea,
+  playEdgeDist,
+  playMin,
+  type GameMap,
+} from './map.ts';
 import { WOOD_MAX_AMT } from './defs/balance.ts';
 
 /**
- * The mixed-border contract: every edge draws sea, ridge, or forest from
- * the seed; a land border runs its rock or timber to the very last row
- * (no moat — the renderer continues it as land), while a sea border is
- * open water to the map edge; the whole rim is impassable as generated;
- * and at least one edge per map is honest coast.
+ * The mixed-border contract on the Warcraft-style grid: the world is
+ * larger than the playing area, and every play-square edge draws sea,
+ * ridge, or forest from the seed. A land border runs its rock or timber
+ * to the very last playable row and CONTINUES as real margin tiles beyond
+ * it (no moat); a sea border is open water from its band out through the
+ * margin; the whole rim is impassable as generated, the entire margin is
+ * blocked scenery, and at least one edge per map is honest coast.
  */
 
-const SIZE = 96;
+const PLAY = 96;
+const GRID = gridFor(PLAY);
+const M = playMin({ size: GRID, play: PLAY });
 const FRINGE = 4; // floor(96 / 24)
 // Deepest band any edge can draw: base + capped jitter/meander + teeth.
 const MAX_DEPTH = 3 * FRINGE + 2;
@@ -21,21 +32,33 @@ function solo(seed: number): World {
   return createWorld({ seed, players: [{ kind: 'human' }] });
 }
 
-/** Classify one edge by walking inward at several positions and reading
- * the first non-water tile: rock = ridge, standing wood = forest, and a
- * band that stays wet all the way in (or opens on clear grass) = sea. The
- * walk-in matters — the waterline wobbles, so no fixed depth is reliable. */
+/** Grid coordinates of a probe on `side`, `along` tiles down the play
+ * edge, `d` tiles in from the play boundary (negative = into the margin). */
+function probe(side: number, along: number, d: number): [number, number] {
+  const a = M + along;
+  return side === 0
+    ? [a, M + d]
+    : side === 1
+      ? [M + PLAY - 1 - d, a]
+      : side === 2
+        ? [a, M + PLAY - 1 - d]
+        : [M + d, a];
+}
+
+/** Classify one play edge by walking inward at several positions and
+ * reading the first non-water tile: rock = ridge, standing wood = forest,
+ * and a band that stays wet all the way in (or opens on clear grass) =
+ * sea. The walk-in matters — the band depth wobbles, so no fixed depth is
+ * reliable. */
 function edgeStyle(map: GameMap, side: number): 'sea' | 'ridge' | 'forest' {
-  const size = map.size;
   let rock = 0;
   let wood = 0;
   let sea = 0;
-  for (let along = 10; along < size - 10; along += 3) {
+  for (let along = 10; along < PLAY - 10; along += 3) {
     let vote: 'sea' | 'ridge' | 'forest' = 'sea';
     for (let d = 0; d < MAX_DEPTH + 1; d++) {
-      const [x, y] =
-        side === 0 ? [along, d] : side === 1 ? [size - 1 - d, along] : side === 2 ? [along, size - 1 - d] : [d, along];
-      const i = tileIdx(x, y, size);
+      const [x, y] = probe(side, along, d);
+      const i = tileIdx(x, y, map.size);
       if (map.terrain[i] === Terrain.Water) continue;
       if (map.terrain[i] === Terrain.Rock) vote = 'ridge';
       else if (map.resource[i] === TileResource.Wood) vote = 'forest';
@@ -62,49 +85,65 @@ describe('map borders', () => {
     expect([...seen].sort()).toEqual(['forest', 'ridge', 'sea']);
   });
 
-  it('runs each border to the last row in its own style, all of it blocked', () => {
+  it('runs each border to the last playable row in its own style, all of it blocked', () => {
     for (const seed of [1, 7, 11]) {
       const map = solo(seed).map;
+      expect(map.size).toBe(GRID);
+      expect(map.play).toBe(PLAY);
       // Everything inside the minimum band depth is rim of SOME style:
       // water, rock, or belt wood — all of which block. (Belt inner rows
       // are thinned, so only the guaranteed-depth band is asserted.)
-      for (let i = 0; i < tileCount(SIZE); i++) {
-        const x = i % SIZE;
-        const y = (i / SIZE) | 0;
-        if (edgeDist(x, y, SIZE) < FRINGE - 1) {
+      for (let i = 0; i < tileCount(GRID); i++) {
+        const x = i % GRID;
+        const y = (i / GRID) | 0;
+        const pd = playEdgeDist(map, x, y);
+        if (pd >= 0 && pd < FRINGE - 1) {
           expect(map.blocked[i], `seed ${seed}: rim tile ${x},${y} walkable`).toBe(1);
         }
       }
-      // The outermost row IS the border's own material — open sea on a
-      // sea side, standing rock on a ridge side (the ramp holds it above
-      // any flood), and belt ground on a forest side, where a basin may
-      // cut the odd cove but timber must dominate.
+      // The last playable row IS the border's own material, and the first
+      // margin rows continue it — one landscape across the boundary. A
+      // forest side's ground is grass under timber on both sides of the
+      // line (a flooded basin may cut the odd cove, so timber must
+      // dominate rather than be total).
       for (let side = 0; side < 4; side++) {
         const style = edgeStyle(map, side);
-        let wood = 0;
-        let samples = 0;
-        for (let along = 10; along < SIZE - 10; along += 3) {
-          const [x, y] =
-            side === 0
-              ? [along, 0]
-              : side === 1
-                ? [SIZE - 1, along]
-                : side === 2
-                  ? [along, SIZE - 1]
-                  : [0, along];
-          const i = tileIdx(x, y, SIZE);
-          samples++;
-          const label = `seed ${seed}, side ${side} (${style}): edge tile ${x},${y}`;
-          if (style === 'sea') {
-            expect(map.terrain[i], label).toBe(Terrain.Water);
-          } else if (style === 'ridge') {
-            expect(map.terrain[i], label).toBe(Terrain.Rock);
-          } else if (map.resource[i] === TileResource.Wood) {
-            wood++;
+        for (const d of [0, -1, -3]) {
+          let wood = 0;
+          let samples = 0;
+          for (let along = 10; along < PLAY - 10; along += 3) {
+            const [x, y] = probe(side, along, d);
+            const i = tileIdx(x, y, GRID);
+            samples++;
+            const label = `seed ${seed}, side ${side} (${style}), d=${d}: tile ${x},${y}`;
+            if (style === 'sea') {
+              expect(map.terrain[i], label).toBe(Terrain.Water);
+            } else if (style === 'ridge') {
+              expect(map.terrain[i], label).toBe(Terrain.Rock);
+            } else if (map.resource[i] === TileResource.Wood) {
+              wood++;
+            }
+          }
+          if (style === 'forest') {
+            expect(
+              wood / samples,
+              `seed ${seed}, side ${side}, d=${d}: forest edge thin`,
+            ).toBeGreaterThan(0.5);
           }
         }
-        if (style === 'forest') {
-          expect(wood / samples, `seed ${seed}, side ${side}: forest edge thin`).toBeGreaterThan(0.5);
+      }
+    }
+  });
+
+  it('blocks the entire margin — scenery, not ground', () => {
+    for (const seed of [1, 7]) {
+      const map = solo(seed).map;
+      for (let i = 0; i < tileCount(GRID); i++) {
+        const x = i % GRID;
+        const y = (i / GRID) | 0;
+        if (inPlayArea(map, x, y)) continue;
+        if (map.blocked[i] !== 1) {
+          expect.fail(`seed ${seed}: margin tile ${x},${y} walkable`);
         }
       }
     }
@@ -120,7 +159,7 @@ describe('map borders', () => {
       if (sides.length === 0) continue;
       checked++;
       let peak = 0;
-      for (let i = 0; i < tileCount(SIZE); i++) {
+      for (let i = 0; i < tileCount(GRID); i++) {
         if (map.terrain[i] === Terrain.Rock) peak = Math.max(peak, map.height[i]!);
       }
       expect(peak, `seed ${seed}: ridge crest too low`).toBeGreaterThan(1.8);
@@ -130,11 +169,9 @@ describe('map borders', () => {
 
   it('plants the belt as a live, regrowth-capped timber reserve', () => {
     // Sampled along the forest wall itself: on a forest-voted side, the
-    // first land tile in from the edge that carries wood is belt by
-    // construction (grove clusters can never overwrite it — the belt is
-    // planted first), so its amount must be the full reserve. A window by
-    // edgeDist alone would catch interior groves now that the band wobbles
-    // this deep.
+    // first land tile in from the play boundary that carries wood is belt
+    // by construction (grove clusters can never overwrite it — the belt
+    // is planted first), so its amount must be the full reserve.
     let checked = 0;
     for (let seed = 1; seed <= 32 && checked < 3; seed++) {
       const map = solo(seed).map;
@@ -142,17 +179,10 @@ describe('map borders', () => {
       if (sides.length === 0) continue;
       const wall: number[] = [];
       for (const side of sides) {
-        for (let along = 10; along < SIZE - 10; along += 3) {
+        for (let along = 10; along < PLAY - 10; along += 3) {
           for (let d = 0; d < MAX_DEPTH + 1; d++) {
-            const [x, y] =
-              side === 0
-                ? [along, d]
-                : side === 1
-                  ? [SIZE - 1 - d, along]
-                  : side === 2
-                    ? [along, SIZE - 1 - d]
-                    : [d, along];
-            const i = tileIdx(x, y, SIZE);
+            const [x, y] = probe(side, along, d);
+            const i = tileIdx(x, y, GRID);
             if (map.terrain[i] === Terrain.Water) continue;
             if (map.resource[i] === TileResource.Wood) wall.push(i);
             break;
@@ -178,7 +208,7 @@ describe('map borders', () => {
         // The seed spot itself may be pushed off by lakes (the camp search
         // widens), but the corner must not sit inside the rim band.
         expect(
-          edgeDist(cx, cy, mapSize),
+          playEdgeDist(a.map, cx, cy),
           `corner ${cx},${cy} inside the rim at ${mapSize}`,
         ).toBeGreaterThanOrEqual(2 * Math.max(1, Math.floor(mapSize / 24)));
       }

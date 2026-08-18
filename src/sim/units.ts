@@ -50,6 +50,14 @@ export interface Unit {
   cooldownLeft: number;
   targetId?: EntityId;
   targetIsBuilding?: boolean;
+  /**
+   * No building-target repathing before this tick. A raider whose objective
+   * is walled off used to fail a full unreachable search, disengage, and
+   * re-acquire the same building next tick — one worst-case A* per unit per
+   * tick, forever; seven stuck knights alone ground the sim to a crawl.
+   * The backoff turns that into one search every couple of seconds.
+   */
+  repathAt?: number;
   dead: boolean;
   /** Set by combat deaths only — the corpse lingers a moment for the death
    * animation. Absent for despawns (barracks consumption), which vanish at once. */

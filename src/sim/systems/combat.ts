@@ -98,7 +98,7 @@ export function combatSystem(world: World): void {
     const guard = unit.owner === BANDIT && unit.task.t !== 'raid' ? campOf() : undefined;
     if (guard && distToBuilding(unit, guard) > GUARD_LEASH) {
       disengage(unit);
-      if (unit.path === null) {
+      if (unit.path === null && !(unit.repathAt !== undefined && world.tick < unit.repathAt)) {
         unit.path = findPathToAdjacent(
           world.map,
           Math.floor(unit.x),
@@ -109,6 +109,7 @@ export function combatSystem(world: World): void {
           guard.h,
         );
         unit.pathIdx = 0;
+        if (!unit.path) unit.repathAt = world.tick + 45;
       }
       continue;
     }
@@ -119,6 +120,10 @@ export function combatSystem(world: World): void {
         unit.targetId = targetUnit.id;
         unit.targetIsBuilding = false;
       } else if (unit.task.t === 'raid') {
+        // An objective that just proved unreachable stays on the books, but
+        // the unit holds instead of burning a worst-case path search at it
+        // every tick (see Unit.repathAt).
+        if (unit.repathAt !== undefined && world.tick < unit.repathAt) continue;
         // Strategic objective: the building this unit was sent against, or —
         // for bandits — any surviving enemy building. Player attackers go
         // home (idle) once their target is gone.
@@ -216,7 +221,12 @@ export function combatSystem(world: World): void {
           targetBuilding.h,
         );
         unit.pathIdx = 0;
-        if (!unit.path) disengage(unit); // unreachable for now
+        if (!unit.path) {
+          // Unreachable for now: stand down and do not try again for a
+          // couple of seconds — the wall is not coming down this tick.
+          unit.repathAt = world.tick + 45;
+          disengage(unit);
+        }
       }
     }
   }

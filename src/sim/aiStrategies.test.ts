@@ -30,7 +30,7 @@ const IDS = Object.keys(AI_STRATEGIES) as AiStrategyId[];
 
 /** Drive one playbook alone on the campaign map, the way its host does. */
 function playCampaign(id: AiStrategyId, maxTicks: number): World {
-  const world = createWorld({ seed: 23, players: [{ kind: 'ai' }] });
+  const world = createWorld({ seed: 17, players: [{ kind: 'ai' }] });
   const brain = new AiBrain(0, AI_STRATEGIES[id], world.map.size);
   for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
     const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];

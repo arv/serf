@@ -5,7 +5,7 @@ import { HeightField } from '../render/heightField';
 import { GrassField } from '../render/grassField';
 import { RoadDecal } from '../render/roadDecal';
 import { WaterMesh } from '../render/waterMesh';
-import { EdgeSkirt } from '../render/edgeSkirt';
+import { MarginMesh } from '../render/marginMesh';
 import { Mist } from '../render/mist';
 import { SceneSync } from '../render/sceneSync';
 import { SelectionFx } from '../render/selectionFx';
@@ -699,7 +699,7 @@ async function runMatch(
   // The init frame is where this side learns the world's actual size: fog
   // band, shadow box and camera bounds all resize to it before any content
   // is added to the scene.
-  renderer.setWorldExtent(init.map.size);
+  renderer.setWorldExtent(init.map.play, init.map.size);
   const heights = new HeightField(init.map.height, init.map.size);
   const terrain = new TerrainMesh(init.map, heights);
   renderer.scene.add(terrain.mesh);
@@ -719,10 +719,11 @@ async function runMatch(
   renderer.scene.add(grass.mesh);
   const water = new WaterMesh(init.map);
   renderer.scene.add(water.mesh);
-  // The world past the edge: ridges keep ranging, forests keep rolling,
-  // the sea stays open — under the same water plane and fog band.
-  const skirt = new EdgeSkirt(init.map, heights);
-  renderer.scene.add(skirt.group);
+  // The scenery ring past the play square: the same map tiles, drawn
+  // coarse — ranges keep ranging, forests keep rolling, the sea stays
+  // open, under the same water plane and fog band.
+  const marginMesh = new MarginMesh(init.map, heights);
+  renderer.scene.add(marginMesh.mesh);
   const mist = new Mist(init.map);
   renderer.scene.add(mist.group);
 
@@ -749,7 +750,7 @@ async function runMatch(
     sync.setPiers(buildingSync.fisheryPiers());
   };
   feedWells();
-  const fog = new FogOfWar(config.myPlayerId, init.map.size);
+  const fog = new FogOfWar(config.myPlayerId, init.map);
   // Ahead of everything else at teardown: the materials it patched are
   // cached for the whole document, so they outlive this match and meet the
   // next one.

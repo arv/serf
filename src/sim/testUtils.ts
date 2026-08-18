@@ -15,6 +15,7 @@ export function bareMap(size = DEFAULT_MAP_SIZE): GameMap {
   const tiles = tileCount(size);
   return {
     size,
+    play: size, // fully playable: logistics tests want a bare, margin-less field
     terrain: new Uint8Array(tiles),
     resource: new Uint8Array(tiles),
     resourceAmt: new Uint8Array(tiles),

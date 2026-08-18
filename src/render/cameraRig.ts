@@ -47,9 +47,12 @@ export class CameraRig {
   #off = new AbortController();
   readonly camera: THREE.OrthographicCamera;
   #canvas: HTMLCanvasElement;
-  /** Grid side of the world being viewed; setMapSize updates it when the
-   * init frame announces the real one. */
-  #mapSize = DEFAULT_MAP_SIZE;
+  /** Playable-world bounds being viewed; setPlayBounds updates them when
+   * the init frame announces the real ones. The camera is bounded to the
+   * play square (Warcraft-style) — the scenery ring beyond is for looking
+   * at, not for visiting. */
+  #min = 0;
+  #max = DEFAULT_MAP_SIZE;
   #target = new THREE.Vector3(DEFAULT_MAP_SIZE / 2, 0, DEFAULT_MAP_SIZE / 2);
   #viewHeight = 30;
   #keys = new Set<string>();
@@ -240,7 +243,7 @@ export class CameraRig {
   }
 
   #maxView(): number {
-    return Math.round(this.#mapSize * MAX_VIEW_FRACTION);
+    return Math.round((this.#max - this.#min) * MAX_VIEW_FRACTION);
   }
 
   /**
@@ -249,9 +252,10 @@ export class CameraRig {
    * camera on their castle right after, so the recenter is just a sane
    * default for viewers with no home to look at.
    */
-  setMapSize(size: number): void {
-    this.#mapSize = size;
-    this.#target.set(size / 2, 0, size / 2);
+  setPlayBounds(min: number, max: number): void {
+    this.#min = min;
+    this.#max = max;
+    this.#target.set((min + max) / 2, 0, (min + max) / 2);
     this.#viewHeight = clamp(this.#viewHeight, MIN_VIEW, this.#maxView());
     this.resize();
   }
@@ -279,8 +283,8 @@ export class CameraRig {
     this.#glide = {
       fromX: this.#target.x,
       fromZ: this.#target.z,
-      toX: clamp(x, -PAN_MARGIN, this.#mapSize + PAN_MARGIN),
-      toZ: clamp(z, -PAN_MARGIN, this.#mapSize + PAN_MARGIN),
+      toX: clamp(x, this.#min - PAN_MARGIN, this.#max + PAN_MARGIN),
+      toZ: clamp(z, this.#min - PAN_MARGIN, this.#max + PAN_MARGIN),
       t: 0,
       dur: durationMs / 1000,
     };
@@ -330,8 +334,16 @@ export class CameraRig {
     const rz = -Math.sin(YAW);
     const fx = -Math.sin(YAW);
     const fz = -Math.cos(YAW);
-    this.#target.x = clamp(this.#target.x + rx * x - fx * z, -PAN_MARGIN, this.#mapSize + PAN_MARGIN);
-    this.#target.z = clamp(this.#target.z + rz * x - fz * z, -PAN_MARGIN, this.#mapSize + PAN_MARGIN);
+    this.#target.x = clamp(
+      this.#target.x + rx * x - fx * z,
+      this.#min - PAN_MARGIN,
+      this.#max + PAN_MARGIN,
+    );
+    this.#target.z = clamp(
+      this.#target.z + rz * x - fz * z,
+      this.#min - PAN_MARGIN,
+      this.#max + PAN_MARGIN,
+    );
     this.#apply();
   }
 

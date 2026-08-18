@@ -7,6 +7,7 @@ import type { UnitSnapshot } from '../protocol/sabLayout';
 
 const openMap = () => ({
   size: DEFAULT_MAP_SIZE,
+  play: DEFAULT_MAP_SIZE,
   blocked: new Uint8Array(tileCount(DEFAULT_MAP_SIZE)),
   pathLevel: new Uint8Array(tileCount(DEFAULT_MAP_SIZE)),
 });

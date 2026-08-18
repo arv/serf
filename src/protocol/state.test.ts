@@ -17,6 +17,7 @@ const TILES = tileCount(DEFAULT_MAP_SIZE);
 function fakeMap(): MapSnapshot {
   const map: MapSnapshot = {
     size: DEFAULT_MAP_SIZE,
+    play: DEFAULT_MAP_SIZE,
     terrain: new Uint8Array(TILES),
     resource: new Uint8Array(TILES),
     blocked: new Uint8Array(TILES),
