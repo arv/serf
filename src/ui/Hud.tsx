@@ -32,6 +32,7 @@ import { Key } from './shortcut';
 import { hasKeyboard } from '../input/keyboard';
 import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
+import { describeAdvice } from '../ai/insight';
 import {
   CHEATS_ALLOWED,
   bandArm,
@@ -41,6 +42,7 @@ import {
   fogEnabled,
   invariantViolations,
   llmStatus,
+  llmTraces,
   mission,
   muted,
   myPlayerId,
@@ -177,6 +179,26 @@ export function Hud(props: {
     if (s?.state === 'loading') return `Strategist: downloading ${s.pct}%`;
     if (s?.state === 'ready') return 'Strategist: on';
     return null;
+  };
+  /** Each seat's newest standing pile, in English — the "where the AI
+   * stands now" block above the consultation history in the debug overlay.
+   * Traces run newest-first, so the first standing pile per seat wins.
+   * Only the off-playbook lines: advice echoing the print changes nothing,
+   * and a pile that is all echo reads "playing the playbook as printed". */
+  const llmPostures = (): { playerId: number; moved: string[] }[] => {
+    const out: { playerId: number; moved: string[] }[] = [];
+    const seen = new Set<number>();
+    for (const t of llmTraces()) {
+      if (!t.standing || seen.has(t.playerId)) continue;
+      seen.add(t.playerId);
+      out.push({
+        playerId: t.playerId,
+        moved: describeAdvice(t.standing, t.knobs)
+          .filter((l) => l.moved)
+          .map((l) => l.text),
+      });
+    }
+    return out.sort((a, b) => a.playerId - b.playerId);
   };
   /** The speed strip: replays add one gear past the live game's fastest. */
   const speeds = (): typeof SPEEDS => (replayMode() ? [...SPEEDS, REPLAY_SPEED] : SPEEDS);
@@ -507,6 +529,22 @@ export function Hud(props: {
         }
         .hud-debug table { width: 100%; border-collapse: collapse; }
         .hud-debug td, .hud-debug th { padding: 1px 4px; text-align: left; }
+        /* The strategist ledger: one collapsed line per consultation,
+           details on demand. Dev builds only ever fill it. */
+        .hud-debug .llm { margin-bottom: 8px; }
+        .hud-debug .llm .posture { margin: 3px 0 7px; }
+        .hud-debug .llm .posture div, .hud-debug .llm .knobs div { padding-left: 8px; }
+        .hud-debug .llm .knobs { margin: 2px 0 4px; }
+        .hud-debug .llm .held { color: #85827a; }
+        .hud-debug .llm details { margin: 3px 0 3px 2px; }
+        .hud-debug .llm summary { cursor: pointer; }
+        .hud-debug .llm .sent { color: #9fb06a; }
+        .hud-debug .llm .kept { color: #a3a099; }
+        .hud-debug .llm .failed { color: #c86a5a; }
+        .hud-debug .llm pre {
+          margin: 2px 0 6px; white-space: pre-wrap; word-break: break-word;
+          color: #a3a099;
+        }
         .hud-violations {
           position: absolute; top: 56px; left: 50%; transform: translateX(-50%);
           padding: 6px 14px; pointer-events: auto;
@@ -1257,6 +1295,92 @@ export function Hud(props: {
 
       <Show when={debugOpen()}>
         <div class="hud-debug panel">
+          {/* The strategist's consultation ledger (dev builds only — the
+              signal stays empty everywhere else). Collapsed, each entry is
+              one line: who, when, how long, and what came of it; open, it
+              shows the advice sent downstairs, the standing pile, the
+              model's reply verbatim, and the exact prompt — the loop for
+              tuning prompt.ts without leaving the match. */}
+          <Show when={llmTraces().length > 0}>
+            <div class="llm">
+              <b>strategist ({llmTraces().length})</b>
+              {/* Where each seat stands now: its whole standing pile in
+                  English, diffed against the playbook print. The entries
+                  below are the history of how it got there. */}
+              <For each={llmPostures()}>
+                {(p) => (
+                  <div class="posture">
+                    <b>seat {p.playerId} posture</b>
+                    <For
+                      each={p.moved}
+                      fallback={<div class="held">playing the playbook as printed</div>}
+                    >
+                      {(line) => <div>{line}</div>}
+                    </For>
+                    <Show when={p.moved.length > 0}>
+                      <div class="held">everything else per the playbook</div>
+                    </Show>
+                  </div>
+                )}
+              </For>
+              <For each={llmTraces()}>
+                {(t) => (
+                  <details>
+                    <summary>
+                      <span class={t.outcome}>{t.outcome}</span> · seat {t.playerId} · min{' '}
+                      {t.minutes} · {(t.ms / 1000).toFixed(1)}s
+                      {t.advice?.reason ? ` — ${t.advice.reason}` : ''}
+                    </summary>
+                    <Show when={t.error}>
+                      <pre>error: {t.error}</pre>
+                    </Show>
+                    {/* This reply's real moves alone, clamped to what the
+                        sim would take. A small model echoes most of the
+                        print back on every reply, so the echoes collapse
+                        to a count — the reply below has them verbatim. */}
+                    <Show when={t.advice}>
+                      {(advice) => {
+                        const lines = () => describeAdvice(advice(), t.knobs);
+                        const moved = () => lines().filter((l) => l.moved);
+                        const held = () => lines().length - moved().length;
+                        const knobs = (n: number): string => `${n} knob${n === 1 ? '' : 's'}`;
+                        return (
+                          <div class="knobs">
+                            <For
+                              each={moved()}
+                              fallback={
+                                <div class="held">
+                                  {held() > 0
+                                    ? `only echoes the playbook (${knobs(held())})`
+                                    : 'no knob changes'}
+                                </div>
+                              }
+                            >
+                              {(line) => <div>{line.text}</div>}
+                            </For>
+                            <Show when={moved().length > 0 && held() > 0}>
+                              <div class="held">+ {knobs(held())} echoing the playbook</div>
+                            </Show>
+                          </div>
+                        );
+                      }}
+                    </Show>
+                    <pre>reply: {t.raw || '(none)'}</pre>
+                    <details>
+                      <summary>prompt</summary>
+                      <For each={t.messages}>
+                        {(m) => (
+                          <pre>
+                            [{m.role}] {m.content}
+                          </pre>
+                        )}
+                      </For>
+                    </details>
+                  </details>
+                )}
+              </For>
+            </div>
+          </Show>
           <b>jobs ({debugJobs().length})</b>
           <table>
             <thead>

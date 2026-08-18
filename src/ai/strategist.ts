@@ -1,7 +1,7 @@
 import { ADVICE_JSON_SCHEMA, parseAdvice, toOverride, type StrategyAdvice } from './advice.ts';
 import { discardPartialModel, type ModelCache } from './modelCache.ts';
 import { buildMessages, type ChatMessage } from './prompt.ts';
-import type { AiWorldSummary } from './summary.ts';
+import type { AiWorldSummary, SeatKnobs } from './summary.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 
 /**
@@ -76,6 +76,40 @@ export type LlmStatus =
   | { state: 'ready' }
   | { state: 'failed'; reason: string };
 
+/**
+ * One consultation, recorded whole for whoever is watching the model work:
+ * exactly what it was shown, what it said, how long it chewed, and what the
+ * sim was told as a result. Emitted through onTrace for every consultation
+ * that settles — a hide-abort is a pause, not model behavior, and leaves no
+ * trace. The strategist itself never reads these; main.ts wires them to the
+ * dev overlay and the console in dev builds, and to nothing in production.
+ */
+export interface ConsultTrace {
+  playerId: number;
+  /** Game-time of the summary that prompted the consultation. */
+  minutes: number;
+  /** The seat's playbook values at the time — what the advice moved off. */
+  knobs: SeatKnobs;
+  /** Wall-clock inference time. */
+  ms: number;
+  /** The prompt, verbatim. */
+  messages: ChatMessage[];
+  /** The model's reply, verbatim — '' when the engine threw before one. */
+  raw: string;
+  /** sent = advice went downstairs; kept = the reply parsed but changed
+   * nothing (an empty {} or a repeat of standing advice); failed = the
+   * engine threw or the reply was unsalvageable. */
+  outcome: 'sent' | 'kept' | 'failed';
+  /** This reply alone, clamped — reason included (sent/kept). */
+  advice?: StrategyAdvice;
+  /** The whole standing pile after merging this reply (sent/kept). */
+  standing?: StrategyAdvice;
+  /** What actually went to the brain (sent only). */
+  override?: Partial<AiStrategy>;
+  /** Why the consultation failed (failed only). */
+  error?: string;
+}
+
 interface SeatMemory {
   busy: boolean;
   /** Every knob changed so far, newest over oldest. */
@@ -93,6 +127,9 @@ export interface LlmStrategistOpts {
   /** Test injection; the default builds the real wllama engine. */
   engineFactory?: () => Promise<ChatEngine>;
   timeoutMs?: number;
+  /** Every settled consultation, whole — see ConsultTrace. Unset costs
+   * nothing, which is what production passes. */
+  onTrace?: (trace: ConsultTrace) => void;
 }
 
 export class LlmStrategist {
@@ -171,18 +208,32 @@ export class LlmStrategist {
   }
 
   async #consult(playerId: number, seat: SeatMemory, summary: AiWorldSummary): Promise<void> {
+    // Hoisted past the try so the failure trace still carries the prompt
+    // and (for a reply that parsed to nothing) the reply itself.
+    const startedAt = performance.now();
+    const messages = buildMessages(summary, seat.advice, seat.prevSummary);
+    let raw = '';
+    const trace = (
+      t: Omit<ConsultTrace, 'playerId' | 'minutes' | 'knobs' | 'ms' | 'messages' | 'raw'>,
+    ) => {
+      this.#opts.onTrace?.({
+        playerId,
+        minutes: summary.minutes,
+        knobs: summary.seat.knobs,
+        ms: performance.now() - startedAt,
+        messages,
+        raw,
+        ...t,
+      });
+    };
     try {
-      const messages = buildMessages(summary, seat.advice, seat.prevSummary);
-      const raw = await this.#withTimeout((signal) =>
+      raw = await this.#withTimeout((signal) =>
         this.#engine!.complete(messages, JSON.stringify(ADVICE_JSON_SCHEMA), signal),
       );
       const advice = parseAdvice(raw);
       if (advice === null) throw new Error(`unparseable advice: ${raw.slice(0, 120)}`);
       this.#failures = 0;
       if (this.#disposed) return;
-      if (import.meta.env.DEV) {
-        console.log(`[strategist] seat ${playerId} advises`, advice);
-      }
       // Only a reply that actually moved a dial goes downstairs: "keep
       // everything as it is" is a valid answer, and so is repeating the
       // standing advice word for word — neither costs a message.
@@ -192,10 +243,16 @@ export class LlmStrategist {
       if (Object.keys(override).length > 0 && key !== seat.sentKey) {
         seat.sentKey = key;
         this.#opts.sendAdvice(playerId, override);
+        trace({ outcome: 'sent', advice, standing: seat.advice, override });
+      } else {
+        trace({ outcome: 'kept', advice, standing: seat.advice });
       }
     } catch (err) {
       // A hide aborts the consultation on purpose; only genuine failures
-      // count toward giving up.
+      // count toward giving up — or into the trace ledger.
+      if (!this.#currentPaused && !this.#disposed) {
+        trace({ outcome: 'failed', error: err instanceof Error ? err.message : String(err) });
+      }
       if (!this.#currentPaused && ++this.#failures >= MAX_CONSECUTIVE_FAILURES && !this.#dead) {
         this.#fail(
           `giving up after ${MAX_CONSECUTIVE_FAILURES} failed consultations ` +

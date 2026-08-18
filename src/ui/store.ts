@@ -280,6 +280,22 @@ export const [debugJobs, setDebugJobs] = createSignal<JobSnap[]>([]);
 export const [invariantViolations, setInvariantViolations] = createSignal<string[]>([]);
 
 /**
+ * The strategist's consultation ledger, newest first — what the model was
+ * shown, what it said, what the sim was told. Fed only in dev builds
+ * (main.ts wires onTrace behind import.meta.env.DEV), read by the debug
+ * overlay; production matches leave it empty and the overlay shows nothing.
+ */
+export const [llmTraces, setLlmTraces] = createSignal<
+  import('../ai/strategist').ConsultTrace[]
+>([]);
+/** Enough history to see the model change its mind; the prompts inside are
+ * ~1 KB each, so the cap keeps a long match from hoarding them. */
+const LLM_TRACE_CAP = 20;
+export function pushLlmTrace(trace: import('../ai/strategist').ConsultTrace): void {
+  setLlmTraces([trace, ...llmTraces()].slice(0, LLM_TRACE_CAP));
+}
+
+/**
  * Put every match-scoped signal back where it starts.
  *
  * A page used to hold exactly one match, so these were as good as constants
@@ -322,6 +338,7 @@ export function resetMatchState(): void {
   setDebugOpen(false);
   setDebugJobs([]);
   setInvariantViolations([]);
+  setLlmTraces([]);
   // Read afresh rather than restored: ?nofog belongs to the match being
   // started, and the URL has already become the next one by here.
   setFogEnabled(!(CHEATS_ALLOWED && new URLSearchParams(location.search).has('nofog')));

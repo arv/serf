@@ -23,6 +23,7 @@ import { mountHud } from '../ui/mount';
 import {
   myPlayerId,
   playersMeta,
+  pushLlmTrace,
   setLlmStatus,
   setMyPlayerId,
   setNetMode,
@@ -465,6 +466,21 @@ async function bootLlmStrategist(
       // "On" has nothing more to report; linger long enough to be seen.
       if (status.state === 'ready') setTimeout(() => setLlmStatus(null), 10_000);
     },
+    // Dev builds watch the model work: every consultation lands in the
+    // backquote overlay's ledger and prints one console line (the trace
+    // object attached, prompt and reply included). Production wires
+    // nothing, so no ledger accumulates.
+    onTrace: import.meta.env.DEV
+      ? (trace) => {
+          console.log(
+            `[strategist] seat ${trace.playerId} ${trace.outcome} ` +
+              `after ${(trace.ms / 1000).toFixed(1)}s` +
+              (trace.advice?.reason ? ` — ${trace.advice.reason}` : ''),
+            trace,
+          );
+          pushLlmTrace(trace);
+        }
+      : undefined,
   });
   handle.dispose = () => strategist.dispose();
   host.onAiSummary((playerId, summary) => strategist.onSummary(playerId, summary));

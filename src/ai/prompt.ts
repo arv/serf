@@ -34,7 +34,7 @@ Knobs you may set (integers unless noted):
 - weaponMix (array of 0-2, one entry per forge): 0=spear, 1=sword, 2=bow. Swords cost double iron; bows cost only wood.
 - barracksQueueDepth (1-4), houseLimit (2-8), housingHeadroom (1-6), researchReserve (0-20).
 
-Reply with a single JSON object. Include ONLY knobs you want changed, plus a short "reason". {} means keep everything as it is. No text outside the JSON.`;
+Reply with a single JSON object. Include ONLY knobs you want changed, plus a short "reason" citing a specific fact from the match state. {} means keep everything as it is. No text outside the JSON.`;
 
 /** The differences a small model would otherwise have to compute itself. */
 function deltas(current: AiWorldSummary, prev: AiWorldSummary | null): string {
