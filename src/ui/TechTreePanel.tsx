@@ -68,10 +68,14 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
         /* A square icon button, sized rather than padded. #ui button's
            10px radius on a chip this small rounded it most of the way
            to a circle, which read as a stray token dropped on the
-           sheet rather than its close. The #ui prefix is not
-           decoration either — a bare .tech-close loses every box
-           property it declares to #ui button's. */
-        #ui .tech-close {
+           sheet rather than its close.
+           The selector is deliberate on both counts. Without #ui it
+           loses every box property it declares to #ui button's; with
+           only #ui .tech-close it merely *ties* any other one-class
+           rule and the winner falls to whichever sheet was injected
+           last, which is not a thing a button's size should depend on.
+           Naming the element settles it outright. */
+        #ui button.tech-close {
           flex: none; width: 26px; height: 26px; padding: 0;
           min-width: 0; min-height: 0;
           display: grid; place-items: center;
@@ -168,7 +172,15 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
           .tech-branch { min-width: 0; width: 100%; }
           .tech-node { padding: 9px 10px; font-size: 13px; }
           .tech-node .desc { font-size: 12px; }
-          #ui .tech-close { width: 36px; height: 36px; font-size: 14px; }
+        }
+
+        /* A thumb needs more than 26px of ✕, and that is true of a
+           tablet at any width — so this hangs off the pointer rather
+           than off the phone breakpoint above. It used to live in the
+           HUD sheet, reaching across into this panel; a rule about
+           this button belongs beside the rest of them. */
+        @media (pointer: coarse) {
+          #ui button.tech-close { width: 36px; height: 36px; font-size: 14px; }
         }
       `}</style>
         <div class="tech-head">

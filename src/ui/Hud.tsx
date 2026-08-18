@@ -763,7 +763,7 @@ export function Hud(props: {
           #ui .hud-speed button { padding: 9px 14px; min-height: 44px; }
           #ui .hud-speed button.icon { width: 46px; height: 44px; }
           #ui .hud-tabs button { padding: 9px 18px; min-height: 40px; }
-          #ui .menu-close, #ui .tech-close { min-height: 36px; padding: 4px 12px; }
+          #ui .menu-close { min-height: 36px; padding: 4px 12px; }
           .hud-resources span.res { padding: 7px 10px; }
           /* Hover styling is meaningless without a hover cursor and just
              leaves buttons stuck in the hover state after a tap. */
