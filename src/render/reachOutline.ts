@@ -194,7 +194,7 @@ export class SelectedReach {
       this.#search = {
         x: origin.x,
         y: origin.y,
-        code: RESOURCE_CODE[gather.resource]!,
+        code: RESOURCE_CODE[gather.resource],
         radius: gather.radius,
       };
     }
