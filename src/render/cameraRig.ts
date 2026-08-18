@@ -15,11 +15,24 @@ const MIN_VIEW = 5;
  * ring of open water frames at full zoom, whatever the map size (matches
  * the classic 52-on-64 feel). */
 const MAX_VIEW_FRACTION = 0.8;
-/** Shore breathing room: how far past the play square the pan target may
- * reach at the closest zooms, before the view's own footprint is what
- * bounds it (see #panRange). The scenery margin beyond is for looking
- * at, not for visiting. */
+/** Shore breathing room: how far past the box the pan target may reach at
+ * the closest zooms, before the view's own footprint is what bounds it
+ * (see #panRange). The scenery margin beyond is for looking at, not for
+ * visiting. */
 const PAN_MARGIN = 4;
+/**
+ * How much of the view's ground span counts against the pan range.
+ *
+ * The footprint measure is the AABB around a diamond the yaw has turned
+ * 45°, so along either world axis it reports the diamond's far corners —
+ * true, but only across a thin band, and charging the whole of it would
+ * lock the camera at zooms that still show a third of the map. A quarter
+ * is what keeps the map filling the frame at every zoom without the pan
+ * going stiff: near-free close in, near-centered at full zoom-out.
+ */
+const VIEW_PAN_INSET = 0.25;
+/** Scratch for #footprintExt, which runs per pan and per frame. */
+const EXT = { x: 0, z: 0 };
 
 /** Conservative world-space XZ rectangle of the visible ground. */
 export interface ViewBounds {
@@ -28,6 +41,18 @@ export interface ViewBounds {
   minZ: number;
   maxZ: number;
 }
+
+/**
+ * The two ways this rig can look at the ground. 'game' is the classic
+ * fixed isometric line every match uses. 'topDown' is the map editor's
+ * plan view: straight down, north up — the whole map reads like a chart,
+ * which is what authoring a symmetric map wants. Same target, same zoom,
+ * same input handling; only the viewing line changes.
+ */
+export type ViewMode = 'game' | 'topDown';
+/** A quarter turn: straight down. The lookAt up-vector is swapped to -Z in
+ * this mode, so the parallel-vectors degeneracy never arises. */
+const TOP_PITCH = Math.PI / 2;
 
 /**
  * Classic isometric-style orthographic rig: fixed yaw/pitch, panning moves a
@@ -55,6 +80,11 @@ export class CameraRig {
   #max = DEFAULT_MAP_SIZE;
   #target = new THREE.Vector3(DEFAULT_MAP_SIZE / 2, 0, DEFAULT_MAP_SIZE / 2);
   #viewHeight = 30;
+  /** Viewing line; the module constants are the game's fixed values, and
+   * every construction starts there — setViewMode is the editor's door. */
+  #pitch = PITCH;
+  #yaw = YAW;
+  #maxViewFraction = MAX_VIEW_FRACTION;
   #keys = new Set<string>();
   #dragging = false;
   #interactive: boolean;
@@ -243,30 +273,63 @@ export class CameraRig {
   }
 
   #maxView(): number {
-    return Math.round((this.#max - this.#min) * MAX_VIEW_FRACTION);
+    return Math.round((this.#max - this.#min) * this.#maxViewFraction);
   }
 
-  /** Half-extent, along each world axis, of the AABB around the view
-   * frustum's ground footprint (a 45° parallelogram whose screen-vertical
-   * extent stretches by 1/sin(pitch)). */
-  #footprintExt(): number {
-    const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
-    const halfH = this.#viewHeight / 2;
-    // Both screen axes project onto world X/Z with |cos 45°| = |sin 45°|.
-    return Math.SQRT1_2 * (halfH * aspect + halfH / Math.sin(PITCH));
+  /** Swap between the game's isometric line and the editor's plan view. */
+  setViewMode(mode: ViewMode): void {
+    this.#pitch = mode === 'topDown' ? TOP_PITCH : PITCH;
+    this.#yaw = mode === 'topDown' ? 0 : YAW;
+    // Looking straight down, +Y up is parallel to the view line; -Z as up
+    // puts north at the top of the screen instead.
+    this.camera.up.set(0, mode === 'topDown' ? 0 : 1, mode === 'topDown' ? -1 : 0);
+    this.#apply();
+  }
+
+  /** Editor override: let more of the world fit in one frame than the
+   * game's cap allows. The default fraction stays put for every match. */
+  setMaxViewFraction(f: number): void {
+    this.#maxViewFraction = f;
+    this.#viewHeight = clamp(this.#viewHeight, MIN_VIEW, this.#maxView());
+    this.resize();
   }
 
   /**
-   * How far the pan target may stray from the play square's center: the
-   * play half-span plus a little shore allowance, less half the view's
-   * own ground footprint — so at least half of what is on screen is
-   * always the playable map, never mostly the scenery ring (which exists
-   * to keep the world from looking cut off, not to be scrolled to).
-   * Close in that is nearly the whole square; zoomed all the way out the
-   * island frames itself near-centered, Warcraft-style.
+   * Half-extents, along world X and Z, of the AABB around the view
+   * frustum's ground footprint (a parallelogram whose screen-vertical
+   * extent stretches by 1/sin(pitch)). Screen right and screen "up" each
+   * project onto world X/Z through the yaw basis; at the game's 45° both
+   * weights are SQRT1_2 and the two axes come out equal.
+   *
+   * Written into the caller's object — this runs per pan and per frame.
    */
-  #panRange(): number {
-    return Math.max(0, (this.#max - this.#min) / 2 + PAN_MARGIN - this.#footprintExt() / 2);
+  #footprintExt(out: { x: number; z: number }): { x: number; z: number } {
+    const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
+    const halfH = this.#viewHeight / 2;
+    const halfW = halfH * aspect;
+    const halfG = halfH / Math.sin(this.#pitch);
+    const c = Math.abs(Math.cos(this.#yaw));
+    const s = Math.abs(Math.sin(this.#yaw));
+    out.x = halfW * c + halfG * s;
+    out.z = halfW * s + halfG * c;
+    return out;
+  }
+
+  /**
+   * How far the pan target may stray from the box's center along one
+   * axis, given that axis's view half-extent: the box's half-span plus a
+   * little shore allowance, less a share of what the view already covers.
+   * Close in that is the whole box; as the view grows it tightens, until
+   * at full zoom-out the map simply frames itself. Keeping the camera off
+   * the scenery ring is the point — it is there to keep the world from
+   * looking cut off, not to be scrolled to.
+   *
+   * The box is #min..#max, which is the play square in a match and the
+   * whole grid in the editor (which paints the margin and must reach it).
+   */
+  #panRange(ext: number): number {
+    const half = (this.#max - this.#min) / 2;
+    return Math.max(0, half + PAN_MARGIN - 2 * ext * VIEW_PAN_INSET);
   }
 
   /**
@@ -276,9 +339,9 @@ export class CameraRig {
    * it just cannot be pushed further out. So neither a focus nor a
    * zoom-out ever makes the next arrow key snap the view sideways.
    */
-  #clampAxis(next: number, current: number): number {
+  #clampAxis(next: number, current: number, ext: number): number {
     const mid = (this.#min + this.#max) / 2;
-    const bound = Math.max(this.#panRange(), Math.abs(current - mid));
+    const bound = Math.max(this.#panRange(ext), Math.abs(current - mid));
     return clamp(next, mid - bound, mid + bound);
   }
 
@@ -316,11 +379,12 @@ export class CameraRig {
       this.focusOn(x, z);
       return;
     }
+    const ext = this.#footprintExt(EXT);
     this.#glide = {
       fromX: this.#target.x,
       fromZ: this.#target.z,
-      toX: this.#clampAxis(x, this.#target.x),
-      toZ: this.#clampAxis(z, this.#target.z),
+      toX: this.#clampAxis(x, this.#target.x, ext.x),
+      toZ: this.#clampAxis(z, this.#target.z, ext.z),
       t: 0,
       dur: durationMs / 1000,
     };
@@ -366,12 +430,13 @@ export class CameraRig {
   #panScreen(x: number, z: number): void {
     this.#glide = null;
     // Screen right in world space (yaw only), screen "up" projected on ground.
-    const rx = Math.cos(YAW);
-    const rz = -Math.sin(YAW);
-    const fx = -Math.sin(YAW);
-    const fz = -Math.cos(YAW);
-    this.#target.x = this.#clampAxis(this.#target.x + rx * x - fx * z, this.#target.x);
-    this.#target.z = this.#clampAxis(this.#target.z + rz * x - fz * z, this.#target.z);
+    const rx = Math.cos(this.#yaw);
+    const rz = -Math.sin(this.#yaw);
+    const fx = -Math.sin(this.#yaw);
+    const fz = -Math.cos(this.#yaw);
+    const ext = this.#footprintExt(EXT);
+    this.#target.x = this.#clampAxis(this.#target.x + rx * x - fx * z, this.#target.x, ext.x);
+    this.#target.z = this.#clampAxis(this.#target.z + rz * x - fz * z, this.#target.z, ext.z);
     this.#apply();
   }
 
@@ -381,11 +446,11 @@ export class CameraRig {
    * margin also absorbs the screen shift terrain height introduces.
    */
   viewBounds(margin = 3, out: ViewBounds = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 }): ViewBounds {
-    const ext = this.#footprintExt() + margin;
-    out.minX = this.#target.x - ext;
-    out.maxX = this.#target.x + ext;
-    out.minZ = this.#target.z - ext;
-    out.maxZ = this.#target.z + ext;
+    const ext = this.#footprintExt(EXT);
+    out.minX = this.#target.x - ext.x - margin;
+    out.maxX = this.#target.x + ext.x + margin;
+    out.minZ = this.#target.z - ext.z - margin;
+    out.maxZ = this.#target.z + ext.z + margin;
     return out;
   }
 
@@ -403,9 +468,9 @@ export class CameraRig {
 
   #apply(): void {
     const dir = new THREE.Vector3(
-      Math.cos(PITCH) * Math.sin(YAW),
-      Math.sin(PITCH),
-      Math.cos(PITCH) * Math.cos(YAW),
+      Math.cos(this.#pitch) * Math.sin(this.#yaw),
+      Math.sin(this.#pitch),
+      Math.cos(this.#pitch) * Math.cos(this.#yaw),
     );
     this.camera.position.copy(this.#target).addScaledVector(dir, DISTANCE);
     this.camera.lookAt(this.#target);
