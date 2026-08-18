@@ -1,0 +1,46 @@
+# Campaign mission maps
+
+One serf-map JSON file per campaign mission — the authored ground a
+mission's world is built from. `../missions.ts` holds each mission's
+recipe (and pins its `campSpot`); `../missionMaps.ts` loads the file on
+demand as a code-split chunk, and `createWorldAsync` awaits it before the
+synchronous `createWorld` builds the world. The format is
+`src/sim/mapFile.ts`; it is exactly the map editor's file format, so these
+files round-trip through the editor.
+
+## Tweaking a map
+
+- **By hand**: edit the JSON (tile index = `y * size + x`; terrain
+  0 grass / 1 water / 2 rock; resource 0 none / 1 wood / 2 rock / 3 iron /
+  4 silver / 5 gold, with a matching `resourceAmt`). Reload the game —
+  `?mission=<id>` boots straight into it.
+- **In the editor**: open the map editor, Import the file, paint, Export,
+  and replace the file.
+
+After a tweak:
+
+1. `pnpm vitest run src/sim/missions.test.ts` — the fast guard ("every
+   mission map file parses and fits its def") catches a broken file or a
+   blocked `campSpot` in milliseconds; the playthrough tests then re-prove
+   the mission is still winnable.
+2. `src/shared/replayVersion.test.ts` will fail on purpose: a mission map
+   is replay surface. Bump `REPLAY_VERSION` and pin the new hash.
+
+## Rolling a fresh map from worldgen
+
+```
+node tools/exportMissionMap.ts <seed> <seats> <name> <out.json> [play]
+```
+
+It writes the world that seed generates and prints the `campSpot` the
+classic camp search would pick — paste that into the mission's def. These
+six were born from the missions' original pinned seeds:
+
+```
+node tools/exportMissionMap.ts 106 1 "The Clearing"      src/sim/defs/maps/clearing.json
+node tools/exportMissionMap.ts 202 1 "Bread and Water"   src/sim/defs/maps/breadAndWater.json
+node tools/exportMissionMap.ts 303 1 "The Abbey's Ledger" src/sim/defs/maps/ledger.json
+node tools/exportMissionMap.ts 405 1 "The Levy"          src/sim/defs/maps/levy.json
+node tools/exportMissionMap.ts 17  1 "Hold the Valley"   src/sim/defs/maps/holdTheValley.json
+node tools/exportMissionMap.ts 11  2 "The Rival Banner"  src/sim/defs/maps/rivalBanner.json
+```

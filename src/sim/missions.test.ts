@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canPlace, createWorld, missionWorldConfig, type World } from './world.ts';
+import { canPlace, createWorld, createWorldAsync, missionWorldConfig, type World } from './world.ts';
 import { tickWorld } from './tick.ts';
 import { cmds } from './testUtils.ts';
 import { AiBrain } from './systems/ai.ts';
@@ -12,6 +12,9 @@ import {
   type MissionId,
 } from './defs/missions.ts';
 import { hashWorld } from './hash.ts';
+import { loadMissionMap } from './defs/missionMaps.ts';
+import { parseMapData } from './mapFile.ts';
+import { rectClear } from './map.ts';
 import { deserializeWorld, serializeWorld } from './save.ts';
 import { firstRaidTickFor } from './defs/balance.ts';
 import type { BuildingTypeId } from './defs/buildings.ts';
@@ -59,10 +62,10 @@ function findSpot(world: World, type: BuildingTypeId, cx: number, cy: number): {
 
 /** Drive the AI brain in the human's chair — the stand-in for a competent
  * player, the same harness winnable.test.ts uses. */
-function playMission(id: MissionId, strategy: AiStrategyId, maxTicks: number): World {
+async function playMission(id: MissionId, strategy: AiStrategyId, maxTicks: number): Promise<World> {
   const config = missionWorldConfig(id);
   config.players = config.players.map((p, i) => (i === 0 ? { kind: 'ai' as const } : p));
-  const world = createWorld(config);
+  const world = await createWorldAsync(config);
   const brain = new AiBrain(0, AI_STRATEGIES[strategy], world.map.size);
   for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
     const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
@@ -75,8 +78,8 @@ function playMission(id: MissionId, strategy: AiStrategyId, maxTicks: number): W
 }
 
 describe('the campaign missions', () => {
-  it('mission 1 (The Clearing) is won by the taught line: build, hire, stockpile', () => {
-    const world = createWorld(missionWorldConfig('clearing'));
+  it('mission 1 (The Clearing) is won by the taught line: build, hire, stockpile', async () => {
+    const world = await createWorldAsync(missionWorldConfig('clearing'));
     expect(world.missionId).toBe('clearing');
     expect(world.objectivesDone).toEqual([false, false, false, false, false]);
 
@@ -123,17 +126,17 @@ describe('the campaign missions', () => {
     expect(completions.length).toBe(5);
   }, 120_000);
 
-  it('mission 2 (Bread and Water) is winnable', () => {
-    const world = playMission('breadAndWater', 'steward', 45_000);
+  it('mission 2 (Bread and Water) is winnable', async () => {
+    const world = await playMission('breadAndWater', 'steward', 45_000);
     expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: 'over', winner: 0 });
     expect(stockOf(world, 'wood')).toBeGreaterThanOrEqual(0);
   }, 240_000);
 
-  it('mission 3 (The Abbey’s Ledger) is won by the taught line: dig, study, forge', () => {
+  it('mission 3 (The Abbey’s Ledger) is won by the taught line: dig, study, forge', async () => {
     // Scripted rather than AI-driven: the brain trains soldiers the moment
     // it can and eats every spear the checklist wants stockpiled. A player
     // in a bandit-free mission has no barracks and no such leak.
-    const world = createWorld(missionWorldConfig('ledger'));
+    const world = await createWorldAsync(missionWorldConfig('ledger'));
     const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
     const castle = { x: keep.x + 1, y: keep.y + 1 };
     const researched = (tech: 'cobbledBoots' | 'ironworking'): boolean =>
@@ -174,21 +177,21 @@ describe('the campaign missions', () => {
     expect(world.objectivesDone).toEqual([true, true, true, true, true, true]);
   }, 240_000);
 
-  it('mission 4 (The Levy) is winnable, early raid and all', () => {
-    const world = playMission('levy', 'steward', 60_000);
+  it('mission 4 (The Levy) is winnable, early raid and all', async () => {
+    const world = await playMission('levy', 'steward', 60_000);
     expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: 'over', winner: 0 });
   }, 240_000);
 
-  it('mission 5 (Hold the Valley) is exactly the winnable map, reached by mission id', () => {
-    const world = playMission('holdTheValley', 'steward', 45_000);
+  it('mission 5 (Hold the Valley) is exactly the winnable map, reached by mission id', async () => {
+    const world = await playMission('holdTheValley', 'steward', 45_000);
     expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: 'over', winner: 0 });
     expect(world.objectivesDone).toEqual([true]);
   }, 240_000);
 
-  it('mission 6 (The Rival Banner) reaches an ending under the elimination rules', () => {
+  it('mission 6 (The Rival Banner) reaches an ending under the elimination rules', async () => {
     const config = missionWorldConfig('rivalBanner');
     config.players = config.players.map((p, i) => (i === 0 ? { kind: 'ai' as const } : p));
-    const world = createWorld(config);
+    const world = await createWorldAsync(config);
     expect(world.players[1]!.strategy).toBe('steward');
     const brains = world.players.map((p) => new AiBrain(p.id, AI_STRATEGIES[p.strategy ?? 'steward'], world.map.size));
     for (let t = 0; t < 90_000 && world.outcome.state === 'playing'; t++) {
@@ -202,8 +205,8 @@ describe('the campaign missions', () => {
     expect(world.outcome.state, `still playing at tick ${world.tick}`).toBe('over');
   }, 480_000);
 
-  it('the levy opens with its village standing and its lessons granted', () => {
-    const world = createWorld(missionWorldConfig('levy'));
+  it('the levy opens with its village standing and its lessons granted', async () => {
+    const world = await createWorldAsync(missionWorldConfig('levy'));
     const def = MISSION_DEFS.levy;
     for (const spec of def.prebuilt!) {
       expect(countBuilt(world, spec.type), `prebuilt ${spec.type} missing`).toBeGreaterThanOrEqual(
@@ -215,13 +218,13 @@ describe('the campaign missions', () => {
     expect(stockOf(world, 'silver')).toBe(def.startStock!.silver);
     // And a mission with no clock override keeps the default — the
     // size-scaled peace period, since raid pacing follows the commutes.
-    const finale = createWorld(missionWorldConfig('holdTheValley'));
+    const finale = await createWorldAsync(missionWorldConfig('holdTheValley'));
     expect(finale.raidState.nextRaidTick).toBe(firstRaidTickFor(finale.map.play));
   });
 
-  it('mission worlds are deterministic: same id, same world, tick for tick', () => {
-    const a = createWorld(missionWorldConfig('levy'));
-    const b = createWorld(missionWorldConfig('levy'));
+  it('mission worlds are deterministic: same id, same world, tick for tick', async () => {
+    const a = await createWorldAsync(missionWorldConfig('levy'));
+    const b = await createWorldAsync(missionWorldConfig('levy'));
     for (let t = 0; t < 1_000; t++) {
       tickWorld(a, []);
       tickWorld(b, []);
@@ -229,8 +232,8 @@ describe('the campaign missions', () => {
     expect(hashWorld(a)).toBe(hashWorld(b));
   });
 
-  it('mission fields ride the save', () => {
-    const world = createWorld(missionWorldConfig('clearing'));
+  it('mission fields ride the save', async () => {
+    const world = await createWorldAsync(missionWorldConfig('clearing'));
     for (let t = 0; t < 500; t++) tickWorld(world, []);
     const loaded = deserializeWorld(serializeWorld(world));
     expect(loaded.missionId).toBe('clearing');
@@ -240,6 +243,27 @@ describe('the campaign missions', () => {
     const sandbox = deserializeWorld(serializeWorld(createWorld({ seed: 5, players: [{ kind: 'human' }] })));
     expect(sandbox.missionId).toBeUndefined();
     expect(sandbox.objectivesDone).toBeUndefined();
+  });
+
+  it('every mission map file parses and fits its def', async () => {
+    // The fast tripwire for a hand-tweaked map: a broken file or a moved
+    // goalpost fails here in milliseconds, not twenty minutes into the
+    // playthrough tests above.
+    for (const id of MISSION_ORDER) {
+      const def = MISSION_DEFS[id];
+      const authored = parseMapData(await loadMissionMap(id));
+      expect(authored.players, `${id}: map seats vs def seats`).toBe(def.players.length);
+      if (def.bandits) {
+        // The camp must stand where the def pins it — the spiral would
+        // quietly relocate a blocked spot, and "the balance was proven
+        // here" only means something if drift is loud.
+        expect(def.campSpot, `${id}: bandit mission needs a campSpot`).toBeDefined();
+        expect(
+          rectClear(authored.map, def.campSpot!.x, def.campSpot!.y, 3, 3),
+          `${id}: campSpot is not a clear 3×3`,
+        ).toBe(true);
+      }
+    }
   });
 
   it('the campaign order is complete and the id gate refuses junk', () => {
