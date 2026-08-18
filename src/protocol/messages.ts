@@ -48,6 +48,9 @@ export interface BuildingSnap {
   siteNeeds?: GoodAmounts;
   /** Remaining materials of an ordered repair; absent when none is running. */
   repairNeeds?: GoodAmounts;
+  /** Hit points delivered materials have bought that the masons have still
+   * to put on. Outlasts repairNeeds: the mend runs on after the last haul. */
+  repairPending?: number;
   /** Build timer progress 0..1 once materials are complete. */
   progress01?: number;
   stock: GoodAmounts;

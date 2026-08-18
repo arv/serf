@@ -41,8 +41,10 @@ pnpm dev
   wide and mustering an army compete for the same roofs.
 - **Repairs**: a building the raiders left standing can be mended instead of
   written off — select it and hit **Repair**. The bill is half its build
-  price scaled by the damage, and the materials are hauled in like a site's,
-  so the walls come back up as fast as your serfs can carry stone. Always
+  price scaled by the damage, and the materials are hauled in like a site's;
+  the masons then work them in, so the walls climb back over the seconds
+  that follow rather than snapping back when the last plank lands. A mend
+  interrupted by the next wave is a wall that is still half down. Always
   cheaper than tearing it down and paying full price again, and the worker
   never leaves the post. The castle repairs too, out of the stores already
   inside it, against a notional price of its own (it cost nothing to raise).

@@ -144,7 +144,10 @@ export function SelectionPanel(props: {
            */
           const hasOrders = () =>
             mine() && b().state === 'built' && !def().isRoad && !def().systemOnly;
-          const damaged = () => b().repairNeeds !== undefined || b().hp < b().maxHp;
+          /** What a fresh order would be struck against: the damage, less
+              what a running repair has already been paid to put back (a mend
+              runs on for a few seconds after the last plank lands). */
+          const unpaid = () => b().maxHp - b().hp - (b().repairPending ?? 0);
           return (
             <div class="hud-selection panel">
               <div class="sel-head">
@@ -194,25 +197,28 @@ export function SelectionPanel(props: {
                         title={b().repairNeeds ? 'Call off the repair' : 'Repair building'}
                         body={
                           b().repairNeeds
-                            ? 'Stops the order. Materials already nailed on stay nailed on; the ones still walking over turn around and go back into the stores.'
-                            : damaged()
-                              ? 'Calls for materials — half the build price, scaled by the damage — and the serfs who carry them patch the walls as they arrive. Cheaper than rebuilding, and the worker never leaves the post.'
-                              : 'Not a scratch on it. This is where the order will be when there is.'
+                            ? 'Stops the order. Materials already worked into the walls stay there; the ones still walking over turn around and go back into the stores.'
+                            : b().repairPending !== undefined
+                              ? 'The last of the materials are in and the masons are at work — this one is paid for and finishing on its own.'
+                              : unpaid() > 0
+                                ? 'Calls for materials — half the build price, scaled by the damage. The serfs carry them over and the masons work them in, so the walls come back up over the next few seconds rather than all at once.'
+                                : 'Not a scratch on it. This is where the order will be when there is.'
                         }
                       />
                     )}
                   >
                     <button
-                      disabled={!damaged()}
+                      disabled={!b().repairNeeds && unpaid() <= 0}
                       onClick={() => props.onRepair(b().id, b().repairNeeds === undefined)}
                     >
                       {b().repairNeeds ? 'Cancel repair' : 'Repair'}
-                      {/* No bill on an undamaged building: repairBill of
-                          nothing is nothing, and "Repair none" is worse
-                          than saying only "Repair". */}
-                      <Show when={!b().repairNeeds && damaged()}>
+                      {/* No bill on an undamaged building — nor on one whose
+                          damage is bought and only waiting on the masons:
+                          repairBill of nothing is nothing, and "Repair none"
+                          is worse than saying only "Repair". */}
+                      <Show when={!b().repairNeeds && unpaid() > 0}>
                         <span class="cost">
-                          <GoodsLine amounts={repairBill(b().type, b().maxHp - b().hp)} />
+                          <GoodsLine amounts={repairBill(b().type, unpaid())} />
                         </span>
                       </Show>
                     </button>
@@ -467,6 +473,10 @@ export function SelectionPanel(props: {
                       · repairing, wants <GoodsLine amounts={needs()} />
                     </span>
                   )}
+                </Show>
+                {/* The bill is settled and the walls are still going up. */}
+                <Show when={!b().repairNeeds && b().repairPending !== undefined}>
+                  <span class="good"> · mending</span>
                 </Show>
               </div>
 

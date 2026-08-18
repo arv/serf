@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
 import { buildingDef, repairBill } from './defs/buildings.ts';
+import { REPAIR_MEND_TICKS } from './defs/balance.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
 import {
   addBuiltHut,
@@ -18,10 +19,15 @@ function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
 }
 
-/** Tick until the repair order is off the building, or give up. */
+/**
+ * Tick until the repair is finished — the bill settled AND the masons done
+ * with what it bought — or give up.
+ */
 function runRepair(world: World, id: number, limit = 2000): number {
   let ticks = 0;
-  while (world.buildings.get(id)?.repairNeeds !== undefined && ticks++ < limit) {
+  while (ticks++ < limit) {
+    const b = world.buildings.get(id);
+    if (b?.repairNeeds === undefined && b?.repairPending === undefined) break;
     tickWorld(world, []);
   }
   return ticks;
@@ -29,12 +35,13 @@ function runRepair(world: World, id: number, limit = 2000): number {
 
 /**
  * Repairing a damaged building: an order, a material bill scaled to the
- * damage, and hauls that mend the walls as they land. The alternative to
- * watching a raided village decay — and cheaper than tearing each ruin down
- * and paying full price to raise it again.
+ * damage, hauls that carry it over, and masons who work it in over the
+ * seconds that follow. The alternative to watching a raided village decay —
+ * and cheaper than tearing each ruin down and paying full price to raise it
+ * again.
  */
 describe('repairing a building', () => {
-  it('hauls in materials and heals as they arrive', () => {
+  it('hauls in materials and mends as they are worked in', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { wood: 20 });
     // No grove in reach: the woodcutter's own axe must not add planks to the
@@ -71,11 +78,65 @@ describe('repairing a building', () => {
     // out of the castle door to hand it back in through the same door, and
     // no haul could, since a job's source is never its destination.
     tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: sh.id, repair: true }));
-    expect(sh.repairNeeds).toBeUndefined();
-    expect(sh.hp).toBe(max);
+    expect(sh.repairNeeds).toBeUndefined(); // the whole bill was settled at once
     expect(sh.stock.wood).toBe(35);
     expect(sh.stock.stone).toBe(37);
     expect(world.jobs.size).toBe(0);
+
+    // The goods are spent, but the wall is not back yet: the masons have
+    // 250 hp to put on at 500/REPAIR_MEND_TICKS a tick, less the one tick
+    // of it they did on the tick the order landed.
+    expect(sh.repairPending).toBeCloseTo(max / 2 - max / REPAIR_MEND_TICKS);
+    expect(sh.hp).toBeLessThan(max);
+    const ticks = runRepair(world, sh.id);
+    expect(sh.hp).toBe(max);
+    expect(ticks).toBeCloseTo(REPAIR_MEND_TICKS / 2, -1);
+  });
+
+  it('takes time even when every material is already on site', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, { wood: 40, stone: 40 });
+    const max = buildingDef('storehouse').hp;
+    sh.hp = max - 20;
+
+    tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: sh.id, repair: true }));
+    const rate = max / REPAIR_MEND_TICKS;
+    // One tick of masonry per tick, and no more — a 20 hp scratch is four
+    // fifths of a second of work, not a step change on the tick it is paid.
+    expect(sh.hp).toBeCloseTo(max - 20 + rate);
+    run(world, 5);
+    expect(sh.hp).toBeCloseTo(max - 20 + rate * 6);
+    expect(sh.hp).toBeLessThan(max);
+
+    runRepair(world, sh.id);
+    expect(sh.hp).toBe(max);
+    expect(sh.repairPending).toBeUndefined();
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('re-ordering mid-mend bills only the damage nobody has paid for', () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, { wood: 40, stone: 40 });
+    const max = buildingDef('storehouse').hp;
+    sh.hp = max / 2;
+
+    tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: sh.id, repair: true }));
+    const spent = { wood: sh.stock.wood, stone: sh.stock.stone };
+
+    // The masons are still at work and the building still reads as damaged,
+    // but every point of that damage is bought: a second order takes nothing.
+    run(world, 20);
+    tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: sh.id, repair: true }));
+    expect(sh.repairNeeds).toBeUndefined();
+    expect(sh.stock.wood).toBe(spent.wood);
+    expect(sh.stock.stone).toBe(spent.stone);
+
+    // Fresh damage on top of a running mend is a fresh bill, though.
+    sh.hp -= 100;
+    tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: sh.id, repair: true }));
+    expect(sh.stock.wood).toBeLessThan(spent.wood!);
+    runRepair(world, sh.id);
+    expect(sh.hp).toBe(max);
   });
 
   it('mends only the damage the order was given for', () => {
@@ -115,10 +176,13 @@ describe('repairing a building', () => {
     expect(hut.repairNeeds).toBeUndefined();
     expect(hut.inbound.wood ?? 0).toBe(0);
 
-    // Whatever was in hand walks home rather than evaporating.
+    // Whatever was in hand walks home rather than evaporating. Any plank
+    // that had already been worked in stays worked in, so the hut is no
+    // worse off than when the order was given.
     run(world, 300);
     expect(sh.stock.wood).toBe(20);
     expect(hut.hp).toBe(20);
+    expect(hut.repairPending).toBeUndefined();
     expect(checkInvariants(world).violations).toEqual([]);
     expect(checkLedger(world, initial)).toEqual([]);
   });
