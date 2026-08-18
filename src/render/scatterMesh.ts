@@ -4,7 +4,13 @@ import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, TileResource, WATER_LEVEL, playEdgeDist, type MapView } from '../sim/map';
 import { palette } from './palette';
-import { foliageMaterial, makeFlowerSprite, makeStalkTexture, makeLeafSprite } from './spriteTextures';
+import {
+  foliageMaterial,
+  makeBushSprite,
+  makeFlowerSprite,
+  makeStalkTexture,
+  makeLeafSprite,
+} from './spriteTextures';
 import { glbDoodads, glbRocks, glbTrees } from './assets';
 import type { HeightField } from './heightField';
 
@@ -268,16 +274,16 @@ export class ScatterMesh {
         receiveShadow: false,
       });
     }
-    // Scrub bushes are the tree models squashed to shrub height — no new
-    // asset, and the silhouette family matches the woods they fringe.
-    if (trees) {
-      trees.geometries.forEach((geo, i) => {
-        this.#addArchetype(`bush${i}`, geo, trees.material, bushTiles.length * 2, {
-          castShadow: false,
-          receiveShadow: false,
-        });
-      });
-    }
+    // Scrub: painted crossed quads, like the grass and leaf sprays. A
+    // squashed GLB tree was the cheaper idea and looked it — flattening
+    // the trunk with the canopy reads as a stepped-on tree.
+    this.#addArchetype(
+      'bush',
+      crossedQuads(1.05, 0.8),
+      foliageMaterial(makeBushSprite()),
+      bushTiles.length * 2,
+      { receiveShadow: false },
+    );
     this.#addArchetype(
       'flower',
       crossedQuads(0.5, 0.4),
@@ -327,11 +333,9 @@ export class ScatterMesh {
       this.#placePebbles(i);
       this.#cosmetic.add(i);
     }
-    if (this.#trees) {
-      for (const i of bushTiles) {
-        this.#placeBushes(i);
-        this.#cosmetic.add(i);
-      }
+    for (const i of bushTiles) {
+      this.#placeBushes(i);
+      this.#cosmetic.add(i);
     }
     for (const i of flowerTiles) {
       this.#placeFlowers(i);
@@ -554,29 +558,31 @@ export class ScatterMesh {
     }
   }
 
-  /** Scrub: a tree squashed to shrub height, rounder than it is tall. */
+  /** Scrub: a painted leafy clump, sized between grass and a young tree. */
   #placeBushes(tile: number): void {
     const tx = tileX(tile, this.#size);
     const ty = tileY(tile, this.#size);
     for (let k = 0; k < 2; k++) {
       if (k === 1 && hash2(tile, 465) < 0.55) continue;
-      const species = (hash2(tile * 2 + k, 466) * this.#treeSpecies) | 0;
       const jx = 0.2 + hash2(tile * 2 + k, 467) * 0.6;
       const jz = 0.2 + hash2(tile * 2 + k, 468) * 0.6;
-      const h = 0.3 + hash2(tile + k, 469) * 0.2;
+      const s = 0.62 + hash2(tile + k, 469) * 0.5;
       const warm = hash2(tile + k, 470);
       this.#put(
-        `bush${species}`,
+        'bush',
         tile,
         tx + jx,
-        this.#heights.at(tx + jx, ty + jz),
+        // The sprite's roots sit at its bottom edge; lift by half its
+        // height so the clump stands ON the ground, not half sunk in it.
+        this.#heights.at(tx + jx, ty + jz) + 0.4 * s,
         ty + jz,
-        h,
-        h * (1.6 + hash2(tile + k, 471) * 0.5), // squat: wider than tall
-        hash2(tile + k, 472) * Math.PI * 2,
+        s,
+        s,
+        hash2(tile + k, 472) * Math.PI,
         0xffffff,
-        warm > 0.8 ? 0.3 : warm * 0.2,
-        warm > 0.8 ? 0xc8a050 : 0x5a8442,
+        // Mostly greens with the odd dusty or turning shrub.
+        warm > 0.86 ? 0.3 : warm * 0.18,
+        warm > 0.86 ? 0xc0a458 : 0x86a860,
       );
     }
   }
