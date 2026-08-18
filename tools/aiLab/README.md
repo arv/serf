@@ -75,6 +75,23 @@ and excluded, never awarded. Crashed trials are printed next to the rate.
 | `script:{...}` | one fixed reply forever — plumbing checks, personality experiments |
 | `http://…/v1` | any OpenAI-compatible server (llama-server, Ollama, LM Studio, vLLM); `--model` names the model, `OPENAI_API_KEY` is sent if set |
 
+## First measurements (2026-08-18, seeds 1-24, shipped settings)
+
+Both baselines, run at 24 seeds on the default 96 map with bandits on:
+
+- **`none`** scored **exactly 50.0%** (23/46, CI [36.1%, 63.9%]) with zero
+  flips — the calibration holds. The same run measured the valley itself:
+  seat 1 won 65% of the seeds, which is the map bias the mirroring exists
+  to cancel, and 2 of 24 seeds never decided inside 120k ticks.
+- **`random`** scored **46.7%** (21/45, CI [32.9%, 60.9%]) with 11 flips
+  (5 toward the advised seat, 6 away): random knob-turning genuinely
+  changes who wins about a quarter of the time while helping nobody on
+  net. That is the noise floor — a model earns its download by beating
+  *this*, not by beating 50% alone.
+
+Numbers this wide (±14pp) are the 24-seed resolution; treat them as
+reference points, not verdicts.
+
 ## Comparing two models
 
 Two runs over the same seeds are far more comparable than their two
