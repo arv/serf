@@ -180,7 +180,12 @@ export class LlmStrategist {
       if (advice === null) throw new Error(`unparseable advice: ${raw.slice(0, 120)}`);
       this.#failures = 0;
       if (this.#disposed) return;
-      if (import.meta.env.DEV) {
+      // Optional chain because this class also runs outside Vite: the
+      // bake-off harness (tools/aiLab) drives the real strategist from
+      // plain node, where import.meta.env does not exist at all and a
+      // bare .DEV would throw on every successful consultation — which
+      // the catch below would then score as a model failure.
+      if (import.meta.env?.DEV) {
         console.log(`[strategist] seat ${playerId} advises`, advice);
       }
       // Only a reply that actually moved a dial goes downstairs: "keep

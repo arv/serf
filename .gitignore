@@ -19,3 +19,6 @@ server/.data/
 .gallery-build/
 
 .DS_Store
+
+# bake-off run logs (tools/aiLab)
+runs/
