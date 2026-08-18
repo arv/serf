@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { palette } from './palette';
+import { lantern, paper, rock, rockDark, wood, woodLight } from './palette';
 import type { PropFactory } from './assets';
 
 /**
@@ -35,10 +35,10 @@ export function makeBakeOven(h = 0.62): THREE.Group {
   const g = new THREE.Group();
   const s = h / 0.62; // proportions authored at h = 0.62
 
-  const base = part(new THREE.BoxGeometry(0.38 * s, 0.13 * s, 0.34 * s), palette.rockDark);
+  const base = part(new THREE.BoxGeometry(0.38 * s, 0.13 * s, 0.34 * s), rockDark);
   base.position.y = 0.065 * s;
   g.add(base);
-  const course = part(new THREE.BoxGeometry(0.42 * s, 0.035 * s, 0.38 * s), palette.paper);
+  const course = part(new THREE.BoxGeometry(0.42 * s, 0.035 * s, 0.38 * s), paper);
   course.position.y = 0.14 * s;
   g.add(course);
 
@@ -55,19 +55,19 @@ export function makeBakeOven(h = 0.62): THREE.Group {
   const mouth = part(new THREE.BoxGeometry(0.15 * s, 0.13 * s, 0.07 * s), 0x241c16);
   mouth.position.set(0, 0.2 * s, 0.17 * s);
   g.add(mouth);
-  const embers = part(new THREE.BoxGeometry(0.11 * s, 0.035 * s, 0.05 * s), palette.lantern);
+  const embers = part(new THREE.BoxGeometry(0.11 * s, 0.035 * s, 0.05 * s), lantern);
   embers.position.set(0, 0.16 * s, 0.185 * s);
   g.add(embers);
 
-  const flue = part(new THREE.CylinderGeometry(0.04 * s, 0.048 * s, 0.24 * s, 6), palette.rock);
+  const flue = part(new THREE.CylinderGeometry(0.04 * s, 0.048 * s, 0.24 * s, 6), rock);
   flue.position.set(-0.01 * s, 0.37 * s, -0.08 * s);
   g.add(flue);
-  const cap = part(new THREE.BoxGeometry(0.11 * s, 0.026 * s, 0.11 * s), palette.rockDark);
+  const cap = part(new THREE.BoxGeometry(0.11 * s, 0.026 * s, 0.11 * s), rockDark);
   cap.position.set(-0.01 * s, 0.5 * s, -0.08 * s);
   g.add(cap);
 
   for (let i = 0; i < 3; i++) {
-    const log = part(new THREE.CylinderGeometry(0.017 * s, 0.017 * s, 0.16 * s, 6), palette.wood);
+    const log = part(new THREE.CylinderGeometry(0.017 * s, 0.017 * s, 0.16 * s, 6), wood);
     log.rotation.x = Math.PI / 2;
     log.position.set(0.245 * s, (0.022 + i * 0.03) * s, (-0.03 + (i % 2) * 0.015) * s);
     g.add(log);
@@ -123,11 +123,11 @@ export function makeFishSign(len = 0.32, prop?: PropFactory): THREE.Group {
   const g = new THREE.Group();
   // Short post: the fish is a roof ornament, not a mast. Standing it high
   // reads as a weathervane on a pole and takes the eye off the building.
-  const post = part(new THREE.CylinderGeometry(len * 0.06, len * 0.08, len * 0.42, 6), palette.wood);
+  const post = part(new THREE.CylinderGeometry(len * 0.06, len * 0.08, len * 0.42, 6), wood);
   post.position.y = len * 0.21;
   g.add(post);
 
-  const collar = part(new THREE.BoxGeometry(len * 0.16, len * 0.06, len * 0.16), palette.woodLight);
+  const collar = part(new THREE.BoxGeometry(len * 0.16, len * 0.06, len * 0.16), woodLight);
   collar.position.y = len * 0.42;
   g.add(collar);
 

@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, inPlayArea, type MapView } from '../sim/map';
-import { palette } from './palette';
 import { crossedQuads } from './scatterMesh';
 import { ribbonCover, type RibbonCover } from './pathRibbon';
 import { foliageMaterial, makeGrassSprite } from './spriteTextures';

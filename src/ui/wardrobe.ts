@@ -10,7 +10,7 @@ import {
   type CharacterVisual,
 } from '../render/characters';
 import { worldToScreen } from '../input/picking';
-import { palette } from '../render/palette';
+import { grass } from '../render/palette';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { WORK } from '../protocol/sabLayout';
 import { unitName } from './names';
@@ -129,7 +129,7 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<void> {
   // survive against in play.
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(MAP_SIZE * 2, MAP_SIZE * 2),
-    new THREE.MeshLambertMaterial({ color: palette.grass }),
+    new THREE.MeshLambertMaterial({ color: grass }),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(MAP_SIZE / 2, 0, MAP_SIZE / 2);

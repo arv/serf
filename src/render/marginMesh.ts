@@ -2,7 +2,18 @@ import * as THREE from 'three';
 import { hash2 } from '../shared/math';
 import { tileIdx } from '../shared/grid';
 import { Terrain, TileResource, playMax, playMin, type MapView } from '../sim/map';
-import { palette } from './palette';
+import {
+  bankMoss,
+  fog,
+  grassGold,
+  grassLush,
+  grassOlive,
+  peakSnow,
+  riverbed,
+  rock,
+  rockDark,
+  water,
+} from './palette';
 import { vnoise } from './noise';
 import { makeGroundTexture } from './groundTexture';
 import type { HeightField } from './heightField';
@@ -148,15 +159,15 @@ export class MarginMesh {
 
 /** Palette colors used by the margin painter, built once. */
 const COL = {
-  lush: new THREE.Color(palette.grassLush),
-  olive: new THREE.Color(palette.grassOlive),
-  gold: new THREE.Color(palette.grassGold),
-  moss: new THREE.Color(palette.bankMoss),
-  bed: new THREE.Color(palette.riverbed),
-  water: new THREE.Color(palette.water),
-  rock: new THREE.Color(palette.rock),
-  rockDark: new THREE.Color(palette.rockDark),
-  snow: new THREE.Color(palette.peakSnow),
-  fog: new THREE.Color(palette.fog),
+  lush: new THREE.Color(grassLush),
+  olive: new THREE.Color(grassOlive),
+  gold: new THREE.Color(grassGold),
+  moss: new THREE.Color(bankMoss),
+  bed: new THREE.Color(riverbed),
+  water: new THREE.Color(water),
+  rock: new THREE.Color(rock),
+  rockDark: new THREE.Color(rockDark),
+  snow: new THREE.Color(peakSnow),
+  fog: new THREE.Color(fog),
 };
 const SCRATCH = new THREE.Color();

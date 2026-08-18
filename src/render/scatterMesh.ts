@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, TileResource, WATER_LEVEL, playEdgeDist, type MapView } from '../sim/map';
-import { palette } from './palette';
+import { goldOre, ironOre, rock, rockDark, silverOre } from './palette';
 import {
   foliageMaterial,
   makeBushSprite,
@@ -586,9 +586,9 @@ export class ScatterMesh {
         tex ? s : s * 0.75,
         s,
         hash2(tile + k, 25) * Math.PI * 2,
-        tex ? 0xffffff : palette.rock,
+        tex ? 0xffffff : rock,
         hash2(tile + k, 26) * (tex ? 0.25 : 0.6),
-        palette.rockDark,
+        rockDark,
       );
     }
   }
@@ -701,9 +701,9 @@ export class ScatterMesh {
         tex ? s : s * 0.6,
         s,
         hash2(tile + k, 435) * Math.PI * 2,
-        tex ? 0xffffff : palette.rock,
+        tex ? 0xffffff : rock,
         0.2 + hash2(tile + k, 436) * 0.3,
-        palette.rockDark,
+        rockDark,
       );
     }
   }
@@ -780,9 +780,9 @@ export class ScatterMesh {
         tex ? s : s * 0.6 * (1 + hash2(tile + k, 99) * 0.5),
         s,
         hash2(tile + k, 100) * Math.PI * 2,
-        tex ? 0xffffff : palette.rock,
+        tex ? 0xffffff : rock,
         (tex ? 0.15 : 0.3) + hash2(tile + k, 101) * (tex ? 0.15 : 0.5),
-        palette.rockDark,
+        rockDark,
       );
     }
   }
@@ -795,14 +795,14 @@ export class ScatterMesh {
       res === TileResource.IronDep
         ? tex
           ? 0x9a5f42 // brighter over the texture so the metal reads
-          : palette.ironOre
+          : ironOre
         : res === TileResource.SilverDep
           ? tex
             ? 0xdbe4ee
-            : palette.silverOre
+            : silverOre
           : tex
             ? 0xf0bc42
-            : palette.goldOre;
+            : goldOre;
     for (let k = 0; k < 4; k++) {
       const spread = interior ? 0.6 : 0.4;
       const jx = tex
@@ -825,7 +825,7 @@ export class ScatterMesh {
         hash2(tile * 4 + k, 34) * Math.PI,
         color,
         tex ? 0.1 : hash2(tile * 4 + k, 35) * 0.25,
-        palette.rockDark,
+        rockDark,
       );
     }
   }

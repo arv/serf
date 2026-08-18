@@ -3,7 +3,7 @@ import type { BuildingTypeId } from '../sim/entities';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { makeGlbBuilding, glbCarryProp } from './assets';
 import { mapMaterials } from './materials';
-import { goodColors as goodColorsLocal, palette } from './palette';
+import { goodColors as goodColorsLocal, rock, stalk, stoneRoad, wood, woodLight } from './palette';
 import { planks, plaster, roofTiles, stoneBlocks, thatch } from './buildingTextures';
 
 export { goodColors } from './palette';
@@ -58,7 +58,7 @@ const TEX = {
 export function makeRoadPile(): THREE.Group {
   const g = new THREE.Group();
   for (let i = 0; i < 3; i++) {
-    const s = mesh(new THREE.DodecahedronGeometry(0.12), palette.stoneRoad);
+    const s = mesh(new THREE.DodecahedronGeometry(0.12), stoneRoad);
     s.position.set((i - 1) * 0.18, 0.08, (i % 2) * 0.15 - 0.07);
     g.add(s);
   }
@@ -91,7 +91,7 @@ export function makeGhostModel(
 }
 
 function post(x: number, z: number, h: number): THREE.Mesh {
-  const p = mesh(new THREE.BoxGeometry(0.09, h, 0.09), palette.wood);
+  const p = mesh(new THREE.BoxGeometry(0.09, h, 0.09), wood);
   p.position.set(x, h / 2, z);
   return p;
 }
@@ -109,12 +109,12 @@ export function makeSiteFrame(w: number, h: number): THREE.Group {
   const sillNS = new THREE.BoxGeometry(w - 0.2, 0.08, 0.08);
   const sillEW = new THREE.BoxGeometry(0.08, 0.08, h - 0.2);
   for (const sz of [-hh, hh]) {
-    const s = mesh(sillNS, palette.woodLight);
+    const s = mesh(sillNS, woodLight);
     s.position.set(0, 0.08, sz);
     g.add(s);
   }
   for (const sx of [-hw, hw]) {
-    const s = mesh(sillEW, palette.woodLight);
+    const s = mesh(sillEW, woodLight);
     s.position.set(sx, 0.08, 0);
     g.add(s);
   }
@@ -142,14 +142,14 @@ function carryProto(good: GoodId): THREE.Group {
   switch (good) {
     case 'water': {
       // A shoulder pole with a pail swinging at each end.
-      const pole = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.78, 5), palette.woodLight);
+      const pole = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.78, 5), woodLight);
       pole.rotation.z = Math.PI / 2;
       add(pole);
       for (const sx of [-0.36, 0.36]) {
         const rope = mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.16, 3), 0x2a2018);
         rope.position.set(sx, -0.09, 0);
         add(rope);
-        const pail = mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.09, 7), palette.wood);
+        const pail = mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.09, 7), wood);
         pail.position.set(sx, -0.2, 0);
         add(pail);
         const waterTop = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.012, 7), 0x4a708c);
@@ -180,7 +180,7 @@ function carryProto(good: GoodId): THREE.Group {
         [0.05, 0.03, 0.028],
         [0.04, -0.04, 0.03],
       ] as const) {
-        const culm = mesh(new THREE.CylinderGeometry(r, r, 0.95, 5), palette.stalk);
+        const culm = mesh(new THREE.CylinderGeometry(r, r, 0.95, 5), stalk);
         culm.rotation.z = Math.PI / 2;
         culm.rotation.y = 0.12;
         culm.position.set(0, dy, dz);
@@ -190,7 +190,7 @@ function carryProto(good: GoodId): THREE.Group {
       break;
     }
     case 'stone': {
-      const chunk = mesh(new THREE.DodecahedronGeometry(0.14), palette.rock);
+      const chunk = mesh(new THREE.DodecahedronGeometry(0.14), rock);
       chunk.scale.y = 0.8;
       add(chunk);
       g.position.y = 0.92;
@@ -213,7 +213,7 @@ function carryProto(good: GoodId): THREE.Group {
       // Sheathed arming sword: leather scabbard, straight crossguard.
       // Parts sit along the same yaw as the scabbard, so their offsets are
       // (d·cos 0.35, −d·sin 0.35) for a distance d up the blade.
-      const scabbard = mesh(new THREE.BoxGeometry(0.44, 0.05, 0.075), palette.wood);
+      const scabbard = mesh(new THREE.BoxGeometry(0.44, 0.05, 0.075), wood);
       scabbard.rotation.y = 0.35;
       add(scabbard);
       const guard = mesh(new THREE.BoxGeometry(0.035, 0.045, 0.19), 0x9aa0a8);

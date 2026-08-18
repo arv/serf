@@ -2,7 +2,23 @@ import * as THREE from 'three';
 import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, TileResource, playMin, playMax, type MapView } from '../sim/map';
-import { palette } from './palette';
+import {
+  bankMoss,
+  earthTrail,
+  goldOre,
+  grassGold,
+  grassLush,
+  grassOlive,
+  ironOre,
+  peakSnow,
+  riverbed,
+  rock,
+  rockDark,
+  silverOre,
+  stoneRoad,
+  trampledEarth,
+  water,
+} from './palette';
 import { makeGroundTexture } from './groundTexture';
 import { vnoise } from './noise';
 import {
@@ -428,21 +444,21 @@ export class TerrainMesh {
 
 /** Palette colors used by the vertex painter, built once. */
 const COL = {
-  lush: new THREE.Color(palette.grassLush),
-  olive: new THREE.Color(palette.grassOlive),
-  gold: new THREE.Color(palette.grassGold),
-  earth: new THREE.Color(palette.trampledEarth),
-  moss: new THREE.Color(palette.bankMoss),
-  bed: new THREE.Color(palette.riverbed),
-  trail: new THREE.Color(palette.earthTrail),
-  road: new THREE.Color(palette.stoneRoad),
-  water: new THREE.Color(palette.water),
-  iron: new THREE.Color(palette.ironOre),
-  silver: new THREE.Color(palette.silverOre),
-  goldOre: new THREE.Color(palette.goldOre),
-  rock: new THREE.Color(palette.rock),
-  rockDark: new THREE.Color(palette.rockDark),
-  snow: new THREE.Color(palette.peakSnow),
+  lush: new THREE.Color(grassLush),
+  olive: new THREE.Color(grassOlive),
+  gold: new THREE.Color(grassGold),
+  earth: new THREE.Color(trampledEarth),
+  moss: new THREE.Color(bankMoss),
+  bed: new THREE.Color(riverbed),
+  trail: new THREE.Color(earthTrail),
+  road: new THREE.Color(stoneRoad),
+  water: new THREE.Color(water),
+  iron: new THREE.Color(ironOre),
+  silver: new THREE.Color(silverOre),
+  goldOre: new THREE.Color(goldOre),
+  rock: new THREE.Color(rock),
+  rockDark: new THREE.Color(rockDark),
+  snow: new THREE.Color(peakSnow),
 };
 const SCRATCH = new THREE.Color();
 /** Ribbon distances for the vertex being painted — one, reused. */
