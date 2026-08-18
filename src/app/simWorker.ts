@@ -75,12 +75,15 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
     case 'init':
       // init awaits a mission's code-split map chunk, so it's async; a
       // failure must still reach worker.onerror (simHost surfaces it and
-      // rejects start), so rethrow outside the promise chain. Messages
-      // landing in the window before the world exists are safe: commands
-      // queue, and every pump path guards on a null world.
+      // rejects start), so rethrow outside the promise chain — as a real
+      // Error, because onerror's message is built from the thrown value
+      // and a bare string or undefined would reach the main thread as
+      // "sim worker failed: undefined". Messages landing in the window
+      // before the world exists are safe: commands queue, and every pump
+      // path guards on a null world.
       init(msg.config, msg.loadData, msg.llm, msg.replay).catch((err: unknown) => {
         setTimeout(() => {
-          throw err;
+          throw err instanceof Error ? err : new Error(String(err));
         });
       });
       break;
