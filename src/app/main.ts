@@ -7,6 +7,7 @@ import { RoadDecal } from '../render/roadDecal';
 import { WaterMesh } from '../render/waterMesh';
 import { MarginMesh } from '../render/marginMesh';
 import { Mist } from '../render/mist';
+import { Butterflies } from '../render/butterflies';
 import { SceneSync } from '../render/sceneSync';
 import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
@@ -721,6 +722,9 @@ async function runMatch(
   renderer.scene.add(marginMesh.mesh);
   const mist = new Mist(init.map);
   renderer.scene.add(mist.group);
+  // Ambient life over the meadows — pure scenery, no sim contact.
+  const butterflies = new Butterflies(init.map, heights);
+  renderer.scene.add(butterflies.mesh);
 
   const buildingSync = new BuildingSync(renderer.scene, heights, config.myPlayerId);
   // Terrain feed for the pier measurement: on a corner-only shore the
@@ -1028,6 +1032,7 @@ async function runMatch(
     damageAlerts.update(now);
     water.update(now);
     mist.update(now);
+    butterflies.update(now);
     const dt = renderer.frame();
     buildingSync.frame(speed() === 0 ? 0 : dt);
     // Last: the frame's queued cues become at most a couple dozen voices.

@@ -4,6 +4,7 @@ import { ScatterMesh } from '../render/scatterMesh';
 import { GrassField } from '../render/grassField';
 import { WaterMesh } from '../render/waterMesh';
 import { MarginMesh } from '../render/marginMesh';
+import { Butterflies } from '../render/butterflies';
 import { HeightField } from '../render/heightField';
 import { loadGlbAssets } from '../render/assets';
 import { disposeOwnedSubtree } from '../render/disposal';
@@ -147,6 +148,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     margin: MarginMesh;
     scatter: ScatterMesh;
     grass: GrassField;
+    butterflies: Butterflies;
     markers: StartMarkers;
     bounds: PlayAreaOverlay;
     cursor: BrushCursor;
@@ -200,6 +202,10 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     sc.scatter = new ScatterMesh(state.map, sc.heights);
     sc.grass = new GrassField(state.map, sc.heights);
     renderer.scene.add(sc.scatter.group, sc.grass.mesh);
+    // The butterflies' meadow anchors moved with the ground.
+    sc.butterflies.dispose();
+    sc.butterflies = new Butterflies(state.map, sc.heights);
+    renderer.scene.add(sc.butterflies.mesh);
     if (marginTouched) {
       // The margin mesh is static by design (nothing changes it in a
       // match); the editor is the one place it needs rebuilding — one
@@ -350,12 +356,14 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     const margin = new MarginMesh(map, heights);
     const scatter = new ScatterMesh(map, heights);
     const grass = new GrassField(map, heights);
+    const butterflies = new Butterflies(map, heights);
     renderer.scene.add(
       terrain.mesh,
       water.mesh,
       margin.mesh,
       scatter.group,
       grass.mesh,
+      butterflies.mesh,
     );
     const markers = new StartMarkers(renderer.scene, heights, overlay);
     markers.set(state.starts);
@@ -363,7 +371,19 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     bounds.setVisible(showBounds());
     const cursor = new BrushCursor(renderer.scene, heights);
     const controls = new EditorControls(canvas, renderer.rig, heights, cursor, markers, surface);
-    sc = { heights, terrain, water, margin, scatter, grass, markers, bounds, cursor, controls };
+    sc = {
+      heights,
+      terrain,
+      water,
+      margin,
+      scatter,
+      grass,
+      butterflies,
+      markers,
+      bounds,
+      cursor,
+      controls,
+    };
     // Open framing the play square plus a strip of scenery.
     renderer.rig.focusOn(map.size / 2, map.size / 2, Math.round(map.play * 1.1));
     refreshProblems();
@@ -379,6 +399,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     disposeOwnedSubtree(sc.grass.mesh);
     disposeOwnedSubtree(sc.margin.mesh);
     disposeOwnedSubtree(sc.terrain.mesh);
+    sc.butterflies.dispose();
     sc.water.dispose();
     sc = null;
   }
@@ -483,6 +504,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       }
       flushPending();
       sc.water.update(performance.now());
+      sc.butterflies.update(performance.now());
       renderer.frame();
       sc.markers.updateLabels(renderer.rig.camera, canvas);
     }

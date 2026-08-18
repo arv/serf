@@ -4,7 +4,7 @@ import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, TileResource, WATER_LEVEL, playEdgeDist, type MapView } from '../sim/map';
 import { palette } from './palette';
-import { foliageMaterial, makeStalkTexture, makeLeafSprite } from './spriteTextures';
+import { foliageMaterial, makeFlowerSprite, makeStalkTexture, makeLeafSprite } from './spriteTextures';
 import { glbDoodads, glbRocks, glbTrees } from './assets';
 import type { HeightField } from './heightField';
 
@@ -40,6 +40,23 @@ function touchesWater(map: MapView, idx: number): boolean {
   ] as const) {
     if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
     if (map.terrain[ny * size + nx] === Terrain.Water) return true;
+  }
+  return false;
+}
+
+/** Does a standing grove border this tile? (Where the scrub gathers.) */
+function touchesWood(map: MapView, idx: number): boolean {
+  const size = map.size;
+  const x = tileX(idx, size);
+  const y = tileY(idx, size);
+  for (const [nx, ny] of [
+    [x - 1, y],
+    [x + 1, y],
+    [x, y - 1],
+    [x, y + 1],
+  ] as const) {
+    if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+    if (map.resource[ny * size + nx] === TileResource.Wood) return true;
   }
   return false;
 }
@@ -125,10 +142,13 @@ export class ScatterMesh {
     const ridgeTiles: number[] = [];
     // Natural doodads, all derived from the tiles (nothing to author or
     // save): lily pads drifting on open shallows, reed clumps against the
-    // banks, stray pebbles in the meadows.
+    // banks, stray pebbles in the meadows, scrub bushes thickening the
+    // forest fringes, wildflowers on the lush ground.
     const lilyTiles: number[] = [];
     const reedTiles: number[] = [];
     const pebbleTiles: number[] = [];
+    const bushTiles: number[] = [];
+    const flowerTiles: number[] = [];
     for (let i = 0; i < tiles; i++) {
       const res = map.resource[i];
       if (res === TileResource.Wood) {
@@ -142,10 +162,13 @@ export class ScatterMesh {
       } else if (
         map.terrain[i] === Terrain.Grass &&
         res === TileResource.None &&
-        map.pathLevel[i] === 0 &&
-        hash2(i, 427) < 0.05
+        map.pathLevel[i] === 0
       ) {
-        pebbleTiles.push(i);
+        if (hash2(i, 427) < 0.05) pebbleTiles.push(i);
+        // Scrub gathers where the woods thin out (a grove next door) and
+        // strays sparsely across the open meadow.
+        else if (hash2(i, 461) < (touchesWood(map, i) ? 0.28 : 0.02)) bushTiles.push(i);
+        else if (map.height[i]! < 1.0 && hash2(i, 463) < 0.06) flowerTiles.push(i);
       }
       if (
         map.terrain[i] === Terrain.Rock &&
@@ -245,6 +268,23 @@ export class ScatterMesh {
         receiveShadow: false,
       });
     }
+    // Scrub bushes are the tree models squashed to shrub height — no new
+    // asset, and the silhouette family matches the woods they fringe.
+    if (trees) {
+      trees.geometries.forEach((geo, i) => {
+        this.#addArchetype(`bush${i}`, geo, trees.material, bushTiles.length * 2, {
+          castShadow: false,
+          receiveShadow: false,
+        });
+      });
+    }
+    this.#addArchetype(
+      'flower',
+      crossedQuads(0.5, 0.4),
+      foliageMaterial(makeFlowerSprite()),
+      flowerTiles.length * 2,
+      { castShadow: false, receiveShadow: true },
+    );
 
     for (let i = 0; i < tiles; i++) {
       const res = map.resource[i];
@@ -285,6 +325,16 @@ export class ScatterMesh {
     }
     for (const i of pebbleTiles) {
       this.#placePebbles(i);
+      this.#cosmetic.add(i);
+    }
+    if (this.#trees) {
+      for (const i of bushTiles) {
+        this.#placeBushes(i);
+        this.#cosmetic.add(i);
+      }
+    }
+    for (const i of flowerTiles) {
+      this.#placeFlowers(i);
       this.#cosmetic.add(i);
     }
     if (this.#doodads) {
@@ -500,6 +550,58 @@ export class ScatterMesh {
         tex ? 0xffffff : palette.rock,
         hash2(tile + k, 26) * (tex ? 0.25 : 0.6),
         palette.rockDark,
+      );
+    }
+  }
+
+  /** Scrub: a tree squashed to shrub height, rounder than it is tall. */
+  #placeBushes(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash2(tile, 465) < 0.55) continue;
+      const species = (hash2(tile * 2 + k, 466) * this.#treeSpecies) | 0;
+      const jx = 0.2 + hash2(tile * 2 + k, 467) * 0.6;
+      const jz = 0.2 + hash2(tile * 2 + k, 468) * 0.6;
+      const h = 0.3 + hash2(tile + k, 469) * 0.2;
+      const warm = hash2(tile + k, 470);
+      this.#put(
+        `bush${species}`,
+        tile,
+        tx + jx,
+        this.#heights.at(tx + jx, ty + jz),
+        ty + jz,
+        h,
+        h * (1.6 + hash2(tile + k, 471) * 0.5), // squat: wider than tall
+        hash2(tile + k, 472) * Math.PI * 2,
+        0xffffff,
+        warm > 0.8 ? 0.3 : warm * 0.2,
+        warm > 0.8 ? 0xc8a050 : 0x5a8442,
+      );
+    }
+  }
+
+  /** Wildflower clumps on the lush meadow, tinted bloom by bloom. */
+  #placeFlowers(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash2(tile, 475) < 0.5) continue;
+      const jx = 0.15 + hash2(tile * 2 + k, 476) * 0.7;
+      const jz = 0.15 + hash2(tile * 2 + k, 477) * 0.7;
+      const s = 0.7 + hash2(tile + k, 478) * 0.5;
+      this.#put(
+        'flower',
+        tile,
+        tx + jx,
+        this.#heights.at(tx + jx, ty + jz) + 0.18 * s,
+        ty + jz,
+        s,
+        s,
+        hash2(tile + k, 479) * Math.PI,
+        0xffffff,
+        hash2(tile + k, 480) * 0.25,
+        0xf0e0b0,
       );
     }
   }
