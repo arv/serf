@@ -30,6 +30,8 @@ const wllamaMock = vi.hoisted(() => {
   return {
     /** Every Wllama the adapter constructed, with its exit count. */
     instances: [] as { exited: number }[],
+    /** The params of every loadModelFromUrl call the adapter made. */
+    loadParams: [] as Record<string, unknown>[],
     loadFails: false,
     /** The model's answer; null = tests must not reach inference. */
     chat: null as null | ((opts: ChatOpts) => Promise<ChatReply>),
@@ -65,6 +67,7 @@ vi.mock('@wllama/wllama/esm/index.js', () => ({
       wllamaMock.instances.push(this);
     }
     loadModelFromUrl(_url: string, params?: { progressCallback?: Progress }): Promise<void> {
+      wllamaMock.loadParams.push({ ...params });
       if (wllamaMock.loadFails) return Promise.reject(new Error('403 from the weights CDN'));
       params?.progressCallback?.({ loaded: 1, total: 2 });
       return Promise.resolve();
@@ -134,6 +137,7 @@ const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
 afterEach(() => {
   wllamaMock.instances.length = 0;
+  wllamaMock.loadParams.length = 0;
   wllamaMock.loadFails = false;
   wllamaMock.chat = null;
   wllamaMock.cachedUrls.length = 0;
@@ -302,6 +306,18 @@ describe('LlmStrategist', () => {
     strategist.onSummary(1, testSummary());
     await settle();
     expect(sent).toEqual([]);
+  });
+
+  it('loads the model with every layer on the CPU', async () => {
+    // Not a default anyone chose: wllama's own default is 99999 — full
+    // WebGPU offload wherever the browser has it — which puts inference on
+    // the GPU the renderer is drawing with and drops frames on every
+    // consultation. The zero must be spelled out, so pin it.
+    const strategist = new LlmStrategist({ sendAdvice: () => {}, onStatus: () => {} });
+    await strategist.start();
+    expect(wllamaMock.loadParams).toHaveLength(1);
+    expect(wllamaMock.loadParams[0]).toMatchObject({ n_gpu_layers: 0 });
+    strategist.dispose();
   });
 
   it('a permanent failure frees the model and its worker', async () => {

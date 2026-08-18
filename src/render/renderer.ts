@@ -48,11 +48,19 @@ export class GameRenderer {
 
     // ResizeObserver over a window listener: it fires whenever the canvas
     // box actually changes — including viewport changes that never dispatch
-    // a window resize event (devtools panes, embedded previews).
+    // a window resize event (devtools panes, embedded previews). Both are
+    // kept and both fire for an ordinary window drag, so the handler skips
+    // sizes it has already applied: setSize reallocates the drawing buffer
+    // even for the width it has, and during a drag that ran twice per
+    // event, ~20ms apiece — enough to drop frames the whole way down.
+    let appliedW = 0;
+    let appliedH = 0;
     const resize = (): void => {
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
-      if (w > 0 && h > 0) {
+      if (w > 0 && h > 0 && (w !== appliedW || h !== appliedH)) {
+        appliedW = w;
+        appliedH = h;
         this.#webgl.setSize(w, h, false);
         this.rig.resize();
       }
