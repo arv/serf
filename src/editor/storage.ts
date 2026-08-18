@@ -31,15 +31,21 @@ export function loadDraft(): EditorMapState | null {
 }
 
 function readSlots(): Record<string, string> {
+  // Null-prototype on purpose: slot names are user text, and assigning
+  // into a plain object would let the perfectly legal map name
+  // "__proto__" hit the prototype setter — reporting a save that
+  // JSON.stringify then silently drops.
+  const slots: Record<string, string> = Object.create(null) as Record<string, string>;
   try {
     const raw = localStorage.getItem(SLOTS_KEY);
     const parsed: unknown = raw === null ? {} : JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
-    return Object.fromEntries(
-      Object.entries(parsed).filter(([, v]) => typeof v === 'string'),
-    ) as Record<string, string>;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return slots;
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'string') slots[k] = v;
+    }
+    return slots;
   } catch {
-    return {};
+    return slots;
   }
 }
 

@@ -154,6 +154,9 @@ interface Assets {
   trees: THREE.BufferGeometry[];
   /** Rock variants, same normalization. */
   rocks: THREE.BufferGeometry[];
+  /** Water doodads: a flat lily pad (unit span) and a reed clump (unit height). */
+  lily: THREE.BufferGeometry;
+  reed: THREE.BufferGeometry;
   /** Shared palette-textured material for trees and rocks. */
   natureMaterial: THREE.Material;
   /** Loaded pack prop scenes (wheelbarrow, resource piles...). */
@@ -264,10 +267,18 @@ export async function loadGlbAssets(): Promise<boolean> {
     const files = new Set(Object.values(BUILDING_FILES));
     const TREE_FILES = ['tree_single_A.gltf', 'tree_single_B.gltf'];
     const ROCK_FILES = ['rock_single_A.gltf', 'rock_single_B.gltf', 'rock_single_C.gltf'];
+    // Natural dressing the scatter system strews on its own: lily pads on
+    // still shallows, reed clumps against the banks.
+    const DOODAD_FILES = ['waterlily_A.gltf', 'waterplant_A.gltf'];
     const loaded = new Map<string, THREE.Group>();
     await Promise.all(
-      [...files, ...TREE_FILES, ...ROCK_FILES, ...DECOR_PROP_FILES.map((p) => `${p}.gltf`)].map(
-        async (f) => {
+      [
+        ...files,
+        ...TREE_FILES,
+        ...ROCK_FILES,
+        ...DOODAD_FILES,
+        ...DECOR_PROP_FILES.map((p) => `${p}.gltf`),
+      ].map(async (f) => {
         const gltf = await loadGltfRetry(loader, `${DIR}${f}`);
         gltf.scene.traverse((o) => {
           if (o instanceof THREE.Mesh) {
@@ -304,6 +315,9 @@ export async function loadGlbAssets(): Promise<boolean> {
     };
     const trees = TREE_FILES.map((f) => bakeNormalized(f));
     const rocks = ROCK_FILES.map((f) => bakeNormalized(f, true));
+    // Lily pads lie flat (span-normalized like rocks); reeds stand (height).
+    const lily = bakeNormalized('waterlily_A.gltf', true);
+    const reed = bakeNormalized('waterplant_A.gltf');
     const natureMaterial = new THREE.MeshLambertMaterial({ map: natureMap });
 
     /** A prop clone scaled by footprint span, keeping its own y origin —
@@ -517,7 +531,7 @@ export async function loadGlbAssets(): Promise<boolean> {
       const scene = loaded.get(`${p}.gltf`);
       if (scene) props.set(p, scene);
     }
-    assets = { buildings, trees, rocks, natureMaterial, props };
+    assets = { buildings, trees, rocks, lily, reed, natureMaterial, props };
     return true;
   }
 }
@@ -612,6 +626,22 @@ export function glbRocks(): {
 } | null {
   if (!assets) return null;
   return { geometries: assets.rocks, material: assets.natureMaterial };
+}
+
+/**
+ * Water doodad geometries for the scatter system, or null before load.
+ * More species (the KayKit Forest / Dungeon packs' bushes, mushrooms,
+ * stumps...) slot in here: drop the .gltf/.bin pair into
+ * public/models/kaykit/, add the filename to DOODAD_FILES above, bake it
+ * like these two, and give ScatterMesh a placement rule.
+ */
+export function glbDoodads(): {
+  lily: THREE.BufferGeometry;
+  reed: THREE.BufferGeometry;
+  material: THREE.Material;
+} | null {
+  if (!assets) return null;
+  return { lily: assets.lily, reed: assets.reed, material: assets.natureMaterial };
 }
 
 /** Tinted nature materials for yard rocks, cached per color. */

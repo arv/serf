@@ -108,7 +108,7 @@ export class PlayAreaOverlay {
   }
 
   dispose(): void {
-    this.#band.hide(); // frees its geometry and drops it from the scene
+    this.#band.dispose(); // geometry AND material — the editor rebuilds in a live context
     this.#scene.remove(this.#veil);
     this.#veil.geometry.dispose();
     (this.#veil.material as THREE.Material).dispose();

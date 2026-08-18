@@ -68,6 +68,20 @@ describe('validateForPlay', () => {
     expect(problems.some((p) => p.includes('player 2'))).toBe(true);
   });
 
+  it('flags rival starts cut apart by water', () => {
+    const state = createBlankMap({ size: 64, players: 2 });
+    const size = state.map.size;
+    // A full water wall across the play area between the two starts.
+    for (let x = 0; x < size; x++) {
+      state.map.terrain[tileIdx(x, size / 2, size)] = Terrain.Water;
+    }
+    const problems = validateForPlay(state);
+    expect(problems.some((p) => p.includes('cut off'))).toBe(true);
+    // A one-tile causeway reconnects them.
+    state.map.terrain[tileIdx(size / 2, size / 2, size)] = Terrain.Grass;
+    expect(validateForPlay(state)).toEqual([]);
+  });
+
   it('flags starts in the scenery margin and overlapping starts', () => {
     const state = createBlankMap({ size: 64, players: 2 });
     state.starts[0] = { x: 2, y: 40 }; // deep in the margin

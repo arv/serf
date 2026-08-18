@@ -23,6 +23,7 @@ import {
 import { serializeEditorMap } from './format.ts';
 import { EditorHistory } from './history.ts';
 import { StartMarkers } from './markers.ts';
+import { naturalize } from './naturalize.ts';
 import { PlayAreaOverlay } from './playAreaOverlay.ts';
 import { worldFromEditor, type EditorPlayConfig } from './playWorld.ts';
 import { loadDraft, saveDraft } from './storage.ts';
@@ -49,6 +50,8 @@ export interface EditorActions {
   toggleView(): void;
   undo(): void;
   redo(): void;
+  /** Re-derive heights from the painted terrain, worldgen-style. */
+  naturalize(): void;
   exportMap(): void;
   /** Swap in a parsed state (Import, Maps... load) and rebuild the scene. */
   replaceState(state: EditorMapState): void;
@@ -244,6 +247,20 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   /** Where the live stroke began (jitter anchor for fray/scatter). */
   let strokeAnchor = { x: 0, y: 0 };
 
+  /** Push the accumulated dirty tiles into the meshes right now. */
+  const flushPending = (): void => {
+    if (!sc) return;
+    if (pendingReheight.size > 0) {
+      sc.terrain.reheightTiles([...pendingReheight]);
+      sc.water.refreshBed();
+      pendingReheight.clear();
+    }
+    if (pendingRepaint.size > 0) {
+      sc.terrain.repaintTiles([...pendingRepaint]);
+      pendingRepaint.clear();
+    }
+  };
+
   const surface: EditorSurface = {
     state: () => state,
     strokeBegin(x, y): void {
@@ -283,6 +300,10 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       markDirty();
     },
     strokeEnd(): void {
+      // Flush the pending height writes FIRST: a final move landing in the
+      // same frame as the pointer-up would otherwise leave the bounding
+      // sphere computed from stale positions.
+      flushPending();
       sc?.terrain.refreshBounds();
       refreshProblems();
     },
@@ -396,6 +417,17 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     toggleView: () => surface.toggleView(),
     undo: () => surface.undo(),
     redo: () => surface.redo(),
+    naturalize(): void {
+      // One undoable action, resynced exactly like an undo restore.
+      history.record(state);
+      const tiles = naturalize(state, activeFolds());
+      applyHistoryResult({ tiles, starts: false });
+      showNotice(
+        tiles.length > 0
+          ? 'Naturalized: shores shelve, meadows roll — undo to compare'
+          : 'Nothing to naturalize',
+      );
+    },
     exportMap(): void {
       const json = serializeEditorMap(currentState());
       const blob = new Blob([json], { type: 'application/json' });
@@ -449,15 +481,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
         boundsShown = showBounds();
         sc.bounds.setVisible(boundsShown);
       }
-      if (pendingReheight.size > 0) {
-        sc.terrain.reheightTiles([...pendingReheight]);
-        sc.water.refreshBed();
-        pendingReheight.clear();
-      }
-      if (pendingRepaint.size > 0) {
-        sc.terrain.repaintTiles([...pendingRepaint]);
-        pendingRepaint.clear();
-      }
+      flushPending();
       sc.water.update(performance.now());
       renderer.frame();
       sc.markers.updateLabels(renderer.rig.camera, canvas);

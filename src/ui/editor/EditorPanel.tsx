@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from 'solid-js';
+import { For, Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { render } from 'solid-js/web';
 import type { EditorActions } from '../../editor/editorScreen.ts';
 import { parseEditorMap } from '../../editor/format.ts';
@@ -103,6 +103,7 @@ function EditorUi(props: { actions: EditorActions }) {
       <div class="ed-top panel">
         <input
           class="ed-name"
+          aria-label="Map name"
           value={mapName()}
           maxLength={40}
           onInput={(e) => {
@@ -192,6 +193,12 @@ function EditorUi(props: { actions: EditorActions }) {
           Import…
         </button>
         <button onClick={() => props.actions.exportMap()}>Export</button>
+        <button
+          title="Re-derive heights from the painted terrain the way worldgen shapes its own maps: lake beds shelve, meadows ease toward shores, gentle hills roll in. One undoable step."
+          onClick={() => props.actions.naturalize()}
+        >
+          ✦ Naturalize
+        </button>
         <button
           class="ed-play"
           classList={{ active: problems().length === 0 }}
@@ -394,10 +401,29 @@ function PlayDialog(props: { actions: EditorActions }) {
 }
 
 function Dialog(props: { title: string; children?: unknown }) {
+  let card: HTMLDivElement | undefined;
+  // Escape closes, and focus lands inside so keyboard users are IN the
+  // dialog rather than tabbing the panel behind the scrim. (Not a full
+  // focus trap; the scrim blocks pointer access to everything else.)
+  onMount(() => {
+    card?.focus();
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setDialog(null);
+    };
+    window.addEventListener('keydown', onKey);
+    onCleanup(() => window.removeEventListener('keydown', onKey));
+  });
   return (
     <>
       <div class="ed-scrim" onClick={() => setDialog(null)} />
-      <div class="ed-dialog panel">
+      <div
+        class="ed-dialog panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label={props.title}
+        tabindex="-1"
+        ref={card}
+      >
         <h3>{props.title}</h3>
         {props.children as never}
       </div>

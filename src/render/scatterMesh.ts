@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
-import { Terrain, TileResource, playEdgeDist, type MapView } from '../sim/map';
+import { Terrain, TileResource, WATER_LEVEL, playEdgeDist, type MapView } from '../sim/map';
 import { palette } from './palette';
 import { foliageMaterial, makeStalkTexture, makeLeafSprite } from './spriteTextures';
-import { glbRocks, glbTrees } from './assets';
+import { glbDoodads, glbRocks, glbTrees } from './assets';
 import type { HeightField } from './heightField';
 
 /**
@@ -44,6 +44,23 @@ function touchesWater(map: MapView, idx: number): boolean {
   return false;
 }
 
+/** Is this water tile against a grassy bank? (Where the reeds stand.) */
+function touchesGrass(map: MapView, idx: number): boolean {
+  const size = map.size;
+  const x = tileX(idx, size);
+  const y = tileY(idx, size);
+  for (const [nx, ny] of [
+    [x - 1, y],
+    [x + 1, y],
+    [x, y - 1],
+    [x, y + 1],
+  ] as const) {
+    if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+    if (map.terrain[ny * size + nx] === Terrain.Grass) return true;
+  }
+  return false;
+}
+
 interface Archetype {
   mesh: THREE.InstancedMesh;
   /** tileIdx -> instance indices belonging to that tile. */
@@ -71,6 +88,7 @@ export class ScatterMesh {
   #trees = false;
   #treeSpecies = 0;
   #rockSpecies = 0;
+  #doodads = false;
 
   /**
    * Does scatter on this tile pay for the shadow pass? The playable field
@@ -105,6 +123,12 @@ export class ScatterMesh {
     // hash so the range reads craggy rather than tiled — and thinned much
     // harder in the deep margin, where whole ranges are rock.
     const ridgeTiles: number[] = [];
+    // Natural doodads, all derived from the tiles (nothing to author or
+    // save): lily pads drifting on open shallows, reed clumps against the
+    // banks, stray pebbles in the meadows.
+    const lilyTiles: number[] = [];
+    const reedTiles: number[] = [];
+    const pebbleTiles: number[] = [];
     for (let i = 0; i < tiles; i++) {
       const res = map.resource[i];
       if (res === TileResource.Wood) {
@@ -115,12 +139,27 @@ export class ScatterMesh {
       // Rocky banks: grass tiles touching water, thinned by hash.
       if (map.terrain[i] === Terrain.Grass && hash2(i, 91) < 0.45 && touchesWater(map, i)) {
         shoreTiles.push(i);
+      } else if (
+        map.terrain[i] === Terrain.Grass &&
+        res === TileResource.None &&
+        map.pathLevel[i] === 0 &&
+        hash2(i, 427) < 0.05
+      ) {
+        pebbleTiles.push(i);
       }
       if (
         map.terrain[i] === Terrain.Rock &&
         hash2(i, 93) < (this.#nearShadow(i) ? 0.3 : 0.12)
       ) {
         ridgeTiles.push(i);
+      }
+      if (map.terrain[i] === Terrain.Water) {
+        const bed = map.height[i]!;
+        if (touchesGrass(map, i)) {
+          if (bed > -0.95 && hash2(i, 421) < 0.35) reedTiles.push(i);
+        } else if (bed > -0.8 && hash2(i, 422) < 0.08) {
+          lilyTiles.push(i);
+        }
       }
     }
 
@@ -176,7 +215,11 @@ export class ScatterMesh {
           i === 0 ? 'rock' : `rock${i}`,
           geo,
           rocks.material,
-          rockTiles * 2 + shoreTiles.length * 2 + ridgeTiles.length * 2 + oreTiles * 4,
+          rockTiles * 2 +
+            shoreTiles.length * 2 +
+            ridgeTiles.length * 2 +
+            oreTiles * 4 +
+            pebbleTiles.length * 2,
         );
       });
     } else {
@@ -184,9 +227,23 @@ export class ScatterMesh {
         'rock',
         new THREE.DodecahedronGeometry(0.32),
         flat(0xffffff),
-        rockTiles * 2 + shoreTiles.length * 2 + ridgeTiles.length * 2,
+        rockTiles * 2 + shoreTiles.length * 2 + ridgeTiles.length * 2 + pebbleTiles.length * 2,
       );
       this.#addArchetype('ore', new THREE.OctahedronGeometry(0.16), flat(0xffffff), oreTiles * 4);
+    }
+    // Water doodads ride the same palette texture; no shadow pass — a lily
+    // pad's shadow lands on water that doesn't receive it anyway.
+    const doodads = glbDoodads();
+    this.#doodads = doodads !== null;
+    if (doodads) {
+      this.#addArchetype('lily', doodads.lily, doodads.material, lilyTiles.length * 2, {
+        castShadow: false,
+        receiveShadow: false,
+      });
+      this.#addArchetype('reed', doodads.reed, doodads.material, reedTiles.length * 2, {
+        castShadow: false,
+        receiveShadow: false,
+      });
     }
 
     for (let i = 0; i < tiles; i++) {
@@ -225,6 +282,20 @@ export class ScatterMesh {
     for (const i of ridgeTiles) {
       this.#placeShoreRocks(i); // same craggy dressing, on the rim rock
       this.#cosmetic.add(i);
+    }
+    for (const i of pebbleTiles) {
+      this.#placePebbles(i);
+      this.#cosmetic.add(i);
+    }
+    if (this.#doodads) {
+      for (const i of lilyTiles) {
+        this.#placeLilies(i);
+        this.#cosmetic.add(i);
+      }
+      for (const i of reedTiles) {
+        this.#placeReeds(i);
+        this.#cosmetic.add(i);
+      }
     }
 
     for (const a of this.#archetypes.values()) {
@@ -429,6 +500,86 @@ export class ScatterMesh {
         tex ? 0xffffff : palette.rock,
         hash2(tile + k, 26) * (tex ? 0.25 : 0.6),
         palette.rockDark,
+      );
+    }
+  }
+
+  /** A stray pebble or two in the open meadow — ground texture, not stone
+   * worth quarrying, so they stay well under boulder scale. */
+  #placePebbles(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    const tex = this.#rockSpecies > 0;
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash2(tile, 431) < 0.6) continue;
+      const jx = 0.15 + hash2(tile * 2 + k, 432) * 0.7;
+      const jz = 0.15 + hash2(tile * 2 + k, 433) * 0.7;
+      const s = tex ? 0.09 + hash2(tile + k, 434) * 0.08 : 0.18 + hash2(tile + k, 434) * 0.14;
+      this.#put(
+        this.#rockName(tile * 2 + k + 13),
+        tile,
+        tx + jx,
+        this.#heights.at(tx + jx, ty + jz) + (tex ? -0.005 : 0.03 * s),
+        ty + jz,
+        tex ? s : s * 0.6,
+        s,
+        hash2(tile + k, 435) * Math.PI * 2,
+        tex ? 0xffffff : palette.rock,
+        0.2 + hash2(tile + k, 436) * 0.3,
+        palette.rockDark,
+      );
+    }
+  }
+
+  /** Lily pads drifting on still, open shallows, at the water surface. */
+  #placeLilies(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash2(tile, 441) < 0.45) continue;
+      const jx = 0.15 + hash2(tile * 2 + k, 442) * 0.7;
+      const jz = 0.15 + hash2(tile * 2 + k, 443) * 0.7;
+      const s = 0.3 + hash2(tile + k, 444) * 0.22;
+      this.#put(
+        'lily',
+        tile,
+        tx + jx,
+        WATER_LEVEL + 0.015,
+        ty + jz,
+        s,
+        s,
+        hash2(tile + k, 445) * Math.PI * 2,
+        0xffffff,
+        hash2(tile + k, 446) * 0.25,
+        0x9fd0a0,
+      );
+    }
+  }
+
+  /** Reed clumps rooted on the bank's shallow bed, breaching the surface. */
+  #placeReeds(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash2(tile, 451) < 0.4) continue;
+      const jx = 0.2 + hash2(tile * 2 + k, 452) * 0.6;
+      const jz = 0.2 + hash2(tile * 2 + k, 453) * 0.6;
+      const bed = this.#heights.at(tx + jx, ty + jz);
+      // A clump must reach the air; the deepest beds keep open water.
+      const h = 0.75 + hash2(tile + k, 454) * 0.4;
+      if (bed + h < WATER_LEVEL + 0.25) continue;
+      this.#put(
+        'reed',
+        tile,
+        tx + jx,
+        bed,
+        ty + jz,
+        h,
+        0.55 + hash2(tile + k, 455) * 0.3,
+        hash2(tile + k, 456) * Math.PI * 2,
+        0xffffff,
+        hash2(tile + k, 457) * 0.35,
+        0xd8c878,
       );
     }
   }

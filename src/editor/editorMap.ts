@@ -118,5 +118,40 @@ export function validateForPlay(state: EditorMapState): string[] {
       }
     }
   }
+
+  // Rivals must share a landmass, or an elimination match can never end.
+  // Worldgen audits and repairs exactly this (its land bridges); an
+  // authored lake owes no such promise, so the audit lives here too.
+  // Terrain-only, like the sim's own connectivity check: standing timber
+  // is choppable ground, not a wall.
+  if (problems.length === 0 && starts.length > 1) {
+    const size = map.size;
+    const seen = new Uint8Array(tileCount(size));
+    const first = starts[0]!;
+    const queue = [tileIdx(first.x + 1, first.y + 1, size)];
+    seen[queue[0]!] = 1;
+    for (let head = 0; head < queue.length; head++) {
+      const i = queue[head]!;
+      const x = i % size;
+      const y = (i / size) | 0;
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ] as const) {
+        if (!inPlayArea(map, nx, ny)) continue;
+        const n = tileIdx(nx, ny, size);
+        if (seen[n] || map.terrain[n] !== Terrain.Grass) continue;
+        seen[n] = 1;
+        queue.push(n);
+      }
+    }
+    starts.forEach((s, p) => {
+      if (p > 0 && !seen[tileIdx(s.x + 1, s.y + 1, size)]) {
+        problems.push(`player ${p + 1}'s start is cut off from player 1 — bridge the land`);
+      }
+    });
+  }
   return problems;
 }

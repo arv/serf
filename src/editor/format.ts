@@ -77,6 +77,18 @@ export function parseEditorMap(json: string): EditorMapState {
   if (!file.resourceAmt.every((a) => Number.isInteger(a) && a >= 0 && a <= 255)) {
     bad('resource amount out of range');
   }
+  // Cross-field invariants the editor itself always keeps: resources
+  // stand on grass only, and a resource code means a live amount (the
+  // sim clears the code when a tile is worked dry).
+  for (let i = 0; i < tiles; i++) {
+    const res = file.resource[i]!;
+    if (res !== TileResource.None) {
+      if (file.terrain[i] !== Terrain.Grass) bad('resource on non-grass terrain');
+      if (file.resourceAmt[i]! < 1) bad('resource with no amount');
+    } else if (file.resourceAmt[i] !== 0) {
+      bad('amount without a resource');
+    }
+  }
   if (!file.height.every((h) => Number.isFinite(h) && h >= -2 && h <= 3)) {
     bad('height out of range');
   }

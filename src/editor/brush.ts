@@ -16,7 +16,8 @@ import { foldBasis, rotatePoint } from './symmetry.ts';
 export type Tool =
   | { kind: 'terrain'; terrain: TerrainKind }
   | { kind: 'resource'; res: TileResourceKind } // TileResource.None = eraser
-  | { kind: 'height'; dir: 1 | -1 };
+  | { kind: 'height'; dir: 1 | -1 }
+  | { kind: 'noise' };
 
 export interface BrushOptions {
   /** Disc radius in tiles (Euclidean, measured to tile centers). */
@@ -91,6 +92,36 @@ function localHash(qx: number, qy: number, salt: number): number {
   return hash2(Math.round(qx * 2) + salt * 131, Math.round(qy * 2) - salt * 57);
 }
 
+/** Smooth value noise over stamp-local coords — bilinear over a hashed
+ * lattice, the same construction worldgen's heightfield uses. */
+function localNoise(qx: number, qy: number, scale: number, salt: number): number {
+  const fx = qx / scale;
+  const fy = qy / scale;
+  const x0 = Math.floor(fx);
+  const y0 = Math.floor(fy);
+  const tx = fx - x0;
+  const ty = fy - y0;
+  const sx = tx * tx * (3 - 2 * tx);
+  const sy = ty * ty * (3 - 2 * ty);
+  const h = (cx: number, cy: number): number => hash2(cx * 373 + salt * 17, cy * 179 - salt * 41);
+  const a = h(x0, y0);
+  const b = h(x0 + 1, y0);
+  const c = h(x0, y0 + 1);
+  const d = h(x0 + 1, y0 + 1);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+
+/**
+ * The roughen tool's relief at one stamp-local point: two octaves of
+ * smooth noise, signed. Anchored to the stroke like the fray field, so
+ * going over an area again deepens the SAME hills rather than churning
+ * new ones — pressure, not shimmer.
+ */
+const NOISE_STEP = 0.14;
+function reliefAt(qx: number, qy: number): number {
+  return localNoise(qx, qy, 6, 1) * 0.65 + localNoise(qx, qy, 2.5, 2) * 0.35 - 0.5;
+}
+
 /**
  * One brush stamp at continuous grid point (cx, cy), replicated across the
  * kaleidoscope folds. Mutates state.map and returns the deduped indices of
@@ -113,6 +144,7 @@ export function applyBrush(
   // smooth falloff. Everything painted frays.
   const frayed = tool.kind === 'terrain' || (tool.kind === 'resource' && tool.res !== TileResource.None);
   const density = tool.kind === 'resource' ? (PAINT_DENSITY[tool.res] ?? 1) : 1;
+  const needsLocal = frayed || density < 1 || tool.kind === 'noise';
   const reach = frayed ? r * (FRAY_MIN + FRAY_SPAN) : r;
 
   // Where the fold discs overlap (near the map center) a tile belongs to
@@ -122,7 +154,9 @@ export function applyBrush(
   // is in the stamp if ANY copy's (frayed) edge reaches it; the union of
   // congruent lobes is itself symmetric.
   const anchor = o.anchor ?? { x: cx, y: cy };
-  const touched = new Map<number, number>(); // tile index -> min dist²
+  // tile index -> nearest fold's dist² plus that fold's stroke-local
+  // coords (the roughen tool reads its relief field there).
+  const touched = new Map<number, { d2: number; qx: number; qy: number }>();
   for (const step of foldBasis(o.folds)) {
     const c = rotatePoint(cx, cy, size, step);
     const a = rotatePoint(anchor.x, anchor.y, size, step);
@@ -136,14 +170,16 @@ export function applyBrush(
         const dy = y + 0.5 - c.y;
         const d2 = dx * dx + dy * dy;
         if (d2 > reach * reach) continue;
-        if (frayed || density < 1) {
+        let qx = 0;
+        let qy = 0;
+        if (needsLocal) {
           // The tile's offset in the stroke's own frame (anchored at the
           // stroke start, rotated back by this fold), so every copy sees
           // the same jitter field and it holds still under a drag.
           const ax = x + 0.5 - a.x;
           const ay = y + 0.5 - a.y;
-          const qx = ax * step.cos + ay * step.sin;
-          const qy = -ax * step.sin + ay * step.cos;
+          qx = ax * step.cos + ay * step.sin;
+          qy = -ax * step.sin + ay * step.cos;
           if (frayed) {
             const rEff = r * (FRAY_MIN + FRAY_SPAN * localHash(qx, qy, 3));
             if (d2 > rEff * rEff) continue;
@@ -154,14 +190,14 @@ export function applyBrush(
         }
         const i = tileIdx(x, y, size);
         const prev = touched.get(i);
-        if (prev === undefined || d2 < prev) touched.set(i, d2);
+        if (prev === undefined || d2 < prev.d2) touched.set(i, { d2, qx, qy });
       }
     }
   }
 
   const dirty: number[] = [];
-  for (const [i, d2] of touched) {
-    if (applyToTile(state, tool, i, Math.sqrt(d2) / r, o)) dirty.push(i);
+  for (const [i, t] of touched) {
+    if (applyToTile(state, tool, i, Math.sqrt(t.d2) / r, o, t.qx, t.qy)) dirty.push(i);
   }
 
   // Walkability follows immediately: no buildings exist while editing, so
@@ -183,13 +219,16 @@ function falloff(t: number): number {
   return inv * inv * (3 - 2 * inv);
 }
 
-/** Apply one tool to one tile; returns whether anything changed. */
+/** Apply one tool to one tile; returns whether anything changed.
+ * `qx`/`qy` are the tile's stroke-local coords (the roughen field). */
 function applyToTile(
   state: EditorMapState,
   tool: Tool,
   i: number,
   distNorm: number,
   o: BrushOptions,
+  qx: number,
+  qy: number,
 ): boolean {
   const { map } = state;
   switch (tool.kind) {
@@ -231,8 +270,12 @@ function applyToTile(
       map.resourceAmt[i] = 0;
       return true;
     }
-    case 'height': {
-      const step = (o.strength ?? HEIGHT_STEP) * tool.dir * falloff(distNorm);
+    case 'height':
+    case 'noise': {
+      const step =
+        tool.kind === 'noise'
+          ? NOISE_STEP * 2 * reliefAt(qx, qy) * falloff(distNorm)
+          : (o.strength ?? HEIGHT_STEP) * tool.dir * falloff(distNorm);
       if (step === 0) return false;
       const before = map.height[i]!;
       // The terrain tag stays authoritative: sculpting deepens or shoals a

@@ -52,8 +52,17 @@ export class BrushCursor {
     }
   }
 
-  /** Lay the rings for a hover at (x, y) in grid space. */
-  update(x: number, y: number, radius: number, folds: number, size: number, valid: boolean): void {
+  /** Lay the rings for a hover at (x, y) in grid space. `validAt` answers
+   * per copy — on a non-symmetric map an echo can sit over ground the
+   * brush will skip, and its ring must say so, not promise paint. */
+  update(
+    x: number,
+    y: number,
+    radius: number,
+    folds: number,
+    size: number,
+    validAt: (cx: number, cy: number) => boolean,
+  ): void {
     const steps = foldBasis(folds);
     for (let k = 0; k < MAX_RINGS; k++) {
       const ring = this.#rings[k]!;
@@ -66,7 +75,7 @@ export class BrushCursor {
       this.#lay(ring.positions, c.x, c.y, radius);
       const attr = ring.mesh.geometry.attributes.position as THREE.BufferAttribute;
       attr.needsUpdate = true;
-      ring.material.color.copy(valid || k > 0 ? NORMAL : INVALID);
+      ring.material.color.copy(validAt(c.x, c.y) ? NORMAL : INVALID);
       ring.mesh.visible = true;
     }
   }

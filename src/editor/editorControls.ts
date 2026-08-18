@@ -161,8 +161,9 @@ export class EditorControls {
       this.#cursor.hide();
       return;
     }
-    const valid = toolApplies(state, t, p.x, p.y);
-    this.#cursor.update(p.x, p.y, brushRadius(), activeFolds(), size, valid);
+    this.#cursor.update(p.x, p.y, brushRadius(), activeFolds(), size, (cx, cy) =>
+      toolApplies(state, t, cx, cy),
+    );
   }
 
   #onKey(e: KeyboardEvent): void {

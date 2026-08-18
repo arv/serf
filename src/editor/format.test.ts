@@ -73,6 +73,37 @@ describe('map file validation', () => {
     expect(() => parseEditorMap(fileOf((f) => (f.height[0] = Infinity)))).toThrow(/height/);
   });
 
+  it('rejects cross-field states the editor can never produce', () => {
+    // A resource standing in water.
+    expect(() =>
+      parseEditorMap(
+        fileOf((f) => {
+          f.terrain[0] = Terrain.Water;
+          f.resource[0] = TileResource.Wood;
+          f.resourceAmt[0] = 6;
+        }),
+      ),
+    ).toThrow(/non-grass/);
+    // A resource code with nothing left in it.
+    expect(() =>
+      parseEditorMap(
+        fileOf((f) => {
+          f.resource[0] = TileResource.Rock;
+          f.resourceAmt[0] = 0;
+        }),
+      ),
+    ).toThrow(/no amount/);
+    // An amount on an empty tile.
+    expect(() =>
+      parseEditorMap(
+        fileOf((f) => {
+          f.resource[0] = TileResource.None;
+          f.resourceAmt[0] = 5;
+        }),
+      ),
+    ).toThrow(/without a resource/);
+  });
+
   it('rejects starts that do not fit the seats or the play area', () => {
     expect(() => parseEditorMap(fileOf((f) => f.starts.pop()))).toThrow(/starts/);
     // (10, 40) is real grid ground, but scenery margin — not a legal start.

@@ -35,6 +35,7 @@ export const PALETTE: PaletteEntry[] = [
   { key: '9', label: 'Erase', group: 'resource', tool: { kind: 'resource', res: TileResource.None } },
   { key: 'r', label: 'Raise', group: 'height', tool: { kind: 'height', dir: 1 } },
   { key: 'f', label: 'Lower', group: 'height', tool: { kind: 'height', dir: -1 } },
+  { key: 'n', label: 'Roughen', group: 'height', tool: { kind: 'noise' } },
   { key: 's', label: 'Starts', group: 'start', tool: { kind: 'start' } },
 ];
 

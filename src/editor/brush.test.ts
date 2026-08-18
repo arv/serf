@@ -226,6 +226,34 @@ describe('organic edges and scatter', () => {
     expect(empty).toBeGreaterThanOrEqual(10); // ~25% of a 105-tile band
   });
 
+  it('the roughen brush rolls symmetric hills within the legal bands', () => {
+    const state = createBlankMap({ size: 64, players: 4 });
+    const size = state.map.size;
+    applyBrush(state, { kind: 'terrain', terrain: Terrain.Water }, 52, 46, { radius: 4, folds: 4 });
+    for (let n = 0; n < 6; n++) {
+      applyBrush(state, { kind: 'noise' }, 52, 46, { radius: 8, folds: 4 });
+    }
+    const rotH = rot90(state.map.height, size);
+    for (let i = 0; i < rotH.length; i++) {
+      expect(Math.abs(rotH[i]! - state.map.height[i]!)).toBeLessThan(1e-6);
+      if (state.map.terrain[i] === Terrain.Water) {
+        expect(state.map.height[i]!).toBeLessThanOrEqual(-0.4);
+      } else {
+        expect(state.map.height[i]!).toBeGreaterThanOrEqual(0.05);
+      }
+    }
+    // It actually moved ground both ways.
+    let up = 0;
+    let down = 0;
+    for (let i = 0; i < size * size; i++) {
+      if (state.map.terrain[i] !== Terrain.Grass) continue;
+      if (state.map.height[i]! > 0.36) up++;
+      if (state.map.height[i]! < 0.34) down++;
+    }
+    expect(up).toBeGreaterThan(0);
+    expect(down).toBeGreaterThan(0);
+  });
+
   it('the eraser stays a clean full disc', () => {
     const state = createBlankMap({ size: 64, players: 1 });
     applyBrush(state, { kind: 'resource', res: TileResource.Wood }, 64, 64, {
