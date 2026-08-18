@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { palette } from './palette';
+import { vermillion } from './palette';
 import type { SceneSync } from './sceneSync';
 import type { HeightField } from './heightField';
 
@@ -13,7 +13,7 @@ export class SelectionFx {
   #pool: THREE.Mesh[] = [];
   #geometry = new THREE.RingGeometry(0.26, 0.34, 24);
   #material = new THREE.MeshBasicMaterial({
-    color: palette.vermillion,
+    color: vermillion,
     side: THREE.DoubleSide,
     transparent: true,
     opacity: 0.9,

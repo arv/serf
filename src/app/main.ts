@@ -1043,7 +1043,7 @@ async function runMatch(
     // While a new hut is being aimed, the ghost's own outline is the one
     // that answers the question — two squares over the same ground, in two
     // colors, would only be read as a conflict.
-    selectedReach.update(placing() ? null : selectedBuilding());
+    selectedReach.update(placing() ? null : selectedBuilding(), mirror.map);
     controls.prune();
     selectionFx.update(controls.selected, sync, now);
     damageAlerts.update(now);

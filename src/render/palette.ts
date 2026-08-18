@@ -1,54 +1,95 @@
-import type { GoodId } from '../sim/defs/goods';
-
 /**
  * The game palette — the Warcraft/Settlers key: bright saturated meadow,
  * clear water, high warm sun, gentle blue haze. Every color in the game
- * comes from here so the scene stays in key. (Values are pre-tone-mapping;
- * the renderer applies ACES filmic.)
+ * comes from this file so the scene stays in key. (Values are
+ * pre-tone-mapping; the renderer applies ACES filmic.)
+ *
+ * One export per color rather than one object holding all of them: a mesh
+ * paints with two or three of these, and naming them at the import is both
+ * the shorter read at the point of use and an honest list of what a file
+ * puts on the screen.
  */
-export const palette = {
-  // World
-  grass: 0x55a02a, // base meadow green (ground planes, wardrobe fitting room)
-  grassDry: 0x8ba342, // olive meadow patches
-  water: 0x2f7e96,
-  waterShore: 0x58aec0,
-  waterDeep: 0x14526e, // the middle of the lake
-  earthTrail: 0x9b7d4e, // worn dirt
-  stoneRoad: 0x8f8878, // pavers
-  // Terrain painting: meadow hue range + bank/bed tones
-  grassLush: 0x5bb02f, // vivid comic green
-  grassOlive: 0x7a9e44,
-  grassGold: 0xaaa04e, // sun-dried patches
-  trampledEarth: 0x8d7146, // trodden ground around buildings
-  bankMoss: 0x3f6030, // mossy waterline
-  riverbed: 0x3c5638,
+import type { GoodId } from '../sim/defs/goods';
 
-  // Scatter
-  stalk: 0xa8c94f, // bright young stalk
-  stalkOld: 0x7fa03c,
-  leaf: 0x4f8f2a, // rich tuft green
-  leafDark: 0x2e6b1e,
-  rock: 0x8b8375, // warm grey
-  rockDark: 0x666055,
-  peakSnow: 0xedf2f4, // mountain caps
-  ironOre: 0x7a5c4f,
-  silverOre: 0xb9c0c8,
-  goldOre: 0xd4a93c,
+// ——— World ———
 
-  // Architecture — warm timber, pale plaster, cloth accents
-  paper: 0xefe3cc, // pale plaster walls
-  wood: 0x4a3220, // dark timber
-  woodLight: 0x7d5a35,
-  vermillion: 0xbf4342, // banners / accents
-  indigo: 0x30437a, // cloth
-  lantern: 0xffc46b, // glowing lanterns
+/** Base meadow green (ground planes, wardrobe fitting room). */
+export const grass = 0x55a02a;
+/** Olive meadow patches. */
+export const grassDry = 0x8ba342;
+export const water = 0x2f7e96;
+export const waterShore = 0x58aec0;
+/** The middle of the lake. */
+export const waterDeep = 0x14526e;
+/** Worn dirt. */
+export const earthTrail = 0x9b7d4e;
+/** Pavers. */
+export const stoneRoad = 0x8f8878;
 
-  // Atmosphere
-  skyLight: 0xcfe4f7, // hemisphere sky
-  groundBounce: 0x7f9a50, // green bounce light
-  background: 0x223526,
-  fog: 0x9cc0a8, // distant pale haze
-} as const;
+// ——— Terrain painting: meadow hue range + bank/bed tones ———
+
+/** Vivid comic green. */
+export const grassLush = 0x5bb02f;
+export const grassOlive = 0x7a9e44;
+/** Sun-dried patches. */
+export const grassGold = 0xaaa04e;
+/** Trodden ground around buildings. */
+export const trampledEarth = 0x8d7146;
+/** Mossy waterline. */
+export const bankMoss = 0x3f6030;
+export const riverbed = 0x3c5638;
+
+// ——— Scatter ———
+
+/** Bright young stalk. */
+export const stalk = 0xa8c94f;
+export const stalkOld = 0x7fa03c;
+/** Rich tuft green. */
+export const leaf = 0x4f8f2a;
+export const leafDark = 0x2e6b1e;
+/** Warm grey. */
+export const rock = 0x8b8375;
+export const rockDark = 0x666055;
+/** Mountain caps. */
+export const peakSnow = 0xedf2f4;
+export const ironOre = 0x7a5c4f;
+export const silverOre = 0xb9c0c8;
+export const goldOre = 0xd4a93c;
+
+// ——— Architecture — warm timber, pale plaster, cloth accents ———
+
+/** Pale plaster walls. */
+export const paper = 0xefe3cc;
+/** Dark timber. */
+export const wood = 0x4a3220;
+export const woodLight = 0x7d5a35;
+/** Banners / accents. */
+export const vermillion = 0xbf4342;
+/** Cloth. */
+export const indigo = 0x30437a;
+/** Glowing lanterns. */
+export const lantern = 0xffc46b;
+
+// ——— Atmosphere ———
+
+/** Hemisphere sky. */
+export const skyLight = 0xcfe4f7;
+/** Green bounce light. */
+export const groundBounce = 0x7f9a50;
+export const background = 0x223526;
+/** Distant pale haze. */
+export const fog = 0x9cc0a8;
+
+// ——— Verdicts ———
+
+/**
+ * Green for a placement that will work — or for ground that still has
+ * something on it — red for one that will not. Apart from the world colors
+ * above on purpose: those are the key the scene is painted in, and these
+ * two are feedback painted over it, in no key at all.
+ */
+export const verdictGood = 0x7fbf6a;
+export const verdictBad = 0xd45252;
 
 /** Color of a good when carried on a serf's shoulders (and in UI accents). */
 export const goodColors: Record<GoodId, number> = {

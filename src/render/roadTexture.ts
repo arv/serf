@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { palette } from './palette';
+import { stoneRoad } from './palette';
 
 /** Stone courses across one texture repeat; a repeat spans two map tiles. */
 const COURSES = 8;
@@ -17,7 +17,7 @@ export function makeCobbleTexture(): THREE.Texture {
   canvas.width = SIZE;
   canvas.height = SIZE;
   const ctx = canvas.getContext('2d')!;
-  const base = new THREE.Color(palette.stoneRoad);
+  const base = new THREE.Color(stoneRoad);
 
   // Mortar: the gaps between stones, and what shows through chipped corners.
   const mortar = base.clone().multiplyScalar(0.52);

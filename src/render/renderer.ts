@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { DEFAULT_MAP_SIZE, gridFor } from '../shared/grid';
-import { palette } from './palette';
+import { background, fog, groundBounce, skyLight } from './palette';
 import { CameraRig } from './cameraRig';
 
 /**
@@ -31,10 +31,10 @@ export class GameRenderer {
     this.#webgl.toneMapping = THREE.ACESFilmicToneMapping;
     this.#webgl.toneMappingExposure = 1.32;
 
-    this.scene.background = new THREE.Color(palette.background);
+    this.scene.background = new THREE.Color(background);
     this.rig = new CameraRig(canvas, interactive);
 
-    const hemi = new THREE.HemisphereLight(palette.skyLight, palette.groundBounce, 1.05);
+    const hemi = new THREE.HemisphereLight(skyLight, groundBounce, 1.05);
     this.scene.add(hemi);
 
     const sun = new THREE.DirectionalLight(0xfff1cf, 2.7);
@@ -86,7 +86,7 @@ export class GameRenderer {
     // middle too, the margin being symmetric. Bright stylized daylight:
     // distant pale haze that swallows the far scenery before the grid
     // runs out.
-    this.scene.fog = new THREE.Fog(palette.fog, play + 60, play * 2 + 140);
+    this.scene.fog = new THREE.Fog(fog, play + 60, play * 2 + 140);
     const sun = this.#sun;
     const mid = grid / 2;
     sun.position.set(mid - 28, 55, mid + 18);

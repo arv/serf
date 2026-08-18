@@ -3,7 +3,7 @@ import { tileCount, tileIdx } from '../shared/grid';
 import { clamp } from '../shared/math';
 import { playMax, playMin, type PlayArea } from '../sim/map';
 import { AUX_STRIDE, ACTION, type SabReader } from '../protocol/sabLayout';
-import { palette } from './palette';
+import { background } from './palette';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { buildingSight } from '../sim/visibility';
 import type { BuildingSnap } from '../protocol/messages';
@@ -162,7 +162,7 @@ export class FogOfWar implements FogQuery {
     // geometry at all the background already shows, and anything else
     // leaves the map's edge legible as a shape. Encoded to sRGB because
     // this lands after the color-space conversion, on the final pixel.
-    const unknown = new THREE.Color(palette.background).convertLinearToSRGB();
+    const unknown = new THREE.Color(background).convertLinearToSRGB();
     this.#uniforms = {
       uFogTex: { value: this.#texture },
       uFogSize: { value: size },
