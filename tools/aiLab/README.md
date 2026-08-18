@@ -84,22 +84,83 @@ and excluded, never awarded. Crashed trials are printed next to the rate.
 | `script:{...}` | one fixed reply forever — plumbing checks, personality experiments |
 | `http://…/v1` | any OpenAI-compatible server (llama-server, Ollama, LM Studio, vLLM); `--model` names the model, `OPENAI_API_KEY` is sent if set |
 
-## First measurements (2026-08-18, seeds 1-24, shipped settings)
+## Measurements (2026-08-18, map 96, bandits on, `steward` both seats)
 
-Both baselines, run at 24 seeds on the default 96 map with bandits on:
+### The baselines
 
-- **`none`** scored **exactly 50.0%** (23/46, CI [36.1%, 63.9%]) with zero
-  flips — the calibration holds. The same run measured the valley itself:
-  seat 1 won 65% of the seeds, which is the map bias the mirroring exists
-  to cancel, and 2 of 24 seeds never decided inside 120k ticks.
-- **`random`** scored **46.7%** (21/45, CI [32.9%, 60.9%]) with 11 flips
-  (5 toward the advised seat, 6 away): random knob-turning genuinely
-  changes who wins about a quarter of the time while helping nobody on
-  net. That is the noise floor — a model earns its download by beating
-  *this*, not by beating 50% alone.
+- **`none`** scored **exactly 50.0%** at both 8 and 24 seeds, with zero
+  flips — the calibration holds. The 24-seed run also measured the valley
+  itself: seat 1 won 65% of seeds, which is the map bias the mirroring
+  exists to cancel.
+- **`random`** scored **46.7%** (24 seeds), **46.6%** (seeds 1-40) and
+  **47.0%** (seeds 1-80) — three independent reads on one number, which
+  is the best evidence the harness is stable. Random knob-turning flips
+  about a quarter of matches while helping nobody on net. That is the
+  floor: a model earns its download by beating *this*, not 50% alone.
 
-Numbers this wide (±14pp) are the 24-seed resolution; treat them as
-reference points, not verdicts.
+### Authoring knobs does not work at this size
+
+The original prompt asked the model to emit knob values. Seeds 1-40:
+
+| engine | advised win rate | 95% CI | |
+| --- | --- | --- | --- |
+| `qwen2.5-0.5b` | **33.8%** (26/77) | [24.2%, 44.9%] | below the floor — advice HURTS |
+| `lfm2.5-350m` | 50.0% (38/76) | [39.0%, 61.0%] | measured nothing at all |
+
+Qwen flipped matches *away* from the advised seat 13 times against 2
+toward. Lfm's 50.0% is not a tie: all 80 of its advised matches ended on
+the identical winner and identical tick count as their controls, because
+across 862 consultations it emitted two distinct strings — one of them
+the playbook's own `trainPreference` restated. Read the flip counts, not
+the win rate: "50.0% with zero flips" and "50.0% with balanced flips"
+print the same headline and mean completely different things.
+
+### Choosing a posture does
+
+Same models, same seeds, same pipeline — only the ask changed, from
+authoring eleven numbers to naming one of five stances (`src/ai/posture.ts`).
+
+| engine | advised win rate | 95% CI | vs `random`, paired |
+| --- | --- | --- | --- |
+| `posture:siege` (constant) | **68.4%** (52/76) | [57.3%, 77.8%] | **p = 0.0015** |
+| `http` lfm2.5-350m | **63.4%** (45/71) | [51.8%, 73.6%] | **p = 0.0225** |
+| `posture:muster` (constant) | 60.8% (45/74) | [49.4%, 71.1%] | — |
+| `posture` (rule, seeds 1-40) | 60.0% (45/75) | [48.7%, 70.3%] | p = 0.21 |
+| `posture` (rule, seeds 1-80) | 58.3% (84/144) | [50.2%, 66.1%] | p = 0.080 |
+| `posture:expand` (constant) | 50.0% (39/78) | [39.2%, 60.8%] | — |
+| `random` (seeds 1-80) | 47.0% (70/149) | [39.1%, 55.0%] | — |
+
+The same 350M model that measured nothing as a knob-author clears both
+the 50% null and the noise floor as a stance-picker. Nothing about the
+weights changed; the task did.
+
+### What the sweeps taught about the valley
+
+- **Aggression wins here.** `siege` and `muster` are the two strongest
+  stances and are not separable from each other (p = 0.38), while both
+  beat `expand` (siege vs expand, p = 0.0024). Matches resolve in about
+  eleven minutes, so an economy stance spends the deciding window paying
+  for growth that never gets to fight. The printed `steward` line is too
+  passive: `prefersRivals: false` sends the army to bandit camps, and
+  `armyAttackSize: 7` on a 900-tick cooldown commits too little too late.
+- **A rule can lose to its own best constant.** The first `choosePosture`
+  draft — grow while small, raid while nothing is found, siege once
+  strong — scored 51.3% and did not beat `random` at all (p = 0.63),
+  while the `siege` constant it could have chosen scored 68.4%. Retuning
+  the cascade toward the aggressive end took it to 58.3% at 80 seeds,
+  the whole interval above 50%. Intuition about which situation "calls
+  for" economy was simply wrong, and only the ablation showed it.
+- **The model does not pick the best stance.** Over 1300 consultations
+  lfm chose `muster` 47%, `fortify` 40%, `expand` 13% — and `siege`,
+  the strongest stance, never once. Its score tracks `muster`, which is
+  roughly what a muster-heavy mix should score. Whatever it is reading,
+  it is not finding the aggressive end of the menu; prompt ordering and
+  the wording of each `when` line are the obvious things to try next.
+
+Resolution: 40 seeds is ±11pp, 80 seeds ±8pp, and ±5pp would need ~193
+seeds. Treat single-run gaps under ~10pp as unresolved and reach for
+`bakeoff:compare` — the paired test separates runs these intervals
+cannot.
 
 ## Comparing two models
 
@@ -113,7 +174,10 @@ pnpm bakeoff:compare runs/qwen.jsonl runs/lfm.jsonl
 joins the runs on (seed, advised seat), discards the pairs where both
 models' trials came out the same (they carry no evidence either way), and
 runs an exact McNemar test on the discordant remainder. On forty seeds
-this can separate models whose Wilson intervals overlap hopelessly.
+this can separate models whose Wilson intervals overlap hopelessly — it
+is how `posture:siege` was shown to beat both the first `choosePosture`
+draft (p = 0.012) and the noise floor (p = 0.0015) on runs whose
+intervals overlap across their whole width.
 
 ## Output
 
