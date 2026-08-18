@@ -45,7 +45,7 @@ function makeMistTexture(): THREE.Texture {
 export class Mist {
   readonly group = new THREE.Group();
   #wisps: Wisp[] = [];
-  /** Null (the menu backdrop has no fog) = everything lit. */
+  /** Never set = everything lit; the menu backdrop has no fog to give. */
   #fog: FogQuery | null = null;
 
   /** Dim each wisp by the fog at its position. Sprites cannot take the
