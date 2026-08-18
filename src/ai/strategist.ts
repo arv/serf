@@ -19,6 +19,11 @@ import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
  * threads wllama wants come free here: the app already ships
  * cross-origin isolation for its SharedArrayBuffer hot path.
  *
+ * CPU takes saying so: wllama defaults n_gpu_layers to 99999, so wherever
+ * WebGPU exists it quietly puts the whole model back on the GPU — weight
+ * upload wedges the compositor for a second, and every consultation after
+ * that drops frames exactly like the WebLLM cut did. GPU_LAYERS pins it.
+ *
  * Built to lose gracefully, because everything about it is best-effort:
  * the model is a ~400 MB download that may never finish, inference may
  * time out or return nonsense. So the brain never waits — it plays its
@@ -50,6 +55,9 @@ const MAX_TOKENS = 128;
 /** Room for the ~900-token prompt and the reply, nothing more — context
  * is memory, and llama.cpp allocates it up front. */
 const N_CTX = 2048;
+/** Zero, always: the GPU belongs to the renderer (see the header). Left
+ * unset, wllama offloads every layer to WebGPU when the browser has it. */
+export const GPU_LAYERS = 0;
 
 /** Wasm threads want SharedArrayBuffer, which the app's cross-origin
  * isolation already guarantees everywhere it boots at all. */
@@ -266,6 +274,7 @@ export class LlmStrategist {
     await sweepPartialModel(wllama.cacheManager);
     await wllama.loadModelFromUrl(LLM_MODEL_URL, {
       n_ctx: N_CTX,
+      n_gpu_layers: GPU_LAYERS,
       progressCallback: ({ loaded, total }) => {
         if (!this.#disposed && total > 0) {
           this.#opts.onStatus({
