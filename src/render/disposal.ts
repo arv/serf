@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { glbDoodads, glbRocks, glbTrees } from './assets';
+import { glbDoodads, glbForest, glbRocks, glbTrees } from './assets';
 
 /**
  * Free the GPU resources of a scatter-style subtree without touching the
@@ -36,6 +36,12 @@ export function disposeOwnedSubtree(root: THREE.Object3D): void {
     shared.add(doodads.lily);
     shared.add(doodads.reed);
     shared.add(doodads.material);
+  }
+  const forest = glbForest();
+  if (forest) {
+    for (const g of forest.bushes) shared.add(g);
+    for (const g of forest.deadTrees) shared.add(g);
+    shared.add(forest.material);
   }
 
   root.traverse((o) => {

@@ -112,6 +112,14 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   teardown.push(() => canvas.replaceWith(canvas.cloneNode(false)));
   const renderer = new GameRenderer(canvas, true);
   teardown.push(() => renderer.dispose());
+  // The same console handles the match and the wardrobe expose: scatter
+  // and terrain forensics happen here too.
+  if (import.meta.env.DEV) {
+    Object.assign(window as unknown as Record<string, unknown>, {
+      __scene: renderer.scene,
+      __rig: renderer.rig,
+    });
+  }
   // The editor's zoom bounds cover the whole grid (setPlayBounds below
   // widens the pan box to match), so the entire world fits in one frame.
   renderer.rig.setMaxViewFraction(1.0);

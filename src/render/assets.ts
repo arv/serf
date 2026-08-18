@@ -157,8 +157,13 @@ interface Assets {
   /** Water doodads: a flat lily pad (unit span) and a reed clump (unit height). */
   lily: THREE.BufferGeometry;
   reed: THREE.BufferGeometry;
+  /** Forest pack: leafy shrubs (unit span) and bare trunks (unit height). */
+  bushes: THREE.BufferGeometry[];
+  deadTrees: THREE.BufferGeometry[];
   /** Shared palette-textured material for trees and rocks. */
   natureMaterial: THREE.Material;
+  /** The forest pack's own palette sheet. */
+  forestMaterial: THREE.Material;
   /** Loaded pack prop scenes (wheelbarrow, resource piles...). */
   props: Map<string, THREE.Group>;
 }
@@ -270,6 +275,24 @@ export async function loadGlbAssets(): Promise<boolean> {
     // Natural dressing the scatter system strews on its own: lily pads on
     // still shallows, reed clumps against the banks.
     const DOODAD_FILES = ['waterlily_A.gltf', 'waterplant_A.gltf'];
+    // KayKit's Forest Nature pack (CC0, see forest/LICENSE.txt), vendored
+    // a few models at a time: leafy shrubs for the woodland fringes and
+    // bare trunks for the dry ground. Its own palette texture, so these
+    // ride a material of their own.
+    // The leafy variants, not the pack's blobby ones: a 56-triangle cube
+    // of a shrub reads as a green crate at this camera distance.
+    const FOREST_BUSH_FILES = [
+      'forest/Bush_1_E_Color1.gltf',
+      'forest/Bush_1_F_Color1.gltf',
+      'forest/Bush_1_G_Color1.gltf',
+      'forest/Bush_2_E_Color1.gltf',
+    ];
+    // Slender snags only: the pack's sprawling variants are as wide as
+    // they are tall and read as orange stumps at map scale.
+    const FOREST_DEAD_FILES = [
+      'forest/Tree_Bare_2_A_Color1.gltf',
+      'forest/Tree_Bare_2_B_Color1.gltf',
+    ];
     const loaded = new Map<string, THREE.Group>();
     await Promise.all(
       [
@@ -277,6 +300,8 @@ export async function loadGlbAssets(): Promise<boolean> {
         ...TREE_FILES,
         ...ROCK_FILES,
         ...DOODAD_FILES,
+        ...FOREST_BUSH_FILES,
+        ...FOREST_DEAD_FILES,
         ...DECOR_PROP_FILES.map((p) => `${p}.gltf`),
       ].map(async (f) => {
         const gltf = await loadGltfRetry(loader, `${DIR}${f}`);
@@ -296,13 +321,20 @@ export async function loadGlbAssets(): Promise<boolean> {
     );
 
     let natureMap: THREE.Texture | null = null;
+    /** The forest pack ships its own palette sheet; keep it apart. */
+    let forestMap: THREE.Texture | null = null;
     // Normalize: base at 0, and unit HEIGHT for tall things (trees) or unit
     // FOOTPRINT for ground clutter — the pack is authored for hex tiles, so
     // rocks are wider than they are tall and must be sized by span or they
     // overhang our square tiles (and clip the workers beside them).
-    const bakeNormalized = (f: string, bySpan = false): THREE.BufferGeometry => {
+    const bakeNormalized = (
+      f: string,
+      bySpan = false,
+      pack: 'nature' | 'forest' = 'nature',
+    ): THREE.BufferGeometry => {
       const { geometry: geo, map } = bakeToGeometry(loaded.get(f)!);
-      natureMap ??= map;
+      if (pack === 'forest') forestMap ??= map;
+      else natureMap ??= map;
       geo.computeBoundingBox();
       const tb = geo.boundingBox!;
       geo.translate(-(tb.min.x + tb.max.x) / 2, -tb.min.y, -(tb.min.z + tb.max.z) / 2);
@@ -318,7 +350,12 @@ export async function loadGlbAssets(): Promise<boolean> {
     // Lily pads lie flat (span-normalized like rocks); reeds stand (height).
     const lily = bakeNormalized('waterlily_A.gltf', true);
     const reed = bakeNormalized('waterplant_A.gltf');
+    // Shrubs are wider than tall — span-normalized, like the boulders.
+    // Bare trunks are tall things, sized by height like the live trees.
+    const bushes = FOREST_BUSH_FILES.map((f) => bakeNormalized(f, true, 'forest'));
+    const deadTrees = FOREST_DEAD_FILES.map((f) => bakeNormalized(f, false, 'forest'));
     const natureMaterial = new THREE.MeshLambertMaterial({ map: natureMap });
+    const forestMaterial = new THREE.MeshLambertMaterial({ map: forestMap });
 
     /** A prop clone scaled by footprint span, keeping its own y origin —
      * for props that are meant to sit into the ground rather than on it. */
@@ -531,7 +568,18 @@ export async function loadGlbAssets(): Promise<boolean> {
       const scene = loaded.get(`${p}.gltf`);
       if (scene) props.set(p, scene);
     }
-    assets = { buildings, trees, rocks, lily, reed, natureMaterial, props };
+    assets = {
+      buildings,
+      trees,
+      rocks,
+      lily,
+      reed,
+      bushes,
+      deadTrees,
+      natureMaterial,
+      forestMaterial,
+      props,
+    };
     return true;
   }
 }
@@ -642,6 +690,19 @@ export function glbDoodads(): {
 } | null {
   if (!assets) return null;
   return { lily: assets.lily, reed: assets.reed, material: assets.natureMaterial };
+}
+
+/**
+ * Forest-pack scenery for the scatter system: leafy shrubs and bare dead
+ * trunks, on the pack's own palette material. Null before load.
+ */
+export function glbForest(): {
+  bushes: THREE.BufferGeometry[];
+  deadTrees: THREE.BufferGeometry[];
+  material: THREE.Material;
+} | null {
+  if (!assets) return null;
+  return { bushes: assets.bushes, deadTrees: assets.deadTrees, material: assets.forestMaterial };
 }
 
 /** Tinted nature materials for yard rocks, cached per color. */

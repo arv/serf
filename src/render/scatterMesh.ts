@@ -11,7 +11,7 @@ import {
   makeStalkTexture,
   makeLeafSprite,
 } from './spriteTextures';
-import { glbDoodads, glbRocks, glbTrees } from './assets';
+import { glbDoodads, glbForest, glbRocks, glbTrees } from './assets';
 import type { HeightField } from './heightField';
 
 /**
@@ -112,6 +112,9 @@ export class ScatterMesh {
   #treeSpecies = 0;
   #rockSpecies = 0;
   #doodads = false;
+  #forest = false;
+  #bushSpecies = 0;
+  #deadSpecies = 0;
 
   /**
    * Does scatter on this tile pay for the shadow pass? The playable field
@@ -155,6 +158,7 @@ export class ScatterMesh {
     const pebbleTiles: number[] = [];
     const bushTiles: number[] = [];
     const flowerTiles: number[] = [];
+    const deadTreeTiles: number[] = [];
     for (let i = 0; i < tiles; i++) {
       const res = map.resource[i];
       if (res === TileResource.Wood) {
@@ -174,7 +178,14 @@ export class ScatterMesh {
         // Scrub gathers where the woods thin out (a grove next door) and
         // strays sparsely across the open meadow.
         else if (hash2(i, 461) < (touchesWood(map, i) ? 0.28 : 0.02)) bushTiles.push(i);
-        else if (map.height[i]! < 1.0 && hash2(i, 463) < 0.06) flowerTiles.push(i);
+        // A bare trunk here and there on the dry high ground, and the odd
+        // snag standing at a treeline. Rare on purpose: one is scenery,
+        // a field of them is a graveyard.
+        else if (
+          hash2(i, 491) < (map.height[i]! > 0.75 ? 0.012 : touchesWood(map, i) ? 0.02 : 0.002)
+        ) {
+          deadTreeTiles.push(i);
+        } else if (map.height[i]! < 1.0 && hash2(i, 463) < 0.06) flowerTiles.push(i);
       }
       if (
         map.terrain[i] === Terrain.Rock &&
@@ -274,16 +285,34 @@ export class ScatterMesh {
         receiveShadow: false,
       });
     }
-    // Scrub: painted crossed quads, like the grass and leaf sprays. A
-    // squashed GLB tree was the cheaper idea and looked it — flattening
-    // the trunk with the canopy reads as a stepped-on tree.
-    this.#addArchetype(
-      'bush',
-      crossedQuads(1.05, 0.8),
-      foliageMaterial(makeBushSprite()),
-      bushTiles.length * 2,
-      { receiveShadow: false },
-    );
+    // Scrub and deadfall: the forest pack's own models when it loaded,
+    // painted crossed quads otherwise. (Squashing a live tree to shrub
+    // height was the first idea and looked it — flattening the trunk with
+    // the canopy reads as a stepped-on tree, not a bush.)
+    const forest = glbForest();
+    this.#forest = forest !== null;
+    this.#bushSpecies = forest?.bushes.length ?? 0;
+    this.#deadSpecies = forest?.deadTrees.length ?? 0;
+    if (forest) {
+      forest.bushes.forEach((geo, i) => {
+        this.#addArchetype(`bush${i}`, geo, forest.material, bushTiles.length * 2, {
+          receiveShadow: false,
+        });
+      });
+      forest.deadTrees.forEach((geo, i) => {
+        this.#addArchetype(`dead${i}`, geo, forest.material, deadTreeTiles.length, {
+          receiveShadow: false,
+        });
+      });
+    } else {
+      this.#addArchetype(
+        'bush',
+        crossedQuads(1.05, 0.8),
+        foliageMaterial(makeBushSprite()),
+        bushTiles.length * 2,
+        { receiveShadow: false },
+      );
+    }
     this.#addArchetype(
       'flower',
       crossedQuads(0.5, 0.4),
@@ -336,6 +365,12 @@ export class ScatterMesh {
     for (const i of bushTiles) {
       this.#placeBushes(i);
       this.#cosmetic.add(i);
+    }
+    if (this.#forest) {
+      for (const i of deadTreeTiles) {
+        this.#placeDeadTree(i);
+        this.#cosmetic.add(i);
+      }
     }
     for (const i of flowerTiles) {
       this.#placeFlowers(i);
@@ -558,33 +593,67 @@ export class ScatterMesh {
     }
   }
 
-  /** Scrub: a painted leafy clump, sized between grass and a young tree. */
+  /** Scrub: a leafy clump, sized between grass and a young tree. */
   #placeBushes(tile: number): void {
     const tx = tileX(tile, this.#size);
     const ty = tileY(tile, this.#size);
+    const modeled = this.#forest;
     for (let k = 0; k < 2; k++) {
       if (k === 1 && hash2(tile, 465) < 0.55) continue;
       const jx = 0.2 + hash2(tile * 2 + k, 467) * 0.6;
       const jz = 0.2 + hash2(tile * 2 + k, 468) * 0.6;
-      const s = 0.62 + hash2(tile + k, 469) * 0.5;
+      // The models are span-normalized (a unit footprint), so this is how
+      // much of a tile a shrub covers — well under half, or it reads as a
+      // hedge. The sprite is sized by its own height instead.
+      const s = modeled ? 0.34 + hash2(tile + k, 469) * 0.24 : 0.62 + hash2(tile + k, 469) * 0.5;
       const warm = hash2(tile + k, 470);
+      const species = (hash2(tile * 2 + k, 466) * this.#bushSpecies) | 0;
       this.#put(
-        'bush',
+        modeled ? `bush${species}` : 'bush',
         tile,
         tx + jx,
-        // The sprite's roots sit at its bottom edge; lift by half its
-        // height so the clump stands ON the ground, not half sunk in it.
-        this.#heights.at(tx + jx, ty + jz) + 0.4 * s,
+        // A model's feet are its origin; the sprite is centered, so it
+        // lifts half its height to stand ON the ground, not sunk in it.
+        this.#heights.at(tx + jx, ty + jz) + (modeled ? -0.02 : 0.4 * s),
         ty + jz,
+        modeled ? s * (0.9 + hash2(tile + k, 473) * 0.4) : s,
         s,
-        s,
-        hash2(tile + k, 472) * Math.PI,
+        hash2(tile + k, 472) * Math.PI * (modeled ? 2 : 1),
         0xffffff,
-        // Mostly greens with the odd dusty or turning shrub.
-        warm > 0.86 ? 0.3 : warm * 0.18,
-        warm > 0.86 ? 0xc0a458 : 0x86a860,
+        // The forest pack's foliage is a bright lime against this game's
+        // deeper woodland greens, so the models are pulled well down
+        // toward the valley's own palette; the odd shrub turns dusty.
+        modeled ? (warm > 0.88 ? 0.6 : 0.45 + warm * 0.25) : warm > 0.86 ? 0.3 : warm * 0.18,
+        modeled && warm > 0.88 ? 0xa89a5e : modeled ? 0x4f7a34 : 0x86a860,
       );
     }
+  }
+
+  /** A bare trunk: dry-ground scenery, one per tile, never in a stand. */
+  #placeDeadTree(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    const species = (hash2(tile, 492) * this.#deadSpecies) | 0;
+    const jx = 0.3 + hash2(tile, 493) * 0.4;
+    const jz = 0.3 + hash2(tile, 494) * 0.4;
+    const h = 1.3 + hash2(tile, 495) * 0.9;
+    this.#put(
+      `dead${species}`,
+      tile,
+      tx + jx,
+      this.#heights.at(tx + jx, ty + jz),
+      ty + jz,
+      h,
+      h * (0.75 + hash2(tile, 496) * 0.3),
+      hash2(tile, 497) * Math.PI * 2,
+      0xffffff,
+      // Instance color multiplies the palette, so it can darken bark but
+      // never desaturate it: the pack's bare wood is a hot orange, and
+      // only a heavy, cool multiply brings it down to weathered timber.
+      0.7 + hash2(tile, 498) * 0.2,
+      0x655e50,
+      (hash2(tile, 499) - 0.5) * 0.09,
+    );
   }
 
   /** Wildflower clumps on the lush meadow, tinted bloom by bloom. */
