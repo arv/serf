@@ -43,6 +43,10 @@ export const palette = {
   indigo: 0x30437a, // cloth
   lantern: 0xffc46b, // glowing lanterns
 
+  // Verdicts — the green/red pair the ghost and the reach outline both wear
+  verdictGood: 0x7fbf6a,
+  verdictBad: 0xd45252,
+
   // Atmosphere
   skyLight: 0xcfe4f7, // hemisphere sky
   groundBounce: 0x7f9a50, // green bounce light
