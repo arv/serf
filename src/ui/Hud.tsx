@@ -255,6 +255,64 @@ export function Hud(props: {
            Glass panels rgba(14,16,15,0.72) + blur, hairline borders,
            one gold accent #e5c469 for active states. */
         #ui { font-family: 'Space Grotesk', system-ui, sans-serif; }
+
+        /* ——— Standing still ———
+           One rule decides this layout: the HUD may re-flow when the
+           player acts on it, and never when the world merely ticks
+           underneath. A stock rolling over from 9 to 10, a ping coming
+           back 30ms slower, a worker finally reaching its post — none
+           of those may move a control the player is already reaching
+           for. Three habits carry the rule:
+             · every live number sits in a slot cut for its widest
+               value (.num), so the digits change inside a fixed box
+             · everything that comes and goes mid-match lives in a rail
+               — a top-anchored column growing down into empty sky —
+               rather than inside a strip whose neighbours it would
+               shove sideways
+             · cards that hold controls are sized by their frame, not
+               by their contents, and a control that doesn't apply
+               right now keeps its space rather than closing the gap. */
+        #ui {
+          /* One build button's cell. The ribbon is a grid of these, so
+             every tab draws the same card and every button holds its
+             place whatever its label turns out to say. */
+          --build-col: 150px;
+          --build-row: 33px;
+          /* The selection card's frame. Fixed, so a status line
+             growing a word doesn't drag the Sell button sideways. */
+          --sel-w: 430px;
+        }
+        /* A number that changes while you watch it: right-aligned in a
+           slot wide enough for its largest value. The digits move, the
+           box doesn't, and nothing downstream of it notices. */
+        #ui .num {
+          display: inline-block;
+          text-align: right;
+          font-variant-numeric: tabular-nums;
+        }
+
+        /* ——— The three rails ———
+           Everything transient — the research chip, connection
+           trouble, the festival banner, toasts, the strategist's
+           health line, the campaign checklist — hangs in one of three
+           top-anchored columns instead of at some absolute top: of its
+           own. Before this they all guessed at 56px and landed on each
+           other: the mission checklist under the strategist badge, the
+           festival banner under the debug table. In a rail they stack
+           in flow order, an arrival pushes only what is below it, and
+           the growth runs downward into the map — the one direction
+           with nothing to disturb. */
+        .hud-rail {
+          position: absolute; top: 0;
+          display: flex; flex-direction: column; gap: 6px;
+          pointer-events: none;
+        }
+        .hud-rail > * { pointer-events: auto; }
+        .hud-rail.left { left: 0; align-items: flex-start; }
+        .hud-rail.center { left: 50%; transform: translateX(-50%); align-items: center; }
+        /* Toasts share this rail, and they are the reason for the
+           number: a notice must read over an end card's scrim. */
+        .hud-rail.right { right: 0; align-items: flex-end; z-index: 36; }
         #ui .panel {
           background: rgba(14, 16, 15, 0.72);
           -webkit-backdrop-filter: blur(14px);
@@ -326,10 +384,11 @@ export function Hud(props: {
              30     notices that outrank an open sheet: net trouble
              35     end-of-match cards, which outrank everything but the two
                     layers that must land on them: toasts and tips
-             36     toasts — "Replay saved" answers a button on an end card,
-                    so it has to read over the card's scrim
-             37     the ☰ menu — it shares the top-right corner with the
-                    toasts, and a notification sliding in over the buttons
+             36     the right rail — toasts live in it, and "Replay saved"
+                    answers a button on an end card, so it has to read
+                    over the card's scrim
+             37     the ☰ menu — it drops into the same corner the right
+                    rail fills, and a notice sliding in over the buttons
                     the player is aiming at would also steal their clicks.
                     Numerically this puts the menu over the end cards too,
                     which the cards must not allow; an effect below closes
@@ -340,14 +399,28 @@ export function Hud(props: {
            and showModal() lifts it into the browser's top layer, over
            every number above. */
 
-        /* Wrapper for the two top strips: invisible on desktop (children
-           keep their absolute spots), a flow column on phones so they can
-           stack in either order without measuring each other. */
-        .hud-top { position: absolute; inset: 0; pointer-events: none; }
+        /* ——— The top region ———
+           A grid, so nothing up here has to guess at anyone else's
+           size. Row one is the goods strip beside the chrome; row two
+           is the rest of the screen, which the rails hang from. Every
+           number this used to need is now a consequence of the layout:
+           the strip no longer reserves 240px for a cluster whose real
+           width is 179, and the rails no longer start at a hardcoded
+           56px that a strip wrapping to two rows would have run
+           straight through. */
+        .hud-top {
+          position: absolute; inset: 12px;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          grid-template-rows: auto minmax(0, 1fr);
+          column-gap: 12px; row-gap: 8px;
+          pointer-events: none;
+        }
+        .hud-rails { grid-column: 1 / -1; grid-row: 2; position: relative; }
 
         .hud-resources {
-          position: absolute; top: 12px; left: 12px; right: 240px;
-          display: flex; justify-content: center; pointer-events: none;
+          grid-column: 1; grid-row: 1;
+          display: flex; justify-content: center; min-width: 0;
         }
         .hud-resources > div {
           pointer-events: auto; max-width: 100%;
@@ -358,9 +431,16 @@ export function Hud(props: {
           display: inline-flex; align-items: center; gap: 6px;
           padding: 3px 9px; border-radius: 8px;
           font-size: 13.5px; font-weight: 500; color: #e9e6dd;
-          font-variant-numeric: tabular-nums;
           opacity: 0.35;
         }
+        /* Three digits' worth of slot per good. This strip sits dead
+           centre and every count in it changes on its own, so without
+           a fixed slot one barn filling past 99 walks all fourteen
+           chips sideways — the most-watched row on screen, twitching
+           at whatever rate the village happens to produce. Wrapping
+           settles for the same reason: the break lands in the same
+           place every time, because the widths never move. */
+        .hud-resources span.res .num { min-width: 3ch; }
         .hud-resources span.res:hover { background: rgba(255, 255, 255, 0.06); }
         .hud-resources span.res.has { opacity: 1; }
         /* Heads and beds. Ruled off from the goods because it is not one —
@@ -370,10 +450,19 @@ export function Hud(props: {
           border-left: 1px solid rgba(255, 255, 255, 0.14);
           color: #c8c4b5;
         }
+        .hud-resources span.res.pop .num { min-width: 3ch; }
+        /* The cap is the right-hand half of "8/10": left-aligned so the
+           slash stays put between two slots that each grow outward. */
+        .hud-resources span.res.pop .num.cap { text-align: left; }
         .hud-resources span.res.pop.full { color: #e5c469; }
+        /* Research lives in the centre rail, not in the goods strip.
+           It comes and goes with a click on the abbey, and inside the
+           strip its arrival shunted every good sideways by half a chip
+           — a strip that rearranges itself the moment you start a
+           study is a strip you cannot read at a glance. */
         .research-chip {
           position: relative; overflow: hidden;
-          margin-left: 6px; padding: 3px 11px !important;
+          padding: 3px 11px !important;
           font-size: 12px; border-radius: 8px !important;
         }
         .research-chip .fill {
@@ -384,10 +473,6 @@ export function Hud(props: {
         .research-chip .label { position: relative; }
 
         .hud-nettrouble {
-          position: absolute;
-          top: 70px;
-          left: 50%;
-          transform: translateX(-50%);
           padding: 8px 18px;
           color: #e8b7a0;
           z-index: 30;
@@ -398,10 +483,35 @@ export function Hud(props: {
           padding: 0 8px;
           align-self: center;
         }
+        /* Four digits of round-trip, right-aligned. It updates every
+           ping, and it used to sit left of the ☰ inside one right-hand
+           cluster: a lucky 9ms reply moved the menu button a whole
+           character to the right, under a cursor already travelling
+           to it. */
+        #ui .net-chip .num { min-width: 4ch; }
+
+        /* ——— Top-right chrome ———
+           Two boxes, not one. The ☰ is the fixed point: last in a
+           right-anchored row, so nothing that appears to its left can
+           push it. The speed cluster's right edge is pinned the same
+           way, with the buttons at that end and the informational
+           chips — ping, Replay, the fog eye — filling in leftward.
+           Every control keeps its pixel; only the labels drift, and
+           they drift into empty sky. */
+        .hud-chrome {
+          grid-column: 2; grid-row: 1;
+          display: flex; align-items: flex-start; gap: 8px;
+          pointer-events: none;
+        }
+        .hud-chrome > * { pointer-events: auto; }
+        #ui .hud-menu-btn {
+          width: 38px; height: 38px; padding: 0;
+          display: grid; place-items: center;
+          border-radius: 12px;
+        }
         .hud-speed {
-          position: absolute; top: 12px; right: 12px;
           display: flex; align-items: center; gap: 4px;
-          padding: 5px 6px; border-radius: 12px; pointer-events: auto;
+          padding: 5px 6px; border-radius: 12px;
         }
         #ui .hud-speed button {
           background: transparent; border: none; border-radius: 8px;
@@ -412,8 +522,13 @@ export function Hud(props: {
         #ui .hud-speed button.active { background: #e5c469; color: #0e100f; border: none; }
         #ui .hud-speed .div { width: 1px; height: 16px; margin: 0 2px; background: rgba(255, 255, 255, 0.12); }
 
+        /* Hung from the top of the rail region rather than a measured
+           52px below the top of the screen: the chrome it drops out of
+           is the row above, so the grid has already worked out where
+           that is — on a phone, where the chrome sits under a strip
+           that may have wrapped, as much as on a desktop. */
         .hud-menu {
-          position: absolute; top: 52px; right: 12px; width: 200px;
+          position: absolute; top: 0; right: 0; width: 200px;
           display: flex; flex-direction: column; gap: 6px;
           padding: 10px 12px; pointer-events: auto;
           z-index: 37;
@@ -461,15 +576,42 @@ export function Hud(props: {
         }
         #ui .hud-tabs button:hover:not(.active) { color: #f0ede4; background: transparent; border: none; }
         #ui .hud-tabs button.active { background: #e5c469; color: #0e100f; }
+        /* A fixed grid, not a wrapping row. Shrink-to-fit made the
+           card a different width per tab — Industry 613px, War 295px —
+           so picking a tab jumped the card's whole right edge by three
+           hundred pixels and every button under the cursor with it.
+           Three columns by two rows holds the largest group (five)
+           with room over, and the cells are declared rather than
+           measured, so a building that unlocks and gains a price tag
+           grows inside its cell instead of re-wrapping the tab. */
         .hud-items {
-          display: flex; flex-wrap: wrap; gap: 6px;
-          align-items: flex-start; align-content: flex-start;
-          min-width: 0; min-height: 72px;
+          display: grid;
+          /* minmax, not a flat width: the cells are exactly --build-col
+             wherever there is room for them — which is everywhere the
+             player is not actively resizing the window — and give
+             ground together when a landscape phone leaves the card
+             sharing its row with a selection. Uniformly, so the grid
+             stays a grid. */
+          grid-template-columns: repeat(3, minmax(0, var(--build-col)));
+          grid-auto-rows: var(--build-row);
+          gap: 6px;
+          align-content: start;
+          min-width: 0;
+          min-height: calc(2 * var(--build-row) + 6px);
         }
+        /* The tooltip wrapper is what the grid actually places; the
+           button has to fill it to keep the cell's edges. */
+        .hud-items > .tipwrap { display: block; min-width: 0; }
+        #ui .hud-items button {
+          width: 100%; height: 100%; min-height: 0;
+          display: flex; align-items: center; justify-content: flex-start;
+          padding: 0 10px; overflow: hidden;
+        }
+        #ui .hud-items button .cost { margin-left: auto; padding-left: 6px; }
 
         .hud-selection {
-          pointer-events: auto; flex: 0 1 auto; min-width: 0; margin-left: auto;
-          max-width: 430px; padding: 12px 14px;
+          pointer-events: auto; flex: 0 0 auto; min-width: 0; margin-left: auto;
+          width: var(--sel-w); padding: 12px 14px;
         }
 
         /* Floating touch actions: marquee select + grab-the-army. Fixed to
@@ -489,6 +631,12 @@ export function Hud(props: {
           background: rgba(14, 16, 15, 0.72);
           -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
         }
+        /* Deselect only means anything with something selected, but the
+           column hangs from its bottom edge: letting the button come and
+           go slid the two above it up and down the screen every time a
+           tap landed on a soldier. It keeps its slot and goes invisible
+           instead — the same thumb travel to Muster, always. */
+        #ui .hud-touch button.reserved { visibility: hidden; }
         /* The :hover twin outlives a tap: touch leaves the button stuck
            in :hover, and the coarse-pointer hover neutralizer would
            otherwise strip the armed state right as it is switched on. */
@@ -523,9 +671,10 @@ export function Hud(props: {
           padding: 4px 12px; background: transparent; border: none; color: #a3a099;
         }
         .hud-debug {
-          position: absolute; top: 56px; right: 12px; width: 380px; max-height: 60vh;
-          overflow: auto; padding: 8px 10px; pointer-events: auto;
+          width: 380px; max-height: 60vh;
+          overflow: auto; padding: 8px 10px;
           font-family: ui-monospace, monospace; font-size: 11px;
+          text-align: left;
         }
         .hud-debug table { width: 100%; border-collapse: collapse; }
         .hud-debug td, .hud-debug th { padding: 1px 4px; text-align: left; }
@@ -546,26 +695,25 @@ export function Hud(props: {
           color: #a3a099;
         }
         .hud-violations {
-          position: absolute; top: 56px; left: 50%; transform: translateX(-50%);
-          padding: 6px 14px; pointer-events: auto;
+          padding: 6px 14px;
           border-color: rgba(214, 106, 80, 0.5); color: #f0b9a8; max-width: 70vw;
         }
-        .hud-festival { position: absolute; top: 56px; right: 12px; padding: 6px 12px; pointer-events: auto; }
+        .hud-festival { padding: 6px 12px; }
         /* The LLM strategist's little health line: download progress while
-           the model fetches, a short-lived "on" once it answers. Left side,
-           clear of the festival banner and the toasts on the right. */
-        .hud-llm { position: absolute; top: 56px; left: 12px; padding: 6px 12px; opacity: 0.85; }
+           the model fetches, a short-lived "on" once it answers. */
+        .hud-llm { padding: 6px 12px; opacity: 0.85; }
         .hud-toasts {
-          position: absolute; top: 96px; right: 12px; display: flex;
-          flex-direction: column; gap: 6px; align-items: flex-end;
-          z-index: 36;
+          display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
         }
-        .toast { padding: 7px 13px; pointer-events: auto; }
+        .toast { padding: 7px 13px; }
         /* A toast that knows a place: click pans the camera there. */
         #ui .toast.clickable { cursor: pointer; border-color: rgba(214, 106, 80, 0.55); }
         #ui .toast.clickable:hover { border-color: rgba(214, 106, 80, 0.9); }
+        /* Fixed rather than absolute: the briefing card uses this class
+           too, and it renders from inside the left rail — an absolute
+           inset: 0 would size it to that column instead of the screen. */
         .hud-end {
-          position: absolute; inset: 0; display: grid; place-items: center;
+          position: fixed; inset: 0; display: grid; place-items: center;
           background: rgba(8, 10, 8, 0.6); pointer-events: auto;
           /* The match is over: nothing on the HUD, open sheet included,
              may sit on top of the card that says so. */
@@ -600,6 +748,10 @@ export function Hud(props: {
         /* Touch pointers can't hit a 28px chip: grow every target to the
            44px guideline. Applies to tablets too, at any width. */
         @media (pointer: coarse) {
+          /* Fatter cells for fat fingers — declared here rather than
+             left to the buttons, so the ribbon's frame is still a
+             number the layout knows before it draws anything. */
+          #ui { --build-col: 160px; --build-row: 44px; }
           #ui button { padding: 11px 15px; min-height: 44px; }
           #ui .hud-speed button { padding: 9px 14px; min-height: 44px; }
           #ui .hud-speed button.icon { width: 46px; height: 44px; }
@@ -629,24 +781,31 @@ export function Hud(props: {
            bottom cards can't sit side by side. Stack them, and let the
            long lists scroll instead of growing over the map. */
         @media (max-width: 760px) {
-          /* Resources first, speed under them — goods are what you glance
-             at, and flow order means a wrapping strip can never overlap the
-             pill. Children go static inside the flex column. */
+          /* One column: resources, then the chrome under them, then the
+             rails under both. Goods are what you glance at, and a strip
+             that wraps to three rows pushes the rest down rather than
+             landing on it. */
           .hud-top {
-            display: flex; flex-direction: column; gap: 8px;
-            inset: auto;
+            grid-template-columns: minmax(0, 1fr);
+            grid-template-rows: auto auto minmax(0, 1fr);
             top: calc(10px + var(--safe-top));
-            left: calc(10px + var(--safe-left));
             right: calc(10px + var(--safe-right));
+            bottom: calc(10px + var(--safe-bottom));
+            left: calc(10px + var(--safe-left));
           }
-          .hud-speed {
-            position: static;
-            align-self: flex-end;
+          .hud-resources { grid-column: 1; grid-row: 1; justify-content: flex-start; }
+          .hud-chrome { grid-column: 1; grid-row: 2; justify-self: end; }
+          .hud-rails {
+            grid-column: 1; grid-row: 3;
+            display: flex; flex-direction: column; gap: 6px;
           }
-          .hud-resources {
-            position: static;
-            justify-content: flex-start;
-          }
+          /* Three lanes need three lanes' worth of screen, and a phone
+             has one. They become a single column instead — same order,
+             same growth downward, and the toast that used to land on
+             the objectives checklist now queues behind it. Relative
+             rather than static so the right lane keeps its z-index. */
+          .hud-rail { position: relative; top: auto; left: auto; right: auto; transform: none; }
+          .hud-rail.center { align-items: flex-start; }
           /* Full width now, so the goods wrap onto a second row instead of
              running off the edge — nothing is hidden and there's no
              invisible scroll to discover. */
@@ -666,28 +825,24 @@ export function Hud(props: {
             align-items: stretch;
             gap: 8px;
           }
-          .hud-selection { margin-left: 0; max-width: none; }
+          .hud-selection { margin-left: 0; width: auto; }
           /* The fold ✕ sits at the row's end, so the tab strip stretches. */
           .hud-tabs { align-self: stretch; }
+          /* The card is the screen's width here, so the cells share it
+             out instead of being cut to a fixed size. Still three, and
+             still declared — the frame holds, only the cell width is
+             the screen's business now. */
           .hud-build .hud-items {
-            min-height: 0;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             max-height: 26vh;
             overflow-y: auto;
             touch-action: pan-y;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
           }
-          .hud-menu {
-            top: calc(120px + var(--safe-top));
-            right: calc(10px + var(--safe-right));
-          }
           /* .tech-panel's phone layout lives in TechTreePanel's own <style>:
              that component renders later, so rules here lost the tie and
              a stale max-height silently capped the sheet. */
-          .hud-toasts {
-            top: calc(120px + var(--safe-top));
-            right: calc(10px + var(--safe-right));
-          }
           .hud-debug { display: none; } /* desktop-only diagnostics */
         }
 
@@ -695,8 +850,17 @@ export function Hud(props: {
            and cap their height so the map stays visible. */
         @media (max-width: 900px) and (max-height: 480px) {
           .hud-bottom { flex-direction: row; align-items: flex-end; }
-          .hud-selection { max-width: 50%; }
-          .hud-build .hud-items { max-height: 20vh; }
+          .hud-selection { width: 50%; }
+          .hud-build { flex: 1 1 auto; }
+          /* Two columns, not three: sharing the row with a selection
+             card leaves cells too narrow to spell "Woodcutter" and its
+             price. A flat height rather than a min/max pair, because
+             the point of the frame is that it is the same frame on
+             every tab — the tall tabs scroll inside it. */
+          .hud-build .hud-items {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            min-height: 0; height: 20vh; overflow-y: auto;
+          }
         }
       `}</style>
 
@@ -710,7 +874,7 @@ export function Hud(props: {
                 classList={{ has: (stock()[good] ?? 0) > 0 }}
                 {...tooltip(() => <GoodTip good={good} />)}
               >
-                <GoodIcon good={good} /> {stock()[good] ?? 0}
+                <GoodIcon good={good} /> <span class="num">{stock()[good] ?? 0}</span>
               </span>
             )}
           </For>
@@ -728,39 +892,18 @@ export function Hud(props: {
               />
             ))}
           >
-            <PopIcon /> {population().pop}/{population().cap}
+            <PopIcon /> <span class="num">{population().pop}</span>/
+            <span class="num cap">{population().cap}</span>
           </span>
-          <Show when={techs().active}>
-            {(a) => (
-              <button
-                class="research-chip"
-                {...tooltip(() => (
-                  <TextTip
-                    title={techName(a().tech)}
-                    body="Being researched — click to open the tech tree."
-                  />
-                ))}
-                onClick={() => setTechPanelOpen(true)}
-              >
-                <span
-                  class="fill"
-                  style={{ width: `${Math.round((1 - a().ticksLeft / a().totalTicks) * 100)}%` }}
-                />
-                <span class="label">⚗ {techName(a().tech)}</span>
-              </button>
-            )}
-          </Show>
         </div>
       </div>
 
+      <div class="hud-chrome">
+      {/* The speed cluster comes first and the ☰ last: in a
+          right-anchored row that pins the menu button to the corner
+          and lets the chips beside it grow away into open sky. */}
+      <Show when={!netMode() || netStatus()?.state === 'ok'}>
       <div class="hud-speed panel">
-        <button
-          classList={{ active: menuOpen() }}
-          {...tooltip(() => <TextTip title="Menu" body="Save, load, or leave the village." />)}
-          onClick={() => setMenuOpen(!menuOpen())}
-        >
-          ☰
-        </button>
         <Show when={netMode() && netStatus()?.state === 'ok'}>
           <span
             class="net-chip"
@@ -768,7 +911,7 @@ export function Hud(props: {
               <TextTip title="Connection" body="Round-trip to the relay and prediction lead." />
             ))}
           >
-            {'⇄ ' + String((netStatus() as { rttMs: number }).rttMs) + 'ms'}
+            ⇄ <span class="num">{(netStatus() as { rttMs: number }).rttMs}</span>ms
           </span>
         </Show>
         <Show when={!netMode()}>
@@ -848,111 +991,319 @@ export function Hud(props: {
           </Show>
         </Show>
       </div>
+      </Show>
+      <button
+        class="hud-menu-btn panel"
+        classList={{ active: menuOpen() }}
+        {...tooltip(() => <TextTip title="Menu" body="Save, load, or leave the village." />)}
+        onClick={() => setMenuOpen(!menuOpen())}
+      >
+        ☰
+      </button>
       </div>
 
-      <Show when={menuOpen()}>
-        <div class="hud-menu panel">
-          <div class="menu-head">
-            <span>Menu</span>
-            <button class="menu-close" onClick={() => setMenuOpen(false)}>
-              ✕
-            </button>
-          </div>
-          <Show when={!netMode() && !replayMode()}>
-            <button
-              onClick={() => {
-                props.onSave();
-                setMenuOpen(false);
-              }}
-            >
-              Save village
-            </button>
-          </Show>
-          {/* Any time in a solo match: the log runs from boot, so a
-              mid-match save records everything up to this moment and
-              playback pauses there. Multiplayer still records on the
-              server, which only hands the log out once the match is
-              decided — its button lives on the end card. */}
-          <Show when={!netMode() && !replayMode()}>
-            <button
-              onClick={() => {
-                props.onSaveReplay();
-                setMenuOpen(false);
-              }}
-            >
-              Save replay
-            </button>
-          </Show>
-          <Show when={!netMode() && !replayMode()}>
-            <button
-              disabled={!localStorage.getItem('serf-save')}
-              onClick={() => {
-                const data = localStorage.getItem('serf-save');
-                if (data) {
-                  // sessionStorage: survives this tab's reload but is invisible
-                  // to other tabs — two open tabs must never race for it.
-                  sessionStorage.setItem('serf-load-pending', data);
-                  // Same URL as the match already running, so the router
-                  // would otherwise call this the screen it is already on.
-                  goto(location.search, { force: true });
-                }
-              }}
-            >
-              Load last save
-            </button>
-          </Show>
-          <Show when={fs.offerable()}>
-            <button
-              aria-pressed={fs.active()}
-              onClick={() => {
-                fs.toggle();
-                setMenuOpen(false);
-              }}
-            >
-              {fs.active() ? 'Exit full screen' : 'Full screen'}
-            </button>
-          </Show>
-          <div class="menu-sound">
-            <button
-              class="menu-mute"
-              aria-pressed={muted()}
-              // M only mutes while nothing is selected — with a squad
-              // standing it is the move order. Advertising a key that
-              // would march the army instead is worse than no hint.
-              title={
-                (muted() ? 'Sound off' : 'Sound on') +
-                (hasKeyboard() && selection().size === 0 ? ' (M)' : '')
-              }
-              onClick={() => toggleMuted()}
-            >
-              {muted() ? <SpeakerOffIcon /> : <SpeakerIcon />}
-            </button>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={volume()}
-              disabled={muted()}
-              aria-label="Sound volume"
-              onInput={(e) => setVolumePref(Number(e.currentTarget.value))}
-              onChange={() => play('uiClick')}
-            />
-          </div>
-          <button
-            onClick={() => {
-              // In a match the world lives on (solo: gone unless saved;
-              // multiplayer: the room plays on and the seat token can
-              // rejoin) — but the player is leaving either way, so ask.
-              // Asked by our own card, not confirm(): the browser climbs
-              // out of fullscreen to show a native dialog.
-              setQuitConfirm(true);
-            }}
-          >
-            Quit to menu
-          </button>
+      {/* Row two of the top grid: everything that comes and goes.
+          It begins wherever the strip and the chrome above it
+          happened to end, so a goods strip that wraps pushes the
+          rails down instead of being drawn through by them. */}
+      <div class="hud-rails">
+        {/* Left rail: the standing account of who you are and how the
+            machinery under the match is doing. */}
+        <div class="hud-rail left">
+          <Show when={llmBadge()}>{(text) => <div class="hud-llm panel">{text()}</div>}</Show>
+          <MissionPanel onSpeed={props.onSpeed} />
         </div>
-      </Show>
+
+        {/* Centre rail, under the goods strip: what the village is busy
+            with, and what has gone wrong. Ordered by how long each stays
+            — a study runs for minutes, a broken connection is meant to
+            be read and gone. */}
+        <div class="hud-rail center">
+          <Show when={techs().active}>
+            {(a) => (
+              <button
+                class="research-chip panel"
+                {...tooltip(() => (
+                  <TextTip
+                    title={techName(a().tech)}
+                    body="Being researched — click to open the tech tree."
+                  />
+                ))}
+                onClick={() => setTechPanelOpen(true)}
+              >
+                <span
+                  class="fill"
+                  style={{ width: `${Math.round((1 - a().ticksLeft / a().totalTicks) * 100)}%` }}
+                />
+                <span class="label">⚗ {techName(a().tech)}</span>
+              </button>
+            )}
+          </Show>
+          <Show when={techs().festivalTicksLeft > 0}>
+            <div class="hud-festival panel">Festival! Everyone works faster</div>
+          </Show>
+          <Show when={netMode() && netStatus()?.state === 'disconnected'}>
+            <div class="hud-nettrouble panel">
+              Connection to the server lost. Reconnecting… — your seat is held,
+              and the match rides out even a server restart.
+            </div>
+          </Show>
+          <Show when={invariantViolations().length > 0}>
+            <div class="hud-violations panel">
+              {invariantViolations().length} invariant violation(s) — see console
+            </div>
+          </Show>
+        </div>
+
+        {/* Right rail, under the chrome it must not cover: notices, then
+            the diagnostics table dev builds open. */}
+        <div class="hud-rail right">
+          <div class="hud-toasts">
+            <For each={toasts()}>
+              {(t) => (
+                <div
+                  class="panel toast"
+                  classList={{ clickable: !!t.focus }}
+                  onClick={() => {
+                    if (!t.focus) return;
+                    props.onFocus(t.focus.x, t.focus.y);
+                    dismissToast(t.id);
+                  }}
+                >
+                  {t.text}
+                </div>
+              )}
+            </For>
+          </div>
+          <Show when={debugOpen()}>
+            <div class="hud-debug panel">
+              {/* The strategist's consultation ledger (dev builds only — the
+                  signal stays empty everywhere else). Collapsed, each entry is
+                  one line: who, when, how long, and what came of it; open, it
+                  shows the advice sent downstairs, the standing pile, the
+                  model's reply verbatim, and the exact prompt — the loop for
+                  tuning prompt.ts without leaving the match. */}
+              <Show when={llmTraces().length > 0}>
+                <div class="llm">
+                  <b>strategist ({llmTraces().length})</b>
+                  {/* Where each seat stands now: its whole standing pile in
+                      English, diffed against the playbook print. The entries
+                      below are the history of how it got there. */}
+                  <For each={llmPostures()}>
+                    {(p) => (
+                      <div class="posture">
+                        <b>seat {p.playerId} posture</b>
+                        <For
+                          each={p.moved}
+                          fallback={<div class="held">playing the playbook as printed</div>}
+                        >
+                          {(line) => <div>{line}</div>}
+                        </For>
+                        <Show when={p.moved.length > 0}>
+                          <div class="held">everything else per the playbook</div>
+                        </Show>
+                      </div>
+                    )}
+                  </For>
+                  <For each={llmTraces()}>
+                    {(t) => (
+                      <details>
+                        <summary>
+                          <span class={t.outcome}>{t.outcome}</span> · seat {t.playerId} · min{' '}
+                          {t.minutes} · {(t.ms / 1000).toFixed(1)}s
+                          {t.advice?.reason ? ` — ${t.advice.reason}` : ''}
+                        </summary>
+                        <Show when={t.error}>
+                          <pre>error: {t.error}</pre>
+                        </Show>
+                        {/* This reply's real moves alone, clamped to what the
+                            sim would take. A small model echoes most of the
+                            print back on every reply, so the echoes collapse
+                            to a count — the reply below has them verbatim. */}
+                        <Show when={t.advice}>
+                          {(advice) => {
+                            const lines = () => describeAdvice(advice(), t.knobs);
+                            const moved = () => lines().filter((l) => l.moved);
+                            const held = () => lines().length - moved().length;
+                            const knobs = (n: number): string => `${n} knob${n === 1 ? '' : 's'}`;
+                            return (
+                              <div class="knobs">
+                                <For
+                                  each={moved()}
+                                  fallback={
+                                    <div class="held">
+                                      {held() > 0
+                                        ? `only echoes the playbook (${knobs(held())})`
+                                        : 'no knob changes'}
+                                    </div>
+                                  }
+                                >
+                                  {(line) => <div>{line.text}</div>}
+                                </For>
+                                <Show when={moved().length > 0 && held() > 0}>
+                                  <div class="held">+ {knobs(held())} echoing the playbook</div>
+                                </Show>
+                              </div>
+                            );
+                          }}
+                        </Show>
+                        <pre>reply: {t.raw || '(none)'}</pre>
+                        <details>
+                          <summary>prompt</summary>
+                          <For each={t.messages}>
+                            {(m) => (
+                              <pre>
+                                [{m.role}] {m.content}
+                              </pre>
+                            )}
+                          </For>
+                        </details>
+                      </details>
+                    )}
+                  </For>
+                </div>
+              </Show>
+              <b>jobs ({debugJobs().length})</b>
+              <table>
+                <thead>
+                  <tr>
+                    <th>id</th>
+                    <th>good</th>
+                    <th>route</th>
+                    <th>pri</th>
+                    <th>phase</th>
+                    <th>serf</th>
+                    <th>age</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <For each={debugJobs()}>
+                    {(j) => (
+                      <tr>
+                        <td>{j.id}</td>
+                        <td>{j.good}</td>
+                        <td>
+                          {j.from}→{j.to}
+                        </td>
+                        <td>{j.priority}</td>
+                        <td>{j.phase}</td>
+                        <td>{j.serfId ?? '—'}</td>
+                        <td>{j.age}</td>
+                      </tr>
+                    )}
+                  </For>
+                </tbody>
+              </table>
+            </div>
+          </Show>
+        </div>
+
+        <Show when={menuOpen()}>
+          <div class="hud-menu panel">
+            <div class="menu-head">
+              <span>Menu</span>
+              <button class="menu-close" onClick={() => setMenuOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <Show when={!netMode() && !replayMode()}>
+              <button
+                onClick={() => {
+                  props.onSave();
+                  setMenuOpen(false);
+                }}
+              >
+                Save village
+              </button>
+            </Show>
+            {/* Any time in a solo match: the log runs from boot, so a
+                mid-match save records everything up to this moment and
+                playback pauses there. Multiplayer still records on the
+                server, which only hands the log out once the match is
+                decided — its button lives on the end card. */}
+            <Show when={!netMode() && !replayMode()}>
+              <button
+                onClick={() => {
+                  props.onSaveReplay();
+                  setMenuOpen(false);
+                }}
+              >
+                Save replay
+              </button>
+            </Show>
+            <Show when={!netMode() && !replayMode()}>
+              <button
+                disabled={!localStorage.getItem('serf-save')}
+                onClick={() => {
+                  const data = localStorage.getItem('serf-save');
+                  if (data) {
+                    // sessionStorage: survives this tab's reload but is invisible
+                    // to other tabs — two open tabs must never race for it.
+                    sessionStorage.setItem('serf-load-pending', data);
+                    // Same URL as the match already running, so the router
+                    // would otherwise call this the screen it is already on.
+                    goto(location.search, { force: true });
+                  }
+                }}
+              >
+                Load last save
+              </button>
+            </Show>
+            <Show when={fs.offerable()}>
+              <button
+                aria-pressed={fs.active()}
+                onClick={() => {
+                  fs.toggle();
+                  setMenuOpen(false);
+                }}
+              >
+                {fs.active() ? 'Exit full screen' : 'Full screen'}
+              </button>
+            </Show>
+            <div class="menu-sound">
+              <button
+                class="menu-mute"
+                aria-pressed={muted()}
+                // M only mutes while nothing is selected — with a squad
+                // standing it is the move order. Advertising a key that
+                // would march the army instead is worse than no hint.
+                title={
+                  (muted() ? 'Sound off' : 'Sound on') +
+                  (hasKeyboard() && selection().size === 0 ? ' (M)' : '')
+                }
+                onClick={() => toggleMuted()}
+              >
+                {muted() ? <SpeakerOffIcon /> : <SpeakerIcon />}
+              </button>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={volume()}
+                disabled={muted()}
+                aria-label="Sound volume"
+                onInput={(e) => setVolumePref(Number(e.currentTarget.value))}
+                onChange={() => play('uiClick')}
+              />
+            </div>
+            <button
+              onClick={() => {
+                // In a match the world lives on (solo: gone unless saved;
+                // multiplayer: the room plays on and the seat token can
+                // rejoin) — but the player is leaving either way, so ask.
+                // Asked by our own card, not confirm(): the browser climbs
+                // out of fullscreen to show a native dialog.
+                setQuitConfirm(true);
+              }}
+            >
+              Quit to menu
+            </button>
+          </div>
+        </Show>
+      </div>
+      </div>
+
 
       <div class="hud-bottom">
         <Show when={isCoarse() || isPhone()}>
@@ -986,9 +1337,16 @@ export function Hud(props: {
               <SwordsIcon />
             </button>
             {/* This one really does answer to the keyboard: Esc clears the
-                selection, and every hardware keyboard has one. */}
-            <Show when={selection().size > 0 && !hasKeyboard()}>
+                selection, and every hardware keyboard has one. Rendered
+                whenever there is no keyboard and merely hidden when
+                nothing is selected: the column hangs from its bottom
+                edge, so a button that comes and goes would walk the two
+                above it up and down the screen. */}
+            <Show when={!hasKeyboard()}>
               <button
+                classList={{ reserved: selection().size === 0 }}
+                aria-hidden={selection().size === 0}
+                tabindex={selection().size === 0 ? -1 : undefined}
                 {...tooltip(() => (
                   <TextTip
                     title="Deselect"
@@ -1115,38 +1473,7 @@ export function Hud(props: {
         <TechTreePanel onResearch={props.onResearch} />
       </Show>
 
-      <MissionPanel onSpeed={props.onSpeed} />
 
-      <Show when={techs().festivalTicksLeft > 0}>
-        <div class="hud-festival panel">Festival! Everyone works faster</div>
-      </Show>
-
-      <Show when={llmBadge()}>{(text) => <div class="hud-llm panel">{text()}</div>}</Show>
-
-      <div class="hud-toasts">
-        <For each={toasts()}>
-          {(t) => (
-            <div
-              class="panel toast"
-              classList={{ clickable: !!t.focus }}
-              onClick={() => {
-                if (!t.focus) return;
-                props.onFocus(t.focus.x, t.focus.y);
-                dismissToast(t.id);
-              }}
-            >
-              {t.text}
-            </div>
-          )}
-        </For>
-      </div>
-
-      <Show when={netMode() && netStatus()?.state === 'disconnected'}>
-        <div class="hud-nettrouble panel">
-          Connection to the server lost. Reconnecting… — your seat is held,
-          and the match rides out even a server restart.
-        </div>
-      </Show>
 
       <Show when={endCard() === 'gone'}>
         <div class="hud-end">
@@ -1281,139 +1608,12 @@ export function Hud(props: {
         </dialog>
       </Show>
 
-      <Show when={invariantViolations().length > 0}>
-        <div class="hud-violations panel">
-          {invariantViolations().length} invariant violation(s) — see console
-        </div>
-      </Show>
-
       <Show when={adminMode}>
         <AdminPanel onAdmin={props.onAdmin} />
       </Show>
 
       <TooltipLayer />
 
-      <Show when={debugOpen()}>
-        <div class="hud-debug panel">
-          {/* The strategist's consultation ledger (dev builds only — the
-              signal stays empty everywhere else). Collapsed, each entry is
-              one line: who, when, how long, and what came of it; open, it
-              shows the advice sent downstairs, the standing pile, the
-              model's reply verbatim, and the exact prompt — the loop for
-              tuning prompt.ts without leaving the match. */}
-          <Show when={llmTraces().length > 0}>
-            <div class="llm">
-              <b>strategist ({llmTraces().length})</b>
-              {/* Where each seat stands now: its whole standing pile in
-                  English, diffed against the playbook print. The entries
-                  below are the history of how it got there. */}
-              <For each={llmPostures()}>
-                {(p) => (
-                  <div class="posture">
-                    <b>seat {p.playerId} posture</b>
-                    <For
-                      each={p.moved}
-                      fallback={<div class="held">playing the playbook as printed</div>}
-                    >
-                      {(line) => <div>{line}</div>}
-                    </For>
-                    <Show when={p.moved.length > 0}>
-                      <div class="held">everything else per the playbook</div>
-                    </Show>
-                  </div>
-                )}
-              </For>
-              <For each={llmTraces()}>
-                {(t) => (
-                  <details>
-                    <summary>
-                      <span class={t.outcome}>{t.outcome}</span> · seat {t.playerId} · min{' '}
-                      {t.minutes} · {(t.ms / 1000).toFixed(1)}s
-                      {t.advice?.reason ? ` — ${t.advice.reason}` : ''}
-                    </summary>
-                    <Show when={t.error}>
-                      <pre>error: {t.error}</pre>
-                    </Show>
-                    {/* This reply's real moves alone, clamped to what the
-                        sim would take. A small model echoes most of the
-                        print back on every reply, so the echoes collapse
-                        to a count — the reply below has them verbatim. */}
-                    <Show when={t.advice}>
-                      {(advice) => {
-                        const lines = () => describeAdvice(advice(), t.knobs);
-                        const moved = () => lines().filter((l) => l.moved);
-                        const held = () => lines().length - moved().length;
-                        const knobs = (n: number): string => `${n} knob${n === 1 ? '' : 's'}`;
-                        return (
-                          <div class="knobs">
-                            <For
-                              each={moved()}
-                              fallback={
-                                <div class="held">
-                                  {held() > 0
-                                    ? `only echoes the playbook (${knobs(held())})`
-                                    : 'no knob changes'}
-                                </div>
-                              }
-                            >
-                              {(line) => <div>{line.text}</div>}
-                            </For>
-                            <Show when={moved().length > 0 && held() > 0}>
-                              <div class="held">+ {knobs(held())} echoing the playbook</div>
-                            </Show>
-                          </div>
-                        );
-                      }}
-                    </Show>
-                    <pre>reply: {t.raw || '(none)'}</pre>
-                    <details>
-                      <summary>prompt</summary>
-                      <For each={t.messages}>
-                        {(m) => (
-                          <pre>
-                            [{m.role}] {m.content}
-                          </pre>
-                        )}
-                      </For>
-                    </details>
-                  </details>
-                )}
-              </For>
-            </div>
-          </Show>
-          <b>jobs ({debugJobs().length})</b>
-          <table>
-            <thead>
-              <tr>
-                <th>id</th>
-                <th>good</th>
-                <th>route</th>
-                <th>pri</th>
-                <th>phase</th>
-                <th>serf</th>
-                <th>age</th>
-              </tr>
-            </thead>
-            <tbody>
-              <For each={debugJobs()}>
-                {(j) => (
-                  <tr>
-                    <td>{j.id}</td>
-                    <td>{j.good}</td>
-                    <td>
-                      {j.from}→{j.to}
-                    </td>
-                    <td>{j.priority}</td>
-                    <td>{j.phase}</td>
-                    <td>{j.serfId ?? '—'}</td>
-                    <td>{j.age}</td>
-                  </tr>
-                )}
-              </For>
-            </tbody>
-          </table>
-        </div>
-      </Show>
     </>
   );
 }
