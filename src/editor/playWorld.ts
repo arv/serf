@@ -3,13 +3,7 @@ import { BANDIT } from '../sim/entities.ts';
 import { START_SERFS, START_STOCK, firstRaidTickFor } from '../sim/defs/balance.ts';
 import { dealStrategies, type AiStrategyId } from '../sim/defs/aiStrategies.ts';
 import { makePlayer } from '../sim/player.ts';
-import {
-  campCorners,
-  placeBuiltBuilding,
-  spawnUnit,
-  spawnUnitNearby,
-  type World,
-} from '../sim/world.ts';
+import { campCorners, placeBuiltBuilding, spawnUnitNearby, type World } from '../sim/world.ts';
 import { clearResources, rectClear, recomputeBlocked, type GameMap } from '../sim/map.ts';
 import type { EditorMapState } from './editorMap.ts';
 
@@ -125,13 +119,16 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
     }
   }
 
-  // Starting serfs, scattered just south of each storehouse.
+  // Starting serfs, scattered just south of each storehouse. Nearby, not
+  // exact: worldgen's layouts guarantee open meadow south of every castle,
+  // but an authored start may hug the play boundary or a painted lake, and
+  // a serf must never open the game standing in scenery.
   for (let p = 0; p < starts.length; p++) {
     const { x: shX, y: shY } = starts[p]!;
     for (let i = 0; i < START_SERFS; i++) {
       const x = shX - 1 + (i % 5) + 0.5;
       const y = shY + 4 + Math.floor(i / 5) + 0.5;
-      spawnUnit(world, 'serf', p, x, y);
+      spawnUnitNearby(world, 'serf', p, x, y);
     }
   }
 
