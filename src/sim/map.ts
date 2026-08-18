@@ -825,10 +825,17 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
       const INF = 0x7fffffff;
       const cost = new Int32Array(tiles).fill(INF);
       const parent = new Int32Array(tiles).fill(-1);
-      const deque: number[] = [from]; // 0-1 BFS: unshift for free steps
+      // 0-1 BFS over an index-based deque (free steps go to the front,
+      // fells to the back): Array#shift/unshift are O(n) and turned the
+      // repair into quadratic work on big grids. Each relaxation enqueues
+      // once and a node has four edges, so 8x tiles bounds the ring.
+      const deque = new Int32Array(tiles * 8 + 2);
+      let head = tiles * 4;
+      let tail = head;
+      deque[tail++] = from;
       cost[from] = 0;
-      while (deque.length > 0) {
-        const i = deque.shift()!;
+      while (head < tail) {
+        const i = deque[head++]!;
         if (i === to) break;
         const x = i % size;
         const y = (i / size) | 0;
@@ -845,8 +852,8 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
           if (cost[i]! + step >= cost[n]!) continue;
           cost[n] = cost[i]! + step;
           parent[n] = i;
-          if (step === 0) deque.unshift(n);
-          else deque.push(n);
+          if (step === 0) deque[--head] = n;
+          else deque[tail++] = n;
         }
       }
       for (let i = to; i >= 0; i = parent[i]!) {

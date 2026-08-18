@@ -117,6 +117,7 @@ function decodeInit(data: Uint8Array): InitFrame {
   if (
     play < MIN_MAP_SIZE ||
     play > MAX_MAP_SIZE ||
+    play % 2 !== 0 || // play sizes are even by contract (resolveMapSize)
     size < play ||
     size > gridFor(MAX_MAP_SIZE) ||
     (size - play) % 2 !== 0

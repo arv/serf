@@ -55,9 +55,12 @@ export class MarginMesh {
           y = -2.5;
           this.#bedColor(c, y);
         } else {
-          // Under-terrain tuck along the boundary's inner side.
+          // Under-terrain tuck along the boundary's inner side. Painted
+          // with the real tile paint, NOT the bed: boundary vertices are
+          // shared by the first visible margin triangles, and a riverbed
+          // tint here bled a dark seam along the join on land borders.
           y = heights.at(x, z) - 0.15;
-          this.#bedColor(c, y);
+          this.#paint(map, x, z, y, 0, c);
         }
       } else {
         // The margin's real ground. The tuck fades to near-flush within

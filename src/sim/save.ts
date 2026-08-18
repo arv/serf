@@ -106,6 +106,7 @@ export function deserializeWorld(json: string): World {
     !Number.isInteger(map.play) ||
     map.play < MIN_MAP_SIZE ||
     map.play > MAX_MAP_SIZE ||
+    map.play % 2 !== 0 || // play sizes are even by contract (resolveMapSize)
     map.play > map.size ||
     (map.size - map.play) % 2 !== 0 ||
     map.size > gridFor(MAX_MAP_SIZE) ||
