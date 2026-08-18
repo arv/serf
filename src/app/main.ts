@@ -770,6 +770,7 @@ async function runMatch(
   // cached for the whole document, so they outlive this match and meet the
   // next one.
   teardown.push(() => fog.dispose());
+  mist.setFog(fog);
   // The fog's memory across sessions: multiplayer seats get the server's
   // authoritative explored grid; a loaded solo game gets the one its save
   // carried. Never both — solo has no server, multiplayer has no save.
