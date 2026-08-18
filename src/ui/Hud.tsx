@@ -275,8 +275,10 @@ export function Hud(props: {
         #ui {
           /* One build button's cell. The ribbon is a grid of these, so
              every tab draws the same card and every button holds its
-             place whatever its label turns out to say. */
-          --build-col: 150px;
+             place whatever its label turns out to say. Wide enough for
+             the worst button in the game — Weaponsmith at its full
+             price wants 165px, and everything else is under 142. */
+          --build-col: 172px;
           --build-row: 33px;
           /* The selection card's frame. Fixed, so a status line
              growing a word doesn't drag the Sell button sideways. */
@@ -576,28 +578,33 @@ export function Hud(props: {
         }
         #ui .hud-tabs button:hover:not(.active) { color: #f0ede4; background: transparent; border: none; }
         #ui .hud-tabs button.active { background: #e5c469; color: #0e100f; }
-        /* A fixed grid, not a wrapping row. Shrink-to-fit made the
+        /* A declared grid, not a wrapping row. Shrink-to-fit made the
            card a different width per tab — Industry 613px, War 295px —
            so picking a tab jumped the card's whole right edge by three
            hundred pixels and every button under the cursor with it.
-           Three columns by two rows holds the largest group (five)
-           with room over, and the cells are declared rather than
-           measured, so a building that unlocks and gains a price tag
-           grows inside its cell instead of re-wrapping the tab. */
+           The frame below is one size for all four tabs, and because
+           the cells are declared rather than measured, a building that
+           unlocks and gains a price tag grows inside its own cell
+           instead of re-wrapping the tab around it. */
         .hud-items {
           display: grid;
-          /* minmax, not a flat width: the cells are exactly --build-col
-             wherever there is room for them — which is everywhere the
-             player is not actively resizing the window — and give
-             ground together when a landscape phone leaves the card
-             sharing its row with a selection. Uniformly, so the grid
-             stays a grid. */
-          grid-template-columns: repeat(3, minmax(0, var(--build-col)));
+          /* auto-fill rather than a flat three: a cell is never allowed
+             below --build-col, so when the card is squeezed — a narrow
+             desktop with a selection card beside it, a landscape phone
+             — the ribbon drops to two columns and then one instead of
+             slicing "Weaponsmith ⛏10 🪨6" off mid-price. Three is
+             simply how many fit at the width below. */
+          grid-template-columns: repeat(auto-fill, minmax(var(--build-col), 1fr));
           grid-auto-rows: var(--build-row);
           gap: 6px;
           align-content: start;
-          min-width: 0;
-          min-height: calc(2 * var(--build-row) + 6px);
+          width: calc(3 * var(--build-col) + 12px);
+          max-width: 100%;
+          /* A flat height, not a floor: the frame has to be the same
+             frame on every tab, and losing a column is what makes the
+             rows overflow. They scroll inside it. */
+          height: calc(2 * var(--build-row) + 6px);
+          overflow-y: auto;
         }
         /* The tooltip wrapper is what the grid actually places; the
            button has to fill it to keep the cell's edges. */
@@ -751,7 +758,7 @@ export function Hud(props: {
           /* Fatter cells for fat fingers — declared here rather than
              left to the buttons, so the ribbon's frame is still a
              number the layout knows before it draws anything. */
-          #ui { --build-col: 160px; --build-row: 44px; }
+          #ui { --build-row: 44px; }
           #ui button { padding: 11px 15px; min-height: 44px; }
           #ui .hud-speed button { padding: 9px 14px; min-height: 44px; }
           #ui .hud-speed button.icon { width: 46px; height: 44px; }
@@ -828,14 +835,14 @@ export function Hud(props: {
           .hud-selection { margin-left: 0; width: auto; }
           /* The fold ✕ sits at the row's end, so the tab strip stretches. */
           .hud-tabs { align-self: stretch; }
-          /* The card is the screen's width here, so the cells share it
-             out instead of being cut to a fixed size. Still three, and
-             still declared — the frame holds, only the cell width is
-             the screen's business now. */
+          /* The card is the screen's width here, so the grid takes it
+             all and fits however many cells it holds — two on a phone,
+             three on a tablet. The frame is a share of the screen
+             rather than a count of cells, and it is still one number
+             on every tab. */
           .hud-build .hud-items {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            max-height: 26vh;
-            overflow-y: auto;
+            width: auto;
+            height: 26vh;
             touch-action: pan-y;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
@@ -850,17 +857,15 @@ export function Hud(props: {
            and cap their height so the map stays visible. */
         @media (max-width: 900px) and (max-height: 480px) {
           .hud-bottom { flex-direction: row; align-items: flex-end; }
-          .hud-selection { width: 50%; }
+          /* Two fifths rather than half: a cell is never allowed below
+             --build-col, so the few pixels either way decide whether
+             the ribbon beside this card gets two columns or one, and
+             one column in a fifth of a short screen is a list you can
+             see a button and a half of. */
+          .hud-selection { width: 40%; }
           .hud-build { flex: 1 1 auto; }
-          /* Two columns, not three: sharing the row with a selection
-             card leaves cells too narrow to spell "Woodcutter" and its
-             price. A flat height rather than a min/max pair, because
-             the point of the frame is that it is the same frame on
-             every tab — the tall tabs scroll inside it. */
-          .hud-build .hud-items {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            min-height: 0; height: 20vh; overflow-y: auto;
-          }
+          /* Short screen: the ribbon gets a fifth of it and scrolls. */
+          .hud-build .hud-items { height: 20vh; }
         }
       `}</style>
 

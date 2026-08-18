@@ -45,7 +45,8 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
         .tech-scrim { display: none; }
         .tech-panel {
           position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
-          display: flex; gap: 18px; padding: 14px 18px; pointer-events: auto;
+          display: flex; align-items: flex-start; gap: 18px;
+          padding: 14px 18px; pointer-events: auto;
           max-width: 90vw; overflow-x: auto;
           /* Modal layer — see the layer scale in Hud.tsx. Without a number
              the sheet took its luck from DOM order and lost to the floating
@@ -53,8 +54,19 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
              muster buttons straight through the middle of it. */
           z-index: 20;
         }
-        .tech-close {
-          position: absolute; top: 8px; right: 8px; min-width: 0; padding: 2px 8px;
+        /* In the row, not floating over it. Absolutely positioned, the
+           ✕ landed square on the last branch's heading and the top of
+           the first node under it — the one corner of this sheet where
+           something is always already drawn. As a flex item it takes a
+           column of its own and can't collide with anything.
+           Ordered last because it is written first: the markup puts it
+           ahead of the branches so it is the first thing reached by
+           keyboard or screen reader, which is where a close belongs.
+           The #ui prefix is not decoration — a bare .tech-close loses
+           its padding to #ui button's. */
+        #ui .tech-close {
+          order: 1; align-self: flex-start;
+          min-width: 0; min-height: 0; padding: 3px 9px;
         }
         .tech-branch { min-width: 195px; }
         .tech-branch h3 {
@@ -137,7 +149,14 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
           .tech-branch { min-width: 0; width: 100%; }
           .tech-node { padding: 9px 10px; font-size: 13px; }
           .tech-node .desc { font-size: 12px; }
-          .tech-close { top: 10px; right: 10px; padding: 6px 12px; }
+          /* Back over the sheet on a phone: the branches stack into a
+             column here, and a flex item at the end of that column
+             would be a ✕ at the bottom of a long scroll. The sheet's
+             44px of top padding is the space it sits in. */
+          #ui .tech-close {
+            order: 0; position: absolute; top: 10px; right: 10px;
+            padding: 6px 12px; min-height: 36px;
+          }
         }
       `}</style>
         <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
