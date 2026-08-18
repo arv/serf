@@ -7,6 +7,7 @@ import { RoadDecal } from '../render/roadDecal';
 import { WaterMesh } from '../render/waterMesh';
 import { MarginMesh } from '../render/marginMesh';
 import { Mist } from '../render/mist';
+import { Butterflies } from '../render/butterflies';
 import { SceneSync } from '../render/sceneSync';
 import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
@@ -211,6 +212,10 @@ function gameChosen(params: URLSearchParams): boolean {
  */
 function screenKey(): string {
   const params = new URLSearchParams(location.search);
+  // The map editor is its own screen kind — and the check comes before
+  // gameChosen, because a stale load-pending handoff (or a ?seed left in
+  // the URL) must not turn ?editor into a match.
+  if (params.has('editor')) return 'editor';
   const chosen = gameChosen(params);
   // A room is chosen, but the choosing happens in the council — a menu
   // screen, and the one whose URL moves under it.
@@ -264,6 +269,13 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     // under the real camera and sun. Render-only — no sim, no HUD.
     const { mountWardrobe } = await import('../ui/wardrobe');
     await mountWardrobe(document.getElementById('canvas') as HTMLCanvasElement);
+    return;
+  }
+  if (key === 'editor') {
+    // The map editor: the game's render stack over an authored map, no
+    // sim worker. Its chunk loads on demand — most sessions never edit.
+    const { mountEditor } = await import('../editor/editorScreen');
+    present(await mountEditor(document.getElementById('canvas') as HTMLCanvasElement));
     return;
   }
   const mp = launchParams.get('mp');
@@ -710,6 +722,9 @@ async function runMatch(
   renderer.scene.add(marginMesh.mesh);
   const mist = new Mist(init.map);
   renderer.scene.add(mist.group);
+  // Ambient life over the meadows — pure scenery, no sim contact.
+  const butterflies = new Butterflies(init.map, heights);
+  renderer.scene.add(butterflies.mesh);
 
   const buildingSync = new BuildingSync(renderer.scene, heights, config.myPlayerId);
   // Terrain feed for the pier measurement: on a corner-only shore the
@@ -1017,6 +1032,7 @@ async function runMatch(
     damageAlerts.update(now);
     water.update(now);
     mist.update(now);
+    butterflies.update(now);
     const dt = renderer.frame();
     buildingSync.frame(speed() === 0 ? 0 : dt);
     // Last: the frame's queued cues become at most a couple dozen voices.

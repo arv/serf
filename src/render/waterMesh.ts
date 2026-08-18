@@ -19,6 +19,7 @@ import { palette } from './palette';
 export class WaterMesh {
   readonly mesh: THREE.Mesh;
   #time = { value: 0 };
+  #bed: THREE.DataTexture;
 
   constructor(map: MapView) {
     const size = map.size;
@@ -44,6 +45,7 @@ export class WaterMesh {
     bed.wrapS = THREE.ClampToEdgeWrapping;
     bed.wrapT = THREE.ClampToEdgeWrapping;
     bed.needsUpdate = true;
+    this.#bed = bed;
 
     // Alpha comes from the shader (shallow water is far clearer than deep),
     // so the material's own opacity stays out of the way. No depth write:
@@ -188,5 +190,22 @@ export class WaterMesh {
 
   update(nowMs: number): void {
     this.#time.value = nowMs / 1000;
+  }
+
+  /**
+   * The bed texture wraps map.height itself — after the editor sculpts,
+   * one re-upload is all the water needs to shade the new depths.
+   */
+  refreshBed(): void {
+    this.#bed.needsUpdate = true;
+  }
+
+  /** Editor only: free this mesh inside a live context (the game drops the
+   * whole context instead). The bed texture is ours; nothing is shared. */
+  dispose(): void {
+    this.mesh.removeFromParent();
+    this.mesh.geometry.dispose();
+    (this.mesh.material as THREE.Material).dispose();
+    this.#bed.dispose();
   }
 }

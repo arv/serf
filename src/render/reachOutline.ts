@@ -110,6 +110,15 @@ export class ReachOutline {
     }
     this.#radius = -1;
   }
+
+  /** Terminal teardown for callers that rebuild inside a live context (the
+   * map editor): hide() keeps the material for the next show(), which is a
+   * leak once no show() is ever coming. The game never needs this — its
+   * outlines die with the whole GL context. */
+  dispose(): void {
+    this.hide();
+    this.#material.dispose();
+  }
 }
 
 /** Cross-sections along one straight band of the outline, roughly one per

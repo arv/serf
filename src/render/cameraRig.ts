@@ -30,6 +30,18 @@ export interface ViewBounds {
 }
 
 /**
+ * The two ways this rig can look at the ground. 'game' is the classic
+ * fixed isometric line every match uses. 'topDown' is the map editor's
+ * plan view: straight down, north up — the whole map reads like a chart,
+ * which is what authoring a symmetric map wants. Same target, same zoom,
+ * same input handling; only the viewing line changes.
+ */
+export type ViewMode = 'game' | 'topDown';
+/** A quarter turn: straight down. The lookAt up-vector is swapped to -Z in
+ * this mode, so the parallel-vectors degeneracy never arises. */
+const TOP_PITCH = Math.PI / 2;
+
+/**
  * Classic isometric-style orthographic rig: fixed yaw/pitch, panning moves a
  * ground-plane target, zoom scales the frustum height.
  */
@@ -55,6 +67,11 @@ export class CameraRig {
   #max = DEFAULT_MAP_SIZE;
   #target = new THREE.Vector3(DEFAULT_MAP_SIZE / 2, 0, DEFAULT_MAP_SIZE / 2);
   #viewHeight = 30;
+  /** Viewing line; the module constants are the game's fixed values, and
+   * every construction starts there — setViewMode is the editor's door. */
+  #pitch = PITCH;
+  #yaw = YAW;
+  #maxViewFraction = MAX_VIEW_FRACTION;
   #keys = new Set<string>();
   #dragging = false;
   #interactive: boolean;
@@ -243,7 +260,25 @@ export class CameraRig {
   }
 
   #maxView(): number {
-    return Math.round((this.#max - this.#min) * MAX_VIEW_FRACTION);
+    return Math.round((this.#max - this.#min) * this.#maxViewFraction);
+  }
+
+  /** Swap between the game's isometric line and the editor's plan view. */
+  setViewMode(mode: ViewMode): void {
+    this.#pitch = mode === 'topDown' ? TOP_PITCH : PITCH;
+    this.#yaw = mode === 'topDown' ? 0 : YAW;
+    // Looking straight down, +Y up is parallel to the view line; -Z as up
+    // puts north at the top of the screen instead.
+    this.camera.up.set(0, mode === 'topDown' ? 0 : 1, mode === 'topDown' ? -1 : 0);
+    this.#apply();
+  }
+
+  /** Editor override: let more of the world fit in one frame than the
+   * game's cap allows. The default fraction stays put for every match. */
+  setMaxViewFraction(f: number): void {
+    this.#maxViewFraction = f;
+    this.#viewHeight = clamp(this.#viewHeight, MIN_VIEW, this.#maxView());
+    this.resize();
   }
 
   /**
@@ -330,10 +365,10 @@ export class CameraRig {
   #panScreen(x: number, z: number): void {
     this.#glide = null;
     // Screen right in world space (yaw only), screen "up" projected on ground.
-    const rx = Math.cos(YAW);
-    const rz = -Math.sin(YAW);
-    const fx = -Math.sin(YAW);
-    const fz = -Math.cos(YAW);
+    const rx = Math.cos(this.#yaw);
+    const rz = -Math.sin(this.#yaw);
+    const fx = -Math.sin(this.#yaw);
+    const fz = -Math.cos(this.#yaw);
     this.#target.x = clamp(
       this.#target.x + rx * x - fx * z,
       this.#min - PAN_MARGIN,
@@ -358,13 +393,18 @@ export class CameraRig {
     const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
     const halfH = this.#viewHeight / 2;
     const halfW = halfH * aspect;
-    const halfG = halfH / Math.sin(PITCH);
-    // Both screen axes project onto world X/Z with |cos 45°| = |sin 45°|.
-    const ext = Math.SQRT1_2 * (halfW + halfG) + margin;
-    out.minX = this.#target.x - ext;
-    out.maxX = this.#target.x + ext;
-    out.minZ = this.#target.z - ext;
-    out.maxZ = this.#target.z + ext;
+    const halfG = halfH / Math.sin(this.#pitch);
+    // Screen right and screen "up" each project onto world X/Z through the
+    // yaw basis; at the game's 45° both weights are SQRT1_2, exactly the
+    // old constant.
+    const c = Math.abs(Math.cos(this.#yaw));
+    const s = Math.abs(Math.sin(this.#yaw));
+    const extX = halfW * c + halfG * s + margin;
+    const extZ = halfW * s + halfG * c + margin;
+    out.minX = this.#target.x - extX;
+    out.maxX = this.#target.x + extX;
+    out.minZ = this.#target.z - extZ;
+    out.maxZ = this.#target.z + extZ;
     return out;
   }
 
@@ -382,9 +422,9 @@ export class CameraRig {
 
   #apply(): void {
     const dir = new THREE.Vector3(
-      Math.cos(PITCH) * Math.sin(YAW),
-      Math.sin(PITCH),
-      Math.cos(PITCH) * Math.cos(YAW),
+      Math.cos(this.#pitch) * Math.sin(this.#yaw),
+      Math.sin(this.#pitch),
+      Math.cos(this.#pitch) * Math.cos(this.#yaw),
     );
     this.camera.position.copy(this.#target).addScaledVector(dir, DISTANCE);
     this.camera.lookAt(this.#target);
