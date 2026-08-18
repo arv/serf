@@ -1135,6 +1135,20 @@ export function StartMenu(props: StartMenuProps) {
               {ScrollIcon}
               Replays{replays().length > 0 ? ` (${replays().length})` : ''}
             </button>
+            <button
+              title="Author a map of your own — kaleidoscope brushes, then play it"
+              onClick={() => {
+                releaseMenuBackdrop();
+                goto('?editor');
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <path d="M12 19l7-7 3 3-7 7-3-3z" />
+                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+                <path d="M2 2l7.586 7.586" />
+              </svg>
+              Map editor
+            </button>
           </div>
         </div>
 
