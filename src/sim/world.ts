@@ -18,7 +18,10 @@ import { inPlayArea,
   tileBlocks,
   type GameMap,
   type MapView,
+  type StartSpot,
 } from './map.ts';
+import { parseMapData, type MapFile } from './mapFile.ts';
+import { loadMissionMap } from './defs/missionMaps.ts';
 import { START_SERFS, START_STOCK, firstRaidTickFor } from './defs/balance.ts';
 import { UNIT_DEFS } from './defs/units.ts';
 import {
@@ -168,9 +171,9 @@ export interface WorldConfig {
    * spec: config and save stay small, and two hosts resolving the same id
    * read the same table. */
   mission?: MissionId;
-  /** Grid side length in tiles. Defaults to DEFAULT_MAP_SIZE; clamped to
-   * [MIN_MAP_SIZE, MAX_MAP_SIZE]. Per-game data so a level editor (or a
-   * mission) can pick its own. */
+  /** Playable side length in tiles, generated (seed) worlds only — a
+   * mission's size comes from its authored map file. Defaults to
+   * DEFAULT_MAP_SIZE; clamped to [MIN_MAP_SIZE, MAX_MAP_SIZE]. */
   mapSize?: number;
 }
 
@@ -185,7 +188,9 @@ export function resolveMapSize(mapSize: number | undefined): number {
 }
 
 /** The full WorldConfig a mission def prescribes. Callers may override
- * seats (the headless tests put an AI in the human's chair). */
+ * seats (the headless tests put an AI in the human's chair). The map is
+ * NOT here — config stays small (it rides replays and URLs); createWorld
+ * resolves the def's authored map from the id. */
 export function missionWorldConfig(id: MissionId): WorldConfig {
   const def = MISSION_DEFS[id];
   return {
@@ -193,7 +198,6 @@ export function missionWorldConfig(id: MissionId): WorldConfig {
     players: def.players.map((p) => ({ ...p })),
     banditsEnabled: def.bandits,
     mission: id,
-    ...(def.mapSize !== undefined ? { mapSize: def.mapSize } : {}),
   };
 }
 
@@ -274,22 +278,59 @@ export function campCorners(play: number, margin: number = marginFor(play)): [nu
   ];
 }
 
-export function createWorld(seedOrConfig: number | WorldConfig): World {
+/**
+ * createWorld with the mission's authored map fetched first — the await is
+ * where the code-split map chunk (defs/missionMaps.ts) arrives. Everything
+ * that boots a world from a bare config (the sim worker, the mission
+ * tests) comes through here; plain createWorld stays synchronous for
+ * generated (seed) worlds and for callers that already hold the file.
+ */
+export async function createWorldAsync(config: WorldConfig): Promise<World> {
+  const missionMap = config.mission ? await loadMissionMap(config.mission) : undefined;
+  return createWorld(config, missionMap);
+}
+
+export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: MapFile): World {
   const config: WorldConfig =
     typeof seedOrConfig === 'number'
       ? { seed: seedOrConfig, players: [{ kind: 'human' }] }
       : seedOrConfig;
   const seed = config.seed | 0;
-  const size = resolveMapSize(config.mapSize);
   const mission = config.mission ? MISSION_DEFS[config.mission] : undefined;
-  const layout = startLayout(size, marginFor(size), config.players.length);
-  if (!layout) throw new Error(`no start layout for ${config.players.length} players`);
-  const starts = layout.map(([x, y]) => ({ x, y }));
 
   const deal = dealStrategies(seed, config.players);
 
   const rng = new Rng(seed);
-  const map = generateMap(rng, starts, size);
+  let map: GameMap;
+  let starts: StartSpot[];
+  if (mission) {
+    // Campaign ground is authored, not rolled: the mission's serf-map file
+    // (defs/maps/) owns the grid, the tiles, and the starts. The caller
+    // brings the file — it's loaded on demand (missionMaps.ts), and this
+    // function stays synchronous. Parsed per world — every array is
+    // copied on the way in, so two worlds from one mission never share
+    // tiles.
+    if (!missionMap) {
+      throw new Error(
+        `mission ${mission.id} needs its authored map: boot through createWorldAsync ` +
+          '(or pass a loadMissionMap result)',
+      );
+    }
+    const authored = parseMapData(missionMap);
+    if (authored.players !== config.players.length) {
+      throw new Error(
+        `mission ${mission.id}'s map seats ${authored.players} but ${config.players.length} were dealt`,
+      );
+    }
+    map = authored.map;
+    starts = authored.starts;
+  } else {
+    const size = resolveMapSize(config.mapSize);
+    const layout = startLayout(size, marginFor(size), config.players.length);
+    if (!layout) throw new Error(`no start layout for ${config.players.length} players`);
+    starts = layout.map(([x, y]) => ({ x, y }));
+    map = generateMap(rng, starts, size);
+  }
 
   const world: World = {
     tick: 0,
@@ -305,7 +346,9 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
     // The seed deals the AI seats their playbooks here, once, and the
     // world carries the result from then on (see PlayerState.strategy).
     players: config.players.map((p, i) => makePlayer(i, p.kind, deal[i])),
-    raidState: { nextRaidTick: mission?.firstRaidTick ?? firstRaidTickFor(size), wave: 0 },
+    // The raid clock scales with the PLAYABLE span (the scenery margin
+    // adds no marching distance for anyone).
+    raidState: { nextRaidTick: mission?.firstRaidTick ?? firstRaidTickFor(map.play), wave: 0 },
     admin: {
       enabled: config.adminEnabled ?? true,
       raidsEnabled: config.banditsEnabled ?? true,
@@ -333,7 +376,7 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
   // equidistant menace standing guard over the contested gold that
   // worldgen put there. Corners stay on the list as fallbacks, farthest
   // from any doorstep first, for seeds whose middle is all lake.
-  const corners = campCorners(size);
+  const corners = campCorners(map.play);
   let campSeeds: [number, number][];
   if (starts.length === 1) {
     const first = rng.int(corners.length);
@@ -351,9 +394,14 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
     const middle: [number, number] = [map.size / 2 - 1, map.size / 2 - 1];
     campSeeds = [middle, ...corners.sort((a, z) => nearestStart(z) - nearestStart(a))];
   }
+  // A mission pins its camp: the enemy stands exactly where the balance
+  // was proven, whatever the seed says. The classic candidates stay behind
+  // it as the repair for a map tweak that blocked the spot.
+  if (mission?.campSpot) campSeeds.unshift([mission.campSpot.x, mission.campSpot.y]);
   // Mountains and lakes can swallow a whole seed area, so widen the search
   // rather than generate a campless (instant-win) world.
   if (config.banditsEnabled === false) campSeeds = [];
+  let campPlaced = false;
   outer: for (const [cx, cy] of campSeeds) {
     for (let r = 0; r < 16; r++) {
       for (let dy = -r; dy <= r; dy++) {
@@ -365,21 +413,37 @@ export function createWorld(seedOrConfig: number | WorldConfig): World {
             for (let g = 0; g < 3; g++) {
               spawnUnitNearby(world, 'bandit', BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
             }
+            campPlaced = true;
             break outer;
           }
         }
       }
     }
   }
+  // Worldgen guarantees itself a campsite; an authored map owes no such
+  // promise, and a campless world with bandits on is an instant win (the
+  // solo victory check reads "no camp stands" as "the camp fell"). Refuse
+  // the launch rather than hand out a hollow victory.
+  if (mission && campSeeds.length > 0 && !campPlaced) {
+    throw new Error(
+      `mission ${mission.id}'s map has no room for the bandit camp: ` +
+        'clear a 3×3 near its campSpot, or turn the mission\'s bandits off',
+    );
+  }
 
-  // Starting serfs, scattered just south of each storehouse.
+  // Starting serfs, scattered just south of each storehouse. Nearby, not
+  // exact, on authored ground: worldgen guarantees open meadow south of
+  // every castle, but a tweaked mission map may put a lake there, and a
+  // serf must never open the game standing in scenery. Generated worlds
+  // keep the exact spawn — their classic worlds are pinned byte for byte.
+  const spawnSerf = mission ? spawnUnitNearby : spawnUnit;
   for (let p = 0; p < starts.length; p++) {
     const { x: shX, y: shY } = starts[p]!;
     const serfs = p === 0 && mission?.startSerfs !== undefined ? mission.startSerfs : START_SERFS;
     for (let i = 0; i < serfs; i++) {
       const x = shX - 1 + (i % 5) + 0.5;
       const y = shY + 4 + Math.floor(i / 5) + 0.5;
-      spawnUnit(world, 'serf', p, x, y);
+      spawnSerf(world, 'serf', p, x, y);
     }
   }
 

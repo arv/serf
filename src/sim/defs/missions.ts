@@ -5,9 +5,19 @@ import type { AiStrategyId } from './aiStrategies.ts';
 
 /**
  * The campaign: six commissions that double as the tutorial. Each mission is
- * a recipe over the ordinary worldgen — a pinned seed, start-stock and
- * raid-clock overrides, a few pre-built buildings — plus a checklist of
- * objectives the sim itself judges (systems/objectives.ts, victory.ts).
+ * an authored map plus a recipe of overrides — start-stock and raid-clock
+ * overrides, a few pre-built buildings — and a checklist of objectives the
+ * sim itself judges (systems/objectives.ts, victory.ts).
+ *
+ * The maps are checked-in serf-map files (defs/maps/<id>.json) — hard
+ * ground, not a worldgen roll: tweak a mission by editing its JSON or by
+ * round-tripping it through the map editor, and roll a fresh one from a
+ * seed with tools/exportMissionMap.ts. Each was born as the exact world
+ * its old pinned seed generated, so the per-mission seed comments below
+ * are provenance — the story of the roll the file froze. The files are NOT
+ * imported here — they're half a megabyte each, and this table rides in
+ * every bundle that touches the sim: missionMaps.ts holds the code-split
+ * doorway, and createWorldAsync fetches a map only when its mission boots.
  *
  * Pure data, like the AI playbooks next door: the sim resolves a mission by
  * id on whichever host owns the world, so two hosts reading the same table
@@ -55,13 +65,20 @@ export interface MissionDef {
   briefing: string;
   /** One line for the mission-select list. */
   tagline: string;
+  /** No longer the ground (that's the mission's map file): the seed deals
+   * unnamed AI seats their playbooks and starts the world's own rng —
+   * raid waves, and the corner search a mission without a campSpot falls
+   * back on. The authored ground itself lives at defs/maps/<id>.json,
+   * loaded on demand through missionMaps.ts — the file owns the terrain,
+   * resources, heights, grid size, and start positions. */
   seed: number;
   players: { kind: 'human' | 'ai'; strategy?: AiStrategyId }[];
   bandits: boolean;
-  /** Pin a grid size for this mission's world; absent = the game default.
-   * A mission whose tuning depends on its exact world can hold it here
-   * while the default marches on. */
-  mapSize?: number;
+  /** Bandit camp footprint origin (3×3), tried first — pinned so a map
+   * tweak can't silently move the enemy the balance was proven against.
+   * The classic seed-driven corner search stays behind it as the repair
+   * for a tweak that blocked the spot. Bandit missions only. */
+  campSpot?: { x: number; y: number };
   /** Overrides FIRST_RAID_TICK (bandit missions only). */
   firstRaidTick?: number;
   /** Overrides START_SERFS for the human seat. */
@@ -176,6 +193,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     seed: 405,
     players: [{ kind: 'human' }],
     bandits: true,
+    campSpot: { x: 63, y: 63 },
     // Five minutes — the point of this mission IS the raid, arriving before
     // the player feels ready. (Default is nine.)
     firstRaidTick: 6000,
@@ -223,6 +241,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     seed: 17,
     players: [{ kind: 'human' }],
     bandits: true,
+    campSpot: { x: 126, y: 126 },
     objectives: [
       { spec: { kind: 'razeCamp' }, label: 'Raze the bandit camp' },
     ],
@@ -242,6 +261,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     seed: 11,
     players: [{ kind: 'human' }, { kind: 'ai', strategy: 'steward' }],
     bandits: true,
+    campSpot: { x: 96, y: 93 },
     // No checklist: the ordinary last-faction-standing rules decide it.
     objectives: [],
   },

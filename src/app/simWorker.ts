@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { createWorld, type World } from '../sim/world';
+import { createWorldAsync, type World } from '../sim/world';
 import { deserializeWorld, serializeWorld } from '../sim/save';
 import { tickWorld } from '../sim/tick';
 import { MATCHER_INTERVAL, TICK_MS } from '../sim/defs/balance';
@@ -73,7 +73,16 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
   const msg = e.data;
   switch (msg.type) {
     case 'init':
-      init(msg.config, msg.loadData, msg.llm, msg.replay);
+      // init awaits a mission's code-split map chunk, so it's async; a
+      // failure must still reach worker.onerror (simHost surfaces it and
+      // rejects start), so rethrow outside the promise chain. Messages
+      // landing in the window before the world exists are safe: commands
+      // queue, and every pump path guards on a null world.
+      init(msg.config, msg.loadData, msg.llm, msg.replay).catch((err: unknown) => {
+        setTimeout(() => {
+          throw err;
+        });
+      });
       break;
     case 'commands':
       // A replay's diet is the log, nothing else: a stray order clicked
@@ -147,12 +156,12 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
   }
 };
 
-function init(
+async function init(
   config: import('../sim/world').WorldConfig,
   loadData?: string,
   llm?: boolean,
   replayData?: ReplayData,
-): void {
+): Promise<void> {
   if (replayData) {
     // Playback: the log carries its own recipe; whatever rode the init
     // message beside it is ignored, and nothing is re-recorded.
@@ -161,7 +170,7 @@ function init(
     loadData = replayData.loadData;
     llm = false;
   }
-  world = loadData !== undefined ? deserializeWorld(loadData) : createWorld(config);
+  world = loadData !== undefined ? deserializeWorld(loadData) : await createWorldAsync(config);
   if (!replay) recording = { config, loadData, commands: [] };
   // AI seats think next to the world, the same way the server runs them —
   // live only. Playback never boots the brains: the log already holds

@@ -7,6 +7,10 @@
     // server can load them straight from source, with no build step (see
     // server/tsconfig.json). Legal here because this project is noEmit.
     "allowImportingTsExtensions": true,
+    // The campaign's mission maps are JSON files imported by the sim
+    // (src/sim/defs/maps/, `with { type: 'json' }` so plain node — the
+    // server — loads them too).
+    "resolveJsonModule": true,
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "preserve",
     "jsxImportSource": "solid-js",

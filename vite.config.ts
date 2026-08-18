@@ -40,6 +40,12 @@ const port = process.env.PORT ? Number(process.env.PORT) : undefined;
 
 export default defineConfig({
   plugins: [solid(), serviceWorkerPlugin()],
+  // JSON modules ship as JSON.parse('...') rather than object literals:
+  // the campaign's mission maps are ~450 KB of tile arrays each, and
+  // JSON.parse beats the JS parser handily at that size — in the shipped
+  // chunks and (dramatically) in vitest's module runner, where literal
+  // evaluation made the mission tests ~10x slower.
+  json: { stringify: true },
   define: {
     __APP_VERSION__: JSON.stringify(version),
     __GIT_COMMIT__: JSON.stringify(gitCommit()),
@@ -59,6 +65,10 @@ export default defineConfig({
   // Prebundling the engine in dev drags a multi-MB dependency through
   // esbuild on every cold start for a feature most sessions never touch.
   optimizeDeps: { exclude: ['@wllama/wllama'] },
+  // ES-format workers, because the sim worker code-splits: the campaign's
+  // mission maps (sim/defs/missionMaps.ts) arrive as dynamic chunks when a
+  // mission boots, and the default iife worker build cannot split at all.
+  worker: { format: 'es' },
   server: { headers: crossOriginIsolation, port },
   preview: { headers: crossOriginIsolation, port },
   // Sim tests are headless node — no DOM environment needed or wanted.

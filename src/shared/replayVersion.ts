@@ -19,4 +19,4 @@
  * into its bundle, and the server (plain node, no bundler) imports it
  * directly.
  */
-export const REPLAY_VERSION = 9;
+export const REPLAY_VERSION = 10;
