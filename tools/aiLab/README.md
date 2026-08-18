@@ -75,6 +75,20 @@ and excluded, never awarded. Crashed trials are printed next to the rate.
 | `script:{...}` | one fixed reply forever — plumbing checks, personality experiments |
 | `http://…/v1` | any OpenAI-compatible server (llama-server, Ollama, LM Studio, vLLM); `--model` names the model, `OPENAI_API_KEY` is sent if set |
 
+## Comparing two models
+
+Two runs over the same seeds are far more comparable than their two
+intervals suggest, because they are *paired*:
+
+```sh
+pnpm bakeoff:compare runs/qwen.jsonl runs/lfm.jsonl
+```
+
+joins the runs on (seed, advised seat), discards the pairs where both
+models' trials came out the same (they carry no evidence either way), and
+runs an exact McNemar test on the discordant remainder. On forty seeds
+this can separate models whose Wilson intervals overlap hopelessly.
+
 ## Output
 
 The report prints to stdout; per-match progress goes to stderr. With

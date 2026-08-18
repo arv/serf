@@ -13,7 +13,8 @@
     "test": "vitest run",
     "server": "pnpm --dir server dev",
     "smoke": "pnpm --dir server smoke",
-    "bakeoff": "node --experimental-strip-types tools/aiLab/bakeoff.ts"
+    "bakeoff": "node --experimental-strip-types tools/aiLab/bakeoff.ts",
+    "bakeoff:compare": "node --experimental-strip-types tools/aiLab/compare.ts"
   },
   "devEngines": {
     "packageManager": {

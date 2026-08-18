@@ -3,6 +3,7 @@ import { parseAdvice } from '../../src/ai/advice.ts';
 import { parseArgs } from './bakeoff.ts';
 import { buildEngine, parseEngineSpec, randomEngine, scriptEngine } from './engines.ts';
 import { digestOf, playMatch, type MatchConfig, type MatchRecord } from './match.ts';
+import { binomCdfHalf, compare, renderComparison, type ArmOutcomes } from './compare.ts';
 import { renderReport, verdict, type ReportHeader } from './report.ts';
 import { summarize, trialsForPrecision, wilson, type SeedRun } from './stats.ts';
 import type { Owner } from '../../src/sim/entities.ts';
@@ -379,6 +380,61 @@ describe('the verdict', () => {
     const results: [Owner, Owner][] = Array.from({ length: 40 }, () => [1, 0]);
     const report = summarize(mirrored(results, Array<Owner>(40).fill(0)), 1);
     expect(verdict(report).join(' ')).toMatch(/HURTS/);
+  });
+});
+
+describe('paired comparison', () => {
+  const run = (label: string, entries: [string, boolean][]): ArmOutcomes => ({
+    label,
+    outcomes: new Map(entries),
+  });
+
+  it('computes the exact binomial tail it claims to', () => {
+    expect(binomCdfHalf(-1, 10)).toBe(0);
+    expect(binomCdfHalf(10, 10)).toBe(1);
+    expect(binomCdfHalf(5, 10)).toBeCloseTo(0.623, 3);
+    // The classic: 1 discordant win against 9 — p = 2 * P(X <= 1 | B(10, ½)).
+    expect(2 * binomCdfHalf(1, 10)).toBeCloseTo(0.0215, 3);
+    // Log-space keeps big n finite where naive factorials overflow.
+    expect(binomCdfHalf(200, 400)).toBeCloseTo(0.52, 1);
+  });
+
+  it('scores only the discordant pairs', () => {
+    const a = run('a', [['1:0', true], ['1:1', true], ['2:0', true], ['2:1', false]]);
+    const b = run('b', [['1:0', true], ['1:1', false], ['2:0', false], ['2:1', false]]);
+    const c = compare(a, b);
+    expect(c.paired).toBe(4);
+    expect(c.aOnly).toBe(2);
+    expect(c.bOnly).toBe(0);
+    expect(c.p).toBeCloseTo(0.5, 5); // 2 * P(X <= 0 | B(2, ½))
+    expect(renderComparison(c)).toContain('not significant');
+  });
+
+  it('drops trials only one run played, and says so', () => {
+    const a = run('a', [['1:0', true], ['9:0', true]]);
+    const b = run('b', [['1:0', false]]);
+    const c = compare(a, b);
+    expect(c.paired).toBe(1);
+    expect(c.unpaired).toBe(1);
+    expect(renderComparison(c)).toContain('1 unpaired');
+  });
+
+  it('calls a run that never disagreed what it is: no evidence', () => {
+    const a = run('a', [['1:0', true], ['1:1', false]]);
+    const b = run('b', [['1:0', true], ['1:1', false]]);
+    const c = compare(a, b);
+    expect(c.p).toBe(1);
+    expect(renderComparison(c)).toContain('never disagreed');
+  });
+
+  it('declares a winner only past the conventional bar', () => {
+    // Nine discordant pairs, all falling A's way: p ≈ 0.004.
+    const entries = Array.from({ length: 9 }, (_, i) => `${i}:0`);
+    const a = run('a', entries.map((k) => [k, true] as [string, boolean]));
+    const b = run('b', entries.map((k) => [k, false] as [string, boolean]));
+    const c = compare(a, b);
+    expect(c.p).toBeLessThan(0.05);
+    expect(renderComparison(c)).toContain('A is better');
   });
 });
 
