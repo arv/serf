@@ -121,43 +121,29 @@ describe('choosePosture', () => {
     expect(choosePosture(summary({ me: { ...summary().me, underAttack: true } }))).toBe('fortify');
   });
 
-  it('fortifies against a rival army bigger than its own', () => {
-    const seen = rival({
-      intel: { ageTicks: 400, heavy: 9, light: 0, ranged: 0, total: 9 },
-    });
-    expect(choosePosture(summary({ rivals: [seen] }))).toBe('fortify');
+  it('musters while no rival castle has been found', () => {
+    const hidden = rival({ found: false, distance: -1 });
+    expect(choosePosture(summary({ rivals: [hidden] }))).toBe('muster');
   });
 
-  it('expands while the village is still small, even with a rival in view', () => {
+  it('sieges as soon as a castle is on the map, thin army and all', () => {
+    const thin = { ...summary().me, army: { knight: 1, spearman: 0, archer: 0 } };
+    expect(choosePosture(summary({ me: thin, rivals: [rival()] }))).toBe('siege');
+  });
+
+  it('keeps sieging while merely outgunned — only the yard breaks stance', () => {
+    const seen = rival({ intel: { ageTicks: 400, heavy: 9, light: 0, ranged: 0, total: 9 } });
+    expect(choosePosture(summary({ rivals: [seen] }))).toBe('siege');
+  });
+
+  it('does not go economy on a small village, which is what lost the draft rule', () => {
     const small = { ...summary().me, serfs: 6, pop: 8 };
-    expect(choosePosture(summary({ me: small, rivals: [rival()] }))).toBe('expand');
-  });
-
-  it('raids the bandits while no rival has been found', () => {
-    const hidden = rival({ found: false, distance: -1 });
-    const withCamps = summary({ rivals: [hidden], bandits: { camps: 2, nearestCamp: 18 } });
-    expect(choosePosture(withCamps)).toBe('raid');
-  });
-
-  it('goes back to expanding when there is nothing at all to hit', () => {
-    const hidden = rival({ found: false, distance: -1 });
-    expect(choosePosture(summary({ rivals: [hidden] }))).toBe('expand');
-  });
-
-  it('musters when a castle is found but the army cannot take it', () => {
-    const thin = { ...summary().me, army: { knight: 4, spearman: 0, archer: 0 } };
-    expect(choosePosture(summary({ me: thin, rivals: [rival()] }))).toBe('muster');
-  });
-
-  it('sieges once the army is big enough for the stance to march', () => {
-    const strong = { ...summary().me, army: { knight: 12, spearman: 2, archer: 0 } };
-    expect(choosePosture(summary({ me: strong, rivals: [rival()] }))).toBe('siege');
+    expect(choosePosture(summary({ me: small, rivals: [rival()] }))).toBe('siege');
   });
 
   it('ignores rivals that are already dead', () => {
     const dead = rival({ alive: false });
-    const strong = { ...summary().me, army: { knight: 12, spearman: 0, archer: 0 } };
-    expect(choosePosture(summary({ me: strong, rivals: [dead] }))).toBe('expand');
+    expect(choosePosture(summary({ rivals: [dead] }))).toBe('muster');
   });
 
   it('only ever names a stance the table has', () => {

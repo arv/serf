@@ -181,38 +181,44 @@ export function postureAdvice(id: PostureId): StrategyAdvice {
  * dozen lines of if/else is not reading the valley, and shipping it would
  * be paying 400 MB and a CPU core for something a switch statement does.
  *
- * Ordered as a priority cascade — survival, then tempo, then aggression —
- * because the situations overlap and the first true one should win.
+ * The shape of this cascade is measured, not reasoned. Its first draft was
+ * the intuitive one — grow while small, raid while nothing is found, siege
+ * once strong — and holding each stance for a whole match instead
+ * (`--engine posture:<id>`, 40 seeds) said the intuition was wrong:
+ *
+ *     posture:siege    68.4%   (19 flips toward the advised seat, 6 away)
+ *     posture:muster   60.8%
+ *     posture:expand   50.0%
+ *     the draft rule   51.3%
+ *     random            46.6%
+ *
+ * Paired McNemar over the same seeds: siege beat the draft rule (p =
+ * 0.012) and beat expand (p = 0.0024); the draft rule did not beat random
+ * at all (p = 0.63). A cascade losing to its own best constant means the
+ * *picking* was the problem, not the menu — so the picking now defaults to
+ * the aggressive end and deviates only where standing pat is untenable.
+ *
+ * The lesson under the numbers is about this valley: matches resolve in
+ * about eleven minutes, so an economy stance spends the decisive window
+ * paying for growth that never gets to fight. `expand` and `raid` stay in
+ * the table because the *model* may still name them — they are honest
+ * options on maps and seat counts the bake-off has not swept, and one map
+ * at forty seeds is not enough evidence to delete a stance — but nothing
+ * in this function chooses them.
  */
 export function choosePosture(summary: AiWorldSummary): PostureId {
-  const mine = armyOf(summary);
-  const livingRivals = summary.rivals.filter((r) => r.alive);
-  const found = livingRivals.filter((r) => r.found);
-
-  // Someone is in the yard: nothing else matters this consultation.
+  // Someone is in the yard. The only situation worth breaking stance for:
+  // an army that marches while its castle burns loses the castle.
   if (summary.me.underAttack) return 'fortify';
 
-  // Outgunned by a rival we have actually seen. Stale intel still counts —
-  // an army sighted two minutes ago has not shrunk.
-  const strongestSighting = Math.max(0, ...found.map((r) => r.intel?.total ?? 0));
-  if (strongestSighting > mine + 2) return 'fortify';
+  // Nothing located yet. `siege` sets prefersRivals, which parks the army
+  // until a castle is found — so until one is, mass instead, which leaves
+  // the captain free to clear the camps he can reach.
+  const found = summary.rivals.some((r) => r.alive && r.found);
+  if (!found) return 'muster';
 
-  // The village cannot field an army it has no hands to feed. Early, or
-  // simply small, means grow — this is the branch that fires most often
-  // in the opening minutes and it is the one that compounds.
-  if (summary.me.serfs < 9 || summary.me.pop < 12) return 'expand';
-
-  // Nobody located yet. Bandit camps are the only thing to hit, and
-  // hitting them is also how the map gets explored.
-  if (found.length === 0) {
-    return summary.bandits.camps > 0 ? 'raid' : 'expand';
-  }
-
-  // A castle is on the map. Take it if the army can, build the army if not.
-  return mine >= POSTURES.siege.knobs.armyAttackSize ? 'siege' : 'muster';
-}
-
-function armyOf(summary: AiWorldSummary): number {
-  const { knight, spearman, archer } = summary.me.army;
-  return knight + spearman + archer;
+  // A castle is on the map. Go and take it — including when the army is
+  // still thin, which is where the draft rule went wrong: it waited, and
+  // waiting is what `expand` and the printed playbook already lose to.
+  return 'siege';
 }
