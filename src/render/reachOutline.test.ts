@@ -5,7 +5,7 @@ import { HeightField } from './heightField';
 import { SelectedReach } from './reachOutline';
 import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings';
 import { RESOURCE_CODE, type MapView } from '../sim/map';
-import { palette } from './palette';
+import { verdictBad, verdictGood } from './palette';
 import type { BuildingSnap } from '../protocol/messages';
 
 const SIZE = DEFAULT_MAP_SIZE;
@@ -31,7 +31,7 @@ function seed(map: MapView, b: BuildingSnap, resource: 'wood' | 'ironDep'): void
   map.resource[tileIdx(origin.x + 2, origin.y + 2, SIZE)] = RESOURCE_CODE[resource];
 }
 
-/** The band's current color, as a palette hex. */
+/** The band's current color, as a hex. */
 function color(scene: THREE.Scene): number {
   return (outline(scene)!.material as THREE.MeshBasicMaterial).color.getHex();
 }
@@ -97,13 +97,13 @@ describe('the reach outline of a selected building', () => {
     const hut = snap({ type: 'woodcutter' });
     seed(map, hut, 'wood');
     reach.update(hut, map);
-    expect(color(scene)).toBe(palette.verdictGood);
+    expect(color(scene)).toBe(verdictGood);
   });
 
   it('reads red when nothing in reach is left', () => {
     const { reach, scene, map } = makeReach();
     reach.update(snap({ type: 'woodcutter' }), map);
-    expect(color(scene)).toBe(palette.verdictBad);
+    expect(color(scene)).toBe(verdictBad);
   });
 
   it('ignores a resource the building does not work', () => {
@@ -111,7 +111,7 @@ describe('the reach outline of a selected building', () => {
     const mine = snap({ type: 'ironMine' });
     seed(map, mine, 'wood');
     reach.update(mine, map);
-    expect(color(scene)).toBe(palette.verdictBad);
+    expect(color(scene)).toBe(verdictBad);
   });
 
   it('turns red under a standing selection as the last tile runs out', () => {
@@ -119,13 +119,13 @@ describe('the reach outline of a selected building', () => {
     const hut = snap({ type: 'woodcutter' });
     seed(map, hut, 'wood');
     reach.update(hut, map);
-    expect(color(scene)).toBe(palette.verdictGood);
+    expect(color(scene)).toBe(verdictGood);
     // The worker fells the last tree in reach: the sim clears the tile's
     // resource code, and the same selection must go red without being
     // re-clicked.
     map.resource.fill(0);
     reach.update(hut, map);
-    expect(color(scene)).toBe(palette.verdictBad);
+    expect(color(scene)).toBe(verdictBad);
   });
 
   it('follows the selection from one gatherer to the next', () => {

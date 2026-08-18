@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { makeGhostModel } from './models';
-import { palette } from './palette';
+import { verdictBad, verdictGood } from './palette';
 import { eachMaterial } from './materials';
 import {
   buildingDef,
@@ -11,8 +11,8 @@ import {
 import { ReachOutline } from './reachOutline';
 import type { HeightField } from './heightField';
 
-const VALID = new THREE.Color(palette.verdictGood);
-const INVALID = new THREE.Color(palette.verdictBad);
+const VALID = new THREE.Color(verdictGood);
+const INVALID = new THREE.Color(verdictBad);
 
 /**
  * The placement preview: a semi-transparent building model snapped to the

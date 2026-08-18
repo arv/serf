@@ -43,16 +43,21 @@ export const palette = {
   indigo: 0x30437a, // cloth
   lantern: 0xffc46b, // glowing lanterns
 
-  // Verdicts — the green/red pair the ghost and the reach outline both wear
-  verdictGood: 0x7fbf6a,
-  verdictBad: 0xd45252,
-
   // Atmosphere
   skyLight: 0xcfe4f7, // hemisphere sky
   groundBounce: 0x7f9a50, // green bounce light
   background: 0x223526,
   fog: 0x9cc0a8, // distant pale haze
 } as const;
+
+/**
+ * The verdict pair: green for a placement that will work — or ground that
+ * still has something on it — red for one that will not. Its own export
+ * rather than a palette entry, because the palette is the world's key and
+ * these two are feedback painted over it, in no key at all.
+ */
+export const verdictGood = 0x7fbf6a;
+export const verdictBad = 0xd45252;
 
 /** Color of a good when carried on a serf's shoulders (and in UI accents). */
 export const goodColors: Record<GoodId, number> = {

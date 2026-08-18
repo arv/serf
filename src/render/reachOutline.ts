@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { palette } from './palette';
+import { verdictBad, verdictGood } from './palette';
 import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings';
 import { RESOURCE_CODE, findResourceNear, type MapView, type TileResourceKind } from '../sim/map';
 import type { BuildingSnap } from '../protocol/messages';
@@ -141,8 +141,8 @@ function band(axis: 'x' | 'z', fixed: number, from: number, to: number): number[
  * green/red on purpose — the color that meant "this hut has trees" while
  * you were aiming it goes on meaning exactly that afterwards.
  */
-const RICH = new THREE.Color(palette.verdictGood);
-const SPENT = new THREE.Color(palette.verdictBad);
+const RICH = new THREE.Color(verdictGood);
+const SPENT = new THREE.Color(verdictBad);
 
 /**
  * The same outline, now for a standing building: select a woodcutter,
