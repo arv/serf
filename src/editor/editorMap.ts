@@ -1,5 +1,12 @@
-import { inBounds, tileCount, tileIdx } from '../shared/grid.ts';
-import { Terrain, recomputeBlocked, type GameMap, type StartSpot } from '../sim/map.ts';
+import { gridFor, tileCount, tileIdx } from '../shared/grid.ts';
+import {
+  Terrain,
+  inPlayArea,
+  recomputeBlocked,
+  type GameMap,
+  type PlayArea,
+  type StartSpot,
+} from '../sim/map.ts';
 import { resolveMapSize } from '../sim/world.ts';
 import { rotateStart } from './symmetry.ts';
 
@@ -19,13 +26,20 @@ export interface EditorMapState {
 /** Height a fresh meadow tile starts at — inside worldgen's gentle band. */
 export const BLANK_LAND_HEIGHT = 0.35;
 
-/** An all-grass flat map ready to paint, starts on the default ring. */
+/**
+ * An all-grass flat map ready to paint, starts on the default ring. `size`
+ * asks for the PLAYABLE side; the grid carries the canonical scenery
+ * margin around it (Warcraft-style, gridFor), all of it paintable — the
+ * margin is real tiles the camera sees, just ground nothing may use.
+ */
 export function createBlankMap(opts: { size: number; players: number }): EditorMapState {
-  const size = resolveMapSize(opts.size);
+  const play = resolveMapSize(opts.size);
+  const size = gridFor(play);
   const players = Math.max(1, Math.min(4, opts.players | 0));
   const tiles = tileCount(size);
   const map: GameMap = {
     size,
+    play,
     terrain: new Uint8Array(tiles),
     resource: new Uint8Array(tiles),
     resourceAmt: new Uint8Array(tiles),
@@ -36,19 +50,22 @@ export function createBlankMap(opts: { size: number; players: number }): EditorM
     height: new Float32Array(tiles).fill(BLANK_LAND_HEIGHT),
   };
   recomputeBlocked(map);
-  return { map, players, starts: defaultStarts(size, players), name: 'Untitled' };
+  return { map, players, starts: defaultStarts(map, players), name: 'Untitled' };
 }
 
 /**
  * Default start ring: seat 0 due north of the middle, the rest its exact
- * rotation images. Deliberately NOT startLayout (world.ts): that layout is
- * the worldgen/server contract and its 3-player triangle is mirror- but
- * not rotation-symmetric, which would put kaleidoscope copies of a stroke
- * on ground no seat owns. Solo keeps the classic center start.
+ * rotation images (rotations about the grid center, which is the play
+ * center — the margin is symmetric). Deliberately NOT startLayout
+ * (world.ts): that layout is the worldgen/server contract and its
+ * 3-player triangle is mirror- but not rotation-symmetric, which would
+ * put kaleidoscope copies of a stroke on ground no seat owns. Solo keeps
+ * the classic center start.
  */
-export function defaultStarts(size: number, players: number): StartSpot[] {
+export function defaultStarts(area: PlayArea, players: number): StartSpot[] {
+  const size = area.size;
   if (players <= 1) return [{ x: size / 2 - 2, y: size / 2 - 2 }];
-  const ring = Math.round(size * 0.28);
+  const ring = Math.round(area.play * 0.28);
   const first: StartSpot = { x: size / 2 - 2, y: size / 2 - 2 - ring };
   const out: StartSpot[] = [first];
   for (let k = 1; k < players; k++) out.push(rotateStart(first, size, k, players));
@@ -59,13 +76,17 @@ export function defaultStarts(size: number, players: number): StartSpot[] {
 const START_W = 3;
 
 /**
- * Can a storehouse legally stand here? The whole 3x3 footprint on grass
- * with a one-tile margin inside the map (the play path clears resources
- * 5x5 around it, so standing wood is fine). The drag tool's green/red and
- * validateForPlay agree by construction — this is the one rule.
+ * Can a storehouse legally stand here? The whole 3x3 footprint on grass,
+ * with a one-tile ring inside the PLAYABLE area (the play path clears
+ * resources 5x5 around it, so standing wood is fine — but scenery margin
+ * is not buildable ground). The drag tool's green/red and validateForPlay
+ * agree by construction — this is the one rule.
  */
 export function startSpotLegal(map: GameMap, s: StartSpot): boolean {
-  if (!inBounds(s.x - 1, s.y - 1, map.size) || !inBounds(s.x + START_W, s.y + START_W, map.size)) {
+  if (
+    !inPlayArea(map, s.x - 1, s.y - 1) ||
+    !inPlayArea(map, s.x + START_W, s.y + START_W)
+  ) {
     return false;
   }
   for (let dy = 0; dy < START_W; dy++) {
@@ -85,7 +106,7 @@ export function validateForPlay(state: EditorMapState): string[] {
   }
   starts.forEach((s, p) => {
     if (!startSpotLegal(map, s)) {
-      problems.push(`player ${p + 1}'s start needs a full 3×3 of grass clear of the map edge`);
+      problems.push(`player ${p + 1}'s start needs a full 3×3 of grass inside the playable area`);
     }
   });
   for (let a = 0; a < starts.length; a++) {

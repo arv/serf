@@ -1,9 +1,10 @@
-import { inBounds, tileIdx } from '../shared/grid.ts';
+import { inBounds, tileIdx, tileX, tileY } from '../shared/grid.ts';
 import { clamp } from '../shared/math.ts';
 import { WOOD_MAX_AMT } from '../sim/defs/balance.ts';
 import {
   Terrain,
   TileResource,
+  inPlayArea,
   tileBlocks,
   type TerrainKind,
   type TileResourceKind,
@@ -103,9 +104,14 @@ export function applyBrush(
   }
 
   // Walkability follows immediately: no buildings exist while editing, so
-  // the landscape rule alone is the whole answer.
+  // the landscape rule plus the play-area gate is the whole answer — the
+  // scenery margin is paintable but never walkable, exactly as
+  // recomputeBlocked enforces on load.
   for (const i of dirty) {
-    map.blocked[i] = tileBlocks(map.terrain[i]!, map.resource[i]!) ? 1 : 0;
+    map.blocked[i] =
+      tileBlocks(map.terrain[i]!, map.resource[i]!) || !inPlayArea(map, tileX(i, size), tileY(i, size))
+        ? 1
+        : 0;
   }
   return dirty;
 }

@@ -1,6 +1,6 @@
 import { tileCount, tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { exactDist } from '../../shared/math.ts';
-import { Terrain, TileResource, tileBlocks } from '../map.ts';
+import { playMin, playMax, Terrain, TileResource, tileBlocks } from '../map.ts';
 import { SeatVision } from '../visibility.ts';
 import { campCorners, startLayout } from '../world.ts';
 import { BUILDING_DEFS, buildingDef, repairBill, type BuildingTypeId } from '../defs/buildings.ts';
@@ -819,13 +819,18 @@ function findSpot(
  * ground with no legal site.
  */
 function nearestWater(world: World, cx: number, cy: number): number {
-  const size = world.map.size;
+  const map = world.map;
+  const size = map.size;
+  const lo = playMin(map);
+  const hi = playMax(map);
   let best = -1;
   let bestDist = Infinity;
-  for (let i = 0; i < tileCount(size); i++) {
-    if (world.map.terrain[i] !== Terrain.Water) continue;
-    const x = tileX(i, size);
-    const y = tileY(i, size);
+  // Play-area rows only: the margin's sea is scenery no pier can reach,
+  // and the scan has no business paying for it.
+  for (let y = lo; y < hi; y++) {
+  for (let x = lo; x < hi; x++) {
+    const i = y * size + x;
+    if (map.terrain[i] !== Terrain.Water) continue;
     let banked = false;
     for (const [nx, ny] of [
       [x - 1, y],
@@ -833,9 +838,9 @@ function nearestWater(world: World, cx: number, cy: number): number {
       [x, y - 1],
       [x, y + 1],
     ] as const) {
-      if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+      if (nx < lo || ny < lo || nx >= hi || ny >= hi) continue;
       const n = ny * size + nx;
-      if (!tileBlocks(world.map.terrain[n]!, world.map.resource[n]!)) {
+      if (!tileBlocks(map.terrain[n]!, map.resource[n]!)) {
         banked = true;
         break;
       }
@@ -847,20 +852,27 @@ function nearestWater(world: World, cx: number, cy: number): number {
       best = i;
     }
   }
+  }
   return best;
 }
 
 /** Nearest tile with a given resource to a point. */
 function nearestResource(world: World, code: number, cx: number, cy: number): number {
-  const size = world.map.size;
+  const map = world.map;
+  const size = map.size;
+  const lo = playMin(map);
+  const hi = playMax(map);
   let best = -1;
   let bestDist = Infinity;
-  for (let i = 0; i < tileCount(size); i++) {
-    if (world.map.resource[i] !== code || world.map.resourceAmt[i]! <= 0) continue;
-    const d = Math.abs(tileX(i, size) - cx) + Math.abs(tileY(i, size) - cy);
-    if (d < bestDist) {
-      bestDist = d;
-      best = i;
+  for (let y = lo; y < hi; y++) {
+    for (let x = lo; x < hi; x++) {
+      const i = y * size + x;
+      if (map.resource[i] !== code || map.resourceAmt[i]! <= 0) continue;
+      const d = Math.abs(x - cx) + Math.abs(y - cy);
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
+      }
     }
   }
   return best;
@@ -956,11 +968,13 @@ function searchLandmarks(world: World): [number, number][] {
   const pts: [number, number][] = [];
   // Rival doorsteps (the seat's own start is explored from tick 0 and
   // drops out on its own). Storehouses are 3x3, so +1 is the center.
-  for (const [sx, sy] of startLayout(size, world.players.length) ?? []) pts.push([sx + 1, sy + 1]);
+  for (const [sx, sy] of startLayout(world.map.play, playMin(world.map), world.players.length) ?? []) {
+    pts.push([sx + 1, sy + 1]);
+  }
   // Camp seeds: the middle, then the corners — the very spots worldgen
   // seeds from (campCorners), at their 3x3 centers.
   pts.push([size / 2, size / 2]);
-  for (const [cx, cy] of campCorners(size)) pts.push([cx + 1, cy + 1]);
+  for (const [cx, cy] of campCorners(world.map.play, playMin(world.map))) pts.push([cx + 1, cy + 1]);
   return pts;
 }
 
@@ -1025,7 +1039,7 @@ export function approachPoint(goal: number, size: number): { x: number; y: numbe
  */
 export function rivalDoorstep(world: World, owner: Owner): number {
   const size = world.map.size;
-  const start = startLayout(size, world.players.length)?.[owner];
+  const start = startLayout(world.map.play, playMin(world.map), world.players.length)?.[owner];
   if (!start) return -1;
   return tileIdx(start[0] + 1, Math.min(size - 1, start[1] + 5), size);
 }

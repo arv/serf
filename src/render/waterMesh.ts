@@ -23,11 +23,10 @@ export class WaterMesh {
 
   constructor(map: MapView) {
     const size = map.size;
-    // Three times the map on a side: open sea past every shore, matching
-    // the edge skirt's reach (skirtExtent), so the two horizons end
-    // together — far enough out that a corner camera at full zoom-out
-    // meets the fog band (renderer.ts) before either rim.
-    const geometry = new THREE.PlaneGeometry(size * 3, size * 3, 1, 1);
+    // Half a grid of slack past the grid itself: the camera is bounded to
+    // the play square and never frames past the grid edge, and the fog
+    // band (renderer.ts) hazes the distance long before the plane's rim.
+    const geometry = new THREE.PlaneGeometry(size * 2, size * 2, 1, 1);
     geometry.rotateX(-Math.PI / 2);
     geometry.translate(size / 2, WATER_LEVEL, size / 2);
 
@@ -104,12 +103,12 @@ export class WaterMesh {
             return mix(mix(a, b, s.x), mix(c, d, s.x), s.y);
           }
 
-          // Past the map bounds the bed slides to open-sea depth on its
-          // own: the edge row is no longer guaranteed wet (a ridge or
-          // forest border runs its land to the last tile), and clamping a
-          // rock row outward would dry up the whole horizon. Where the
-          // edge skirt stands above the waterline it simply occludes this
-          // surface; where it dips, open water shows.
+          // Past the grid the bed slides to open-sea depth on its own:
+          // the outermost row is not guaranteed wet (a ridge margin runs
+          // rock to the last tile), and clamping a rock row outward would
+          // dry up the horizon. Where the margin mesh stands above the
+          // waterline it occludes this surface; where it dips, open water
+          // shows.
           float bedAt(vec2 w) {
             vec2 ov = max(max(-w, w - uMapSize), vec2(0.0));
             return mix(bedHeight(w), -1.6, smoothstep(0.0, 5.0, length(ov)));

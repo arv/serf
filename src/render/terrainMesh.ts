@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
-import { Terrain, TileResource, type MapView } from '../sim/map';
+import { Terrain, TileResource, playMin, playMax, type MapView } from '../sim/map';
 import { palette } from './palette';
 import { makeGroundTexture } from './groundTexture';
 import { vnoise } from './noise';
@@ -47,7 +47,10 @@ export class TerrainMesh {
   #map: MapView;
   #heights: HeightField;
   #size: number;
-  /** Sub-tile lattice edge: #size * SEG. */
+  /** First playable row/column — the mesh covers the play square only;
+   * the coarse margin mesh (marginMesh.ts) carries the scenery ring. */
+  #p0: number;
+  /** Sub-tile lattice edge: play side * SEG. */
   #grid: number;
 
   // Static per-vertex fields, computed once.
@@ -70,13 +73,16 @@ export class TerrainMesh {
     this.#heights = heights;
     const size = map.size;
     this.#size = size;
-    this.#grid = size * SEG;
+    const p0 = playMin(map);
+    this.#p0 = p0;
+    const play = map.play;
+    this.#grid = play * SEG;
     this.#tileClass = new Uint8Array(tileCount(size));
     this.#tileEarth = new Float32Array(tileCount(size));
     this.#tileDeposit = new Int8Array(tileCount(size));
-    this.#geometry = new THREE.PlaneGeometry(size, size, this.#grid, this.#grid);
+    this.#geometry = new THREE.PlaneGeometry(play, play, this.#grid, this.#grid);
     this.#geometry.rotateX(-Math.PI / 2);
-    this.#geometry.translate(size / 2, 0, size / 2);
+    this.#geometry.translate(p0 + play / 2, 0, p0 + play / 2);
 
     const pos = this.#geometry.attributes.position!;
     const count = pos.count;
@@ -118,7 +124,7 @@ export class TerrainMesh {
 
     const material = new THREE.MeshLambertMaterial({
       vertexColors: true,
-      map: makeGroundTexture(size),
+      map: makeGroundTexture(play),
     });
     this.mesh = new THREE.Mesh(this.#geometry, material);
     this.mesh.receiveShadow = true;
@@ -126,9 +132,13 @@ export class TerrainMesh {
 
   /** Recolor every vertex from current map state. */
   repaintAll(): void {
-    // --- Per-tile pass: classify + trampled-earth mask -----------------------
-    for (let y = 0; y < this.#size; y++) {
-      for (let x = 0; x < this.#size; x++) this.#recomputeTile(x, y);
+    // --- Per-tile pass: classify + trampled-earth mask ----------------------
+    // One ring past the play square too: the warped boundary lookup samples
+    // the first margin tiles, and they must carry real classes.
+    const lo = Math.max(0, playMin(this.#map) - 2);
+    const hi = Math.min(this.#size, playMax(this.#map) + 2);
+    for (let y = lo; y < hi; y++) {
+      for (let x = lo; x < hi; x++) this.#recomputeTile(x, y);
     }
 
     // --- Per-vertex pass -----------------------------------------------------
@@ -171,11 +181,11 @@ export class TerrainMesh {
     for (const i of recompute) this.#recomputeTile(tileX(i, size), tileY(i, size));
 
     // Vertices live on a (grid+1)^2 lattice, SEG per tile edge, row-major —
-    // vertex (row, col) sits at world (col/SEG, row/SEG).
+    // vertex (row, col) sits at world (p0 + col/SEG, p0 + row/SEG).
     const dirtyVerts = new Set<number>();
     for (const t of dirty) {
-      const tx = tileX(t, size);
-      const ty = tileY(t, size);
+      const tx = tileX(t, size) - this.#p0;
+      const ty = tileY(t, size) - this.#p0;
       const c0 = Math.max(0, (tx - 2) * SEG);
       const c1 = Math.min(grid, (tx + 3) * SEG);
       const r0 = Math.max(0, (ty - 2) * SEG);
@@ -228,10 +238,13 @@ export class TerrainMesh {
     }
     for (const i of recompute) this.#recomputeTile(tileX(i, size), tileY(i, size));
 
+    // Same play-relative lattice walk as repaintTiles — a dirty margin
+    // tile near the boundary still refreshes the play verts its bilinear
+    // support reaches, and one fully outside contributes no verts at all.
     const dirtyVerts = new Set<number>();
     for (const t of dirty) {
-      const tx = tileX(t, size);
-      const ty = tileY(t, size);
+      const tx = tileX(t, size) - this.#p0;
+      const ty = tileY(t, size) - this.#p0;
       const c0 = Math.max(0, (tx - 2) * SEG);
       const c1 = Math.min(grid, (tx + 3) * SEG);
       const r0 = Math.max(0, (ty - 2) * SEG);
@@ -241,6 +254,7 @@ export class TerrainMesh {
         for (let col = c0; col <= c1; col++) dirtyVerts.add(base + col);
       }
     }
+    if (dirtyVerts.size === 0) return;
 
     const pos = this.#geometry.attributes.position!;
     for (const v of dirtyVerts) {

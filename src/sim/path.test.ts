@@ -9,6 +9,7 @@ const TILE_COUNT = tileCount(MAP_SIZE);
 function emptyMap(): GameMap {
   return {
     size: MAP_SIZE,
+    play: MAP_SIZE,
     terrain: new Uint8Array(TILE_COUNT),
     resource: new Uint8Array(TILE_COUNT),
     resourceAmt: new Uint8Array(TILE_COUNT),

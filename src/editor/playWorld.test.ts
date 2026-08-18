@@ -11,13 +11,14 @@ import { createBlankMap } from './editorMap.ts';
 import { worldFromEditor } from './playWorld.ts';
 
 function authoredState() {
+  // play 64 -> grid 128, play region [32, 96).
   const state = createBlankMap({ size: 64, players: 2 });
   // A lake, a range, a grove and a seam — enough authored variety that the
   // world builder has something real to keep intact.
-  applyBrush(state, { kind: 'terrain', terrain: Terrain.Water }, 12, 40, { radius: 5, folds: 2 });
-  applyBrush(state, { kind: 'terrain', terrain: Terrain.Rock }, 50, 12, { radius: 3, folds: 2 });
-  applyBrush(state, { kind: 'resource', res: TileResource.Wood }, 26, 20, { radius: 3, folds: 2 });
-  applyBrush(state, { kind: 'resource', res: TileResource.IronDep }, 40, 40, {
+  applyBrush(state, { kind: 'terrain', terrain: Terrain.Water }, 44, 72, { radius: 5, folds: 2 });
+  applyBrush(state, { kind: 'terrain', terrain: Terrain.Rock }, 82, 44, { radius: 3, folds: 2 });
+  applyBrush(state, { kind: 'resource', res: TileResource.Wood }, 58, 52, { radius: 3, folds: 2 });
+  applyBrush(state, { kind: 'resource', res: TileResource.IronDep }, 72, 72, {
     radius: 2,
     folds: 2,
   });
@@ -41,7 +42,9 @@ describe('worldFromEditor', () => {
       expect({ x: store.x, y: store.y }).toEqual(state.starts[p]);
       expect(store.stock).toEqual(START_STOCK);
       // The footprint owns its tiles.
-      expect(world.map.buildingAt[tileIdx(store.x + 1, store.y + 1, 64)]).toBe(store.id);
+      expect(world.map.buildingAt[tileIdx(store.x + 1, store.y + 1, world.map.size)]).toBe(
+        store.id,
+      );
     }
   });
 
@@ -77,7 +80,8 @@ describe('worldFromEditor', () => {
   it('round-trips through the save format the Play handoff uses', () => {
     const world = worldFromEditor(authoredState(), PLAY);
     const back = deserializeWorld(serializeWorld(world));
-    expect(back.map.size).toBe(64);
+    expect(back.map.play).toBe(64);
+    expect(back.map.size).toBe(128);
     expect(back.map.terrain).toEqual(world.map.terrain);
     expect(back.buildings.size).toBe(world.buildings.size);
     expect(back.units.size).toBe(world.units.size);

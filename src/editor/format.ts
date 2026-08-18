@@ -1,5 +1,5 @@
-import { MAX_MAP_SIZE, MIN_MAP_SIZE, tileCount } from '../shared/grid.ts';
-import { Terrain, TileResource, recomputeBlocked, type GameMap } from '../sim/map.ts';
+import { MAX_MAP_SIZE, MIN_MAP_SIZE, gridFor, tileCount } from '../shared/grid.ts';
+import { Terrain, TileResource, inPlayArea, recomputeBlocked, type GameMap } from '../sim/map.ts';
 import type { EditorMapState } from './editorMap.ts';
 
 /**
@@ -13,7 +13,10 @@ export interface EditorMapFile {
   format: 'serf-map';
   version: 1;
   name: string;
+  /** Full grid side — always gridFor(play): the canonical scenery margin. */
   size: number;
+  /** Playable side, centered in the grid. */
+  play: number;
   players: number;
   starts: { x: number; y: number }[];
   terrain: number[];
@@ -28,6 +31,7 @@ export function serializeEditorMap(state: EditorMapState): string {
     version: 1,
     name: state.name,
     size: state.map.size,
+    play: state.map.play,
     players: state.players,
     starts: state.starts.map((s) => ({ x: s.x, y: s.y })),
     terrain: [...state.map.terrain],
@@ -57,10 +61,12 @@ export function parseEditorMap(json: string): EditorMapState {
   }
   if (file?.format !== 'serf-map') bad('wrong format tag');
   if (file.version !== 1) bad(`unsupported version ${String(file.version)}`);
-  const size = file.size;
-  if (!Number.isInteger(size) || size < MIN_MAP_SIZE || size > MAX_MAP_SIZE || size % 2 !== 0) {
-    bad(`bad size ${String(size)}`);
+  const play = file.play;
+  if (!Number.isInteger(play) || play < MIN_MAP_SIZE || play > MAX_MAP_SIZE || play % 2 !== 0) {
+    bad(`bad playable size ${String(play)}`);
   }
+  const size = file.size;
+  if (size !== gridFor(play)) bad(`bad grid size ${String(size)} for playable ${String(play)}`);
   const tiles = tileCount(size);
   for (const key of ['terrain', 'resource', 'resourceAmt', 'height'] as const) {
     const arr = file[key];
@@ -81,13 +87,17 @@ export function parseEditorMap(json: string): EditorMapState {
   if (!Array.isArray(file.starts) || file.starts.length !== players) {
     bad('starts do not match player count');
   }
+  const area = { size, play };
   for (const s of file.starts) {
     if (!Number.isInteger(s?.x) || !Number.isInteger(s?.y)) bad('bad start spot');
-    if (s.x < 0 || s.y < 0 || s.x + 3 > size || s.y + 3 > size) bad('start out of bounds');
+    if (!inPlayArea(area, s.x, s.y) || !inPlayArea(area, s.x + 2, s.y + 2)) {
+      bad('start out of bounds');
+    }
   }
 
   const map: GameMap = {
     size,
+    play,
     terrain: Uint8Array.from(file.terrain),
     resource: Uint8Array.from(file.resource),
     resourceAmt: Uint8Array.from(file.resourceAmt),

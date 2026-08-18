@@ -3,14 +3,14 @@ import { TerrainMesh } from '../render/terrainMesh';
 import { ScatterMesh } from '../render/scatterMesh';
 import { GrassField } from '../render/grassField';
 import { WaterMesh } from '../render/waterMesh';
-import { EdgeSkirt } from '../render/edgeSkirt';
+import { MarginMesh } from '../render/marginMesh';
 import { HeightField } from '../render/heightField';
 import { loadGlbAssets } from '../render/assets';
 import { disposeOwnedSubtree } from '../render/disposal';
 import { goto } from '../app/router';
 import { serializeWorld } from '../sim/save.ts';
-import { DEFAULT_MAP_SIZE, edgeDist, tileX, tileY } from '../shared/grid.ts';
-import { Terrain, TileResource, type StartSpot } from '../sim/map.ts';
+import { DEFAULT_MAP_SIZE, tileX, tileY } from '../shared/grid.ts';
+import { Terrain, TileResource, playEdgeDist, type StartSpot } from '../sim/map.ts';
 import { HEIGHT_STEP, applyStroke, type Tool } from './brush.ts';
 import { BrushCursor } from './brushCursor.ts';
 import { EditorControls, type EditorSurface } from './editorControls.ts';
@@ -93,7 +93,9 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   teardown.push(() => canvas.replaceWith(canvas.cloneNode(false)));
   const renderer = new GameRenderer(canvas, true);
   teardown.push(() => renderer.dispose());
-  renderer.rig.setMaxViewFraction(1.25);
+  // The editor's zoom bounds cover the whole grid (setPlayBounds below
+  // widens the pan box to match), so the entire world fits in one frame.
+  renderer.rig.setMaxViewFraction(1.0);
   renderer.rig.setViewMode(viewMode());
 
   // Editing survives a lost context: the draft is saved on every pause
@@ -124,7 +126,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     heights: HeightField;
     terrain: TerrainMesh;
     water: WaterMesh;
-    skirt: EdgeSkirt;
+    margin: MarginMesh;
     scatter: ScatterMesh;
     grass: GrassField;
     markers: StartMarkers;
@@ -137,7 +139,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
 
   const pendingRepaint = new Set<number>();
   const pendingReheight = new Set<number>();
-  let borderTouched = false;
+  let marginTouched = false;
   let foliageTimer: ReturnType<typeof setTimeout> | undefined;
   let draftTimer: ReturnType<typeof setTimeout> | undefined;
   teardown.push(() => clearTimeout(foliageTimer));
@@ -150,6 +152,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       rebuildFoliage();
     }, FOLIAGE_DEBOUNCE_MS);
   };
+  // (marginTouched rides the same debounce: rebuildFoliage folds it in.)
 
   const markDirty = (): void => {
     setDirtySinceSave(true);
@@ -170,11 +173,14 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     sc.scatter = new ScatterMesh(state.map, sc.heights);
     sc.grass = new GrassField(state.map, sc.heights);
     renderer.scene.add(sc.scatter.group, sc.grass.mesh);
-    if (borderTouched) {
-      borderTouched = false;
-      disposeOwnedSubtree(sc.skirt.group);
-      sc.skirt = new EdgeSkirt(state.map, sc.heights);
-      renderer.scene.add(sc.skirt.group);
+    if (marginTouched) {
+      // The margin mesh is static by design (nothing changes it in a
+      // match); the editor is the one place it needs rebuilding — one
+      // coarse vertex per tile, cheap at this cadence.
+      marginTouched = false;
+      disposeOwnedSubtree(sc.margin.mesh);
+      sc.margin = new MarginMesh(state.map, sc.heights);
+      renderer.scene.add(sc.margin.mesh);
     }
     sc.markers.refreshHeights();
   }
@@ -192,8 +198,10 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       const wantsReheight = t.kind !== 'resource';
       for (const i of dirty) {
         (wantsReheight ? pendingReheight : pendingRepaint).add(i);
-        if (edgeDist(tileX(i, state.map.size), tileY(i, state.map.size), state.map.size) < 4) {
-          borderTouched = true;
+        // A stroke in the scenery ring — or near enough that the margin
+        // mesh's boundary tuck reads it — re-bakes the coarse mesh.
+        if (playEdgeDist(state.map, tileX(i, state.map.size), tileY(i, state.map.size)) < 3) {
+          marginTouched = true;
         }
         // Standing props react immediately where something vanished; what
         // GREW waits for the debounced rebuild.
@@ -240,17 +248,20 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
 
   function buildScene(): void {
     const map = state.map;
-    renderer.setWorldExtent(map.size);
+    renderer.setWorldExtent(map.play, map.size);
+    // The game bounds its camera to the play square; an author needs to
+    // reach the scenery ring too — it is real, paintable ground here.
+    renderer.rig.setPlayBounds(0, map.size);
     const heights = new HeightField(map.height, map.size);
     const terrain = new TerrainMesh(map, heights);
     const water = new WaterMesh(map);
-    const skirt = new EdgeSkirt(map, heights);
+    const margin = new MarginMesh(map, heights);
     const scatter = new ScatterMesh(map, heights);
     const grass = new GrassField(map, heights);
     renderer.scene.add(
       terrain.mesh,
       water.mesh,
-      skirt.group,
+      margin.mesh,
       scatter.group,
       grass.mesh,
     );
@@ -258,8 +269,9 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     markers.set(state.starts);
     const cursor = new BrushCursor(renderer.scene, heights);
     const controls = new EditorControls(canvas, renderer.rig, heights, cursor, markers, surface);
-    sc = { heights, terrain, water, skirt, scatter, grass, markers, cursor, controls };
-    renderer.rig.focusOn(map.size / 2, map.size / 2, Math.round(map.size * 1.1));
+    sc = { heights, terrain, water, margin, scatter, grass, markers, cursor, controls };
+    // Open framing the play square plus a strip of scenery.
+    renderer.rig.focusOn(map.size / 2, map.size / 2, Math.round(map.play * 1.1));
     refreshProblems();
   }
 
@@ -270,7 +282,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     sc.markers.clear();
     disposeOwnedSubtree(sc.scatter.group);
     disposeOwnedSubtree(sc.grass.mesh);
-    disposeOwnedSubtree(sc.skirt.group);
+    disposeOwnedSubtree(sc.margin.mesh);
     disposeOwnedSubtree(sc.terrain.mesh);
     sc.water.dispose();
     sc = null;
@@ -287,7 +299,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     clearTimeout(foliageTimer);
     pendingRepaint.clear();
     pendingReheight.clear();
-    borderTouched = false;
+    marginTouched = false;
     tearDownScene();
     state = next;
     resetEditorUiState(state);
@@ -300,7 +312,9 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   const actions: EditorActions = {
     newMap(size, players): void {
       replaceState(createBlankMap({ size, players }));
-      showNotice(`New ${String(state.map.size)}×${String(state.map.size)} map for ${String(state.players)} player(s)`);
+      showNotice(
+        `New map: ${String(state.map.play)}×${String(state.map.play)} playable for ${String(state.players)} player(s)`,
+      );
     },
     toggleView: () => surface.toggleView(),
     exportMap(): void {
@@ -333,7 +347,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
         showNotice(err instanceof Error ? err.message : String(err));
         return;
       }
-      goto(`?seed=${String(cfg.seed)}&size=${String(state.map.size)}`);
+      goto(`?seed=${String(cfg.seed)}&size=${String(state.map.play)}`);
     },
   };
 

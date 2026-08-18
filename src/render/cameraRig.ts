@@ -59,9 +59,12 @@ export class CameraRig {
   #off = new AbortController();
   readonly camera: THREE.OrthographicCamera;
   #canvas: HTMLCanvasElement;
-  /** Grid side of the world being viewed; setMapSize updates it when the
-   * init frame announces the real one. */
-  #mapSize = DEFAULT_MAP_SIZE;
+  /** Playable-world bounds being viewed; setPlayBounds updates them when
+   * the init frame announces the real ones. The camera is bounded to the
+   * play square (Warcraft-style) — the scenery ring beyond is for looking
+   * at, not for visiting. */
+  #min = 0;
+  #max = DEFAULT_MAP_SIZE;
   #target = new THREE.Vector3(DEFAULT_MAP_SIZE / 2, 0, DEFAULT_MAP_SIZE / 2);
   #viewHeight = 30;
   /** Viewing line; the module constants are the game's fixed values, and
@@ -257,7 +260,7 @@ export class CameraRig {
   }
 
   #maxView(): number {
-    return Math.round(this.#mapSize * this.#maxViewFraction);
+    return Math.round((this.#max - this.#min) * this.#maxViewFraction);
   }
 
   /** Swap between the game's isometric line and the editor's plan view. */
@@ -270,8 +273,8 @@ export class CameraRig {
     this.#apply();
   }
 
-  /** Editor override: let the whole map (plus margin) fit in one frame.
-   * The game's default fraction stays put for every match. */
+  /** Editor override: let more of the world fit in one frame than the
+   * game's cap allows. The default fraction stays put for every match. */
   setMaxViewFraction(f: number): void {
     this.#maxViewFraction = f;
     this.#viewHeight = clamp(this.#viewHeight, MIN_VIEW, this.#maxView());
@@ -284,9 +287,10 @@ export class CameraRig {
    * camera on their castle right after, so the recenter is just a sane
    * default for viewers with no home to look at.
    */
-  setMapSize(size: number): void {
-    this.#mapSize = size;
-    this.#target.set(size / 2, 0, size / 2);
+  setPlayBounds(min: number, max: number): void {
+    this.#min = min;
+    this.#max = max;
+    this.#target.set((min + max) / 2, 0, (min + max) / 2);
     this.#viewHeight = clamp(this.#viewHeight, MIN_VIEW, this.#maxView());
     this.resize();
   }
@@ -314,8 +318,8 @@ export class CameraRig {
     this.#glide = {
       fromX: this.#target.x,
       fromZ: this.#target.z,
-      toX: clamp(x, -PAN_MARGIN, this.#mapSize + PAN_MARGIN),
-      toZ: clamp(z, -PAN_MARGIN, this.#mapSize + PAN_MARGIN),
+      toX: clamp(x, this.#min - PAN_MARGIN, this.#max + PAN_MARGIN),
+      toZ: clamp(z, this.#min - PAN_MARGIN, this.#max + PAN_MARGIN),
       t: 0,
       dur: durationMs / 1000,
     };
@@ -365,8 +369,16 @@ export class CameraRig {
     const rz = -Math.sin(this.#yaw);
     const fx = -Math.sin(this.#yaw);
     const fz = -Math.cos(this.#yaw);
-    this.#target.x = clamp(this.#target.x + rx * x - fx * z, -PAN_MARGIN, this.#mapSize + PAN_MARGIN);
-    this.#target.z = clamp(this.#target.z + rz * x - fz * z, -PAN_MARGIN, this.#mapSize + PAN_MARGIN);
+    this.#target.x = clamp(
+      this.#target.x + rx * x - fx * z,
+      this.#min - PAN_MARGIN,
+      this.#max + PAN_MARGIN,
+    );
+    this.#target.z = clamp(
+      this.#target.z + rz * x - fz * z,
+      this.#min - PAN_MARGIN,
+      this.#max + PAN_MARGIN,
+    );
     this.#apply();
   }
 

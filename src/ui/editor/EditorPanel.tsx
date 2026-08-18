@@ -216,7 +216,7 @@ function NewMapDialog(props: { actions: EditorActions }) {
   return (
     <Dialog title="New map">
       <label class="ed-row">
-        Size {size()}×{size()}
+        Playable {size()}×{size()}
         <input
           type="range"
           min={MIN_MAP_SIZE}
@@ -226,6 +226,7 @@ function NewMapDialog(props: { actions: EditorActions }) {
           onInput={(e) => setSize(Number(e.currentTarget.value))}
         />
       </label>
+      <div class="ed-dim">A scenery ring half the playable side surrounds it — paintable, unwalkable.</div>
       <div class="ed-row">
         Players
         <div class="ed-seg">

@@ -41,6 +41,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
   const src = state.map;
   const map: GameMap = {
     size: src.size,
+    play: src.play,
     terrain: Uint8Array.from(src.terrain),
     resource: Uint8Array.from(src.resource),
     resourceAmt: Uint8Array.from(src.resourceAmt),
@@ -68,7 +69,9 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
     ledger: { produced: {}, consumed: {} },
     pendingDeltas: [],
     players: cfg.players.map((p, i) => makePlayer(i, p.kind, deal[i])),
-    raidState: { nextRaidTick: firstRaidTickFor(size), wave: 0 },
+    // The raid clock scales with the PLAYABLE span, exactly as createWorld's
+    // does (the margin adds no marching distance for anyone).
+    raidState: { nextRaidTick: firstRaidTickFor(map.play), wave: 0 },
     admin: { enabled: true, raidsEnabled: cfg.banditsEnabled, instantBuild: false },
     pendingEvents: [],
     outcome: { state: 'playing' },
@@ -85,8 +88,9 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
 
   // Bandit camp, the same seed order the generated worlds use: middle
   // first with rivals on the map, a seed-dealt corner solo, corners as
-  // fallbacks farthest-from-any-doorstep first.
-  const corners = campCorners(size);
+  // fallbacks farthest-from-any-doorstep first. Corners are play-relative;
+  // the editor's grids always carry the canonical margin.
+  const corners = campCorners(map.play, (map.size - map.play) / 2);
   let campSeeds: [number, number][];
   if (starts.length === 1) {
     const first = rng.int(corners.length);
