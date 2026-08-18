@@ -1,3 +1,4 @@
+import { isPostureId, postureAdvice, type PostureId } from './posture.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 import type { UnitTypeId } from '../sim/defs/units.ts';
 
@@ -41,6 +42,10 @@ export interface StrategyAdvice {
   housingHeadroom?: number;
   /** Silver held back from hiring while research is pending. */
   researchReserve?: number;
+  /** The stance these knobs came from, when they came from one. Carried so
+   * the next prompt can name it and the debug overlay can show it; stripped
+   * by toOverride like `reason`, since the sim knows only knobs. */
+  posture?: PostureId;
   /** The model's one-line rationale. Debug overlay only — never the sim. */
   reason?: string;
 }
@@ -104,6 +109,14 @@ function clampedInt(raw: unknown, range: readonly [number, number]): number | un
  * Raw model text → validated advice, or null when there is nothing to
  * salvage. A reply that parses but offers no usable knob comes back as {}:
  * "change nothing" is valid advice, garbage is not.
+ *
+ * Two reply shapes are accepted. `{"posture":"siege"}` is what the
+ * strategist asks for now — a stance name, expanded here into the knob set
+ * authored in posture.ts. Raw knobs still parse as they always did, which
+ * is what keeps the lab's `random` noise floor and `script` engines
+ * measuring the same thing they measured before postures existed. A reply
+ * carrying both wins on the explicit knob: the posture lays the floor and
+ * anything named individually overrides it.
  */
 export function parseAdvice(raw: string): StrategyAdvice | null {
   let parsed: unknown;
@@ -116,7 +129,13 @@ export function parseAdvice(raw: string): StrategyAdvice | null {
   // Read through a null-prototype copy is overkill; reading own properties
   // one key at a time is enough, since nothing here walks the prototype.
   const obj = parsed as Record<string, unknown>;
+  // A posture names every knob it steers, so it goes down first and the
+  // per-key passes below overwrite whatever the reply also spelled out.
   const advice: StrategyAdvice = {};
+  if (Object.hasOwn(obj, 'posture') && isPostureId(obj['posture'])) {
+    Object.assign(advice, postureAdvice(obj['posture']));
+    advice.posture = obj['posture'];
+  }
 
   for (const key of Object.keys(ADVICE_RANGES) as (keyof typeof ADVICE_RANGES)[]) {
     if (!Object.hasOwn(obj, key)) continue;
@@ -161,9 +180,9 @@ export function parseAdvice(raw: string): StrategyAdvice | null {
   return advice;
 }
 
-/** Advice → the override AiBrain merges over its playbook. `reason` is for
- * humans and stays behind. */
+/** Advice → the override AiBrain merges over its playbook. `reason` and
+ * `posture` are for humans and the next prompt; they stay behind. */
 export function toOverride(advice: StrategyAdvice): Partial<AiStrategy> {
-  const { reason: _reason, ...knobs } = advice;
+  const { reason: _reason, posture: _posture, ...knobs } = advice;
   return knobs;
 }

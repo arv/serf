@@ -1,3 +1,4 @@
+import { POSTURES, POSTURE_ORDER } from './posture.ts';
 import type { StrategyAdvice } from './advice.ts';
 import type { AiWorldSummary } from './summary.ts';
 
@@ -9,8 +10,17 @@ import type { AiWorldSummary } from './summary.ts';
  * Written for a ~1B instruct model, which shapes everything: the system
  * message is a glossary rather than an essay, the user message is data
  * with a little arithmetic already done (deltas since last time), and the
- * asked-for reply is a handful of JSON keys. Budget is ~900 input tokens;
- * the summary is capped near 1.5 KB, so the total holds.
+ * asked-for reply is one word. Budget is ~900 input tokens; the summary is
+ * capped near 1.5 KB, so the total holds.
+ *
+ * The reply used to be a JSON object of knob values, and the bake-off
+ * showed what models this size do with that: qwen2.5-0.5b landed below the
+ * random noise floor, and lfm2.5-350m answered 862 consultations with two
+ * distinct strings. Both failures are the same failure — authoring numbers
+ * is generation, and these models cannot generate. So the menu below asks
+ * them to *recognise a situation* instead, and posture.ts owns the numbers.
+ * Every line of the menu is phrased as the condition to pick it under, for
+ * the same reason.
  */
 
 /** OpenAI-style chat shape, structurally what WebLLM accepts — declared
@@ -20,21 +30,16 @@ export interface ChatMessage {
   content: string;
 }
 
-const SYSTEM = `You are the strategist for one AI lord in a medieval RTS. Serfs haul goods, buildings produce them, soldiers fight. Razing a rival's castle eliminates them; razing bandit camps stops raids. You steer high-level posture by adjusting knobs; a competent captain handles all execution.
+const SYSTEM = `You are the strategist for one AI lord in a medieval RTS. Serfs haul goods, buildings produce them, soldiers fight. Razing a rival's castle eliminates them; razing bandit camps stops raids. You choose the seat's posture; a competent captain handles all execution.
 
 Fog of war: you know only what your seat has scouted ("explored" is your map coverage, 0-1). A rival with found=false has not been located yet — your captain scouts automatically, and the army cannot march on a castle nobody has found. A rival's "intel" is your scout's last look at their army composition (heavy/light/ranged) with its age; old intel may be wrong, null intel means never sighted. Your captain already re-scouts stale rivals and counter-forges against sighted compositions on his own — steer posture, not unit micro.
 
-Knobs you may set (integers unless noted):
-- serfTarget (6-20): serfs to hire toward. More hands, more upkeep.
-- armyAttackSize (3-16): soldiers mustered before marching.
-- attackCooldown (200-2000): ticks between marches (20 ticks = 1s).
-- homeGuard (0-20): recall army when an enemy comes this close to home; 0 never recalls.
-- prefersRivals (boolean): true holds out for a rival castle instead of a nearer bandit camp — the army waits until one is found.
-- trainPreference (array from "knight","spearman","archer"): training priority. Knights are heavy and slow, spearmen fast and cheap, archers ranged. Heavy beats light, light catches ranged, ranged kites heavy.
-- weaponMix (array of 0-2, one entry per forge): 0=spear, 1=sword, 2=bow. Swords cost double iron; bows cost only wood.
-- barracksQueueDepth (1-4), houseLimit (2-8), housingHeadroom (1-6), researchReserve (0-20).
+Your one job is posture: how the seat spends the next minute and a half.
 
-Reply with a single JSON object. Include ONLY knobs you want changed, plus a short "reason". {} means keep everything as it is. No text outside the JSON.`;
+Choose exactly one posture:
+${POSTURE_ORDER.map((id) => `- ${id}: ${POSTURES[id].when}`).join('\n')}
+
+Reply with a single JSON object: {"posture": "<one of the five>", "reason": "<a few words>"}. Nothing else.`;
 
 /** The differences a small model would otherwise have to compute itself. */
 function deltas(current: AiWorldSummary, prev: AiWorldSummary | null): string {
@@ -69,6 +74,30 @@ function intelLine(intel: { heavy: number; light: number; ranged: number; total:
   return `${intel.total} soldiers (${intel.heavy} heavy, ${intel.light} light, ${intel.ranged} ranged)`;
 }
 
+/**
+ * The summary back out of a built prompt, or null if it is not in there.
+ *
+ * Exists for engines that reason over the state rather than over the
+ * words — the lab's rule-based `posture` opponent, which has to see the
+ * same valley a model would. Reading it back out of the prompt keeps that
+ * engine on the ChatEngine seam every other engine uses, so it runs the
+ * genuine pipeline instead of a private side channel into the sim.
+ */
+export function extractSummary(messages: readonly ChatMessage[]): AiWorldSummary | null {
+  const user = messages.find((m) => m.role === 'user');
+  if (!user) return null;
+  // Second block of buildMessages' `parts`, which are joined on a blank
+  // line and never contain one internally.
+  const block = user.content.split('\n\n')[1];
+  if (block === undefined) return null;
+  try {
+    const parsed: unknown = JSON.parse(block);
+    return typeof parsed === 'object' && parsed !== null ? (parsed as AiWorldSummary) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function buildMessages(
   summary: AiWorldSummary,
   lastAdvice: StrategyAdvice | null,
@@ -78,10 +107,15 @@ export function buildMessages(
     `Match state, minute ${summary.minutes}:`,
     JSON.stringify(summary),
     deltas(summary, prevSummary),
-    lastAdvice && Object.keys(lastAdvice).length > 0
-      ? `Your current adjustments (already in effect): ${JSON.stringify(lastAdvice)}`
-      : 'No adjustments in effect; the playbook runs at its printed values.',
-    'Reply with only the JSON object of knob changes.',
+    // The standing posture's *name* and nothing else. The knob values it
+    // expanded into are deliberately not quoted back: a model this size
+    // copies whatever numbers are in front of it — that is exactly how
+    // lfm2.5-350m spent a whole sweep replying with the playbook's own
+    // trainPreference — and it has no decision to make about them anyway.
+    lastAdvice?.posture
+      ? `Your standing posture is "${lastAdvice.posture}". Keep it or change it, as the state warrants.`
+      : 'You have not set a posture yet; the playbook runs at its printed values.',
+    'Reply with only the JSON object naming your posture.',
   ];
   return [
     { role: 'system', content: SYSTEM },

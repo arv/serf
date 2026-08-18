@@ -1,4 +1,6 @@
 import { ADVICE_RANGES, ADVISABLE_UNITS } from '../../src/ai/advice.ts';
+import { choosePosture, POSTURE_ORDER } from '../../src/ai/posture.ts';
+import { extractSummary } from '../../src/ai/prompt.ts';
 import { Rng } from '../../src/shared/rng.ts';
 import type { ChatEngine } from '../../src/ai/strategist.ts';
 
@@ -22,6 +24,12 @@ import type { ChatEngine } from '../../src/ai/strategist.ts';
  *     rates. Run it before you believe any model's number.
  *   - `script` answers with one fixed personality forever, which is how
  *     you sanity-check that advice reaches the field at all.
+ *   - `posture` picks a stance by rule, with no model in the loop. It is
+ *     the bar that matters now that the strategist chooses from a menu:
+ *     `random` only asks whether a model beats dice, while this asks the
+ *     sharper question — whether it beats the dozen lines of if/else that
+ *     read the same summary for free. A model that ties this is a 400 MB
+ *     download standing in for a switch statement.
  *
  * Real weights are reached over HTTP rather than through wllama, because
  * wllama is a browser thing (workers, cache storage, SharedArrayBuffer)
@@ -49,18 +57,30 @@ export type EngineSpec =
   | { kind: 'none' }
   | { kind: 'script'; reply: unknown }
   | { kind: 'random'; seed: number }
+  | { kind: 'posture' }
+  | { kind: 'postureFixed'; posture: string }
   | { kind: 'http'; baseUrl: string; model: string };
 
 /**
  * `--engine` text → a spec. Accepts:
  *   none                          the unadvised control
  *   random  |  random:7           the noise floor, optionally seeded
+ *   posture                       rule-based stance picking, no model
+ *   posture:siege                 one stance held all match, for ablation
  *   script:{"armyAttackSize":4}   one fixed personality
  *   http://host:port/v1           any OpenAI-compatible server
  */
 export function parseEngineSpec(raw: string, model = 'local-model'): EngineSpec {
   if (raw === 'none') return { kind: 'none' };
   if (raw === 'random') return { kind: 'random', seed: 1 };
+  if (raw === 'posture') return { kind: 'posture' };
+  if (raw.startsWith('posture:')) {
+    const posture = raw.slice('posture:'.length);
+    if (!(POSTURE_ORDER as readonly string[]).includes(posture)) {
+      throw new Error(`--engine posture: wants one of ${POSTURE_ORDER.join(', ')}, got "${posture}"`);
+    }
+    return { kind: 'postureFixed', posture };
+  }
   if (raw.startsWith('random:')) {
     const seed = Number(raw.slice('random:'.length));
     if (!Number.isFinite(seed)) throw new Error(`--engine random: wants a number, got "${raw}"`);
@@ -99,6 +119,10 @@ export function buildEngine(spec: EngineSpec, salt: number): LabEngine | null {
       return scriptEngine(spec.reply);
     case 'random':
       return randomEngine(spec.seed * 1_000_003 + salt);
+    case 'posture':
+      return postureEngine();
+    case 'postureFixed':
+      return scriptEngine({ posture: spec.posture, reason: 'fixed' });
     case 'http':
       return httpEngine(spec.baseUrl, spec.model);
   }
@@ -113,6 +137,10 @@ export function describeSpec(spec: EngineSpec): string {
       return `script ${JSON.stringify(spec.reply)}`;
     case 'random':
       return `random (seed ${spec.seed})`;
+    case 'posture':
+      return 'posture (rule-based, no model)';
+    case 'postureFixed':
+      return `posture ${spec.posture} (fixed)`;
     case 'http':
       return `${spec.model} @ ${spec.baseUrl}`;
   }
@@ -167,6 +195,32 @@ export function randomEngine(seed: number): LabEngine {
         }
       }
       return Promise.resolve(JSON.stringify(reply));
+    },
+  };
+}
+
+/**
+ * The rule-based strategist: `choosePosture` over the summary recovered
+ * from the prompt, wearing a ChatEngine's clothes.
+ *
+ * Deterministic and free, which makes it the reference every model number
+ * should be read against. It also doubles as a shippable opponent — the
+ * same five stances the model chooses from, chosen well, with no download
+ * and no inference.
+ *
+ * A prompt whose summary cannot be recovered answers `{}` rather than
+ * throwing: an unreadable prompt is a bug in the harness, and failing the
+ * match would hide it behind the strategist's three-strikes rule.
+ */
+export function postureEngine(): LabEngine {
+  return {
+    label: 'posture (rule-based)',
+    usage: [],
+    complete: (messages) => {
+      const summary = extractSummary(messages);
+      if (!summary) return Promise.resolve('{}');
+      const posture = choosePosture(summary);
+      return Promise.resolve(JSON.stringify({ posture, reason: 'rule' }));
     },
   };
 }

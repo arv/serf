@@ -176,7 +176,7 @@ describe('a headless match', () => {
     expect(record.consults.length).toBeGreaterThan(3);
     const first = record.consults[0]!;
     // prompt.ts's glossary and summary.ts's seat block, not a stand-in.
-    expect(first.prompt![0]!.content).toContain('armyAttackSize');
+    expect(first.prompt![0]!.content).toContain('Choose exactly one posture');
     expect(first.prompt![1]!.content).toContain('"strategyId":"steward"');
     expect(first.parsed).toBe(true);
     expect(first.knobs).toBe(3);

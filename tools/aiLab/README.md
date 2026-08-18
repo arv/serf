@@ -23,6 +23,13 @@ machine); results are byte-identical to `--jobs 1` for every engine except
 `http`, where it also means concurrent requests — size the server's
 `--parallel` to match.
 
+> `llama-server` splits `-c` *across* its parallel slots, so `-c 2048
+> --parallel 4` gives each slot 512 tokens and every consultation comes
+> back `400 exceed_context_size_error` against this ~850-token prompt.
+> Multiply: `-c 8192 --parallel 4`. The startup line to check is
+> `n_ctx_slot = 2048`. A sweep that hits this still prints a win rate —
+> a meaningless one — so read ENGINE HEALTH before believing any number.
+
 ## The experiment
 
 Per seed, up to three headless matches on one valley, both seats running the
@@ -72,6 +79,8 @@ and excluded, never awarded. Crashed trials are printed next to the rate.
 | --- | --- |
 | `none` | no strategist — calibration; must score exactly 50% |
 | `random[:seed]` | valid advice by dice — the noise floor; a model must beat this, not just 50% |
+| `posture` | the five stances picked by rule, no model — the bar a model has to be *worth*, not just beat |
+| `posture:<id>` | one stance held all match (`posture:siege`) — ablation, and it says what each stance is worth alone |
 | `script:{...}` | one fixed reply forever — plumbing checks, personality experiments |
 | `http://…/v1` | any OpenAI-compatible server (llama-server, Ollama, LM Studio, vLLM); `--model` names the model, `OPENAI_API_KEY` is sent if set |
 

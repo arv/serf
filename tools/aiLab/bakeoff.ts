@@ -73,8 +73,8 @@ serf-valley LLM strategist bake-off
 
   node --experimental-strip-types tools/aiLab/bakeoff.ts [options]
 
-  --engine <spec>      none | random[:n] | script:{...} | http://host:port/v1
-                       (default: random)
+  --engine <spec>      none | random[:n] | posture[:id] | script:{...}
+                       | http://host:port/v1  (default: random)
   --model <name>       model name sent to an http engine (default: local-model)
   --seeds <spec>       1-24, or 1,4,9, or a mix (default: 1-24)
   --map <n>            grid side length (default: 96, the shipped default)
@@ -106,6 +106,9 @@ serf-valley LLM strategist bake-off
 
     # the noise floor every model has to clear
     ... bakeoff.ts --engine random --seeds 1-40
+
+    # the rule-based stance picker — the bar that actually matters
+    ... bakeoff.ts --engine posture --seeds 1-40
 
     # real weights, through llama.cpp's own server
     #   llama-server -m qwen2.5-0.5b-instruct-q4_k_m.gguf -c 2048 --port 8080

@@ -1,4 +1,5 @@
-import { ADVICE_JSON_SCHEMA, parseAdvice, toOverride, type StrategyAdvice } from './advice.ts';
+import { parseAdvice, toOverride, type StrategyAdvice } from './advice.ts';
+import { POSTURE_JSON_SCHEMA } from './posture.ts';
 import { discardPartialModel, type ModelCache } from './modelCache.ts';
 import { buildMessages, type ChatMessage } from './prompt.ts';
 import type { AiWorldSummary } from './summary.ts';
@@ -174,7 +175,7 @@ export class LlmStrategist {
     try {
       const messages = buildMessages(summary, seat.advice, seat.prevSummary);
       const raw = await this.#withTimeout((signal) =>
-        this.#engine!.complete(messages, JSON.stringify(ADVICE_JSON_SCHEMA), signal),
+        this.#engine!.complete(messages, JSON.stringify(POSTURE_JSON_SCHEMA), signal),
       );
       const advice = parseAdvice(raw);
       if (advice === null) throw new Error(`unparseable advice: ${raw.slice(0, 120)}`);

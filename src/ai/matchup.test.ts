@@ -137,7 +137,7 @@ describe('an LLM-advised match, seat against seat', () => {
       expect(prompts.get(id)!.length, `seat ${id} consultations`).toBeGreaterThan(3);
       expect(adviceApplied.get(id), `seat ${id} advice applied`).toBeGreaterThanOrEqual(1);
       const [system, user] = prompts.get(id)![0]!;
-      expect(system!.content).toContain('armyAttackSize');
+      expect(system!.content).toContain('Choose exactly one posture');
       expect(user!.content).toContain(`"id":${id},"strategyId":"steward"`);
     }
     // Advice is a standing override, not a drumbeat: a scripted model that
