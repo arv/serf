@@ -21,6 +21,7 @@ import {
   type EditorMapState,
 } from './editorMap.ts';
 import { serializeEditorMap } from './format.ts';
+import { EditorHistory } from './history.ts';
 import { StartMarkers } from './markers.ts';
 import { PlayAreaOverlay } from './playAreaOverlay.ts';
 import { worldFromEditor, type EditorPlayConfig } from './playWorld.ts';
@@ -32,6 +33,8 @@ import {
   kaleido,
   mapName,
   resetEditorUiState,
+  setCanRedo,
+  setCanUndo,
   setDirtySinceSave,
   setProblems,
   setViewMode,
@@ -44,6 +47,8 @@ import {
 export interface EditorActions {
   newMap(size: number, players: number): void;
   toggleView(): void;
+  undo(): void;
+  redo(): void;
   exportMap(): void;
   /** Swap in a parsed state (Import, Maps... load) and rebuild the scene. */
   replaceState(state: EditorMapState): void;
@@ -54,6 +59,14 @@ export interface EditorActions {
 
 /** How long after the last stamp the heavy foliage rebuild waits. */
 const FOLIAGE_DEBOUNCE_MS = 400;
+/**
+ * And how long a stroke may run before it rebuilds anyway. Trees, stone
+ * and ore have no terrain tint — their only pixels are the scattered
+ * props, and a pure trailing debounce meant a resource stroke showed
+ * nothing until the button came up. The throttle keeps the paint landing
+ * under the moving brush at a cadence the rebuild cost can afford.
+ */
+const FOLIAGE_MAX_WAIT_MS = 280;
 const DRAFT_DEBOUNCE_MS = 2000;
 
 /**
@@ -148,14 +161,21 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   teardown.push(() => clearTimeout(foliageTimer));
   teardown.push(() => clearTimeout(draftTimer));
 
+  let lastFoliageRebuild = 0;
   const scheduleFoliage = (): void => {
     clearTimeout(foliageTimer);
+    // Leading edge: a stroke that has been running for a while shows its
+    // standing props NOW; the trailing debounce still catches the tail.
+    if (performance.now() - lastFoliageRebuild > FOLIAGE_MAX_WAIT_MS) {
+      if (!over && sc) rebuildFoliage();
+      return;
+    }
     foliageTimer = setTimeout(() => {
       if (over || !sc) return;
       rebuildFoliage();
     }, FOLIAGE_DEBOUNCE_MS);
   };
-  // (marginTouched rides the same debounce: rebuildFoliage folds it in.)
+  // (marginTouched rides the same rebuild: rebuildFoliage folds it in.)
 
   const markDirty = (): void => {
     setDirtySinceSave(true);
@@ -171,6 +191,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
 
   function rebuildFoliage(): void {
     if (!sc) return;
+    lastFoliageRebuild = performance.now();
     disposeOwnedSubtree(sc.scatter.group);
     disposeOwnedSubtree(sc.grass.mesh);
     sc.scatter = new ScatterMesh(state.map, sc.heights);
@@ -190,14 +211,59 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     sc.bounds.refresh();
   }
 
+  const history = new EditorHistory();
+  const syncHistorySignals = (): void => {
+    setCanUndo(history.canUndo());
+    setCanRedo(history.canRedo());
+  };
+
+  /** Re-sync every render layer after history rewrote the map in place. */
+  const applyHistoryResult = (result: { tiles: number[]; starts: boolean } | null): void => {
+    if (!result) return;
+    if (sc) {
+      if (result.tiles.length > 0) {
+        for (const i of result.tiles) {
+          if (playEdgeDist(state.map, tileX(i, state.map.size), tileY(i, state.map.size)) < 3) {
+            marginTouched = true;
+          }
+        }
+        pendingRepaint.clear();
+        pendingReheight.clear();
+        sc.terrain.reheightTiles(result.tiles);
+        sc.terrain.refreshBounds();
+        sc.water.refreshBed();
+        rebuildFoliage(); // props, margin, marker heights, bounds — now, not debounced
+      }
+      if (result.starts) sc.markers.set(state.starts);
+    }
+    refreshProblems();
+    markDirty();
+    syncHistorySignals();
+  };
+
+  /** Where the live stroke began (jitter anchor for fray/scatter). */
+  let strokeAnchor = { x: 0, y: 0 };
+
   const surface: EditorSurface = {
     state: () => state,
+    strokeBegin(x, y): void {
+      strokeAnchor = { x, y };
+      history.record(state);
+      syncHistorySignals();
+    },
+    startDragBegin(): void {
+      history.record(state);
+      syncHistorySignals();
+    },
+    undo: () => applyHistoryResult(history.undo(state)),
+    redo: () => applyHistoryResult(history.redo(state)),
     stroke(t: Tool, x0, y0, x1, y1): void {
       if (!sc) return;
       const dirty = applyStroke(state, t, x0, y0, x1, y1, {
         radius: brushRadius(),
         folds: activeFolds(),
         strength: HEIGHT_STEP,
+        anchor: strokeAnchor,
       });
       if (dirty.length === 0) return;
       const wantsReheight = t.kind !== 'resource';
@@ -311,6 +377,9 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     tearDownScene();
     state = next;
     resetEditorUiState(state);
+    // A fresh timeline: the stacks hold arrays sized for the old grid.
+    history.clear();
+    syncHistorySignals();
     buildScene();
     saveDraft(state);
   }
@@ -325,6 +394,8 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       );
     },
     toggleView: () => surface.toggleView(),
+    undo: () => surface.undo(),
+    redo: () => surface.redo(),
     exportMap(): void {
       const json = serializeEditorMap(currentState());
       const blob = new Blob([json], { type: 'application/json' });

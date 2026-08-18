@@ -1,5 +1,5 @@
 import { inBounds, tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { clamp } from '../shared/math.ts';
+import { clamp, hash2 } from '../shared/math.ts';
 import { WOOD_MAX_AMT } from '../sim/defs/balance.ts';
 import {
   Terrain,
@@ -25,6 +25,13 @@ export interface BrushOptions {
   folds: number;
   /** Height step per stamp at the brush center, before falloff. */
   strength?: number;
+  /**
+   * Where this stroke began. The fray/scatter jitter is anchored here for
+   * the whole stroke, so dragging back and forth never re-rolls the gaps
+   * a pass already left — a moving per-stamp field would fill them in.
+   * Defaults to the stamp center (single clicks).
+   */
+  anchor?: { x: number; y: number };
 }
 
 /**
@@ -57,6 +64,34 @@ const ROCK_FLOOR = 1.1;
 export const HEIGHT_STEP = 0.18;
 
 /**
+ * The organic edge: each tile draws its own radius threshold, so a stamp
+ * comes out lobed and frayed the way worldgen's ponds and clusters do —
+ * a ruler-perfect circle reads as a sticker on the landscape. Resources
+ * additionally thin out inside the disc at worldgen's own cluster
+ * densities, so a painted grove scatters like a generated one.
+ *
+ * Both jitters are keyed in the STAMP'S OWN FRAME — the tile's offset
+ * from the fold center, rotated back by that fold — never on raw tile
+ * indices: kaleidoscope copies must fray identically, and a hash of grid
+ * position would give every copy a different edge.
+ */
+const FRAY_MIN = 0.78;
+const FRAY_SPAN = 0.4;
+/** placeCluster's densities (map.ts): groves 0.75, outcrops 0.85, seams 1. */
+const PAINT_DENSITY: Record<number, number> = {
+  [TileResource.Wood]: 0.75,
+  [TileResource.Rock]: 0.85,
+  [TileResource.IronDep]: 1,
+  [TileResource.SilverDep]: 1,
+  [TileResource.GoldDep]: 1,
+};
+
+/** Jitter in [0,1) from stamp-local coords, quantized to half tiles. */
+function localHash(qx: number, qy: number, salt: number): number {
+  return hash2(Math.round(qx * 2) + salt * 131, Math.round(qy * 2) - salt * 57);
+}
+
+/**
  * One brush stamp at continuous grid point (cx, cy), replicated across the
  * kaleidoscope folds. Mutates state.map and returns the deduped indices of
  * every tile it changed. A tile covered by two overlapping fold discs (near
@@ -74,23 +109,49 @@ export function applyBrush(
   const size = map.size;
   const r = Math.max(0.5, o.radius);
 
+  // The eraser stays a clean, predictable disc; sculpting has its own
+  // smooth falloff. Everything painted frays.
+  const frayed = tool.kind === 'terrain' || (tool.kind === 'resource' && tool.res !== TileResource.None);
+  const density = tool.kind === 'resource' ? (PAINT_DENSITY[tool.res] ?? 1) : 1;
+  const reach = frayed ? r * (FRAY_MIN + FRAY_SPAN) : r;
+
   // Where the fold discs overlap (near the map center) a tile belongs to
   // several copies at once. Its falloff distance is the distance to the
   // NEAREST copy — "first disc wins" would break the symmetry, because
-  // which disc scans first is not a rotation-invariant question.
+  // which disc scans first is not a rotation-invariant question. A tile
+  // is in the stamp if ANY copy's (frayed) edge reaches it; the union of
+  // congruent lobes is itself symmetric.
+  const anchor = o.anchor ?? { x: cx, y: cy };
   const touched = new Map<number, number>(); // tile index -> min dist²
   for (const step of foldBasis(o.folds)) {
     const c = rotatePoint(cx, cy, size, step);
-    const x0 = Math.max(0, Math.floor(c.x - r - 1));
-    const x1 = Math.min(size - 1, Math.ceil(c.x + r + 1));
-    const y0 = Math.max(0, Math.floor(c.y - r - 1));
-    const y1 = Math.min(size - 1, Math.ceil(c.y + r + 1));
+    const a = rotatePoint(anchor.x, anchor.y, size, step);
+    const x0 = Math.max(0, Math.floor(c.x - reach - 1));
+    const x1 = Math.min(size - 1, Math.ceil(c.x + reach + 1));
+    const y0 = Math.max(0, Math.floor(c.y - reach - 1));
+    const y1 = Math.min(size - 1, Math.ceil(c.y + reach + 1));
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         const dx = x + 0.5 - c.x;
         const dy = y + 0.5 - c.y;
         const d2 = dx * dx + dy * dy;
-        if (d2 > r * r) continue;
+        if (d2 > reach * reach) continue;
+        if (frayed || density < 1) {
+          // The tile's offset in the stroke's own frame (anchored at the
+          // stroke start, rotated back by this fold), so every copy sees
+          // the same jitter field and it holds still under a drag.
+          const ax = x + 0.5 - a.x;
+          const ay = y + 0.5 - a.y;
+          const qx = ax * step.cos + ay * step.sin;
+          const qy = -ax * step.sin + ay * step.cos;
+          if (frayed) {
+            const rEff = r * (FRAY_MIN + FRAY_SPAN * localHash(qx, qy, 3));
+            if (d2 > rEff * rEff) continue;
+          }
+          if (density < 1 && localHash(qx, qy, 7) > density) continue;
+        } else if (d2 > r * r) {
+          continue;
+        }
         const i = tileIdx(x, y, size);
         const prev = touched.get(i);
         if (prev === undefined || d2 < prev) touched.set(i, d2);

@@ -27,10 +27,16 @@ import type { EditorMapState } from './editorMap.ts';
 export interface EditorSurface {
   /** Live editing state (bounds checks, cursor validity). */
   state(): EditorMapState;
+  /** A paint stroke is starting here — snapshot for undo, anchor jitter. */
+  strokeBegin(x: number, y: number): void;
   /** Paint one stroke segment with the active tool/brush/folds. */
   stroke(t: Tool, x0: number, y0: number, x1: number, y1: number): void;
   /** A stroke finished (pointer up) — flush the heavyweight refreshes. */
   strokeEnd(): void;
+  /** A start-spot drag is beginning — snapshot for undo. */
+  startDragBegin(): void;
+  undo(): void;
+  redo(): void;
   /** Drag one seat's start to a footprint origin (kaleidoscope-aware). */
   moveStart(seat: number, spot: StartSpot): void;
   startDragEnd(seat: number): void;
@@ -100,10 +106,12 @@ export class EditorControls {
       const s = this.#markers.starts[seat]!;
       this.#dragging = { seat, dx: p.x - s.x, dy: p.y - s.y };
       this.#canvas.setPointerCapture(e.pointerId);
+      this.#surface.startDragBegin();
       return;
     }
     this.#stroking = { x: p.x, y: p.y };
     this.#canvas.setPointerCapture(e.pointerId);
+    this.#surface.strokeBegin(p.x, p.y);
     this.#surface.stroke(t, p.x, p.y, p.x, p.y);
   }
 
@@ -167,7 +175,20 @@ export class EditorControls {
     ) {
       return;
     }
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.metaKey || e.ctrlKey) {
+      // The canvas has no native undo; the browser must not eat these.
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.altKey) {
+        e.preventDefault();
+        if (e.shiftKey) this.#surface.redo();
+        else this.#surface.undo();
+      } else if (key === 'y' && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        this.#surface.redo();
+      }
+      return;
+    }
+    if (e.altKey) return;
     const entry = PALETTE.find((p) => p.key === e.key.toLowerCase());
     if (entry) {
       setTool(entry.tool);

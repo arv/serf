@@ -48,6 +48,9 @@ export const [folds, setFolds] = createSignal(2);
 export const [viewMode, setViewMode] = createSignal<ViewMode>('topDown');
 /** The play-area boundary band + margin veil (B toggles it). */
 export const [showBounds, setShowBounds] = createSignal(true);
+/** History depth flags, kept fresh by the screen after every action. */
+export const [canUndo, setCanUndo] = createSignal(false);
+export const [canRedo, setCanRedo] = createSignal(false);
 export const [dialog, setDialog] = createSignal<'new' | 'play' | 'maps' | null>(null);
 /** validateForPlay's output, refreshed after every stroke that could change it. */
 export const [problems, setProblems] = createSignal<string[]>([]);

@@ -164,6 +164,82 @@ describe('resource brush', () => {
   });
 });
 
+describe('organic edges and scatter', () => {
+  it('frays the stamp edge — no perfect circles', () => {
+    const state = createBlankMap({ size: 64, players: 1 });
+    const size = state.map.size;
+    const dirty = applyBrush(state, { kind: 'terrain', terrain: Terrain.Water }, 64, 64, {
+      radius: 5,
+      folds: 1,
+    });
+    // Compare with the crisp disc: some in-disc tiles skipped, some
+    // beyond-disc tiles reached — a lobed blot, not a stamped circle.
+    let inside = 0;
+    let outside = 0;
+    for (const i of dirty) {
+      const d = Math.hypot(tileX(i, size) + 0.5 - 64, tileY(i, size) + 0.5 - 64);
+      if (d > 5) outside++;
+    }
+    for (let y = 58; y < 70; y++) {
+      for (let x = 58; x < 70; x++) {
+        const d = Math.hypot(x + 0.5 - 64, y + 0.5 - 64);
+        if (d <= 5 && state.map.terrain[tileIdx(x, y, size)] !== Terrain.Water) inside++;
+      }
+    }
+    expect(outside).toBeGreaterThan(0); // lobes past the nominal radius
+    expect(inside).toBeGreaterThan(0); // notches inside it
+  });
+
+  it('scatters trees at worldgen grove density and keeps folds congruent', () => {
+    const state = createBlankMap({ size: 64, players: 4 });
+    const size = state.map.size;
+    const dirty = applyBrush(state, { kind: 'resource', res: TileResource.Wood }, 52, 46, {
+      radius: 5,
+      folds: 4,
+    });
+    // Well under 4 solid discs (~4 * 80 tiles): the grove is patchy.
+    expect(dirty.length).toBeGreaterThan(40);
+    expect(dirty.length).toBeLessThan(280);
+    // And the gaps land in the same places in every fold copy.
+    expect(rot90(state.map.resource, size)).toEqual(state.map.resource);
+  });
+
+  it('anchored jitter: overlapping stamps share one gap field', () => {
+    const state = createBlankMap({ size: 64, players: 1 });
+    const size = state.map.size;
+    const anchor = { x: 50, y: 64 };
+    // A long stroke stamps every half radius — each interior tile sits
+    // under several overlapping discs. Were the density rolled per stamp,
+    // those rolls would compound and the band would come out solid; one
+    // anchored field keeps the grove patchy however many stamps cross it.
+    applyStroke(state, { kind: 'resource', res: TileResource.Wood }, 50, 64, 78, 64, {
+      radius: 4,
+      folds: 1,
+      anchor,
+    });
+    let empty = 0;
+    for (let x = 54; x <= 74; x++) {
+      for (let y = 62; y <= 66; y++) {
+        if (state.map.resource[tileIdx(x, y, size)] === TileResource.None) empty++;
+      }
+    }
+    expect(empty).toBeGreaterThanOrEqual(10); // ~25% of a 105-tile band
+  });
+
+  it('the eraser stays a clean full disc', () => {
+    const state = createBlankMap({ size: 64, players: 1 });
+    applyBrush(state, { kind: 'resource', res: TileResource.Wood }, 64, 64, {
+      radius: 5,
+      folds: 1,
+    });
+    applyBrush(state, { kind: 'resource', res: TileResource.None }, 64, 64, {
+      radius: 7,
+      folds: 1,
+    });
+    expect(state.map.resource.every((r) => r === TileResource.None)).toBe(true);
+  });
+});
+
 describe('applyStroke', () => {
   it('leaves no gaps along a fast diagonal drag', () => {
     const state = createBlankMap({ size: 96, players: 1 });

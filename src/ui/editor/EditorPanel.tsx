@@ -8,6 +8,8 @@ import {
   BRUSH_MIN,
   PALETTE,
   brushRadius,
+  canRedo,
+  canUndo,
   dialog,
   dirtySinceSave,
   folds,
@@ -108,6 +110,22 @@ function EditorUi(props: { actions: EditorActions }) {
             setDirtySinceSave(true);
           }}
         />
+        <button
+          class="ed-hist"
+          disabled={!canUndo()}
+          title="Undo (Ctrl+Z)"
+          onClick={() => props.actions.undo()}
+        >
+          ↶
+        </button>
+        <button
+          class="ed-hist"
+          disabled={!canRedo()}
+          title="Redo (Ctrl+Shift+Z)"
+          onClick={() => props.actions.redo()}
+        >
+          ↷
+        </button>
         <label class="ed-brush">
           Brush {brushRadius()}
           <input
@@ -455,6 +473,7 @@ const STYLE = `
     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
     border-radius: 8px; padding: 5px 9px; width: 150px;
   }
+  .ed-hist { padding: 5px 9px; font-size: 14px; line-height: 1; }
   .ed-brush { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #b6b3a6; }
   .ed-brush input { accent-color: #e5c469; width: 110px; }
   .ed-kaleido { display: flex; align-items: center; gap: 4px; }
