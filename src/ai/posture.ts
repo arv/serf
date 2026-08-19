@@ -28,7 +28,9 @@ import type { AiWorldSummary } from './summary.ts';
  * play a blend of two stances that nobody authored. Identical keys mean
  * switching posture actually switches.
  *
- * Not in the table: trainPreference and weaponMix. The brain already
+ * Not in the table: marchConfidence, which is the brain's own march gate and is
+ * measured on its own rather than folded into a stance — the recorded posture
+ * numbers all assume it off. Nor trainPreference and weaponMix. The brain already
  * counter-forges against sighted army compositions on its own, and it
  * reads fresher intel than a 90-second consultation cadence can. Posture
  * steers how big the army is and when it marches; the captain keeps the
@@ -56,7 +58,9 @@ export interface Posture {
    * `Required` is what enforces that, so adding a stance that forgets one
    * is a type error rather than a seat playing a blend of two. */
   knobs: Readonly<
-    Required<Omit<StrategyAdvice, 'trainPreference' | 'weaponMix' | 'reason' | 'posture'>>
+    Required<
+      Omit<StrategyAdvice, 'trainPreference' | 'weaponMix' | 'reason' | 'posture' | 'marchConfidence'>
+    >
   >;
 }
 

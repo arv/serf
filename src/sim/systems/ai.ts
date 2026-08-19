@@ -6,12 +6,14 @@ import { campCorners, startLayout } from '../world.ts';
 import { BUILDING_DEFS, buildingDef, repairBill, type BuildingTypeId } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
+import { classHp, shouldCommit, type Force } from '../combatOdds.ts';
 import { HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
 import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
 import { canPlace, type World } from '../world.ts';
 import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
 import type { GoodId } from '../defs/goods.ts';
+import type { Unit } from '../units.ts';
 import type { SimCommand } from '../commands.ts';
 
 /**
@@ -96,6 +98,11 @@ export const AI_PACING = {
  */
 export const AI_REPAIR_BELOW = 0.7;
 
+/** How far from a target a defender still counts as defending it. The game's
+ * longest leash is `acquireRadius * 1.6` = 12.8 tiles, so twelve covers
+ * everything that would actually join the fight. */
+const DEFENDER_RADIUS = 12;
+
 export const AI_INTEL = {
   /** A sighting older than this says nothing about tomorrow's battle. */
   trustFor: 8_000,
@@ -126,6 +133,12 @@ const COUNTER_PICK: Record<UnitClass, { unit: UnitTypeId; recipe: number }> = {
 
 const MILITARY = new Set<UnitTypeId>(['knight', 'spearman', 'archer']);
 
+/** Fewest soldiers that may be sent on a prediction alone. The impatience
+ * ramp already treats three as the smallest force worth marching
+ * (AI_PACING.staleFloor), and a good prediction should not be able to talk a
+ * seat into emptying its yard. */
+const MIN_SORTIE = 3;
+
 /** What a soldier needs forged before the barracks can start on them. */
 const WEAPON_OF: Partial<Record<UnitTypeId, GoodId>> = {
   knight: 'sword',
@@ -146,6 +159,14 @@ export class AiBrain {
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
+  /** Diagnostics for the march gate: how often it was asked, and how often
+   * it said no. A gate that never fires and a gate that fires without
+   * helping produce the same win rate, and telling them apart is the whole
+   * difference between "tune it" and "the estimate never arrives". */
+  #oddsAsked = 0;
+  #oddsVetoed = 0;
+  #oddsBlind = 0;
+  #oddsCamps = 0;
   /**
    * Knobs laid over the playbook — the LLM strategist's dial (src/ai/).
    * Worker memory only, never serialized: the world's determinism story is
@@ -207,6 +228,18 @@ export class AiBrain {
 
   /** Copies of the current intel pictures, freshness included: the summary
    * shows the model stale sightings AS stale rather than hiding them. */
+  /** Read by the lab so a null measurement is diagnosable rather than merely
+   * disappointing: a gate that never fires and a gate that fires without
+   * helping print the same win rate. */
+  oddsReport(): { asked: number; vetoed: number; blind: number; camps: number } {
+    return {
+      asked: this.#oddsAsked,
+      vetoed: this.#oddsVetoed,
+      blind: this.#oddsBlind,
+      camps: this.#oddsCamps,
+    };
+  }
+
   intelReport(): { owner: Owner; tick: number; total: number; counts: Sighting['counts'] }[] {
     return [...this.#intel].map(([owner, s]) => ({
       owner,
@@ -422,8 +455,34 @@ export class AiBrain {
     const target = pickAttackTarget(world, this.#vision, this.playerId, baseX, baseY, s.prefersRivals);
     const rallyReady = world.tick - this.#lastRallyTick > s.rallyCooldown;
     const idleFor = world.tick - this.#lastAttackTick;
+    const cooled = idleFor > s.attackCooldown;
+    const headcountReady = army.length >= mustersNeeded(s.armyAttackSize, idleFor) && cooled;
+    /**
+     * What the combat prediction says about the fight at the end of this
+     * march — true go, false hold, null no opinion (the knob is off, the
+     * target is a camp, or nothing has been seen of its defenders).
+     *
+     * Measured on this valley, the prediction is worth far more as a trigger
+     * than as a brake. Instrumenting the gate over four seeds found the army
+     * averaging 19.6 soldiers at the moment it marched against 6.5 real
+     * defenders, with the model reading a median 99% of our own force
+     * expected to survive: there was simply no bad fight to refuse. The
+     * seat's flaw was never that it attacked badly, it was that it attacked
+     * far too late — the same thing the posture sweeps found when `siege`,
+     * which marches sooner and commits harder, beat the printed playbook by
+     * eighteen points. So a favourable reading now *starts* a march the
+     * headcount bar would still be waiting on, and an unfavourable one holds
+     * one the bar would have allowed.
+     */
+    const odds = this.#oddsSay(world, army, target, s.marchConfidence);
     const mustered =
-      army.length >= mustersNeeded(s.armyAttackSize, idleFor) && idleFor > s.attackCooldown;
+      odds === null ? headcountReady : odds && cooled && army.length >= MIN_SORTIE;
+    // A hold has to reach the sweep as well: falling through to it would send
+    // the army walking into unexplored ground instead, which is the one
+    // outcome worse than the march it just refused. Only an actual hold
+    // suppresses the sweep — a muster with no target found yet still goes
+    // looking, which is how the map gets read.
+    const vetoed = odds === false;
     // Bookkeeping on the lone scout: a dead one gives up its post, and one
     // that outlived its purpose is called home before it wanders into a
     // camp's guards. A discovery goal that killed its scout is written off
@@ -451,7 +510,7 @@ export class AiBrain {
       this.#clearScout();
     }
 
-    if (target && mustered) {
+    if (target && mustered && !vetoed) {
       this.#attacking = true;
       this.#sweepGoal = -1;
       this.#lastAttackTick = world.tick;
@@ -483,7 +542,7 @@ export class AiBrain {
         x: baseX,
         y: baseY + 4,
       });
-    } else if (mustered) {
+    } else if (mustered && !vetoed) {
       // A full muster and nothing on the map to march at: the army becomes
       // the search party. Head for the nearest dark landmark (then any dark
       // ground); sight lights it up on approach, the goal is re-picked when
@@ -644,6 +703,100 @@ export class AiBrain {
     this.#scoutGoal = -1;
     this.#scoutLeg = -1;
     this.#scoutIntel = -1;
+  }
+
+  /**
+   * Is the fight at the end of this march one we would win?
+   *
+   * The march used to be decided by headcount alone, which cannot tell seven
+   * spearmen walking onto seven archers (a rout in our favour) from seven
+   * walking onto seven knights (a rout the other way). combatOdds.ts does the
+   * comparison; this supplies the two forces and honours the appetite the
+   * playbook set.
+   *
+   * Deliberately generous about ignorance. Three cases commit without asking:
+   * the knob is off (every printed playbook, so unadvised seats march exactly
+   * as before), the target is a bandit camp (no sighting machinery watches
+   * BANDIT at all — see #observeRivals — and camps are the early game's whole
+   * agenda), and nothing is known about the defenders. The gate is a brake on
+   * fights we can see going badly, not a general reluctance.
+   *
+   * Refusing costs nothing permanent: #lastAttackTick is stamped only by the
+   * march itself, so mustersNeeded keeps grinding the bar down and a seat that
+   * never likes its odds still eventually marches on the forlorn floor.
+   */
+  #oddsSay(
+    world: World,
+    army: Unit[],
+    target: Building | undefined,
+    marchConfidence: number,
+  ): boolean | null {
+    if (target === undefined) return null;
+    if (marchConfidence <= 0) return null;
+    this.#oddsAsked++;
+    if (target.type === 'banditCamp') {
+      this.#oddsCamps++;
+      return null;
+    }
+
+    const mine: Force = { heavy: 0, light: 0, ranged: 0, hp: 0 };
+    for (const u of army) {
+      const cls = UNIT_DEFS[u.kind].combat?.class;
+      if (!cls) continue;
+      mine[cls]++;
+      mine.hp += u.hp; // live hp: armour research and old wounds both count
+    }
+    if (mine.hp <= 0) return null;
+
+    const defenders = this.#defendersAt(world, target);
+    if (defenders === null) {
+      this.#oddsBlind++;
+      return null;
+    }
+    const commit = shouldCommit(mine, defenders, marchConfidence);
+    if (!commit) this.#oddsVetoed++;
+    return commit;
+  }
+
+  /**
+   * Who is standing at the target, or null when we have no idea.
+   *
+   * Preferred reading is what the seat can see around the target right now —
+   * live, and it catches a garrison the stored sighting never watched. The
+   * radius is the game's own longest leash, `acquireRadius * 1.6` for the
+   * widest-eyed unit, so it covers everything that would join the fight.
+   *
+   * Failing that, the last trustworthy look at the target's owner, which is
+   * the whole army rather than this castle's garrison — an overestimate, but
+   * the alternative is marching blind. Past its trust window it is not
+   * evidence and we say so by returning null.
+   */
+  #defendersAt(world: World, target: Building): Force | null {
+    const cx = target.x + target.w / 2;
+    const cy = target.y + target.h / 2;
+    const seen: Force = { heavy: 0, light: 0, ranged: 0, hp: 0 };
+    for (const u of world.units.values()) {
+      if (u.dead || u.owner === this.playerId) continue;
+      const cls = UNIT_DEFS[u.kind].combat?.class;
+      if (!cls) continue;
+      if (!this.#vision.canSee(u.x, u.y)) continue;
+      if (Math.abs(u.x - cx) + Math.abs(u.y - cy) > DEFENDER_RADIUS) continue;
+      seen[cls]++;
+      seen.hp += u.hp;
+    }
+    if (seen.hp > 0) return seen;
+
+    const sighting = this.#intel.get(target.owner);
+    if (!sighting || world.tick - sighting.tick > AI_INTEL.trustFor) return null;
+    const { heavy, light, ranged } = sighting.counts;
+    if (heavy + light + ranged === 0) return null;
+    return {
+      heavy,
+      light,
+      ranged,
+      // Counts only — a scout cannot read armour research, so base hp it is.
+      hp: heavy * classHp('heavy') + light * classHp('light') + ranged * classHp('ranged'),
+    };
   }
 
   /**

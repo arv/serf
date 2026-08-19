@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADVICE_RANGES, parseAdvice, toOverride } from './advice.ts';
+import { ADVICE_RANGES, MARCH_CONFIDENCE_RANGE, parseAdvice, toOverride } from './advice.ts';
 
 /**
  * The advice parser stands between a language model and the AI brain, so
@@ -29,6 +29,17 @@ describe('parseAdvice', () => {
       expect(parseAdvice(`{"${key}": ${min - 100}}`)).toEqual({ [key]: min });
       expect(parseAdvice(`{"${key}": ${max + 100}}`)).toEqual({ [key]: max });
     }
+  });
+
+  it('clamps marchConfidence, which is parsed off the range table on purpose', () => {
+    // Kept out of ADVICE_RANGES so the lab's random engine keeps its recorded
+    // stream (see the note on MARCH_CONFIDENCE_RANGE), so it needs its own cover.
+    const [min, max] = MARCH_CONFIDENCE_RANGE;
+    expect(parseAdvice(`{"marchConfidence": ${min - 50}}`)).toEqual({ marchConfidence: min });
+    expect(parseAdvice(`{"marchConfidence": ${max + 50}}`)).toEqual({ marchConfidence: max });
+    expect(parseAdvice('{"marchConfidence": 60.4}')).toEqual({ marchConfidence: 60 });
+    expect(parseAdvice('{"marchConfidence": "lots"}')).toEqual({});
+    expect(toOverride({ marchConfidence: 60 })).toEqual({ marchConfidence: 60 });
   });
 
   it('drops knobs that are the wrong type instead of guessing', () => {

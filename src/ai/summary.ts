@@ -42,6 +42,7 @@ export interface SeatKnobs {
   houseLimit: number;
   housingHeadroom: number;
   researchReserve: number;
+  marchConfidence: number;
 }
 
 /** The scout's last trustworthy look at a rival's army: composition by
@@ -211,6 +212,7 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
         houseLimit: strategy.houseLimit,
         housingHeadroom: strategy.housingHeadroom,
         researchReserve: strategy.researchReserve,
+        marchConfidence: strategy.marchConfidence,
       },
     },
     me: {

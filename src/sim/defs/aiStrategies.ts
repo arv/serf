@@ -97,6 +97,17 @@ export interface AiStrategy {
   /** Recall the army home when a hostile fighter comes within this many
    * tiles of the castle. 0 leaves the army where it stands. */
   homeGuard: number;
+  /**
+   * How much of his own army a captain must expect to survive the fight
+   * before he will march, as a percentage (see sim/combatOdds.ts). 30 refuses
+   * only routs, 60 wants a clear win, 80 wants a massacre.
+   *
+   * 0 is off, and every printed playbook holds it there: the seat marches on
+   * headcount alone exactly as it always has, so an unadvised game is the
+   * game it was before this knob existed. It earns a default by winning a
+   * bake-off, not by being plausible.
+   */
+  marchConfidence: number;
 }
 
 /** The campaign line's build order, shared by the seats that vary from it
@@ -167,6 +178,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     rallyCooldown: 400,
     prefersRivals: false,
     homeGuard: 0,
+    marchConfidence: 0,
   },
 
   warlord: {
@@ -216,6 +228,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     rallyCooldown: 300,
     prefersRivals: true,
     homeGuard: 0,
+    marchConfidence: 0,
   },
 
   abbot: {
@@ -289,6 +302,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     rallyCooldown: 400,
     prefersRivals: false,
     homeGuard: 14,
+    marchConfidence: 0,
   },
 
   fletcher: {
@@ -348,6 +362,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     rallyCooldown: 400,
     prefersRivals: false,
     homeGuard: 10,
+    marchConfidence: 0,
   },
 };
 

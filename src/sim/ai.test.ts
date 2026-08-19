@@ -5,6 +5,10 @@ import { AiBrain } from './systems/ai.ts';
 import { AiSeats } from './aiSeats.ts';
 import { strategyOf, type AiStrategy } from './defs/aiStrategies.ts';
 import { checkInvariants } from './debug/invariants.ts';
+import { AI_STRATEGIES } from './defs/aiStrategies.ts';
+import { spawnUnit } from './world.ts';
+import { addStorehouse, bareWorld } from './testUtils.ts';
+import type { SimCommand } from './commands.ts';
 
 function digest(world: World): unknown {
   return {
@@ -77,6 +81,42 @@ describe('the AI opponent', () => {
  * makes — laid and cleared it leaves no trace, and laid with real values
  * the brain actually plays differently.
  */
+function moveOrders(commands: SimCommand[]): Extract<SimCommand, { kind: 'moveUnits' }>[] {
+  return commands.filter((c) => c.kind === 'moveUnits');
+}
+
+/**
+ * A muster staring at a rival castle it cannot take: seven knights of our
+ * own, twelve of theirs standing in the yard, and a scout parked close
+ * enough that both the castle and its garrison are lit — the gate reads only
+ * what the seat can actually see, so an unlit garrison would prove nothing.
+ */
+/** The muster ordered anywhere but the rally spot south of the castle — the
+ * same definition firstMarchTick uses, so a rally home does not read as a
+ * march and a sweep into the dark does. */
+function marchOrders(
+  commands: SimCommand[],
+  castleX: number,
+  castleY: number,
+): Extract<SimCommand, { kind: 'moveUnits' }>[] {
+  const home = { x: castleX + 1, y: castleY + 1 + 4 };
+  return moveOrders(commands).filter(
+    (m) => m.unitIds.length >= 3 && (m.x !== home.x || m.y !== home.y),
+  );
+}
+
+function siegeStandoff(): { world: World; brain: AiBrain } {
+  const world = bareWorld();
+  addStorehouse(world, 30, 30, {});
+  for (let i = 0; i < 7; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
+  // The rival, near enough that one scout lights castle and yard together.
+  addStorehouse(world, 44, 30, {}, 1);
+  for (let i = 0; i < 12; i++) spawnUnit(world, 'knight', 1, 45.5, 28.5 + i * 0.4);
+  spawnUnit(world, 'knight', 0, 42.5, 30.5); // the scout
+  world.tick = 1000; // past the steward's attack cooldown
+  return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size) };
+}
+
 describe('strategist overrides', () => {
   /** Ticks until the brain first marches its army away from home — the
    * observable a changed muster size moves. Under fog a brain also emits
@@ -117,6 +157,9 @@ describe('strategist overrides', () => {
       // An empty override spreads to the same values; clearing goes back to
       // the playbook object itself. Either way: the identical game.
       if (t === 1000) brain.setOverride({});
+      // The march gate at its neutral value has to be as inert as no advice
+      // at all — the whole reason every playbook ships marchConfidence: 0.
+      if (t === 1500) brain.setOverride({ marchConfidence: 0 });
       if (t === 2000) brain.setOverride(null);
       const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
       tickWorld(
@@ -132,6 +175,49 @@ describe('strategist overrides', () => {
     const eager = firstMarchTick({ armyAttackSize: 3, attackCooldown: 200 }, 20_000);
     expect(eager).toBeLessThan(patient);
   }, 120_000);
+
+  it('holds out of a garrison it cannot beat — and does not sweep instead', () => {
+    const { world, brain } = siegeStandoff();
+    brain.setOverride({ marchConfidence: 60 });
+    // No march on the castle, and — the part worth pinning — no consolation
+    // sweep either. Falling through to the sweep branch would send the whole
+    // army walking into unexplored ground, which is worse than the march it
+    // just refused. Rallying home is allowed, and is the point.
+    expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]);
+  });
+
+  it('marches on the same garrison once the odds have turned', () => {
+    const { world, brain } = siegeStandoff();
+    // Same defenders, a far bigger muster: the hold lifts by growing out of
+    // it, which is how it lifts in a real match.
+    for (let i = 0; i < 24; i++) spawnUnit(world, 'knight', 0, 33.5, 20.5 + i * 0.4);
+    brain.setOverride({ marchConfidence: 60 });
+    expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
+  });
+
+  it('marches on a good prediction before the headcount bar is met', () => {
+    // Four knights against one defender: under the steward's armyAttackSize
+    // of seven this seat would still be waiting, and the prediction is what
+    // sends it. The accelerator is the half of this that the sweeps say is
+    // worth having.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    for (let i = 0; i < 4; i++) spawnUnit(world, 'knight', 0, 33.5, 29.5 + i);
+    addStorehouse(world, 44, 30, {}, 1);
+    spawnUnit(world, 'spearman', 1, 45.5, 30.5);
+    spawnUnit(world, 'knight', 0, 42.5, 30.5); // scout, lighting castle and yard
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]); // headcount says wait
+    brain.setOverride({ marchConfidence: 60 });
+    expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
+  });
+
+  it('marches into that same garrison when the gate is off', () => {
+    const { world, brain } = siegeStandoff();
+    brain.setOverride({ marchConfidence: 0 });
+    expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
+  });
 
   it('AiSeats routes advice to the seat it names, and shrugs at one it cannot find', () => {
     const world = createWorld({
