@@ -453,8 +453,8 @@ export function StartMenu(props: StartMenuProps) {
             ? filed.length === 1
               ? `Filed as “${last}”`
               : `Filed ${filed.length} ${spec.plural}`
-            : `Filed ${filed.length} — the other ${bad === 1 ? 'file is' : `${bad} are`} not ` +
-              spec.plural,
+            : `Filed ${filed.length} — the other ` +
+              (bad === 1 ? `file is not ${spec.article}` : `${bad} are not ${spec.plural}`),
       );
     })();
   };
