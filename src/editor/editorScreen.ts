@@ -27,7 +27,14 @@ import { StartMarkers } from './markers.ts';
 import { naturalize } from './naturalize.ts';
 import { PlayAreaOverlay } from './playAreaOverlay.ts';
 import { worldFromEditor, type EditorPlayConfig } from './playWorld.ts';
-import { loadBoundName, loadDraft, saveBoundName, saveDraft, saveMapAs } from './storage.ts';
+import {
+  hasMap,
+  loadBoundName,
+  loadDraft,
+  saveBoundName,
+  saveDraft,
+  saveMapAs,
+} from './storage.ts';
 import { rotateStart } from './symmetry.ts';
 import {
   activeFolds,
@@ -476,7 +483,16 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
    * arrives prefilled with the name and warns before replacing anything.
    */
   function saveCurrent(): void {
-    const bound = savedName();
+    let bound = savedName();
+    // The binding is only as good as the slot: another tab may have
+    // deleted it since, and a silent Save must never re-create a map the
+    // author threw away.
+    if (bound !== null && !hasMap(bound)) {
+      bound = null;
+      setSavedName(null);
+      saveBoundName(null);
+      setDirtySinceSave(true);
+    }
     if (bound === null || mapName().trim() !== bound) setDialog('saveAs');
     else saveToSlot(bound);
   }

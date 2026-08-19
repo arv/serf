@@ -55,7 +55,7 @@ export function saveBoundName(name: string | null): void {
 export function loadBoundName(): string | null {
   try {
     const name = localStorage.getItem(BOUND_KEY);
-    return name !== null && name in readSlots() ? name : null;
+    return name !== null && hasMap(name) ? name : null;
   } catch {
     return null;
   }
@@ -82,6 +82,15 @@ function readSlots(): Record<string, string> {
 
 export function listMaps(): string[] {
   return Object.keys(readSlots()).sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Is that slot there right now? Save re-asks before it writes back into a
+ * binding, and "Save as" before it replaces one — either can have gone
+ * stale in another tab while this one stood open.
+ */
+export function hasMap(name: string): boolean {
+  return name in readSlots();
 }
 
 export function saveMapAs(name: string, state: EditorMapState): boolean {

@@ -2,7 +2,7 @@ import { For, Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { render } from 'solid-js/web';
 import type { EditorActions } from '../../editor/editorScreen.ts';
 import { parseEditorMap } from '../../editor/format.ts';
-import { deleteMap, listMaps, loadMap, saveBoundName } from '../../editor/storage.ts';
+import { deleteMap, hasMap, listMaps, loadMap, saveBoundName } from '../../editor/storage.ts';
 import {
   BRUSH_MAX,
   BRUSH_MIN,
@@ -114,7 +114,7 @@ function EditorUi(props: { actions: EditorActions }) {
         <input
           class="ed-name"
           aria-label="Map name"
-          title="The map's name — Save keeps it under this one"
+          title="The map’s name — rename it and the next Save asks where to keep it"
           value={mapName()}
           maxLength={40}
           onInput={(e) => {
@@ -412,9 +412,14 @@ function SaveAsDialog(props: { actions: EditorActions }) {
       showNotice('A map needs a name');
       return;
     }
-    if (taken() && !window.confirm(`Replace the saved map “${n}”?`)) return;
-    setDialog(null);
-    props.actions.saveToSlot(n);
+    // Asked of storage, not of the list read when the dialog opened: a
+    // name free a minute ago can have been taken by another tab since.
+    if (n !== savedName() && hasMap(n) && !window.confirm(`Replace the saved map “${n}”?`)) {
+      return;
+    }
+    // Only close on a save that landed — a full quota leaves the dialog
+    // standing (with the name still typed in it) to try again.
+    if (props.actions.saveToSlot(n)) setDialog(null);
   };
   return (
     <Dialog title="Save map as">
