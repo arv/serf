@@ -1,6 +1,7 @@
-import { For, Show } from 'solid-js';
+import { For, Index, Show } from 'solid-js';
 import { BUILDING_DEFS, repairBill } from '../sim/defs/buildings';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS, TICKS_PER_SECOND, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
+import type { BuildingSnap } from '../protocol/messages';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
@@ -37,6 +38,18 @@ function GoodsLine(props: { amounts: GoodAmounts }) {
       </For>
     </Show>
   );
+}
+
+/**
+ * The training queue as fixed positions rather than a list: every slot the
+ * barracks has, in order, with the empty ones as undefined. The card draws
+ * all of them always, so an order finishing changes what a slot holds and
+ * never how many there are.
+ */
+function queueSlots(
+  queue: BuildingSnap['trainQueue'],
+): (NonNullable<BuildingSnap['trainQueue']>[number] | undefined)[] {
+  return Array.from({ length: TRAIN_QUEUE_CAP }, (_, i) => queue?.[i]);
 }
 
 export function SelectionPanel(props: {
@@ -83,6 +96,13 @@ export function SelectionPanel(props: {
                rather than leaving, so the gap its neighbours are
                standing on never closes — and the player learns where
                Repair lives before the day they need it
+             · anything the sim can add to or take from — the training
+               queue — is a declared grid of slots rather than a row of
+               chips sized by their own labels: the frame is drawn for
+               the fullest case and the orders move inside it
+           The card hangs off the bottom of the window, so a line that
+           grows lifts every button above it. Height is as much of the
+           frame as width is.
            What is left changes only when the player changes it, or
            when the building itself becomes something else — a site
            finishing is news, and the card is allowed to say so. */
@@ -127,6 +147,52 @@ export function SelectionPanel(props: {
         /* ×2, ×3 … on the hire button: a slot, so the button doesn't
            breathe every time a recruit lands. */
         .sel-hire-n { display: inline-block; min-width: 3ch; }
+
+        /* ——— The training queue ———
+           A declared grid, not a wrapping row of chips. The count plus
+           one cell per queue slot, three to a row — six cells and two
+           rows at today's cap of five, and a cap that moved would still
+           be a number the layout knows before it draws anything.
+           Nothing in here is sized by its own text: a cell is a third of
+           the card wide whether it says "Spearman" or nothing at all,
+           and the rows are a declared height rather than whatever the
+           chips in them came to. */
+        .sel-queue {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-auto-rows: var(--sel-slot-h);
+          gap: 6px;
+          align-items: center;
+        }
+        /* One chip: the .sel-row button height (padding 3px on 12.5px
+           text), fixed here so an empty queue reserves exactly what a
+           full one uses. */
+        .hud-selection { --sel-slot-h: 25px; }
+        /* The tooltip wrapper is what the grid places, so the button has
+           to fill it to keep the cell's edges (same as the build ribbon). */
+        .sel-queue > .tipwrap { display: block; min-width: 0; height: 100%; }
+        #ui .sel-queue button.sel-slot {
+          box-sizing: border-box;
+          width: 100%; height: 100%; min-height: 0;
+          display: flex; align-items: center; gap: 4px;
+          padding: 0 8px; font-size: 12.5px;
+        }
+        /* Not yet in training — waiting on ingredients and a recruit. The
+           dashed outline says so without a word whose width would come
+           and go the moment the recruit walked in. */
+        #ui .sel-queue button.sel-slot.waiting {
+          border-style: dashed; color: #c9c6ba;
+        }
+        .sel-slot .unit { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        .sel-slot .x { flex: 0 0 auto; opacity: 0.7; }
+        /* An order the player hasn't given yet: the outline of the slot
+           it would take, so the queue is one shape at every depth and the
+           barracks says how much room is left without being asked. */
+        .sel-slot.empty {
+          box-sizing: border-box;
+          width: 100%; height: 100%;
+          border: 1px dashed rgba(255, 255, 255, 0.09); border-radius: 10px;
+        }
       `}</style>
 
       <Show when={selectedBuilding()}>
@@ -361,9 +427,12 @@ export function SelectionPanel(props: {
               </Show>
 
               <Show when={def().trains && b().state === 'built'}>
-                {/* Wraps: three train buttons plus the queue row outgrow
-                    the panel's width cap, and touch sizing widens them
-                    further — spilling off-screen on anything narrow. */}
+                {/* Wraps: three priced train buttons outgrow the card's
+                    width cap on a narrow screen, and are better stacked
+                    than sliced. Safe to wrap where the queue below is
+                    not: what these buttons say is settled by the
+                    building's type, so the row is whatever height it is
+                    from the moment the barracks is selected. */}
                 <div class="sel-row">
                   <For each={def().trains!}>
                     {(option) => {
@@ -396,51 +465,75 @@ export function SelectionPanel(props: {
                     }}
                   </For>
                 </div>
-                {/* One chip per order, in queue order. The fill is the same
-                    device as the hire button's: the started item's training
-                    clock, left to right. Clicking a chip cancels it.
-                    The row stands whether or not anything is in it — a
-                    recruit finishing used to fold it away and drop the
-                    train buttons a line down the card. */}
-                <div class="sel-row">
+                {/* The queue: TRAIN_QUEUE_CAP slots, declared rather than
+                    measured — the same trick the build ribbon plays with
+                    its cells, and for the same reason. A wrapping row of
+                    chips sized by their own labels re-flowed on every
+                    event the sim raised: a chip losing "· waiting" when
+                    its recruit walked in shrank by fifty pixels and slid
+                    the rest of the queue sideways, and an order finishing
+                    took the row from three lines to two and lifted the
+                    whole card — Dismiss, Repair, Sell and all three train
+                    buttons — sixty pixels up the screen, because the card
+                    is anchored to the bottom of the window. Now it is
+                    the count and then one cell per slot, three to a row,
+                    the unordered ones standing as empty outlines. The
+                    grid is the same size for an idle barracks as for a
+                    full one, so the only thing an arriving soldier
+                    changes is what a slot says. */}
+                <div class="sel-queue">
                   <span class="sel-label">
                     queue <span class="num">{b().trainQueue?.length ?? 0}</span>/{TRAIN_QUEUE_CAP}
                   </span>
-                  <For each={b().trainQueue ?? []}>
-                    {(item, i) => (
-                      <TipWrap
-                        tip={() => (
-                          <TextTip
-                            title={item.started ? 'Cancel training' : 'Remove from queue'}
-                            body={
-                              item.started
-                                ? 'Stops the recruit mid-drill: the ingredients go back into the barracks stores and the person walks back out a serf. The time already trained is lost.'
-                                : 'Nothing is spent until training starts — ingredients already delivered stay at the barracks for the next order.'
-                            }
-                          />
-                        )}
+                  {/* Index, not For: the slots are positions, so the second
+                      one stays the second one when the queue behind it
+                      shifts (an order finishes, or the staffing system
+                      pulls a ready order to the front) and only its text
+                      changes. */}
+                  <Index each={queueSlots(b().trainQueue)}>
+                    {(slot, i) => (
+                      <Show
+                        when={slot()}
+                        fallback={<span class="sel-slot empty" aria-hidden="true" />}
                       >
-                        <button
-                          class="sel-progress"
-                          onClick={() => props.onCancelTrain(b().id, i(), item.unit as UnitTypeId)}
-                        >
-                          {/* The training clock, filling the chip left to right. */}
-                          <span
-                            aria-hidden="true"
-                            class="sel-fill"
-                            style={{ width: `${(item.progress01 ?? 0) * 100}%` }}
-                          />
-                          <span>
-                            {unitName(item.unit as UnitTypeId)}
-                            <Show when={!item.started}>
-                              <span style={{ opacity: 0.6 }}> · waiting</span>
-                            </Show>{' '}
-                            ✕
-                          </span>
-                        </button>
-                      </TipWrap>
+                        {(item) => (
+                          <TipWrap
+                            tip={() => (
+                              <TextTip
+                                title={item().started ? 'Cancel training' : 'Remove from queue'}
+                                body={
+                                  item().started
+                                    ? 'Stops the recruit mid-drill: the ingredients go back into the barracks stores and the person walks back out a serf. The time already trained is lost.'
+                                    : 'Waiting on ingredients and a recruit — and nothing is spent until training starts, so ingredients already delivered stay at the barracks for the next order.'
+                                }
+                              />
+                            )}
+                          >
+                            <button
+                              class="sel-progress sel-slot"
+                              classList={{ waiting: !item().started }}
+                              onClick={() =>
+                                props.onCancelTrain(b().id, i, item().unit as UnitTypeId)
+                              }
+                            >
+                              {/* The training clock, filling the chip left to right. */}
+                              <span
+                                aria-hidden="true"
+                                class="sel-fill"
+                                style={{ width: `${(item().progress01 ?? 0) * 100}%` }}
+                              />
+                              {/* The name gives way before the ✕ does: on a
+                                  narrow card the slot is thinner than
+                                  "Spearman ✕", and a clipped word still
+                                  reads while a clipped ✕ looks broken. */}
+                              <span class="unit">{unitName(item().unit as UnitTypeId)}</span>
+                              <span class="x">✕</span>
+                            </button>
+                          </TipWrap>
+                        )}
+                      </Show>
                     )}
-                  </For>
+                  </Index>
                 </div>
               </Show>
 
