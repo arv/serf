@@ -47,12 +47,13 @@ import { stock, techs } from './store';
  *
  * Now the browser owns both jobs. The `popover` attribute puts the panel in
  * the top layer, over every panel and dialog with nothing to clip it and no
- * number to maintain. `anchor-name`/`position-area` keep it glued to the live
- * position of the trigger, `position-try-fallbacks` flips it below or hugs it
- * to the near edge when the first placement would not fit, and
- * `position-visibility` takes it away when the trigger scrolls out of a panel.
- * Browsers without anchor positioning (Firefox, Safari before 26) still get
- * the popover, placed from JS in `place()` below.
+ * number to maintain. `anchor-name` and `anchor()` keep it glued to the live
+ * position of the trigger, `justify-self: anchor-center` centres it on the
+ * trigger while keeping it inside the window, `position-try-fallbacks` drops
+ * it below a trigger with nothing above it, and `position-visibility` takes
+ * it away when the trigger scrolls out of a panel.
+ * There is no hand-placed path behind any of it: a browser without CSS anchor
+ * positioning is one this game does not target.
  */
 
 /** The anchor name the live trigger wears; only one tip is up at a time. */
@@ -124,17 +125,12 @@ export function tooltip(content: () => JSX.Element): {
   };
 }
 
-/** Placement is CSS's job where the browser has anchor positioning. */
-const CSS_ANCHORED =
-  typeof CSS !== 'undefined' && CSS.supports?.('position-area', 'block-start span-all');
-
 export function TooltipLayer() {
   let el: HTMLDivElement | undefined;
   // The element currently wearing the anchor name, so it can be undressed
   // when the tip moves on — two anchors of one name and the browser picks
   // the later one in the DOM, which is nobody's trigger in particular.
   let anchored: HTMLElement | null = null;
-  let open = false;
 
   const setAnchor = (target: HTMLElement | null): void => {
     if (anchored === target) return;
@@ -143,58 +139,21 @@ export function TooltipLayer() {
     target?.style.setProperty('anchor-name', ANCHOR);
   };
 
-  /** The fallback placement, for browsers with popovers but no anchors.
-   * Runs with the panel already open, so it can measure the real box
-   * instead of guessing at its width the way the old layer did. */
-  const place = (target: HTMLElement): void => {
-    if (!el) return;
-    const gap = 8;
-    // .tip-js turns the anchored placement off rather than leaving it to
-    // be ignored: a browser that has position-area but somehow got here
-    // would keep its centring and fight the coordinates below.
-    el.classList.add('tip-js');
-    const a = target.getBoundingClientRect();
-    const box = el.getBoundingClientRect();
-    const fits = (top: number): boolean =>
-      top >= gap && top + box.height <= window.innerHeight - gap;
-    const above = a.top - gap - box.height;
-    const below = a.bottom + gap;
-    const clamp = (v: number, max: number): number => Math.max(gap, Math.min(v, max - gap));
-    // The gap is the margin in the anchored path; here it is in the maths.
-    el.style.top = `${clamp(
-      fits(above) || !fits(below) ? above : below,
-      window.innerHeight - box.height,
-    )}px`;
-    el.style.left = `${clamp(
-      a.left + a.width / 2 - box.width / 2,
-      window.innerWidth - box.width,
-    )}px`;
-  };
-
   createEffect(() => {
     const t = tip();
     if (!el) return;
-    if (!t) {
-      setAnchor(null);
-      el.removeAttribute('data-open');
-      if (open) el.hidePopover?.();
-      open = false;
-      return;
-    }
     // A trigger can vanish under the cursor — a build button whose menu
     // closes on the click — and a tip anchored to nothing has nothing to
     // point at, so it goes with it.
-    if (!t.target.isConnected) {
+    if (t && !t.target.isConnected) {
       hideTip();
       return;
     }
-    if (CSS_ANCHORED) setAnchor(t.target);
-    // showPopover() throws if it is already showing, and the tip does stay
-    // up across a move to a neighbouring trigger — only its content swaps.
-    if (!open) el.showPopover?.();
-    open = true;
-    el.setAttribute('data-open', '');
-    if (!CSS_ANCHORED) place(t.target);
+    setAnchor(t?.target ?? null);
+    // togglePopover() rather than the show/hide pair: it is a no-op when the
+    // panel is already in the state asked for, and the panel does stay up
+    // across a move to a neighbouring trigger — only its content swaps.
+    el.togglePopover(t !== null);
   });
 
   // A click acts on the button, so the tip has said its piece — and a
@@ -214,47 +173,49 @@ export function TooltipLayer() {
     <>
       <style>{`
         .tipwrap { display: inline-flex; }
-        /* Above the anchor and centred on it, with the margin as the gap.
-           inset: auto undoes the popover UA sheet's inset: 0, which would
-           otherwise stretch the panel across its placement area. Every rule
-           here is #ui-scoped because #ui .panel dresses this same element:
-           a bare .tip ties with it on specificity and loses on order. */
+        /* Above the trigger and centred on it, in a box that is the window
+           less its edges (the notch included, where the phone has one).
+           anchor-center is why that box is spelled out rather than left to a
+           position-area: it centres the panel on the trigger but keeps it
+           inside those insets, so a tip on a corner button slides along the
+           edge instead of hanging off it — the case the old layer guessed a
+           half-width for and got wrong. That leaves one fallback to declare,
+           for a trigger with no room above it. Worth keeping the list that
+           short on its own merits: Chromium tries only the first five
+           options in it, so a ladder of near-misses is not a thing to lean
+           on — an earlier draft hid its last-resort placement at number six
+           and simply never reached it.
+           Every rule here is #ui-scoped because #ui .panel dresses this same
+           element: a bare .tip ties with it and loses on order. */
         #ui .tip {
-          position: fixed; inset: auto; margin: 8px;
+          --tip-edge-start: max(8px, var(--safe-left));
+          --tip-edge-end: max(8px, var(--safe-right));
+          position: fixed;
           position-anchor: ${ANCHOR};
-          position-area: block-start span-all;
-          /* First fit wins: below the anchor, then hugged to whichever
-             side has the room — the corners of the HUD, where a centred
-             tip is exactly what does not fit. */
-          position-try-fallbacks:
-            flip-block, --tip-right, --tip-right-below, --tip-left, --tip-left-below;
+          inset: auto var(--tip-edge-end) calc(anchor(top) + 8px) var(--tip-edge-start);
+          justify-self: anchor-center;
+          position-try-fallbacks: --tip-below;
           /* A trigger scrolled out of its panel takes its tip with it. */
           position-visibility: anchors-visible;
-          width: max-content; max-width: min(280px, calc(100vw - 16px));
+          /* border-box so the width is the whole panel: it has to fit between
+             the insets above, and it can only promise that if the padding and
+             border are inside the number. 304px is the 280 of text this panel
+             is drawn around plus that chrome, so a roomy window sees exactly
+             what it always did. */
+          box-sizing: border-box; margin: 0;
+          width: max-content;
+          max-width: min(304px, calc(100vw - var(--tip-edge-start) - var(--tip-edge-end)));
           padding: 8px 11px 9px;
           pointer-events: none; font-size: 12px; line-height: 1.45;
           transition: opacity 110ms ease;
         }
-        /* data-open rather than :popover-open so that a browser old enough
-           to ignore the attribute entirely still hides the empty panel
-           between tips instead of parking it on the HUD. */
-        #ui .tip:not([data-open]) { display: none; }
-        /* The JS-placed twin: plain fixed coordinates, no placement of the
-           browser's own left to argue with them (a position-area centres
-           its box in the area, which is the last thing top/left want). */
-        #ui .tip.tip-js {
-          position-area: none; justify-self: auto; align-self: auto; margin: 0;
-        }
-        /* The fade lives entirely in the entry: @starting-style is the
-           value the panel transitions *from* as it comes off display: none.
-           The steady state is a plain opaque panel, so a browser with
-           neither rule — or one whose frames have stalled — shows the tip
-           rather than an invisible one waiting on an animation. */
-        @starting-style { #ui .tip[data-open] { opacity: 0; } }
-        @position-try --tip-right { position-area: block-start span-inline-end; }
-        @position-try --tip-right-below { position-area: block-end span-inline-end; }
-        @position-try --tip-left { position-area: block-start span-inline-start; }
-        @position-try --tip-left-below { position-area: block-end span-inline-start; }
+        @position-try --tip-below { top: calc(anchor(bottom) + 8px); bottom: auto; }
+        /* The fade lives entirely in the entry: @starting-style is the value
+           the panel transitions *from* as it comes off the UA sheet's
+           display: none. The steady state is a plain opaque panel, so a tip
+           on a frame that never arrives is a tip shown, not one left
+           invisible waiting on an animation to finish. */
+        @starting-style { #ui .tip:popover-open { opacity: 0; } }
         @media (prefers-reduced-motion: reduce) { #ui .tip { transition: none; } }
         .tip-title {
           font-family: Georgia, 'Times New Roman', serif; color: #e6c987;
