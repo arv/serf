@@ -3,6 +3,7 @@ import { MISSION_DEFS, nextMissionId } from '../sim/defs/missions';
 import { MISSION_HINTS } from './hints';
 import { hintsHidden, setHintsHidden } from './campaign';
 import { briefingOpen, mission, setBriefingOpen, speed } from './store';
+import { COMPACT } from './breakpoints';
 
 /**
  * The campaign's HUD: the briefing card a mission opens on, the standing
@@ -60,7 +61,7 @@ export function MissionPanel(props: { onSpeed: (speed: number) => void }) {
           padding: 10px 12px;
           display: flex; flex-direction: column; gap: 6px;
         }
-        @media (max-width: 760px) { .hud-mission { width: 200px; } }
+        @media ${COMPACT} { .hud-mission { width: 200px; } }
         .hud-mission .mission-head {
           display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
           font-weight: 600; color: #f0ede4;
