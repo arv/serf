@@ -11,6 +11,27 @@ const YAW = CAMERA_YAW;
 const PITCH = (35 * Math.PI) / 180;
 const DISTANCE = 90;
 const MIN_VIEW = 5;
+/**
+ * How much world the camera frames at boot, and why it is not one number.
+ *
+ * #viewHeight is a span in world units, and the frustum's width comes from
+ * it times the aspect — so the size a castle is drawn at is the window's
+ * height in pixels divided by this. A fixed 30 meant a 900px desktop drew
+ * 30px to the world unit and a phone held sideways, 390px tall, drew 13:
+ * the same village at less than half scale, adrift in a frame 67 units
+ * wide because the aspect had spent all that width on fog.
+ *
+ * So the boot view is a number of pixels per world unit instead, and the
+ * span is whatever the window makes of it. BOOT_VIEW is the ceiling, and
+ * it is the old constant exactly: a desktop window is tall enough to hit
+ * it, so nothing changes there. Everything shorter frames less world and
+ * draws it at the size it was designed to be read at.
+ *
+ * The player's own zoom is untouched — this sets where they start, and
+ * the wheel and the pinch go where they always went.
+ */
+const BOOT_PX_PER_UNIT = 30;
+const BOOT_VIEW = 30;
 /** Zoom-out cap as a fraction of the map side — the whole island plus a
  * ring of open water frames at full zoom, whatever the map size (matches
  * the classic 52-on-64 feel). */
@@ -79,7 +100,7 @@ export class CameraRig {
   #min = 0;
   #max = DEFAULT_MAP_SIZE;
   #target = new THREE.Vector3(DEFAULT_MAP_SIZE / 2, 0, DEFAULT_MAP_SIZE / 2);
-  #viewHeight = 30;
+  #viewHeight = BOOT_VIEW;
   /** Viewing line; the module constants are the game's fixed values, and
    * every construction starts there — setViewMode is the editor's door. */
   #pitch = PITCH;
@@ -107,6 +128,11 @@ export class CameraRig {
     this.#canvas = canvas;
     this.#interactive = interactive;
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
+    this.#viewHeight = clamp(
+      this.#canvas.clientHeight / BOOT_PX_PER_UNIT,
+      MIN_VIEW,
+      Math.min(BOOT_VIEW, this.#maxView()),
+    );
     // ?zoom=6 boots close-in — handy for inspecting people and props.
     const zoom = Number(new URLSearchParams(location.search).get('zoom'));
     if (Number.isFinite(zoom) && zoom > 0) {
