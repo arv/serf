@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
-import { envelopeSave, splitSave, unpackExplored } from './saveEnvelope';
+import { WORLD_SAVE_VERSION } from '../shared/saveVersion';
+import {
+  envelopeSave,
+  looksLikeSave,
+  readSaveMeta,
+  splitSave,
+  unpackExplored,
+} from './saveEnvelope';
 
 const TILES = tileCount(DEFAULT_MAP_SIZE);
 
@@ -41,5 +48,66 @@ describe('the solo save envelope', () => {
 
   it('survives non-JSON input entirely', () => {
     expect(splitSave('garbage')).toEqual({ world: 'garbage' });
+  });
+
+  it('still splits an envelope from before the metadata head', () => {
+    const world = '{"tick":3}';
+    const v2 = JSON.stringify({ fmt: 'serf-save-v2', world, explored: '' });
+    expect(splitSave(v2).world).toBe(world);
+  });
+});
+
+describe('the metadata head', () => {
+  const explored = new Uint8Array(TILES);
+
+  it('is readable from the first bytes of the file, ahead of the world', () => {
+    // The world is the megabyte; the head is what a listing reads, so it
+    // has to be complete well inside the slice the shelf takes.
+    const raw = envelopeSave(JSON.stringify({ big: 'x'.repeat(4000) }), explored, {
+      mission: 'clearing',
+      opponents: 2,
+    });
+    expect(readSaveMeta(raw.slice(0, 512))).toEqual({
+      world: WORLD_SAVE_VERSION,
+      mission: 'clearing',
+      opponents: 2,
+    });
+  });
+
+  it('says only what it was told', () => {
+    expect(readSaveMeta(envelopeSave('{}', explored))).toEqual({ world: WORLD_SAVE_VERSION });
+  });
+
+  it('is absent from a save that never had one', () => {
+    expect(readSaveMeta('{"fmt":"serf-save-v2","world":"{}"}')).toBeUndefined();
+    expect(readSaveMeta('')).toBeUndefined();
+  });
+
+  it('screens what it hands back — the file is hand-editable', () => {
+    // A mission that is not a string, a version that is not a number: the
+    // shelf must not be handed either.
+    expect(readSaveMeta('{"meta":{"world":4,"mission":7,"opponents":"lots"}}')).toEqual({
+      world: 4,
+    });
+    expect(readSaveMeta('{"meta":{"mission":"clearing"}}')).toBeUndefined();
+    expect(readSaveMeta('{"meta":{ nonsense }}')).toBeUndefined();
+  });
+});
+
+describe('screening a file offered as a save', () => {
+  it('takes an envelope, old or new', () => {
+    expect(looksLikeSave(envelopeSave('{"tick":1}', new Uint8Array(TILES)))).toBe(true);
+    expect(looksLikeSave('{"fmt":"serf-save-v2","world":"{}"}')).toBe(true);
+  });
+
+  it('takes a bare world file from before the envelope', () => {
+    expect(looksLikeSave('{"version":4,"world":{"tick":1}}')).toBe(true);
+  });
+
+  it('refuses everything else', () => {
+    expect(looksLikeSave('{"replayVersion":11,"commands":[]}')).toBe(false);
+    expect(looksLikeSave('{"fmt":"serf-save-v3"}')).toBe(false);
+    expect(looksLikeSave('not json')).toBe(false);
+    expect(looksLikeSave('[]')).toBe(false);
   });
 });

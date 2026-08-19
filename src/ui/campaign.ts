@@ -2,10 +2,11 @@ import { MISSION_ORDER, type MissionId } from '../sim/defs/missions';
 
 /**
  * Campaign progress — a profile, not a world. Deliberately separate from
- * the save slot (`serf-save`): finishing a mission is a fact about the
- * player and survives every world they abandon. Sequential unlock is
- * enforced here (UI-side); the ?mission= URL honors any id regardless — a
- * deliberate pressure valve for testers and the impatient.
+ * the saved games (which are files in OPFS, app/saveStore.ts): finishing a
+ * mission is a fact about the player and survives every world they
+ * abandon. Sequential unlock is enforced here (UI-side); the ?mission= URL
+ * honors any id regardless — a deliberate pressure valve for testers and
+ * the impatient.
  */
 
 const KEY = 'serf-campaign';

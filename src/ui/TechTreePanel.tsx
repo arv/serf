@@ -5,6 +5,7 @@ import { GoodIcon } from './icons';
 import { TechTip, tooltip } from './tooltip';
 import { buildingName, techDesc, techName } from './names';
 import { setTechPanelOpen, stock, techs } from './store';
+import { COMPACT, SHORT } from './breakpoints';
 
 const BRANCH_LABELS: Record<string, string> = {
   agriculture: 'Agriculture',
@@ -116,12 +117,16 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
         }
         .tech-note { font-size: 11.5px; opacity: 0.75; }
 
-        /* Phone: three side-by-side branches can't fit, and a flex row just
-           runs off-screen. Become a full-height sheet with the branches
-           stacked and scrolling. (These overrides live here, not in the HUD
-           stylesheet, because this component's <style> renders later and
-           would otherwise win.) */
-        @media (max-width: 760px) {
+        /* A small screen, either way up: three side-by-side branches
+           can't fit, and a flex row just runs off-screen. Become a
+           full-height sheet with the branches stacked and scrolling.
+           Keyed to COMPACT and not to width — held sideways a phone is
+           844px across, and on the width gate this sheet used to render
+           463px tall inside 390px of screen, with the bottom third of
+           the tree simply off it. (These overrides live here, not in
+           the HUD stylesheet, because this component's <style> renders
+           later and would otherwise win.) */
+        @media ${COMPACT} {
           /* Taps on the dimmed area have to stop here. #ui is
              pointer-events:none and the dimming is a box-shadow spread,
              which nothing can hit, so an order aimed at the open sheet used
@@ -172,6 +177,20 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
           .tech-branch { min-width: 0; width: 100%; }
           .tech-node { padding: 9px 10px; font-size: 13px; }
           .tech-node .desc { font-size: 12px; }
+        }
+
+        /* Held sideways, the sheet has width it isn't using: the
+           branches stack into one column because that is what a phone
+           held upright has room for, and on 844px of screen that made
+           a single file of nodes with a mile of scroll beside two
+           empty thirds. Two columns, and the tree is a third of the
+           scrolling it was. */
+        @media ${SHORT} {
+          .tech-branches {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+            align-content: start; gap: 10px 12px;
+          }
+          .tech-head { min-height: 0; }
         }
 
         /* A thumb needs more than 26px of ✕, and that is true of a

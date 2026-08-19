@@ -168,6 +168,16 @@ export function SelectionPanel(props: {
            text), fixed here so an empty queue reserves exactly what a
            full one uses. */
         .hud-selection { --sel-slot-h: 25px; }
+        /* A thumb, on a phone or a tablet alike. Not the 44px the rest
+           of the HUD grows to: this card holds a dozen controls and a
+           five-slot queue, and at 44px apiece it is taller than a
+           landscape phone. 34px is what a finger can hit without the
+           card taking the screen — and the card scrolls now if it
+           still doesn't fit. */
+        @media (pointer: coarse) {
+          #ui .sel-row button { min-height: 34px; padding: 5px 12px; }
+          .hud-selection { --sel-slot-h: 34px; }
+        }
         /* The tooltip wrapper is what the grid places, so the button has
            to fill it to keep the cell's edges (same as the build ribbon). */
         .sel-queue > .tipwrap { display: block; min-width: 0; height: 100%; }

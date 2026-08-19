@@ -186,13 +186,3 @@ export function parseReplay(raw: string): ReplayData | null {
     endTick: d.endTick,
   };
 }
-
-/** "2026-08-12 14.03.05" — the datetime is the replay's name. Dots rather
- * than colons in the time: the name doubles as a filename. */
-export function replayName(date: Date): string {
-  const pad = (n: number): string => String(n).padStart(2, '0');
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
-    `${pad(date.getHours())}.${pad(date.getMinutes())}.${pad(date.getSeconds())}`
-  );
-}

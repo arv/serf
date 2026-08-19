@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   parseReplay,
   readReplayVersion,
-  replayName,
   serializeReplay,
   REPLAY_FORMAT,
   type ReplayData,
@@ -98,10 +97,6 @@ describe('replay format', () => {
     expect(readReplayVersion('{}')).toBeUndefined();
   });
 
-  it('names replays by datetime, filename-safe', () => {
-    const name = replayName(new Date(2026, 7, 12, 14, 3, 5));
-    expect(name).toBe('2026-08-12 14.03.05');
-  });
 });
 
 /** Deep-comparable digest of sim state (see determinism.test.ts). */
