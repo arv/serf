@@ -11,6 +11,13 @@ import { parseEditorMap, serializeEditorMap } from './format.ts';
 
 const DRAFT_KEY = 'serf-editor-draft';
 const SLOTS_KEY = 'serf-editor-maps';
+/**
+ * Which named slot the draft belongs to, so a reload comes back with Save
+ * still pointed at the map you were saving. Kept beside the draft rather
+ * than inside it: the draft is a map FILE, and which slot it came from is
+ * session bookkeeping no other host of the format cares about.
+ */
+const BOUND_KEY = 'serf-editor-draft-slot';
 
 export function saveDraft(state: EditorMapState): boolean {
   try {
@@ -27,6 +34,30 @@ export function loadDraft(): EditorMapState | null {
     return raw === null ? null : parseEditorMap(raw);
   } catch {
     return null; // corrupt draft: start fresh rather than refuse to open
+  }
+}
+
+/** Remember (or forget, with null) the slot the draft is saving into. */
+export function saveBoundName(name: string | null): void {
+  try {
+    if (name === null) localStorage.removeItem(BOUND_KEY);
+    else localStorage.setItem(BOUND_KEY, name);
+  } catch {
+    // Losing the binding costs one "Save as" prompt, nothing more.
+  }
+}
+
+/**
+ * The remembered slot — but only while that slot still exists. A map
+ * deleted from another tab (or last session) must not leave Save writing
+ * a name the Open list no longer shows.
+ */
+export function loadBoundName(): string | null {
+  try {
+    const name = localStorage.getItem(BOUND_KEY);
+    return name !== null && name in readSlots() ? name : null;
+  } catch {
+    return null;
   }
 }
 

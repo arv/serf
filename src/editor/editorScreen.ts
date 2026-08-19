@@ -27,7 +27,7 @@ import { StartMarkers } from './markers.ts';
 import { naturalize } from './naturalize.ts';
 import { PlayAreaOverlay } from './playAreaOverlay.ts';
 import { worldFromEditor, type EditorPlayConfig } from './playWorld.ts';
-import { loadDraft, saveDraft } from './storage.ts';
+import { loadBoundName, loadDraft, saveBoundName, saveDraft, saveMapAs } from './storage.ts';
 import { rotateStart } from './symmetry.ts';
 import {
   activeFolds,
@@ -35,10 +35,14 @@ import {
   kaleido,
   mapName,
   resetEditorUiState,
+  savedName,
   setCanRedo,
   setCanUndo,
+  setDialog,
   setDirtySinceSave,
+  setMapName,
   setProblems,
+  setSavedName,
   setViewMode,
   showBounds,
   showNotice,
@@ -53,11 +57,16 @@ export interface EditorActions {
   redo(): void;
   /** Re-derive heights from the painted terrain, worldgen-style. */
   naturalize(): void;
+  /** Write the bound slot, or open "Save as" if there is none yet. */
+  save(): void;
+  /** Write a named slot and bind Save to it from now on. */
+  saveToSlot(name: string): boolean;
   exportMap(): void;
-  /** Swap in a parsed state (Import, Maps... load) and rebuild the scene. */
-  replaceState(state: EditorMapState): void;
-  /** The live state with panel-owned fields (name) folded in. */
-  currentState(): EditorMapState;
+  /**
+   * Swap in a parsed state (New, Open, a file) and rebuild the scene.
+   * `boundName` is the slot it came from — Save writes straight back there.
+   */
+  replaceState(state: EditorMapState, boundName?: string | null): void;
   play(cfg: EditorPlayConfig): void;
 }
 
@@ -102,8 +111,11 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     },
   };
 
-  let state = loadDraft() ?? createBlankMap({ size: DEFAULT_MAP_SIZE, players: 2 });
-  resetEditorUiState(state);
+  // A restored draft keeps the slot it was being saved into; a session
+  // that starts from a blank map is unbound however stale BOUND_KEY is.
+  const draft = loadDraft();
+  let state = draft ?? createBlankMap({ size: DEFAULT_MAP_SIZE, players: 2 });
+  resetEditorUiState(state, draft === null ? null : loadBoundName());
 
   const off = new AbortController();
   teardown.push(() => off.abort());
@@ -348,6 +360,9 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       setViewMode(next);
       renderer.rig.setViewMode(next);
     },
+    save: () => saveCurrent(),
+    saveAs: () => setDialog('saveAs'),
+    openMaps: () => setDialog('open'),
   };
 
   // ---- scene lifecycle -----------------------------------------------------
@@ -419,19 +434,51 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     return state;
   }
 
-  function replaceState(next: EditorMapState): void {
+  function replaceState(next: EditorMapState, boundName: string | null = null): void {
     clearTimeout(foliageTimer);
+    clearTimeout(draftTimer);
     pendingRepaint.clear();
     pendingReheight.clear();
     marginTouched = false;
     tearDownScene();
     state = next;
-    resetEditorUiState(state);
+    resetEditorUiState(state, boundName);
     // A fresh timeline: the stacks hold arrays sized for the old grid.
     history.clear();
     syncHistorySignals();
     buildScene();
     saveDraft(state);
+    saveBoundName(boundName);
+  }
+
+  /**
+   * Save into a named slot and bind Save to it. The draft follows, so a
+   * reload comes back to the same map with the same binding.
+   */
+  function saveToSlot(name: string): boolean {
+    if (!saveMapAs(name, currentState())) {
+      showNotice('Saving failed — browser storage is full');
+      return false;
+    }
+    setMapName(name);
+    setSavedName(name);
+    setDirtySinceSave(false);
+    saveBoundName(name);
+    saveDraft(currentState());
+    showNotice(`Saved "${name}"`);
+    return true;
+  }
+
+  /**
+   * Ctrl+S / the Save button: straight back into the bound slot. A map
+   * that has never been saved — or one renamed in the top bar since, where
+   * "save" could mean either slot — goes through Save as instead, which
+   * arrives prefilled with the name and warns before replacing anything.
+   */
+  function saveCurrent(): void {
+    const bound = savedName();
+    if (bound === null || mapName().trim() !== bound) setDialog('saveAs');
+    else saveToSlot(bound);
   }
 
   // ---- actions for the panel ----------------------------------------------
@@ -457,6 +504,8 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
           : 'Nothing to naturalize',
       );
     },
+    save: saveCurrent,
+    saveToSlot,
     exportMap(): void {
       const json = serializeEditorMap(currentState());
       const blob = new Blob([json], { type: 'application/json' });
@@ -471,7 +520,6 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       showNotice('Map exported');
     },
     replaceState,
-    currentState,
     play(cfg): void {
       const problems = validateForPlay(currentState());
       if (problems.length > 0) {

@@ -2,7 +2,7 @@ import { For, Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { render } from 'solid-js/web';
 import type { EditorActions } from '../../editor/editorScreen.ts';
 import { parseEditorMap } from '../../editor/format.ts';
-import { deleteMap, listMaps, loadMap, saveMapAs } from '../../editor/storage.ts';
+import { deleteMap, listMaps, loadMap, saveBoundName } from '../../editor/storage.ts';
 import {
   BRUSH_MAX,
   BRUSH_MIN,
@@ -18,12 +18,14 @@ import {
   mapPlayers,
   notice,
   problems,
+  savedName,
   setBrushRadius,
   setDialog,
   setDirtySinceSave,
   setFolds,
   setKaleido,
   setMapName,
+  setSavedName,
   setShowBounds,
   setTool,
   showBounds,
@@ -62,8 +64,12 @@ function EditorUi(props: { actions: EditorActions }) {
       .text()
       .then((text) => {
         const state = parseEditorMap(text);
-        props.actions.replaceState(state);
-        showNotice(`Imported "${state.name}"`);
+        // A file is not a slot: the map opens unbound, so the first Save
+        // asks where it should live rather than overwriting whatever was
+        // open before.
+        props.actions.replaceState(state, null);
+        setDialog(null);
+        showNotice(`Opened "${state.name}" — Save to keep it in the browser`);
       })
       .catch((err: unknown) => {
         showNotice(err instanceof Error ? err.message : 'could not read that file');
@@ -72,6 +78,10 @@ function EditorUi(props: { actions: EditorActions }) {
 
   const confirmDiscard = (): boolean =>
     !dirtySinceSave() || window.confirm('Discard unsaved changes to this map?');
+
+  /** Does Save write without asking? (Bound, and still under that name.) */
+  const savesStraightBack = (): boolean =>
+    savedName() !== null && mapName().trim() === savedName();
 
   return (
     <div class="ed-root">
@@ -104,6 +114,7 @@ function EditorUi(props: { actions: EditorActions }) {
         <input
           class="ed-name"
           aria-label="Map name"
+          title="The map's name — Save keeps it under this one"
           value={mapName()}
           maxLength={40}
           onInput={(e) => {
@@ -178,21 +189,41 @@ function EditorUi(props: { actions: EditorActions }) {
       {/* ——— right: files & play ——— */}
       <div class="ed-files panel">
         <button
+          title="Start a blank map — unsaved changes are confirmed first"
           onClick={() => {
             if (confirmDiscard()) setDialog('new');
           }}
         >
           New…
         </button>
-        <button onClick={() => setDialog('maps')}>Maps…</button>
-        <button
-          onClick={() => {
-            if (confirmDiscard()) filePick?.click();
-          }}
-        >
-          Import…
+        <button title="Open a saved map, or a map file (Ctrl+O)" onClick={() => setDialog('open')}>
+          Open…
         </button>
-        <button onClick={() => props.actions.exportMap()}>Export</button>
+        <button
+          title={
+            savesStraightBack()
+              ? `Save over “${savedName() ?? ''}” (Ctrl+S)`
+              : 'Save this map in the browser — asks for a name (Ctrl+S)'
+          }
+          onClick={() => props.actions.save()}
+        >
+          Save
+          <Show when={dirtySinceSave()}>
+            <span class="ed-dot" aria-label="unsaved changes">
+              {' '}
+              •
+            </span>
+          </Show>
+        </button>
+        <button title="Save under a new name (Ctrl+Shift+S)" onClick={() => setDialog('saveAs')}>
+          Save as…
+        </button>
+        <button
+          title="Download this map as a .serfmap.json file"
+          onClick={() => props.actions.exportMap()}
+        >
+          Export…
+        </button>
         <button
           title="Re-derive heights from the painted terrain the way worldgen shapes its own maps: lake beds shelve, meadows ease toward shores, gentle hills roll in. One undoable step."
           onClick={() => props.actions.naturalize()}
@@ -234,8 +265,15 @@ function EditorUi(props: { actions: EditorActions }) {
       <Show when={dialog() === 'new'}>
         <NewMapDialog actions={props.actions} />
       </Show>
-      <Show when={dialog() === 'maps'}>
-        <MapsDialog actions={props.actions} confirmDiscard={confirmDiscard} />
+      <Show when={dialog() === 'open'}>
+        <OpenDialog
+          actions={props.actions}
+          confirmDiscard={confirmDiscard}
+          pickFile={() => filePick?.click()}
+        />
+      </Show>
+      <Show when={dialog() === 'saveAs'}>
+        <SaveAsDialog actions={props.actions} />
       </Show>
       <Show when={dialog() === 'play'}>
         <PlayDialog actions={props.actions} />
@@ -289,36 +327,50 @@ function NewMapDialog(props: { actions: EditorActions }) {
   );
 }
 
-function MapsDialog(props: { actions: EditorActions; confirmDiscard: () => boolean }) {
+function OpenDialog(props: {
+  actions: EditorActions;
+  confirmDiscard: () => boolean;
+  pickFile: () => void;
+}) {
   const [names, setNames] = createSignal(listMaps());
   return (
-    <Dialog title="Saved maps">
+    <Dialog title="Open a map">
       <Show when={names().length === 0}>
-        <div class="ed-dim">Nothing saved yet — “Save as” keeps the current map here.</div>
+        <div class="ed-dim">Nothing saved in this browser yet — “Save” keeps a map here.</div>
       </Show>
       <For each={names()}>
         {(name) => (
           <div class="ed-row ed-slot">
-            <span class="ed-slot-name">{name}</span>
+            <span class="ed-slot-name" classList={{ current: name === savedName() }}>
+              {name}
+            </span>
             <button
               onClick={() => {
                 if (!props.confirmDiscard()) return;
                 const loaded = loadMap(name);
                 if (!loaded) {
-                  showNotice(`could not load "${name}"`);
+                  showNotice(`could not open "${name}"`);
                   return;
                 }
                 setDialog(null);
-                props.actions.replaceState(loaded);
-                showNotice(`Loaded "${name}"`);
+                props.actions.replaceState(loaded, name);
+                showNotice(`Opened "${name}"`);
               }}
             >
-              Load
+              Open
             </button>
             <button
               onClick={() => {
                 if (!window.confirm(`Delete "${name}"?`)) return;
                 deleteMap(name);
+                // The map on screen just lost its slot: unbind it so Save
+                // asks for a name instead of silently re-creating what was
+                // deleted.
+                if (savedName() === name) {
+                  setSavedName(null);
+                  saveBoundName(null);
+                  setDirtySinceSave(true);
+                }
                 setNames(listMaps());
               }}
             >
@@ -328,21 +380,68 @@ function MapsDialog(props: { actions: EditorActions; confirmDiscard: () => boole
         )}
       </For>
       <div class="ed-row ed-actions">
-        <button onClick={() => setDialog(null)}>Close</button>
+        <button onClick={() => setDialog(null)}>Cancel</button>
         <button
-          class="active"
           onClick={() => {
-            const name = mapName().trim() || 'Untitled';
-            if (saveMapAs(name, props.actions.currentState())) {
-              setNames(listMaps());
-              setDirtySinceSave(false);
-              showNotice(`Saved "${name}"`);
-            } else {
-              showNotice('Saving failed — browser storage is full');
-            }
+            if (props.confirmDiscard()) props.pickFile();
           }}
         >
-          Save as “{mapName().trim() || 'Untitled'}”
+          Open file…
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+function SaveAsDialog(props: { actions: EditorActions }) {
+  const [name, setName] = createSignal(mapName().trim() || 'Untitled');
+  // Read the slot list once, on open: it feeds a per-keystroke check.
+  const existing = listMaps();
+  let field: HTMLInputElement | undefined;
+  onMount(() => {
+    field?.focus();
+    field?.select();
+  });
+  const taken = (): boolean => {
+    const n = name().trim();
+    return n !== '' && n !== savedName() && existing.includes(n);
+  };
+  const commit = (): void => {
+    const n = name().trim();
+    if (n === '') {
+      showNotice('A map needs a name');
+      return;
+    }
+    if (taken() && !window.confirm(`Replace the saved map “${n}”?`)) return;
+    setDialog(null);
+    props.actions.saveToSlot(n);
+  };
+  return (
+    <Dialog title="Save map as">
+      <label class="ed-row">
+        Name
+        <input
+          ref={field}
+          class="ed-seed ed-save-name"
+          aria-label="Save as name"
+          value={name()}
+          maxLength={40}
+          onInput={(e) => setName(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit();
+          }}
+        />
+      </label>
+      <Show when={taken()}>
+        <div class="ed-dim">“{name().trim()}” already exists — saving replaces it.</div>
+      </Show>
+      <Show when={existing.length > 0}>
+        <div class="ed-dim ed-existing">Already saved: {existing.join(', ')}</div>
+      </Show>
+      <div class="ed-row ed-actions">
+        <button onClick={() => setDialog(null)}>Cancel</button>
+        <button class="active" onClick={commit}>
+          Save
         </button>
       </div>
     </Dialog>
@@ -406,7 +505,9 @@ function Dialog(props: { title: string; children?: unknown }) {
   // dialog rather than tabbing the panel behind the scrim. (Not a full
   // focus trap; the scrim blocks pointer access to everything else.)
   onMount(() => {
-    card?.focus();
+    // Unless a child already claimed focus (Save as puts the caret in its
+    // name field, and stealing it back would make the dialog untypeable).
+    if (!card?.contains(document.activeElement)) card?.focus();
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') setDialog(null);
     };
@@ -509,6 +610,8 @@ const STYLE = `
     position: absolute; top: 10px; right: 10px; padding: 8px;
     pointer-events: auto; display: flex; flex-direction: column; gap: 6px; min-width: 110px;
   }
+  /* Unsaved-changes pip on the Save button. */
+  .ed-dot { color: #e5c469; font-weight: 700; }
   .ed-play { font-weight: 700; }
 
   .ed-problems {
@@ -540,8 +643,11 @@ const STYLE = `
   .ed-seg { display: flex; gap: 4px; }
   .ed-actions { justify-content: flex-end; }
   .ed-dim { font-size: 12px; color: #b6b3a6; }
+  .ed-existing { max-width: 320px; }
   .ed-slot { justify-content: flex-start; }
   .ed-slot-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .ed-slot-name.current { color: #e5c469; }
+  .ed-save-name { width: 170px; }
   .ed-seed {
     font-family: inherit; font-size: 13px; color: #eceade;
     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
