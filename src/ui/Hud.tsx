@@ -936,8 +936,22 @@ export function Hud(props: {
              the cards inside it are cut to fit, and it is deliberately
              a share of the window rather than a count of rows: whatever
              is in these cards, together they get this much of the
-             screen and the map keeps the rest. */
+             screen and the map keeps the rest.
+             Small viewport units, like the menu's cap and the room list
+             before it: vh is the window with the browser's own bars
+             hidden, so on a phone that still has its URL bar showing,
+             52vh is more than half of what the player can actually see
+             — the cards would take the extra out of the map, and the
+             thumb rail sitting on top of them would go with it.
+             @supports rather than the usual pair of declarations,
+             because this is a custom property: its value is not parsed
+             for units when it is declared, so an unknown one would not
+             fall back to the line above it — it would fail later, where
+             the property is used, and take the cap with it. */
           #ui { --hud-bottom-h: min(52vh, 250px); }
+          @supports (height: 1svh) {
+            #ui { --hud-bottom-h: min(52svh, 250px); }
+          }
           .hud-bottom {
             flex-direction: row; align-items: flex-end;
             max-height: var(--hud-bottom-h); gap: 8px;
