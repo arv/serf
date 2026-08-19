@@ -42,6 +42,12 @@ export interface EditorSurface {
   startDragEnd(seat: number): void;
   /** Toggle between top-down and the game's isometric view. */
   toggleView(): void;
+  /** Ctrl+S — write the bound slot, or ask for a name. */
+  save(): void;
+  /** Ctrl+Shift+S — always ask for a name. */
+  saveAs(): void;
+  /** Ctrl+O — the saved-maps dialog. */
+  openMaps(): void;
 }
 
 /**
@@ -169,16 +175,29 @@ export class EditorControls {
   #onKey(e: KeyboardEvent): void {
     // Typing a map name must not swap tools under the cursor.
     const el = e.target;
-    if (
+    const typing =
       el instanceof HTMLInputElement ||
       el instanceof HTMLTextAreaElement ||
-      (el instanceof HTMLElement && el.isContentEditable)
-    ) {
-      return;
-    }
+      (el instanceof HTMLElement && el.isContentEditable);
     if (e.metaKey || e.ctrlKey) {
-      // The canvas has no native undo; the browser must not eat these.
       const key = e.key.toLowerCase();
+      // The file shortcuts fire even from the name field — the browser's
+      // own Save Page / Open File on a canvas app is never what was meant,
+      // and Ctrl+S right after typing a name is the natural gesture.
+      if (key === 's' && !e.altKey) {
+        e.preventDefault();
+        if (e.shiftKey) this.#surface.saveAs();
+        else this.#surface.save();
+        return;
+      }
+      if (key === 'o' && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        this.#surface.openMaps();
+        return;
+      }
+      // Undo/redo in a text field is the field's own business.
+      if (typing) return;
+      // The canvas has no native undo; the browser must not eat these.
       if (key === 'z' && !e.altKey) {
         e.preventDefault();
         if (e.shiftKey) this.#surface.redo();
@@ -189,7 +208,7 @@ export class EditorControls {
       }
       return;
     }
-    if (e.altKey) return;
+    if (typing || e.altKey) return;
     const entry = PALETTE.find((p) => p.key === e.key.toLowerCase());
     if (entry) {
       setTool(entry.tool);
