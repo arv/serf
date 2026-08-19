@@ -52,7 +52,7 @@ export const [showBounds, setShowBounds] = createSignal(true);
 /** History depth flags, kept fresh by the screen after every action. */
 export const [canUndo, setCanUndo] = createSignal(false);
 export const [canRedo, setCanRedo] = createSignal(false);
-export const [dialog, setDialog] = createSignal<'new' | 'play' | 'maps' | null>(null);
+export const [dialog, setDialog] = createSignal<'new' | 'play' | 'open' | 'saveAs' | null>(null);
 /** validateForPlay's output, refreshed after every stroke that could change it. */
 export const [problems, setProblems] = createSignal<string[]>([]);
 /** Editor-local toasts (the HUD's live in match state we never mount). */
@@ -60,6 +60,11 @@ export const [notice, setNoticeRaw] = createSignal<string | null>(null);
 export const [mapName, setMapName] = createSignal('Untitled');
 export const [mapPlayers, setMapPlayers] = createSignal(2);
 export const [dirtySinceSave, setDirtySinceSave] = createSignal(false);
+/**
+ * The saved slot this map is bound to — what Save writes without asking.
+ * Null for a map that has never been saved (Save then means "Save as").
+ */
+export const [savedName, setSavedName] = createSignal<string | null>(null);
 
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 export function showNotice(text: string): void {
@@ -73,8 +78,15 @@ export function activeFolds(): number {
   return kaleido() ? folds() : 1;
 }
 
-/** Fresh-mount defaults (screens can remount within one page lifetime). */
-export function resetEditorUiState(state: { players: number; name: string }): void {
+/**
+ * Fresh-mount defaults (screens can remount within one page lifetime).
+ * `boundName` is the saved slot this map came from, if any — opening one
+ * binds Save to it; New and a file import leave it unbound.
+ */
+export function resetEditorUiState(
+  state: { players: number; name: string },
+  boundName: string | null = null,
+): void {
   setDialog(null);
   setProblems([]);
   setNoticeRaw(null);
@@ -83,4 +95,5 @@ export function resetEditorUiState(state: { players: number; name: string }): vo
   setFolds(Math.max(1, Math.min(4, state.players)));
   setKaleido(state.players > 1);
   setDirtySinceSave(false);
+  setSavedName(boundName);
 }
