@@ -681,6 +681,10 @@ export function Hud(props: {
           pointer-events: auto; align-self: flex-start;
           padding: 10px 16px; font-weight: 600;
         }
+        /* Desktop keeps the card in the bottom row beside the selection
+           card, where it costs the map nothing it wasn't already costing.
+           The scrim belongs to the sheet, so here there is none. */
+        .build-scrim { display: none; }
         /* Placement is a mode, and a mode with no way out is a trap. A
            mouse leaves it with Esc or a right click; a finger has neither,
            so until this bar the only exit was finding somewhere the
@@ -973,7 +977,10 @@ export function Hud(props: {
              and this parent has only a max-height, so the percentage
              would come out as no limit at all — which is exactly how a
              369px selection card ended up standing on a 375px screen. */
-          .hud-bottom > * {
+          /* :not(.hud-build) — the build menu is a sheet at this size
+             (below) and has left the row; capping it to the row's height
+             would put back exactly the limit it left to escape. */
+          .hud-bottom > *:not(.hud-build) {
             /* border-box, because #ui is otherwise content-box: on the
                default the cap leaves out the card's own padding and
                border, and the selection card stood 26px taller than
@@ -990,11 +997,60 @@ export function Hud(props: {
             width: min(var(--sel-w), 46%);
             overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
           }
-          .hud-build { flex: 1 1 auto; min-width: 0; }
-          /* Two rows of cells and the ribbon scrolls — a declared count
-             rather than a share of the screen, so the card is the same
-             height on every phone and the cells are never sliced. */
-          .hud-build .hud-items { height: calc(2 * var(--build-row) + 6px); }
+          /* ——— The build menu is a sheet here, not a card ———
+             Sharing the bottom row is what a desktop can afford. On a
+             phone held sideways the same card was a third of the screen
+             for as long as it was open — and open is precisely when you
+             are looking at the ground to decide where a thing goes. The
+             one place it does not have to compete for is the moment it
+             is being read: nothing else on the HUD matters while you are
+             picking a building.
+             So it leaves the row and covers the map, the way the tech
+             tree already does at this size, and it is gone again the
+             instant a building is picked (place() folds it) or the scrim
+             is tapped. What the map pays is a third of the screen for as
+             long as the menu is open, instead of a third of every minute
+             it is left open — and the cells get room to be tapped
+             properly on the way. Same markup throughout: this is the
+             card, moved. */
+          .hud-build {
+            position: fixed;
+            bottom: calc(var(--hud-margin) + var(--safe-bottom));
+            right: calc(var(--hud-margin) + var(--safe-right));
+            left: calc(var(--hud-margin) + var(--safe-left));
+            z-index: 20;
+            /* As tall as its own tab needs and no taller — four cells in
+               the Village tab is four cells, not the two declared rows
+               the bottom card always reserved whether or not anything
+               stood in the second one. Past the cap the ribbon scrolls,
+               which is what the War tab does on the shortest screens.
+               The top edge stays auto for that: pinning both edges would
+               stretch the sheet to fill, which is how the old card came
+               to be mostly empty. It grows upward from the bottom
+               instead, because that is where the Build pill that opened
+               it stands and where the thumb already is — a menu that
+               answers a bottom-left tap by appearing at the top of the
+               screen is a menu you have to go and find.
+               The ceiling is the goods strip: the one readout that has
+               to stay legible while you spend what it counts. */
+            top: auto;
+            max-height: calc(100vh - 76px - var(--hud-margin) - var(--safe-top) - var(--safe-bottom));
+            max-height: calc(100svh - 76px - var(--hud-margin) - var(--safe-top) - var(--safe-bottom));
+            /* Opaque, unlike the cards: at 0.72 the map beneath showed
+               through a full-screen panel and the prices became unreadable.
+               The spread shadow is what dims the world behind it. */
+            background: rgba(11, 13, 12, 0.97);
+            box-shadow: 0 0 0 100vmax rgba(6, 8, 7, 0.5);
+          }
+          .build-scrim {
+            display: block; position: fixed; inset: 0;
+            pointer-events: auto; z-index: 19;
+          }
+          /* The ribbon is as many rows as the tab has, not a declared
+             two: the Village tab's four buildings are one row here, and
+             the sheet is the height of one row. Only a tab that outgrows
+             the sheet's cap scrolls. */
+          .hud-build .hud-items { flex: 0 1 auto; min-height: 0; height: auto; }
           /* The thumb rail clears the cards rather than floating over
              them — at 38vh it landed on the selection card's shoulder,
              with its ✕ on the building's health. It lies along the
@@ -1555,6 +1611,21 @@ export function Hud(props: {
             </Show>
           }
         >
+          {/* The sheet's backstop, and only ever a sheet's: #ui is
+              pointer-events:none, so without something taking the taps a
+              finger aimed beside the open menu would land on the map and
+              order the selection somewhere. Rendered always, shown only
+              where the card becomes a sheet (the CSS below).
+              Click and nothing else. Closing on touchstart as well looked
+              like belt and braces and was the very hole this is here to
+              plug: the scrim unmounts under the finger, and what the map
+              then receives is a pointerup it never saw a pointerdown for
+              — plus the compatibility mousedown/mouseup/click behind it —
+              because the element that would have taken them is gone by
+              the time they are dispatched. Waiting for the click leaves
+              the scrim standing until every event of that tap has been
+              delivered to it. */}
+          <div class="build-scrim" aria-hidden="true" onClick={() => setBuildOpen(false)} />
           <div class="hud-build panel" classList={{ chording: buildChord() }}>
             {/* The card's own name, which it never needed until it had a
                 shortcut to teach. Keyboard only — with nothing to press,
