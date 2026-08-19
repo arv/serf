@@ -5,6 +5,7 @@ import {
   envelopeSave,
   looksLikeSave,
   readSaveMeta,
+  readSaveWorldVersion,
   splitSave,
   unpackExplored,
 } from './saveEnvelope';
@@ -109,5 +110,42 @@ describe('screening a file offered as a save', () => {
     expect(looksLikeSave('{"fmt":"serf-save-v3"}')).toBe(false);
     expect(looksLikeSave('not json')).toBe(false);
     expect(looksLikeSave('[]')).toBe(false);
+  });
+});
+
+describe('which format a save was written in', () => {
+  const world = JSON.stringify({ version: WORLD_SAVE_VERSION, world: { tick: 1 } });
+
+  it('reads it off the metadata head', () => {
+    expect(readSaveWorldVersion(envelopeSave(world, new Uint8Array(TILES)))).toBe(
+      WORLD_SAVE_VERSION,
+    );
+  });
+
+  it('reads it out of the world itself when there is no head', () => {
+    // The file a build before the head wrote — and exactly the one that
+    // used to be offered on the shelf and then blank the page. The world
+    // rides an envelope as an escaped string, version first.
+    const old = JSON.stringify({ fmt: 'serf-save-v2', world: '{"version":3,"world":{}}' });
+    expect(readSaveWorldVersion(old)).toBe(3);
+  });
+
+  it('reads a bare save from before the envelope', () => {
+    expect(readSaveWorldVersion('{"version":2,"world":{"tick":1}}')).toBe(2);
+  });
+
+  it('answers from the head alone — a listing never holds the whole file', () => {
+    const head = envelopeSave(world, new Uint8Array(TILES)).slice(0, 200);
+    expect(readSaveWorldVersion(head)).toBe(WORLD_SAVE_VERSION);
+    const oldHead = JSON.stringify({
+      fmt: 'serf-save-v2',
+      world: JSON.stringify({ version: 3, world: { tick: 1, units: [1, 2, 3] } }),
+    }).slice(0, 60);
+    expect(readSaveWorldVersion(oldHead)).toBe(3);
+  });
+
+  it('says nothing about a file that says nothing', () => {
+    expect(readSaveWorldVersion('{"fmt":"serf-save-v2","world":"{}"}')).toBeUndefined();
+    expect(readSaveWorldVersion('')).toBeUndefined();
   });
 });

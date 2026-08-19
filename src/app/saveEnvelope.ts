@@ -128,6 +128,32 @@ export function readSaveMeta(head: string): SaveMeta | undefined {
 }
 
 /**
+ * Which world format a save was written in, from the head of the file
+ * alone — the number this build has to match to load it.
+ *
+ * The metadata head answers it outright, but only saves from this build on
+ * carry one. Older files still say so in their own way: an envelope holds
+ * the world as an escaped JSON string, and the world's first key is its
+ * version, so the number sits a few dozen bytes in either way. Read out
+ * with a regex for the same reason readSaveMeta is — the text a listing
+ * holds stops mid-world, and there is nothing here to parse.
+ *
+ * Undefined means the file does not say, which is not the same as saying
+ * an old number: nothing is refused on the strength of it.
+ */
+export function readSaveWorldVersion(head: string): number | undefined {
+  const meta = readSaveMeta(head);
+  if (meta) return meta.world;
+  // The world inside an envelope: `"world":"{\"version\":4,…"`. The
+  // escaped quotes are what tell it apart from the bare save below.
+  const inside = /\\"version\\"\s*:\s*(\d+)/.exec(head);
+  if (inside) return Number(inside[1]);
+  // A save from before the envelope: the sim's own file, version first.
+  const bare = /"version"\s*:\s*(\d+)/.exec(head);
+  return bare ? Number(bare[1]) : undefined;
+}
+
+/**
  * Is this document a save at all? The gate an imported file passes before
  * a byte of it lands in OPFS — an envelope, or a bare world string from
  * before the envelope existed. Deliberately shallow: it reads the wrapper,

@@ -59,6 +59,24 @@ describe('the saves shelf', () => {
     const [row] = await listSaveFiles();
     expect(row!.name).toBe('ancient');
     expect(row!.meta).toBeUndefined();
+    // Nothing to say about the village, but it still says which format
+    // wrote it — that much the shelf needs to know whether to offer it.
+    expect(row!.world).toBe(4);
+  });
+
+  it('reports the format of a save from an older build', async () => {
+    // No metadata head, and a world this build cannot read: the row the
+    // shelf has to grey out. Offered instead, it took the page down to a
+    // blank screen when the worker refused the world.
+    const opfs = installOpfs();
+    opfs.put(
+      'saves',
+      'older.json',
+      JSON.stringify({ fmt: 'serf-save-v2', world: '{"version":3,"world":{}}' }),
+    );
+    const [row] = await listSaveFiles();
+    expect(row!.meta).toBeUndefined();
+    expect(row!.world).toBe(3);
   });
 
   it('deletes one without touching the others', async () => {
