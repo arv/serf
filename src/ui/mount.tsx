@@ -4,6 +4,7 @@ import { pushToast, setSpeed, type OrderMode } from './store';
 import { play } from '../audio/audio';
 import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { SimHost } from '../app/simHost';
+import { saveGameNow } from '../app/saveStore';
 
 /** What the HUD needs from the app: selection actions from Controls (touch
  * has no shift/drag), and the save assembled where world and fog meet. */
@@ -18,7 +19,8 @@ export interface HudActions {
    * others: placement and an order both claim the next click, and two
    * things claiming one click is one of them losing silently. */
   armOrder(mode: OrderMode | null): void;
-  /** The full save string — the worker's world plus the fog's memory. */
+  /** The full save string — the worker's world plus the fog's memory,
+   * under the metadata head the saves shelf lists it by. */
   save(): Promise<string>;
   /** Write the match's replay log to OPFS; the saved name, or null when
    * there is nothing to save yet (the match is still undecided) or the
@@ -102,10 +104,17 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
         }}
         onSave={() => {
           play('uiClick');
-          void actions.save().then((data) => {
-            localStorage.setItem('serf-save', data);
-            pushToast('Game saved');
-          });
+          // A file per save, named by the clock, exactly like a replay:
+          // saving no longer overwrites the one slot there used to be, and
+          // the start menu's shelf is where they are picked from again.
+          void actions
+            .save()
+            .then((data) => saveGameNow(data))
+            .then((name) => {
+              pushToast(
+                name !== null ? `Village saved — ${name}` : 'The village could not be saved',
+              );
+            });
         }}
         onSaveReplay={() => {
           play('uiClick');

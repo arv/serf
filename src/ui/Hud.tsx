@@ -32,6 +32,7 @@ import { Key } from './shortcut';
 import { hasKeyboard } from '../input/keyboard';
 import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
+import { latestSaveName } from '../app/saveStore';
 import { describeAdvice } from '../ai/insight';
 import {
   CHEATS_ALLOWED,
@@ -147,8 +148,16 @@ export function Hud(props: {
     if (type !== null && isPhone()) setBuildOpen(false);
   };
   const menuOpen = (): boolean => openPanel() === 'menu';
+  /** The newest saved game, for the menu's Load. Read when the menu opens
+   * rather than once at mount: saving from this very menu makes a new file
+   * the newest one, and the shelf in the start menu can have deleted the
+   * one this match booted from. Null while nothing is saved — and until
+   * the first read answers, which is why the button reads its own state
+   * rather than a count. */
+  const [lastSave, setLastSave] = createSignal<string | null>(null);
   const setMenuOpen = (open: boolean): void => {
     setOpenPanel(open ? 'menu' : null);
+    if (open) void latestSaveName().then(setLastSave);
   };
   const cost = (type: BuildingTypeId) => Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
   const affordable = (type: BuildingTypeId): boolean => buildAffordable(type, stock());
@@ -1238,17 +1247,22 @@ export function Hud(props: {
             </Show>
             <Show when={!netMode() && !replayMode()}>
               <button
-                disabled={!localStorage.getItem('serf-save')}
+                disabled={lastSave() === null}
+                title={
+                  lastSave() !== null
+                    ? `Saved ${lastSave()!}`
+                    : 'Nothing saved on this device yet'
+                }
                 onClick={() => {
-                  const data = localStorage.getItem('serf-save');
-                  if (data) {
-                    // sessionStorage: survives this tab's reload but is invisible
-                    // to other tabs — two open tabs must never race for it.
-                    sessionStorage.setItem('serf-load-pending', data);
-                    // Same URL as the match already running, so the router
-                    // would otherwise call this the screen it is already on.
-                    goto(location.search, { force: true });
-                  }
+                  const name = lastSave();
+                  if (name === null) return;
+                  // The save's name is the whole address, like a replay's:
+                  // the world lives in OPFS, and a reload of this URL comes
+                  // back into the same village. force because loading the
+                  // save this match already booted from is the same URL,
+                  // and the router would otherwise call it the screen it is
+                  // already on.
+                  goto('?load=' + encodeURIComponent(name), { force: true });
                 }}
               >
                 Load last save

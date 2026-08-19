@@ -19,9 +19,16 @@ import {
   deleteReplayFile,
   importReplayFile,
   listReplayFiles,
-  type ImportResult,
   type ReplayFileInfo,
 } from '../app/replayStore';
+import {
+  deleteSaveFile,
+  importSaveFile,
+  listSaveFiles,
+  type SaveFileInfo,
+} from '../app/saveStore';
+import type { ImportResult, StoredFileInfo } from '../app/fileStore';
+import { WORLD_SAVE_VERSION } from '../shared/saveVersion';
 import { fullscreen } from './fullscreen';
 import { edgeScrollEnabled, edgeScrollOffered, setEdgeScroll } from '../input/edgeScroll';
 import { goto } from '../app/router';
@@ -172,6 +179,88 @@ const ScrollIcon = (
     <path d="M11 8h5M11 12h5" />
   </svg>
 );
+/** Which shelf is open. The two are one piece of UI — a list of files in
+ * OPFS, newest first, with a pick, a delete and a drop target — and differ
+ * only in the words below and where a picked row leads. */
+type ShelfKind = 'replays' | 'saves';
+
+interface ShelfSpec {
+  title: string;
+  /** "replay" / "saved game", and the two grammatical forms the notes need. */
+  noun: string;
+  article: string;
+  plural: string;
+  /** The call to action, with a row armed and without one. */
+  ctaArmed: string;
+  ctaIdle: string;
+  emptyTitle: string;
+  emptyBody: string;
+  /** The standing line under the list. */
+  hint: string;
+  /** Added to both when a pointer that can drag is present. */
+  dropHint: string;
+  import(file: File): Promise<ImportResult>;
+  remove(name: string): Promise<void>;
+  /** The address a picked row launches. */
+  url(name: string): string;
+}
+
+const SHELVES: Record<ShelfKind, ShelfSpec> = {
+  replays: {
+    title: 'Replays',
+    noun: 'replay',
+    article: 'a replay',
+    plural: 'replays',
+    ctaArmed: 'Watch replay',
+    ctaIdle: 'Pick a replay',
+    emptyTitle: 'No replays saved yet',
+    emptyBody:
+      'Choose “Save replay” from a match’s menu — any time in single player, once the ' +
+      'match is decided in multiplayer — and it is filed here under the date it was saved.',
+    hint:
+      'A replay re-runs the match exactly as it was played, with an extra speed beyond ' +
+      'fast forward.',
+    dropHint:
+      ' Drag one out of the list to save it as a file, or drop a replay file here to add it.',
+    import: importReplayFile,
+    remove: deleteReplayFile,
+    url: (name) => '?replay=' + encodeURIComponent(name),
+  },
+  saves: {
+    title: 'Saved games',
+    noun: 'saved game',
+    article: 'a saved game',
+    plural: 'saved games',
+    ctaArmed: 'Load save',
+    ctaIdle: 'Pick a save',
+    emptyTitle: 'No villages saved yet',
+    emptyBody:
+      'Choose “Save village” from a match’s menu and it is filed here under the date it ' +
+      'was saved. Saving again files another one — the last save no longer paves over ' +
+      'the one before it.',
+    hint: 'Loading a save comes back into that village exactly as it stood, fog and all.',
+    dropHint:
+      ' Drag one out of the list to keep it as a file, or drop a saved game here to add it.',
+    import: importSaveFile,
+    remove: deleteSaveFile,
+    url: (name) => '?load=' + encodeURIComponent(name),
+  },
+};
+
+/** One row of an open shelf, in the terms the list draws. */
+interface ShelfRow {
+  name: string;
+  /** The OPFS-backed file, for the outbound drag. */
+  file: File;
+  /** Whether this build can open it — a foreign version reads but does
+   * not run, and the row says so rather than disappearing. */
+  ok: boolean;
+  /** The disabled row's title: why not. */
+  why?: string;
+  /** The small print under the name. */
+  meta: string;
+}
+
 export function StartMenu(props: StartMenuProps) {
   const [mode, setMode] = createSignal<Mode>(props.start.mode);
   const [mp, setMp] = createSignal<MpMode>(props.start.mp);
@@ -264,32 +353,47 @@ export function StartMenu(props: StartMenuProps) {
   // the direction that matters here: false means definitely not hosting.
   const [online, setOnline] = createSignal(navigator.onLine);
 
-  // The replay shelf is not a fourth way to set up a match — it is somewhere
-  // you go and look, like a save — so it hangs off the secondary row rather
-  // than the tab bar, and covers the card while it is open. Keeping it out
-  // of `.seg` is also what keeps three tabs inside a phone-width card: four
+  // A shelf is not a fourth way to set up a match — it is somewhere you go
+  // and look — so the two of them hang off the secondary row rather than
+  // the tab bar, and cover the card while one is open. Keeping them out of
+  // `.seg` is also what keeps three tabs inside a phone-width card: four
   // could not shrink below "MULTIPLAYER" and pushed the whole screen wide.
-  const [shelf, setShelf] = createSignal(false);
-  const isMulti = (): boolean => !shelf() && mode() === 'multi';
-  const isSingle = (): boolean => !shelf() && mode() === 'single';
-  const isCampaign = (): boolean => !shelf() && mode() === 'campaign';
-  const isReplays = (): boolean => shelf();
+  const [shelf, setShelf] = createSignal<ShelfKind | null>(null);
+  const isMulti = (): boolean => shelf() === null && mode() === 'multi';
+  const isSingle = (): boolean => shelf() === null && mode() === 'single';
+  const isCampaign = (): boolean => shelf() === null && mode() === 'campaign';
   const isJoin = (): boolean => isMulti() && mp() === 'join';
 
-  // The replay shelf: what OPFS holds under /replays, newest first. Read on
-  // arrival — the secondary button reports the count and stands down without
-  // one — and again after a delete. Nothing else changes it: recordings are
-  // written from inside a match, which is a navigation away.
+  // The shelves: what OPFS holds under /replays and /saves, newest first.
+  // Both are read on arrival — the secondary buttons report their counts
+  // and stand down without one — and again after a delete or an import.
+  // Nothing else changes them: recordings and saves are written from
+  // inside a match, which is a navigation away.
   const [replays, setReplays] = createSignal<ReplayFileInfo[]>([]);
+  const [saves, setSaves] = createSignal<SaveFileInfo[]>([]);
   const [replaysLoaded, setReplaysLoaded] = createSignal(false);
-  const [pickedReplay, setPickedReplay] = createSignal<string | null>(null);
+  const [savesLoaded, setSavesLoaded] = createSignal(false);
+  /** Which row is armed on the open shelf. One signal for both: only one
+   * shelf is open at a time, and closing one disarms it. */
+  const [pickedFile, setPickedFile] = createSignal<string | null>(null);
   const refreshReplays = async (): Promise<void> => {
     const found = await listReplayFiles();
     setReplays(found);
     setReplaysLoaded(true);
-    if (pickedReplay() !== null && !found.some((r) => r.name === pickedReplay())) {
-      setPickedReplay(null);
-    }
+    dropStalePick(found);
+  };
+  const refreshSaves = async (): Promise<void> => {
+    const found = await listSaveFiles();
+    setSaves(found);
+    setSavesLoaded(true);
+    dropStalePick(found);
+  };
+  const refreshShelf = (kind: ShelfKind): Promise<void> =>
+    kind === 'replays' ? refreshReplays() : refreshSaves();
+  /** A row that was armed and is no longer there (deleted, or listed away
+   * by another tab) must not stay armed behind the CTA. */
+  const dropStalePick = (found: StoredFileInfo[]): void => {
+    if (pickedFile() !== null && !found.some((f) => f.name === pickedFile())) setPickedFile(null);
   };
   /** What the last drop came to — filed, refused, or a mix. Stands until
    * the next drop or the shelf closes; a timer would take it away
@@ -299,9 +403,15 @@ export function StartMenu(props: StartMenuProps) {
    * tab bar with nothing on screen naming it, and still read as "Watch
    * replay" on the button. */
   const closeShelf = (): void => {
-    setPickedReplay(null);
+    setPickedFile(null);
     setImportNote(null);
-    setShelf(false);
+    setShelf(null);
+  };
+  const openShelf = (kind: ShelfKind): void => {
+    setPickedFile(null);
+    setImportNote(null);
+    setShelf(kind);
+    void refreshShelf(kind);
   };
   /** True while one of the shelf's own rows is the thing in flight: the
    * list must not catch its outbound drag and file a duplicate. */
@@ -315,35 +425,36 @@ export function StartMenu(props: StartMenuProps) {
   const onShelfDrop = (e: DragEvent): void => {
     e.preventDefault();
     setDropDepth(0);
+    const kind = shelf();
     const files = Array.from(e.dataTransfer?.files ?? []);
-    if (dragOut || files.length === 0) return;
+    if (kind === null || dragOut || files.length === 0) return;
+    const spec = SHELVES[kind];
     void (async () => {
       // One at a time: parallel imports of same-named files would race
       // the free-name check where Web Locks is absent.
       const results: ImportResult[] = [];
-      for (const f of files) results.push(await importReplayFile(f));
+      for (const f of files) results.push(await spec.import(f));
       const filed = results.flatMap((r) => (r.ok ? [r.name] : []));
       const bad = results.length - filed.length;
-      await refreshReplays();
+      await refreshShelf(kind);
       const last = filed.at(-1);
-      // Arm the newcomer, so drop-then-watch is one click — but only one
-      // this build can play: an import from another build lands on a row
+      // Arm the newcomer, so drop-then-open is one click — but only one
+      // this build can open: an import from another build lands on a row
       // the shelf shows disabled, and the pick must not outrun the row.
-      if (last !== undefined && replays().find((r) => r.name === last)?.replayVersion === REPLAY_VERSION) {
-        setPickedReplay(last);
-      }
+      if (last !== undefined && rows().find((r) => r.name === last)?.ok) setPickedFile(last);
       setImportNote(
         filed.length === 0
           ? results.some((r) => !r.ok && r.reason === 'storage')
-            ? 'Import failed — replay storage is unavailable here'
+            ? `Import failed — ${spec.noun} storage is unavailable here`
             : files.length === 1
-              ? 'That file is not a replay'
-              : 'None of those files are replays'
+              ? `That file is not ${spec.article}`
+              : `None of those files are ${spec.plural}`
           : bad === 0
             ? filed.length === 1
               ? `Filed as “${last}”`
-              : `Filed ${filed.length} replays`
-            : `Filed ${filed.length} — the other ${bad === 1 ? 'file is' : `${bad} are`} not replays`,
+              : `Filed ${filed.length} ${spec.plural}`
+            : `Filed ${filed.length} — the other ${bad === 1 ? 'file is' : `${bad} are`} not ` +
+              spec.plural,
       );
     })();
   };
@@ -367,6 +478,70 @@ export function StartMenu(props: StartMenuProps) {
     bytes >= 1048576
       ? `${(bytes / 1048576).toFixed(1)} MB`
       : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+  /** Playback re-runs the sim, so only this build's own recordings play. */
+  const replayRow = (r: ReplayFileInfo): ShelfRow => {
+    const ok = r.replayVersion === REPLAY_VERSION;
+    return {
+      name: r.name,
+      file: r.file,
+      ok,
+      ...(ok
+        ? {}
+        : {
+            why:
+              `Recorded under replay version ${r.replayVersion ?? 'unknown'} — ` +
+              `this build plays version ${REPLAY_VERSION} and cannot play it back`,
+          }),
+      meta: fmtSize(r.size) + (ok ? '' : ' · from an older build'),
+    };
+  };
+
+  /** A save is world state read straight back into the sim's records, so a
+   * file written in another shape cannot be loaded — the same story as a
+   * replay's version, told in the same place. A file with no metadata head
+   * (a save from before there was one) says nothing and is offered: the
+   * worker is the one that can tell, and it refuses loudly. */
+  const saveRow = (f: SaveFileInfo): ShelfRow => {
+    const ok = f.meta === undefined || f.meta.world === WORLD_SAVE_VERSION;
+    const mission = f.meta?.mission !== undefined ? MISSION_DEFS[f.meta.mission] : undefined;
+    const opponents = f.meta?.opponents ?? 0;
+    const what =
+      mission?.title ??
+      (f.meta === undefined
+        ? undefined
+        : opponents > 0
+          ? `${opponents} opponent${opponents === 1 ? '' : 's'}`
+          : 'Sandbox');
+    return {
+      name: f.name,
+      file: f.file,
+      ok,
+      ...(ok
+        ? {}
+        : {
+            why:
+              `Written in save format ${f.meta?.world ?? 'unknown'} — this build reads ` +
+              `format ${WORLD_SAVE_VERSION} and cannot open that village`,
+          }),
+      meta: [what, fmtSize(f.size), ok ? undefined : 'from an older build']
+        .filter((part) => part !== undefined)
+        .join(' · '),
+    };
+  };
+
+  /** The open shelf's rows; empty when no shelf is open. */
+  const rows = (): ShelfRow[] => {
+    const kind = shelf();
+    if (kind === 'replays') return replays().map(replayRow);
+    if (kind === 'saves') return saves().map(saveRow);
+    return [];
+  };
+  const shelfSpec = (): ShelfSpec | null => {
+    const kind = shelf();
+    return kind === null ? null : SHELVES[kind];
+  };
+  const shelfLoaded = (): boolean => (shelf() === 'saves' ? savesLoaded() : replaysLoaded());
 
   // The campaign pane opens on the frontier: the first commission not yet
   // fulfilled (everything done = the finale stays selected).
@@ -431,12 +606,11 @@ export function StartMenu(props: StartMenuProps) {
   // by definition, and the poll is up to three seconds away.
   onMount(() => {
     if (isJoin() && online()) void refresh();
-    // The shelf button reports its own count and stands down at zero, so
-    // the shelf has to be read before anyone opens it.
+    // Each shelf button reports its own count and stands down at zero, so
+    // both shelves have to be read before anyone opens one.
     void refreshReplays();
+    void refreshSaves();
   });
-
-  const hasSave = localStorage.getItem('serf-save') !== null;
 
   // Full screen is offered here rather than imposed: no browser grants it
   // outside a gesture, so the switch below is the only thing that can ask
@@ -462,25 +636,29 @@ export function StartMenu(props: StartMenuProps) {
 
   const target = (): string => picked() ?? room();
   const ctaLabel = (): string => {
+    const spec = shelfSpec();
+    if (spec) return pickedFile() !== null ? spec.ctaArmed : spec.ctaIdle;
     if (isCampaign()) return `Begin: ${MISSION_DEFS[pickedMission()].title}`;
-    if (isReplays()) return pickedReplay() !== null ? 'Watch replay' : 'Pick a replay';
     if (!isMulti()) return ai() > 0 ? 'Begin skirmish' : 'Begin sandbox';
     if (isJoin()) return target() ? 'Join ' + target() : 'Pick a room';
     return vis() === 'private' ? 'Create private room' : 'Create open room';
   };
 
-  /** Watch one replay. A navigation like any single-player launch: the
-   * name is the whole query string, the log itself lives in OPFS. */
-  const launchReplay = (name: string): void => {
+  /** Open one row of the shelf — watch a replay, load a village. A
+   * navigation like any single-player launch: the name is the whole query
+   * string, the document itself lives in OPFS. */
+  const launchFile = (name: string): void => {
+    const spec = shelfSpec();
+    if (!spec) return;
     releaseMenuBackdrop();
-    goto('?replay=' + encodeURIComponent(name));
+    goto(spec.url(name));
   };
 
   const launch = (): void => {
     if (isJoin() && !target()) return;
-    if (isReplays()) {
-      const name = pickedReplay();
-      if (name !== null) launchReplay(name);
+    if (shelfSpec()) {
+      const name = pickedFile();
+      if (name !== null) launchFile(name);
       return;
     }
     clearSeatStash(); // a menu launch is fresh intent, never a reconnect
@@ -512,18 +690,6 @@ export function StartMenu(props: StartMenuProps) {
     if (e.key === 'Enter') launch();
   };
 
-  const loadSave = (): void => {
-    const data = localStorage.getItem('serf-save');
-    if (!data) return;
-    // Still the sessionStorage handoff rather than an argument: the screen
-    // has to be reconstructible from the URL alone, because a real reload
-    // (the GPU-loss recovery, a service worker swap) can happen at any
-    // moment and must come back into the same saved world.
-    sessionStorage.setItem('serf-load-pending', data);
-    releaseMenuBackdrop();
-    goto('?seed=' + seed());
-  };
-
   return (
     <>
       <div class="shell">
@@ -544,14 +710,14 @@ export function StartMenu(props: StartMenuProps) {
                 would be a lie, and swapping in place keeps the card from
                 jumping. */}
             <Show
-              when={!isReplays()}
+              when={shelfSpec() === null}
               fallback={
                 <div class="pane-head">
                   <button class="icon-btn" aria-label="Back to the menu" onClick={closeShelf}>
                     {BackIcon}
                   </button>
-                  <span class="title">Replays</span>
-                  <span class="count">{replays().length} saved</span>
+                  <span class="title">{shelfSpec()?.title}</span>
+                  <span class="count">{rows().length} saved</span>
                 </div>
               }
             >
@@ -580,7 +746,7 @@ export function StartMenu(props: StartMenuProps) {
             </Show>
 
             <div class="rows">
-              <Show when={!online() && !isReplays()}>
+              <Show when={!online() && shelfSpec() === null}>
                 <div class="row">
                   <div>
                     <div class="row-label">Offline</div>
@@ -775,7 +941,7 @@ export function StartMenu(props: StartMenuProps) {
                 </div>
               </Show>
 
-              <Show when={isReplays()}>
+              <Show when={shelfSpec() !== null}>
                 <div
                   class="browser"
                   classList={{ dropping: dropDepth() > 0 }}
@@ -794,21 +960,16 @@ export function StartMenu(props: StartMenuProps) {
                   }}
                   onDrop={onShelfDrop}
                 >
-                  <Show when={replays().length > 0}>
+                  <Show when={rows().length > 0}>
                     <div class="room-list" style="max-height:236px">
-                      <For each={replays()}>
+                      <For each={rows()}>
                         {(r) => {
-                          // Playback re-runs the sim, so only this build's
-                          // own recordings play. Not `disabled` — a replay
-                          // this build cannot play is exactly the one worth
-                          // deleting, and the row still has to read.
-                          const ok = r.replayVersion === REPLAY_VERSION;
                           // The file's blob URL, minted with the row and
                           // revoked with it. A drag must hand this over
                           // synchronously at dragstart, and dragend is too
                           // soon to revoke — the desktop drop may still be
                           // streaming from it. One URL per visible row is
-                          // a registry entry, not a copy of the log.
+                          // a registry entry, not a copy of the file.
                           const dragUrl = URL.createObjectURL(r.file);
                           onCleanup(() => URL.revokeObjectURL(dragUrl));
                           return (
@@ -833,8 +994,9 @@ export function StartMenu(props: StartMenuProps) {
                                 // what a web drop target (an upload box,
                                 // another tab) reads, and DownloadURL is
                                 // Chromium's contract for a drop onto the
-                                // desktop. Colons delimit its triple;
-                                // fileNameFor keeps names clear of them.
+                                // desktop. Colons delimit its triple; the
+                                // store's name rule keeps names clear of
+                                // them.
                                 dt.items.add(r.file);
                                 dt.setData(
                                   'DownloadURL',
@@ -844,38 +1006,37 @@ export function StartMenu(props: StartMenuProps) {
                               }}
                             >
                               <button
-                                class={`room ${pickedReplay() === r.name ? 'on' : ''}`}
-                                disabled={!ok}
-                                title={
-                                  ok
-                                    ? undefined
-                                    : `Recorded under replay version ${r.replayVersion ?? 'unknown'} — ` +
-                                      `this build plays version ${REPLAY_VERSION} and cannot play it back`
-                                }
+                                class={`room ${pickedFile() === r.name ? 'on' : ''}`}
+                                // Disabled, not hidden — a file this build
+                                // cannot open is exactly the one worth
+                                // deleting, and the row still has to read.
+                                disabled={!r.ok}
+                                title={r.why}
                                 onClick={() =>
-                                  setPickedReplay(pickedReplay() === r.name ? null : r.name)
+                                  setPickedFile(pickedFile() === r.name ? null : r.name)
                                 }
                                 // This row's own name, not the selection:
                                 // the two clicks a double-click is made of
                                 // have already toggled the pick back off by
                                 // the time this fires.
-                                onDblClick={() => launchReplay(r.name)}
+                                onDblClick={() => launchFile(r.name)}
                               >
                                 <span style="min-width:0">
                                   <span class="code" style="letter-spacing:0.02em">
                                     {r.name}
                                   </span>
-                                  <span class="meta">
-                                    {fmtSize(r.size)}
-                                    {ok ? '' : ' · from an older build'}
-                                  </span>
+                                  <span class="meta">{r.meta}</span>
                                 </span>
                               </button>
                               <button
                                 class="icon-btn"
-                                title="Delete this replay"
-                                aria-label={`Delete replay ${r.name}`}
-                                onClick={() => void deleteReplayFile(r.name).then(refreshReplays)}
+                                title={`Delete this ${shelfSpec()?.noun}`}
+                                aria-label={`Delete ${shelfSpec()?.noun} ${r.name}`}
+                                onClick={() => {
+                                  const kind = shelf();
+                                  if (kind === null) return;
+                                  void SHELVES[kind].remove(r.name).then(() => refreshShelf(kind));
+                                }}
                               >
                                 ✕
                               </button>
@@ -886,15 +1047,14 @@ export function StartMenu(props: StartMenuProps) {
                     </div>
                   </Show>
 
-                  <Show when={replaysLoaded() && replays().length === 0}>
+                  <Show when={shelfLoaded() && rows().length === 0}>
                     <div class="browser-none">
-                      <div class="t">No replays saved yet</div>
+                      <div class="t">{shelfSpec()?.emptyTitle}</div>
                       <div class="s">
-                        Choose “Save replay” from a match’s menu — any time in single
-                        player, once the match is decided in multiplayer — and it is filed
-                        here under the date it was saved.
+                        {shelfSpec()?.emptyBody}
                         {DRAG_OFFERED
-                          ? ' A replay someone shared with you can be dropped anywhere on this panel.'
+                          ? ` A ${shelfSpec()?.noun} someone shared with you can be dropped ` +
+                            'anywhere on this panel.'
                           : ''}
                       </div>
                     </div>
@@ -905,11 +1065,8 @@ export function StartMenu(props: StartMenuProps) {
                   </Show>
 
                   <div class="row-hint">
-                    A replay re-runs the match exactly as it was played, with an extra
-                    speed beyond fast forward.
-                    {DRAG_OFFERED
-                      ? ' Drag one out of the list to save it as a file, or drop a replay file here to add it.'
-                      : ''}
+                    {shelfSpec()?.hint}
+                    {DRAG_OFFERED ? shelfSpec()?.dropHint : ''}
                   </div>
                 </div>
               </Show>
@@ -1083,7 +1240,7 @@ export function StartMenu(props: StartMenuProps) {
 
             <div class="cta-wrap">
               <button
-                class={`cta ${(isJoin() && !target()) || (isReplays() && pickedReplay() === null) ? 'dim' : ''}`}
+                class={`cta ${(isJoin() && !target()) || (shelfSpec() !== null && pickedFile() === null) ? 'dim' : ''}`}
                 onClick={launch}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -1104,20 +1261,27 @@ export function StartMenu(props: StartMenuProps) {
           </div>
 
           <div class="secondary">
+            {/* Two shelves, side by side: saved villages and recorded
+                matches are both ways back into a match that already
+                happened, and neither is a way to set a new one up. */}
             <button
-              disabled={!hasSave}
-              title={hasSave ? 'Resume the saved village' : 'No save on this device'}
-              onClick={loadSave}
+              disabled={saves().length === 0 && !DRAG_OFFERED}
+              title={
+                saves().length > 0
+                  ? 'Resume a saved village'
+                  : DRAG_OFFERED
+                    ? 'No saves on this device — a dropped save file is filed here'
+                    : 'No saves on this device'
+              }
+              onClick={() => openShelf('saves')}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <path d="M7 10l5 5 5-5" />
                 <path d="M12 15V3" />
               </svg>
-              Load save
+              Load save{saves().length > 0 ? ` (${saves().length})` : ''}
             </button>
-            {/* Beside the save, not up in the tab bar: both are ways back
-                into a match that already happened. */}
             <button
               disabled={replays().length === 0 && !DRAG_OFFERED}
               title={
@@ -1127,10 +1291,7 @@ export function StartMenu(props: StartMenuProps) {
                     ? 'No replays saved — a dropped replay file is filed here'
                     : 'No replays on this device'
               }
-              onClick={() => {
-                setShelf(true);
-                void refreshReplays();
-              }}
+              onClick={() => openShelf('replays')}
             >
               {ScrollIcon}
               Replays{replays().length > 0 ? ` (${replays().length})` : ''}

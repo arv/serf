@@ -70,8 +70,10 @@ import { inBounds, tileCount, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
 import { REPLAY_VERSION } from '../shared/replayVersion';
 import { envelopeSave, splitSave, unpackExplored } from './saveEnvelope';
-import { parseReplay, replayName, type ReplayData } from './replay';
+import { parseReplay, type ReplayData } from './replay';
 import { readReplayFile, saveReplayFile } from './replayStore';
+import { stampName } from './fileStore';
+import { migrateLegacySave, readSaveFile, saveGameNow } from './saveStore';
 import { WorkerSimHost } from './simHost';
 import { mountMenu, unmountMenu } from '../ui/MenuApp';
 import { armFullscreen } from '../ui/fullscreen';
@@ -155,7 +157,17 @@ if (!crossOriginIsolated) {
  * that proves it: a room is chosen, but the choosing happens in the
  * council, which is a menu screen.
  */
-const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'size', 'skipMenu', 'mission', 'replay'];
+const LAUNCH_PARAMS = [
+  'mp',
+  'ai',
+  'players',
+  'seed',
+  'size',
+  'skipMenu',
+  'mission',
+  'replay',
+  'load',
+];
 
 /**
  * A room's opening settings, from the URL a link or a reload arrived on.
@@ -189,9 +201,10 @@ interface Screen {
 let current: Screen | null = null;
 
 /**
- * Has a game been chosen? A pending load counts: the Load button stashes
- * the save and navigates, and that handoff must not bounce back to the
- * menu.
+ * Has a game been chosen? A pending load counts: the GPU-loss rescue
+ * stashes the name of the save it just wrote and reloads, and that handoff
+ * must not bounce back to the menu. (The menu's own Load goes through
+ * ?load=<name>, which is a launch param like any other.)
  */
 function gameChosen(params: URLSearchParams): boolean {
   return (
@@ -360,20 +373,37 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     return;
   }
 
-  // A pending load (set by the Load button before its reload) boots the
-  // worker straight into the saved world. sessionStorage on purpose: it is
-  // per-tab, so a second open tab (e.g. the dev preview) can never steal or
-  // duplicate the handoff the way a shared localStorage key could.
-  let loadData = sessionStorage.getItem('serf-load-pending') ?? undefined;
+  // Which saved game this match boots from, if any. Two ways in, and the
+  // in-tab one wins: the GPU-loss rescue writes a save and stashes its
+  // name in sessionStorage (per-tab, so a second open tab can never steal
+  // or duplicate the handoff), and that file is the world the player was
+  // actually standing in — ?load=<name>, which the menu's shelf and every
+  // ordinary reload of this URL carry, is the older intent.
+  const pending = sessionStorage.getItem('serf-load-pending');
   sessionStorage.removeItem('serf-load-pending');
   // Migrate away any stale handoff left by the old localStorage flow.
   localStorage.removeItem('serf-load-pending');
+  let raw: string | null = null;
+  // A handoff from before saves became files is the save itself, not a
+  // name. Rare — it takes an upgrade landing between the stash and the
+  // reload — but the world in it is somebody's village.
+  if (pending !== null && pending.startsWith('{')) raw = pending;
+  else {
+    const loadName = pending ?? launchParams.get('load');
+    if (loadName !== null) {
+      raw = await readSaveFile(loadName);
+      if (raw === null) {
+        fatal(`The saved game "${loadName}" could not be loaded — it may have been deleted.`);
+      }
+    }
+  }
   // A solo save is an envelope: the worker's world string plus the fog's
   // memory. Split it here — the worker gets exactly the string it wrote,
   // and the explored grid waits for the fog to exist.
+  let loadData: string | undefined;
   let fogSeed: string | undefined;
-  if (loadData !== undefined) {
-    const split = splitSave(loadData);
+  if (raw !== null) {
+    const split = splitSave(raw);
     loadData = split.world;
     fogSeed = split.explored;
   }
@@ -424,6 +454,10 @@ async function boot(): Promise<void> {
   // back into its seat (see MenuApp's silent rejoin), and a worker swap
   // under that is exactly what this handshake exists to prevent.
   registerServiceWorker({ applyUpdates: !gameChosen(new URLSearchParams(location.search)) });
+  // The village from before saves were files, if this device has one:
+  // filed on the shelf, once, ahead of the first screen that could list
+  // it. A no-op — one localStorage read — on every launch after that.
+  await migrateLegacySave();
   startRouter(route);
   await route();
 }
@@ -641,8 +675,16 @@ async function runMatch(
           location.reload();
           return;
         }
+        // The save is a file now, so what crosses the reload is its
+        // name — sessionStorage holds a handful of characters rather
+        // than a whole world, which a big village had outgrown. A write
+        // that fails leaves nothing stashed and the reload is the whole
+        // recovery, exactly as it is for multiplayer.
         void rescue()
-          .then((data) => sessionStorage.setItem('serf-load-pending', data))
+          .then((data) => saveGameNow(data))
+          .then((name) => {
+            if (name !== null) sessionStorage.setItem('serf-load-pending', name);
+          })
           .finally(() => location.reload());
       }, 4000);
     },
@@ -780,10 +822,23 @@ async function runMatch(
     const seed = unpackExplored(fogSeed, tileCount(init.map.size));
     if (seed) fog.seedExplored(seed);
   }
+  // What the shelf will say about this village, kept live from the
+  // worker's frames rather than read off the config: a save loaded from
+  // the shelf boots on ?load=<name>, whose URL names neither mission nor
+  // seats, and the world is the only thing that still remembers. Seeded
+  // from the config so a save written before the first frame lands still
+  // says so.
+  let missionNow = config.mission;
+  let opponentsNow = config.players.filter((p) => p.kind === 'ai').length;
   // One save string for every writer — the menu button and the GPU-crash
-  // handoff alike: the world from the worker, the fog's memory from here.
+  // handoff alike: the world from the worker, the fog's memory from here,
+  // and the head of metadata above so the shelf can tell one village from
+  // another without opening any of them.
   const saveGame = async (): Promise<string> =>
-    envelopeSave(await host.requestSave(), fog.exportExplored());
+    envelopeSave(await host.requestSave(), fog.exportExplored(), {
+      ...(missionNow !== undefined ? { mission: missionNow } : {}),
+      ...(opponentsNow > 0 ? { opponents: opponentsNow } : {}),
+    });
   // Not while watching a replay: a GPU-loss reload comes back on the same
   // ?replay= URL and restarts playback — there is no world of ours to keep.
   if (!replay) rescue = saveGame;
@@ -881,7 +936,10 @@ async function runMatch(
       setTechs(mine.techs);
       setPopulation({ pop: mine.pop, cap: mine.popCap });
     }
-    if (msg.players) setPlayersMeta(msg.players);
+    if (msg.players) {
+      setPlayersMeta(msg.players);
+      opponentsNow = msg.players.filter((p) => p.kind === 'ai').length;
+    }
     if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
@@ -892,6 +950,7 @@ async function runMatch(
     // frame without a mission block clears the signal (and any briefing),
     // so no mission UI can outlive its world.
     setMission(msg.mission ?? null);
+    missionNow = msg.mission?.id;
     if (msg.mission) {
       // Finishing writes the profile. Idempotent, so every structural frame
       // after the win may say it again.
@@ -980,7 +1039,7 @@ async function runMatch(
       if (data === '') return null;
       // The store may suffix the name ("… (2)") when two saves land in the
       // same second; what it returns is what the file is actually called.
-      return saveReplayFile(replayName(new Date()), data);
+      return saveReplayFile(stampName(new Date()), data);
     },
     // Tile y is world z — the same straight mapping as the home focusOn.
     focus: (x, y) => renderer.rig.glideTo(x, y),
