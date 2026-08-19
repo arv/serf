@@ -71,6 +71,22 @@ export default defineConfig({
   worker: { format: 'es' },
   server: { headers: crossOriginIsolation, port },
   preview: { headers: crossOriginIsolation, port },
-  // Sim tests are headless node — no DOM environment needed or wanted.
-  test: { environment: 'node' },
+  test: {
+    // Sim tests are headless node — no DOM environment needed or wanted.
+    environment: 'node',
+    // Vitest's 5s default measures wall clock, but most of this suite does
+    // real work — map generation across seeds, thousand-tick determinism
+    // runs, noise buffers, brush sweeps. Idle, those land well inside a
+    // second; on a contended box they are simply not scheduled often enough
+    // to finish, and the suite fails a random handful of tests drawn from
+    // wherever the starvation happened to land. 30s absorbs that. The cost
+    // is that a test which grows genuinely slow no longer trips the clock,
+    // so the heavyweights that need more still carry explicit per-test
+    // timeouts (see sim/missions, sim/aiStrategies) rather than leaning on
+    // this number.
+    testTimeout: 30_000,
+    // Same reasoning, same starvation: our hooks only reset mock state, but
+    // a process that isn't running cannot finish even that.
+    hookTimeout: 30_000,
+  },
 });
