@@ -1615,13 +1615,17 @@ export function Hud(props: {
               pointer-events:none, so without something taking the taps a
               finger aimed beside the open menu would land on the map and
               order the selection somewhere. Rendered always, shown only
-              where the card becomes a sheet (the CSS below). */}
-          <div
-            class="build-scrim"
-            aria-hidden="true"
-            onClick={() => setBuildOpen(false)}
-            onTouchStart={() => setBuildOpen(false)}
-          />
+              where the card becomes a sheet (the CSS below).
+              Click and nothing else. Closing on touchstart as well looked
+              like belt and braces and was the very hole this is here to
+              plug: the scrim unmounts under the finger, and what the map
+              then receives is a pointerup it never saw a pointerdown for
+              — plus the compatibility mousedown/mouseup/click behind it —
+              because the element that would have taken them is gone by
+              the time they are dispatched. Waiting for the click leaves
+              the scrim standing until every event of that tap has been
+              delivered to it. */}
+          <div class="build-scrim" aria-hidden="true" onClick={() => setBuildOpen(false)} />
           <div class="hud-build panel" classList={{ chording: buildChord() }}>
             {/* The card's own name, which it never needed until it had a
                 shortcut to teach. Keyboard only — with nothing to press,
