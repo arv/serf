@@ -20,7 +20,12 @@ import {
   type ImportResult,
   type StoredFileInfo,
 } from './fileStore';
-import { looksLikeSave, readSaveMeta, type SaveMeta } from './saveEnvelope';
+import {
+  looksLikeSave,
+  readSaveMeta,
+  readSaveWorldVersion,
+  type SaveMeta,
+} from './saveEnvelope';
 
 const store = createFileStore('saves');
 
@@ -31,6 +36,11 @@ export interface SaveFileInfo extends StoredFileInfo {
   /** What the file's head says about the village; undefined for a save
    * from before the metadata head (or a truncated file). */
   meta?: SaveMeta;
+  /** Which world format wrote it — the number this build has to match to
+   * open it. Read whether or not there is a metadata head, because a save
+   * from an older build has no head and is exactly the one a row must be
+   * able to refuse. Undefined only when the file says nothing at all. */
+  world?: number;
 }
 
 export type { ImportResult };
@@ -54,8 +64,14 @@ export async function listSaveFiles(): Promise<SaveFileInfo[]> {
   const files = await store.list();
   return Promise.all(
     files.map(async (info) => {
-      const meta = readSaveMeta(await info.file.slice(0, HEAD_BYTES).text());
-      return meta !== undefined ? { ...info, meta } : info;
+      const head = await info.file.slice(0, HEAD_BYTES).text();
+      const meta = readSaveMeta(head);
+      const world = readSaveWorldVersion(head);
+      return {
+        ...info,
+        ...(meta !== undefined ? { meta } : {}),
+        ...(world !== undefined ? { world } : {}),
+      };
     }),
   );
 }

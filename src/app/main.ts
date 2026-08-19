@@ -69,7 +69,13 @@ import { Terrain } from '../sim/map';
 import { inBounds, tileCount, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
 import { REPLAY_VERSION } from '../shared/replayVersion';
-import { envelopeSave, splitSave, unpackExplored } from './saveEnvelope';
+import { WORLD_SAVE_VERSION } from '../shared/saveVersion';
+import {
+  envelopeSave,
+  readSaveWorldVersion,
+  splitSave,
+  unpackExplored,
+} from './saveEnvelope';
 import { parseReplay, type ReplayData } from './replay';
 import { readReplayFile, saveReplayFile } from './replayStore';
 import { stampName } from './fileStore';
@@ -77,7 +83,7 @@ import { migrateLegacySave, readSaveFile, saveGameNow } from './saveStore';
 import { WorkerSimHost } from './simHost';
 import { mountMenu, unmountMenu } from '../ui/MenuApp';
 import { armFullscreen } from '../ui/fullscreen';
-import { startRouter } from './router';
+import { goto, startRouter } from './router';
 import {
   holdServiceWorkerUpdates,
   registerServiceWorker,
@@ -98,14 +104,26 @@ import type { NetInfo } from '../protocol/messages';
  */
 let fatalShown = false;
 
-function showFatal(message: string, opts?: { retry?: boolean }): void {
+/** The card's buttons, styled here because the card is raw DOM: it has to
+ * be able to come up when the HUD's stylesheet — and Solid itself — is
+ * exactly what failed. */
+const BUTTON_CSS =
+  'font:inherit;font-size:15px;padding:10px 26px;margin:10px 6px 0;cursor:pointer;' +
+  'color:#f7e9c0;background:rgba(229,196,105,0.13);border:1px solid rgba(229,196,105,0.5);' +
+  'border-radius:11px;';
+
+function showFatal(message: string, opts?: { retry?: boolean; menu?: boolean }): void {
   if (fatalShown) return;
   fatalShown = true;
   const el = document.getElementById('fatal')!;
   el.style.display = 'grid';
   const card = document.createElement('div');
   const title = document.createElement('h1');
-  title.textContent = 'Serf Valley cannot start';
+  // "Cannot start" is the boot failure's headline and stays that way. A
+  // screen that fails an hour into a session is a different sentence — and
+  // the menu button is what says which this is: it is offered exactly when
+  // the app is up and one screen could not be built.
+  title.textContent = opts?.menu ? 'That screen could not be opened' : 'Serf Valley cannot start';
   const body = document.createElement('p');
   // Text, never markup. Relay error messages land here (runLobby's fail
   // rejects with them and boot's catch brings them straight in), and the
@@ -116,10 +134,7 @@ function showFatal(message: string, opts?: { retry?: boolean }): void {
   if (opts?.retry) {
     const retry = document.createElement('button');
     retry.textContent = 'Try again';
-    retry.style.cssText =
-      'font:inherit;font-size:15px;padding:10px 26px;margin-top:10px;cursor:pointer;' +
-      'color:#f7e9c0;background:rgba(229,196,105,0.13);border:1px solid rgba(229,196,105,0.5);' +
-      'border-radius:11px;';
+    retry.style.cssText = BUTTON_CSS;
     retry.addEventListener('click', () => {
       // Asking by hand re-arms the automatic tries: the count exists to stop
       // a reload loop running on its own, and this one is not on its own.
@@ -128,11 +143,36 @@ function showFatal(message: string, opts?: { retry?: boolean }): void {
     });
     card.append(retry);
   }
+  if (opts?.menu) {
+    // A screen that failed is no longer the end of the session: screens
+    // change in this document now (app/router.ts), so the start menu is one
+    // navigation away and the card comes down on the way (see clearFatal).
+    // Without this a save the sim refuses — a village from an older build,
+    // say — took the whole page with it and left nothing to press.
+    const back = document.createElement('button');
+    back.textContent = 'Back to the start menu';
+    back.style.cssText = BUTTON_CSS;
+    back.addEventListener('click', () => goto('/'));
+    card.append(back);
+  }
   el.replaceChildren(card);
 }
 
+/**
+ * Take the card down. Called as each screen is built: whatever failed
+ * belongs to the screen the player has just left, and a card left standing
+ * would cover the one they asked for.
+ */
+function clearFatal(): void {
+  if (!fatalShown) return;
+  fatalShown = false;
+  const el = document.getElementById('fatal')!;
+  el.style.display = 'none';
+  el.replaceChildren();
+}
+
 /** The same screen, for the paths that must not carry on afterwards. */
-function fatal(message: string, opts?: { retry?: boolean }): never {
+function fatal(message: string, opts?: { retry?: boolean; menu?: boolean }): never {
   showFatal(message, opts);
   throw new Error(message);
 }
@@ -258,6 +298,8 @@ let generation = 0;
  * card's buttons, and the browser's own back gesture alike.
  */
 async function route(opts: { force?: boolean } = {}): Promise<void> {
+  // Whatever went wrong belongs to the screen being left behind.
+  clearFatal();
   const key = screenKey();
   // The same screen asking for itself is the menu moving its own address
   // bar, and tearing it down and rebuilding it would be visible. `force`
@@ -343,7 +385,9 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     const raw = await readReplayFile(replayParam);
     const replay = raw !== null ? parseReplay(raw) : null;
     if (!replay) {
-      fatal(`The replay "${replayParam}" could not be loaded — it may have been deleted.`);
+      fatal(`The replay "${replayParam}" could not be loaded — it may have been deleted.`, {
+        menu: true,
+      });
     }
     // Playback re-runs the sim, and the sim is version-bound: the same
     // commands against a retuned tick produce a different match. Refuse
@@ -354,6 +398,7 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
         `The replay "${replayParam}" was recorded under replay version ` +
           `${replay.replayVersion}; this build plays version ${REPLAY_VERSION}, ` +
           `and the match would not come out the way it was played.`,
+        { menu: true },
       );
     }
     present(
@@ -384,16 +429,20 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
   // Migrate away any stale handoff left by the old localStorage flow.
   localStorage.removeItem('serf-load-pending');
   let raw: string | null = null;
+  /** What to call the village in a message about it. */
+  let loadName: string | null = null;
   // A handoff from before saves became files is the save itself, not a
   // name. Rare — it takes an upgrade landing between the stash and the
   // reload — but the world in it is somebody's village.
   if (pending !== null && pending.startsWith('{')) raw = pending;
   else {
-    const loadName = pending ?? launchParams.get('load');
+    loadName = pending ?? launchParams.get('load');
     if (loadName !== null) {
       raw = await readSaveFile(loadName);
       if (raw === null) {
-        fatal(`The saved game "${loadName}" could not be loaded — it may have been deleted.`);
+        fatal(`The saved game "${loadName}" could not be loaded — it may have been deleted.`, {
+          menu: true,
+        });
       }
     }
   }
@@ -404,10 +453,50 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
   let fogSeed: string | undefined;
   if (raw !== null) {
     const split = splitSave(raw);
+    // The version the world was written in, checked here rather than left
+    // to the worker. The worker does refuse an older one — but it refuses
+    // by throwing, which reaches this side as "sim worker failed: …" and
+    // says nothing a player can act on. The shelf greys these rows out;
+    // the URL is hand-editable, a save can be dropped in from anywhere,
+    // and the GPU-loss handoff carries a name rather than a version.
+    const written = readSaveWorldVersion(split.world);
+    if (written !== undefined && written !== WORLD_SAVE_VERSION) {
+      fatal(
+        `${loadName !== null ? `The saved game "${loadName}"` : 'That saved game'} was ` +
+          `written in save format ${written}; this build reads format ` +
+          `${WORLD_SAVE_VERSION} and cannot open that village.`,
+        { menu: true },
+      );
+    }
     loadData = split.world;
     fogSeed = split.explored;
   }
   present(await runMatch(configFromUrl(location.search), { loadData, fogSeed }, key));
+}
+
+/**
+ * Put the screen on the page, and say so when it cannot be put there.
+ *
+ * Building a screen is fallible in ways that have nothing to do with the
+ * player — a save the sim refuses, a mission chunk that will not fetch, a
+ * worker that dies on the way up — and the router has nowhere to take a
+ * rejection: a back gesture has no caller at all, and a click handler has
+ * no more idea what to do with one than it does. It logged and stopped,
+ * which left the page exactly as route() had already made it: torn down,
+ * empty, and silent. A screen that fails puts the card up instead, with
+ * the way back to the menu on it.
+ *
+ * Failures raised by fatal() have already drawn their own card by the time
+ * they arrive here, and showFatal keeps the first one — so the specific
+ * message wins over this general one.
+ */
+async function routeSafely(opts: { force?: boolean } = {}): Promise<void> {
+  try {
+    await route(opts);
+  } catch (err) {
+    console.error('[app] the screen failed to come up:', err);
+    showFatal(err instanceof Error ? err.message : String(err), { menu: true });
+  }
 }
 
 /**
@@ -458,8 +547,8 @@ async function boot(): Promise<void> {
   // filed on the shelf, once, ahead of the first screen that could list
   // it. A no-op — one localStorage read — on every launch after that.
   await migrateLegacySave();
-  startRouter(route);
-  await route();
+  startRouter(routeSafely);
+  await routeSafely();
 }
 
 /**

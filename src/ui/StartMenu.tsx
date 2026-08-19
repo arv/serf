@@ -545,11 +545,13 @@ export function StartMenu(props: StartMenuProps) {
 
   /** A save is world state read straight back into the sim's records, so a
    * file written in another shape cannot be loaded — the same story as a
-   * replay's version, told in the same place. A file with no metadata head
-   * (a save from before there was one) says nothing and is offered: the
-   * worker is the one that can tell, and it refuses loudly. */
+   * replay's version, told in the same place. The format version is read
+   * from the file itself rather than from the metadata head: a save from an
+   * older build predates the head, and it is precisely the file this row
+   * has to be able to refuse. One that says nothing at all is offered, and
+   * the load path screens it again before a match is built. */
   const saveRow = (f: SaveFileInfo): ShelfRow => {
-    const ok = f.meta === undefined || f.meta.world === WORLD_SAVE_VERSION;
+    const ok = f.world === undefined || f.world === WORLD_SAVE_VERSION;
     const mission = f.meta?.mission !== undefined ? MISSION_DEFS[f.meta.mission] : undefined;
     const opponents = f.meta?.opponents ?? 0;
     const what =
@@ -567,7 +569,7 @@ export function StartMenu(props: StartMenuProps) {
         ? {}
         : {
             why:
-              `Written in save format ${f.meta?.world ?? 'unknown'} — this build reads ` +
+              `Written in save format ${f.world ?? 'unknown'} — this build reads ` +
               `format ${WORLD_SAVE_VERSION} and cannot open that village`,
           }),
       meta: [what, fmtSize(f.size), ok ? undefined : 'from an older build']
