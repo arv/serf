@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createSignal, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createSignal } from 'solid-js';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { TechId } from '../sim/defs/techs';
@@ -30,6 +30,7 @@ import { buildingName, techName } from './names';
 import { BUILD_GROUPS, buildAffordable, buildKey, buildUnlocked } from './buildMenu';
 import { Key } from './shortcut';
 import { hasKeyboard } from '../input/keyboard';
+import { COMPACT, NARROW, SHORT, useMedia } from './breakpoints';
 import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
 import { latestSaveName } from '../app/saveStore';
@@ -76,18 +77,6 @@ import {
 } from './store';
 import { play } from '../audio/audio';
 
-/** Reactive media query (no dependency; one listener per call site). */
-function useMedia(query: string): () => boolean {
-  const mq = window.matchMedia(query);
-  const [matches, setMatches] = createSignal(mq.matches);
-  const onChange = (e: MediaQueryListEvent): void => {
-    setMatches(e.matches);
-  };
-  mq.addEventListener('change', onChange);
-  onCleanup(() => mq.removeEventListener('change', onChange));
-  return matches;
-}
-
 const SPEEDS = [
   { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },
   { value: 1, icon: PlayIcon, label: 'Normal speed', hint: undefined as string | undefined },
@@ -131,7 +120,14 @@ export function Hud(props: {
   // the request from anywhere but a gesture, and this button is one.
   const fs = fullscreen();
   const [activeTab, setActiveTab] = createSignal(0);
-  const isPhone = useMedia('(max-width: 760px)');
+  /**
+   * Small screen, either way up — the question every collapsible part
+   * of the HUD actually wants answered. It used to be `(max-width:
+   * 760px)`, which a phone held sideways fails: 844x390 is wide, and
+   * that width bought it the desktop build card on a screen with a
+   * third of the height to put one in.
+   */
+  const isCompact = useMedia(COMPACT);
   const isCoarse = useMedia('(pointer: coarse)');
   // A mouse or trackpad — the thing that makes a drag draw a selection
   // band instead of panning the camera (controls.ts hands plain touch
@@ -142,10 +138,10 @@ export function Hud(props: {
   // Phones start with the build card folded to a pill; arming a placement
   // folds it again so the map is visible while you aim the ghost.
   const [buildOpen, setBuildOpen] = createSignal(false);
-  const buildVisible = (): boolean => !isPhone() || buildOpen();
+  const buildVisible = (): boolean => !isCompact() || buildOpen();
   const place = (type: BuildingTypeId | null): void => {
     props.onPlace(type);
-    if (type !== null && isPhone()) setBuildOpen(false);
+    if (type !== null && isCompact()) setBuildOpen(false);
   };
   const menuOpen = (): boolean => openPanel() === 'menu';
   /** The newest saved game, as of the last time the menu was opened: what
@@ -293,6 +289,9 @@ export function Hud(props: {
           /* The selection card's frame. Fixed, so a status line
              growing a word doesn't drag the Sell button sideways. */
           --sel-w: 430px;
+          /* How far the HUD's two strips stand off the window's edges,
+             before the system's own chrome is added to it. */
+          --hud-margin: 12px;
         }
         /* A number that changes while you watch it: right-aligned in a
            slot wide enough for its largest value. The digits move, the
@@ -419,9 +418,20 @@ export function Hud(props: {
            the strip no longer reserves 240px for a cluster whose real
            width is 179, and the rails no longer start at a hardcoded
            56px that a strip wrapping to two rows would have run
-           straight through. */
+           straight through.
+           The system's own chrome is not a phone question either: an
+           iPad in landscape has a home indicator too, and env() is
+           simply 0 on the machines that have none. So the insets are
+           part of the base frame rather than something a breakpoint
+           remembers to add — the version that gated them on width put
+           the goods strip under the notch of every phone held
+           sideways. */
         .hud-top {
-          position: absolute; inset: 12px;
+          position: absolute;
+          top: calc(var(--hud-margin) + var(--safe-top));
+          right: calc(var(--hud-margin) + var(--safe-right));
+          bottom: calc(var(--hud-margin) + var(--safe-bottom));
+          left: calc(var(--hud-margin) + var(--safe-left));
           display: grid;
           grid-template-columns: minmax(0, 1fr) auto;
           grid-template-rows: auto minmax(0, 1fr);
@@ -559,7 +569,10 @@ export function Hud(props: {
         .menu-sound input[type='range']:disabled { opacity: 0.4; }
 
         .hud-bottom {
-          position: absolute; left: 12px; right: 12px; bottom: 12px;
+          position: absolute;
+          left: calc(var(--hud-margin) + var(--safe-left));
+          right: calc(var(--hud-margin) + var(--safe-right));
+          bottom: calc(var(--hud-margin) + var(--safe-bottom));
           display: flex; align-items: flex-end; gap: 10px; pointer-events: none;
         }
         .hud-build {
@@ -794,10 +807,70 @@ export function Hud(props: {
           }
         }
 
-        /* Phone-width: the two top strips can't share a row, and the two
-           bottom cards can't sit side by side. Stack them, and let the
-           long lists scroll instead of growing over the map. */
-        @media (max-width: 760px) {
+        /* ——— A phone, whichever way up ———
+           Everything below this line used to hang off one question,
+           "is the window narrower than 760px?", and that question has
+           a wrong answer for half the phones in service. Held
+           sideways an iPhone 13 is 844x390 — wider than the gate and
+           barely a third as tall — so it took the desktop layout on a
+           screen with no room for one: no safe-area insets, no way to
+           fold the build card away, and a tech sheet drawn 463px tall
+           inside 390px of screen.
+           So the rules come in three blocks now, and which block a
+           rule belongs in is decided by what it is really for:
+             · COMPACT — a small screen either way up. Insets, sheets,
+               collapsible cards, scrolling instead of growing.
+             · NARROW — upright. Things stack, because there is height
+               to stack into and no width to share.
+             · SHORT  — sideways. Things sit side by side and give up
+               height, because that is the axis in short supply.
+           The names are shared with the components that ask the same
+           questions in JavaScript (see breakpoints.ts). */
+
+        /* ——— COMPACT: a small screen, either way up ——— */
+        @media ${COMPACT} {
+          /* A little closer to the edges than the desktop's 12px: the
+             screen is small and the margin is map. (The safe-area
+             insets are in the base rules — every device that has them
+             wants them, at every size.) */
+          .hud-top, .hud-bottom {
+            --hud-margin: 10px;
+          }
+          /* The fold ✕ sits at the row's end, so the tab strip stretches. */
+          .hud-tabs { align-self: stretch; }
+          .hud-build .hud-items {
+            width: auto;
+            touch-action: pan-y;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+          }
+          /* The ☰ menu opens downward from the top corner, and on a
+             short screen its own height ran off the bottom — with Quit
+             on the end of it, so a landscape phone had no way to leave
+             a match at all. It gives up height to the window and
+             scrolls.
+             A share of the window rather than a subtraction from it:
+             the menu hangs under the chrome cluster, and how far down
+             that starts depends on how many rows the goods strip took
+             — 96px on a phone held sideways, 126px on one held upright
+             with the strip stacked above it. 58% clears the deeper of
+             those two with room over. Small viewport units, not
+             dynamic ones: an open menu must not resize under the thumb
+             as the URL bar comes and goes. */
+          .hud-menu {
+            box-sizing: border-box;
+            max-height: min(58vh, 340px);
+            max-height: min(58svh, 340px);
+            overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+          }
+          /* .tech-panel's sheet layout lives in TechTreePanel's own <style>:
+             that component renders later, so rules here lost the tie and
+             a stale max-height silently capped the sheet. */
+          .hud-debug { display: none; } /* desktop-only diagnostics */
+        }
+
+        /* ——— NARROW: held upright ——— */
+        @media ${NARROW} {
           /* One column: resources, then the chrome under them, then the
              rails under both. Goods are what you glance at, and a strip
              that wraps to three rows pushes the rest down rather than
@@ -805,10 +878,6 @@ export function Hud(props: {
           .hud-top {
             grid-template-columns: minmax(0, 1fr);
             grid-template-rows: auto auto minmax(0, 1fr);
-            top: calc(10px + var(--safe-top));
-            right: calc(10px + var(--safe-right));
-            bottom: calc(10px + var(--safe-bottom));
-            left: calc(10px + var(--safe-left));
           }
           .hud-resources { grid-column: 1; grid-row: 1; justify-content: flex-start; }
           .hud-chrome { grid-column: 1; grid-row: 2; justify-self: end; }
@@ -834,48 +903,117 @@ export function Hud(props: {
           }
           .hud-resources span.res { flex: 0 0 auto; padding: 4px 8px; font-size: 13px; }
 
-          .hud-bottom {
-            left: calc(10px + var(--safe-left));
-            right: calc(10px + var(--safe-right));
-            bottom: calc(10px + var(--safe-bottom));
-            flex-direction: column;
-            align-items: stretch;
-            gap: 8px;
-          }
+          .hud-bottom { flex-direction: column; align-items: stretch; gap: 8px; }
           .hud-selection { margin-left: 0; width: auto; }
-          /* The fold ✕ sits at the row's end, so the tab strip stretches. */
-          .hud-tabs { align-self: stretch; }
+          /* The thumb rail joins the column instead of floating over it.
+             Fixed at 38vh it was a guess about how tall the cards would
+             be, and a barracks with touch-sized buttons is 370px of
+             card — the rail's ✕ ended up inside it. In the flow it
+             cannot be wrong: it rides up when the card below it grows.
+             Laid across rather than down, because a column of three
+             would be a third of the stack. */
+          .hud-touch {
+            position: static; flex-direction: row; align-self: flex-end;
+            margin-bottom: 2px;
+          }
           /* The card is the screen's width here, so the grid takes it
              all and fits however many cells it holds — two on a phone,
              three on a tablet. The frame is a share of the screen
              rather than a count of cells, and it is still one number
              on every tab. */
-          .hud-build .hud-items {
-            width: auto;
-            height: 26vh;
-            touch-action: pan-y;
-            overscroll-behavior: contain;
-            -webkit-overflow-scrolling: touch;
-          }
-          /* .tech-panel's phone layout lives in TechTreePanel's own <style>:
-             that component renders later, so rules here lost the tie and
-             a stale max-height silently capped the sheet. */
-          .hud-debug { display: none; } /* desktop-only diagnostics */
+          .hud-build .hud-items { height: 26vh; }
         }
 
-        /* Landscape phones are short: keep the bottom cards side by side
-           and cap their height so the map stays visible. */
-        @media (max-width: 900px) and (max-height: 480px) {
-          .hud-bottom { flex-direction: row; align-items: flex-end; }
-          /* Two fifths rather than half: a cell is never allowed below
-             --build-col, so the few pixels either way decide whether
-             the ribbon beside this card gets two columns or one, and
-             one column in a fifth of a short screen is a list you can
-             see a button and a half of. */
-          .hud-selection { width: 40%; }
-          .hud-build { flex: 1 1 auto; }
-          /* Short screen: the ribbon gets a fifth of it and scrolls. */
-          .hud-build .hud-items { height: 20vh; }
+        /* ——— SHORT: held sideways ———
+           Width is what this screen has and height is what it hasn't,
+           so the cards sit side by side and every one of them is
+           capped: what does not fit scrolls inside its own card
+           instead of growing up over the map. Nothing here may depend
+           on the window being narrow — an iPhone 15 Pro Max is 932px
+           across in this orientation. */
+        @media ${SHORT} {
+          /* The goods strip is read at a glance and never touched, so
+             it is the one thing that can afford to be small. */
+          .hud-resources > div { padding: 3px 6px; }
+          .hud-resources span.res { padding: 2px 7px; font-size: 12.5px; gap: 4px; }
+          .hud-resources span.res .num,
+          .hud-resources span.res.pop .num { min-width: 2.5ch; }
+          #ui .hud-speed button.icon { width: 42px; height: 38px; }
+          #ui .hud-speed button { min-height: 38px; }
+          #ui .menu-toggle { min-height: 38px; }
+
+          /* The whole bottom row, capped. --hud-bottom-h is the number
+             the cards inside it are cut to fit, and it is deliberately
+             a share of the window rather than a count of rows: whatever
+             is in these cards, together they get this much of the
+             screen and the map keeps the rest.
+             Small viewport units, like the menu's cap and the room list
+             before it: vh is the window with the browser's own bars
+             hidden, so on a phone that still has its URL bar showing,
+             52vh is more than half of what the player can actually see
+             — the cards would take the extra out of the map, and the
+             thumb rail sitting on top of them would go with it.
+             @supports rather than the usual pair of declarations,
+             because this is a custom property: its value is not parsed
+             for units when it is declared, so an unknown one would not
+             fall back to the line above it — it would fail later, where
+             the property is used, and take the cap with it. */
+          #ui { --hud-bottom-h: min(52vh, 250px); }
+          @supports (height: 1svh) {
+            #ui { --hud-bottom-h: min(52svh, 250px); }
+          }
+          .hud-bottom {
+            flex-direction: row; align-items: flex-end;
+            max-height: var(--hud-bottom-h); gap: 8px;
+          }
+          /* The same length again on the children, not 100%: a
+             percentage max-height resolves against a parent's height,
+             and this parent has only a max-height, so the percentage
+             would come out as no limit at all — which is exactly how a
+             369px selection card ended up standing on a 375px screen. */
+          .hud-bottom > * {
+            /* border-box, because #ui is otherwise content-box: on the
+               default the cap leaves out the card's own padding and
+               border, and the selection card stood 26px taller than
+               the frame that was supposed to be holding it. */
+            box-sizing: border-box;
+            min-height: 0; max-height: var(--hud-bottom-h);
+          }
+          /* Nearly the desktop card, because its contents were drawn to
+             a 430px frame — the training queue's three columns, the
+             priced build cells — and a card much under that starts
+             slicing them. Half the window is the floor it may not pass,
+             so the build card beside it always has a column to draw in. */
+          .hud-selection {
+            width: min(var(--sel-w), 46%);
+            overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+          }
+          .hud-build { flex: 1 1 auto; min-width: 0; }
+          /* Two rows of cells and the ribbon scrolls — a declared count
+             rather than a share of the screen, so the card is the same
+             height on every phone and the cells are never sliced. */
+          .hud-build .hud-items { height: calc(2 * var(--build-row) + 6px); }
+          /* The thumb rail clears the cards rather than floating over
+             them — at 38vh it landed on the selection card's shoulder,
+             with its ✕ on the building's health. It lies along the
+             band above them rather than down it: three 46px buttons
+             stacked are 154px, and the band between the goods strip
+             and the cards is barely a hundred. */
+          .hud-touch {
+            flex-direction: row;
+            bottom: calc(var(--hud-bottom-h) + 14px + var(--safe-bottom));
+            right: calc(10px + var(--safe-right));
+          }
+          #ui .hud-touch button { width: 46px; height: 46px; border-radius: 12px; }
+          /* Seven full-size rows do not fit in 58% of a 390px screen
+             whatever we do — but at desktop sizing only three of them
+             did, and Quit was never one. */
+          #ui .hud-menu button { min-height: 36px; padding: 7px 13px; }
+          /* The transient lanes get the band between the strips and the
+             cards, and no more of it. A run of toasts is welcome to
+             overlay the map; the objectives checklist standing on the
+             build card is not. */
+          .hud-rails { overflow: hidden; }
         }
       `}</style>
 
@@ -964,7 +1102,7 @@ export function Hud(props: {
             <span class="div"></span>
           </Show>
           <Show
-            when={isPhone()}
+            when={isCompact()}
             fallback={
               <For each={speeds()}>
                 {(s) => (
@@ -1334,7 +1472,7 @@ export function Hud(props: {
 
 
       <div class="hud-bottom">
-        <Show when={isCoarse() || isPhone()}>
+        <Show when={isCoarse() || isCompact()}>
           <div class="hud-touch">
             {/* The lasso is the only way to band-select without a pointer
                 that drags one: bandArm() is what tells Controls to draw a
@@ -1389,7 +1527,7 @@ export function Hud(props: {
           </div>
         </Show>
 
-        <Show when={(isCoarse() || isPhone()) && !replayMode() && placing()}>
+        <Show when={(isCoarse() || isCompact()) && !replayMode() && placing()}>
           {(type) => (
             <div class="hud-placing panel">
               <span class="what">
@@ -1440,7 +1578,7 @@ export function Hud(props: {
                   </button>
                 )}
               </For>
-              <Show when={isPhone()}>
+              <Show when={isCompact()}>
                 <button class="build-fold" onClick={() => setBuildOpen(false)}>
                   ✕
                 </button>
