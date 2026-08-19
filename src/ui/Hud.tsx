@@ -384,8 +384,8 @@ export function Hud(props: {
              11     floating touch actions, over the map
              19/20  the tech sheet's scrim and the sheet itself — modal
              30     notices that outrank an open sheet: net trouble
-             35     end-of-match cards, which outrank everything but the two
-                    layers that must land on them: toasts and tips
+             35     end-of-match cards, which outrank everything but the
+                    layer that must land on them: toasts
              36     the right rail — toasts live in it, and "Replay saved"
                     answers a button on an end card, so it has to read
                     over the card's scrim
@@ -396,10 +396,12 @@ export function Hud(props: {
                     which the cards must not allow; an effect below closes
                     the menu the moment a card comes up, so the two never
                     actually stack.
-             40     tooltips (see tooltip.tsx)
-           The quit question is not on this scale: it is a modal <dialog>,
-           and showModal() lifts it into the browser's top layer, over
-           every number above. */
+           Two things are off this scale entirely, both in the browser's
+           top layer and so over every number above: the quit question,
+           a modal <dialog> lifted by showModal(), and the tooltips,
+           lifted by the popover attribute (see tooltip.tsx). A tip has
+           to read over anything it is asked about, and the top layer is
+           that promise kept without a number to maintain. */
 
         /* ——— The top region ———
            A grid, so nothing up here has to guess at anyone else's
