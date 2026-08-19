@@ -101,19 +101,18 @@ const PANE_KEY = 'serf-start-pane';
  * has since chosen another pane gets that one back.
  */
 export function rememberedMode(): Mode {
-  let stored: Mode | null = null;
   try {
     const raw = localStorage.getItem(PANE_KEY);
-    if (raw === 'single' || raw === 'campaign' || raw === 'multi') stored = raw;
+    if (raw === 'single' || raw === 'campaign' || raw === 'multi') return raw;
   } catch {
     // Storage denied reads as a player who has never chosen.
   }
-  // Multiplayer without a connection is a dead pane: the tab is disabled
-  // and the relay is out of reach. Open on the campaign instead, leaving
-  // the choice written down for the next launch that has a network.
-  if (stored === null || (stored === 'multi' && !navigator.onLine)) return 'campaign';
-  return stored;
+  return 'campaign';
 }
+
+/** Where a player with no network belongs: the front door, which asks
+ * nothing of the relay. */
+const OFFLINE_PANE: Mode = 'campaign';
 
 /** Remember a pane the player actually chose. Only the tab bar calls this:
  * the offline fallback below moves the pane without it being a choice. */
@@ -208,7 +207,14 @@ const ScrollIcon = (
   </svg>
 );
 export function StartMenu(props: StartMenuProps) {
-  const [mode, setMode] = createSignal<Mode>(props.start.mode);
+  // Multiplayer with no connection is a dead pane — the tab is disabled and
+  // the relay out of reach — so a screen asked to open there while offline
+  // opens on the campaign instead. Same fallback the offline event takes
+  // below, taken at the moment the screen first appears; what the player
+  // chose stays written down for the next launch that has a network.
+  const [mode, setMode] = createSignal<Mode>(
+    props.start.mode === 'multi' && !navigator.onLine ? OFFLINE_PANE : props.start.mode,
+  );
   /** Switch panes the way the tab bar does: the choice is remembered. */
   const pickMode = (next: Mode): void => {
     setMode(next);
@@ -457,7 +463,7 @@ export function StartMenu(props: StartMenuProps) {
     setOnline(navigator.onLine);
     // Losing the connection mid-menu leaves the multiplayer pane pointing
     // at a relay that is not there; fall back to the half that still works.
-    if (!navigator.onLine) setMode('single');
+    if (!navigator.onLine) setMode(OFFLINE_PANE);
     else if (isJoin()) void refresh();
   };
   window.addEventListener('online', syncOnline);
