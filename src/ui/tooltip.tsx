@@ -1,4 +1,12 @@
-import { For, Show, createSignal, type JSX, type ParentProps } from 'solid-js';
+import {
+  For,
+  Show,
+  createEffect,
+  createSignal,
+  onCleanup,
+  type JSX,
+  type ParentProps,
+} from 'solid-js';
 
 // The tooltip layer's shared signal has the same HMR fragility as store.ts:
 // a hot swap splits it and tooltips freeze. Escalate to a full reload.
@@ -21,18 +29,49 @@ import { stock, techs } from './store';
 
 /**
  * One floating tooltip layer for the whole HUD. Spread `{...tooltip(...)}`
- * onto any element; content renders in a themed panel anchored above or
- * below the element (whichever half of the screen it sits in), after a short
- * hover delay. Replaces every native `title` attribute.
+ * onto any element; content renders in a themed panel next to the element,
+ * after a short hover delay. Replaces every native `title` attribute.
+ *
+ * The panel is a popover placed by CSS anchor positioning, which is what the
+ * hand-rolled version was a worse copy of. That one measured the trigger once,
+ * on hover, and wrote the answer down as fixed coordinates: anything that
+ * moved afterwards — a resource number widening, a queue re-flowing, a window
+ * resize, a panel scrolling under the cursor — left the tip pointing at where
+ * the trigger used to be. Its idea of the viewport edge was a guessed
+ * half-width rather than the panel's own, so a tip near a corner slid off its
+ * trigger to make room it did not need, and below about 300px of window the
+ * two clamps crossed and threw it across the screen. And it rode on a z-index,
+ * which is only ever the highest number until the next one: the layer scale in
+ * Hud.tsx has to keep making room for it, and a modal <dialog> — the top
+ * layer — outranks every number in that scale anyway.
+ *
+ * Now the browser owns both jobs. The `popover` attribute puts the panel in
+ * the top layer, over every panel and dialog with nothing to clip it and no
+ * number to maintain. `anchor-name` and `anchor()` keep it glued to the live
+ * position of the trigger, `justify-self: anchor-center` centres it on the
+ * trigger while keeping it inside the window, `position-try-fallbacks` drops
+ * it below a trigger with nothing above it, and `position-visibility` takes
+ * it away when the trigger scrolls out of a panel.
+ * There is no hand-placed path behind any of it: a browser without CSS anchor
+ * positioning is one this game does not target.
  */
 
+/** The anchor name the live trigger wears; only one tip is up at a time. */
+const ANCHOR = '--tip-anchor';
+
 interface TipState {
-  rect: DOMRect;
+  target: HTMLElement;
   content: () => JSX.Element;
 }
 
 const [tip, setTip] = createSignal<TipState | null>(null);
 let showTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Take the tip down, and call off one that was still on its way up. */
+function hideTip(): void {
+  clearTimeout(showTimer);
+  setTip(null);
+}
 
 export function tooltip(content: () => JSX.Element): {
   onPointerEnter: (e: PointerEvent) => void;
@@ -43,14 +82,10 @@ export function tooltip(content: () => JSX.Element): {
   onPointerCancel: () => void;
 } {
   const show = (target: HTMLElement, delay: number): void => {
-    const rect = target.getBoundingClientRect();
     clearTimeout(showTimer);
-    showTimer = setTimeout(() => setTip({ rect, content }), delay);
+    showTimer = setTimeout(() => setTip({ target, content }), delay);
   };
-  const hide = (): void => {
-    clearTimeout(showTimer);
-    setTip(null);
-  };
+  const hide = hideTip;
   // Where a touch started, so a press that turns into a scroll gives the
   // gesture back to the list instead of popping a tip over it.
   let from: { x: number; y: number } | null = null;
@@ -91,28 +126,97 @@ export function tooltip(content: () => JSX.Element): {
 }
 
 export function TooltipLayer() {
-  const pos = (): JSX.CSSProperties => {
-    const t = tip();
-    if (!t) return {};
-    const cx = Math.min(Math.max(t.rect.left + t.rect.width / 2, 150), window.innerWidth - 150);
-    const above = t.rect.top > window.innerHeight / 2;
-    return {
-      left: `${cx}px`,
-      ...(above
-        ? { bottom: `${window.innerHeight - t.rect.top + 8}px` }
-        : { top: `${t.rect.bottom + 8}px` }),
-    };
+  let el: HTMLDivElement | undefined;
+  // The element currently wearing the anchor name, so it can be undressed
+  // when the tip moves on — two anchors of one name and the browser picks
+  // the later one in the DOM, which is nobody's trigger in particular.
+  let anchored: HTMLElement | null = null;
+
+  const setAnchor = (target: HTMLElement | null): void => {
+    if (anchored === target) return;
+    anchored?.style.removeProperty('anchor-name');
+    anchored = target;
+    target?.style.setProperty('anchor-name', ANCHOR);
   };
+
+  createEffect(() => {
+    const t = tip();
+    if (!el) return;
+    // A trigger can vanish under the cursor — a build button whose menu
+    // closes on the click — and a tip anchored to nothing has nothing to
+    // point at, so it goes with it.
+    if (t && !t.target.isConnected) {
+      hideTip();
+      return;
+    }
+    setAnchor(t?.target ?? null);
+    // togglePopover() rather than the show/hide pair: it is a no-op when the
+    // panel is already in the state asked for, and the panel does stay up
+    // across a move to a neighbouring trigger — only its content swaps.
+    el.togglePopover(t !== null);
+  });
+
+  // A click acts on the button, so the tip has said its piece — and a
+  // pointerleave the browser never sends (the trigger was removed, the
+  // window lost focus) is the other way a tip used to stick to the glass.
+  // Capture, so it lands before the press that a touch tip opens on — that
+  // one is still only a timer at this point, and clearing it is the point.
+  window.addEventListener('pointerdown', hideTip, { capture: true });
+  window.addEventListener('blur', hideTip);
+  onCleanup(() => {
+    window.removeEventListener('pointerdown', hideTip, { capture: true });
+    window.removeEventListener('blur', hideTip);
+    setAnchor(null);
+  });
 
   return (
     <>
       <style>{`
         .tipwrap { display: inline-flex; }
-        .tip-layer {
-          position: fixed; transform: translateX(-50%); z-index: 40;
-          width: max-content; max-width: 280px; padding: 8px 11px 9px;
+        /* Above the trigger and centred on it, in a box that is the window
+           less its edges (the notch included, where the phone has one).
+           anchor-center is why that box is spelled out rather than left to a
+           position-area: it centres the panel on the trigger but keeps it
+           inside those insets, so a tip on a corner button slides along the
+           edge instead of hanging off it — the case the old layer guessed a
+           half-width for and got wrong. That leaves one fallback to declare,
+           for a trigger with no room above it. Worth keeping the list that
+           short on its own merits: Chromium tries only the first five
+           options in it, so a ladder of near-misses is not a thing to lean
+           on — an earlier draft hid its last-resort placement at number six
+           and simply never reached it.
+           Every rule here is #ui-scoped because #ui .panel dresses this same
+           element: a bare .tip ties with it and loses on order. */
+        #ui .tip {
+          --tip-edge-start: max(8px, var(--safe-left));
+          --tip-edge-end: max(8px, var(--safe-right));
+          position: fixed;
+          position-anchor: ${ANCHOR};
+          inset: auto var(--tip-edge-end) calc(anchor(top) + 8px) var(--tip-edge-start);
+          justify-self: anchor-center;
+          position-try-fallbacks: --tip-below;
+          /* A trigger scrolled out of its panel takes its tip with it. */
+          position-visibility: anchors-visible;
+          /* border-box so the width is the whole panel: it has to fit between
+             the insets above, and it can only promise that if the padding and
+             border are inside the number. 304px is the 280 of text this panel
+             is drawn around plus that chrome, so a roomy window sees exactly
+             what it always did. */
+          box-sizing: border-box; margin: 0;
+          width: max-content;
+          max-width: min(304px, calc(100vw - var(--tip-edge-start) - var(--tip-edge-end)));
+          padding: 8px 11px 9px;
           pointer-events: none; font-size: 12px; line-height: 1.45;
+          transition: opacity 110ms ease;
         }
+        @position-try --tip-below { top: calc(anchor(bottom) + 8px); bottom: auto; }
+        /* The fade lives entirely in the entry: @starting-style is the value
+           the panel transitions *from* as it comes off the UA sheet's
+           display: none. The steady state is a plain opaque panel, so a tip
+           on a frame that never arrives is a tip shown, not one left
+           invisible waiting on an animation to finish. */
+        @starting-style { #ui .tip:popover-open { opacity: 0; } }
+        @media (prefers-reduced-motion: reduce) { #ui .tip { transition: none; } }
         .tip-title {
           font-family: Georgia, 'Times New Roman', serif; color: #e6c987;
           font-size: 13px; margin-bottom: 2px;
@@ -129,11 +233,12 @@ export function TooltipLayer() {
         .tip-bad { color: #c86a5a; }
         .tip-cost svg { vertical-align: -2px; margin: 0 1px 0 5px; }
       `}</style>
-      <Show when={tip()}>
-        <div class="panel tip-layer" style={pos()}>
-          {tip()!.content()}
-        </div>
-      </Show>
+      {/* manual, not auto: nothing here is dismissible furniture, and an
+          auto popover would light-dismiss on the very press that opens a
+          touch tip. */}
+      <div ref={el} popover="manual" class="panel tip" role="tooltip">
+        <Show when={tip()}>{(t) => t().content()}</Show>
+      </div>
     </>
   );
 }

@@ -2,6 +2,7 @@ import { MAX_MAP_SIZE, MIN_MAP_SIZE, gridFor, tileCount } from '../shared/grid.t
 import type { GameMap } from './map.ts';
 import type { PlayerState } from './player.ts';
 import type { MatchOutcome, World } from './world.ts';
+import { WORLD_SAVE_VERSION } from '../shared/saveVersion.ts';
 
 /**
  * Save/load. The World is serializable by construction (plain records, ID
@@ -9,15 +10,13 @@ import type { MatchOutcome, World } from './world.ts';
  * typed arrays become plain arrays. Derived caches don't exist to rebuild —
  * `blocked` is part of the map state and round-trips as data.
  *
- * Version 3 renamed every sim id (goods, buildings, units, techs) to its
- * medieval form. Version 4 made the grid size per-game data (and grew the
- * default world), so a v3 save's arrays no longer describe any world this
- * build can generate. Older saves are refused rather than silently
- * mis-loaded.
+ * What each version meant, and why an older one is refused rather than
+ * silently mis-loaded, is with the number itself in
+ * shared/saveVersion.ts.
  */
 
 interface SaveFile {
-  version: 4;
+  version: typeof WORLD_SAVE_VERSION;
   world: {
     /** Absent in saves from before the toggle existed; those ran bandits. */
     banditsEnabled?: boolean;
@@ -47,7 +46,7 @@ interface SaveFile {
 
 export function serializeWorld(world: World): string {
   const file: SaveFile = {
-    version: 4,
+    version: WORLD_SAVE_VERSION,
     world: {
       banditsEnabled: world.banditsEnabled,
       tick: world.tick,
@@ -84,7 +83,7 @@ export function serializeWorld(world: World): string {
 
 export function deserializeWorld(json: string): World {
   const file = JSON.parse(json) as SaveFile;
-  if (file.version !== 4) {
+  if (file.version !== WORLD_SAVE_VERSION) {
     throw new Error('save is from an older version of the game');
   }
   const w = file.world;

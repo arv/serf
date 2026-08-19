@@ -33,6 +33,7 @@ import { hasKeyboard } from '../input/keyboard';
 import { COMPACT, NARROW, SHORT, useMedia } from './breakpoints';
 import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
+import { latestSaveName } from '../app/saveStore';
 import { describeAdvice } from '../ai/insight';
 import {
   CHEATS_ALLOWED,
@@ -143,8 +144,17 @@ export function Hud(props: {
     if (type !== null && isCompact()) setBuildOpen(false);
   };
   const menuOpen = (): boolean => openPanel() === 'menu';
+  /** The newest saved game, as of the last time the menu was opened: what
+   * the Load button reads to know whether there is anything to load, and
+   * to name it. Read on open rather than once at mount, because saving
+   * from this very menu makes a new file the newest one. Deliberately not
+   * cleared while the next read is in flight — the button would flicker
+   * disabled every time the menu came up — so this is the last answer,
+   * not necessarily the current one. The click settles that itself. */
+  const [lastSave, setLastSave] = createSignal<string | null>(null);
   const setMenuOpen = (open: boolean): void => {
     setOpenPanel(open ? 'menu' : null);
+    if (open) void latestSaveName().then(setLastSave);
   };
   const cost = (type: BuildingTypeId) => Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
   const affordable = (type: BuildingTypeId): boolean => buildAffordable(type, stock());
@@ -383,8 +393,8 @@ export function Hud(props: {
              11     floating touch actions, over the map
              19/20  the tech sheet's scrim and the sheet itself — modal
              30     notices that outrank an open sheet: net trouble
-             35     end-of-match cards, which outrank everything but the two
-                    layers that must land on them: toasts and tips
+             35     end-of-match cards, which outrank everything but the
+                    layer that must land on them: toasts
              36     the right rail — toasts live in it, and "Replay saved"
                     answers a button on an end card, so it has to read
                     over the card's scrim
@@ -395,10 +405,12 @@ export function Hud(props: {
                     which the cards must not allow; an effect below closes
                     the menu the moment a card comes up, so the two never
                     actually stack.
-             40     tooltips (see tooltip.tsx)
-           The quit question is not on this scale: it is a modal <dialog>,
-           and showModal() lifts it into the browser's top layer, over
-           every number above. */
+           Two things are off this scale entirely, both in the browser's
+           top layer and so over every number above: the quit question,
+           a modal <dialog> lifted by showModal(), and the tooltips,
+           lifted by the popover attribute (see tooltip.tsx). A tip has
+           to read over anything it is asked about, and the top layer is
+           that promise kept without a number to maintain. */
 
         /* ——— The top region ———
            A grid, so nothing up here has to guess at anyone else's
@@ -1376,17 +1388,30 @@ export function Hud(props: {
             </Show>
             <Show when={!netMode() && !replayMode()}>
               <button
-                disabled={!localStorage.getItem('serf-save')}
+                disabled={lastSave() === null}
+                title={
+                  lastSave() !== null
+                    ? `Saved ${lastSave()!}`
+                    : 'Nothing saved on this device yet'
+                }
                 onClick={() => {
-                  const data = localStorage.getItem('serf-save');
-                  if (data) {
-                    // sessionStorage: survives this tab's reload but is invisible
-                    // to other tabs — two open tabs must never race for it.
-                    sessionStorage.setItem('serf-load-pending', data);
-                    // Same URL as the match already running, so the router
-                    // would otherwise call this the screen it is already on.
-                    goto(location.search, { force: true });
-                  }
+                  // Asked again here rather than taken from the signal
+                  // above: that name is as old as the last time this menu
+                  // opened, and loading a file another tab has deleted
+                  // since takes the running match down to the fatal card.
+                  // One OPFS read is nothing beside the world about to be
+                  // read off it.
+                  void latestSaveName().then((name) => {
+                    setLastSave(name);
+                    if (name === null) return;
+                    // The save's name is the whole address, like a
+                    // replay's: the world lives in OPFS, and a reload of
+                    // this URL comes back into the same village. force
+                    // because loading the save this match already booted
+                    // from is the same URL, and the router would otherwise
+                    // call it the screen it is already on.
+                    goto('?load=' + encodeURIComponent(name), { force: true });
+                  });
                 }}
               >
                 Load last save
