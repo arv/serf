@@ -148,12 +148,13 @@ export function Hud(props: {
     if (type !== null && isPhone()) setBuildOpen(false);
   };
   const menuOpen = (): boolean => openPanel() === 'menu';
-  /** The newest saved game, for the menu's Load. Read when the menu opens
-   * rather than once at mount: saving from this very menu makes a new file
-   * the newest one, and the shelf in the start menu can have deleted the
-   * one this match booted from. Null while nothing is saved — and until
-   * the first read answers, which is why the button reads its own state
-   * rather than a count. */
+  /** The newest saved game, as of the last time the menu was opened: what
+   * the Load button reads to know whether there is anything to load, and
+   * to name it. Read on open rather than once at mount, because saving
+   * from this very menu makes a new file the newest one. Deliberately not
+   * cleared while the next read is in flight — the button would flicker
+   * disabled every time the menu came up — so this is the last answer,
+   * not necessarily the current one. The click settles that itself. */
   const [lastSave, setLastSave] = createSignal<string | null>(null);
   const setMenuOpen = (open: boolean): void => {
     setOpenPanel(open ? 'menu' : null);
@@ -1254,15 +1255,23 @@ export function Hud(props: {
                     : 'Nothing saved on this device yet'
                 }
                 onClick={() => {
-                  const name = lastSave();
-                  if (name === null) return;
-                  // The save's name is the whole address, like a replay's:
-                  // the world lives in OPFS, and a reload of this URL comes
-                  // back into the same village. force because loading the
-                  // save this match already booted from is the same URL,
-                  // and the router would otherwise call it the screen it is
-                  // already on.
-                  goto('?load=' + encodeURIComponent(name), { force: true });
+                  // Asked again here rather than taken from the signal
+                  // above: that name is as old as the last time this menu
+                  // opened, and loading a file another tab has deleted
+                  // since takes the running match down to the fatal card.
+                  // One OPFS read is nothing beside the world about to be
+                  // read off it.
+                  void latestSaveName().then((name) => {
+                    setLastSave(name);
+                    if (name === null) return;
+                    // The save's name is the whole address, like a
+                    // replay's: the world lives in OPFS, and a reload of
+                    // this URL comes back into the same village. force
+                    // because loading the save this match already booted
+                    // from is the same URL, and the router would otherwise
+                    // call it the screen it is already on.
+                    goto('?load=' + encodeURIComponent(name), { force: true });
+                  });
                 }}
               >
                 Load last save

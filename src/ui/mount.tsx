@@ -107,6 +107,10 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           // A file per save, named by the clock, exactly like a replay:
           // saving no longer overwrites the one slot there used to be, and
           // the start menu's shelf is where they are picked from again.
+          // Every path ends in a toast, the thrown one included: a save
+          // is a promise the player made to themselves, and silence is
+          // the one answer that leaves them thinking the village is
+          // filed when it is not.
           void actions
             .save()
             .then((data) => saveGameNow(data))
@@ -114,13 +118,17 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
               pushToast(
                 name !== null ? `Village saved — ${name}` : 'The village could not be saved',
               );
-            });
+            })
+            .catch(() => pushToast('The village could not be saved'));
         }}
         onSaveReplay={() => {
           play('uiClick');
-          void actions.saveReplay().then((name) => {
-            pushToast(name !== null ? `Replay saved — ${name}` : 'Replay could not be saved');
-          });
+          void actions
+            .saveReplay()
+            .then((name) => {
+              pushToast(name !== null ? `Replay saved — ${name}` : 'Replay could not be saved');
+            })
+            .catch(() => pushToast('Replay could not be saved'));
         }}
         onAdmin={(action) => {
           play('uiClick');
