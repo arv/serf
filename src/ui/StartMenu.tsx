@@ -84,10 +84,45 @@ type Visibility = 'open' | 'private';
 
 /** Which pane the screen opens on. The shell hands back what the player
  * had chosen when they walked into the council, so backing out of it does
- * not dump them on the single-player tab. */
+ * not dump them on the pane they started from. */
 export interface StartState {
   mode: Mode;
   mp: MpMode;
+}
+
+/** The pane a returning player picked last, kept apart from campaign
+ * progress and the save slot: it is a preference about the menu, not a
+ * fact about the valley. */
+const PANE_KEY = 'serf-start-pane';
+
+/**
+ * Which tab a fresh visit opens on. The campaign is the front door — it is
+ * where a player who has never seen the game should land — but anyone who
+ * has since chosen another pane gets that one back.
+ */
+export function rememberedMode(): Mode {
+  let stored: Mode | null = null;
+  try {
+    const raw = localStorage.getItem(PANE_KEY);
+    if (raw === 'single' || raw === 'campaign' || raw === 'multi') stored = raw;
+  } catch {
+    // Storage denied reads as a player who has never chosen.
+  }
+  // Multiplayer without a connection is a dead pane: the tab is disabled
+  // and the relay is out of reach. Open on the campaign instead, leaving
+  // the choice written down for the next launch that has a network.
+  if (stored === null || (stored === 'multi' && !navigator.onLine)) return 'campaign';
+  return stored;
+}
+
+/** Remember a pane the player actually chose. Only the tab bar calls this:
+ * the offline fallback below moves the pane without it being a choice. */
+function rememberMode(mode: Mode): void {
+  try {
+    localStorage.setItem(PANE_KEY, mode);
+  } catch {
+    // Storage full or denied: the choice just doesn't outlive the session.
+  }
 }
 
 export interface StartMenuProps {
@@ -174,6 +209,11 @@ const ScrollIcon = (
 );
 export function StartMenu(props: StartMenuProps) {
   const [mode, setMode] = createSignal<Mode>(props.start.mode);
+  /** Switch panes the way the tab bar does: the choice is remembered. */
+  const pickMode = (next: Mode): void => {
+    setMode(next);
+    rememberMode(next);
+  };
   const [mp, setMp] = createSignal<MpMode>(props.start.mp);
   const [ai, setAi] = createSignal(2);
   // One entry per opponent seat; undefined means 'let the seed deal it'.
@@ -556,11 +596,11 @@ export function StartMenu(props: StartMenuProps) {
               }
             >
               <div class="seg">
-                <button class={mode() === 'single' ? 'on' : ''} onClick={() => setMode('single')}>
+                <button class={mode() === 'single' ? 'on' : ''} onClick={() => pickMode('single')}>
                   {OneIcon}
                   Single player
                 </button>
-                <button class={mode() === 'campaign' ? 'on' : ''} onClick={() => setMode('campaign')}>
+                <button class={mode() === 'campaign' ? 'on' : ''} onClick={() => pickMode('campaign')}>
                   {BannerIcon}
                   Campaign
                 </button>
@@ -569,7 +609,7 @@ export function StartMenu(props: StartMenuProps) {
                   disabled={!online()}
                   title={online() ? undefined : 'Needs a connection to the relay'}
                   onClick={() => {
-                    setMode('multi');
+                    pickMode('multi');
                     if (mp() === 'join') void refresh();
                   }}
                 >
