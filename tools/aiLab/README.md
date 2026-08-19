@@ -157,6 +157,43 @@ weights changed; the task did.
   it is not finding the aggressive end of the menu; prompt ordering and
   the wording of each `when` line are the obvious things to try next.
 
+### The combat predictor, and a negative result worth keeping
+
+`src/sim/combatOdds.ts` predicts an engagement before the army commits to
+it, gated by the `marchConfidence` knob (0 in every playbook — off). It is
+the one experiment here that failed, and how it failed is the useful part.
+
+At 40 seeds `marchConfidence: 30` looked like a win: **55.8%** (43/77),
+flips 8 toward the advised seat against 3 away, beating the noise floor at
+p = 0.049. Doubling the sample erased all of it:
+
+| arm | 40 seeds | 80 seeds |
+| --- | --- | --- |
+| `marchConfidence: 30` | 55.8%, flips 8/3 | **51.6%** (81/157), flips 14/11 |
+| ...vs `random`, paired | p = 0.049 | **p = 0.121** |
+| ...vs the `posture` rule | — | p = 0.473 |
+| ...vs a lowered muster bar | p = 0.0074 | **p = 0.061** |
+
+Nothing survives. The 40-seed reading was exactly the ±11pp resolution
+this file warns about, arrived at by someone who knew that and read the
+number anyway. **Two arms at 40 seeds are not evidence; the paired test on
+the same seeds at 80 is.**
+
+Two findings came out of it regardless:
+
+- **Blind early aggression loses, and that replicates.** A muster bar
+  dropped to `armyAttackSize: 4` scores 43.4% at 80 seeds (41.6% at 40),
+  flips 12 toward and 20 away — well under the floor. Marching sooner is
+  worth something only if something knows when, which is why the gate was
+  worth trying and why the dumb control was the right null for it.
+- **The estimate is the bottleneck, not the model.** The gate's first cut
+  was a brake and it never fired: instrumenting it (`AiBrain.oddsReport()`)
+  showed no threshold below a 3x bar vetoed anything, because the brain
+  already only marches when it heavily outnumbers *what it has seen*. A
+  seat marches believing the enemy has three soldiers because three is all
+  one lone scout ever lit. Better arithmetic over the same blindness buys
+  nothing; the next work is intelligence.
+
 Resolution: 40 seeds is ±11pp, 80 seeds ±8pp, and ±5pp would need ~193
 seeds. Treat single-run gaps under ~10pp as unresolved and reach for
 `bakeoff:compare` — the paired test separates runs these intervals
