@@ -1,7 +1,7 @@
 import { Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js';
 import { render } from 'solid-js/web';
 import { MENU_STYLE } from './menuChrome';
-import { StartMenu, type StartState } from './StartMenu';
+import { StartMenu, rememberedMode, type StartState } from './StartMenu';
 import { WarCouncil, type CouncilHooks } from './WarCouncil';
 import { relayUrl, runLobby, type CouncilRequest, type LobbyResult } from '../net/lobbyClient';
 import { releaseMenuBackdrop, startMenuBackdrop } from './menuBackdrop';
@@ -72,7 +72,7 @@ function MenuApp(props: { entry: MenuEntry; host: MenuHost }) {
   // someone who arrived on an invite link and never saw the menu, who
   // belongs in the browser next to the room they just declined.
   const [resume, setResume] = createSignal<StartState>(
-    paneFor(props.entry) ?? { mode: 'single', mp: 'host' },
+    paneFor(props.entry) ?? { mode: rememberedMode(), mp: 'host' },
   );
 
   /** Is either screen actually on the glass? */
