@@ -11,6 +11,7 @@ import {
   type LabEngine,
 } from './engines.ts';
 import { playMatch, type MatchConfig, type MatchRecord, type SeatStrategies } from './match.ts';
+import { ALL_ECONOMY_RULES, type EconomyRuleId } from '../../src/sim/economyRules.ts';
 import { renderReport, type ReportHeader } from './report.ts';
 import { summarize, type LayoutRun, type SeedRun } from './stats.ts';
 import { parseStrategyId, AI_STRATEGY_ORDER } from '../../src/sim/defs/aiStrategies.ts';
@@ -79,6 +80,8 @@ interface Options {
   control: boolean;
   trace: boolean;
   checkInvariantsEvery: number;
+  /** Undefined runs the whole table; a subset ablates. */
+  economyRules?: readonly EconomyRuleId[];
   out: string | undefined;
   jobs: number;
 }
@@ -111,6 +114,10 @@ serf-valley LLM strategist bake-off
                        clock, which is realistic but not reproducible.
                        (default: 0)
   --timeout-ms <n>     per-consultation deadline (default: the strategist's 60000)
+  --rules <ids|none>   economy rules the seats run, comma-separated
+                       (default: all of them). --rules none turns the layer
+                       off; a subset ablates — sweep without one rule and the
+                       difference is what that rule was worth.
   --no-control         skip the unadvised control match per seed
   --trace              keep every prompt and reply in the JSONL
   --check <n>          run sim invariants every n ticks, 0 to disable (default: 0)
@@ -206,6 +213,22 @@ export function parseArgs(argv: string[]): Options {
   if (latencyRaw !== 'measured' && !Number.isFinite(Number(latencyRaw))) {
     throw new Error(`--latency wants a number of ticks or "measured", got "${latencyRaw}"`);
   }
+  const rulesRaw = get('--rules');
+  const economyRules =
+    rulesRaw === undefined
+      ? undefined
+      : rulesRaw === 'none'
+        ? []
+        : rulesRaw.split(',').map((id) => {
+            const trimmed = id.trim();
+            if (!(ALL_ECONOMY_RULES as readonly string[]).includes(trimmed)) {
+              throw new Error(
+                `--rules does not know "${trimmed}" (have: ${ALL_ECONOMY_RULES.join(', ')})`,
+              );
+            }
+            return trimmed as EconomyRuleId;
+          });
+
   const timeoutRaw = get('--timeout-ms');
   // Validated like every other number rather than passed through: an unparsed
   // --timeout-ms reaches LlmStrategist as NaN, where every comparison against
@@ -230,6 +253,7 @@ export function parseArgs(argv: string[]): Options {
     control: !argv.includes('--no-control'),
     trace: argv.includes('--trace'),
     checkInvariantsEvery: num('--check', 0),
+    ...(economyRules !== undefined ? { economyRules } : {}),
     out: get('--out'),
     jobs,
   };
@@ -362,6 +386,7 @@ export async function runBakeoff(opts: Options, log: (line: string) => void): Pr
     adviceStagger: opts.adviceStagger,
     latencyTicks: opts.latency,
     checkInvariantsEvery: opts.checkInvariantsEvery,
+    ...(opts.economyRules !== undefined ? { economyRules: opts.economyRules } : {}),
     trace: opts.trace,
     ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
   };
