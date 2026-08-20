@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { createWorld, type World, type WorldConfig } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
-import { AiBrain } from './systems/ai.ts';
+import { AI_PACING, AI_STALL, AiBrain } from './systems/ai.ts';
 import { AiSeats } from './aiSeats.ts';
 import { strategyOf, type AiStrategy } from './defs/aiStrategies.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { AI_STRATEGIES } from './defs/aiStrategies.ts';
 import { spawnUnit } from './world.ts';
-import { addStorehouse, bareWorld } from './testUtils.ts';
+import { OUTPUT_CAP } from './defs/buildings.ts';
+import { tileIdx } from '../shared/grid.ts';
+import type { Building } from './entities.ts';
+import { addBuiltHut, addResourceTile, addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import type { SimCommand } from './commands.ts';
 
 function digest(world: World): unknown {
@@ -231,4 +234,113 @@ describe('strategist overrides', () => {
     // there is a no-op, not a crash.
     seats.applyAdvice(9, { armyAttackSize: 3 });
   });
+});
+
+/**
+ * The stall watchdog (AI_STALL) and the rules it turns on. Two promises,
+ * and they are the two the risk section of the plan names: a seat that is
+ * going somewhere never sees any of this, and a seat that is not gets the
+ * cheapest move that could restart it.
+ */
+describe('the stall watchdog', () => {
+  /** A village that has stopped: one gatherer with a full hut, no loose
+   * serf to empty it, and nothing else to do. The shape seed 9 reaches. */
+  function frozenVillage(): { world: World; brain: AiBrain; hut: Building } {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    addResourceTile(world, 40, 41);
+    const hut = addBuiltHut(world, 40, 40);
+    hut.stock = { wood: OUTPUT_CAP };
+    return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size), hut };
+  }
+
+  /** Beat the brain forward to `until`, keeping the world frozen — only the
+   * brain's own window advances, which is exactly what is under test. */
+  function beatUntil(brain: AiBrain, world: World, until: number): SimCommand[] {
+    let last: SimCommand[] = [];
+    while (world.tick < until) {
+      world.tick += AI_PACING.decisionInterval;
+      if (brain.shouldDecide(world.tick)) last = brain.decide(world);
+    }
+    return last;
+  }
+
+  it('says nothing until the window is full, then says stalled', () => {
+    const { world, brain } = frozenVillage();
+    beatUntil(brain, world, AI_STALL.graceUntil);
+    expect(brain.stallReport().beats).toBe(0);
+    // One full window past the grace period and the reading has turned.
+    beatUntil(brain, world, AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window);
+    expect(brain.stallReport().stalled).toBe(true);
+    expect(brain.stallReport().beats).toBeGreaterThan(0);
+  });
+
+  it('buys a hauler with a post nobody is using', () => {
+    const { world, brain, hut } = frozenVillage();
+    beatUntil(brain, world, AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100);
+    const commands = beatUntil(brain, world, world.tick + AI_PACING.decisionInterval * 2);
+    // The hut is capped, so its resident is producing nothing at all. He is
+    // worth more carrying the pile to the storehouse than standing beside it.
+    expect(commands).toContainEqual({ kind: 'dismissWorker', buildingId: hut.id });
+    expect(brain.stallReport().recoveries).toBeGreaterThan(0);
+  });
+
+  it('the freed hand actually rejoins the haul pool', () => {
+    // The landmine this rule exists to avoid: a resident released mid-trip
+    // used to keep a gather task nothing would ever advance, and dispatch,
+    // staffing and wander all want a genuinely idle unit. A hand freed to
+    // haul that cannot haul makes the spiral worse, not better.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    addResourceTile(world, 40, 41);
+    const hut = addBuiltHut(world, 40, 40);
+    hut.stock = { wood: OUTPUT_CAP };
+    const worker = world.units.get(hut.workerId!)!;
+    worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
+    tickWorld(world, cmds({ kind: 'dismissWorker', buildingId: hut.id }));
+    expect(worker.kind).toBe('serf');
+    // Idle, or already claimed for a haul — either is in the pool. What is
+    // fatal is a leftover gather task.
+    expect(['idle', 'haul']).toContain(worker.task.t);
+  });
+
+  it('sells a worked-out extractor so the build order can re-site it', () => {
+    const world = bareWorld();
+    // Exactly half a woodcutter on the shelf — the other half is what the
+    // sale hands back, and the rule refuses to sell what it could not
+    // rebuild. Not a plank more: a seat with enough to place anything at
+    // all is a seat that is going somewhere, and would not read as stalled.
+    addStorehouse(world, 30, 30, { wood: 3 });
+    const dead = addBuiltHut(world, 40, 40); // no resource tile in reach
+    addResourceTile(world, 12, 12); // ...but a live grove clear across the map
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const commands = beatUntil(
+      brain,
+      world,
+      AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100,
+    );
+    expect(commands).toContainEqual({ kind: 'sellBuilding', buildingId: dead.id });
+  });
+
+  it('will not sell a worked-out extractor it could not afford to rebuild', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {}); // empty shelf: half the cost back is not enough
+    const dead = addBuiltHut(world, 40, 40);
+    addResourceTile(world, 12, 12);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const commands = beatUntil(
+      brain,
+      world,
+      AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100,
+    );
+    expect(commands).not.toContainEqual({ kind: 'sellBuilding', buildingId: dead.id });
+  });
+
+  it('leaves a seat that is going somewhere byte-identical', () => {
+    // The whole safety story: the watchdog is memory and a comparison, and
+    // an unstalled seat must play the game it played before it existed.
+    // Long enough to run past graceUntil and a full window.
+    const config: WorldConfig = { seed: 7, players: [{ kind: 'human' }, { kind: 'ai' }] };
+    expect(digest(runWithBrains(config, 40_000))).toEqual(digest(runWithBrains(config, 40_000)));
+  }, 240_000);
 });

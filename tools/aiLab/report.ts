@@ -209,6 +209,10 @@ export function renderReport(header: ReportHeader, report: BakeoffReport): strin
     `  median ${report.matchTicks.median} ticks (${minutes(report.matchTicks.median)}) · ` +
       `longest ${report.matchTicks.max} · undecided ${report.undecided}`,
   );
+  p(
+    `  stalled ${report.stalls.matches} match(es) · ` +
+      `${report.stalls.recoveries} recovery order(s)`,
+  );
   p(`  sweep took ${report.wallSeconds.toFixed(0)}s`);
   return out.join('\n');
 }

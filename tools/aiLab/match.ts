@@ -133,6 +133,15 @@ export interface MatchRecord {
   adviceApplied: Record<string, number>;
   /** A strategist that gave up, and why. */
   failures: { playerId: Owner; reason: string }[];
+  /**
+   * What the stall watchdog saw per seat (AI_STALL in sim/systems/ai.ts):
+   * decision beats that read as stalled, and recovery orders sent. Beside
+   * `decided` rather than folded into it, because a match can end on time
+   * having been stuck for half of it, and a watchdog that never fires is
+   * indistinguishable from one that fires uselessly if all you have is the
+   * undecided count.
+   */
+  stalls: { playerId: Owner; beats: number; recoveries: number }[];
   /** Wall-clock milliseconds the whole match took, sim and inference. */
   wallMs: number;
   /** Every unit and building at the final tick, folded to a string. Two
@@ -317,6 +326,10 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     consults,
     adviceApplied: Object.fromEntries([...adviceApplied].map(([id, n]) => [String(id), n])),
     failures,
+    stalls: seats.seatIds().map((id) => {
+      const { beats, recoveries } = seats.brainFor(id)!.stallReport();
+      return { playerId: id, beats, recoveries };
+    }),
     wallMs: Date.now() - startedAt,
     digest: worldDigest(world),
   };

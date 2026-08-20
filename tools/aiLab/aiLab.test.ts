@@ -272,6 +272,7 @@ function fake(
     decided,
     winner,
     standings: [],
+    stalls: [],
     consults: [],
     adviceApplied: {},
     failures: [],

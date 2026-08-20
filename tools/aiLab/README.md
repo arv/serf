@@ -208,6 +208,42 @@ weights changed; the task did.
   it is not finding the aggressive end of the menu; prompt ordering and
   the wording of each `when` line are the obvious things to try next.
 
+### The undecided matches were mostly a pathfinding bug
+
+The harness's `undecided` count is the one number here that is a bug
+report rather than an estimate, and chasing it (`docs/plan-ai-robustness.md`
+phase 1) found the AI was not at fault for most of it.
+
+Seed 9 freezes with both seats holding full extractor huts, one of them
+sitting on four silver — a hire's worth — and **zero free serfs** to carry
+it to the storehouse, which is the only way anything gets bought. Meanwhile
+the impatience ramp was doing its job perfectly: `mustersNeeded` walked the
+bar to one soldier and each seat duly ordered its last knight at the enemy
+castle. The order was then dropped by `findPathToAdjacent`, because the A*
+runaway-search cap was `(play * play) >> 1` = 4608 expansions against a
+walkable component of **5016 tiles** — a cap whose only job is bounding an
+*unreachable* search, sized below what a reachable one has to cross. Every
+long march on a 96 map was silently discarded.
+
+Seeds 1-80, 160 arms, `steward` both seats:
+
+| build | `none` undecided | `posture` undecided | `posture` win rate |
+| --- | --- | --- | --- |
+| before | 4 | 16 | 58.3% (84/144) |
+| + the pathfinder cap (and the `unbindWorker` leak) | — | 6 | 61.0% (94/154) |
+| + the AI's stall watchdog | **0** | **3** | **61.1% (96/157)** |
+
+**The win rate is not the finding.** Paired McNemar over the same seeds is
+p = 0.210 — eleven toward, five away, which is a coin flip. The claim is
+the undecided count, which is a direct observation on named matches, plus
+the guardrail that the rate did not regress and `--engine none` still
+prints exactly 50.0%.
+
+Two things this changes about reading older rows in this file: every arm
+above was measured with long marches silently failing, so the aggressive
+stances were being scored on marches that partly never happened. And a
+`posture` row's `undecided` was ten matches of pathfinding bug.
+
 ### The combat predictor, and a negative result worth keeping
 
 `src/sim/combatOdds.ts` predicts an engagement before the army commits to

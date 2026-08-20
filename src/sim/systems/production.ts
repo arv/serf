@@ -263,10 +263,25 @@ export function bindWorker(b: Building, worker: Unit): void {
  * the building goes back to wanting one (staffing will recruit again). Both
  * sides are cleared together — the invariants check that workerId and homeId
  * always point at each other.
+ *
+ * Rejoining the pool means reading idle, and that is the whole point of the
+ * task reset. A gather task is driven by the BUILDING (gatherStep runs off
+ * b.workerId), so a hand released mid-trip keeps a `gatherWork` nothing will
+ * ever advance — and dispatch, staffing and wander all want a genuinely idle
+ * unit, so nobody ever picks him up again. He stands in the field forever,
+ * counted against the population and eating, doing nothing. Two callers
+ * (releaseObsoletePosts, the move order in tick.ts) already knew to reset the
+ * task by hand and said so in their comments; `dismissWorker` and
+ * `sellBuilding` did not, and both leaked a hand per use. Doing it here means
+ * the next caller cannot forget.
+ *
+ * Whatever is in his hands stays there — logistics has a path for a free serf
+ * still holding a good (rehomeCarriedGoods).
  */
 export function unbindWorker(world: World, worker: Unit): void {
   const home = worker.homeId !== undefined ? world.buildings.get(worker.homeId) : undefined;
   if (home && home.workerId === worker.id) home.workerId = undefined;
   worker.homeId = undefined;
   worker.kind = 'serf';
+  worker.task = { t: 'idle', until: world.tick };
 }
