@@ -3,9 +3,8 @@ import { createStore, reconcile } from 'solid-js/store';
 import { BUILD_LABEL } from '../app/buildInfo';
 import { REPLAY_VERSION } from '../shared/replayVersion';
 import { clearSeatStash, relayUrl, type CouncilRequest } from '../net/lobbyClient';
-import { DiceIcon } from './menuChrome';
 import { releaseMenuBackdrop } from './menuBackdrop';
-import { DEFAULT_SEED, defaultLobbyConfig } from '../protocol/lobby';
+import { defaultLobbyConfig } from '../protocol/lobby';
 import {
   AI_STRATEGIES,
   AI_STRATEGY_ORDER,
@@ -48,13 +47,27 @@ import { muted, toggleMuted } from './store';
  */
 
 /** Shipping set of options. The launch URL is a dev affordance — off for
- * players; the seed row ships on so players can share a valley. */
+ * players. */
 const OPTIONS = {
-  showSeedRow: true,
   showBanditsRow: true,
   showLaunchUrl: false,
   maxOpponents: 3,
 };
+
+/**
+ * A fresh valley for every skirmish. Rolled here rather than typed on the
+ * screen: a seed is a number that means nothing to anyone until they have
+ * played the map it makes, and a field showing 17 by default handed every
+ * new player the same valley as the last one. The roll still travels in
+ * the launch URL, so the match remains reproducible — a link, a reload and
+ * "Play again" all come back to the same ground.
+ *
+ * Eight digits, matching the council's dice button; small enough to read
+ * off an address bar and share.
+ */
+function rollSeed(): number {
+  return Math.floor(Math.random() * 9e7) + 1e7;
+}
 
 const AI_SEATS = Array.from({ length: OPTIONS.maxOpponents + 1 }, (_, i) => i);
 
@@ -64,8 +77,8 @@ const AI_SEATS = Array.from({ length: OPTIONS.maxOpponents + 1 }, (_, i) => i);
  * with a Random seat in it gets the general rule instead.
  *
  * Deliberately says nothing about who Random turned up. The menu could
- * work it out — the deal is a pure function of the seed sitting two rows
- * down — but a roll you can read before the match is not a roll, it is a
+ * work it out — the deal is a pure function of the seed this screen just
+ * rolled — but a roll you can read before the match is not a roll, it is a
  * lineup with extra steps. Finding out who you are up against is the
  * first thing the skirmish has to tell you.
  */
@@ -371,7 +384,9 @@ export function StartMenu(props: StartMenuProps) {
     if (s?.state === 'failed') return 'Download failed — opponents will use standard tactics';
     return 'Opponents consult an on-device language model (~400 MB one-time download)';
   };
-  const [seed, setSeed] = createSignal(DEFAULT_SEED);
+  // One roll per visit to this screen, which is one roll per launch:
+  // launching leaves the menu, and coming back builds it again.
+  const seed = rollSeed();
   const [bandits, setBandits] = createSignal(true);
   const [room, setRoom] = createSignal('');
   const [vis, setVis] = createSignal<Visibility>('open');
@@ -508,7 +523,7 @@ export function StartMenu(props: StartMenuProps) {
   // browser's default for a dropped file is to open it, replacing the
   // game with a screenful of JSON. Only drags carrying files are
   // swallowed — preventing everything here would also cancel the default
-  // a text drag relies on to land in the seed or room-code inputs — and
+  // a text drag relies on to land in the room-code input — and
   // at the window rather than the card so the whole viewport is covered;
   // the shelf's own drop handler has already run by the time these fire.
   const swallowDrop = (e: DragEvent): void => {
@@ -677,7 +692,7 @@ export function StartMenu(props: StartMenuProps) {
     const named = bots().slice(0, ai());
     if (named.some(Boolean)) p.set('bots', named.map((b) => b ?? '').join(','));
     if (ai() > 0 && llm()) p.set('llm', '1');
-    p.set('seed', String(seed()));
+    p.set('seed', String(seed));
     if (!bandits()) p.set('bandits', '0');
     return '?' + p.toString();
   };
@@ -1182,29 +1197,6 @@ export function StartMenu(props: StartMenuProps) {
                   </div>
                 </Show>
 
-                <Show when={OPTIONS.showSeedRow}>
-                  <div class="row">
-                    <div>
-                      <div class="row-label">Map seed</div>
-                      <div class="row-hint">Same seed, same valley</div>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:6px">
-                      <input
-                        class="seed"
-                        value={String(seed())}
-                        onKeyDown={onEnter}
-                        onInput={(e) => setSeed(Number(e.currentTarget.value.replace(/\D/g, '')) || 0)}
-                      />
-                      <button
-                        class="icon-btn"
-                        title="Random seed"
-                        onClick={() => setSeed(Math.floor(Math.random() * 9e7) + 1e7)}
-                      >
-                        <DiceIcon />
-                      </button>
-                    </div>
-                  </div>
-                </Show>
               </Show>
 
               <Show when={isSingle() && OPTIONS.showBanditsRow}>
