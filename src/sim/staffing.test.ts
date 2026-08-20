@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
 import { killUnit, placeBuiltBuilding, type World } from './world.ts';
 import { checkInvariants } from './debug/invariants.ts';
-import { cmds, addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils.ts';
+import {
+  cmds,
+  addSerf,
+  addStorehouse,
+  addBuiltHut,
+  addResourceTile,
+  bareWorld,
+  staffBuilding,
+} from './testUtils.ts';
+import { tileIdx } from '../shared/grid.ts';
+import { OUTPUT_CAP } from './defs/buildings.ts';
 import { bindWorker } from './systems/production.ts';
 
 function run(world: World, ticks: number): void {
@@ -13,6 +23,50 @@ function run(world: World, ticks: number): void {
 // resident": the well keeps none any more (it is drawn by whoever came for
 // the water — see the well's own test at the bottom of this file), so it
 // cannot demonstrate staffing at all.
+/**
+ * A resident who leaves his post has to come back as a *usable* hand. The
+ * task reset is what makes that true, and it lives in unbindWorker so no
+ * caller can forget it — two of them already had.
+ */
+describe('releasing a worker', () => {
+  it('puts the freed hand back in the haul pool, not in limbo', () => {
+    // A gather task is driven by the BUILDING (gatherStep runs off
+    // b.workerId), so a hand released mid-trip keeps a `gatherWork` nothing
+    // will ever advance — and dispatch, staffing and wander all want a
+    // genuinely idle unit. He would stand in the field forever, counted
+    // against the population and eating, doing nothing.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    addResourceTile(world, 40, 41);
+    const hut = addBuiltHut(world, 40, 40);
+    hut.stock = { wood: OUTPUT_CAP };
+    const worker = world.units.get(hut.workerId!)!;
+    worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
+
+    tickWorld(world, cmds({ kind: 'dismissWorker', buildingId: hut.id }));
+
+    expect(worker.kind).toBe('serf');
+    // Idle, or already claimed for a haul — either is in the pool. What is
+    // fatal is a leftover gather task.
+    expect(['idle', 'haul']).toContain(worker.task.t);
+  });
+
+  it('does the same when the whole building is sold out from under him', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    addResourceTile(world, 40, 41);
+    const hut = addBuiltHut(world, 40, 40);
+    const worker = world.units.get(hut.workerId!)!;
+    worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
+
+    tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: hut.id }));
+
+    expect(worker.dead).toBe(false);
+    expect(worker.kind).toBe('serf');
+    expect(['idle', 'haul']).toContain(worker.task.t);
+  });
+});
+
 describe('the population economy', () => {
   it('an idle serf walks over and becomes the worker', () => {
     const world = bareWorld();

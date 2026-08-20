@@ -20,13 +20,13 @@
  * directly.
  */
 /**
- * 13: `unbindWorker` resets the freed hand to idle, so `dismissWorker` and
- * `sellBuilding` no longer strand a resident released mid-trip (he used to
- * keep a gather task nothing advances and was lost for the match). The AI
- * brain also gained a stall watchdog and a rewritten rival picture; both are
- * brain-local and reach the sim only through commands, but the commands
- * differ, so a replay recorded before this build no longer re-runs.
+ * 13: the AI brain gained a stall watchdog and a rewritten rival picture.
+ * Both are brain-local memory that reaches the sim only through commands —
+ * but the commands differ, so a replay recorded before this build no longer
+ * re-runs faithfully.
  *
- * 12 was the pathfinder's runaway-search cap (sim/path.ts, #93).
+ * 12 was two sim fixes that shipped together: the pathfinder's
+ * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
+ * freed hand to idle (#94).
  */
 export const REPLAY_VERSION = 13;
