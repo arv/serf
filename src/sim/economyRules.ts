@@ -134,6 +134,19 @@ export interface EconomyRule {
  * live to re-site onto, and the shelf has to already hold the half the
  * refund will not cover. Failing either, selling is just losing a building.
  */
+/*
+ * Measured, and it is the rule that does not pay. Ablated over seeds 1-80
+ * with `--engine none`: running it alone fires twice and rescues nothing,
+ * leaving the same two matches undecided and the same one pinned at the
+ * 120k horizon. `freeCappedHauler` alone rescues both.
+ *
+ * Kept anyway, and not out of sentiment: its condition wants a gatherer with
+ * an exhausted radius AND live ground to move to AND enough on the shelf to
+ * rebuild, which is simply rare in eighty seeds — six stalled matches is far
+ * too thin a sample to delete a rule over. But it is unproven, and the
+ * planning that produced it called it the core fix, which the measurement
+ * does not support.
+ */
 const resiteExtractor: EconomyRule = {
   id: 'resiteExtractor',
   when: 'a gatherer has exhausted everything inside its radius',
@@ -181,6 +194,13 @@ const resiteExtractor: EconomyRule = {
  * Only a worker reading idle is taken. A hand released mid-trip used to be
  * lost for good; `unbindWorker` resets the task now, but a rule whose whole
  * purpose is producing a hauler should not lean on that.
+ */
+/*
+ * The rule that carries the result. Ablated over seeds 1-80: alone it fires
+ * 26 of the 30 recovery orders and takes the sweep from two undecided
+ * matches to none, with the longest match dropping off the 120k horizon to
+ * 72986 ticks. The binding constraint on a stalled village was never dead
+ * ground — it was having no hand free to carry anything.
  */
 const freeCappedHauler: EconomyRule = {
   id: 'freeCappedHauler',
