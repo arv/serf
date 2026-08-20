@@ -56,10 +56,11 @@ describe('A* pathfinding', () => {
       const gate = ((y - 1) / 2) % 2 === 0 ? MAP_SIZE - 1 : 0;
       map.blocked[tileIdx(gate, y, map.size)] = 0;
     }
+    // The old cap, spelled out: a corridor that does not outrun it proves
+    // nothing, and the 4096 floor is part of it at small map sizes.
+    const oldCap = Math.max(4096, (MAP_SIZE * MAP_SIZE) >> 1);
     const open = map.blocked.reduce((n, b) => n + (b ? 0 : 1), 0);
-    expect(open, 'the corridor must outrun the old cap to be a regression').toBeGreaterThan(
-      (MAP_SIZE * MAP_SIZE) >> 1,
-    );
+    expect(open, 'the corridor must outrun the old cap to be a regression').toBeGreaterThan(oldCap);
 
     const path = findPath(map, 0, 0, 0, MAP_SIZE - 1);
     expect(path, 'a reachable goal must never hit the search cap').not.toBeNull();
