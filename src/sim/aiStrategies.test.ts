@@ -86,6 +86,31 @@ describe('the AI playbooks', () => {
     }
   }, 240_000);
 
+  it('mans its walls, or does not build them', () => {
+    // A guard tower is only worth its stone to a seat that trains archers,
+    // since nobody else can man one — so the two bow playbooks should raise
+    // towers AND fill them, and the iron ones should raise none at all.
+    const garrisonOf = (world: World): { towers: number; men: number } => {
+      const towers = [...world.buildings.values()].filter(
+        (b) => !b.dead && b.owner === 0 && b.type === 'guardTower',
+      );
+      return { towers: towers.length, men: towers.reduce((n, b) => n + (b.garrison ?? 0), 0) };
+    };
+
+    for (const id of ['abbot', 'fletcher'] as AiStrategyId[]) {
+      const held = garrisonOf(playCampaign(id, 45_000));
+      expect(held.towers, `${id} raised no tower`).toBeGreaterThan(0);
+      // Filled, not merely built: an empty tower is a wall that cannot shoot,
+      // and the archers walk in on their own or the plan is a waste of stone.
+      expect(held.men, `${id} left its towers empty`).toBeGreaterThan(0);
+    }
+    for (const id of ['steward', 'warlord'] as AiStrategyId[]) {
+      expect(garrisonOf(playCampaign(id, 45_000)).towers, `${id} built a tower it cannot man`).toBe(
+        0,
+      );
+    }
+  }, 240_000);
+
   it('deals every AI seat a different playbook, and writes it into the world', () => {
     const world = createWorld({
       seed: 11,

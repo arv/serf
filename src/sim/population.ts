@@ -22,11 +22,18 @@ import type { World } from './world.ts';
  * snapshot and the AI brain both already walk these collections anyway.
  */
 
-/** Living people this seat owns: serfs, resident workers and soldiers. */
+/** Living people this seat owns: serfs, resident workers and soldiers —
+ * including the ones a tower has swallowed. A garrisoned archer is not a
+ * unit on the map any more (staffing.ts consumes him the way the barracks
+ * consumes a recruit), so he has to be counted from the building or manning
+ * a tower would quietly free the bed he sleeps in. */
 export function populationOf(world: World, owner: Owner): number {
   let n = 0;
   for (const u of world.units.values()) {
     if (!u.dead && u.owner === owner) n++;
+  }
+  for (const b of world.buildings.values()) {
+    if (!b.dead && b.owner === owner) n += b.garrison ?? 0;
   }
   return n;
 }

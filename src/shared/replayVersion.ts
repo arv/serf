@@ -20,6 +20,14 @@
  * directly.
  */
 /**
+ * 14: a batch of balance and content changes — the opening armory is one of
+ * each weapon rather than two spears, every building's input and output
+ * buffer holds five instead of four, and the guard tower exists: a new
+ * building that swallows archers and shoots with them. Two playbooks then
+ * learned to use it (the Abbot took up the bow line for it), which moves
+ * the commands the AI seats issue for the same reason 13 did. Any one of these re-times a tick; together a replay
+ * recorded before this build re-runs into a different world in seconds.
+ *
  * 13: the AI brain gained a stall watchdog and a rewritten rival picture.
  * Both are brain-local memory that reaches the sim only through commands —
  * but the commands differ, so a replay recorded before this build no longer
@@ -29,4 +37,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 13;
+export const REPLAY_VERSION = 14;

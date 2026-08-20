@@ -24,7 +24,7 @@ export const BUILD_GROUPS: { label: string; types: BuildingTypeId[] }[] = [
     label: 'Industry',
     types: ['brewery', 'ironMine', 'silverMine', 'goldMine', 'weaponsmith'],
   },
-  { label: 'War', types: ['barracks'] },
+  { label: 'War', types: ['barracks', 'guardTower'] },
 ];
 
 /**
@@ -50,7 +50,8 @@ export function playerBuildable(type: BuildingTypeId): boolean {
  *
  * First letters win where they can (H for House, W for Woodcutter) and the
  * collisions go to the next letter that says the thing: Bakery keeps B, so
- * B**r**ewery takes R and Barrac**k**s takes K. The test beside this file
+ * B**r**ewery takes R and Barrac**k**s takes K, and the Guard **T**ower —
+ * whose G belongs to the Gold Mine — takes the letter of the thing it is. The test beside this file
  * holds the two rules that matter — one key per building, no key used twice.
  */
 export const BUILD_KEYS: Partial<Record<BuildingTypeId, string>> = {
@@ -69,6 +70,7 @@ export const BUILD_KEYS: Partial<Record<BuildingTypeId, string>> = {
   goldMine: 'G',
   weaponsmith: 'P',
   barracks: 'K',
+  guardTower: 'T',
 };
 
 /** The letter that arms this building, or '' for one the ribbon never offers. */

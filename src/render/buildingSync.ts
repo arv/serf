@@ -7,8 +7,10 @@ import {
   makeRoadPile,
 } from './models';
 import { glbYardProp, glbYardRock, makeGlbBuilding } from './assets';
+import { makeCharacter, playAnimation, type CharacterVisual } from './characters';
 import { eachMaterial, mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
+import { UNIT_DEFS } from '../sim/defs/units';
 import { WATER_LEVEL } from '../sim/map';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
@@ -37,6 +39,28 @@ export interface PierInfo {
  * units — enough that the tallest swim circle and the fish bodies stay
  * submerged rather than breaking the surface. */
 const SHOAL_DRAFT = 0.14;
+
+/** UNIT_DEFS.archer.kindCode — who mans a guard tower's roof. */
+const ARCHER_KIND = UNIT_DEFS.archer.kindCode;
+
+/** Reused for the post->root coordinate hop; buildings do not move. */
+const SCRATCH_POS = new THREE.Vector3();
+
+/**
+ * Drop a cloned character and free what it uniquely owns on the GPU.
+ *
+ * Every SkeletonUtils.clone gets its own Skeleton, and a skeleton lazily
+ * allocates a float DataTexture of bone matrices at first render — so
+ * removing a roof archer without this leaks one texture per man, and a
+ * tower manned, emptied and manned again over a long match bleeds VRAM.
+ * (Geometry and materials are shared with the loaded assets and must not
+ * be touched.) The same rule sceneSync applies to its unit visuals.
+ */
+function disposeTree(group: THREE.Object3D): void {
+  group.traverse((o) => {
+    if (o instanceof THREE.SkinnedMesh) o.skeleton.dispose();
+  });
+}
 
 interface BuildingVisual {
   root: THREE.Group;
@@ -76,6 +100,16 @@ interface BuildingVisual {
   working: boolean;
   /** Longest footprint side, for sizing the teardown dust. */
   span: number;
+  /** Empty marks on a manned building's roof, harvested from the model by
+   * name — where the garrison stands. Empty for everything unmanned. */
+  posts: THREE.Object3D[];
+  /** The archers currently standing on those posts, one per man the sim
+   * says is inside. Built here rather than fed from the unit stream:
+   * a garrisoned soldier is not a unit any more (he was consumed into the
+   * building), so there is nothing in the SAB to place. */
+  manned: { group: THREE.Group; char: CharacterVisual | null }[];
+  /** Latest BuildingSnap.firing — the roof draws instead of idling. */
+  firing: boolean;
 }
 
 /** One yard-stock entry: what good, worn as which look, standing where. */
@@ -223,7 +257,9 @@ export class BuildingSync {
 
       v.staffed = b.staffing === 'staffed';
       v.working = b.working === true;
+      v.firing = b.firing === true;
       this.#syncPiles(v, b);
+      this.#syncGarrison(v, b);
 
       // Damage bar: appears once hurt (hover() shows it on healthy ones).
       v.pct = b.maxHp > 0 ? b.hp / b.maxHp : 1;
@@ -380,6 +416,11 @@ export class BuildingSync {
       staffed: false,
       working: false,
       span: Math.max(b.w, b.h),
+      posts: ['towerPost0', 'towerPost1']
+        .map((n) => model.getObjectByName(n))
+        .filter((o): o is THREE.Object3D => o !== undefined),
+      manned: [],
+      firing: false,
     };
   }
 
@@ -533,6 +574,15 @@ export class BuildingSync {
           pivot.rotation.y = -p.phase + (p.speed > 0 ? Math.PI : 0);
         }
       }
+      // The watch on the roof: drawing while the tower is between volleys,
+      // idle the rest of the time. Desynced by post index so two men on one
+      // roof never breathe in lockstep.
+      for (let i = 0; i < v.manned.length; i++) {
+        const char = v.manned[i]!.char;
+        if (!char) continue;
+        playAnimation(char, v.firing ? 'shoot' : 'idle', i * 0.37);
+        char.mixer.update(dt);
+      }
     }
     if (this.#dying.length === 0) return;
     const DURATION = 1.15;
@@ -630,6 +680,42 @@ export class BuildingSync {
     v.root.add(piles);
     v.piles = piles;
     return true;
+  }
+
+  /**
+   * Stand the tower's archers on its roof, one per man the sim reports.
+   *
+   * Unlike the fisherman on his pier or the serf at the windlass — both of
+   * which are real units the render merely relocates — these men have no
+   * unit to relocate: staffing consumed them into the building, which is
+   * exactly what makes a garrison unshootable. So the roof owns its own
+   * characters, created and destroyed as the count moves.
+   *
+   * They hang off the root rather than off the model, because the model
+   * carries the footprint's scale (a 2x2 tower is 2.12x) and a character is
+   * already sized in world units. The post's world position is converted
+   * back through the root to get there.
+   */
+  #syncGarrison(v: BuildingVisual, b: BuildingSnap): void {
+    const want = v.state === 'built' ? Math.min(b.garrison ?? 0, v.posts.length) : 0;
+    while (v.manned.length > want) {
+      const gone = v.manned.pop()!;
+      v.root.remove(gone.group);
+      disposeTree(gone.group);
+    }
+    while (v.manned.length < want) {
+      const made = makeCharacter(ARCHER_KIND, 0, b.owner);
+      if (!made) break; // characters not loaded yet; try again next roster
+      const post = v.posts[v.manned.length]!;
+      post.getWorldPosition(SCRATCH_POS);
+      v.root.worldToLocal(SCRATCH_POS);
+      made.group.position.copy(SCRATCH_POS);
+      // Face outward, away from the tower's middle: two men shoulder to
+      // shoulder staring the same way read as a rank, not a watch.
+      made.group.rotation.y = Math.atan2(SCRATCH_POS.x, SCRATCH_POS.z);
+      v.root.add(made.group);
+      v.manned.push({ group: made.group, char: made.visual });
+    }
   }
 
   #syncPiles(v: BuildingVisual, b: BuildingSnap): void {
@@ -746,6 +832,12 @@ export class BuildingSync {
    * every material to carry their private clip plane, and hp bars, whose
    * per-building tinted fg material is theirs alone (quads are shared). */
   #freeGpu(v: BuildingVisual): void {
+    // The roof watch, whose skeletons are this visual's alone (see
+    // disposeTree). Here rather than in #dispose because a razed tower
+    // never goes through it — it sinks into the ground first, and the
+    // teardown pass is the other caller.
+    for (const man of v.manned) disposeTree(man.group);
+    v.manned.length = 0;
     if (v.clip) {
       v.model.traverse((o) => {
         // eachMaterial, not `.dispose()` on the field: faction-colored

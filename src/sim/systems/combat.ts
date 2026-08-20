@@ -1,4 +1,5 @@
-import { COUNTER_TABLE, UNIT_DEFS } from '../defs/units.ts';
+import { COUNTER_TABLE, UNIT_DEFS, type UnitClass } from '../defs/units.ts';
+import { buildingDef } from '../defs/buildings.ts';
 import { BANDIT, centerOf, isPlayerOwner, type Building } from '../entities.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
 import { exactDist } from '../../shared/math.ts';
@@ -42,6 +43,8 @@ export function combatSystem(world: World): void {
     }
     return camp;
   };
+
+  towerFire(world, liveBuildings, liveUnits);
 
   for (const unit of world.units.values()) {
     if (unit.dead) continue;
@@ -230,6 +233,83 @@ export function combatSystem(world: World): void {
       }
     }
   }
+}
+
+/**
+ * Manned buildings loosing on what comes into reach.
+ *
+ * The garrison is a count rather than units (staffing.ts consumes the man
+ * the way the barracks consumes a recruit), so the tower does the shooting
+ * on their behalf: each man swings on the archer's own clock, at the
+ * archer's reach plus what the height adds, for the archer's damage
+ * sharpened by shooting down from cover. Two men in a tower are two men's
+ * worth of arrows, not one.
+ *
+ * Reach is measured to the footprint, not the center, so a wide tower
+ * covers the ground its wall stands on rather than losing a tile to its own
+ * size. Units only: a tower defends a line, it does not conduct a siege.
+ *
+ * The search radius IS the firing range, unlike a soldier's — a soldier
+ * acquires beyond his reach because he can walk the difference, and a
+ * tower cannot. Searching wider would only let it fix on a man it has no
+ * shot at and hold its fire while someone else stood inside the wall.
+ */
+function towerFire(world: World, buildings: readonly Building[], units: readonly Unit[]): void {
+  for (const b of buildings) {
+    if (b.dead || b.state !== 'built') continue;
+    const rule = buildingDef(b.type).garrison;
+    if (!rule || !b.garrison) continue;
+    const combat = UNIT_DEFS[rule.unit].combat;
+    if (!combat) continue;
+    if ((b.attackCooldown ?? 0) > 0) {
+      b.attackCooldown!--;
+      continue;
+    }
+    const target = acquireForBuilding(units, b, combat.class, combat.range + rule.rangeBonus);
+    if (!target) continue;
+    const defClass = UNIT_DEFS[target.kind].combat?.class;
+    const mult = defClass ? COUNTER_TABLE[combat.class][defClass] : 1;
+    target.hp -= combat.damage * rule.damageMult * b.garrison * mult;
+    b.attackCooldown = combat.cooldownTicks;
+    if (isPlayerOwner(target.owner)) {
+      world.pendingEvents.push({
+        kind: 'damage',
+        player: target.owner,
+        x: target.x,
+        y: target.y,
+        building: false,
+      });
+    }
+    if (target.hp <= 0) killUnit(world, target);
+  }
+}
+
+/**
+ * The tower's pick: nearest enemy in reach, favoring the class its garrison
+ * counters — the same scoring `acquireUnit` does for a soldier, measured
+ * from the footprint instead of from a pair of coordinates.
+ */
+function acquireForBuilding(
+  units: readonly Unit[],
+  b: Building,
+  myClass: UnitClass,
+  radius: number,
+): Unit | undefined {
+  let best: Unit | undefined;
+  let bestScore = Infinity;
+  for (const other of units) {
+    if (other.dead || other.owner === b.owner) continue;
+    const dist = distToBuilding(other, b);
+    if (dist > radius) continue;
+    const otherClass = UNIT_DEFS[other.kind].combat?.class;
+    const advantage = otherClass ? COUNTER_TABLE[myClass][otherClass] : 1.2;
+    const score = dist / advantage;
+    if (score < bestScore) {
+      bestScore = score;
+      best = other;
+    }
+  }
+  return best;
 }
 
 /** How far a camp guard may stray from home before it turns back. */

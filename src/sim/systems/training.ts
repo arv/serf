@@ -62,6 +62,24 @@ export function hiringSystem(world: World): void {
   }
 }
 
+/**
+ * March `n` of a building's garrison back out of the door as soldiers again.
+ * The men inside are a count, not units (staffing.ts consumed them), so
+ * this is a spawn rather than a release — the mirror of what the barracks
+ * does when a started order is cancelled.
+ */
+export function evictGarrison(world: World, b: Building, n: number): void {
+  const rule = buildingDef(b.type).garrison;
+  if (!rule) return;
+  const out = Math.min(n, b.garrison ?? 0);
+  for (let i = 0; i < out; i++) {
+    const door = doorOf(world, b);
+    const unit = spawnUnit(world, rule.unit, b.owner, door.x, door.y);
+    unit.hp = Math.round(UNIT_DEFS[rule.unit].hp * getModifier(world, b.owner, 'militaryHp'));
+  }
+  b.garrison = (b.garrison ?? 0) - out || undefined;
+}
+
 /** Sum of goods the building's training queue still needs (for the matcher). */
 export function trainingDemand(b: Building): Partial<Record<GoodId, number>> {
   const def = buildingDef(b.type);
@@ -117,7 +135,7 @@ export function cancelTraining(world: World, b: Building, index: number, unit: s
   spawnUnit(world, 'serf', b.owner, door.x, door.y);
 }
 
-function doorOf(world: World, b: Building): { x: number; y: number } {
+export function doorOf(world: World, b: Building): { x: number; y: number } {
   const idx = nearestWalkable(world.map, Math.floor(b.x + b.w / 2), b.y + b.h, 6);
   const size = world.map.size;
   if (idx >= 0) return { x: tileX(idx, size) + 0.5, y: tileY(idx, size) + 0.5 };

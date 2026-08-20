@@ -259,6 +259,10 @@ export function SelectionPanel(props: {
               what a running repair has already been paid to put back (a mend
               runs on for a few seconds after the last plank lands). */
           const unpaid = () => b().maxHp - b().hp - (b().repairPending ?? 0);
+          /** Manned rather than staffed: the guard tower holds soldiers, and
+              the card's people-shaped controls speak of them instead. */
+          const manned = () => b().garrisonCap !== undefined;
+          const garrison = () => b().garrison ?? 0;
           return (
             <div class="hud-selection panel">
               <div class="sel-head">
@@ -279,20 +283,27 @@ export function SelectionPanel(props: {
                   places for as long as this building is selected. */}
               <Show when={hasOrders()}>
                 <div class="sel-row">
+                  {/* One button, two meanings — whichever kind of person
+                      this building is holding. A tower hands back a
+                      soldier; everything else hands back a serf. */}
                   <TipWrap
                     tip={() => (
                       <TextTip
-                        title="Dismiss worker"
+                        title={manned() ? 'Send an archer down' : 'Dismiss worker'}
                         body={
-                          b().staffing === 'staffed'
-                            ? 'Sends the worker back to the serf pool — the way out when nobody is free to haul or build. This post stands open for a while so the freed hands can take up new work first.'
-                            : 'Nobody is at this post to send home.'
+                          manned()
+                            ? garrison() > 0
+                              ? 'One of the archers climbs down and is a soldier in the field again. The tower stops calling for another for a while, so he can march off instead of walking straight back up.'
+                              : 'Nobody is manning this tower.'
+                            : b().staffing === 'staffed'
+                              ? 'Sends the worker back to the serf pool — the way out when nobody is free to haul or build. This post stands open for a while so the freed hands can take up new work first.'
+                              : 'Nobody is at this post to send home.'
                         }
                       />
                     )}
                   >
                     <button
-                      disabled={b().staffing !== 'staffed'}
+                      disabled={manned() ? garrison() === 0 : b().staffing !== 'staffed'}
                       onClick={() => props.onDismiss(b().id)}
                     >
                       Dismiss
@@ -586,6 +597,17 @@ export function SelectionPanel(props: {
                   card that rewrites itself unasked, so nothing the
                   player aims at sits below it. */}
               <div class="sel-line sel-status">
+                {/* A tower unlocks with the barracks but is manned by
+                    archers, who wait on Archery — so an empty one has to
+                    say what it is waiting for rather than sit there
+                    looking built and doing nothing. */}
+                <Show when={manned() && b().state === 'built'}>
+                  <span classList={{ good: garrison() > 0, bad: garrison() === 0 }}>
+                    {garrison() === 0
+                      ? 'unmanned — needs an archer!'
+                      : `${garrison()}/${b().garrisonCap} archers on the roof`}
+                  </span>
+                </Show>
                 <Show when={b().staffing}>
                   <span classList={{ good: b().staffing === 'staffed', bad: b().staffing !== 'staffed' }}>
                     {b().state === 'site'

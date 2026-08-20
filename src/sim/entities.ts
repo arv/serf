@@ -74,6 +74,17 @@ export interface Building {
   prodRecipeIndex?: number;
   /** Military training queue (barracks). */
   trainQueue?: { unit: UnitTypeId; ticksLeft: number; started: boolean }[];
+  /**
+   * Men manning this building (guard tower). A count, not ids: an archer who
+   * walks in is consumed the way a barracks recruit is, so there is no unit
+   * left on the map — which is exactly why a garrison cannot be shot at
+   * except by bringing the tower down. They still count as this seat's
+   * people (see populationOf), and they walk back out if the tower is sold
+   * or the post is dismissed.
+   */
+  garrison?: number;
+  /** Ticks before this building's garrison can loose again. */
+  attackCooldown?: number;
   /** Paid-for serf hires still on their way in (storehouse), and the ticks
    * left on the one at the front. Silver is taken when the order is
    * placed, so a cancelled game or a razed storehouse cannot refund it. */

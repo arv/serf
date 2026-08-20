@@ -80,6 +80,12 @@ export function hashWorld(world: World): number {
     mixF64(b.repairHpPerGood ?? 0);
     // ...and the masonry it has bought but not yet put on the walls.
     mixF64(b.repairPending ?? 0);
+    // A tower's garrison is people and a weapon at once: it feeds the
+    // population cap and decides what the walls shoot for. A save that
+    // dropped it would play on as the same world until something walked
+    // into range.
+    mix(b.garrison ?? 0);
+    mix(b.attackCooldown ?? 0);
   }
   for (const j of world.jobs.values()) {
     mixU32(j.id);
