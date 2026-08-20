@@ -10,6 +10,7 @@ import { createWorld, type World } from '../../src/sim/world.ts';
 import type { AiStrategyId, AiStrategy } from '../../src/sim/defs/aiStrategies.ts';
 import type { ChatMessage } from '../../src/ai/prompt.ts';
 import type { Owner } from '../../src/sim/entities.ts';
+import type { EconomyRuleId } from '../../src/sim/economyRules.ts';
 import type { LabEngine } from './engines.ts';
 
 /**
@@ -51,6 +52,13 @@ export interface MatchConfig {
    * asymmetry; different entries is a playbook-vs-playbook match, and the
    * sweep then owes the mirrored seating too (see bakeoff.ts). */
   strategies: SeatStrategies;
+  /**
+   * Economy rules the seats run (sim/economyRules.ts). Undefined runs the
+   * whole table, which is what ships; a subset is the ablation — measure a
+   * sweep with one rule missing and the difference is what that rule is
+   * worth. An empty array turns the layer off entirely.
+   */
+  economyRules?: readonly EconomyRuleId[];
   /** Give up and call it undecided past here. */
   maxTicks: number;
   /** Ticks between one seat's consultations (simWorker ships 1800 = 90 s). */
@@ -192,6 +200,9 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     mapSize: cfg.mapSize,
   });
   const seats = new AiSeats(world);
+  if (cfg.economyRules !== undefined) {
+    for (const id of seats.seatIds()) seats.brainFor(id)?.setEconomyRules(cfg.economyRules);
+  }
 
   const consults: ConsultRecord[] = [];
   const adviceApplied = new Map<Owner, number>();

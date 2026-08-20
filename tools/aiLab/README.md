@@ -131,6 +131,7 @@ There is no `bakeoff:compare` step for a playbook matchup: the pairing is
 | `none` | no strategist — calibration; must score exactly 50% |
 | `random[:seed]` | valid advice by dice — the noise floor; a model must beat this, not just 50% |
 | `posture` | the stances picked by rule, no model — the bar a model has to be *worth*, not just beat |
+| `rules` (flag, not an engine) | `--rules <ids>` narrows which economy rules the seats run; `--rules none` turns the layer off entirely |
 | `posture-reads` | the same rule conditioned on an opponent archetype. Measured against `posture` and it does not pay (p = 0.50), so it is the experiment, not the reference |
 | `posture:<id>` | one stance held all match (`posture:siege`) — ablation, and it says what each stance is worth alone |
 | `script:{...}` | one fixed reply forever — plumbing checks, personality experiments |
@@ -387,6 +388,45 @@ Resolution: 40 seeds is ±11pp, 80 seeds ±8pp, and ±5pp would need ~193
 seeds. Treat single-run gaps under ~10pp as unresolved and reach for
 `bakeoff:compare` — the paired test separates runs these intervals
 cannot.
+
+### The economy rules, and which one earned the result
+
+The economy is a rule table (`src/sim/economyRules.ts`) rather than another
+priority cascade — independent rules that all fire in a beat, with claims so
+two never order the same building and groups so genuine alternatives stay
+first-wins. `--rules <ids>` runs any subset, which is the whole point: a
+rule that pays and a rule that merely fires produce the same win rate.
+
+Seeds 1-80, `--engine none`. Both seats get the same rules, so the advised
+rate is pinned at exactly 50.0% by construction — **the metric here is
+playability, not strength**:
+
+| rules enabled | undecided | longest match | recovery orders |
+| --- | --- | --- | --- |
+| production only (no recovery) | 2 | 120000 (the horizon) | 0 |
+| `resiteExtractor` only | 2 | 120000 | 2 |
+| `freeCappedHauler` only | **0** | 72986 | 26 |
+| all four | **0** | 71216 | 30 |
+
+Identical stall *detection* in every row — six matches, same watchdog. What
+differs is whether anything rescues them.
+
+**`freeCappedHauler` carries the whole result.** Alone it fires 26 of the 30
+orders and takes the sweep to zero undecided; `resiteExtractor` alone fires
+twice and rescues nothing. The binding constraint on a stalled village was
+never dead ground, it was having no hand free to carry anything — which is
+what the seed 9 trace said all along (every extractor at cap, four silver in
+the mine, zero loose serfs) and what the planning got backwards by calling
+re-siting the core fix.
+
+Two cautions on the size of this. Two matches out of 240 is a small effect,
+and six stalls is a thin sample to attribute anything to — `resiteExtractor`
+is unproven rather than useless, since its condition (exhausted radius AND
+live ground to move to AND enough on the shelf to rebuild) is simply rare.
+And an earlier version of this measurement was thrown away: those sweeps ran
+while the source was being edited, and the harness spawns a process per match
+that reads the files at spawn time. The clean re-run differed by two recovery
+orders, which is exactly how a retracted finding starts.
 
 ## Playbook against playbook (2026-08-20, map 96, bandits on, seeds 1-80)
 

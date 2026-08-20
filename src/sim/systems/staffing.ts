@@ -158,6 +158,16 @@ function handleArrivals(world: World): void {
 }
 
 /**
+ * The kind of person a building is calling for. A standing tower wants its
+ * own soldier; everything else — including that tower's own building site,
+ * which wants a builder like any other — wants a serf.
+ */
+function wantedKind(b: Building): UnitTypeId {
+  const garrison = buildingDef(b.type).garrison;
+  return garrison && b.state === 'built' ? garrison.unit : 'serf';
+}
+
+/**
  * Between sweeps (starvedOnly) this runs every tick but considers nothing
  * except sites past their builder-starvation bound — most ticks that is no
  * building at all, and the early return keeps the pass near-free.
@@ -247,14 +257,14 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
   if (wanting.length === 0) return;
 
   // Which kinds anyone is calling for this pass: serfs build, staff and
-  // enlist, and a tower asks for soldiers of the kind that mans it. Kept to
-  // what is actually wanted so an army standing idle costs nothing to scan
-  // on a sweep where no tower is short.
-  const wantedKinds = new Set<UnitTypeId>(['serf']);
-  for (const b of wanting) {
-    const g = buildingDef(b.type).garrison;
-    if (g) wantedKinds.add(g.unit);
-  }
+  // enlist, and a standing tower asks for soldiers of the kind that mans
+  // it. Kept to what is actually wanted so an army standing idle costs
+  // nothing to scan on a sweep where no tower is short — which is why this
+  // and the dispatch below read the same `wantedKind`, rather than each
+  // deciding for itself and drifting: the scan used to bucket archers for
+  // a tower that was still a building site and wanted a builder.
+  const wantedKinds = new Set<UnitTypeId>(wanting.map(wantedKind));
+  wantedKinds.add('serf');
 
   // Idle people available for recruitment this pass, bucketed by faction and
   // kind — buildings only ever draw from their own owner's pool.
@@ -276,11 +286,7 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
   }
 
   for (const b of wanting) {
-    // A standing tower wants its own soldier; everything else — including
-    // that tower's own building site — wants a serf.
-    const garrison = buildingDef(b.type).garrison;
-    const want: UnitTypeId = garrison && b.state === 'built' ? garrison.unit : 'serf';
-    const idle = idleByOwner.get(b.owner)?.get(want);
+    const idle = idleByOwner.get(b.owner)?.get(wantedKind(b));
     if (!idle || idle.length === 0) continue; // nobody of this kind left
 
     // The nearest idle one walks over.

@@ -72,8 +72,11 @@ export function evictGarrison(world: World, b: Building, n: number): void {
   const rule = buildingDef(b.type).garrison;
   if (!rule) return;
   const out = Math.min(n, b.garrison ?? 0);
+  if (out <= 0) return;
+  // One door for the lot: spawning a man does not move it, and doorOf runs
+  // a nearestWalkable search each time it is asked.
+  const door = doorOf(world, b);
   for (let i = 0; i < out; i++) {
-    const door = doorOf(world, b);
     const unit = spawnUnit(world, rule.unit, b.owner, door.x, door.y);
     unit.hp = Math.round(UNIT_DEFS[rule.unit].hp * getModifier(world, b.owner, 'militaryHp'));
   }
