@@ -176,10 +176,14 @@ author.
       deaf to which playbook is better. Two nulls, both exactly 50%, and
       they answer different questions — see the README's "Two playbooks, and
       two different nulls".
-- [ ] Define a mutation space over `AiStrategy`: knob perturbations first
-      (safe, bounded by `ADVICE_RANGES`), build-order reordering second
-      (riskier — the opening encodes hard-won knowledge).
-- [ ] A generation loop: mutate → evaluate on the sim → keep winners.
+- [x] Define a mutation space over `AiStrategy`: knob perturbations
+      (`tools/aiLab/mutate.ts`), bounded by exactly the advice whitelist, so
+      every mutant round-trips through the shipped `parseAdvice` and rides
+      the `AiSeats.applyAdvice` seam that already exists.
+- [ ] Build-order reordering, the riskier second half of that space — the
+      opening encodes hard-won knowledge and deserves its own experiment.
+- [ ] A generation loop: mutate → evaluate on the sim → keep winners. The
+      primitive is there and tested; nothing drives it yet.
 
 ### 3b. The LLM's actual job here
 

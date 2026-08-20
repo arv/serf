@@ -314,6 +314,49 @@ is how `posture:siege` was shown to beat both the first `choosePosture`
 draft (p = 0.012) and the noise floor (p = 0.0015) on runs whose
 intervals overlap across their whole width.
 
+## The mutation space
+
+`mutate.ts` is the primitive a playbook search drives: one playbook in, one
+playbook a single bounded step away out, deterministic in the `Rng` handed
+to it and nothing else. There is no generation loop yet, on purpose — what
+had to be settled first is what a *neighbour* is, because that decides both
+what a search can find and what it can break on the way.
+
+The mutable set is **exactly the advice whitelist** (`src/ai/advice.ts`),
+bounded by exactly its ranges. Three things follow, and they are the reason
+for the choice:
+
+- **Every mutant is sayable as advice.** A mutant round-trips through the
+  shipped `parseAdvice` unchanged (asserted over 800 mutations from all four
+  playbooks), so it is deliverable through the seam that already exists —
+  `AiSeats.applyAdvice` at tick zero. A search needs no sim plumbing, no new
+  `AiStrategyId`, and a winner ships as a posture without translation.
+- **Whatever search finds, a model could have said.** The knobs explored are
+  the knobs the strategist is allowed to turn, so a result lands in
+  `ai/posture.ts` rather than in a parallel vocabulary nobody prompts with.
+- **The opening is out of reach.** `build` and `researchOrder` pass through
+  by reference and a test asserts the identity. Reordering them is the
+  riskier second step in the plan and deserves its own experiment;
+  `survivalFloor` and `growthAfter` sit out too, since neither is
+  range-bounded anywhere and there is nothing to mutate them *within*.
+
+`ADVICE_RANGES` is read, never added to — a new key there lengthens the
+`random` engine's RNG stream and stops the recorded 46.6% / 47.0% noise
+floor reproducing. `marchConfidence` is spliced in from its own constant,
+the same trick `parseAdvice` plays.
+
+Numeric knobs move by a share of their own range (never less than 1, or
+`barracksQueueDepth` would never move) and clamp; a knob already pinned at
+the edge it was pushed towards steps the other way instead of wasting the
+mutation, which matters because every printed playbook holds
+`marchConfidence` at the bottom of its range. List knobs swap, drop or
+insert one entry.
+
+The control for any search built on this is already measured: the `random`
+engine redraws these same knobs from scratch every consultation and scores
+**47.0%** over eighty seeds. A mutation operator that cannot beat redrawing
+at random is not a search, it is the same dice with extra steps.
+
 ## Output
 
 The report prints to stdout; per-match progress goes to stderr. With

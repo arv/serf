@@ -9,6 +9,15 @@ import { digestOf, playMatch, type MatchConfig, type MatchRecord, type SeatStrat
 import { binomCdfHalf, compare, readRun, renderComparison, type ArmOutcomes } from './compare.ts';
 import { renderMatchup, renderReport, verdict, type ReportHeader } from './report.ts';
 import { matchupOf, summarize, trialsForPrecision, wilson, type SeedRun } from './stats.ts';
+import {
+  adviceOf,
+  describeMutation,
+  mutate,
+  MUTABLE_KNOBS,
+  MUTABLE_RANGES,
+} from './mutate.ts';
+import { AI_STRATEGIES, AI_STRATEGY_ORDER } from '../../src/sim/defs/aiStrategies.ts';
+import { Rng } from '../../src/shared/rng.ts';
 import type { Owner } from '../../src/sim/entities.ts';
 import type { LabEngine } from './engines.ts';
 
@@ -584,6 +593,124 @@ describe('paired comparison', () => {
     const c = compare(a, b);
     expect(c.p).toBeLessThan(0.05);
     expect(renderComparison(c)).toContain('A is better');
+  });
+});
+
+describe('the mutation space', () => {
+  const playbooks = AI_STRATEGY_ORDER.map((id) => AI_STRATEGIES[id]);
+
+  it('replays exactly, so a generation can be re-run after the fact', () => {
+    const a = mutate(AI_STRATEGIES.steward, new Rng(7), { knobs: 3 });
+    const b = mutate(AI_STRATEGIES.steward, new Rng(7), { knobs: 3 });
+    const c = mutate(AI_STRATEGIES.steward, new Rng(8), { knobs: 3 });
+    expect(b.changes).toEqual(a.changes);
+    expect(b.strategy).toEqual(a.strategy);
+    expect(c.changes).not.toEqual(a.changes);
+  });
+
+  it('leaves every mutant sayable as advice the shipped validator keeps', () => {
+    // The whole reason the space is the advice whitelist: a mutant has to
+    // survive parseAdvice UNCHANGED, or it is not deliverable through
+    // AiSeats.applyAdvice and a search would need sim plumbing of its own.
+    const rng = new Rng(11);
+    for (const base of playbooks) {
+      let current = base;
+      for (let i = 0; i < 200; i++) {
+        current = mutate(current, rng, { knobs: 2 }).strategy;
+        const advice = adviceOf(current);
+        expect(parseAdvice(JSON.stringify(advice)), JSON.stringify(advice)).toEqual(advice);
+      }
+    }
+  });
+
+  it('stays inside the ranges advice.ts enforces, however long the walk', () => {
+    const rng = new Rng(3);
+    let current = AI_STRATEGIES.warlord;
+    for (let i = 0; i < 500; i++) {
+      current = mutate(current, rng, { knobs: 4, step: 0.9 }).strategy;
+      for (const [knob, [lo, hi]] of Object.entries(MUTABLE_RANGES)) {
+        const v = current[knob as keyof typeof current] as number;
+        expect(v, knob).toBeGreaterThanOrEqual(lo);
+        expect(v, knob).toBeLessThanOrEqual(hi);
+        expect(Number.isInteger(v), knob).toBe(true);
+      }
+      // A barracks trains somebody and a forge makes something: the two
+      // list knobs have floors that are not expressible as a range.
+      expect(current.trainPreference.length).toBeGreaterThan(0);
+      expect(current.weaponMix.length).toBeGreaterThan(0);
+      expect(current.weaponMix.length).toBeLessThanOrEqual(3);
+      expect(new Set(current.trainPreference).size).toBe(current.trainPreference.length);
+    }
+  });
+
+  it('never touches the opening', () => {
+    // Build-order and research-order mutation is a separate, riskier
+    // experiment. Reference identity, not deep equality: nothing here may
+    // so much as copy the arrays, or a later change could quietly start
+    // editing them.
+    const rng = new Rng(5);
+    let current = AI_STRATEGIES.abbot;
+    for (let i = 0; i < 50; i++) current = mutate(current, rng, { knobs: 5 }).strategy;
+    expect(current.build).toBe(AI_STRATEGIES.abbot.build);
+    expect(current.researchOrder).toBe(AI_STRATEGIES.abbot.researchOrder);
+    expect(current.survivalFloor).toBe(AI_STRATEGIES.abbot.survivalFloor);
+    expect(current.growthAfter).toBe(AI_STRATEGIES.abbot.growthAfter);
+  });
+
+  it('turns the number of knobs it was asked for, and always at least one', () => {
+    const rng = new Rng(13);
+    for (let i = 0; i < 100; i++) {
+      const one = mutate(AI_STRATEGIES.fletcher, rng);
+      expect(one.changes).toHaveLength(1);
+      expect(mutate(AI_STRATEGIES.fletcher, rng, { knobs: 3 }).changes).toHaveLength(3);
+    }
+  });
+
+  it('moves a knob pinned at its boundary instead of wasting the mutation', () => {
+    // Every printed playbook holds marchConfidence at 0, the bottom of its
+    // range. A step "down" from there has to become a step up, or the one
+    // knob the repo most wants searched would never move.
+    const rng = new Rng(2);
+    let moved = 0;
+    for (let i = 0; i < 60; i++) {
+      const m = mutate(AI_STRATEGIES.steward, rng, { frozen: MUTABLE_KNOBS.filter((k) => k !== 'marchConfidence') });
+      expect(m.changes).toHaveLength(1);
+      expect(m.strategy.marchConfidence).toBeGreaterThan(0);
+      moved++;
+    }
+    expect(moved).toBe(60);
+  });
+
+  it('leaves frozen knobs alone', () => {
+    const rng = new Rng(17);
+    for (let i = 0; i < 100; i++) {
+      const m = mutate(AI_STRATEGIES.steward, rng, {
+        knobs: 4,
+        frozen: ['armyAttackSize', 'prefersRivals'],
+      });
+      expect(m.strategy.armyAttackSize).toBe(AI_STRATEGIES.steward.armyAttackSize);
+      expect(m.strategy.prefersRivals).toBe(AI_STRATEGIES.steward.prefersRivals);
+      expect(m.changes.some((c) => c.knob === 'armyAttackSize')).toBe(false);
+    }
+  });
+
+  it('rides the seam that already exists, no sim plumbing required', async () => {
+    // The end of the claim the whole space is designed around: a mutant is
+    // advice, so the harness can play one today by handing its knobs to the
+    // advice path — no new AiStrategyId, no change under src/sim.
+    const mutant = mutate(AI_STRATEGIES.steward, new Rng(29), { knobs: 6 });
+    const record = await playMatch(
+      config({ engines: new Map<Owner, LabEngine>([[1, scriptEngine(adviceOf(mutant.strategy))]]) }),
+    );
+    expect(record.consults.every((c) => c.skipped || c.parsed === true)).toBe(true);
+    expect(record.adviceApplied['1']).toBe(1);
+  });
+
+  it('says what it changed, in terms a run log can be read by', () => {
+    const m = mutate(AI_STRATEGIES.steward, new Rng(23), { knobs: 2 });
+    const line = describeMutation(m);
+    for (const c of m.changes) expect(line).toContain(c.knob);
+    expect(line).toContain('→');
   });
 });
 
