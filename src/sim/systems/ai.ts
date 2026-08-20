@@ -29,7 +29,7 @@ import {
 } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, WEAPON_OF, type UnitClass, type UnitTypeId } from '../defs/units.ts';
-import { classHp, shouldCommit, type Force } from '../combatOdds.ts';
+import { addGarrison, classHp, shouldCommit, type Force } from '../combatOdds.ts';
 import { HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
 import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
@@ -121,8 +121,8 @@ export const AI_PACING = {
  * nothing left to place; hiring wants silver; hauling wants a loose serf.
  * Seed 9 is the calibration case, and it is not the resource exhaustion it
  * looks like from outside: at t=40000 both seats hold FULL extractor huts
- * (every gatherer capped at OUTPUT_CAP, one of them sitting on four silver —
- * a hire's worth) and have exactly zero free serfs, every hand having been
+ * (every gatherer capped at OUTPUT_CAP, one of them sitting on more silver
+ * than a hire costs) and have exactly zero free serfs, every hand having been
  * bound to a post or spent as a barracks recruit. Nothing hauls, so nothing
  * reaches the storehouse, so nothing can be bought, so no hand is ever
  * hired. Eighty thousand ticks of a village that is fully employed and
@@ -1045,6 +1045,22 @@ export class AiBrain {
       if (Math.abs(u.x - cx) + Math.abs(u.y - cy) > DEFENDER_RADIUS) continue;
       seen[cls]++;
       seen.hp += u.hp;
+    }
+    // Towers hold ground the way soldiers do, and a captain who cannot see
+    // that marches his army under the walls counting only the men in front
+    // of them. Sighted and standing only — the intel fallback below is a
+    // roster of people, so a tower nobody has laid eyes on is missed, which
+    // errs toward marching like the rest of this estimate.
+    for (const b of world.buildings.values()) {
+      if (b.dead || b.state !== 'built' || b.owner === this.playerId) continue;
+      const rule = buildingDef(b.type).garrison;
+      if (!rule || !b.garrison) continue;
+      const bx = b.x + b.w / 2;
+      const by = b.y + b.h / 2;
+      if (!this.#vision.canSee(bx, by)) continue;
+      if (Math.abs(bx - cx) + Math.abs(by - cy) > DEFENDER_RADIUS) continue;
+      const cls = UNIT_DEFS[rule.unit].combat?.class;
+      if (cls) addGarrison(seen, cls, b.garrison, rule.damageMult, b.hp);
     }
     if (seen.hp > 0) return seen;
 

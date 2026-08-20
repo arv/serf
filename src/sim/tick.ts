@@ -13,7 +13,13 @@ import { canPlace, destroyBuilding, killUnit, placeSite, spawnUnit, type World }
 import { GOODS } from './defs/goods.ts';
 import { findStorehouse } from './systems/logistics.ts';
 import { researchSystem } from './systems/research.ts';
-import { trainingSystem, hiringSystem, enqueueTraining, cancelTraining } from './systems/training.ts';
+import {
+  trainingSystem,
+  hiringSystem,
+  enqueueTraining,
+  cancelTraining,
+  evictGarrison,
+} from './systems/training.ts';
 import { staffingSystem } from './systems/staffing.ts';
 import { combatSystem } from './systems/combat.ts';
 import { banditsSystem } from './systems/bandits.ts';
@@ -137,7 +143,17 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       // emptied post waits out a backoff before recruiting again, so the
       // freed serf takes new work instead of being pulled straight back.
       const b = world.buildings.get(cmd.buildingId);
-      if (!b || b.dead || b.owner !== playerId || b.workerId === undefined) break;
+      if (!b || b.dead || b.owner !== playerId) break;
+      // A manned building gives a man back instead: one of the tower's
+      // archers climbs down and is a soldier on the field again. Same
+      // backoff, for the same reason — without it the sweep would walk him
+      // straight back up the stairs.
+      if (b.garrison) {
+        evictGarrison(world, b, 1);
+        b.staffBackoffUntil = world.tick + DISMISS_RESTAFF_BACKOFF;
+        break;
+      }
+      if (b.workerId === undefined) break;
       const worker = world.units.get(b.workerId);
       if (worker && !worker.dead) {
         unbindWorker(world, worker);
@@ -200,6 +216,10 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         const worker = world.units.get(b.workerId);
         if (worker && !worker.dead) unbindWorker(world, worker);
       }
+      // The garrison marches out before the wreckers move in — the same
+      // rule the resident gets, and for the same reason: tearing a tower
+      // down is an economic decision, not an execution.
+      evictGarrison(world, b, b.garrison ?? 0);
       const sh = findStorehouse(world, playerId);
       if (sh) {
         for (const [good, n] of Object.entries(def.cost) as [GoodId, number][]) {

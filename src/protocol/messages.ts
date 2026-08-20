@@ -75,6 +75,14 @@ export interface BuildingSnap {
   paused?: boolean;
   /** Active recipeOptions index (weaponsmith forge menu). */
   recipeIndex?: number;
+  /** Men manning this building, and how many it holds. Present only for
+   * buildings that are manned at all (the guard tower). */
+  garrison?: number;
+  garrisonCap?: number;
+  /** Present (as `true`) only while a manned building is between volleys —
+   * the cue for the archers on the roof to be drawing rather than idling.
+   * Same convention as `working` above: `false` is never sent. */
+  firing?: true;
   /**
    * Loads still standing on the ground this gatherer can reach — the sum
    * of what every workable tile inside its search square holds. Present

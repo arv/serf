@@ -158,6 +158,42 @@ export function damagePerTick(force: Force, enemy: Force): number {
 }
 
 /**
+ * Fold a manned defensive building into the force that holds the ground.
+ *
+ * A guard tower is neither a soldier nor a wall but both at once, and this
+ * model has a slot for neither. What it does have are the two factors that
+ * decide a fight: a damage rate, and a pool of hit points to chew through.
+ * So the garrison enters as its damage in soldier-equivalents — each man
+ * shoots for `damageMult` of one — and the building's own hit points enter
+ * as the pool, because silencing those men means bringing the walls down.
+ *
+ * The count therefore carries damage rather than bodies, which is a liberty
+ * this file can afford: `damagePerTick` only ever multiplies a count by a
+ * per-soldier damage, and weights composition by where hit points sit.
+ *
+ * Two things are deliberately left out, both of which flatter the attacker.
+ * A garrison cannot be shot at while its tower stands, which if modelled
+ * honestly would read as infinite strength; and the tower's extra reach
+ * buys it free volleys on the approach. So this reads a tower as weaker
+ * than it plays — the gate errs toward marching, the same direction every
+ * other approximation here errs.
+ */
+export function addGarrison(
+  force: Force,
+  cls: UnitClass,
+  men: number,
+  damageMult: number,
+  wallHp: number,
+): void {
+  if (men <= 0 || wallHp <= 0) return;
+  const equivalent = men * damageMult;
+  if (cls === 'heavy') force.heavy += equivalent;
+  else if (cls === 'light') force.light += equivalent;
+  else force.ranged += equivalent;
+  force.hp += wallHp;
+}
+
+/**
  * The square law's invariant for one side: damage rate times hit points. Two
  * forces' powers are directly comparable — the larger one wins the fight, and
  * the ratio is how comfortably.

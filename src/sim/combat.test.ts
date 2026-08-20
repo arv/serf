@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { BANDIT, centerOf } from './entities.ts';
 import { tickWorld } from './tick.ts';
-import { placeBuiltBuilding, spawnUnit, spawnUnitNearby, type World } from './world.ts';
+import {
+  destroyBuilding,
+  placeBuiltBuilding,
+  spawnUnit,
+  spawnUnitNearby,
+  type World,
+} from './world.ts';
 import { Terrain } from './map.ts';
 import { COUNTER_TABLE, UNIT_DEFS } from './defs/units.ts';
+import { BUILDING_DEFS } from './defs/buildings.ts';
 import { checkInvariants } from './debug/invariants.ts';
+import { populationOf } from './population.ts';
 import { cmds, addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 import { ACTION, type UnitSnapshot } from '../protocol/sabLayout.ts';
 import { unitSnapshots } from '../protocol/snapshot.ts';
@@ -484,5 +492,145 @@ describe('the fight the renderer is shown', () => {
     // over it still swinging.
     expect(knight.targetId).toBeUndefined();
     expect(snapOf(world, knight.id).action).not.toBe(ACTION.fight);
+  });
+});
+
+describe('the guard tower', () => {
+  /** A built tower with `n` archers already on the roof — the state
+   * staffing.ts arrives at, reached directly so the fire tests are not
+   * also testing the walk. */
+  function manned(world: World, n: number, x = 30, y = 30): Building {
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, x, y);
+    tower.garrison = n;
+    return tower;
+  }
+
+  it('calls an idle archer in off the field and swallows him', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const archer = spawnUnit(world, 'archer', 0, 36.5, 31.5);
+    run(world, 20 * 20);
+    expect(tower.garrison).toBe(1);
+    // Consumed, not bound: nothing is left standing outside to be shot at.
+    expect(archer.dead).toBe(true);
+    expect(archer.deathTick).toBeUndefined();
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('takes two and then stops asking', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    for (let i = 0; i < 4; i++) spawnUnit(world, 'archer', 0, 36.5 + i, 31.5);
+    run(world, 20 * 40);
+    expect(tower.garrison).toBe(2);
+    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'archer')).toHaveLength(2);
+  });
+
+  it('leaves a serf alone — a tower is manned by soldiers, not staffed', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const serf = addSerf(world, 36, 31);
+    run(world, 20 * 20);
+    expect(tower.garrison ?? 0).toBe(0);
+    expect(serf.dead).toBe(false);
+  });
+
+  it('shoots half again as hard as an archer, once per man', () => {
+    const world = bareWorld();
+    const tower = manned(world, 2);
+    const raider = spawnUnit(world, 'bandit', BANDIT, 34.5, 31.5);
+    const before = raider.hp;
+    // One volley: the cooldown starts at zero, so the first tick fires.
+    tickWorld(world, []);
+    const combat = UNIT_DEFS.archer.combat!;
+    const rule = BUILDING_DEFS.guardTower.garrison!;
+    const expected = combat.damage * rule.damageMult * 2 * COUNTER_TABLE.ranged.light;
+    expect(before - raider.hp).toBeCloseTo(expected, 5);
+    expect(tower.attackCooldown).toBe(combat.cooldownTicks);
+  });
+
+  it('reaches further than the archer who mans it, but not forever', () => {
+    const combat = UNIT_DEFS.archer.combat!;
+    const rule = BUILDING_DEFS.guardTower.garrison!;
+    // A man standing where a field archer could not be shot at, but the
+    // tower can reach: measured from the footprint, which is where the
+    // wall the arrow leaves actually is.
+    const inside = (dist: number): boolean => {
+      const world = bareWorld();
+      const tower = manned(world, 2, 30, 30);
+      // Due east of the 2x2 footprint's edge, on its middle row.
+      const raider = spawnUnit(world, 'bandit', BANDIT, 32 + dist, 31);
+      const before = raider.hp;
+      tickWorld(world, []);
+      expect(tower.garrison).toBe(2);
+      return raider.hp < before;
+    };
+    expect(inside(combat.range + rule.rangeBonus - 0.5)).toBe(true);
+    expect(inside(combat.range + rule.rangeBonus + 1.5)).toBe(false);
+  });
+
+  it('holds its fire while nobody is manning it', () => {
+    const world = bareWorld();
+    manned(world, 0);
+    const raider = spawnUnit(world, 'bandit', BANDIT, 34.5, 31.5);
+    const before = raider.hp;
+    run(world, 20 * 5);
+    expect(raider.hp).toBe(before);
+  });
+
+  it('kills what walks into reach, and does not shoot its own', () => {
+    const world = bareWorld();
+    manned(world, 2);
+    const friend = spawnUnit(world, 'serf', 0, 33.5, 31.5);
+    const raider = spawnUnit(world, 'bandit', BANDIT, 34.5, 31.5);
+    run(world, 20 * 20);
+    expect(raider.dead).toBe(true);
+    expect(friend.dead).toBe(false);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('counts its garrison as people, so manning a tower frees no bed', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    spawnUnit(world, 'archer', 0, 36.5, 31.5);
+    const before = populationOf(world, 0);
+    run(world, 20 * 20);
+    expect(tower.garrison).toBe(1);
+    expect(populationOf(world, 0)).toBe(before);
+  });
+
+  it('takes its garrison down with it', () => {
+    const world = bareWorld();
+    const tower = manned(world, 2);
+    const before = populationOf(world, 0);
+    destroyBuilding(world, tower);
+    expect(tower.garrison ?? 0).toBe(0);
+    expect(populationOf(world, 0)).toBe(before - 2);
+  });
+
+  it('hands the men back when it is sold', () => {
+    const world = bareWorld();
+    addStorehouse(world, 40, 40, {});
+    const tower = manned(world, 2);
+    const before = populationOf(world, 0);
+    tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: tower.id }));
+    const archers = [...world.units.values()].filter((u) => !u.dead && u.kind === 'archer');
+    expect(archers).toHaveLength(2);
+    expect(populationOf(world, 0)).toBe(before);
+  });
+
+  it('sends one archer down on Dismiss, and does not pull him straight back', () => {
+    const world = bareWorld();
+    const tower = manned(world, 2);
+    const before = populationOf(world, 0);
+    tickWorld(world, cmds({ kind: 'dismissWorker', buildingId: tower.id }));
+    expect(tower.garrison).toBe(1);
+    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'archer')).toHaveLength(1);
+    // Coming down the stairs is not a birth: the head count is the same
+    // man, standing somewhere else.
+    expect(populationOf(world, 0)).toBe(before);
+    run(world, 20 * 20);
+    expect(tower.garrison).toBe(1); // still standing off, backoff not spent
   });
 });

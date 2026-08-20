@@ -20,6 +20,13 @@ import { shortcutLabel } from './shortcutLabel';
  *
  * Where the letter goes is shortcutLabel's decision, and lives apart so it
  * can be tested headlessly.
+ *
+ * The whole label rides in one wrapper span, and it has to: most of these
+ * buttons are flex containers, and a flex container turns each loose text
+ * node into an anonymous item whose leading and trailing whitespace is
+ * trimmed. Emitted bare, "Guard " + T + "ower" lost the space and read as
+ * "GuardTower" — and any label whose letter opens a later word would have
+ * hit the same thing. Inside one span it is ordinary inline text again.
  */
 export function Key(props: { label: string; k: string }) {
   const parts = () => shortcutLabel(props.label, props.k);
@@ -27,12 +34,16 @@ export function Key(props: { label: string; k: string }) {
     <Show when={hasKeyboard()} fallback={props.label}>
       <Switch fallback={props.label}>
         <Match when={parts().kind === 'appended'}>
-          {props.label} <span class="kbd">({(parts() as { key: string }).key})</span>
+          <span>
+            {props.label} <span class="kbd">({(parts() as { key: string }).key})</span>
+          </span>
         </Match>
         <Match when={parts().kind === 'split'}>
-          {(parts() as { before: string }).before}
-          <span class="kbd">{(parts() as { letter: string }).letter}</span>
-          {(parts() as { after: string }).after}
+          <span>
+            {(parts() as { before: string }).before}
+            <span class="kbd">{(parts() as { letter: string }).letter}</span>
+            {(parts() as { after: string }).after}
+          </span>
         </Match>
       </Switch>
     </Show>

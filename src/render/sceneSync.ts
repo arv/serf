@@ -16,6 +16,7 @@ import type { ViewBounds } from './cameraRig';
 import type { FogQuery } from './fogOfWar';
 import { makeCarryProp } from './models';
 import {
+  TARGET_HEIGHT,
   makeCharacter,
   playAnimation,
   setWorkTool,
@@ -147,6 +148,9 @@ function tipOver(group: THREE.Object3D, dt: number): void {
 }
 
 const hpBarGeometry = new THREE.PlaneGeometry(0.5, 0.06);
+
+/** Just clear of a villager's head — derived, so it cannot drift from him. */
+const HP_BAR_Y = TARGET_HEIGHT * 0.943;
 const hpBarMaterials = new Map<number, THREE.MeshBasicMaterial>();
 
 function hpBarMaterial(pct: number): THREE.MeshBasicMaterial {
@@ -279,8 +283,10 @@ export class SceneSync {
     prev: { xs: Float32Array; ys: Float32Array; index: Map<number, number> },
     alpha: number,
   ): void {
-    const SEP_RADIUS = 0.44;
-    const MAX_PUSH = 0.34;
+    // Both are body-width measures, so they ride the villager's height
+    // rather than sitting as literals that quietly stop matching him.
+    const SEP_RADIUS = TARGET_HEIGHT * 0.361;
+    const MAX_PUSH = TARGET_HEIGHT * 0.279;
     const n = latest.count;
     for (const key of this.#usedCells) this.#cells.get(key)!.length = 0;
     this.#usedCells.length = 0;
@@ -496,7 +502,7 @@ export class SceneSync {
         if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead) {
           if (!visual.hpBar) {
             visual.hpBar = new THREE.Mesh(hpBarGeometry, hpBarMaterial(hpPct));
-            visual.hpBar.position.y = 1.15;
+            visual.hpBar.position.y = HP_BAR_Y;
             visual.hpBar.renderOrder = 10;
             visual.group.add(visual.hpBar);
           }

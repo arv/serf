@@ -181,8 +181,9 @@ const resiteExtractor: EconomyRule = {
  * ever offers a job to an idle one (`systems/logistics.ts`) — and a seat can
  * spend its last hand legitimately, by binding it to a hut or handing it to
  * the barracks as a recruit. Seed 9 ends exactly there: every extractor at
- * cap, four silver sitting in the silver mine, and nobody to carry it the
- * twenty tiles to the storehouse that would pay for the hand that carries it.
+ * cap, a capped pile of silver sitting in the silver mine, and nobody to
+ * carry it the twenty tiles to the storehouse that would pay for the hand
+ * that carries it.
  *
  * The post to empty is one whose output buffer is already full, which is
  * precisely a post producing nothing: its worker stands at a capped hut

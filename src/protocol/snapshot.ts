@@ -67,6 +67,11 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     working: b.prodTicksLeft !== undefined && !b.paused ? true : undefined,
     paused: b.paused,
     recipeIndex: b.recipeIndex,
+    garrison: def.garrison ? (b.garrison ?? 0) : undefined,
+    garrisonCap: def.garrison?.capacity,
+    // On cooldown means it loosed within the last volley's worth of ticks,
+    // which is exactly the window the roof should be drawing a bow in.
+    firing: (b.attackCooldown ?? 0) > 0 ? true : undefined,
     resourceLeft: reachableResource(world, b),
     hireQueue: b.hireQueue,
     hireProgress01: b.hireQueue

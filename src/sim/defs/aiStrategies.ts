@@ -234,7 +234,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
   abbot: {
     id: 'abbot',
     name: 'The Abbot',
-    blurb: 'Builds wide, hires deep, keeps its soldiers home — until ten of them stand.',
+    blurb: 'Builds wide, hires deep, mans two towers — and still marches at ten.',
     build: [
       {
         type: 'woodcutter',
@@ -256,6 +256,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       { type: 'bakery', count: 1, anchor: 'base', needs: 'barracks' },
       { type: 'ironMine', count: 1, anchor: 'iron', radius: 4, after: 'ironworking' },
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'ironworking', needs: 'barracks' },
+      // The towers this plan is now built around, and the reason it learns
+      // archery at all. Two of them, gated on the bow rather than on the
+      // barracks: a tower with nobody to man it is a wall that does not
+      // shoot, and this is the seat that can least afford wasted stone.
+      { type: 'guardTower', count: 2, anchor: 'base', after: 'archery', needs: 'barracks' },
       // The wide half of the plan waits for the iron chain to stand: hired
       // hands eat, and a second field is only worth its worker once there
       // are hands to spare.
@@ -275,6 +280,10 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       'soldiery',
       'cobbledBoots',
       'ironworking',
+      // The bow, for the towers — after the iron chain, which still arms
+      // this plan's knights, and before the wide half it can take its time
+      // over. Nothing else in the deck researches both lines.
+      'archery',
       'irrigation',
       'masonry',
       // Last, so a dry spell at the brewery (Festivals costs 2 ale) can
@@ -293,10 +302,22 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     growthAfter: null,
     housingHeadroom: 4,
     houseLimit: 5,
-    weaponMix: [1, 0],
-    trainPreference: ['knight', 'spearman'],
-    trainFallback: 'spearman',
+    // Swords at the first forge, bowstaves at the second: this is the one
+    // plan running two weapon lines, because it wants knights in the field
+    // and archers on the walls.
+    weaponMix: [1, 2],
+    trainPreference: ['knight', 'archer'],
+    trainFallback: 'archer',
     barracksQueueDepth: 2,
+    // Ten, unchanged by the towers, and that is the measured answer rather
+    // than the obvious one. Two towers swallow four archers outright — a
+    // garrisoned man is consumed into the building and leaves the army
+    // count — so the bar was raised to fourteen to buy them back. Over ten
+    // seeds that cost eight thousand ticks a win (29k against 21k) and
+    // bought no extra wins at all: the four are not missing from the army,
+    // they are the part of it that holds the base, and a seat that waits
+    // for fourteen in the field is just late. Towers at ten also beat no
+    // towers at ten (21k against 23k), which is the whole case for them.
     armyAttackSize: 10,
     attackCooldown: 1200,
     rallyCooldown: 400,
@@ -331,6 +352,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // Two forges and no mine to feed them: bowstaves are three wood
       // apiece, which is why the second woodcutter comes with the archery.
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'archery', needs: 'barracks' },
+      // A tower, once there are bowmen to put in it. Gated on archery
+      // rather than on soldiery — the sim would let this seat raise one the
+      // moment the barracks stands, and an unmanned tower is twelve stone
+      // spent on a wall that does not shoot.
+      { type: 'guardTower', count: 1, anchor: 'base', after: 'archery', needs: 'barracks' },
       // No fishery here, and none in the Abbot's plan either. Both run their
       // last step on a purse the iron seats never touch — the Fletcher pays
       // for bowstaves out of the same wood the shore hut wants, and the Abbot
@@ -346,8 +372,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     housingHeadroom: 3,
     houseLimit: 4,
     weaponMix: [2], // every forge on bowstaves
-    // The two spears in the armory arm the first pair of defenders; after
-    // that the queue waits on bows, since no iron chain is coming.
+    // The spear in the armory arms the first defender; after that the queue
+    // waits on bows, since no iron chain is coming.
     trainPreference: ['archer', 'spearman'],
     trainFallback: 'archer',
     barracksQueueDepth: 3,
@@ -357,6 +383,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // second wave took a castle nobody was left to hold. At ten the army
     // stays home through the first wave and razes the camp in one march,
     // before the second one spawns.
+    //
+    // The tower does not move this. Raising it to twelve to buy back the
+    // two archers the garrison swallows measured as a wash over ten seeds
+    // (16k either way), and on the Abbot the same instinct cost real time —
+    // see the note on its muster.
     armyAttackSize: 10,
     attackCooldown: 700,
     rallyCooldown: 400,

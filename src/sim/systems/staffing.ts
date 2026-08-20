@@ -1,10 +1,11 @@
 import { ALE_TRAIN_SPEEDUP, TICKS_PER_SECOND } from '../defs/balance.ts';
-import { buildingDef } from '../defs/buildings.ts';
+import { buildingDef, garrisonRoom } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { atBuilding, walkToBuilding } from '../arrival.ts';
 import { bindWorker, unbindWorker } from './production.ts';
 import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
+import type { UnitTypeId } from '../defs/units.ts';
 import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
 
@@ -109,6 +110,17 @@ function handleArrivals(world: World): void {
       continue;
     }
     if (b.state !== 'built') continue;
+    if (def.garrison && unit.kind === def.garrison.unit) {
+      // The tower's archer climbs in. Consumed exactly as a barracks
+      // recruit is — no unit is left standing outside for a raider to
+      // shoot at, which is the whole of the tower's protection. `dead`
+      // without a deathTick, so he vanishes rather than leaving a corpse
+      // on the doorstep.
+      if (garrisonRoom(def, b) <= 0) continue; // filled while he walked
+      b.garrison = (b.garrison ?? 0) + 1;
+      unit.dead = true;
+      continue;
+    }
     if (def.trains) {
       // Barracks recruit: the serf enlists — consumed into the training queue.
       const idx = firstReadyTraining(b);
@@ -143,6 +155,16 @@ function handleArrivals(world: World): void {
       bindWorker(b, unit);
     }
   }
+}
+
+/**
+ * The kind of person a building is calling for. A standing tower wants its
+ * own soldier; everything else — including that tower's own building site,
+ * which wants a builder like any other — wants a serf.
+ */
+function wantedKind(b: Building): UnitTypeId {
+  const garrison = buildingDef(b.type).garrison;
+  return garrison && b.state === 'built' ? garrison.unit : 'serf';
 }
 
 /**
@@ -226,31 +248,48 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
       b.state === 'built' && def.workerKind !== undefined && !liveWorker(world, b);
     const wantsRecruit =
       b.state === 'built' && def.trains !== undefined && firstReadyTraining(b) >= 0;
-    if (wantsBuilder || wantsWorker || wantsRecruit) wanting.push(b);
+    // A tower short of its garrison calls for another soldier. Unlike a
+    // post, this one draws from the field rather than from the loose pool:
+    // the men it wants have already been trained.
+    const wantsGarrison = b.state === 'built' && garrisonRoom(def, b) > 0;
+    if (wantsBuilder || wantsWorker || wantsRecruit || wantsGarrison) wanting.push(b);
   }
   if (wanting.length === 0) return;
 
-  // Idle serfs available for recruitment this pass, bucketed by faction —
-  // buildings only ever draw staff from their own owner's pool.
-  const idleByOwner = new Map<Owner, Unit[]>();
+  // Which kinds anyone is calling for this pass: serfs build, staff and
+  // enlist, and a standing tower asks for soldiers of the kind that mans
+  // it. Kept to what is actually wanted so an army standing idle costs
+  // nothing to scan on a sweep where no tower is short — which is why this
+  // and the dispatch below read the same `wantedKind`, rather than each
+  // deciding for itself and drifting: the scan used to bucket archers for
+  // a tower that was still a building site and wanted a builder.
+  const wantedKinds = new Set<UnitTypeId>(wanting.map(wantedKind));
+  wantedKinds.add('serf');
+
+  // Idle people available for recruitment this pass, bucketed by faction and
+  // kind — buildings only ever draw from their own owner's pool.
+  const idleByOwner = new Map<Owner, Map<UnitTypeId, Unit[]>>();
   for (const u of world.units.values()) {
-    if (u.dead || u.kind !== 'serf' || !isPlayerOwner(u.owner) || u.jobId !== undefined) continue;
-    // A serf walking under a player's move order is spoken for; recruiting
+    if (u.dead || !wantedKinds.has(u.kind) || !isPlayerOwner(u.owner)) continue;
+    if (u.jobId !== undefined) continue;
+    // Someone walking under a player's move order is spoken for; recruiting
     // him mid-stride would make the order look ignored. Nor do we hire a
     // serf still holding a good — he owes that delivery first, and taking
     // a post would strand it in his hands forever.
     if (u.task.t === 'idle' && u.carrying === undefined) {
-      let bucket = idleByOwner.get(u.owner);
-      if (!bucket) idleByOwner.set(u.owner, (bucket = []));
+      let byKind = idleByOwner.get(u.owner);
+      if (!byKind) idleByOwner.set(u.owner, (byKind = new Map()));
+      let bucket = byKind.get(u.kind);
+      if (!bucket) byKind.set(u.kind, (bucket = []));
       bucket.push(u);
     }
   }
 
   for (const b of wanting) {
-    const idle = idleByOwner.get(b.owner);
-    if (!idle || idle.length === 0) continue; // nobody of this faction left
+    const idle = idleByOwner.get(b.owner)?.get(wantedKind(b));
+    if (!idle || idle.length === 0) continue; // nobody of this kind left
 
-    // Nearest idle serf walks over.
+    // The nearest idle one walks over.
     const cx = b.x + b.w / 2;
     const cy = b.y + b.h / 2;
     let bestIdx = -1;
@@ -263,11 +302,11 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
         bestIdx = i;
       }
     }
-    const serf = idle[bestIdx]!;
+    const recruit = idle[bestIdx]!;
     const path = findPathToAdjacent(
       world.map,
-      Math.floor(serf.x),
-      Math.floor(serf.y),
+      Math.floor(recruit.x),
+      Math.floor(recruit.y),
       b.x,
       b.y,
       b.w,
@@ -282,9 +321,9 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
       continue;
     }
     idle.splice(bestIdx, 1);
-    serf.path = path;
-    serf.pathIdx = 0;
-    serf.task = { t: 'staff', buildingId: b.id };
-    b.recruitId = serf.id;
+    recruit.path = path;
+    recruit.pathIdx = 0;
+    recruit.task = { t: 'staff', buildingId: b.id };
+    b.recruitId = recruit.id;
   }
 }

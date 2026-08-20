@@ -808,6 +808,11 @@ export function destroyBuilding(world: World, b: Building): void {
     const worker = world.units.get(b.workerId);
     if (worker) killUnit(world, worker);
   }
+  // A garrison goes down with its walls. There is no unit to kill — the men
+  // are a count on the building (see Building.garrison) — so clearing it is
+  // the whole of it, and the population they were counted in falls by that
+  // many the same tick.
+  b.garrison = undefined;
 }
 
 /**

@@ -95,15 +95,56 @@ export interface BuildingDef {
   isRoad?: boolean;
   /** Hidden from the build menu (system-placed). */
   systemOnly?: boolean;
+  /**
+   * Multiplier on the model's rendered size, on top of the footprint-derived
+   * scale (makeGlbBuilding). Render-only — the sim's footprint, placement
+   * and blocking all still read w/h, so this changes what a building looks
+   * like and nothing about what it does.
+   *
+   * For the handful the pack authors too squat to read at village zoom.
+   * Costs overhang, since the scale is uniform and the base grows with the
+   * roof: at 1.2 a 2x2 model spills about a fifth of a tile past each
+   * side. Fine for the mines, which are cut into a hillside and sit alone
+   * out at the rock; it would be wrong for anything that stands shoulder to
+   * shoulder in the village.
+   */
+  modelScale?: number;
   /** Must be researched before this building can be placed (an array
    * means any one of them suffices). */
   requiresTech?: TechId | TechId[];
   /** Military training (barracks): unit options with costs + duration. */
   trains?: { unit: UnitTypeId; cost: GoodAmounts; durationTicks: number }[];
+  /**
+   * Manned defence (the guard tower). The building pulls idle soldiers of
+   * `unit` off the field — up to `capacity` of them — and shoots with their
+   * own stats, sharpened by what the wall gives them: `rangeBonus` tiles of
+   * extra reach for the height, and `damageMult` on the damage for shooting
+   * down from cover at a man who cannot shoot back.
+   *
+   * The men are consumed into the building the way the barracks consumes a
+   * recruit, rather than bound the way a hut binds its worker: there is no
+   * unit left on the map to acquire, chase or kite, which is what makes a
+   * garrison untouchable except by knocking the tower down. The cost of
+   * that is that population has to count them explicitly (population.ts).
+   */
+  garrison?: {
+    unit: UnitTypeId;
+    capacity: number;
+    damageMult: number;
+    /** Tiles of reach the height adds, on top of the unit's own range. */
+    rangeBonus: number;
+  };
 }
 
-export const OUTPUT_CAP = 4;
-export const INPUT_CAP = 4;
+/**
+ * The Settlers rule, both ends of it: a producer stalls once its output
+ * buffer is full, and a converter's standing demand tops its inputs up to
+ * here and no further. Five rather than four gives every building one more
+ * beat of slack before it stops — enough that a gatherer whose hauler is
+ * a moment late keeps working, without turning a hut into a warehouse.
+ */
+export const OUTPUT_CAP = 5;
+export const INPUT_CAP = 5;
 
 export type BuildingTypeId =
   | 'storehouse'
@@ -123,6 +164,7 @@ export type BuildingTypeId =
   | 'weaponsmith'
   | 'abbey'
   | 'barracks'
+  | 'guardTower'
   | 'roadSite';
 
 const S = 20; // ticks per second, inlined to keep defs readable
@@ -183,6 +225,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { wood: 6 },
     buildTicks: 15 * S,
     hp: 150,
+    modelScale: 1.2,
     sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'rock', output: 'stone', radius: 8, workTicks: 3 * S },
@@ -345,6 +388,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { wood: 8, stone: 4 },
     buildTicks: 20 * S,
     hp: 180,
+    modelScale: 1.2,
     sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'ironDep', output: 'iron', radius: 4, workTicks: 4 * S },
@@ -358,6 +402,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { wood: 8, stone: 4 },
     buildTicks: 20 * S,
     hp: 180,
+    modelScale: 1.2,
     sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'silverDep', output: 'silver', radius: 4, workTicks: 4 * S },
@@ -372,6 +417,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: { wood: 10, stone: 6 },
     buildTicks: 25 * S,
     hp: 180,
+    modelScale: 1.2,
     sight: 5.5,
     workerKind: 'worker',
     recipe: { kind: 'gather', resource: 'goldDep', output: 'gold', radius: 4, workTicks: 5 * S },
@@ -449,6 +495,30 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       { unit: 'archer', cost: { food: 2, bow: 1 }, durationTicks: 12 * S },
     ],
   },
+  guardTower: {
+    id: 'guardTower',
+    name: 'Guard Tower',
+    // Stone where the barracks is timber, and dearer in it: a tower is the
+    // one building whose whole substance is the wall itself.
+    w: 2,
+    h: 2,
+    cost: { wood: 6, stone: 12 },
+    buildTicks: 20 * S,
+    hp: 260,
+    // A tower is built to be looked out of. Short of the castle's nine,
+    // well past the five and a half every workshop sees.
+    sight: 8,
+    // Gated with the barracks rather than with the bow: raising the tower
+    // is the decision to defend a line, and it can stand empty and waiting
+    // while the archers who will man it are still a research away.
+    requiresTech: 'soldiery',
+    // Half again the damage and two tiles further than the same archer
+    // standing in the field. Deliberately short of doubling either: two men
+    // in a tower already beat two men on the grass by being unkillable
+    // while it stands, and a tower that also hit like four of them made
+    // fielding an army the wrong move.
+    garrison: { unit: 'archer', capacity: 2, damageMult: 1.5, rangeBonus: 2 },
+  },
   roadSite: {
     id: 'roadSite',
     name: 'Road',
@@ -467,6 +537,13 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
 
 export function buildingDef(id: BuildingTypeId): BuildingDef {
   return BUILDING_DEFS[id];
+}
+
+/** Room left in this building's garrison, counting the man already walking
+ * in. Zero for everything that holds no garrison at all. */
+export function garrisonRoom(def: BuildingDef, b: { garrison?: number; recruitId?: number }): number {
+  if (!def.garrison) return 0;
+  return def.garrison.capacity - (b.garrison ?? 0) - (b.recruitId !== undefined ? 1 : 0);
 }
 
 /** The gather recipe, if this building works the land. Undefined for

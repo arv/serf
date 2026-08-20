@@ -149,10 +149,26 @@ interface KKAssets {
 
 let kkAssets: KKAssets | null = null;
 
-/** World-space height of a villager; matches the procedural people. */
-// Oversized on purpose — RTS readability: Warcraft-style units read at
-// village zoom, true-scale people vanish.
-const TARGET_HEIGHT = 1.22;
+/**
+ * World-space height of a villager, in tiles; matches the procedural people.
+ *
+ * Still oversized on purpose — RTS readability: Warcraft-style units read at
+ * village zoom where true-scale people vanish. But 1.22 was oversized past
+ * the point of reading as people at all. Measured against the buildings they
+ * work in, a villager stood exactly as tall as a mine or a quarry, four
+ * fifths the height of a weaponsmith, and better than half a house; the pack
+ * authors its buildings squat to sit on hex tiles, and makeGlbBuilding sizes
+ * them by footprint, so the village could not meet him halfway.
+ *
+ * At 0.85 the same buildings come out near their real proportions — a house
+ * about 2.7 villagers, the guard tower 3.4, the castle 6.6 — while a unit is
+ * still most of a tile tall and picking is positional anyway, so nothing got
+ * harder to click.
+ *
+ * Exported because things that must sit on top of a villager (the hp bar) or
+ * scale with his body (the de-overlap radius) have to move when this does.
+ */
+export const TARGET_HEIGHT = 0.85;
 
 export interface CharacterVisual {
   mixer: THREE.AnimationMixer;

@@ -46,6 +46,13 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   barracks: 'building_barracks_green.gltf',
   abbey: 'building_church_green.gltf',
   banditCamp: 'building_tower_B_red.gltf',
+  // The pack ships four towers and only this one is a watchtower: a plain
+  // stone shaft with a crenellated parapet around an open plank deck. The
+  // other three all put something where a man should stand — B a coned
+  // roof under a finial (which is the bandits'), A a roofed gallery on
+  // posts, and the fourth a catapult. Being roofless is the whole point
+  // here, and it reads apart from the camp at a glance besides.
+  guardTower: 'building_tower_base_green.gltf',
 };
 
 /** Tints so buildings sharing a model read apart. Empty since the smiths
@@ -83,6 +90,28 @@ interface Decor {
    * fisherman walks out on, the shoal buildingSync swims). */
   name?: string;
 }
+
+/**
+ * The guard tower's deck, in the normalized template's own units — the
+ * planking the watch stands on.
+ *
+ * Measured off the model: one flat up-facing disc at model y=1.400 running
+ * the full width of the tower, with the merlons ringing it from 1.45 to
+ * 1.50 — knee height on a man, which is what standing behind battlements
+ * should look like. `normalize` scales the template by 1/1.1111 (the
+ * model's widest footprint span), so model units convert at *0.9.
+ */
+const ROOF_Y = 1.26;
+
+/**
+ * How far out on that deck a man stands. The merlons close in at model
+ * radius 0.379 (template 0.341), so this keeps both men inside the
+ * parapet with room to spare rather than standing in a gap.
+ */
+const POST_R = 0.2;
+
+/** POST_R split across x and z, for the two posts on the diagonal. */
+const POST_D = POST_R / Math.SQRT2;
 
 const DECOR_PROP_FILES = [
   'wheelbarrow',
@@ -141,6 +170,21 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // plane below the shore, so buildingSync re-seats the group under it
     // once the building stands on real terrain.
     { make: (prop) => makeShoal(prop), at: [0, 1.02], y: 0.02, size: 1 },
+  ],
+  // Two marks on the tower's roof deck, and nothing to see: buildingSync
+  // finds them by name and stands a live archer on each one for every man
+  // the sim says is manning the tower. Empties rather than props, because
+  // what goes here is a character with a mixer, not a piece of scenery.
+  //
+  // Across from one another on the diagonal rather than side by side: from
+  // the fixed camera yaw that reads as two men watching two ways, and puts
+  // one to either side of the tower instead of one behind the other. On
+  // the diagonal POST_R splits evenly between the two axes. Nothing stands
+  // in the middle of this deck, so unlike the roofed towers there is no
+  // reason to push them out to the rim.
+  guardTower: [
+    { make: () => new THREE.Group(), at: [-POST_D, POST_D], y: ROOF_Y, size: 1, name: 'towerPost0' },
+    { make: () => new THREE.Group(), at: [POST_D, -POST_D], y: ROOF_Y, size: 1, name: 'towerPost1' },
   ],
   quarry: [{ prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 }],
   ironMine: [{ prop: 'wheelbarrow', at: [-0.35, 0.32], size: 0.15, rot: -0.5 }],
@@ -653,8 +697,10 @@ export function makeGlbBuilding(type: BuildingTypeId, owner = 0): THREE.Group | 
     });
   }
   // Templates are unit-square and origin-centered, matching the hand-built
-  // models (buildingSync positions the root at the footprint center).
-  group.scale.setScalar(Math.min(def.w, def.h) * 1.06);
+  // models (buildingSync positions the root at the footprint center). Sizing
+  // by footprint is what makes a squat model stay squat, so the few the pack
+  // authors too low to read carry a modelScale to lift them out of it.
+  group.scale.setScalar(Math.min(def.w, def.h) * 1.06 * (def.modelScale ?? 1));
   return group;
 }
 
