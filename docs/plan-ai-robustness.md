@@ -1,9 +1,13 @@
 # Plan: an AI that never stalls, reads its opponent, and finds its own ideas
 
-Status: proposed. Three phases, deliberately ordered — a seat that freezes
-cannot adapt, and a seat that cannot adapt has nothing worth searching for.
-Phase 1 is the only one with a baseline number today; phases 2 and 3 get
-their metrics from phase 1's instrumentation.
+Status: phase 2 built and measured (2026-08-20) — the intelligence got
+better and the win rate did not move; see 2a-2c below and the two new
+sections in `tools/aiLab/README.md`. Phases 1 and 3 are still proposed.
+
+Three phases, deliberately ordered — a seat that freezes cannot adapt, and a
+seat that cannot adapt has nothing worth searching for. Phase 1 is the only
+one with a baseline number today; phases 2 and 3 get their metrics from
+phase 1's instrumentation.
 
 ## Why now
 
@@ -116,38 +120,49 @@ economy, and can be shown to.
 (`tools/aiLab/README.md`, "The combat predictor") is the cautionary tale:
 better arithmetic over the same blindness measured nothing at all.
 
-### 2a. Better intelligence
+### 2a. Better intelligence — done, and it improved the estimate
 
-- [ ] Keep a **time series** per rival, not the single `Sighting` snapshot
-      `#observeRivals` currently overwrites. Army size at t is far less
-      useful than army size *trend*.
-- [ ] Re-scout on a schedule tied to staleness (`AI_INTEL.refreshAfter`
-      already exists and is unused for this) rather than only when the
-      scout happens to be idle.
-- [ ] Record first-contact facts worth branching on: when their first
+- [x] Keep a **time series** per rival, not the single `Sighting` snapshot
+      `#observeRivals` currently overwrites. Shipped as a roster keyed by
+      unit id plus a bounded trend series over it; mean absolute error
+      against the truth 3.10 → 2.54, blind samples 13.0% → 5.8%.
+- [x] Re-scout on a schedule tied to staleness (`AI_INTEL.refreshAfter`
+      already exists and is unused for this). It was worse than unused: one
+      straggler in the light reset the clock. Doorstep reads per match
+      2.75 → 5.25.
+- [x] Record first-contact facts worth branching on: when their first
       soldier appeared, when their first attack landed, how many buildings
-      they had at minute five.
+      they had at minute five. All three are on the summary; the first one
+      turns out to be the enemy's *scout* in every playbook, so it says
+      much less than it looks like it should.
+- [x] Prove it. The win rate did not follow the estimate: the same posture
+      rule scores 58.3% under the old intel and 51.8% under the new,
+      paired p = 0.405 — unresolved, certainly not a win.
 
-### 2b. Classify, then counter
+### 2b. Classify, then counter — done, and it decided nothing
 
-- [ ] A cheap archetype classifier over those observables —
-      **rusher / booming / turtling** is enough to start. Pure function of
-      the intel series, unit-testable without a world.
-- [ ] Make posture selection conditional on archetype in
-      `ai/posture.ts` `choosePosture`. The vocabulary already exists and the
-      cascade is already documented as measured-not-reasoned; this adds one
-      input to it.
-- [ ] Extend `#counterPlan` beyond dominant-class: it should be able to say
-      "they have no army at minute eight, punish now".
+- [x] A cheap archetype classifier over those observables —
+      **rusher / booming / turtling**. `src/ai/archetype.ts`, pure over the
+      summary, tested against literal objects.
+- [x] Make posture selection conditional on archetype in
+      `ai/posture.ts` `choosePosture`.
+- [x] "They have no army at minute eight, punish now" — as the `pounce`
+      stance rather than inside `#counterPlan`, since the march bar is
+      posture's business and the forge is the captain's.
 
-### 2c. Prove it
+### 2c. Prove it — done; the null won
 
-- [ ] The honest null is **the same posture rule without the archetype
-      input**. If conditioning on the opponent cannot beat ignoring them,
-      the classifier is decoration.
-- [ ] 80 seeds minimum, paired McNemar via `bakeoff:compare`. 40 seeds
-      resolves ±11pp and has already produced one retracted result in this
-      repo — do not repeat it.
+- [x] The honest null is **the same posture rule without the archetype
+      input** (`--engine posture-blind`).
+- [x] 80 seeds, paired McNemar. `posture` 50.7% against `posture-blind`
+      51.8%: 0 trials won, 2 lost, **p = 0.50**. The branch is live — it
+      changes the stance on one consultation in seven and the two arms end
+      in a different world in 41 of 160 trials — and it wins none of them.
+      By this file's own standard the classifier is decoration, and the
+      reason is upstream: behind fog, `warlord` and `abbot` look far more
+      alike than their blurbs do. **Phase 3a (per-seat playbooks) is now
+      the blocking change for phase 2 as well** — rusher-vs-boomer has to
+      be staged before conditioning on it can be measured.
 
 ---
 

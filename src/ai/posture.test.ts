@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseAdvice, toOverride, ADVICE_RANGES } from './advice.ts';
 import {
   choosePosture,
+  choosePostureBlind,
   isPostureId,
   POSTURES,
   POSTURE_JSON_SCHEMA,
@@ -44,7 +45,16 @@ function summary(over: Partial<AiWorldSummary> = {}): AiWorldSummary {
 }
 
 function rival(over: Partial<AiWorldSummary['rivals'][number]> = {}): AiWorldSummary['rivals'][number] {
-  return { id: 1, alive: true, found: true, buildings: 8, distance: 40, intel: null, ...over };
+  return {
+    id: 1,
+    alive: true,
+    found: true,
+    buildings: 8,
+    distance: 40,
+    intel: null,
+    contact: { firstSoldierMin: -1, firstAttackMin: -1, buildingsAtFive: -1 },
+    ...over,
+  };
 }
 
 describe('the posture table', () => {
@@ -116,34 +126,91 @@ describe('parseAdvice on a posture reply', () => {
   });
 });
 
-describe('choosePosture', () => {
+describe('choosePostureBlind — the null', () => {
   it('drops everything to fortify when the castle is under attack', () => {
-    expect(choosePosture(summary({ me: { ...summary().me, underAttack: true } }))).toBe('fortify');
+    expect(choosePostureBlind(summary({ me: { ...summary().me, underAttack: true } }))).toBe(
+      'fortify',
+    );
   });
 
   it('musters while no rival castle has been found', () => {
     const hidden = rival({ found: false, distance: -1 });
-    expect(choosePosture(summary({ rivals: [hidden] }))).toBe('muster');
+    expect(choosePostureBlind(summary({ rivals: [hidden] }))).toBe('muster');
   });
 
   it('sieges as soon as a castle is on the map, thin army and all', () => {
     const thin = { ...summary().me, army: { knight: 1, spearman: 0, archer: 0 } };
-    expect(choosePosture(summary({ me: thin, rivals: [rival()] }))).toBe('siege');
+    expect(choosePostureBlind(summary({ me: thin, rivals: [rival()] }))).toBe('siege');
   });
 
   it('keeps sieging while merely outgunned — only the yard breaks stance', () => {
-    const seen = rival({ intel: { ageTicks: 400, heavy: 9, light: 0, ranged: 0, total: 9 } });
-    expect(choosePosture(summary({ rivals: [seen] }))).toBe('siege');
+    const seen = rival({ intel: { ageTicks: 400, heavy: 9, light: 0, ranged: 0, total: 9, peak: 9 } });
+    expect(choosePostureBlind(summary({ rivals: [seen] }))).toBe('siege');
   });
 
   it('does not go economy on a small village, which is what lost the draft rule', () => {
     const small = { ...summary().me, serfs: 6, pop: 8 };
-    expect(choosePosture(summary({ me: small, rivals: [rival()] }))).toBe('siege');
+    expect(choosePostureBlind(summary({ me: small, rivals: [rival()] }))).toBe('siege');
   });
 
   it('ignores rivals that are already dead', () => {
     const dead = rival({ alive: false });
-    expect(choosePosture(summary({ rivals: [dead] }))).toBe('muster');
+    expect(choosePostureBlind(summary({ rivals: [dead] }))).toBe('muster');
+  });
+
+  it('never reads the opponent, whatever the opponent is doing', () => {
+    const boomer = rival({ buildings: 16, intel: null });
+    const rusher = rival({ contact: { firstSoldierMin: 2, firstAttackMin: 5, buildingsAtFive: 3 } });
+    expect(choosePostureBlind(summary({ rivals: [boomer] }))).toBe('siege');
+    expect(choosePostureBlind(summary({ rivals: [rusher] }))).toBe('siege');
+  });
+});
+
+describe('choosePosture — the same cascade, reading the opponent', () => {
+  /** A rival with a village on the map and no army ever sighted. */
+  const quiet = rival({ buildings: 16, intel: null });
+
+  it('agrees with the null while it has no read on the opponent', () => {
+    const unread = rival({ found: false, distance: -1 });
+    expect(choosePosture(summary({ rivals: [unread] }))).toBe(
+      choosePostureBlind(summary({ rivals: [unread] })),
+    );
+  });
+
+  it('pounces on a rival that has shown no army worth the name', () => {
+    expect(choosePosture(summary({ rivals: [quiet] }))).toBe('pounce');
+  });
+
+  it('still sieges a rival that has an army, thin as ours may be', () => {
+    const armed = rival({
+      buildings: 16,
+      intel: { ageTicks: 200, heavy: 5, light: 0, ranged: 0, total: 5, peak: 5 },
+    });
+    expect(choosePosture(summary({ rivals: [armed] }))).toBe('siege');
+  });
+
+  it('keeps the stance when the hostile in the yard is not the opponent in force', () => {
+    // `underAttack` is any hostile in sight — a bandit, their lone scout.
+    // Breaking a siege for one of those is the deviation that left the
+    // blind rule short of the siege constant it could have named.
+    const raided = summary({ me: { ...summary().me, underAttack: true }, rivals: [quiet] });
+    expect(choosePostureBlind(raided)).toBe('fortify');
+    expect(choosePosture(raided)).toBe('pounce');
+  });
+
+  it('still fortifies when the opponent itself is the one at the gates', () => {
+    const rusher = rival({
+      buildings: 4,
+      contact: { firstSoldierMin: 2, firstAttackMin: 5, buildingsAtFive: 3 },
+    });
+    const raided = summary({ me: { ...summary().me, underAttack: true }, rivals: [rusher] });
+    expect(choosePosture(raided)).toBe('fortify');
+  });
+
+  it('fortifies against an unread board — ignorance is not safety', () => {
+    const unread = rival({ found: false, buildings: 0, intel: null });
+    const raided = summary({ me: { ...summary().me, underAttack: true }, rivals: [unread] });
+    expect(choosePosture(raided)).toBe('fortify');
   });
 
   it('only ever names a stance the table has', () => {
@@ -151,11 +218,13 @@ describe('choosePosture', () => {
       summary(),
       summary({ me: { ...summary().me, underAttack: true } }),
       summary({ rivals: [rival()] }),
+      summary({ rivals: [quiet] }),
       summary({ rivals: [rival({ found: false })], bandits: { camps: 3, nearestCamp: 5 } }),
     ];
     for (const c of cases) {
       const picked: PostureId = choosePosture(c);
       expect(POSTURE_ORDER).toContain(picked);
+      expect(POSTURE_ORDER).toContain(choosePostureBlind(c));
     }
   });
 });

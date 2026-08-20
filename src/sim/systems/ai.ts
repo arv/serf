@@ -110,6 +110,26 @@ export const AI_INTEL = {
   refreshAfter: 4_000,
   /** Fewer fighters than this in one look is an anecdote, not an army. */
   minSighting: 3,
+  /**
+   * How often the picture writes down how big the rival's army looked. A
+   * decision beat lands every 20 ticks; sampling each one would fill the
+   * series with the same number three hundred times over and say nothing
+   * about trend. Twenty-five seconds apart, twelve deep, is twenty-five
+   * minutes of history in a match that resolves in eleven — and it is
+   * BOUNDED, which is the part that matters for a 120k-tick standoff.
+   */
+  samplePeriod: 500,
+  seriesLen: 12,
+  /**
+   * "How many buildings did they have at minute five" — the one snapshot
+   * worth branching on, because it is where a boomer and a rusher have
+   * already parted ways. Twenty ticks a second, sixty seconds a minute.
+   */
+  earlyMark: 5 * 60 * 20,
+  /** How close one of their soldiers has to come before we call it an
+   * attack landing rather than a patrol. Same scale as the summary's
+   * underAttack radius — this is the AI's own definition of "at my gates". */
+  raidRadius: 12,
 } as const;
 
 /** One look at a rival's forces: when it was taken, and what stood there. */
@@ -117,6 +137,97 @@ interface Sighting {
   tick: number;
   counts: { heavy: number; light: number; ranged: number };
   total: number;
+}
+
+/** How big a rival's army looked at one moment, for the trend series. */
+interface IntelSample {
+  tick: number;
+  total: number;
+}
+
+/**
+ * What one seat has assembled about one rival.
+ *
+ * The roster is the change that matters. The picture used to be a single
+ * snapshot — the largest group seen in one instant — and that is why a seat
+ * marched believing the enemy had three soldiers: three is all a lone scout
+ * ever lights at once, and the next three walking past the same corner
+ * replaced the number rather than adding to it. A soldier is a soldier
+ * though, and a lord who has watched six different men pass his watchtower
+ * knows he faces six. So sightings accumulate by unit id, and a man leaves
+ * the list only when the trust window closes over the last look at him.
+ *
+ * Not when he dies, which is the counter-intuitive part and the one thing
+ * here that was chosen by measurement rather than by taste. Striking the
+ * fallen off the roster is the honest-looking rule and it reads the valley
+ * *worse*: over twelve unadvised matches, scored against the truth at 778
+ * sample points on identical trajectories,
+ *
+ *     estimator                          believes   mean abs error   blind
+ *     the old single snapshot               2.07         3.19        13.8%
+ *     roster, striking the fallen off       1.69         3.44        32.9%
+ *     roster, keeping them                  2.69         2.88        10.8%
+ *     roster peak over the window           3.35         2.54         6.7%
+ *
+ * against a real army averaging 5.09. Striking the dead off is a *standing
+ * army* estimate and the barracks refills faster than the trust window
+ * closes, so it is wrong sooner than it is right. What the roster actually
+ * measures is how much war a rival has shown itself able to field lately —
+ * which is the question a posture wants answered anyway.
+ *
+ * Bounded on purpose (see #override): the roster is pruned to the trust
+ * window every beat and the series is a twelve-entry ring, so a 120k-tick
+ * standoff costs the same memory as the opening.
+ */
+interface RivalPicture {
+  /** Soldiers seen and not yet written off, by unit id. */
+  roster: Map<number, { tick: number; cls: UnitClass }>;
+  /** How the roster has grown, oldest first, `seriesLen` deep. */
+  series: IntelSample[];
+  /** Last tick anything of theirs stood in our light. -1 = never. */
+  seenTick: number;
+  /**
+   * Last tick the roster held a real force (`minSighting` or more), as
+   * opposed to a straggler. This is the clock the re-scout reads, and the
+   * distinction is the whole point: glimpsing one raider at the gates used
+   * to reset the refresh timer as if the yard had been read, so a seat under
+   * steady harassment never once looked at what was actually massing.
+   */
+  richSeenTick: number;
+  /** Last tick a sample was taken, so the series keeps its spacing. */
+  sampledTick: number;
+  /** First-contact facts, all ticks, all -1 until they happen. */
+  firstSoldierTick: number;
+  firstAttackTick: number;
+  /** Their buildings on our explored ground when the fifth minute struck;
+   * -1 before it does. */
+  buildingsAtFive: number;
+  /** Doorstep reads spent on them — diagnostics, so "the schedule never
+   * fires" and "the schedule fires and does not help" cannot print the
+   * same number (the lesson of the march gate). */
+  reads: number;
+}
+
+/** One rival's picture, flattened for anything outside the brain. */
+export interface IntelReport {
+  owner: Owner;
+  /** Freshest observation of them, -1 if never seen. */
+  tick: number;
+  /** Soldiers of theirs currently on the roster. */
+  total: number;
+  /** The biggest the roster has been inside the trust window — the most
+   * accurate single number this brain has about a rival's strength (see
+   * RivalPicture's table), and the one a posture should read. */
+  peak: number;
+  counts: { heavy: number; light: number; ranged: number };
+  firstSoldierTick: number;
+  firstAttackTick: number;
+  buildingsAtFive: number;
+  /** Doorstep reads spent on this rival so far. */
+  reads: number;
+  /** Oldest kept sample and newest, so a reader can see the slope without
+   * carrying the whole series: null until two samples exist. */
+  trend: { fromTick: number; from: number; toTick: number; to: number } | null;
 }
 
 /**
@@ -191,9 +302,13 @@ export class AiBrain {
    * unexplored island or a walled-off valley never lights up, and without
    * this the search would re-pick the same impossible tile forever. */
   #unreachable = new Set<number>();
-  /** What scouting has seen of each rival's army: the freshest useful
-   * look, by owner. This is what the counter-forging reads. */
-  #intel = new Map<Owner, Sighting>();
+  /** What scouting has assembled about each rival: a running roster of the
+   * soldiers seen, a trend series over it, and the first-contact facts.
+   * This is what the counter-forging and the archetype read. */
+  #intel = new Map<Owner, RivalPicture>();
+  /** Minute five happens once; the building count it takes is stamped on
+   * every rival's picture at the first beat past it. */
+  #earlyMarkTaken = false;
   /** When each rival's doorstep was last read — or the read failed — by
    * owner. Kept apart from the sightings on purpose: a walk that saw
    * nothing must reset the clock without erasing what an earlier look
@@ -240,13 +355,29 @@ export class AiBrain {
     };
   }
 
-  intelReport(): { owner: Owner; tick: number; total: number; counts: Sighting['counts'] }[] {
-    return [...this.#intel].map(([owner, s]) => ({
-      owner,
-      tick: s.tick,
-      total: s.total,
-      counts: { ...s.counts },
-    }));
+  intelReport(): IntelReport[] {
+    return [...this.#intel].map(([owner, pic]) => {
+      const muster = rosterMuster(pic);
+      const first = pic.series[0];
+      const last = pic.series[pic.series.length - 1];
+      let peak = muster.total;
+      for (const s of pic.series) if (s.total > peak) peak = s.total;
+      return {
+        owner,
+        tick: pic.seenTick,
+        total: muster.total,
+        peak,
+        counts: muster.counts,
+        firstSoldierTick: pic.firstSoldierTick,
+        firstAttackTick: pic.firstAttackTick,
+        buildingsAtFive: pic.buildingsAtFive,
+        reads: pic.reads,
+        trend:
+          first && last && first !== last
+            ? { fromTick: first.tick, from: first.total, toTick: last.tick, to: last.total }
+            : null,
+      };
+    });
   }
 
   /** Is `tick` one of this seat's decision beats? (Seats stagger so two
@@ -263,10 +394,13 @@ export class AiBrain {
     const p = world.players[this.playerId];
     if (!p || !p.alive || world.outcome.state !== 'playing') return [];
     this.#vision.recompute(world, this.playerId);
-    this.#observeRivals(world);
     const commands: SimCommand[] = [];
     const mine = ownedBuildings(world, this.playerId);
     const sh = mine.find((b) => b.type === 'storehouse' && b.state === 'built');
+    // Watching comes before the castle check, and before every decision
+    // below reads the picture: a seat about to lose its last storehouse has
+    // no orders left to give, but what it can see is still worth filing.
+    this.#observeRivals(world, sh ? sh.x + 1 : -1, sh ? sh.y + 1 : -1);
     if (!sh) return commands; // one tick from elimination; nothing to do
     const baseX = sh.x + 1;
     const baseY = sh.y + 1;
@@ -786,9 +920,9 @@ export class AiBrain {
     }
     if (seen.hp > 0) return seen;
 
-    const sighting = this.#intel.get(target.owner);
-    if (!sighting || world.tick - sighting.tick > AI_INTEL.trustFor) return null;
-    const { heavy, light, ranged } = sighting.counts;
+    const pic = this.#intel.get(target.owner);
+    if (!pic || pic.seenTick < 0 || world.tick - pic.seenTick > AI_INTEL.trustFor) return null;
+    const { heavy, light, ranged } = rosterMuster(pic).counts;
     if (heavy + light + ranged === 0) return null;
     return {
       heavy,
@@ -801,43 +935,123 @@ export class AiBrain {
 
   /**
    * Passive intelligence: every rival fighter standing in lit ground this
-   * beat is a data point. A bigger look replaces a smaller one — eight
-   * knights marching on the village say more than the one straggler seen
-   * since — and anything replaces a picture past its trust window.
+   * beat is a data point, and they accumulate.
+   *
+   * Each man seen goes on his owner's roster under his own id, so two looks
+   * at two different patrols add up instead of overwriting each other, and
+   * entries age out with the trust window (see RivalPicture for why the
+   * fallen are not struck off sooner).
+   *
+   * Also where the branchable facts get stamped: when their first soldier
+   * appeared at all, when one of them first reached our gates, and what
+   * their village looked like at minute five. Those three are the shape of
+   * an opening, and an opening is what an archetype is (src/ai/archetype.ts).
+   *
+   * `baseX/baseY` are the castle, or -1 when this seat has none — a seat one
+   * tick from elimination still watches, it just cannot say whether anything
+   * is at a gate it no longer owns.
    */
-  #observeRivals(world: World): void {
-    const seen = new Map<Owner, Sighting>();
+  #observeRivals(world: World, baseX: number, baseY: number): void {
+    const tick = world.tick;
+    const atGate = new Map<Owner, number>();
     for (const u of world.units.values()) {
-      if (u.dead || u.owner === this.playerId || !isPlayerOwner(u.owner)) continue;
+      if (u.owner === this.playerId || !isPlayerOwner(u.owner)) continue;
       const cls = UNIT_DEFS[u.kind].combat?.class;
       if (!cls) continue;
       if (!this.#vision.canSee(u.x, u.y)) continue;
-      let s = seen.get(u.owner);
-      if (!s) {
-        s = { tick: world.tick, counts: { heavy: 0, light: 0, ranged: 0 }, total: 0 };
-        seen.set(u.owner, s);
+      if (u.dead) continue; // a corpse is not a garrison
+      const pic = this.#pictureOf(u.owner);
+      pic.roster.set(u.id, { tick, cls });
+      pic.seenTick = tick;
+      if (pic.firstSoldierTick < 0) pic.firstSoldierTick = tick;
+      if (
+        pic.firstAttackTick < 0 &&
+        baseX >= 0 &&
+        Math.abs(u.x - baseX) + Math.abs(u.y - baseY) <= AI_INTEL.raidRadius
+      ) {
+        atGate.set(u.owner, (atGate.get(u.owner) ?? 0) + 1);
       }
-      s.counts[cls]++;
-      s.total++;
     }
-    for (const [owner, s] of seen) {
-      const old = this.#intel.get(owner);
-      if (!old || s.total >= old.total || world.tick - old.tick > AI_INTEL.trustFor) {
-        this.#intel.set(owner, s);
+    // A raid, not a caller. Every playbook walks a lone scout past a rival's
+    // castle in the first four minutes, so "one of theirs came near" fired at
+    // minute four against a warlord and against an abbot alike and separated
+    // nothing. A force at the gate is `minSighting` of them at once.
+    for (const [owner, n] of atGate) {
+      if (n < AI_INTEL.minSighting) continue;
+      const pic = this.#pictureOf(owner);
+      if (pic.firstAttackTick < 0) pic.firstAttackTick = tick;
+    }
+
+    for (const pic of this.#intel.values()) {
+      for (const [id, seen] of pic.roster) {
+        if (tick - seen.tick > AI_INTEL.trustFor) pic.roster.delete(id);
+      }
+      if (pic.seenTick === tick && pic.roster.size >= AI_INTEL.minSighting) {
+        pic.richSeenTick = tick;
+      }
+      if (tick - pic.sampledTick >= AI_INTEL.samplePeriod) {
+        pic.sampledTick = tick;
+        pic.series.push({ tick, total: pic.roster.size });
+        if (pic.series.length > AI_INTEL.seriesLen) pic.series.shift();
+      }
+    }
+
+    if (!this.#earlyMarkTaken && tick >= AI_INTEL.earlyMark) {
+      this.#earlyMarkTaken = true;
+      const counts = new Map<Owner, number>();
+      for (const b of world.buildings.values()) {
+        if (b.dead || b.owner === this.playerId || !isPlayerOwner(b.owner)) continue;
+        if (!this.#vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
+        counts.set(b.owner, (counts.get(b.owner) ?? 0) + 1);
+      }
+      // Every living rival gets the stamp, seen or not: "we have found
+      // nothing of theirs by minute five" is itself the loudest fact about
+      // a village, and leaving it unknown would read as no evidence.
+      for (const p of world.players) {
+        if (p.id === this.playerId || !p.alive || !isPlayerOwner(p.id)) continue;
+        this.#pictureOf(p.id).buildingsAtFive = counts.get(p.id) ?? 0;
       }
     }
   }
 
-  /** The living rival whose picture is stalest and past due, or -1. The
-   * clock reads whichever is newer of the last real sighting and the last
-   * read attempt, and a seat never heard of ranks stalest of all. */
+  /** This rival's picture, opened on first contact. */
+  #pictureOf(owner: Owner): RivalPicture {
+    let pic = this.#intel.get(owner);
+    if (!pic) {
+      pic = {
+        roster: new Map(),
+        series: [],
+        seenTick: -1,
+        richSeenTick: -1,
+        sampledTick: -1,
+        firstSoldierTick: -1,
+        firstAttackTick: -1,
+        buildingsAtFive: -1,
+        reads: 0,
+      };
+      this.#intel.set(owner, pic);
+    }
+    return pic;
+  }
+
+  /**
+   * The living rival whose picture is stalest and past due, or -1. The clock
+   * reads whichever is newer of the last look at a real force and the last
+   * doorstep read, and a seat never heard of ranks stalest of all.
+   *
+   * A *real* force, not any glimpse: `refreshAfter` was all but dead before,
+   * because a single raider wandering into the light reset it. A lone
+   * straggler is not a look at an army, so it no longer buys the seat four
+   * thousand ticks of confidence it has not earned.
+   */
   #staleRival(world: World): Owner {
     let best: Owner = -1;
     let bestTick = Infinity;
     for (const p of world.players) {
       if (p.id === this.playerId || !p.alive) continue;
+      const seen = this.#intel.get(p.id)?.richSeenTick ?? -1;
       const last = Math.max(
-        this.#intel.get(p.id)?.tick ?? -Infinity,
+        seen >= 0 ? seen : -Infinity,
         this.#intelAttempt.get(p.id) ?? -Infinity,
       );
       if (world.tick - last <= AI_INTEL.refreshAfter) continue;
@@ -855,6 +1069,7 @@ export class AiBrain {
    * look actually saw stays on file until its trust window closes. */
   #stampIntel(world: World, owner: Owner): void {
     this.#intelAttempt.set(owner, world.tick);
+    this.#pictureOf(owner).reads++;
   }
 
   /**
@@ -867,10 +1082,12 @@ export class AiBrain {
   #counterPlan(world: World): { unit: UnitTypeId; recipe: number } | null {
     let best: Sighting | undefined;
     let bestOwner: Owner = -1;
-    for (const [owner, s] of this.#intel) {
+    for (const [owner, pic] of this.#intel) {
       if (!world.players[owner]?.alive) continue;
-      if (world.tick - s.tick > AI_INTEL.trustFor) continue;
-      if (s.total < AI_INTEL.minSighting) continue;
+      if (pic.seenTick < 0 || world.tick - pic.seenTick > AI_INTEL.trustFor) continue;
+      const muster = rosterMuster(pic);
+      if (muster.total < AI_INTEL.minSighting) continue;
+      const s: Sighting = { tick: pic.seenTick, counts: muster.counts, total: muster.total };
       if (!best || s.tick > best.tick || (s.tick === best.tick && owner < bestOwner)) {
         best = s;
         bestOwner = owner;
@@ -882,6 +1099,15 @@ export class AiBrain {
       heavy >= light && heavy >= ranged ? 'heavy' : ranged >= light ? 'ranged' : 'light';
     return COUNTER_PICK[dominant];
   }
+}
+
+/** The army a roster adds up to: every soldier still on the list, by class.
+ * Entries past the trust window are pruned as they are written, so what is
+ * here is what the seat still believes is standing. */
+function rosterMuster(pic: RivalPicture): { counts: Sighting['counts']; total: number } {
+  const counts = { heavy: 0, light: 0, ranged: 0 };
+  for (const seen of pic.roster.values()) counts[seen.cls]++;
+  return { counts, total: pic.roster.size };
 }
 
 /** The muster this beat asks for: the playbook's size, less one soldier for

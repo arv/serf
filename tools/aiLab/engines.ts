@@ -1,7 +1,9 @@
 import { ADVICE_RANGES, ADVISABLE_UNITS } from '../../src/ai/advice.ts';
-import { choosePosture, POSTURE_ORDER } from '../../src/ai/posture.ts';
+import { choosePosture, choosePostureBlind, POSTURE_ORDER } from '../../src/ai/posture.ts';
 import { extractSummary } from '../../src/ai/prompt.ts';
 import { Rng } from '../../src/shared/rng.ts';
+import type { PostureId } from '../../src/ai/posture.ts';
+import type { AiWorldSummary } from '../../src/ai/summary.ts';
 import type { ChatEngine } from '../../src/ai/strategist.ts';
 
 /**
@@ -58,6 +60,7 @@ export type EngineSpec =
   | { kind: 'script'; reply: unknown }
   | { kind: 'random'; seed: number }
   | { kind: 'posture' }
+  | { kind: 'postureBlind' }
   | { kind: 'postureFixed'; posture: string }
   | { kind: 'http'; baseUrl: string; model: string };
 
@@ -66,6 +69,7 @@ export type EngineSpec =
  *   none                          the unadvised control
  *   random  |  random:7           the noise floor, optionally seeded
  *   posture                       rule-based stance picking, no model
+ *   posture-blind                 the same rule with the opponent unread
  *   posture:siege                 one stance held all match, for ablation
  *   script:{"armyAttackSize":4}   one fixed personality
  *   http://host:port/v1           any OpenAI-compatible server
@@ -74,6 +78,7 @@ export function parseEngineSpec(raw: string, model = 'local-model'): EngineSpec 
   if (raw === 'none') return { kind: 'none' };
   if (raw === 'random') return { kind: 'random', seed: 1 };
   if (raw === 'posture') return { kind: 'posture' };
+  if (raw === 'posture-blind') return { kind: 'postureBlind' };
   if (raw.startsWith('posture:')) {
     const posture = raw.slice('posture:'.length);
     if (!(POSTURE_ORDER as readonly string[]).includes(posture)) {
@@ -120,7 +125,9 @@ export function buildEngine(spec: EngineSpec, salt: number): LabEngine | null {
     case 'random':
       return randomEngine(spec.seed * 1_000_003 + salt);
     case 'posture':
-      return postureEngine();
+      return postureEngine(choosePosture, 'posture (rule-based)');
+    case 'postureBlind':
+      return postureEngine(choosePostureBlind, 'posture-blind (rule-based, opponent ignored)');
     case 'postureFixed':
       return scriptEngine({ posture: spec.posture, reason: 'fixed' });
     case 'http':
@@ -138,7 +145,9 @@ export function describeSpec(spec: EngineSpec): string {
     case 'random':
       return `random (seed ${spec.seed})`;
     case 'posture':
-      return 'posture (rule-based, no model)';
+      return 'posture (rule-based, reads the opponent, no model)';
+    case 'postureBlind':
+      return 'posture-blind (rule-based, opponent ignored — the null for posture)';
     case 'postureFixed':
       return `posture ${spec.posture} (fixed)`;
     case 'http':
@@ -200,27 +209,35 @@ export function randomEngine(seed: number): LabEngine {
 }
 
 /**
- * The rule-based strategist: `choosePosture` over the summary recovered
- * from the prompt, wearing a ChatEngine's clothes.
+ * The rule-based strategist: a posture rule over the summary recovered from
+ * the prompt, wearing a ChatEngine's clothes.
  *
  * Deterministic and free, which makes it the reference every model number
  * should be read against. It also doubles as a shippable opponent — the
- * same five stances the model chooses from, chosen well, with no download
- * and no inference.
+ * same stances the model chooses from, chosen well, with no download and no
+ * inference.
+ *
+ * The rule is a parameter because there are two of them: `choosePosture`,
+ * which reads the opponent, and `choosePostureBlind`, which does not. The
+ * second is the first one's null — conditioning on an opponent has to beat
+ * ignoring them, and running both over the same seeds is the only way to
+ * know (`--engine posture` against `--engine posture-blind`).
  *
  * A prompt whose summary cannot be recovered answers `{}` rather than
  * throwing: an unreadable prompt is a bug in the harness, and failing the
  * match would hide it behind the strategist's three-strikes rule.
  */
-export function postureEngine(): LabEngine {
+export function postureEngine(
+  pick: (summary: AiWorldSummary) => PostureId,
+  label: string,
+): LabEngine {
   return {
-    label: 'posture (rule-based)',
+    label,
     usage: [],
     complete: (messages) => {
       const summary = extractSummary(messages);
       if (!summary) return Promise.resolve('{}');
-      const posture = choosePosture(summary);
-      return Promise.resolve(JSON.stringify({ posture, reason: 'rule' }));
+      return Promise.resolve(JSON.stringify({ posture: pick(summary), reason: 'rule' }));
     },
   };
 }

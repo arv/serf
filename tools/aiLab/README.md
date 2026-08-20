@@ -79,7 +79,8 @@ and excluded, never awarded. Crashed trials are printed next to the rate.
 | --- | --- |
 | `none` | no strategist — calibration; must score exactly 50% |
 | `random[:seed]` | valid advice by dice — the noise floor; a model must beat this, not just 50% |
-| `posture` | the five stances picked by rule, no model — the bar a model has to be *worth*, not just beat |
+| `posture` | the stances picked by rule, no model — the bar a model has to be *worth*, not just beat |
+| `posture-blind` | the same rule with `readOpponent` deleted — the null for `posture`, and the only fair one |
 | `posture:<id>` | one stance held all match (`posture:siege`) — ablation, and it says what each stance is worth alone |
 | `script:{...}` | one fixed reply forever — plumbing checks, personality experiments |
 | `http://…/v1` | any OpenAI-compatible server (llama-server, Ollama, LM Studio, vLLM); `--model` names the model, `OPENAI_API_KEY` is sent if set |
@@ -193,6 +194,107 @@ Two findings came out of it regardless:
   seat marches believing the enemy has three soldiers because three is all
   one lone scout ever lit. Better arithmetic over the same blindness buys
   nothing; the next work is intelligence.
+
+### Intelligence, and what fixing the input was worth
+
+*(2026-08-20, same map, bandits and seeds. These ran on the build that has
+the roster intel, so their win rates are comparable to the ones above only
+where a paired test says so — which is why every claim below is paired.)*
+
+The predictor's negative result ended on "the next work is intelligence",
+so intelligence is what came next: the per-rival picture stopped being one
+snapshot and became a roster of the soldiers actually seen, keyed by unit
+id, with a bounded trend series over it and the first-contact facts hung
+off it (`src/sim/systems/ai.ts`). The estimate improved and the win rate
+did not follow.
+
+**The estimate.** Scored against the truth every 500 ticks over twelve
+unadvised matches — both estimators computed on the *same* trajectories, so
+this is not two different games being compared — against a real army
+averaging 4.94 soldiers:
+
+| estimator | believes | mean abs error | blind |
+| --- | --- | --- | --- |
+| the old single snapshot | 1.97 | 3.10 | 13.0% |
+| the roster | 2.56 | 2.86 | 10.7% |
+| the roster's peak over the trust window | **3.00** | **2.54** | **6.3%** |
+
+Two smaller findings fell out of building it. Striking the fallen off the
+roster — the obviously honest rule — reads the valley *worse* (error 3.43,
+blind 34%), because the barracks refills faster than the trust window
+closes. And `AI_INTEL.refreshAfter` was all but dead: a single rival
+straggler wandering into the light reset the re-scout clock as though the
+yard had been read, so a harassed seat never looked at what was massing
+behind it. Requiring a real force to count doubled doorstep reads, 2.75 to
+5.25 per match.
+
+**The win rate.** Nothing. The same posture rule, on the same eighty seeds,
+under the old intel and the new:
+
+| arm | advised win rate | flips | undecided |
+| --- | --- | --- | --- |
+| old snapshot intel | 58.3% (84/144) | 25 / 16 | 16 / 240 |
+| roster intel | 51.8% (73/141) | 16 / 15 | 19 / 240 |
+| ...paired McNemar | 14 won, 9 lost, **p = 0.405** | | |
+
+Read that as unresolved rather than as a loss — 6.5pp is inside the ±8pp
+this sample can see, and the paired test is the one that matters. But it is
+certainly not a win, and the honest summary is that a materially better
+estimate of the enemy's strength bought nothing measurable, because almost
+nothing in the brain is gated on that estimate: `marchConfidence` is 0 in
+every playbook, and the posture cascade never looked at enemy army size at
+all.
+
+### Classifying the opponent, and the null that beat it
+
+So the next step made a posture rule that *does* look: a rusher / booming /
+turtling classifier over the intel series (`src/ai/archetype.ts`), and a
+`choosePosture` conditioned on it — pounce on a rival that has shown no
+army, and stop breaking a siege for a lone raider who is not the opponent
+in force. The honest null is the identical cascade with the classifier
+deleted, which is what `--engine posture-blind` is:
+
+| arm | advised win rate | 95% CI |
+| --- | --- | --- |
+| `posture-blind` (opponent ignored) | 51.8% (73/141) | [43.6%, 59.9%] |
+| `posture` (opponent read) | 50.7% (73/144) | [42.6%, 58.7%] |
+| ...paired McNemar | 0 won, 2 lost, **p = 0.50** | |
+
+**Conditioning on the opponent decided nothing.** And the diagnostics say
+that is a real null rather than dead code: the branch changes the stance on
+about one consultation in seven, the two arms end in a materially different
+world in 41 of 160 paired trials, and the winner differs in five of them —
+it just does not win them.
+
+The one arm on this build that looks like anything is the new stance held
+constant — `pounce` is `siege` with the muster bar dropped from twelve to
+five, which is the aggression the whole cascade keeps re-discovering:
+
+| arm (80 seeds, this build) | advised win rate | undecided |
+| --- | --- | --- |
+| `posture:pounce` (constant) | 56.6% (86/152), flips 25 / 17 | **8 / 240** |
+| `posture-blind` (rule) | 51.8% (73/141), flips 16 / 15 | 19 / 240 |
+| `posture` (rule, reads the opponent) | 50.7% (73/144), flips 14 / 16 | 16 / 240 |
+
+Paired, `pounce` beats neither rule at this sample (vs blind p = 0.324, vs
+the archetype rule p = 0.143), so treat the win rate as unresolved — but
+the undecided column is not a coin flip. A seat that marches at five ends
+its matches: 8 of 240 against 19. **A rule losing to its own best constant
+is now the third time this file has recorded that pattern**, and the
+constant is aggressive every time.
+
+Why the classifier fails is more useful than that it failed. It does track
+the opponent — over twelve seeds per playbook it reads `warlord` as a
+rusher six times as often as `abbot`, and `abbot` as booming four times as
+often as `warlord` — but half of every read is `unknown`, and the margins
+are single-digit percentages. Behind fog, three playbooks whose blurbs
+promise completely different games look much alike: every one of them walks
+a lone scout past your castle around minute four, and none of them brings a
+force to your gates before the match is nearly decided. **The seat cannot
+branch on a difference the valley never shows it.** The next thing to fix
+is upstream of the classifier again: per-seat playbooks in the harness
+(plan 3a) so rusher-vs-boomer can be *staged* rather than hoped for, and
+scouting that reads a rival's economy rather than only its soldiers.
 
 Resolution: 40 seeds is ±11pp, 80 seeds ±8pp, and ±5pp would need ~193
 seeds. Treat single-run gaps under ~10pp as unresolved and reach for
