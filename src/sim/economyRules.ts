@@ -34,11 +34,11 @@ import type { World } from './world.ts';
  *
  * What is kept from the cascade world is the ability to say which rule
  * earned a win. Every rule has an id, and a sweep can run with any subset
- * enabled (`--engine rules:<id>,<id>` in the lab), so a rule that pays and
- * a rule that merely fires can be told apart. That handle is the whole
- * reason the posture work produced findings instead of opinions, and a
- * hundred interacting rules that can only be measured in aggregate would
- * have thrown it away.
+ * enabled (`--rules <id>,<id>` in the lab, or `--rules none` for none of
+ * them), so a rule that pays and a rule that merely fires can be told
+ * apart. That handle is the whole reason the posture work produced findings
+ * instead of opinions, and a hundred interacting rules measurable only in
+ * aggregate would have thrown it away.
  *
  * Two mechanisms keep composition from turning into a brawl:
  *
