@@ -164,7 +164,7 @@ export const POSTURES: Record<PostureId, Posture> = {
    *
    * Held constant for whole matches it scores 56.6% (86/152) at eighty
    * seeds, which is the best arm measured on this build — and it beats
-   * neither rule when paired (p = 0.324 against `posture-blind`), so that is
+   * neither rule when paired (p = 0.324 against `posture`), so that is
    * a hint and not a finding. What is *not* ambiguous is the horizon: a seat
    * that marches at five leaves 8 of 240 matches undecided against the
    * rule's 19. Aggression ends games, which is phase 1's problem answered
@@ -214,14 +214,15 @@ export function postureAdvice(id: PostureId): StrategyAdvice {
 }
 
 /**
- * The rule-based selector as it stood before the seat could read its
- * opponent: stances chosen from the summary, without a model and without an
- * archetype.
+ * The rule-based selector, and the reference the harness means by
+ * `--engine posture`: stances chosen from the summary, without a model and
+ * without reading the opponent.
  *
- * It is kept, exported and swept (`--engine posture-blind`) because it is
- * the honest null for `choosePosture` below. Conditioning on the opponent
- * has to beat ignoring the opponent, and the only way to know is to run the
- * same rule both ways over the same seeds.
+ * It is the reference on the evidence. `choosePostureReadingOpponent` below
+ * conditions the same cascade on an archetype and does not beat it — 0 won,
+ * 2 lost, p = 0.50 over eighty seeds — so the simpler rule holds the name
+ * that every recorded number was measured under, and the classifier waits
+ * behind `--engine posture-reads` until a fair test says otherwise.
  *
  * It is also the honest opponent for a model to beat. `random` proves advice-shaped noise
  * moves win rates; this proves how much of the win is in the *vocabulary*
@@ -254,7 +255,7 @@ export function postureAdvice(id: PostureId): StrategyAdvice {
  * at forty seeds is not enough evidence to delete a stance — but nothing
  * in this function chooses them.
  */
-export function choosePostureBlind(summary: AiWorldSummary): PostureId {
+export function choosePosture(summary: AiWorldSummary): PostureId {
   // Someone is in the yard. The only situation worth breaking stance for:
   // an army that marches while its castle burns loses the castle.
   if (summary.me.underAttack) return 'fortify';
@@ -295,8 +296,8 @@ export function choosePostureBlind(summary: AiWorldSummary): PostureId {
  * matters — the same cascade with `readOpponent` deleted. Eighty seeds,
  * same build, same valley:
  *
- *     posture-blind (opponent ignored)   51.8%   (73/141)
- *     posture       (opponent read)      50.7%   (73/144)
+ *     posture       (opponent ignored)   51.8%   (73/141)
+ *     posture-reads (opponent read)      50.7%   (73/144)
  *     paired McNemar over the same seeds: 0 trials won, 2 lost, p = 0.50
  *
  * The branch is not inert — it changes the stance on about one consultation
@@ -312,7 +313,7 @@ export function choosePostureBlind(summary: AiWorldSummary): PostureId {
  * do in their blurbs, and a classifier cannot separate what scouting never
  * showed it.
  */
-export function choosePosture(summary: AiWorldSummary): PostureId {
+export function choosePostureReadingOpponent(summary: AiWorldSummary): PostureId {
   const opponent = readOpponent(summary);
 
   if (summary.me.underAttack && opponent !== 'booming' && opponent !== 'turtling') {

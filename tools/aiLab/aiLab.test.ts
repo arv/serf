@@ -113,7 +113,7 @@ describe('engine specs', () => {
     } catch (err) {
       message = err instanceof Error ? err.message : String(err);
     }
-    for (const name of ['none', 'random', 'posture', 'posture-blind', 'script', 'http']) {
+    for (const name of ['none', 'random', 'posture', 'posture-reads', 'script', 'http']) {
       expect(message, `refusal should mention ${name}`).toContain(name);
     }
     for (const id of POSTURE_ORDER) expect(message).toContain(id);

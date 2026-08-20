@@ -131,7 +131,7 @@ There is no `bakeoff:compare` step for a playbook matchup: the pairing is
 | `none` | no strategist — calibration; must score exactly 50% |
 | `random[:seed]` | valid advice by dice — the noise floor; a model must beat this, not just 50% |
 | `posture` | the stances picked by rule, no model — the bar a model has to be *worth*, not just beat |
-| `posture-blind` | the same rule with `readOpponent` deleted — the null for `posture`, and the only fair one |
+| `posture-reads` | the same rule conditioned on an opponent archetype. Measured against `posture` and it does not pay (p = 0.50), so it is the experiment, not the reference |
 | `posture:<id>` | one stance held all match (`posture:siege`) — ablation, and it says what each stance is worth alone |
 | `script:{...}` | one fixed reply forever — plumbing checks, personality experiments |
 | `http://…/v1` | any OpenAI-compatible server (llama-server, Ollama, LM Studio, vLLM); `--model` names the model, `OPENAI_API_KEY` is sent if set |
@@ -339,12 +339,12 @@ turtling classifier over the intel series (`src/ai/archetype.ts`), and a
 `choosePosture` conditioned on it — pounce on a rival that has shown no
 army, and stop breaking a siege for a lone raider who is not the opponent
 in force. The honest null is the identical cascade with the classifier
-deleted, which is what `--engine posture-blind` is:
+deleted, which is what `--engine posture` is:
 
 | arm | advised win rate | 95% CI |
 | --- | --- | --- |
-| `posture-blind` (opponent ignored) | 51.8% (73/141) | [43.6%, 59.9%] |
-| `posture` (opponent read) | 50.7% (73/144) | [42.6%, 58.7%] |
+| `posture` (opponent ignored) | 51.8% (73/141) | [43.6%, 59.9%] |
+| `posture-reads` (opponent read) | 50.7% (73/144) | [42.6%, 58.7%] |
 | ...paired McNemar | 0 won, 2 lost, **p = 0.50** | |
 
 **Conditioning on the opponent decided nothing.** And the diagnostics say
@@ -360,8 +360,8 @@ five, which is the aggression the whole cascade keeps re-discovering:
 | arm (80 seeds, this build) | advised win rate | undecided |
 | --- | --- | --- |
 | `posture:pounce` (constant) | 56.6% (86/152), flips 25 / 17 | **8 / 240** |
-| `posture-blind` (rule) | 51.8% (73/141), flips 16 / 15 | 19 / 240 |
-| `posture` (rule, reads the opponent) | 50.7% (73/144), flips 14 / 16 | 16 / 240 |
+| `posture` (rule) | 51.8% (73/141), flips 16 / 15 | 19 / 240 |
+| `posture-reads` (rule, reads the opponent) | 50.7% (73/144), flips 14 / 16 | 16 / 240 |
 
 Paired, `pounce` beats neither rule at this sample (vs blind p = 0.324, vs
 the archetype rule p = 0.143), so treat the win rate as unresolved — but

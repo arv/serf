@@ -244,8 +244,8 @@ better arithmetic over the same blindness measured nothing at all.
 ### 2c. Prove it — done; the null won
 
 - [x] The honest null is **the same posture rule without the archetype
-      input** (`--engine posture-blind`).
-- [x] 80 seeds, paired McNemar. `posture` 50.7% against `posture-blind`
+      input** (`--engine posture`, with the classifier at `--engine posture-reads`).
+- [x] 80 seeds, paired McNemar. `posture-reads` 50.7% against `posture`
       51.8%: 0 trials won, 2 lost, **p = 0.50**. The branch is live — it
       changes the stance on one consultation in seven and the two arms end
       in a different world in 41 of 160 trials — and it wins none of them.
