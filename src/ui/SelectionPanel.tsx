@@ -13,6 +13,7 @@ import {
   population,
   selectedBuilding,
   selection,
+  selectionGroup,
   setTechPanelOpen,
   stock,
   techs,
@@ -608,6 +609,20 @@ export function SelectionPanel(props: {
             <span style={{ flex: '1', 'min-width': '150px' }}>
               <span class="num">{selection().size}</span>{' '}
               {selection().size === 1 ? 'unit' : 'units'} selected
+              {/* The whole feedback loop for control groups. Ctrl+1 changes
+                  nothing a player can see — the same units stay selected —
+                  so without this badge the stamp is a keypress into the
+                  void, and the only way to find out whether it took is to
+                  press 1 and hope. It doubles as the teaching: a recall
+                  that lights up "group 1" says what the number row does.
+
+                  Tested against null rather than truthiness, and read again
+                  inside rather than through Show's callback: group 0 is a
+                  real group and a falsy number, and the callback would hand
+                  back the boolean the `when` narrowed to, not the digit. */}
+              <Show when={selectionGroup() !== null}>
+                <span class="note"> · group {selectionGroup()}</span>
+              </Show>
             </span>
             {/* The A/M shortcuts' home on screen — and, tapped, the touch way
                 to the two orders a finger otherwise cannot ask for: the plain
