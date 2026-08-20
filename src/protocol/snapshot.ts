@@ -8,13 +8,14 @@
  * Per-player filtering happens above, on the server, so the two concerns
  * stay separable.
  */
-import { buildingDef } from '../sim/defs/buildings.ts';
+import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings.ts';
 import { HIRE_SERF_TICKS } from '../sim/defs/balance.ts';
 import { TECH_DEFS } from '../sim/defs/techs.ts';
 import { GOODS } from '../sim/defs/goods.ts';
 import { UNIT_DEFS, carryingCode } from '../sim/defs/units.ts';
 import { ACTION, PROFESSION, WORK, type UnitSnapshot } from './sabLayout.ts';
 import { centerOf } from '../sim/entities.ts';
+import { RESOURCE_CODE, countResourceNear } from '../sim/map.ts';
 import { exactDist } from '../shared/math.ts';
 import { distToFootprint } from '../sim/arrival.ts';
 import type { World } from '../sim/world.ts';
@@ -66,11 +67,35 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     working: b.prodTicksLeft !== undefined && !b.paused ? true : undefined,
     paused: b.paused,
     recipeIndex: b.recipeIndex,
+    resourceLeft: reachableResource(world, b),
     hireQueue: b.hireQueue,
     hireProgress01: b.hireQueue
       ? 1 - (b.hireTicksLeft ?? HIRE_SERF_TICKS) / HIRE_SERF_TICKS
       : undefined,
   };
+}
+
+/**
+ * What the ground inside a gatherer's reach still holds, for the card that
+ * reports it. Undefined for everything that doesn't work the land.
+ *
+ * Cheap enough to run per snapshot: a few hundred tile reads per gatherer,
+ * a few times a second. It is also stable — a number that only moves when
+ * a tile is worked or a grove grows back — so putting it in the roster does
+ * not make an idle village ship its buildings every frame.
+ */
+function reachableResource(world: World, b: Building): number | undefined {
+  const def = buildingDef(b.type);
+  const gather = gatherRecipeOf(def);
+  if (!gather) return undefined;
+  const origin = gatherOrigin(def, b.x, b.y);
+  return countResourceNear(
+    world.map,
+    origin.x,
+    origin.y,
+    RESOURCE_CODE[gather.resource],
+    gather.radius,
+  );
 }
 
 export function snapBuildings(world: World): BuildingSnap[] {

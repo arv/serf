@@ -1,5 +1,11 @@
 import { For, Index, Show } from 'solid-js';
-import { BUILDING_DEFS, repairBill } from '../sim/defs/buildings';
+import {
+  BUILDING_DEFS,
+  gatherRecipeOf,
+  repairBill,
+  type BuildingTypeId,
+  type TileResourceName,
+} from '../sim/defs/buildings';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS, TICKS_PER_SECOND, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
 import type { BuildingSnap } from '../protocol/messages';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods';
@@ -50,6 +56,23 @@ function queueSlots(
   queue: BuildingSnap['trainQueue'],
 ): (NonNullable<BuildingSnap['trainQueue']>[number] | undefined)[] {
   return Array.from({ length: TRAIN_QUEUE_CAP }, (_, i) => queue?.[i]);
+}
+
+/**
+ * What "in reach" means for this building, in the terms that decide what
+ * the player does about it: a spent seam is a mine to tear down, a thin
+ * grove is a woodcutter that will pick up again on its own.
+ */
+function reachTip(type: BuildingTypeId, resource: TileResourceName, left: number): string {
+  const renews = resource === 'wood';
+  if (left <= 0) {
+    return renews
+      ? 'Every tree inside the search square is down. Stumps grow back in time, slowly — this hut will start again on its own, but a forest is where it belongs.'
+      : `Nothing workable is left inside the search square, and none of it comes back. This ${buildingName(type).toLowerCase()} is finished where it stands — sell it and put the next one on fresh ground.`;
+  }
+  return renews
+    ? 'Loads of wood still standing inside the square its woodcutter searches. Felled tiles regrow, so a hut with room to breathe holds its number rather than running down to nothing.'
+    : 'Loads still in the ground inside the square its worker searches — every one of them a trip, and none of them replaced. When it reaches zero the building is done wherever it stands.';
 }
 
 export function SelectionPanel(props: {
@@ -131,6 +154,12 @@ export function SelectionPanel(props: {
         .sel-status .bad { color: #d98a6a; }
         .sel-status .note { color: #e5c469; }
 
+        /* The ground-in-reach readout. Its own slot for the number,
+           cut for the widest a woodcutter in a deep forest can quote,
+           so a felled tree cannot nudge the line it sits on. */
+        .sel-reach .num { display: inline-block; min-width: 4ch; text-align: right; }
+        .sel-reach .spent { color: #d98a6a; }
+
         .sel-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
         #ui .sel-row button { min-height: 0; padding: 3px 10px; }
         .sel-label { opacity: 0.7; font-size: 12px; }
@@ -208,6 +237,11 @@ export function SelectionPanel(props: {
       <Show when={selectedBuilding()}>
         {(b) => {
           const def = () => BUILDING_DEFS[b().type];
+          /** The gather recipe, if this building works the land at all —
+              a type-level fact, so the reach line it drives is either
+              on this card for as long as the building is selected or
+              never on it. */
+          const gather = () => gatherRecipeOf(def());
           const mine = () => b().owner === myPlayerId();
           /**
            * Does this building offer a row of standing orders at all?
@@ -582,6 +616,40 @@ export function SelectionPanel(props: {
                   <span class="good"> · mending</span>
                 </Show>
               </div>
+
+              {/* What the ground around it still holds. A gatherer's
+                  own question, and the one the card could not answer:
+                  the reach outline on the map says whether anything is
+                  left, this says how much — how many more loads that
+                  hut, quarry or mine can take out of the ground it
+                  stands on before it is finished there. Shown for the
+                  site too: a mine still going up is exactly when the
+                  size of the seam under it is worth knowing. */}
+              <Show when={gather()}>
+                {(g) => (
+                  <div class="sel-line">
+                    <TipWrap
+                      tip={() => (
+                        <TextTip
+                          title={`${goodName(g().output)} in reach`}
+                          body={reachTip(b().type, g().resource, b().resourceLeft ?? 0)}
+                        />
+                      )}
+                    >
+                      <span class="sel-reach">
+                        <span class="sel-label">in reach</span>{' '}
+                        <GoodIcon good={g().output} size={12} />
+                        <span class="num" classList={{ spent: (b().resourceLeft ?? 0) <= 0 }}>
+                          {b().resourceLeft ?? 0}
+                        </span>
+                        <Show when={(b().resourceLeft ?? 0) <= 0}>
+                          <span class="sel-label spent"> · worked out</span>
+                        </Show>
+                      </span>
+                    </TipWrap>
+                  </div>
+                )}
+              </Show>
 
               <div class="sel-line">
                 <Show when={b().state === 'site'}>
