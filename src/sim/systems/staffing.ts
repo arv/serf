@@ -60,13 +60,10 @@ function releaseObsoletePosts(world: World): void {
       b.workerId = undefined;
       continue;
     }
+    // Back to the pool means back to idle, and unbindWorker does that for
+    // every caller now — see its comment for why a half-finished gather task
+    // would otherwise strand the hand for good.
     unbindWorker(world, worker);
-    // Back to the pool means back to idle: a gather task left half-finished
-    // would never advance again (its building no longer drives one), and a
-    // serf that never reads idle is a serf the haulage matcher never sees.
-    // Anything in their hands stays there — logistics has a path for a free
-    // serf still holding a good.
-    worker.task = { t: 'idle', until: world.tick };
   }
 }
 
