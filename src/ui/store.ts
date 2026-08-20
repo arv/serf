@@ -20,6 +20,19 @@ import { audioFromUrl, loadAudioPrefs, saveAudioPrefs, volumeToGain } from '../a
 export const [speed, setSpeed] = createSignal(1);
 export const [selection, setSelection] = createSignal<ReadonlySet<number>>(new Set());
 
+/**
+ * The control group the standing selection *is* — 1–9 or 0, or null when it
+ * matches none of them. Only the badge on the selection card reads it, but
+ * that badge is the whole feedback loop for control groups: without it,
+ * Ctrl+1 is a keypress with no visible effect and the player has no way to
+ * know the stamp took short of pressing 1 and hoping.
+ *
+ * The groups themselves live in `input/controls.ts` beside the selection —
+ * they are lists of unit ids, and something has to weed the dead out of
+ * them every frame. This is the one derived crumb the HUD needs.
+ */
+export const [selectionGroup, setSelectionGroup] = createSignal<number | null>(null);
+
 /** The seat this client plays (0 until lobbies land). Everything the HUD
  * shows — stock, techs, outcome copy, selection filters — is this player's
  * perspective. */
@@ -312,6 +325,7 @@ export function pushLlmTrace(trace: import('../ai/strategist').ConsultTrace): vo
 export function resetMatchState(): void {
   setSpeed(1);
   setSelection(new Set<number>());
+  setSelectionGroup(null);
   setMyPlayerId(0);
   setPlayersMeta([]);
   setNetMode(false);
