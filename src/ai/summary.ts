@@ -53,6 +53,28 @@ export interface RivalIntel {
   light: number;
   ranged: number;
   total: number;
+  /** The biggest their roster has been inside the trust window. The most
+   * accurate number the brain has about their strength — `total` forgets
+   * whoever has not been seen lately, and measured against the truth this
+   * one is a fifth closer (src/sim/systems/ai.ts, RivalPicture). */
+  peak: number;
+}
+
+/**
+ * How a rival's opening looked, in minutes, with -1 for "has not happened
+ * yet" (or, for `buildingsAtFive`, "minute five has not struck").
+ *
+ * Three facts, because three is what separates a rush from a boom without
+ * asking a model to do arithmetic: when their first soldier turned up, when
+ * one of them first reached our gates, and how much village we had found by
+ * minute five. All observed under the same fog as everything else here — a
+ * rival who has never been scouted shows -1s, which is honest ignorance and
+ * not a claim that they are peaceful.
+ */
+export interface RivalContact {
+  firstSoldierMin: number;
+  firstAttackMin: number;
+  buildingsAtFive: number;
 }
 
 export interface RivalSummary {
@@ -68,6 +90,8 @@ export interface RivalSummary {
   distance: number;
   /** null = never sighted, or the last sighting outlived its trust. */
   intel: RivalIntel | null;
+  /** Their opening, as first contact recorded it. */
+  contact: RivalContact;
 }
 
 export interface AiWorldSummary {
@@ -98,6 +122,12 @@ export interface AiWorldSummary {
 
 /** "Within sight of the castle": the homeGuard scale, not the whole map. */
 const UNDER_ATTACK_RADIUS = 12;
+
+/** A tick a first-contact fact happened at, as a whole minute — and -1
+ * straight through, because "never" must not read as "at minute zero". */
+function inMinutes(tick: number): number {
+  return tick < 0 ? -1 : Math.round((tick * TICK_MS) / 60_000);
+}
 
 function castleOf(world: World, owner: Owner): Building | undefined {
   for (const b of world.buildings.values()) {
@@ -166,13 +196,14 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
       vision.hasExplored(theirCastle.x + theirCastle.w / 2, theirCastle.y + theirCastle.h / 2);
     const report = intelByOwner.get(rival.id);
     const intel =
-      report && world.tick - report.tick <= AI_INTEL.trustFor
+      report && report.tick >= 0 && world.tick - report.tick <= AI_INTEL.trustFor
         ? {
             ageTicks: world.tick - report.tick,
             heavy: report.counts.heavy,
             light: report.counts.light,
             ranged: report.counts.ranged,
             total: report.total,
+            peak: report.peak,
           }
         : null;
     rivals.push({
@@ -185,6 +216,11 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
           ? Math.abs(theirCastle.x + 1 - bx) + Math.abs(theirCastle.y + 1 - by)
           : -1,
       intel,
+      contact: {
+        firstSoldierMin: inMinutes(report?.firstSoldierTick ?? -1),
+        firstAttackMin: inMinutes(report?.firstAttackTick ?? -1),
+        buildingsAtFive: report?.buildingsAtFive ?? -1,
+      },
     });
   }
 

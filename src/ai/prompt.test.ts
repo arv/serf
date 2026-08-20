@@ -28,7 +28,7 @@ function summaries(): { first: AiWorldSummary; later: AiWorldSummary } {
         ...first.rivals[0]!,
         found: true,
         distance: 30,
-        intel: { ageTicks: 200, heavy: 2, light: 1, ranged: 0, total: 3 },
+        intel: { ageTicks: 200, heavy: 2, light: 1, ranged: 0, total: 3, peak: 4 },
       },
     ],
   };
