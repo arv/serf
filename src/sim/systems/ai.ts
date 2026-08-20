@@ -1,7 +1,14 @@
 import { tileCount, tileIdx, tileX, tileY } from '../../shared/grid.ts';
+import {
+  ALL_ECONOMY_RULES,
+  runEconomyRules,
+  type EconomyRuleId,
+  type RuleContext,
+} from '../economyRules.ts';
 import { exactDist } from '../../shared/math.ts';
 import {
   findResourcesNear,
+  nearestResource,
   playMin,
   playMax,
   RESOURCE_CODE,
@@ -21,7 +28,7 @@ import {
   type BuildingTypeId,
 } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
-import { UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
+import { UNIT_DEFS, WEAPON_OF, type UnitClass, type UnitTypeId } from '../defs/units.ts';
 import { classHp, shouldCommit, type Force } from '../combatOdds.ts';
 import { HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
@@ -124,7 +131,7 @@ export const AI_PACING = {
  * No amount of tuning reaches that. What reaches it is noticing, so the
  * brain samples a handful of integers on a slow clock and calls the seat
  * stalled when none of them has moved across the whole window. The rules
- * that answer are all in `#recover`, and every one of them is gated on this
+ * that answer are all in sim/economyRules.ts, and every one of them is gated on this
  * reading — an unstalled seat emits exactly the commands it always did.
  *
  * Brain-local memory like `#intel` and `#vision`: never serialized, and the
@@ -327,12 +334,6 @@ const MILITARY = new Set<UnitTypeId>(['knight', 'spearman', 'archer']);
  * seat into emptying its yard. */
 const MIN_SORTIE = 3;
 
-/** What a soldier needs forged before the barracks can start on them. */
-const WEAPON_OF: Partial<Record<UnitTypeId, GoodId>> = {
-  knight: 'sword',
-  spearman: 'spear',
-  archer: 'bow',
-};
 
 const ANCHOR_RESOURCE: Record<Exclude<BuildAnchor, 'base' | 'water'>, number> = {
   wood: TileResource.Wood,
@@ -408,6 +409,19 @@ export class AiBrain {
    * the difference between "tune it" and "it never saw the stall". */
   #stalledBeats = 0;
   #recoveries = 0;
+  /**
+   * Which economy rules this seat runs (sim/economyRules.ts). Every rule by
+   * default, which is the behaviour that was measured and shipped; the lab
+   * narrows it to ablate one rule at a time, and an empty set turns the
+   * layer off entirely. Brain-local like every other field here.
+   */
+  #rules: ReadonlySet<EconomyRuleId> = new Set(ALL_ECONOMY_RULES);
+
+  /** Run only these rules. The lab's ablation handle; the game never calls
+   * it, so a shipped seat always runs the whole table. */
+  setEconomyRules(ids: readonly EconomyRuleId[]): void {
+    this.#rules = new Set(ids);
+  }
 
   constructor(playerId: Owner, strategy: AiStrategy, mapSize: number) {
     this.playerId = playerId;
@@ -614,7 +628,22 @@ export class AiBrain {
     // Only ever reached by a seat the window says has not moved in twelve
     // minutes. Everything above this line is the game as it was played
     // before the watchdog existed.
-    if (stalled) this.#recover(world, mine, stock, serfCount, commands);
+    const ruleCtx: RuleContext = {
+      world,
+      owner: this.playerId,
+      mine: sortedById(mine),
+      stock,
+      serfCount,
+      stalled,
+      strategy: s,
+      researched,
+      counter: this.#counterPlan(world),
+    };
+    if (this.#rules.size > 0) {
+      const recovery = runEconomyRules(ruleCtx, this.#rules, 'recovery');
+      commands.push(...recovery.commands);
+      this.#recoveries += recovery.fired.length;
+    }
 
     // --- Research queue ------------------------------------------------------
     // First in the playbook's order that is neither done nor blocked: a line
@@ -633,78 +662,12 @@ export class AiBrain {
       }
     }
 
-    // --- Forge assignments: the playbook's weapon mix, by smith age ---------
-    // Bent by intelligence: smiths beyond the first switch to the weapon
-    // that beats what scouting has seen of a living rival's army. The
-    // first smith keeps the playbook's own line — a sighting is a reason
-    // to hedge, not to stampede — and a counter the seat cannot forge
-    // (tech-gated recipe) leaves the mix as written.
-    const counter = this.#counterPlan(world);
-    const smiths = mine
-      .filter((b) => b.type === 'weaponsmith' && b.state === 'built')
-      .sort((a, z) => a.id - z.id);
-    smiths.forEach((smith, i) => {
-      let want = s.weaponMix[Math.min(i, s.weaponMix.length - 1)]!;
-      if (counter && i > 0) {
-        const opt = BUILDING_DEFS.weaponsmith.recipeOptions?.[counter.recipe];
-        if (opt && (opt.requiresTech === undefined || researched(opt.requiresTech))) {
-          want = counter.recipe;
-        }
-      }
-      const option = BUILDING_DEFS.weaponsmith.recipeOptions?.[want];
-      if (!option) return;
-      if (option.requiresTech !== undefined && !researched(option.requiresTech)) return;
-      if ((smith.recipeIndex ?? 0) !== want) {
-        commands.push({ kind: 'setBuildingRecipe', buildingId: smith.id, index: want });
-      }
-    });
-
-    // --- Keep the barracks queue warm --------------------------------------------
-    // The counter unit jumps the queue when its weapon is at hand — the
-    // around() check is the feasibility test, so a counter the economy
-    // cannot arm falls straight through to the playbook's own preference.
-    const barracks = mine.find((b) => b.type === 'barracks' && b.state === 'built');
-    if (barracks) {
-      const around = (good: GoodId): boolean =>
-        (stock[good] ?? 0) + (barracks.inputs[good] ?? 0) + (barracks.inbound[good] ?? 0) > 0;
-      const prefs = counter ? [counter.unit, ...s.trainPreference] : s.trainPreference;
-      const ready = prefs.find((unit) => {
-        const weapon = WEAPON_OF[unit];
-        return weapon !== undefined && around(weapon);
-      });
-      // A queue can go stale: an unstarted entry whose weapon the village
-      // neither holds nor has on the way pins its slot forever — the iron
-      // ran out under a spearman order while swords piled up in the store,
-      // and a queue at depth stops this rule from ever running again. One
-      // stale entry makes way per beat, and only while a unit the seat CAN
-      // arm is waiting for the slot. An empty-handed queue keeps its
-      // entries: unstarted orders are what summon their weapons at all
-      // (trainingDemand reads them), so a seat with nothing in reach must
-      // hold its place in line, not clear it.
-      let cancelled = 0;
-      if (ready !== undefined) {
-        const staleIdx = (barracks.trainQueue ?? []).findIndex((item) => {
-          if (item.started) return false;
-          const weapon = WEAPON_OF[item.unit];
-          return weapon !== undefined && !around(weapon);
-        });
-        if (staleIdx >= 0) {
-          commands.push({
-            kind: 'cancelTraining',
-            buildingId: barracks.id,
-            index: staleIdx,
-            unit: barracks.trainQueue![staleIdx]!.unit,
-          });
-          cancelled = 1;
-        }
-      }
-      if ((barracks.trainQueue?.length ?? 0) - cancelled < s.barracksQueueDepth) {
-        commands.push({
-          kind: 'trainUnit',
-          buildingId: barracks.id,
-          unit: ready ?? s.trainFallback,
-        });
-      }
+    // --- War production: forges and the barracks queue ----------------------
+    // Both are rules now (sim/economyRules.ts) and fire here rather than
+    // earlier, because command order inside a tick is load-bearing: research
+    // above spends the same shelf these orders draw on.
+    if (this.#rules.size > 0) {
+      commands.push(...runEconomyRules(ruleCtx, this.#rules, 'production').commands);
     }
 
     // --- Army: rally at home until strong, then march ------------------------
@@ -990,89 +953,6 @@ export class AiBrain {
     );
   }
 
-  /**
-   * The escalating recovery rules, cheapest and least destructive first.
-   * At most one order per beat, so a seat takes only the step it needs and
-   * gets a whole sample period to show the step worked before the next one
-   * is considered.
-   *
-   * Both rules here spend a building or a post, which is why they sit
-   * behind the two free ones in `decide` and behind the stall reading
-   * itself. Neither can run on a seat that is going anywhere.
-   */
-  #recover(
-    world: World,
-    mine: Building[],
-    stock: Record<string, number>,
-    serfCount: number,
-    commands: SimCommand[],
-  ): void {
-    // Rule one: re-site a worked-out extractor. A gatherer with nothing
-    // left in reach is a hand and a hut spent on ground that will never
-    // yield again — tree groves regrow only on standing tiles
-    // (systems/production.ts `regrow`), so a woodcutter that cleared its
-    // radius sits on dead earth for the rest of the match, and a seam is
-    // simply finished. Selling it is the whole re-siting move: the sale
-    // hands back half the materials AND the resident (tick.ts), and the
-    // build order above maintains standing counts, so the next beat places
-    // the replacement — against a live deposit, because `spotFor` anchors
-    // on `nearestResource`, which only counts tiles with amount left.
-    //
-    // Two conditions keep this from making things worse. There has to be a
-    // live deposit somewhere to re-site onto, and the seat has to be able
-    // to afford the rebuild once the refund lands — half back means the
-    // shelf must already hold the other half. Failing either, selling would
-    // just be losing a building.
-    for (const b of sortedById(mine)) {
-      if (b.state !== 'built') continue;
-      const def = BUILDING_DEFS[b.type];
-      const recipe = gatherRecipeOf(def);
-      if (!recipe) continue;
-      const code = RESOURCE_CODE[recipe.resource]!;
-      const c = gatherOrigin(def, b.x, b.y);
-      if (findResourcesNear(world.map, c.x, c.y, code, recipe.radius, 1).length > 0) continue;
-      if (nearestResource(world, code, b.x, b.y) < 0) continue; // nowhere to move to
-      const cost = def.cost as Record<string, number>;
-      const canRebuild = Object.entries(cost).every(
-        ([good, n]) => (stock[good] ?? 0) + Math.floor(n / 2) >= n,
-      );
-      if (!canRebuild) continue;
-      commands.push({ kind: 'sellBuilding', buildingId: b.id });
-      this.#recoveries++;
-      return;
-    }
-
-    // Rule two: buy a hauler with a post. Nothing in the village moves
-    // without a loose serf — the haul matcher only ever offers a job to an
-    // idle one (systems/logistics.ts) — and a seat can spend its last hand
-    // legitimately, by binding it to a hut or handing it to the barracks as
-    // a recruit. Seed 9 ends exactly there: full extractors, four silver
-    // sitting in the silver mine, and nobody to carry it the twenty tiles
-    // to the storehouse that would pay for the hand that carries it.
-    //
-    // The post to empty is one whose output buffer is already full, which
-    // is precisely a post producing nothing: its worker is standing at a
-    // capped hut waiting for a haul that cannot come. Freeing him costs no
-    // production at all, and it is self-limiting — once he has drained the
-    // buffer the post is under cap again, and the staffing sweep re-fills it
-    // when the dismissal backoff runs out.
-    //
-    // Only a worker reading idle is taken. A hand released mid-trip used to
-    // be lost for good; unbindWorker resets the task now, but a rule whose
-    // whole purpose is producing a hauler should not depend on that.
-    if (serfCount > 0) return;
-    for (const b of sortedById(mine)) {
-      if (b.state !== 'built' || b.workerId === undefined) continue;
-      const def = BUILDING_DEFS[b.type];
-      const out = gatherRecipeOf(def)?.output;
-      if (out === undefined || (b.stock[out] ?? 0) < OUTPUT_CAP) continue;
-      const worker = world.units.get(b.workerId);
-      if (!worker || worker.dead || worker.task.t !== 'idle') continue;
-      commands.push({ kind: 'dismissWorker', buildingId: b.id });
-      this.#recoveries++;
-      return;
-    }
-  }
 
   /** The scout stands down entirely. */
   #clearScout(): void {
@@ -1402,7 +1282,7 @@ function spotFor(
     const size = world.map.size;
     return findSpot(world, step.type, tileX(shore, size), tileY(shore, size), step.radius);
   }
-  const tile = nearestResource(world, ANCHOR_RESOURCE[step.anchor], baseX, baseY);
+  const tile = nearestResource(world.map, ANCHOR_RESOURCE[step.anchor], baseX, baseY);
   if (tile < 0) return null;
   const size = world.map.size;
   return findSpot(world, step.type, tileX(tile, size), tileY(tile, size), step.radius);
@@ -1491,26 +1371,6 @@ function nearestWater(world: World, cx: number, cy: number): number {
 }
 
 /** Nearest tile with a given resource to a point. */
-function nearestResource(world: World, code: number, cx: number, cy: number): number {
-  const map = world.map;
-  const size = map.size;
-  const lo = playMin(map);
-  const hi = playMax(map);
-  let best = -1;
-  let bestDist = Infinity;
-  for (let y = lo; y < hi; y++) {
-    for (let x = lo; x < hi; x++) {
-      const i = y * size + x;
-      if (map.resource[i] !== code || map.resourceAmt[i]! <= 0) continue;
-      const d = Math.abs(x - cx) + Math.abs(y - cy);
-      if (d < bestDist) {
-        bestDist = d;
-        best = i;
-      }
-    }
-  }
-  return best;
-}
 
 /** Is an enemy fighter — rival soldier or raider — this close to home?
  * Only one the seat can actually see: a unit is intelligence of the moment,

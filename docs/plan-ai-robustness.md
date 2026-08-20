@@ -129,7 +129,9 @@ own rule with its own trigger, so a seat takes only the ones it needs.
       research pending is a common terminal state.
 - [x] **Ignore the growth gate** — `growthAfter` defers hiring behind a
       tech that a stalled seat may never afford.
-- [x] **Re-site a dead extractor.** The core fix. A production building
+- [x] **Re-site a dead extractor.** Planned as the core fix; measured as the
+      one that does not pay — see the correction at the end of this phase.
+      A production building
       whose anchor resource is exhausted inside its radius should be
       demolished and re-placed against a live deposit, reusing the existing
       `canPlace` / `ANCHOR_RESOURCE` machinery that the build order already
@@ -199,6 +201,33 @@ post once `DISMISS_RESTAFF_BACKOFF` runs out.
       Every other match is a seat that never reached any of this code.
 - [x] Keep `winnable.test.ts` and `aiStrategies.test.ts` green — the
       campaign regression exists for exactly this class of change.
+
+### Correction (2026-08-20): the core fix was the other one
+
+Ablating the two recovery rules individually over seeds 1-80
+(`--rules <ids>`, `src/sim/economyRules.ts`) says this phase named the wrong
+one:
+
+| rules enabled | undecided | recovery orders |
+| --- | --- | --- |
+| neither | 2 | 0 |
+| `resiteExtractor` only | 2 | 2 |
+| `freeCappedHauler` only | **0** | 26 |
+
+Freeing a hand from a post already at its output cap rescues both stalled
+matches on its own. Re-siting worked-out extractors fires twice and rescues
+nothing.
+
+The evidence for this was in the trace from the beginning and the plan read
+past it: seed 9 ends with every extractor at cap, four silver sitting in the
+mine, and zero loose serfs — a hauler famine, not resource exhaustion. The
+"empty mine, build a new one" framing came from a real player intuition and
+it is a reasonable rule; it is simply not what was killing these games.
+
+`resiteExtractor` stays. Its condition wants an exhausted radius AND live
+ground to move to AND enough on the shelf to rebuild, which is rare in
+eighty seeds, and six stalled matches is too thin a sample to delete a rule
+over. Unproven, not disproven.
 
 ---
 

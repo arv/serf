@@ -1292,3 +1292,32 @@ export function rectClear(map: MapView, x0: number, y0: number, w: number, h: nu
   }
   return true;
 }
+
+/**
+ * The nearest live tile of a resource, by manhattan distance, or -1 when the
+ * map holds none. Play area only: the margin outside it is scenery no seat
+ * can build on, so a seam out there is not somewhere to re-site to.
+ *
+ * Lives here rather than in the AI because it is a question about the map,
+ * and two callers need it — the build order picking where to anchor a hut,
+ * and the economy rules deciding whether a worked-out one is worth selling.
+ */
+export function nearestResource(map: GameMap, code: number, cx: number, cy: number): number {
+  const size = map.size;
+  const lo = playMin(map);
+  const hi = playMax(map);
+  let best = -1;
+  let bestDist = Infinity;
+  for (let y = lo; y < hi; y++) {
+    for (let x = lo; x < hi; x++) {
+      const i = y * size + x;
+      if (map.resource[i] !== code || map.resourceAmt[i]! <= 0) continue;
+      const d = Math.abs(x - cx) + Math.abs(y - cy);
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
+      }
+    }
+  }
+  return best;
+}
