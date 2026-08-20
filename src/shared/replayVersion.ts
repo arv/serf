@@ -28,4 +28,4 @@
  * changes what `dismissWorker` and `sellBuilding` do to a resident released
  * mid-trip (he used to be lost for good).
  */
-export const REPLAY_VERSION = 10;
+export const REPLAY_VERSION = 12;
