@@ -7,6 +7,7 @@ import { RoadDecal } from '../render/roadDecal';
 import { WaterMesh } from '../render/waterMesh';
 import { MarginMesh } from '../render/marginMesh';
 import { Mist } from '../render/mist';
+import { Butterflies } from '../render/butterflies';
 import { SceneSync } from '../render/sceneSync';
 import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
@@ -23,6 +24,7 @@ import { mountHud } from '../ui/mount';
 import {
   myPlayerId,
   playersMeta,
+  pushLlmTrace,
   setLlmStatus,
   setMyPlayerId,
   setNetMode,
@@ -67,13 +69,21 @@ import { Terrain } from '../sim/map';
 import { inBounds, tileCount, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
 import { REPLAY_VERSION } from '../shared/replayVersion';
-import { envelopeSave, splitSave, unpackExplored } from './saveEnvelope';
-import { parseReplay, replayName, type ReplayData } from './replay';
+import { WORLD_SAVE_VERSION } from '../shared/saveVersion';
+import {
+  envelopeSave,
+  readSaveWorldVersion,
+  splitSave,
+  unpackExplored,
+} from './saveEnvelope';
+import { parseReplay, type ReplayData } from './replay';
 import { readReplayFile, saveReplayFile } from './replayStore';
+import { stampName } from './fileStore';
+import { migrateLegacySave, readSaveFile, saveGameNow } from './saveStore';
 import { WorkerSimHost } from './simHost';
 import { mountMenu, unmountMenu } from '../ui/MenuApp';
 import { armFullscreen } from '../ui/fullscreen';
-import { startRouter } from './router';
+import { goto, startRouter } from './router';
 import {
   holdServiceWorkerUpdates,
   registerServiceWorker,
@@ -94,14 +104,26 @@ import type { NetInfo } from '../protocol/messages';
  */
 let fatalShown = false;
 
-function showFatal(message: string, opts?: { retry?: boolean }): void {
+/** The card's buttons, styled here because the card is raw DOM: it has to
+ * be able to come up when the HUD's stylesheet — and Solid itself — is
+ * exactly what failed. */
+const BUTTON_CSS =
+  'font:inherit;font-size:15px;padding:10px 26px;margin:10px 6px 0;cursor:pointer;' +
+  'color:#f7e9c0;background:rgba(229,196,105,0.13);border:1px solid rgba(229,196,105,0.5);' +
+  'border-radius:11px;';
+
+function showFatal(message: string, opts?: { retry?: boolean; menu?: boolean }): void {
   if (fatalShown) return;
   fatalShown = true;
   const el = document.getElementById('fatal')!;
   el.style.display = 'grid';
   const card = document.createElement('div');
   const title = document.createElement('h1');
-  title.textContent = 'Serf Valley cannot start';
+  // "Cannot start" is the boot failure's headline and stays that way. A
+  // screen that fails an hour into a session is a different sentence — and
+  // the menu button is what says which this is: it is offered exactly when
+  // the app is up and one screen could not be built.
+  title.textContent = opts?.menu ? 'That screen could not be opened' : 'Serf Valley cannot start';
   const body = document.createElement('p');
   // Text, never markup. Relay error messages land here (runLobby's fail
   // rejects with them and boot's catch brings them straight in), and the
@@ -112,10 +134,7 @@ function showFatal(message: string, opts?: { retry?: boolean }): void {
   if (opts?.retry) {
     const retry = document.createElement('button');
     retry.textContent = 'Try again';
-    retry.style.cssText =
-      'font:inherit;font-size:15px;padding:10px 26px;margin-top:10px;cursor:pointer;' +
-      'color:#f7e9c0;background:rgba(229,196,105,0.13);border:1px solid rgba(229,196,105,0.5);' +
-      'border-radius:11px;';
+    retry.style.cssText = BUTTON_CSS;
     retry.addEventListener('click', () => {
       // Asking by hand re-arms the automatic tries: the count exists to stop
       // a reload loop running on its own, and this one is not on its own.
@@ -124,11 +143,36 @@ function showFatal(message: string, opts?: { retry?: boolean }): void {
     });
     card.append(retry);
   }
+  if (opts?.menu) {
+    // A screen that failed is no longer the end of the session: screens
+    // change in this document now (app/router.ts), so the start menu is one
+    // navigation away and the card comes down on the way (see clearFatal).
+    // Without this a save the sim refuses — a village from an older build,
+    // say — took the whole page with it and left nothing to press.
+    const back = document.createElement('button');
+    back.textContent = 'Back to the start menu';
+    back.style.cssText = BUTTON_CSS;
+    back.addEventListener('click', () => goto('/'));
+    card.append(back);
+  }
   el.replaceChildren(card);
 }
 
+/**
+ * Take the card down. Called as each screen is built: whatever failed
+ * belongs to the screen the player has just left, and a card left standing
+ * would cover the one they asked for.
+ */
+function clearFatal(): void {
+  if (!fatalShown) return;
+  fatalShown = false;
+  const el = document.getElementById('fatal')!;
+  el.style.display = 'none';
+  el.replaceChildren();
+}
+
 /** The same screen, for the paths that must not carry on afterwards. */
-function fatal(message: string, opts?: { retry?: boolean }): never {
+function fatal(message: string, opts?: { retry?: boolean; menu?: boolean }): never {
   showFatal(message, opts);
   throw new Error(message);
 }
@@ -153,7 +197,17 @@ if (!crossOriginIsolated) {
  * that proves it: a room is chosen, but the choosing happens in the
  * council, which is a menu screen.
  */
-const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'size', 'skipMenu', 'mission', 'replay'];
+const LAUNCH_PARAMS = [
+  'mp',
+  'ai',
+  'players',
+  'seed',
+  'size',
+  'skipMenu',
+  'mission',
+  'replay',
+  'load',
+];
 
 /**
  * A room's opening settings, from the URL a link or a reload arrived on.
@@ -187,9 +241,10 @@ interface Screen {
 let current: Screen | null = null;
 
 /**
- * Has a game been chosen? A pending load counts: the Load button stashes
- * the save and navigates, and that handoff must not bounce back to the
- * menu.
+ * Has a game been chosen? A pending load counts: the GPU-loss rescue
+ * stashes the name of the save it just wrote and reloads, and that handoff
+ * must not bounce back to the menu. (The menu's own Load goes through
+ * ?load=<name>, which is a launch param like any other.)
  */
 function gameChosen(params: URLSearchParams): boolean {
   return (
@@ -211,6 +266,10 @@ function gameChosen(params: URLSearchParams): boolean {
  */
 function screenKey(): string {
   const params = new URLSearchParams(location.search);
+  // The map editor is its own screen kind — and the check comes before
+  // gameChosen, because a stale load-pending handoff (or a ?seed left in
+  // the URL) must not turn ?editor into a match.
+  if (params.has('editor')) return 'editor';
   const chosen = gameChosen(params);
   // A room is chosen, but the choosing happens in the council — a menu
   // screen, and the one whose URL moves under it.
@@ -239,6 +298,8 @@ let generation = 0;
  * card's buttons, and the browser's own back gesture alike.
  */
 async function route(opts: { force?: boolean } = {}): Promise<void> {
+  // Whatever went wrong belongs to the screen being left behind.
+  clearFatal();
   const key = screenKey();
   // The same screen asking for itself is the menu moving its own address
   // bar, and tearing it down and rebuilding it would be visible. `force`
@@ -264,6 +325,13 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     // under the real camera and sun. Render-only — no sim, no HUD.
     const { mountWardrobe } = await import('../ui/wardrobe');
     await mountWardrobe(document.getElementById('canvas') as HTMLCanvasElement);
+    return;
+  }
+  if (key === 'editor') {
+    // The map editor: the game's render stack over an authored map, no
+    // sim worker. Its chunk loads on demand — most sessions never edit.
+    const { mountEditor } = await import('../editor/editorScreen');
+    present(await mountEditor(document.getElementById('canvas') as HTMLCanvasElement));
     return;
   }
   const mp = launchParams.get('mp');
@@ -317,7 +385,9 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     const raw = await readReplayFile(replayParam);
     const replay = raw !== null ? parseReplay(raw) : null;
     if (!replay) {
-      fatal(`The replay "${replayParam}" could not be loaded — it may have been deleted.`);
+      fatal(`The replay "${replayParam}" could not be loaded — it may have been deleted.`, {
+        menu: true,
+      });
     }
     // Playback re-runs the sim, and the sim is version-bound: the same
     // commands against a retuned tick produce a different match. Refuse
@@ -328,6 +398,7 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
         `The replay "${replayParam}" was recorded under replay version ` +
           `${replay.replayVersion}; this build plays version ${REPLAY_VERSION}, ` +
           `and the match would not come out the way it was played.`,
+        { menu: true },
       );
     }
     present(
@@ -347,24 +418,85 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     return;
   }
 
-  // A pending load (set by the Load button before its reload) boots the
-  // worker straight into the saved world. sessionStorage on purpose: it is
-  // per-tab, so a second open tab (e.g. the dev preview) can never steal or
-  // duplicate the handoff the way a shared localStorage key could.
-  let loadData = sessionStorage.getItem('serf-load-pending') ?? undefined;
+  // Which saved game this match boots from, if any. Two ways in, and the
+  // in-tab one wins: the GPU-loss rescue writes a save and stashes its
+  // name in sessionStorage (per-tab, so a second open tab can never steal
+  // or duplicate the handoff), and that file is the world the player was
+  // actually standing in — ?load=<name>, which the menu's shelf and every
+  // ordinary reload of this URL carry, is the older intent.
+  const pending = sessionStorage.getItem('serf-load-pending');
   sessionStorage.removeItem('serf-load-pending');
   // Migrate away any stale handoff left by the old localStorage flow.
   localStorage.removeItem('serf-load-pending');
+  let raw: string | null = null;
+  /** What to call the village in a message about it. */
+  let loadName: string | null = null;
+  // A handoff from before saves became files is the save itself, not a
+  // name. Rare — it takes an upgrade landing between the stash and the
+  // reload — but the world in it is somebody's village.
+  if (pending !== null && pending.startsWith('{')) raw = pending;
+  else {
+    loadName = pending ?? launchParams.get('load');
+    if (loadName !== null) {
+      raw = await readSaveFile(loadName);
+      if (raw === null) {
+        fatal(`The saved game "${loadName}" could not be loaded — it may have been deleted.`, {
+          menu: true,
+        });
+      }
+    }
+  }
   // A solo save is an envelope: the worker's world string plus the fog's
   // memory. Split it here — the worker gets exactly the string it wrote,
   // and the explored grid waits for the fog to exist.
+  let loadData: string | undefined;
   let fogSeed: string | undefined;
-  if (loadData !== undefined) {
-    const split = splitSave(loadData);
+  if (raw !== null) {
+    const split = splitSave(raw);
+    // The version the world was written in, checked here rather than left
+    // to the worker. The worker does refuse an older one — but it refuses
+    // by throwing, which reaches this side as "sim worker failed: …" and
+    // says nothing a player can act on. The shelf greys these rows out;
+    // the URL is hand-editable, a save can be dropped in from anywhere,
+    // and the GPU-loss handoff carries a name rather than a version.
+    const written = readSaveWorldVersion(split.world);
+    if (written !== undefined && written !== WORLD_SAVE_VERSION) {
+      fatal(
+        `${loadName !== null ? `The saved game "${loadName}"` : 'That saved game'} was ` +
+          `written in save format ${written}; this build reads format ` +
+          `${WORLD_SAVE_VERSION} and cannot open that village.`,
+        { menu: true },
+      );
+    }
     loadData = split.world;
     fogSeed = split.explored;
   }
   present(await runMatch(configFromUrl(location.search), { loadData, fogSeed }, key));
+}
+
+/**
+ * Put the screen on the page, and say so when it cannot be put there.
+ *
+ * Building a screen is fallible in ways that have nothing to do with the
+ * player — a save the sim refuses, a mission chunk that will not fetch, a
+ * worker that dies on the way up — and the router has nowhere to take a
+ * rejection: a back gesture has no caller at all, and a click handler has
+ * no more idea what to do with one than it does. It logged and stopped,
+ * which left the page exactly as route() had already made it: torn down,
+ * empty, and silent. A screen that fails puts the card up instead, with
+ * the way back to the menu on it.
+ *
+ * Failures raised by fatal() have already drawn their own card by the time
+ * they arrive here, and showFatal keeps the first one — so the specific
+ * message wins over this general one.
+ */
+async function routeSafely(opts: { force?: boolean } = {}): Promise<void> {
+  try {
+    await route(opts);
+  } catch (err) {
+    console.error('[app] the screen failed to come up:', err);
+    showFatal(err instanceof Error ? err.message : String(err), { menu: true });
+  }
 }
 
 /**
@@ -411,8 +543,12 @@ async function boot(): Promise<void> {
   // back into its seat (see MenuApp's silent rejoin), and a worker swap
   // under that is exactly what this handshake exists to prevent.
   registerServiceWorker({ applyUpdates: !gameChosen(new URLSearchParams(location.search)) });
-  startRouter(route);
-  await route();
+  // The village from before saves were files, if this device has one:
+  // filed on the shelf, once, ahead of the first screen that could list
+  // it. A no-op — one localStorage read — on every launch after that.
+  await migrateLegacySave();
+  startRouter(routeSafely);
+  await routeSafely();
 }
 
 /**
@@ -465,6 +601,21 @@ async function bootLlmStrategist(
       // "On" has nothing more to report; linger long enough to be seen.
       if (status.state === 'ready') setTimeout(() => setLlmStatus(null), 10_000);
     },
+    // Dev builds watch the model work: every consultation lands in the
+    // backquote overlay's ledger and prints one console line (the trace
+    // object attached, prompt and reply included). Production wires
+    // nothing, so no ledger accumulates.
+    onTrace: import.meta.env.DEV
+      ? (trace) => {
+          console.log(
+            `[strategist] seat ${trace.playerId} ${trace.outcome} ` +
+              `after ${(trace.ms / 1000).toFixed(1)}s` +
+              (trace.advice?.reason ? ` — ${trace.advice.reason}` : ''),
+            trace,
+          );
+          pushLlmTrace(trace);
+        }
+      : undefined,
   });
   handle.dispose = () => strategist.dispose();
   host.onAiSummary((playerId, summary) => strategist.onSummary(playerId, summary));
@@ -613,8 +764,16 @@ async function runMatch(
           location.reload();
           return;
         }
+        // The save is a file now, so what crosses the reload is its
+        // name — sessionStorage holds a handful of characters rather
+        // than a whole world, which a big village had outgrown. A write
+        // that fails leaves nothing stashed and the reload is the whole
+        // recovery, exactly as it is for multiplayer.
         void rescue()
-          .then((data) => sessionStorage.setItem('serf-load-pending', data))
+          .then((data) => saveGameNow(data))
+          .then((name) => {
+            if (name !== null) sessionStorage.setItem('serf-load-pending', name);
+          })
           .finally(() => location.reload());
       }, 4000);
     },
@@ -710,6 +869,9 @@ async function runMatch(
   renderer.scene.add(marginMesh.mesh);
   const mist = new Mist(init.map);
   renderer.scene.add(mist.group);
+  // Ambient life over the meadows — pure scenery, no sim contact.
+  const butterflies = new Butterflies(init.map, heights);
+  renderer.scene.add(butterflies.mesh);
 
   const buildingSync = new BuildingSync(renderer.scene, heights, config.myPlayerId);
   // Terrain feed for the pier measurement: on a corner-only shore the
@@ -739,6 +901,7 @@ async function runMatch(
   // cached for the whole document, so they outlive this match and meet the
   // next one.
   teardown.push(() => fog.dispose());
+  mist.setFog(fog);
   // The fog's memory across sessions: multiplayer seats get the server's
   // authoritative explored grid; a loaded solo game gets the one its save
   // carried. Never both — solo has no server, multiplayer has no save.
@@ -748,10 +911,23 @@ async function runMatch(
     const seed = unpackExplored(fogSeed, tileCount(init.map.size));
     if (seed) fog.seedExplored(seed);
   }
+  // What the shelf will say about this village, kept live from the
+  // worker's frames rather than read off the config: a save loaded from
+  // the shelf boots on ?load=<name>, whose URL names neither mission nor
+  // seats, and the world is the only thing that still remembers. Seeded
+  // from the config so a save written before the first frame lands still
+  // says so.
+  let missionNow = config.mission;
+  let opponentsNow = config.players.filter((p) => p.kind === 'ai').length;
   // One save string for every writer — the menu button and the GPU-crash
-  // handoff alike: the world from the worker, the fog's memory from here.
+  // handoff alike: the world from the worker, the fog's memory from here,
+  // and the head of metadata above so the shelf can tell one village from
+  // another without opening any of them.
   const saveGame = async (): Promise<string> =>
-    envelopeSave(await host.requestSave(), fog.exportExplored());
+    envelopeSave(await host.requestSave(), fog.exportExplored(), {
+      ...(missionNow !== undefined ? { mission: missionNow } : {}),
+      ...(opponentsNow > 0 ? { opponents: opponentsNow } : {}),
+    });
   // Not while watching a replay: a GPU-loss reload comes back on the same
   // ?replay= URL and restarts playback — there is no world of ours to keep.
   if (!replay) rescue = saveGame;
@@ -849,7 +1025,10 @@ async function runMatch(
       setTechs(mine.techs);
       setPopulation({ pop: mine.pop, cap: mine.popCap });
     }
-    if (msg.players) setPlayersMeta(msg.players);
+    if (msg.players) {
+      setPlayersMeta(msg.players);
+      opponentsNow = msg.players.filter((p) => p.kind === 'ai').length;
+    }
     if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
@@ -860,6 +1039,7 @@ async function runMatch(
     // frame without a mission block clears the signal (and any briefing),
     // so no mission UI can outlive its world.
     setMission(msg.mission ?? null);
+    missionNow = msg.mission?.id;
     if (msg.mission) {
       // Finishing writes the profile. Idempotent, so every structural frame
       // after the win may say it again.
@@ -948,7 +1128,7 @@ async function runMatch(
       if (data === '') return null;
       // The store may suffix the name ("… (2)") when two saves land in the
       // same second; what it returns is what the file is actually called.
-      return saveReplayFile(replayName(new Date()), data);
+      return saveReplayFile(stampName(new Date()), data);
     },
     // Tile y is world z — the same straight mapping as the home focusOn.
     focus: (x, y) => renderer.rig.glideTo(x, y),
@@ -1011,12 +1191,13 @@ async function runMatch(
     // While a new hut is being aimed, the ghost's own outline is the one
     // that answers the question — two squares over the same ground, in two
     // colors, would only be read as a conflict.
-    selectedReach.update(placing() ? null : selectedBuilding());
+    selectedReach.update(placing() ? null : selectedBuilding(), mirror.map);
     controls.prune();
     selectionFx.update(controls.selected, sync, now);
     damageAlerts.update(now);
     water.update(now);
     mist.update(now);
+    butterflies.update(now);
     const dt = renderer.frame();
     buildingSync.frame(speed() === 0 ? 0 : dt);
     // Last: the frame's queued cues become at most a couple dozen voices.

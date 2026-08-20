@@ -2,7 +2,23 @@ import * as THREE from 'three';
 import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, TileResource, playMin, playMax, type MapView } from '../sim/map';
-import { palette } from './palette';
+import {
+  bankMoss,
+  earthTrail,
+  goldOre,
+  grassGold,
+  grassLush,
+  grassOlive,
+  ironOre,
+  peakSnow,
+  riverbed,
+  rock,
+  rockDark,
+  silverOre,
+  stoneRoad,
+  trampledEarth,
+  water,
+} from './palette';
 import { makeGroundTexture } from './groundTexture';
 import { vnoise } from './noise';
 import {
@@ -195,11 +211,117 @@ export class TerrainMesh {
         for (let col = c0; col <= c1; col++) dirtyVerts.add(base + col);
       }
     }
+    // A stroke entirely in the scenery margin reaches no play vertex at
+    // all — and flagging needsUpdate with no ranges queued would re-upload
+    // the whole color buffer for nothing.
+    if (dirtyVerts.size === 0) return;
     for (const v of dirtyVerts) this.#paintVertex(v);
 
-    // Upload only the touched spans: consecutive vertex runs become ranges
-    // (three merges overlapping/adjacent ones before the bufferSubData).
+    this.#uploadRuns(this.#colorAttr, dirtyVerts);
+    this.#colorAttr.needsUpdate = true;
+  }
+
+  /**
+   * Re-sample vertex heights around the given tiles (the HeightField reads
+   * the live map.height, so mutate that first), refresh normals locally,
+   * and repaint the same apron — repaintTiles plus elevation. This is the
+   * map editor's sculpting path; the game itself never edits heights.
+   *
+   * Normals come from central differences on the vertex lattice rather
+   * than computeVertexNormals: the full pass walks every triangle of a
+   * ~590k-vertex mesh, far too slow per brush stamp, and for a smooth
+   * heightfield the two estimates agree to well under a shading step.
+   * Vertices just outside the apron keep their baked normals; their
+   * difference stencils only read heights the edit left untouched, so no
+   * seam forms at the boundary.
+   */
+  reheightTiles(tiles: readonly number[]): void {
+    if (tiles.length === 0) return;
+
+    const size = this.#size;
+    const grid = this.#grid;
+    const dirty = new Set<number>(tiles);
+    // The editor's terrain brush moves class and height in one stroke, so
+    // refresh the per-tile fields exactly like repaintTiles.
+    const recompute = new Set<number>();
+    for (const t of dirty) {
+      const tx = tileX(t, size);
+      const ty = tileY(t, size);
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = tx + dx;
+          const ny = ty + dy;
+          if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+          recompute.add(tileIdx(nx, ny, size));
+        }
+      }
+    }
+    for (const i of recompute) this.#recomputeTile(tileX(i, size), tileY(i, size));
+
+    // Same play-relative lattice walk as repaintTiles — a dirty margin
+    // tile near the boundary still refreshes the play verts its bilinear
+    // support reaches, and one fully outside contributes no verts at all.
+    const dirtyVerts = new Set<number>();
+    for (const t of dirty) {
+      const tx = tileX(t, size) - this.#p0;
+      const ty = tileY(t, size) - this.#p0;
+      const c0 = Math.max(0, (tx - 2) * SEG);
+      const c1 = Math.min(grid, (tx + 3) * SEG);
+      const r0 = Math.max(0, (ty - 2) * SEG);
+      const r1 = Math.min(grid, (ty + 3) * SEG);
+      for (let r = r0; r <= r1; r++) {
+        const base = r * (grid + 1);
+        for (let col = c0; col <= c1; col++) dirtyVerts.add(base + col);
+      }
+    }
+    if (dirtyVerts.size === 0) return;
+
+    const pos = this.#geometry.attributes.position!;
+    for (const v of dirtyVerts) {
+      const y = this.#heights.at(pos.getX(v), pos.getZ(v));
+      pos.setY(v, y);
+      this.#vertY[v] = y;
+    }
+
+    // Lattice spacing is 1/SEG world units; slopes read off #vertY, which
+    // is already fresh for every dirty vertex and still correct beyond.
+    const normalAttr = this.#geometry.attributes.normal!;
+    const row = grid + 1;
+    for (const v of dirtyVerts) {
+      const r = (v / row) | 0;
+      const c = v % row;
+      const cl = Math.max(0, c - 1);
+      const cr = Math.min(grid, c + 1);
+      const ru = Math.max(0, r - 1);
+      const rd = Math.min(grid, r + 1);
+      const dydx = ((this.#vertY[r * row + cr]! - this.#vertY[r * row + cl]!) * SEG) / (cr - cl);
+      const dydz = ((this.#vertY[rd * row + c]! - this.#vertY[ru * row + c]!) * SEG) / (rd - ru);
+      const inv = 1 / Math.sqrt(dydx * dydx + 1 + dydz * dydz);
+      normalAttr.setXYZ(v, -dydx * inv, inv, -dydz * inv);
+    }
+
+    for (const v of dirtyVerts) this.#paintVertex(v);
+
+    this.#uploadRuns(pos as THREE.BufferAttribute, dirtyVerts);
+    this.#uploadRuns(normalAttr as THREE.BufferAttribute, dirtyVerts);
+    this.#uploadRuns(this.#colorAttr, dirtyVerts);
+    pos.needsUpdate = true;
+    normalAttr.needsUpdate = true;
+    this.#colorAttr.needsUpdate = true;
+  }
+
+  /** Re-derive the culling sphere after sculpting (cheap; call on stroke end). */
+  refreshBounds(): void {
+    this.#geometry.computeBoundingSphere();
+  }
+
+  /**
+   * Upload only the touched spans: consecutive vertex runs become ranges
+   * (three merges overlapping/adjacent ones before the bufferSubData).
+   */
+  #uploadRuns(attr: THREE.BufferAttribute, dirtyVerts: Set<number>): void {
     const sorted = [...dirtyVerts].sort((a, z) => a - z);
+    if (sorted.length === 0) return; // belt for callers' braces
     let runStart = sorted[0]!;
     let prev = sorted[0]!;
     for (let k = 1; k <= sorted.length; k++) {
@@ -208,12 +330,11 @@ export class TerrainMesh {
         prev = v;
         continue;
       }
-      this.#colorAttr.addUpdateRange(runStart * 3, (prev - runStart + 1) * 3);
+      attr.addUpdateRange(runStart * 3, (prev - runStart + 1) * 3);
       if (v === undefined) break;
       runStart = v;
       prev = v;
     }
-    this.#colorAttr.needsUpdate = true;
   }
 
   /** Refresh one tile's paint class, deposit tint, and trampled-earth mask. */
@@ -323,21 +444,21 @@ export class TerrainMesh {
 
 /** Palette colors used by the vertex painter, built once. */
 const COL = {
-  lush: new THREE.Color(palette.grassLush),
-  olive: new THREE.Color(palette.grassOlive),
-  gold: new THREE.Color(palette.grassGold),
-  earth: new THREE.Color(palette.trampledEarth),
-  moss: new THREE.Color(palette.bankMoss),
-  bed: new THREE.Color(palette.riverbed),
-  trail: new THREE.Color(palette.earthTrail),
-  road: new THREE.Color(palette.stoneRoad),
-  water: new THREE.Color(palette.water),
-  iron: new THREE.Color(palette.ironOre),
-  silver: new THREE.Color(palette.silverOre),
-  goldOre: new THREE.Color(palette.goldOre),
-  rock: new THREE.Color(palette.rock),
-  rockDark: new THREE.Color(palette.rockDark),
-  snow: new THREE.Color(palette.peakSnow),
+  lush: new THREE.Color(grassLush),
+  olive: new THREE.Color(grassOlive),
+  gold: new THREE.Color(grassGold),
+  earth: new THREE.Color(trampledEarth),
+  moss: new THREE.Color(bankMoss),
+  bed: new THREE.Color(riverbed),
+  trail: new THREE.Color(earthTrail),
+  road: new THREE.Color(stoneRoad),
+  water: new THREE.Color(water),
+  iron: new THREE.Color(ironOre),
+  silver: new THREE.Color(silverOre),
+  goldOre: new THREE.Color(goldOre),
+  rock: new THREE.Color(rock),
+  rockDark: new THREE.Color(rockDark),
+  snow: new THREE.Color(peakSnow),
 };
 const SCRATCH = new THREE.Color();
 /** Ribbon distances for the vertex being painted — one, reused. */

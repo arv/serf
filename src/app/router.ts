@@ -75,9 +75,14 @@ let forceNext = false;
  * gesture has no caller at all — so rethrowing only chose where the
  * complaint surfaced: the Navigation API path would reject out of
  * intercept()'s handler as an unhandled rejection, while the popstate path
- * swallowed it. The screen that failed has already said so on its own
- * terms (fatal() puts its own page up), so this logs and stops, the same
- * way on both.
+ * swallowed it.
+ *
+ * Telling the player is the handler's job, and it takes it (main.ts's
+ * routeSafely puts the failure on the page with a way back to the menu) —
+ * this catch is the backstop for a handler that throws on its way to
+ * doing so. Nothing but a log belongs here: the page is already torn down
+ * by the time a screen fails, and a router that drew its own apology
+ * would draw it over whatever the handler had just managed to say.
  */
 async function run(): Promise<void> {
   const force = forceNext;

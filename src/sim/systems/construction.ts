@@ -1,3 +1,4 @@
+import { REPAIR_MEND_TICKS } from '../defs/balance.ts';
 import { buildingDef, repairBill } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { PathLevel } from '../map.ts';
@@ -18,9 +19,13 @@ import type { Building } from '../entities.ts';
  */
 export function constructionSystem(world: World): void {
   for (const b of world.buildings.values()) {
-    // A running repair spends anything it needs that is already inside the
-    // building (see spendOwnStores) before it waits on a hauler.
-    if (!b.dead && b.repairNeeds) spendOwnStores(world, b);
+    if (!b.dead) {
+      // A running repair spends anything it needs that is already inside the
+      // building (see spendOwnStores) before it waits on a hauler, and the
+      // masons put in a tick on whatever has been delivered (see mendRepair).
+      if (b.repairNeeds) spendOwnStores(world, b);
+      if (b.repairPending !== undefined) mendRepair(world, b);
+    }
     if (b.dead || b.state !== 'site' || !b.siteNeeds || b.paused) continue;
 
     // Sandbox: sites need nothing and finish now (reconcile cancels any
@@ -76,13 +81,16 @@ export function constructionSystem(world: World): void {
 /**
  * Repairing is construction's short form: a standing building with battle
  * damage is ordered to mend, calls for materials the way a site does, and
- * heals as each one is carried in (logistics' deliver does the nailing).
+ * mends as they are carried in and worked into the walls.
  *
- * There is no repair timer and no second builder, on purpose. What a repair
- * actually costs a player is haulage — serfs walking stone out to the wall
- * instead of flour to the bakery — and that cost is already paid by the
- * hauls themselves. Adding a clock on top would only make the pace harder
- * to read without asking anything more of them.
+ * A repair costs two things, and both of them are time. The haulage is the
+ * first — serfs walking stone out to the wall instead of flour to the
+ * bakery — and the masonry is the second: a delivered material banks the hp
+ * it bought (repairPending) and the building climbs back at a fixed pace
+ * from there. So a wall does not snap back to full the instant the last
+ * plank lands, and a building caught mid-mend by the next wave is a wall
+ * that is still half down. There is no second builder, though: the post
+ * that is already there does the work.
  */
 
 /**
@@ -107,25 +115,56 @@ function spendOwnStores(world: World, b: Building): void {
   }
 }
 
+/**
+ * Put one tick of masonry into the walls. The pace is the building's own
+ * size over REPAIR_MEND_TICKS, so mending scales with the damage: a scratch
+ * is done almost at once and a near-ruin takes the full stretch. Sandbox
+ * skips the wait, as it does the build timer.
+ */
+function mendRepair(world: World, b: Building): void {
+  const def = buildingDef(b.type);
+  const pending = b.repairPending!;
+  const step = world.admin.instantBuild ? pending : def.hp / REPAIR_MEND_TICKS;
+  const mend = Math.min(step, pending);
+  b.hp = Math.min(def.hp, b.hp + mend);
+  if (pending > mend) {
+    b.repairPending = pending - mend;
+    return;
+  }
+  delete b.repairPending;
+  // A mend that bought the whole building back leaves float dust behind
+  // (the hp went on in twentieths of a point); a building that paid for
+  // every point of it should read as whole.
+  if (def.hp - b.hp < 1e-6) b.hp = def.hp;
+}
+
+/** Damage nobody has paid for yet: what is broken now, less the hp a
+ * running repair already bought and the masons have still to put on. */
+function unpaidDamage(b: Building): number {
+  return buildingDef(b.type).hp - b.hp - (b.repairPending ?? 0);
+}
+
 /** Can this building be told to mend itself right now? */
 export function canRepair(b: Building): boolean {
   const def = buildingDef(b.type);
   if (b.dead || b.state !== 'built' || def.isRoad || def.systemOnly) return false;
-  // A site heals as it rises (constructionSystem), and a building nobody has
-  // scratched has nothing to pay for.
-  return b.hp < def.hp;
+  // A site heals as it rises (constructionSystem), a building nobody has
+  // scratched has nothing to pay for, and damage a running repair has
+  // already bought is waiting on the masons, not on a second order.
+  return unpaidDamage(b) > 0;
 }
 
 /**
- * Place the order: the bill is struck from the damage standing now, and each
- * material it names buys a fixed slice of the hp back. Ordering again while
- * a repair runs re-strikes the bill against the damage as it stands then —
- * the way to catch up on a building that kept taking hits.
+ * Place the order: the bill is struck from the damage standing now that no
+ * running repair has paid for yet, and each material it names buys a fixed
+ * slice of the hp back. Ordering again while a repair runs re-strikes the
+ * bill against whatever has been broken since — the way to catch up on a
+ * building that kept taking hits, and never a second charge for damage the
+ * masons are already working on.
  */
 export function orderRepair(world: World, b: Building): void {
   if (!canRepair(b)) return;
-  const def = buildingDef(b.type);
-  const missing = def.hp - b.hp;
+  const missing = unpaidDamage(b);
   const bill = repairBill(b.type, missing);
   const total = GOODS.reduce((n, g) => n + (bill[g] ?? 0), 0);
   if (total === 0) return; // a building that costs nothing to mend (roads)
@@ -142,7 +181,10 @@ export function orderRepair(world: World, b: Building): void {
  * Call the repair off (or clear a finished one). Materials still walking
  * toward it stand down — the good stays in the serf's hands and logistics
  * finds it another home, since a cancelled order is no reason to burn a
- * plank. Only the hauls this repair booked are stopped, which is what the
+ * plank. Masonry already bought and paid for is finished all the same: the
+ * stone is in the wall, and prising it out again would only waste it.
+ *
+ * Only the hauls this repair booked are stopped, which is what the
  * mark on the job is for: a weaponsmith mends with the same wood it forges
  * from, and by the time a plank is on the road nothing else distinguishes
  * the errand it was sent on.

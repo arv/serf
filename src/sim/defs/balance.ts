@@ -69,6 +69,19 @@ export const CORPSE_TICKS = 30;
  * be, since it also keeps the ground, the worker and the deliveries.
  */
 export const REPAIR_COST_SHARE = 0.5;
+/**
+ * How long the masonry itself takes: the ticks a mend runs for if it has to
+ * put a building back up from nothing. A repair charges this pro rata, so
+ * patching a scratch is quick and rebuilding a wall the raiders nearly took
+ * down is not. Materials still have to be carried in first — this is the
+ * work that happens after they land, and the two overlap.
+ *
+ * Ten seconds, a little under the shortest build timer: mending is the fast
+ * road as well as the cheap one, but it is no longer free of the clock, so a
+ * building caught halfway through a mend by the next wave is a real risk to
+ * plan around.
+ */
+export const REPAIR_MEND_TICKS = 10 * TICKS_PER_SECOND;
 
 // Festivals (ale -> global work-speed buff)
 export const FESTIVAL_DURATION = 60 * TICKS_PER_SECOND;

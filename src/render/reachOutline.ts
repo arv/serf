@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { palette } from './palette';
+import { verdictBad, verdictGood } from './palette';
 import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings';
+import { RESOURCE_CODE, findResourceNear, type MapView, type TileResourceKind } from '../sim/map';
 import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
 
@@ -110,6 +111,15 @@ export class ReachOutline {
     }
     this.#radius = -1;
   }
+
+  /** Terminal teardown for callers that rebuild inside a live context (the
+   * map editor): hide() keeps the material for the next show(), which is a
+   * leak once no show() is ever coming. The game never needs this — its
+   * outlines die with the whole GL context. */
+  dispose(): void {
+    this.hide();
+    this.#material.dispose();
+  }
 }
 
 /** Cross-sections along one straight band of the outline, roughly one per
@@ -125,9 +135,14 @@ function band(axis: 'x' | 'z', fixed: number, from: number, to: number): number[
   return out;
 }
 
-/** The selection's own accent, so the outline reads as "this is what the
- * building I just clicked can reach" rather than as build feedback. */
-const SELECTED = new THREE.Color(palette.vermillion);
+/**
+ * The verdict the outline carries: green while the ground inside it still
+ * holds something to work, red once it is picked clean. It is the ghost's
+ * green/red on purpose — the color that meant "this hut has trees" while
+ * you were aiming it goes on meaning exactly that afterwards.
+ */
+const RICH = new THREE.Color(verdictGood);
+const SPENT = new THREE.Color(verdictBad);
 
 /**
  * The same outline, now for a standing building: select a woodcutter,
@@ -137,35 +152,62 @@ const SELECTED = new THREE.Color(palette.vermillion);
  * the player knows least about the map. Afterwards — when a woodcutter has
  * gone idle and the question is whether it has felled everything within
  * reach or is merely short of a serf — the answer was unavailable. Clicking
- * the hut now asks it.
+ * the hut now asks it, and the outline's color answers: a red square is a
+ * hut that will never produce again wherever it stands, and wants tearing
+ * down rather than staffing.
  */
 export class SelectedReach {
   #outline: ReachOutline;
   /** The selection this was last run for, gatherer or not (-1 for none).
    * Buildings neither move nor change type, so a repeat id means the band
-   * on the ground is already the right one and the frame is over — a
-   * standing selection costs one comparison, not a def lookup. */
+   * on the ground is already the right one — only its color can still
+   * change, as the last seam tile inside it runs out. */
   #id = -1;
+  /** The selected gatherer's search: the tile it hunts from, and what for.
+   * Kept so the per-frame question costs one map scan and no def lookups;
+   * null while the selection works no land. */
+  #search: { x: number; y: number; code: TileResourceKind; radius: number } | null = null;
+  /** Last drawn verdict (null = nothing drawn yet for this selection). */
+  #rich: boolean | null = null;
 
   constructor(scene: THREE.Scene, heights: HeightField) {
     this.#outline = new ReachOutline(scene, heights, 0.7);
   }
 
-  update(building: BuildingSnap | null): void {
+  update(building: BuildingSnap | null, map: MapView): void {
     const id = building?.id ?? -1;
-    if (id === this.#id) return;
-    this.#id = id;
-    const def = building && buildingDef(building.type);
-    const gather = def && gatherRecipeOf(def);
-    if (!building || !def || !gather) {
-      this.#outline.hide();
-      return;
+    if (id !== this.#id) {
+      this.#id = id;
+      this.#rich = null;
+      this.#search = null;
+      const def = building && buildingDef(building.type);
+      const gather = def && gatherRecipeOf(def);
+      if (!building || !def || !gather) {
+        this.#outline.hide();
+        return;
+      }
+      this.#outline.show(gather.radius);
+      // The worker searches from the footprint's center tile, so the outline
+      // is drawn around that tile's center — not the footprint's midpoint,
+      // which is half a tile off for even-sized huts.
+      const origin = gatherOrigin(def, building.x, building.y);
+      this.#search = {
+        x: origin.x,
+        y: origin.y,
+        code: RESOURCE_CODE[gather.resource],
+        radius: gather.radius,
+      };
     }
-    this.#outline.show(gather.radius);
-    // The worker searches from the footprint's center tile, so the outline
-    // is drawn around that tile's center — not the footprint's midpoint,
-    // which is half a tile off for even-sized huts.
-    const origin = gatherOrigin(def, building.x, building.y);
-    this.#outline.moveTo(origin.x + 0.5, origin.y + 0.5, SELECTED);
+    const search = this.#search;
+    if (!search) return;
+    // The worker's own search, run every frame against the mirrored map:
+    // the answer changes under the player as the last trees come down, and
+    // an outline that only asked once would stay green over bare ground.
+    // A hit is usually a ring or two out, and a miss — the case that scans
+    // the whole square — is a few hundred array reads.
+    const rich = findResourceNear(map, search.x, search.y, search.code, search.radius) >= 0;
+    if (rich === this.#rich) return;
+    this.#rich = rich;
+    this.#outline.moveTo(search.x + 0.5, search.y + 0.5, rich ? RICH : SPENT);
   }
 }

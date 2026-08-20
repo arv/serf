@@ -85,9 +85,8 @@ export interface Building {
   paused?: boolean;
   /**
    * Ordered repairs (built buildings only): materials still to be hauled in,
-   * exactly like a site's siteNeeds. Each one that arrives is nailed on by
-   * the serf who carried it — no timer, no second builder — so a repair runs
-   * as fast as the haulage pool can carry stone.
+   * exactly like a site's siteNeeds. No second builder — the serf who
+   * carries the stone hands it to the post that is already there.
    */
   repairNeeds?: GoodAmounts;
   /** Hit points each delivered repair material buys, fixed when the order
@@ -95,6 +94,11 @@ export interface Building {
    * *during* a repair is therefore not mended for free — the order patches
    * what was broken when it was given, and the rest wants a new one. */
   repairHpPerGood?: number;
+  /** Hit points bought and not yet on the walls. A delivered material is
+   * work booked, not work done: it banks its hp here and the masons put
+   * them on at REPAIR_MEND_TICKS' pace (constructionSystem). Outlives
+   * repairNeeds — the last plank lands well before the mend is finished. */
+  repairPending?: number;
   /** Recruiting pause after the player dismissed the worker on purpose. */
   staffBackoffUntil?: number;
   /** Since when this site has been ready for a builder and without one.

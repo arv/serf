@@ -2,10 +2,16 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
-import { Terrain, TileResource, playEdgeDist, type MapView } from '../sim/map';
-import { palette } from './palette';
-import { foliageMaterial, makeStalkTexture, makeLeafSprite } from './spriteTextures';
-import { glbRocks, glbTrees } from './assets';
+import { Terrain, TileResource, WATER_LEVEL, playEdgeDist, type MapView } from '../sim/map';
+import { goldOre, ironOre, rock, rockDark, silverOre } from './palette';
+import {
+  foliageMaterial,
+  makeBushSprite,
+  makeFlowerSprite,
+  makeStalkTexture,
+  makeLeafSprite,
+} from './spriteTextures';
+import { glbDoodads, glbForest, glbRocks, glbTrees } from './assets';
 import type { HeightField } from './heightField';
 
 /**
@@ -44,6 +50,40 @@ function touchesWater(map: MapView, idx: number): boolean {
   return false;
 }
 
+/** Does a standing grove border this tile? (Where the scrub gathers.) */
+function touchesWood(map: MapView, idx: number): boolean {
+  const size = map.size;
+  const x = tileX(idx, size);
+  const y = tileY(idx, size);
+  for (const [nx, ny] of [
+    [x - 1, y],
+    [x + 1, y],
+    [x, y - 1],
+    [x, y + 1],
+  ] as const) {
+    if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+    if (map.resource[ny * size + nx] === TileResource.Wood) return true;
+  }
+  return false;
+}
+
+/** Is this water tile against a grassy bank? (Where the reeds stand.) */
+function touchesGrass(map: MapView, idx: number): boolean {
+  const size = map.size;
+  const x = tileX(idx, size);
+  const y = tileY(idx, size);
+  for (const [nx, ny] of [
+    [x - 1, y],
+    [x + 1, y],
+    [x, y - 1],
+    [x, y + 1],
+  ] as const) {
+    if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+    if (map.terrain[ny * size + nx] === Terrain.Grass) return true;
+  }
+  return false;
+}
+
 interface Archetype {
   mesh: THREE.InstancedMesh;
   /** tileIdx -> instance indices belonging to that tile. */
@@ -71,6 +111,10 @@ export class ScatterMesh {
   #trees = false;
   #treeSpecies = 0;
   #rockSpecies = 0;
+  #doodads = false;
+  #forest = false;
+  #bushSpecies = 0;
+  #deadSpecies = 0;
 
   /**
    * Does scatter on this tile pay for the shadow pass? The playable field
@@ -105,6 +149,16 @@ export class ScatterMesh {
     // hash so the range reads craggy rather than tiled — and thinned much
     // harder in the deep margin, where whole ranges are rock.
     const ridgeTiles: number[] = [];
+    // Natural doodads, all derived from the tiles (nothing to author or
+    // save): lily pads drifting on open shallows, reed clumps against the
+    // banks, stray pebbles in the meadows, scrub bushes thickening the
+    // forest fringes, wildflowers on the lush ground.
+    const lilyTiles: number[] = [];
+    const reedTiles: number[] = [];
+    const pebbleTiles: number[] = [];
+    const bushTiles: number[] = [];
+    const flowerTiles: number[] = [];
+    const deadTreeTiles: number[] = [];
     for (let i = 0; i < tiles; i++) {
       const res = map.resource[i];
       if (res === TileResource.Wood) {
@@ -115,12 +169,37 @@ export class ScatterMesh {
       // Rocky banks: grass tiles touching water, thinned by hash.
       if (map.terrain[i] === Terrain.Grass && hash2(i, 91) < 0.45 && touchesWater(map, i)) {
         shoreTiles.push(i);
+      } else if (
+        map.terrain[i] === Terrain.Grass &&
+        res === TileResource.None &&
+        map.pathLevel[i] === 0
+      ) {
+        if (hash2(i, 427) < 0.05) pebbleTiles.push(i);
+        // Scrub gathers where the woods thin out (a grove next door) and
+        // strays sparsely across the open meadow.
+        else if (hash2(i, 461) < (touchesWood(map, i) ? 0.28 : 0.02)) bushTiles.push(i);
+        // A bare trunk here and there on the dry high ground, and the odd
+        // snag standing at a treeline. Rare on purpose: one is scenery,
+        // a field of them is a graveyard.
+        else if (
+          hash2(i, 491) < (map.height[i]! > 0.75 ? 0.012 : touchesWood(map, i) ? 0.02 : 0.002)
+        ) {
+          deadTreeTiles.push(i);
+        } else if (map.height[i]! < 1.0 && hash2(i, 463) < 0.06) flowerTiles.push(i);
       }
       if (
         map.terrain[i] === Terrain.Rock &&
         hash2(i, 93) < (this.#nearShadow(i) ? 0.3 : 0.12)
       ) {
         ridgeTiles.push(i);
+      }
+      if (map.terrain[i] === Terrain.Water) {
+        const bed = map.height[i]!;
+        if (touchesGrass(map, i)) {
+          if (bed > -0.95 && hash2(i, 421) < 0.35) reedTiles.push(i);
+        } else if (bed > -0.8 && hash2(i, 422) < 0.08) {
+          lilyTiles.push(i);
+        }
       }
     }
 
@@ -176,7 +255,11 @@ export class ScatterMesh {
           i === 0 ? 'rock' : `rock${i}`,
           geo,
           rocks.material,
-          rockTiles * 2 + shoreTiles.length * 2 + ridgeTiles.length * 2 + oreTiles * 4,
+          rockTiles * 2 +
+            shoreTiles.length * 2 +
+            ridgeTiles.length * 2 +
+            oreTiles * 4 +
+            pebbleTiles.length * 2,
         );
       });
     } else {
@@ -184,10 +267,59 @@ export class ScatterMesh {
         'rock',
         new THREE.DodecahedronGeometry(0.32),
         flat(0xffffff),
-        rockTiles * 2 + shoreTiles.length * 2 + ridgeTiles.length * 2,
+        rockTiles * 2 + shoreTiles.length * 2 + ridgeTiles.length * 2 + pebbleTiles.length * 2,
       );
       this.#addArchetype('ore', new THREE.OctahedronGeometry(0.16), flat(0xffffff), oreTiles * 4);
     }
+    // Water doodads ride the same palette texture; no shadow pass — a lily
+    // pad's shadow lands on water that doesn't receive it anyway.
+    const doodads = glbDoodads();
+    this.#doodads = doodads !== null;
+    if (doodads) {
+      this.#addArchetype('lily', doodads.lily, doodads.material, lilyTiles.length * 2, {
+        castShadow: false,
+        receiveShadow: false,
+      });
+      this.#addArchetype('reed', doodads.reed, doodads.material, reedTiles.length * 2, {
+        castShadow: false,
+        receiveShadow: false,
+      });
+    }
+    // Scrub and deadfall: the forest pack's own models when it loaded,
+    // painted crossed quads otherwise. (Squashing a live tree to shrub
+    // height was the first idea and looked it — flattening the trunk with
+    // the canopy reads as a stepped-on tree, not a bush.)
+    const forest = glbForest();
+    this.#forest = forest !== null;
+    this.#bushSpecies = forest?.bushes.length ?? 0;
+    this.#deadSpecies = forest?.deadTrees.length ?? 0;
+    if (forest) {
+      forest.bushes.forEach((geo, i) => {
+        this.#addArchetype(`bush${i}`, geo, forest.material, bushTiles.length * 2, {
+          receiveShadow: false,
+        });
+      });
+      forest.deadTrees.forEach((geo, i) => {
+        this.#addArchetype(`dead${i}`, geo, forest.material, deadTreeTiles.length, {
+          receiveShadow: false,
+        });
+      });
+    } else {
+      this.#addArchetype(
+        'bush',
+        crossedQuads(1.05, 0.8),
+        foliageMaterial(makeBushSprite()),
+        bushTiles.length * 2,
+        { receiveShadow: false },
+      );
+    }
+    this.#addArchetype(
+      'flower',
+      crossedQuads(0.5, 0.4),
+      foliageMaterial(makeFlowerSprite()),
+      flowerTiles.length * 2,
+      { castShadow: false, receiveShadow: true },
+    );
 
     for (let i = 0; i < tiles; i++) {
       const res = map.resource[i];
@@ -225,6 +357,34 @@ export class ScatterMesh {
     for (const i of ridgeTiles) {
       this.#placeShoreRocks(i); // same craggy dressing, on the rim rock
       this.#cosmetic.add(i);
+    }
+    for (const i of pebbleTiles) {
+      this.#placePebbles(i);
+      this.#cosmetic.add(i);
+    }
+    for (const i of bushTiles) {
+      this.#placeBushes(i);
+      this.#cosmetic.add(i);
+    }
+    if (this.#forest) {
+      for (const i of deadTreeTiles) {
+        this.#placeDeadTree(i);
+        this.#cosmetic.add(i);
+      }
+    }
+    for (const i of flowerTiles) {
+      this.#placeFlowers(i);
+      this.#cosmetic.add(i);
+    }
+    if (this.#doodads) {
+      for (const i of lilyTiles) {
+        this.#placeLilies(i);
+        this.#cosmetic.add(i);
+      }
+      for (const i of reedTiles) {
+        this.#placeReeds(i);
+        this.#cosmetic.add(i);
+      }
     }
 
     for (const a of this.#archetypes.values()) {
@@ -426,9 +586,177 @@ export class ScatterMesh {
         tex ? s : s * 0.75,
         s,
         hash2(tile + k, 25) * Math.PI * 2,
-        tex ? 0xffffff : palette.rock,
+        tex ? 0xffffff : rock,
         hash2(tile + k, 26) * (tex ? 0.25 : 0.6),
-        palette.rockDark,
+        rockDark,
+      );
+    }
+  }
+
+  /** Scrub: a leafy clump, sized between grass and a young tree. */
+  #placeBushes(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    const modeled = this.#forest;
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash2(tile, 465) < 0.55) continue;
+      const jx = 0.2 + hash2(tile * 2 + k, 467) * 0.6;
+      const jz = 0.2 + hash2(tile * 2 + k, 468) * 0.6;
+      // The models are span-normalized (a unit footprint), so this is how
+      // much of a tile a shrub covers — well under half, or it reads as a
+      // hedge. The sprite is sized by its own height instead.
+      const s = modeled ? 0.34 + hash2(tile + k, 469) * 0.24 : 0.62 + hash2(tile + k, 469) * 0.5;
+      const warm = hash2(tile + k, 470);
+      const species = (hash2(tile * 2 + k, 466) * this.#bushSpecies) | 0;
+      this.#put(
+        modeled ? `bush${species}` : 'bush',
+        tile,
+        tx + jx,
+        // A model's feet are its origin; the sprite is centered, so it
+        // lifts half its height to stand ON the ground, not sunk in it.
+        this.#heights.at(tx + jx, ty + jz) + (modeled ? -0.02 : 0.4 * s),
+        ty + jz,
+        modeled ? s * (0.9 + hash2(tile + k, 473) * 0.4) : s,
+        s,
+        hash2(tile + k, 472) * Math.PI * (modeled ? 2 : 1),
+        0xffffff,
+        // The forest pack's foliage is a bright lime against this game's
+        // deeper woodland greens, so the models are pulled well down
+        // toward the valley's own palette; the odd shrub turns dusty.
+        modeled ? (warm > 0.88 ? 0.6 : 0.45 + warm * 0.25) : warm > 0.86 ? 0.3 : warm * 0.18,
+        modeled && warm > 0.88 ? 0xa89a5e : modeled ? 0x4f7a34 : 0x86a860,
+      );
+    }
+  }
+
+  /** A bare trunk: dry-ground scenery, one per tile, never in a stand. */
+  #placeDeadTree(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    const species = (hash2(tile, 492) * this.#deadSpecies) | 0;
+    const jx = 0.3 + hash2(tile, 493) * 0.4;
+    const jz = 0.3 + hash2(tile, 494) * 0.4;
+    const h = 1.3 + hash2(tile, 495) * 0.9;
+    this.#put(
+      `dead${species}`,
+      tile,
+      tx + jx,
+      this.#heights.at(tx + jx, ty + jz),
+      ty + jz,
+      h,
+      h * (0.75 + hash2(tile, 496) * 0.3),
+      hash2(tile, 497) * Math.PI * 2,
+      0xffffff,
+      // Instance color multiplies the palette, so it can darken bark but
+      // never desaturate it: the pack's bare wood is a hot orange, and
+      // only a heavy, cool multiply brings it down to weathered timber.
+      0.7 + hash2(tile, 498) * 0.2,
+      0x655e50,
+      (hash2(tile, 499) - 0.5) * 0.09,
+    );
+  }
+
+  /** Wildflower clumps on the lush meadow, tinted bloom by bloom. */
+  #placeFlowers(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash2(tile, 475) < 0.5) continue;
+      const jx = 0.15 + hash2(tile * 2 + k, 476) * 0.7;
+      const jz = 0.15 + hash2(tile * 2 + k, 477) * 0.7;
+      const s = 0.7 + hash2(tile + k, 478) * 0.5;
+      this.#put(
+        'flower',
+        tile,
+        tx + jx,
+        this.#heights.at(tx + jx, ty + jz) + 0.18 * s,
+        ty + jz,
+        s,
+        s,
+        hash2(tile + k, 479) * Math.PI,
+        0xffffff,
+        hash2(tile + k, 480) * 0.25,
+        0xf0e0b0,
+      );
+    }
+  }
+
+  /** A stray pebble or two in the open meadow — ground texture, not stone
+   * worth quarrying, so they stay well under boulder scale. */
+  #placePebbles(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    const tex = this.#rockSpecies > 0;
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash2(tile, 431) < 0.6) continue;
+      const jx = 0.15 + hash2(tile * 2 + k, 432) * 0.7;
+      const jz = 0.15 + hash2(tile * 2 + k, 433) * 0.7;
+      const s = tex ? 0.09 + hash2(tile + k, 434) * 0.08 : 0.18 + hash2(tile + k, 434) * 0.14;
+      this.#put(
+        this.#rockName(tile * 2 + k + 13),
+        tile,
+        tx + jx,
+        this.#heights.at(tx + jx, ty + jz) + (tex ? -0.005 : 0.03 * s),
+        ty + jz,
+        tex ? s : s * 0.6,
+        s,
+        hash2(tile + k, 435) * Math.PI * 2,
+        tex ? 0xffffff : rock,
+        0.2 + hash2(tile + k, 436) * 0.3,
+        rockDark,
+      );
+    }
+  }
+
+  /** Lily pads drifting on still, open shallows, at the water surface. */
+  #placeLilies(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash2(tile, 441) < 0.45) continue;
+      const jx = 0.15 + hash2(tile * 2 + k, 442) * 0.7;
+      const jz = 0.15 + hash2(tile * 2 + k, 443) * 0.7;
+      const s = 0.3 + hash2(tile + k, 444) * 0.22;
+      this.#put(
+        'lily',
+        tile,
+        tx + jx,
+        WATER_LEVEL + 0.015,
+        ty + jz,
+        s,
+        s,
+        hash2(tile + k, 445) * Math.PI * 2,
+        0xffffff,
+        hash2(tile + k, 446) * 0.25,
+        0x9fd0a0,
+      );
+    }
+  }
+
+  /** Reed clumps rooted on the bank's shallow bed, breaching the surface. */
+  #placeReeds(tile: number): void {
+    const tx = tileX(tile, this.#size);
+    const ty = tileY(tile, this.#size);
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash2(tile, 451) < 0.4) continue;
+      const jx = 0.2 + hash2(tile * 2 + k, 452) * 0.6;
+      const jz = 0.2 + hash2(tile * 2 + k, 453) * 0.6;
+      const bed = this.#heights.at(tx + jx, ty + jz);
+      // A clump must reach the air; the deepest beds keep open water.
+      const h = 0.75 + hash2(tile + k, 454) * 0.4;
+      if (bed + h < WATER_LEVEL + 0.25) continue;
+      this.#put(
+        'reed',
+        tile,
+        tx + jx,
+        bed,
+        ty + jz,
+        h,
+        0.55 + hash2(tile + k, 455) * 0.3,
+        hash2(tile + k, 456) * Math.PI * 2,
+        0xffffff,
+        hash2(tile + k, 457) * 0.35,
+        0xd8c878,
       );
     }
   }
@@ -452,9 +780,9 @@ export class ScatterMesh {
         tex ? s : s * 0.6 * (1 + hash2(tile + k, 99) * 0.5),
         s,
         hash2(tile + k, 100) * Math.PI * 2,
-        tex ? 0xffffff : palette.rock,
+        tex ? 0xffffff : rock,
         (tex ? 0.15 : 0.3) + hash2(tile + k, 101) * (tex ? 0.15 : 0.5),
-        palette.rockDark,
+        rockDark,
       );
     }
   }
@@ -467,14 +795,14 @@ export class ScatterMesh {
       res === TileResource.IronDep
         ? tex
           ? 0x9a5f42 // brighter over the texture so the metal reads
-          : palette.ironOre
+          : ironOre
         : res === TileResource.SilverDep
           ? tex
             ? 0xdbe4ee
-            : palette.silverOre
+            : silverOre
           : tex
             ? 0xf0bc42
-            : palette.goldOre;
+            : goldOre;
     for (let k = 0; k < 4; k++) {
       const spread = interior ? 0.6 : 0.4;
       const jx = tex
@@ -497,7 +825,7 @@ export class ScatterMesh {
         hash2(tile * 4 + k, 34) * Math.PI,
         color,
         tex ? 0.1 : hash2(tile * 4 + k, 35) * 0.25,
-        palette.rockDark,
+        rockDark,
       );
     }
   }

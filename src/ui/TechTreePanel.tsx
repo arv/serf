@@ -5,6 +5,7 @@ import { GoodIcon } from './icons';
 import { TechTip, tooltip } from './tooltip';
 import { buildingName, techDesc, techName } from './names';
 import { setTechPanelOpen, stock, techs } from './store';
+import { COMPACT, SHORT } from './breakpoints';
 
 const BRANCH_LABELS: Record<string, string> = {
   agriculture: 'Agriculture',
@@ -43,19 +44,47 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
       <div class="tech-panel panel">
         <style>{`
         .tech-scrim { display: none; }
+        /* A header row over a row of branches, rather than one row of
+           everything. Both of this sheet's furnishings — the ✕ and the
+           line about needing an Abbey — were flex items among the
+           branches: the note came out as a fifth column four words
+           wide, stacked "Build a / Abbey to / begin / research.", and
+           the ✕ sat in dead space past the last branch. Neither is a
+           branch, so neither belongs in that row. */
         .tech-panel {
           position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
-          display: flex; gap: 18px; padding: 14px 18px; pointer-events: auto;
-          max-width: 90vw; overflow-x: auto;
+          display: flex; flex-direction: column; gap: 10px;
+          padding: 14px 18px; pointer-events: auto;
+          max-width: 90vw;
           /* Modal layer — see the layer scale in Hud.tsx. Without a number
              the sheet took its luck from DOM order and lost to the floating
              touch actions (z-index 11), which drew their band-select and
              muster buttons straight through the middle of it. */
           z-index: 20;
         }
-        .tech-close {
-          position: absolute; top: 8px; right: 8px; min-width: 0; padding: 2px 8px;
+        .tech-head {
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 18px; min-height: 26px;
         }
+        /* A square icon button, sized rather than padded. #ui button's
+           10px radius on a chip this small rounded it most of the way
+           to a circle, which read as a stray token dropped on the
+           sheet rather than its close.
+           The selector is deliberate on both counts. Without #ui it
+           loses every box property it declares to #ui button's; with
+           only #ui .tech-close it merely *ties* any other one-class
+           rule and the winner falls to whichever sheet was injected
+           last, which is not a thing a button's size should depend on.
+           Naming the element settles it outright. */
+        #ui button.tech-close {
+          flex: none; width: 26px; height: 26px; padding: 0;
+          min-width: 0; min-height: 0;
+          display: grid; place-items: center;
+          border-radius: 8px; font-size: 12px;
+        }
+        /* The branches scroll, not the sheet: the ✕ is above them now
+           and has to stay reachable however long the tree gets. */
+        .tech-branches { display: flex; gap: 18px; min-height: 0; overflow-x: auto; }
         .tech-branch { min-width: 195px; }
         .tech-branch h3 {
           margin: 0 0 8px; font-size: 14px; color: #c8a15a;
@@ -86,14 +115,18 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
           position: absolute; inset: 0 auto 0 0;
           background: rgba(223, 182, 112, 0.22); pointer-events: none;
         }
-        .tech-note { font-size: 11px; opacity: 0.75; margin-top: 6px; }
+        .tech-note { font-size: 11.5px; opacity: 0.75; }
 
-        /* Phone: three side-by-side branches can't fit, and a flex row just
-           runs off-screen. Become a full-height sheet with the branches
-           stacked and scrolling. (These overrides live here, not in the HUD
-           stylesheet, because this component's <style> renders later and
-           would otherwise win.) */
-        @media (max-width: 760px) {
+        /* A small screen, either way up: three side-by-side branches
+           can't fit, and a flex row just runs off-screen. Become a
+           full-height sheet with the branches stacked and scrolling.
+           Keyed to COMPACT and not to width — held sideways a phone is
+           844px across, and on the width gate this sheet used to render
+           463px tall inside 390px of screen, with the bottom third of
+           the tree simply off it. (These overrides live here, not in
+           the HUD stylesheet, because this component's <style> renders
+           later and would otherwise win.) */
+        @media ${COMPACT} {
           /* Taps on the dimmed area have to stop here. #ui is
              pointer-events:none and the dimming is a box-shadow spread,
              which nothing can hit, so an order aimed at the open sheet used
@@ -122,30 +155,68 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
             transform: none;
             max-width: none;
             max-height: none;
-            flex-direction: column;
             gap: 10px;
-            overflow-x: hidden;
-            overflow-y: auto;
+            overflow: hidden;
+            padding: 14px;
+          }
+          /* The branches stack and take the scroll; the header keeps
+             the ✕ in view at the top of it. min-height:0 is what lets
+             this shrink inside the column instead of pushing the
+             sheet's bottom off the screen. */
+          .tech-branches {
+            flex-direction: column; gap: 10px;
+            flex: 1 1 auto; min-height: 0;
+            overflow-x: hidden; overflow-y: auto;
             /* Spell the scroll gesture out: the page itself can't scroll
                (body is overflow:hidden) and the canvas takes
                touch-action:none, so this container must claim pan-y. */
             touch-action: pan-y;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
-            padding: 44px 14px 14px; /* clear of the close button */
           }
           .tech-branch { min-width: 0; width: 100%; }
           .tech-node { padding: 9px 10px; font-size: 13px; }
           .tech-node .desc { font-size: 12px; }
-          .tech-close { top: 10px; right: 10px; padding: 6px 12px; }
+        }
+
+        /* Held sideways, the sheet has width it isn't using: the
+           branches stack into one column because that is what a phone
+           held upright has room for, and on 844px of screen that made
+           a single file of nodes with a mile of scroll beside two
+           empty thirds. Two columns, and the tree is a third of the
+           scrolling it was. */
+        @media ${SHORT} {
+          .tech-branches {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+            align-content: start; gap: 10px 12px;
+          }
+          .tech-head { min-height: 0; }
+        }
+
+        /* A thumb needs more than 26px of ✕, and that is true of a
+           tablet at any width — so this hangs off the pointer rather
+           than off the phone breakpoint above. It used to live in the
+           HUD sheet, reaching across into this panel; a rule about
+           this button belongs beside the rest of them. */
+        @media (pointer: coarse) {
+          #ui button.tech-close { width: 36px; height: 36px; font-size: 14px; }
         }
       `}</style>
-        <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
-          ✕
-        </button>
-        <Show when={!techs().hasAbbey}>
-          <div class="tech-note">Build a {buildingName('abbey')} to begin research.</div>
-        </Show>
+        <div class="tech-head">
+          {/* Phrased around the name rather than in front of it: the
+              old line hard-coded "a" ahead of an interpolated building
+              and read "Build a Abbey". "The" agrees with anything the
+              defs care to call it. */}
+          <div class="tech-note">
+            <Show when={!techs().hasAbbey}>
+              The {buildingName('abbey')} opens this tree — build one to begin.
+            </Show>
+          </div>
+          <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
+            ✕
+          </button>
+        </div>
+        <div class="tech-branches">
         <For each={TECH_BRANCHES}>
           {(branch) => (
             <div class="tech-branch">
@@ -189,6 +260,7 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
             </div>
           )}
         </For>
+        </div>
       </div>
     </>
   );

@@ -566,7 +566,7 @@ export class AiBrain {
     // village waits for stone it hasn't quarried yet.
     let worst: Building | undefined;
     for (const b of mine) {
-      if (b.state !== 'built' || b.repairNeeds) continue;
+      if (b.state !== 'built' || b.repairNeeds || b.repairPending !== undefined) continue;
       const max = BUILDING_DEFS[b.type].hp;
       if (b.hp >= max * AI_REPAIR_BELOW) continue;
       if (!worst || b.hp / max < worst.hp / BUILDING_DEFS[worst.type].hp) worst = b;

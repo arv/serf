@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, WATER_LEVEL, type MapView } from '../sim/map';
+import type { FogQuery } from './fogOfWar';
 
 /** One wisp per 256 tiles — the classic 16 on a 64 map, denser seas get
  * proportionally more so the mist never thins out with the map. */
@@ -44,6 +45,15 @@ function makeMistTexture(): THREE.Texture {
 export class Mist {
   readonly group = new THREE.Group();
   #wisps: Wisp[] = [];
+  /** Never set = everything lit; the menu backdrop has no fog to give. */
+  #fog: FogQuery | null = null;
+
+  /** Dim each wisp by the fog at its position. Sprites cannot take the
+   * fog's material patch (see fogOfWar.ts #patch), so the mist gates
+   * itself — without this the wisps glowed over unexplored sea. */
+  setFog(fog: FogQuery): void {
+    this.#fog = fog;
+  }
 
   constructor(map: MapView) {
     const size = map.size;
@@ -88,8 +98,10 @@ export class Mist {
       const x = w.originX + Math.sin(cycle) * 6 + w.driftX * (t % 120);
       const z = w.originZ + Math.sin(cycle * 2) * 2.2 + w.driftZ * (t % 120);
       w.sprite.position.set(x, WATER_LEVEL + 0.9, z);
+      const lit = this.#fog ? this.#fog.litAt(x, z) : 1;
+      w.sprite.visible = lit > 0.02;
       const breathe = 0.5 + 0.5 * Math.sin(t * 0.13 + w.phase * 3);
-      (w.sprite.material as THREE.SpriteMaterial).opacity = 0.08 + breathe * 0.14;
+      (w.sprite.material as THREE.SpriteMaterial).opacity = (0.08 + breathe * 0.14) * lit;
     }
   }
 }

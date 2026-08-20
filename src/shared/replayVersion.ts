@@ -20,7 +20,7 @@
  * directly.
  */
 /**
- * 10: the pathfinder's runaway-search cap was raised from half the play
+ * 12: the pathfinder's runaway-search cap was raised from half the play
  * area to the whole of it (sim/path.ts) — it was smaller than the walkable
  * component on a 96 map, so a reachable goal across the valley returned
  * null and the order was dropped. Every replay containing a long walk ticks

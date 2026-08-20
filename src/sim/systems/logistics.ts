@@ -611,7 +611,8 @@ function deliver(world: World, to: Building, good: GoodId): void {
     return;
   }
   if ((to.repairNeeds?.[good] ?? 0) > 0) {
-    // A repair material is nailed on where it lands — no store, no timer.
+    // A repair material goes to the masons where it lands, never onto the
+    // shelf: it buys its hp now and the walls climb over the next ticks.
     applyRepairMaterial(world, to, good);
     return;
   }

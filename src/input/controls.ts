@@ -30,6 +30,7 @@ import {
   setQuitConfirm,
   setSelectedBuilding,
   setSelection,
+  setSelectionGroup,
   setTechPanelOpen,
   stock,
   techPanelOpen,
@@ -50,6 +51,7 @@ import { techName, unitName } from '../ui/names';
 import { fullscreen, guardEsc } from '../ui/fullscreen';
 import { play } from '../audio/audio';
 import { screenToGround, worldToScreen } from './picking';
+import { keyDigit, matchingGroup } from './groups';
 import type { SceneSync } from '../render/sceneSync';
 import type { GhostPlacement } from '../render/ghost';
 import type { FogQuery } from '../render/fogOfWar';
@@ -66,6 +68,16 @@ const TOUCH_SLOP_PX = 12;
  * apart than one aimed tap. */
 const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_RADIUS_PX = 24;
+/** Double-click window for widening a click to a whole kind. Tighter than
+ * the touch pair above on both counts: a mouse's two clicks land on the
+ * same pixel, and the OS default for this gesture is around half a second
+ * everywhere. What really decides it is the unit under both clicks. */
+const DOUBLE_CLICK_MS = 400;
+const DOUBLE_CLICK_RADIUS_PX = 8;
+/** Repeat-press window for the control-group number that rides the camera
+ * out to its squad. Shared by keyboard and nothing else, so it can be as
+ * generous as the keyboard's own repeat feel wants. */
+const GROUP_RECALL_MS = 450;
 
 /**
  * The A–Z letter a keypress means, or '' for anything else.
@@ -99,7 +111,8 @@ const MILITARY_CODES = new Set(
 );
 
 /**
- * Left click / drag: select player units. Right click: move order for the
+ * Left click / drag: select player units; double-click one to take every
+ * unit of that kind on screen. Right click: move order for the
  * current selection. Build-menu placement mode overrides both: hover shows a
  * validity-tinted ghost, left click places, right click / Esc cancels. A
  * small mode machine avoids the classic click-vs-drag papercuts; the band
@@ -110,6 +123,11 @@ const MILITARY_CODES = new Set(
  * click, and B opens a build chord whose next letter arms a building. Both
  * are modes that claim the next click, so both are mutually exclusive with
  * placement and with each other, and Esc unwinds them one at a time.
+ *
+ * The number row is StarCraft's ten control groups (#controlGroup): Ctrl+N
+ * stamps, Shift+N adds, N calls back, N twice rides the camera out. They
+ * are the one binding here that is not a mode at all — no click is claimed,
+ * nothing has to be unwound, and Esc has no business with them.
  *
  * Touch speaks selection-first, like every phone RTS: tap a unit to select,
  * then tap the ground to send the selection there as a half attack-move —
@@ -136,6 +154,27 @@ export class Controls {
   /** Fog test, so placement cannot probe ground nobody has scouted. */
   #fog: FogQuery | null = null;
   #selection = new Set<number>();
+  /**
+   * Control groups, bound the way both StarCrafts bind them: digit → the
+   * unit ids stamped onto it.
+   *
+   * They live here beside the selection rather than in the store because
+   * they are lists of ids and ids die: prune() already weeds the dead out
+   * of the selection every frame, and a group is exactly the same problem.
+   * The HUD gets the one crumb it needs (selectionGroup) pushed to it.
+   */
+  #groups = new Map<number, Set<number>>();
+  /** The last group number called back, for the second press that rides
+   * the camera out to it instead of re-selecting what is already selected. */
+  #lastRecall: { digit: number; time: number } | null = null;
+  /**
+   * The last press that landed on one of your units — click or tap alike.
+   * A second one on the same unit inside the window widens the selection to
+   * that whole kind on screen; the id is what really decides it, so the two
+   * input styles can share the record and differ only in how forgiving
+   * their window and radius are.
+   */
+  #lastUnitPress: { id: number; px: number; py: number; time: number } | null = null;
   #dragStart: { x: number; y: number } | null = null;
   #dragging = false;
   #bandEl: HTMLDivElement;
@@ -278,6 +317,9 @@ export class Controls {
    * - A half-typed build chord swallows the next letter whole. B, W is a
    *   woodcutter and nothing else; while the chord stands, M cannot mute
    *   the game out from under it.
+   * - A number is a control group and nothing else — no other binding wants
+   *   the number row, and a building's contextual letters cannot collide
+   *   with one. Ctrl earns its way past the modifier guard for these alone.
    * - Otherwise A and M are orders while people are selected, B opens the
    *   chord, and the odds and ends (mute, the debug overlay) have what is
    *   left. M is the one key that answers to two things, and the selection
@@ -291,7 +333,20 @@ export class Controls {
   #onKey = (e: KeyboardEvent): void => {
     // Chords belong to the browser and the OS (⌘M minimises), and a key
     // typed into a field is being typed, not pressed.
-    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+    if (e.metaKey || e.altKey || e.isComposing) return;
+    // Ctrl stopped being a blanket disqualifier the day control groups
+    // landed: Ctrl+1 is half of how a group is stamped. Everything else
+    // Ctrl touches is still the browser's.
+    //
+    // Ctrl on a Mac too, not ⌘, which is worth saying because it looks like
+    // the wrong answer and is not. ⌘1–⌘9 switch browser tabs, at a level no
+    // preventDefault can reach, so ⌘ is not ours to bind in a tab at all.
+    // Ctrl is free on a stock Mac: macOS ships ⌃1–⌃9 as "switch to desktop
+    // N" but leaves those rows unchecked, so they fire only for someone who
+    // went and enabled them — and that someone loses this binding to Spaces
+    // exactly the way they lose it in StarCraft II, which binds Ctrl on
+    // every platform it ships on.
+    if (e.ctrlKey && keyDigit(e) === null) return;
     const t = e.target;
     if (
       t instanceof HTMLInputElement ||
@@ -355,6 +410,20 @@ export class Controls {
     // selection is never a unit selection.
     const b = selectedBuilding();
     if (b && b.owner === myPlayerId() && this.#buildingCommand(b, letter)) return;
+
+    // Control groups. They sit behind the chord, which swallows the next
+    // key whole whether or not it is a letter, and behind the building
+    // panel, which cannot want a number — its commands are all letters — so
+    // where exactly they land among these three does not matter. What
+    // matters is that nothing further down wants the number row either.
+    const digit = keyDigit(e);
+    if (digit !== null) {
+      // Backstop the browser's own find-as-you-type and any Ctrl+number
+      // the platform might still be listening for.
+      e.preventDefault();
+      this.#controlGroup(digit, e.ctrlKey, e.shiftKey);
+      return;
+    }
 
     if (letter === RESEARCH_KEY) {
       // Not contextual: the tree is a sheet to read, not an order to give.
@@ -538,7 +607,24 @@ export class Controls {
         changed = true;
       }
     }
+    // Control groups are lists of ids too, and they outlive the selection
+    // by design — so without this, group 1 keeps calling back the four
+    // knights who fell three minutes ago, and the camera it rides out to
+    // is aimed at wherever they last stood.
+    let groupsChanged = false;
+    for (const group of this.#groups.values()) {
+      for (const id of group) {
+        if (!this.#sync.latestIds.has(id) || this.#sync.isDead(id)) {
+          group.delete(id);
+          groupsChanged = true;
+        }
+      }
+    }
     if (changed) this.#setSel(this.#selection);
+    // The badge can go stale on a casualty that touched only the group (a
+    // straggler nobody had selected), so it is refreshed even when the
+    // selection itself came through the frame untouched.
+    else if (groupsChanged) this.#publishGroup();
   }
 
   #setSel(sel: Set<number>): void {
@@ -548,6 +634,7 @@ export class Controls {
     if (sel !== this.#selection && sel.size > this.#selection.size) play('uiSelect');
     this.#selection = sel;
     setSelection(new Set(sel));
+    this.#publishGroup();
     // An order with nobody left to carry it out: the squad was let go, or
     // prune() just buried the last of them. Disarm rather than leave the
     // card lit and the next click swallowed to order thin air.
@@ -794,6 +881,10 @@ export class Controls {
         this.#dragging = false;
         setBandArm(false);
         if (this.#rig) this.#rig.touchPanEnabled = true;
+        // A marquee is its own gesture, not half of a double-tap: without
+        // this, the tap that armed nothing and the tap that drew the band
+        // pair up and widen to a whole kind.
+        this.#lastUnitPress = null;
         if (dragged) this.#selectInRect(start.x, start.y, e.clientX, e.clientY, false);
         else this.#selectAtPoint(e.clientX, e.clientY, false);
         return;
@@ -805,11 +896,90 @@ export class Controls {
     }
     if (this.#dragging) {
       this.#dragging = false;
+      // A band drag is not the first half of a double-click, however
+      // briefly it passed over the unit it started on.
+      this.#lastUnitPress = null;
       this.#selectInRect(start.x, start.y, e.clientX, e.clientY, e.shiftKey);
     } else {
-      this.#selectAtPoint(e.clientX, e.clientY, e.shiftKey);
+      this.#clickSelect(e.clientX, e.clientY, e.shiftKey);
     }
   };
+
+  /**
+   * A left click that selected rather than dragged. One click picks what is
+   * under it; two on the same unit inside a beat widen to every unit of
+   * that kind on screen, which is what a double-click has meant in this
+   * genre since Warcraft II. Shift adds to the standing selection either
+   * way, so shift-double-click is how a mixed army is assembled a kind at
+   * a time.
+   */
+  #clickSelect(px: number, py: number, additive: boolean): void {
+    const id = this.#unitAt(px, py);
+    if (this.#repeatUnitPress(id, px, py, DOUBLE_CLICK_MS, DOUBLE_CLICK_RADIUS_PX)) {
+      // A third and fourth click land here again and re-widen to the same
+      // set, so a shaky hand cannot toggle its own selection back off.
+      this.#selectSameKind(id, additive);
+      return;
+    }
+    this.#selectAtPoint(px, py, additive);
+  }
+
+  /**
+   * Was this the second of a pair on the same unit — a double-click, or the
+   * finger's version of one? Records the press either way, and a press that
+   * missed every unit (id < 0) breaks the chain rather than starting one:
+   * two clicks on empty grass are two clicks on empty grass.
+   */
+  #repeatUnitPress(id: number, px: number, py: number, ms: number, radius: number): boolean {
+    const prev = this.#lastUnitPress;
+    if (id < 0) {
+      this.#lastUnitPress = null;
+      return false;
+    }
+    const now = performance.now();
+    const dx = prev ? px - prev.px : 0;
+    const dy = prev ? py - prev.py : 0;
+    const repeat =
+      prev !== null &&
+      prev.id === id &&
+      now - prev.time <= ms &&
+      dx * dx + dy * dy <= radius * radius;
+    this.#lastUnitPress = { id, px, py, time: now };
+    return repeat;
+  }
+
+  /**
+   * Every unit of one kind that is on screen right now — what a
+   * double-click means by "and the rest of them".
+   *
+   * On screen rather than on the map, which is the rule both StarCrafts
+   * use and the one that makes the gesture safe: a swordsman double-clicked
+   * at the gate calls in the others holding the gate, not the two
+   * garrisoning the far corner of the map who were the only thing standing
+   * between the mill and a raid.
+   */
+  #selectSameKind(unitId: number, additive: boolean): void {
+    const kind = this.#sync.kindOf(unitId);
+    if (kind === null) return;
+    const now = performance.now();
+    const w = this.#canvas.clientWidth;
+    const h = this.#canvas.clientHeight;
+    const sel = additive ? new Set(this.#selection) : new Set<number>();
+    const screen = this.#scratchScreen;
+    for (const id of this.#sync.latestIds.keys()) {
+      if (this.#sync.kindOf(id) !== kind) continue;
+      if (!this.#playerUnitScreenPosInto(id, now, screen)) continue;
+      if (screen.x < 0 || screen.x > w || screen.y < 0 || screen.y > h) continue;
+      sel.add(id);
+    }
+    // The one under the cursor is the subject of the gesture. It can fall a
+    // pixel outside the box above (the projection is taken at the head, the
+    // click radius is generous), and coming back without it would be the
+    // gesture failing at the very unit it was aimed at.
+    sel.add(unitId);
+    setSelectedBuilding(null);
+    this.#setSel(sel);
+  }
 
   /**
    * The touch grammar: tap a unit to select it; tap one of your buildings to
@@ -826,8 +996,17 @@ export class Controls {
    */
   #touchTap(px: number, py: number): void {
     const unitId = this.#unitAt(px, py);
+    const repeatUnit = this.#repeatUnitPress(unitId, px, py, DOUBLE_TAP_MS, DOUBLE_TAP_RADIUS_PX);
     if (unitId >= 0) {
       this.#lastMoveTap = null;
+      // The mouse's double-click, given to the finger: tap a soldier, tap
+      // them again, and their whole kind on screen comes along. A phone
+      // has no shift, so this is the only way it can grab a kind at all
+      // short of arming the marquee and drawing a band around them.
+      if (repeatUnit) {
+        this.#selectSameKind(unitId, false);
+        return;
+      }
       setSelectedBuilding(null);
       this.#setSel(new Set([unitId]));
       return;
@@ -1010,6 +1189,94 @@ export class Controls {
       }
     }
     this.#setSel(sel);
+  }
+
+  /**
+   * A number key, bound the way both StarCrafts bind it:
+   *
+   * - **Ctrl+N** stamps the standing selection onto group N, replacing
+   *   whatever was there.
+   * - **Shift+N** adds the standing selection to group N and leaves the
+   *   selection alone — the way a squad is grown a reinforcement at a time
+   *   without having to re-drag the whole army.
+   * - **N** calls group N back.
+   * - **N twice** inside a beat also rides the camera out to them, which is
+   *   the half of this binding that makes it a two-front game rather than a
+   *   selection shortcut.
+   *
+   * A group is a list of ids, not a snapshot of a squad, and prune() weeds
+   * the dead out of every group each frame. So a group that lost half its
+   * soldiers calls back the half that lived, and one that lost all of them
+   * refuses out loud rather than answering with an empty selection — losing
+   * the squad you still had selected is the worse of the two failures.
+   */
+  #controlGroup(digit: number, assign: boolean, add: boolean): void {
+    if (assign || add) {
+      // Nothing to stamp. Refuse rather than write the empty set: Ctrl+1
+      // pressed a moment after the squad was wiped (or after a stray click
+      // on empty ground) would otherwise quietly throw away the group it
+      // was meant to confirm.
+      if (this.#selection.size === 0) {
+        play('uiRefused');
+        return;
+      }
+      const group = assign ? new Set<number>() : (this.#groups.get(digit) ?? new Set<number>());
+      for (const id of this.#selection) group.add(id);
+      this.#groups.set(digit, group);
+      play('uiClick');
+      // The badge on the selection card is the only thing on screen that
+      // says the stamp took, so it has to be republished here: neither
+      // spelling of this changed the selection itself.
+      this.#publishGroup();
+      return;
+    }
+
+    const group = this.#groups.get(digit);
+    if (!group || group.size === 0) {
+      play('uiRefused');
+      return;
+    }
+    const now = performance.now();
+    const prev = this.#lastRecall;
+    this.#lastRecall = { digit, time: now };
+    if (prev && prev.digit === digit && now - prev.time <= GROUP_RECALL_MS) {
+      // The second press is the camera's. Further presses land here again
+      // and simply re-centre, which is what a player leaning on the key
+      // means by it.
+      this.#glideToGroup(group);
+      return;
+    }
+    setSelectedBuilding(null);
+    this.#lastMoveTap = null;
+    this.#setSel(new Set(group));
+  }
+
+  /** Ride out to the middle of a group — the second press of its number. */
+  #glideToGroup(group: ReadonlySet<number>): void {
+    const now = performance.now();
+    const pos = this.#scratchPos;
+    let sumX = 0;
+    let sumY = 0;
+    let n = 0;
+    for (const id of group) {
+      // Fog can swallow a position even for your own people (positionOfInto
+      // reports none for anything hidden), so the count is what divides,
+      // not the group size.
+      if (!this.#sync.positionOfInto(id, now, pos)) continue;
+      sumX += pos.x;
+      sumY += pos.y;
+      n++;
+    }
+    if (n === 0) {
+      play('uiRefused');
+      return;
+    }
+    this.#rig?.glideTo(sumX / n, sumY / n);
+  }
+
+  /** Push the card's group badge — see matchingGroup for what it means. */
+  #publishGroup(): void {
+    setSelectionGroup(matchingGroup(this.#groups, this.#selection));
   }
 
   /**

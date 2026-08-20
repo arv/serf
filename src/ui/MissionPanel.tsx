@@ -3,6 +3,7 @@ import { MISSION_DEFS, nextMissionId } from '../sim/defs/missions';
 import { MISSION_HINTS } from './hints';
 import { hintsHidden, setHintsHidden } from './campaign';
 import { briefingOpen, mission, setBriefingOpen, speed } from './store';
+import { COMPACT } from './breakpoints';
 
 /**
  * The campaign's HUD: the briefing card a mission opens on, the standing
@@ -48,12 +49,19 @@ export function MissionPanel(props: { onSpeed: (speed: number) => void }) {
   return (
     <>
       <style>{`
+        /* An item in the HUD's left rail (see Hud.tsx): the rail
+           decides where the top-left column starts and what else
+           shares it, so the checklist only declares its own width.
+           It used to place itself at top: 56px left: 12px — the same
+           two numbers the strategist's health line had picked, which
+           is how a campaign run with the strategist on drew one on
+           top of the other. */
         .hud-mission {
-          position: absolute; top: 56px; left: 12px; width: 232px;
-          padding: 10px 12px; pointer-events: auto;
+          width: 232px;
+          padding: 10px 12px;
           display: flex; flex-direction: column; gap: 6px;
         }
-        @media (max-width: 760px) { .hud-mission { top: 96px; width: 200px; } }
+        @media ${COMPACT} { .hud-mission { width: 200px; } }
         .hud-mission .mission-head {
           display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
           font-weight: 600; color: #f0ede4;

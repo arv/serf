@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { WATER_LEVEL, type MapView } from '../sim/map';
-import { palette } from './palette';
+import { water, waterDeep, waterShore } from './palette';
 
 /**
  * The water surface: one plane at the waterline, shaded against the terrain
@@ -19,6 +19,7 @@ import { palette } from './palette';
 export class WaterMesh {
   readonly mesh: THREE.Mesh;
   #time = { value: 0 };
+  #bed: THREE.DataTexture;
 
   constructor(map: MapView) {
     const size = map.size;
@@ -44,6 +45,7 @@ export class WaterMesh {
     bed.wrapS = THREE.ClampToEdgeWrapping;
     bed.wrapT = THREE.ClampToEdgeWrapping;
     bed.needsUpdate = true;
+    this.#bed = bed;
 
     // Alpha comes from the shader (shallow water is far clearer than deep),
     // so the material's own opacity stays out of the way. No depth write:
@@ -59,9 +61,9 @@ export class WaterMesh {
       shader.uniforms.uBed = { value: bed };
       shader.uniforms.uMapSize = { value: size };
       shader.uniforms.uWaterLevel = { value: WATER_LEVEL };
-      shader.uniforms.uShallow = { value: new THREE.Color(palette.waterShore) };
-      shader.uniforms.uMid = { value: new THREE.Color(palette.water) };
-      shader.uniforms.uDeep = { value: new THREE.Color(palette.waterDeep) };
+      shader.uniforms.uShallow = { value: new THREE.Color(waterShore) };
+      shader.uniforms.uMid = { value: new THREE.Color(water) };
+      shader.uniforms.uDeep = { value: new THREE.Color(waterDeep) };
 
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vWorldPos;')
@@ -188,5 +190,22 @@ export class WaterMesh {
 
   update(nowMs: number): void {
     this.#time.value = nowMs / 1000;
+  }
+
+  /**
+   * The bed texture wraps map.height itself — after the editor sculpts,
+   * one re-upload is all the water needs to shade the new depths.
+   */
+  refreshBed(): void {
+    this.#bed.needsUpdate = true;
+  }
+
+  /** Editor only: free this mesh inside a live context (the game drops the
+   * whole context instead). The bed texture is ours; nothing is shared. */
+  dispose(): void {
+    this.mesh.removeFromParent();
+    this.mesh.geometry.dispose();
+    (this.mesh.material as THREE.Material).dispose();
+    this.#bed.dispose();
   }
 }

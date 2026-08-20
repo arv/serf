@@ -1,10 +1,40 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
+import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
 import { HeightField } from './heightField';
 import { SelectedReach } from './reachOutline';
-import { buildingDef, gatherRecipeOf } from '../sim/defs/buildings';
+import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings';
+import { RESOURCE_CODE, type MapView } from '../sim/map';
+import { verdictBad, verdictGood } from './palette';
 import type { BuildingSnap } from '../protocol/messages';
+
+const SIZE = DEFAULT_MAP_SIZE;
+
+/** A bare grid, playable edge to edge, with nothing standing on it. */
+function emptyMap(): MapView {
+  const n = tileCount(SIZE);
+  return {
+    size: SIZE,
+    play: SIZE,
+    terrain: new Uint8Array(n),
+    resource: new Uint8Array(n),
+    blocked: new Uint8Array(n),
+    buildingAt: new Int16Array(n).fill(-1),
+    pathLevel: new Uint8Array(n),
+    height: new Float32Array(n),
+  };
+}
+
+/** Put one workable tile just outside the building's footprint. */
+function seed(map: MapView, b: BuildingSnap, resource: 'wood' | 'ironDep'): void {
+  const origin = gatherOrigin(buildingDef(b.type), b.x, b.y);
+  map.resource[tileIdx(origin.x + 2, origin.y + 2, SIZE)] = RESOURCE_CODE[resource];
+}
+
+/** The band's current color, as a hex. */
+function color(scene: THREE.Scene): number {
+  return (outline(scene)!.material as THREE.MeshBasicMaterial).color.getHex();
+}
 
 function snap(over: Partial<BuildingSnap>): BuildingSnap {
   return {
@@ -26,14 +56,12 @@ function snap(over: Partial<BuildingSnap>): BuildingSnap {
   };
 }
 
-function makeReach(): { reach: SelectedReach; scene: THREE.Scene } {
+function makeReach(): { reach: SelectedReach; scene: THREE.Scene; map: MapView } {
   const scene = new THREE.Scene();
   return {
-    reach: new SelectedReach(
-      scene,
-      new HeightField(new Float32Array(tileCount(DEFAULT_MAP_SIZE)), DEFAULT_MAP_SIZE),
-    ),
+    reach: new SelectedReach(scene, new HeightField(new Float32Array(tileCount(SIZE)), SIZE)),
     scene,
+    map: emptyMap(),
   };
 }
 
@@ -44,31 +72,67 @@ function outline(scene: THREE.Scene): THREE.Mesh | undefined {
 
 describe('the reach outline of a selected building', () => {
   it('appears for a gatherer and clears when the selection does', () => {
-    const { reach, scene } = makeReach();
-    reach.update(snap({ type: 'woodcutter' }));
+    const { reach, scene, map } = makeReach();
+    reach.update(snap({ type: 'woodcutter' }), map);
     expect(outline(scene)?.visible).toBe(true);
-    reach.update(null);
+    reach.update(null, map);
     expect(outline(scene)).toBeUndefined();
   });
 
   it('stays away for buildings that work no land', () => {
-    const { reach, scene } = makeReach();
-    reach.update(snap({ type: 'brewery' }));
+    const { reach, scene, map } = makeReach();
+    reach.update(snap({ type: 'brewery' }), map);
     expect(outline(scene)).toBeUndefined();
   });
 
   it('clears when the selection moves on to a building that works none', () => {
-    const { reach, scene } = makeReach();
-    reach.update(snap({ id: 1, type: 'woodcutter' }));
-    reach.update(snap({ id: 2, type: 'brewery' }));
+    const { reach, scene, map } = makeReach();
+    reach.update(snap({ id: 1, type: 'woodcutter' }), map);
+    reach.update(snap({ id: 2, type: 'brewery' }), map);
     expect(outline(scene)).toBeUndefined();
   });
 
+  it('reads green over ground that still holds something to work', () => {
+    const { reach, scene, map } = makeReach();
+    const hut = snap({ type: 'woodcutter' });
+    seed(map, hut, 'wood');
+    reach.update(hut, map);
+    expect(color(scene)).toBe(verdictGood);
+  });
+
+  it('reads red when nothing in reach is left', () => {
+    const { reach, scene, map } = makeReach();
+    reach.update(snap({ type: 'woodcutter' }), map);
+    expect(color(scene)).toBe(verdictBad);
+  });
+
+  it('ignores a resource the building does not work', () => {
+    const { reach, scene, map } = makeReach();
+    const mine = snap({ type: 'ironMine' });
+    seed(map, mine, 'wood');
+    reach.update(mine, map);
+    expect(color(scene)).toBe(verdictBad);
+  });
+
+  it('turns red under a standing selection as the last tile runs out', () => {
+    const { reach, scene, map } = makeReach();
+    const hut = snap({ type: 'woodcutter' });
+    seed(map, hut, 'wood');
+    reach.update(hut, map);
+    expect(color(scene)).toBe(verdictGood);
+    // The worker fells the last tree in reach: the sim clears the tile's
+    // resource code, and the same selection must go red without being
+    // re-clicked.
+    map.resource.fill(0);
+    reach.update(hut, map);
+    expect(color(scene)).toBe(verdictBad);
+  });
+
   it('follows the selection from one gatherer to the next', () => {
-    const { reach, scene } = makeReach();
-    reach.update(snap({ id: 1, type: 'woodcutter', x: 10, y: 10 }));
+    const { reach, scene, map } = makeReach();
+    reach.update(snap({ id: 1, type: 'woodcutter', x: 10, y: 10 }), map);
     const woodcutter = outline(scene)!.geometry.getAttribute('position').array.slice();
-    reach.update(snap({ id: 2, type: 'ironMine', x: 40, y: 40, w: 2, h: 2 }));
+    reach.update(snap({ id: 2, type: 'ironMine', x: 40, y: 40, w: 2, h: 2 }), map);
     const mine = outline(scene)!.geometry.getAttribute('position').array;
     expect([...mine]).not.toEqual([...woodcutter]);
     // Different radii too, so the mine's square is the smaller one.

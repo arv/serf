@@ -41,8 +41,10 @@ pnpm dev
   wide and mustering an army compete for the same roofs.
 - **Repairs**: a building the raiders left standing can be mended instead of
   written off — select it and hit **Repair**. The bill is half its build
-  price scaled by the damage, and the materials are hauled in like a site's,
-  so the walls come back up as fast as your serfs can carry stone. Always
+  price scaled by the damage, and the materials are hauled in like a site's;
+  the masons then work them in, so the walls climb back over the seconds
+  that follow rather than snapping back when the last plank lands. A mend
+  interrupted by the next wave is a wall that is still half down. Always
   cheaper than tearing it down and paying full price again, and the worker
   never leaves the post. The castle repairs too, out of the stores already
   inside it, against a notional price of its own (it cost nothing to raise).
@@ -139,6 +141,10 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Input | Action |
 |---|---|
 | Left click / drag | Select units (shift = add) |
+| Double-click a unit | Select every unit of that kind on screen (shift = add) |
+| **Ctrl+1**…**Ctrl+0** | Stamp the selection as a control group |
+| **Shift+1**…**Shift+0** | Add the selection to that group |
+| **1**…**0** | Call the group back; twice in a beat also jumps the camera to it |
 | Right click | Move order / attack enemy building |
 | Click building | Building panel (barracks: train units) |
 | **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target |
@@ -161,6 +167,25 @@ device with no keyboard. Camera control follows Warcraft III / StarCraft II:
 edge scroll (`input/edgeScroll.ts`), arrows, middle-drag, wheel zoom. WASD
 deliberately does *not* pan — those letters belong to the orders and the
 build chord, and `A` cannot both pan left and attack-move.
+
+Control groups are StarCraft's, numbers and all, and they are the one
+binding that is not a mode: no click is claimed, so Esc has nothing to
+unwind. A group is a list of ids rather than a snapshot of a squad — the
+dead are weeded out of every group each frame, so a group that lost half its
+soldiers calls back the half that lived, and one that lost all of them
+refuses out loud rather than answering with an empty selection. The
+selection card names the group it is standing on, which is the whole
+feedback loop: Ctrl+1 changes nothing else a player can see.
+
+Ctrl on a Mac too, not ⌘ — ⌘1–⌘9 switch browser tabs above the page, where
+no `preventDefault` reaches, and macOS ships its own ⌃1–⌃9 (switch to
+desktop N) turned off. StarCraft binds Ctrl on every platform it ships on,
+so this is both the compatible answer and the familiar one.
+
+Touch gets the double-click as a double-tap on a unit — the same widening
+to that kind on screen. A phone has no shift and no band drag without first
+arming the HUD's marquee, so this is the one gesture that hands a finger a
+whole kind at once.
 
 The letters on a selected building's panel are contextual, as in both those
 games, so they may reuse a global letter: the barracks' **A**rcher is the

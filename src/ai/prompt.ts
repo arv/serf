@@ -39,7 +39,7 @@ Your one job is posture: how the seat spends the next minute and a half.
 Choose exactly one posture:
 ${POSTURE_ORDER.map((id) => `- ${id}: ${POSTURES[id].when}`).join('\n')}
 
-Reply with a single JSON object: {"posture": "<one of the postures above>", "reason": "<a few words>"}. Nothing else.`;
+Reply with a single JSON object: {"posture": "<one of the postures above>", "reason": "<a few words citing a specific fact from the match state>"}. Nothing else.`;
 
 /** The differences a small model would otherwise have to compute itself. */
 function deltas(current: AiWorldSummary, prev: AiWorldSummary | null): string {

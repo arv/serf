@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { tileCount, tileIdx } from '../shared/grid';
-import { inPlayArea, type PlayArea } from '../sim/map';
+import { clamp } from '../shared/math';
+import { playMax, playMin, type PlayArea } from '../sim/map';
 import { AUX_STRIDE, ACTION, type SabReader } from '../protocol/sabLayout';
-import { palette } from './palette';
+import { background } from './palette';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { buildingSight } from '../sim/visibility';
 import type { BuildingSnap } from '../protocol/messages';
@@ -26,12 +27,17 @@ const CONCEAL_RATE = 3.5;
 /** Above this a tile counts as seen for gameplay queries (picking, hiding). */
 const SEEN = 0.35;
 
-/** What the entity syncs need to know — they take this, not the whole fog. */
+/** What the entity syncs and effect layers need to know — they take this,
+ * not the whole fog. */
 export interface FogQuery {
   /** Is this world position lit right now? */
   visibleAt(x: number, z: number): boolean;
   /** Has the player ever seen it? */
   exploredAt(x: number, z: number): boolean;
+  /** Presentation-grade light level, 0..1, at a world position — for the
+   * few effects (mist sprites) that cannot take the material patch and
+   * must dim themselves to match the ground under them. */
+  litAt(x: number, z: number): number;
 }
 
 /**
@@ -94,8 +100,9 @@ export class FogOfWar implements FogQuery {
   #enabled = true;
   /** Seat whose eyes we see through: its units and buildings light the map. */
   #owner: number;
-  /** 1 = always lit (the scenery margin outside the play square). */
-  #lit!: Uint8Array;
+  /** Fog source per tile: identity inside the play square; a margin tile
+   * points at the nearest play tile, whose fate it shares (see ctor). */
+  #mirror!: Int32Array;
 
   /**
    * Turn the layer on or off. Off lights the whole map rather than
@@ -118,13 +125,21 @@ export class FogOfWar implements FogQuery {
     this.#owner = owner;
     this.#size = size;
     const tiles = tileCount(size);
-    // The scenery ring is always in full light: fog of war is a gameplay
-    // veil, and the margin has no gameplay — Warcraft draws its borders
-    // lit, and so do we. Baked as a mask so the update loop holds the
-    // ring at 1 against the usual decay.
-    this.#lit = new Uint8Array(tiles);
-    for (let i = 0; i < tiles; i++) {
-      if (!inPlayArea(area, i % size, (i / size) | 0)) this.#lit[i] = 1;
+    // The scenery ring has no sight of its own — nothing gameplay ever
+    // stands there — so each margin tile mirrors the nearest play tile
+    // and shares its fate: dark until the border beside it is scouted,
+    // lit while it is watched. (It used to be held permanently lit, which
+    // framed an unexplored map as a dark island in bright scenery — the
+    // fog's framing turned inside out.) Baked as an index map the update
+    // loop reads targets through.
+    this.#mirror = new Int32Array(tiles);
+    const p0 = playMin(area);
+    const p1 = playMax(area) - 1;
+    for (let z = 0; z < size; z++) {
+      const mz = clamp(z, p0, p1);
+      for (let x = 0; x < size; x++) {
+        this.#mirror[tileIdx(x, z, size)] = tileIdx(clamp(x, p0, p1), mz, size);
+      }
     }
     this.#vis = new Float32Array(tiles);
     this.#target = new Float32Array(tiles);
@@ -147,7 +162,7 @@ export class FogOfWar implements FogQuery {
     // geometry at all the background already shows, and anything else
     // leaves the map's edge legible as a shape. Encoded to sRGB because
     // this lands after the color-space conversion, on the final pixel.
-    const unknown = new THREE.Color(palette.background).convertLinearToSRGB();
+    const unknown = new THREE.Color(background).convertLinearToSRGB();
     this.#uniforms = {
       uFogTex: { value: this.#texture },
       uFogSize: { value: size },
@@ -166,6 +181,16 @@ export class FogOfWar implements FogQuery {
     const n = Math.min(explored.length, tileCount(this.#size));
     for (let i = 0; i < n; i++) {
       if (explored[i] && this.#explored[i]! < 1) this.#explored[i] = 1;
+    }
+    // The margin re-derives its memory from the border it mirrors. The
+    // server's grid only carries what sight actually touched — in the ring
+    // that is at most a rim-deep spill — while the live fog lights a
+    // border's whole outward run; without this, a reload would leave
+    // remembered coastline facing a black horizon.
+    const tiles = tileCount(this.#size);
+    for (let i = 0; i < tiles; i++) {
+      const m = this.#mirror[i]!;
+      if (this.#explored[m]! > this.#explored[i]!) this.#explored[i] = this.#explored[m]!;
     }
     this.#accum = Infinity; // re-blur and upload on the next update
   }
@@ -195,6 +220,14 @@ export class FogOfWar implements FogQuery {
 
   exploredAt(x: number, z: number): boolean {
     return !this.#enabled || this.#at(this.#explored, x, z) > SEEN;
+  }
+
+  /** The same smoothed-and-blurred values the shader's texture carries,
+   * with memory counting for a quarter — roughly how far the shader dims
+   * remembered ground. */
+  litAt(x: number, z: number): number {
+    if (!this.#enabled) return 1;
+    return Math.max(this.#at(this.#visSoft, x, z), this.#at(this.#expSoft, x, z) * 0.25);
   }
 
   /** Stamp one sight circle into the target mask. */
@@ -257,7 +290,7 @@ export class FogOfWar implements FogQuery {
     const up = 1 - Math.exp(-step * REVEAL_RATE);
     const down = 1 - Math.exp(-step * CONCEAL_RATE);
     for (let i = 0; i < tiles; i++) {
-      const t = this.#lit[i] ? 1 : this.#target[i]!;
+      const t = this.#target[this.#mirror[i]!]!;
       const v = this.#vis[i]!;
       const next = v + (t - v) * (t > v ? up : down);
       this.#vis[i] = next;

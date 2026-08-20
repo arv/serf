@@ -20,6 +20,19 @@ import { audioFromUrl, loadAudioPrefs, saveAudioPrefs, volumeToGain } from '../a
 export const [speed, setSpeed] = createSignal(1);
 export const [selection, setSelection] = createSignal<ReadonlySet<number>>(new Set());
 
+/**
+ * The control group the standing selection *is* — 1–9 or 0, or null when it
+ * matches none of them. Only the badge on the selection card reads it, but
+ * that badge is the whole feedback loop for control groups: without it,
+ * Ctrl+1 is a keypress with no visible effect and the player has no way to
+ * know the stamp took short of pressing 1 and hoping.
+ *
+ * The groups themselves live in `input/controls.ts` beside the selection —
+ * they are lists of unit ids, and something has to weed the dead out of
+ * them every frame. This is the one derived crumb the HUD needs.
+ */
+export const [selectionGroup, setSelectionGroup] = createSignal<number | null>(null);
+
 /** The seat this client plays (0 until lobbies land). Everything the HUD
  * shows — stock, techs, outcome copy, selection filters — is this player's
  * perspective. */
@@ -280,6 +293,22 @@ export const [debugJobs, setDebugJobs] = createSignal<JobSnap[]>([]);
 export const [invariantViolations, setInvariantViolations] = createSignal<string[]>([]);
 
 /**
+ * The strategist's consultation ledger, newest first — what the model was
+ * shown, what it said, what the sim was told. Fed only in dev builds
+ * (main.ts wires onTrace behind import.meta.env.DEV), read by the debug
+ * overlay; production matches leave it empty and the overlay shows nothing.
+ */
+export const [llmTraces, setLlmTraces] = createSignal<
+  import('../ai/strategist').ConsultTrace[]
+>([]);
+/** Enough history to see the model change its mind; the prompts inside are
+ * ~1 KB each, so the cap keeps a long match from hoarding them. */
+const LLM_TRACE_CAP = 20;
+export function pushLlmTrace(trace: import('../ai/strategist').ConsultTrace): void {
+  setLlmTraces([trace, ...llmTraces()].slice(0, LLM_TRACE_CAP));
+}
+
+/**
  * Put every match-scoped signal back where it starts.
  *
  * A page used to hold exactly one match, so these were as good as constants
@@ -296,6 +325,7 @@ export const [invariantViolations, setInvariantViolations] = createSignal<string
 export function resetMatchState(): void {
   setSpeed(1);
   setSelection(new Set<number>());
+  setSelectionGroup(null);
   setMyPlayerId(0);
   setPlayersMeta([]);
   setNetMode(false);
@@ -322,6 +352,7 @@ export function resetMatchState(): void {
   setDebugOpen(false);
   setDebugJobs([]);
   setInvariantViolations([]);
+  setLlmTraces([]);
   // Read afresh rather than restored: ?nofog belongs to the match being
   // started, and the URL has already become the next one by here.
   setFogEnabled(!(CHEATS_ALLOWED && new URLSearchParams(location.search).has('nofog')));

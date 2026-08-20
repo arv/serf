@@ -48,6 +48,9 @@ export interface BuildingSnap {
   siteNeeds?: GoodAmounts;
   /** Remaining materials of an ordered repair; absent when none is running. */
   repairNeeds?: GoodAmounts;
+  /** Hit points delivered materials have bought that the masons have still
+   * to put on. Outlasts repairNeeds: the mend runs on after the last haul. */
+  repairPending?: number;
   /** Build timer progress 0..1 once materials are complete. */
   progress01?: number;
   stock: GoodAmounts;
@@ -72,6 +75,14 @@ export interface BuildingSnap {
   paused?: boolean;
   /** Active recipeOptions index (weaponsmith forge menu). */
   recipeIndex?: number;
+  /**
+   * Loads still standing on the ground this gatherer can reach — the sum
+   * of what every workable tile inside its search square holds. Present
+   * only for buildings that work the land (woodcutter, quarry, the three
+   * mines); the amounts themselves are sim-only and reach the client
+   * nowhere else.
+   */
+  resourceLeft?: number;
 }
 
 /** Debug-overlay row for a haul job. */

@@ -8,6 +8,8 @@
  * their screen.
  */
 
+import { SHORT } from './breakpoints';
+
 export const GOLD = '#e5c469';
 
 export const MENU_STYLE = `
@@ -228,6 +230,42 @@ export const MENU_STYLE = `
    the finger as the URL bar comes and goes. */
 @media (max-width: 560px) and (min-height: 720px) {
   #menu .room-list { max-height: 34vh; max-height: 34svh; }
+}
+/* ——— Held sideways ———
+   A phone in landscape is 390-430px tall, and this screen spent 200 of
+   them on a title: the card began below the fold and the Play button was
+   two swipes down, on the one screen where nothing is more urgent than
+   Play. The masthead is what gives way — the game is named on the tab and
+   on the card the player came here to use.
+   Keyed to height, not width — the same SHORT the HUD uses: this window
+   is 844px across, so every width-keyed rule above it (the phone block at
+   560px) sits this one out.
+   The card's own contents are untouched — it scrolls if it must, and now
+   it starts at the top of the screen while doing it. */
+@media ${SHORT} {
+  #menu .stack { gap: 10px; justify-content: flex-start;
+    padding-top: calc(10px + var(--safe-top)); }
+  #menu .kicker { display: none; }
+  #menu .tagline { display: none; }
+  #menu h1 { font-size: clamp(24px, 4.4vh, 34px); letter-spacing: 0.12em; }
+  /* Shaving the masthead was not enough on its own: the settings
+     themselves are 394px of rows, and the card carried all of them at
+     full height with Play on the bottom edge — 500px down a 390px
+     screen. So the card takes the window's height as its ceiling and
+     the rows inside it do the scrolling, which puts the tab bar at the
+     top and Play at the bottom of what you can see, always. The number
+     below is the masthead, the row of secondary buttons under the card,
+     and the gaps between the three. */
+  #menu .card { max-height: calc(100vh - 118px); max-height: calc(100svh - 118px); }
+  #menu .rows {
+    flex: 1 1 auto; min-height: 0; padding-top: 2px;
+    overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+    scrollbar-width: thin; scrollbar-color: rgba(229,196,105,0.3) transparent;
+  }
+  #menu .row { padding: 8px 0; }
+  #menu .cta-wrap { padding: 10px 16px; }
+  #menu .cta { padding: 11px 18px; }
+  #menu .footer { display: none; }
 }
 #menu button:focus-visible, #menu input:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: 2px; }
 `;

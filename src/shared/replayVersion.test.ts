@@ -25,21 +25,27 @@ import { REPLAY_VERSION } from './replayVersion';
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
 const EXPECTED_VERSION = 12;
-const EXPECTED_HASH = '33e21aef3d38e66809dd77c1feaa8610';
+const EXPECTED_HASH = '27689d75ad96872b94f91aa0a8edc244';
 
 /**
  * Everything a replay's playback depends on, as raw source:
  * - the sim — the machine the log re-runs through: systems, defs,
  *   worldgen, pathfinding, command application;
+ * - the authored mission maps (defs/maps/*.json) — a mission replay's
+ *   world is built from the file, so a tile tweak reshapes the playback
+ *   the same way a worldgen change does;
  * - the shared primitives it computes with — a new Rng constant or grid
  *   rule reshapes every tick downstream;
  * - the replay format itself: shape, screening, serialization.
  */
-const SOURCES = import.meta.glob(['/src/sim/**/*.ts', '/src/shared/*.ts', '/src/app/replay.ts'], {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-});
+const SOURCES = import.meta.glob(
+  ['/src/sim/**/*.ts', '/src/sim/defs/maps/*.json', '/src/shared/*.ts', '/src/app/replay.ts'],
+  {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  },
+);
 
 /** Repo-relative and sorted, so the hash is stable across machines. */
 function surface(): [string, string][] {
