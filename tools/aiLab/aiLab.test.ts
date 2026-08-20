@@ -1,11 +1,14 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseAdvice } from '../../src/ai/advice.ts';
-import { parseArgs } from './bakeoff.ts';
+import { parseArgs, parseStrategies } from './bakeoff.ts';
 import { buildEngine, parseEngineSpec, randomEngine, scriptEngine } from './engines.ts';
-import { digestOf, playMatch, type MatchConfig, type MatchRecord } from './match.ts';
-import { binomCdfHalf, compare, renderComparison, type ArmOutcomes } from './compare.ts';
-import { renderReport, verdict, type ReportHeader } from './report.ts';
-import { summarize, trialsForPrecision, wilson, type SeedRun } from './stats.ts';
+import { digestOf, playMatch, type MatchConfig, type MatchRecord, type SeatStrategies } from './match.ts';
+import { binomCdfHalf, compare, readRun, renderComparison, type ArmOutcomes } from './compare.ts';
+import { renderMatchup, renderReport, verdict, type ReportHeader } from './report.ts';
+import { matchupOf, summarize, trialsForPrecision, wilson, type SeedRun } from './stats.ts';
 import type { Owner } from '../../src/sim/entities.ts';
 import type { LabEngine } from './engines.ts';
 
@@ -24,7 +27,7 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
     seed: 42,
     mapSize: 64,
     bandits: false,
-    strategy: 'steward',
+    strategies: ['steward', 'steward'],
     maxTicks: 4_000,
     advicePeriod: 500,
     adviceStagger: 200,
@@ -218,6 +221,19 @@ describe('a headless match', () => {
     expect(record.adviceApplied['0']).toBeUndefined();
   });
 
+  it('seats a different playbook per side, and says which sat where', async () => {
+    const straight = await playMatch(config({ strategies: ['steward', 'warlord'] }));
+    const swapped = await playMatch(config({ strategies: ['warlord', 'steward'] }));
+    const mirror = await playMatch(config({ strategies: ['steward', 'steward'] }));
+    expect(straight.strategies).toEqual(['steward', 'warlord']);
+    expect(swapped.strategies).toEqual(['warlord', 'steward']);
+    // Three genuinely different games on one seed — the swap is not a
+    // relabelling of the same match, which is the whole reason the seating
+    // mirror is worth playing.
+    expect(digestOf(straight)).not.toBe(digestOf(swapped));
+    expect(digestOf(straight)).not.toBe(digestOf(mirror));
+  });
+
   it('leaves a standing worth reading', async () => {
     const record = await playMatch(config({ maxTicks: 2_000 }));
     expect(record.decided).toBe(false);
@@ -231,12 +247,17 @@ describe('a headless match', () => {
 });
 
 /** A decided match, fabricated — the aggregation is what is under test. */
-function fake(seed: number, winner: Owner | null, decided = true): MatchRecord {
+function fake(
+  seed: number,
+  winner: Owner | null,
+  decided = true,
+  strategies: SeatStrategies = ['steward', 'steward'],
+): MatchRecord {
   return {
     seed,
     mapSize: 64,
     bandits: false,
-    strategy: 'steward',
+    strategies,
     advised: [],
     ticks: 10_000,
     decided,
@@ -253,10 +274,32 @@ function fake(seed: number, winner: Owner | null, decided = true): MatchRecord {
 function mirrored(results: [Owner | null, Owner | null][], control: (Owner | null)[]): SeedRun[] {
   return results.map(([a, b], i) => ({
     seed: i + 1,
-    control: fake(i + 1, control[i] ?? null),
-    arms: [
-      { advisedSeat: 0 as Owner, record: fake(i + 1, a) },
-      { advisedSeat: 1 as Owner, record: fake(i + 1, b) },
+    layouts: [
+      {
+        layout: 0 as const,
+        control: fake(i + 1, control[i] ?? null),
+        arms: [
+          { advisedSeat: 0 as Owner, record: fake(i + 1, a) },
+          { advisedSeat: 1 as Owner, record: fake(i + 1, b) },
+        ],
+      },
+    ],
+  }));
+}
+
+/**
+ * The playbook mirror: one seed, two seatings, nobody advised. `wins` names
+ * the SEAT that won each seating, and playbook A sits at seat 0 in seating
+ * 0 and at seat 1 in seating 1.
+ */
+function seated(wins: [Owner | null, Owner | null][], decided: [boolean, boolean][] = []): SeedRun[] {
+  const A: SeatStrategies = ['steward', 'warlord'];
+  const B: SeatStrategies = ['warlord', 'steward'];
+  return wins.map(([w0, w1], i) => ({
+    seed: i + 1,
+    layouts: [
+      { layout: 0 as const, control: fake(i + 1, w0, decided[i]?.[0] ?? true, A), arms: [] },
+      { layout: 1 as const, control: fake(i + 1, w1, decided[i]?.[1] ?? true, B), arms: [] },
     ],
   }));
 }
@@ -312,7 +355,7 @@ describe('aggregation', () => {
       ],
       [0, 0],
     );
-    runs[0]!.arms[0]!.record = fake(1, null, false);
+    runs[0]!.layouts[0]!.arms[0]!.record = fake(1, null, false);
     const report = summarize(runs, 1);
     expect(report.undecided).toBe(1);
     expect(report.advised.trials).toBe(3);
@@ -320,7 +363,7 @@ describe('aggregation', () => {
 
   it('separates a model that broke from a model with nothing to say', () => {
     const runs = mirrored([[0, 1]], [0]);
-    runs[0]!.arms[0]!.record.consults = [
+    runs[0]!.layouts[0]!.arms[0]!.record.consults = [
       { playerId: 0, tick: 1, ms: 10, promptChars: 100, replyChars: 5, parsed: false },
       { playerId: 0, tick: 2, ms: 20, promptChars: 100, replyChars: 2, parsed: true, knobs: 0 },
       { playerId: 0, tick: 3, ms: 30, promptChars: 100, replyChars: 0, error: 'timeout' },
@@ -336,6 +379,92 @@ describe('aggregation', () => {
   });
 });
 
+describe('the playbook matchup', () => {
+  it('says nothing when both seats ran the same playbook', () => {
+    expect(matchupOf(mirrored([[0, 1]], [0]))).toBeNull();
+    expect(summarize(mirrored([[0, 1]], [0]), 1).playbooks).toBeNull();
+  });
+
+  it('cancels the valley’s seat bias by swapping the playbooks', () => {
+    // Seat 0 wins every match whoever is sitting in it — a maximally
+    // lopsided map with two evenly matched playbooks. The seating mirror
+    // has to read that as exactly 50%, and as no evidence at all.
+    const m = matchupOf(seated([[0, 0], [0, 0], [0, 0]]))!;
+    expect(m.a).toBe('steward');
+    expect(m.rate.rate).toBe(0.5);
+    expect(m.rate.trials).toBe(6);
+    expect(m.paired).toMatchObject({ bothA: 0, bothB: 0, split: 3, p: 1 });
+    // And it prints the bias rather than hiding it: A won every seating it
+    // played from seat 0 and none from seat 1.
+    expect(m.bySeat).toEqual([
+      { seat: 0, wins: 3, trials: 3 },
+      { seat: 1, wins: 0, trials: 3 },
+    ]);
+  });
+
+  it('scores a playbook that wins from either seat', () => {
+    // A takes both seatings on every seed: seat 0 in seating 0, seat 1 in
+    // seating 1. Ten seeds all one way is p ≈ 0.002.
+    const runs = seated(Array.from({ length: 10 }, () => [0, 1] as [Owner, Owner]));
+    const m = matchupOf(runs)!;
+    expect(m.rate.rate).toBe(1);
+    expect(m.paired.bothA).toBe(10);
+    expect(m.paired.p).toBeLessThan(0.05);
+    expect(renderMatchup(m).join('\n')).toContain('steward is the better playbook');
+  });
+
+  it('holds back a seed whose seatings did not both decide', () => {
+    const m = matchupOf(seated([[0, 1], [0, null]], [[true, true], [true, false]]))!;
+    expect(m.rate.trials).toBe(3); // the undecided seating is not scored
+    expect(m.paired.bothA).toBe(1);
+    expect(m.paired.unresolved).toBe(1);
+  });
+
+  it('awards a mutual annihilation to nobody', () => {
+    // Decided, but with no castle left on either side. Scoring "A did not
+    // win" as a B win would hand every draw to whichever playbook happens
+    // to be named second.
+    const m = matchupOf(seated([[null, null]]))!;
+    expect(m.rate.trials).toBe(0);
+    expect(m.paired).toMatchObject({ bothA: 0, bothB: 0, unresolved: 1 });
+  });
+
+  it('counts one unadvised match per seating, however many were played', () => {
+    // `--engine none` plays a seating's control and both its arms as the
+    // identical match. Counting all three would treble the sample without
+    // adding an observation — the fastest way to manufacture significance.
+    const runs = seated([[0, 1]]);
+    for (const layout of runs[0]!.layouts) {
+      layout.arms = [
+        { advisedSeat: 0 as Owner, record: layout.control! },
+        { advisedSeat: 1 as Owner, record: layout.control! },
+      ];
+    }
+    expect(matchupOf(runs)!.rate.trials).toBe(2);
+  });
+
+  it('falls back to an unadvised arm when the control was skipped', () => {
+    const runs = seated([[0, 1]]);
+    for (const layout of runs[0]!.layouts) {
+      layout.arms = [{ advisedSeat: 0 as Owner, record: layout.control! }];
+      layout.control = null;
+    }
+    expect(matchupOf(runs)!.rate.trials).toBe(2);
+  });
+
+  it('will not score an advised match as a playbook trial', () => {
+    const runs = seated([[0, 1]]);
+    for (const layout of runs[0]!.layouts) {
+      layout.arms = [
+        { advisedSeat: 0 as Owner, record: { ...layout.control!, advised: [{ playerId: 0, engine: 'x' }] } },
+      ];
+      layout.control = null;
+    }
+    // Advice on one side makes it "A plus a model vs B" — a third question.
+    expect(matchupOf(runs)).toBeNull();
+  });
+});
+
 describe('the verdict', () => {
   const header: ReportHeader = {
     engine: 'test',
@@ -343,7 +472,7 @@ describe('the verdict', () => {
     seedCount: 3,
     mapSize: 64,
     bandits: false,
-    strategy: 'steward',
+    strategies: ['steward', 'steward'],
     advicePeriod: 1800,
     latency: 0,
     maxTicks: 120_000,
@@ -388,6 +517,7 @@ describe('paired comparison', () => {
     label,
     outcomes: new Map(entries),
   });
+  const tmp = mkdtempSync(join(tmpdir(), 'ailab-'));
 
   it('computes the exact binomial tail it claims to', () => {
     expect(binomCdfHalf(-1, 10)).toBe(0);
@@ -408,6 +538,25 @@ describe('paired comparison', () => {
     expect(c.bOnly).toBe(0);
     expect(c.p).toBeCloseTo(0.5, 5); // 2 * P(X <= 0 | B(2, ½))
     expect(renderComparison(c)).toContain('not significant');
+  });
+
+  it('keeps an asymmetric run’s two seatings apart', () => {
+    // Both seatings of a seed advise seat 0, so a bare seed:seat key would
+    // have the second overwrite the first and halve the paired set.
+    const lines = [
+      { kind: 'arm', seed: 1, advisedSeat: 0, layout: 0, decided: true, winner: 0 },
+      { kind: 'arm', seed: 1, advisedSeat: 0, layout: 1, decided: true, winner: 1 },
+    ];
+    writeFileSync(`${tmp}/seatings.jsonl`, lines.map((l) => JSON.stringify(l)).join('\n'));
+    // No layout at all is what a run recorded before seatings looks like,
+    // and it has to keep landing on the bare key.
+    writeFileSync(
+      `${tmp}/legacy.jsonl`,
+      JSON.stringify({ kind: 'arm', seed: 1, advisedSeat: 0, decided: true, winner: 0 }),
+    );
+    const seatings = readRun(`${tmp}/seatings.jsonl`);
+    expect([...seatings.outcomes.keys()].sort()).toEqual(['1:0', '1:0:1']);
+    expect(compare(seatings, readRun(`${tmp}/legacy.jsonl`)).paired).toBe(1);
   });
 
   it('drops trials only one run played, and says so', () => {
@@ -463,6 +612,24 @@ describe('the command line', () => {
 
   it('will not silently swallow a flag that wanted a value', () => {
     expect(() => parseArgs(['--seeds', '--trace'])).toThrow(/wants a value/);
+  });
+
+  it('reads one playbook for both seats, or one per seat', () => {
+    // The bare form is what every recorded run in the README used, so it
+    // has to keep meaning what it meant.
+    expect(parseArgs([]).strategies).toEqual(['steward', 'steward']);
+    expect(parseStrategies('warlord')).toEqual(['warlord', 'warlord']);
+    expect(parseStrategies('steward:warlord')).toEqual(['steward', 'warlord']);
+    expect(parseStrategies(' abbot : fletcher ')).toEqual(['abbot', 'fletcher']);
+  });
+
+  it('refuses a playbook it does not have rather than quietly seating the steward', () => {
+    // The old cast let "stewart" through as an AiStrategyId, and strategyOf
+    // turned it into the steward — a typo that measured the default
+    // playbook against itself and reported the name you asked for.
+    expect(() => parseStrategies('stewart')).toThrow(/does not know/);
+    expect(() => parseStrategies('steward:wizard')).toThrow(/does not know/);
+    expect(() => parseStrategies('a:b:c')).toThrow(/wants/);
   });
 
   it('reads --jobs as a count or as max, and refuses nonsense', () => {

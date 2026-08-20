@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { wilson } from './stats.ts';
+import { binomCdfHalf, twoSidedExact, wilson } from './stats.ts';
 import type { MatchRecord } from './match.ts';
 import type { Owner } from '../../src/sim/entities.ts';
 
@@ -27,6 +27,20 @@ import type { Owner } from '../../src/sim/entities.ts';
 interface RunLine extends MatchRecord {
   kind: string;
   advisedSeat: Owner | null;
+  /** Absent in runs recorded before seatings existed, which is the same
+   * thing as seating 0. */
+  layout?: 0 | 1;
+}
+
+/**
+ * A trial's identity across two runs. Seating 0 keeps the bare
+ * `seed:seat` key it always had, so a run recorded before seatings existed
+ * still pairs against a new one — and seating 1 has to be in the key at
+ * all, or an asymmetric run's two seatings collide on it and the second
+ * silently overwrites the first.
+ */
+function trialKey(seed: number, seat: Owner, layout: 0 | 1): string {
+  return layout === 0 ? `${seed}:${seat}` : `${seed}:${seat}:${layout}`;
 }
 
 /** One run's arm trials: (seed, advisedSeat) → did the advised seat win.
@@ -50,7 +64,10 @@ export function readRun(path: string): ArmOutcomes {
     }
     const record = parsed as RunLine;
     if (record.kind !== 'arm' || record.advisedSeat === null || !record.decided) continue;
-    outcomes.set(`${record.seed}:${record.advisedSeat}`, record.winner === record.advisedSeat);
+    outcomes.set(
+      trialKey(record.seed, record.advisedSeat, record.layout ?? 0),
+      record.winner === record.advisedSeat,
+    );
   }
   return { label, outcomes };
 }
@@ -71,20 +88,9 @@ export interface Comparison {
   p: number;
 }
 
-/** Exact binomial: P(X <= k) for X ~ B(n, 1/2), computed in log space so
- * n in the hundreds cannot overflow. */
-export function binomCdfHalf(k: number, n: number): number {
-  if (k < 0) return 0;
-  if (k >= n) return 1;
-  let logC = 0; // log C(n, 0)
-  let sum = 0;
-  const log2n = n * Math.log(2);
-  for (let i = 0; i <= k; i++) {
-    sum += Math.exp(logC - log2n);
-    logC += Math.log(n - i) - Math.log(i + 1);
-  }
-  return Math.min(1, sum);
-}
+/** Moved to stats.ts once the seating mirror needed the same exact test;
+ * re-exported so this file still reads as the home of McNemar. */
+export { binomCdfHalf };
 
 export function compare(a: ArmOutcomes, b: ArmOutcomes): Comparison {
   let paired = 0;
@@ -103,8 +109,7 @@ export function compare(a: ArmOutcomes, b: ArmOutcomes): Comparison {
     if (aWon && !bWon) aOnly++;
     else if (bWon && !aWon) bOnly++;
   }
-  const discordant = aOnly + bOnly;
-  const p = discordant === 0 ? 1 : Math.min(1, 2 * binomCdfHalf(Math.min(aOnly, bOnly), discordant));
+  const p = twoSidedExact(aOnly, bOnly);
   const wins = (r: ArmOutcomes): number => [...r.outcomes.values()].filter(Boolean).length;
   return {
     a: { label: a.label, wins: wins(a), trials: a.outcomes.size },

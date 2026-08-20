@@ -15,6 +15,10 @@ pnpm bakeoff --engine random --seeds 1-40 --out runs/random.jsonl
 #    llama-server -m qwen2.5-0.5b-instruct-q4_k_m.gguf -c 2048 --port 8080
 pnpm bakeoff --engine http://localhost:8080/v1 --seeds 1-40 --out runs/qwen.jsonl
 
+# 4. one playbook against another — no model involved. --no-control because
+#    with --engine none a seating's control and its arms are the same match.
+pnpm bakeoff --engine none --no-control --strategy steward:warlord --seeds 1-80
+
 pnpm bakeoff --help   # every flag
 ```
 
@@ -49,6 +53,53 @@ Matches run the *real* pipeline — `LlmStrategist`, `buildMessages`,
 `parseAdvice`, `AiSeats.applyAdvice` — with only the `ChatEngine` seam
 swapped, so what is measured is what ships. Undecided matches are reported
 and excluded, never awarded. Crashed trials are printed next to the rate.
+
+## Two playbooks, and two different nulls
+
+`--strategy steward:warlord` seats a different playbook on each side. That
+is the whole question of "is this playbook better than that one", and
+answering it needs care, because the harness now has two nulls and they are
+not the same one.
+
+**The advised win rate is unaffected.** Its mirror is over *which seat wears
+the advice*, and that argument never mentioned what the seats are playing.
+Advise each seat in turn and, under the null, the advised side takes exactly
+one of the two arms — so the bar stays exactly 50%, and `--engine none
+--strategy steward:warlord` still calibrates to 50.0% with zero flips, just
+as the symmetric run does. What changes is the *meaning*: the rate now pools
+advice given to the steward with advice given to the warlord, two different
+treatments averaged, and the per-seat split is two questions rather than two
+halves of one. The report says so where the number is printed.
+
+**The playbook question needs its own mirror.** "Which playbook won more
+matches" is not nulled at 50% by anything — the valley's two starts are not
+equal (seat 1 took 65% of seeds over 24 stock seeds) so a steward that sat
+in seat 0 all sweep would bank the map's head start and report it as
+strategy. The fix is the same trick one level up: **play every seed in both
+seatings** and score the steward across the pair. Under "these two are
+equally good" it takes exactly one of its two seatings whatever the map
+does. So a run whose two playbooks differ plays each seed twice more, and
+the report grows a `PLAYBOOK MATCHUP` section:
+
+- scored on the **unadvised matches only** — one per (seed, seating), never
+  a seating's control *and* its arms, which under `--engine none` are the
+  identical match and would treble the sample without adding an
+  observation. "Playbook A with a model behind it beats B" is a third
+  question and is not folded in.
+- the pooled rate is printed with its Wilson interval **flagged as
+  optimistic**: the two seatings of a seed share a valley, so 2N trials are
+  not 2N independent draws. Read it for effect size.
+- the verdict comes off a **seed-level exact binomial**. A seed where each
+  playbook took its own seating is the map talking and carries no evidence,
+  exactly as a concordant pair carries none in McNemar's test; the decisive
+  seeds are the ones one playbook took from both chairs. This assumes
+  nothing about the map, which is why it is what the verdict reads.
+- the seat split is printed beside it, so the bias the mirror is cancelling
+  is visible rather than asserted.
+
+There is no `bakeoff:compare` step for a playbook matchup: the pairing is
+*inside* the run (a seed's two seatings), not across two runs.
+`bakeoff:compare` remains the tool for two engines over the same seeds.
 
 ## What to know before believing a number
 
@@ -198,6 +249,53 @@ Resolution: 40 seeds is ±11pp, 80 seeds ±8pp, and ±5pp would need ~193
 seeds. Treat single-run gaps under ~10pp as unresolved and reach for
 `bakeoff:compare` — the paired test separates runs these intervals
 cannot.
+
+## Playbook against playbook (2026-08-20, map 96, bandits on, seeds 1-80)
+
+The first sweeps the seating mirror made possible. Treat these as a
+demonstration of the capability, not a finding about the deck — nothing
+here separates from the null.
+
+| matchup | steward, pooled | on seat 0 | on seat 1 | seat swing | seeds one took both | exact p |
+| --- | --- | --- | --- | --- | --- | --- |
+| vs `warlord` | 47.7% (74/155) | 54.5% | 41.0% | 13.5pp | 13 v 16, 47 split | 0.711 |
+| vs `abbot` | 55.2% (85/154) | 64.5% | 46.2% | 18.3pp | 13 v 7, 54 split | 0.263 |
+| vs `fletcher` | 43.9% (65/148) | 49.3% | 39.0% | 10.3pp | 8 v 15, 45 split | 0.210 |
+
+The interesting column is not the first one. **The seat is worth more than
+the playbook here.** The steward scores 64.5% against the abbot from seat 0
+and 46.2% from seat 1 — an 18-point swing that has nothing to do with
+either playbook, and exactly the number a single-seating run would have
+published as strategy. Worse, 54 of that matchup's 74 resolved seeds went
+to whoever sat in the favoured chair: on nearly three seeds in four the
+seating decides the match and the playbook does not. Only 20 seeds had a
+playbook win from both chairs, and those split 13-7 — a gap that looks
+like something until you notice it rests on twenty seeds and comes back
+p = 0.26.
+
+All three matchups look the same: a seat swing of 10 to 18 points, most
+seeds decided by the chair, and nothing left over that clears the bar. The
+printed deck is, on this map at this horizon, not measurably ordered — and
+the seat effect it is buried under is several times larger than any gap
+between the playbooks.
+
+So a playbook comparison run on one seating is not a weak measurement, it
+is the map's seat bias wearing a playbook's name. That is why the mirror
+is not optional and why the sweep pays double for it.
+
+The `fletcher` matchup also reproduced phase 1's number from a different
+direction: **24 of its 320 matches never decided inside the 120k horizon**,
+7.5%, the same rate `docs/plan-ai-robustness.md` opens with. Twelve of its
+eighty seeds were unresolvable for that reason alone. A harness that cannot
+finish one seed in eight is spending its resolution on stalls.
+
+Two sanity checks came out of the same runs:
+
+- the advised win rate printed **exactly 50.0%** in all three
+  (155/310, 154/308, 148/296) with the two seats on different playbooks —
+  the asymmetric calibration, holding at 80 seeds exactly as the symmetric
+  one does at 12.
+- `--jobs 1` and `--jobs 3` still agree match for match on every digest.
 
 ## Comparing two models
 

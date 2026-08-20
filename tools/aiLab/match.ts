@@ -39,12 +39,18 @@ import type { LabEngine } from './engines.ts';
  * genuinely stochastic, and the seed sweep is what averages it out.
  */
 
+/** The two seats' playbooks, seat-indexed. Equal ids is the symmetric
+ * experiment — advice is then the only asymmetry between the seats. */
+export type SeatStrategies = readonly [AiStrategyId, AiStrategyId];
+
 export interface MatchConfig {
   seed: number;
   mapSize: number;
   bandits: boolean;
-  /** The playbook BOTH seats run, so advice is the only asymmetry. */
-  strategy: AiStrategyId;
+  /** One playbook per seat. Both entries the same makes advice the only
+   * asymmetry; different entries is a playbook-vs-playbook match, and the
+   * sweep then owes the mirrored seating too (see bakeoff.ts). */
+  strategies: SeatStrategies;
   /** Give up and call it undecided past here. */
   maxTicks: number;
   /** Ticks between one seat's consultations (simWorker ships 1800 = 90 s). */
@@ -110,7 +116,9 @@ export interface MatchRecord {
   seed: number;
   mapSize: number;
   bandits: boolean;
-  strategy: AiStrategyId;
+  /** What each seat played, seat-indexed — the record has to say which
+   * playbook sat where, or a swapped-seating sweep cannot be scored. */
+  strategies: SeatStrategies;
   /** Seats that had a strategist, and what was in it. */
   advised: { playerId: Owner; engine: string }[];
   ticks: number;
@@ -148,8 +156,8 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
   const world = createWorld({
     seed: cfg.seed,
     players: [
-      { kind: 'ai', strategy: cfg.strategy },
-      { kind: 'ai', strategy: cfg.strategy },
+      { kind: 'ai', strategy: cfg.strategies[0] },
+      { kind: 'ai', strategy: cfg.strategies[1] },
     ],
     banditsEnabled: cfg.bandits,
     mapSize: cfg.mapSize,
@@ -300,7 +308,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     seed: cfg.seed,
     mapSize: cfg.mapSize,
     bandits: cfg.bandits,
-    strategy: cfg.strategy,
+    strategies: cfg.strategies,
     advised,
     ticks: world.tick,
     decided,

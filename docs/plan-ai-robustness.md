@@ -169,9 +169,13 @@ author.
 
 ### 3a. Make playbooks searchable
 
-- [ ] Give the harness **per-seat playbooks** — `match.ts` currently hands
-      both seats `cfg.strategy`, so playbook-vs-playbook cannot be measured
-      at all. This is the blocking change, and it is small.
+- [x] Give the harness **per-seat playbooks** — `match.ts` handed both seats
+      `cfg.strategy`, so playbook-vs-playbook could not be measured at all.
+      `--strategy steward:warlord` now seats one each, and an asymmetric run
+      plays every seed in **both seatings**, because the advice mirror is
+      deaf to which playbook is better. Two nulls, both exactly 50%, and
+      they answer different questions — see the README's "Two playbooks, and
+      two different nulls".
 - [ ] Define a mutation space over `AiStrategy`: knob perturbations first
       (safe, bounded by `ADVICE_RANGES`), build-order reordering second
       (riskier — the opening encodes hard-won knowledge).
