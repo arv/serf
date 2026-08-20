@@ -44,6 +44,25 @@ describe('keyDigit', () => {
     expect(keyDigit(key('', '7'))).toBe(7);
     expect(keyDigit(key('', 'a'))).toBeNull();
   });
+
+  it('reads the shifted US row in that fallback too', () => {
+    // Otherwise the backstop is only half of one: bare N and Ctrl+N both
+    // arrive as a plain digit, so recall and stamp would work there while
+    // Shift+N — add to the group — silently did nothing.
+    expect(keyDigit(key('', '!'))).toBe(1);
+    expect(keyDigit(key('', ')'))).toBe(0);
+    expect(keyDigit(key('', '('))).toBe(9);
+    expect(keyDigit(key('', '$'))).toBe(4);
+    expect(keyDigit(key('', '-'))).toBeNull();
+  });
+
+  it('never guesses the shifted row when there is a code to read', () => {
+    // The guess is US-only and wrong on other layouts, so it must stay
+    // sealed inside the codeless path: a German Shift+7 is `/`, and a
+    // French one is `è`, and neither is the 6 this table would read.
+    expect(keyDigit(key('Slash', '/'))).toBeNull();
+    expect(keyDigit(key('Digit7', '/'))).toBe(7);
+  });
 });
 
 describe('matchingGroup', () => {
