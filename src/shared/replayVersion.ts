@@ -19,4 +19,13 @@
  * into its bundle, and the server (plain node, no bundler) imports it
  * directly.
  */
-export const REPLAY_VERSION = 9;
+/**
+ * 10: the pathfinder's runaway-search cap was raised from half the play
+ * area to the whole of it (sim/path.ts) — it was smaller than the walkable
+ * component on a 96 map, so a reachable goal across the valley returned
+ * null and the order was dropped. Every replay containing a long walk ticks
+ * differently now. `unbindWorker` also resets the freed hand to idle, which
+ * changes what `dismissWorker` and `sellBuilding` do to a resident released
+ * mid-trip (he used to be lost for good).
+ */
+export const REPLAY_VERSION = 10;

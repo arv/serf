@@ -65,6 +65,15 @@ export interface BakeoffReport {
   /** Trials whose match never reached a verdict. Excluded from the rate:
    * an undecided match is not a win for anybody. */
   undecided: number;
+  /**
+   * What the stall watchdog saw across the sweep (AI_STALL): matches with
+   * at least one seat that ever read as stalled, and recovery orders sent.
+   * Counted beside `undecided` on purpose — a stall the watchdog broke
+   * still happened, and a sweep whose undecided count fell while stalls
+   * stayed flat says the rules worked rather than that the stalls went
+   * away on their own.
+   */
+  stalls: { matches: number; recoveries: number };
   /** How often advice changed who won, against the same seed's control. */
   flips: { toward: number; away: number; unchanged: number; noControl: number };
   health: EngineHealth;
@@ -114,6 +123,7 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
   let undecided = 0;
   const perSeat = new Map<Owner, { wins: number; trials: number }>();
   const flips = { toward: 0, away: 0, unchanged: 0, noControl: 0 };
+  const stalls = { matches: 0, recoveries: 0 };
   const ticks: number[] = [];
 
   const consults: ConsultRecord[] = [];
@@ -123,6 +133,8 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
   for (const run of runs) {
     for (const { advisedSeat, record } of run.arms) {
       ticks.push(record.ticks);
+      if ((record.stalls ?? []).some((x) => x.beats > 0)) stalls.matches++;
+      for (const x of record.stalls ?? []) stalls.recoveries += x.recoveries;
       consults.push(...record.consults);
       gaveUp.push(...record.failures);
       for (const n of Object.values(record.adviceApplied)) adviceMessages += n;
@@ -165,6 +177,7 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
       .sort((a, b) => a[0] - b[0])
       .map(([seat, s]) => ({ seat, rate: rateOf(s.wins, s.trials) })),
     undecided,
+    stalls,
     flips,
     health: {
       consultations: consults.length,

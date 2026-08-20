@@ -1,9 +1,15 @@
 # Plan: an AI that never stalls, reads its opponent, and finds its own ideas
 
-Status: proposed. Three phases, deliberately ordered — a seat that freezes
-cannot adapt, and a seat that cannot adapt has nothing worth searching for.
-Phase 1 is the only one with a baseline number today; phases 2 and 3 get
-their metrics from phase 1's instrumentation.
+Status: **phase 1 landed** (see its checkboxes and the results table);
+phases 2 and 3 proposed. Three phases, deliberately ordered — a seat that
+freezes cannot adapt, and a seat that cannot adapt has nothing worth
+searching for. Phase 1 is the only one with a baseline number today; phases
+2 and 3 get their metrics from phase 1's instrumentation.
+
+Phase 1's diagnosis did not survive contact with the sim. Two of the three
+things it fixed are not in `AiBrain` at all, and the seat that "stopped
+playing" was working perfectly the whole time — read "What tracing actually
+found" before trusting the two paragraphs below it.
 
 ## Why now
 
@@ -55,54 +61,137 @@ rate against the recorded baselines.
 The shape is many small conditional rules, not one clever planner — the
 AoE2 production-system approach, which is what actually ships in this genre.
 
+### What tracing actually found
+
+Re-running the traces before writing any code changed the diagnosis twice,
+so the paragraphs above are kept as written and corrected here.
+
+**The frozen-economy numbers above are not reproducible.** Seed 9 under
+`--engine none` freezes at `pop=6 serfs=0 bld=9` for p0 and `pop=7 serfs=0
+bld=16` for p1 — not `pop=14 serfs=9 bld=17`. The published trace was
+almost certainly taken under an advised engine.
+
+**It is not resource exhaustion, it is a hauler famine.** Measured with the
+sim's own reach test (`findResourcesNear` at the gatherer's own radius), of
+the eight extractors standing across both seats at t=120000 exactly one has
+a worked-out seam. Every one of them is at `OUTPUT_CAP`, and p1's silver
+mine holds four silver — one hire's worth — twenty tiles from the
+storehouse. Both seats have **zero free serfs**: every hand is bound to a
+post or was spent as a barracks recruit, and only an *idle serf* is offered
+a haul job (`systems/logistics.ts`). Nothing hauls, so nothing reaches the
+storehouse, so nothing is affordable, so no hand is ever hired. Fully
+employed and completely paralysed.
+
+**And the escape valve was fine — the pathfinder ate the order.** The
+impatience ramp does everything the comment says: by t=60000 `mustersNeeded`
+is down to 1 and each seat orders its lone surviving knight at the enemy
+castle. The order dies in `applyMoveUnits`, because `findPathToAdjacent`
+returns null across a valley a flood fill says is fully connected — the A*
+runaway-search cap was `(play * play) >> 1` = 4608 expansions on a 96 map
+whose walkable component is **5016 tiles**. A cap whose only job is bounding
+an *unreachable* search was smaller than the component a reachable one has
+to cross, so every long march on this map was silently dropped and the army
+sat in `raid` forever, re-trying every 45 ticks against a goal it was not
+allowed to find. Not an AI bug at all.
+
 ### 1a. See the stall
 
-- [ ] Add a rolling progress window to `AiBrain`: sample `pop`, completed
+- [x] Add a rolling progress window to `AiBrain`: sample `pop`, completed
       buildings, and storehouse throughput every N decision beats, keep the
       last K samples. Brain-local memory like `#intel` and `#vision`, never
       serialized — the determinism story is unchanged because overrides and
       observations reach the sim only through commands.
-- [ ] Define `stalled()` as "no scalar moved across the whole window".
+      → `AI_STALL` in `sim/systems/ai.ts`: four integers (pop, built, sites,
+      total storehouse stock) every 2000 ticks, window of 8.
+- [x] Define `stalled()` as "no scalar moved across the whole window".
       Seed 9 is the calibration case: it must read as stalled by t≈60000.
-- [ ] Expose it on the existing diagnostics seam (`oddsReport()` sets the
+      → `#windowIsFlat()`. Shortest reportable stall is 14000 ticks, and
+      nothing before `graceUntil: 20_000` counts, so seed 9 reads stalled
+      well inside the calibration point.
+- [x] Expose it on the existing diagnostics seam (`oddsReport()` sets the
       precedent) so the harness can count stalls, not just infer them from
       `undecided`.
+      → `stallReport()`.
 
 ### 1b. Break the stall
 
 Escalate in order, cheapest and least destructive first. Each step is its
 own rule with its own trigger, so a seat takes only the ones it needs.
 
-- [ ] **Release hoarded silver** — drop `researchReserve` to 0 while
+- [x] **Release hoarded silver** — drop `researchReserve` to 0 while
       stalled. Free, reversible, and the seed 9 trace shows silver 0 with
       research pending is a common terminal state.
-- [ ] **Ignore the growth gate** — `growthAfter` defers hiring behind a
+- [x] **Ignore the growth gate** — `growthAfter` defers hiring behind a
       tech that a stalled seat may never afford.
-- [ ] **Re-site a dead extractor.** The core fix. A production building
+- [x] **Re-site a dead extractor.** The core fix. A production building
       whose anchor resource is exhausted inside its radius should be
       demolished and re-placed against a live deposit, reusing the existing
       `canPlace` / `ANCHOR_RESOURCE` machinery that the build order already
       uses. Check first whether refunds or demolition exist; if not, the
       cheaper version is to place an *additional* extractor and let the dead
       one idle.
+      → **Both exist.** `{ kind: 'sellBuilding' }` tears a building down for
+      half its cost back, floored per good, and walks the resident out as a
+      serf first (`sim/tick.ts`). So the fallback was not needed: the brain
+      sells the worked-out hut, the build order's standing-count rule wants
+      it back on the next beat, and `spotFor` anchors on `nearestResource`,
+      which only counts tiles with amount left. Guarded twice — there must
+      be a live deposit to move to, and the shelf must already hold the half
+      the refund does not cover, or selling is just losing a building.
 - [ ] **Raise the survival floor's ceiling** — when pop is below
       `survivalFloor` and silver is short, prioritise the cheapest path back
       to income over the build order entirely.
-- [ ] **Verify the escape valve still fires.** `mustersNeeded` already walks
+      → **Not done, and not obviously needed.** Seeds 44 and 51 decide under
+      `--engine none` at both baselines, so this rule has no failing case to
+      be measured against. Left for whoever finds one.
+- [x] **Verify the escape valve still fires.** `mustersNeeded` already walks
       the attack bar down to `staleFloor: 3` after `staleAfter: 20_000` and
       to 1 after `forlornAfter: 30_000`. Seed 9 sat frozen for 80k ticks
       with armies present, so confirm why no forlorn march ended it — that
       is either a second bug or a mis-set constant.
+      → A mis-set constant, but in `sim/path.ts`, not in `AI_PACING`. See
+      "What tracing actually found" above. The ramp itself is correct and
+      untouched.
+
+**One more rule the plan did not have**, and the one seed 9 actually needed:
+**buy a hauler with a post**. A stalled seat with *zero* free serfs empties
+the post whose output buffer is already full — a worker standing at a capped
+hut is producing nothing, so freeing him costs no production, and it is
+self-limiting because the buffer drains and the staffing sweep re-fills the
+post once `DISMISS_RESTAFF_BACKOFF` runs out.
 
 ### 1c. Prove it
 
-- [ ] Extend the bake-off report with a stall count per match in the JSONL,
-      beside `undecided`.
-- [ ] Baseline first: re-run `--engine none --seeds 1-80` and record the
+- [x] Extend the bake-off report with a stall count per match in the JSONL,
+      beside `undecided`. → `MatchRecord.stalls`, printed under MATCHES.
+- [x] Baseline first: re-run `--engine none --seeds 1-80` and record the
       undecided rate before any change.
-- [ ] After each rule, re-run and compare. **Undecided rate is the metric**;
+      → **4 / 160 arms** (seeds 9 and 27), win rate exactly 50.0%. Note the
+      plan's headline 18/240 is the **`posture`** engine on the same seeds
+      — 18 undecided lines across 240 matches, 16 of them scored arms.
+      `--engine none` is a much quieter detector, because advice is what
+      pushes seats into the states that stall.
+- [x] After each rule, re-run and compare. **Undecided rate is the metric**;
       win rate is the guardrail that must not regress.
-- [ ] Keep `winnable.test.ts` and `aiStrategies.test.ts` green — the
+      → seeds 1-80, 160 arms each:
+
+      | build | `none` undecided | `posture` undecided | `posture` win rate |
+      | --- | --- | --- | --- |
+      | baseline | 4 | 16 | 58.3% (84/144) |
+      | + the two sim fixes | — | 6 | 61.0% (94/154) |
+      | + the stall watchdog | **0** | **3** | **61.1% (96/157)** |
+
+      The pathfinder cap does most of it; the watchdog closes seeds 58, 70
+      and 78 on top and opens none. **The win-rate gain is not a result** —
+      paired McNemar against the baseline is p = 0.210 (11 toward, 5 away).
+      What is claimed is only the guardrail: the rate did not regress. And
+      `--engine none` still prints exactly 50.0%, which is the calibration.
+
+      Also worth writing down: the watchdog is nearly always asleep. Under
+      `--engine none` it read a stall in 4 of 240 matches and sent 6
+      recovery orders in total; under `posture`, 18 matches and 88 orders.
+      Every other match is a seat that never reached any of this code.
+- [x] Keep `winnable.test.ts` and `aiStrategies.test.ts` green — the
       campaign regression exists for exactly this class of change.
 
 ---

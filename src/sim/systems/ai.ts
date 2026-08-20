@@ -1,9 +1,25 @@
 import { tileCount, tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { exactDist } from '../../shared/math.ts';
-import { playMin, playMax, Terrain, TileResource, tileBlocks } from '../map.ts';
+import {
+  findResourcesNear,
+  playMin,
+  playMax,
+  RESOURCE_CODE,
+  Terrain,
+  TileResource,
+  tileBlocks,
+} from '../map.ts';
 import { SeatVision } from '../visibility.ts';
 import { campCorners, startLayout } from '../world.ts';
-import { BUILDING_DEFS, buildingDef, repairBill, type BuildingTypeId } from '../defs/buildings.ts';
+import {
+  BUILDING_DEFS,
+  buildingDef,
+  gatherOrigin,
+  gatherRecipeOf,
+  OUTPUT_CAP,
+  repairBill,
+  type BuildingTypeId,
+} from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
 import { classHp, shouldCommit, type Force } from '../combatOdds.ts';
@@ -91,6 +107,53 @@ export const AI_PACING = {
 } as const;
 
 /**
+ * The stall watchdog.
+ *
+ * A village can reach a state its playbook has no move for. The build order
+ * is a one-shot list of placements, so once every step stands there is
+ * nothing left to place; hiring wants silver; hauling wants a loose serf.
+ * Seed 9 is the calibration case, and it is not the resource exhaustion it
+ * looks like from outside: at t=40000 both seats hold FULL extractor huts
+ * (every gatherer capped at OUTPUT_CAP, one of them sitting on four silver —
+ * a hire's worth) and have exactly zero free serfs, every hand having been
+ * bound to a post or spent as a barracks recruit. Nothing hauls, so nothing
+ * reaches the storehouse, so nothing can be bought, so no hand is ever
+ * hired. Eighty thousand ticks of a village that is fully employed and
+ * completely paralysed.
+ *
+ * No amount of tuning reaches that. What reaches it is noticing, so the
+ * brain samples a handful of integers on a slow clock and calls the seat
+ * stalled when none of them has moved across the whole window. The rules
+ * that answer are all in `#recover`, and every one of them is gated on this
+ * reading — an unstalled seat emits exactly the commands it always did.
+ *
+ * Brain-local memory like `#intel` and `#vision`: never serialized, and the
+ * determinism story is unchanged because the window is a pure function of
+ * ticks the brain has already seen and reaches the sim only through the
+ * commands it was always allowed to send.
+ */
+export const AI_STALL = {
+  /** Ticks between progress samples. A multiple of `decisionInterval`, so
+   * the sample lands on a beat rather than near one. */
+  samplePeriod: 2_000,
+  /**
+   * Samples in the window. The shortest stall this can report is therefore
+   * `(window - 1) * samplePeriod` = 14000 ticks of a village where not one
+   * of the four scalars moved — about twelve minutes of game time, and
+   * comfortably longer than any lull a live economy produces, since a
+   * single haul landing moves the storehouse total.
+   */
+  window: 8,
+  /**
+   * Nothing before this reads as a stall. An opening is allowed to be slow
+   * — the first woodcutter is not up yet and the pile has not moved — and a
+   * decided game is normally over by tick 12k anyway, so the watchdog only
+   * ever meets the standoffs.
+   */
+  graceUntil: 20_000,
+} as const;
+
+/**
  * How battered a building has to be before a seat pays to mend it. Not every
  * scratch is worth a mason: the bill is charged per point of damage, so
  * repairing at the first arrow costs the same materials in the end and spends
@@ -111,6 +174,20 @@ export const AI_INTEL = {
   /** Fewer fighters than this in one look is an anecdote, not an army. */
   minSighting: 3,
 } as const;
+
+/**
+ * One reading of whether the village is going anywhere. Four integers, all
+ * of which a working economy moves within a couple of thousand ticks:
+ * heads under the cap, finished buildings, sites under construction, and
+ * the total goods in the storehouse — the last standing in for throughput,
+ * because a single haul landing changes it.
+ */
+interface StallSample {
+  pop: number;
+  built: number;
+  sites: number;
+  stock: number;
+}
 
 /** One look at a rival's forces: when it was taken, and what stood there. */
 interface Sighting {
@@ -203,6 +280,19 @@ export class AiBrain {
   /** The rival whose doorstep the scout is walking to read, -1 when the
    * scout is on discovery (or home). */
   #scoutIntel: Owner = -1;
+  /**
+   * The stall watchdog's rolling window (AI_STALL): one packed sample per
+   * `samplePeriod`, oldest first. Brain-local like everything above it.
+   */
+  #progress: StallSample[] = [];
+  /** Tick the next sample is due. */
+  #sampleDue: number = AI_STALL.samplePeriod;
+  /** Beats this seat has read as stalled, and recovery orders sent. Both
+   * for the lab: a watchdog that never fires and one that fires without
+   * helping produce the same undecided count, and telling them apart is
+   * the difference between "tune it" and "it never saw the stall". */
+  #stalledBeats = 0;
+  #recoveries = 0;
 
   constructor(playerId: Owner, strategy: AiStrategy, mapSize: number) {
     this.playerId = playerId;
@@ -237,6 +327,16 @@ export class AiBrain {
       vetoed: this.#oddsVetoed,
       blind: this.#oddsBlind,
       camps: this.#oddsCamps,
+    };
+  }
+
+  /** What the stall watchdog saw, for the same reason oddsReport() exists:
+   * the harness counts stalls instead of inferring them from `undecided`. */
+  stallReport(): { beats: number; recoveries: number; stalled: boolean } {
+    return {
+      beats: this.#stalledBeats,
+      recoveries: this.#recoveries,
+      stalled: this.#windowIsFlat(),
     };
   }
 
@@ -275,6 +375,15 @@ export class AiBrain {
     const researched = (id: TechId): boolean => techs.researched.includes(id);
     const has = (type: BuildingTypeId): boolean => mine.some((b) => b.type === type);
     const countOf = (type: BuildingTypeId): number => mine.filter((b) => b.type === type).length;
+
+    // --- The stall watchdog (AI_STALL) ---------------------------------------
+    // Sampled first so the reading below is this beat's, and so a seat that
+    // is going somewhere pays one comparison of four integers and nothing
+    // else. `stalled` is false for every healthy game, which is what makes
+    // the rest of this method byte-identical to what it always was.
+    this.#sampleProgress(world, mine, stock);
+    const stalled = world.tick > AI_STALL.graceUntil && this.#windowIsFlat();
+    if (stalled) this.#stalledBeats++;
 
     // --- Build order: desired counts vs standing counts (rebuilds losses) ---
     // Housing is in here, as steps like any other: a playbook decides for
@@ -341,7 +450,17 @@ export class AiBrain {
       if (!u.dead && u.owner === this.playerId && u.kind === 'serf') serfCount++;
     }
     const researchPending = s.researchOrder.some((id) => !techs.researched.includes(id));
-    const growing = s.growthAfter === null || researched(s.growthAfter);
+    // The two free stall rules, and the reason they come first: neither
+    // destroys anything, both are undone the moment the seat moves again,
+    // and both undo a hold the playbook only ever meant as pacing.
+    //
+    // Release the hoarded silver — a reserve kept for a tech the seat can
+    // no longer afford is silver held back from the one purchase that could
+    // restart it. And ignore the growth gate: `growthAfter` defers hiring
+    // behind a tech a stalled seat may never reach, which turns a pacing
+    // choice into a life sentence.
+    const growing = s.growthAfter === null || researched(s.growthAfter) || stalled;
+    const reserve = stalled ? 0 : s.researchReserve;
     // Even the panic floor cannot conjure a bed. Asking anyway is harmless —
     // the sim refuses it — but a seat that knows it is full spends the beat
     // on the housing rule above instead of on an order that goes nowhere.
@@ -352,10 +471,16 @@ export class AiBrain {
       room &&
       growing &&
       serfCount < s.serfTarget &&
-      (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? s.researchReserve : 0)
+      (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? reserve : 0)
     ) {
       commands.push({ kind: 'hireSerf' });
     }
+
+    // --- Breaking the stall: the rules that cost something -------------------
+    // Only ever reached by a seat the window says has not moved in twelve
+    // minutes. Everything above this line is the game as it was played
+    // before the watchdog existed.
+    if (stalled) this.#recover(world, mine, stock, serfCount, commands);
 
     // --- Research queue ------------------------------------------------------
     // First in the playbook's order that is neither done nor blocked: a line
@@ -692,6 +817,129 @@ export class AiBrain {
     return commands;
   }
 
+  /**
+   * Take this window's reading, on `samplePeriod` ticks and not before —
+   * the scalars are cheap but the point of a slow clock is that a village
+   * gets time to look different.
+   */
+  #sampleProgress(world: World, mine: Building[], stock: Record<string, number>): void {
+    if (world.tick < this.#sampleDue) return;
+    this.#sampleDue = world.tick + AI_STALL.samplePeriod;
+    let built = 0;
+    let sites = 0;
+    for (const b of mine) {
+      if (b.state === 'built') built++;
+      else if (b.state === 'site') sites++;
+    }
+    let total = 0;
+    for (const n of Object.values(stock)) total += n;
+    this.#progress.push({
+      pop: populationOf(world, this.playerId),
+      built,
+      sites,
+      stock: total,
+    });
+    if (this.#progress.length > AI_STALL.window) this.#progress.shift();
+  }
+
+  /** Has nothing moved across the whole window? A window not yet full is
+   * not evidence of anything, so it reads as fine. */
+  #windowIsFlat(): boolean {
+    if (this.#progress.length < AI_STALL.window) return false;
+    const first = this.#progress[0]!;
+    return this.#progress.every(
+      (x) =>
+        x.pop === first.pop &&
+        x.built === first.built &&
+        x.sites === first.sites &&
+        x.stock === first.stock,
+    );
+  }
+
+  /**
+   * The escalating recovery rules, cheapest and least destructive first.
+   * At most one order per beat, so a seat takes only the step it needs and
+   * gets a whole sample period to show the step worked before the next one
+   * is considered.
+   *
+   * Both rules here spend a building or a post, which is why they sit
+   * behind the two free ones in `decide` and behind the stall reading
+   * itself. Neither can run on a seat that is going anywhere.
+   */
+  #recover(
+    world: World,
+    mine: Building[],
+    stock: Record<string, number>,
+    serfCount: number,
+    commands: SimCommand[],
+  ): void {
+    // Rule one: re-site a worked-out extractor. A gatherer with nothing
+    // left in reach is a hand and a hut spent on ground that will never
+    // yield again — tree groves regrow only on standing tiles
+    // (systems/production.ts `regrow`), so a woodcutter that cleared its
+    // radius sits on dead earth for the rest of the match, and a seam is
+    // simply finished. Selling it is the whole re-siting move: the sale
+    // hands back half the materials AND the resident (tick.ts), and the
+    // build order above maintains standing counts, so the next beat places
+    // the replacement — against a live deposit, because `spotFor` anchors
+    // on `nearestResource`, which only counts tiles with amount left.
+    //
+    // Two conditions keep this from making things worse. There has to be a
+    // live deposit somewhere to re-site onto, and the seat has to be able
+    // to afford the rebuild once the refund lands — half back means the
+    // shelf must already hold the other half. Failing either, selling would
+    // just be losing a building.
+    for (const b of sortedById(mine)) {
+      if (b.state !== 'built') continue;
+      const def = BUILDING_DEFS[b.type];
+      const recipe = gatherRecipeOf(def);
+      if (!recipe) continue;
+      const code = RESOURCE_CODE[recipe.resource]!;
+      const c = gatherOrigin(def, b.x, b.y);
+      if (findResourcesNear(world.map, c.x, c.y, code, recipe.radius, 1).length > 0) continue;
+      if (nearestResource(world, code, b.x, b.y) < 0) continue; // nowhere to move to
+      const cost = def.cost as Record<string, number>;
+      const canRebuild = Object.entries(cost).every(
+        ([good, n]) => (stock[good] ?? 0) + Math.floor(n / 2) >= n,
+      );
+      if (!canRebuild) continue;
+      commands.push({ kind: 'sellBuilding', buildingId: b.id });
+      this.#recoveries++;
+      return;
+    }
+
+    // Rule two: buy a hauler with a post. Nothing in the village moves
+    // without a loose serf — the haul matcher only ever offers a job to an
+    // idle one (systems/logistics.ts) — and a seat can spend its last hand
+    // legitimately, by binding it to a hut or handing it to the barracks as
+    // a recruit. Seed 9 ends exactly there: full extractors, four silver
+    // sitting in the silver mine, and nobody to carry it the twenty tiles
+    // to the storehouse that would pay for the hand that carries it.
+    //
+    // The post to empty is one whose output buffer is already full, which
+    // is precisely a post producing nothing: its worker is standing at a
+    // capped hut waiting for a haul that cannot come. Freeing him costs no
+    // production at all, and it is self-limiting — once he has drained the
+    // buffer the post is under cap again, and the staffing sweep re-fills it
+    // when the dismissal backoff runs out.
+    //
+    // Only a worker reading idle is taken. A hand released mid-trip used to
+    // be lost for good; unbindWorker resets the task now, but a rule whose
+    // whole purpose is producing a hauler should not depend on that.
+    if (serfCount > 0) return;
+    for (const b of sortedById(mine)) {
+      if (b.state !== 'built' || b.workerId === undefined) continue;
+      const def = BUILDING_DEFS[b.type];
+      const out = gatherRecipeOf(def)?.output;
+      if (out === undefined || (b.stock[out] ?? 0) < OUTPUT_CAP) continue;
+      const worker = world.units.get(b.workerId);
+      if (!worker || worker.dead || worker.task.t !== 'idle') continue;
+      commands.push({ kind: 'dismissWorker', buildingId: b.id });
+      this.#recoveries++;
+      return;
+    }
+  }
+
   /** The scout stands down entirely. */
   #clearScout(): void {
     this.#scoutId = -1;
@@ -902,6 +1150,13 @@ function affordable(cost: Record<string, number>, stock: Record<string, number>)
 
 function ownedBuildings(world: World, owner: Owner): Building[] {
   return [...world.buildings.values()].filter((b) => !b.dead && b.owner === owner);
+}
+
+/** By id, so two hosts pick the same building out of a set. Insertion order
+ * is already deterministic, but the recovery rules pick ONE building out of
+ * a whole village and an explicit tie-break is cheaper than trusting that. */
+function sortedById(buildings: Building[]): Building[] {
+  return [...buildings].sort((a, z) => a.id - z.id);
 }
 
 /** Where a build step wants to stand: at the base, or at its seam. */

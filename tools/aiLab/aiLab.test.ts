@@ -242,6 +242,7 @@ function fake(seed: number, winner: Owner | null, decided = true): MatchRecord {
     decided,
     winner,
     standings: [],
+    stalls: [],
     consults: [],
     adviceApplied: {},
     failures: [],
