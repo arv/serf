@@ -131,5 +131,16 @@ export function describeAdvice(advice: StrategyAdvice, playbook?: SeatKnobs): Ad
       `${playbook?.researchReserve}`,
     );
   }
+  if (advice.marchConfidence !== undefined) {
+    // 0 is the printed value everywhere, and it means the march is decided
+    // on headcount alone — so it reads as off rather than as a number.
+    put(
+      advice.marchConfidence > 0
+        ? `marches only when it expects ${advice.marchConfidence}% of the army to survive`
+        : 'marches on headcount alone',
+      advice.marchConfidence !== playbook?.marchConfidence,
+      `${playbook?.marchConfidence}`,
+    );
+  }
   return lines;
 }

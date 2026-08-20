@@ -19,4 +19,14 @@
  * into its bundle, and the server (plain node, no bundler) imports it
  * directly.
  */
-export const REPLAY_VERSION = 12;
+/**
+ * 13: the AI brain gained a stall watchdog and a rewritten rival picture.
+ * Both are brain-local memory that reaches the sim only through commands —
+ * but the commands differ, so a replay recorded before this build no longer
+ * re-runs faithfully.
+ *
+ * 12 was two sim fixes that shipped together: the pathfinder's
+ * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
+ * freed hand to idle (#94).
+ */
+export const REPLAY_VERSION = 13;

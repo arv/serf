@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { createWorld, type World, type WorldConfig } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
-import { AiBrain } from './systems/ai.ts';
+import { AI_PACING, AI_STALL, AiBrain } from './systems/ai.ts';
 import { AiSeats } from './aiSeats.ts';
 import { strategyOf, type AiStrategy } from './defs/aiStrategies.ts';
 import { checkInvariants } from './debug/invariants.ts';
+import { AI_STRATEGIES } from './defs/aiStrategies.ts';
+import { spawnUnit } from './world.ts';
+import { OUTPUT_CAP } from './defs/buildings.ts';
+import { tileIdx } from '../shared/grid.ts';
+import type { Building } from './entities.ts';
+import { addBuiltHut, addResourceTile, addStorehouse, bareWorld, cmds } from './testUtils.ts';
+import type { SimCommand } from './commands.ts';
 
 function digest(world: World): unknown {
   return {
@@ -77,6 +84,42 @@ describe('the AI opponent', () => {
  * makes — laid and cleared it leaves no trace, and laid with real values
  * the brain actually plays differently.
  */
+function moveOrders(commands: SimCommand[]): Extract<SimCommand, { kind: 'moveUnits' }>[] {
+  return commands.filter((c) => c.kind === 'moveUnits');
+}
+
+/**
+ * A muster staring at a rival castle it cannot take: seven knights of our
+ * own, twelve of theirs standing in the yard, and a scout parked close
+ * enough that both the castle and its garrison are lit — the gate reads only
+ * what the seat can actually see, so an unlit garrison would prove nothing.
+ */
+/** The muster ordered anywhere but the rally spot south of the castle — the
+ * same definition firstMarchTick uses, so a rally home does not read as a
+ * march and a sweep into the dark does. */
+function marchOrders(
+  commands: SimCommand[],
+  castleX: number,
+  castleY: number,
+): Extract<SimCommand, { kind: 'moveUnits' }>[] {
+  const home = { x: castleX + 1, y: castleY + 1 + 4 };
+  return moveOrders(commands).filter(
+    (m) => m.unitIds.length >= 3 && (m.x !== home.x || m.y !== home.y),
+  );
+}
+
+function siegeStandoff(): { world: World; brain: AiBrain } {
+  const world = bareWorld();
+  addStorehouse(world, 30, 30, {});
+  for (let i = 0; i < 7; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
+  // The rival, near enough that one scout lights castle and yard together.
+  addStorehouse(world, 44, 30, {}, 1);
+  for (let i = 0; i < 12; i++) spawnUnit(world, 'knight', 1, 45.5, 28.5 + i * 0.4);
+  spawnUnit(world, 'knight', 0, 42.5, 30.5); // the scout
+  world.tick = 1000; // past the steward's attack cooldown
+  return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size) };
+}
+
 describe('strategist overrides', () => {
   /** Ticks until the brain first marches its army away from home — the
    * observable a changed muster size moves. Under fog a brain also emits
@@ -117,6 +160,9 @@ describe('strategist overrides', () => {
       // An empty override spreads to the same values; clearing goes back to
       // the playbook object itself. Either way: the identical game.
       if (t === 1000) brain.setOverride({});
+      // The march gate at its neutral value has to be as inert as no advice
+      // at all — the whole reason every playbook ships marchConfidence: 0.
+      if (t === 1500) brain.setOverride({ marchConfidence: 0 });
       if (t === 2000) brain.setOverride(null);
       const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
       tickWorld(
@@ -133,6 +179,49 @@ describe('strategist overrides', () => {
     expect(eager).toBeLessThan(patient);
   }, 120_000);
 
+  it('holds out of a garrison it cannot beat — and does not sweep instead', () => {
+    const { world, brain } = siegeStandoff();
+    brain.setOverride({ marchConfidence: 60 });
+    // No march on the castle, and — the part worth pinning — no consolation
+    // sweep either. Falling through to the sweep branch would send the whole
+    // army walking into unexplored ground, which is worse than the march it
+    // just refused. Rallying home is allowed, and is the point.
+    expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]);
+  });
+
+  it('marches on the same garrison once the odds have turned', () => {
+    const { world, brain } = siegeStandoff();
+    // Same defenders, a far bigger muster: the hold lifts by growing out of
+    // it, which is how it lifts in a real match.
+    for (let i = 0; i < 24; i++) spawnUnit(world, 'knight', 0, 33.5, 20.5 + i * 0.4);
+    brain.setOverride({ marchConfidence: 60 });
+    expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
+  });
+
+  it('marches on a good prediction before the headcount bar is met', () => {
+    // Four knights against one defender: under the steward's armyAttackSize
+    // of seven this seat would still be waiting, and the prediction is what
+    // sends it. The accelerator is the half of this that the sweeps say is
+    // worth having.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    for (let i = 0; i < 4; i++) spawnUnit(world, 'knight', 0, 33.5, 29.5 + i);
+    addStorehouse(world, 44, 30, {}, 1);
+    spawnUnit(world, 'spearman', 1, 45.5, 30.5);
+    spawnUnit(world, 'knight', 0, 42.5, 30.5); // scout, lighting castle and yard
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]); // headcount says wait
+    brain.setOverride({ marchConfidence: 60 });
+    expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
+  });
+
+  it('marches into that same garrison when the gate is off', () => {
+    const { world, brain } = siegeStandoff();
+    brain.setOverride({ marchConfidence: 0 });
+    expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
+  });
+
   it('AiSeats routes advice to the seat it names, and shrugs at one it cannot find', () => {
     const world = createWorld({
       seed: 7,
@@ -145,4 +234,113 @@ describe('strategist overrides', () => {
     // there is a no-op, not a crash.
     seats.applyAdvice(9, { armyAttackSize: 3 });
   });
+});
+
+/**
+ * The stall watchdog (AI_STALL) and the rules it turns on. Two promises,
+ * and they are the two the risk section of the plan names: a seat that is
+ * going somewhere never sees any of this, and a seat that is not gets the
+ * cheapest move that could restart it.
+ */
+describe('the stall watchdog', () => {
+  /** A village that has stopped: one gatherer with a full hut, no loose
+   * serf to empty it, and nothing else to do. The shape seed 9 reaches. */
+  function frozenVillage(): { world: World; brain: AiBrain; hut: Building } {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    addResourceTile(world, 40, 41);
+    const hut = addBuiltHut(world, 40, 40);
+    hut.stock = { wood: OUTPUT_CAP };
+    return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size), hut };
+  }
+
+  /** Beat the brain forward to `until`, keeping the world frozen — only the
+   * brain's own window advances, which is exactly what is under test. */
+  function beatUntil(brain: AiBrain, world: World, until: number): SimCommand[] {
+    let last: SimCommand[] = [];
+    while (world.tick < until) {
+      world.tick += AI_PACING.decisionInterval;
+      if (brain.shouldDecide(world.tick)) last = brain.decide(world);
+    }
+    return last;
+  }
+
+  it('says nothing until the window is full, then says stalled', () => {
+    const { world, brain } = frozenVillage();
+    beatUntil(brain, world, AI_STALL.graceUntil);
+    expect(brain.stallReport().beats).toBe(0);
+    // One full window past the grace period and the reading has turned.
+    beatUntil(brain, world, AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window);
+    expect(brain.stallReport().stalled).toBe(true);
+    expect(brain.stallReport().beats).toBeGreaterThan(0);
+  });
+
+  it('buys a hauler with a post nobody is using', () => {
+    const { world, brain, hut } = frozenVillage();
+    beatUntil(brain, world, AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100);
+    const commands = beatUntil(brain, world, world.tick + AI_PACING.decisionInterval * 2);
+    // The hut is capped, so its resident is producing nothing at all. He is
+    // worth more carrying the pile to the storehouse than standing beside it.
+    expect(commands).toContainEqual({ kind: 'dismissWorker', buildingId: hut.id });
+    expect(brain.stallReport().recoveries).toBeGreaterThan(0);
+  });
+
+  it('the freed hand actually rejoins the haul pool', () => {
+    // The landmine this rule exists to avoid: a resident released mid-trip
+    // used to keep a gather task nothing would ever advance, and dispatch,
+    // staffing and wander all want a genuinely idle unit. A hand freed to
+    // haul that cannot haul makes the spiral worse, not better.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    addResourceTile(world, 40, 41);
+    const hut = addBuiltHut(world, 40, 40);
+    hut.stock = { wood: OUTPUT_CAP };
+    const worker = world.units.get(hut.workerId!)!;
+    worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
+    tickWorld(world, cmds({ kind: 'dismissWorker', buildingId: hut.id }));
+    expect(worker.kind).toBe('serf');
+    // Idle, or already claimed for a haul — either is in the pool. What is
+    // fatal is a leftover gather task.
+    expect(['idle', 'haul']).toContain(worker.task.t);
+  });
+
+  it('sells a worked-out extractor so the build order can re-site it', () => {
+    const world = bareWorld();
+    // Exactly half a woodcutter on the shelf — the other half is what the
+    // sale hands back, and the rule refuses to sell what it could not
+    // rebuild. Not a plank more: a seat with enough to place anything at
+    // all is a seat that is going somewhere, and would not read as stalled.
+    addStorehouse(world, 30, 30, { wood: 3 });
+    const dead = addBuiltHut(world, 40, 40); // no resource tile in reach
+    addResourceTile(world, 12, 12); // ...but a live grove clear across the map
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const commands = beatUntil(
+      brain,
+      world,
+      AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100,
+    );
+    expect(commands).toContainEqual({ kind: 'sellBuilding', buildingId: dead.id });
+  });
+
+  it('will not sell a worked-out extractor it could not afford to rebuild', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {}); // empty shelf: half the cost back is not enough
+    const dead = addBuiltHut(world, 40, 40);
+    addResourceTile(world, 12, 12);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const commands = beatUntil(
+      brain,
+      world,
+      AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100,
+    );
+    expect(commands).not.toContainEqual({ kind: 'sellBuilding', buildingId: dead.id });
+  });
+
+  it('leaves a seat that is going somewhere byte-identical', () => {
+    // The whole safety story: the watchdog is memory and a comparison, and
+    // an unstalled seat must play the game it played before it existed.
+    // Long enough to run past graceUntil and a full window.
+    const config: WorldConfig = { seed: 7, players: [{ kind: 'human' }, { kind: 'ai' }] };
+    expect(digest(runWithBrains(config, 40_000))).toEqual(digest(runWithBrains(config, 40_000)));
+  }, 240_000);
 });

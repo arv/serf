@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Node for the CLI's fs/path/process, vite/client because the code
+    // under test (src/ai/strategist.ts) reads import.meta.env.
+    "types": ["node", "vite/client"]
+  },
+  "include": ["*.ts"]
+}

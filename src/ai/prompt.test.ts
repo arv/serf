@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createWorld } from '../sim/world.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
 import { strategyOf } from '../sim/defs/aiStrategies.ts';
-import { buildMessages } from './prompt.ts';
+import { buildMessages, extractSummary } from './prompt.ts';
+import { POSTURES, POSTURE_ORDER, postureAdvice } from './posture.ts';
+import { toOverride } from './advice.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 
 /**
@@ -26,7 +28,7 @@ function summaries(): { first: AiWorldSummary; later: AiWorldSummary } {
         ...first.rivals[0]!,
         found: true,
         distance: 30,
-        intel: { ageTicks: 200, heavy: 2, light: 1, ranged: 0, total: 3 },
+        intel: { ageTicks: 200, heavy: 2, light: 1, ranged: 0, total: 3, peak: 4 },
       },
     ],
   };
@@ -38,22 +40,17 @@ describe('buildMessages', () => {
     const { first } = summaries();
     const messages = buildMessages(first, null, null);
     expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
-    // The glossary names every knob the parser accepts.
-    for (const knob of [
-      'serfTarget',
-      'armyAttackSize',
-      'attackCooldown',
-      'homeGuard',
-      'prefersRivals',
-      'trainPreference',
-      'weaponMix',
-      'barracksQueueDepth',
-      'houseLimit',
-      'housingHeadroom',
-      'researchReserve',
-    ]) {
-      expect(messages[0]!.content).toContain(knob);
+    // The menu names every stance the parser will accept, and each one
+    // comes with the situation to pick it under — the model is matching a
+    // valley to a label, so a bare list of names would not be the ask.
+    for (const id of POSTURE_ORDER) {
+      expect(messages[0]!.content).toContain(id);
+      expect(messages[0]!.content).toContain(POSTURES[id].when);
     }
+    // Knob values are the table's business, not the model's: quoting them
+    // is what turned a 350M model into an echo of its own prompt.
+    expect(messages[0]!.content).not.toContain('serfTarget');
+    expect(messages[0]!.content).not.toContain('barracksQueueDepth');
     // And it teaches the fog: found rivals, intel age, scouting handled.
     expect(messages[0]!.content).toContain('Fog of war');
     expect(messages[0]!.content).toContain('found=false');
@@ -63,13 +60,26 @@ describe('buildMessages', () => {
     expect(messages[1]!.content).toContain('first consultation');
   });
 
-  it('tells the model what it already changed, so it does not re-change it', () => {
+  it('names the standing posture without quoting the numbers under it', () => {
     const { first, later } = summaries();
-    const advice = { armyAttackSize: 12, reason: 'they mass knights' };
+    const advice = { ...postureAdvice('siege'), posture: 'siege' as const, reason: 'castle found' };
     const withAdvice = buildMessages(later, advice, first);
-    expect(withAdvice[1]!.content).toContain('"armyAttackSize":12');
+    expect(withAdvice[1]!.content).toContain('standing posture is "siege"');
+    // The stance's knob blob must not ride along: see the note in
+    // buildMessages, and the sweep that motivated it. Asserted against the
+    // serialized override rather than any single value, because the
+    // summary legitimately reports the seat's own playbook knobs and those
+    // numbers can coincide with a posture's.
+    expect(withAdvice[1]!.content).not.toContain(JSON.stringify(toOverride(advice)));
     const without = buildMessages(later, null, first);
     expect(without[1]!.content).toContain('printed values');
+  });
+
+  it('hands the summary back to engines that reason over state', () => {
+    const { first, later } = summaries();
+    expect(extractSummary(buildMessages(later, null, first))).toEqual(later);
+    expect(extractSummary([{ role: 'user', content: 'no json here' }])).toBeNull();
+    expect(extractSummary([])).toBeNull();
   });
 
   it('calls out what scouting turned up since the previous consultation', () => {
@@ -83,7 +93,7 @@ describe('buildMessages', () => {
 
   it('holds the token budget: the whole prompt stays small', () => {
     const { first, later } = summaries();
-    const total = buildMessages(later, { armyAttackSize: 12 }, first)
+    const total = buildMessages(later, { ...postureAdvice('siege'), posture: 'siege' }, first)
       .map((m) => m.content)
       .join('').length;
     // ~4 chars per token: 4500 chars keeps the prompt near the 900-token

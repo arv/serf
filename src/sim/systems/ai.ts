@@ -1,17 +1,35 @@
 import { tileCount, tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { exactDist } from '../../shared/math.ts';
-import { playMin, playMax, Terrain, TileResource, tileBlocks } from '../map.ts';
+import {
+  findResourcesNear,
+  playMin,
+  playMax,
+  RESOURCE_CODE,
+  Terrain,
+  TileResource,
+  tileBlocks,
+} from '../map.ts';
 import { SeatVision } from '../visibility.ts';
 import { campCorners, startLayout } from '../world.ts';
-import { BUILDING_DEFS, buildingDef, repairBill, type BuildingTypeId } from '../defs/buildings.ts';
+import {
+  BUILDING_DEFS,
+  buildingDef,
+  gatherOrigin,
+  gatherRecipeOf,
+  OUTPUT_CAP,
+  repairBill,
+  type BuildingTypeId,
+} from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
+import { classHp, shouldCommit, type Force } from '../combatOdds.ts';
 import { HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
 import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
 import { canPlace, type World } from '../world.ts';
 import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
 import type { GoodId } from '../defs/goods.ts';
+import type { Unit } from '../units.ts';
 import type { SimCommand } from '../commands.ts';
 
 /**
@@ -89,12 +107,64 @@ export const AI_PACING = {
 } as const;
 
 /**
+ * The stall watchdog.
+ *
+ * A village can reach a state its playbook has no move for. The build order
+ * is a one-shot list of placements, so once every step stands there is
+ * nothing left to place; hiring wants silver; hauling wants a loose serf.
+ * Seed 9 is the calibration case, and it is not the resource exhaustion it
+ * looks like from outside: at t=40000 both seats hold FULL extractor huts
+ * (every gatherer capped at OUTPUT_CAP, one of them sitting on four silver —
+ * a hire's worth) and have exactly zero free serfs, every hand having been
+ * bound to a post or spent as a barracks recruit. Nothing hauls, so nothing
+ * reaches the storehouse, so nothing can be bought, so no hand is ever
+ * hired. Eighty thousand ticks of a village that is fully employed and
+ * completely paralysed.
+ *
+ * No amount of tuning reaches that. What reaches it is noticing, so the
+ * brain samples a handful of integers on a slow clock and calls the seat
+ * stalled when none of them has moved across the whole window. The rules
+ * that answer are all in `#recover`, and every one of them is gated on this
+ * reading — an unstalled seat emits exactly the commands it always did.
+ *
+ * Brain-local memory like `#intel` and `#vision`: never serialized, and the
+ * determinism story is unchanged because the window is a pure function of
+ * ticks the brain has already seen and reaches the sim only through the
+ * commands it was always allowed to send.
+ */
+export const AI_STALL = {
+  /** Ticks between progress samples. A multiple of `decisionInterval`, so
+   * the sample lands on a beat rather than near one. */
+  samplePeriod: 2_000,
+  /**
+   * Samples in the window. The shortest stall this can report is therefore
+   * `(window - 1) * samplePeriod` = 14000 ticks of a village where not one
+   * of the four scalars moved — about twelve minutes of game time, and
+   * comfortably longer than any lull a live economy produces, since a
+   * single haul landing moves the storehouse total.
+   */
+  window: 8,
+  /**
+   * Nothing before this reads as a stall. An opening is allowed to be slow
+   * — the first woodcutter is not up yet and the pile has not moved — and a
+   * decided game is normally over by tick 12k anyway, so the watchdog only
+   * ever meets the standoffs.
+   */
+  graceUntil: 20_000,
+} as const;
+
+/**
  * How battered a building has to be before a seat pays to mend it. Not every
  * scratch is worth a mason: the bill is charged per point of damage, so
  * repairing at the first arrow costs the same materials in the end and spends
  * the haulage pool in dribs.
  */
 export const AI_REPAIR_BELOW = 0.7;
+
+/** How far from a target a defender still counts as defending it. The game's
+ * longest leash is `acquireRadius * 1.6` = 12.8 tiles, so twelve covers
+ * everything that would actually join the fight. */
+const DEFENDER_RADIUS = 12;
 
 export const AI_INTEL = {
   /** A sighting older than this says nothing about tomorrow's battle. */
@@ -103,13 +173,138 @@ export const AI_INTEL = {
   refreshAfter: 4_000,
   /** Fewer fighters than this in one look is an anecdote, not an army. */
   minSighting: 3,
+  /**
+   * How often the picture writes down how big the rival's army looked. A
+   * decision beat lands every 20 ticks; sampling each one would fill the
+   * series with the same number three hundred times over and say nothing
+   * about trend. Twenty-five seconds apart, twelve deep, is twenty-five
+   * minutes of history in a match that resolves in eleven — and it is
+   * BOUNDED, which is the part that matters for a 120k-tick standoff.
+   */
+  samplePeriod: 500,
+  seriesLen: 12,
+  /**
+   * "How many buildings did they have at minute five" — the one snapshot
+   * worth branching on, because it is where a boomer and a rusher have
+   * already parted ways. Twenty ticks a second, sixty seconds a minute.
+   */
+  earlyMark: 5 * 60 * 20,
+  /** How close one of their soldiers has to come before we call it an
+   * attack landing rather than a patrol. Same scale as the summary's
+   * underAttack radius — this is the AI's own definition of "at my gates". */
+  raidRadius: 12,
 } as const;
+
+/**
+ * One reading of whether the village is going anywhere. Four integers, all
+ * of which a working economy moves within a couple of thousand ticks:
+ * heads under the cap, finished buildings, sites under construction, and
+ * the total goods in the storehouse — the last standing in for throughput,
+ * because a single haul landing changes it.
+ */
+interface StallSample {
+  pop: number;
+  built: number;
+  sites: number;
+  stock: number;
+}
 
 /** One look at a rival's forces: when it was taken, and what stood there. */
 interface Sighting {
   tick: number;
   counts: { heavy: number; light: number; ranged: number };
   total: number;
+}
+
+/** How big a rival's army looked at one moment, for the trend series. */
+interface IntelSample {
+  tick: number;
+  total: number;
+}
+
+/**
+ * What one seat has assembled about one rival.
+ *
+ * The roster is the change that matters. The picture used to be a single
+ * snapshot — the largest group seen in one instant — and that is why a seat
+ * marched believing the enemy had three soldiers: three is all a lone scout
+ * ever lights at once, and the next three walking past the same corner
+ * replaced the number rather than adding to it. A soldier is a soldier
+ * though, and a lord who has watched six different men pass his watchtower
+ * knows he faces six. So sightings accumulate by unit id, and a man leaves
+ * the list only when the trust window closes over the last look at him.
+ *
+ * Not when he dies, which is the counter-intuitive part and the one thing
+ * here that was chosen by measurement rather than by taste. Striking the
+ * fallen off the roster is the honest-looking rule and it reads the valley
+ * *worse*: over twelve unadvised matches, scored against the truth at 778
+ * sample points on identical trajectories,
+ *
+ *     estimator                          believes   mean abs error   blind
+ *     the old single snapshot               2.07         3.19        13.8%
+ *     roster, striking the fallen off       1.69         3.44        32.9%
+ *     roster, keeping them                  2.69         2.88        10.8%
+ *     roster peak over the window           3.35         2.54         6.7%
+ *
+ * against a real army averaging 5.09. Striking the dead off is a *standing
+ * army* estimate and the barracks refills faster than the trust window
+ * closes, so it is wrong sooner than it is right. What the roster actually
+ * measures is how much war a rival has shown itself able to field lately —
+ * which is the question a posture wants answered anyway.
+ *
+ * Bounded on purpose (see #override): the roster is pruned to the trust
+ * window every beat and the series is a twelve-entry ring, so a 120k-tick
+ * standoff costs the same memory as the opening.
+ */
+interface RivalPicture {
+  /** Soldiers seen and not yet written off, by unit id. */
+  roster: Map<number, { tick: number; cls: UnitClass }>;
+  /** How the roster has grown, oldest first, `seriesLen` deep. */
+  series: IntelSample[];
+  /** Last tick anything of theirs stood in our light. -1 = never. */
+  seenTick: number;
+  /**
+   * Last tick the roster held a real force (`minSighting` or more), as
+   * opposed to a straggler. This is the clock the re-scout reads, and the
+   * distinction is the whole point: glimpsing one raider at the gates used
+   * to reset the refresh timer as if the yard had been read, so a seat under
+   * steady harassment never once looked at what was actually massing.
+   */
+  richSeenTick: number;
+  /** Last tick a sample was taken, so the series keeps its spacing. */
+  sampledTick: number;
+  /** First-contact facts, all ticks, all -1 until they happen. */
+  firstSoldierTick: number;
+  firstAttackTick: number;
+  /** Their buildings on our explored ground when the fifth minute struck;
+   * -1 before it does. */
+  buildingsAtFive: number;
+  /** Doorstep reads spent on them — diagnostics, so "the schedule never
+   * fires" and "the schedule fires and does not help" cannot print the
+   * same number (the lesson of the march gate). */
+  reads: number;
+}
+
+/** One rival's picture, flattened for anything outside the brain. */
+export interface IntelReport {
+  owner: Owner;
+  /** Freshest observation of them, -1 if never seen. */
+  tick: number;
+  /** Soldiers of theirs currently on the roster. */
+  total: number;
+  /** The biggest the roster has been inside the trust window — the most
+   * accurate single number this brain has about a rival's strength (see
+   * RivalPicture's table), and the one a posture should read. */
+  peak: number;
+  counts: { heavy: number; light: number; ranged: number };
+  firstSoldierTick: number;
+  firstAttackTick: number;
+  buildingsAtFive: number;
+  /** Doorstep reads spent on this rival so far. */
+  reads: number;
+  /** Oldest kept sample and newest, so a reader can see the slope without
+   * carrying the whole series: null until two samples exist. */
+  trend: { fromTick: number; from: number; toTick: number; to: number } | null;
 }
 
 /**
@@ -125,6 +320,12 @@ const COUNTER_PICK: Record<UnitClass, { unit: UnitTypeId; recipe: number }> = {
 };
 
 const MILITARY = new Set<UnitTypeId>(['knight', 'spearman', 'archer']);
+
+/** Fewest soldiers that may be sent on a prediction alone. The impatience
+ * ramp already treats three as the smallest force worth marching
+ * (AI_PACING.staleFloor), and a good prediction should not be able to talk a
+ * seat into emptying its yard. */
+const MIN_SORTIE = 3;
 
 /** What a soldier needs forged before the barracks can start on them. */
 const WEAPON_OF: Partial<Record<UnitTypeId, GoodId>> = {
@@ -146,6 +347,14 @@ export class AiBrain {
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
+  /** Diagnostics for the march gate: how often it was asked, and how often
+   * it said no. A gate that never fires and a gate that fires without
+   * helping produce the same win rate, and telling them apart is the whole
+   * difference between "tune it" and "the estimate never arrives". */
+  #oddsAsked = 0;
+  #oddsVetoed = 0;
+  #oddsBlind = 0;
+  #oddsCamps = 0;
   /**
    * Knobs laid over the playbook — the LLM strategist's dial (src/ai/).
    * Worker memory only, never serialized: the world's determinism story is
@@ -170,9 +379,13 @@ export class AiBrain {
    * unexplored island or a walled-off valley never lights up, and without
    * this the search would re-pick the same impossible tile forever. */
   #unreachable = new Set<number>();
-  /** What scouting has seen of each rival's army: the freshest useful
-   * look, by owner. This is what the counter-forging reads. */
-  #intel = new Map<Owner, Sighting>();
+  /** What scouting has assembled about each rival: a running roster of the
+   * soldiers seen, a trend series over it, and the first-contact facts.
+   * This is what the counter-forging and the archetype read. */
+  #intel = new Map<Owner, RivalPicture>();
+  /** Minute five happens once; the building count it takes is stamped on
+   * every rival's picture at the first beat past it. */
+  #earlyMarkTaken = false;
   /** When each rival's doorstep was last read — or the read failed — by
    * owner. Kept apart from the sightings on purpose: a walk that saw
    * nothing must reset the clock without erasing what an earlier look
@@ -182,6 +395,19 @@ export class AiBrain {
   /** The rival whose doorstep the scout is walking to read, -1 when the
    * scout is on discovery (or home). */
   #scoutIntel: Owner = -1;
+  /**
+   * The stall watchdog's rolling window (AI_STALL): one packed sample per
+   * `samplePeriod`, oldest first. Brain-local like everything above it.
+   */
+  #progress: StallSample[] = [];
+  /** Tick the next sample is due. */
+  #sampleDue: number = AI_STALL.samplePeriod;
+  /** Beats this seat has read as stalled, and recovery orders sent. Both
+   * for the lab: a watchdog that never fires and one that fires without
+   * helping produce the same undecided count, and telling them apart is
+   * the difference between "tune it" and "it never saw the stall". */
+  #stalledBeats = 0;
+  #recoveries = 0;
 
   constructor(playerId: Owner, strategy: AiStrategy, mapSize: number) {
     this.playerId = playerId;
@@ -207,13 +433,51 @@ export class AiBrain {
 
   /** Copies of the current intel pictures, freshness included: the summary
    * shows the model stale sightings AS stale rather than hiding them. */
-  intelReport(): { owner: Owner; tick: number; total: number; counts: Sighting['counts'] }[] {
-    return [...this.#intel].map(([owner, s]) => ({
-      owner,
-      tick: s.tick,
-      total: s.total,
-      counts: { ...s.counts },
-    }));
+  /** Read by the lab so a null measurement is diagnosable rather than merely
+   * disappointing: a gate that never fires and a gate that fires without
+   * helping print the same win rate. */
+  oddsReport(): { asked: number; vetoed: number; blind: number; camps: number } {
+    return {
+      asked: this.#oddsAsked,
+      vetoed: this.#oddsVetoed,
+      blind: this.#oddsBlind,
+      camps: this.#oddsCamps,
+    };
+  }
+
+  /** What the stall watchdog saw, for the same reason oddsReport() exists:
+   * the harness counts stalls instead of inferring them from `undecided`. */
+  stallReport(): { beats: number; recoveries: number; stalled: boolean } {
+    return {
+      beats: this.#stalledBeats,
+      recoveries: this.#recoveries,
+      stalled: this.#windowIsFlat(),
+    };
+  }
+
+  intelReport(): IntelReport[] {
+    return [...this.#intel].map(([owner, pic]) => {
+      const muster = rosterMuster(pic);
+      const first = pic.series[0];
+      const last = pic.series[pic.series.length - 1];
+      let peak = muster.total;
+      for (const s of pic.series) if (s.total > peak) peak = s.total;
+      return {
+        owner,
+        tick: pic.seenTick,
+        total: muster.total,
+        peak,
+        counts: muster.counts,
+        firstSoldierTick: pic.firstSoldierTick,
+        firstAttackTick: pic.firstAttackTick,
+        buildingsAtFive: pic.buildingsAtFive,
+        reads: pic.reads,
+        trend:
+          first && last && first !== last
+            ? { fromTick: first.tick, from: first.total, toTick: last.tick, to: last.total }
+            : null,
+      };
+    });
   }
 
   /** Is `tick` one of this seat's decision beats? (Seats stagger so two
@@ -230,10 +494,13 @@ export class AiBrain {
     const p = world.players[this.playerId];
     if (!p || !p.alive || world.outcome.state !== 'playing') return [];
     this.#vision.recompute(world, this.playerId);
-    this.#observeRivals(world);
     const commands: SimCommand[] = [];
     const mine = ownedBuildings(world, this.playerId);
     const sh = mine.find((b) => b.type === 'storehouse' && b.state === 'built');
+    // Watching comes before the castle check, and before every decision
+    // below reads the picture: a seat about to lose its last storehouse has
+    // no orders left to give, but what it can see is still worth filing.
+    this.#observeRivals(world, sh ? sh.x + 1 : -1, sh ? sh.y + 1 : -1);
     if (!sh) return commands; // one tick from elimination; nothing to do
     const baseX = sh.x + 1;
     const baseY = sh.y + 1;
@@ -242,6 +509,15 @@ export class AiBrain {
     const researched = (id: TechId): boolean => techs.researched.includes(id);
     const has = (type: BuildingTypeId): boolean => mine.some((b) => b.type === type);
     const countOf = (type: BuildingTypeId): number => mine.filter((b) => b.type === type).length;
+
+    // --- The stall watchdog (AI_STALL) ---------------------------------------
+    // Sampled first so the reading below is this beat's, and so a seat that
+    // is going somewhere pays one comparison of four integers and nothing
+    // else. `stalled` is false for every healthy game, which is what makes
+    // the rest of this method byte-identical to what it always was.
+    this.#sampleProgress(world, mine, stock);
+    const stalled = world.tick > AI_STALL.graceUntil && this.#windowIsFlat();
+    if (stalled) this.#stalledBeats++;
 
     // --- Build order: desired counts vs standing counts (rebuilds losses) ---
     // Housing is in here, as steps like any other: a playbook decides for
@@ -308,7 +584,17 @@ export class AiBrain {
       if (!u.dead && u.owner === this.playerId && u.kind === 'serf') serfCount++;
     }
     const researchPending = s.researchOrder.some((id) => !techs.researched.includes(id));
-    const growing = s.growthAfter === null || researched(s.growthAfter);
+    // The two free stall rules, and the reason they come first: neither
+    // destroys anything, both are undone the moment the seat moves again,
+    // and both undo a hold the playbook only ever meant as pacing.
+    //
+    // Release the hoarded silver — a reserve kept for a tech the seat can
+    // no longer afford is silver held back from the one purchase that could
+    // restart it. And ignore the growth gate: `growthAfter` defers hiring
+    // behind a tech a stalled seat may never reach, which turns a pacing
+    // choice into a life sentence.
+    const growing = s.growthAfter === null || researched(s.growthAfter) || stalled;
+    const reserve = stalled ? 0 : s.researchReserve;
     // Even the panic floor cannot conjure a bed. Asking anyway is harmless —
     // the sim refuses it — but a seat that knows it is full spends the beat
     // on the housing rule above instead of on an order that goes nowhere.
@@ -319,10 +605,16 @@ export class AiBrain {
       room &&
       growing &&
       serfCount < s.serfTarget &&
-      (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? s.researchReserve : 0)
+      (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? reserve : 0)
     ) {
       commands.push({ kind: 'hireSerf' });
     }
+
+    // --- Breaking the stall: the rules that cost something -------------------
+    // Only ever reached by a seat the window says has not moved in twelve
+    // minutes. Everything above this line is the game as it was played
+    // before the watchdog existed.
+    if (stalled) this.#recover(world, mine, stock, serfCount, commands);
 
     // --- Research queue ------------------------------------------------------
     // First in the playbook's order that is neither done nor blocked: a line
@@ -422,8 +714,34 @@ export class AiBrain {
     const target = pickAttackTarget(world, this.#vision, this.playerId, baseX, baseY, s.prefersRivals);
     const rallyReady = world.tick - this.#lastRallyTick > s.rallyCooldown;
     const idleFor = world.tick - this.#lastAttackTick;
+    const cooled = idleFor > s.attackCooldown;
+    const headcountReady = army.length >= mustersNeeded(s.armyAttackSize, idleFor) && cooled;
+    /**
+     * What the combat prediction says about the fight at the end of this
+     * march — true go, false hold, null no opinion (the knob is off, the
+     * target is a camp, or nothing has been seen of its defenders).
+     *
+     * Measured on this valley, the prediction is worth far more as a trigger
+     * than as a brake. Instrumenting the gate over four seeds found the army
+     * averaging 19.6 soldiers at the moment it marched against 6.5 real
+     * defenders, with the model reading a median 99% of our own force
+     * expected to survive: there was simply no bad fight to refuse. The
+     * seat's flaw was never that it attacked badly, it was that it attacked
+     * far too late — the same thing the posture sweeps found when `siege`,
+     * which marches sooner and commits harder, beat the printed playbook by
+     * eighteen points. So a favourable reading now *starts* a march the
+     * headcount bar would still be waiting on, and an unfavourable one holds
+     * one the bar would have allowed.
+     */
+    const odds = this.#oddsSay(world, army, target, s.marchConfidence);
     const mustered =
-      army.length >= mustersNeeded(s.armyAttackSize, idleFor) && idleFor > s.attackCooldown;
+      odds === null ? headcountReady : odds && cooled && army.length >= MIN_SORTIE;
+    // A hold has to reach the sweep as well: falling through to it would send
+    // the army walking into unexplored ground instead, which is the one
+    // outcome worse than the march it just refused. Only an actual hold
+    // suppresses the sweep — a muster with no target found yet still goes
+    // looking, which is how the map gets read.
+    const vetoed = odds === false;
     // Bookkeeping on the lone scout: a dead one gives up its post, and one
     // that outlived its purpose is called home before it wanders into a
     // camp's guards. A discovery goal that killed its scout is written off
@@ -451,7 +769,7 @@ export class AiBrain {
       this.#clearScout();
     }
 
-    if (target && mustered) {
+    if (target && mustered && !vetoed) {
       this.#attacking = true;
       this.#sweepGoal = -1;
       this.#lastAttackTick = world.tick;
@@ -483,7 +801,7 @@ export class AiBrain {
         x: baseX,
         y: baseY + 4,
       });
-    } else if (mustered) {
+    } else if (mustered && !vetoed) {
       // A full muster and nothing on the map to march at: the army becomes
       // the search party. Head for the nearest dark landmark (then any dark
       // ground); sight lights it up on approach, the goal is re-picked when
@@ -633,6 +951,129 @@ export class AiBrain {
     return commands;
   }
 
+  /**
+   * Take this window's reading, on `samplePeriod` ticks and not before —
+   * the scalars are cheap but the point of a slow clock is that a village
+   * gets time to look different.
+   */
+  #sampleProgress(world: World, mine: Building[], stock: Record<string, number>): void {
+    if (world.tick < this.#sampleDue) return;
+    this.#sampleDue = world.tick + AI_STALL.samplePeriod;
+    let built = 0;
+    let sites = 0;
+    for (const b of mine) {
+      if (b.state === 'built') built++;
+      else if (b.state === 'site') sites++;
+    }
+    let total = 0;
+    for (const n of Object.values(stock)) total += n;
+    this.#progress.push({
+      pop: populationOf(world, this.playerId),
+      built,
+      sites,
+      stock: total,
+    });
+    if (this.#progress.length > AI_STALL.window) this.#progress.shift();
+  }
+
+  /** Has nothing moved across the whole window? A window not yet full is
+   * not evidence of anything, so it reads as fine. */
+  #windowIsFlat(): boolean {
+    if (this.#progress.length < AI_STALL.window) return false;
+    const first = this.#progress[0]!;
+    return this.#progress.every(
+      (x) =>
+        x.pop === first.pop &&
+        x.built === first.built &&
+        x.sites === first.sites &&
+        x.stock === first.stock,
+    );
+  }
+
+  /**
+   * The escalating recovery rules, cheapest and least destructive first.
+   * At most one order per beat, so a seat takes only the step it needs and
+   * gets a whole sample period to show the step worked before the next one
+   * is considered.
+   *
+   * Both rules here spend a building or a post, which is why they sit
+   * behind the two free ones in `decide` and behind the stall reading
+   * itself. Neither can run on a seat that is going anywhere.
+   */
+  #recover(
+    world: World,
+    mine: Building[],
+    stock: Record<string, number>,
+    serfCount: number,
+    commands: SimCommand[],
+  ): void {
+    // Rule one: re-site a worked-out extractor. A gatherer with nothing
+    // left in reach is a hand and a hut spent on ground that will never
+    // yield again — tree groves regrow only on standing tiles
+    // (systems/production.ts `regrow`), so a woodcutter that cleared its
+    // radius sits on dead earth for the rest of the match, and a seam is
+    // simply finished. Selling it is the whole re-siting move: the sale
+    // hands back half the materials AND the resident (tick.ts), and the
+    // build order above maintains standing counts, so the next beat places
+    // the replacement — against a live deposit, because `spotFor` anchors
+    // on `nearestResource`, which only counts tiles with amount left.
+    //
+    // Two conditions keep this from making things worse. There has to be a
+    // live deposit somewhere to re-site onto, and the seat has to be able
+    // to afford the rebuild once the refund lands — half back means the
+    // shelf must already hold the other half. Failing either, selling would
+    // just be losing a building.
+    for (const b of sortedById(mine)) {
+      if (b.state !== 'built') continue;
+      const def = BUILDING_DEFS[b.type];
+      const recipe = gatherRecipeOf(def);
+      if (!recipe) continue;
+      const code = RESOURCE_CODE[recipe.resource]!;
+      const c = gatherOrigin(def, b.x, b.y);
+      if (findResourcesNear(world.map, c.x, c.y, code, recipe.radius, 1).length > 0) continue;
+      if (nearestResource(world, code, b.x, b.y) < 0) continue; // nowhere to move to
+      const cost = def.cost as Record<string, number>;
+      const canRebuild = Object.entries(cost).every(
+        ([good, n]) => (stock[good] ?? 0) + Math.floor(n / 2) >= n,
+      );
+      if (!canRebuild) continue;
+      commands.push({ kind: 'sellBuilding', buildingId: b.id });
+      this.#recoveries++;
+      return;
+    }
+
+    // Rule two: buy a hauler with a post. Nothing in the village moves
+    // without a loose serf — the haul matcher only ever offers a job to an
+    // idle one (systems/logistics.ts) — and a seat can spend its last hand
+    // legitimately, by binding it to a hut or handing it to the barracks as
+    // a recruit. Seed 9 ends exactly there: full extractors, four silver
+    // sitting in the silver mine, and nobody to carry it the twenty tiles
+    // to the storehouse that would pay for the hand that carries it.
+    //
+    // The post to empty is one whose output buffer is already full, which
+    // is precisely a post producing nothing: its worker is standing at a
+    // capped hut waiting for a haul that cannot come. Freeing him costs no
+    // production at all, and it is self-limiting — once he has drained the
+    // buffer the post is under cap again, and the staffing sweep re-fills it
+    // when the dismissal backoff runs out.
+    //
+    // Only a worker reading idle is taken. A hand released mid-trip used to
+    // be lost for good; unbindWorker resets the task now, but a rule whose
+    // whole purpose is producing a hauler should not depend on that.
+    if (serfCount > 0) return;
+    for (const b of sortedById(mine)) {
+      if (b.state !== 'built' || b.workerId === undefined) continue;
+      const def = BUILDING_DEFS[b.type];
+      const out = gatherRecipeOf(def)?.output;
+      if (out === undefined || (b.stock[out] ?? 0) < OUTPUT_CAP) continue;
+      const worker = world.units.get(b.workerId);
+      if (!worker || worker.dead || worker.task.t !== 'idle') continue;
+      commands.push({ kind: 'dismissWorker', buildingId: b.id });
+      this.#recoveries++;
+      return;
+    }
+  }
+
   /** The scout stands down entirely. */
   #clearScout(): void {
     this.#scoutId = -1;
@@ -647,44 +1088,218 @@ export class AiBrain {
   }
 
   /**
-   * Passive intelligence: every rival fighter standing in lit ground this
-   * beat is a data point. A bigger look replaces a smaller one — eight
-   * knights marching on the village say more than the one straggler seen
-   * since — and anything replaces a picture past its trust window.
+   * Is the fight at the end of this march one we would win?
+   *
+   * The march used to be decided by headcount alone, which cannot tell seven
+   * spearmen walking onto seven archers (a rout in our favour) from seven
+   * walking onto seven knights (a rout the other way). combatOdds.ts does the
+   * comparison; this supplies the two forces and honours the appetite the
+   * playbook set.
+   *
+   * Deliberately generous about ignorance. Three cases commit without asking:
+   * the knob is off (every printed playbook, so unadvised seats march exactly
+   * as before), the target is a bandit camp (no sighting machinery watches
+   * BANDIT at all — see #observeRivals — and camps are the early game's whole
+   * agenda), and nothing is known about the defenders. The gate is a brake on
+   * fights we can see going badly, not a general reluctance.
+   *
+   * Refusing costs nothing permanent: #lastAttackTick is stamped only by the
+   * march itself, so mustersNeeded keeps grinding the bar down and a seat that
+   * never likes its odds still eventually marches on the forlorn floor.
    */
-  #observeRivals(world: World): void {
-    const seen = new Map<Owner, Sighting>();
+  #oddsSay(
+    world: World,
+    army: Unit[],
+    target: Building | undefined,
+    marchConfidence: number,
+  ): boolean | null {
+    if (target === undefined) return null;
+    if (marchConfidence <= 0) return null;
+    this.#oddsAsked++;
+    if (target.type === 'banditCamp') {
+      this.#oddsCamps++;
+      return null;
+    }
+
+    const mine: Force = { heavy: 0, light: 0, ranged: 0, hp: 0 };
+    for (const u of army) {
+      const cls = UNIT_DEFS[u.kind].combat?.class;
+      if (!cls) continue;
+      mine[cls]++;
+      mine.hp += u.hp; // live hp: armour research and old wounds both count
+    }
+    if (mine.hp <= 0) return null;
+
+    const defenders = this.#defendersAt(world, target);
+    if (defenders === null) {
+      this.#oddsBlind++;
+      return null;
+    }
+    const commit = shouldCommit(mine, defenders, marchConfidence);
+    if (!commit) this.#oddsVetoed++;
+    return commit;
+  }
+
+  /**
+   * Who is standing at the target, or null when we have no idea.
+   *
+   * Preferred reading is what the seat can see around the target right now —
+   * live, and it catches a garrison the stored sighting never watched. The
+   * radius is the game's own longest leash, `acquireRadius * 1.6` for the
+   * widest-eyed unit, so it covers everything that would join the fight.
+   *
+   * Failing that, the last trustworthy look at the target's owner, which is
+   * the whole army rather than this castle's garrison — an overestimate, but
+   * the alternative is marching blind. Past its trust window it is not
+   * evidence and we say so by returning null.
+   */
+  #defendersAt(world: World, target: Building): Force | null {
+    const cx = target.x + target.w / 2;
+    const cy = target.y + target.h / 2;
+    const seen: Force = { heavy: 0, light: 0, ranged: 0, hp: 0 };
     for (const u of world.units.values()) {
-      if (u.dead || u.owner === this.playerId || !isPlayerOwner(u.owner)) continue;
+      if (u.dead || u.owner === this.playerId) continue;
       const cls = UNIT_DEFS[u.kind].combat?.class;
       if (!cls) continue;
       if (!this.#vision.canSee(u.x, u.y)) continue;
-      let s = seen.get(u.owner);
-      if (!s) {
-        s = { tick: world.tick, counts: { heavy: 0, light: 0, ranged: 0 }, total: 0 };
-        seen.set(u.owner, s);
-      }
-      s.counts[cls]++;
-      s.total++;
+      if (Math.abs(u.x - cx) + Math.abs(u.y - cy) > DEFENDER_RADIUS) continue;
+      seen[cls]++;
+      seen.hp += u.hp;
     }
-    for (const [owner, s] of seen) {
-      const old = this.#intel.get(owner);
-      if (!old || s.total >= old.total || world.tick - old.tick > AI_INTEL.trustFor) {
-        this.#intel.set(owner, s);
+    if (seen.hp > 0) return seen;
+
+    const pic = this.#intel.get(target.owner);
+    if (!pic || pic.seenTick < 0 || world.tick - pic.seenTick > AI_INTEL.trustFor) return null;
+    const { heavy, light, ranged } = rosterMuster(pic).counts;
+    if (heavy + light + ranged === 0) return null;
+    return {
+      heavy,
+      light,
+      ranged,
+      // Counts only — a scout cannot read armour research, so base hp it is.
+      hp: heavy * classHp('heavy') + light * classHp('light') + ranged * classHp('ranged'),
+    };
+  }
+
+  /**
+   * Passive intelligence: every rival fighter standing in lit ground this
+   * beat is a data point, and they accumulate.
+   *
+   * Each man seen goes on his owner's roster under his own id, so two looks
+   * at two different patrols add up instead of overwriting each other, and
+   * entries age out with the trust window (see RivalPicture for why the
+   * fallen are not struck off sooner).
+   *
+   * Also where the branchable facts get stamped: when their first soldier
+   * appeared at all, when one of them first reached our gates, and what
+   * their village looked like at minute five. Those three are the shape of
+   * an opening, and an opening is what an archetype is (src/ai/archetype.ts).
+   *
+   * `baseX/baseY` are the castle, or -1 when this seat has none — a seat one
+   * tick from elimination still watches, it just cannot say whether anything
+   * is at a gate it no longer owns.
+   */
+  #observeRivals(world: World, baseX: number, baseY: number): void {
+    const tick = world.tick;
+    const atGate = new Map<Owner, number>();
+    for (const u of world.units.values()) {
+      if (u.owner === this.playerId || !isPlayerOwner(u.owner)) continue;
+      const cls = UNIT_DEFS[u.kind].combat?.class;
+      if (!cls) continue;
+      if (!this.#vision.canSee(u.x, u.y)) continue;
+      if (u.dead) continue; // a corpse is not a garrison
+      const pic = this.#pictureOf(u.owner);
+      pic.roster.set(u.id, { tick, cls });
+      pic.seenTick = tick;
+      if (pic.firstSoldierTick < 0) pic.firstSoldierTick = tick;
+      if (
+        pic.firstAttackTick < 0 &&
+        baseX >= 0 &&
+        Math.abs(u.x - baseX) + Math.abs(u.y - baseY) <= AI_INTEL.raidRadius
+      ) {
+        atGate.set(u.owner, (atGate.get(u.owner) ?? 0) + 1);
+      }
+    }
+    // A raid, not a caller. Every playbook walks a lone scout past a rival's
+    // castle in the first four minutes, so "one of theirs came near" fired at
+    // minute four against a warlord and against an abbot alike and separated
+    // nothing. A force at the gate is `minSighting` of them at once.
+    for (const [owner, n] of atGate) {
+      if (n < AI_INTEL.minSighting) continue;
+      const pic = this.#pictureOf(owner);
+      if (pic.firstAttackTick < 0) pic.firstAttackTick = tick;
+    }
+
+    for (const pic of this.#intel.values()) {
+      for (const [id, seen] of pic.roster) {
+        if (tick - seen.tick > AI_INTEL.trustFor) pic.roster.delete(id);
+      }
+      if (pic.seenTick === tick && pic.roster.size >= AI_INTEL.minSighting) {
+        pic.richSeenTick = tick;
+      }
+      if (tick - pic.sampledTick >= AI_INTEL.samplePeriod) {
+        pic.sampledTick = tick;
+        pic.series.push({ tick, total: pic.roster.size });
+        if (pic.series.length > AI_INTEL.seriesLen) pic.series.shift();
+      }
+    }
+
+    if (!this.#earlyMarkTaken && tick >= AI_INTEL.earlyMark) {
+      this.#earlyMarkTaken = true;
+      const counts = new Map<Owner, number>();
+      for (const b of world.buildings.values()) {
+        if (b.dead || b.owner === this.playerId || !isPlayerOwner(b.owner)) continue;
+        if (!this.#vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
+        counts.set(b.owner, (counts.get(b.owner) ?? 0) + 1);
+      }
+      // Every living rival gets the stamp, seen or not: "we have found
+      // nothing of theirs by minute five" is itself the loudest fact about
+      // a village, and leaving it unknown would read as no evidence.
+      for (const p of world.players) {
+        if (p.id === this.playerId || !p.alive || !isPlayerOwner(p.id)) continue;
+        this.#pictureOf(p.id).buildingsAtFive = counts.get(p.id) ?? 0;
       }
     }
   }
 
-  /** The living rival whose picture is stalest and past due, or -1. The
-   * clock reads whichever is newer of the last real sighting and the last
-   * read attempt, and a seat never heard of ranks stalest of all. */
+  /** This rival's picture, opened on first contact. */
+  #pictureOf(owner: Owner): RivalPicture {
+    let pic = this.#intel.get(owner);
+    if (!pic) {
+      pic = {
+        roster: new Map(),
+        series: [],
+        seenTick: -1,
+        richSeenTick: -1,
+        sampledTick: -1,
+        firstSoldierTick: -1,
+        firstAttackTick: -1,
+        buildingsAtFive: -1,
+        reads: 0,
+      };
+      this.#intel.set(owner, pic);
+    }
+    return pic;
+  }
+
+  /**
+   * The living rival whose picture is stalest and past due, or -1. The clock
+   * reads whichever is newer of the last look at a real force and the last
+   * doorstep read, and a seat never heard of ranks stalest of all.
+   *
+   * A *real* force, not any glimpse: `refreshAfter` was all but dead before,
+   * because a single raider wandering into the light reset it. A lone
+   * straggler is not a look at an army, so it no longer buys the seat four
+   * thousand ticks of confidence it has not earned.
+   */
   #staleRival(world: World): Owner {
     let best: Owner = -1;
     let bestTick = Infinity;
     for (const p of world.players) {
       if (p.id === this.playerId || !p.alive) continue;
+      const seen = this.#intel.get(p.id)?.richSeenTick ?? -1;
       const last = Math.max(
-        this.#intel.get(p.id)?.tick ?? -Infinity,
+        seen >= 0 ? seen : -Infinity,
         this.#intelAttempt.get(p.id) ?? -Infinity,
       );
       if (world.tick - last <= AI_INTEL.refreshAfter) continue;
@@ -702,6 +1317,7 @@ export class AiBrain {
    * look actually saw stays on file until its trust window closes. */
   #stampIntel(world: World, owner: Owner): void {
     this.#intelAttempt.set(owner, world.tick);
+    this.#pictureOf(owner).reads++;
   }
 
   /**
@@ -714,10 +1330,12 @@ export class AiBrain {
   #counterPlan(world: World): { unit: UnitTypeId; recipe: number } | null {
     let best: Sighting | undefined;
     let bestOwner: Owner = -1;
-    for (const [owner, s] of this.#intel) {
+    for (const [owner, pic] of this.#intel) {
       if (!world.players[owner]?.alive) continue;
-      if (world.tick - s.tick > AI_INTEL.trustFor) continue;
-      if (s.total < AI_INTEL.minSighting) continue;
+      if (pic.seenTick < 0 || world.tick - pic.seenTick > AI_INTEL.trustFor) continue;
+      const muster = rosterMuster(pic);
+      if (muster.total < AI_INTEL.minSighting) continue;
+      const s: Sighting = { tick: pic.seenTick, counts: muster.counts, total: muster.total };
       if (!best || s.tick > best.tick || (s.tick === best.tick && owner < bestOwner)) {
         best = s;
         bestOwner = owner;
@@ -729,6 +1347,15 @@ export class AiBrain {
       heavy >= light && heavy >= ranged ? 'heavy' : ranged >= light ? 'ranged' : 'light';
     return COUNTER_PICK[dominant];
   }
+}
+
+/** The army a roster adds up to: every soldier still on the list, by class.
+ * Entries past the trust window are pruned as they are written, so what is
+ * here is what the seat still believes is standing. */
+function rosterMuster(pic: RivalPicture): { counts: Sighting['counts']; total: number } {
+  const counts = { heavy: 0, light: 0, ranged: 0 };
+  for (const seen of pic.roster.values()) counts[seen.cls]++;
+  return { counts, total: pic.roster.size };
 }
 
 /** The muster this beat asks for: the playbook's size, less one soldier for
@@ -749,6 +1376,13 @@ function affordable(cost: Record<string, number>, stock: Record<string, number>)
 
 function ownedBuildings(world: World, owner: Owner): Building[] {
   return [...world.buildings.values()].filter((b) => !b.dead && b.owner === owner);
+}
+
+/** By id, so two hosts pick the same building out of a set. Insertion order
+ * is already deterministic, but the recovery rules pick ONE building out of
+ * a whole village and an explicit tie-break is cheaper than trusting that. */
+function sortedById(buildings: Building[]): Building[] {
+  return [...buildings].sort((a, z) => a.id - z.id);
 }
 
 /** Where a build step wants to stand: at the base, or at its seam. */

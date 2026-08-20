@@ -217,10 +217,19 @@ manifest from the finished build, and registration lives in
 `src/app/serviceWorker.ts` — dev unregisters instead, so `pnpm dev` is never
 served yesterday's bundle.
 
+The optional **LLM strategist** (the "LLM strategist" toggle in the start
+menu) runs a small language model on-device — llama.cpp via wllama, CPU
+wasm so the renderer keeps the GPU — and lets it steer the AI seats'
+posture knobs on a slow cadence. Whether a given model's advice actually
+wins games is a measurable question, and `tools/aiLab/` is the measuring
+instrument: a seed-sweeping, seat-mirrored bake-off with error bars
+(`pnpm bakeoff --help`, and the README there).
+
 ```sh
 pnpm test        # headless sim suite (58 tests)
 pnpm typecheck   # TS 7, strict + erasableSyntaxOnly
 pnpm build       # typecheck + production bundle
+pnpm bakeoff     # LLM strategist bake-off (tools/aiLab)
 ```
 
 ## Credits

@@ -21,6 +21,9 @@ const playbook: SeatKnobs = {
   houseLimit: 3,
   housingHeadroom: 2,
   researchReserve: 5,
+  // The march gate ships off in every playbook (sim/combatOdds.ts), so a
+  // fixture standing in for a printed line holds it there too.
+  marchConfidence: 0,
 };
 
 describe('describeAdvice', () => {
