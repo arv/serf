@@ -152,12 +152,32 @@ export interface MatchRecord {
 }
 
 /** Advice waiting out its inference latency before it reaches the brain. */
-interface PendingAdvice {
+export interface PendingAdvice {
   dueTick: number;
   playerId: Owner;
   override: Partial<AiStrategy>;
   /** The consultation it came from, so the record can be closed out. */
   consult: ConsultRecord;
+}
+
+/**
+ * Queue advice by when it lands, not by when it was asked for.
+ *
+ * The tick loop drains from the front while `pending[0]` is due, so the
+ * array has to stay ordered by `dueTick`. Appending is enough under a fixed
+ * `--latency`, where every delay is identical and the two orders agree — but
+ * `--latency measured` gives each consultation its own delay, so a slow one
+ * can still be waiting when a fast one asked later comes due first. Appended,
+ * that fast advice would sit behind the slow one and land late, which is the
+ * opposite of what measuring latency is for.
+ *
+ * Inserted after the last entry due no later than this one, so ties keep the
+ * order they were asked in and a sweep stays reproducible.
+ */
+export function queueAdvice(pending: PendingAdvice[], entry: PendingAdvice): void {
+  let i = pending.length;
+  while (i > 0 && pending[i - 1]!.dueTick > entry.dueTick) i--;
+  pending.splice(i, 0, entry);
 }
 
 export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
@@ -200,7 +220,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
           cfg.latencyTicks === 'measured'
             ? Math.round((consult?.ms ?? 0) / TICK_MS)
             : cfg.latencyTicks;
-        pending.push({
+        queueAdvice(pending, {
           dueTick: world.tick + Math.max(0, delay),
           playerId: id,
           override,

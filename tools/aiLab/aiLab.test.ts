@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { parseAdvice } from '../../src/ai/advice.ts';
 import { parseArgs, parseStrategies } from './bakeoff.ts';
 import { buildEngine, parseEngineSpec, randomEngine, scriptEngine } from './engines.ts';
+import { POSTURE_ORDER } from '../../src/ai/posture.ts';
+import { queueAdvice, type PendingAdvice } from './match.ts';
 import { digestOf, playMatch, type MatchConfig, type MatchRecord, type SeatStrategies } from './match.ts';
 import { binomCdfHalf, compare, readRun, renderComparison, type ArmOutcomes } from './compare.ts';
 import { renderMatchup, renderReport, verdict, type ReportHeader } from './report.ts';
@@ -100,8 +102,63 @@ describe('engine specs', () => {
     expect(() => parseEngineSpec('script:not json')).toThrow(/could not parse/);
   });
 
+  it('names every engine it accepts when it refuses one', () => {
+    // The refusal is the CLI's only documentation at the moment someone
+    // needs it, so an engine missing from the list is an engine nobody
+    // finds. Asserted against the real table so a new stance cannot be
+    // added without appearing here.
+    let message = '';
+    try {
+      parseEngineSpec('qwen2.5');
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+    }
+    for (const name of ['none', 'random', 'posture', 'posture-blind', 'script', 'http']) {
+      expect(message, `refusal should mention ${name}`).toContain(name);
+    }
+    for (const id of POSTURE_ORDER) expect(message).toContain(id);
+  });
+
   it('builds nothing for the unadvised control', () => {
     expect(buildEngine({ kind: 'none' }, 1)).toBeNull();
+  });
+});
+
+describe('the advice queue', () => {
+  /** Only dueTick and the label matter here; the rest is ballast. */
+  const entry = (dueTick: number, label: number): PendingAdvice => ({
+    dueTick,
+    playerId: 0,
+    override: { serfTarget: label },
+    consult: { playerId: 0, tick: 0, ms: 0, promptChars: 0, replyChars: 0 },
+  });
+  const order = (q: PendingAdvice[]): number[] => q.map((e) => e.override.serfTarget!);
+
+  it('keeps the queue ordered by when advice lands', () => {
+    // The case --latency measured produces: a slow consultation lands after
+    // a fast one asked later. Drained from the front, an appended queue
+    // would hold the fast advice back behind the slow one.
+    const q: PendingAdvice[] = [];
+    queueAdvice(q, entry(100, 1)); // slow: 5s of thinking
+    queueAdvice(q, entry(54, 2)); // fast: asked later, due sooner
+    expect(q.map((e) => e.dueTick)).toEqual([54, 100]);
+    expect(order(q)).toEqual([2, 1]);
+  });
+
+  it('leaves ties in the order they were asked', () => {
+    // Every fixed --latency puts the whole sweep here, so this is the path
+    // every recorded run took: identical delays must not be reshuffled.
+    const q: PendingAdvice[] = [];
+    for (const n of [1, 2, 3, 4]) queueAdvice(q, entry(40, n));
+    expect(order(q)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('orders an arbitrary arrival sequence, ties intact', () => {
+    const q: PendingAdvice[] = [];
+    const arrivals: [number, number][] = [[30, 1], [10, 2], [30, 3], [20, 4], [10, 5]];
+    for (const [due, label] of arrivals) queueAdvice(q, entry(due, label));
+    expect(q.map((e) => e.dueTick)).toEqual([10, 10, 20, 30, 30]);
+    expect(order(q)).toEqual([2, 5, 4, 1, 3]);
   });
 });
 

@@ -207,6 +207,13 @@ export function parseArgs(argv: string[]): Options {
     throw new Error(`--latency wants a number of ticks or "measured", got "${latencyRaw}"`);
   }
   const timeoutRaw = get('--timeout-ms');
+  // Validated like every other number rather than passed through: an unparsed
+  // --timeout-ms reaches LlmStrategist as NaN, where every comparison against
+  // it is false, so the deadline silently never fires.
+  const timeoutMs = timeoutRaw === undefined ? undefined : Number(timeoutRaw);
+  if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+    throw new Error(`--timeout-ms wants a positive number of milliseconds, got "${timeoutRaw}"`);
+  }
 
   return {
     spec: parseEngineSpec(get('--engine') ?? 'random', get('--model') ?? 'local-model'),
@@ -219,7 +226,7 @@ export function parseArgs(argv: string[]): Options {
     advicePeriod: num('--advice-period', 1800),
     adviceStagger: num('--advice-stagger', 300),
     latency: latencyRaw === 'measured' ? 'measured' : Number(latencyRaw),
-    timeoutMs: timeoutRaw === undefined ? undefined : Number(timeoutRaw),
+    timeoutMs: timeoutRaw === undefined ? undefined : timeoutMs,
     control: !argv.includes('--no-control'),
     trace: argv.includes('--trace'),
     checkInvariantsEvery: num('--check', 0),

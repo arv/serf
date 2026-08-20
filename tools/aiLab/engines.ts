@@ -105,7 +105,8 @@ export function parseEngineSpec(raw: string, model = 'local-model'): EngineSpec 
     return { kind: 'http', baseUrl: raw.replace(/\/+$/, ''), model };
   }
   throw new Error(
-    `unrecognized --engine "${raw}" (want none | random[:n] | script:{...} | http://…/v1)`,
+    `unrecognized --engine "${raw}" (want none | random[:n] | posture | posture-blind | ` +
+      `posture:<${POSTURE_ORDER.join('|')}> | script:{...} | http://…/v1)`,
   );
 }
 
