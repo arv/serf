@@ -209,6 +209,36 @@ export function findResourcesNear(
   return out;
 }
 
+/**
+ * Everything the ground inside a gatherer's reach still holds, summed —
+ * the number of loads that hut, quarry or mine can still take out of it
+ * wherever it stands.
+ *
+ * Walks the same square, in the same play-area-only terms, as the two
+ * searches above: what this counts is exactly what they will hand a
+ * worker, so the readout on the card can never promise a harvest the
+ * gather loop refuses to make. (The center tile is the footprint's own
+ * and holds nothing; the searches skip it by starting at r = 1.)
+ */
+export function countResourceNear(
+  map: PlayArea & { resource: ArrayLike<number>; resourceAmt: ArrayLike<number> },
+  cx: number,
+  cy: number,
+  code: TileResourceKind,
+  radius: number,
+): number {
+  let total = 0;
+  for (let y = cy - radius; y <= cy + radius; y++) {
+    for (let x = cx - radius; x <= cx + radius; x++) {
+      if (x === cx && y === cy) continue;
+      if (!inPlayArea(map, x, y)) continue;
+      const i = tileIdx(x, y, map.size);
+      if (map.resource[i] === code) total += map.resourceAmt[i]!;
+    }
+  }
+  return total;
+}
+
 /** A faction's home: storehouse footprint origin tile. */
 export interface StartSpot {
   x: number;
