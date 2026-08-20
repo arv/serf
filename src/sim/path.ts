@@ -161,20 +161,26 @@ function search(
   while (heapSize > 0) {
     const current = heapPop();
     if (isGoal(current)) return reconstruct(start, current);
-    // The runaway-search cap: half the grid, floored at the classic 4096
-    // (the whole 64 map). A flat 4096 under-served bigger maps — a legal
-    // long detour on a 128 grid can honestly expand more than a 64 map
-    // holds — but the cap's real job is bounding UNREACHABLE searches,
-    // which expand the entire walkable component before failing; letting
-    // those touch the whole grid made every stuck hauler 2.25x more
-    // expensive at 96 and pushed the winnable sim past its clock. Half
-    // the grid clears any plausible real path in these open valleys.
-    // The runaway-search cap: half the PLAY area, floored at the classic
-    // 4096 (the whole 64 map). The grid is bigger, but its margin is all
-    // blocked scenery no search can enter — an unreachable search still
-    // exhausts at most the playable component, and sizing the cap off the
-    // grid quadrupled the price of every stuck unit for nothing.
-    if (++expansions > Math.max(4096, (map.play * map.play) >> 1)) return null;
+    // The runaway-search cap. Its only job is bounding an UNREACHABLE
+    // search, which expands the whole walkable component before it can
+    // fail; a reachable goal must never hit it.
+    //
+    // That makes the component size the floor, and half the play area was
+    // below it. Seed 9 measured the failure: a 96 map with a 5016-tile
+    // walkable component against a cap of (96*96)>>1 = 4608, so a march
+    // from one castle to the other — 74 tiles across a valley the flood
+    // fill says is fully connected — returned null. The army then sat in
+    // `raid` forever, re-trying every 45 ticks (Unit.repathAt) against a
+    // goal it was never allowed to find, which is why the impatience ramp
+    // in systems/ai.ts walked the muster bar down to one soldier and STILL
+    // never ended the match. Not an AI bug: the order was dropped under it.
+    //
+    // The play square is the honest bound — no walkable component can
+    // exceed it, since the margin outside is blocked scenery no search can
+    // enter. It costs a stuck unit up to 2x its old worst case at 96 and
+    // nothing at all when the goal is reachable, because a search that
+    // succeeds stops at the goal.
+    if (++expansions > Math.max(4096, map.play * map.play)) return null;
 
     const cx = tileX(current, size);
     const cy = tileY(current, size);

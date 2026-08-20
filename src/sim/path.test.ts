@@ -26,6 +26,54 @@ function block(map: GameMap, x: number, y: number): void {
 }
 
 describe('A* pathfinding', () => {
+  /**
+   * The regression for the runaway-search cap.
+   *
+   * The cap's only job is bounding an UNREACHABLE search, which expands the
+   * whole walkable component before it can fail. That makes the component
+   * size the floor the cap has to clear — and half the play area sits below
+   * it. At 96 the cap was (96*96)>>1 = 4608 against valleys whose open
+   * ground runs to ~5000 tiles, so a march long enough to need more than
+   * 4608 expansions came back null on ground a flood fill calls fully
+   * connected.
+   *
+   * It failed silently, which is what made it expensive: a caller cannot
+   * tell a capped search from a genuinely unreachable goal, so the order was
+   * dropped rather than refused and whoever issued it simply re-tried
+   * forever. In the sim that read as an army that would not march.
+   *
+   * The corridor below is the smallest honest reproduction — 4656 open
+   * tiles single-file, so expansions track path length instead of exploding
+   * on open-ground ties. It returns null under the old cap and walks under
+   * the new one.
+   */
+  it('walks a corridor longer than half the play area', () => {
+    const map = emptyMap();
+    // Wall off every odd row, leaving one gap at alternating ends: one
+    // single-file switchback from the top of the map to the bottom.
+    for (let y = 1; y < MAP_SIZE; y += 2) {
+      for (let x = 0; x < MAP_SIZE; x++) block(map, x, y);
+      const gate = ((y - 1) / 2) % 2 === 0 ? MAP_SIZE - 1 : 0;
+      map.blocked[tileIdx(gate, y, map.size)] = 0;
+    }
+    const open = map.blocked.reduce((n, b) => n + (b ? 0 : 1), 0);
+    expect(open, 'the corridor must outrun the old cap to be a regression').toBeGreaterThan(
+      (MAP_SIZE * MAP_SIZE) >> 1,
+    );
+
+    const path = findPath(map, 0, 0, 0, MAP_SIZE - 1);
+    expect(path, 'a reachable goal must never hit the search cap').not.toBeNull();
+    expect(path!.length).toBe(open - 1);
+  });
+
+  it('still refuses a goal walled off from the start', () => {
+    // The cap's real job, and it has to survive being raised: a search with
+    // nowhere to go exhausts its component and returns null.
+    const map = emptyMap();
+    for (let y = 0; y < MAP_SIZE; y++) block(map, 40, y);
+    expect(findPath(map, 1, 1, 60, 60)).toBeNull();
+  });
+
   it('finds a straight path', () => {
     const map = emptyMap();
     const path = findPath(map, 0, 0, 5, 0)!;
