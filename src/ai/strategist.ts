@@ -42,10 +42,27 @@ import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
  * the next consultation — documented, accepted.
  */
 
-/** Small enough that CPU prefill stays in seconds, and in llama.cpp's
- * best-supported format. ~400 MB, cached by wllama after the first game. */
+/**
+ * Small enough that CPU prefill stays in seconds, and in llama.cpp's
+ * best-supported format. ~230 MB, cached by wllama after the first game.
+ *
+ * Chosen by the bake-off rather than by reputation. The seat used to run
+ * qwen2.5-0.5b, which measured 33.8% as a knob-author — *below* the 46.7%
+ * random noise floor, flipping matches away from the advised seat thirteen
+ * times against two toward. Asked for a posture instead (see ai/posture.ts),
+ * this model scored 63.4% and beat that floor on a paired McNemar
+ * (p = 0.0225), the first engine in the harness to clear it at all. It is
+ * also 40% smaller and answers in 180ms at the median against qwen's 1538ms,
+ * which in a game where the valley keeps moving during inference is the
+ * difference between advice about now and advice about a minute ago.
+ *
+ * What the lab could not measure is wasm: those numbers come from
+ * llama-server, so the decisions transfer and the milliseconds do not.
+ * wllama's bundled llama.cpp does know the LFM2 architecture — check a
+ * first-run download in the browser before trusting a release to it.
+ */
 export const LLM_MODEL_URL =
-  'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf';
+  'https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/resolve/main/LFM2.5-350M-Q4_K_M.gguf';
 
 /** CPU inference is slow but must not be unbounded: a consultation that
  * cannot finish inside this is a machine too weak to advise on. */
