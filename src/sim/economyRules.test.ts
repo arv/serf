@@ -24,6 +24,7 @@ function stub(id: string, claims: number[], group?: string): EconomyRule {
   return {
     id: id as EconomyRuleId,
     when: 'always, for the test',
+    phase: 'recovery',
     ...(group !== undefined ? { group } : {}),
     fire: () => ({
       commands: [{ kind: 'sellBuilding', buildingId: claims[0] ?? 0 } as SimCommand],
@@ -36,7 +37,7 @@ function stub(id: string, claims: number[], group?: string): EconomyRule {
  * exercises `runEconomyRules` rather than a second copy of its logic. */
 function runTable(table: EconomyRule[], enabled?: EconomyRuleId[]) {
   const on = new Set<EconomyRuleId>((enabled ?? table.map((r) => r.id)) as EconomyRuleId[]);
-  return runEconomyRules(ctx, on, table);
+  return runEconomyRules(ctx, on, 'recovery', table);
 }
 
 describe('the rule table', () => {
@@ -52,6 +53,13 @@ describe('the rule table', () => {
     for (const rule of ECONOMY_RULES) {
       expect(rule.when.length, `${rule.id} needs a when`).toBeGreaterThan(0);
     }
+  });
+
+  it('runs only the phase it is asked for', () => {
+    // Phases exist because command order inside a tick is load-bearing, so a
+    // rule leaking into the wrong one is a real bug, not a tidiness issue.
+    const table = [stub('a', [1]), { ...stub('b', [2]), phase: 'production' as const }];
+    expect(runTable(table).fired).toEqual(['a']);
   });
 });
 
@@ -87,7 +95,7 @@ describe('composition', () => {
 
 describe('the ablation handle', () => {
   it('runs nothing at all when the set is empty', () => {
-    const out = runEconomyRules({ ...ctx, stalled: true } as RuleContext, new Set());
+    const out = runEconomyRules({ ...ctx, stalled: true } as RuleContext, new Set(), 'recovery');
     expect(out.commands).toEqual([]);
     expect(out.fired).toEqual([]);
   });
@@ -117,6 +125,6 @@ describe('the real rules stay quiet on a healthy seat', () => {
       serfCount: 3,
       stalled: false,
     } as unknown as RuleContext;
-    expect(runEconomyRules(healthy, all).fired).toEqual([]);
+    expect(runEconomyRules(healthy, all, 'recovery').fired).toEqual([]);
   });
 });

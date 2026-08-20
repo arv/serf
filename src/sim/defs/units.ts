@@ -107,3 +107,10 @@ export function carryingCode(good: GoodId | undefined): number {
 export function goodFromCarryingCode(code: number): GoodId | undefined {
   return code === 0 ? undefined : GOODS[code - 1];
 }
+
+/** What a soldier needs forged before the barracks can start on them. */
+export const WEAPON_OF: Partial<Record<UnitTypeId, GoodId>> = {
+  knight: 'sword',
+  spearman: 'spear',
+  archer: 'bow',
+};

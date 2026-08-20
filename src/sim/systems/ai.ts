@@ -3,6 +3,7 @@ import {
   ALL_ECONOMY_RULES,
   runEconomyRules,
   type EconomyRuleId,
+  type RuleContext,
 } from '../economyRules.ts';
 import { exactDist } from '../../shared/math.ts';
 import {
@@ -27,7 +28,7 @@ import {
   type BuildingTypeId,
 } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
-import { UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
+import { UNIT_DEFS, WEAPON_OF, type UnitClass, type UnitTypeId } from '../defs/units.ts';
 import { classHp, shouldCommit, type Force } from '../combatOdds.ts';
 import { HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
@@ -333,12 +334,6 @@ const MILITARY = new Set<UnitTypeId>(['knight', 'spearman', 'archer']);
  * seat into emptying its yard. */
 const MIN_SORTIE = 3;
 
-/** What a soldier needs forged before the barracks can start on them. */
-const WEAPON_OF: Partial<Record<UnitTypeId, GoodId>> = {
-  knight: 'sword',
-  spearman: 'spear',
-  archer: 'bow',
-};
 
 const ANCHOR_RESOURCE: Record<Exclude<BuildAnchor, 'base' | 'water'>, number> = {
   wood: TileResource.Wood,
@@ -633,13 +628,21 @@ export class AiBrain {
     // Only ever reached by a seat the window says has not moved in twelve
     // minutes. Everything above this line is the game as it was played
     // before the watchdog existed.
+    const ruleCtx: RuleContext = {
+      world,
+      owner: this.playerId,
+      mine: sortedById(mine),
+      stock,
+      serfCount,
+      stalled,
+      strategy: s,
+      researched,
+      counter: this.#counterPlan(world),
+    };
     if (this.#rules.size > 0) {
-      const { commands: ruled, fired } = runEconomyRules(
-        { world, owner: this.playerId, mine: sortedById(mine), stock, serfCount, stalled },
-        this.#rules,
-      );
-      commands.push(...ruled);
-      this.#recoveries += fired.length;
+      const recovery = runEconomyRules(ruleCtx, this.#rules, 'recovery');
+      commands.push(...recovery.commands);
+      this.#recoveries += recovery.fired.length;
     }
 
     // --- Research queue ------------------------------------------------------
@@ -659,78 +662,12 @@ export class AiBrain {
       }
     }
 
-    // --- Forge assignments: the playbook's weapon mix, by smith age ---------
-    // Bent by intelligence: smiths beyond the first switch to the weapon
-    // that beats what scouting has seen of a living rival's army. The
-    // first smith keeps the playbook's own line — a sighting is a reason
-    // to hedge, not to stampede — and a counter the seat cannot forge
-    // (tech-gated recipe) leaves the mix as written.
-    const counter = this.#counterPlan(world);
-    const smiths = mine
-      .filter((b) => b.type === 'weaponsmith' && b.state === 'built')
-      .sort((a, z) => a.id - z.id);
-    smiths.forEach((smith, i) => {
-      let want = s.weaponMix[Math.min(i, s.weaponMix.length - 1)]!;
-      if (counter && i > 0) {
-        const opt = BUILDING_DEFS.weaponsmith.recipeOptions?.[counter.recipe];
-        if (opt && (opt.requiresTech === undefined || researched(opt.requiresTech))) {
-          want = counter.recipe;
-        }
-      }
-      const option = BUILDING_DEFS.weaponsmith.recipeOptions?.[want];
-      if (!option) return;
-      if (option.requiresTech !== undefined && !researched(option.requiresTech)) return;
-      if ((smith.recipeIndex ?? 0) !== want) {
-        commands.push({ kind: 'setBuildingRecipe', buildingId: smith.id, index: want });
-      }
-    });
-
-    // --- Keep the barracks queue warm --------------------------------------------
-    // The counter unit jumps the queue when its weapon is at hand — the
-    // around() check is the feasibility test, so a counter the economy
-    // cannot arm falls straight through to the playbook's own preference.
-    const barracks = mine.find((b) => b.type === 'barracks' && b.state === 'built');
-    if (barracks) {
-      const around = (good: GoodId): boolean =>
-        (stock[good] ?? 0) + (barracks.inputs[good] ?? 0) + (barracks.inbound[good] ?? 0) > 0;
-      const prefs = counter ? [counter.unit, ...s.trainPreference] : s.trainPreference;
-      const ready = prefs.find((unit) => {
-        const weapon = WEAPON_OF[unit];
-        return weapon !== undefined && around(weapon);
-      });
-      // A queue can go stale: an unstarted entry whose weapon the village
-      // neither holds nor has on the way pins its slot forever — the iron
-      // ran out under a spearman order while swords piled up in the store,
-      // and a queue at depth stops this rule from ever running again. One
-      // stale entry makes way per beat, and only while a unit the seat CAN
-      // arm is waiting for the slot. An empty-handed queue keeps its
-      // entries: unstarted orders are what summon their weapons at all
-      // (trainingDemand reads them), so a seat with nothing in reach must
-      // hold its place in line, not clear it.
-      let cancelled = 0;
-      if (ready !== undefined) {
-        const staleIdx = (barracks.trainQueue ?? []).findIndex((item) => {
-          if (item.started) return false;
-          const weapon = WEAPON_OF[item.unit];
-          return weapon !== undefined && !around(weapon);
-        });
-        if (staleIdx >= 0) {
-          commands.push({
-            kind: 'cancelTraining',
-            buildingId: barracks.id,
-            index: staleIdx,
-            unit: barracks.trainQueue![staleIdx]!.unit,
-          });
-          cancelled = 1;
-        }
-      }
-      if ((barracks.trainQueue?.length ?? 0) - cancelled < s.barracksQueueDepth) {
-        commands.push({
-          kind: 'trainUnit',
-          buildingId: barracks.id,
-          unit: ready ?? s.trainFallback,
-        });
-      }
+    // --- War production: forges and the barracks queue ----------------------
+    // Both are rules now (sim/economyRules.ts) and fire here rather than
+    // earlier, because command order inside a tick is load-bearing: research
+    // above spends the same shelf these orders draw on.
+    if (this.#rules.size > 0) {
+      commands.push(...runEconomyRules(ruleCtx, this.#rules, 'production').commands);
     }
 
     // --- Army: rally at home until strong, then march ------------------------
