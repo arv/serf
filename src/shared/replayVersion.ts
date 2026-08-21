@@ -20,7 +20,7 @@
  * directly.
  */
 /**
- * 16: one lever where there were two — pausing a building now empties it.
+ * 17: one lever where there were two — pausing a building now empties it.
  *
  * The dismiss order is gone, and halting a building does what it did: the
  * resident (or a site's builder) walks off a serf again, a recruit already
@@ -36,6 +36,12 @@
  * the one that replaced it releases hands the old one left in place. A
  * replay recorded before this build re-runs into a different village within
  * a stall or two.
+ *
+ * 16: the opening armory goes back to two spears and a sword. Version 14
+ * traded the second spear for a bow that had to wait on Archery to be
+ * spent; the rack now holds only what a Soldiery rush can field on day
+ * one. The first recruits differ, so every tick after the first barracks
+ * order does too.
  *
  * 15: the guard tower learns to defend against a rush.
  *
@@ -77,4 +83,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 16;
+export const REPLAY_VERSION = 17;
