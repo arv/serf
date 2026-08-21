@@ -3,7 +3,7 @@ import type { MapFile } from '../mapFile.ts';
 
 /**
  * The campaign's authored ground, loaded on demand. Dynamic imports on
- * purpose: the six map files are ~450 KB of JSON each, and a static
+ * purpose: the six map files are ~250 KB of JSON each, and a static
  * import anywhere in the sim would sink them all into the boot bundle of
  * every surface that links the sim — the menu included. This table is the
  * only doorway; each file ships as its own code-split chunk and arrives

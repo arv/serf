@@ -11,7 +11,10 @@
     // (src/sim/defs/maps/, `with { type: 'json' }` so plain node — the
     // server — loads them too).
     "resolveJsonModule": true,
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // ESNext.TypedArrays for Uint8Array's base64 methods (shared/base64.ts):
+    // the map file's tile grids ride as base64 and the platform's own
+    // codec is what encodes them where it exists.
+    "lib": ["ES2023", "ESNext.TypedArrays", "DOM", "DOM.Iterable"],
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "strict": true,
