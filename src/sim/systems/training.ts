@@ -73,14 +73,23 @@ export function evictGarrison(world: World, b: Building, n: number): void {
   if (!rule) return;
   const out = Math.min(n, b.garrison ?? 0);
   if (out <= 0) return;
+  // Whoever actually went up comes back down: a called-out villager returns
+  // a villager, not an archer the player never trained.
+  const kind = b.garrisonKind ?? rule.unit;
+  const isLevy = kind === rule.levy.unit;
   // One door for the lot: spawning a man does not move it, and doorOf runs
   // a nearestWalkable search each time it is asked.
   const door = doorOf(world, b);
   for (let i = 0; i < out; i++) {
-    const unit = spawnUnit(world, rule.unit, b.owner, door.x, door.y);
-    unit.hp = Math.round(UNIT_DEFS[rule.unit].hp * getModifier(world, b.owner, 'militaryHp'));
+    const unit = spawnUnit(world, kind, b.owner, door.x, door.y);
+    // Armour research is a soldier's; a serf goes back to work as he was.
+    if (!isLevy) {
+      unit.hp = Math.round(UNIT_DEFS[kind].hp * getModifier(world, b.owner, 'militaryHp'));
+    }
   }
   b.garrison = (b.garrison ?? 0) - out || undefined;
+  // Empty towers have no kind — that is what lets the next man set it.
+  if (b.garrison === undefined) b.garrisonKind = undefined;
 }
 
 /** Sum of goods the building's training queue still needs (for the matcher). */

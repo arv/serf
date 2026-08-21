@@ -20,6 +20,26 @@ pnpm dev            # then open /tools/modelLab/
 Drag a card to turn it. `?only=<variant-id>` blows one composition up to
 full width — the fastest way to judge a placement.
 
+## The tower roof
+
+`_levy.html` is a scratch page for the one thing tests cannot check: what
+the guard tower's garrison looks like. It calls the same
+`makeGlbBuilding` / `makeCharacter` / `playAnimation` the renderer does and
+places the figures on the model's own `towerPost` marks exactly the way
+`BuildingSync.#syncGarrison` does, so what reads there reads on a roof in a
+match. Two towers side by side: the levy throwing, the archers drawing.
+
+```sh
+pnpm dev   # then /tools/modelLab/_levy.html
+```
+
+`?t=<0..1>` scrubs every clip to that fraction of its length — shoot a
+series of those and you have the motion frame by frame. `?strip=throw`
+(or `shoot`) lays one clip out left to right instead, turned square to the
+camera, which is the only way to judge a throw: on a roof the men face
+outward and you are usually behind them. `w`/`h`/`zoom`/`fy` size and frame
+the shot.
+
 ## Publishing the gallery
 
 ```sh

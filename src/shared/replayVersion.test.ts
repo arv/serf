@@ -24,8 +24,8 @@ import { REPLAY_VERSION } from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
-const EXPECTED_VERSION = 14;
-const EXPECTED_HASH = '67c04783839b3d35d47dec12429a297d';
+const EXPECTED_VERSION = 15;
+const EXPECTED_HASH = '8ab62149f797d4038527562b5d84137a';
 
 /**
  * Everything a replay's playback depends on, as raw source:

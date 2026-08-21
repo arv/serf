@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { cmds } from './testUtils.ts';
-import { createWorld, type World } from './world.ts';
+import { createWorld, placeBuiltBuilding, spawnUnit, type World } from './world.ts';
 import { deserializeWorld, serializeWorld } from './save.ts';
 import { tickWorld } from './tick.ts';
 import { checkInvariants } from './debug/invariants.ts';
+import { BANDIT } from './entities.ts';
+import { UNIT_DEFS } from './defs/units.ts';
+import { BUILDING_DEFS } from './defs/buildings.ts';
 import type { SimCommand } from './commands.ts';
 
 function commandScript(tick: number): SimCommand[] {
@@ -77,6 +80,39 @@ describe('save/load', () => {
     // to print itself in digits per tile is caught here.
     expect(size).toBeLessThan(800_000);
   });
+
+  it('opens a save written before towers knew who was in them', () => {
+    // The levy added Building.garrisonKind, so a file from any earlier build
+    // has a manned tower and no word on who is manning it. That is not a new
+    // shape — it is a missing optional — so the save format did not move
+    // for it, and it called for no bump of its own. What has to hold is
+    // the reading: an old garrison is archers, because archers were the
+    // only thing that could ever be up there.
+    const world = createWorld({ seed: 5, players: [{ kind: 'human' }] });
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = 2;
+    tower.garrisonKind = undefined; // as an older build wrote it
+    const saved = serializeWorld(world);
+    expect(saved).not.toContain('garrisonKind');
+
+    const back = deserializeWorld(saved);
+    const loaded = back.buildings.get(tower.id)!;
+    expect(loaded.garrison).toBe(2);
+    expect(loaded.garrisonKind).toBeUndefined();
+
+    // It shoots like the archers it always was, not like a levy.
+    const raider = spawnUnit(back, 'bandit', BANDIT, 34.5, 31.5);
+    const before = raider.hp;
+    tickWorld(back, []);
+    const combat = UNIT_DEFS.archer.combat!;
+    const rule = BUILDING_DEFS.guardTower.garrison!;
+    expect(before - raider.hp).toBeCloseTo(combat.damage * rule.damageMult * 2, 5);
+
+    // And hands archers back, not serfs, when it is emptied.
+    tickWorld(back, cmds({ kind: 'sellBuilding', buildingId: loaded.id }));
+    const out = [...back.units.values()].filter((u) => !u.dead && u.kind === 'archer');
+    expect(out).toHaveLength(2);
+  });
 });
 
 const GRIDS = [
@@ -126,4 +162,5 @@ describe('the map grids', () => {
     const short = (doc.world.map.height as string).slice(0, 64);
     expect(() => deserializeWorld(withGrid('height', short))).toThrow(/bad map size/);
   });
+
 });

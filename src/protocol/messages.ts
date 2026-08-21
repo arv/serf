@@ -79,6 +79,8 @@ export interface BuildingSnap {
    * buildings that are manned at all (the guard tower). */
   garrison?: number;
   garrisonCap?: number;
+  /** True when the men on the roof are the levy rather than soldiers. */
+  levied?: true;
   /** Present (as `true`) only while a manned building is between volleys —
    * the cue for the archers on the roof to be drawing rather than idling.
    * Same convention as `working` above: `false` is never sent. */

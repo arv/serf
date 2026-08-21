@@ -60,6 +60,12 @@ export function constructionSystem(world: World): void {
 
     b.state = 'built';
     b.hp = def.hp;
+    // A tower comes up with its levy stood down. Villagers are the whole
+    // village's hands — a running one would put two of them on the wall the
+    // moment the masons stepped off and hold them through every quiet hour
+    // after. Starting it is the order to call them up. Soldiers are not
+    // affected either way: they man it whenever they exist.
+    if (def.garrison) b.paused = true;
     delete b.siteNeeds;
     delete b.buildProgress;
     delete b.builderWantedSince;

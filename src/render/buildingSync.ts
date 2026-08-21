@@ -42,6 +42,8 @@ const SHOAL_DRAFT = 0.14;
 
 /** UNIT_DEFS.archer.kindCode — who mans a guard tower's roof. */
 const ARCHER_KIND = UNIT_DEFS.archer.kindCode;
+/** The levy on the roof wears the serf it is. */
+const LEVY_KIND = UNIT_DEFS.serf.kindCode;
 
 /** Reused for the post->root coordinate hop; buildings do not move. */
 const SCRATCH_POS = new THREE.Vector3();
@@ -110,6 +112,10 @@ interface BuildingVisual {
   manned: { group: THREE.Group; char: CharacterVisual | null }[];
   /** Latest BuildingSnap.firing — the roof draws instead of idling. */
   firing: boolean;
+  /** Latest BuildingSnap.levied: villagers on the roof, not archers. Kept
+   * so a relief — the levy going down as soldiers come up — rebuilds the
+   * figures instead of leaving serfs standing in an archer's post. */
+  levied: boolean;
 }
 
 /** One yard-stock entry: what good, worn as which look, standing where. */
@@ -421,6 +427,7 @@ export class BuildingSync {
         .filter((o): o is THREE.Object3D => o !== undefined),
       manned: [],
       firing: false,
+      levied: false,
     };
   }
 
@@ -580,7 +587,10 @@ export class BuildingSync {
       for (let i = 0; i < v.manned.length; i++) {
         const char = v.manned[i]!.char;
         if (!char) continue;
-        playAnimation(char, v.firing ? 'shoot' : 'idle', i * 0.37);
+        // The levy has no bow to draw, so it lobs: the villager throws and
+        // the archer keeps his own loose.
+        const shooting = v.levied ? 'throw' : 'shoot';
+        playAnimation(char, v.firing ? shooting : 'idle', i * 0.37);
         char.mixer.update(dt);
       }
     }
@@ -698,13 +708,24 @@ export class BuildingSync {
    */
   #syncGarrison(v: BuildingVisual, b: BuildingSnap): void {
     const want = v.state === 'built' ? Math.min(b.garrison ?? 0, v.posts.length) : 0;
+    // A relief swaps who is standing there without moving the count, so the
+    // kind has to be able to condemn the figures the way the count does.
+    const levied = b.levied === true;
+    if (levied !== v.levied) {
+      for (const gone of v.manned) {
+        v.root.remove(gone.group);
+        disposeTree(gone.group);
+      }
+      v.manned.length = 0;
+      v.levied = levied;
+    }
     while (v.manned.length > want) {
       const gone = v.manned.pop()!;
       v.root.remove(gone.group);
       disposeTree(gone.group);
     }
     while (v.manned.length < want) {
-      const made = makeCharacter(ARCHER_KIND, 0, b.owner);
+      const made = makeCharacter(b.levied ? LEVY_KIND : ARCHER_KIND, 0, b.owner);
       if (!made) break; // characters not loaded yet; try again next roster
       const post = v.posts[v.manned.length]!;
       post.getWorldPosition(SCRATCH_POS);
