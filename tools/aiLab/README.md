@@ -40,11 +40,14 @@ Several plausible changes have died exactly there — a fletcher housing tweak
 went 24/32 against 22 on one range and 22/32 against 25 on the next, which
 is the same as saying it did nothing.
 
-The standing baseline, 64 seeds across both ranges: steward 56, warlord 59,
-abbot 56, fletcher 47. Fletcher is the deck's weak seat and the only one
-that ever runs out the clock instead of dying; what is wrong with it is
-still open, but it is not housing and it is not the woodline (see the notes
-on its muster in `defs/aiStrategies.ts`).
+It cuts both ways: a change can also be real and only look like noise on
+one range. The fletcher's third roof measured as nothing before the opening
+armory moved, and as +2, +1 and +3 across three ranges after — same change,
+different world. Re-measure after anything lands under you.
+
+The standing baseline, 64 seeds across two ranges: abbot 59, steward 53,
+warlord 51, fletcher 52 with its housing fixed (49 before). Warlord and
+fletcher are the deck's thin end now; abbot is comfortably its strongest.
 
 Sim-only sweeps run one match per `--jobs` process (`--jobs max` uses the
 machine); results are byte-identical to `--jobs 1` for every engine except

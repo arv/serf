@@ -259,10 +259,12 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // The towers this plan is now built around, and the reason it learns
       // archery at all. Two of them, still gated on the bow now that the
       // levy means a tower is never merely wasted stone — because moving
-      // the gate back to soldiery measures worse, not better: 103 wins
-      // against 105 over 128 campaigns, on a slower median. An early tower
-      // stands paused through the whole quiet opening and its archers
-      // arrive no sooner for it. (tools/aiLab/balance.ts)
+      // the gate back to soldiery measures worse, not better, and does so
+      // on both seed ranges independently: this seat takes 56 campaigns in
+      // 64 with the early gate against 59 with this one, and the deck as a
+      // whole 209 in 256 against 212. An early tower stands paused through
+      // the quiet opening and its archers arrive no sooner for it.
+      // (tools/aiLab/balance.ts)
       { type: 'guardTower', count: 2, anchor: 'base', after: 'archery', needs: 'barracks' },
       // The wide half of the plan waits for the iron chain to stand: hired
       // hands eat, and a second field is only worth its worker once there
@@ -344,7 +346,14 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       { type: 'quarry', count: 1, anchor: 'rock', radius: 6 },
       // Beds third, as the campaign line has them: the axe and the pick
       // first, then the roof that lets the village grow past ten.
-      { type: 'house', count: 1, anchor: 'base', more: { after: 'archery', count: 2 } },
+      // Three roofs with the archery rather than two. #100 took the free
+      // bow out of the opening armory, so this seat now forges every stave
+      // it will ever loose, and the extra hands are what keep the forges
+      // fed: +2, +1 and +3 wins over three independent 32-seed ranges
+      // (73/96 to 79/96), with its clock-outs down from five to three.
+      // The same change measured as noise before the armory moved, which
+      // is the honest reason it is only landing now.
+      { type: 'house', count: 1, anchor: 'base', more: { after: 'archery', count: 3 } },
       { type: 'abbey', count: 1, anchor: 'base' },
       { type: 'silverMine', count: 1, anchor: 'silver', radius: 4 },
       { type: 'barracks', count: 1, anchor: 'base', after: 'soldiery' },
@@ -360,10 +369,12 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // instant anyway: the bow is second in its research order, so the two
       // gates measure identically here (22/32 either way).
       //
-      // The levy never fires on this map for any seat, which is worth
+      // The levy barely fires on this map for any seat, which is worth
       // knowing before anyone tunes for it: raids land around tick 16k and
-      // a tower stands by 6-8k, so the archers always reach the wall first.
-      // The villagers are a human's answer to being rushed, not the AI's.
+      // a tower stands by 6-8k, so the archers all but always reach the
+      // wall first — tens of ticks of villagers across a whole campaign,
+      // and none at all on this seat. They are a human's answer to being
+      // rushed, not the AI's.
       { type: 'guardTower', count: 1, anchor: 'base', after: 'archery', needs: 'barracks' },
       // No fishery here, and none in the Abbot's plan either. Both run their
       // last step on a purse the iron seats never touch — the Fletcher pays
@@ -378,7 +389,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     survivalFloor: 3,
     growthAfter: 'soldiery',
     housingHeadroom: 3,
-    houseLimit: 4,
+    houseLimit: 5,
     weaponMix: [2], // every forge on bowstaves
     // The spear in the armory arms the first defender; after that the queue
     // waits on bows, since no iron chain is coming.
@@ -392,15 +403,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // stays home through the first wave and razes the camp in one march,
     // before the second one spawns.
     //
-    // This is the weakest seat in the deck and has stayed that way: 47 wins
-    // in 64 campaigns against 56-59 for the other three, and the only one
-    // that ever runs out the clock rather than dying. Two fixes for it
-    // measured and failed. A third woodcutter to feed the bowstaves is a
-    // rout (11/32) — a hand on wood is a hand off the hauling, and the
-    // whole village starves for it. More beds looked like the answer at
-    // 24/32 against 22, then came back 22/32 against 25 on a second seed
-    // range, which is what a two-win move over 32 seeds is worth. Whatever
-    // is wrong here, it is not the housing.
+    // Ten still, and the housing above is what finally moved this seat:
+    // beds, not the muster. The one fix that stays refuted is a third
+    // woodcutter to feed the bowstaves — 34 wins in 64 against 49, on both
+    // ranges, because a hand on wood is a hand off the hauling and the
+    // whole village starves for it.
     //
     // The tower does not move this. Raising it to twelve to buy back the
     // two archers the garrison swallows measured as a wash over ten seeds

@@ -20,6 +20,12 @@
  * directly.
  */
 /**
+ * 17: the fletcher raises a third roof with its archery, and its house
+ * limit goes to five. Version 16 took the free bow out of the opening
+ * armory, which left this seat forging every stave it looses; the extra
+ * hands are what keep its forges fed. The seat builds and musters
+ * differently from its first minutes, so its whole campaign diverges.
+ *
  * 16: the opening armory goes back to two spears and a sword. Version 14
  * traded the second spear for a bow that had to wait on Archery to be
  * spent; the rack now holds only what a Soldiery rush can field on day
@@ -66,4 +72,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 16;
+export const REPLAY_VERSION = 17;
