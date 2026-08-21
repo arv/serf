@@ -544,9 +544,33 @@ describe('the guard tower', () => {
     tickWorld(world, []);
     const combat = UNIT_DEFS.archer.combat!;
     const rule = BUILDING_DEFS.guardTower.garrison!;
-    const expected = combat.damage * rule.damageMult * 2 * COUNTER_TABLE.ranged.light;
+    // No counter multiplier: a bandit is light and these are archers, which
+    // in the field would be docked to 0.67 — see the next test.
+    const expected = combat.damage * rule.damageMult * 2;
     expect(before - raider.hp).toBeCloseTo(expected, 5);
     expect(tower.attackCooldown).toBe(combat.cooldownTicks);
+  });
+
+  it('is never docked by the counter table, only paid by it', () => {
+    // The bandit (light) is the matchup the table would dock a field archer
+    // for, and the marauder (heavy) the one it pays him for. A tower keeps
+    // the bonus and refuses the penalty: closing on a bowman is how light
+    // beats him, and nobody closes on a man behind a wall.
+    const volley = (kind: 'bandit' | 'marauder'): number => {
+      const world = bareWorld();
+      manned(world, 2);
+      const raider = spawnUnit(world, kind, BANDIT, 34.5, 31.5);
+      const before = raider.hp;
+      tickWorld(world, []);
+      return before - raider.hp;
+    };
+    const combat = UNIT_DEFS.archer.combat!;
+    const rule = BUILDING_DEFS.guardTower.garrison!;
+    const base = combat.damage * rule.damageMult * 2;
+    expect(COUNTER_TABLE.ranged.light).toBeLessThan(1); // the penalty declined
+    expect(volley('bandit')).toBeCloseTo(base, 5);
+    expect(COUNTER_TABLE.ranged.heavy).toBeGreaterThan(1); // the bonus kept
+    expect(volley('marauder')).toBeCloseTo(base * COUNTER_TABLE.ranged.heavy, 5);
   });
 
   it('reaches further than the archer who mans it, but not forever', () => {

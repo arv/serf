@@ -20,6 +20,12 @@
  * directly.
  */
 /**
+ * 15: a guard tower's garrison no longer takes the counter table's
+ * penalties, only its bonuses. Those penalties model closing on a shooter,
+ * which a wall is precisely what prevents, and they had the tower at its
+ * weakest against the light raiders every early wave is made of. It changes
+ * what a tower kills and how fast, which re-times every raid it touches.
+ *
  * 14: a batch of balance and content changes — the opening armory is one of
  * each weapon rather than two spears, every building's input and output
  * buffer holds five instead of four, and the guard tower exists: a new
@@ -37,4 +43,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 14;
+export const REPLAY_VERSION = 15;

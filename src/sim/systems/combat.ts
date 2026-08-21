@@ -268,7 +268,15 @@ function towerFire(world: World, buildings: readonly Building[], units: readonly
     const target = acquireForBuilding(units, b, combat.class, combat.range + rule.rangeBonus);
     if (!target) continue;
     const defClass = UNIT_DEFS[target.kind].combat?.class;
-    const mult = defClass ? COUNTER_TABLE[combat.class][defClass] : 1;
+    // The counter table, but only ever in the tower's favor. Its penalties
+    // model closing on a shooter — light infantry beat archers by getting
+    // inside their reach — and that is the one thing a man behind a wall
+    // cannot have done to him. Applied whole, it docked a tower 0.67 for a
+    // charge the charger had no way to finish, and bandits are what every
+    // early wave is made of: it left the tower weakest against exactly the
+    // attack it is built to stop. The bonuses stay — height does not help
+    // a knight climb.
+    const mult = defClass ? Math.max(1, COUNTER_TABLE[combat.class][defClass]) : 1;
     target.hp -= combat.damage * rule.damageMult * b.garrison * mult;
     b.attackCooldown = combat.cooldownTicks;
     if (isPlayerOwner(target.owner)) {
