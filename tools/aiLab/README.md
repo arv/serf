@@ -29,8 +29,8 @@ on its own campaign map, many seeds, one table. No model, no seating
 mirror — just "how often does each playbook take the map, and how fast".
 
 ```sh
-node --experimental-strip-types tools/aiLab/balance.ts 32        # 32 seeds
-node --experimental-strip-types tools/aiLab/balance.ts 32 1000   # ...from a different range
+pnpm balance 32        # 32 seeds
+pnpm balance 32 1000   # ...from a different range
 ```
 
 The second argument is the point. A campaign is about a second to run and

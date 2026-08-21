@@ -41,7 +41,14 @@ interface Run {
 const SOLDIERS = new Set(['knight', 'spearman', 'archer']);
 
 function playCampaign(id: AiStrategyId, seed: number): Run {
-  const world = createWorld({ seed, players: [{ kind: 'ai' }] });
+  // The seat names its playbook rather than being dealt one, so the world's
+  // record of what it is playing agrees with the brain actually playing it.
+  // Nothing downstream reads that record today — the economy rules take
+  // their strategy from the brain — but a sweep whose world disagrees with
+  // itself is a trap for whatever reads it next. Safe for the numbers:
+  // dealStrategies is a pure function of the seed and runs before the
+  // world's Rng is constructed, so naming a playbook cannot move the map.
+  const world = createWorld({ seed, players: [{ kind: 'ai', strategy: id }] });
   const brain = new AiBrain(0, AI_STRATEGIES[id], world.map.size);
   let levyTicks = 0;
   for (let t = 0; t < MAX_TICKS && world.outcome.state === 'playing'; t++) {
@@ -82,8 +89,23 @@ function median(xs: number[]): number {
 
 const mean = (xs: number[]): number => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-const count = Number(process.argv[2] ?? 32);
-const offset = Number(process.argv[3] ?? 101);
+function intArg(raw: string | undefined, fallback: number, name: string, min: number): number {
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < min) {
+    console.error(
+      `${name} must be a whole number >= ${min} (got ${JSON.stringify(raw)})\n` +
+        'usage: balance.ts [seeds] [offset]',
+    );
+    process.exit(2);
+  }
+  return n;
+}
+
+// Validated rather than coerced: Number('x') is NaN, and a NaN count runs
+// zero campaigns and prints a table of NaN medians that looks like a result.
+const count = intArg(process.argv[2], 32, 'seeds', 1);
+const offset = intArg(process.argv[3], 101, 'offset', 0);
 // Strided rather than consecutive: neighbouring seeds can generate valleys
 // that rhyme, and a sweep wants independent maps.
 const seeds = Array.from({ length: count }, (_, i) => offset + i * 7);
