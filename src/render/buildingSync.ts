@@ -587,9 +587,9 @@ export class BuildingSync {
       for (let i = 0; i < v.manned.length; i++) {
         const char = v.manned[i]!.char;
         if (!char) continue;
-        // The levy has no bow to draw: the melee swing reads as a stone
-        // going over the parapet, and the archer keeps his own loose.
-        const shooting = v.levied ? 'attack' : 'shoot';
+        // The levy has no bow to draw, so it lobs: the villager throws and
+        // the archer keeps his own loose.
+        const shooting = v.levied ? 'throw' : 'shoot';
         playAnimation(char, v.firing ? shooting : 'idle', i * 0.37);
         char.mixer.update(dt);
       }

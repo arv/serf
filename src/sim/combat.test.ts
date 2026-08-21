@@ -666,6 +666,30 @@ describe('the guard tower', () => {
     expect(serf.dead).toBe(false);
   });
 
+  it('sends the villagers back to work when it is halted', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = 2;
+    tower.garrisonKind = 'serf';
+    const before = populationOf(world, 0);
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
+    expect(tower.garrison ?? 0).toBe(0);
+    expect(tower.garrisonKind).toBeUndefined();
+    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'serf')).toHaveLength(2);
+    // Coming down the stairs is not a death: the head count is unchanged.
+    expect(populationOf(world, 0)).toBe(before);
+  });
+
+  it('keeps its archers when it is halted — the lever is the levy', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = 2;
+    tower.garrisonKind = 'archer';
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
+    expect(tower.garrison).toBe(2);
+    expect(tower.garrisonKind).toBe('archer');
+  });
+
   it('sends a villager back down on Dismiss, like any other post', () => {
     const world = bareWorld();
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
@@ -678,6 +702,35 @@ describe('the guard tower', () => {
     expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'serf')).toHaveLength(1);
     // Coming down the stairs is not a death: the head count is unchanged.
     expect(populationOf(world, 0)).toBe(before);
+  });
+
+  it('calls an archer over to relieve a full levy, unasked', () => {
+    // The upgrade path, end to end and with nobody steering it: a tower at
+    // capacity in villagers still asks for soldiers, and the first idle one
+    // is walked over and swapped in.
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
+    tower.garrisonKind = 'serf';
+    const archer = spawnUnit(world, 'archer', 0, 36.5, 31.5);
+    run(world, 20 * 20);
+    expect(archer.dead).toBe(true); // consumed into the tower
+    expect(tower.garrisonKind).toBe('archer');
+    expect(tower.garrison).toBe(1);
+    // The villagers are back on their feet, not lost.
+    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'serf')).toHaveLength(2);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('takes an archer even while halted — a soldier costs the village nothing', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.paused = true;
+    const archer = spawnUnit(world, 'archer', 0, 36.5, 31.5);
+    run(world, 20 * 20);
+    expect(tower.garrison).toBe(1);
+    expect(tower.garrisonKind).toBe('archer');
+    expect(archer.dead).toBe(true);
   });
 
   it('does not call villagers up to a tower the archers already hold', () => {

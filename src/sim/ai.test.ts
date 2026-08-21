@@ -364,13 +364,14 @@ describe('the stall watchdog', () => {
     raider.dead = true;
     expect(beat()).not.toContainEqual(halt);
 
-    // Past the hold it halts, and sends the villagers back to work.
+    // Past the hold it halts — which is the whole stand-down, villagers
+    // included, so there is no second order to give.
     world.tick += LEVY_HOLD;
     tower.garrison = 1;
     tower.garrisonKind = 'serf';
     const out = beat();
     expect(out).toContainEqual(halt);
-    expect(out).toContainEqual({ kind: 'dismissWorker', buildingId: tower.id });
+    expect(out).not.toContainEqual({ kind: 'dismissWorker', buildingId: tower.id });
   });
 
   it('never sends an archer down, whatever the tower is doing', () => {

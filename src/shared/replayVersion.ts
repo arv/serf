@@ -20,6 +20,10 @@
  * directly.
  */
 /**
+ * 19: halting a tower is the whole stand-down — it stops villagers being
+ * called up and sends the ones already up back to work, where before it
+ * only did the first and left them there. Soldiers are untouched by it.
+ *
  * 18: the levy is worked by the standing orders the game already had rather
  * than an order of its own. A tower comes off the scaffold with its levy
  * stood down (paused) and calls villagers up only while it is running;
@@ -60,4 +64,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 18;
+export const REPLAY_VERSION = 19;

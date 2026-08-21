@@ -1046,9 +1046,9 @@ export class AiBrain {
    * A tower's archers arrive late — a research, a forge and a course at the
    * barracks after the stone goes down — and a raid does not wait for them.
    * A running tower calls villagers up in the meantime, so this is the whole
-   * of manning it: start it when something hostile comes into sight, halt it
-   * again once the ground has been quiet, and send the villagers back to work
-   * with the same Dismiss the player has.
+   * of manning it: start it when something hostile comes into sight and halt
+   * it again once the ground has been quiet, which puts the villagers back
+   * to work on its own.
    *
    * Only ever the villagers. Archers man a tower whether it is running or
    * not (they cost the village nothing to keep), so nothing here starts a
@@ -1057,9 +1057,7 @@ export class AiBrain {
   #manTowers(world: World, mine: readonly Building[], commands: SimCommand[]): void {
     for (const b of mine) {
       if (b.state !== 'built') continue;
-      const def = BUILDING_DEFS[b.type];
-      const rule = def.garrison;
-      if (!rule) continue;
+      if (!BUILDING_DEFS[b.type].garrison) continue;
       const bx = b.x + b.w / 2;
       const by = b.y + b.h / 2;
       if (hostileNear(world, this.#vision, this.playerId, bx, by, AI_INTEL.raidRadius)) {
@@ -1069,13 +1067,9 @@ export class AiBrain {
       }
       if (world.tick < (this.#levyHold.get(b.id) ?? 0)) continue;
       this.#levyHold.delete(b.id);
+      // Halting is the whole stand-down: it stops the tower calling anyone
+      // else up and sends the villagers already on it back to work.
       if (!b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: true });
-      // Halting stops the tower calling anyone else up; it does not empty
-      // it. The villagers already on the wall come down one at a time, the
-      // same order and the same backoff a player's Dismiss uses.
-      if (b.garrison && b.garrisonKind === rule.levy.unit) {
-        commands.push({ kind: 'dismissWorker', buildingId: b.id });
-      }
     }
   }
 
