@@ -4,6 +4,7 @@ import { GOODS, type GoodId } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { atBuilding, walkToBuilding } from '../arrival.ts';
 import { bindWorker, unbindWorker } from './production.ts';
+import { evictGarrison } from './training.ts';
 import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
 import type { UnitTypeId } from '../defs/units.ts';
 import type { Unit } from '../units.ts';
@@ -116,8 +117,29 @@ function handleArrivals(world: World): void {
       // shoot at, which is the whole of the tower's protection. `dead`
       // without a deathTick, so he vanishes rather than leaving a corpse
       // on the doorstep.
+      //
+      // A soldier at the door relieves the levy outright rather than
+      // squeezing in beside it: the tower shoots as one kind of man (see
+      // garrisonKind), so the villagers go back to work and he takes the
+      // wall. The rest of his squad fills in behind him on later sweeps.
+      if (b.garrisonKind === def.garrison.levy.unit) {
+        evictGarrison(world, b, b.garrison ?? 0);
+      }
       if (garrisonRoom(def, b) <= 0) continue; // filled while he walked
       b.garrison = (b.garrison ?? 0) + 1;
+      b.garrisonKind = def.garrison.unit;
+      unit.dead = true;
+      continue;
+    }
+    if (def.garrison && unit.kind === def.garrison.levy.unit && !b.paused) {
+      // A villager answering the levy. Same consumption as the soldier —
+      // he is inside the wall, not standing at its foot — and he steps
+      // aside for soldiers rather than the other way round, so he never
+      // takes a place in a tower the archers already hold.
+      if (b.garrisonKind === def.garrison.unit) continue;
+      if (garrisonRoom(def, b) <= 0) continue;
+      b.garrison = (b.garrison ?? 0) + 1;
+      b.garrisonKind = def.garrison.levy.unit;
       unit.dead = true;
       continue;
     }
@@ -158,13 +180,30 @@ function handleArrivals(world: World): void {
 }
 
 /**
- * The kind of person a building is calling for. A standing tower wants its
- * own soldier; everything else — including that tower's own building site,
- * which wants a builder like any other — wants a serf.
+ * The kinds of person a building is calling for, best first. Everything but
+ * a standing tower — including that tower's own building site, which wants
+ * a builder like any other — wants a serf and nothing else.
+ *
+ * A tower wants soldiers whenever it has room, and *also* when the levy
+ * holds it: a soldier walking up relieves villagers rather than queuing
+ * behind them. It wants villagers wherever they would actually be let in —
+ * room to stand, and no soldiers already holding the wall — so a tower the
+ * archers reached is not a standing request for serfs nobody will fill.
+ *
+ * `paused` decides only the villagers. A stood-down tower still takes any
+ * soldier who turns up — an idle archer costs the village nothing to keep —
+ * but calls no villagers up, which is what keeps a tower from quietly eating
+ * two of them the day it is built.
  */
-function wantedKind(b: Building): UnitTypeId {
-  const garrison = buildingDef(b.type).garrison;
-  return garrison && b.state === 'built' ? garrison.unit : 'serf';
+function wantedKinds(b: Building): UnitTypeId[] {
+  const def = buildingDef(b.type);
+  const g = def.garrison;
+  if (!g || b.state !== 'built') return ['serf'];
+  const room = garrisonRoom(def, b);
+  const kinds: UnitTypeId[] = [];
+  if (room > 0 || b.garrisonKind === g.levy.unit) kinds.push(g.unit);
+  if (!b.paused && room > 0 && b.garrisonKind !== g.unit) kinds.push(g.levy.unit);
+  return kinds;
 }
 
 /**
@@ -210,8 +249,12 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     // it on purpose, and re-capturing the freed serf the moment he goes
     // idle between haul trips would silently undo the order.
     if ((b.staffBackoffUntil ?? 0) > world.tick) continue;
-    if (b.paused) continue; // a halted post summons nobody
     const def = buildingDef(b.type);
+    // A halted post summons nobody — except a tower, which always takes the
+    // soldiers it would rather have. Halting one stands its *levy* down (see
+    // wantedKinds): villagers are hands the village needs back, and archers
+    // are hands it has nothing else to do with.
+    if (b.paused && !def.garrison) continue;
     if (b.state === 'site' ? def.isRoad : b.state !== 'built') continue;
 
     // Validate any recruit en route.
@@ -248,10 +291,12 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
       b.state === 'built' && def.workerKind !== undefined && !liveWorker(world, b);
     const wantsRecruit =
       b.state === 'built' && def.trains !== undefined && firstReadyTraining(b) >= 0;
-    // A tower short of its garrison calls for another soldier. Unlike a
-    // post, this one draws from the field rather than from the loose pool:
-    // the men it wants have already been trained.
-    const wantsGarrison = b.state === 'built' && garrisonRoom(def, b) > 0;
+    // A tower short of its garrison calls for another man. Unlike a post,
+    // this one may draw from the field rather than from the loose pool: the
+    // soldiers it prefers have already been trained. It also calls when it
+    // is full of villagers, because a soldier arriving relieves them.
+    const wantsGarrison =
+      b.state === 'built' && def.garrison !== undefined && wantedKinds(b).length > 0;
     if (wantsBuilder || wantsWorker || wantsRecruit || wantsGarrison) wanting.push(b);
   }
   if (wanting.length === 0) return;
@@ -263,14 +308,14 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
   // and the dispatch below read the same `wantedKind`, rather than each
   // deciding for itself and drifting: the scan used to bucket archers for
   // a tower that was still a building site and wanted a builder.
-  const wantedKinds = new Set<UnitTypeId>(wanting.map(wantedKind));
-  wantedKinds.add('serf');
+  const wanted = new Set<UnitTypeId>(wanting.flatMap(wantedKinds));
+  wanted.add('serf');
 
   // Idle people available for recruitment this pass, bucketed by faction and
   // kind — buildings only ever draw from their own owner's pool.
   const idleByOwner = new Map<Owner, Map<UnitTypeId, Unit[]>>();
   for (const u of world.units.values()) {
-    if (u.dead || !wantedKinds.has(u.kind) || !isPlayerOwner(u.owner)) continue;
+    if (u.dead || !wanted.has(u.kind) || !isPlayerOwner(u.owner)) continue;
     if (u.jobId !== undefined) continue;
     // Someone walking under a player's move order is spoken for; recruiting
     // him mid-stride would make the order look ignored. Nor do we hire a
@@ -286,8 +331,19 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
   }
 
   for (const b of wanting) {
-    const idle = idleByOwner.get(b.owner)?.get(wantedKind(b));
-    if (!idle || idle.length === 0) continue; // nobody of this kind left
+    // Best kind first, falling through to the next only when nobody of it
+    // is standing loose: a tower takes the archer when there is one and the
+    // villager when there is not.
+    const byKind = idleByOwner.get(b.owner);
+    let idle: Unit[] | undefined;
+    for (const kind of wantedKinds(b)) {
+      const pool = byKind?.get(kind);
+      if (pool && pool.length > 0) {
+        idle = pool;
+        break;
+      }
+    }
+    if (!idle || idle.length === 0) continue; // nobody of any wanted kind left
 
     // The nearest idle one walks over.
     const cx = b.x + b.w / 2;

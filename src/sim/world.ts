@@ -813,6 +813,7 @@ export function destroyBuilding(world: World, b: Building): void {
   // the whole of it, and the population they were counted in falls by that
   // many the same tick.
   b.garrison = undefined;
+  b.garrisonKind = undefined;
 }
 
 /**

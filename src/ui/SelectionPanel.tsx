@@ -263,6 +263,8 @@ export function SelectionPanel(props: {
               the card's people-shaped controls speak of them instead. */
           const manned = () => b().garrisonCap !== undefined;
           const garrison = () => b().garrison ?? 0;
+          /** Villagers on the roof rather than soldiers. */
+          const levied = () => b().levied === true;
           return (
             <div class="hud-selection panel">
               <div class="sel-head">
@@ -289,11 +291,19 @@ export function SelectionPanel(props: {
                   <TipWrap
                     tip={() => (
                       <TextTip
-                        title={manned() ? 'Send an archer down' : 'Dismiss worker'}
+                        title={
+                          manned()
+                            ? levied()
+                              ? 'Send a villager down'
+                              : 'Send an archer down'
+                            : 'Dismiss worker'
+                        }
                         body={
                           manned()
                             ? garrison() > 0
-                              ? 'One of the archers climbs down and is a soldier in the field again. The tower stops calling for another for a while, so he can march off instead of walking straight back up.'
+                              ? levied()
+                                ? 'One of the villagers climbs down and goes back to work. The tower stops calling for another for a while, so he can pick up a load instead of walking straight back up.'
+                                : 'One of the archers climbs down and is a soldier in the field again. The tower stops calling for another for a while, so he can march off instead of walking straight back up.'
                               : 'Nobody is manning this tower.'
                             : b().staffing === 'staffed'
                               ? 'Sends the worker back to the serf pool — the way out when nobody is free to haul or build. This post stands open for a while so the freed hands can take up new work first.'
@@ -597,15 +607,17 @@ export function SelectionPanel(props: {
                   card that rewrites itself unasked, so nothing the
                   player aims at sits below it. */}
               <div class="sel-line sel-status">
-                {/* A tower unlocks with the barracks but is manned by
-                    archers, who wait on Archery — so an empty one has to
-                    say what it is waiting for rather than sit there
-                    looking built and doing nothing. */}
+                {/* A tower unlocks with the barracks but shoots best with
+                    archers, who wait on Archery — so it says which of the
+                    two is up there, and a stood-down one says that starting
+                    it is what puts villagers on the wall today. */}
                 <Show when={manned() && b().state === 'built'}>
                   <span classList={{ good: garrison() > 0, bad: garrison() === 0 }}>
                     {garrison() === 0
-                      ? 'unmanned — needs an archer!'
-                      : `${garrison()}/${b().garrisonCap} archers on the roof`}
+                      ? b().paused
+                        ? 'stood down — start it and villagers will man it'
+                        : 'unmanned — waiting for someone to climb up'
+                      : `${garrison()}/${b().garrisonCap} ${levied() ? 'villagers' : 'archers'} on the roof`}
                   </span>
                 </Show>
                 <Show when={b().staffing}>

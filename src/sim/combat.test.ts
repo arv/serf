@@ -4,6 +4,7 @@ import { tickWorld } from './tick.ts';
 import {
   destroyBuilding,
   placeBuiltBuilding,
+  placeSite,
   spawnUnit,
   spawnUnitNearby,
   type World,
@@ -526,12 +527,19 @@ describe('the guard tower', () => {
     expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'archer')).toHaveLength(2);
   });
 
-  it('leaves a serf alone — a tower is manned by soldiers, not staffed', () => {
+  it('comes up stood down, so finishing one costs the village nobody', () => {
+    // The guard against the old trap: a tower is never *done* wanting men,
+    // so one that started running would put two villagers on the wall the
+    // day the masons left and hold them through every quiet hour after.
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const site = placeSite(world, 'guardTower', 0, 30, 30);
+    site.siteNeeds = {};
+    site.buildProgress = BUILDING_DEFS.guardTower.buildTicks;
     const serf = addSerf(world, 36, 31);
     run(world, 20 * 20);
-    expect(tower.garrison ?? 0).toBe(0);
+    expect(site.state).toBe('built');
+    expect(site.paused).toBe(true);
+    expect(site.garrison ?? 0).toBe(0);
     expect(serf.dead).toBe(false);
   });
 
@@ -544,9 +552,33 @@ describe('the guard tower', () => {
     tickWorld(world, []);
     const combat = UNIT_DEFS.archer.combat!;
     const rule = BUILDING_DEFS.guardTower.garrison!;
-    const expected = combat.damage * rule.damageMult * 2 * COUNTER_TABLE.ranged.light;
+    // No counter multiplier: a bandit is light and these are archers, which
+    // in the field would be docked to 0.67 — see the next test.
+    const expected = combat.damage * rule.damageMult * 2;
     expect(before - raider.hp).toBeCloseTo(expected, 5);
     expect(tower.attackCooldown).toBe(combat.cooldownTicks);
+  });
+
+  it('is never docked by the counter table, only paid by it', () => {
+    // The bandit (light) is the matchup the table would dock a field archer
+    // for, and the marauder (heavy) the one it pays him for. A tower keeps
+    // the bonus and refuses the penalty: closing on a bowman is how light
+    // beats him, and nobody closes on a man behind a wall.
+    const volley = (kind: 'bandit' | 'marauder'): number => {
+      const world = bareWorld();
+      manned(world, 2);
+      const raider = spawnUnit(world, kind, BANDIT, 34.5, 31.5);
+      const before = raider.hp;
+      tickWorld(world, []);
+      return before - raider.hp;
+    };
+    const combat = UNIT_DEFS.archer.combat!;
+    const rule = BUILDING_DEFS.guardTower.garrison!;
+    const base = combat.damage * rule.damageMult * 2;
+    expect(COUNTER_TABLE.ranged.light).toBeLessThan(1); // the penalty declined
+    expect(volley('bandit')).toBeCloseTo(base, 5);
+    expect(COUNTER_TABLE.ranged.heavy).toBeGreaterThan(1); // the bonus kept
+    expect(volley('marauder')).toBeCloseTo(base * COUNTER_TABLE.ranged.heavy, 5);
   });
 
   it('reaches further than the archer who mans it, but not forever', () => {
@@ -567,6 +599,150 @@ describe('the guard tower', () => {
     };
     expect(inside(combat.range + rule.rangeBonus - 0.5)).toBe(true);
     expect(inside(combat.range + rule.rangeBonus + 1.5)).toBe(false);
+  });
+
+  it('takes a villager while it is running, and shoots with stones for it', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const serf = addSerf(world, 36, 31);
+    run(world, 20 * 20);
+    expect(tower.garrison).toBe(1);
+    expect(tower.garrisonKind).toBe('serf');
+    expect(serf.dead).toBe(true); // consumed, like the archer
+
+    const raider = spawnUnit(world, 'bandit', BANDIT, 34.5, 31.5);
+    const before = raider.hp;
+    tower.attackCooldown = 0;
+    tickWorld(world, []);
+    const levy = BUILDING_DEFS.guardTower.garrison!.levy;
+    // The rock, not the bow: no damageMult, and light against light so no
+    // counter either way.
+    expect(before - raider.hp).toBeCloseTo(levy.damage, 5);
+    expect(tower.attackCooldown).toBe(levy.cooldownTicks);
+  });
+
+  it('reaches less far with stones than with bows', () => {
+    const rule = BUILDING_DEFS.guardTower.garrison!;
+    const combat = UNIT_DEFS.archer.combat!;
+    const hits = (levied: boolean, dist: number): boolean => {
+      const world = bareWorld();
+      const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+      tower.garrison = 2;
+      tower.garrisonKind = levied ? 'serf' : 'archer';
+      const raider = spawnUnit(world, 'bandit', BANDIT, 32 + dist, 31);
+      const before = raider.hp;
+      tickWorld(world, []);
+      return raider.hp < before;
+    };
+    expect(hits(true, rule.levy.range - 0.5)).toBe(true);
+    const archerReach = combat.range + rule.rangeBonus - 0.5;
+    expect(archerReach).toBeGreaterThan(rule.levy.range);
+    expect(hits(true, archerReach)).toBe(false); // stones fall short
+    expect(hits(false, archerReach)).toBe(true); // arrows do not
+  });
+
+  it('sends the whole levy home when an archer arrives to relieve it', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = 2;
+    tower.garrisonKind = 'serf';
+    spawnUnit(world, 'archer', 0, 36.5, 31.5);
+    run(world, 20 * 20);
+    // A tower holds one kind or the other, never a mix.
+    expect(tower.garrisonKind).toBe('archer');
+    expect(tower.garrison).toBe(1);
+    const serfs = [...world.units.values()].filter((u) => !u.dead && u.kind === 'serf');
+    expect(serfs).toHaveLength(2); // both villagers back on their feet
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('stops calling villagers up once it is halted', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.paused = true;
+    const serf = addSerf(world, 36, 31);
+    run(world, 20 * 20);
+    expect(tower.garrison ?? 0).toBe(0);
+    expect(serf.dead).toBe(false);
+  });
+
+  it('sends the villagers back to work when it is halted', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = 2;
+    tower.garrisonKind = 'serf';
+    const before = populationOf(world, 0);
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
+    expect(tower.garrison ?? 0).toBe(0);
+    expect(tower.garrisonKind).toBeUndefined();
+    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'serf')).toHaveLength(2);
+    // Coming down the stairs is not a death: the head count is unchanged.
+    expect(populationOf(world, 0)).toBe(before);
+  });
+
+  it('keeps its archers when it is halted — the lever is the levy', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = 2;
+    tower.garrisonKind = 'archer';
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
+    expect(tower.garrison).toBe(2);
+    expect(tower.garrisonKind).toBe('archer');
+  });
+
+  it('sends a villager back down on Dismiss, like any other post', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = 2;
+    tower.garrisonKind = 'serf';
+    const before = populationOf(world, 0);
+    tickWorld(world, cmds({ kind: 'dismissWorker', buildingId: tower.id }));
+    expect(tower.garrison).toBe(1);
+    // A serf, not the archer the tower would rather have.
+    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'serf')).toHaveLength(1);
+    // Coming down the stairs is not a death: the head count is unchanged.
+    expect(populationOf(world, 0)).toBe(before);
+  });
+
+  it('calls an archer over to relieve a full levy, unasked', () => {
+    // The upgrade path, end to end and with nobody steering it: a tower at
+    // capacity in villagers still asks for soldiers, and the first idle one
+    // is walked over and swapped in.
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
+    tower.garrisonKind = 'serf';
+    const archer = spawnUnit(world, 'archer', 0, 36.5, 31.5);
+    run(world, 20 * 20);
+    expect(archer.dead).toBe(true); // consumed into the tower
+    expect(tower.garrisonKind).toBe('archer');
+    expect(tower.garrison).toBe(1);
+    // The villagers are back on their feet, not lost.
+    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'serf')).toHaveLength(2);
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('takes an archer even while halted — a soldier costs the village nothing', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.paused = true;
+    const archer = spawnUnit(world, 'archer', 0, 36.5, 31.5);
+    run(world, 20 * 20);
+    expect(tower.garrison).toBe(1);
+    expect(tower.garrisonKind).toBe('archer');
+    expect(archer.dead).toBe(true);
+  });
+
+  it('does not call villagers up to a tower the archers already hold', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = 1;
+    tower.garrisonKind = 'archer';
+    const serf = addSerf(world, 36, 31);
+    run(world, 20 * 20);
+    expect(tower.garrison).toBe(1);
+    expect(tower.garrisonKind).toBe('archer');
+    expect(serf.dead).toBe(false);
   });
 
   it('holds its fire while nobody is manning it', () => {

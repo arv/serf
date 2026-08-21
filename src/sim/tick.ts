@@ -171,6 +171,18 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       const def = buildingDef(b.type);
       if (def.storage || def.isRoad || def.systemOnly) break;
       b.paused = cmd.paused || undefined;
+      // On a tower this one lever is the levy, both halves of it: halting
+      // stops villagers being called up AND sends the ones already up back
+      // to work. Keeping those apart left the order contradicting itself —
+      // a tower stood down but still holding two of the village's hands,
+      // for as long as nobody thought to dismiss them one at a time.
+      //
+      // Soldiers are untouched. They are not what the lever is about: an
+      // idle archer costs the village nothing, so there is never a reason
+      // to send one down, and a halted tower still takes any that turn up.
+      if (cmd.paused && def.garrison && b.garrisonKind === def.garrison.levy.unit) {
+        evictGarrison(world, b, b.garrison ?? 0);
+      }
       break;
     }
     case 'setBuildingRepair': {

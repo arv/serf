@@ -83,6 +83,12 @@ export interface Building {
    * or the post is dismissed.
    */
   garrison?: number;
+  /**
+   * Which kind is up there. A tower holds soldiers or the levy, never a mix
+   * — `garrison` is a count and a count cannot say who is shooting, and the
+   * two shoot nothing alike. Undefined exactly when the tower is empty.
+   */
+  garrisonKind?: UnitTypeId;
   /** Ticks before this building's garrison can loose again. */
   attackCooldown?: number;
   /** Paid-for serf hires still on their way in (storehouse), and the ticks
