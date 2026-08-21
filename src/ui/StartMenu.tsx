@@ -98,6 +98,18 @@ const POLL_MS = 3000;
 const DRAG_OFFERED =
   typeof window !== 'undefined' && (window.matchMedia?.('(any-pointer: fine)').matches ?? false);
 
+/** Whether a row can be handed to the system share sheet: the Web Share
+ * API, with files. This is the phone's half of what the drag above does
+ * on a desktop — Android has nowhere to drop a replay, so without the
+ * sheet a recording is stuck on the device that made it. The probe file
+ * is a .txt because the real payload is too: Chromium shares only an
+ * allowlist of file types, and .json is not on it, so a document rides
+ * the sheet as text/plain and the import strips the wrapper back off. */
+const SHARE_OFFERED =
+  typeof navigator !== 'undefined' &&
+  typeof navigator.canShare === 'function' &&
+  navigator.canShare({ files: [new File(['probe'], 'probe.txt', { type: 'text/plain' })] });
+
 export type Mode = 'single' | 'campaign' | 'multi';
 export type MpMode = 'host' | 'join';
 type Visibility = 'open' | 'private';
@@ -226,6 +238,18 @@ const ScrollIcon = (
     <path d="M11 8h5M11 12h5" />
   </svg>
 );
+/** The share sheet's glyph: one point handed on to two others. A
+ * component, not a const — every visible row draws its own. */
+function ShareIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="18" cy="5" r="2.5" />
+      <circle cx="6" cy="12" r="2.5" />
+      <circle cx="18" cy="19" r="2.5" />
+      <path d="M8.2 10.9l7.6-4.3M8.2 13.1l7.6 4.3" />
+    </svg>
+  );
+}
 /** Which shelf is open. The two are one piece of UI — a list of files in
  * OPFS, newest first, with a pick, a delete and a drop target — and differ
  * only in the words below and where a picked row leads. */
@@ -518,6 +542,17 @@ export function StartMenu(props: StartMenuProps) {
               (bad === 1 ? `file is not ${spec.article}` : `${bad} are not ${spec.plural}`),
       );
     })();
+  };
+  /** Hand one row's document to the system share sheet. The bytes travel
+   * as text/plain under a .txt name — the type Chromium's allowlist
+   * lets through where application/json is refused — and both imports
+   * strip that wrapper, so a shared file refiles under its own name. */
+  const shareRow = (r: ShelfRow): void => {
+    const file = new File([r.file], `${r.name}.txt`, { type: 'text/plain' });
+    void navigator.share({ files: [file] }).catch(() => {
+      // Dismissed, or this sheet refused the payload — either way the
+      // sheet has already answered the click; nothing to add here.
+    });
   };
   // A file drop that misses the shelf must not become a navigation: the
   // browser's default for a dropped file is to open it, replacing the
@@ -1091,6 +1126,19 @@ export function StartMenu(props: StartMenuProps) {
                                   <span class="meta">{r.meta}</span>
                                 </span>
                               </button>
+                              <Show when={SHARE_OFFERED}>
+                                {/* Enabled even on a row this build cannot
+                                    play: sharing moves bytes, and the
+                                    friend's build may be the right one. */}
+                                <button
+                                  class="icon-btn"
+                                  title={`Share this ${shelfSpec()?.noun}`}
+                                  aria-label={`Share ${shelfSpec()?.noun} ${r.name}`}
+                                  onClick={() => shareRow(r)}
+                                >
+                                  <ShareIcon />
+                                </button>
+                              </Show>
                               <button
                                 class="icon-btn"
                                 title={`Delete this ${shelfSpec()?.noun}`}
@@ -1130,6 +1178,9 @@ export function StartMenu(props: StartMenuProps) {
                   <div class="row-hint">
                     {shelfSpec()?.hint}
                     {DRAG_OFFERED ? shelfSpec()?.dropHint : ''}
+                    {SHARE_OFFERED
+                      ? ` The share button hands a ${shelfSpec()?.noun} to another app or device.`
+                      : ''}
                   </div>
                 </div>
               </Show>
