@@ -24,14 +24,8 @@ import { REPLAY_VERSION } from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
-const EXPECTED_VERSION = 18;
-// Moved by the sim performance pass (tools/perf/): the tick systems were
-// rewritten for speed, not for behavior, so the surface changed and the
-// version deliberately did not. That claim is not taken on trust —
-// tools/perf/digest.ts replays 32 AI matches and tools/perf/stress.ts a
-// combat-heavy valley, hashing the world as they go, and every hash was
-// identical before and after. Old replays still play.
-const EXPECTED_HASH = 'f989d8e9d5d5ebbbfb92fcee4218e7d8';
+const EXPECTED_VERSION = 19;
+const EXPECTED_HASH = 'ece0946dbeeea3edbb777a5f4ed39ae7';
 
 /**
  * Everything a replay's playback depends on, as raw source:

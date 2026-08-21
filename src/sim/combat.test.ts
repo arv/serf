@@ -174,7 +174,7 @@ describe('raids and victory', () => {
 
     expect(world.raidState.wave).toBeGreaterThan(0);
     expect(world.pendingEvents.some((e) => e.kind === 'raidIncoming')).toBe(true);
-    expect(sh.hp).toBeLessThan(500); // they reached it and did damage
+    expect(sh.hp).toBeLessThan(BUILDING_DEFS.storehouse.hp); // they reached it and did damage
   });
 
   it('losing the storehouse loses the game', () => {

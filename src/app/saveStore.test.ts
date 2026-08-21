@@ -107,6 +107,16 @@ describe('the saves shelf', () => {
     });
   });
 
+  it('strips the share sheet’s .txt wrapper off an imported name', async () => {
+    installOpfs();
+    // The sending half wraps a document as text/plain — Chromium's share
+    // sheet refuses .json — so arrival must take the wrapper back off,
+    // or a shared save refiles as "….txt" instead of under its own name.
+    const shared = await importSaveFile(new File([save()], '2026-01-03 10.00.00.txt'));
+    expect(shared).toEqual({ ok: true, name: '2026-01-03 10.00.00' });
+    expect(await readSaveFile('2026-01-03 10.00.00')).toBe(save());
+  });
+
   it('files an import whose filename the shelf cannot carry under a datetime', async () => {
     installOpfs();
     const result = await importSaveFile(new File([save()], 'saved: 12:04.json'));
