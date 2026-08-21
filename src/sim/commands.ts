@@ -1,4 +1,5 @@
-import { BUILDING_DEFS } from './defs/buildings.ts';
+import { FORGE_QUEUE_CAP, TRAIN_QUEUE_CAP } from './defs/balance.ts';
+import { AUTO_RECIPE, BUILDING_DEFS } from './defs/buildings.ts';
 import { TECH_DEFS } from './defs/techs.ts';
 import { UNIT_DEFS } from './defs/units.ts';
 import type { EntityId } from './entities.ts';
@@ -59,6 +60,29 @@ export const MAX_UNITS_PER_ORDER = 1024;
 function isId(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v);
 }
+
+/**
+ * A queue slot, bounded by the queue that holds it. The sim checks the slot
+ * really holds what the click named (tick.ts) — this is the protocol's own
+ * bound, and it is the cap rather than a round number because a slot past
+ * the cap can never name anything: letting one through only buys a command
+ * that reaches the sim to do nothing.
+ */
+function isSlot(v: unknown, cap: number): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < cap;
+}
+
+/** An index into a building's recipeOptions. Bounded by the longest menu
+ * any building has, since which building this is arrives with the id and
+ * is resolved in the sim. */
+function isRecipeIndex(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= MAX_RECIPE_OPTIONS;
+}
+
+/** The longest recipeOptions any def carries — the Smith's nine. */
+const MAX_RECIPE_OPTIONS = Math.max(
+  ...Object.values(BUILDING_DEFS).map((d) => d.recipeOptions?.length ?? 0),
+);
 
 /** Tile coordinates are always whole numbers on the wire; the sim's own
  * bounds checks (inBounds, canPlace) still decide whether they mean
@@ -121,44 +145,28 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       return { kind: 'setBuildingRepair', buildingId: c.buildingId, repair: c.repair === true };
     case 'setBuildingRecipe': {
       if (!isId(c.buildingId)) return null;
-      const index = c.index;
       // -1 is AUTO_RECIPE: clear the standing order and let the Smith pick.
-      if (typeof index !== 'number' || !Number.isInteger(index) || index < -1 || index > 15) {
-        return null;
-      }
-      return { kind: 'setBuildingRecipe', buildingId: c.buildingId, index };
+      if (c.index !== AUTO_RECIPE && !isRecipeIndex(c.index)) return null;
+      return { kind: 'setBuildingRecipe', buildingId: c.buildingId, index: c.index };
     }
     case 'enqueueForge': {
       if (!isId(c.buildingId)) return null;
-      const recipeIndex = c.recipeIndex;
-      if (
-        typeof recipeIndex !== 'number' ||
-        !Number.isInteger(recipeIndex) ||
-        recipeIndex < 0 ||
-        recipeIndex > 15
-      ) {
-        return null;
-      }
-      return { kind: 'enqueueForge', buildingId: c.buildingId, recipeIndex };
+      if (!isRecipeIndex(c.recipeIndex)) return null;
+      return { kind: 'enqueueForge', buildingId: c.buildingId, recipeIndex: c.recipeIndex };
     }
     case 'cancelForge': {
       if (!isId(c.buildingId)) return null;
-      const { index, recipeIndex } = c;
       // Both the slot and what the player thinks is in it, like
       // cancelTraining: a stale click after the queue shifted must miss
       // rather than cancel a neighbour.
-      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > 15) {
-        return null;
-      }
-      if (
-        typeof recipeIndex !== 'number' ||
-        !Number.isInteger(recipeIndex) ||
-        recipeIndex < 0 ||
-        recipeIndex > 15
-      ) {
-        return null;
-      }
-      return { kind: 'cancelForge', buildingId: c.buildingId, index, recipeIndex };
+      if (!isSlot(c.index, FORGE_QUEUE_CAP)) return null;
+      if (!isRecipeIndex(c.recipeIndex)) return null;
+      return {
+        kind: 'cancelForge',
+        buildingId: c.buildingId,
+        index: c.index,
+        recipeIndex: c.recipeIndex,
+      };
     }
     case 'research':
       if (!isDefined(TECH_DEFS, c.tech)) return null;
@@ -168,11 +176,13 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       return { kind: 'trainUnit', buildingId: c.buildingId, unit: c.unit as UnitTypeId };
     case 'cancelTraining': {
       if (!isId(c.buildingId) || !isDefined(UNIT_DEFS, c.unit)) return null;
-      const index = c.index;
-      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > 15) {
-        return null;
-      }
-      return { kind: 'cancelTraining', buildingId: c.buildingId, index, unit: c.unit as UnitTypeId };
+      if (!isSlot(c.index, TRAIN_QUEUE_CAP)) return null;
+      return {
+        kind: 'cancelTraining',
+        buildingId: c.buildingId,
+        index: c.index,
+        unit: c.unit as UnitTypeId,
+      };
     }
     case 'admin':
       if (!ADMIN_ACTIONS.includes(c.action as AdminAction)) return null;

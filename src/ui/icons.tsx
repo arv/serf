@@ -379,7 +379,6 @@ export function SpeakerOffIcon() {
   );
 }
 
-/** The builder's mallet, for the build menu. */
 /** The ledger: ruled lines with entries — the strip's "all goods" chip. */
 export function LedgerIcon() {
   return (
@@ -392,6 +391,7 @@ export function LedgerIcon() {
   );
 }
 
+/** The builder's mallet, for the build menu. */
 export function MalletIcon() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
