@@ -238,11 +238,20 @@ export class FogOfWar implements FogQuery {
     const x1 = Math.min(size - 1, Math.floor(cx) + r);
     const z0 = Math.max(0, Math.floor(cz) - r);
     const z1 = Math.min(size - 1, Math.floor(cz) + r);
+    // The bounding box is a square and the stamp is a circle, so a fifth of
+    // the tiles visited are corners that contribute nothing. Rejecting them
+    // on the squared distance keeps the square root for the tiles that can
+    // actually be lit. The bound is the OUTER radius, comfortably past the
+    // `t <= 0` cut below, so the two can never disagree about a tile.
+    const outerSq = (radius + RIM) * (radius + RIM);
     for (let z = z0; z <= z1; z++) {
+      const dz = z + 0.5 - cz; // constant across the row
+      const dzSq = dz * dz;
       for (let x = x0; x <= x1; x++) {
         const dx = x + 0.5 - cx;
-        const dz = z + 0.5 - cz;
-        const d = Math.sqrt(dx * dx + dz * dz);
+        const dSq = dx * dx + dzSq;
+        if (dSq >= outerSq) continue;
+        const d = Math.sqrt(dSq);
         // Soft rim so the frontier is a gradient, not a cookie cutter.
         const t = Math.min(Math.max((radius - d) / RIM, 0), 1);
         if (t <= 0) continue;
