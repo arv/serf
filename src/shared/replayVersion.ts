@@ -20,6 +20,12 @@
  * directly.
  */
 /**
+ * 16: the opening armory goes back to two spears and a sword. Version 14
+ * traded the second spear for a bow that had to wait on Archery to be
+ * spent; the rack now holds only what a Soldiery rush can field on day
+ * one. The first recruits differ, so every tick after the first barracks
+ * order does too.
+ *
  * 15: the guard tower learns to defend against a rush.
  *
  * Two changes to what it does with the men in it. Its garrison no longer
@@ -60,4 +66,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 15;
+export const REPLAY_VERSION = 16;
