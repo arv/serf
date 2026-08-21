@@ -22,6 +22,33 @@ pnpm bakeoff --engine none --no-control --strategy steward:warlord --seeds 1-80
 pnpm bakeoff --help   # every flag
 ```
 
+## The balance sweep
+
+A second, much smaller instrument in the same spirit: every playbook alone
+on its own campaign map, many seeds, one table. No model, no seating
+mirror — just "how often does each playbook take the map, and how fast".
+
+```sh
+pnpm balance 32        # 32 seeds
+pnpm balance 32 1000   # ...from a different range
+```
+
+The second argument is the point. A campaign is about a second to run and
+wildly noisy, so a two- or three-win move over 32 seeds means nothing, and
+the only way to know is to re-run on a seed range you did not tune against.
+Several plausible changes have died exactly there — a fletcher housing tweak
+went 24/32 against 22 on one range and 22/32 against 25 on the next, which
+is the same as saying it did nothing.
+
+It cuts both ways: a change can also be real and only look like noise on
+one range. The fletcher's third roof measured as nothing before the opening
+armory moved, and as +2, +1 and +3 across three ranges after — same change,
+different world. Re-measure after anything lands under you.
+
+The standing baseline, 64 seeds across two ranges: abbot 59, steward 53,
+warlord 51, fletcher 52 with its housing fixed (49 before). Warlord and
+fletcher are the deck's thin end now; abbot is comfortably its strongest.
+
 Sim-only sweeps run one match per `--jobs` process (`--jobs max` uses the
 machine); results are byte-identical to `--jobs 1` for every engine except
 `http`, where it also means concurrent requests — size the server's

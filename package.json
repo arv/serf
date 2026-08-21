@@ -14,6 +14,7 @@
     "server": "pnpm --dir server dev",
     "smoke": "pnpm --dir server smoke",
     "bakeoff": "node --experimental-strip-types tools/aiLab/bakeoff.ts",
+    "balance": "node --experimental-strip-types tools/aiLab/balance.ts",
     "bakeoff:compare": "node --experimental-strip-types tools/aiLab/compare.ts"
   },
   "devEngines": {

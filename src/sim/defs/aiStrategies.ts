@@ -257,9 +257,14 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       { type: 'ironMine', count: 1, anchor: 'iron', radius: 4, after: 'ironworking' },
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'ironworking', needs: 'barracks' },
       // The towers this plan is now built around, and the reason it learns
-      // archery at all. Two of them, gated on the bow rather than on the
-      // barracks: a tower with nobody to man it is a wall that does not
-      // shoot, and this is the seat that can least afford wasted stone.
+      // archery at all. Two of them, still gated on the bow now that the
+      // levy means a tower is never merely wasted stone — because moving
+      // the gate back to soldiery measures worse, not better, and does so
+      // on both seed ranges independently: this seat takes 56 campaigns in
+      // 64 with the early gate against 59 with this one, and the deck as a
+      // whole 209 in 256 against 212. An early tower stands paused through
+      // the quiet opening and its archers arrive no sooner for it.
+      // (tools/aiLab/balance.ts)
       { type: 'guardTower', count: 2, anchor: 'base', after: 'archery', needs: 'barracks' },
       // The wide half of the plan waits for the iron chain to stand: hired
       // hands eat, and a second field is only worth its worker once there
@@ -341,6 +346,15 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       { type: 'quarry', count: 1, anchor: 'rock', radius: 6 },
       // Beds third, as the campaign line has them: the axe and the pick
       // first, then the roof that lets the village grow past ten.
+      // Two roofs, and a third is not the answer however much it looks
+      // like one. It is worth six wins in 32 to this seat's solo campaign
+      // under the tools economy (12 to 18) — and it makes four-seat games
+      // stick: seed 42 goes from ending at 43k to not ending at 400k, and
+      // two other seeds triple. A bigger village here is one nobody can
+      // finish off, and the muster's impatience rule cannot break the
+      // standoff that follows. Whatever fixes this seat has to leave that
+      // alone. (tools/aiLab/balance.ts, and aiStrategies.test.ts's
+      // four-playbook ending.)
       { type: 'house', count: 1, anchor: 'base', more: { after: 'archery', count: 2 } },
       { type: 'abbey', count: 1, anchor: 'base' },
       { type: 'silverMine', count: 1, anchor: 'silver', radius: 4 },
@@ -357,9 +371,16 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // them stops staffing the moment the starter kit runs dry.
       { type: 'ironMine', count: 1, anchor: 'iron', radius: 4, after: 'ironworking' },
       // A tower, once there are bowmen to put in it. Gated on archery
-      // rather than on soldiery — the sim would let this seat raise one the
-      // moment the barracks stands, and an unmanned tower is twelve stone
-      // spent on a wall that does not shoot.
+      // rather than on soldiery, which for this seat is nearly the same
+      // instant anyway: the bow is second in its research order, so the two
+      // gates measure identically here (22/32 either way).
+      //
+      // The levy barely fires on this map for any seat, which is worth
+      // knowing before anyone tunes for it: raids land around tick 16k and
+      // a tower stands by 6-8k, so the archers all but always reach the
+      // wall first — tens of ticks of villagers across a whole campaign,
+      // and none at all on this seat. They are a human's answer to being
+      // rushed, not the AI's.
       { type: 'guardTower', count: 1, anchor: 'base', after: 'archery', needs: 'barracks' },
       // No fishery here, and none in the Abbot's plan either. Both run their
       // last step on a purse the iron seats never touch — the Fletcher pays
@@ -391,6 +412,15 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // second wave took a castle nobody was left to hold. At ten the army
     // stays home through the first wave and razes the camp in one march,
     // before the second one spawns.
+    //
+    // Ten still. This is the deck's weak seat and the tools economy (#103)
+    // has made it much weaker: 12 campaigns in 32 where the other three
+    // take 27 apiece, dying in half its games and running out the clock in
+    // five more. It is the one playbook that never touches iron, and the
+    // Smith who makes every post's tools sits on the far side of that
+    // chain. That is the shape of the problem; the fix is not housing (see
+    // above), and it is not a third woodcutter, which is a rout at 34 wins
+    // in 64 against 49 — a hand on wood is a hand off the hauling.
     //
     // The tower does not move this. Raising it to twelve to buy back the
     // two archers the garrison swallows measured as a wash over ten seeds

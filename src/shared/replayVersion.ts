@@ -20,6 +20,11 @@
  * directly.
  */
 /**
+ * 18: the tools economy (#103) — nine posts need a tool to work and the
+ * Smith makes them all. Recorded here after the fact: that change moved
+ * the number without leaving a line, and a gap in this list reads like a
+ * lost version rather than a documented one.
+ *
  * 17: one lever where there were two — pausing a building now empties it.
  *
  * The dismiss order is gone, and halting a building does what it did: the
