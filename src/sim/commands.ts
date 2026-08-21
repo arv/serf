@@ -21,6 +21,7 @@ export type SimCommand =
   | { kind: 'placeBuilding'; building: BuildingTypeId; x: number; y: number }
   | { kind: 'hireSerf' }
   | { kind: 'dismissWorker'; buildingId: EntityId }
+  | { kind: 'callLevy'; buildingId: EntityId; called: boolean }
   | { kind: 'sellBuilding'; buildingId: EntityId }
   | { kind: 'setBuildingPaused'; buildingId: EntityId; paused: boolean }
   | { kind: 'setBuildingRepair'; buildingId: EntityId; repair: boolean }
@@ -112,6 +113,9 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
     case 'dismissWorker':
       if (!isId(c.buildingId)) return null;
       return { kind: 'dismissWorker', buildingId: c.buildingId };
+    case 'callLevy':
+      if (!isId(c.buildingId)) return null;
+      return { kind: 'callLevy', buildingId: c.buildingId, called: c.called === true };
     case 'sellBuilding':
       if (!isId(c.buildingId)) return null;
       return { kind: 'sellBuilding', buildingId: c.buildingId };

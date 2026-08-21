@@ -1,5 +1,5 @@
-import { COUNTER_TABLE, UNIT_DEFS, type UnitClass } from '../defs/units.ts';
-import { buildingDef } from '../defs/buildings.ts';
+import { COUNTER_TABLE, UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
+import { buildingDef, type BuildingDef } from '../defs/buildings.ts';
 import { BANDIT, centerOf, isPlayerOwner, type Building } from '../entities.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
 import { exactDist } from '../../shared/math.ts';
@@ -259,13 +259,13 @@ function towerFire(world: World, buildings: readonly Building[], units: readonly
     if (b.dead || b.state !== 'built') continue;
     const rule = buildingDef(b.type).garrison;
     if (!rule || !b.garrison) continue;
-    const combat = UNIT_DEFS[rule.unit].combat;
-    if (!combat) continue;
+    const volley = volleyOf(rule, b.garrisonKind, b.garrison);
+    if (!volley) continue;
     if ((b.attackCooldown ?? 0) > 0) {
       b.attackCooldown!--;
       continue;
     }
-    const target = acquireForBuilding(units, b, combat.class, combat.range + rule.rangeBonus);
+    const target = acquireForBuilding(units, b, volley.class, volley.range);
     if (!target) continue;
     const defClass = UNIT_DEFS[target.kind].combat?.class;
     // The counter table, but only ever in the tower's favor. Its penalties
@@ -276,9 +276,9 @@ function towerFire(world: World, buildings: readonly Building[], units: readonly
     // early wave is made of: it left the tower weakest against exactly the
     // attack it is built to stop. The bonuses stay — height does not help
     // a knight climb.
-    const mult = defClass ? Math.max(1, COUNTER_TABLE[combat.class][defClass]) : 1;
-    target.hp -= combat.damage * rule.damageMult * b.garrison * mult;
-    b.attackCooldown = combat.cooldownTicks;
+    const mult = defClass ? Math.max(1, COUNTER_TABLE[volley.class][defClass]) : 1;
+    target.hp -= volley.damage * mult;
+    b.attackCooldown = volley.cooldownTicks;
     if (isPlayerOwner(target.owner)) {
       world.pendingEvents.push({
         kind: 'damage',
@@ -290,6 +290,41 @@ function towerFire(world: World, buildings: readonly Building[], units: readonly
     }
     if (target.hp <= 0) killUnit(world, target);
   }
+}
+
+/** One tower's shot: who it shoots like, for how much, how often, how far. */
+interface Volley {
+  class: UnitClass;
+  damage: number;
+  cooldownTicks: number;
+  range: number;
+}
+
+/**
+ * What the men in a tower loose this volley, which depends entirely on who
+ * they are. Soldiers shoot with their own stats, sharpened by the height and
+ * multiplied because two men in a tower are two men's worth of arrows rather
+ * than one. The levy throws stones: the tower's own numbers, unsharpened,
+ * and still once per man.
+ */
+function volleyOf(
+  rule: NonNullable<BuildingDef['garrison']>,
+  kind: UnitTypeId | undefined,
+  men: number,
+): Volley | undefined {
+  if (men <= 0) return undefined;
+  if (kind === rule.levy.unit) {
+    const { class: cls, damage, cooldownTicks, range } = rule.levy;
+    return { class: cls, damage: damage * men, cooldownTicks, range };
+  }
+  const combat = UNIT_DEFS[rule.unit].combat;
+  if (!combat) return undefined;
+  return {
+    class: combat.class,
+    damage: combat.damage * rule.damageMult * men,
+    cooldownTicks: combat.cooldownTicks,
+    range: combat.range + rule.rangeBonus,
+  };
 }
 
 /**

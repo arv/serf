@@ -29,7 +29,7 @@ import {
 } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, WEAPON_OF, type UnitClass, type UnitTypeId } from '../defs/units.ts';
-import { addGarrison, classHp, shouldCommit, type Force } from '../combatOdds.ts';
+import { addGarrison, classHp, damageEquivalent, shouldCommit, type Force } from '../combatOdds.ts';
 import { HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
 import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
@@ -1059,8 +1059,16 @@ export class AiBrain {
       const by = b.y + b.h / 2;
       if (!this.#vision.canSee(bx, by)) continue;
       if (Math.abs(bx - cx) + Math.abs(by - cy) > DEFENDER_RADIUS) continue;
-      const cls = UNIT_DEFS[rule.unit].combat?.class;
-      if (cls) addGarrison(seen, cls, b.garrison, rule.damageMult, b.hp);
+      if (b.garrisonKind === rule.levy.unit) {
+        // Villagers with stones still hold ground, and a captain who reads
+        // a levied tower as an empty one marches under a wall that is
+        // hitting him. Priced at what the rock is worth beside a weapon.
+        const { class: cls, damage, cooldownTicks } = rule.levy;
+        addGarrison(seen, cls, b.garrison, damageEquivalent(cls, damage, cooldownTicks), b.hp);
+      } else {
+        const cls = UNIT_DEFS[rule.unit].combat?.class;
+        if (cls) addGarrison(seen, cls, b.garrison, rule.damageMult, b.hp);
+      }
     }
     if (seen.hp > 0) return seen;
 

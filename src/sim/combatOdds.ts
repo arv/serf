@@ -194,6 +194,21 @@ export function addGarrison(
 }
 
 /**
+ * A defence that is not soldiers at all — a tower's levy — priced in the
+ * soldier-equivalents `addGarrison` speaks. Villagers with stones are worth
+ * a fraction of a man each, and that fraction is what has to enter the
+ * force: an attacker who reads a levied tower as an empty one walks his
+ * army under a wall that is shooting at it.
+ *
+ * The same liberty the garrison takes: what enters is a damage rate wearing
+ * a headcount's clothes, so the rate is divided by what one soldier of that
+ * class does before it can be counted as bodies.
+ */
+export function damageEquivalent(cls: UnitClass, damage: number, cooldownTicks: number): number {
+  return damage / cooldownTicks / classDamage(cls);
+}
+
+/**
  * The square law's invariant for one side: damage rate times hit points. Two
  * forces' powers are directly comparable — the larger one wins the fight, and
  * the ratio is how comfortably.

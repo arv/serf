@@ -20,6 +20,11 @@
  * directly.
  */
 /**
+ * 16: the guard tower takes a levy. Villagers can be called up to hold it
+ * with stones until archers exist to relieve them, which changes who is in
+ * a tower, what it shoots for, and how many hands the village has left to
+ * haul with — and the AI's picture of a defended base along with it.
+ *
  * 15: a guard tower's garrison no longer takes the counter table's
  * penalties, only its bonuses. Those penalties model closing on a shooter,
  * which a wall is precisely what prevents, and they had the tower at its
@@ -43,4 +48,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 15;
+export const REPLAY_VERSION = 16;

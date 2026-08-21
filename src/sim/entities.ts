@@ -83,6 +83,25 @@ export interface Building {
    * or the post is dismissed.
    */
   garrison?: number;
+  /**
+   * Which kind is up there. A tower holds soldiers or the levy, never a mix
+   * — `garrison` is a count and a count cannot say who is shooting, and the
+   * two shoot nothing alike. Undefined exactly when the tower is empty.
+   */
+  garrisonKind?: UnitTypeId;
+  /**
+   * The levy is called: villagers may climb this tower until it is stood
+   * down or soldiers arrive to relieve them.
+   *
+   * An order rather than a state, and the reason the levy is ordered at all:
+   * a tower is never *done* wanting men, so a garrison that recruited serfs
+   * on its own would quietly eat two of them the day it was built and hold
+   * them for the rest of the game, against every building site competing for
+   * the same pool. Soldiers are safe to take on sight because there is
+   * nothing else for an idle archer to do. A serf always has somewhere else
+   * to be, so a person has to say so.
+   */
+  levyCalled?: boolean;
   /** Ticks before this building's garrison can loose again. */
   attackCooldown?: number;
   /** Paid-for serf hires still on their way in (storehouse), and the ticks

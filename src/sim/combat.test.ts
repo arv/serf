@@ -593,6 +593,100 @@ describe('the guard tower', () => {
     expect(inside(combat.range + rule.rangeBonus + 1.5)).toBe(false);
   });
 
+  it('takes a called-up villager, and shoots with stones for it', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.levyCalled = true;
+    const serf = addSerf(world, 36, 31);
+    run(world, 20 * 20);
+    expect(tower.garrison).toBe(1);
+    expect(tower.garrisonKind).toBe('serf');
+    expect(serf.dead).toBe(true); // consumed, like the archer
+
+    const raider = spawnUnit(world, 'bandit', BANDIT, 34.5, 31.5);
+    const before = raider.hp;
+    tower.attackCooldown = 0;
+    tickWorld(world, []);
+    const levy = BUILDING_DEFS.guardTower.garrison!.levy;
+    // The rock, not the bow: no damageMult, and light against light so no
+    // counter either way.
+    expect(before - raider.hp).toBeCloseTo(levy.damage, 5);
+    expect(tower.attackCooldown).toBe(levy.cooldownTicks);
+  });
+
+  it('leaves villagers alone until the bell is rung', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const serf = addSerf(world, 36, 31);
+    run(world, 20 * 20);
+    expect(tower.garrison ?? 0).toBe(0);
+    expect(serf.dead).toBe(false);
+  });
+
+  it('reaches less far with stones than with bows', () => {
+    const rule = BUILDING_DEFS.guardTower.garrison!;
+    const combat = UNIT_DEFS.archer.combat!;
+    const hits = (levied: boolean, dist: number): boolean => {
+      const world = bareWorld();
+      const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+      tower.garrison = 2;
+      tower.garrisonKind = levied ? 'serf' : 'archer';
+      const raider = spawnUnit(world, 'bandit', BANDIT, 32 + dist, 31);
+      const before = raider.hp;
+      tickWorld(world, []);
+      return raider.hp < before;
+    };
+    expect(hits(true, rule.levy.range - 0.5)).toBe(true);
+    const archerReach = combat.range + rule.rangeBonus - 0.5;
+    expect(archerReach).toBeGreaterThan(rule.levy.range);
+    expect(hits(true, archerReach)).toBe(false); // stones fall short
+    expect(hits(false, archerReach)).toBe(true); // arrows do not
+  });
+
+  it('sends the whole levy home when an archer arrives to relieve it', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.levyCalled = true;
+    tower.garrison = 2;
+    tower.garrisonKind = 'serf';
+    spawnUnit(world, 'archer', 0, 36.5, 31.5);
+    run(world, 20 * 20);
+    // A tower holds one kind or the other, never a mix.
+    expect(tower.garrisonKind).toBe('archer');
+    expect(tower.garrison).toBe(1);
+    const serfs = [...world.units.values()].filter((u) => !u.dead && u.kind === 'serf');
+    expect(serfs).toHaveLength(2); // both villagers back on their feet
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('empties the tower when the levy is stood down', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.levyCalled = true;
+    tower.garrison = 2;
+    tower.garrisonKind = 'serf';
+    const before = populationOf(world, 0);
+    tickWorld(world, cmds({ kind: 'callLevy', buildingId: tower.id, called: false }));
+    expect(tower.garrison ?? 0).toBe(0);
+    expect(tower.garrisonKind).toBeUndefined();
+    expect(tower.levyCalled).toBeUndefined();
+    // Coming down the stairs is not a death: the head count is unchanged.
+    expect(populationOf(world, 0)).toBe(before);
+  });
+
+  it('does not call villagers up to a tower the archers already hold', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.levyCalled = true;
+    tower.garrison = 1;
+    tower.garrisonKind = 'archer';
+    const serf = addSerf(world, 36, 31);
+    run(world, 20 * 20);
+    expect(tower.garrison).toBe(1);
+    expect(tower.garrisonKind).toBe('archer');
+    expect(serf.dead).toBe(false);
+  });
+
   it('holds its fire while nobody is manning it', () => {
     const world = bareWorld();
     manned(world, 0);

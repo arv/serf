@@ -83,6 +83,7 @@ export function SelectionPanel(props: {
   onDeselect: () => void;
   onArmOrder: (mode: OrderMode | null) => void;
   onDismiss: (buildingId: number) => void;
+  onCallLevy: (buildingId: number, called: boolean) => void;
   onSell: (buildingId: number) => void;
   onRepair: (buildingId: number, repair: boolean) => void;
   onTogglePause: (buildingId: number, paused: boolean) => void;
@@ -263,6 +264,9 @@ export function SelectionPanel(props: {
               the card's people-shaped controls speak of them instead. */
           const manned = () => b().garrisonCap !== undefined;
           const garrison = () => b().garrison ?? 0;
+          /** Villagers on the roof rather than soldiers. */
+          const levied = () => b().levied === true;
+          const levyCalled = () => b().levyCalled === true;
           return (
             <div class="hud-selection panel">
               <div class="sel-head">
@@ -289,11 +293,19 @@ export function SelectionPanel(props: {
                   <TipWrap
                     tip={() => (
                       <TextTip
-                        title={manned() ? 'Send an archer down' : 'Dismiss worker'}
+                        title={
+                          manned()
+                            ? levied()
+                              ? 'Send a villager down'
+                              : 'Send an archer down'
+                            : 'Dismiss worker'
+                        }
                         body={
                           manned()
                             ? garrison() > 0
-                              ? 'One of the archers climbs down and is a soldier in the field again. The tower stops calling for another for a while, so he can march off instead of walking straight back up.'
+                              ? levied()
+                                ? 'One of the villagers climbs down and goes back to work. The tower stops calling for another for a while, so he can pick up a load instead of walking straight back up.'
+                                : 'One of the archers climbs down and is a soldier in the field again. The tower stops calling for another for a while, so he can march off instead of walking straight back up.'
                               : 'Nobody is manning this tower.'
                             : b().staffing === 'staffed'
                               ? 'Sends the worker back to the serf pool — the way out when nobody is free to haul or build. This post stands open for a while so the freed hands can take up new work first.'
@@ -309,6 +321,32 @@ export function SelectionPanel(props: {
                       Dismiss
                     </button>
                   </TipWrap>
+                  {/* The bell. A tower's archers are a research and a
+                      weapon chain away, and a rush is not: this is what
+                      the stone buys in the meantime. Ordered rather than
+                      automatic because a serf always has somewhere else
+                      to be — see Building.levyCalled. */}
+                  <Show when={manned()}>
+                    <TipWrap
+                      tip={() => (
+                        <TextTip
+                          title={levyCalled() ? 'Stand the levy down' : 'Call the levy'}
+                          body={
+                            levyCalled()
+                              ? 'The villagers put the stones down and go back to work. Soldiers already on the roof stay where they are.'
+                              : 'Villagers climb up with stones until soldiers arrive to relieve them. They hit far softer than archers and reach less far, but they can be up there today — and every one of them is a pair of hands off the hauling.'
+                          }
+                        />
+                      )}
+                    >
+                      <button
+                        classList={{ on: levyCalled() }}
+                        onClick={() => props.onCallLevy(b().id, !levyCalled())}
+                      >
+                        {levyCalled() ? 'Stand down' : 'Call levy'}
+                      </button>
+                    </TipWrap>
+                  </Show>
                   {/* Repairs get a slot of their own rather than a line
                       in the block below, because the castle — which may
                       be neither paused nor sold — is exactly the
@@ -597,15 +635,17 @@ export function SelectionPanel(props: {
                   card that rewrites itself unasked, so nothing the
                   player aims at sits below it. */}
               <div class="sel-line sel-status">
-                {/* A tower unlocks with the barracks but is manned by
-                    archers, who wait on Archery — so an empty one has to
-                    say what it is waiting for rather than sit there
-                    looking built and doing nothing. */}
+                {/* A tower unlocks with the barracks but shoots best with
+                    archers, who wait on Archery — so it says which of the
+                    two is up there, and an empty one says the bell is the
+                    answer it can afford today. */}
                 <Show when={manned() && b().state === 'built'}>
                   <span classList={{ good: garrison() > 0, bad: garrison() === 0 }}>
                     {garrison() === 0
-                      ? 'unmanned — needs an archer!'
-                      : `${garrison()}/${b().garrisonCap} archers on the roof`}
+                      ? levyCalled()
+                        ? 'unmanned — waiting for villagers'
+                        : 'unmanned — call the levy, or send archers'
+                      : `${garrison()}/${b().garrisonCap} ${levied() ? 'villagers' : 'archers'} on the roof`}
                   </span>
                 </Show>
                 <Show when={b().staffing}>
