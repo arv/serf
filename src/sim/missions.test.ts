@@ -169,6 +169,18 @@ describe('the campaign missions', () => {
           ironPlaced = true;
           continue;
         }
+        // A fresh Smith idles on auto; the crown wants spears — the player
+        // clicks the forge menu once the roof is up.
+        const smith = [...world.buildings.values()].find(
+          (b) => b.type === 'weaponsmith' && !b.dead && b.state === 'built',
+        );
+        if (smith && smith.recipeIndex === undefined) {
+          tickWorld(
+            world,
+            cmds({ kind: 'setBuildingRecipe', buildingId: smith.id, index: 0 }),
+          );
+          continue;
+        }
       }
       tickWorld(world, []);
     }

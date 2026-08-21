@@ -352,6 +352,10 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // Two forges and no mine to feed them: bowstaves are three wood
       // apiece, which is why the second woodcutter comes with the archery.
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'archery', needs: 'barracks' },
+      // One seam, late, and not for weapons: the bows stay pure wood, but
+      // axes, picks and scythes are ironwork, and a seat that cannot forge
+      // them stops staffing the moment the starter kit runs dry.
+      { type: 'ironMine', count: 1, anchor: 'iron', radius: 4, after: 'ironworking' },
       // A tower, once there are bowmen to put in it. Gated on archery
       // rather than on soldiery — the sim would let this seat raise one the
       // moment the barracks stands, and an unmanned tower is twelve stone
@@ -364,7 +368,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // both and both stopped winning the campaign map; a seat that cannot
       // afford surplus food should not be buying any.
     ],
-    researchOrder: ['soldiery', 'archery', 'cobbledBoots'],
+    // Ironworking on a bow plan: not for the weapons — for the axes. Every
+    // tool but the fishing rod is ironwork now, and a seat that never
+    // researches it can staff nothing past the starter kit. Last, because
+    // the opening kit carries the first posts and the bows cannot wait.
+    researchOrder: ['soldiery', 'archery', 'cobbledBoots', 'ironworking'],
     researchReserve: 8,
     serfTarget: 11,
     survivalFloor: 3,

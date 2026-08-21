@@ -59,6 +59,11 @@ export const [netStatus, setNetStatus] = createSignal<
 /** Storehouse stock — the HUD resource bar. */
 export const [stock, setStock] = createSignal<GoodAmounts>({});
 
+/** Open posts per tool (and sites owed hammers) — the strip's "wants" chip
+ * and the ledger's task column. Computed in the sim's snapshot, since the
+ * main thread holds no building roster to derive it from. */
+export const [toolWants, setToolWants] = createSignal<GoodAmounts>({});
+
 /**
  * Heads and beds — the HUD's population readout. `pop` is every living
  * person this seat owns (serfs, resident workers, soldiers alike); `cap` is
@@ -107,11 +112,15 @@ export const [techs, setTechs] = createSignal<TechSnap>({
   hasAbbey: false,
 });
 /** At most one HUD popup at a time — opening any closes the others. */
-export type HudPanel = 'build' | 'menu' | 'tech';
+export type HudPanel = 'build' | 'menu' | 'tech' | 'economy';
 export const [openPanel, setOpenPanel] = createSignal<HudPanel | null>(null);
 export const techPanelOpen = (): boolean => openPanel() === 'tech';
 export const setTechPanelOpen = (open: boolean): void => {
   setOpenPanel(open ? 'tech' : null);
+};
+export const economyPanelOpen = (): boolean => openPanel() === 'economy';
+export const setEconomyPanelOpen = (open: boolean): void => {
+  setOpenPanel(open ? 'economy' : null);
 };
 
 /** The "leave the match?" question, asked by the HUD's own <dialog>

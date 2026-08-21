@@ -4,7 +4,15 @@ import {
   ABBEY_ALE_CAP,
   BARRACKS_ALE_CAP,
 } from '../defs/balance.ts';
-import { INPUT_CAP, buildingDef, convertRecipeOf, outputGoodsOf } from '../defs/buildings.ts';
+import {
+  INPUT_CAP,
+  TOOL_GOODS,
+  TOOL_OF,
+  buildingDef,
+  convertRecipeOf,
+  outputGoodsOf,
+} from '../defs/buildings.ts';
+import { forgeDemandRecipe } from './production.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
@@ -155,6 +163,20 @@ function match(world: World): void {
           clearDemandAge(b, good);
         }
       }
+      // The post's tool is pre-ordered while the walls rise (priority 2 —
+      // the planks matter more), so the axe usually lands with the last
+      // load and the builder walks straight onto the post. Never a gate
+      // on construction itself: a site missing its tool still tops out,
+      // it just opens unstaffed.
+      const siteTool = TOOL_OF[b.type];
+      if (siteTool !== undefined) {
+        const want = 1 - (b.inputs[siteTool] ?? 0) - (b.inbound[siteTool] ?? 0);
+        if (want > 0 && !suspended(world, b, siteTool)) {
+          demands.push(demandOf(world, b, siteTool, want, 2));
+        } else if (want <= 0) {
+          clearDemandAge(b, siteTool);
+        }
+      }
       continue;
     }
 
@@ -173,8 +195,12 @@ function match(world: World): void {
       }
     }
 
-    // Convert recipes demand their input goods (priority 2).
-    const convert = convertRecipeOf(def, b);
+    // Convert recipes demand their input goods (priority 2). A Smith's
+    // demand follows what it will actually forge next — the queue head,
+    // else the standing order, else auto's pick — so a forge queued onto
+    // bows does not sit calling for iron (and an auto Smith with every
+    // tool gap covered calls for nothing at all).
+    const convert = def.recipeOptions ? forgeDemandRecipe(world, b, def) : convertRecipeOf(def, b);
     if (convert && !b.paused) {
       for (const good of Object.keys(convert.inputs) as GoodId[]) {
         const want = INPUT_CAP - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
@@ -183,6 +209,21 @@ function match(world: World): void {
         } else if (want <= 0) {
           clearDemandAge(b, good);
         }
+      }
+    }
+
+    // A tool-gated post standing open calls for its tool (priority 2) —
+    // the demand staffing waits on. One at a time, and none while a live
+    // worker holds the post (his tool was consumed when he took it up).
+    const postTool = TOOL_OF[b.type];
+    if (postTool !== undefined && !b.paused) {
+      const w = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+      const manned = w !== undefined && !w.dead;
+      const want = manned ? 0 : 1 - (b.inputs[postTool] ?? 0) - (b.inbound[postTool] ?? 0);
+      if (want > 0 && !suspended(world, b, postTool)) {
+        demands.push(demandOf(world, b, postTool, want, 2));
+      } else if (want <= 0) {
+        clearDemandAge(b, postTool);
       }
     }
 
@@ -219,10 +260,20 @@ function match(world: World): void {
 
     // Producers evacuate their outputs to the storehouse (priority 3) —
     // modeled as a demand *by the storehouse*, pinned to the supplier.
-    if ((def.recipe || def.recipeOptions) && !def.storage) {
+    if (!def.storage) {
       // Every good the building can ever emit — a smith switched off
-      // bowmaking still ships its leftover bows.
-      for (const good of outputGoodsOf(def)) {
+      // bowmaking still ships its leftover bows. Plus any tool on the
+      // shelf that production would never name: the hammer a topped-out
+      // site returned, the axe a dismissed woodcutter left behind. Those
+      // ride home from ANY building, recipe or not — a finished house is
+      // no producer, but the hammer that raised it still wants hauling.
+      const evac = new Set<GoodId>(
+        def.recipe || def.recipeOptions ? outputGoodsOf(def) : [],
+      );
+      for (const tool of TOOL_GOODS) {
+        if ((b.stock[tool] ?? 0) > 0) evac.add(tool);
+      }
+      for (const good of evac) {
         const surplus = availableOut(b, good);
         if (surplus > 0) {
           const storehouse = storehouseOf(b.owner);
@@ -605,8 +656,21 @@ function progress(world: World): void {
 
 function deliver(world: World, to: Building, good: GoodId): void {
   if (to.state === 'site' && to.siteNeeds) {
-    // Construction materials are consumed by the site.
+    if ((to.siteNeeds[good] ?? 0) === 0 && TOOL_OF[to.type] === good) {
+      // The post's pre-ordered tool: not a construction material — it
+      // waits in the rack for the builder-turned-worker (construction
+      // completion / staffing consume it from there).
+      to.inputs[good] = (to.inputs[good] ?? 0) + 1;
+      return;
+    }
     to.siteNeeds[good] = Math.max(0, (to.siteNeeds[good] ?? 0) - 1);
+    if (good === 'hammer') {
+      // Borrowed, not consumed: the hammer survives in the site's hands
+      // and goes back on the shelf at completion. Losing the site is the
+      // only way to lose it.
+      to.inputs.hammer = (to.inputs.hammer ?? 0) + 1;
+      return;
+    }
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + 1;
     return;
   }
@@ -617,7 +681,17 @@ function deliver(world: World, to: Building, good: GoodId): void {
     return;
   }
   const def = buildingDef(to.type);
-  if ((convertRecipeOf(def, to)?.inputs[good] ?? 0) > 0) {
+  if (TOOL_OF[to.type] === good) {
+    // The post's tool hangs in the rack until a recruit takes it up.
+    to.inputs[good] = (to.inputs[good] ?? 0) + 1;
+  } else if (
+    def.recipeOptions
+      ? def.recipeOptions.some((o) => (o.recipe.inputs[good] ?? 0) > 0)
+      : (convertRecipeOf(def, to)?.inputs[good] ?? 0) > 0
+  ) {
+    // Any recipe on the Smith's menu keeps its ingredients: iron that
+    // arrives after the queue switched to bows stays in the buffer for
+    // the next iron batch instead of bouncing home off the output shelf.
     to.inputs[good] = (to.inputs[good] ?? 0) + 1;
   } else if (to.type === 'abbey' && good === 'ale') {
     to.inputs.ale = (to.inputs.ale ?? 0) + 1;
@@ -668,8 +742,15 @@ function reconcile(world: World): void {
       continue;
     }
     // Sites whose need for this good vanished (e.g. completed early or
-    // over-provisioned): cancel surplus inbound jobs.
-    if (to.state === 'site' && to.siteNeeds && (to.siteNeeds[job.good] ?? 0) === 0) {
+    // over-provisioned): cancel surplus inbound jobs. The post's own
+    // pre-ordered tool is exempt — it was never in siteNeeds to begin
+    // with, and the post wants it however far along the walls are.
+    if (
+      to.state === 'site' &&
+      to.siteNeeds &&
+      (to.siteNeeds[job.good] ?? 0) === 0 &&
+      TOOL_OF[to.type] !== job.good
+    ) {
       abortJob(world, job, 'reconcile: site no longer needs good');
       continue;
     }

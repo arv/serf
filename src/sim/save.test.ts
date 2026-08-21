@@ -139,16 +139,26 @@ describe('the map grids', () => {
     for (const key of GRIDS) expect(back.map[key]).toEqual(world.map[key]);
   });
 
-  it('open from a version 4 file, where they were number arrays', () => {
+  // The reader still takes the old number-array spelling as well as base64.
+  // Nothing writes one now — the version that did is below the floor since
+  // tools (see canReadSave) — so this is the reader's tolerance under test,
+  // not a file anyone has: written at the current version so the gate lets
+  // it through to the decoder that is the point of the exercise.
+  it('open with grids spelled as number arrays, not base64', () => {
     const world = savedWorld();
     const doc = JSON.parse(serializeWorld(world)) as {
       version: number;
       world: { map: Record<string, unknown> };
     };
-    doc.version = 4;
     for (const key of GRIDS) doc.world.map[key] = [...world.map[key]];
     const back = deserializeWorld(JSON.stringify(doc));
     for (const key of GRIDS) expect(back.map[key]).toEqual(world.map[key]);
+  });
+
+  it('are refused when they are older than the tool economy', () => {
+    const doc = JSON.parse(serializeWorld(savedWorld())) as { version: number };
+    doc.version = 5;
+    expect(() => deserializeWorld(JSON.stringify(doc))).toThrow(/older version/);
   });
 
   it('are refused when they are garbage or the wrong length', () => {

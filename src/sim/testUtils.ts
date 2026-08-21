@@ -53,6 +53,22 @@ export function cmds(...commands: SimCommand[]): PlayerCommand[] {
   return commands.map((cmd) => ({ playerId: 0, cmd }));
 }
 
+/**
+ * The fixture village's tool shed, merged under every storehouse's stock:
+ * a real village always ships one (START_STOCK), and without it every
+ * fixture that stands a site or recruits a worker would first have to
+ * remember that sites borrow hammers and posts consume tools. A test about
+ * the tool economy itself overrides these per good ({ hammer: 0 }).
+ */
+export const FIXTURE_TOOLS: GoodAmounts = {
+  axe: 4,
+  pickaxe: 4,
+  scythe: 4,
+  hammer: 4,
+  cauldron: 4,
+  rod: 4,
+};
+
 export function addStorehouse(
   world: World,
   x: number,
@@ -61,7 +77,7 @@ export function addStorehouse(
   owner: Owner = 0,
 ): Building {
   const b = placeBuiltBuilding(world, 'storehouse', owner, x, y);
-  b.stock = { ...stock };
+  b.stock = { ...FIXTURE_TOOLS, ...stock };
   return b;
 }
 

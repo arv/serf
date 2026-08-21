@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_UNITS_PER_ORDER, sanitizeCommand, sanitizeCommands } from './commands.ts';
+import { FORGE_QUEUE_CAP, TRAIN_QUEUE_CAP } from './defs/balance.ts';
+import { AUTO_RECIPE, BUILDING_DEFS } from './defs/buildings.ts';
 import { tickWorld } from './tick.ts';
 import { addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 import type { SimCommand } from './commands.ts';
@@ -69,6 +71,33 @@ describe('command screening', () => {
     });
     expect(sanitizeCommand(null)).toBeNull();
     expect(sanitizeCommand('moveUnits')).toBeNull();
+  });
+
+  it('bounds a queue slot by the queue that holds it', () => {
+    // A slot past the cap can never name a real order, so it is turned away
+    // here rather than reaching the sim to quietly do nothing.
+    const forge = (index: number) =>
+      sanitizeCommand({ kind: 'cancelForge', buildingId: 1, index, recipeIndex: 0 });
+    expect(forge(FORGE_QUEUE_CAP - 1)).not.toBeNull();
+    expect(forge(FORGE_QUEUE_CAP)).toBeNull();
+    expect(forge(-1)).toBeNull();
+    const train = (index: number) =>
+      sanitizeCommand({ kind: 'cancelTraining', buildingId: 1, index, unit: 'spearman' });
+    expect(train(TRAIN_QUEUE_CAP - 1)).not.toBeNull();
+    expect(train(TRAIN_QUEUE_CAP)).toBeNull();
+  });
+
+  it('bounds a recipe index by the longest forge menu, and lets auto through', () => {
+    const menu = BUILDING_DEFS.weaponsmith.recipeOptions!.length;
+    const enqueue = (recipeIndex: number) =>
+      sanitizeCommand({ kind: 'enqueueForge', buildingId: 1, recipeIndex });
+    expect(enqueue(menu - 1)).not.toBeNull();
+    expect(enqueue(menu + 1)).toBeNull();
+    const recipe = (index: number) =>
+      sanitizeCommand({ kind: 'setBuildingRecipe', buildingId: 1, index });
+    expect(recipe(AUTO_RECIPE)).toMatchObject({ index: AUTO_RECIPE });
+    expect(recipe(-2)).toBeNull();
+    expect(recipe(menu + 1)).toBeNull();
   });
 
   it('caps the unit list and the frame', () => {

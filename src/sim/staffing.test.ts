@@ -72,6 +72,7 @@ describe('the population economy', () => {
     const world = bareWorld();
     const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
     farm.inputs.water = 3;
+    farm.inputs.scythe = 1; // the post's tool, already on the rack
     const serf = addSerf(world, 36, 34);
     run(world, 20 * 15);
 
@@ -92,6 +93,8 @@ describe('the population economy', () => {
   it('a dead worker is replaced from the serf pool', () => {
     const world = bareWorld();
     const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
+    // The replacement's scythe: the first worker's died with him.
+    farm.inputs.scythe = 1;
     const worker = staffBuilding(world, farm);
     const spare = addSerf(world, 35, 35);
     run(world, 5);
@@ -136,6 +139,7 @@ describe('the population economy', () => {
   it('a destroyed building frees its en-route recruit', () => {
     const world = bareWorld();
     const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
+    farm.inputs.scythe = 1; // recruitment waits on the post's tool
     const serf = addSerf(world, 44, 44); // long walk
     run(world, 30); // recruitment fires, serf is en route
     expect(serf.task.t).toBe('staff');
