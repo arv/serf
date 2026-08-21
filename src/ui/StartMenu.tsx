@@ -27,7 +27,7 @@ import {
   type SaveFileInfo,
 } from '../app/saveStore';
 import type { ImportResult, StoredFileInfo } from '../app/fileStore';
-import { WORLD_SAVE_VERSION } from '../shared/saveVersion';
+import { WORLD_SAVE_VERSION, canReadSave } from '../shared/saveVersion';
 import { fullscreen } from './fullscreen';
 import { edgeScrollEnabled, edgeScrollOffered, setEdgeScroll } from '../input/edgeScroll';
 import { goto } from '../app/router';
@@ -566,7 +566,7 @@ export function StartMenu(props: StartMenuProps) {
    * has to be able to refuse. One that says nothing at all is offered, and
    * the load path screens it again before a match is built. */
   const saveRow = (f: SaveFileInfo): ShelfRow => {
-    const ok = f.world === undefined || f.world === WORLD_SAVE_VERSION;
+    const ok = f.world === undefined || canReadSave(f.world);
     const mission = f.meta?.mission !== undefined ? MISSION_DEFS[f.meta.mission] : undefined;
     const opponents = f.meta?.opponents ?? 0;
     const what =

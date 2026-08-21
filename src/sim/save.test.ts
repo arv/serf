@@ -75,16 +75,19 @@ describe('save/load', () => {
     const world = createWorld(1);
     for (let t = 0; t < 500; t++) tickWorld(world, cmds(...commandScript(t)));
     const size = serializeWorld(world).length;
-    expect(size).toBeLessThan(1_500_000); // well under the ~5MB quota
+    // Halved when the map's grids became base64 (a 192² world went from
+    // ~1.27 MB to ~0.62 MB); the ceiling moved with it, so the next thing
+    // to print itself in digits per tile is caught here.
+    expect(size).toBeLessThan(800_000);
   });
 
   it('opens a save written before towers knew who was in them', () => {
     // The levy added Building.garrisonKind, so a file from any earlier build
     // has a manned tower and no word on who is manning it. That is not a new
-    // shape — it is a missing optional — so the save format did not move and
-    // WORLD_SAVE_VERSION did not bump. What has to hold is the reading: an
-    // old garrison is archers, because archers were the only thing that
-    // could ever be up there.
+    // shape — it is a missing optional — so the save format did not move
+    // for it, and it called for no bump of its own. What has to hold is
+    // the reading: an old garrison is archers, because archers were the
+    // only thing that could ever be up there.
     const world = createWorld({ seed: 5, players: [{ kind: 'human' }] });
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
     tower.garrison = 2;
@@ -110,4 +113,54 @@ describe('save/load', () => {
     const out = [...back.units.values()].filter((u) => !u.dead && u.kind === 'archer');
     expect(out).toHaveLength(2);
   });
+});
+
+const GRIDS = [
+  'terrain',
+  'resource',
+  'resourceAmt',
+  'blocked',
+  'buildingAt',
+  'wear',
+  'pathLevel',
+  'height',
+] as const;
+
+describe('the map grids', () => {
+  function savedWorld() {
+    const world = createWorld(31);
+    for (let t = 0; t < 200; t++) tickWorld(world, cmds(...commandScript(t)));
+    return world;
+  }
+
+  it('come back exactly — a resumed match ticks on these numbers', () => {
+    const world = savedWorld();
+    const back = deserializeWorld(serializeWorld(world));
+    for (const key of GRIDS) expect(back.map[key]).toEqual(world.map[key]);
+  });
+
+  it('open from a version 4 file, where they were number arrays', () => {
+    const world = savedWorld();
+    const doc = JSON.parse(serializeWorld(world)) as {
+      version: number;
+      world: { map: Record<string, unknown> };
+    };
+    doc.version = 4;
+    for (const key of GRIDS) doc.world.map[key] = [...world.map[key]];
+    const back = deserializeWorld(JSON.stringify(doc));
+    for (const key of GRIDS) expect(back.map[key]).toEqual(world.map[key]);
+  });
+
+  it('are refused when they are garbage or the wrong length', () => {
+    const doc = JSON.parse(serializeWorld(savedWorld())) as {
+      world: { map: Record<string, unknown> };
+    };
+    const withGrid = (key: string, value: unknown) =>
+      JSON.stringify({ ...doc, world: { ...doc.world, map: { ...doc.world.map, [key]: value } } });
+    expect(() => deserializeWorld(withGrid('terrain', '~~ not base64 ~~'))).toThrow(/unreadable/);
+    // Base64, decodes fine, and describes a world of a different size.
+    const short = (doc.world.map.height as string).slice(0, 64);
+    expect(() => deserializeWorld(withGrid('height', short))).toThrow(/bad map size/);
+  });
+
 });

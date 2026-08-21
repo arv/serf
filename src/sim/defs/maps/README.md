@@ -10,12 +10,17 @@ files round-trip through the editor.
 
 ## Tweaking a map
 
-- **By hand**: edit the JSON (tile index = `y * size + x`; terrain
-  0 grass / 1 water / 2 rock; resource 0 none / 1 wood / 2 rock / 3 iron /
-  4 silver / 5 gold, with a matching `resourceAmt`). Reload the game —
-  `?mission=<id>` boots straight into it.
 - **In the editor**: open the map editor, Import the file, paint, Export,
-  and replace the file.
+  and replace the file. Reload the game — `?mission=<id>` boots straight
+  into it.
+- **By script**: the tile grids are base64 (one byte per tile for
+  `terrain`, `resource` and `resourceAmt`; a little-endian int16 of
+  millimetres for `height`), so there is no tile in the file to find by
+  eye — a tweak that is easier written than painted goes through the
+  format instead: `parseMapJson` the file, poke
+  `map.terrain[y * size + x]` (terrain 0 grass / 1 water / 2 rock;
+  resource 0 none / 1 wood / 2 rock / 3 iron / 4 silver / 5 gold, with a
+  matching `resourceAmt`), and `serializeMapFile` it back.
 
 After a tweak:
 

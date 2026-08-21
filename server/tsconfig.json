@@ -1,6 +1,9 @@
 {
   "compilerOptions": {
     "target": "es2023",
+    // ESNext.TypedArrays for Uint8Array's base64 methods — src/shared and
+    // src/sim (the map file) are compiled here too.
+    "lib": ["es2023", "esnext.typedarrays"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,
