@@ -4,6 +4,7 @@ import { tickWorld } from './tick.ts';
 import {
   destroyBuilding,
   placeBuiltBuilding,
+  placeSite,
   spawnUnit,
   spawnUnitNearby,
   type World,
@@ -526,12 +527,19 @@ describe('the guard tower', () => {
     expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'archer')).toHaveLength(2);
   });
 
-  it('leaves a serf alone — a tower is manned by soldiers, not staffed', () => {
+  it('comes up stood down, so finishing one costs the village nobody', () => {
+    // The guard against the old trap: a tower is never *done* wanting men,
+    // so one that started running would put two villagers on the wall the
+    // day the masons left and hold them through every quiet hour after.
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const site = placeSite(world, 'guardTower', 0, 30, 30);
+    site.siteNeeds = {};
+    site.buildProgress = BUILDING_DEFS.guardTower.buildTicks;
     const serf = addSerf(world, 36, 31);
     run(world, 20 * 20);
-    expect(tower.garrison ?? 0).toBe(0);
+    expect(site.state).toBe('built');
+    expect(site.paused).toBe(true);
+    expect(site.garrison ?? 0).toBe(0);
     expect(serf.dead).toBe(false);
   });
 
@@ -593,10 +601,9 @@ describe('the guard tower', () => {
     expect(inside(combat.range + rule.rangeBonus + 1.5)).toBe(false);
   });
 
-  it('takes a called-up villager, and shoots with stones for it', () => {
+  it('takes a villager while it is running, and shoots with stones for it', () => {
     const world = bareWorld();
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
-    tower.levyCalled = true;
     const serf = addSerf(world, 36, 31);
     run(world, 20 * 20);
     expect(tower.garrison).toBe(1);
@@ -612,15 +619,6 @@ describe('the guard tower', () => {
     // counter either way.
     expect(before - raider.hp).toBeCloseTo(levy.damage, 5);
     expect(tower.attackCooldown).toBe(levy.cooldownTicks);
-  });
-
-  it('leaves villagers alone until the bell is rung', () => {
-    const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
-    const serf = addSerf(world, 36, 31);
-    run(world, 20 * 20);
-    expect(tower.garrison ?? 0).toBe(0);
-    expect(serf.dead).toBe(false);
   });
 
   it('reaches less far with stones than with bows', () => {
@@ -646,7 +644,6 @@ describe('the guard tower', () => {
   it('sends the whole levy home when an archer arrives to relieve it', () => {
     const world = bareWorld();
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
-    tower.levyCalled = true;
     tower.garrison = 2;
     tower.garrisonKind = 'serf';
     spawnUnit(world, 'archer', 0, 36.5, 31.5);
@@ -659,17 +656,26 @@ describe('the guard tower', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
-  it('empties the tower when the levy is stood down', () => {
+  it('stops calling villagers up once it is halted', () => {
     const world = bareWorld();
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
-    tower.levyCalled = true;
+    tower.paused = true;
+    const serf = addSerf(world, 36, 31);
+    run(world, 20 * 20);
+    expect(tower.garrison ?? 0).toBe(0);
+    expect(serf.dead).toBe(false);
+  });
+
+  it('sends a villager back down on Dismiss, like any other post', () => {
+    const world = bareWorld();
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
     tower.garrison = 2;
     tower.garrisonKind = 'serf';
     const before = populationOf(world, 0);
-    tickWorld(world, cmds({ kind: 'callLevy', buildingId: tower.id, called: false }));
-    expect(tower.garrison ?? 0).toBe(0);
-    expect(tower.garrisonKind).toBeUndefined();
-    expect(tower.levyCalled).toBeUndefined();
+    tickWorld(world, cmds({ kind: 'dismissWorker', buildingId: tower.id }));
+    expect(tower.garrison).toBe(1);
+    // A serf, not the archer the tower would rather have.
+    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'serf')).toHaveLength(1);
     // Coming down the stairs is not a death: the head count is unchanged.
     expect(populationOf(world, 0)).toBe(before);
   });
@@ -677,7 +683,6 @@ describe('the guard tower', () => {
   it('does not call villagers up to a tower the archers already hold', () => {
     const world = bareWorld();
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
-    tower.levyCalled = true;
     tower.garrison = 1;
     tower.garrisonKind = 'archer';
     const serf = addSerf(world, 36, 31);

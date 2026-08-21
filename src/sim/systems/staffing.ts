@@ -131,7 +131,7 @@ function handleArrivals(world: World): void {
       unit.dead = true;
       continue;
     }
-    if (def.garrison && unit.kind === def.garrison.levy.unit && b.levyCalled) {
+    if (def.garrison && unit.kind === def.garrison.levy.unit && !b.paused) {
       // A villager answering the levy. Same consumption as the soldier —
       // he is inside the wall, not standing at its foot — and he steps
       // aside for soldiers rather than the other way round, so he never
@@ -186,10 +186,14 @@ function handleArrivals(world: World): void {
  *
  * A tower wants soldiers whenever it has room, and *also* when the levy
  * holds it: a soldier walking up relieves villagers rather than queuing
- * behind them. It wants villagers only where they would actually be let in
- * — the levy called, room to stand, and no soldiers already holding the
- * wall — so a called levy on a tower the archers reached is not a standing
- * request nobody will ever fill.
+ * behind them. It wants villagers wherever they would actually be let in —
+ * room to stand, and no soldiers already holding the wall — so a tower the
+ * archers reached is not a standing request for serfs nobody will fill.
+ *
+ * `paused` decides only the villagers. A stood-down tower still takes any
+ * soldier who turns up — an idle archer costs the village nothing to keep —
+ * but calls no villagers up, which is what keeps a tower from quietly eating
+ * two of them the day it is built.
  */
 function wantedKinds(b: Building): UnitTypeId[] {
   const def = buildingDef(b.type);
@@ -198,7 +202,7 @@ function wantedKinds(b: Building): UnitTypeId[] {
   const room = garrisonRoom(def, b);
   const kinds: UnitTypeId[] = [];
   if (room > 0 || b.garrisonKind === g.levy.unit) kinds.push(g.unit);
-  if (b.levyCalled && room > 0 && b.garrisonKind !== g.unit) kinds.push(g.levy.unit);
+  if (!b.paused && room > 0 && b.garrisonKind !== g.unit) kinds.push(g.levy.unit);
   return kinds;
 }
 
@@ -245,8 +249,12 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     // it on purpose, and re-capturing the freed serf the moment he goes
     // idle between haul trips would silently undo the order.
     if ((b.staffBackoffUntil ?? 0) > world.tick) continue;
-    if (b.paused) continue; // a halted post summons nobody
     const def = buildingDef(b.type);
+    // A halted post summons nobody — except a tower, which always takes the
+    // soldiers it would rather have. Halting one stands its *levy* down (see
+    // wantedKinds): villagers are hands the village needs back, and archers
+    // are hands it has nothing else to do with.
+    if (b.paused && !def.garrison) continue;
     if (b.state === 'site' ? def.isRoad : b.state !== 'built') continue;
 
     // Validate any recruit en route.

@@ -1041,46 +1041,40 @@ export class AiBrain {
   }
 
   /**
-   * Man the towers, and send the villagers home again.
+   * Start the towers when something is coming, and stand them down after.
    *
    * A tower's archers arrive late — a research, a forge and a course at the
    * barracks after the stone goes down — and a raid does not wait for them.
-   * So a seat rings the bell when something hostile comes into sight of a
-   * tower that has room for villagers, and stands it down once the ground
-   * has been quiet long enough to trust.
+   * A running tower calls villagers up in the meantime, so this is the whole
+   * of manning it: start it when something hostile comes into sight, halt it
+   * again once the ground has been quiet, and send the villagers back to work
+   * with the same Dismiss the player has.
    *
-   * Only towers the soldiers have not already taken: the order is inert on
-   * one the archers hold (staffing refuses villagers there), and issuing it
-   * anyway would be a command a beat that never changes anything.
-   *
-   * The economy protects itself here without being asked. Staffing only
-   * ever recruits *idle* serfs, so a village with every hand on a haul
-   * sends nobody up and loses nothing; the call simply stands until someone
-   * comes free. That is the right behaviour under a raid and costs nothing
-   * outside one.
+   * Only ever the villagers. Archers man a tower whether it is running or
+   * not (they cost the village nothing to keep), so nothing here starts a
+   * tower for their sake or sends one of them down.
    */
   #manTowers(world: World, mine: readonly Building[], commands: SimCommand[]): void {
     for (const b of mine) {
       if (b.state !== 'built') continue;
-      const rule = BUILDING_DEFS[b.type].garrison;
+      const def = BUILDING_DEFS[b.type];
+      const rule = def.garrison;
       if (!rule) continue;
-      // Soldiers hold it, or are about to: nothing for the levy to do.
-      const held = b.garrisonKind === rule.unit && garrisonRoom(BUILDING_DEFS[b.type], b) <= 0;
       const bx = b.x + b.w / 2;
       const by = b.y + b.h / 2;
-      if (
-        !held &&
-        hostileNear(world, this.#vision, this.playerId, bx, by, AI_INTEL.raidRadius)
-      ) {
+      if (hostileNear(world, this.#vision, this.playerId, bx, by, AI_INTEL.raidRadius)) {
         this.#levyHold.set(b.id, world.tick + LEVY_HOLD);
-        if (!b.levyCalled) commands.push({ kind: 'callLevy', buildingId: b.id, called: true });
+        if (b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
         continue;
       }
-      if (!b.levyCalled) continue;
-      const until = this.#levyHold.get(b.id) ?? 0;
-      if (held || world.tick >= until) {
-        commands.push({ kind: 'callLevy', buildingId: b.id, called: false });
-        this.#levyHold.delete(b.id);
+      if (world.tick < (this.#levyHold.get(b.id) ?? 0)) continue;
+      this.#levyHold.delete(b.id);
+      if (!b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: true });
+      // Halting stops the tower calling anyone else up; it does not empty
+      // it. The villagers already on the wall come down one at a time, the
+      // same order and the same backoff a player's Dismiss uses.
+      if (b.garrison && b.garrisonKind === rule.levy.unit) {
+        commands.push({ kind: 'dismissWorker', buildingId: b.id });
       }
     }
   }

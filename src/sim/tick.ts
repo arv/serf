@@ -137,21 +137,6 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       player.techs.active = { tech: cmd.tech, ticksLeft: TECH_DEFS[cmd.tech].durationTicks };
       break;
     }
-    case 'callLevy': {
-      // Ringing the bell, and ringing it again to send them home. Standing
-      // the levy down empties the tower on the spot rather than waiting for
-      // the men to be dismissed one at a time — the order and the garrison
-      // it produced are the same decision.
-      const b = world.buildings.get(cmd.buildingId);
-      if (!b || b.dead || b.owner !== playerId) break;
-      const rule = buildingDef(b.type).garrison;
-      if (!rule) break;
-      b.levyCalled = cmd.called || undefined;
-      if (!cmd.called && b.garrisonKind === rule.levy.unit) {
-        evictGarrison(world, b, b.garrison ?? 0);
-      }
-      break;
-    }
     case 'dismissWorker': {
       // Release a resident back to the serf pool — the escape hatch when
       // the loose pool is empty and something new must get built. The

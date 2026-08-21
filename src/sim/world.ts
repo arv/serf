@@ -814,8 +814,6 @@ export function destroyBuilding(world: World, b: Building): void {
   // many the same tick.
   b.garrison = undefined;
   b.garrisonKind = undefined;
-  // The bell dies with the tower too: rubble is not calling anyone up.
-  b.levyCalled = undefined;
 }
 
 /**

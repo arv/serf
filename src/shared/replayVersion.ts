@@ -20,6 +20,13 @@
  * directly.
  */
 /**
+ * 18: the levy is worked by the standing orders the game already had rather
+ * than an order of its own. A tower comes off the scaffold with its levy
+ * stood down (paused) and calls villagers up only while it is running;
+ * soldiers man it either way. The seats start a tower when something
+ * hostile comes into sight of it and halt it after, which moves both the
+ * commands they issue and when villagers are on a wall at all.
+ *
  * 17: the AI seats work the levy. A seat now rings a tower's bell when it
  * sees something hostile come into range of it and stands the villagers
  * down once the ground has been quiet, which moves both the commands the
@@ -53,4 +60,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 17;
+export const REPLAY_VERSION = 18;

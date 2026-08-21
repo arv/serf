@@ -70,7 +70,6 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     garrison: def.garrison ? (b.garrison ?? 0) : undefined,
     garrisonCap: def.garrison?.capacity,
     levied: def.garrison && b.garrisonKind === def.garrison.levy.unit ? true : undefined,
-    levyCalled: b.levyCalled ? true : undefined,
     // On cooldown means it loosed within the last volley's worth of ticks,
     // which is exactly the window the roof should be drawing a bow in.
     firing: (b.attackCooldown ?? 0) > 0 ? true : undefined,

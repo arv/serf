@@ -336,46 +336,55 @@ describe('the stall watchdog', () => {
     expect(commands).not.toContainEqual({ kind: 'sellBuilding', buildingId: dead.id });
   });
 
-  it('rings the bell for a threatened tower, and stands it down after', () => {
+  it('starts a threatened tower, and halts it again once the ground is quiet', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    tower.paused = true; // as one comes off the scaffold
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     const beat = (): SimCommand[] => {
       world.tick += AI_PACING.decisionInterval;
       return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     };
+    const start = { kind: 'setBuildingPaused', buildingId: tower.id, paused: false };
+    const halt = { kind: 'setBuildingPaused', buildingId: tower.id, paused: true };
+
     // Quiet ground: no reason to take anyone off a haul.
-    expect(beat()).not.toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: true });
+    expect(beat()).not.toContainEqual(start);
 
     // A raider walks into sight of the tower.
     const raider = spawnUnit(world, 'bandit', BANDIT, 37.5, 38.5);
-    expect(beat()).toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: true });
+    expect(beat()).toContainEqual(start);
 
-    // The order is not re-sent every beat once it stands.
-    tower.levyCalled = true;
-    expect(beat()).not.toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: true });
+    // Not re-issued once it is actually running.
+    tower.paused = undefined;
+    expect(beat()).not.toContainEqual(start);
 
-    // He dies, and the hold keeps the villagers up a while yet.
+    // He dies, and the hold keeps it running a while yet.
     raider.dead = true;
-    expect(beat()).not.toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: false });
+    expect(beat()).not.toContainEqual(halt);
 
-    // Past the hold, they go back to work.
+    // Past the hold it halts, and sends the villagers back to work.
     world.tick += LEVY_HOLD;
-    expect(beat()).toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: false });
+    tower.garrison = 1;
+    tower.garrisonKind = 'serf';
+    const out = beat();
+    expect(out).toContainEqual(halt);
+    expect(out).toContainEqual({ kind: 'dismissWorker', buildingId: tower.id });
   });
 
-  it('does not call villagers to a tower the archers already hold', () => {
+  it('never sends an archer down, whatever the tower is doing', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
     tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
     tower.garrisonKind = 'archer';
-    spawnUnit(world, 'bandit', BANDIT, 37.5, 38.5);
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     world.tick += AI_PACING.decisionInterval;
     const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
-    expect(out).not.toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: true });
+    // Halting a tower stands its levy down; archers hold it either way, and
+    // are never the ones told to climb back down.
+    expect(out).not.toContainEqual({ kind: 'dismissWorker', buildingId: tower.id });
   });
 
   it('leaves a seat that is going somewhere byte-identical', () => {

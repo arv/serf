@@ -86,12 +86,11 @@ export function hashWorld(world: World): number {
     // dropped it would play on as the same world until something walked
     // into range.
     mix(b.garrison ?? 0);
-    // Who is up there and whether the bell has been rung: the first decides
-    // what the walls shoot for, the second whether villagers keep climbing.
-    // A save that dropped either would play on as the same world until
-    // something walked into range.
+    // Who is up there: it decides what the walls shoot for, and a save that
+    // dropped it would play on as the same world until something walked
+    // into range. (Whether the tower is calling anyone up is `paused`,
+    // which is mixed with the rest of the standing orders.)
     mix(b.garrisonKind === undefined ? 0 : UNIT_DEFS[b.garrisonKind].kindCode);
-    mix(b.levyCalled ? 1 : 0);
     mix(b.attackCooldown ?? 0);
   }
   for (const j of world.jobs.values()) {
