@@ -208,6 +208,7 @@ describe('repairing a building', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { wood: 20, stone: 10, iron: 6 });
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    smith.recipeIndex = 0; // pinned on spears (default is auto)
     staffBuilding(world, smith);
     smith.hp = 100;
 
@@ -251,6 +252,7 @@ describe('repairing a building', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { wood: 30, stone: 10, iron: 8 });
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    smith.recipeIndex = 0; // pinned on spears (default is auto)
     staffBuilding(world, smith);
     for (let i = 0; i < 4; i++) addSerf(world, 33, 33 + i);
     smith.hp = 40;

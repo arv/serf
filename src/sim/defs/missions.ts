@@ -112,7 +112,9 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // Below the default 36 wood / 8 serfs on purpose: the wood loop and the
     // hire button must be needed, not optional. With no raids the 8-serf
     // balance floor doesn't apply.
-    startStock: { wood: 20, stone: 6, silver: 24 },
+    // Tools for the two posts this mission teaches, and hammers for its
+    // sites — the tool economy itself is mission 3's lesson, not this one's.
+    startStock: { wood: 20, stone: 6, silver: 24, axe: 1, pickaxe: 1, hammer: 2 },
     objectives: [
       { spec: { kind: 'building', type: 'woodcutter', count: 1 }, label: 'Raise a Woodcutter' },
       { spec: { kind: 'building', type: 'quarry', count: 1 }, label: 'Raise a Quarry' },
@@ -136,7 +138,16 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     seed: 202,
     players: [{ kind: 'human' }],
     bandits: false,
-    startStock: { wood: 40, stone: 12, silver: 12 },
+    startStock: {
+      wood: 40,
+      stone: 12,
+      silver: 12,
+      axe: 1,
+      pickaxe: 1,
+      scythe: 1,
+      cauldron: 1,
+      hammer: 2,
+    },
     objectives: [
       { spec: { kind: 'building', type: 'well', count: 1 }, label: 'Raise a Well' },
       { spec: { kind: 'building', type: 'wheatFarm', count: 1 }, label: 'Raise a Wheat Farm' },
@@ -158,7 +169,17 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     players: [{ kind: 'human' }],
     bandits: false,
     startSerfs: 10,
-    startStock: { wood: 50, stone: 20, wheat: 12, silver: 10 },
+    // Picks for both taught mines on top of the prebuilt camp's own kit.
+    startStock: {
+      wood: 50,
+      stone: 20,
+      wheat: 12,
+      silver: 10,
+      axe: 1,
+      pickaxe: 3,
+      scythe: 1,
+      hammer: 3,
+    },
     // The player should not re-play missions 1-2: the camp they taught is
     // already standing.
     prebuilt: [
@@ -208,6 +229,13 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       silver: 25,
       spear: 2,
       sword: 1,
+      // The standing camp's kit: every prebuilt post staffs itself while
+      // the player worries about the raid, not about racks.
+      axe: 1,
+      pickaxe: 2,
+      scythe: 1,
+      cauldron: 1,
+      hammer: 2,
     },
     // Research was mission 3's lesson; here it is already done.
     startTechs: ['soldiery', 'cobbledBoots', 'ironworking'],

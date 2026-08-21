@@ -216,10 +216,11 @@ describe('the AI playbooks', () => {
     expect(new Set(fingerprints).size, fingerprints.join('\n')).toBe(4);
 
     // And the differences are the ones the playbooks promise: the fletcher
-    // takes the bow line and never touches iron, the warlord digs a second
-    // seam to keep two sword forges fed.
+    // takes the bow line first — ironworking comes last and only for the
+    // axes (its forges stay on bowstaves) — while the warlord digs a
+    // second seam to keep two sword forges fed.
     expect(world.players[3]!.techs.researched).toContain('archery');
-    expect(world.players[3]!.techs.researched).not.toContain('ironworking');
+    expect(world.players[3]!.techs.researched[0]).toBe('soldiery');
     const ironMines = (owner: number): number =>
       [...world.buildings.values()].filter(
         (b) => !b.dead && b.owner === owner && b.type === 'ironMine',

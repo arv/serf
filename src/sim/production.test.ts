@@ -87,7 +87,8 @@ describe('gather production', () => {
     const world = bareWorld();
     addSerf(world, 26, 34); // the future builder-then-worker
     const site = addSite(world, 24, 30);
-    site.siteNeeds = {}; // materials "already delivered"
+    site.siteNeeds = {}; // materials "already delivered" (hammer loan included)
+    site.inputs.axe = 1; // the post's pre-ordered tool, waiting on the rack
 
     // Nothing happens until the recruited builder arrives...
     let arrivedAt = -1;

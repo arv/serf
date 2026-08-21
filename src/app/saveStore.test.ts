@@ -49,8 +49,8 @@ describe('the saves shelf', () => {
     await saveGameFile('mission', save({ mission: 'clearing' }));
     await saveGameFile('skirmish', save({ opponents: 3 }));
     const byName = new Map((await listSaveFiles()).map((f) => [f.name, f.meta]));
-    expect(byName.get('mission')).toEqual({ world: 4, mission: 'clearing' });
-    expect(byName.get('skirmish')).toEqual({ world: 4, opponents: 3 });
+    expect(byName.get('mission')).toEqual({ world: 5, mission: 'clearing' });
+    expect(byName.get('skirmish')).toEqual({ world: 5, opponents: 3 });
   });
 
   it('lists a save from before the metadata head with nothing to say', async () => {

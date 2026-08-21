@@ -1,5 +1,7 @@
 import {
+  AUTO_RECIPE,
   BUILDING_DEFS,
+  TOOL_OF,
   gatherOrigin,
   gatherRecipeOf,
   OUTPUT_CAP,
@@ -57,6 +59,7 @@ import type { World } from './world.ts';
 export type EconomyRuleId =
   | 'resiteExtractor'
   | 'freeCappedHauler'
+  | 'keepTheToolsComing'
   | 'forgeTheCounter'
   | 'keepTheQueueWarm';
 
@@ -223,6 +226,107 @@ const freeCappedHauler: EconomyRule = {
 };
 
 /**
+ * Keep the tools coming: lend the newest forge to the village.
+ *
+ * A tool-gated post standing open with nothing on the way is production
+ * lost every beat it waits, and no weapon order is worth a woodcutter that
+ * never cuts. While any such post (or a site still owed its hammer) exists,
+ * this rule holds the seat's LAST smith on auto — the sim's own auto
+ * resolution then forges exactly the tool with the largest uncovered gap,
+ * and idles once the racks are served (so holding auto too long costs
+ * nothing). When the need passes, the same rule hands the forge back to the
+ * playbook's weapon line; forgeTheCounter leaves auto smiths alone, which
+ * is what keeps the two from fighting over one anvil.
+ *
+ * The last smith rather than the first: the first follows the printed
+ * weaponMix, and a village rich enough to raise a second forge can afford
+ * to point it at itself.
+ */
+const builtSmiths = (ctx: RuleContext): Building[] =>
+  ctx.mine.filter((b) => b.type === 'weaponsmith' && b.state === 'built');
+
+/** True while any tool-gated post stands open with nothing on the way, or
+ * a site is still owed its hammer — the condition the village forge answers. */
+function toolNeed(ctx: RuleContext): boolean {
+  for (const b of ctx.mine) {
+    if (b.state === 'site') {
+      if (!b.paused && (b.siteNeeds?.hammer ?? 0) > 0 && (b.inbound.hammer ?? 0) === 0) {
+        return true;
+      }
+      continue;
+    }
+    if (b.state !== 'built' || b.paused) continue;
+    const tool = TOOL_OF[b.type];
+    if (tool === undefined) continue;
+    const worker = b.workerId !== undefined ? ctx.world.units.get(b.workerId) : undefined;
+    if (worker && !worker.dead) continue;
+    if ((b.inputs[tool] ?? 0) + (b.inbound[tool] ?? 0) > 0) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * The smith keepTheToolsComing is responsible for this beat, or undefined
+ * when every forge belongs to the war. One predicate shared with
+ * forgeTheCounter — the two rules split the anvils by agreeing on this,
+ * not by fighting over claims (a claim collision suppresses a whole
+ * firing, which would silently unmanage the other smiths).
+ */
+function toolSmith(ctx: RuleContext): Building | undefined {
+  const smiths = builtSmiths(ctx);
+  const last = smiths[smiths.length - 1];
+  if (!last) return undefined;
+  // Held while the village needs tools; also held one beat longer when the
+  // need has passed but the forge is still on auto, to hand it back.
+  return toolNeed(ctx) || last.recipeIndex === undefined ? last : undefined;
+}
+
+/** The weapon this smith seat would be ordered onto: the playbook mix by
+ * smith age, counter-switched past the first — forgeTheCounter's line,
+ * shared so a forge handed back joins it in one beat, not two. */
+function weaponWantFor(ctx: RuleContext, i: number): number | undefined {
+  let want = ctx.strategy.weaponMix[Math.min(i, ctx.strategy.weaponMix.length - 1)]!;
+  if (ctx.counter && i > 0) {
+    const opt = BUILDING_DEFS.weaponsmith.recipeOptions?.[ctx.counter.recipe];
+    if (opt && (opt.requiresTech === undefined || ctx.researched(opt.requiresTech))) {
+      want = ctx.counter.recipe;
+    }
+  }
+  const option = BUILDING_DEFS.weaponsmith.recipeOptions?.[want];
+  if (!option) return undefined;
+  if (option.requiresTech !== undefined && !ctx.researched(option.requiresTech)) return undefined;
+  return want;
+}
+
+const keepTheToolsComing: EconomyRule = {
+  id: 'keepTheToolsComing',
+  when: 'a post stands open for a tool nobody has made, or holds a forge it no longer needs',
+  phase: 'production',
+  fire(ctx) {
+    const smith = toolSmith(ctx);
+    if (!smith) return null;
+    if (toolNeed(ctx)) {
+      // Sloppy on purpose: if the shelf already covers the gap, hauls fill
+      // it within a few beats and auto simply idles — holding the anvil
+      // (toolSmith keeps forgeTheCounter off it) is the part that matters.
+      if (smith.recipeIndex === undefined) return { commands: [], claims: [smith.id] };
+      return {
+        commands: [{ kind: 'setBuildingRecipe', buildingId: smith.id, index: AUTO_RECIPE }],
+        claims: [smith.id],
+      };
+    }
+    // Need met: back to the weapon this seat would be ordered onto anyway.
+    const want = weaponWantFor(ctx, builtSmiths(ctx).length - 1);
+    if (want === undefined || smith.recipeIndex === want) return null;
+    return {
+      commands: [{ kind: 'setBuildingRecipe', buildingId: smith.id, index: want }],
+      claims: [smith.id],
+    };
+  },
+};
+
+/**
  * Forge what beats what the scouts have seen.
  *
  * The playbook's weapon mix by smith age is the printed line; smiths beyond
@@ -241,19 +345,16 @@ const forgeTheCounter: EconomyRule = {
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
-    const smiths = ctx.mine.filter((b) => b.type === 'weaponsmith' && b.state === 'built');
+    // The anvil keepTheToolsComing holds this beat is not this rule's to
+    // order (see toolSmith) — naming it would collide claims and suppress
+    // this whole firing, unmanaging every other smith.
+    const lent = toolSmith(ctx)?.id;
+    const smiths = builtSmiths(ctx);
     smiths.forEach((smith, i) => {
-      let want = ctx.strategy.weaponMix[Math.min(i, ctx.strategy.weaponMix.length - 1)]!;
-      if (ctx.counter && i > 0) {
-        const opt = BUILDING_DEFS.weaponsmith.recipeOptions?.[ctx.counter.recipe];
-        if (opt && (opt.requiresTech === undefined || ctx.researched(opt.requiresTech))) {
-          want = ctx.counter.recipe;
-        }
-      }
-      const option = BUILDING_DEFS.weaponsmith.recipeOptions?.[want];
-      if (!option) return;
-      if (option.requiresTech !== undefined && !ctx.researched(option.requiresTech)) return;
-      if ((smith.recipeIndex ?? 0) !== want) {
+      if (smith.id === lent) return;
+      const want = weaponWantFor(ctx, i);
+      if (want === undefined) return;
+      if (smith.recipeIndex !== want) {
         commands.push({ kind: 'setBuildingRecipe', buildingId: smith.id, index: want });
         claims.push(smith.id);
       }
@@ -333,6 +434,7 @@ const keepTheQueueWarm: EconomyRule = {
 export const ECONOMY_RULES: readonly EconomyRule[] = [
   resiteExtractor,
   freeCappedHauler,
+  keepTheToolsComing,
   forgeTheCounter,
   keepTheQueueWarm,
 ];

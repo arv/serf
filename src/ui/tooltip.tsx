@@ -304,6 +304,12 @@ const GOOD_DESC: Record<GoodId, string> = {
   ale: 'Brewed from wheat and water. Fuels festivals at the Abbey.',
   flour: 'Ground at the mill. On its own it feeds nobody.',
   food: 'Baked from flour and water. What a soldier costs.',
+  axe: 'Ground keen at the Smith. A woodcutter works with one or not at all.',
+  pickaxe: 'Wood and stone \u2014 never iron, so the mines can always restart. Staffs the quarry and every mine.',
+  scythe: 'A long blade from the Smith. No farmer takes a field without one.',
+  hammer: 'The builder\u2019s loan: every site borrows one and returns it at topping-out.',
+  cauldron: 'Smithed copperwork. The bakery and the brewery cook out of it.',
+  rod: 'Cut and strung at the Smith \u2014 no iron in it. Staffs the fishery.',
 };
 
 export function GoodTip(props: { good: GoodId }) {

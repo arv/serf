@@ -3,6 +3,7 @@ import { buildingDef, repairBill } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { PathLevel } from '../map.ts';
 import { abortJob, availableOut } from './logistics.ts';
+import { consumePostTool } from './production.ts';
 import {
   applyRepairMaterial,
   clearRepairOrder,
@@ -63,9 +64,20 @@ export function constructionSystem(world: World): void {
     delete b.siteNeeds;
     delete b.buildProgress;
     delete b.builderWantedSince;
-    // The builder stays on as the building's worker; buildings that keep
-    // no resident (barracks, abbey) release them back to the serf pool.
-    if (def.workerKind === undefined && b.workerId !== undefined) {
+    // The borrowed hammer comes back: off the site's hands and onto the
+    // shelf, where evacuation hauls it home for the next site. This is
+    // what makes hammers a cap on concurrent construction rather than a
+    // cost — the only way to lose one is to lose the site itself.
+    if ((b.inputs.hammer ?? 0) > 0) {
+      b.stock.hammer = (b.stock.hammer ?? 0) + (b.inputs.hammer ?? 0);
+      b.inputs.hammer = 0;
+    }
+    // The builder stays on as the building's worker — if the post's tool
+    // is here to hand him (sites pre-order it, so it usually arrived with
+    // the planks). Buildings that keep no resident (barracks, abbey), and
+    // tool-gated posts whose tool is still on the road, release him back
+    // to the serf pool; the post then recruits normally once equipped.
+    if (b.workerId !== undefined && (def.workerKind === undefined || !consumePostTool(world, b))) {
       const builder = world.units.get(b.workerId);
       if (builder && !builder.dead) {
         builder.kind = 'serf';

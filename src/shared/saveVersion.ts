@@ -16,4 +16,4 @@
  * number without pulling the whole serializer — a worker's worth of code —
  * into the main thread's bundle.
  */
-export const WORLD_SAVE_VERSION = 4;
+export const WORLD_SAVE_VERSION = 5;

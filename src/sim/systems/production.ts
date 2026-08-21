@@ -3,6 +3,8 @@ import { Rng } from '../../shared/rng.ts';
 import { WOOD_MAX_AMT, REGROW_INTERVAL } from '../defs/balance.ts';
 import {
   OUTPUT_CAP,
+  TOOL_GOODS,
+  TOOL_OF,
   buildingDef,
   convertRecipeOf,
   gatherOrigin,
@@ -36,7 +38,10 @@ export function productionSystem(world: World, rng: Rng): void {
     if (b.dead || b.state !== 'built' || b.paused) continue;
     const def = buildingDef(b.type);
     const recipe = def.recipe ?? convertRecipeOf(def, b);
-    if (!recipe) continue;
+    // A Smith on auto (or holding only queue orders) has no standing
+    // recipe, but its fire still burns: convertStep resolves what to
+    // forge at each batch start and ticks the batch already running.
+    if (!recipe && !def.recipeOptions) continue;
     // Population economy: no worker at the post, no production. (Gather
     // recipes are inherently worker-driven; converts pause too, mid-batch
     // included, until the staffing system delivers a replacement.)
@@ -44,7 +49,7 @@ export function productionSystem(world: World, rng: Rng): void {
       const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
       if (!worker || worker.dead) continue;
     }
-    if (recipe.kind === 'gather') gatherStep(world, b, recipe);
+    if (recipe?.kind === 'gather') gatherStep(world, b, recipe);
     else convertStep(world, b, def, recipe);
   }
 
@@ -59,7 +64,7 @@ function convertStep(
   world: World,
   b: Building,
   def: BuildingDef,
-  recipe: Recipe & { kind: 'convert' },
+  recipe: (Recipe & { kind: 'convert' }) | undefined,
 ): void {
   if (b.prodTicksLeft !== undefined) {
     b.prodTicksLeft--;
@@ -71,9 +76,19 @@ function convertStep(
         b.prodRecipeIndex !== undefined
           ? (def.recipeOptions?.[b.prodRecipeIndex]?.recipe ?? recipe)
           : recipe;
-      for (const [good, n] of Object.entries(started.outputs) as [GoodId, number][]) {
-        b.stock[good] = (b.stock[good] ?? 0) + n;
-        world.ledger.produced[good] = (world.ledger.produced[good] ?? 0) + n;
+      if (started) {
+        for (const [good, n] of Object.entries(started.outputs) as [GoodId, number][]) {
+          b.stock[good] = (b.stock[good] ?? 0) + n;
+          world.ledger.produced[good] = (world.ledger.produced[good] ?? 0) + n;
+        }
+      }
+      // The queue order this batch worked off comes off the board. First
+      // started only — at most one is ever lit, and a cancelled order was
+      // already struck (its batch still lands, via prodRecipeIndex).
+      const slot = b.forgeQueue?.findIndex((o) => o.started) ?? -1;
+      if (slot >= 0) {
+        b.forgeQueue!.splice(slot, 1);
+        if (b.forgeQueue!.length === 0) b.forgeQueue = undefined;
       }
       b.prodTicksLeft = undefined;
       b.prodRecipeIndex = undefined;
@@ -81,13 +96,27 @@ function convertStep(
     return;
   }
 
-  for (const [good, n] of Object.entries(recipe.outputs) as [GoodId, number][]) {
+  // What goes on the fire: the fixed recipe, or — at a Smith — the queue,
+  // then the standing order, then auto (see pickForgeBatch).
+  let active = recipe;
+  let queueSlot = -1;
+  let activeIndex: number | undefined;
+  if (def.recipeOptions) {
+    const pick = pickForgeBatch(world, b, def);
+    if (!pick) return; // nothing workable — the fire stays cold
+    activeIndex = pick.index;
+    queueSlot = pick.queueSlot;
+    active = def.recipeOptions[pick.index]!.recipe;
+  }
+  if (!active) return;
+
+  for (const [good, n] of Object.entries(active.outputs) as [GoodId, number][]) {
     if ((b.stock[good] ?? 0) + n > OUTPUT_CAP) return; // output full — stall
   }
-  for (const [good, n] of Object.entries(recipe.inputs) as [GoodId, number][]) {
+  for (const [good, n] of Object.entries(active.inputs) as [GoodId, number][]) {
     if ((b.inputs[good] ?? 0) < n) return; // waiting on ingredients
   }
-  for (const [good, n] of Object.entries(recipe.inputs) as [GoodId, number][]) {
+  for (const [good, n] of Object.entries(active.inputs) as [GoodId, number][]) {
     b.inputs[good] = (b.inputs[good] ?? 0) - n;
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
   }
@@ -96,8 +125,132 @@ function convertStep(
     (b.type === 'wheatFarm' ? getModifier(world, b.owner, 'farmSpeed') : 1) *
     (b.type === 'mill' || b.type === 'bakery' ? getModifier(world, b.owner, 'foodSpeed') : 1) *
     (b.type === 'weaponsmith' ? getModifier(world, b.owner, 'forgeSpeed') : 1);
-  b.prodTicksLeft = Math.max(1, Math.round(recipe.durationTicks / speedup));
-  if (def.recipeOptions) b.prodRecipeIndex = b.recipeIndex ?? 0;
+  b.prodTicksLeft = Math.max(1, Math.round(active.durationTicks / speedup));
+  if (def.recipeOptions) {
+    b.prodRecipeIndex = activeIndex;
+    if (queueSlot >= 0) b.forgeQueue![queueSlot]!.started = true;
+  }
+}
+
+/** Whether this option is researched (an unlockable recipe never re-locks,
+ * but a garbled save or a mod could hand us any index — check both). */
+function optionUnlocked(world: World, owner: number, def: BuildingDef, index: number): boolean {
+  const opt = def.recipeOptions?.[index];
+  if (!opt) return false;
+  if (opt.requiresTech === undefined) return true;
+  return world.players[owner]?.techs.researched.includes(opt.requiresTech) ?? false;
+}
+
+function inputsPresent(b: Building, recipe: Recipe & { kind: 'convert' }): boolean {
+  return (Object.entries(recipe.inputs) as [GoodId, number][]).every(
+    ([good, n]) => (b.inputs[good] ?? 0) >= n,
+  );
+}
+
+/**
+ * The Smith's next batch: queue over standing order over auto.
+ *
+ * The queue mirrors the barracks — the first unstarted order whose recipe
+ * is unlocked and whose ingredients sit in the buffer takes the fire, so a
+ * later order can jump one starved for iron. Orders that are queued but
+ * unready HOLD the fire rather than falling through: the player asked for
+ * these things next, and burning their iron on the standing order while
+ * they wait would be the sim overruling him.
+ */
+function pickForgeBatch(
+  world: World,
+  b: Building,
+  def: BuildingDef,
+): { index: number; queueSlot: number } | undefined {
+  if (b.forgeQueue && b.forgeQueue.length > 0) {
+    // Orders and standing selections were tech-checked when the command
+    // landed (tick.ts), and a tech never un-researches — no re-check here,
+    // matching how the standing order always ran.
+    const slot = b.forgeQueue.findIndex(
+      (o) =>
+        !o.started &&
+        def.recipeOptions![o.recipeIndex] !== undefined &&
+        inputsPresent(b, def.recipeOptions![o.recipeIndex]!.recipe),
+    );
+    if (slot < 0) return undefined;
+    return { index: b.forgeQueue[slot]!.recipeIndex, queueSlot: slot };
+  }
+  if (b.recipeIndex !== undefined) {
+    if (!def.recipeOptions?.[b.recipeIndex]) return undefined;
+    return { index: b.recipeIndex, queueSlot: -1 };
+  }
+  const auto = autoForgeIndex(world, b, def);
+  return auto === undefined ? undefined : { index: auto, queueSlot: -1 };
+}
+
+/**
+ * Auto: forge the tool the village most lacks. gap(tool) = posts standing
+ * open for it minus tools already free to reach them; the largest positive
+ * gap wins and ties break on GOODS order (TOOL_GOODS follows it). All gaps
+ * covered means the fire goes cold — an idle Smith is cheaper than a shelf
+ * of surplus axes forged out of scarce iron.
+ *
+ * Integer counts over world state only — this runs inside the tick and
+ * must resolve identically on every client.
+ */
+export function autoForgeIndex(world: World, b: Building, def: BuildingDef): number | undefined {
+  const want: Partial<Record<GoodId, number>> = {};
+  const free: Partial<Record<GoodId, number>> = {};
+  for (const ob of world.buildings.values()) {
+    if (ob.dead || ob.owner !== b.owner) continue;
+    if (ob.state === 'site') {
+      // A site still owed its hammer is a hammer the village lacks.
+      if (!ob.paused && (ob.siteNeeds?.hammer ?? 0) > 0 && (ob.inbound.hammer ?? 0) === 0) {
+        want.hammer = (want.hammer ?? 0) + 1;
+      }
+      continue;
+    }
+    if (ob.state !== 'built') continue;
+    for (const tool of TOOL_GOODS) {
+      // Tools on a shelf (minus those already promised to a hauler) can
+      // still reach any open post, wherever they sit.
+      free[tool] = (free[tool] ?? 0) + Math.max(0, (ob.stock[tool] ?? 0) - (ob.reservedOut[tool] ?? 0));
+    }
+    const tool = TOOL_OF[ob.type];
+    if (!tool || ob.paused) continue;
+    const worker = ob.workerId !== undefined ? world.units.get(ob.workerId) : undefined;
+    if (worker && !worker.dead) continue; // post is filled
+    if ((ob.inputs[tool] ?? 0) + (ob.inbound[tool] ?? 0) > 0) continue; // already served
+    want[tool] = (want[tool] ?? 0) + 1;
+  }
+  let best: GoodId | undefined;
+  let bestGap = 0;
+  for (const tool of TOOL_GOODS) {
+    const gap = (want[tool] ?? 0) - (free[tool] ?? 0);
+    if (gap > bestGap) {
+      const index = def.recipeOptions?.findIndex((o) => (o.recipe.outputs[tool] ?? 0) > 0) ?? -1;
+      if (index < 0 || !optionUnlocked(world, b.owner, def, index)) continue;
+      best = tool;
+      bestGap = gap;
+    }
+  }
+  if (best === undefined) return undefined;
+  return def.recipeOptions!.findIndex((o) => (o.recipe.outputs[best] ?? 0) > 0);
+}
+
+/**
+ * What a Smith wants delivered: the inputs of whatever it would forge
+ * next — the first unstarted queue order, else the standing order, else
+ * auto's pick. Logistics tops these up like any converter's; undefined
+ * (auto with every gap covered) raises no demand at all.
+ */
+export function forgeDemandRecipe(
+  world: World,
+  b: Building,
+  def: BuildingDef,
+): (Recipe & { kind: 'convert' }) | undefined {
+  const queued = b.forgeQueue?.find(
+    (o) => !o.started && def.recipeOptions?.[o.recipeIndex] !== undefined,
+  );
+  if (queued) return def.recipeOptions![queued.recipeIndex]!.recipe;
+  if (b.recipeIndex !== undefined) return def.recipeOptions?.[b.recipeIndex]?.recipe;
+  const auto = autoForgeIndex(world, b, def);
+  return auto === undefined ? undefined : def.recipeOptions![auto]!.recipe;
 }
 
 function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather' }): void {
@@ -259,6 +412,22 @@ export function bindWorker(b: Building, worker: Unit): void {
 }
 
 /**
+ * Hand the post's tool to the man taking it up: consumed out of the input
+ * buffer the way a barracks weapon is consumed by a recruit. True if the
+ * post needs no tool or one was there to take; false means the recruit
+ * arrived to an empty rack (the axe was lost or re-routed while he walked)
+ * and must stand down. Voluntary departures hand it back — see unbindWorker.
+ */
+export function consumePostTool(world: World, b: Building): boolean {
+  const tool = TOOL_OF[b.type];
+  if (!tool) return true;
+  if ((b.inputs[tool] ?? 0) < 1) return false;
+  b.inputs[tool] = (b.inputs[tool] ?? 0) - 1;
+  world.ledger.consumed[tool] = (world.ledger.consumed[tool] ?? 0) + 1;
+  return true;
+}
+
+/**
  * The inverse: the worker walks off the job and rejoins the serf pool, and
  * the building goes back to wanting one (staffing will recruit again). Both
  * sides are cleared together — the invariants check that workerId and homeId
@@ -280,7 +449,21 @@ export function bindWorker(b: Building, worker: Unit): void {
  */
 export function unbindWorker(world: World, worker: Unit): void {
   const home = worker.homeId !== undefined ? world.buildings.get(worker.homeId) : undefined;
-  if (home && home.workerId === worker.id) home.workerId = undefined;
+  if (home && home.workerId === worker.id) {
+    home.workerId = undefined;
+    // Every unbind is a voluntary departure (dismiss, sell, a move order,
+    // an obsolete post) — the man leaves the post's tool on the shelf,
+    // where evacuation hauls it home for whoever needs it next. Into
+    // stock rather than back into the input rack on purpose: a dismissal
+    // is usually the player freeing the tool as much as the man. Death
+    // never comes through here: a killed worker takes the tool with him,
+    // which is the raid's second bite of damage.
+    const tool = TOOL_OF[home.type];
+    if (tool && !home.dead && home.state === 'built') {
+      home.stock[tool] = (home.stock[tool] ?? 0) + 1;
+      world.ledger.produced[tool] = (world.ledger.produced[tool] ?? 0) + 1;
+    }
+  }
   worker.homeId = undefined;
   worker.kind = 'serf';
   worker.task = { t: 'idle', until: world.tick };

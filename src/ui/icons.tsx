@@ -21,6 +21,13 @@ const GOOD_HEX: Record<GoodId, string> = {
   ale: '#d2963c',
   flour: '#e4dcc9',
   food: '#d9a860',
+  // Tools carry the color of their business end; hafts share one wood tone.
+  axe: '#98a2ac',
+  pickaxe: '#8d8078',
+  scythe: '#c3cad2',
+  hammer: '#77848e',
+  cauldron: '#b0763f',
+  rod: '#a08a5f',
 };
 
 /** Good glyphs. Some (from the glass-HUD design handoff) are authored in a
@@ -132,6 +139,89 @@ const PATHS: Record<GoodId, (c: string) => JSX.Element> = {
         stroke-width="1.5"
         stroke-linecap="round"
       />
+    </g>
+  ),
+  // Felling axe: broad steel bit on a long haft
+  axe: (c) => (
+    <g transform="scale(0.667)">
+      <path
+        d="M8 21.5 15 8"
+        stroke="#8a6a42"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        fill="none"
+      />
+      <path
+        d="M12.4 3.6c3.4-1.2 6.6-.2 8.4 2-1.2 3-3.4 5-6.4 6-1.8-2.6-2.4-5.4-2-8Z"
+        fill={c}
+      />
+    </g>
+  ),
+  // Miner's pick: curved twin-spike head over a straight haft
+  pickaxe: (c) => (
+    <g transform="scale(0.667)">
+      <path
+        d="M12 7.5v14"
+        stroke="#8a6a42"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        fill="none"
+      />
+      <path
+        d="M3.4 8.6C6 4.4 9.6 2.6 12 2.6s6 1.8 8.6 6c-2.2-2-5.2-3-8.6-3s-6.4 1-8.6 3Z"
+        fill={c}
+      />
+    </g>
+  ),
+  // Scythe: long snath, blade swept out from the heel
+  scythe: (c) => (
+    <g transform="scale(0.667)">
+      <path
+        d="M9 21.5 13 4.8"
+        stroke="#8a6a42"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        fill="none"
+      />
+      <path
+        d="M12.6 4.8c2.8-2.2 6.6-2.4 9-.6-1.8 3.4-5.2 5.2-9.2 4.8-.2-1.6-.2-3 .2-4.2Z"
+        fill={c}
+      />
+    </g>
+  ),
+  // Smith's hammer: square steel head, straight haft
+  hammer: (c) => (
+    <g transform="scale(0.667)">
+      <path
+        d="M12 9v12.5"
+        stroke="#8a6a42"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        fill="none"
+      />
+      <rect x="5.5" y="3.2" width="13" height="6" rx="1.4" fill={c} />
+    </g>
+  ),
+  // Cauldron: round-bottomed copper pot on legs, dark rim
+  cauldron: (c) => (
+    <g transform="scale(0.667)">
+      <path d="M4.5 8.5c1 7 3.5 10 7.5 10s6.5-3 7.5-10Z" fill={c} />
+      <ellipse cx="12" cy="8.2" rx="8.2" ry="2.1" fill="#7d5127" />
+      <path
+        d="M8.4 18.2 7.4 21M15.6 18.2l1 2.8"
+        stroke={c}
+        stroke-width="1.6"
+        stroke-linecap="round"
+        fill="none"
+      />
+    </g>
+  ),
+  // Fishing rod: bent cane, line and hook
+  rod: (c) => (
+    <g fill="none" stroke-linecap="round">
+      <path d="M2.5 14.5C7 12 11 7.5 13 2" stroke={c} stroke-width="1.6" />
+      <path d="M13 2c.5 4 .2 7-.4 9.5" stroke="#d8d3c5" stroke-width="0.8" />
+      <path d="M12.6 11.5a1.4 1.4 0 1 0 1.5 1.3" stroke="#d8d3c5" stroke-width="0.9" />
     </g>
   ),
 };
@@ -290,6 +380,18 @@ export function SpeakerOffIcon() {
 }
 
 /** The builder's mallet, for the build menu. */
+/** The ledger: ruled lines with entries — the strip's "all goods" chip. */
+export function LedgerIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }} aria-label="Ledger">
+      <g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+        <rect x="2.5" y="1.8" width="11" height="12.4" rx="1.6" />
+        <path d="M5 5.2h6M5 8h6M5 10.8h3.5" />
+      </g>
+    </svg>
+  );
+}
+
 export function MalletIcon() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>

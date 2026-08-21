@@ -1,9 +1,9 @@
 import { ALE_TRAIN_SPEEDUP, TICKS_PER_SECOND } from '../defs/balance.ts';
-import { buildingDef, garrisonRoom } from '../defs/buildings.ts';
+import { TOOL_OF, buildingDef, garrisonRoom } from '../defs/buildings.ts';
 import { GOODS, type GoodId } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { atBuilding, walkToBuilding } from '../arrival.ts';
-import { bindWorker, unbindWorker } from './production.ts';
+import { bindWorker, consumePostTool, unbindWorker } from './production.ts';
 import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
 import type { UnitTypeId } from '../defs/units.ts';
 import type { Unit } from '../units.ts';
@@ -150,7 +150,12 @@ function handleArrivals(world: World): void {
       }
       unit.dead = true; // the person is now inside, training
     } else if (def.workerKind && !liveWorker(world, b)) {
-      // The serf takes up the post and becomes this building's worker.
+      // The serf takes up the post and becomes this building's worker —
+      // if the post's tool is still on the rack to hand him (it was when
+      // he was recruited; like the barracks' "ingredients were lost
+      // meanwhile", it may not be now). No tool, no hire: he stands down
+      // and the post goes back to demanding one.
+      if (!consumePostTool(world, b)) continue;
       unit.kind = def.workerKind;
       bindWorker(b, unit);
     }
@@ -244,8 +249,15 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
       if (wantsBuilder) b.builderWantedSince ??= world.tick;
       else delete b.builderWantedSince;
     }
+    const tool = TOOL_OF[b.type];
     const wantsWorker =
-      b.state === 'built' && def.workerKind !== undefined && !liveWorker(world, b);
+      b.state === 'built' &&
+      def.workerKind !== undefined &&
+      !liveWorker(world, b) &&
+      // A tool-gated post summons nobody until its tool hangs in the
+      // rack — recruiting first would walk a serf over to stand in front
+      // of an empty peg while the axe is still on the road.
+      (tool === undefined || (b.inputs[tool] ?? 0) >= 1);
     const wantsRecruit =
       b.state === 'built' && def.trains !== undefined && firstReadyTraining(b) >= 0;
     // A tower short of its garrison calls for another soldier. Unlike a

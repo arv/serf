@@ -24,8 +24,8 @@ import { staffingSystem } from './systems/staffing.ts';
 import { combatSystem } from './systems/combat.ts';
 import { banditsSystem } from './systems/bandits.ts';
 import { victorySystem } from './systems/victory.ts';
-import { buildingDef } from './defs/buildings.ts';
-import { CORPSE_TICKS, DISMISS_RESTAFF_BACKOFF, HIRE_QUEUE_CAP, HIRE_SERF_COST } from './defs/balance.ts';
+import { AUTO_RECIPE, TOOL_OF, buildingDef } from './defs/buildings.ts';
+import { CORPSE_TICKS, DISMISS_RESTAFF_BACKOFF, FORGE_QUEUE_CAP, HIRE_QUEUE_CAP, HIRE_SERF_COST } from './defs/balance.ts';
 import { TECH_DEFS } from './defs/techs.ts';
 import { canResearch, isBuildingUnlocked } from './techHelpers.ts';
 import { hasRoomToHire } from './population.ts';
@@ -185,11 +185,17 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       break;
     }
     case 'setBuildingRecipe': {
-      // The forge menu: pick which weapon the smith works on. Gated per
-      // option (bows need archery, iron weapons need ironworking); a
-      // batch already on the fire finishes as what it started as.
+      // The forge's standing order: what the Smith works on when its queue
+      // is empty. AUTO_RECIPE (-1) clears it — the Smith forges whatever
+      // tool the village most lacks. Gated per option (bows need archery,
+      // iron work needs ironworking); a batch already on the fire finishes
+      // as what it started as.
       const b = world.buildings.get(cmd.buildingId);
       if (!b || b.dead || b.owner !== playerId) break;
+      if (cmd.index === AUTO_RECIPE) {
+        if (buildingDef(b.type).recipeOptions) b.recipeIndex = undefined;
+        break;
+      }
       const opt = buildingDef(b.type).recipeOptions?.[cmd.index];
       if (!opt) break;
       if (
@@ -199,6 +205,45 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         break;
       }
       b.recipeIndex = cmd.index;
+      break;
+    }
+    case 'enqueueForge': {
+      // A forge order jumps the standing order: the queue is worked first,
+      // batch by batch, then the Smith falls back to recipeIndex/auto.
+      // Nothing is paid at enqueue — inputs are consumed at batch start,
+      // exactly like every other convert batch.
+      const b = world.buildings.get(cmd.buildingId);
+      if (!b || b.dead || b.owner !== playerId || b.state !== 'built') break;
+      const opt = buildingDef(b.type).recipeOptions?.[cmd.recipeIndex];
+      if (!opt) break;
+      if (
+        opt.requiresTech !== undefined &&
+        !(world.players[playerId]?.techs.researched.includes(opt.requiresTech) ?? false)
+      ) {
+        break;
+      }
+      b.forgeQueue ??= [];
+      if (b.forgeQueue.length >= FORGE_QUEUE_CAP) break;
+      b.forgeQueue.push({ recipeIndex: cmd.recipeIndex, started: false });
+      break;
+    }
+    case 'cancelForge': {
+      // Both the slot and what the player thinks is in it (cancelTraining's
+      // rule): a stale click after the queue shifted must miss rather than
+      // cancel a neighbour. A started batch is not refunded — it finishes
+      // as what it started as; cancelling only strikes the queue entry, so
+      // the goods on the fire still land.
+      const b = world.buildings.get(cmd.buildingId);
+      if (!b || b.dead || b.owner !== playerId || !b.forgeQueue) break;
+      const item = b.forgeQueue[cmd.index];
+      if (!item || item.recipeIndex !== cmd.recipeIndex) break;
+      if (item.started) {
+        // The batch on the fire keeps burning (prodRecipeIndex is already
+        // stamped); dropping the entry just means nothing re-queues it.
+        b.prodRecipeIndex ??= item.recipeIndex;
+      }
+      b.forgeQueue.splice(cmd.index, 1);
+      if (b.forgeQueue.length === 0) b.forgeQueue = undefined;
       break;
     }
     case 'sellBuilding': {
@@ -230,6 +275,22 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
           // Ledgered as production so the conservation invariant stays
           // honest — the same bookkeeping grantGoods uses.
           world.ledger.produced[good] = (world.ledger.produced[good] ?? 0) + refund;
+        }
+        // The kit walks away from the wreck: the post's own tool (left on
+        // the shelf by the unbind above, or still waiting in the rack of a
+        // post that never staffed) and any hammer a half-built site had
+        // borrowed. Deliberately NOT every good — a sold Smith loses its
+        // forged stock the way a sold bakery loses its bread. A move, not
+        // a mint, so no ledger entry.
+        const rescue = new Set<GoodId>(['hammer']);
+        const postTool = TOOL_OF[b.type];
+        if (postTool) rescue.add(postTool);
+        for (const good of rescue) {
+          const n = (b.stock[good] ?? 0) + (b.inputs[good] ?? 0);
+          if (n <= 0) continue;
+          sh.stock[good] = (sh.stock[good] ?? 0) + n;
+          b.stock[good] = 0;
+          b.inputs[good] = 0;
         }
       }
       destroyBuilding(world, b);

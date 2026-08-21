@@ -43,8 +43,9 @@ describe('research', () => {
   it('enforces prereqs and one-at-a-time', () => {
     const world = bareWorld();
     setupSchool(world);
-    // ironworking requires cobbledBoots — rejected.
-    tickWorld(world, cmds({ kind: 'research', tech: 'ironworking' }));
+    // deepMining requires ironworking — rejected. (Ironworking itself is a
+    // craft root now: the tool economy cannot wait on boots.)
+    tickWorld(world, cmds({ kind: 'research', tech: 'deepMining' }));
     expect(world.players[0]!.techs.active).toBeUndefined();
 
     tickWorld(world, cmds({ kind: 'research', tech: 'cobbledBoots' }));
@@ -57,15 +58,16 @@ describe('research', () => {
   it('gates buildings until researched', () => {
     const world = bareWorld();
     setupSchool(world);
-    expect(isBuildingUnlocked(world, 0, 'weaponsmith')).toBe(false);
-
-    tickWorld(world, cmds({ kind: 'placeBuilding', building: 'weaponsmith', x: 40, y: 40 }));
-    expect([...world.buildings.values()].some((b) => b.type === 'weaponsmith')).toBe(false);
-
-    world.players[0]!.techs.researched.push('cobbledBoots', 'ironworking');
+    // The Smith itself is ungated (the village's only tool source), so the
+    // iron mine carries this test now.
     expect(isBuildingUnlocked(world, 0, 'weaponsmith')).toBe(true);
-    tickWorld(world, cmds({ kind: 'placeBuilding', building: 'weaponsmith', x: 40, y: 40 }));
-    expect([...world.buildings.values()].some((b) => b.type === 'weaponsmith')).toBe(true);
+    expect(isBuildingUnlocked(world, 0, 'ironMine')).toBe(false);
+
+    tickWorld(world, cmds({ kind: 'placeBuilding', building: 'ironMine', x: 40, y: 40 }));
+    expect([...world.buildings.values()].some((b) => b.type === 'ironMine')).toBe(false);
+
+    world.players[0]!.techs.researched.push('ironworking');
+    expect(isBuildingUnlocked(world, 0, 'ironMine')).toBe(true);
   });
 
   it('masonry unlocks paving', () => {
@@ -122,6 +124,7 @@ describe('research', () => {
   it('bellows speeds the weaponsmith', () => {
     const world = bareWorld();
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 30, 30);
+    smith.recipeIndex = 0; // pinned on spears (default is auto)
     staffBuilding(world, smith);
     smith.inputs.iron = 1;
     smith.inputs.wood = 2;

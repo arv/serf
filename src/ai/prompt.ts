@@ -30,7 +30,7 @@ export interface ChatMessage {
   content: string;
 }
 
-const SYSTEM = `You are the strategist for one AI lord in a medieval RTS. Serfs haul goods, buildings produce them, soldiers fight. Razing a rival's castle eliminates them; razing bandit camps stops raids. You choose the seat's posture; a competent captain handles all execution.
+const SYSTEM = `You are the strategist for one AI lord in a medieval RTS. Serfs haul goods, buildings produce them, soldiers fight. Most production posts also need a tool from the Smith (axe, pickaxe, scythe, cauldron, fishing rod) before a worker will take them, and construction borrows hammers — a stock of zero tools with open posts means the economy is stalling, not resting. Razing a rival's castle eliminates them; razing bandit camps stops raids. You choose the seat's posture; a competent captain handles all execution.
 
 Fog of war: you know only what your seat has scouted ("explored" is your map coverage, 0-1). A rival with found=false has not been located yet — your captain scouts automatically, and the army cannot march on a castle nobody has found. A rival's "intel" is your scout's last look at their army composition (heavy/light/ranged) with its age; old intel may be wrong, null intel means never sighted. Your captain already re-scouts stale rivals and counter-forges against sighted compositions on his own — steer posture, not unit micro.
 

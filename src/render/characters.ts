@@ -46,6 +46,12 @@ const KK_PROP_FILES = [
   // From RPG Tools Bits (CC0) rather than the character packs — the one
   // pack Kay ships a fishing rod in. Line, floater and hook included.
   'tools/fishing_rod',
+  // Also RPG Tools Bits: real hammer and pickaxe hand tools. The comment
+  // over the procedural props ("the free packs ship no hammer/pickaxe")
+  // stopped being true when this pack arrived; the modeled ones swap in
+  // and the procedural builds stay as the not-yet-loaded fallback.
+  'tools/hammer',
+  'tools/pickaxe',
 ];
 
 const KK_CLIP_NAMES: Record<AnimKey, string> = {
@@ -305,9 +311,12 @@ async function loadKayKitCharacters(): Promise<boolean> {
 
 const kkTintMaterials = new Map<string, THREE.MeshStandardMaterial>();
 
-// --- Swappable work tools (the free packs ship no hammer/pickaxe) --------
+// --- Swappable work tools ------------------------------------------------
 // Authored in world units: grip at the origin, handle up +Y, head at the
-// top — the same frame the pack's axe sits in after its fix-up.
+// top — the same frame the pack's axe sits in after its fix-up. The hammer
+// and pickaxe are modeled now (RPG Tools Bits, see packToolProp); the
+// procedural builds below remain as their pre-load fallbacks and the spade
+// as the farmer's own tool.
 
 const toolMesh = (geo: THREE.BufferGeometry, color: number): THREE.Mesh => {
   const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
@@ -427,9 +436,28 @@ function gripPose<T extends THREE.Object3D>(tool: T): T {
   return tool;
 }
 
+/**
+ * A pack tool sized into the procedural props' frame: grip at the origin,
+ * handle up +Y, and `height` world units tall — the same over-half-a-body
+ * exaggeration the hand-built ones wear, so a swap changes the silhouette
+ * and nothing else. Falls back to the procedural build until the pack is
+ * in (or if a file ever goes missing).
+ */
+function packToolProp(prop: string, height: number, fallback: () => THREE.Group): THREE.Group {
+  const src = kkAssets?.props.get(prop);
+  if (!src) return fallback();
+  const tool = src.clone();
+  const bb = new THREE.Box3().setFromObject(tool);
+  const h = Math.max(bb.max.y - bb.min.y, 1e-6);
+  const g = new THREE.Group();
+  g.scale.setScalar(height / h);
+  g.add(tool);
+  return g;
+}
+
 const WORK_TOOLS: Record<number, () => THREE.Group> = {
-  3: malletProp, // WORK.hammer
-  2: pickaxeProp, // WORK.pickaxe
+  3: () => packToolProp('tools/hammer', 0.52, malletProp), // WORK.hammer
+  2: () => packToolProp('tools/pickaxe', 0.58, pickaxeProp), // WORK.pickaxe
   4: spadeProp, // WORK.dig
   6: () => new THREE.Group(), // WORK.draw — bare hands on the well crank
   7: fishingPoleProp, // WORK.fish
@@ -491,7 +519,7 @@ const PROF_LOOKS = new Map<number, ProfLook>([
     2,
     {
       spec: { file: 'Barbarian', hide: ['Barbarian_BearHat'], tint: 0x9b9084 },
-      tool: pickaxeProp,
+      tool: () => packToolProp('tools/pickaxe', 0.58, pickaxeProp),
       toolWorkKind: 2, // WORK.pickaxe
     },
   ],

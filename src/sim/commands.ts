@@ -25,6 +25,8 @@ export type SimCommand =
   | { kind: 'setBuildingPaused'; buildingId: EntityId; paused: boolean }
   | { kind: 'setBuildingRepair'; buildingId: EntityId; repair: boolean }
   | { kind: 'setBuildingRecipe'; buildingId: EntityId; index: number }
+  | { kind: 'enqueueForge'; buildingId: EntityId; recipeIndex: number }
+  | { kind: 'cancelForge'; buildingId: EntityId; index: number; recipeIndex: number }
   | { kind: 'research'; tech: TechId }
   | { kind: 'trainUnit'; buildingId: EntityId; unit: UnitTypeId }
   | { kind: 'cancelTraining'; buildingId: EntityId; index: number; unit: UnitTypeId }
@@ -124,10 +126,43 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
     case 'setBuildingRecipe': {
       if (!isId(c.buildingId)) return null;
       const index = c.index;
-      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > 15) {
+      // -1 is AUTO_RECIPE: clear the standing order and let the Smith pick.
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < -1 || index > 15) {
         return null;
       }
       return { kind: 'setBuildingRecipe', buildingId: c.buildingId, index };
+    }
+    case 'enqueueForge': {
+      if (!isId(c.buildingId)) return null;
+      const recipeIndex = c.recipeIndex;
+      if (
+        typeof recipeIndex !== 'number' ||
+        !Number.isInteger(recipeIndex) ||
+        recipeIndex < 0 ||
+        recipeIndex > 15
+      ) {
+        return null;
+      }
+      return { kind: 'enqueueForge', buildingId: c.buildingId, recipeIndex };
+    }
+    case 'cancelForge': {
+      if (!isId(c.buildingId)) return null;
+      const { index, recipeIndex } = c;
+      // Both the slot and what the player thinks is in it, like
+      // cancelTraining: a stale click after the queue shifted must miss
+      // rather than cancel a neighbour.
+      if (typeof index !== 'number' || !Number.isInteger(index) || index < 0 || index > 15) {
+        return null;
+      }
+      if (
+        typeof recipeIndex !== 'number' ||
+        !Number.isInteger(recipeIndex) ||
+        recipeIndex < 0 ||
+        recipeIndex > 15
+      ) {
+        return null;
+      }
+      return { kind: 'cancelForge', buildingId: c.buildingId, index, recipeIndex };
     }
     case 'research':
       if (!isDefined(TECH_DEFS, c.tech)) return null;

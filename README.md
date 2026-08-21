@@ -21,15 +21,29 @@ pnpm dev
   Objectives are judged by the sim; hints are a separate layer you can hide
   and finishing a commission unseals the next (see
   `docs/plan-campaign-tutorial.md`).
-- **Goods** (13): water, wheat, wood, stone, iron, silver, gold, sword, spear,
-  bow, ale, flour, food. Everything is hauled by serfs — there is no magic
-  global stockpile; the resource bar shows what's physically in the castle.
+- **Goods** (19): water, wheat, wood, stone, iron, silver, gold, sword, spear,
+  bow, ale, flour, food — and six tools: axe, pickaxe, scythe, hammer,
+  cauldron, fishing rod. Everything is hauled by serfs — there is no magic
+  global stockpile; the HUD strip shows the handful you watch constantly and
+  the Ledger (the chip at its end) shows everything physically in the castle.
+- **Tools**: nearly every production post is staffed with a tool as well as a
+  hand — the woodcutter takes an axe, the quarry and the mines a pickaxe, the
+  farm a scythe, the bakery and brewery a cauldron, the fishery a rod — and
+  every construction site *borrows* a hammer, returned at topping-out, so
+  hammers cap how many buildings rise at once. Tools come back when a worker
+  is dismissed or the building sold; they burn with the building and die with
+  the worker. The village opens with a starter kit, so the squeeze arrives
+  with the second woodcutter, not the first. All of it is forged at the
+  **Smith** (the old weaponsmith, ungated now): orders queue ahead of a
+  standing selection, and an idle Smith on auto forges whatever tool the
+  village most lacks — or nothing. The pickaxe alone costs wood + stone
+  rather than iron, so the ore economy can always restart from timber.
 - **Chains**: wells feed wheat farms; the mill grinds wheat to flour and the
   bakery bakes it into food (the fishery lands food straight off the shore);
-  iron + wood become weapons at the smiths; food + weapons train soldiers at
-  the barracks; wheat + water become ale, and ale delivered to the abbey
-  throws festivals (+25% work speed) — or, with Ale Rations, fills the
-  barracks cask so every recruit drinks and trains faster.
+  iron + wood become weapons — and iron tools — at the Smith; food + weapons
+  train soldiers at the barracks; wheat + water become ale, and ale delivered
+  to the abbey throws festivals (+25% work speed) — or, with Ale Rations,
+  fills the barracks cask so every recruit drinks and trains faster.
 - **Siting gatherers**: the woodcutter, the quarry and the mines only stand
   where their worker has something in reach — the trees, the outcrop, the
   seam. Aiming one draws the square that worker will search, and the hut
@@ -49,10 +63,11 @@ pnpm dev
   never leaves the post. The castle repairs too, out of the stores already
   inside it, against a notional price of its own (it cost nothing to raise).
 - **Tech**: build an Abbey and research across Agriculture / Craft / Warfare.
-  Unlocks are real strategic forks — Ironworking opens the sword economy,
-  Archery opens the bow line, Masonry paves your roads, Millstones speeds the
-  bread chain, Bellows rivals Deep Mining for the forge's favor, and the ale
-  line runs Brewing → Festivals → Ale Rations.
+  Unlocks are real strategic forks — Ironworking (a craft root now: the tool
+  economy cannot wait on boots) opens the iron mine and every iron recipe at
+  the Smith, Archery opens the bow line, Masonry paves your roads, Millstones
+  speeds the bread chain, Bellows rivals Deep Mining for the forge's favor,
+  and the ale line runs Brewing → Festivals → Ale Rations.
 - **Combat triangle**: Knights (heavy) ⟶ beat Spearmen (light) ⟶ catch
   Archers (ranged) ⟶ kite Knights. Bandit waves mix all three classes (the
   raid warning tells you the composition) — countering them means retooling

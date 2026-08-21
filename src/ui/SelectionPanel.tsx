@@ -6,7 +6,7 @@ import {
   type BuildingTypeId,
   type TileResourceName,
 } from '../sim/defs/buildings';
-import { HIRE_SERF_COST, HIRE_SERF_TICKS, TICKS_PER_SECOND, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
+import { FORGE_QUEUE_CAP, HIRE_SERF_COST, HIRE_SERF_TICKS, TICKS_PER_SECOND, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
 import type { BuildingSnap } from '../protocol/messages';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
@@ -28,6 +28,7 @@ import {
 
 import { buildingName, goodName, techName, unitName } from './names';
 import { HIRE_KEY, RESEARCH_KEY, canHire, canTrain, trainKey, unitTechGate } from './commands';
+import { SHORT } from './breakpoints';
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
   const entries = () =>
@@ -59,6 +60,13 @@ function queueSlots(
   return Array.from({ length: TRAIN_QUEUE_CAP }, (_, i) => queue?.[i]);
 }
 
+/** The forge queue's declared slots — trainQueue's trick, same reason. */
+function forgeSlots(
+  queue: BuildingSnap['forgeQueue'],
+): (NonNullable<BuildingSnap['forgeQueue']>[number] | undefined)[] {
+  return Array.from({ length: FORGE_QUEUE_CAP }, (_, i) => queue?.[i]);
+}
+
 /**
  * What "in reach" means for this building, in the terms that decide what
  * the player does about it: a spent seam is a mine to tear down, a thin
@@ -87,6 +95,8 @@ export function SelectionPanel(props: {
   onRepair: (buildingId: number, repair: boolean) => void;
   onTogglePause: (buildingId: number, paused: boolean) => void;
   onSetRecipe: (buildingId: number, index: number) => void;
+  onEnqueueForge: (buildingId: number, recipeIndex: number) => void;
+  onCancelForge: (buildingId: number, index: number, recipeIndex: number) => void;
 }) {
   /**
    * No bed free, so a recruit has nowhere to walk in to. Advisory — the sim
@@ -233,6 +243,68 @@ export function SelectionPanel(props: {
           width: 100%; height: 100%;
           border: 1px dashed rgba(255, 255, 255, 0.09); border-radius: 10px;
         }
+
+        /* ——— The forge menu ———
+           Same declared-grid discipline as the training queue: the
+           label and then one cell per recipe, three to a row, each cell
+           a third of the card whether it holds a bow or nothing. Nine
+           recipes make label + 3 rows, drawn once at selection. */
+        .sel-forge {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-auto-rows: var(--sel-slot-h);
+          gap: 6px;
+          align-items: center;
+        }
+        .sel-forge > .sel-label { grid-column: 1 / -1; }
+        .sel-forge > .tipwrap { display: block; min-width: 0; height: 100%; }
+        #ui .sel-forge button {
+          box-sizing: border-box;
+          width: 100%; height: 100%; min-height: 0;
+          display: flex; align-items: center; justify-content: center; gap: 4px;
+          padding: 0 6px; font-size: 12px;
+        }
+        .sel-forge .cost { min-width: 0; overflow: hidden; white-space: nowrap; }
+        .sel-forge-idle { opacity: 0.7; }
+        /* ——— The forge on a phone held sideways ———
+           Nine recipes and a five-slot queue make this the tallest card
+           in the game, and SHORT gives the whole bottom row about 200px.
+           At the desktop shape 126px of it sat below the fold — with the
+           QUEUE in that 126px, so ordering a batch showed the player
+           nothing at all until they thought to scroll.
+           So the cells lose their price and keep their glyph (the price
+           is a tooltip away, and a phone has no room for nine of them),
+           which fits five to a row instead of three; and the queue lays
+           its five slots out in one row rather than two. What is left is
+           the whole card: recipes, queue and what the fire does between
+           orders, all of it on screen while a thumb is on it. */
+        @media ${SHORT} {
+          .sel-forge { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+          /* Six, not five: the queue's label is a cell like any other, so
+             six columns is what puts it and all five slots on ONE row.
+             At five it wrapped to two and gave back the row the recipes
+             had just saved. */
+          .sel-forge-queue { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+          /* A sixth of the card is about 58px, and "queue 0/5" at 12px
+             with a 2ch slot cut for the count is wider than that — it
+             broke after the count and took a second line back. Smaller,
+             unwrapped, and the slot given up: the count is one digit
+             against a cap of five, so nothing here can move anything. */
+          .sel-forge-queue .sel-label { font-size: 11px; white-space: nowrap; }
+          .sel-forge-queue .sel-label .num { min-width: 0; }
+          .sel-forge .cost { display: none; }
+          #ui .sel-forge button { padding: 0 2px; }
+          /* The order chips lose their name for the same reason the
+             recipe cells lose their price: at a fifth of a 380px card
+             "Fishing Rod ✕" is three clipped letters. The glyph is the
+             one part that still reads, and it is the part that says
+             which order this is. */
+          .sel-forge-queue .sel-slot .unit .label { display: none; }
+          #ui .sel-forge-queue button.sel-slot { justify-content: center; padding: 0 4px; }
+        }
+        #ui button.sel-idle-clear {
+          min-height: 0; padding: 0 6px; font-size: 11px; vertical-align: 1px;
+        }
       `}</style>
 
       <Show when={selectedBuilding()}>
@@ -377,7 +449,13 @@ export function SelectionPanel(props: {
               </Show>
 
               <Show when={def().recipeOptions && b().state === 'built'}>
-                <div class="sel-row">
+                {/* The forge menu: one declared grid, three to a row —
+                    nine recipes today and the frame would hold a tenth.
+                    A click ORDERS one batch (the barracks' verb), it does
+                    not retune the smith: the queue is worked first, and
+                    an empty queue falls back to auto — forge whatever
+                    tool the village most lacks, or nothing. */}
+                <div class="sel-forge">
                   <span class="sel-label">forge</span>
                   <For each={def().recipeOptions!}>
                     {(opt, i) => {
@@ -385,24 +463,23 @@ export function SelectionPanel(props: {
                       const locked = () =>
                         opt.requiresTech !== undefined &&
                         !techs().researched.includes(opt.requiresTech);
-                      const active = () => (b().recipeIndex ?? 0) === i();
+                      const queueFull = () => (b().forgeQueue?.length ?? 0) >= FORGE_QUEUE_CAP;
                       return (
                         <TipWrap
                           tip={() => (
                             <TextTip
-                              title={`Forge ${goodName(output())}s`}
+                              title={`Order a ${goodName(output()).toLowerCase()}`}
                               body={
                                 locked()
                                   ? `Locked — needs ${techName(opt.requiresTech!)}.`
-                                  : 'Deliveries and the smith switch to this weapon; a batch already on the fire finishes first.'
+                                  : 'One batch, ahead of the standing work. Ingredients are called for when it takes the fire.'
                               }
                             />
                           )}
                         >
                           <button
-                            classList={{ active: active() }}
-                            disabled={locked()}
-                            onClick={() => props.onSetRecipe(b().id, i())}
+                            disabled={locked() || queueFull()}
+                            onClick={() => props.onEnqueueForge(b().id, i())}
                           >
                             <Show when={locked()}>
                               <LockIcon />{' '}
@@ -416,6 +493,81 @@ export function SelectionPanel(props: {
                       );
                     }}
                   </For>
+                </div>
+                {/* The order book: FORGE_QUEUE_CAP declared slots, the
+                    training queue's grid with the same rules. */}
+                <div class="sel-queue sel-forge-queue">
+                  <span class="sel-label">
+                    queue <span class="num">{b().forgeQueue?.length ?? 0}</span>/{FORGE_QUEUE_CAP}
+                  </span>
+                  <Index each={forgeSlots(b().forgeQueue)}>
+                    {(slot, i) => (
+                      <Show
+                        when={slot()}
+                        fallback={<span class="sel-slot empty" aria-hidden="true" />}
+                      >
+                        {(item) => {
+                          const output = () =>
+                            Object.keys(
+                              def().recipeOptions![item().recipeIndex]!.recipe.outputs,
+                            )[0] as GoodId;
+                          return (
+                            <TipWrap
+                              tip={() => (
+                                <TextTip
+                                  title={item().started ? 'Strike the order' : 'Remove from queue'}
+                                  body={
+                                    item().started
+                                      ? 'The batch on the fire still finishes — striking the order only means nothing re-queues it.'
+                                      : 'Nothing is spent until the batch takes the fire, so ingredients already delivered stay for the next order.'
+                                  }
+                                />
+                              )}
+                            >
+                              <button
+                                class="sel-slot"
+                                classList={{ waiting: !item().started }}
+                                onClick={() =>
+                                  props.onCancelForge(b().id, i, item().recipeIndex)
+                                }
+                              >
+                                <span class="unit">
+                                  <GoodIcon good={output()} size={13} />{' '}
+                                  <span class="label">{goodName(output())}</span>
+                                </span>
+                                <span class="x">✕</span>
+                              </button>
+                            </TipWrap>
+                          );
+                        }}
+                      </Show>
+                    )}
+                  </Index>
+                </div>
+                {/* What the fire does between orders. Reserved line, so
+                    the AI pinning or clearing a standing order (or a save
+                    carrying one) never moves the buttons above it. */}
+                <div class="sel-line sel-forge-idle">
+                  <Show
+                    when={b().recipeIndex !== undefined}
+                    fallback={<span>between orders: forges the scarcest tool, or rests</span>}
+                  >
+                    <span>
+                      between orders: forges{' '}
+                      {goodName(
+                        Object.keys(
+                          def().recipeOptions![b().recipeIndex!]!.recipe.outputs,
+                        )[0] as GoodId,
+                      ).toLowerCase()}
+                      s{' '}
+                      <button
+                        class="sel-idle-clear"
+                        onClick={() => props.onSetRecipe(b().id, -1)}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  </Show>
                 </div>
               </Show>
 

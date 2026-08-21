@@ -661,6 +661,12 @@ export function placeSite(
   // A bare frame is fragile; hp climbs to full as construction advances.
   b.hp = Math.max(1, Math.round(def.hp * 0.2));
   b.siteNeeds = { ...def.cost };
+  // Every real site borrows a hammer alongside its materials and returns
+  // it at completion (constructionSystem) — the loan that caps how many
+  // buildings can rise at once. Roads pave themselves and pay no loan.
+  if (!def.isRoad && !def.systemOnly) {
+    b.siteNeeds.hammer = (b.siteNeeds.hammer ?? 0) + 1;
+  }
   b.buildProgress = 0;
   world.buildings.set(b.id, b);
   occupyFootprint(world, b);

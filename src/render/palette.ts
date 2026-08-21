@@ -106,4 +106,10 @@ export const goodColors: Record<GoodId, number> = {
   ale: 0xefe8f0,
   flour: 0xe9e2d4,
   food: 0xd9a860,
+  axe: 0xb87f4a,
+  pickaxe: 0x84796e,
+  scythe: 0xc2b089,
+  hammer: 0x9a8d80,
+  cauldron: 0xb0763f,
+  rod: 0xa08a5f,
 };

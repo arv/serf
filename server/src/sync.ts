@@ -177,6 +177,8 @@ function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
           kind: p.kind,
           alive: p.alive,
           stock: {},
+          // Open posts are a build plan read the same way the head count is.
+          toolWants: {},
           // A rival's head count is their army size and their build plan in
           // one number — exactly what scouting is meant to cost.
           pop: 0,

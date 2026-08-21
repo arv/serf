@@ -1,15 +1,16 @@
 import { For, Show, createEffect, createSignal } from 'solid-js';
-import { GOODS, type GoodId } from '../sim/defs/goods';
+import type { GoodId } from '../sim/defs/goods';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { TechId } from '../sim/defs/techs';
 import type { UnitTypeId } from '../sim/defs/units';
 import type { AdminAction } from '../sim/commands';
 import { clearSeatStash } from '../net/lobbyClient';
 import { TechTreePanel } from './TechTreePanel';
+import { EconomyPanel } from './EconomyPanel';
 import { SelectionPanel } from './SelectionPanel';
 import { AdminPanel } from './AdminPanel';
 import { MissionPanel, continueTarget } from './MissionPanel';
-import {
+import { LedgerIcon,
   EyeIcon,
   EyeOffIcon,
   FastIcon,
@@ -69,6 +70,9 @@ import {
   speed,
   stock,
   techPanelOpen,
+  economyPanelOpen,
+  setEconomyPanelOpen,
+  toolWants,
   techs,
   toasts,
   toggleMuted,
@@ -92,6 +96,17 @@ const REPLAY_SPEED = {
   hint: 'Replay only — runs the recording at 8× speed.',
 };
 
+/**
+ * The goods the strip shows at all times: the ones a player glances at
+ * every few seconds mid-decision. Everything else — the full nineteen,
+ * arms and tools included — lives one tap away in the EconomyPanel. The
+ * strip held all thirteen goods until the tools arrived; six more would
+ * have wrapped it to two rows on every laptop (~74px a chip against
+ * ~1174px of budget at 1440), and a strip that wraps pushes the whole
+ * rail stack down the map.
+ */
+const HUD_GOODS: GoodId[] = ['wood', 'stone', 'food', 'iron', 'silver'];
+
 export function Hud(props: {
   onSpeed: (speed: number) => void;
   onPlace: (type: BuildingTypeId | null) => void;
@@ -111,6 +126,8 @@ export function Hud(props: {
   onRepair: (buildingId: number, repair: boolean) => void;
   onTogglePause: (buildingId: number, paused: boolean) => void;
   onSetRecipe: (buildingId: number, index: number) => void;
+  onEnqueueForge: (buildingId: number, recipeIndex: number) => void;
+  onCancelForge: (buildingId: number, index: number, recipeIndex: number) => void;
 }) {
   // The sim rejects admin commands in a match (world.admin.enabled is
   // false), so every button here no-ops — except the fog toggle, which
@@ -459,11 +476,13 @@ export function Hud(props: {
         }
         /* Three digits' worth of slot per good. This strip sits dead
            centre and every count in it changes on its own, so without
-           a fixed slot one barn filling past 99 walks all fourteen
-           chips sideways — the most-watched row on screen, twitching
-           at whatever rate the village happens to produce. Wrapping
-           settles for the same reason: the break lands in the same
-           place every time, because the widths never move. */
+           a fixed slot one barn filling past 99 walks every chip
+           sideways — the most-watched row on screen, twitching at
+           whatever rate the village happens to produce. (Seven chips
+           now — five goods, population, the ledger — the other goods
+           live in the EconomyPanel.) Wrapping settles for the same
+           reason: the break lands in the same place every time,
+           because the widths never move. */
         .hud-resources span.res .num { min-width: 3ch; }
         .hud-resources span.res:hover { background: rgba(255, 255, 255, 0.06); }
         .hud-resources span.res.has { opacity: 1; }
@@ -479,6 +498,18 @@ export function Hud(props: {
            slash stays put between two slots that each grow outward. */
         .hud-resources span.res.pop .num.cap { text-align: left; }
         .hud-resources span.res.pop.full { color: #e5c469; }
+        /* The ledger chip is a real button wearing the chip's clothes:
+           #ui button's own box is reset so it sits flush in the row. */
+        #ui .hud-resources button.res.ledger {
+          min-height: 0; margin-left: 6px; padding: 3px 9px 3px 13px;
+          border: 0; border-radius: 8px;
+          border-left: 1px solid rgba(255, 255, 255, 0.14);
+          background: none; color: #c8c4b5;
+        }
+        #ui .hud-resources button.res.ledger:hover,
+        #ui .hud-resources button.res.ledger.active {
+          background: rgba(255, 255, 255, 0.08); color: #e9e6dd;
+        }
         /* Research lives in the centre rail, not in the goods strip.
            It comes and goes with a click on the abbey, and inside the
            strip its arrival shunted every good sideways by half a chip
@@ -495,6 +526,13 @@ export function Hud(props: {
           transition: width 0.4s;
         }
         .research-chip .label { position: relative; }
+        #ui button.hud-toolwants {
+          min-height: 0; padding: 3px 11px; font-size: 12px;
+          border-radius: 8px; color: #e5c469;
+          display: inline-flex; align-items: center; gap: 7px;
+        }
+        .hud-toolwants .tw { display: inline-flex; align-items: center; gap: 3px; }
+        .hud-toolwants .tw .num { min-width: 2ch; }
 
         .hud-nettrouble {
           padding: 8px 18px;
@@ -857,10 +895,12 @@ export function Hud(props: {
              scrolls.
              A share of the window rather than a subtraction from it:
              the menu hangs under the chrome cluster, and how far down
-             that starts depends on how many rows the goods strip took
-             — 96px on a phone held sideways, 126px on one held upright
-             with the strip stacked above it. 58% clears the deeper of
-             those two with room over. Small viewport units, not
+             that starts depends on how many rows the goods strip took.
+             Those numbers were measured against the full thirteen-good
+             strip (96px sideways, 126px upright); the strip is seven
+             chips now — the rest moved to the EconomyPanel — so 58%
+             clears the deeper case with more room than it was cut
+             for, and it stays as the safe bound. Small viewport units, not
              dynamic ones: an open menu must not resize under the thumb
              as the URL bar comes and goes. */
           .hud-menu {
@@ -1078,7 +1118,7 @@ export function Hud(props: {
       <div class="hud-top">
       <div class="hud-resources">
         <div class="panel">
-          <For each={[...GOODS]}>
+          <For each={HUD_GOODS}>
             {(good) => (
               <span
                 class="res"
@@ -1106,6 +1146,22 @@ export function Hud(props: {
             <PopIcon /> <span class="num">{population().pop}</span>/
             <span class="num cap">{population().cap}</span>
           </span>
+          {/* The ledger: the rest of the goods live behind this chip.
+              A button styled as a chip, ruled off like population — it
+              is not a good either, it is where the other twelve went. */}
+          <button
+            class="res ledger has"
+            classList={{ active: economyPanelOpen() }}
+            {...tooltip(() => (
+              <TextTip
+                title="The Ledger"
+                body="Every good the village owns, grouped — arms, tools, and all. The strip keeps only the handful you watch constantly."
+              />
+            ))}
+            onClick={() => setEconomyPanelOpen(!economyPanelOpen())}
+          >
+            <LedgerIcon />
+          </button>
         </div>
       </div>
 
@@ -1252,6 +1308,30 @@ export function Hud(props: {
           </Show>
           <Show when={techs().festivalTicksLeft > 0}>
             <div class="hud-festival panel">Festival! Everyone works faster</div>
+          </Show>
+          {/* Posts standing open for tools. In the rail, not the strip,
+              for the research chip's reason: a want coming and going
+              must not shunt the goods sideways. Click opens the ledger. */}
+          <Show when={Object.keys(toolWants()).length > 0}>
+            <button
+              class="hud-toolwants panel"
+              {...tooltip(() => (
+                <TextTip
+                  title="Posts want tools"
+                  body="Buildings standing open until the Smith forges (or a hauler brings) the tool their worker needs. Sites count too — each borrows a hammer while it rises."
+                />
+              ))}
+              onClick={() => setEconomyPanelOpen(true)}
+            >
+              wants{' '}
+              <For each={Object.entries(toolWants()) as [GoodId, number][]}>
+                {([good, n]) => (
+                  <span class="tw">
+                    <GoodIcon good={good} size={12} /> {n}
+                  </span>
+                )}
+              </For>
+            </button>
           </Show>
           <Show when={netMode() && netStatus()?.state === 'disconnected'}>
             <div class="hud-nettrouble panel">
@@ -1705,9 +1785,14 @@ export function Hud(props: {
           onRepair={props.onRepair}
           onTogglePause={props.onTogglePause}
           onSetRecipe={props.onSetRecipe}
+          onEnqueueForge={props.onEnqueueForge}
+          onCancelForge={props.onCancelForge}
         />
       </div>
 
+      <Show when={economyPanelOpen()}>
+        <EconomyPanel />
+      </Show>
       <Show when={techPanelOpen()}>
         <TechTreePanel onResearch={props.onResearch} />
       </Show>

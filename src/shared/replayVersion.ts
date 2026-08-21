@@ -37,4 +37,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 14;
+export const REPLAY_VERSION = 15;

@@ -8,10 +8,10 @@
  * Per-player filtering happens above, on the server, so the two concerns
  * stay separable.
  */
-import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings.ts';
+import { TOOL_OF, buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings.ts';
 import { HIRE_SERF_TICKS } from '../sim/defs/balance.ts';
 import { TECH_DEFS } from '../sim/defs/techs.ts';
-import { GOODS } from '../sim/defs/goods.ts';
+import { GOODS, type GoodAmounts, type GoodId } from '../sim/defs/goods.ts';
 import { UNIT_DEFS, carryingCode } from '../sim/defs/units.ts';
 import { ACTION, PROFESSION, WORK, type UnitSnapshot } from './sabLayout.ts';
 import { centerOf } from '../sim/entities.ts';
@@ -67,6 +67,8 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     working: b.prodTicksLeft !== undefined && !b.paused ? true : undefined,
     paused: b.paused,
     recipeIndex: b.recipeIndex,
+    prodRecipeIndex: b.prodRecipeIndex,
+    forgeQueue: b.forgeQueue?.map((q) => ({ recipeIndex: q.recipeIndex, started: q.started })),
     garrison: def.garrison ? (b.garrison ?? 0) : undefined,
     garrisonCap: def.garrison?.capacity,
     // On cooldown means it loosed within the last volley's worth of ticks,
@@ -113,17 +115,38 @@ export function snapBuildings(world: World): BuildingSnap[] {
 
 export function snapPlayers(world: World): PlayerSnap[] {
   // One pass over the buildings gathers each owner's first built storehouse
-  // (same first-in-map-order pick as findStorehouse), abbey presence and
-  // standing beds, instead of a full building scan per player.
+  // (same first-in-map-order pick as findStorehouse), abbey presence,
+  // standing beds and open tool wants, instead of a full building scan per
+  // player.
   const storehouses = new Map<Owner, Building>();
   const abbeyOwners = new Set<Owner>();
   const beds = new Map<Owner, number>();
+  const toolWants = new Map<Owner, GoodAmounts>();
+  const wantTool = (owner: Owner, tool: GoodId): void => {
+    let w = toolWants.get(owner);
+    if (!w) toolWants.set(owner, (w = {}));
+    w[tool] = (w[tool] ?? 0) + 1;
+  };
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built') continue;
+    if (b.dead) continue;
+    if (b.state === 'site') {
+      // A site still owed its borrowed hammer counts as a hammer want.
+      if (!b.paused && (b.siteNeeds?.hammer ?? 0) > 0 && (b.inbound.hammer ?? 0) === 0) {
+        wantTool(b.owner, 'hammer');
+      }
+      continue;
+    }
+    if (b.state !== 'built') continue;
     if (b.type === 'abbey') abbeyOwners.add(b.owner);
     if (!storehouses.has(b.owner) && buildingDef(b.type).storage) storehouses.set(b.owner, b);
     const housing = buildingDef(b.type).housing;
     if (housing) beds.set(b.owner, (beds.get(b.owner) ?? 0) + housing);
+    // An open post whose tool is neither on its rack nor on the road.
+    const tool = TOOL_OF[b.type];
+    if (tool && !b.paused && (b.inputs[tool] ?? 0) + (b.inbound[tool] ?? 0) === 0) {
+      const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+      if (!worker || worker.dead) wantTool(b.owner, tool);
+    }
   }
   // ...and one over the units for heads. Bandits own no seat, so their
   // raiders never land in the map.
@@ -139,6 +162,7 @@ export function snapPlayers(world: World): PlayerSnap[] {
       kind: p.kind,
       alive: p.alive,
       stock: storehouse ? { ...storehouse.stock } : {},
+      toolWants: toolWants.get(p.id) ?? {},
       pop: heads.get(p.id) ?? 0,
       popCap: beds.get(p.id) ?? 0,
       techs: {

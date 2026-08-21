@@ -34,6 +34,19 @@ export const START_STOCK: GoodAmounts = {
   spear: 1,
   sword: 1,
   bow: 1,
+  // The tool shed: one of each post's tool plus spares for the two the
+  // opening leans on hardest, so the first village staffs itself exactly
+  // as it did before tools existed — the squeeze is meant to arrive with
+  // the SECOND woodcutter, not the first. Three hammers because a hammer
+  // is a loan against a construction site (see TOOL_OF in buildings.ts):
+  // three sites can rise at once, the fourth waits for a roof to top out.
+  // Numbers are bakeoff-tuned like everything else in this block.
+  axe: 2,
+  pickaxe: 2,
+  scythe: 1,
+  hammer: 3,
+  cauldron: 1,
+  rod: 1,
 };
 
 // Logistics
@@ -137,6 +150,8 @@ export function raidIntervalFor(mapSize: number): number {
 
 // Training
 export const TRAIN_QUEUE_CAP = 5;
+/** Forge orders (Smith queue) waiting at once — trainQueue's twin. */
+export const FORGE_QUEUE_CAP = 5;
 
 // Lost resident workers respawn after a mourning period.
 export const WORKER_RESPAWN_TICKS = 15 * TICKS_PER_SECOND;

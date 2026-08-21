@@ -86,6 +86,17 @@ export function hashWorld(world: World): number {
     // into range.
     mix(b.garrison ?? 0);
     mix(b.attackCooldown ?? 0);
+    // The forge's mind: standing order (255 = auto) and the queue ahead of
+    // it steer batches for minutes — a save that dropped an order must not
+    // hash as the same world.
+    mix(b.recipeIndex ?? 255);
+    mix(b.forgeQueue?.length ?? 0);
+    if (b.forgeQueue) {
+      for (const o of b.forgeQueue) {
+        mix(o.recipeIndex);
+        mix(o.started ? 1 : 0);
+      }
+    }
   }
   for (const j of world.jobs.values()) {
     mixU32(j.id);

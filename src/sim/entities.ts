@@ -67,13 +67,19 @@ export interface Building {
   recruitId?: EntityId;
   /** Convert recipe: ticks left on the current batch (undefined = not running). */
   prodTicksLeft?: number;
-  /** Selected option in the def's recipeOptions (weaponsmith forge menu). */
+  /** Standing order in the def's recipeOptions (the Smith's forge menu).
+   * Undefined = auto: forge whatever tool the village most lacks. */
   recipeIndex?: number;
   /** The option the running batch was started with: a switch mid-batch
    * must not change what comes out of the kiln. */
   prodRecipeIndex?: number;
   /** Military training queue (barracks). */
   trainQueue?: { unit: UnitTypeId; ticksLeft: number; started: boolean }[];
+  /** Forge orders (Smith): recipeOptions indices worked in order, ahead of
+   * the standing recipeIndex. Mirrors trainQueue — an item is marked
+   * started when its batch takes the fire and removed when it lands, so a
+   * pause or a standing-order switch never loses an order. */
+  forgeQueue?: { recipeIndex: number; started: boolean }[];
   /**
    * Men manning this building (guard tower). A count, not ids: an archer who
    * walks in is consumed the way a barracks recruit is, so there is no unit
