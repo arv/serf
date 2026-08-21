@@ -57,6 +57,7 @@ import type { World } from './world.ts';
 export type EconomyRuleId =
   | 'resiteExtractor'
   | 'freeCappedHauler'
+  | 'resumeDrainedPost'
   | 'forgeTheCounter'
   | 'keepTheQueueWarm';
 
@@ -188,9 +189,9 @@ const resiteExtractor: EconomyRule = {
  * The post to empty is one whose output buffer is already full, which is
  * precisely a post producing nothing: its worker stands at a capped hut
  * waiting for a haul that cannot come. Freeing him costs no production at
- * all, and it is self-limiting — once he has drained the buffer the post is
- * under cap again, and staffing re-fills it when the dismissal backoff runs
- * out.
+ * all. Pausing is how a post is emptied — the one lever hands the resident
+ * back — and a halted post recruits nobody, so the order sticks until
+ * `resumeDrainedPost` below starts the place again once the pile is gone.
  *
  * Only a worker reading idle is taken. A hand released mid-trip used to be
  * lost for good; `unbindWorker` resets the task now, but a rule whose whole
@@ -211,14 +212,53 @@ const freeCappedHauler: EconomyRule = {
   fire(ctx) {
     if (!ctx.stalled || ctx.serfCount > 0) return null;
     for (const b of ctx.mine) {
-      if (b.state !== 'built' || b.workerId === undefined) continue;
+      if (b.state !== 'built' || b.paused || b.workerId === undefined) continue;
       const out = gatherRecipeOf(BUILDING_DEFS[b.type as BuildingTypeId])?.output;
       if (out === undefined || (b.stock[out] ?? 0) < OUTPUT_CAP) continue;
       const worker = ctx.world.units.get(b.workerId);
       if (!worker || worker.dead || worker.task.t !== 'idle') continue;
-      return { commands: [{ kind: 'dismissWorker', buildingId: b.id }], claims: [b.id] };
+      return {
+        commands: [{ kind: 'setBuildingPaused', buildingId: b.id, paused: true }],
+        claims: [b.id],
+      };
     }
     return null;
+  },
+};
+
+/**
+ * The other half of `freeCappedHauler`: start a drained post back up.
+ *
+ * A halted gatherer recruits nobody for as long as it stands halted, so the
+ * freed hand stays a hauler until this rule says otherwise. The pile the
+ * post was paused over still evacuates (paused buildings ship their stock),
+ * and once it is gone the post is producing ground again — unpausing puts
+ * it back on the staffing sweep's list, and the next idle hand mans it.
+ *
+ * Waiting for empty rather than merely under cap is deliberate: the whole
+ * point of the pause was the hauling, and reopening the post after one load
+ * would capture the hand with the rest of the pile still standing.
+ *
+ * Not gated on `stalled` — the stall clears precisely because the goods
+ * moved, and the rule must still fire afterwards or the post stays halted
+ * for the rest of the match. Gatherers are the only thing it touches, so
+ * the towers `#manTowers` stands down are never restarted from here.
+ */
+const resumeDrainedPost: EconomyRule = {
+  id: 'resumeDrainedPost',
+  when: 'a post paused to free its hand has shipped the last of its pile',
+  phase: 'recovery',
+  fire(ctx) {
+    const commands: SimCommand[] = [];
+    const claims: EntityId[] = [];
+    for (const b of ctx.mine) {
+      if (b.state !== 'built' || !b.paused) continue;
+      const out = gatherRecipeOf(BUILDING_DEFS[b.type as BuildingTypeId])?.output;
+      if (out === undefined || (b.stock[out] ?? 0) > 0) continue;
+      commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
+      claims.push(b.id);
+    }
+    return commands.length > 0 ? { commands, claims } : null;
   },
 };
 
@@ -333,6 +373,7 @@ const keepTheQueueWarm: EconomyRule = {
 export const ECONOMY_RULES: readonly EconomyRule[] = [
   resiteExtractor,
   freeCappedHauler,
+  resumeDrainedPost,
   forgeTheCounter,
   keepTheQueueWarm,
 ];

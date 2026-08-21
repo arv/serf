@@ -80,7 +80,7 @@ export interface Building {
    * left on the map — which is exactly why a garrison cannot be shot at
    * except by bringing the tower down. They still count as this seat's
    * people (see populationOf), and they walk back out if the tower is sold
-   * or the post is dismissed.
+   * — or, for the levy, when it is paused (that is the stand-down order).
    */
   garrison?: number;
   /**
@@ -97,8 +97,9 @@ export interface Building {
   hireQueue?: number;
   hireTicksLeft?: number;
   /** Player-ordered production halt: no recipe ticks, no input demands,
-   * no construction progress. The worker keeps the post; outputs still
-   * evacuate to the storehouse. */
+   * no construction progress. The post is emptied too — the resident
+   * rejoins the serf pool, and unpausing recruits a new one. Outputs
+   * still evacuate to the storehouse. */
   paused?: boolean;
   /**
    * Ordered repairs (built buildings only): materials still to be hauled in,
@@ -116,7 +117,8 @@ export interface Building {
    * them on at REPAIR_MEND_TICKS' pace (constructionSystem). Outlives
    * repairNeeds — the last plank lands well before the mend is finished. */
   repairPending?: number;
-  /** Recruiting pause after the player dismissed the worker on purpose. */
+  /** Recruiting hold: staffing found the post walled off and waits before
+   * re-pathing to it (see UNREACHABLE_BACKOFF). */
   staffBackoffUntil?: number;
   /** Since when this site has been ready for a builder and without one.
    * Staffing uses it to escalate a long wait (see BUILDER_STARVED_TICKS). */

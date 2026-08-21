@@ -59,9 +59,6 @@ export const HIRE_SERF_COST = 4; // silver
 export const HIRE_SERF_TICKS = 8 * TICKS_PER_SECOND;
 /** Paid-for hires that can be waiting at once. */
 export const HIRE_QUEUE_CAP = 5;
-/** A dismissed post stays open this long before it recruits again, so the
- * freed worker can take up new work instead of being pulled straight back. */
-export const DISMISS_RESTAFF_BACKOFF = 30 * TICKS_PER_SECOND;
 /** Combat corpses linger this long so the death animation can play. */
 export const CORPSE_TICKS = 30;
 

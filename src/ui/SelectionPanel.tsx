@@ -82,7 +82,6 @@ export function SelectionPanel(props: {
   onHire: () => void;
   onDeselect: () => void;
   onArmOrder: (mode: OrderMode | null) => void;
-  onDismiss: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
   onRepair: (buildingId: number, repair: boolean) => void;
   onTogglePause: (buildingId: number, paused: boolean) => void;
@@ -281,44 +280,10 @@ export function SelectionPanel(props: {
               </div>
 
               {/* Standing orders, straight under the name and before a
-                  word of commentary — the four of them keep their
+                  word of commentary — the three of them keep their
                   places for as long as this building is selected. */}
               <Show when={hasOrders()}>
                 <div class="sel-row">
-                  {/* One button, two meanings — whichever kind of person
-                      this building is holding. A tower hands back a
-                      soldier; everything else hands back a serf. */}
-                  <TipWrap
-                    tip={() => (
-                      <TextTip
-                        title={
-                          manned()
-                            ? levied()
-                              ? 'Send a villager down'
-                              : 'Send an archer down'
-                            : 'Dismiss worker'
-                        }
-                        body={
-                          manned()
-                            ? garrison() > 0
-                              ? levied()
-                                ? 'One of the villagers climbs down and goes back to work. The tower stops calling for another for a while, so he can pick up a load instead of walking straight back up.'
-                                : 'One of the archers climbs down and is a soldier in the field again. The tower stops calling for another for a while, so he can march off instead of walking straight back up.'
-                              : 'Nobody is manning this tower.'
-                            : b().staffing === 'staffed'
-                              ? 'Sends the worker back to the serf pool — the way out when nobody is free to haul or build. This post stands open for a while so the freed hands can take up new work first.'
-                              : 'Nobody is at this post to send home.'
-                        }
-                      />
-                    )}
-                  >
-                    <button
-                      disabled={manned() ? garrison() === 0 : b().staffing !== 'staffed'}
-                      onClick={() => props.onDismiss(b().id)}
-                    >
-                      Dismiss
-                    </button>
-                  </TipWrap>
                   {/* Repairs get a slot of their own rather than a line
                       in the block below, because the castle — which may
                       be neither paused nor sold — is exactly the
@@ -361,9 +326,13 @@ export function SelectionPanel(props: {
                         <TextTip
                           title={b().paused ? 'Resume' : 'Pause'}
                           body={
-                            b().paused
-                              ? 'Puts the place back to work: production, deliveries and construction pick up where they left off.'
-                              : 'Halts the workshop without breaking it up: no production, no incoming deliveries, no construction progress. The worker keeps the post and finished stock still ships out.'
+                            manned()
+                              ? b().paused
+                                ? 'Starts the tower: villagers answer the levy again, until archers arrive to take the wall for good.'
+                                : 'Stands the tower down: the villagers on the roof climb down and go back to work, and no more are called up. Archers stay — an idle one costs the village nothing — and any that turn up still man it.'
+                              : b().paused
+                                ? 'Puts the place back to work: it calls for a worker again, and production, deliveries and construction pick up where they left off.'
+                                : 'Halts the workshop without breaking it up — no production, no incoming deliveries, no construction progress — and sends the worker home a serf, free to haul or build. Finished stock still ships out.'
                           }
                         />
                       )}
@@ -539,7 +508,7 @@ export function SelectionPanel(props: {
                     its recruit walked in shrank by fifty pixels and slid
                     the rest of the queue sideways, and an order finishing
                     took the row from three lines to two and lifted the
-                    whole card — Dismiss, Repair, Sell and all three train
+                    whole card — Repair, Sell and all three train
                     buttons — sixty pixels up the screen, because the card
                     is anchored to the bottom of the window. Now it is
                     the count and then one cell per slot, three to a row,
