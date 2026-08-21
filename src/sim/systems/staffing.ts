@@ -281,20 +281,27 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     // the frame while the haul pool starves (or worse, *be* the hand the
     // last haul needed, see assignedInbound above). The walk overlaps the
     // last delivery.
-    const needsLeft = GOODS.reduce((n, g) => n + (b.siteNeeds?.[g] ?? 0), 0);
+    // Sites only. Every consumer of needsLeft below is already gated on
+    // `state === 'site'`, so summing it for the settlement's built
+    // buildings — twenty optional lookups and a closure apiece, every
+    // sweep — only ever produced a number nothing read.
+    const isSite = b.state === 'site';
+    let needsLeft = 0;
+    if (isSite) for (const g of GOODS) needsLeft += b.siteNeeds?.[g] ?? 0;
     const wantsBuilder =
-      b.state === 'site' &&
-      needsLeft <= 1 &&
-      needsLeft <= assignedTo(b.id) &&
-      !liveWorker(world, b);
-    if (b.state === 'site') {
+      isSite && needsLeft <= 1 && needsLeft <= assignedTo(b.id) && !liveWorker(world, b);
+    if (isSite) {
       // The starvation clock: starts on the first sweep that finds the site
       // builder-ready and unfilled, stops when it no longer is. (A site with
       // a recruit already walking never reaches this line, so the clock
       // keeps running until the builder is actually bound — a recruit who
       // dies en route does not reset the wait.)
       if (wantsBuilder) b.builderWantedSince ??= world.tick;
-      else delete b.builderWantedSince;
+      // Guarded for the same reason as clearDemandAge: this `else` is the
+      // common case for every site that is not yet builder-ready, and
+      // deleting a field off the Building itself would put the whole
+      // object into dictionary mode for the rest of the match.
+      else if (b.builderWantedSince !== undefined) delete b.builderWantedSince;
     }
     const tool = TOOL_OF[b.type];
     const wantsWorker =

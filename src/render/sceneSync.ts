@@ -272,6 +272,13 @@ export class SceneSync {
   #sepTY = new Float32Array(MAX_UNITS);
   #cells = new Map<number, number[]>();
   #usedCells: number[] = [];
+  /**
+   * Where each unit sat in the previous publish, by its index in the
+   * latest one; -1 for a unit that is new this publish. Filled by
+   * #computeSeparation, which already has to do the lookup, so the frame
+   * loop below can skip a hashed Map.get per unit per frame.
+   */
+  #prevIdx = new Int32Array(MAX_UNITS);
 
   /**
    * Soft visual separation: units drawn closer than SEP_RADIUS get pushed
@@ -293,6 +300,7 @@ export class SceneSync {
     for (let i = 0; i < n; i++) {
       const id = latest.ids[i]!;
       const pi = prev.index.get(id);
+      this.#prevIdx[i] = pi === undefined ? -1 : pi;
       this.#posX[i] = pi === undefined ? latest.xs[i]! : lerp(prev.xs[pi]!, latest.xs[i]!, alpha);
       this.#posY[i] = pi === undefined ? latest.ys[i]! : lerp(prev.ys[pi]!, latest.ys[i]!, alpha);
       this.#sepTX[i] = 0;
@@ -485,9 +493,13 @@ export class SceneSync {
         }
       }
 
-      const pi = prev.index.get(id);
-      const x = pi === undefined ? latest.xs[i]! : lerp(prev.xs[pi]!, latest.xs[i]!, alpha);
-      const y = pi === undefined ? latest.ys[i]! : lerp(prev.ys[pi]!, latest.ys[i]!, alpha);
+      // Both the lookup and the two lerps were already done, for this same
+      // unit on this same frame, by #computeSeparation (which runs first
+      // and stores them). -1 is its "not in the previous publish" marker.
+      const prevI = this.#prevIdx[i]!;
+      const pi = prevI < 0 ? undefined : prevI;
+      const x = this.#posX[i]!;
+      const y = this.#posY[i]!;
       // Off-screen units keep position/rotation fresh but skip everything
       // cosmetic — clip selection, mixer sampling, tools, IK, hp bars.
       // Purely visual: nothing here feeds back into the sim or picking.
