@@ -500,12 +500,28 @@ export class SceneSync {
       const pi = prevI < 0 ? undefined : prevI;
       const x = this.#posX[i]!;
       const y = this.#posY[i]!;
-      // Off-screen units keep position/rotation fresh but skip everything
-      // cosmetic — clip selection, mixer sampling, tools, IK, hp bars.
-      // Purely visual: nothing here feeds back into the sim or picking.
+      // Off-screen units skip everything cosmetic — clip selection, mixer
+      // sampling, tools, IK, hp bars. Purely visual: nothing here feeds
+      // back into the sim or picking.
       const offScreen =
         bounds !== undefined &&
         (x < bounds.minX || x > bounds.maxX || y < bounds.minZ || y > bounds.maxZ);
+      // ...and they leave the scene graph too. Skipping the work above
+      // still left every one of them a visible object, so the renderer
+      // walked its whole rig each frame — every bone, every skinned mesh,
+      // a bounding-sphere frustum test apiece — to conclude it was not on
+      // screen. `visible = false` makes three stop at the group.
+      //
+      // Safe because nothing outside this loop reads the scene graph for a
+      // unit: picking is analytic (input/picking.ts) and goes through
+      // positionOfInto, which reads the publish buffers. Note this is NOT
+      // the fog rule — a fogged enemy is added to #hidden and vanishes from
+      // picking too, which is the point of fog; being off-camera must
+      // never do that, or a drag-select would drop what it caught.
+      //
+      // Enemies already had `visible` set from the fog above, and a unit
+      // that failed that test never reaches here.
+      visual.group.visible = !offScreen;
 
       // Health bar when damaged, hovered, or selected.
       if (!offScreen) {
@@ -690,11 +706,18 @@ export class SceneSync {
       }
       const px = x + visual.sepX;
       const pz = y + visual.sepY;
-      // On the planks the deck carries him — the ground under a pier is
-      // lake bed, and the height field would sink him to it.
-      const groundY = this.#heights.at(px, pz);
-      const standY = pier && onDeck ? Math.max(groundY, pier.deckY) : groundY;
-      visual.group.position.set(px, standY + bob, pz);
+      // Placing a unit nobody can see is a height-field sample and a matrix
+      // for nothing. The de-overlap easing above still runs, because
+      // positionOfInto reports it to picking; only the drawn transform
+      // waits, and it is rewritten on the first frame back on screen —
+      // this loop runs before the render, so there is nothing to catch up.
+      if (!offScreen) {
+        // On the planks the deck carries him — the ground under a pier is
+        // lake bed, and the height field would sink him to it.
+        const groundY = this.#heights.at(px, pz);
+        const standY = pier && onDeck ? Math.max(groundY, pier.deckY) : groundY;
+        visual.group.position.set(px, standY + bob, pz);
+      }
       // Glue the cranking hand to the grip — after the group transform is
       // final for this frame, override the clip's right arm with a CCD
       // reach toward the grip's current world position.

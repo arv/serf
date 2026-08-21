@@ -12,6 +12,7 @@ import { eachMaterial, mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { WATER_LEVEL } from '../sim/map';
+import type { ViewBounds } from './cameraRig';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
 import type { FogQuery } from './fogOfWar';
@@ -549,9 +550,36 @@ export class BuildingSync {
    * paused). Windlasses are not here — the well keeps no resident, so there
    * is nothing building-side to key them off; sceneSync turns each one under
    * the serf that came to draw from it. */
-  frame(dt: number): void {
+  /**
+   * Per-frame decor: sails, shoals and the watch on the roof.
+   *
+   * `bounds` is the camera's view rectangle. Everything this loop drives is
+   * decoration on a building the player is looking at, so a building that
+   * is fogged or off-camera is skipped outright — the sails of a mill
+   * nobody can see still cost a mixer update and a shoal of fish still
+   * costs a sin, a cos and a transform each. Buildings do not move, so
+   * `root.position` is the whole test.
+   *
+   * What that trades: a windmill picked up mid-turn rather than where it
+   * would have been had it kept spinning off-camera, and a roof archer
+   * resuming his clip instead of restarting it. Neither has anything on
+   * screen to be out of step with — the same reasoning sceneSync already
+   * applies when it culls a unit's animation off-screen.
+   */
+  frame(dt: number, bounds?: ViewBounds): void {
     if (dt <= 0) return;
     for (const v of this.#visuals.values()) {
+      // Most of a settlement is huts and warehouses with nothing that
+      // moves; this loop used to walk all of them to find that out.
+      if (!v.fan && !v.shoal && v.manned.length === 0) continue;
+      if (!v.root.visible) continue; // fogged: remembered, not watched
+      if (bounds !== undefined) {
+        const bx = v.root.position.x;
+        const bz = v.root.position.z;
+        if (bx < bounds.minX || bx > bounds.maxX || bz < bounds.minZ || bz > bounds.maxZ) {
+          continue;
+        }
+      }
       if (v.fan) {
         // The sails turn while the mill grinds — the mill keeps no resident
         // (the wind is the worker), so the cue is the batch itself
