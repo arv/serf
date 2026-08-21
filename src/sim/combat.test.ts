@@ -666,7 +666,7 @@ describe('the guard tower', () => {
     expect(serf.dead).toBe(false);
   });
 
-  it('sends the villagers back to work when it is halted', () => {
+  it('sends the villagers back to work when it is halted, and calls none up again', () => {
     const world = bareWorld();
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
     tower.garrison = 2;
@@ -678,6 +678,9 @@ describe('the guard tower', () => {
     expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'serf')).toHaveLength(2);
     // Coming down the stairs is not a death: the head count is unchanged.
     expect(populationOf(world, 0)).toBe(before);
+    // And the order holds — the sweep does not walk them straight back up.
+    run(world, 20 * 20);
+    expect(tower.garrison ?? 0).toBe(0);
   });
 
   it('keeps its archers when it is halted — the lever is the levy', () => {
@@ -688,20 +691,6 @@ describe('the guard tower', () => {
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
     expect(tower.garrison).toBe(2);
     expect(tower.garrisonKind).toBe('archer');
-  });
-
-  it('sends a villager back down on Dismiss, like any other post', () => {
-    const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
-    tower.garrison = 2;
-    tower.garrisonKind = 'serf';
-    const before = populationOf(world, 0);
-    tickWorld(world, cmds({ kind: 'dismissWorker', buildingId: tower.id }));
-    expect(tower.garrison).toBe(1);
-    // A serf, not the archer the tower would rather have.
-    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'serf')).toHaveLength(1);
-    // Coming down the stairs is not a death: the head count is unchanged.
-    expect(populationOf(world, 0)).toBe(before);
   });
 
   it('calls an archer over to relieve a full levy, unasked', () => {
@@ -796,17 +785,4 @@ describe('the guard tower', () => {
     expect(populationOf(world, 0)).toBe(before);
   });
 
-  it('sends one archer down on Dismiss, and does not pull him straight back', () => {
-    const world = bareWorld();
-    const tower = manned(world, 2);
-    const before = populationOf(world, 0);
-    tickWorld(world, cmds({ kind: 'dismissWorker', buildingId: tower.id }));
-    expect(tower.garrison).toBe(1);
-    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'archer')).toHaveLength(1);
-    // Coming down the stairs is not a birth: the head count is the same
-    // man, standing somewhere else.
-    expect(populationOf(world, 0)).toBe(before);
-    run(world, 20 * 20);
-    expect(tower.garrison).toBe(1); // still standing off, backoff not spent
-  });
 });

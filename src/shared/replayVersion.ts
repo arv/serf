@@ -20,6 +20,23 @@
  * directly.
  */
 /**
+ * 17: one lever where there were two — pausing a building now empties it.
+ *
+ * The dismiss order is gone, and halting a building does what it did: the
+ * resident (or a site's builder) walks off a serf again, a recruit already
+ * on his way is turned away at the door, and a halted post calls nobody up
+ * for as long as it stands halted — so the restaffing backoff the dismiss
+ * order needed is gone too. Starting the place again is what asks for a
+ * worker back. On a tower the lever was already the whole levy; it is now
+ * the whole of every other post as well.
+ *
+ * That moves the seats' commands (the stall watchdog's hauler rule halts a
+ * capped post instead of dismissing it, and starts it again once the pile
+ * has shipped) and it moves the sim: a command kind no longer exists, and
+ * the one that replaced it releases hands the old one left in place. A
+ * replay recorded before this build re-runs into a different village within
+ * a stall or two.
+ *
  * 16: the opening armory goes back to two spears and a sword. Version 14
  * traded the second spear for a bow that had to wait on Archery to be
  * spent; the rack now holds only what a Soldiery rush can field on day
@@ -66,4 +83,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 16;
+export const REPLAY_VERSION = 17;

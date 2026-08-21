@@ -164,9 +164,13 @@ own rule with its own trigger, so a seat takes only the ones it needs.
 **One more rule the plan did not have**, and the one seed 9 actually needed:
 **buy a hauler with a post**. A stalled seat with *zero* free serfs empties
 the post whose output buffer is already full — a worker standing at a capped
-hut is producing nothing, so freeing him costs no production, and it is
-self-limiting because the buffer drains and the staffing sweep re-fills the
-post once `DISMISS_RESTAFF_BACKOFF` runs out.
+hut is producing nothing, so freeing him costs no production.
+
+(Since written, emptying a post *is* halting it: the pause lever hands the
+resident back, and the dismiss order it used to send no longer exists. The
+rule is a pair now — `freeCappedHauler` halts the capped post, and
+`resumeDrainedPost` starts it again once the pile has shipped, which is what
+makes the trade self-limiting.)
 
 ### 1c. Prove it
 

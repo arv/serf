@@ -102,6 +102,10 @@ function handleArrivals(world: World): void {
     if (!b || b.dead) continue;
 
     const def = buildingDef(b.type);
+    // A post halted while its recruit was already walking turns him away at
+    // the door: pausing empties the post, and binding the walker would
+    // quietly re-man it. He went idle above, so he is back in the pool.
+    if (b.paused && !def.garrison) continue;
     if (b.state === 'site') {
       // The builder: this serf raises the building (construction only
       // advances while they're on site) and stays on as its worker.
@@ -245,9 +249,9 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     ) {
       continue;
     }
-    // A freshly dismissed post stands open for a while: the player emptied
-    // it on purpose, and re-capturing the freed serf the moment he goes
-    // idle between haul trips would silently undo the order.
+    // Holding off on purpose — today that is only the walled-off hold set
+    // below, kept as a field so a sweep never re-paths to a post it just
+    // failed to reach.
     if ((b.staffBackoffUntil ?? 0) > world.tick) continue;
     const def = buildingDef(b.type);
     // A halted post summons nobody — except a tower, which always takes the
@@ -369,10 +373,9 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
       b.h,
     );
     if (!path) {
-      // Walled off for now. Same field the dismiss order uses — both mean
-      // "don't recruit until" — but a short hold: re-pathing every tick to
-      // a building that cannot be reached is the one cost running the sweep
-      // per tick would otherwise add.
+      // Walled off for now. A short "don't recruit until" hold: re-pathing
+      // every tick to a building that cannot be reached is the one cost
+      // running the sweep per tick would otherwise add.
       b.staffBackoffUntil = world.tick + UNREACHABLE_BACKOFF;
       continue;
     }
