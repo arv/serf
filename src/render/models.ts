@@ -283,6 +283,21 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.91;
       break;
     }
+    case 'scythe': {
+      // The one tool RPG Tools Bits does not ship: a snath over the
+      // shoulder with the blade hooked out past one end, lying flat the
+      // way the pack tools are laid by PACK_CARRY.
+      const snath = mesh(new THREE.CylinderGeometry(0.02, 0.024, 0.72, 5), woodLight);
+      snath.rotation.z = Math.PI / 2;
+      add(snath);
+      const blade = mesh(new THREE.TorusGeometry(0.12, 0.016, 4, 10, 1.9), 0x8b95a0);
+      blade.position.set(0.34, 0, 0.02);
+      blade.rotation.x = Math.PI / 2;
+      blade.scale.y = 0.5; // a blade, not a hoop: flattened along its arc
+      add(blade);
+      g.position.y = 0.9;
+      break;
+    }
     case 'ale': {
       // A stout ale cask, iron-hooped, carried on its side.
       const staves = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 10), 0x8a6033);
@@ -309,7 +324,9 @@ const carryPrototypes = new Map<GoodId, THREE.Group>();
 /** The visible good on a carrier's shoulders, by SAB carry code. */
 /** Goods whose carried look comes from the pack's own resource piles, so
  * what's on a serf's arms matches what's stacked in the yards. */
-const PACK_CARRY: Partial<Record<GoodId, { prop: string; span: number }>> = {
+const PACK_CARRY: Partial<
+  Record<GoodId, { prop: string; span: number; rot?: [number, number, number] }>
+> = {
   wood: { prop: 'resource_lumber', span: 0.44 },
   stone: { prop: 'resource_stone', span: 0.36 },
   // The procedural shoulder-pole carry spanned most of a tile; water
@@ -317,6 +334,15 @@ const PACK_CARRY: Partial<Record<GoodId, { prop: string; span: number }>> = {
   water: { prop: 'bucket_water', span: 0.26 },
   wheat: { prop: 'sack', span: 0.3 },
   ale: { prop: 'barrel', span: 0.3 },
+  // The tools ride from RPG Tools Bits, laid across the arms (they are
+  // authored standing, handle up +Y — the rot is what lays them down and
+  // what the span is measured against). The scythe has no pack model and
+  // keeps its procedural carry; the cauldron is the pack's metal bucket.
+  axe: { prop: 'tools/axe', span: 0.4, rot: [0, 0, Math.PI / 2] },
+  pickaxe: { prop: 'tools/pickaxe', span: 0.42, rot: [0, 0, Math.PI / 2] },
+  hammer: { prop: 'tools/hammer', span: 0.34, rot: [0, 0, Math.PI / 2] },
+  cauldron: { prop: 'tools/bucket_metal', span: 0.26 },
+  rod: { prop: 'tools/fishing_rod', span: 0.5, rot: [0, 0, Math.PI / 2] },
 };
 
 /** Ground stock renders a quarter larger than the carried version: at
@@ -333,7 +359,7 @@ export function makePileProp(good: GoodId): THREE.Group {
   // Clone from the shared prototype cache (like makeCarryProp): building
   // a fresh carryProto per pile minted new geometries/materials each call,
   // which buildingSync's bare remove() then leaked on the GPU.
-  const inner = (pack && glbCarryProp(pack.prop, 0.3)) ?? cachedCarryProto(good).clone();
+  const inner = (pack && glbCarryProp(pack.prop, 0.3, pack.rot)) ?? cachedCarryProto(good).clone();
   if (!pack) {
     inner.position.set(0, 0, 0); // strip the carry-height offset
     inner.scale.setScalar(0.62);
@@ -351,7 +377,7 @@ export function makeCarryProp(carryCode: number): THREE.Group | null {
   if (!good) return null;
   const pack = PACK_CARRY[good];
   if (pack) {
-    const prop = glbCarryProp(pack.prop, pack.span);
+    const prop = glbCarryProp(pack.prop, pack.span, pack.rot);
     if (prop) {
       // The chest anchor sits at the palms: stand the prop off by its own
       // half-depth so round loads (bucket, barrel) rest against the hands

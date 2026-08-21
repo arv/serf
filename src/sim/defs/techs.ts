@@ -27,7 +27,7 @@ export type TechId =
 export type ModifierKey =
   | 'farmSpeed' // wheat farm batch speed
   | 'foodSpeed' // mill + bakery batch speed
-  | 'forgeSpeed' // weaponsmith batch speed
+  | 'forgeSpeed' // Smith batch speed
   | 'mineSpeed' // mine gather speed
   | 'serfSpeed' // serf + worker walk speed
   | 'workSpeed' // all production speed (festival buff)
@@ -133,14 +133,18 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     id: 'ironworking',
     name: 'Ironworking',
     branch: 'craft',
-    prereqs: ['cobbledBoots'],
-    cost: { stone: 6, silver: 8 },
-    durationTicks: 40 * S,
-    effects: [
-      { kind: 'unlockBuilding', building: 'ironMine' },
-      { kind: 'unlockBuilding', building: 'weaponsmith' },
-    ],
-    desc: 'Unlocks the Iron Mine and the Weaponsmith, with spear- and swordmaking.',
+    // A root of the craft branch since the Smith went civilian: every
+    // iron tool the village staffs itself with waits on this, so it
+    // cannot sit behind boots the way it did when only the army cared.
+    // Cheaper and quicker for the same reason.
+    prereqs: [],
+    cost: { stone: 4, silver: 5 },
+    durationTicks: 30 * S,
+    // The Smith itself is ungated (the village's only tool source must be
+    // reachable from a standing start) — this opens the ore and the iron
+    // recipes on its menu.
+    effects: [{ kind: 'unlockBuilding', building: 'ironMine' }],
+    desc: 'Unlocks the Iron Mine, and ironwork at the Smith: weapons and tools.',
   },
   deepMining: {
     id: 'deepMining',
@@ -166,7 +170,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     // faster weapons out of the same forge. One roof, one bellows — the
     // buff covers every recipe the smith runs, bowstaves included.
     effects: [{ kind: 'modifier', key: 'forgeSpeed', multiplier: 1.3 }],
-    desc: 'Forced draft at the forge: the Weaponsmith works 30% faster.',
+    desc: 'Forced draft at the forge: the Smith works 30% faster.',
   },
   masonry: {
     id: 'masonry',
@@ -200,11 +204,8 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     prereqs: ['soldiery'],
     cost: { wood: 8, silver: 6 },
     durationTicks: 30 * S,
-    effects: [
-      { kind: 'unlockBuilding', building: 'weaponsmith' },
-      { kind: 'unlockUnit', unit: 'archer' },
-    ],
-    desc: 'Unlocks bowmaking at the Weaponsmith, and Archers.',
+    effects: [{ kind: 'unlockUnit', unit: 'archer' }],
+    desc: 'Unlocks bowmaking at the Smith, and Archers.',
   },
   mailArmor: {
     id: 'mailArmor',

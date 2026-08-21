@@ -24,6 +24,9 @@ export interface PlayerSnap {
   alive: boolean;
   /** This player's storehouse stock ({} once eliminated). */
   stock: GoodAmounts;
+  /** Open tool-gated posts per tool, plus sites still owed their hammer —
+   * what the HUD's "wants" chip and the ledger's task column report. */
+  toolWants: GoodAmounts;
   techs: TechSnap;
   /** Living people this seat owns — serfs, workers and soldiers alike. */
   pop: number;
@@ -73,8 +76,12 @@ export interface BuildingSnap {
    * which have no resident to key off). */
   working?: true;
   paused?: boolean;
-  /** Active recipeOptions index (weaponsmith forge menu). */
+  /** Standing order into the def's recipeOptions; undefined = auto. */
   recipeIndex?: number;
+  /** The option the batch on the fire was started with. */
+  prodRecipeIndex?: number;
+  /** Forge orders waiting (Smith), worked ahead of the standing order. */
+  forgeQueue?: { recipeIndex: number; started: boolean }[];
   /** Men manning this building, and how many it holds. Present only for
    * buildings that are manned at all (the guard tower). */
   garrison?: number;

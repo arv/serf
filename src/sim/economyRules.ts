@@ -1,10 +1,13 @@
 import {
   BUILDING_DEFS,
+  TOOL_GOODS,
+  TOOL_OF,
   gatherOrigin,
   gatherRecipeOf,
   OUTPUT_CAP,
   type BuildingTypeId,
 } from './defs/buildings.ts';
+import { FORGE_QUEUE_CAP } from './defs/balance.ts';
 import { findResourcesNear, nearestResource, RESOURCE_CODE } from './map.ts';
 import { WEAPON_OF } from './defs/units.ts';
 import type { AiStrategy } from './defs/aiStrategies.ts';
@@ -58,6 +61,7 @@ export type EconomyRuleId =
   | 'resiteExtractor'
   | 'freeCappedHauler'
   | 'resumeDrainedPost'
+  | 'keepTheToolsComing'
   | 'forgeTheCounter'
   | 'keepTheQueueWarm';
 
@@ -227,6 +231,78 @@ const freeCappedHauler: EconomyRule = {
 };
 
 /**
+ * Keep the tools coming: order the tool a post is standing open for.
+ *
+ * A tool-gated post with nothing on the way is production lost every beat
+ * it waits, and no weapon order is worth a woodcutter that never cuts. But
+ * the answer is an ORDER, not a forge: the first draft of this rule put the
+ * seat's last smith on auto for as long as any post was open, which on the
+ * Abbot's two-line plan meant its bow forge spent the match making axes —
+ * it reached the guard towers with no archers to put in them, and the
+ * playbook test said so. The queue exists exactly so a batch can jump the
+ * line without touching what the forge goes back to afterwards.
+ *
+ * So: one order per beat, for the tool with a post waiting and none in
+ * reach, at the first smith that can forge it and has room. Claims nothing
+ * — enqueueing does not touch recipeIndex, so forgeTheCounter is free to
+ * keep steering the same anvil's standing work in the same beat.
+ */
+const keepTheToolsComing: EconomyRule = {
+  id: 'keepTheToolsComing',
+  when: 'a post stands open for a tool nobody has made and nobody has ordered',
+  phase: 'production',
+  fire(ctx) {
+    const smiths = ctx.mine.filter(
+      (b) => b.type === 'weaponsmith' && b.state === 'built' && !b.paused,
+    );
+    if (smiths.length === 0) return null;
+
+    // What the village is short of: a post open for it with nothing on the
+    // way, or a site still owed the hammer it borrows.
+    const wanted = new Set<GoodId>();
+    for (const b of ctx.mine) {
+      if (b.state === 'site') {
+        if (!b.paused && (b.siteNeeds?.hammer ?? 0) > 0 && (b.inbound.hammer ?? 0) === 0) {
+          wanted.add('hammer');
+        }
+        continue;
+      }
+      if (b.state !== 'built' || b.paused) continue;
+      const tool = TOOL_OF[b.type];
+      if (tool === undefined) continue;
+      const worker = b.workerId !== undefined ? ctx.world.units.get(b.workerId) : undefined;
+      if (worker && !worker.dead) continue;
+      if ((b.inputs[tool] ?? 0) + (b.inbound[tool] ?? 0) > 0) continue;
+      wanted.add(tool);
+    }
+    if (wanted.size === 0) return null;
+
+    // TOOL_GOODS order, not set order: the same shortage must always pick
+    // the same tool, whatever order the buildings happened to be walked in.
+    for (const tool of TOOL_GOODS) {
+      if (!wanted.has(tool)) continue;
+      if ((ctx.stock[tool] ?? 0) > 0) continue; // one on the shelf is already coming
+      const index = BUILDING_DEFS.weaponsmith.recipeOptions!.findIndex(
+        (o) => (o.recipe.outputs[tool] ?? 0) > 0,
+      );
+      if (index < 0) return null;
+      const opt = BUILDING_DEFS.weaponsmith.recipeOptions![index]!;
+      if (opt.requiresTech !== undefined && !ctx.researched(opt.requiresTech)) continue;
+      // Already ordered anywhere? An order stands until its batch lands, so
+      // re-adding one every beat would fill five slots with the same axe.
+      if (smiths.some((b) => b.forgeQueue?.some((o) => o.recipeIndex === index))) continue;
+      const smith = smiths.find((b) => (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP);
+      if (!smith) return null;
+      return {
+        commands: [{ kind: 'enqueueForge', buildingId: smith.id, recipeIndex: index }],
+        claims: [],
+      };
+    }
+    return null;
+  },
+};
+
+/**
  * The other half of `freeCappedHauler`: start a drained post back up.
  *
  * A halted gatherer recruits nobody for as long as it stands halted, so the
@@ -293,7 +369,7 @@ const forgeTheCounter: EconomyRule = {
       const option = BUILDING_DEFS.weaponsmith.recipeOptions?.[want];
       if (!option) return;
       if (option.requiresTech !== undefined && !ctx.researched(option.requiresTech)) return;
-      if ((smith.recipeIndex ?? 0) !== want) {
+      if (smith.recipeIndex !== want) {
         commands.push({ kind: 'setBuildingRecipe', buildingId: smith.id, index: want });
         claims.push(smith.id);
       }
@@ -374,6 +450,7 @@ export const ECONOMY_RULES: readonly EconomyRule[] = [
   resiteExtractor,
   freeCappedHauler,
   resumeDrainedPost,
+  keepTheToolsComing,
   forgeTheCounter,
   keepTheQueueWarm,
 ];

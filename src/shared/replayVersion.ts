@@ -20,11 +20,10 @@
  * directly.
  */
 /**
- * 18: the fletcher raises a third roof with its archery, and its house
- * limit goes to five. Version 16 took the free bow out of the opening
- * armory, which left this seat forging every stave it looses; the extra
- * hands are what keep its forges fed. The seat builds and musters
- * differently from its first minutes, so its whole campaign diverges.
+ * 18: the tools economy (#103) — nine posts need a tool to work and the
+ * Smith makes them all. Recorded here after the fact: that change moved
+ * the number without leaving a line, and a gap in this list reads like a
+ * lost version rather than a documented one.
  *
  * 17: one lever where there were two — pausing a building now empties it.
  *

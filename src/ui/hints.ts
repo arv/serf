@@ -96,15 +96,16 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     },
     {
       text:
-        'Open the tech tree and study Ironworking. It waits behind Cobbled ' +
-        'Boots — every branch reads left to right.',
+        'Open the tech tree and study Ironworking — a root of the Craft ' +
+        'branch, and the door to every iron recipe at the Smith.',
       objective: 2,
     },
     { text: 'Iron next: another mine, another seam.', objective: 3 },
     {
       text:
-        'The Weaponsmith turns wood and iron into arms. Select the forge to ' +
-        'pick its recipe — spears are one iron, swords two.',
+        'The Smith turns wood and iron into arms and tools alike. Left to ' +
+        'itself it forges whatever tool the village lacks — click a recipe ' +
+        'to queue an order ahead of that. Spears are one iron, swords two.',
       objective: 4,
     },
     { text: 'Let the forge run: four spears in the castle settles the ledger.', objective: 5 },

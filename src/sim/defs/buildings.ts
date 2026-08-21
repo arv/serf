@@ -449,12 +449,15 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     mine: true,
   },
   weaponsmith: {
+    // The type id keeps its old name on purpose: renaming it would churn
+    // saves, every AI playbook, economyRules and the model table for the
+    // sake of a display string. The building the player sees is the Smith.
     id: 'weaponsmith',
-    name: 'Weaponsmith',
-    // Either war path opens the forge; what it can forge is gated per
-    // recipe below. (Sword-, spear- and bowmaking shared one roof — and,
-    // it turned out, one model — so they share one building.)
-    requiresTech: ['ironworking', 'archery'] as const as ('ironworking' | 'archery')[],
+    name: 'Smith',
+    // No tech gate on the roof itself — the Smith is the village's only
+    // source of tools, and nine of the ten posts need one (TOOL_OF), so
+    // the building must be reachable from a standing start. What it can
+    // forge is gated per recipe below; at t=0 that is fishing rods only.
     w: 2,
     h: 2,
     cost: { wood: 10, stone: 6 },
@@ -489,6 +492,69 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           durationTicks: 8 * S,
         },
         requiresTech: 'archery' as const,
+      },
+      // The tools, appended after the weapons: indices 0/1/2 are quoted by
+      // weaponMix, WEAPON_NAMES, COUNTER_PICK and forgeTheCounter, so the
+      // arms must keep their seats. Iron-and-wood like the arms above; the
+      // rod is the wood-only exception that keeps the shore reachable for
+      // a village with no ore, the way the bow is the wood-only weapon.
+      {
+        recipe: {
+          kind: 'convert',
+          inputs: { iron: 1, wood: 2 },
+          outputs: { axe: 1 },
+          durationTicks: 8 * S,
+        },
+        requiresTech: 'ironworking' as const,
+      },
+      {
+        // The one tool that must not cost iron: every mine is staffed by a
+        // pickaxe, so an iron pickaxe is a circle — lose your picks and no
+        // ore ever flows again to forge the next one (measured: the AI
+        // deadlocked exactly there). Wood and stone, like the buildings
+        // the mines themselves are raised from.
+        recipe: {
+          kind: 'convert',
+          inputs: { wood: 2, stone: 1 },
+          outputs: { pickaxe: 1 },
+          durationTicks: 8 * S,
+        },
+        requiresTech: 'ironworking' as const,
+      },
+      {
+        recipe: {
+          kind: 'convert',
+          inputs: { iron: 1, wood: 2 },
+          outputs: { scythe: 1 },
+          durationTicks: 8 * S,
+        },
+        requiresTech: 'ironworking' as const,
+      },
+      {
+        recipe: {
+          kind: 'convert',
+          inputs: { iron: 1, wood: 1 },
+          outputs: { hammer: 1 },
+          durationTicks: 6 * S,
+        },
+        requiresTech: 'ironworking' as const,
+      },
+      {
+        recipe: {
+          kind: 'convert',
+          inputs: { iron: 1, wood: 1 },
+          outputs: { cauldron: 1 },
+          durationTicks: 8 * S,
+        },
+        requiresTech: 'ironworking' as const,
+      },
+      {
+        recipe: {
+          kind: 'convert',
+          inputs: { wood: 3 },
+          outputs: { rod: 1 },
+          durationTicks: 6 * S,
+        },
       },
     ],
   },
@@ -578,6 +644,39 @@ export function buildingDef(id: BuildingTypeId): BuildingDef {
   return BUILDING_DEFS[id];
 }
 
+/**
+ * The tool a serf must be handed before he will take up this post — held in
+ * the building's input buffer like a barracks weapon, consumed when the
+ * worker binds, handed back when he is dismissed (never when he dies).
+ * Buildings absent here need none: the mill, well and abbey keep no resident,
+ * and the Smith is deliberately toolless because it is the only source of
+ * tools — gating it is the one thing that could hard-lock a village.
+ *
+ * The hammer is missing on purpose too: it is a loan, not a hire — every
+ * construction site borrows one (siteNeeds) and returns it at completion,
+ * so hammers cap how many buildings rise at once. See placeSite/deliver.
+ */
+export const TOOL_OF: Partial<Record<BuildingTypeId, GoodId>> = {
+  woodcutter: 'axe',
+  quarry: 'pickaxe',
+  ironMine: 'pickaxe',
+  silverMine: 'pickaxe',
+  goldMine: 'pickaxe',
+  wheatFarm: 'scythe',
+  bakery: 'cauldron',
+  brewery: 'cauldron',
+  fishery: 'rod',
+};
+
+/** Every good that is a tool — the strip of GOODS the Smith serves the
+ * village with. Order follows GOODS so iteration stays deterministic. */
+export const TOOL_GOODS = ['axe', 'pickaxe', 'scythe', 'hammer', 'cauldron', 'rod'] as const satisfies readonly GoodId[];
+
+/** setBuildingRecipe sentinel: no standing order — the Smith forges
+ * whatever tool the village most lacks (see resolveForgeIndex). This is
+ * also what a fresh Smith does: recipeIndex undefined means auto. */
+export const AUTO_RECIPE = -1;
+
 /** Room left in this building's garrison, counting the man already walking
  * in. Zero for everything that holds no garrison at all. */
 export function garrisonRoom(def: BuildingDef, b: { garrison?: number; recruitId?: number }): number {
@@ -602,14 +701,17 @@ export function gatherOrigin(
   return { x: Math.floor(x + def.w / 2), y: Math.floor(y + def.h / 2) };
 }
 
-/** The active convert recipe: the fixed one, or the option the building's
- * recipeIndex selects (weaponsmith). Undefined for gatherers and storage. */
+/** The active convert recipe: the fixed one, or the standing order the
+ * building's recipeIndex names. Undefined for gatherers, storage — and for
+ * a Smith on auto (recipeIndex unset), whose next recipe is not knowable
+ * from the def alone; production and logistics resolve auto themselves. */
 export function convertRecipeOf(
   def: BuildingDef,
   b?: { recipeIndex?: number },
 ): (Recipe & { kind: 'convert' }) | undefined {
   if (def.recipe?.kind === 'convert') return def.recipe;
-  return def.recipeOptions?.[b?.recipeIndex ?? 0]?.recipe;
+  if (b?.recipeIndex === undefined) return undefined;
+  return def.recipeOptions?.[b.recipeIndex]?.recipe;
 }
 
 /**

@@ -86,6 +86,14 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiClick');
           host.sendCommands([{ kind: 'setBuildingRecipe', buildingId, index }]);
         }}
+        onEnqueueForge={(buildingId, recipeIndex) => {
+          play('uiClick');
+          host.sendCommands([{ kind: 'enqueueForge', buildingId, recipeIndex }]);
+        }}
+        onCancelForge={(buildingId, index, recipeIndex) => {
+          play('uiClick');
+          host.sendCommands([{ kind: 'cancelForge', buildingId, index, recipeIndex }]);
+        }}
         onResearch={(tech) => {
           play('uiClick');
           host.sendCommands([{ kind: 'research', tech }]);

@@ -18,11 +18,14 @@ import type { TechId } from '../sim/defs/techs';
  * player building the chain finds it where the chain is.
  */
 export const BUILD_GROUPS: { label: string; types: BuildingTypeId[] }[] = [
-  { label: 'Village', types: ['house', 'woodcutter', 'quarry', 'abbey'] },
+  // The Smith lives in Village, not Industry: ungated, and the tool source
+  // nine of the ten posts depend on — the player raising a second
+  // woodcutter should find the forge beside it.
+  { label: 'Village', types: ['house', 'woodcutter', 'quarry', 'weaponsmith', 'abbey'] },
   { label: 'Food', types: ['well', 'wheatFarm', 'mill', 'bakery', 'fishery'] },
   {
     label: 'Industry',
-    types: ['brewery', 'ironMine', 'silverMine', 'goldMine', 'weaponsmith'],
+    types: ['brewery', 'ironMine', 'silverMine', 'goldMine'],
   },
   { label: 'War', types: ['barracks', 'guardTower'] },
 ];
@@ -51,7 +54,9 @@ export function playerBuildable(type: BuildingTypeId): boolean {
  * First letters win where they can (H for House, W for Woodcutter) and the
  * collisions go to the next letter that says the thing: Bakery keeps B, so
  * B**r**ewery takes R and Barrac**k**s takes K, and the Guard **T**ower —
- * whose G belongs to the Gold Mine — takes the letter of the thing it is. The test beside this file
+ * whose G belongs to the Gold Mine — takes the letter of the thing it is.
+ * The Smith's rename spent every letter of its short name; the Fish**e**ry
+ * yielded S and fell back to its E. The test beside this file
  * holds the two rules that matter — one key per building, no key used twice.
  */
 export const BUILD_KEYS: Partial<Record<BuildingTypeId, string>> = {
@@ -63,12 +68,12 @@ export const BUILD_KEYS: Partial<Record<BuildingTypeId, string>> = {
   wheatFarm: 'F',
   mill: 'M',
   bakery: 'B',
-  fishery: 'S',
+  fishery: 'E',
   brewery: 'R',
   ironMine: 'I',
   silverMine: 'V',
   goldMine: 'G',
-  weaponsmith: 'P',
+  weaponsmith: 'S',
   barracks: 'K',
   guardTower: 'T',
 };

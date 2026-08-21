@@ -19,6 +19,7 @@ describe('pausing a building', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { wood: 12, iron: 6 });
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    smith.recipeIndex = 0; // pinned on spears (default is auto)
     staffBuilding(world, smith);
     const worker = world.units.get(smith.workerId!)!;
     addSerf(world, 33, 33);
@@ -68,6 +69,7 @@ describe('pausing a building', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, { wood: 0 });
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    smith.recipeIndex = 0; // pinned on spears (default is auto)
     tickWorld(world, [
       { playerId: 1, cmd: { kind: 'setBuildingPaused', buildingId: smith.id, paused: true } },
     ]);

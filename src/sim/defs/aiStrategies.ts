@@ -346,14 +346,16 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       { type: 'quarry', count: 1, anchor: 'rock', radius: 6 },
       // Beds third, as the campaign line has them: the axe and the pick
       // first, then the roof that lets the village grow past ten.
-      // Three roofs with the archery rather than two. #100 took the free
-      // bow out of the opening armory, so this seat now forges every stave
-      // it will ever loose, and the extra hands are what keep the forges
-      // fed: +2, +1 and +3 wins over three independent 32-seed ranges
-      // (73/96 to 79/96), with its clock-outs down from five to three.
-      // The same change measured as noise before the armory moved, which
-      // is the honest reason it is only landing now.
-      { type: 'house', count: 1, anchor: 'base', more: { after: 'archery', count: 3 } },
+      // Two roofs, and a third is not the answer however much it looks
+      // like one. It is worth six wins in 32 to this seat's solo campaign
+      // under the tools economy (12 to 18) — and it makes four-seat games
+      // stick: seed 42 goes from ending at 43k to not ending at 400k, and
+      // two other seeds triple. A bigger village here is one nobody can
+      // finish off, and the muster's impatience rule cannot break the
+      // standoff that follows. Whatever fixes this seat has to leave that
+      // alone. (tools/aiLab/balance.ts, and aiStrategies.test.ts's
+      // four-playbook ending.)
+      { type: 'house', count: 1, anchor: 'base', more: { after: 'archery', count: 2 } },
       { type: 'abbey', count: 1, anchor: 'base' },
       { type: 'silverMine', count: 1, anchor: 'silver', radius: 4 },
       { type: 'barracks', count: 1, anchor: 'base', after: 'soldiery' },
@@ -364,6 +366,10 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // Two forges and no mine to feed them: bowstaves are three wood
       // apiece, which is why the second woodcutter comes with the archery.
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'archery', needs: 'barracks' },
+      // One seam, late, and not for weapons: the bows stay pure wood, but
+      // axes, picks and scythes are ironwork, and a seat that cannot forge
+      // them stops staffing the moment the starter kit runs dry.
+      { type: 'ironMine', count: 1, anchor: 'iron', radius: 4, after: 'ironworking' },
       // A tower, once there are bowmen to put in it. Gated on archery
       // rather than on soldiery, which for this seat is nearly the same
       // instant anyway: the bow is second in its research order, so the two
@@ -383,13 +389,17 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // both and both stopped winning the campaign map; a seat that cannot
       // afford surplus food should not be buying any.
     ],
-    researchOrder: ['soldiery', 'archery', 'cobbledBoots'],
+    // Ironworking on a bow plan: not for the weapons — for the axes. Every
+    // tool but the fishing rod is ironwork now, and a seat that never
+    // researches it can staff nothing past the starter kit. Last, because
+    // the opening kit carries the first posts and the bows cannot wait.
+    researchOrder: ['soldiery', 'archery', 'cobbledBoots', 'ironworking'],
     researchReserve: 8,
     serfTarget: 11,
     survivalFloor: 3,
     growthAfter: 'soldiery',
     housingHeadroom: 3,
-    houseLimit: 5,
+    houseLimit: 4,
     weaponMix: [2], // every forge on bowstaves
     // The spear in the armory arms the first defender; after that the queue
     // waits on bows, since no iron chain is coming.
@@ -403,11 +413,14 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // stays home through the first wave and razes the camp in one march,
     // before the second one spawns.
     //
-    // Ten still, and the housing above is what finally moved this seat:
-    // beds, not the muster. The one fix that stays refuted is a third
-    // woodcutter to feed the bowstaves — 34 wins in 64 against 49, on both
-    // ranges, because a hand on wood is a hand off the hauling and the
-    // whole village starves for it.
+    // Ten still. This is the deck's weak seat and the tools economy (#103)
+    // has made it much weaker: 12 campaigns in 32 where the other three
+    // take 27 apiece, dying in half its games and running out the clock in
+    // five more. It is the one playbook that never touches iron, and the
+    // Smith who makes every post's tools sits on the far side of that
+    // chain. That is the shape of the problem; the fix is not housing (see
+    // above), and it is not a third woodcutter, which is a rout at 34 wins
+    // in 64 against 49 — a hand on wood is a hand off the hauling.
     //
     // The tower does not move this. Raising it to twelve to buy back the
     // two archers the garrison swallows measured as a wash over ten seeds

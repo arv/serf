@@ -18,18 +18,22 @@
  * number without pulling the whole serializer — a worker's worth of code —
  * into the main thread's bundle.
  */
-export const WORLD_SAVE_VERSION = 5;
+export const WORLD_SAVE_VERSION = 6;
 
 /**
  * Can this build open a file written in that format? Version 5 changed how
- * the map's grids are spelled, not what the world is made of, so a village
- * saved before the change still loads — deserializeWorld reads either
- * spelling. Nothing writes a 4 any more.
+ * the map's grids are spelled, not what the world is made of, and so read
+ * a 4 quite happily. Six is the other kind of change: tools gate nine of
+ * the ten posts now, and every building in an older file was raised under
+ * rules where they did not exist — its huts hold no tools, its sites never
+ * borrowed a hammer, and its castle has none to send. Such a village loads
+ * into a standstill it cannot explain, which is worse than being turned
+ * away. So this one really is the floor.
  *
  * The gate every surface asks: the sim on the way in, and the menu twice
  * over — the shelf greys a row it cannot open, and the boot path says so
  * in words when a save arrives by URL or by drag.
  */
 export function canReadSave(version: number): boolean {
-  return version === WORLD_SAVE_VERSION || version === 4;
+  return version === WORLD_SAVE_VERSION;
 }

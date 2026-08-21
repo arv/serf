@@ -39,6 +39,7 @@ import {
   setSelectedBuilding,
   setPopulation,
   setStock,
+  setToolWants,
   setTechs,
   setReplayMode,
   setReplayOver,
@@ -1022,6 +1023,7 @@ async function runMatch(
     const mine = msg.players?.[myPlayerId()];
     if (mine) {
       setStock(mine.stock);
+      setToolWants(mine.toolWants);
       setTechs(mine.techs);
       setPopulation({ pop: mine.pop, cap: mine.popCap });
     }

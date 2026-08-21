@@ -124,6 +124,13 @@ const DECOR_PROP_FILES = [
   'extra/boatrack',
   'extra/building_docks_green',
   'fish/fish',
+  // RPG Tools Bits (CC0): the tool goods, carried and piled. The scythe
+  // has no model in the pack and stays procedural (models.ts carryProto).
+  'tools/axe',
+  'tools/pickaxe',
+  'tools/hammer',
+  'tools/bucket_metal',
+  'tools/fishing_rod',
 ];
 
 // No goods-shaped decor on producers whose live stock piles up outside:
@@ -798,10 +805,22 @@ export function glbYardProp(prop: string, height: number): THREE.Group | null {
  * in the yards (the mill's squared beams, the quarry's stone). Null when
  * the assets aren't loaded or the prop is unknown.
  */
-export function glbCarryProp(prop: string, span: number): THREE.Group | null {
+export function glbCarryProp(
+  prop: string,
+  span: number,
+  rot?: [number, number, number],
+): THREE.Group | null {
   const src = assets?.props.get(prop);
   if (!src) return null;
   const c = src.clone();
+  // Laid before it is measured: the tools are authored standing (grip at
+  // the origin, head up +Y), and a carried load lies across the arms — a
+  // span read off the standing prop would be the head's width, not the
+  // tool's length.
+  if (rot) {
+    c.rotation.set(...rot);
+    c.updateMatrixWorld(true);
+  }
   const bb = new THREE.Box3().setFromObject(c);
   const width = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z, 1e-6);
   c.position.set(

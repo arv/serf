@@ -30,12 +30,16 @@ describe('logistics matcher', () => {
   it('creates jobs with reservations booked immediately', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { wood: 10 });
-    const site = addSite(world, 24, 30); // needs 6 wood
+    const site = addSite(world, 24, 30); // needs 6 wood + the hammer loan
     run(world, 1); // matcher fires at tick 0
 
-    expect(world.jobs.size).toBe(6);
+    // Six wood, the borrowed hammer, and the axe pre-ordered for the post
+    // the site will become.
+    expect(world.jobs.size).toBe(8);
     expect(sh.reservedOut.wood).toBe(6);
     expect(site.inbound.wood).toBe(6);
+    expect(site.inbound.hammer).toBe(1);
+    expect(site.inbound.axe).toBe(1);
     expectClean(world);
   });
 
@@ -45,7 +49,7 @@ describe('logistics matcher', () => {
     addSite(world, 24, 30); // needs 6
     run(world, 1);
 
-    expect(world.jobs.size).toBe(3);
+    expect(world.jobs.size).toBe(5); // 3 wood + hammer + the post's axe
     expect(sh.reservedOut.wood).toBe(3);
     expectClean(world);
   });
@@ -276,7 +280,8 @@ describe('move orders outrank employment', () => {
   it('never destroys the good in a reassigned serf\'s hands', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { wood: 5 });
-    placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30); // spear recipe wants wood
+    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    smith.recipeIndex = 0; // pinned on spears (default is auto): wants wood
     const serf = addSerf(world, 32, 32);
 
     // Run until he is actually holding something, then yank him away.
@@ -305,7 +310,8 @@ describe('move orders outrank employment', () => {
   it('never hands a fresh pickup to a serf who is already carrying', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { wood: 5 });
-    placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30); // spear recipe wants wood
+    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    smith.recipeIndex = 0; // pinned on spears (default is auto): wants wood
     const serf = addSerf(world, 32, 32);
     const initial = countGoods(world);
 
