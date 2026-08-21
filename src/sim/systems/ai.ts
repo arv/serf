@@ -564,13 +564,18 @@ export class AiBrain {
       if (step.needs && !has(step.needs)) continue;
       const desired = step.more && researched(step.more.after) ? step.more.count : step.count;
       if (countOf(step.type) >= desired) continue;
+      // Price before ground. Both tests are pure reads and the step that
+      // wins is still the first one that is BOTH affordable and placeable,
+      // so the beat plays out identically — but spotFor is a spiral search
+      // over the play area (and, anchored, a resource or shore scan before
+      // that), and a broke seat used to pay it for every unmet step on the
+      // list, every beat, only to throw the answer away.
+      if (!affordable(BUILDING_DEFS[step.type].cost as Record<string, number>, stock)) continue;
       const spot = spotFor(world, step, baseX, baseY);
       if (!spot) continue;
-      if (affordable(BUILDING_DEFS[step.type].cost as Record<string, number>, stock)) {
-        commands.push({ kind: 'placeBuilding', building: step.type, x: spot.x, y: spot.y });
-        placed = true;
-        break; // one placement per decision to keep hauling focused
-      }
+      commands.push({ kind: 'placeBuilding', building: step.type, x: spot.x, y: spot.y });
+      placed = true;
+      break; // one placement per decision to keep hauling focused
     }
 
     // --- Housing: the roofs the plan did not foresee -------------------------

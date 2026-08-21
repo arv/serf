@@ -41,6 +41,17 @@ export function newRibbonDist(): RibbonDist {
   return { trail: Infinity, road: Infinity };
 }
 
+let sideForLen = -1;
+let sideValue = 0;
+/** The grid side, memoized on the array length (see ribbonDistances). */
+function gridSideOf(len: number): number {
+  if (len !== sideForLen) {
+    sideForLen = len;
+    sideValue = Math.sqrt(len) | 0;
+  }
+  return sideValue;
+}
+
 /**
  * Distance from world point (px, pz) to the nearest trail and road
  * centerlines, written into `out` to keep the hot vertex loop allocation-free.
@@ -59,7 +70,9 @@ export function ribbonDistances(
   out.road = Infinity;
   // The path grid is square (size² tiles), so the grid size rides along in
   // the array itself — no separate parameter to thread through every caller.
-  const size = Math.sqrt(path.length) | 0;
+  // Memoized on the length: a full terrain repaint calls this once per
+  // vertex (~333k times at play=96) to recover the same constant.
+  const size = gridSideOf(path.length);
   const bx = Math.floor(px);
   const bz = Math.floor(pz);
   for (let ty = bz - 1; ty <= bz + 1; ty++) {

@@ -53,8 +53,12 @@ export function trailsSystem(world: World): void {
  * Capped concurrency keeps paving from starving real construction.
  */
 function paveStep(world: World): void {
-  if (!world.players.some((p) => p.pavingUnlocked)) return;
+  // Cadence first. Both guards are side-effect-free early returns, so the
+  // order between them is invisible — but the seat scan used to run on
+  // every tick to serve a pass that can only do work on one tick in
+  // PAVE_INTERVAL, and now runs only on the ticks that can use it.
   if (world.tick === 0 || world.tick % PAVE_INTERVAL !== 0) return;
+  if (!world.players.some((p) => p.pavingUnlocked)) return;
 
   let active = 0;
   for (const b of world.buildings.values()) {

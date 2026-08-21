@@ -26,6 +26,9 @@ export function combatSystem(world: World): void {
   for (const u of world.units.values()) if (!u.dead) liveUnits.push(u);
   const liveBuildings: Building[] = [];
   for (const b of world.buildings.values()) if (!b.dead) liveBuildings.push(b);
+  // The acquisition index over liveUnits — see buildUnitGrid. Built here,
+  // once, because positions do not move again until the next tick.
+  buildUnitGrid(liveUnits, world.map.size);
 
   // Lazily computed camp, invalidated if it dies mid-tick (matching the old
   // per-unit rescan, which skipped dead camps and took the next one).
@@ -341,12 +344,29 @@ function acquireForBuilding(
 ): Unit | undefined {
   let best: Unit | undefined;
   let bestScore = Infinity;
+  // A tower used to pay a square root for every soldier, serf and bandit on
+  // the map, however far off. distToFootprint's clamp is inlined here so the
+  // ones plainly out of reach cost two multiplies instead — the same
+  // conservative `radius + 1` reject acquireUnit already uses, which no unit
+  // that could pass `dist > radius` can fail.
+  const x0 = b.x;
+  const y0 = b.y;
+  const x1 = b.x + b.w;
+  const y1 = b.y + b.h;
+  const owner = b.owner;
+  const counters = COUNTER_TABLE[myClass];
+  const rejectSq = (radius + 1) * (radius + 1);
   for (const other of units) {
-    if (other.dead || other.owner === b.owner) continue;
-    const dist = distToBuilding(other, b);
+    if (other.dead || other.owner === owner) continue;
+    const ox = other.x;
+    const oy = other.y;
+    const dx = ox - Math.max(x0, Math.min(ox, x1));
+    const dy = oy - Math.max(y0, Math.min(oy, y1));
+    if (dx * dx + dy * dy > rejectSq) continue;
+    const dist = exactDist(dx, dy); // === distToBuilding(other, b)
     if (dist > radius) continue;
     const otherClass = UNIT_DEFS[other.kind].combat?.class;
-    const advantage = otherClass ? COUNTER_TABLE[myClass][otherClass] : 1.2;
+    const advantage = otherClass ? counters[otherClass] : 1.2;
     const score = dist / advantage;
     if (score < bestScore) {
       bestScore = score;
@@ -409,29 +429,108 @@ function resumeAttackMove(world: World, unit: Unit): void {
   }
 }
 
-/** Nearest enemy unit in radius, preferring countered classes. */
+/**
+ * A uniform bucket grid over `liveUnits`, rebuilt once per tick.
+ *
+ * Target acquisition was the sim's one genuinely quadratic scan: every
+ * soldier without a target against every living body on the map, every
+ * tick. Soldiers are a small fraction of a valley — the serfs are the
+ * bulk — so the villagers were what made it expensive, and a besieging
+ * army made it worse in proportion to its own size.
+ *
+ * CELL must be at least the largest acquireRadius plus one (the
+ * conservative reject below), so that the 3x3 block of cells around a
+ * unit is a superset of every candidate that reject could admit. The
+ * largest acquireRadius in UNIT_DEFS is 8 and CELL is 16, so the block
+ * reaches at least 16 tiles in every direction; anything outside it is
+ * provably beyond `radius` and could never have been chosen.
+ *
+ * Positions hold still for the whole pass — movement ran before combat,
+ * and nothing here writes x or y — so one build per tick stays valid.
+ * Units killed mid-pass stay in their bucket and are skipped by the same
+ * `dead` re-check the flat scan used.
+ */
+const CELL_SHIFT = 4; // 16 tiles
+let cellsPerSide = 0;
+let cellHead = new Int32Array(0);
+let cellNext = new Int32Array(0);
+
+function cellCoord(v: number): number {
+  const c = (v | 0) >> CELL_SHIFT;
+  return c < 0 ? 0 : c >= cellsPerSide ? cellsPerSide - 1 : c;
+}
+
+function buildUnitGrid(units: readonly Unit[], size: number): void {
+  const per = ((size - 1) >> CELL_SHIFT) + 1;
+  if (per !== cellsPerSide || cellHead.length !== per * per) {
+    cellsPerSide = per;
+    cellHead = new Int32Array(per * per);
+  }
+  cellHead.fill(-1);
+  if (cellNext.length < units.length) cellNext = new Int32Array(units.length * 2);
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i]!;
+    const c = cellCoord(u.y) * cellsPerSide + cellCoord(u.x);
+    cellNext[i] = cellHead[c]!;
+    cellHead[c] = i;
+  }
+}
+
+/**
+ * Nearest enemy unit in radius, preferring countered classes.
+ *
+ * Scanning the grid visits candidates in bucket order rather than in
+ * `liveUnits` order, so the old "first strictly-better wins" rule would
+ * have handed ties to a different unit — and ties are genuinely reachable
+ * (two of a kind stopped the same distance away). The tie-break is
+ * therefore made explicit: lowest score, and among equal scores the lowest
+ * index into `liveUnits`. That is exactly what an ascending scan with a
+ * strict `<` used to produce, and unlike that scan it does not depend on
+ * the order the candidates arrive in.
+ */
 function acquireUnit(units: readonly Unit[], unit: Unit, radius: number): Unit | undefined {
   const myClass = UNIT_DEFS[unit.kind].combat!.class;
   // Conservative squared-distance reject: anything strictly beyond
   // radius + 1 cannot pass `dist <= radius` below even after sqrt rounding,
   // so skipping it early is behavior-identical.
   const rejectSq = (radius + 1) * (radius + 1);
+  // Hoisted out of the loop: this is the innermost scan in the sim — every
+  // untargeted soldier against every live unit, every tick — and the row
+  // and the position never change while it runs.
+  const counters = COUNTER_TABLE[myClass];
+  const ux = unit.x;
+  const uy = unit.y;
+  const owner = unit.owner;
   let best: Unit | undefined;
   let bestScore = Infinity;
-  for (const other of units) {
-    if (other.dead || other.owner === unit.owner) continue;
-    const dx = other.x - unit.x;
-    const dy = other.y - unit.y;
-    if (dx * dx + dy * dy > rejectSq) continue;
-    const dist = exactDist(dx, dy);
-    if (dist > radius) continue;
-    const otherClass = UNIT_DEFS[other.kind].combat?.class;
-    // Favor targets we counter; civilians are class-less easy prey for raiders.
-    const advantage = otherClass ? COUNTER_TABLE[myClass][otherClass] : 1.2;
-    const score = dist / advantage;
-    if (score < bestScore) {
-      bestScore = score;
-      best = other;
+  let bestIdx = 0;
+  const cx = cellCoord(ux);
+  const cy = cellCoord(uy);
+  const gx0 = cx > 0 ? cx - 1 : 0;
+  const gx1 = cx + 1 < cellsPerSide ? cx + 1 : cellsPerSide - 1;
+  const gy0 = cy > 0 ? cy - 1 : 0;
+  const gy1 = cy + 1 < cellsPerSide ? cy + 1 : cellsPerSide - 1;
+  for (let gy = gy0; gy <= gy1; gy++) {
+    const row = gy * cellsPerSide;
+    for (let gx = gx0; gx <= gx1; gx++) {
+      for (let i = cellHead[row + gx]!; i >= 0; i = cellNext[i]!) {
+        const other = units[i]!;
+        if (other.dead || other.owner === owner) continue;
+        const dx = other.x - ux;
+        const dy = other.y - uy;
+        if (dx * dx + dy * dy > rejectSq) continue;
+        const dist = exactDist(dx, dy);
+        if (dist > radius) continue;
+        const otherClass = UNIT_DEFS[other.kind].combat?.class;
+        // Favor targets we counter; civilians are class-less easy prey for raiders.
+        const advantage = otherClass ? counters[otherClass] : 1.2;
+        const score = dist / advantage;
+        if (score < bestScore || (score === bestScore && i < bestIdx)) {
+          bestScore = score;
+          best = other;
+          bestIdx = i;
+        }
+      }
     }
   }
   return best;
@@ -528,11 +627,15 @@ function nearestEnemyBuilding(buildings: readonly Building[], unit: Unit): Build
   // bestDist + 1 cannot pass `dist < bestDist` below even after sqrt
   // rounding, so skipping it early is behavior-identical.
   let rejectSq = Infinity;
+  // Read the position once. This runs per idle soldier per tick over every
+  // building, and centerOf's `{x, y}` used to be allocated on each of those
+  // — thousands of one-tick objects a second, for two additions.
+  const ux = unit.x;
+  const uy = unit.y;
   for (const b of buildings) {
     if (b.dead || b.owner === unit.owner) continue;
-    const c = centerOf(b);
-    const dx = c.x - unit.x;
-    const dy = c.y - unit.y;
+    const dx = b.x + b.w / 2 - ux; // centerOf(b), inlined: identical arithmetic
+    const dy = b.y + b.h / 2 - uy;
     if (dx * dx + dy * dy > rejectSq) continue;
     const dist = exactDist(dx, dy);
     if (dist < bestDist) {

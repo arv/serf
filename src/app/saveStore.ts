@@ -105,7 +105,9 @@ export async function importSaveFile(file: File): Promise<ImportResult> {
     return { ok: false, reason: 'storage' };
   }
   if (!looksLikeSave(raw)) return { ok: false, reason: 'unrecognized' };
-  const base = file.name.replace(/\.json$/i, '').trim();
+  // .json comes off a dragged-out row, .txt off one that rode the share
+  // sheet — the same two wrappers the replay import strips.
+  const base = file.name.replace(/\.(json|txt)$/i, '').trim();
   const name = store.validName(base) ? base : stampName(new Date());
   const saved = await saveGameFile(name, raw);
   return saved !== null ? { ok: true, name: saved } : { ok: false, reason: 'storage' };
