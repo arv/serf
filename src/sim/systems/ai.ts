@@ -22,6 +22,7 @@ import {
   BUILDING_DEFS,
   buildingDef,
   gatherOrigin,
+  garrisonRoom,
   gatherRecipeOf,
   OUTPUT_CAP,
   repairBill,
@@ -34,7 +35,7 @@ import { HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
 import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
 import { canPlace, type World } from '../world.ts';
-import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
+import { isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
 import type { GoodId } from '../defs/goods.ts';
 import type { Unit } from '../units.ts';
 import type { SimCommand } from '../commands.ts';
@@ -397,6 +398,18 @@ export class AiBrain {
    * scout is on discovery (or home). */
   #scoutIntel: Owner = -1;
   /**
+   * Per tower: the tick its levy may stand down, set forward every beat an
+   * enemy is still in sight of it.
+   *
+   * The hold is the whole point. Threat is read per beat and a raider walks
+   * in and out of a radius constantly, so calling and standing down on the
+   * raw reading would flap — and each flap marches the villagers down the
+   * stairs and walks a fresh pair back up, which costs more haulage than
+   * leaving them there ever would. Keyed by building id, and stale entries
+   * cost a number apiece: a razed tower's is never read again.
+   */
+  #levyHold = new Map<EntityId, number>();
+  /**
    * The stall watchdog's rolling window (AI_STALL): one packed sample per
    * `samplePeriod`, oldest first. Brain-local like everything above it.
    */
@@ -523,6 +536,13 @@ export class AiBrain {
     const researched = (id: TechId): boolean => techs.researched.includes(id);
     const has = (type: BuildingTypeId): boolean => mine.some((b) => b.type === type);
     const countOf = (type: BuildingTypeId): number => mine.filter((b) => b.type === type).length;
+
+    // --- The walls ------------------------------------------------------------
+    // Before the build order and well before the army: whether villagers
+    // are holding a tower is a question about the next few seconds, and it
+    // is answered by what can be seen right now rather than by anything the
+    // rest of this method decides.
+    this.#manTowers(world, mine, commands);
 
     // --- The stall watchdog (AI_STALL) ---------------------------------------
     // Sampled first so the reading below is this beat's, and so a seat that
@@ -1018,6 +1038,51 @@ export class AiBrain {
     const commit = shouldCommit(mine, defenders, marchConfidence);
     if (!commit) this.#oddsVetoed++;
     return commit;
+  }
+
+  /**
+   * Man the towers, and send the villagers home again.
+   *
+   * A tower's archers arrive late — a research, a forge and a course at the
+   * barracks after the stone goes down — and a raid does not wait for them.
+   * So a seat rings the bell when something hostile comes into sight of a
+   * tower that has room for villagers, and stands it down once the ground
+   * has been quiet long enough to trust.
+   *
+   * Only towers the soldiers have not already taken: the order is inert on
+   * one the archers hold (staffing refuses villagers there), and issuing it
+   * anyway would be a command a beat that never changes anything.
+   *
+   * The economy protects itself here without being asked. Staffing only
+   * ever recruits *idle* serfs, so a village with every hand on a haul
+   * sends nobody up and loses nothing; the call simply stands until someone
+   * comes free. That is the right behaviour under a raid and costs nothing
+   * outside one.
+   */
+  #manTowers(world: World, mine: readonly Building[], commands: SimCommand[]): void {
+    for (const b of mine) {
+      if (b.state !== 'built') continue;
+      const rule = BUILDING_DEFS[b.type].garrison;
+      if (!rule) continue;
+      // Soldiers hold it, or are about to: nothing for the levy to do.
+      const held = b.garrisonKind === rule.unit && garrisonRoom(BUILDING_DEFS[b.type], b) <= 0;
+      const bx = b.x + b.w / 2;
+      const by = b.y + b.h / 2;
+      if (
+        !held &&
+        hostileNear(world, this.#vision, this.playerId, bx, by, AI_INTEL.raidRadius)
+      ) {
+        this.#levyHold.set(b.id, world.tick + LEVY_HOLD);
+        if (!b.levyCalled) commands.push({ kind: 'callLevy', buildingId: b.id, called: true });
+        continue;
+      }
+      if (!b.levyCalled) continue;
+      const until = this.#levyHold.get(b.id) ?? 0;
+      if (held || world.tick >= until) {
+        commands.push({ kind: 'callLevy', buildingId: b.id, called: false });
+        this.#levyHold.delete(b.id);
+      }
+    }
   }
 
   /**
@@ -1588,6 +1653,15 @@ const SWEEP_GARRISON = 3;
 
 /** How far from the castle a garrison soldier still counts as at his post. */
 const GARRISON_POST = 6;
+
+/**
+ * How long after the last enemy is seen near a tower the levy keeps holding
+ * it. Generous on purpose: a raid is a series of arrivals rather than one,
+ * and standing the villagers down between two waves buys a few seconds of
+ * hauling at the price of an empty wall when the second one lands. Coming
+ * back down is cheap; being late back up is not.
+ */
+export const LEVY_HOLD = 30 * 20;
 
 export function scoutLeg(goal: number, sx: number, sy: number, size: number): { x: number; y: number } {
   const gx = tileX(goal, size);

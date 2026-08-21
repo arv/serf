@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { createWorld, type World, type WorldConfig } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
-import { AI_PACING, AI_STALL, AiBrain } from './systems/ai.ts';
+import { AI_PACING, AI_STALL, AiBrain, LEVY_HOLD } from './systems/ai.ts';
 import { AiSeats } from './aiSeats.ts';
 import { strategyOf, type AiStrategy } from './defs/aiStrategies.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { AI_STRATEGIES } from './defs/aiStrategies.ts';
-import { spawnUnit } from './world.ts';
-import { OUTPUT_CAP } from './defs/buildings.ts';
+import { placeBuiltBuilding, spawnUnit } from './world.ts';
+import { BUILDING_DEFS, OUTPUT_CAP } from './defs/buildings.ts';
 import { tileIdx } from '../shared/grid.ts';
-import type { Building } from './entities.ts';
+import { BANDIT, type Building } from './entities.ts';
 import { addBuiltHut, addResourceTile, addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import type { SimCommand } from './commands.ts';
 
@@ -334,6 +334,48 @@ describe('the stall watchdog', () => {
       AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100,
     );
     expect(commands).not.toContainEqual({ kind: 'sellBuilding', buildingId: dead.id });
+  });
+
+  it('rings the bell for a threatened tower, and stands it down after', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const beat = (): SimCommand[] => {
+      world.tick += AI_PACING.decisionInterval;
+      return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    };
+    // Quiet ground: no reason to take anyone off a haul.
+    expect(beat()).not.toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: true });
+
+    // A raider walks into sight of the tower.
+    const raider = spawnUnit(world, 'bandit', BANDIT, 37.5, 38.5);
+    expect(beat()).toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: true });
+
+    // The order is not re-sent every beat once it stands.
+    tower.levyCalled = true;
+    expect(beat()).not.toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: true });
+
+    // He dies, and the hold keeps the villagers up a while yet.
+    raider.dead = true;
+    expect(beat()).not.toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: false });
+
+    // Past the hold, they go back to work.
+    world.tick += LEVY_HOLD;
+    expect(beat()).toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: false });
+  });
+
+  it('does not call villagers to a tower the archers already hold', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
+    tower.garrisonKind = 'archer';
+    spawnUnit(world, 'bandit', BANDIT, 37.5, 38.5);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    expect(out).not.toContainEqual({ kind: 'callLevy', buildingId: tower.id, called: true });
   });
 
   it('leaves a seat that is going somewhere byte-identical', () => {

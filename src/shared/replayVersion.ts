@@ -20,6 +20,11 @@
  * directly.
  */
 /**
+ * 17: the AI seats work the levy. A seat now rings a tower's bell when it
+ * sees something hostile come into range of it and stands the villagers
+ * down once the ground has been quiet, which moves both the commands the
+ * seats issue and the hands their villages have on the job at any moment.
+ *
  * 16: the guard tower takes a levy. Villagers can be called up to hold it
  * with stones until archers exist to relieve them, which changes who is in
  * a tower, what it shoots for, and how many hands the village has left to
@@ -48,4 +53,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 16;
+export const REPLAY_VERSION = 17;
