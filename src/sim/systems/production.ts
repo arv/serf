@@ -102,6 +102,11 @@ function convertStep(
   let queueSlot = -1;
   let activeIndex: number | undefined;
   if (def.recipeOptions) {
+    // Ingredients before intentions: see anyOptionReady. Nothing below this
+    // point writes until the picked recipe's inputs have been checked, so a
+    // buffer that can feed no option at all stops here with the same effect
+    // and none of the survey.
+    if (!anyOptionReady(b, def)) return;
     const pick = pickForgeBatch(world, b, def);
     if (!pick) return; // nothing workable — the fire stays cold
     activeIndex = pick.index;
@@ -110,13 +115,22 @@ function convertStep(
   }
   if (!active) return;
 
-  for (const [good, n] of Object.entries(active.outputs) as [GoodId, number][]) {
+  // Cached entry lists (see recipeInputs): every converter in the village
+  // walks these three loops on every tick it is not mid-batch, and
+  // output-full and waiting-on-ingredients are the steady states, so the
+  // tuples were being allocated and thrown away wholesale.
+  const outputs = recipeEntries(active.outputs);
+  for (let i = 0; i < outputs.length; i++) {
+    const [good, n] = outputs[i]!;
     if ((b.stock[good] ?? 0) + n > OUTPUT_CAP) return; // output full — stall
   }
-  for (const [good, n] of Object.entries(active.inputs) as [GoodId, number][]) {
+  const inputs = recipeInputs(active);
+  for (let i = 0; i < inputs.length; i++) {
+    const [good, n] = inputs[i]!;
     if ((b.inputs[good] ?? 0) < n) return; // waiting on ingredients
   }
-  for (const [good, n] of Object.entries(active.inputs) as [GoodId, number][]) {
+  for (let i = 0; i < inputs.length; i++) {
+    const [good, n] = inputs[i]!;
     b.inputs[good] = (b.inputs[good] ?? 0) - n;
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
   }
@@ -142,9 +156,53 @@ function optionUnlocked(world: World, owner: number, def: BuildingDef, index: nu
 }
 
 function inputsPresent(b: Building, recipe: Recipe & { kind: 'convert' }): boolean {
-  return (Object.entries(recipe.inputs) as [GoodId, number][]).every(
-    ([good, n]) => (b.inputs[good] ?? 0) >= n,
-  );
+  const inputs = recipeInputs(recipe);
+  for (let i = 0; i < inputs.length; i++) {
+    const [good, n] = inputs[i]!;
+    if ((b.inputs[good] ?? 0) < n) return false;
+  }
+  return true;
+}
+
+/**
+ * A recipe's goods as an entry list, computed once. Recipes are static
+ * table data, so `Object.entries` returns the same pairs in the same
+ * (insertion) order every time — caching the first answer is the same walk
+ * in the same order, without the array-of-tuples it used to allocate on
+ * every check.
+ */
+const recipeEntriesCache = new WeakMap<object, [GoodId, number][]>();
+function recipeEntries(goods: Partial<Record<GoodId, number>>): [GoodId, number][] {
+  let entries = recipeEntriesCache.get(goods);
+  if (!entries) {
+    entries = Object.entries(goods) as [GoodId, number][];
+    recipeEntriesCache.set(goods, entries);
+  }
+  return entries;
+}
+
+function recipeInputs(recipe: Recipe & { kind: 'convert' }): [GoodId, number][] {
+  return recipeEntries(recipe.inputs);
+}
+
+/**
+ * Could ANY of this building's recipe options light the fire right now?
+ *
+ * convertStep bails on exactly this test ("waiting on ingredients") a few
+ * lines after it has resolved what to forge — and at a Smith, resolving
+ * that means autoForgeIndex's census of every building in the settlement.
+ * A Smith starved of iron therefore used to survey the whole village
+ * twenty times a second to be told again that it has no iron. This is the
+ * same necessary condition, asked first: if no option's ingredients are in
+ * the buffer then the picked one's cannot be either, so convertStep would
+ * return without writing anything.
+ */
+function anyOptionReady(b: Building, def: BuildingDef): boolean {
+  const options = def.recipeOptions!;
+  for (let i = 0; i < options.length; i++) {
+    if (inputsPresent(b, options[i]!.recipe)) return true;
+  }
+  return false;
 }
 
 /**
@@ -194,43 +252,83 @@ function pickForgeBatch(
  * must resolve identically on every client.
  */
 export function autoForgeIndex(world: World, b: Building, def: BuildingDef): number | undefined {
-  const want: Partial<Record<GoodId, number>> = {};
-  const free: Partial<Record<GoodId, number>> = {};
+  // Scratch, reused across calls. An idle Smith asks this question twice a
+  // tick forever (production for the fire, logistics for the demand), and
+  // the two goods dictionaries it used to allocate — then hash-write once
+  // per tool per building — made this the single hottest function in the
+  // sim. Slot-indexed counts are the same integer arithmetic, and integer
+  // addition does not care what order the buildings come in, so the answer
+  // is identical to the dictionary version's.
+  want.fill(0);
+  free.fill(0);
+  const owner = b.owner;
   for (const ob of world.buildings.values()) {
-    if (ob.dead || ob.owner !== b.owner) continue;
+    if (ob.dead || ob.owner !== owner) continue;
     if (ob.state === 'site') {
       // A site still owed its hammer is a hammer the village lacks.
       if (!ob.paused && (ob.siteNeeds?.hammer ?? 0) > 0 && (ob.inbound.hammer ?? 0) === 0) {
-        want.hammer = (want.hammer ?? 0) + 1;
+        want[HAMMER_SLOT] = want[HAMMER_SLOT]! + 1;
       }
       continue;
     }
     if (ob.state !== 'built') continue;
-    for (const tool of TOOL_GOODS) {
+    const stock = ob.stock;
+    const reservedOut = ob.reservedOut;
+    for (let i = 0; i < TOOL_COUNT; i++) {
       // Tools on a shelf (minus those already promised to a hauler) can
       // still reach any open post, wherever they sit.
-      free[tool] = (free[tool] ?? 0) + Math.max(0, (ob.stock[tool] ?? 0) - (ob.reservedOut[tool] ?? 0));
+      const tool = TOOL_GOODS[i]!;
+      const shelf = (stock[tool] ?? 0) - (reservedOut[tool] ?? 0);
+      if (shelf > 0) free[i] = free[i]! + shelf; // adding a clamped zero changes nothing
     }
     const tool = TOOL_OF[ob.type];
     if (!tool || ob.paused) continue;
     const worker = ob.workerId !== undefined ? world.units.get(ob.workerId) : undefined;
     if (worker && !worker.dead) continue; // post is filled
     if ((ob.inputs[tool] ?? 0) + (ob.inbound[tool] ?? 0) > 0) continue; // already served
-    want[tool] = (want[tool] ?? 0) + 1;
+    const slot = TOOL_SLOT[tool]!;
+    want[slot] = want[slot]! + 1;
   }
-  let best: GoodId | undefined;
+  const byTool = forgeIndexByTool(def);
+  let bestIndex = -1;
   let bestGap = 0;
-  for (const tool of TOOL_GOODS) {
-    const gap = (want[tool] ?? 0) - (free[tool] ?? 0);
+  for (let i = 0; i < TOOL_COUNT; i++) {
+    const gap = want[i]! - free[i]!;
     if (gap > bestGap) {
-      const index = def.recipeOptions?.findIndex((o) => (o.recipe.outputs[tool] ?? 0) > 0) ?? -1;
-      if (index < 0 || !optionUnlocked(world, b.owner, def, index)) continue;
-      best = tool;
+      const index = byTool[i]!;
+      if (index < 0 || !optionUnlocked(world, owner, def, index)) continue;
+      bestIndex = index;
       bestGap = gap;
     }
   }
-  if (best === undefined) return undefined;
-  return def.recipeOptions!.findIndex((o) => (o.recipe.outputs[best] ?? 0) > 0);
+  return bestIndex < 0 ? undefined : bestIndex;
+}
+
+const TOOL_COUNT = TOOL_GOODS.length;
+/** Slot of each tool in TOOL_GOODS, so a GoodId can index the count arrays. */
+const TOOL_SLOT: Partial<Record<GoodId, number>> = {};
+for (let i = 0; i < TOOL_COUNT; i++) TOOL_SLOT[TOOL_GOODS[i]!] = i;
+const HAMMER_SLOT = TOOL_SLOT.hammer!;
+/** Counts, not sums of measurements: whole tools, so exact as doubles. */
+const want = new Float64Array(TOOL_COUNT);
+const free = new Float64Array(TOOL_COUNT);
+
+/**
+ * Which recipe option forges each tool, by tool slot; -1 for a tool this
+ * building cannot make. `recipeOptions` is static table data, so the answer
+ * is computed once per building def rather than re-scanned per tool per call.
+ */
+const forgeIndexCache = new WeakMap<BuildingDef, Int32Array>();
+function forgeIndexByTool(def: BuildingDef): Int32Array {
+  let byTool = forgeIndexCache.get(def);
+  if (byTool) return byTool;
+  byTool = new Int32Array(TOOL_COUNT);
+  for (let i = 0; i < TOOL_COUNT; i++) {
+    const tool = TOOL_GOODS[i]!;
+    byTool[i] = def.recipeOptions?.findIndex((o) => (o.recipe.outputs[tool] ?? 0) > 0) ?? -1;
+  }
+  forgeIndexCache.set(def, byTool);
+  return byTool;
 }
 
 /**
