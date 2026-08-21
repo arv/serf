@@ -56,8 +56,10 @@ export async function importReplayFile(file: File): Promise<ImportResult> {
   // Filed under the dropped file's own name where that fits the shelf's
   // charset, today's datetime where it does not — an import is a save, so
   // the fallback is honest. A collision gets the store's " (2)" suffix
-  // like any same-second pair of saves.
-  const base = file.name.replace(/\.json$/i, '').trim();
+  // like any same-second pair of saves. Two wrappers come off, one each
+  // for the two ways a row leaves a shelf: .json from a drag, .txt from
+  // the share sheet (see the shelf's share button for why not .json).
+  const base = file.name.replace(/\.(json|txt)$/i, '').trim();
   const name = store.validName(base) ? base : stampName(new Date());
   const saved = await saveReplayFile(name, raw);
   return saved !== null ? { ok: true, name: saved } : { ok: false, reason: 'storage' };
