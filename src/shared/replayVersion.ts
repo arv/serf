@@ -22,9 +22,9 @@
 /**
  * 19: sieges slow down and the castle hardens — damage against buildings
  * lands at a fraction set by the attacker's arm (BUILDING_DAMAGE_MULT:
- * three quarters for melee, a quarter for the bow — ten archers were
- * leveling the castle in twenty seconds), and the castle stands on 750 hp
- * instead of 500. Besiegers also learn to answer a blow: a unit struck
+ * three quarters for melee, half for the bow — ten archers were leveling
+ * the castle in twenty seconds), and the castle stands on 750 hp instead
+ * of 500. Besiegers also learn to answer a blow: a unit struck
  * while hammering a wall turns on its attacker instead of dying without
  * reply — building targets never drop on their own, so a besieging army
  * used to be carved up by a handful of guards it outnumbered three to one. With them rides a pathfinder repair the new siege

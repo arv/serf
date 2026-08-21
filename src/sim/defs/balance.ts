@@ -112,16 +112,16 @@ export const ALE_TRAIN_SPEEDUP = 1.25;
  * armies razing the camp alike — runs slower than a fight, buying the
  * defenders a beat to answer before a building comes down.
  *
- * Melee at three quarters; the bow at a quarter, because an arrow against
- * masonry is a scratch and ten archers were leveling the castle in the
- * time it takes to march home. Archers keep a besieging army honest and
- * finish a wooden hut, but bringing a wall down is work for men who can
- * put their shoulders into it.
+ * Melee at three quarters; the bow at half, because an arrow does less to
+ * masonry than a shoulder does and ten archers were leveling the castle in
+ * the time it takes to march home. Archers still pull real weight in a
+ * siege — half is a discount, not a dismissal — but an army that wants
+ * walls down fast brings men who can put their backs into it.
  */
 export const BUILDING_DAMAGE_MULT: Record<UnitClass, number> = {
   heavy: 0.75,
   light: 0.75,
-  ranged: 0.25,
+  ranged: 0.5,
 };
 
 // Raids — paced for the population economy's slower ramp (staffing every
