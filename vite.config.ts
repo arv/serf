@@ -41,10 +41,11 @@ const port = process.env.PORT ? Number(process.env.PORT) : undefined;
 export default defineConfig({
   plugins: [solid(), serviceWorkerPlugin()],
   // JSON modules ship as JSON.parse('...') rather than object literals:
-  // the campaign's mission maps are ~450 KB of tile arrays each, and
-  // JSON.parse beats the JS parser handily at that size — in the shipped
-  // chunks and (dramatically) in vitest's module runner, where literal
-  // evaluation made the mission tests ~10x slower.
+  // the campaign's mission maps are ~250 KB each, and JSON.parse beats the
+  // JS parser at that size, in the shipped chunks and in vitest's module
+  // runner both. It mattered most when the maps were tile *arrays* —
+  // literal evaluation made the mission tests ~10x slower; they are base64
+  // strings now, and this still costs nothing.
   json: { stringify: true },
   define: {
     __APP_VERSION__: JSON.stringify(version),
