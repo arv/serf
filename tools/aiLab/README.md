@@ -22,6 +22,30 @@ pnpm bakeoff --engine none --no-control --strategy steward:warlord --seeds 1-80
 pnpm bakeoff --help   # every flag
 ```
 
+## The balance sweep
+
+A second, much smaller instrument in the same spirit: every playbook alone
+on its own campaign map, many seeds, one table. No model, no seating
+mirror — just "how often does each playbook take the map, and how fast".
+
+```sh
+node --experimental-strip-types tools/aiLab/balance.ts 32        # 32 seeds
+node --experimental-strip-types tools/aiLab/balance.ts 32 1000   # ...from a different range
+```
+
+The second argument is the point. A campaign is about a second to run and
+wildly noisy, so a two- or three-win move over 32 seeds means nothing, and
+the only way to know is to re-run on a seed range you did not tune against.
+Several plausible changes have died exactly there — a fletcher housing tweak
+went 24/32 against 22 on one range and 22/32 against 25 on the next, which
+is the same as saying it did nothing.
+
+The standing baseline, 64 seeds across both ranges: steward 56, warlord 59,
+abbot 56, fletcher 47. Fletcher is the deck's weak seat and the only one
+that ever runs out the clock instead of dying; what is wrong with it is
+still open, but it is not housing and it is not the woodline (see the notes
+on its muster in `defs/aiStrategies.ts`).
+
 Sim-only sweeps run one match per `--jobs` process (`--jobs max` uses the
 machine); results are byte-identical to `--jobs 1` for every engine except
 `http`, where it also means concurrent requests — size the server's

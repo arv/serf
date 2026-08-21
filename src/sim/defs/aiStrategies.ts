@@ -257,9 +257,12 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       { type: 'ironMine', count: 1, anchor: 'iron', radius: 4, after: 'ironworking' },
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'ironworking', needs: 'barracks' },
       // The towers this plan is now built around, and the reason it learns
-      // archery at all. Two of them, gated on the bow rather than on the
-      // barracks: a tower with nobody to man it is a wall that does not
-      // shoot, and this is the seat that can least afford wasted stone.
+      // archery at all. Two of them, still gated on the bow now that the
+      // levy means a tower is never merely wasted stone — because moving
+      // the gate back to soldiery measures worse, not better: 103 wins
+      // against 105 over 128 campaigns, on a slower median. An early tower
+      // stands paused through the whole quiet opening and its archers
+      // arrive no sooner for it. (tools/aiLab/balance.ts)
       { type: 'guardTower', count: 2, anchor: 'base', after: 'archery', needs: 'barracks' },
       // The wide half of the plan waits for the iron chain to stand: hired
       // hands eat, and a second field is only worth its worker once there
@@ -353,9 +356,14 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // apiece, which is why the second woodcutter comes with the archery.
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'archery', needs: 'barracks' },
       // A tower, once there are bowmen to put in it. Gated on archery
-      // rather than on soldiery — the sim would let this seat raise one the
-      // moment the barracks stands, and an unmanned tower is twelve stone
-      // spent on a wall that does not shoot.
+      // rather than on soldiery, which for this seat is nearly the same
+      // instant anyway: the bow is second in its research order, so the two
+      // gates measure identically here (22/32 either way).
+      //
+      // The levy never fires on this map for any seat, which is worth
+      // knowing before anyone tunes for it: raids land around tick 16k and
+      // a tower stands by 6-8k, so the archers always reach the wall first.
+      // The villagers are a human's answer to being rushed, not the AI's.
       { type: 'guardTower', count: 1, anchor: 'base', after: 'archery', needs: 'barracks' },
       // No fishery here, and none in the Abbot's plan either. Both run their
       // last step on a purse the iron seats never touch — the Fletcher pays
@@ -383,6 +391,16 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // second wave took a castle nobody was left to hold. At ten the army
     // stays home through the first wave and razes the camp in one march,
     // before the second one spawns.
+    //
+    // This is the weakest seat in the deck and has stayed that way: 47 wins
+    // in 64 campaigns against 56-59 for the other three, and the only one
+    // that ever runs out the clock rather than dying. Two fixes for it
+    // measured and failed. A third woodcutter to feed the bowstaves is a
+    // rout (11/32) — a hand on wood is a hand off the hauling, and the
+    // whole village starves for it. More beds looked like the answer at
+    // 24/32 against 22, then came back 22/32 against 25 on a second seed
+    // range, which is what a two-win move over 32 seeds is worth. Whatever
+    // is wrong here, it is not the housing.
     //
     // The tower does not move this. Raising it to twelve to buy back the
     // two archers the garrison swallows measured as a wash over ten seeds
