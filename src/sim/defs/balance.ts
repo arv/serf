@@ -15,12 +15,8 @@ export const TICK_MS = 1000 / TICKS_PER_SECOND;
 // 8 is the tested floor: at 6 the campaign AI falls to the raids and AI-vs-AI
 // stalemates, even with the silver-first build order (see ai.ts).
 export const START_SERFS = 8;
-// The village armory holds one of each old weapon, so a Soldiery rush can
-// field defenders before the first raid without the full iron chain — and
-// can field any of the three classes rather than being pushed down the
-// spear line by what happens to be on the rack. The bow waits on Archery
-// before it can be spent (the barracks refuses a recruit for a unit no
-// research has unlocked), so it is the one that keeps until later.
+// The village armory holds a few old weapons so a Soldiery rush can field
+// defenders before the first raid without the full iron chain.
 export const START_STOCK: GoodAmounts = {
   wood: 36,
   stone: 15,
@@ -31,9 +27,8 @@ export const START_STOCK: GoodAmounts = {
   wheat: 12,
   food: 8,
   silver: 20,
-  spear: 1,
+  spear: 2,
   sword: 1,
-  bow: 1,
   // The tool shed: one of each post's tool plus spares for the two the
   // opening leans on hardest, so the first village staffs itself exactly
   // as it did before tools existed — the squeeze is meant to arrive with
@@ -72,9 +67,6 @@ export const HIRE_SERF_COST = 4; // silver
 export const HIRE_SERF_TICKS = 8 * TICKS_PER_SECOND;
 /** Paid-for hires that can be waiting at once. */
 export const HIRE_QUEUE_CAP = 5;
-/** A dismissed post stays open this long before it recruits again, so the
- * freed worker can take up new work instead of being pulled straight back. */
-export const DISMISS_RESTAFF_BACKOFF = 30 * TICKS_PER_SECOND;
 /** Combat corpses linger this long so the death animation can play. */
 export const CORPSE_TICKS = 30;
 

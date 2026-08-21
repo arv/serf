@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { cmds } from './testUtils.ts';
-import { createWorld, type World } from './world.ts';
+import { createWorld, placeBuiltBuilding, spawnUnit, type World } from './world.ts';
 import { deserializeWorld, serializeWorld } from './save.ts';
 import { tickWorld } from './tick.ts';
 import { checkInvariants } from './debug/invariants.ts';
+import { BANDIT } from './entities.ts';
+import { UNIT_DEFS } from './defs/units.ts';
+import { BUILDING_DEFS } from './defs/buildings.ts';
 import type { SimCommand } from './commands.ts';
 
 function commandScript(tick: number): SimCommand[] {
@@ -72,6 +75,102 @@ describe('save/load', () => {
     const world = createWorld(1);
     for (let t = 0; t < 500; t++) tickWorld(world, cmds(...commandScript(t)));
     const size = serializeWorld(world).length;
-    expect(size).toBeLessThan(1_500_000); // well under the ~5MB quota
+    // Halved when the map's grids became base64 (a 192² world went from
+    // ~1.27 MB to ~0.62 MB); the ceiling moved with it, so the next thing
+    // to print itself in digits per tile is caught here.
+    expect(size).toBeLessThan(800_000);
   });
+
+  it('opens a save written before towers knew who was in them', () => {
+    // The levy added Building.garrisonKind, so a file from any earlier build
+    // has a manned tower and no word on who is manning it. That is not a new
+    // shape — it is a missing optional — so the save format did not move
+    // for it, and it called for no bump of its own. What has to hold is
+    // the reading: an old garrison is archers, because archers were the
+    // only thing that could ever be up there.
+    const world = createWorld({ seed: 5, players: [{ kind: 'human' }] });
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = 2;
+    tower.garrisonKind = undefined; // as an older build wrote it
+    const saved = serializeWorld(world);
+    expect(saved).not.toContain('garrisonKind');
+
+    const back = deserializeWorld(saved);
+    const loaded = back.buildings.get(tower.id)!;
+    expect(loaded.garrison).toBe(2);
+    expect(loaded.garrisonKind).toBeUndefined();
+
+    // It shoots like the archers it always was, not like a levy.
+    const raider = spawnUnit(back, 'bandit', BANDIT, 34.5, 31.5);
+    const before = raider.hp;
+    tickWorld(back, []);
+    const combat = UNIT_DEFS.archer.combat!;
+    const rule = BUILDING_DEFS.guardTower.garrison!;
+    expect(before - raider.hp).toBeCloseTo(combat.damage * rule.damageMult * 2, 5);
+
+    // And hands archers back, not serfs, when it is emptied.
+    tickWorld(back, cmds({ kind: 'sellBuilding', buildingId: loaded.id }));
+    const out = [...back.units.values()].filter((u) => !u.dead && u.kind === 'archer');
+    expect(out).toHaveLength(2);
+  });
+});
+
+const GRIDS = [
+  'terrain',
+  'resource',
+  'resourceAmt',
+  'blocked',
+  'buildingAt',
+  'wear',
+  'pathLevel',
+  'height',
+] as const;
+
+describe('the map grids', () => {
+  function savedWorld() {
+    const world = createWorld(31);
+    for (let t = 0; t < 200; t++) tickWorld(world, cmds(...commandScript(t)));
+    return world;
+  }
+
+  it('come back exactly — a resumed match ticks on these numbers', () => {
+    const world = savedWorld();
+    const back = deserializeWorld(serializeWorld(world));
+    for (const key of GRIDS) expect(back.map[key]).toEqual(world.map[key]);
+  });
+
+  // The reader still takes the old number-array spelling as well as base64.
+  // Nothing writes one now — the version that did is below the floor since
+  // tools (see canReadSave) — so this is the reader's tolerance under test,
+  // not a file anyone has: written at the current version so the gate lets
+  // it through to the decoder that is the point of the exercise.
+  it('open with grids spelled as number arrays, not base64', () => {
+    const world = savedWorld();
+    const doc = JSON.parse(serializeWorld(world)) as {
+      version: number;
+      world: { map: Record<string, unknown> };
+    };
+    for (const key of GRIDS) doc.world.map[key] = [...world.map[key]];
+    const back = deserializeWorld(JSON.stringify(doc));
+    for (const key of GRIDS) expect(back.map[key]).toEqual(world.map[key]);
+  });
+
+  it('are refused when they are older than the tool economy', () => {
+    const doc = JSON.parse(serializeWorld(savedWorld())) as { version: number };
+    doc.version = 5;
+    expect(() => deserializeWorld(JSON.stringify(doc))).toThrow(/older version/);
+  });
+
+  it('are refused when they are garbage or the wrong length', () => {
+    const doc = JSON.parse(serializeWorld(savedWorld())) as {
+      world: { map: Record<string, unknown> };
+    };
+    const withGrid = (key: string, value: unknown) =>
+      JSON.stringify({ ...doc, world: { ...doc.world, map: { ...doc.world.map, [key]: value } } });
+    expect(() => deserializeWorld(withGrid('terrain', '~~ not base64 ~~'))).toThrow(/unreadable/);
+    // Base64, decodes fine, and describes a world of a different size.
+    const short = (doc.world.map.height as string).slice(0, 64);
+    expect(() => deserializeWorld(withGrid('height', short))).toThrow(/bad map size/);
+  });
+
 });

@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { createWorld, type World, type WorldConfig } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
-import { AI_PACING, AI_STALL, AiBrain } from './systems/ai.ts';
+import { AI_PACING, AI_STALL, AiBrain, LEVY_HOLD } from './systems/ai.ts';
 import { AiSeats } from './aiSeats.ts';
 import { strategyOf, type AiStrategy } from './defs/aiStrategies.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { AI_STRATEGIES } from './defs/aiStrategies.ts';
-import { spawnUnit } from './world.ts';
-import { OUTPUT_CAP } from './defs/buildings.ts';
+import { placeBuiltBuilding, spawnUnit } from './world.ts';
+import { BUILDING_DEFS, OUTPUT_CAP } from './defs/buildings.ts';
 import { tileIdx } from '../shared/grid.ts';
-import type { Building } from './entities.ts';
+import { BANDIT, type Building } from './entities.ts';
 import { addBuiltHut, addResourceTile, addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import type { SimCommand } from './commands.ts';
 
@@ -280,9 +280,39 @@ describe('the stall watchdog', () => {
     beatUntil(brain, world, AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100);
     const commands = beatUntil(brain, world, world.tick + AI_PACING.decisionInterval * 2);
     // The hut is capped, so its resident is producing nothing at all. He is
-    // worth more carrying the pile to the storehouse than standing beside it.
-    expect(commands).toContainEqual({ kind: 'dismissWorker', buildingId: hut.id });
+    // worth more carrying the pile to the storehouse than standing beside it,
+    // and halting the hut is what hands him back.
+    expect(commands).toContainEqual({
+      kind: 'setBuildingPaused',
+      buildingId: hut.id,
+      paused: true,
+    });
     expect(brain.stallReport().recoveries).toBeGreaterThan(0);
+  });
+
+  it('starts the halted post again once its pile has shipped', () => {
+    // The other half of the trade: the hand was borrowed, not given away.
+    // A post left halted for the rest of the match is a hut thrown away.
+    const { world, brain, hut } = frozenVillage();
+    hut.paused = true;
+    hut.stock = {};
+    const commands = beatUntil(brain, world, AI_PACING.decisionInterval * 2);
+    expect(commands).toContainEqual({
+      kind: 'setBuildingPaused',
+      buildingId: hut.id,
+      paused: false,
+    });
+  });
+
+  it('leaves a halted post alone while the pile it was halted over still stands', () => {
+    const { world, brain, hut } = frozenVillage();
+    hut.paused = true; // stock is still at OUTPUT_CAP from frozenVillage
+    const commands = beatUntil(brain, world, AI_PACING.decisionInterval * 2);
+    expect(commands).not.toContainEqual({
+      kind: 'setBuildingPaused',
+      buildingId: hut.id,
+      paused: false,
+    });
   });
 
   it('the freed hand actually rejoins the haul pool', () => {
@@ -297,7 +327,7 @@ describe('the stall watchdog', () => {
     hut.stock = { wood: OUTPUT_CAP };
     const worker = world.units.get(hut.workerId!)!;
     worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
-    tickWorld(world, cmds({ kind: 'dismissWorker', buildingId: hut.id }));
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: true }));
     expect(worker.kind).toBe('serf');
     // Idle, or already claimed for a haul — either is in the pool. What is
     // fatal is a leftover gather task.
@@ -334,6 +364,61 @@ describe('the stall watchdog', () => {
       AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100,
     );
     expect(commands).not.toContainEqual({ kind: 'sellBuilding', buildingId: dead.id });
+  });
+
+  it('starts a threatened tower, and halts it again once the ground is quiet', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    tower.paused = true; // as one comes off the scaffold
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const beat = (): SimCommand[] => {
+      world.tick += AI_PACING.decisionInterval;
+      return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    };
+    const start = { kind: 'setBuildingPaused', buildingId: tower.id, paused: false };
+    const halt = { kind: 'setBuildingPaused', buildingId: tower.id, paused: true };
+
+    // Quiet ground: no reason to take anyone off a haul.
+    expect(beat()).not.toContainEqual(start);
+
+    // A raider walks into sight of the tower.
+    const raider = spawnUnit(world, 'bandit', BANDIT, 37.5, 38.5);
+    expect(beat()).toContainEqual(start);
+
+    // Not re-issued once it is actually running.
+    tower.paused = undefined;
+    expect(beat()).not.toContainEqual(start);
+
+    // He dies, and the hold keeps it running a while yet.
+    raider.dead = true;
+    expect(beat()).not.toContainEqual(halt);
+
+    // Past the hold it halts — which is the whole stand-down, villagers
+    // included, so there is one order and no more.
+    world.tick += LEVY_HOLD;
+    tower.garrison = 1;
+    tower.garrisonKind = 'serf';
+    const out = beat();
+    expect(out).toContainEqual(halt);
+    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toHaveLength(1);
+  });
+
+  it('never stands a tower its archers hold down, or up', () => {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
+    tower.garrisonKind = 'archer';
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    // Halting a tower stands its levy down; archers hold it either way, so
+    // an archer-held tower is halted on quiet ground and left there — the
+    // halt costs nothing, and there is never a second order about them.
+    expect(out).toContainEqual({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true });
+    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toHaveLength(1);
+    expect(tower.garrison).toBe(BUILDING_DEFS.guardTower.garrison!.capacity);
   });
 
   it('leaves a seat that is going somewhere byte-identical', () => {

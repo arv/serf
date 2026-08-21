@@ -25,7 +25,7 @@ import { combatSystem } from './systems/combat.ts';
 import { banditsSystem } from './systems/bandits.ts';
 import { victorySystem } from './systems/victory.ts';
 import { AUTO_RECIPE, TOOL_OF, buildingDef } from './defs/buildings.ts';
-import { CORPSE_TICKS, DISMISS_RESTAFF_BACKOFF, FORGE_QUEUE_CAP, HIRE_QUEUE_CAP, HIRE_SERF_COST } from './defs/balance.ts';
+import { CORPSE_TICKS, FORGE_QUEUE_CAP, HIRE_QUEUE_CAP, HIRE_SERF_COST } from './defs/balance.ts';
 import { TECH_DEFS } from './defs/techs.ts';
 import { canResearch, isBuildingUnlocked } from './techHelpers.ts';
 import { hasRoomToHire } from './population.ts';
@@ -137,40 +137,36 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       player.techs.active = { tech: cmd.tech, ticksLeft: TECH_DEFS[cmd.tech].durationTicks };
       break;
     }
-    case 'dismissWorker': {
-      // Release a resident back to the serf pool — the escape hatch when
-      // the loose pool is empty and something new must get built. The
-      // emptied post waits out a backoff before recruiting again, so the
-      // freed serf takes new work instead of being pulled straight back.
-      const b = world.buildings.get(cmd.buildingId);
-      if (!b || b.dead || b.owner !== playerId) break;
-      // A manned building gives a man back instead: one of the tower's
-      // archers climbs down and is a soldier on the field again. Same
-      // backoff, for the same reason — without it the sweep would walk him
-      // straight back up the stairs.
-      if (b.garrison) {
-        evictGarrison(world, b, 1);
-        b.staffBackoffUntil = world.tick + DISMISS_RESTAFF_BACKOFF;
-        break;
-      }
-      if (b.workerId === undefined) break;
-      const worker = world.units.get(b.workerId);
-      if (worker && !worker.dead) {
-        unbindWorker(world, worker);
-        b.staffBackoffUntil = world.tick + DISMISS_RESTAFF_BACKOFF;
-      }
-      break;
-    }
     case 'setBuildingPaused': {
       // Halt the workshop without breaking it up: production, input hauls
-      // and construction progress stop; the worker keeps the post and any
-      // finished stock still evacuates. The lever for 'the bowyer is
-      // eating all my wood'.
+      // and construction progress stop, and any finished stock still
+      // evacuates. The lever for 'the bowyer is eating all my wood'.
       const b = world.buildings.get(cmd.buildingId);
       if (!b || b.dead || b.owner !== playerId) break;
       const def = buildingDef(b.type);
       if (def.storage || def.isRoad || def.systemOnly) break;
       b.paused = cmd.paused || undefined;
+      // Halting also empties the post: the resident (or the site's builder)
+      // rejoins the serf pool, so the one lever is both 'stop eating my
+      // wood' and 'give me the hands back' — the escape hatch when the
+      // loose pool is empty and something new must get built. No backoff is
+      // needed: a halted post summons nobody for as long as it stands
+      // halted, and starting it again is what asks for a worker back.
+      if (cmd.paused && b.workerId !== undefined) {
+        const worker = world.units.get(b.workerId);
+        if (worker && !worker.dead) unbindWorker(world, worker);
+      }
+      // On a tower this one lever is the levy, both halves of it: halting
+      // stops villagers being called up AND sends the ones already up back
+      // to work. Keeping those apart left the order contradicting itself —
+      // a tower stood down but still holding two of the village's hands.
+      //
+      // Soldiers are untouched. They are not what the lever is about: an
+      // idle archer costs the village nothing, so there is never a reason
+      // to send one down, and a halted tower still takes any that turn up.
+      if (cmd.paused && def.garrison && b.garrisonKind === def.garrison.levy.unit) {
+        evictGarrison(world, b, b.garrison ?? 0);
+      }
       break;
     }
     case 'setBuildingRepair': {

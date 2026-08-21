@@ -9,20 +9,25 @@ function run(world: World, ticks: number): void {
 }
 
 /**
- * The pause lever: a halted building neither works its recipe nor calls
- * for inputs — the fix for a weaponsmith quietly eating the village's wood —
- * while the worker keeps the post and everything resumes on unpause.
+ * The pause lever: a halted building neither works its recipe nor calls for
+ * inputs — the fix for a weaponsmith quietly eating the village's wood — and
+ * it hands its worker back to the pool, which is the fix for a village that
+ * has spent its last hand on a post. Everything resumes on unpause.
  */
 describe('pausing a building', () => {
-  it('a paused weaponsmith stops converting and stops demanding wood', () => {
+  it('a paused weaponsmith stops converting, stops demanding wood, and sends its worker home', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { wood: 12, iron: 6 });
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto)
     staffBuilding(world, smith);
+    const worker = world.units.get(smith.workerId!)!;
     addSerf(world, 33, 33);
 
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: smith.id, paused: true }));
+    // The post empties on the order itself: the hand is loose again.
+    expect(smith.workerId).toBeUndefined();
+    expect(worker.kind).toBe('serf');
     run(world, 1200);
 
     // Nothing hauled in, nothing forged: the piles are untouched.
@@ -30,13 +35,15 @@ describe('pausing a building', () => {
     expect(sh.stock.iron).toBe(6);
     expect(smith.inputs.wood ?? 0).toBe(0);
     expect(smith.stock.spear ?? 0).toBe(0);
-    expect(smith.workerId).toBeDefined(); // the worker kept the post
+    // ...and nobody was quietly walked back into the post.
+    expect(smith.workerId).toBeUndefined();
     expect(checkInvariants(world).violations).toEqual([]);
 
-    // Unpause: materials flow and spears come out.
+    // Unpause: a worker is recruited, materials flow and spears come out.
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: smith.id, paused: false }));
     let guard = 0;
     while ((smith.stock.spear ?? 0) === 0 && guard++ < 4000) tickWorld(world, []);
+    expect(smith.workerId).toBeDefined();
     expect(smith.stock.spear ?? 0).toBeGreaterThan(0);
     expect(sh.stock.wood).toBeLessThan(12);
   });

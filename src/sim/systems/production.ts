@@ -440,9 +440,9 @@ export function consumePostTool(world: World, b: Building): boolean {
  * unit, so nobody ever picks him up again. He stands in the field forever,
  * counted against the population and eating, doing nothing. Two callers
  * (releaseObsoletePosts, the move order in tick.ts) already knew to reset the
- * task by hand and said so in their comments; `dismissWorker` and
- * `sellBuilding` did not, and both leaked a hand per use. Doing it here means
- * the next caller cannot forget.
+ * task by hand and said so in their comments; the dismiss order (since folded
+ * into pausing) and `sellBuilding` did not, and both leaked a hand per use.
+ * Doing it here means the next caller cannot forget.
  *
  * Whatever is in his hands stays there — logistics has a path for a free serf
  * still holding a good (rehomeCarriedGoods).

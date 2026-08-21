@@ -1,12 +1,13 @@
 import {
-  AUTO_RECIPE,
   BUILDING_DEFS,
+  TOOL_GOODS,
   TOOL_OF,
   gatherOrigin,
   gatherRecipeOf,
   OUTPUT_CAP,
   type BuildingTypeId,
 } from './defs/buildings.ts';
+import { FORGE_QUEUE_CAP } from './defs/balance.ts';
 import { findResourcesNear, nearestResource, RESOURCE_CODE } from './map.ts';
 import { WEAPON_OF } from './defs/units.ts';
 import type { AiStrategy } from './defs/aiStrategies.ts';
@@ -59,6 +60,7 @@ import type { World } from './world.ts';
 export type EconomyRuleId =
   | 'resiteExtractor'
   | 'freeCappedHauler'
+  | 'resumeDrainedPost'
   | 'keepTheToolsComing'
   | 'forgeTheCounter'
   | 'keepTheQueueWarm';
@@ -191,9 +193,9 @@ const resiteExtractor: EconomyRule = {
  * The post to empty is one whose output buffer is already full, which is
  * precisely a post producing nothing: its worker stands at a capped hut
  * waiting for a haul that cannot come. Freeing him costs no production at
- * all, and it is self-limiting — once he has drained the buffer the post is
- * under cap again, and staffing re-fills it when the dismissal backoff runs
- * out.
+ * all. Pausing is how a post is emptied — the one lever hands the resident
+ * back — and a halted post recruits nobody, so the order sticks until
+ * `resumeDrainedPost` below starts the place again once the pile is gone.
  *
  * Only a worker reading idle is taken. A hand released mid-trip used to be
  * lost for good; `unbindWorker` resets the task now, but a rule whose whole
@@ -214,115 +216,125 @@ const freeCappedHauler: EconomyRule = {
   fire(ctx) {
     if (!ctx.stalled || ctx.serfCount > 0) return null;
     for (const b of ctx.mine) {
-      if (b.state !== 'built' || b.workerId === undefined) continue;
+      if (b.state !== 'built' || b.paused || b.workerId === undefined) continue;
       const out = gatherRecipeOf(BUILDING_DEFS[b.type as BuildingTypeId])?.output;
       if (out === undefined || (b.stock[out] ?? 0) < OUTPUT_CAP) continue;
       const worker = ctx.world.units.get(b.workerId);
       if (!worker || worker.dead || worker.task.t !== 'idle') continue;
-      return { commands: [{ kind: 'dismissWorker', buildingId: b.id }], claims: [b.id] };
+      return {
+        commands: [{ kind: 'setBuildingPaused', buildingId: b.id, paused: true }],
+        claims: [b.id],
+      };
     }
     return null;
   },
 };
 
 /**
- * Keep the tools coming: lend the newest forge to the village.
+ * Keep the tools coming: order the tool a post is standing open for.
  *
- * A tool-gated post standing open with nothing on the way is production
- * lost every beat it waits, and no weapon order is worth a woodcutter that
- * never cuts. While any such post (or a site still owed its hammer) exists,
- * this rule holds the seat's LAST smith on auto — the sim's own auto
- * resolution then forges exactly the tool with the largest uncovered gap,
- * and idles once the racks are served (so holding auto too long costs
- * nothing). When the need passes, the same rule hands the forge back to the
- * playbook's weapon line; forgeTheCounter leaves auto smiths alone, which
- * is what keeps the two from fighting over one anvil.
+ * A tool-gated post with nothing on the way is production lost every beat
+ * it waits, and no weapon order is worth a woodcutter that never cuts. But
+ * the answer is an ORDER, not a forge: the first draft of this rule put the
+ * seat's last smith on auto for as long as any post was open, which on the
+ * Abbot's two-line plan meant its bow forge spent the match making axes —
+ * it reached the guard towers with no archers to put in them, and the
+ * playbook test said so. The queue exists exactly so a batch can jump the
+ * line without touching what the forge goes back to afterwards.
  *
- * The last smith rather than the first: the first follows the printed
- * weaponMix, and a village rich enough to raise a second forge can afford
- * to point it at itself.
+ * So: one order per beat, for the tool with a post waiting and none in
+ * reach, at the first smith that can forge it and has room. Claims nothing
+ * — enqueueing does not touch recipeIndex, so forgeTheCounter is free to
+ * keep steering the same anvil's standing work in the same beat.
  */
-const builtSmiths = (ctx: RuleContext): Building[] =>
-  ctx.mine.filter((b) => b.type === 'weaponsmith' && b.state === 'built');
-
-/** True while any tool-gated post stands open with nothing on the way, or
- * a site is still owed its hammer — the condition the village forge answers. */
-function toolNeed(ctx: RuleContext): boolean {
-  for (const b of ctx.mine) {
-    if (b.state === 'site') {
-      if (!b.paused && (b.siteNeeds?.hammer ?? 0) > 0 && (b.inbound.hammer ?? 0) === 0) {
-        return true;
-      }
-      continue;
-    }
-    if (b.state !== 'built' || b.paused) continue;
-    const tool = TOOL_OF[b.type];
-    if (tool === undefined) continue;
-    const worker = b.workerId !== undefined ? ctx.world.units.get(b.workerId) : undefined;
-    if (worker && !worker.dead) continue;
-    if ((b.inputs[tool] ?? 0) + (b.inbound[tool] ?? 0) > 0) continue;
-    return true;
-  }
-  return false;
-}
-
-/**
- * The smith keepTheToolsComing is responsible for this beat, or undefined
- * when every forge belongs to the war. One predicate shared with
- * forgeTheCounter — the two rules split the anvils by agreeing on this,
- * not by fighting over claims (a claim collision suppresses a whole
- * firing, which would silently unmanage the other smiths).
- */
-function toolSmith(ctx: RuleContext): Building | undefined {
-  const smiths = builtSmiths(ctx);
-  const last = smiths[smiths.length - 1];
-  if (!last) return undefined;
-  // Held while the village needs tools; also held one beat longer when the
-  // need has passed but the forge is still on auto, to hand it back.
-  return toolNeed(ctx) || last.recipeIndex === undefined ? last : undefined;
-}
-
-/** The weapon this smith seat would be ordered onto: the playbook mix by
- * smith age, counter-switched past the first — forgeTheCounter's line,
- * shared so a forge handed back joins it in one beat, not two. */
-function weaponWantFor(ctx: RuleContext, i: number): number | undefined {
-  let want = ctx.strategy.weaponMix[Math.min(i, ctx.strategy.weaponMix.length - 1)]!;
-  if (ctx.counter && i > 0) {
-    const opt = BUILDING_DEFS.weaponsmith.recipeOptions?.[ctx.counter.recipe];
-    if (opt && (opt.requiresTech === undefined || ctx.researched(opt.requiresTech))) {
-      want = ctx.counter.recipe;
-    }
-  }
-  const option = BUILDING_DEFS.weaponsmith.recipeOptions?.[want];
-  if (!option) return undefined;
-  if (option.requiresTech !== undefined && !ctx.researched(option.requiresTech)) return undefined;
-  return want;
-}
-
 const keepTheToolsComing: EconomyRule = {
   id: 'keepTheToolsComing',
-  when: 'a post stands open for a tool nobody has made, or holds a forge it no longer needs',
+  when: 'a post stands open for a tool nobody has made and nobody has ordered',
   phase: 'production',
   fire(ctx) {
-    const smith = toolSmith(ctx);
-    if (!smith) return null;
-    if (toolNeed(ctx)) {
-      // Sloppy on purpose: if the shelf already covers the gap, hauls fill
-      // it within a few beats and auto simply idles — holding the anvil
-      // (toolSmith keeps forgeTheCounter off it) is the part that matters.
-      if (smith.recipeIndex === undefined) return { commands: [], claims: [smith.id] };
+    const smiths = ctx.mine.filter(
+      (b) => b.type === 'weaponsmith' && b.state === 'built' && !b.paused,
+    );
+    if (smiths.length === 0) return null;
+
+    // What the village is short of: a post open for it with nothing on the
+    // way, or a site still owed the hammer it borrows.
+    const wanted = new Set<GoodId>();
+    for (const b of ctx.mine) {
+      if (b.state === 'site') {
+        if (!b.paused && (b.siteNeeds?.hammer ?? 0) > 0 && (b.inbound.hammer ?? 0) === 0) {
+          wanted.add('hammer');
+        }
+        continue;
+      }
+      if (b.state !== 'built' || b.paused) continue;
+      const tool = TOOL_OF[b.type];
+      if (tool === undefined) continue;
+      const worker = b.workerId !== undefined ? ctx.world.units.get(b.workerId) : undefined;
+      if (worker && !worker.dead) continue;
+      if ((b.inputs[tool] ?? 0) + (b.inbound[tool] ?? 0) > 0) continue;
+      wanted.add(tool);
+    }
+    if (wanted.size === 0) return null;
+
+    // TOOL_GOODS order, not set order: the same shortage must always pick
+    // the same tool, whatever order the buildings happened to be walked in.
+    for (const tool of TOOL_GOODS) {
+      if (!wanted.has(tool)) continue;
+      if ((ctx.stock[tool] ?? 0) > 0) continue; // one on the shelf is already coming
+      const index = BUILDING_DEFS.weaponsmith.recipeOptions!.findIndex(
+        (o) => (o.recipe.outputs[tool] ?? 0) > 0,
+      );
+      if (index < 0) return null;
+      const opt = BUILDING_DEFS.weaponsmith.recipeOptions![index]!;
+      if (opt.requiresTech !== undefined && !ctx.researched(opt.requiresTech)) continue;
+      // Already ordered anywhere? An order stands until its batch lands, so
+      // re-adding one every beat would fill five slots with the same axe.
+      if (smiths.some((b) => b.forgeQueue?.some((o) => o.recipeIndex === index))) continue;
+      const smith = smiths.find((b) => (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP);
+      if (!smith) return null;
       return {
-        commands: [{ kind: 'setBuildingRecipe', buildingId: smith.id, index: AUTO_RECIPE }],
-        claims: [smith.id],
+        commands: [{ kind: 'enqueueForge', buildingId: smith.id, recipeIndex: index }],
+        claims: [],
       };
     }
-    // Need met: back to the weapon this seat would be ordered onto anyway.
-    const want = weaponWantFor(ctx, builtSmiths(ctx).length - 1);
-    if (want === undefined || smith.recipeIndex === want) return null;
-    return {
-      commands: [{ kind: 'setBuildingRecipe', buildingId: smith.id, index: want }],
-      claims: [smith.id],
-    };
+    return null;
+  },
+};
+
+/**
+ * The other half of `freeCappedHauler`: start a drained post back up.
+ *
+ * A halted gatherer recruits nobody for as long as it stands halted, so the
+ * freed hand stays a hauler until this rule says otherwise. The pile the
+ * post was paused over still evacuates (paused buildings ship their stock),
+ * and once it is gone the post is producing ground again — unpausing puts
+ * it back on the staffing sweep's list, and the next idle hand mans it.
+ *
+ * Waiting for empty rather than merely under cap is deliberate: the whole
+ * point of the pause was the hauling, and reopening the post after one load
+ * would capture the hand with the rest of the pile still standing.
+ *
+ * Not gated on `stalled` — the stall clears precisely because the goods
+ * moved, and the rule must still fire afterwards or the post stays halted
+ * for the rest of the match. Gatherers are the only thing it touches, so
+ * the towers `#manTowers` stands down are never restarted from here.
+ */
+const resumeDrainedPost: EconomyRule = {
+  id: 'resumeDrainedPost',
+  when: 'a post paused to free its hand has shipped the last of its pile',
+  phase: 'recovery',
+  fire(ctx) {
+    const commands: SimCommand[] = [];
+    const claims: EntityId[] = [];
+    for (const b of ctx.mine) {
+      if (b.state !== 'built' || !b.paused) continue;
+      const out = gatherRecipeOf(BUILDING_DEFS[b.type as BuildingTypeId])?.output;
+      if (out === undefined || (b.stock[out] ?? 0) > 0) continue;
+      commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
+      claims.push(b.id);
+    }
+    return commands.length > 0 ? { commands, claims } : null;
   },
 };
 
@@ -345,15 +357,18 @@ const forgeTheCounter: EconomyRule = {
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
-    // The anvil keepTheToolsComing holds this beat is not this rule's to
-    // order (see toolSmith) — naming it would collide claims and suppress
-    // this whole firing, unmanaging every other smith.
-    const lent = toolSmith(ctx)?.id;
-    const smiths = builtSmiths(ctx);
+    const smiths = ctx.mine.filter((b) => b.type === 'weaponsmith' && b.state === 'built');
     smiths.forEach((smith, i) => {
-      if (smith.id === lent) return;
-      const want = weaponWantFor(ctx, i);
-      if (want === undefined) return;
+      let want = ctx.strategy.weaponMix[Math.min(i, ctx.strategy.weaponMix.length - 1)]!;
+      if (ctx.counter && i > 0) {
+        const opt = BUILDING_DEFS.weaponsmith.recipeOptions?.[ctx.counter.recipe];
+        if (opt && (opt.requiresTech === undefined || ctx.researched(opt.requiresTech))) {
+          want = ctx.counter.recipe;
+        }
+      }
+      const option = BUILDING_DEFS.weaponsmith.recipeOptions?.[want];
+      if (!option) return;
+      if (option.requiresTech !== undefined && !ctx.researched(option.requiresTech)) return;
       if (smith.recipeIndex !== want) {
         commands.push({ kind: 'setBuildingRecipe', buildingId: smith.id, index: want });
         claims.push(smith.id);
@@ -434,6 +449,7 @@ const keepTheQueueWarm: EconomyRule = {
 export const ECONOMY_RULES: readonly EconomyRule[] = [
   resiteExtractor,
   freeCappedHauler,
+  resumeDrainedPost,
   keepTheToolsComing,
   forgeTheCounter,
   keepTheQueueWarm,

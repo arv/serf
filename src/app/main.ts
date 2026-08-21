@@ -70,7 +70,7 @@ import { Terrain } from '../sim/map';
 import { inBounds, tileCount, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
 import { REPLAY_VERSION } from '../shared/replayVersion';
-import { WORLD_SAVE_VERSION } from '../shared/saveVersion';
+import { WORLD_SAVE_VERSION, canReadSave } from '../shared/saveVersion';
 import {
   envelopeSave,
   readSaveWorldVersion,
@@ -461,7 +461,7 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     // the URL is hand-editable, a save can be dropped in from anywhere,
     // and the GPU-loss handoff carries a name rather than a version.
     const written = readSaveWorldVersion(split.world);
-    if (written !== undefined && written !== WORLD_SAVE_VERSION) {
+    if (written !== undefined && !canReadSave(written)) {
       fatal(
         `${loadName !== null ? `The saved game "${loadName}"` : 'That saved game'} was ` +
           `written in save format ${written}; this build reads format ` +

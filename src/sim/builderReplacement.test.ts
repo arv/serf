@@ -70,8 +70,13 @@ describe("a builder's death never orphans the site", () => {
   });
 });
 
-describe('the dismiss escape hatch', () => {
-  it('breaks the no-silver/no-serfs deadlock: dismissed worker builds the new site', () => {
+/**
+ * Pausing is the escape hatch as well as the halt lever: the one order
+ * empties the post, which is what breaks a village that has spent its last
+ * hand on a hut and has nobody left to build with.
+ */
+describe('the pause escape hatch', () => {
+  it('breaks the no-silver/no-serfs deadlock: the freed worker builds the new site', () => {
     const world = bareWorld();
     // Silver is gone, and every last serf holds a post: nobody to haul,
     // nobody to build — the deadlock from the field report.
@@ -82,8 +87,8 @@ describe('the dismiss escape hatch', () => {
     expect(site.buildProgress ?? 0).toBe(0); // truly stuck
     expect((site.siteNeeds?.wood ?? 0)).toBeGreaterThan(0);
 
-    // The player releases one worker.
-    tickWorld(world, cmds({ kind: 'dismissWorker', buildingId: huts[0]!.id }));
+    // The player halts one hut, which hands its worker back.
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: huts[0]!.id, paused: true }));
     expect(huts[0]!.workerId).toBeUndefined();
 
     // With no further orders he hauls the materials, then — because sites
@@ -94,13 +99,56 @@ describe('the dismiss escape hatch', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
-  it('ignores a dismiss aimed at somebody else\x27s building', () => {
+  it('keeps the halted post empty rather than recruiting straight over the order', () => {
+    // The whole reason the freed hand is worth anything: a post that called
+    // for a replacement the moment one went idle would undo the order.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const hut = addBuiltHut(world, 25, 30);
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: true }));
+    run(world, 1200);
+    expect(hut.workerId).toBeUndefined();
+    expect(hut.recruitId).toBeUndefined();
+    expect(checkInvariants(world).violations).toEqual([]);
+
+    // Starting it again is what asks for a worker back.
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: false }));
+    let guard = 0;
+    while (hut.workerId === undefined && guard++ < 2000) tickWorld(world, []);
+    expect(hut.workerId).toBeDefined();
+  });
+
+  it('turns away a recruit who was already walking over when it was halted', () => {
+    const world = bareWorld();
+    // Stocked, so the site actually gets far enough to call for a builder —
+    // one is only summoned once the materials are in or in assigned hands.
+    addStorehouse(world, 30, 30, { wood: 20 });
+    const site = addSite(world, 36, 30);
+    for (let i = 0; i < 4; i++) addSerf(world, 32, 33 + i);
+    let guard = 0;
+    while (site.recruitId === undefined && guard++ < 2000) tickWorld(world, []);
+    expect(site.recruitId).toBeDefined();
+    const walker = world.units.get(site.recruitId!)!;
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: true }));
+    run(world, 600);
+    // He reached the door and was sent away, rather than binding to a post
+    // the player had just emptied on purpose.
+    expect(site.workerId).toBeUndefined();
+    expect(walker.homeId).toBeUndefined();
+    expect(walker.kind).toBe('serf');
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it("ignores a halt aimed at somebody else's building", () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, {});
     const hut = addBuiltHut(world, 25, 30);
     const worker = hut.workerId;
     expect(worker).toBeDefined();
-    tickWorld(world, [{ playerId: 1, cmd: { kind: 'dismissWorker', buildingId: hut.id } }]);
+    tickWorld(world, [
+      { playerId: 1, cmd: { kind: 'setBuildingPaused', buildingId: hut.id, paused: true } },
+    ]);
+    expect(hut.paused).toBeUndefined();
     expect(hut.workerId).toBe(worker); // player 1 cannot fire player 0's people
   });
 });

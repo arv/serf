@@ -1,3 +1,4 @@
+import { UNIT_DEFS } from './defs/units.ts';
 import { GOODS } from './defs/goods.ts';
 import type { World } from './world.ts';
 
@@ -85,6 +86,11 @@ export function hashWorld(world: World): number {
     // dropped it would play on as the same world until something walked
     // into range.
     mix(b.garrison ?? 0);
+    // Who is up there: it decides what the walls shoot for, and a save that
+    // dropped it would play on as the same world until something walked
+    // into range. (Whether the tower is calling anyone up is `paused`,
+    // which is mixed with the rest of the standing orders.)
+    mix(b.garrisonKind === undefined ? 0 : UNIT_DEFS[b.garrisonKind].kindCode);
     mix(b.attackCooldown ?? 0);
     // The forge's mind: standing order (255 = auto) and the queue ahead of
     // it steer batches for minutes — a save that dropped an order must not

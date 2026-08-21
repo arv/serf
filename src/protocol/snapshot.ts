@@ -26,8 +26,11 @@ import type { BuildingSnap, JobSnap, PlayerSnap } from './messages.ts';
 export function snapBuilding(world: World, b: Building): BuildingSnap {
   const def = buildingDef(b.type);
   let staffing: BuildingSnap['staffing'];
+  // A paused post is not asking for anyone — pausing emptied it on purpose —
+  // so it reports no staffing state rather than a false "needed" alarm.
   const wantsStaff =
-    b.state === 'built' ? def.workerKind !== undefined : b.state === 'site' && !def.isRoad;
+    !b.paused &&
+    (b.state === 'built' ? def.workerKind !== undefined : b.state === 'site' && !def.isRoad);
   if (wantsStaff) {
     const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
     staffing =
@@ -71,6 +74,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     forgeQueue: b.forgeQueue?.map((q) => ({ recipeIndex: q.recipeIndex, started: q.started })),
     garrison: def.garrison ? (b.garrison ?? 0) : undefined,
     garrisonCap: def.garrison?.capacity,
+    levied: def.garrison && b.garrisonKind === def.garrison.levy.unit ? true : undefined,
     // On cooldown means it loosed within the last volley's worth of ticks,
     // which is exactly the window the roof should be drawing a bow in.
     firing: (b.attackCooldown ?? 0) > 0 ? true : undefined,

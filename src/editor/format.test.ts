@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { bytesFromBase64, bytesToBase64 } from '../shared/base64.ts';
 import { Terrain, TileResource } from '../sim/map.ts';
 import { applyBrush } from './brush.ts';
 import { createBlankMap } from './editorMap.ts';
@@ -45,10 +46,39 @@ describe('map file validation', () => {
     return JSON.stringify(f);
   }
 
+  /** The grids are base64, so a test that wants one bad tile has to say it
+   * in bytes: decode, poke, re-encode. */
+  function poke(
+    f: EditorMapFile,
+    key: 'terrain' | 'resource' | 'resourceAmt',
+    tile: number,
+    value: number,
+  ): void {
+    const bytes = bytesFromBase64(f[key]);
+    bytes[tile] = value;
+    f[key] = bytesToBase64(bytes);
+  }
+
+  /** A height in world units, through the file's millimetre encoding. */
+  function pokeHeight(f: EditorMapFile, tile: number, value: number): void {
+    const bytes = bytesFromBase64(f.height);
+    new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).setInt16(
+      tile * 2,
+      Math.round(value * 1000),
+      true,
+    );
+    f.height = bytesToBase64(bytes);
+  }
+
+  function dropTile(f: EditorMapFile, key: 'terrain' | 'resource' | 'resourceAmt'): void {
+    const bytes = bytesFromBase64(f[key]);
+    f[key] = bytesToBase64(bytes.subarray(0, bytes.length - 1));
+  }
+
   it('rejects garbage and wrong tags', () => {
     expect(() => parseEditorMap('not json at all')).toThrow(/not JSON/);
     expect(() => parseEditorMap('{"format":"other"}')).toThrow(/format/);
-    expect(() => parseEditorMap(fileOf((f) => ((f as { version: number }).version = 2)))).toThrow(
+    expect(() => parseEditorMap(fileOf((f) => ((f as { version: number }).version = 3)))).toThrow(
       /version/,
     );
   });
@@ -65,12 +95,21 @@ describe('map file validation', () => {
     );
   });
 
-  it('rejects short arrays and out-of-range values', () => {
-    expect(() => parseEditorMap(fileOf((f) => f.terrain.pop()))).toThrow(/terrain/);
-    expect(() => parseEditorMap(fileOf((f) => (f.terrain[0] = 7)))).toThrow(/terrain value/);
-    expect(() => parseEditorMap(fileOf((f) => (f.resource[0] = 9)))).toThrow(/resource value/);
-    expect(() => parseEditorMap(fileOf((f) => (f.resourceAmt[0] = 300)))).toThrow(/amount/);
-    expect(() => parseEditorMap(fileOf((f) => (f.height[0] = Infinity)))).toThrow(/height/);
+  it('rejects short grids and out-of-range values', () => {
+    expect(() => parseEditorMap(fileOf((f) => dropTile(f, 'terrain')))).toThrow(/terrain/);
+    expect(() => parseEditorMap(fileOf((f) => (f.height = f.height.slice(4))))).toThrow(/height/);
+    expect(() => parseEditorMap(fileOf((f) => poke(f, 'terrain', 0, 7)))).toThrow(/terrain value/);
+    expect(() => parseEditorMap(fileOf((f) => poke(f, 'resource', 0, 9)))).toThrow(
+      /resource value/,
+    );
+    // Well inside what an int16 of millimetres holds, well outside a world.
+    expect(() => parseEditorMap(fileOf((f) => pokeHeight(f, 0, 9)))).toThrow(/height/);
+  });
+
+  it('rejects a grid that is not base64 at all', () => {
+    expect(() => parseEditorMap(fileOf((f) => (f.terrain = '~~ not base64 ~~')))).toThrow(
+      /terrain is not base64/,
+    );
   });
 
   it('rejects cross-field states the editor can never produce', () => {
@@ -78,9 +117,9 @@ describe('map file validation', () => {
     expect(() =>
       parseEditorMap(
         fileOf((f) => {
-          f.terrain[0] = Terrain.Water;
-          f.resource[0] = TileResource.Wood;
-          f.resourceAmt[0] = 6;
+          poke(f, 'terrain', 0, Terrain.Water);
+          poke(f, 'resource', 0, TileResource.Wood);
+          poke(f, 'resourceAmt', 0, 6);
         }),
       ),
     ).toThrow(/non-grass/);
@@ -88,8 +127,8 @@ describe('map file validation', () => {
     expect(() =>
       parseEditorMap(
         fileOf((f) => {
-          f.resource[0] = TileResource.Rock;
-          f.resourceAmt[0] = 0;
+          poke(f, 'resource', 0, TileResource.Rock);
+          poke(f, 'resourceAmt', 0, 0);
         }),
       ),
     ).toThrow(/no amount/);
@@ -97,8 +136,8 @@ describe('map file validation', () => {
     expect(() =>
       parseEditorMap(
         fileOf((f) => {
-          f.resource[0] = TileResource.None;
-          f.resourceAmt[0] = 5;
+          poke(f, 'resource', 0, TileResource.None);
+          poke(f, 'resourceAmt', 0, 5);
         }),
       ),
     ).toThrow(/without a resource/);
@@ -116,5 +155,59 @@ describe('map file validation', () => {
     expect(() => parseEditorMap(fileOf((f) => ((f as { players: number }).players = 5)))).toThrow(
       /player/,
     );
+  });
+});
+
+/**
+ * Version 1 is what the format looked like before the grids were base64:
+ * the same fields carrying plain number arrays, heights in world units.
+ * Nothing writes one any more, but a map saved in a browser's
+ * localStorage outlives the build that wrote it, so they still open.
+ */
+describe('version 1 files', () => {
+  type V1 = Omit<EditorMapFile, 'terrain' | 'resource' | 'resourceAmt' | 'height'> & {
+    terrain: unknown[];
+    resource: unknown[];
+    resourceAmt: unknown[];
+    height: unknown[];
+  };
+
+  function v1Of(mutate: (f: V1) => void = () => {}): string {
+    const f = JSON.parse(serializeEditorMap(sampleState())) as EditorMapFile;
+    const bytes = bytesFromBase64(f.height);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const height: number[] = [];
+    for (let i = 0; i < bytes.length / 2; i++) height.push(view.getInt16(i * 2, true) / 1000);
+    const old: V1 = {
+      ...f,
+      version: 1,
+      terrain: [...bytesFromBase64(f.terrain)],
+      resource: [...bytesFromBase64(f.resource)],
+      resourceAmt: [...bytesFromBase64(f.resourceAmt)],
+      height,
+    };
+    mutate(old);
+    return JSON.stringify(old);
+  }
+
+  it('open to the same map a version 2 file does', () => {
+    const state = sampleState();
+    const now = parseEditorMap(serializeEditorMap(state));
+    const then = parseEditorMap(v1Of());
+    expect(then.name).toBe(now.name);
+    expect(then.players).toBe(now.players);
+    expect(then.starts).toEqual(now.starts);
+    expect(then.map.terrain).toEqual(now.map.terrain);
+    expect(then.map.resource).toEqual(now.map.resource);
+    expect(then.map.resourceAmt).toEqual(now.map.resourceAmt);
+    expect(then.map.height).toEqual(now.map.height);
+  });
+
+  it('are still screened for what a JSON array can hold', () => {
+    expect(() => parseEditorMap(v1Of((f) => f.terrain.pop()))).toThrow(/terrain/);
+    expect(() => parseEditorMap(v1Of((f) => (f.terrain[0] = 'grass')))).toThrow(/terrain/);
+    expect(() => parseEditorMap(v1Of((f) => (f.resourceAmt[0] = 300)))).toThrow(/resourceAmt/);
+    // JSON writes a non-finite number as null; null must not read as 0.
+    expect(() => parseEditorMap(v1Of((f) => (f.height[0] = Infinity)))).toThrow(/height/);
   });
 });

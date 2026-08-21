@@ -20,6 +20,52 @@
  * directly.
  */
 /**
+ * 17: one lever where there were two — pausing a building now empties it.
+ *
+ * The dismiss order is gone, and halting a building does what it did: the
+ * resident (or a site's builder) walks off a serf again, a recruit already
+ * on his way is turned away at the door, and a halted post calls nobody up
+ * for as long as it stands halted — so the restaffing backoff the dismiss
+ * order needed is gone too. Starting the place again is what asks for a
+ * worker back. On a tower the lever was already the whole levy; it is now
+ * the whole of every other post as well.
+ *
+ * That moves the seats' commands (the stall watchdog's hauler rule halts a
+ * capped post instead of dismissing it, and starts it again once the pile
+ * has shipped) and it moves the sim: a command kind no longer exists, and
+ * the one that replaced it releases hands the old one left in place. A
+ * replay recorded before this build re-runs into a different village within
+ * a stall or two.
+ *
+ * 16: the opening armory goes back to two spears and a sword. Version 14
+ * traded the second spear for a bow that had to wait on Archery to be
+ * spent; the rack now holds only what a Soldiery rush can field on day
+ * one. The first recruits differ, so every tick after the first barracks
+ * order does too.
+ *
+ * 15: the guard tower learns to defend against a rush.
+ *
+ * Two changes to what it does with the men in it. Its garrison no longer
+ * takes the counter table's penalties, only its bonuses — those penalties
+ * model closing on a shooter, which a wall is precisely what prevents, and
+ * they had the tower at its weakest against the light raiders every early
+ * wave is made of. And a tower now takes a levy: villagers hold it with
+ * stones until archers exist to relieve them, so the stone buys something
+ * before Archery lands rather than three techs after a rush arrives.
+ *
+ * The levy is worked by the standing orders the game already had. A tower
+ * comes off the scaffold with its levy stood down (paused) and calls
+ * villagers up only while it is running; halting it sends the ones already
+ * up back to work. Soldiers man it either way and are never sent down. The
+ * AI seats start a tower when something hostile comes into sight of it and
+ * halt it once the ground is quiet, and price a levied tower into their
+ * picture of a defended base.
+ *
+ * Between them these change who is in a tower, what it shoots for and how
+ * fast, how many hands the village has left to haul with, and the commands
+ * the seats issue — so a replay recorded before this build re-runs into a
+ * different world within a raid or two.
+ *
  * 14: a batch of balance and content changes — the opening armory is one of
  * each weapon rather than two spears, every building's input and output
  * buffer holds five instead of four, and the guard tower exists: a new
@@ -37,4 +83,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 15;
+export const REPLAY_VERSION = 18;

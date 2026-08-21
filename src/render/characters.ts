@@ -20,6 +20,7 @@ export type AnimKey =
   | 'jog'
   | 'attack'
   | 'shoot'
+  | 'throw'
   | 'work'
   | 'pickaxe'
   | 'hammer'
@@ -60,6 +61,10 @@ const KK_CLIP_NAMES: Record<AnimKey, string> = {
   jog: 'Running_A',
   attack: 'Melee_1H_Attack_Chop',
   shoot: 'Ranged_Bow_Draw',
+  // The levy on a tower roof: an overhand lob, empty-handed. The pack's
+  // one throw, and it reads as a stone going over the parapet where the
+  // bow draw read as a man miming an archer he is not.
+  throw: 'Throw',
   // Real tool loops per work site.
   work: 'Chopping',
   pickaxe: 'Pickaxing',

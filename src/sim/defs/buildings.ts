@@ -1,6 +1,6 @@
 import { REPAIR_COST_SHARE } from './balance.ts';
 import type { GoodAmounts, GoodId } from './goods.ts';
-import type { UnitTypeId } from './units.ts';
+import type { UnitClass, UnitTypeId } from './units.ts';
 import type { TechId } from './techs.ts';
 
 /**
@@ -133,6 +133,31 @@ export interface BuildingDef {
     damageMult: number;
     /** Tiles of reach the height adds, on top of the unit's own range. */
     rangeBonus: number;
+    /**
+     * The villagers who hold the wall until there are soldiers to hold it.
+     *
+     * A tower's archers sit at the far end of the longest chain in the game
+     * — a research, a forge, a weapon, a course at the barracks — which is
+     * well past when a rush arrives. The levy is the answer to that: stones
+     * from the parapet, called for by hand and worth a fraction of a bow,
+     * but standing on the day the masons come off the scaffold.
+     *
+     * Its own stats rather than the serf's, because a serf has no combat
+     * block at all — a man with a rock is not a unit type, he is a job. Not
+     * multiplied by `damageMult` and not lengthened by `rangeBonus` either:
+     * the height is an archer's advantage to press, and leaning out to drop
+     * a stone is not aiming.
+     *
+     * A tower holds one kind or the other, never both (see garrisonKind):
+     * the first soldier to climb up sends the whole levy back down.
+     */
+    levy: {
+      unit: UnitTypeId;
+      class: UnitClass;
+      damage: number;
+      cooldownTicks: number;
+      range: number;
+    };
   };
 }
 
@@ -583,7 +608,21 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // in a tower already beat two men on the grass by being unkillable
     // while it stands, and a tower that also hit like four of them made
     // fielding an army the wrong move.
-    garrison: { unit: 'archer', capacity: 2, damageMult: 1.5, rangeBonus: 2 },
+    garrison: {
+      unit: 'archer',
+      capacity: 2,
+      damageMult: 1.5,
+      rangeBonus: 2,
+      // Four on a slow clock and a short reach — about a quarter of what
+      // the same two men do with bows. Enough that a raider arrives at the
+      // castle already hurt, never enough to be worth calling instead of
+      // training the archers.
+      //
+      // `light` rather than `ranged`: it is a rock and not a bow, and the
+      // light column is the one that does not flinch at the bandits every
+      // early wave is made of.
+      levy: { unit: 'serf', class: 'light', damage: 4, cooldownTicks: 30, range: 4 },
+    },
   },
   roadSite: {
     id: 'roadSite',

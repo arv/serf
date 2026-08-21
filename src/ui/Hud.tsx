@@ -121,7 +121,6 @@ export function Hud(props: {
   onFocus: (x: number, y: number) => void;
   onSelectArmy: () => void;
   onDeselect: () => void;
-  onDismiss: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
   onRepair: (buildingId: number, repair: boolean) => void;
   onTogglePause: (buildingId: number, paused: boolean) => void;
@@ -469,7 +468,7 @@ export function Hud(props: {
           padding: 5px 8px; border-radius: 12px;
         }
         .hud-resources span.res {
-          display: inline-flex; align-items: center; gap: 6px;
+          display: inline-flex; align-items: center; gap: 3px;
           padding: 3px 9px; border-radius: 8px;
           font-size: 13.5px; font-weight: 500; color: #e9e6dd;
           opacity: 0.35;
@@ -479,11 +478,18 @@ export function Hud(props: {
            a fixed slot one barn filling past 99 walks every chip
            sideways — the most-watched row on screen, twitching at
            whatever rate the village happens to produce. (Seven chips
-           now — five goods, population, the ledger — the other goods
-           live in the EconomyPanel.) Wrapping settles for the same
-           reason: the break lands in the same place every time,
-           because the widths never move. */
-        .hud-resources span.res .num { min-width: 3ch; }
+           now — five goods, population, the ledger — the rest of the
+           goods live in the EconomyPanel.) Wrapping settles for the
+           same reason: the break lands in the same place every time,
+           because the widths never move.
+
+           The digits sit at the left of that slot, against their icon:
+           right-aligned, a lone 0 stood two blank characters away from
+           the good it belonged to, which read as a gap between chips
+           rather than as one chip. Growing rightward into the slot's
+           own slack moves nothing downstream — the box is what holds
+           the strip still, not which end the digits start from. */
+        .hud-resources span.res .num { min-width: 3ch; text-align: left; }
         .hud-resources span.res:hover { background: rgba(255, 255, 255, 0.06); }
         .hud-resources span.res.has { opacity: 1; }
         /* Heads and beds. Ruled off from the goods because it is not one —
@@ -493,7 +499,10 @@ export function Hud(props: {
           border-left: 1px solid rgba(255, 255, 255, 0.14);
           color: #c8c4b5;
         }
-        .hud-resources span.res.pop .num { min-width: 3ch; }
+        /* Heads keep the right-aligned slot the goods just gave up: this
+           one is "8/10", and the head count growing a digit must push
+           into its own slack rather than shove the slash sideways. */
+        .hud-resources span.res.pop .num { min-width: 3ch; text-align: right; }
         /* The cap is the right-hand half of "8/10": left-aligned so the
            slash stays put between two slots that each grow outward. */
         .hud-resources span.res.pop .num.cap { text-align: left; }
@@ -981,7 +990,7 @@ export function Hud(props: {
           /* The goods strip is read at a glance and never touched, so
              it is the one thing that can afford to be small. */
           .hud-resources > div { padding: 3px 6px; }
-          .hud-resources span.res { padding: 2px 7px; font-size: 12.5px; gap: 4px; }
+          .hud-resources span.res { padding: 2px 7px; font-size: 12.5px; gap: 2px; }
           .hud-resources span.res .num,
           .hud-resources span.res.pop .num { min-width: 2.5ch; }
           #ui .hud-speed button.icon { width: 42px; height: 38px; }
@@ -1182,7 +1191,6 @@ export function Hud(props: {
           </span>
         </Show>
         <Show when={!netMode()}>
-          <span class="div"></span>
           <Show when={replayMode()}>
             <span
               class="net-chip"
@@ -1780,7 +1788,6 @@ export function Hud(props: {
           onHire={props.onHire}
           onDeselect={props.onDeselect}
           onArmOrder={props.onArmOrder}
-          onDismiss={props.onDismiss}
           onSell={props.onSell}
           onRepair={props.onRepair}
           onTogglePause={props.onTogglePause}
