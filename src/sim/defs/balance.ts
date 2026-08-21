@@ -3,6 +3,7 @@
  * this file holds cross-cutting knobs so a balance pass is one screen.
  */
 import type { GoodAmounts } from './goods.ts';
+import type { UnitClass } from './units.ts';
 
 export const TICKS_PER_SECOND = 20;
 export const TICK_MS = 1000 / TICKS_PER_SECOND;
@@ -106,12 +107,22 @@ export const ALE_TRAIN_SPEEDUP = 1.25;
 // Combat
 /**
  * What a soldier's blow is worth against a wall, as a share of what it does
- * to a man. Weapons are scaled for duels and stone does not bleed, so every
- * siege — raiders chewing the village and armies razing the camp alike —
- * runs at three quarters pace, buying the defenders a beat to answer before
- * a building comes down.
+ * to a man, by the arm that swings it. Weapons are scaled for duels and
+ * stone does not bleed, so every siege — raiders chewing the village and
+ * armies razing the camp alike — runs slower than a fight, buying the
+ * defenders a beat to answer before a building comes down.
+ *
+ * Melee at three quarters; the bow at a quarter, because an arrow against
+ * masonry is a scratch and ten archers were leveling the castle in the
+ * time it takes to march home. Archers keep a besieging army honest and
+ * finish a wooden hut, but bringing a wall down is work for men who can
+ * put their shoulders into it.
  */
-export const BUILDING_DAMAGE_MULT = 0.75;
+export const BUILDING_DAMAGE_MULT: Record<UnitClass, number> = {
+  heavy: 0.75,
+  light: 0.75,
+  ranged: 0.25,
+};
 
 // Raids — paced for the population economy's slower ramp (staffing every
 // building and mustering an army both consume people). Stretched by a fifth

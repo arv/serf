@@ -197,7 +197,7 @@ export function combatSystem(world: World): void {
       if (near <= Math.max(combat.range, 1.4)) {
         unit.path = null;
         if (unit.cooldownLeft <= 0) {
-          targetBuilding.hp -= UNIT_DEFS[unit.kind].combat!.damage * BUILDING_DAMAGE_MULT;
+          targetBuilding.hp -= combat.damage * BUILDING_DAMAGE_MULT[combat.class];
           if (isPlayerOwner(targetBuilding.owner)) {
             const c = centerOf(targetBuilding);
             world.pendingEvents.push({
@@ -451,14 +451,21 @@ function strikeUnit(world: World, attacker: Unit, defender: Unit): void {
       building: false,
     });
   }
-  // Fighting back: an idle victim with combat stats turns on its attacker.
-  // A victim under a disengage order is not idle — it was told to walk away,
-  // and the systems above will neither chase nor swing on its behalf, so
-  // handing it a target would only make it look like it is fighting back.
+  // Fighting back: an idle victim with combat stats turns on its attacker —
+  // and so does one hammering a wall, because the wall will keep and the man
+  // cutting him down will not. Building targets never drop on their own, so
+  // without this a besieger died without ever answering a blow: three camp
+  // guards could carve through ten target-locked archers who never loosed a
+  // shot in reply (the raid task re-acquires the camp once the threat is
+  // dead, so the siege resumes rather than being abandoned). A victim
+  // already fighting a unit keeps its fight, and one under a disengage order
+  // is not idle — it was told to walk away, and the systems above will
+  // neither chase nor swing on its behalf, so handing it a target would only
+  // make it look like it is fighting back.
   if (
     !defender.dead &&
     UNIT_DEFS[defender.kind].combat &&
-    defender.targetId === undefined &&
+    (defender.targetId === undefined || defender.targetIsBuilding) &&
     !isDisengaging(defender)
   ) {
     defender.targetId = attacker.id;
