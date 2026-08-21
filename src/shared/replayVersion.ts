@@ -20,32 +20,28 @@
  * directly.
  */
 /**
- * 19: halting a tower is the whole stand-down — it stops villagers being
- * called up and sends the ones already up back to work, where before it
- * only did the first and left them there. Soldiers are untouched by it.
+ * 15: the guard tower learns to defend against a rush.
  *
- * 18: the levy is worked by the standing orders the game already had rather
- * than an order of its own. A tower comes off the scaffold with its levy
- * stood down (paused) and calls villagers up only while it is running;
- * soldiers man it either way. The seats start a tower when something
- * hostile comes into sight of it and halt it after, which moves both the
- * commands they issue and when villagers are on a wall at all.
+ * Two changes to what it does with the men in it. Its garrison no longer
+ * takes the counter table's penalties, only its bonuses — those penalties
+ * model closing on a shooter, which a wall is precisely what prevents, and
+ * they had the tower at its weakest against the light raiders every early
+ * wave is made of. And a tower now takes a levy: villagers hold it with
+ * stones until archers exist to relieve them, so the stone buys something
+ * before Archery lands rather than three techs after a rush arrives.
  *
- * 17: the AI seats work the levy. A seat now rings a tower's bell when it
- * sees something hostile come into range of it and stands the villagers
- * down once the ground has been quiet, which moves both the commands the
- * seats issue and the hands their villages have on the job at any moment.
+ * The levy is worked by the standing orders the game already had. A tower
+ * comes off the scaffold with its levy stood down (paused) and calls
+ * villagers up only while it is running; halting it sends the ones already
+ * up back to work. Soldiers man it either way and are never sent down. The
+ * AI seats start a tower when something hostile comes into sight of it and
+ * halt it once the ground is quiet, and price a levied tower into their
+ * picture of a defended base.
  *
- * 16: the guard tower takes a levy. Villagers can be called up to hold it
- * with stones until archers exist to relieve them, which changes who is in
- * a tower, what it shoots for, and how many hands the village has left to
- * haul with — and the AI's picture of a defended base along with it.
- *
- * 15: a guard tower's garrison no longer takes the counter table's
- * penalties, only its bonuses. Those penalties model closing on a shooter,
- * which a wall is precisely what prevents, and they had the tower at its
- * weakest against the light raiders every early wave is made of. It changes
- * what a tower kills and how fast, which re-times every raid it touches.
+ * Between them these change who is in a tower, what it shoots for and how
+ * fast, how many hands the village has left to haul with, and the commands
+ * the seats issue — so a replay recorded before this build re-runs into a
+ * different world within a raid or two.
  *
  * 14: a batch of balance and content changes — the opening armory is one of
  * each weapon rather than two spears, every building's input and output
@@ -64,4 +60,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 19;
+export const REPLAY_VERSION = 15;
