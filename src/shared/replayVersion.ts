@@ -20,6 +20,15 @@
  * directly.
  */
 /**
+ * 19: sieges slow down and the castle hardens — damage against buildings
+ * lands at three quarters (BUILDING_DAMAGE_MULT), and the castle stands on
+ * 750 hp instead of 500. With them rides a pathfinder repair the new siege
+ * pace uncovered: the A* heap's lazy decrease-key rewrote a per-tile key
+ * under entries already in the heap, and the out-of-order pops that
+ * followed could push a reachable march over the runaway cap — an army
+ * frozen mid-map. Per-entry keys and an expanded-tile stamp fix the order,
+ * which also re-times every walk a corrupted pop ever steered.
+ *
  * 18: the tools economy (#103) — nine posts need a tool to work and the
  * Smith makes them all. Recorded here after the fact: that change moved
  * the number without leaving a line, and a gap in this list reads like a
@@ -88,4 +97,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 18;
+export const REPLAY_VERSION = 19;

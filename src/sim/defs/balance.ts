@@ -103,6 +103,16 @@ export const BARRACKS_ALE_CAP = 2;
  * ale in the cask just means the course runs at normal speed). */
 export const ALE_TRAIN_SPEEDUP = 1.25;
 
+// Combat
+/**
+ * What a soldier's blow is worth against a wall, as a share of what it does
+ * to a man. Weapons are scaled for duels and stone does not bleed, so every
+ * siege — raiders chewing the village and armies razing the camp alike —
+ * runs at three quarters pace, buying the defenders a beat to answer before
+ * a building comes down.
+ */
+export const BUILDING_DAMAGE_MULT = 0.75;
+
 // Raids — paced for the population economy's slower ramp (staffing every
 // building and mustering an army both consume people). Stretched by a fifth
 // when housing became a gate on that ramp: the castle sleeps ten, so the

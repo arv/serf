@@ -1,4 +1,5 @@
 import { COUNTER_TABLE, UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
+import { BUILDING_DAMAGE_MULT } from '../defs/balance.ts';
 import { buildingDef, type BuildingDef } from '../defs/buildings.ts';
 import { BANDIT, centerOf, isPlayerOwner, type Building } from '../entities.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
@@ -196,7 +197,7 @@ export function combatSystem(world: World): void {
       if (near <= Math.max(combat.range, 1.4)) {
         unit.path = null;
         if (unit.cooldownLeft <= 0) {
-          targetBuilding.hp -= UNIT_DEFS[unit.kind].combat!.damage;
+          targetBuilding.hp -= UNIT_DEFS[unit.kind].combat!.damage * BUILDING_DAMAGE_MULT;
           if (isPlayerOwner(targetBuilding.owner)) {
             const c = centerOf(targetBuilding);
             world.pendingEvents.push({

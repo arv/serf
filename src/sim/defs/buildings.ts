@@ -203,10 +203,13 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     cost: {},
     // The keep costs nothing to raise (it is where you start) but masons
     // still want paying to patch it: a notional price, dearer than a
-    // barracks, so mending 500 hp of wall is a real decision after a raid.
+    // barracks, so mending 750 hp of wall is a real decision after a raid.
     repairCost: { wood: 20, stone: 12 },
     buildTicks: 0,
-    hp: 500,
+    // Half again what any other wall carries: losing the keep is losing the
+    // game, so a wave that slips past the army should cost dearly-mended
+    // stone, not the campaign.
+    hp: 750,
     sight: 9,
     storage: true,
     // The keep's own quarters. Ten beds is two spare on the eight serfs the

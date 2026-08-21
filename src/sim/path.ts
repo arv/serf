@@ -32,7 +32,7 @@ export function tileSpeedMult(map: PathMap, idx: number): number {
 }
 
 /**
- * A* scratch, shared by every search in the process — ~200 KiB that would
+ * A* scratch, shared by every search in the process — a few MiB that would
  * otherwise be allocated per call.
  *
  * THE CONTRACT: `search()` must run to completion without yielding. It is
@@ -57,10 +57,24 @@ const cameFrom = new Int32Array(SCRATCH_TILES);
 const visited = new Int32Array(SCRATCH_TILES);
 let generation = 0;
 
-// Binary min-heap of tile indices keyed by fScore. Lazy decrease-key pushes
-// duplicates, so the heap is sized well beyond the tile count.
+// Binary min-heap of (tile, key) entries. Lazy decrease-key pushes
+// duplicates, so the heap is sized well beyond the tile count. The key
+// lives IN the entry, not in a per-tile array: with a shared per-tile key,
+// re-pushing a tile at a better score rewrote the key under every copy of
+// it already sitting in the heap, breaking the heap invariant — and the
+// out-of-order pops that followed made the search re-expand whole regions,
+// inflating `expansions` far past the walkable component. On the levy map
+// that pushed a reachable 100-tile march over the runaway cap, which is
+// exactly the "returns null on reachable ground" failure the cap's comment
+// forbids (an army-freezing bug, same shape as the seed-9 one).
 const heap = new Int32Array(SCRATCH_TILES * 8);
-const fScore = new Float32Array(SCRATCH_TILES);
+const heapKey = new Float32Array(SCRATCH_TILES * 8);
+// Expanded-tile stamps: with per-entry keys the first pop of a tile is its
+// best (the heuristic is consistent — 0.7 per tile under the 0.72 road
+// step), so later duplicate pops are settled work. Skipping them, without
+// charging the cap, is what makes `expansions` honestly "unique tiles" and
+// restores the cap's floor: only a genuinely unreachable goal can hit it.
+const closed = new Int32Array(SCRATCH_TILES);
 let heapSize = 0;
 
 /**
@@ -76,41 +90,49 @@ let heapSize = 0;
 function nextGeneration(): number {
   if (generation === 0x7fffffff) {
     visited.fill(0);
+    closed.fill(0);
     generation = 0;
   }
   return ++generation;
 }
 
 function heapPush(idx: number, f: number): void {
-  fScore[idx] = f;
   let i = heapSize++;
   heap[i] = idx;
+  heapKey[i] = f;
   while (i > 0) {
     const parent = (i - 1) >> 1;
-    if (fScore[heap[parent]!]! <= fScore[heap[i]!]!) break;
+    if (heapKey[parent]! <= heapKey[i]!) break;
     const t = heap[parent]!;
+    const k = heapKey[parent]!;
     heap[parent] = heap[i]!;
+    heapKey[parent] = heapKey[i]!;
     heap[i] = t;
+    heapKey[i] = k;
     i = parent;
   }
 }
 
 function heapPop(): number {
   const top = heap[0]!;
-  const last = heap[--heapSize]!;
+  const last = --heapSize;
   if (heapSize > 0) {
-    heap[0] = last;
+    heap[0] = heap[last]!;
+    heapKey[0] = heapKey[last]!;
     let i = 0;
     for (;;) {
       const l = i * 2 + 1;
       const r = l + 1;
       let smallest = i;
-      if (l < heapSize && fScore[heap[l]!]! < fScore[heap[smallest]!]!) smallest = l;
-      if (r < heapSize && fScore[heap[r]!]! < fScore[heap[smallest]!]!) smallest = r;
+      if (l < heapSize && heapKey[l]! < heapKey[smallest]!) smallest = l;
+      if (r < heapSize && heapKey[r]! < heapKey[smallest]!) smallest = r;
       if (smallest === i) break;
       const t = heap[smallest]!;
+      const k = heapKey[smallest]!;
       heap[smallest] = heap[i]!;
+      heapKey[smallest] = heapKey[i]!;
       heap[i] = t;
+      heapKey[i] = k;
       i = smallest;
     }
   }
@@ -160,6 +182,8 @@ function search(
   let expansions = 0;
   while (heapSize > 0) {
     const current = heapPop();
+    if (closed[current] === generation) continue; // a settled tile's stale duplicate
+    closed[current] = generation;
     if (isGoal(current)) return reconstruct(start, current);
     // The runaway-search cap. Its only job is bounding an UNREACHABLE
     // search, which expands the whole walkable component before it can
