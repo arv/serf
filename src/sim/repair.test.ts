@@ -84,7 +84,7 @@ describe('repairing a building', () => {
     expect(world.jobs.size).toBe(0);
 
     // The goods are spent, but the wall is not back yet: the masons have
-    // 250 hp to put on at 500/REPAIR_MEND_TICKS a tick, less the one tick
+    // 375 hp to put on at 750/REPAIR_MEND_TICKS a tick, less the one tick
     // of it they did on the tick the order landed.
     expect(sh.repairPending).toBeCloseTo(max / 2 - max / REPAIR_MEND_TICKS);
     expect(sh.hp).toBeLessThan(max);
@@ -97,15 +97,15 @@ describe('repairing a building', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { wood: 40, stone: 40 });
     const max = buildingDef('storehouse').hp;
-    sh.hp = max - 20;
+    sh.hp = max - 40;
 
     tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: sh.id, repair: true }));
     const rate = max / REPAIR_MEND_TICKS;
-    // One tick of masonry per tick, and no more — a 20 hp scratch is four
-    // fifths of a second of work, not a step change on the tick it is paid.
-    expect(sh.hp).toBeCloseTo(max - 20 + rate);
+    // One tick of masonry per tick, and no more — a 40 hp scratch is half a
+    // second of work, not a step change on the tick it is paid.
+    expect(sh.hp).toBeCloseTo(max - 40 + rate);
     run(world, 5);
-    expect(sh.hp).toBeCloseTo(max - 20 + rate * 6);
+    expect(sh.hp).toBeCloseTo(max - 40 + rate * 6);
     expect(sh.hp).toBeLessThan(max);
 
     runRepair(world, sh.id);
