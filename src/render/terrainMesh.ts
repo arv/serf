@@ -60,6 +60,8 @@ export class TerrainMesh {
   readonly mesh: THREE.Mesh;
   #colorAttr: THREE.BufferAttribute;
   #geometry: THREE.PlaneGeometry;
+  /** #geometry.attributes.position, memoized — see #paintVertex. */
+  #pos?: THREE.BufferAttribute | THREE.InterleavedBufferAttribute;
   #map: MapView;
   #heights: HeightField;
   #size: number;
@@ -376,7 +378,9 @@ export class TerrainMesh {
 
   /** Color one vertex from the current per-tile fields. */
   #paintVertex(v: number): void {
-    const pos = this.#geometry.attributes.position!;
+    // Fetched once per painted vertex, and repaintAll paints every vertex
+    // on the terrain — the attribute is the same object every time.
+    const pos = this.#pos ?? (this.#pos = this.#geometry.attributes.position!);
     const c = SCRATCH;
     const x = pos.getX(v);
     const z = pos.getZ(v);

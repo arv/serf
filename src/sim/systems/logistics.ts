@@ -137,7 +137,12 @@ function suspended(world: World, b: Building, good: GoodId): boolean {
  */
 function clearDemandAge(b: Building, good: GoodId): void {
   if ((b.repairNeeds?.[good] ?? 0) > 0) return;
-  delete b.demandSince[good];
+  // Only delete a key that is actually there. `delete` on an absent key is
+  // already a no-op, so this is the same clear — but it is reached once per
+  // good per building per matcher pass, and deleting from a building's
+  // demandSince is what tips that object into V8's dictionary mode, which
+  // then taxes every read of it everywhere else in the sim.
+  if (b.demandSince[good] !== undefined) delete b.demandSince[good];
 }
 
 function match(world: World): void {
@@ -200,7 +205,14 @@ function match(world: World): void {
     // else the standing order, else auto's pick — so a forge queued onto
     // bows does not sit calling for iron (and an auto Smith with every
     // tool gap covered calls for nothing at all).
-    const convert = def.recipeOptions ? forgeDemandRecipe(world, b, def) : convertRecipeOf(def, b);
+    // A halted post raises no demand, so resolving what it would forge is
+    // work for an answer the next line throws away — and at a Smith that
+    // answer costs a census of the whole village (autoForgeIndex).
+    const convert = b.paused
+      ? undefined
+      : def.recipeOptions
+        ? forgeDemandRecipe(world, b, def)
+        : convertRecipeOf(def, b);
     if (convert && !b.paused) {
       for (const good of Object.keys(convert.inputs) as GoodId[]) {
         const want = INPUT_CAP - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
