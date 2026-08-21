@@ -43,7 +43,7 @@ describe('releasing a worker', () => {
     const worker = world.units.get(hut.workerId!)!;
     worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
 
-    tickWorld(world, cmds({ kind: 'dismissWorker', buildingId: hut.id }));
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: true }));
 
     expect(worker.kind).toBe('serf');
     // Idle, or already claimed for a haul — either is in the pool. What is

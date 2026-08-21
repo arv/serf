@@ -20,7 +20,6 @@ export type SimCommand =
   | { kind: 'moveUnits'; unitIds: EntityId[]; x: number; y: number; attack?: true | 'half' }
   | { kind: 'placeBuilding'; building: BuildingTypeId; x: number; y: number }
   | { kind: 'hireSerf' }
-  | { kind: 'dismissWorker'; buildingId: EntityId }
   | { kind: 'sellBuilding'; buildingId: EntityId }
   | { kind: 'setBuildingPaused'; buildingId: EntityId; paused: boolean }
   | { kind: 'setBuildingRepair'; buildingId: EntityId; repair: boolean }
@@ -109,9 +108,6 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       return { kind: 'placeBuilding', building: c.building as BuildingTypeId, x: c.x, y: c.y };
     case 'hireSerf':
       return { kind: 'hireSerf' };
-    case 'dismissWorker':
-      if (!isId(c.buildingId)) return null;
-      return { kind: 'dismissWorker', buildingId: c.buildingId };
     case 'sellBuilding':
       if (!isId(c.buildingId)) return null;
       return { kind: 'sellBuilding', buildingId: c.buildingId };
