@@ -113,6 +113,12 @@ export class GameRenderer {
    * the rig — and through it this renderer, the scene, and every geometry
    * and texture the match uploaded.
    */
+  /** Draw-call / triangle counters for the last rendered frame. Read by
+   * the DEV console handle and the screenshot tooling. */
+  get info(): THREE.WebGLRenderer['info'] {
+    return this.#webgl.info;
+  }
+
   dispose(): void {
     this.#observer.disconnect();
     window.removeEventListener('resize', this.#onWindowResize);

@@ -947,6 +947,7 @@ async function runMatch(
     // world->screen math (the wardrobe exposes its own pair).
     Object.assign(window as unknown as Record<string, unknown>, {
       __fog: fog,
+      __renderer: renderer,
       __rig: renderer.rig,
       __heights: heights,
       __damageAlerts: damageAlerts,
