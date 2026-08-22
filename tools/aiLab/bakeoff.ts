@@ -84,6 +84,9 @@ interface Options {
   economyRules?: readonly EconomyRuleId[];
   out: string | undefined;
   jobs: number;
+  /** Wall-clock ceiling per --jobs child before the parent kills it and
+   * scores the trial crashed — the guarantee matchWorker.ts promises. */
+  matchTimeoutMs: number;
 }
 
 const USAGE = `
@@ -125,6 +128,11 @@ serf-valley LLM strategist bake-off
                        (default: 1). Identical results to --jobs 1 for every
                        engine except http, where it also means concurrent
                        requests — size the server's --parallel to match.
+  --match-timeout-ms <n>
+                       wall-clock ceiling per --jobs child before it is
+                       killed and its trial scored crashed (default:
+                       600000). One wedged match must not hang the sweep;
+                       raise this if an http engine is merely slow.
   --out <path>         write one JSON line per match here
   --help
 
@@ -238,6 +246,11 @@ export function parseArgs(argv: string[]): Options {
     throw new Error(`--timeout-ms wants a positive number of milliseconds, got "${timeoutRaw}"`);
   }
 
+  const matchTimeoutMs = num('--match-timeout-ms', 600_000);
+  if (matchTimeoutMs <= 0) {
+    throw new Error(`--match-timeout-ms wants a positive number of milliseconds, got "${matchTimeoutMs}"`);
+  }
+
   return {
     spec: parseEngineSpec(get('--engine') ?? 'random', get('--model') ?? 'local-model'),
     seeds: parseSeeds(seedLabel),
@@ -256,6 +269,7 @@ export function parseArgs(argv: string[]): Options {
     ...(economyRules !== undefined ? { economyRules } : {}),
     out: get('--out'),
     jobs,
+    matchTimeoutMs,
   };
 }
 
@@ -319,12 +333,35 @@ function playInWorker(t: Trial, opts: Options, base: MatchBase): Promise<MatchRe
     const child = spawn(process.execPath, ['--experimental-strip-types', workerPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    // The kill matchWorker.ts promises. A wedged child — a sim loop that
+    // never ends, an http engine ignoring its own deadline — used to hold
+    // its pool lane forever: the sweep never finished and the report (and
+    // its crash accounting) never printed. SIGKILL, not SIGTERM: a process
+    // stuck in synchronous JS never services a catchable signal.
+    let timedOut = false;
+    const watchdog = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, opts.matchTimeoutMs);
     const out: Buffer[] = [];
     const errText: Buffer[] = [];
     child.stdout.on('data', (chunk: Buffer) => out.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => errText.push(chunk));
-    child.on('error', reject);
+    child.on('error', (err) => {
+      clearTimeout(watchdog);
+      reject(err);
+    });
     child.on('close', (code) => {
+      clearTimeout(watchdog);
+      if (timedOut) {
+        reject(
+          new Error(
+            `no result after ${opts.matchTimeoutMs}ms — worker killed ` +
+              '(a wedged match, or raise --match-timeout-ms for a slow engine)',
+          ),
+        );
+        return;
+      }
       if (code !== 0) {
         reject(new Error(Buffer.concat(errText).toString('utf8').trim() || `worker exited ${code}`));
         return;
