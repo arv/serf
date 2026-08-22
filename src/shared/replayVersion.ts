@@ -28,7 +28,7 @@
  * first now lands a tick sooner, and every fight in reach of one
  * re-times with it.
  *
-23: the between-waves raid clock scales by the playable span, as the
+ * 23: the between-waves raid clock scales by the playable span, as the
  * opening peace always did. banditsSystem was passing the full grid side
  * (2x the playable side on every generated map) to raidIntervalFor, so
  * every wave after the first arrived at half the tuned pressure — 540s

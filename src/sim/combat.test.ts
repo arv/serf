@@ -592,7 +592,7 @@ describe('the guard tower', () => {
       if (raider.hp < last) fires.push(t);
       last = raider.hp;
     }
-    expect(fires[0]).toBe(0); // the cooldown starts at zero, so tick one fires
+    expect(fires[0]).toBe(0); // the cooldown starts at zero: the very first tick (t = 0) fires
     expect(fires.length).toBeGreaterThanOrEqual(3);
     for (let i = 1; i < fires.length; i++) {
       expect(fires[i]! - fires[i - 1]!).toBe(combat.cooldownTicks);
