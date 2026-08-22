@@ -333,52 +333,61 @@ function playInWorker(t: Trial, opts: Options, base: MatchBase): Promise<MatchRe
     const child = spawn(process.execPath, ['--experimental-strip-types', workerPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    // One settle, whoever gets there first: the watchdog must not wait for
+    // a close that a truly stuck process might never emit, and a close (or
+    // spawn error) arriving after the watchdog already scored the trial
+    // must change nothing.
+    let settled = false;
+    const settle = (finish: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(watchdog);
+      finish();
+    };
     // The kill matchWorker.ts promises. A wedged child — a sim loop that
     // never ends, an http engine ignoring its own deadline — used to hold
     // its pool lane forever: the sweep never finished and the report (and
-    // its crash accounting) never printed. SIGKILL, not SIGTERM: a process
-    // stuck in synchronous JS never services a catchable signal.
-    let timedOut = false;
+    // its crash accounting) never printed. The trial is scored crashed the
+    // moment the deadline passes; the SIGKILL is best-effort on top
+    // (SIGKILL, not SIGTERM: a process stuck in synchronous JS never
+    // services a catchable signal — and one the kernel cannot reap frees
+    // the lane anyway, which is the guarantee that matters).
     const watchdog = setTimeout(() => {
-      timedOut = true;
+      settle(() =>
+        reject(
+          new Error(
+            `no result after ${opts.matchTimeoutMs}ms — worker killed ` +
+              '(a wedged match, or raise --match-timeout-ms for a slow engine)',
+          ),
+        ),
+      );
       try {
         child.kill('SIGKILL');
       } catch {
-        // Already gone between scheduling and firing — the close handler
-        // settles the trial either way.
+        // Already gone between scheduling and firing.
       }
     }, opts.matchTimeoutMs);
     const out: Buffer[] = [];
     const errText: Buffer[] = [];
     child.stdout.on('data', (chunk: Buffer) => out.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => errText.push(chunk));
-    child.on('error', (err) => {
-      clearTimeout(watchdog);
-      reject(err);
-    });
+    child.on('error', (err) => settle(() => reject(err)));
     child.on('close', (code, signal) => {
-      clearTimeout(watchdog);
-      if (timedOut) {
-        reject(
-          new Error(
-            `no result after ${opts.matchTimeoutMs}ms — worker killed ` +
-              '(a wedged match, or raise --match-timeout-ms for a slow engine)',
-          ),
-        );
-        return;
-      }
-      if (code !== 0) {
-        // A signal death arrives as code null + the signal's name — the OOM
-        // killer, a stray kill — and 'worker exited null' would bury that.
-        const why = signal !== null ? `worker killed by ${signal}` : `worker exited ${code}`;
-        reject(new Error(Buffer.concat(errText).toString('utf8').trim() || why));
-        return;
-      }
-      try {
-        resolve(JSON.parse(Buffer.concat(out).toString('utf8')) as MatchRecord);
-      } catch {
-        reject(new Error('worker produced unparseable output'));
-      }
+      settle(() => {
+        if (code !== 0) {
+          // A signal death arrives as code null + the signal's name — the
+          // OOM killer, a stray kill — and 'worker exited null' would bury
+          // that.
+          const why = signal !== null ? `worker killed by ${signal}` : `worker exited ${code}`;
+          reject(new Error(Buffer.concat(errText).toString('utf8').trim() || why));
+          return;
+        }
+        try {
+          resolve(JSON.parse(Buffer.concat(out).toString('utf8')) as MatchRecord);
+        } catch {
+          reject(new Error('worker produced unparseable output'));
+        }
+      });
     });
     child.stdin.end(JSON.stringify(task));
   });
