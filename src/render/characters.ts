@@ -715,10 +715,8 @@ export function charactersReady(): boolean {
   return kkAssets !== null;
 }
 
-/** A boot sole projected onto the ground, in world units, centered. */
+/** A boot sole's ground measurements, in world units. */
 export interface Sole {
-  /** (x, z) outline samples; +z is the toe (the model's facing). */
-  points: [number, number][];
   width: number;
   length: number;
   /** How far the foot stands off the body's centerline — the natural
@@ -727,11 +725,12 @@ export interface Sole {
 }
 
 /**
- * The serf's left sole: the vertices of the Rogue's boot (the serf body),
- * projected onto the ground and scaled to world units — so the footprint
- * layer stamps the actual boot the villagers wear, not an invented one.
- * Every pack character stands on the same rig with near-identical boots,
- * so one sole serves all kinds. Null until the character assets load.
+ * The serf's left sole, measured off the Rogue's boot (the serf body):
+ * its foot-boned vertices projected onto the ground and scaled to world
+ * units — so the footprint layer stamps prints the size and stance of the
+ * boots the villagers actually wear. Every pack character stands on the
+ * same rig with near-identical boots, so one sole serves all kinds. Null
+ * until the character assets load.
  */
 export function serfSole(): Sole | null {
   const char = kkAssets?.chars.get('Rogue');
@@ -773,24 +772,21 @@ export function serfSole(): Sole | null {
   let x1 = -Infinity;
   let z0 = Infinity;
   let z1 = -Infinity;
-  const sole: [number, number][] = [];
+  let n = 0;
   for (const p of pts) {
     if (p[1] > cut) continue;
-    sole.push([p[0], p[2]]);
+    n++;
     x0 = Math.min(x0, p[0]);
     x1 = Math.max(x1, p[0]);
     z0 = Math.min(z0, p[2]);
     z1 = Math.max(z1, p[2]);
   }
-  if (sole.length < 8) return null;
+  if (n < 8) return null;
   const s = char.scale;
-  const cx = (x0 + x1) / 2;
-  const cz = (z0 + z1) / 2;
   return {
-    points: sole.map(([x, z]) => [(x - cx) * s, (z - cz) * s]),
     width: (x1 - x0) * s,
     length: (z1 - z0) * s,
-    offset: Math.abs(cx) * s,
+    offset: (Math.abs(x0 + x1) / 2) * s,
   };
 }
 

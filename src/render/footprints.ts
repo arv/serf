@@ -11,6 +11,9 @@ import type { HeightField } from './heightField';
 
 /** How long a print stays on the ground, in (unpaused) real seconds. */
 export const PRINT_LIFE_S = 30;
+/** A fresh print's strength: pressed into the turf, not stamped in ink —
+ * the ground shows through from the first frame. */
+const PRINT_ALPHA = 0.55;
 /** Tiles of march between successive prints — one footfall per stride. */
 export const STRIDE = 0.45;
 /**
@@ -200,7 +203,7 @@ export class Footprints {
     geometry.setAttribute('aBirth', this.#birth);
 
     const material = new THREE.MeshLambertMaterial({
-      map: makeFootprintSprite(sole),
+      map: makeFootprintSprite(),
       transparent: true,
       // A skin on the ground, like the road decal: depth-tested against the
       // world but never written, nudged off the terrain to kill z-fighting.
@@ -232,9 +235,10 @@ export class Footprints {
           /* glsl */ `#include <begin_vertex>
           {
             // Full strength for the first third of the print's life, then
-            // a straight fade to nothing over the rest.
+            // a straight fade to nothing over the rest — all under the base
+            // press-in strength.
             float age = (uNow - aBirth) / ${PRINT_LIFE_S.toFixed(1)};
-            vFade = clamp(1.5 - age * 1.5, 0.0, 1.0);
+            vFade = ${PRINT_ALPHA.toFixed(2)} * clamp(1.5 - age * 1.5, 0.0, 1.0);
           }`,
         );
       shader.fragmentShader = shader.fragmentShader
