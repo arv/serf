@@ -20,6 +20,14 @@
  * directly.
  */
 /**
+ * 22: pausing a guard-tower construction site sticks. The staffing
+ * exemption that keeps a BUILT tower's door open to soldiers while it is
+ * halted also matched the tower's site, so a paused scaffold kept
+ * summoning and re-binding the builder the order had just released — the
+ * pause silently undone, one hand bound doing nothing. The exemption now
+ * asks for a built tower. Any log in which a tower site sat paused staffs
+ * differently from that order on.
+ *
  * 21: trails come sooner and linger — the trail pass (which runs every
  * TRAILS_INTERVAL ticks, checking each tile after its wear decay) now
  * turns worn grass into a dirt trail at 10 wear instead of 12, and
@@ -117,4 +125,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 21;
+export const REPLAY_VERSION = 22;
