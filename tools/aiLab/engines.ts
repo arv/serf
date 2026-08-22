@@ -130,10 +130,13 @@ export function buildEngine(spec: EngineSpec, salt: number): LabEngine | null {
       return scriptEngine(spec.reply);
     case 'random':
       return randomEngine(spec.seed * 1_000_003 + salt);
+    // describeSpec is the one author of these labels: engine.label rides
+    // every advised[] JSONL line and describeSpec the report header, and a
+    // divergence files the two halves of one run under different names.
     case 'posture':
-      return postureEngine(choosePosture, 'posture (rule-based)');
+      return postureEngine(choosePosture, describeSpec(spec));
     case 'postureReads':
-      return postureEngine(choosePostureReadingOpponent, 'posture-reads (rule-based, reads the opponent)');
+      return postureEngine(choosePostureReadingOpponent, describeSpec(spec));
     case 'postureFixed':
       return scriptEngine({ posture: spec.posture, reason: 'fixed' });
     case 'http':

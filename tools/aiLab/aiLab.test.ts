@@ -105,6 +105,12 @@ describe('engine specs', () => {
     expect(describeSpec({ kind: 'posture' })).toBe('posture (rule-based, no model)');
     expect(describeSpec({ kind: 'postureReads' })).toContain('opponent');
     expect(describeSpec({ kind: 'posture' })).not.toContain('opponent');
+    // One archive names an arm twice — the report header via describeSpec,
+    // each advised[] JSONL line via engine.label — and both spellings must
+    // be the same word or the file disagrees with itself.
+    for (const kind of ['posture', 'postureReads'] as const) {
+      expect(buildEngine({ kind }, 0)?.label).toBe(describeSpec({ kind }));
+    }
   });
 
   it('refuses what it cannot run rather than guessing', () => {
