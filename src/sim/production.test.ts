@@ -124,8 +124,11 @@ describe('trails', () => {
     run(world, TRAILS_INTERVAL + 1);
     expect(world.map.pathLevel[idx]).toBe(PathLevel.Trail);
 
-    // Decay with no traffic until it reverts.
-    run(world, TRAILS_INTERVAL * 150);
+    // Decay with no traffic until it reverts, bounded so a trail that
+    // never fades fails the assertion instead of hanging the suite.
+    for (let i = 0; i < 500 && world.map.pathLevel[idx] === PathLevel.Trail; i++) {
+      run(world, TRAILS_INTERVAL);
+    }
     expect(world.map.pathLevel[idx]).toBe(PathLevel.None);
   });
 

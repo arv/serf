@@ -20,10 +20,12 @@
  * directly.
  */
 /**
- * 20: trails come sooner and linger — a dirt trail now forms at 10 wear
- * instead of 12, and an unused one holds on down to 0.75 wear instead of
- * 1.5. Trail tiles are faster and preferred by A*, so earlier trails
- * re-time every walk that crosses them.
+ * 20: trails come sooner and linger — the trail pass (which runs every
+ * TRAILS_INTERVAL ticks, checking each tile after its wear decay) now
+ * turns worn grass into a dirt trail at 10 wear instead of 12, and
+ * reverts an unused trail below 0.75 wear instead of 1.5. Trail tiles
+ * are faster and preferred by A*, so earlier trails re-time every walk
+ * that crosses them.
  *
  * 19: sieges slow down and the castle hardens — damage against buildings
  * lands at a fraction set by the attacker's arm (BUILDING_DAMAGE_MULT:
