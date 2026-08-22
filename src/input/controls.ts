@@ -646,6 +646,13 @@ export class Controls {
     // Shrinking is not: prune() feeds deaths through here every frame, and
     // a death knell per battle casualty belongs to combat, not selection.
     if (sel !== this.#selection && sel.size > this.#selection.size) play('uiSelect');
+    // An armed rally belongs to a selected building, and people being
+    // selected is that building's card leaving the screen (the two
+    // selections are mutually exclusive) — so the mode goes with it.
+    // Without this, recalling a control group left rally armed with
+    // nothing to plant for, and the next map click was swallowed. The
+    // empty-selection case is the disarm further down.
+    if (sel.size > 0 && orderMode() === 'rally') this.armOrder(null);
     this.#selection = sel;
     setSelection(new Set(sel));
     this.#publishGroup();
@@ -684,7 +691,7 @@ export class Controls {
       this.#abortGesture();
       return;
     }
-    const order = orderMode();
+    const order = this.#liveOrder();
     if (order) {
       if (e.button === 0) {
         if (e.pointerType === 'touch') {
@@ -872,7 +879,7 @@ export class Controls {
 
     // An armed order takes the release the same way placement does, and for
     // the same reason: on touch the press only staked a claim.
-    const order = orderMode();
+    const order = this.#liveOrder();
     if (order) {
       if (e.pointerType === 'touch' && e.button === 0 && heldStill) {
         if (order === 'rally') this.#issueRally(e.clientX, e.clientY);
@@ -1325,6 +1332,22 @@ export class Controls {
     this.#sendMove(x, y, attack);
     this.#orderPulse(px, py, attack);
     return { x, y };
+  }
+
+  /**
+   * The armed order, if it can still be spent. A rally whose barracks is
+   * gone (razed while the mode stood armed — the one path no selection
+   * change announces) is disarmed here and reported as no order at all,
+   * so the click it would have eaten keeps its ordinary meaning instead
+   * of being swallowed to plant nothing.
+   */
+  #liveOrder(): OrderMode | null {
+    const order = orderMode();
+    if (order === 'rally' && !this.#rallyTarget()) {
+      this.armOrder(null);
+      return null;
+    }
+    return order;
   }
 
   /**

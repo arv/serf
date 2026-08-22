@@ -53,9 +53,11 @@ export function trainingSystem(world: World): void {
 function marchToRally(world: World, b: Building, unit: Unit): void {
   if (!b.rally) return;
   const size = world.map.size;
-  // The same forgiveness a move order's target gets: a flag on ground that
-  // has since been built over still means "muster near there".
-  const goal = nearestWalkable(world.map, b.rally.x, b.rally.y, 6);
+  // The same forgiveness a move order's target gets — nearestWalkable at
+  // its default reach, exactly as collectSpreadTargets searches — so a
+  // flag on ground that has since been built over still means "muster
+  // near there", to the same distance a right-click there would.
+  const goal = nearestWalkable(world.map, b.rally.x, b.rally.y);
   if (goal < 0) return;
   const path = findPath(
     world.map,
