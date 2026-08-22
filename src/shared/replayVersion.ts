@@ -28,7 +28,7 @@
  * that sells a Smith holding hammers banks fewer tools from that tick
  * on.
  *
-23: the between-waves raid clock scales by the playable span, as the
+ * 23: the between-waves raid clock scales by the playable span, as the
  * opening peace always did. banditsSystem was passing the full grid side
  * (2x the playable side on every generated map) to raidIntervalFor, so
  * every wave after the first arrived at half the tuned pressure — 540s
