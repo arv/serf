@@ -391,6 +391,18 @@ export function LedgerIcon() {
   );
 }
 
+/** A folded field map — the minimap's toggle on small screens. */
+export function MapIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" style={{ 'vertical-align': '-2px' }} aria-label="Map">
+      <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+        <path d="M2 4l4-1.7 4 1.7 4-1.7v9.7l-4 1.7-4-1.7-4 1.7z" />
+        <path d="M6 2.3V12M10 4v9.7" />
+      </g>
+    </svg>
+  );
+}
+
 /** The builder's mallet, for the build menu. */
 export function MalletIcon() {
   return (

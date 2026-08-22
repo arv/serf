@@ -5,6 +5,7 @@ import { play } from '../audio/audio';
 import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { SimHost } from '../app/simHost';
 import { saveGameNow } from '../app/saveStore';
+import type { MinimapSource } from './Minimap';
 
 /** What the HUD needs from the app: selection actions from Controls (touch
  * has no shift/drag), and the save assembled where world and fog meet. */
@@ -29,6 +30,10 @@ export interface HudActions {
   /** Pan the camera to a tile — clickable toasts' "take me there". Sim
    * tile coords; the rig call maps tile y onto world z. */
   focus(x: number, y: number): void;
+  /** The minimap's live handles — mirror, fog, units, camera — bundled
+   * where they all exist. Not an action, but it travels the same road:
+   * this is the one door the app hands things to the HUD through. */
+  minimap: MinimapSource;
 }
 
 /**
@@ -142,6 +147,7 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiClick');
           actions.focus(x, y);
         }}
+        minimap={actions.minimap}
       />
     ),
     root,

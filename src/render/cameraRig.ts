@@ -467,6 +467,39 @@ export class CameraRig {
   }
 
   /**
+   * World-space XZ corners of the ground the frame shows — the exact
+   * parallelogram, not the AABB viewBounds() wraps around it (under the
+   * fixed 45° yaw the two differ by nearly half their area, and a minimap
+   * drawing the AABB would claim the camera sees ground it doesn't).
+   * Order: screen top-left, top-right, bottom-right, bottom-left, packed
+   * as x,z pairs into `out` — this runs per minimap repaint.
+   */
+  viewQuad(out: Float64Array): Float64Array {
+    const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
+    const halfW = (this.#viewHeight / 2) * aspect;
+    // The screen's vertical half-span, stretched onto the ground plane —
+    // the same 1/sin(pitch) #footprintExt uses.
+    const halfG = this.#viewHeight / 2 / Math.sin(this.#pitch);
+    // Screen right and screen up, projected on the ground (the yaw basis
+    // #panScreen pans along).
+    const rx = Math.cos(this.#yaw);
+    const rz = -Math.sin(this.#yaw);
+    const ux = -Math.sin(this.#yaw);
+    const uz = -Math.cos(this.#yaw);
+    const tx = this.#target.x;
+    const tz = this.#target.z;
+    out[0] = tx + ux * halfG - rx * halfW;
+    out[1] = tz + uz * halfG - rz * halfW;
+    out[2] = tx + ux * halfG + rx * halfW;
+    out[3] = tz + uz * halfG + rz * halfW;
+    out[4] = tx - ux * halfG + rx * halfW;
+    out[5] = tz - uz * halfG + rz * halfW;
+    out[6] = tx - ux * halfG - rx * halfW;
+    out[7] = tz - uz * halfG - rz * halfW;
+    return out;
+  }
+
+  /**
    * Conservative world-space XZ bounds of the visible ground, with margin.
    * Used to skip per-frame animation work for units nobody can see; the
    * margin also absorbs the screen shift terrain height introduces.

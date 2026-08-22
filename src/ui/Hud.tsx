@@ -10,6 +10,7 @@ import { EconomyPanel } from './EconomyPanel';
 import { SelectionPanel } from './SelectionPanel';
 import { AdminPanel } from './AdminPanel';
 import { MissionPanel, continueTarget } from './MissionPanel';
+import { Minimap, type MinimapSource } from './Minimap';
 import { LedgerIcon,
   EyeIcon,
   EyeOffIcon,
@@ -17,6 +18,7 @@ import { LedgerIcon,
   FastestIcon,
   GoodIcon,
   LockIcon,
+  MapIcon,
   PauseIcon,
   PlayIcon,
   BandIcon,
@@ -46,6 +48,8 @@ import {
   invariantViolations,
   llmStatus,
   llmTraces,
+  minimapOpen,
+  setMinimapOpen,
   mission,
   muted,
   myPlayerId,
@@ -127,6 +131,7 @@ export function Hud(props: {
   onSetRecipe: (buildingId: number, index: number) => void;
   onEnqueueForge: (buildingId: number, recipeIndex: number) => void;
   onCancelForge: (buildingId: number, index: number, recipeIndex: number) => void;
+  minimap: MinimapSource;
 }) {
   // The sim rejects admin commands in a match (world.admin.enabled is
   // false), so every button here no-ops — except the fog toggle, which
@@ -693,6 +698,26 @@ export function Hud(props: {
           width: var(--sel-w); padding: 12px 14px;
         }
 
+        /* ——— The minimap card (desktop and tablet only) ———
+           Last in the bottom row, so the corner is its fixed home: the
+           selection card comes and goes to its left and the chart never
+           moves for it. Its own auto margin pins it right when nothing
+           is selected; with the selection card standing, that card's
+           auto margin is already pushing, so this one stands down — two
+           auto margins would split the free space and float the
+           selection card into the middle of the screen. */
+        .hud-minimap { pointer-events: auto; flex: 0 0 auto; margin-left: auto; padding: 8px; }
+        .hud-selection + .hud-minimap { margin-left: 0; }
+        .hud-minimap .minimap-canvas {
+          display: block; width: var(--minimap-w, 168px); height: var(--minimap-w, 168px);
+          border-radius: 9px; touch-action: none; cursor: crosshair;
+        }
+        /* A narrow desktop window: the build and selection cards are
+           already fighting over this row (the ribbon drops columns), so
+           the chart is the one that gives ground. Compact screens don't
+           get here — the card doesn't render there at all. */
+        @media (max-width: 1200px) { #ui { --minimap-w: 128px; } }
+
         /* Floating touch actions: marquee select + grab-the-army. Fixed to
            the right edge over the map — the one part of a phone screen the
            HUD hasn't claimed. Hidden entirely on fine pointers. */
@@ -922,6 +947,58 @@ export function Hud(props: {
              that component renders later, so rules here lost the tie and
              a stale max-height silently capped the sheet. */
           .hud-debug { display: none; } /* desktop-only diagnostics */
+
+          /* ——— The minimap is a sheet here, never a card ———
+             A phone has no corner to spare: upright, the bottom is a
+             full-width column; sideways, height is the whole budget.
+             So the chart costs the screen nothing while closed — one
+             button in the thumb rail — and takes the middle of it while
+             open, the way the build menu does sideways. A tap on the
+             chart glides the camera there and the sheet dismisses
+             itself: the place it just showed you is what you came for.
+             Bottom-anchored because the button that opened it is at the
+             bottom, and sized by the tighter axis so both orientations
+             get the same square. */
+          /* The dim lives on the scrim, not on a sheet shadow: the sheet
+             wears .panel, and #ui .panel's own shadow outranks a bare
+             class here — a spread scrim declared on the sheet silently
+             lost that fight and the world stayed full bright behind an
+             open chart. The scrim is nobody's panel, so nothing contests
+             it. */
+          .minimap-scrim {
+            position: fixed; inset: 0; pointer-events: auto; z-index: 19;
+            background: rgba(6, 8, 7, 0.5);
+          }
+          /* #ui-prefixed to outrank #ui .panel's glass: the chart's own
+             frame should be opaque, not the map showing through a chart
+             of itself. */
+          #ui .hud-minimap-sheet {
+            position: fixed; z-index: 20;
+            bottom: calc(var(--hud-margin) + var(--safe-bottom));
+            left: 50%; transform: translateX(-50%);
+            padding: 8px; pointer-events: auto;
+            background: rgba(11, 13, 12, 0.97);
+          }
+          .hud-minimap-sheet .minimap-canvas {
+            display: block;
+            /* Small viewport units, like every other sheet: the chart
+               must not resize under the finger as the URL bar goes. */
+            width: min(78vw, 58vh, 340px);
+            width: min(78vw, 58svh, 340px);
+            height: auto; aspect-ratio: 1;
+            border-radius: 9px; touch-action: none;
+          }
+          /* Over the chart's corner rather than on a header row: a
+             header is a row of height, and sideways there is none to
+             give. The tap that matters most — anywhere on the map —
+             closes the sheet too, so this is the way out for a player
+             who only came to look. */
+          #ui .hud-minimap-sheet .minimap-close {
+            position: absolute; top: 14px; right: 14px;
+            width: 38px; height: 38px; min-height: 0; padding: 0;
+            display: grid; place-items: center;
+            background: rgba(14, 16, 15, 0.75);
+          }
         }
 
         /* ——— NARROW: held upright ——— */
@@ -1620,6 +1697,24 @@ export function Hud(props: {
       <div class="hud-bottom">
         <Show when={isCoarse() || isCompact()}>
           <div class="hud-touch">
+            {/* The minimap's door on small screens: the standing card
+                below only renders where a corner can afford it, and a
+                phone has no such corner either way up. First in the rail
+                — Muster and Deselect keep their spots nearest the thumb. */}
+            <Show when={isCompact()}>
+              <button
+                classList={{ active: minimapOpen() }}
+                {...tooltip(() => (
+                  <TextTip
+                    title="Map"
+                    body="The whole valley at a glance — tap a spot on it to look there."
+                  />
+                ))}
+                onClick={() => setMinimapOpen(!minimapOpen())}
+              >
+                <MapIcon />
+              </button>
+            </Show>
             {/* The lasso is the only way to band-select without a pointer
                 that drags one: bandArm() is what tells Controls to draw a
                 band rather than let the camera have the drag, and this
@@ -1795,6 +1890,16 @@ export function Hud(props: {
           onEnqueueForge={props.onEnqueueForge}
           onCancelForge={props.onCancelForge}
         />
+
+        {/* The standing minimap — desktop and tablet, where the bottom-right
+            corner can afford a card that never leaves. Compact screens get
+            the sheet below instead; the Show also parks the paint loop
+            while the card is off. Press-and-drag steers the camera. */}
+        <Show when={!isCompact()}>
+          <div class="hud-minimap panel">
+            <Minimap source={props.minimap} mode="pan" />
+          </div>
+        </Show>
       </div>
 
       <Show when={economyPanelOpen()}>
@@ -1802,6 +1907,25 @@ export function Hud(props: {
       </Show>
       <Show when={techPanelOpen()}>
         <TechTreePanel onResearch={props.onResearch} />
+      </Show>
+
+      {/* The minimap sheet — small screens only (the ☰-family panel state
+          drives it, so Esc and the one-popup rule both apply). A tap on
+          the chart glides the camera there and closes it; the scrim is
+          the build sheet's: click only, so the map under a departing
+          scrim never receives half a tap. */}
+      <Show when={isCompact() && minimapOpen()}>
+        <div class="minimap-scrim" aria-hidden="true" onClick={() => setMinimapOpen(false)} />
+        <div class="hud-minimap-sheet panel">
+          <Minimap
+            source={props.minimap}
+            mode="jump"
+            onNavigate={() => setMinimapOpen(false)}
+          />
+          <button class="minimap-close" onClick={() => setMinimapOpen(false)}>
+            ✕
+          </button>
+        </div>
       </Show>
 
 
