@@ -157,6 +157,12 @@ type LobbyMsg =
   | { t: 'replay' };
 
 function sendJson(ws: WebSocket, msg: unknown): void {
+  // Simultaneous disconnects race the close callbacks: a seat can still
+  // read `connected` while its socket is already CLOSING. ws's send() on a
+  // non-open socket is a no-op rather than a throw (sendAfterClose swallows
+  // it when no callback is passed), so this guard is not crash protection —
+  // it just says out loud that a message to a closing socket goes nowhere.
+  if (ws.readyState !== ws.OPEN) return;
   ws.send(JSON.stringify(msg));
 }
 
