@@ -389,21 +389,23 @@ export class Footprints {
   }
 
   #stamp: StampFn = (x, y, yaw, side) => {
+    // Left and right feet straddle the march line — and the guards below
+    // judge where the foot actually lands, not the line itself, or a
+    // straddling print could edge onto packed dirt or into the fog.
+    const px = x + Math.cos(yaw) * this.#footOffset * side;
+    const pz = y - Math.sin(yaw) * this.#footOffset * side;
     // No prints on the trail: the ribbon's dirt is already the record of
     // feet, and packed ground takes no new mark.
-    if (onRibbon(this.#map, x, y)) return;
+    if (onRibbon(this.#map, px, pz)) return;
     // A stranger's footfall may land short of where the fog test passed —
     // the stride between two publishes can cross the fog's edge — and a
     // print in the dark would be a mark the player never saw made.
-    if (this.#stampFogged && this.#fog && !this.#fog.visibleAt(x, y)) return;
+    if (this.#stampFogged && this.#fog && !this.#fog.visibleAt(px, pz)) return;
 
     const slot = this.#cursor;
     this.#cursor = (this.#cursor + 1) % CAPACITY;
     if (slot >= this.#high) this.#high = slot + 1;
 
-    // Left and right feet straddle the march line.
-    const px = x + Math.cos(yaw) * this.#footOffset * side;
-    const pz = y - Math.sin(yaw) * this.#footOffset * side;
     this.#printX[slot] = px;
     this.#printZ[slot] = pz;
     dummy.position.set(px, this.#heights.at(px, pz) + LIFT, pz);
