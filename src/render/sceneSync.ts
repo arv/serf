@@ -47,6 +47,10 @@ interface UnitVisual {
    * transition rules).
    */
   audioKey: AnimKey | null;
+  /** A clip restart whose entry-cycle impacts are still owed: the restart
+   * happened on a paused frame (dt 0), where scheduling would strike over
+   * a frozen battlefield. Consumed on the first advancing frame. */
+  entryPending: boolean;
   /** Last on-screen world position, for the mixer-loop percussion —
    * the 'loop' event fires inside mixer.update, after the per-unit loop's
    * locals are gone. */
@@ -515,6 +519,7 @@ export class SceneSync {
           sepX: 0,
           sepY: 0,
           audioKey: null,
+          entryPending: false,
           ax: latest.xs[i]!,
           az: latest.ys[i]!,
         };
@@ -707,6 +712,10 @@ export class SceneSync {
         // carried on the walk out too — a woodcutter heads to the trees
         // axe in fist. Only full hands stow it: cargo owns the grip.
         setWorkTool(visual.char, heldCarry ? TOOL_STOWED : workKind);
+        // Whether playAnimation below actually (re)starts the clip: a
+        // state change, or the first frame back from a cull (which nulled
+        // `current`). Read before the call — it sets `current` to key.
+        const restarted = visual.char.current !== key;
         if (dead && !visual.char.actions.has('death')) {
           // No death clip in this library: tip the body over instead.
           tipOver(visual.group, dt);
@@ -714,11 +723,12 @@ export class SceneSync {
         } else {
           playAnimation(visual.char, key, key === 'death' ? 0 : hash2(id, 3));
         }
+        const fn = this.onCue;
         // State-entry sound, from audio's own memory — char.current is
         // nulled by the cull above and would re-announce every re-entry.
-        if (this.onCue && visual.audioKey !== key) {
+        if (fn && visual.audioKey !== key) {
           const cue = animCue(visual.audioKey, key);
-          if (cue) this.onCue(cue, x, y, 0);
+          if (cue) fn(cue, x, y, 0);
         }
         visual.audioKey = key;
         // Where this unit is, for the loop-event percussion firing inside
@@ -726,6 +736,44 @@ export class SceneSync {
         visual.ax = x;
         visual.az = y;
         visual.char.mixer.update(dt);
+        // The 'loop' event only covers cycles after the first wrap, so a
+        // percussive clip (re)started this frame would play its whole
+        // first cycle mute — for Pickaxing that is two silent swings and
+        // nearly four seconds. Schedule the entry cycle's remaining
+        // impacts here. Gated on the restart, not the audioKey change: a
+        // culled worker scrolling back into view restarts his clip too,
+        // and his first swing back on screen deserves its sound as much
+        // as watching him take it up did. Three fine points: it runs
+        // after mixer.update, measuring delays from the clip's actual
+        // post-advance position (`action.time`) rather than one frame
+        // behind it; a restart on a paused frame (dt 0) parks in
+        // entryPending until the world moves, because a pan over a frozen
+        // battlefield must neither strike now nor forfeit the cycle; and
+        // a clip whose very first update already wrapped hands the coming
+        // cycle to that wrap's own event instead of booking it twice.
+        if (fn && (restarted || visual.entryPending) && dt > 0) {
+          visual.entryPending = false;
+          const spec = LOOP_CUES[key];
+          // Missing clip: playAnimation fell back to idle — no percussion.
+          const action = spec ? visual.char.actions.get(key) : undefined;
+          if (spec && action) {
+            const clip = action.getClip();
+            if (action.time >= hash2(id, 3) * clip.duration) {
+              const phase = spec.byClip?.[clip.name] ?? spec.impactPhase01;
+              // In real seconds — gait actions play speed-matched, so a
+              // clip-time lead is off by their timeScale. An impact the
+              // update just stepped over (delay in (-dt, 0]) visually
+              // landed this frame — play it now, not never.
+              const rate = action.getEffectiveTimeScale() || 1;
+              const d1 = (phase * clip.duration - action.time) / rate;
+              if (d1 > -dt) fn(spec.cue, x, y, Math.max(0, d1));
+              const d2 = ((phase + 0.5) * clip.duration - action.time) / rate;
+              if (spec.perCycle === 2 && d2 > -dt) fn(spec.cue, x, y, Math.max(0, d2));
+            }
+          }
+        } else if (restarted) {
+          visual.entryPending = true;
+        }
       }
 
       // Body bob synced to the gait: high at mid-stance, low at heel-strike.
@@ -829,17 +877,32 @@ export class SceneSync {
       const key = keyOf.get(e.action);
       const spec = key !== undefined ? LOOP_CUES[key] : undefined;
       if (!spec) return;
-      // During the 0.16s crossfade the outgoing action still wraps; a
-      // clip that has already lost the blend is not the one being watched.
-      if (e.action.getEffectiveWeight() < 0.5) return;
-      // Real seconds per cycle: gait actions play speed-matched (their
-      // timeScale grips the feet to the ground), so the clip's authored
-      // duration alone would schedule the footfall late.
-      const dur = e.action.getClip().duration / (e.action.getEffectiveTimeScale() || 1);
-      fn(spec.cue, visual.ax, visual.az, spec.impactPhase01 * dur);
-      // A gait cycle is two footfalls; the second lands half a clip later.
+      // During the 0.16s crossfade the outgoing action still wraps; only
+      // the clip the unit is actually in gets to strike. Keyed on
+      // `current` rather than blend weight: a clip entered near its own
+      // wrap point wraps while its fade-in is still under half weight,
+      // and a weight test dropped that wrap — losing the whole first
+      // audible cycle.
+      if (key !== char.current) return;
+      // The attack key plays a different clip per unit kind, with the
+      // impact somewhere else entirely — byClip carries those phases.
+      const clip = e.action.getClip();
+      const phase = spec.byClip?.[clip.name] ?? spec.impactPhase01;
+      // The event fires mid-update with the action already advanced past
+      // the wrap, so the lead is measured from its actual position, not
+      // the wrap point — a wrap early in a long frame would land every
+      // impact late by the rest of that frame. An impact the same update
+      // stepped past comes out clamped to "now". Divided into real
+      // seconds: gait actions play speed-matched (their timeScale grips
+      // the feet to the ground), so clip time alone would schedule the
+      // footfall off by that whole factor.
+      const rate = e.action.getEffectiveTimeScale() || 1;
+      const t = e.action.time;
+      fn(spec.cue, visual.ax, visual.az, Math.max(0, (phase * clip.duration - t) / rate));
+      // perCycle 2 is a half-cycle symmetry: the gaits' second footfall,
+      // the pick and hammer loops' second swing — half a clip later.
       if (spec.perCycle === 2) {
-        fn(spec.cue, visual.ax, visual.az, (spec.impactPhase01 + 0.5) * dur);
+        fn(spec.cue, visual.ax, visual.az, Math.max(0, ((phase + 0.5) * clip.duration - t) / rate));
       }
     };
     visual.loopCb = cb;
