@@ -19,6 +19,7 @@ import {
   TARGET_HEIGHT,
   makeCharacter,
   playAnimation,
+  setGaitSpeed,
   setWorkTool,
   TOOL_STOWED,
   type AnimKey,
@@ -606,6 +607,13 @@ export class SceneSync {
         if (dx * dx + dy * dy > 1e-6) {
           moving = true;
           visual.group.rotation.y = Math.atan2(dx, dy);
+          // Feed the gait the speed actually covered — the base kind speed
+          // its rate was seeded with misses road/trail multipliers and the
+          // serfSpeed tech. prev and latest are adjacent publishes, one
+          // interval apart, the same window the interpolation draws by.
+          if (visual.char) {
+            setGaitSpeed(visual.char, Math.hypot(dx, dy) * (1000 / PUBLISH_INTERVAL_MS));
+          }
         }
       }
       // Animation from what the unit is doing: skinned clips when the GLB
@@ -677,6 +685,9 @@ export class SceneSync {
           visual.sepX = this.#sepTX[i] = curX + (dx / dist) * step - x;
           visual.sepY = this.#sepTY[i] = curZ + (dz / dist) * step - y;
           visual.group.rotation.y = Math.atan2(dx, dz);
+          // Render-side walk, so no publish delta to measure: it advances
+          // at exactly PIER_WALK_SPEED, tell the legs the same.
+          if (visual.char) setGaitSpeed(visual.char, PIER_WALK_SPEED);
         }
       }
       if (visual.char && offScreen) {

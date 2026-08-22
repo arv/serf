@@ -198,6 +198,12 @@ export interface CharacterVisual {
   /** Locomotion clip for this unit, picked at build time to suit its sim
    * speed (see the gait matching in makeKayKitCharacter). */
   gait: 'walk' | 'jog';
+  /** Natural ground speed of each gait clip for this body, world units/sec
+   * (0 = unmeasured: that gait plays at its authored rate). */
+  gaitNat: { walk: number; jog: number };
+  /** Ground speed the gait timeScales currently assume — setGaitSpeed's
+   * deadband memory. */
+  gaitSpeed: number;
   ranged: boolean;
   /** World-unit holder on the chest bone: carried goods parented here ride
    * the walk animation (bob, sway) instead of floating rigidly. */
@@ -691,14 +697,14 @@ function makeKayKitCharacter(
   // isn't walking — give it the run. At today's speeds every unit lands
   // there (a serf at 1.8 tiles/sec covers two body-heights a second),
   // which is the busy-Settlers scurry; the walk stays for anything slow.
+  // The base kind speed only picks the clip and seeds the rate — the real
+  // thing wears road/trail multipliers and the serfSpeed tech, so
+  // sceneSync keeps re-feeding the speed it observes (setGaitSpeed).
   const simSpeed = KIND_SPEED.get(kindCode) ?? UNIT_DEFS.worker.speed;
   const walkNat = kkAssets.gaitSpeeds.walk * s;
   const jogNat = kkAssets.gaitSpeeds.jog * s;
   const gait: 'walk' | 'jog' =
     spec.jog || (walkNat > 0 && simSpeed / walkNat > 1.5) ? 'jog' : 'walk';
-  // The clamp keeps a mismeasure or an extreme unit from either slow-motion
-  // legs or a cartoon leg-blur; within it the feet grip the ground exactly.
-  const gaitRate = (nat: number): number => (nat > 0 ? clamp(simSpeed / nat, 0.6, 2.4) : 1);
 
   // Carried goods anchor: on the chest bone (so loads bob and sway with
   // the gait), counter-scaled back to world units, held out in front at
@@ -773,28 +779,48 @@ function makeKayKitCharacter(
       action.setLoop(THREE.LoopOnce, 1);
       action.clampWhenFinished = true; // hold the final crumpled pose
     }
-    // Set once; playAnimation's reset() leaves timeScale alone.
-    if (key === 'walk') action.timeScale = gaitRate(walkNat);
-    else if (key === 'jog') action.timeScale = gaitRate(jogNat);
-    else if (key === 'carry') action.timeScale = gaitRate(gait === 'jog' ? jogNat : walkNat);
     actions.set(key, action);
   }
 
-  return {
-    group,
-    visual: {
-      mixer,
-      actions,
-      current: null,
-      gait,
-      ranged: spec.ranged ?? false,
-      carryAnchor,
-      toolAnchor,
-      toolCustom,
-      defaultTool: proceduralTool ?? rightHand?.inst,
-      toolKind: 0,
-    },
+  const visual: CharacterVisual = {
+    mixer,
+    actions,
+    current: null,
+    gait,
+    gaitNat: { walk: walkNat, jog: jogNat },
+    gaitSpeed: 0,
+    ranged: spec.ranged ?? false,
+    carryAnchor,
+    toolAnchor,
+    toolCustom,
+    defaultTool: proceduralTool ?? rightHand?.inst,
+    toolKind: 0,
   };
+  setGaitSpeed(visual, simSpeed);
+  return { group, visual };
+}
+
+/**
+ * Play each gait at the rate that covers `speed` world units/sec with the
+ * feet gripping the ground instead of skating (the gait matching in
+ * makeKayKitCharacter). Seeded there with the kind's base sim speed;
+ * sceneSync re-feeds the speed it actually observes between publishes,
+ * which is where roads, trails and the serfSpeed tech show up. The clamp
+ * keeps a mismeasure or an extreme speed from either slow-motion legs or a
+ * cartoon leg-blur. Deadbanded so steady cruising writes nothing;
+ * playAnimation's reset() leaves timeScale alone, so rates survive clip
+ * switches.
+ */
+export function setGaitSpeed(visual: CharacterVisual, speed: number): void {
+  if (Math.abs(speed - visual.gaitSpeed) < visual.gaitSpeed * 0.02) return;
+  visual.gaitSpeed = speed;
+  const set = (key: AnimKey, nat: number): void => {
+    const action = visual.actions.get(key);
+    if (action) action.timeScale = nat > 0 ? clamp(speed / nat, 0.6, 2.4) : 1;
+  };
+  set('walk', visual.gaitNat.walk);
+  set('jog', visual.gaitNat.jog);
+  set('carry', visual.gait === 'jog' ? visual.gaitNat.jog : visual.gaitNat.walk);
 }
 
 /**
