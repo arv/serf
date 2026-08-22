@@ -41,8 +41,10 @@ import {
 import { buildAffordable, buildUnlocked, buildingForKey } from '../ui/buildMenu';
 import {
   HIRE_KEY,
+  RALLY_KEY,
   RESEARCH_KEY,
   canHire,
+  canRally,
   canTrain,
   trainingForKey,
   unitTechGate,
@@ -294,8 +296,13 @@ export class Controls {
    */
   armOrder(mode: OrderMode | null): void {
     // Nobody to order about — an armed order over an empty selection would
-    // eat the click that was going to select someone.
-    if (mode !== null && (this.#selection.size === 0 || replayMode())) return;
+    // eat the click that was going to select someone. The rally flag is
+    // the exception: it is armed from a selected barracks, not a squad.
+    if (mode === 'rally') {
+      if (!this.#rallyTarget()) return;
+    } else if (mode !== null && (this.#selection.size === 0 || replayMode())) {
+      return;
+    }
     setOrderMode(mode);
     if (mode !== null) {
       this.setPlacement(null);
@@ -514,6 +521,13 @@ export class Controls {
       return true;
     }
 
+    if (letter === RALLY_KEY && canRally(b)) {
+      // Arms the flag for the next click, exactly like the card's button.
+      this.armOrder('rally');
+      play('uiClick');
+      return true;
+    }
+
     const unit = trainingForKey(b, letter);
     if (unit !== null) {
       if (b.state !== 'built') return true;
@@ -679,7 +693,8 @@ export class Controls {
           this.#touchOrigin = { x: e.clientX, y: e.clientY };
           return;
         }
-        this.#issueMove(e.clientX, e.clientY, order === 'attack');
+        if (order === 'rally') this.#issueRally(e.clientX, e.clientY);
+        else this.#issueMove(e.clientX, e.clientY, order === 'attack');
         this.armOrder(null);
       } else if (e.button === 2) {
         this.armOrder(null);
@@ -723,7 +738,14 @@ export class Controls {
         }
       }
     } else if (e.button === 2) {
-      this.#issueMove(e.clientX, e.clientY, false);
+      // With nobody selected but a barracks open, the right-click is the
+      // rally flag's shortcut — the gesture every RTS spends it on. With a
+      // squad standing it stays the plain move it has always been.
+      if (this.#selection.size === 0 && this.#rallyTarget()) {
+        this.#issueRally(e.clientX, e.clientY);
+      } else {
+        this.#issueMove(e.clientX, e.clientY, false);
+      }
     }
   };
 
@@ -853,7 +875,8 @@ export class Controls {
     const order = orderMode();
     if (order) {
       if (e.pointerType === 'touch' && e.button === 0 && heldStill) {
-        this.#issueMove(e.clientX, e.clientY, order === 'attack');
+        if (order === 'rally') this.#issueRally(e.clientX, e.clientY);
+        else this.#issueMove(e.clientX, e.clientY, order === 'attack');
         this.armOrder(null);
       }
       return;
@@ -1304,6 +1327,43 @@ export class Controls {
     return { x, y };
   }
 
+  /**
+   * The selected building, if it can take a rally flag right now: yours,
+   * built, and of a kind that trains. Null is both "no barracks open" and
+   * "a replay takes no orders" — every rally path asks this first, so the
+   * two gates are written once.
+   */
+  #rallyTarget(): BuildingSnap | null {
+    if (replayMode()) return null;
+    const b = selectedBuilding();
+    if (!b || b.owner !== myPlayerId() || !canRally(b)) return null;
+    return b;
+  }
+
+  /**
+   * Plant the selected barracks' rally flag at this screen point — or take
+   * it down, when the point is the barracks itself: aiming the flag at its
+   * own door is the "back to normal" gesture, and it needs one, because
+   * the door is the one spot a flag cannot otherwise mean.
+   */
+  #issueRally(px: number, py: number): void {
+    const b = this.#rallyTarget();
+    if (!b) return;
+    const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
+    if (!ground) return;
+    const x = Math.floor(ground.x);
+    const y = Math.floor(ground.z);
+    const onSelf = x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
+    this.#host.sendCommands([
+      onSelf
+        ? { kind: 'setRallyPoint', buildingId: b.id }
+        : { kind: 'setRallyPoint', buildingId: b.id, x, y },
+    ]);
+    // Solid gold: an order taken, but nobody moves for it yet — the pulse
+    // shape family the move orders wear, in the flag's own color.
+    this.#pulse(px, py, 'solid #e5c469');
+  }
+
   /** The wire half of a move order, aimed at a tile directly. */
   #sendMove(x: number, y: number, attack: boolean | 'half'): void {
     if (this.#selection.size === 0) return;
@@ -1321,14 +1381,17 @@ export class Controls {
   /** A ring blooming at the tap/click plus a tick of haptics: order taken.
    * Attack-moves pulse a solid red ring, plain moves a dashed gold one, and
    * the half order a dotted red — three border styles, so the shape carries
-   * the difference where color vision cannot. */
+   * the difference where color vision cannot. (The rally flag pulses too,
+   * through #pulse directly: solid gold.) */
   #orderPulse(px: number, py: number, attack: boolean | 'half'): void {
-    const border =
-      attack === true
-        ? 'solid #bf4342'
-        : attack === 'half'
-          ? 'dotted #bf4342'
-          : 'dashed #e5c469';
+    this.#pulse(
+      px,
+      py,
+      attack === true ? 'solid #bf4342' : attack === 'half' ? 'dotted #bf4342' : 'dashed #e5c469',
+    );
+  }
+
+  #pulse(px: number, py: number, border: string): void {
     const el = document.createElement('div');
     el.style.cssText =
       `position:fixed;left:${px}px;top:${py}px;width:44px;height:44px;` +

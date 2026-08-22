@@ -4,10 +4,11 @@ import { getModifier, isUnitUnlocked } from '../techHelpers.ts';
 import { HIRE_SERF_TICKS, TRAIN_QUEUE_CAP } from '../defs/balance.ts';
 import { spawnUnit, type World } from '../world.ts';
 import { popCapOf, populationOf } from '../population.ts';
-import { nearestWalkable } from '../path.ts';
+import { findPath, nearestWalkable } from '../path.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
 import type { GoodId } from '../defs/goods.ts';
 import type { Building } from '../entities.ts';
+import type { Unit } from '../units.ts';
 
 /**
  * Barracks training. A queue item starts when its ingredients are in the input
@@ -35,8 +36,38 @@ export function trainingSystem(world: World): void {
       const door = doorOf(world, b);
       const unit = spawnUnit(world, head.unit, b.owner, door.x, door.y);
       unit.hp = Math.round(UNIT_DEFS[head.unit].hp * getModifier(world, b.owner, 'militaryHp'));
+      marchToRally(world, b, unit);
     }
   }
+}
+
+/**
+ * Send a fresh soldier from the door to the building's rally flag, as the
+ * plain move a right-click gives: he ignores enemies on the way and stands
+ * guard where the flag is (idle soldiers auto-acquire, so he defends the
+ * ground he was mustered on). Deliberately not an attack-move — a flag
+ * planted to collect an army must not trickle recruits into a fight one at
+ * a time. No flag, or no way to walk there, and he stays at the door as
+ * ever.
+ */
+function marchToRally(world: World, b: Building, unit: Unit): void {
+  if (!b.rally) return;
+  const size = world.map.size;
+  // The same forgiveness a move order's target gets: a flag on ground that
+  // has since been built over still means "muster near there".
+  const goal = nearestWalkable(world.map, b.rally.x, b.rally.y, 6);
+  if (goal < 0) return;
+  const path = findPath(
+    world.map,
+    Math.floor(unit.x),
+    Math.floor(unit.y),
+    tileX(goal, size),
+    tileY(goal, size),
+  );
+  if (!path) return;
+  unit.path = path;
+  unit.pathIdx = 0;
+  unit.task = { t: 'move' };
 }
 
 /**
