@@ -329,6 +329,13 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       if (conn.seat !== seat) releaseRoom(conn, ws);
       seat.ws = ws;
       seat.connected = true;
+      // A fresh socket is a fresh command counter: a reloaded page's worker
+      // starts its seq back at 1, and the old high-water mark would silently
+      // eat its every order until the new count caught up — the same reason
+      // persist.ts resets this on a cross-deploy restore. Safe because only
+      // the socket that owns the seat may command it (see handleBinary), so
+      // there is no older stream left for the guard to dedupe against.
+      seat.lastSeq = -1;
       // A fresh socket is a watching client until it says otherwise (the
       // worker re-sends its hidden state right after this if it isn't).
       seat.hidden = false;
@@ -394,6 +401,13 @@ function handleBinary(ws: WebSocket, conn: Conn, data: Uint8Array): void {
   const frame = decodeState(data);
   if (!frame) throw new Error('unknown frame from client');
   if (frame.kind === 'cmd') {
+    // Only the socket that owns the seat gives orders — the same rule the
+    // close handler applies. A superseded socket (a second tab rejoined, a
+    // takeover mid-flight) could otherwise interleave its old, high seq
+    // numbers with the new socket's fresh count and knock the guard in
+    // queueCommands over. Dropped silently: the stale socket is already on
+    // its way out.
+    if (seat.ws !== ws) return;
     // A lobby room never pumps, so anything queued before the match starts
     // would sit in room.queued forever, growing with every frame. No client
     // submits before it has been told the match began.
