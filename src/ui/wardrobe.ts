@@ -82,7 +82,7 @@ const MODES: Mode[] = ['idle', 'walk', 'carry', 'work', 'death'];
 function clipFor(mode: Mode, col: Column, v: CharacterVisual): AnimKey {
   switch (mode) {
     case 'walk':
-      return v.jog ? 'jog' : 'walk';
+      return v.gait;
     case 'work':
       if (col.workKind !== undefined) return WORK_ANIM[col.workKind] ?? 'work';
       if (col.code === 1) return 'carry'; // a serf's work is hauling
