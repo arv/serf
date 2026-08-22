@@ -19,6 +19,7 @@ import {
   TARGET_HEIGHT,
   makeCharacter,
   playAnimation,
+  setGaitSpeed,
   setWorkTool,
   TOOL_STOWED,
   type AnimKey,
@@ -606,6 +607,13 @@ export class SceneSync {
         if (dx * dx + dy * dy > 1e-6) {
           moving = true;
           visual.group.rotation.y = Math.atan2(dx, dy);
+          // Feed the gait the speed actually covered — the base kind speed
+          // its rate was seeded with misses road/trail multipliers and the
+          // serfSpeed tech. prev and latest are adjacent publishes, one
+          // interval apart, the same window the interpolation draws by.
+          if (visual.char) {
+            setGaitSpeed(visual.char, Math.hypot(dx, dy) * (1000 / PUBLISH_INTERVAL_MS));
+          }
         }
       }
       // Animation from what the unit is doing: skinned clips when the GLB
@@ -677,6 +685,9 @@ export class SceneSync {
           visual.sepX = this.#sepTX[i] = curX + (dx / dist) * step - x;
           visual.sepY = this.#sepTY[i] = curZ + (dz / dist) * step - y;
           visual.group.rotation.y = Math.atan2(dx, dz);
+          // Render-side walk, so no publish delta to measure: it advances
+          // at exactly PIER_WALK_SPEED, tell the legs the same.
+          if (visual.char) setGaitSpeed(visual.char, PIER_WALK_SPEED);
         }
       }
       if (visual.char && offScreen) {
@@ -687,8 +698,8 @@ export class SceneSync {
         const heldCarry = carrying > 0;
         let key: AnimKey;
         if (dead) key = 'death';
-        else if (moving) key = heldCarry ? 'carry' : visual.char.jog ? 'jog' : 'walk';
-        else if (pier) key = fishing ? 'fish' : 'walk';
+        else if (moving) key = heldCarry ? 'carry' : visual.char.gait;
+        else if (pier) key = fishing ? 'fish' : visual.char.gait;
         else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
         else if (action === ACTION.work) key = crankWell ? 'idle' : workAnimKey(workKind);
         else key = heldCarry ? 'carryIdle' : 'idle';
@@ -821,7 +832,10 @@ export class SceneSync {
       // During the 0.16s crossfade the outgoing action still wraps; a
       // clip that has already lost the blend is not the one being watched.
       if (e.action.getEffectiveWeight() < 0.5) return;
-      const dur = e.action.getClip().duration;
+      // Real seconds per cycle: gait actions play speed-matched (their
+      // timeScale grips the feet to the ground), so the clip's authored
+      // duration alone would schedule the footfall late.
+      const dur = e.action.getClip().duration / (e.action.getEffectiveTimeScale() || 1);
       fn(spec.cue, visual.ax, visual.az, spec.impactPhase01 * dur);
       // A gait cycle is two footfalls; the second lands half a clip later.
       if (spec.perCycle === 2) {

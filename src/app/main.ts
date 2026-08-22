@@ -13,6 +13,7 @@ import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
 import { GhostPlacement } from '../render/ghost';
 import { SelectedReach } from '../render/reachOutline';
+import { RallyFlag } from '../render/rallyFlag';
 import { FogOfWar } from '../render/fogOfWar';
 import { batteryFramePacer } from '../render/framePacer';
 import { HiddenSync } from './hiddenSync';
@@ -969,6 +970,7 @@ async function runMatch(
   const selectionFx = new SelectionFx(renderer.scene, heights);
   const ghost = new GhostPlacement(renderer.scene, heights, config.myPlayerId);
   const selectedReach = new SelectedReach(renderer.scene, heights);
+  const rallyFlag = new RallyFlag(renderer.scene, heights);
   const controls = new Controls(
     canvas,
     renderer.rig.camera,
@@ -1209,6 +1211,9 @@ async function runMatch(
     // that answers the question — two squares over the same ground, in two
     // colors, would only be read as a conflict.
     selectedReach.update(placing() ? null : selectedBuilding(), mirror.map);
+    // The muster flag rides the same gate: while a building is being aimed
+    // the ghost owns the ground's attention.
+    rallyFlag.update(placing() ? null : selectedBuilding());
     controls.prune();
     selectionFx.update(controls.selected, sync, now);
     damageAlerts.update(now);

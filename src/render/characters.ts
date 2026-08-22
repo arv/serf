@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
+import { clamp } from '../shared/math';
+import { UNIT_DEFS } from '../sim/defs/units';
 import { lathe } from './models';
 import { loadGltfRetry } from './assets';
 import { factionTint } from './factionPalette';
@@ -146,6 +148,11 @@ const KK_SPECS = new Map<number, KKSpec>([
   }],
 ]);
 
+/** Sim ground speed by kind byte, for matching gait playback to it. */
+const KIND_SPEED = new Map<number, number>(
+  Object.values(UNIT_DEFS).map((d) => [d.kindCode, d.speed]),
+);
+
 interface KKCharacter {
   scene: THREE.Group;
   scale: number;
@@ -156,6 +163,9 @@ interface KKAssets {
   chars: Map<string, KKCharacter>;
   clips: Map<string, THREE.AnimationClip>;
   props: Map<string, THREE.Group>;
+  /** Ground speed each gait clip is authored for, rig units/sec (0 =
+   * unmeasured; gaits then play at their authored rate). */
+  gaitSpeeds: { walk: number; jog: number };
 }
 
 let kkAssets: KKAssets | null = null;
@@ -185,7 +195,15 @@ export interface CharacterVisual {
   mixer: THREE.AnimationMixer;
   actions: Map<AnimKey, THREE.AnimationAction>;
   current: AnimKey | null;
-  jog: boolean;
+  /** Locomotion clip for this unit, picked at build time to suit its sim
+   * speed (see the gait matching in makeKayKitCharacter). */
+  gait: 'walk' | 'jog';
+  /** Natural ground speed of each gait clip for this body, world units/sec
+   * (0 = unmeasured: that gait plays at its authored rate). */
+  gaitNat: { walk: number; jog: number };
+  /** Ground speed the gait timeScales currently assume — setGaitSpeed's
+   * deadband memory. */
+  gaitSpeed: number;
   ranged: boolean;
   /** World-unit holder on the chest bone: carried goods parented here ride
    * the walk animation (bob, sway) instead of floating rigidly. */
@@ -249,6 +267,54 @@ function prepKayKitScene(scene: THREE.Group): void {
   });
 }
 
+/**
+ * Ground speed a gait clip is authored for, in rig units/sec. An in-place
+ * gait sweeps the planted foot backward under the body at exactly the
+ * ground speed the cycle was built to cover, so: sample the foot over one
+ * cycle, take the longest stretch it spends in the lowest fifth of its arc
+ * (the stance phase), and divide its horizontal travel by the time. Runs
+ * once per gait at load, on a throwaway rig clone.
+ */
+function measureGaitSpeed(scene: THREE.Group, clip: THREE.AnimationClip | undefined): number {
+  if (!clip) return 0;
+  const root = skeletonClone(scene);
+  // GLTFLoader sanitizes bone names ('foot.l' loads as 'footl').
+  const foot = root.getObjectByName('foot.l') ?? root.getObjectByName('footl');
+  if (!foot) return 0;
+  const mixer = new THREE.AnimationMixer(root);
+  mixer.clipAction(clip).play();
+  const N = 96;
+  const dt = clip.duration / N;
+  const pts: THREE.Vector3[] = [];
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < N; i++) {
+    mixer.setTime(i * dt);
+    root.updateMatrixWorld(true);
+    const p = foot.getWorldPosition(new THREE.Vector3());
+    pts.push(p);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
+  const grounded = pts.map((p) => p.y < minY + (maxY - minY) * 0.2);
+  let bestStart = 0;
+  let bestLen = 0;
+  for (let s = 0; s < N; s++) {
+    // Stance starts where grounded turns on (the scan is circular).
+    if (grounded[(s + N - 1) % N] || !grounded[s]) continue;
+    let len = 1;
+    while (len < N && grounded[(s + len) % N]) len++;
+    if (len > bestLen) {
+      bestLen = len;
+      bestStart = s;
+    }
+  }
+  if (bestLen < 2) return 0;
+  const a = pts[bestStart]!;
+  const b = pts[(bestStart + bestLen - 1) % N]!;
+  return Math.hypot(b.x - a.x, b.z - a.z) / ((bestLen - 1) * dt);
+}
+
 async function loadKayKitCharacters(): Promise<boolean> {
   {
     const loader = new GLTFLoader();
@@ -307,9 +373,18 @@ async function loadKayKitCharacters(): Promise<boolean> {
       return clip;
     };
     composite('Walking_A', 'Holding_B', 'Carry_Walk');
+    composite('Running_A', 'Holding_B', 'Carry_Jog');
     composite('Idle_A', 'Holding_B', 'Carry_Idle');
 
-    kkAssets = { chars, clips, props };
+    // Everyone shares the Rig_Medium skeleton, so one character stands in
+    // for all of them under the tape measure.
+    const rig = chars.values().next().value;
+    const gaitSpeeds = {
+      walk: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES.walk)) : 0,
+      jog: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES.jog)) : 0,
+    };
+
+    kkAssets = { chars, clips, props, gaitSpeeds };
     return true;
   }
 }
@@ -612,6 +687,25 @@ function makeKayKitCharacter(
 
   const s = char.scale * (spec.scale ?? 1);
 
+  // --- Gait matched to ground speed -------------------------------------
+  // The sim slides this unit at a fixed tiles/sec; the clips were authored
+  // for a rig covering ground at their own rate, which scales with the
+  // body (a shorter serf takes shorter strides). Left at that rate the
+  // feet skate — visibly so since TARGET_HEIGHT came down. So: play each
+  // gait at sim speed / natural speed, and pick the clip by what that
+  // ratio says. A unit that would need the walk cycle cranked past 1.5x
+  // isn't walking — give it the run. At today's speeds every unit lands
+  // there (a serf at 1.8 tiles/sec covers two body-heights a second),
+  // which is the busy-Settlers scurry; the walk stays for anything slow.
+  // The base kind speed only picks the clip and seeds the rate — the real
+  // thing wears road/trail multipliers and the serfSpeed tech, so
+  // sceneSync keeps re-feeding the speed it observes (setGaitSpeed).
+  const simSpeed = KIND_SPEED.get(kindCode) ?? UNIT_DEFS.worker.speed;
+  const walkNat = kkAssets.gaitSpeeds.walk * s;
+  const jogNat = kkAssets.gaitSpeeds.jog * s;
+  const gait: 'walk' | 'jog' =
+    spec.jog || (walkNat > 0 && simSpeed / walkNat > 1.5) ? 'jog' : 'walk';
+
   // Carried goods anchor: on the chest bone (so loads bob and sway with
   // the gait), counter-scaled back to world units, held out in front at
   // arms' reach — same bone-space frame the quiver back-attach uses.
@@ -675,7 +769,9 @@ function makeKayKitCharacter(
   const mixer = new THREE.AnimationMixer(root);
   const actions = new Map<AnimKey, THREE.AnimationAction>();
   for (const key of Object.keys(KK_CLIP_NAMES) as AnimKey[]) {
-    const name = key === 'attack' && spec.attackClip ? spec.attackClip : KK_CLIP_NAMES[key];
+    let name = key === 'attack' && spec.attackClip ? spec.attackClip : KK_CLIP_NAMES[key];
+    // A jogging carrier gets the run-legged carry composite.
+    if (key === 'carry' && gait === 'jog' && kkAssets.clips.has('Carry_Jog')) name = 'Carry_Jog';
     const clip = kkAssets.clips.get(name);
     if (!clip) continue;
     const action = mixer.clipAction(clip);
@@ -686,21 +782,45 @@ function makeKayKitCharacter(
     actions.set(key, action);
   }
 
-  return {
-    group,
-    visual: {
-      mixer,
-      actions,
-      current: null,
-      jog: spec.jog ?? false,
-      ranged: spec.ranged ?? false,
-      carryAnchor,
-      toolAnchor,
-      toolCustom,
-      defaultTool: proceduralTool ?? rightHand?.inst,
-      toolKind: 0,
-    },
+  const visual: CharacterVisual = {
+    mixer,
+    actions,
+    current: null,
+    gait,
+    gaitNat: { walk: walkNat, jog: jogNat },
+    gaitSpeed: 0,
+    ranged: spec.ranged ?? false,
+    carryAnchor,
+    toolAnchor,
+    toolCustom,
+    defaultTool: proceduralTool ?? rightHand?.inst,
+    toolKind: 0,
   };
+  setGaitSpeed(visual, simSpeed);
+  return { group, visual };
+}
+
+/**
+ * Play each gait at the rate that covers `speed` world units/sec with the
+ * feet gripping the ground instead of skating (the gait matching in
+ * makeKayKitCharacter). Seeded there with the kind's base sim speed;
+ * sceneSync re-feeds the speed it actually observes between publishes,
+ * which is where roads, trails and the serfSpeed tech show up. The clamp
+ * keeps a mismeasure or an extreme speed from either slow-motion legs or a
+ * cartoon leg-blur. Deadbanded so steady cruising writes nothing;
+ * playAnimation's reset() leaves timeScale alone, so rates survive clip
+ * switches.
+ */
+export function setGaitSpeed(visual: CharacterVisual, speed: number): void {
+  if (Math.abs(speed - visual.gaitSpeed) < visual.gaitSpeed * 0.02) return;
+  visual.gaitSpeed = speed;
+  const set = (key: AnimKey, nat: number): void => {
+    const action = visual.actions.get(key);
+    if (action) action.timeScale = nat > 0 ? clamp(speed / nat, 0.6, 2.4) : 1;
+  };
+  set('walk', visual.gaitNat.walk);
+  set('jog', visual.gaitNat.jog);
+  set('carry', visual.gait === 'jog' ? visual.gaitNat.jog : visual.gaitNat.walk);
 }
 
 /**

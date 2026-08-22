@@ -118,6 +118,30 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       if (b && !b.dead && b.owner === playerId) cancelTraining(world, b, cmd.index, cmd.unit);
       break;
     }
+    case 'setRallyPoint': {
+      // The barracks' muster flag: fresh soldiers march to it as they step
+      // out of the door. Only buildings that train take one — a flag on a
+      // bakery would be an order nothing ever reads. The tile is checked
+      // for bounds, not walkability: the flag means "near there", and the
+      // spawn does its own nearest-walkable search (marchToRally), the same
+      // forgiveness a move order's target gets.
+      const b = world.buildings.get(cmd.buildingId);
+      if (!b || b.dead || b.owner !== playerId) break;
+      if (!buildingDef(b.type).trains) break;
+      // Both coordinates absent is the take-the-flag-down order; a
+      // half-given pair changes nothing — the same reading sanitizeCommand
+      // gives the wire, kept here too so a caller that skipped screening
+      // (the AI issues through applyCommand directly) cannot strike a
+      // standing flag with a malformed plant.
+      if (cmd.x === undefined && cmd.y === undefined) {
+        b.rally = undefined;
+        break;
+      }
+      if (cmd.x === undefined || cmd.y === undefined) break;
+      if (!inBounds(cmd.x, cmd.y, world.map.size)) break;
+      b.rally = { x: cmd.x, y: cmd.y };
+      break;
+    }
     case 'admin':
       if (world.admin.enabled) applyAdmin(world, playerId, cmd.action);
       break;

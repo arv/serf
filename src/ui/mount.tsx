@@ -71,6 +71,12 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiClick');
           actions.armOrder(mode);
         }}
+        onClearRally={(buildingId) => {
+          play('uiClick');
+          // No coordinates is the take-the-flag-down spelling; planting one
+          // needs a map click and goes through Controls instead.
+          host.sendCommands([{ kind: 'setRallyPoint', buildingId }]);
+        }}
         onHire={() => {
           play('uiCoin');
           host.sendCommands([{ kind: 'hireSerf' }]);
