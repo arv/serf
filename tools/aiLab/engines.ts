@@ -151,7 +151,12 @@ export function describeSpec(spec: EngineSpec): string {
     case 'random':
       return `random (seed ${spec.seed})`;
     case 'posture':
-      return 'posture (rule-based, reads the opponent, no model)';
+      // NOT opponent-reading: choosePosture decides without a look at the
+      // rival (that variant is 'postureReads'). This label rides every
+      // report header and archived JSONL line, and posture vs posture-reads
+      // is exactly the opponent-conditioning ablation the README scores —
+      // a run filed under the wrong arm is indistinguishable from its null.
+      return 'posture (rule-based, no model)';
     case 'postureReads':
       return 'posture-reads (rule-based, conditioned on an opponent archetype)';
     case 'postureFixed':
