@@ -341,7 +341,12 @@ function playInWorker(t: Trial, opts: Options, base: MatchBase): Promise<MatchRe
     let timedOut = false;
     const watchdog = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGKILL');
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        // Already gone between scheduling and firing — the close handler
+        // settles the trial either way.
+      }
     }, opts.matchTimeoutMs);
     const out: Buffer[] = [];
     const errText: Buffer[] = [];
@@ -351,7 +356,7 @@ function playInWorker(t: Trial, opts: Options, base: MatchBase): Promise<MatchRe
       clearTimeout(watchdog);
       reject(err);
     });
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       clearTimeout(watchdog);
       if (timedOut) {
         reject(
@@ -363,7 +368,10 @@ function playInWorker(t: Trial, opts: Options, base: MatchBase): Promise<MatchRe
         return;
       }
       if (code !== 0) {
-        reject(new Error(Buffer.concat(errText).toString('utf8').trim() || `worker exited ${code}`));
+        // A signal death arrives as code null + the signal's name — the OOM
+        // killer, a stray kill — and 'worker exited null' would bury that.
+        const why = signal !== null ? `worker killed by ${signal}` : `worker exited ${code}`;
+        reject(new Error(Buffer.concat(errText).toString('utf8').trim() || why));
         return;
       }
       try {

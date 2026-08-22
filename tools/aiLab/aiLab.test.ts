@@ -795,6 +795,13 @@ describe('the command line', () => {
     expect(() => parseArgs(['--latency', 'soon'])).toThrow(/measured/);
   });
 
+  it('arms the match watchdog with a sane ceiling', () => {
+    expect(parseArgs([]).matchTimeoutMs).toBe(600_000);
+    expect(parseArgs(['--match-timeout-ms', '30000']).matchTimeoutMs).toBe(30_000);
+    expect(() => parseArgs(['--match-timeout-ms', '0'])).toThrow(/positive/);
+    expect(() => parseArgs(['--match-timeout-ms', '-5'])).toThrow(/positive/);
+  });
+
   it('will not silently swallow a flag that wanted a value', () => {
     expect(() => parseArgs(['--seeds', '--trace'])).toThrow(/wants a value/);
   });
