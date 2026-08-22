@@ -133,6 +133,16 @@ const DECOR_PROP_FILES = [
   'tools/fishing_rod',
 ];
 
+/**
+ * Props that ship as self-contained .glb rather than the .gltf pairs the
+ * list above suffixes: the Dungeon Remastered pack (CC0, see
+ * dungeon/LICENSE.txt) embeds its texture per file. Registered in `props`
+ * under the stem, so glbYardProp('dungeon/banner_red', h) works like any
+ * other prop. Today that is one model: the standing banner the rally flag
+ * plants.
+ */
+const GLB_PROP_FILES = ['dungeon/banner_red.glb'];
+
 // No goods-shaped decor on producers whose live stock piles up outside:
 // the woodcutter's baked lumber pile read as planks that were never
 // hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
@@ -354,6 +364,7 @@ export async function loadGlbAssets(): Promise<boolean> {
         ...FOREST_BUSH_FILES,
         ...FOREST_DEAD_FILES,
         ...DECOR_PROP_FILES.map((p) => `${p}.gltf`),
+        ...GLB_PROP_FILES,
       ].map(async (f) => {
         const gltf = await loadGltfRetry(loader, `${DIR}${f}`);
         gltf.scene.traverse((o) => {
@@ -618,6 +629,10 @@ export async function loadGlbAssets(): Promise<boolean> {
     for (const p of DECOR_PROP_FILES) {
       const scene = loaded.get(`${p}.gltf`);
       if (scene) props.set(p, scene);
+    }
+    for (const p of GLB_PROP_FILES) {
+      const scene = loaded.get(p);
+      if (scene) props.set(p.replace(/\.glb$/, ''), scene);
     }
     assets = {
       buildings,

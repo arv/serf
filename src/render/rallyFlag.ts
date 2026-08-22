@@ -1,18 +1,28 @@
 import * as THREE from 'three';
 import { paper, vermillion, woodLight } from './palette';
+import { glbYardProp } from './assets';
 import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
 
 /**
- * The barracks' rally flag: a pole and pennant planted on the muster tile,
+ * The barracks' rally flag: a standing gonfalon planted on the muster tile,
  * drawn only while that barracks is selected. The flag is a standing order,
  * not a building — the map is not the place to remember every order on, and
  * showing it with the card that can move it is what makes the card's
  * "soldiers muster at the flag" checkable at a glance.
  *
+ * The cloth is the Dungeon Remastered pack's red banner (CC0, see
+ * models/kaykit/dungeon/LICENSE.txt). The pack authors it as a WALL
+ * hanging — there is no free-standing flag in it — so the pole and
+ * crossbar it hangs from here are ours, in the same wood the well's crank
+ * wears. Red for every owner, on purpose: only your own selected barracks
+ * ever shows its flag, so there is no rival's flag to tell apart — and red
+ * is the game's own banner accent besides.
+ *
  * Same contract as SelectedReach: update() every frame with the selected
  * building (or null), and the mesh only moves when the answer changes —
- * terrain height never changes mid-match, so a planted pole can stand still.
+ * terrain height never changes mid-match, so a planted banner can stand
+ * still.
  */
 export class RallyFlag {
   #scene: THREE.Scene;
@@ -47,41 +57,11 @@ export class RallyFlag {
     group.visible = true;
   }
 
-  /** One pole, one pennant, one ground ring — built on first use and
-   * repositioned ever after; three keeps the buffers for the page's life. */
+  /** The standard plus a ground ring — built on first use and repositioned
+   * ever after; three keeps the buffers for the page's life. */
   #build(): THREE.Group {
     const group = new THREE.Group();
-
-    const pole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.035, 0.035, 1.15, 6),
-      new THREE.MeshLambertMaterial({ color: woodLight }),
-    );
-    pole.position.y = 1.15 / 2;
-    group.add(pole);
-
-    // The pennant: a banner triangle off the top of the pole, double-sided
-    // so it reads from every camera bearing.
-    const pennant = new THREE.BufferGeometry();
-    pennant.setAttribute(
-      'position',
-      new THREE.BufferAttribute(
-        new Float32Array([0, 1.13, 0, 0.42, 1.02, 0, 0, 0.88, 0]),
-        3,
-      ),
-    );
-    pennant.computeVertexNormals();
-    group.add(
-      new THREE.Mesh(
-        pennant,
-        new THREE.MeshBasicMaterial({ color: vermillion, side: THREE.DoubleSide }),
-      ),
-    );
-    const knob = new THREE.Mesh(
-      new THREE.SphereGeometry(0.06, 8, 6),
-      new THREE.MeshBasicMaterial({ color: paper }),
-    );
-    knob.position.y = 1.18;
-    group.add(knob);
+    group.add(this.#standard());
 
     // The ring under it borrows the selection rings' language — "this spot
     // is spoken for" — a touch wider, so a soldier standing on the tile
@@ -103,5 +83,58 @@ export class RallyFlag {
 
     this.#scene.add(group);
     return group;
+  }
+
+  /** Pole, crossbar and finial of our own wood, the pack's cloth hung from
+   * them — taller than a soldier, so the muster point still reads once the
+   * mustered are standing on it. */
+  #standard(): THREE.Group {
+    const g = new THREE.Group();
+    const wood = new THREE.MeshLambertMaterial({ color: woodLight });
+    const part = (geo: THREE.BufferGeometry, mat: THREE.Material): THREE.Mesh => {
+      const m = new THREE.Mesh(geo, mat);
+      m.castShadow = true;
+      return m;
+    };
+
+    const POLE_H = 1.55;
+    const pole = part(new THREE.CylinderGeometry(0.032, 0.032, POLE_H, 6), wood);
+    pole.position.y = POLE_H / 2;
+    g.add(pole);
+    const crossbar = part(new THREE.CylinderGeometry(0.024, 0.024, 0.56, 6), wood);
+    crossbar.rotation.z = Math.PI / 2;
+    crossbar.position.y = 1.44;
+    g.add(crossbar);
+    const finial = part(new THREE.SphereGeometry(0.05, 8, 6), new THREE.MeshLambertMaterial({ color: paper }));
+    finial.position.y = POLE_H + 0.04;
+    g.add(finial);
+
+    // The cloth: height-normalized with its feet on the ground (yard-prop
+    // framing), then lifted so its top hangs just under the crossbar.
+    // Double-sided, because a hanging cloth has two faces wherever the
+    // camera stands — the pack ships it single-sided for its dungeon walls.
+    const CLOTH_H = 0.9;
+    const cloth = glbYardProp('dungeon/banner_red', CLOTH_H);
+    if (cloth) {
+      cloth.traverse((o) => {
+        if (o instanceof THREE.Mesh) (o.material as THREE.Material).side = THREE.DoubleSide;
+      });
+      // A war standard's cut, not a dungeon wall's: the pack cloth is a
+      // slender 0.47 wide per unit of drop, and after the camera's 45°
+      // foreshortening that read as a ribbon. Width only — the drop and
+      // the pole it hangs from stay.
+      cloth.scale.x *= 1.25;
+      cloth.position.y = 1.42 - CLOTH_H;
+      g.add(cloth);
+    }
+
+    // Facing +z, unrotated — the one horizontal facing that serves both
+    // masters. The camera looks in from yaw +π/4 (cameraRig), so +z is 45°
+    // off broadside and the cloth keeps ~70% of its width; the sun stands
+    // west of north (renderer seats it at -x +z), so the same face still
+    // catches direct light. The corners fail: +π/4 faced the camera
+    // squarely but away from the sun (a near-black slab), -π/4 was lit
+    // and exactly edge-on to the camera (an invisible one).
+    return g;
   }
 }
