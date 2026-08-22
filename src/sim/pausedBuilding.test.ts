@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
-import { placeBuiltBuilding, type World } from './world.ts';
+import { placeBuiltBuilding, placeSite, type World } from './world.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { addSerf, addSite, addStorehouse, bareWorld, cmds, staffBuilding } from './testUtils.ts';
 
@@ -62,6 +62,39 @@ describe('pausing a building', () => {
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: false }));
     let guard = 0;
     while (site.state !== 'built' && guard++ < 6000) tickWorld(world, []);
+    expect(site.state).toBe('built');
+  });
+
+  it('a paused guard-tower site stays paused — the garrison exemption is for built towers', () => {
+    // The tower is the one post whose BUILT form ignores pause for soldiers
+    // (halting stands down only the levy). Its site must not inherit that
+    // door: staffing used to keep summoning and binding a builder to the
+    // paused scaffold, silently undoing the order while construction never
+    // advanced — one hand stood bound doing nothing.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, { wood: 20, stone: 20 });
+    const site = placeSite(world, 'guardTower', 0, 36, 30);
+    for (let i = 0; i < 3; i++) addSerf(world, 32, 33 + i);
+
+    // Let the village supply the scaffold and put a builder on it — the
+    // builder gate only opens once the site is nearly delivered, so a pause
+    // ordered any earlier never met the bug.
+    let guard = 0;
+    while (site.workerId === undefined && guard++ < 6000) tickWorld(world, []);
+    expect(site.workerId).toBeDefined();
+
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: true }));
+    expect(site.workerId).toBeUndefined(); // the order released the hand
+    run(world, 800);
+    expect(site.state).toBe('site');
+    // ...and nobody was quietly summoned and walked back onto the scaffold.
+    expect(site.workerId).toBeUndefined();
+    expect(site.recruitId).toBeUndefined();
+    expect(checkInvariants(world).violations).toEqual([]);
+
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: false }));
+    guard = 0;
+    while (site.state !== 'built' && guard++ < 8000) tickWorld(world, []);
     expect(site.state).toBe('built');
   });
 
