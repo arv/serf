@@ -125,7 +125,7 @@ describe('trails', () => {
     expect(world.map.pathLevel[idx]).toBe(PathLevel.Trail);
 
     // Decay with no traffic until it reverts.
-    run(world, TRAILS_INTERVAL * 120);
+    run(world, TRAILS_INTERVAL * 150);
     expect(world.map.pathLevel[idx]).toBe(PathLevel.None);
   });
 

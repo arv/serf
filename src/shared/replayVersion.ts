@@ -20,6 +20,11 @@
  * directly.
  */
 /**
+ * 20: trails come sooner and linger — a dirt trail now forms at 10 wear
+ * instead of 12, and an unused one holds on down to 0.75 wear instead of
+ * 1.5. Trail tiles are faster and preferred by A*, so earlier trails
+ * re-time every walk that crosses them.
+ *
  * 19: sieges slow down and the castle hardens — damage against buildings
  * lands at a fraction set by the attacker's arm (BUILDING_DAMAGE_MULT:
  * three quarters for melee, half for the bow — ten archers were leveling
@@ -102,4 +107,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 19;
+export const REPLAY_VERSION = 20;
