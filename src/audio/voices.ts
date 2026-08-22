@@ -7,8 +7,13 @@
  *
  *  1. Inaudible requests were already dropped at `request()` — distance
  *     silence must not consume cooldown slots.
- *  2. A cue inside its cooldown window is folded away entirely: the voice
- *     already ringing covers it.
+ *  2. A cue whose impact would land inside the cooldown window of one
+ *     already emitted is folded away entirely: the voice already ringing
+ *     — or booked to ring, since impacts are scheduled ahead — covers
+ *     it. The window lives at the *landing* time, not the request time:
+ *     a strike booked two seconds out must not gag an unrelated strike
+ *     landing next to now, and two requests landing together must fold
+ *     even when they were made seconds apart.
  *  3. N identical cues collapse into one voice: gain grows by a log law
  *     (coincident equal sources are +3 dB per doubling; we flatten even
  *     that, because a crowd should read as *bigger*, not *louder*), panned
@@ -84,6 +89,9 @@ interface Side {
 
 interface Group {
   cue: string;
+  /** Landing-time bucket (delay in cooldown-window units) — groups of the
+   * same cue aimed at different moments stay apart. */
+  bucket: number;
   minPan: number;
   maxPan: number;
   left: Side;
@@ -119,11 +127,18 @@ export class CueScheduler {
   #delays: number[] = [];
   #len = 0;
 
-  #last = new Map<string, number>();
+  /** Per cue: landing times (absolute ms) of emitted voices whose cooldown
+   * windows may still matter. Pruned in place on record; a couple of
+   * entries per active cue in steady state. */
+  #landings = new Map<string, number[]>();
+  // This flush's emissions, parked until the loop ends: the fold below
+  // must see only *previous* flushes, or it would eat the second half of
+  // a deliberate stereo split — same cue, same landing, two pans.
+  #pendCues: string[] = [];
+  #pendLandings: number[] = [];
   // Group and candidate pools persist across flushes; #groupLen/#candLen
   // are the live counts, so steady state allocates nothing per frame.
   #groups: Group[] = [];
-  #groupIdx = new Map<string, number>();
   #cands: Candidate[] = [];
   /** Indices into #cands, sorted in place — see the sort in flush(). */
   #order: number[] = [];
@@ -166,22 +181,28 @@ export class CueScheduler {
     // Group by cue and landing-time bucket (one cooldown window wide),
     // aggregating both a combined and a per-side view so the split
     // decision needs no second pass. The bucket keeps deliberately
-    // distinct impact times apart; a zero-delay request — nearly all of
-    // them — keys on the bare cue and allocates nothing.
+    // distinct impact times apart. Lookup is a linear scan over the live
+    // groups — a frame holds a handful of cue+bucket combinations, and a
+    // keyed map would need a composite key allocated per request.
     let groupLen = 0;
-    this.#groupIdx.clear();
     for (let i = 0; i < this.#len; i++) {
       const cue = this.#cues[i]!;
       const bucket = Math.floor((this.#delays[i]! * 1000) / this.#defs[cue]!.cooldownMs);
-      const gkey = bucket === 0 ? cue : `${cue}|${bucket}`;
-      let gi = this.#groupIdx.get(gkey);
-      if (gi === undefined) {
-        gi = groupLen++;
-        this.#groupIdx.set(gkey, gi);
-        let g = this.#groups[gi];
+      let g: Group | undefined;
+      for (let gi = 0; gi < groupLen; gi++) {
+        const seen = this.#groups[gi]!;
+        if (seen.cue === cue && seen.bucket === bucket) {
+          g = seen;
+          break;
+        }
+      }
+      if (!g) {
+        const gi = groupLen++;
+        g = this.#groups[gi];
         if (!g) {
           g = this.#groups[gi] = {
             cue,
+            bucket,
             minPan: 0,
             maxPan: 0,
             left: { n: 0, maxGain: 0, gainSum: 0, panGainSum: 0, delayGainSum: 0 },
@@ -189,12 +210,12 @@ export class CueScheduler {
           };
         }
         g.cue = cue;
+        g.bucket = bucket;
         g.minPan = Infinity;
         g.maxPan = -Infinity;
         resetSide(g.left);
         resetSide(g.right);
       }
-      const g = this.#groups[gi]!;
       const pan = this.#pans[i]!;
       const gain = this.#gains[i]!;
       if (pan < g.minPan) g.minPan = pan;
@@ -208,13 +229,47 @@ export class CueScheduler {
     }
     this.#len = 0;
 
-    // Groups -> candidate voices (cooldown, collapse, cluster split).
+    // The buckets are a fixed grid, so two groups can aim a hair apart
+    // across a boundary (89ms and 91ms of delay hash to different
+    // buckets). Fold any same-cue pair whose mean landings sit within
+    // one cooldown window — that pair is one moment, not two. Groups per
+    // flush are a handful; the quadratic scan is nothing.
+    const meanDelay = (g: Group): number => {
+      const gainSum = g.left.gainSum + g.right.gainSum;
+      return gainSum > 0 ? (g.left.delayGainSum + g.right.delayGainSum) / gainSum : 0;
+    };
+    for (let a = 0; a < groupLen; a++) {
+      const ga = this.#groups[a]!;
+      const win = this.#defs[ga.cue]!.cooldownMs;
+      for (let b = a + 1; b < groupLen; b++) {
+        const gb = this.#groups[b]!;
+        if (gb.cue !== ga.cue) continue;
+        if (Math.abs(meanDelay(ga) - meanDelay(gb)) * 1000 >= win) continue;
+        if (gb.minPan < ga.minPan) ga.minPan = gb.minPan;
+        if (gb.maxPan > ga.maxPan) ga.maxPan = gb.maxPan;
+        for (const side of ['left', 'right'] as const) {
+          const sa = ga[side];
+          const sb = gb[side];
+          sa.n += sb.n;
+          sa.gainSum += sb.gainSum;
+          sa.panGainSum += sb.panGainSum;
+          sa.delayGainSum += sb.delayGainSum;
+          if (sb.maxGain > sa.maxGain) sa.maxGain = sb.maxGain;
+        }
+        // Swap the last live group in; gb stays parked in the pool.
+        groupLen--;
+        this.#groups[b] = this.#groups[groupLen]!;
+        this.#groups[groupLen] = gb;
+        b--;
+      }
+    }
+
+    // Groups -> candidate voices (collapse, cluster split). Cooldown is
+    // judged at emit time below, against landing times.
     let candLen = 0;
     for (let gi = 0; gi < groupLen; gi++) {
       const g = this.#groups[gi]!;
       const def = this.#defs[g.cue]!;
-      const last = this.#last.get(g.cue);
-      if (last !== undefined && now - last < def.cooldownMs) continue;
       const split = g.maxPan - g.minPan > CLUSTER_SPREAD;
       for (const side of split ? [g.left, g.right] : [null]) {
         let n: number, maxGain: number, gainSum: number, panGainSum: number, delayGainSum: number;
@@ -259,6 +314,11 @@ export class CueScheduler {
     for (let oi = 0; oi < candLen; oi++) {
       const c = this.#cands[order[oi]!]!;
       if (budget <= 0) break;
+      // The cooldown fold, at landing time: covered by a voice a prior
+      // frame already booked near this moment. This flush's own voices
+      // are exempt — near-coincident candidates inside one flush are
+      // either one group already or a stereo split that must stay two.
+      if (this.#landingCovered(c.cue, now + c.delay * 1000)) continue;
       const used = this.#busUsed.get(c.bus) ?? 0;
       if (used >= (this.#caps[c.bus] ?? Infinity)) continue;
       this.#busUsed.set(c.bus, used + 1);
@@ -270,11 +330,40 @@ export class CueScheduler {
       slot.gain = c.gain;
       slot.delay = c.delay;
       slot.seed = hash2(this.#flushSeq, outLen);
-      outLen++;
-      // Only what actually sounded claims the cooldown window; a candidate
+      // Only what actually sounded claims a cooldown window; a candidate
       // squeezed out by the caps must not silence its successors.
-      this.#last.set(c.cue, now);
+      this.#pendCues[outLen] = c.cue;
+      this.#pendLandings[outLen] = now + c.delay * 1000;
+      outLen++;
+    }
+    for (let i = 0; i < outLen; i++) {
+      this.#recordLanding(this.#pendCues[i]!, this.#pendLandings[i]!, now);
     }
     return outLen;
+  }
+
+  /** Does this landing fall inside the cooldown window of one already
+   * emitted (ringing now or booked ahead)? */
+  #landingCovered(cue: string, landing: number): boolean {
+    const list = this.#landings.get(cue);
+    if (!list) return false;
+    const win = this.#defs[cue]!.cooldownMs;
+    for (let i = 0; i < list.length; i++) {
+      if (Math.abs(landing - list[i]!) < win) return true;
+    }
+    return false;
+  }
+
+  #recordLanding(cue: string, landing: number, now: number): void {
+    let list = this.#landings.get(cue);
+    if (!list) this.#landings.set(cue, (list = []));
+    // Compact away windows fully in the past, in place.
+    const win = this.#defs[cue]!.cooldownMs;
+    let w = 0;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i]! + win > now) list[w++] = list[i]!;
+    }
+    list.length = w;
+    list.push(landing);
   }
 }

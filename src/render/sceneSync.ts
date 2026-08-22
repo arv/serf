@@ -714,35 +714,43 @@ export class SceneSync {
           const cue = animCue(visual.audioKey, key);
           if (cue) fn(cue, x, y, 0);
         }
-        // The 'loop' event only covers cycles after the first wrap, so a
-        // percussive clip (re)started this frame would play its whole
-        // first cycle mute — for Pickaxing that is two silent swings and
-        // nearly four seconds. Schedule the entry cycle's remaining
-        // impacts here, from the same per-id offset the clip started at.
-        // Gated on the restart, not the audioKey change: a culled worker
-        // scrolling back into view restarts his clip too, and his first
-        // swing back on screen deserves its sound as much as watching him
-        // take it up did.
-        if (fn && restarted) {
-          const spec = LOOP_CUES[key];
-          // Missing clip: playAnimation fell back to idle — no percussion.
-          const action = spec ? visual.char.actions.get(key) : undefined;
-          if (spec && action) {
-            const clip = action.getClip();
-            const phase = spec.byClip?.[clip.name] ?? spec.impactPhase01;
-            const start = hash2(id, 3);
-            if (phase > start) fn(spec.cue, x, y, (phase - start) * clip.duration);
-            if (spec.perCycle === 2 && phase + 0.5 > start) {
-              fn(spec.cue, x, y, (phase + 0.5 - start) * clip.duration);
-            }
-          }
-        }
         visual.audioKey = key;
         // Where this unit is, for the loop-event percussion firing inside
         // mixer.update below (the closure outlives this frame's locals).
         visual.ax = x;
         visual.az = y;
         visual.char.mixer.update(dt);
+        // The 'loop' event only covers cycles after the first wrap, so a
+        // percussive clip (re)started this frame would play its whole
+        // first cycle mute — for Pickaxing that is two silent swings and
+        // nearly four seconds. Schedule the entry cycle's remaining
+        // impacts here. Gated on the restart, not the audioKey change: a
+        // culled worker scrolling back into view restarts his clip too,
+        // and his first swing back on screen deserves its sound as much
+        // as watching him take it up did. Three fine points: it runs
+        // after mixer.update, measuring delays from the clip's actual
+        // post-advance position (`action.time`) rather than one frame
+        // behind it; dt = 0 is the paused game, where a pan must not
+        // strike over a frozen battlefield; and a clip whose very first
+        // update already wrapped it hands the coming cycle to that wrap's
+        // own event instead of booking it twice.
+        if (fn && restarted && dt > 0) {
+          const spec = LOOP_CUES[key];
+          // Missing clip: playAnimation fell back to idle — no percussion.
+          const action = spec ? visual.char.actions.get(key) : undefined;
+          if (spec && action) {
+            const clip = action.getClip();
+            if (action.time >= hash2(id, 3) * clip.duration) {
+              const phase = spec.byClip?.[clip.name] ?? spec.impactPhase01;
+              // An impact the update just stepped over (delay in (-dt, 0])
+              // visually landed this frame — play it now, not never.
+              const d1 = phase * clip.duration - action.time;
+              if (d1 > -dt) fn(spec.cue, x, y, Math.max(0, d1));
+              const d2 = (phase + 0.5) * clip.duration - action.time;
+              if (spec.perCycle === 2 && d2 > -dt) fn(spec.cue, x, y, Math.max(0, d2));
+            }
+          }
+        }
       }
 
       // Body bob synced to the gait: high at mid-stance, low at heel-strike.
@@ -846,9 +854,13 @@ export class SceneSync {
       const key = keyOf.get(e.action);
       const spec = key !== undefined ? LOOP_CUES[key] : undefined;
       if (!spec) return;
-      // During the 0.16s crossfade the outgoing action still wraps; a
-      // clip that has already lost the blend is not the one being watched.
-      if (e.action.getEffectiveWeight() < 0.5) return;
+      // During the 0.16s crossfade the outgoing action still wraps; only
+      // the clip the unit is actually in gets to strike. Keyed on
+      // `current` rather than blend weight: a clip entered near its own
+      // wrap point wraps while its fade-in is still under half weight,
+      // and a weight test dropped that wrap — losing the whole first
+      // audible cycle.
+      if (key !== char.current) return;
       // The attack key plays a different clip per unit kind, with the
       // impact somewhere else entirely — byClip carries those phases.
       const clip = e.action.getClip();

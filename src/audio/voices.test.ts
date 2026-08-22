@@ -165,6 +165,31 @@ describe('CueScheduler', () => {
     expect(delays[1]).toBeCloseTo(2.09, 5);
   });
 
+  it('cooldown lives at the landing, not the request', () => {
+    const s = new CueScheduler(DEFS, CAPS);
+    s.request('chop', 0, 0.8, 0.22);
+    s.request('chop', 0, 0.8, 2.09); // booked strikes land at 1220 and 3090
+    expect(flush(s, 1000)).toHaveLength(2);
+    // A request made moments later but landing beside the first booked
+    // strike is the strike already covered — folded.
+    s.request('chop', 0, 0.8, 0.15); // lands 1200, 20ms from 1220
+    expect(flush(s, 1050)).toHaveLength(0);
+    // One landing in the clear between the two bookings plays: the old
+    // request-time cooldown gagged it for arriving within 90ms of the
+    // pair's emit, though no sound rings anywhere near its moment.
+    s.request('chop', 0, 0.8, 1.0); // lands 2060
+    expect(flush(s, 1060)).toHaveLength(1);
+  });
+
+  it('a bucket-boundary straddle still folds into one voice', () => {
+    // 89ms and 91ms land 2ms apart but hash to different buckets; the
+    // landing-time cooldown at emit is what catches the flam.
+    const s = new CueScheduler(DEFS, CAPS);
+    s.request('chop', 0, 0.8, 0.089);
+    s.request('chop', 0, 0.8, 0.091);
+    expect(flush(s, 1000)).toHaveLength(1);
+  });
+
   it('seeds are deterministic across identical runs', () => {
     const run = (): number[] => {
       const s = new CueScheduler(DEFS, CAPS);
