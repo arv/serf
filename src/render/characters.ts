@@ -687,24 +687,25 @@ function makeKayKitCharacter(
 
   const s = char.scale * (spec.scale ?? 1);
 
-  // --- Gait matched to ground speed -------------------------------------
+  // --- Gait paced by ground speed ----------------------------------------
   // The sim slides this unit at a fixed tiles/sec; the clips were authored
   // for a rig covering ground at their own rate, which scales with the
   // body (a shorter serf takes shorter strides). Left at that rate the
-  // feet skate — visibly so since TARGET_HEIGHT came down. So: play each
-  // gait at sim speed / natural speed, and pick the clip by what that
-  // ratio says. A unit that would need the walk cycle cranked past 1.5x
-  // isn't walking — give it the run. At today's speeds every unit lands
-  // there (a serf at 1.8 tiles/sec covers two body-heights a second),
-  // which is the busy-Settlers scurry; the walk stays for anything slow.
-  // The base kind speed only picks the clip and seeds the rate — the real
-  // thing wears road/trail multipliers and the serfSpeed tech, so
-  // sceneSync keeps re-feeding the speed it observes (setGaitSpeed).
+  // feet skate — visibly so since TARGET_HEIGHT came down — so each gait
+  // plays at sim speed / natural speed, held inside GAIT_RATE's band.
+  // The clip itself stays a wardrobe choice: soldiers jog, everyone else
+  // walks. Fully honest pacing was tried — a serf's 1.8 tiles/sec is two
+  // body-heights a second, properly a run — and a village of serfs on the
+  // run clip read as a village fleeing a fire. So villagers keep the walk
+  // at a capped hustle, and the glide left over is accepted as the same
+  // RTS stylization that oversizes them in the first place.
+  // The base kind speed only seeds the rate — the real thing also wears
+  // road/trail multipliers and the serfSpeed tech, so sceneSync keeps
+  // re-feeding the speed it observes (setGaitSpeed).
   const simSpeed = KIND_SPEED.get(kindCode) ?? UNIT_DEFS.worker.speed;
   const walkNat = kkAssets.gaitSpeeds.walk * s;
   const jogNat = kkAssets.gaitSpeeds.jog * s;
-  const gait: 'walk' | 'jog' =
-    spec.jog || (walkNat > 0 && simSpeed / walkNat > 1.5) ? 'jog' : 'walk';
+  const gait: 'walk' | 'jog' = spec.jog ? 'jog' : 'walk';
 
   // Carried goods anchor: on the chest bone (so loads bob and sway with
   // the gait), counter-scaled back to world units, held out in front at
@@ -801,26 +802,39 @@ function makeKayKitCharacter(
 }
 
 /**
- * Play each gait at the rate that covers `speed` world units/sec with the
- * feet gripping the ground instead of skating (the gait matching in
- * makeKayKitCharacter). Seeded there with the kind's base sim speed;
- * sceneSync re-feeds the speed it actually observes between publishes,
- * which is where roads, trails and the serfSpeed tech show up. The clamp
- * keeps a mismeasure or an extreme speed from either slow-motion legs or a
- * cartoon leg-blur. Deadbanded so steady cruising writes nothing;
- * playAnimation's reset() leaves timeScale alone, so rates survive clip
- * switches.
+ * Playback-rate band per gait. The walk's cap is the one knob for how much
+ * hustle a villager shows: a serf's true speed ratio is ~6x, so his walk
+ * rides this cap flat-out and everything above it is the accepted glide
+ * (1.5x is a busy market walk; past ~2x the legs read as comedy). The jog
+ * band is wide enough that soldiers track their true speed — 1.2x to 1.8x
+ * across kinds — before a leg-blur cap.
+ */
+const GAIT_RATE = {
+  walk: { lo: 0.85, hi: 1.5 },
+  jog: { lo: 0.8, hi: 1.8 },
+};
+
+/**
+ * Pace the gaits for a body covering `speed` world units/sec: each clip
+ * plays at speed / its natural ground speed, held inside GAIT_RATE (see
+ * the gait pacing note in makeKayKitCharacter). Seeded there with the
+ * kind's base sim speed; sceneSync re-feeds the speed it actually observes
+ * between publishes, which is where roads, trails and the serfSpeed tech
+ * show up. Deadbanded so steady cruising writes nothing; playAnimation's
+ * reset() leaves timeScale alone, so rates survive clip switches.
  */
 export function setGaitSpeed(visual: CharacterVisual, speed: number): void {
   if (Math.abs(speed - visual.gaitSpeed) < visual.gaitSpeed * 0.02) return;
   visual.gaitSpeed = speed;
-  const set = (key: AnimKey, nat: number): void => {
+  const set = (key: AnimKey, g: 'walk' | 'jog', nat: number): void => {
     const action = visual.actions.get(key);
-    if (action) action.timeScale = nat > 0 ? clamp(speed / nat, 0.6, 2.4) : 1;
+    if (!action) return;
+    const band = GAIT_RATE[g];
+    action.timeScale = nat > 0 ? clamp(speed / nat, band.lo, band.hi) : 1;
   };
-  set('walk', visual.gaitNat.walk);
-  set('jog', visual.gaitNat.jog);
-  set('carry', visual.gait === 'jog' ? visual.gaitNat.jog : visual.gaitNat.walk);
+  set('walk', 'walk', visual.gaitNat.walk);
+  set('jog', 'jog', visual.gaitNat.jog);
+  set('carry', visual.gait, visual.gait === 'jog' ? visual.gaitNat.jog : visual.gaitNat.walk);
 }
 
 /**

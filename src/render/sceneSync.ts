@@ -38,6 +38,10 @@ interface UnitVisual {
    * stay untouched (no unit collision by design). */
   sepX: number;
   sepY: number;
+  /** Low-passed observed ground speed feeding the gait rate (0 = never
+   * moved). Raw publish deltas step at path starts/ends and task
+   * boundaries, and legs snapping rate with them read as a hiccup. */
+  speedSm: number;
   /**
    * The audio layer's own last-clip memory — deliberately NOT
    * `char.current`, which the off-screen cull nulls so re-entry restarts
@@ -518,6 +522,7 @@ export class SceneSync {
           char: skinned.visual,
           sepX: 0,
           sepY: 0,
+          speedSm: 0,
           audioKey: null,
           entryPending: false,
           ax: latest.xs[i]!,
@@ -616,8 +621,16 @@ export class SceneSync {
           // its rate was seeded with misses road/trail multipliers and the
           // serfSpeed tech. prev and latest are adjacent publishes, one
           // interval apart, the same window the interpolation draws by.
+          // Low-passed (~quarter-second) because a walk's first and last
+          // windows are partial: raw, they'd yank the legs slow for one
+          // publish at every start and stop.
           if (visual.char) {
-            setGaitSpeed(visual.char, Math.hypot(dx, dy) * (1000 / PUBLISH_INTERVAL_MS));
+            const sp = Math.hypot(dx, dy) * (1000 / PUBLISH_INTERVAL_MS);
+            visual.speedSm =
+              visual.speedSm > 0
+                ? visual.speedSm + (sp - visual.speedSm) * Math.min(1, dt * 4)
+                : sp;
+            setGaitSpeed(visual.char, visual.speedSm);
           }
         }
       }
