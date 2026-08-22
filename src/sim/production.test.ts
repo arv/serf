@@ -3,7 +3,7 @@ import { tileIdx } from '../shared/grid.ts';
 import { tickWorld } from './tick.ts';
 import { PathLevel, TileResource } from './map.ts';
 import { OUTPUT_CAP } from './defs/buildings.ts';
-import { TRAILS_INTERVAL, TRAIL_WEAR_THRESHOLD } from './defs/balance.ts';
+import { TRAILS_INTERVAL } from './defs/balance.ts';
 import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
 import type { World } from './world.ts';
 
@@ -120,11 +120,19 @@ describe('trails', () => {
   it('worn grass becomes a dirt trail; unused trails revert', () => {
     const world = bareWorld();
     const idx = tileIdx(10, 10, world.map.size);
-    world.map.wear[idx] = TRAIL_WEAR_THRESHOLD + 2;
+    // 11 wear sits between the 10-wear formation threshold and the
+    // pre-v20 12: a regression to the old threshold leaves this grass.
+    world.map.wear[idx] = 11;
     run(world, TRAILS_INTERVAL + 1);
     expect(world.map.pathLevel[idx]).toBe(PathLevel.Trail);
 
-    // Decay with no traffic until it reverts, bounded so a trail that
+    // Decay with no traffic. From 11 wear the pre-v20 revert floor of
+    // 1.5 cleared the trail by pass 100; the 0.75 floor holds it until
+    // pass ~134. At 120 passes only the new floor keeps it standing.
+    run(world, TRAILS_INTERVAL * 119); // 120 passes counting the one above
+    expect(world.map.pathLevel[idx]).toBe(PathLevel.Trail);
+
+    // Then keep decaying until it reverts, bounded so a trail that
     // never fades fails the assertion instead of hanging the suite.
     for (let i = 0; i < 500 && world.map.pathLevel[idx] === PathLevel.Trail; i++) {
       run(world, TRAILS_INTERVAL);
