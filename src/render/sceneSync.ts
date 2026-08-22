@@ -19,6 +19,7 @@ import {
   TARGET_HEIGHT,
   makeCharacter,
   playAnimation,
+  setGaitSpeed,
   setWorkTool,
   TOOL_STOWED,
   type AnimKey,
@@ -611,6 +612,13 @@ export class SceneSync {
         if (dx * dx + dy * dy > 1e-6) {
           moving = true;
           visual.group.rotation.y = Math.atan2(dx, dy);
+          // Feed the gait the speed actually covered — the base kind speed
+          // its rate was seeded with misses road/trail multipliers and the
+          // serfSpeed tech. prev and latest are adjacent publishes, one
+          // interval apart, the same window the interpolation draws by.
+          if (visual.char) {
+            setGaitSpeed(visual.char, Math.hypot(dx, dy) * (1000 / PUBLISH_INTERVAL_MS));
+          }
         }
       }
       // Animation from what the unit is doing: skinned clips when the GLB
@@ -682,6 +690,9 @@ export class SceneSync {
           visual.sepX = this.#sepTX[i] = curX + (dx / dist) * step - x;
           visual.sepY = this.#sepTY[i] = curZ + (dz / dist) * step - y;
           visual.group.rotation.y = Math.atan2(dx, dz);
+          // Render-side walk, so no publish delta to measure: it advances
+          // at exactly PIER_WALK_SPEED, tell the legs the same.
+          if (visual.char) setGaitSpeed(visual.char, PIER_WALK_SPEED);
         }
       }
       if (visual.char && offScreen) {
@@ -692,8 +703,8 @@ export class SceneSync {
         const heldCarry = carrying > 0;
         let key: AnimKey;
         if (dead) key = 'death';
-        else if (moving) key = heldCarry ? 'carry' : visual.char.jog ? 'jog' : 'walk';
-        else if (pier) key = fishing ? 'fish' : 'walk';
+        else if (moving) key = heldCarry ? 'carry' : visual.char.gait;
+        else if (pier) key = fishing ? 'fish' : visual.char.gait;
         else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
         else if (action === ACTION.work) key = crankWell ? 'idle' : workAnimKey(workKind);
         else key = heldCarry ? 'carryIdle' : 'idle';
@@ -749,11 +760,14 @@ export class SceneSync {
             const clip = action.getClip();
             if (action.time >= hash2(id, 3) * clip.duration) {
               const phase = spec.byClip?.[clip.name] ?? spec.impactPhase01;
-              // An impact the update just stepped over (delay in (-dt, 0])
-              // visually landed this frame — play it now, not never.
-              const d1 = phase * clip.duration - action.time;
+              // In real seconds — gait actions play speed-matched, so a
+              // clip-time lead is off by their timeScale. An impact the
+              // update just stepped over (delay in (-dt, 0]) visually
+              // landed this frame — play it now, not never.
+              const rate = action.getEffectiveTimeScale() || 1;
+              const d1 = (phase * clip.duration - action.time) / rate;
               if (d1 > -dt) fn(spec.cue, x, y, Math.max(0, d1));
-              const d2 = (phase + 0.5) * clip.duration - action.time;
+              const d2 = ((phase + 0.5) * clip.duration - action.time) / rate;
               if (spec.perCycle === 2 && d2 > -dt) fn(spec.cue, x, y, Math.max(0, d2));
             }
           }
@@ -878,13 +892,17 @@ export class SceneSync {
       // the wrap, so the lead is measured from its actual position, not
       // the wrap point — a wrap early in a long frame would land every
       // impact late by the rest of that frame. An impact the same update
-      // stepped past comes out clamped to "now".
+      // stepped past comes out clamped to "now". Divided into real
+      // seconds: gait actions play speed-matched (their timeScale grips
+      // the feet to the ground), so clip time alone would schedule the
+      // footfall off by that whole factor.
+      const rate = e.action.getEffectiveTimeScale() || 1;
       const t = e.action.time;
-      fn(spec.cue, visual.ax, visual.az, Math.max(0, phase * clip.duration - t));
+      fn(spec.cue, visual.ax, visual.az, Math.max(0, (phase * clip.duration - t) / rate));
       // perCycle 2 is a half-cycle symmetry: the gaits' second footfall,
       // the pick and hammer loops' second swing — half a clip later.
       if (spec.perCycle === 2) {
-        fn(spec.cue, visual.ax, visual.az, Math.max(0, (phase + 0.5) * clip.duration - t));
+        fn(spec.cue, visual.ax, visual.az, Math.max(0, ((phase + 0.5) * clip.duration - t) / rate));
       }
     };
     visual.loopCb = cb;

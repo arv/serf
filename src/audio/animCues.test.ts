@@ -78,12 +78,19 @@ describe('LOOP_CUES', () => {
 
   it('a twice-a-cycle phase stays in the first half — the mirror lands +0.5', () => {
     for (const [key, spec] of Object.entries(LOOP_CUES)) {
-      if (spec.perCycle === 2) expect(spec.impactPhase01, key).toBeLessThan(0.5);
+      if (spec.perCycle !== 2) continue;
+      expect(spec.impactPhase01, key).toBeLessThan(0.5);
+      for (const [clip, phase] of Object.entries(spec.byClip ?? {})) {
+        expect(phase, `${key} ${clip}`).toBeLessThan(0.5);
+      }
     }
   });
 
-  it('carry keeps step with walk — its clip is composited from the same legs', () => {
+  it('carry keeps step with the legs it borrowed — walk by default, jog by clip', () => {
+    // characters.ts composites Carry_Walk from Walking_A and Carry_Jog
+    // from Running_A; the footfalls are those gaits' own.
     expect(LOOP_CUES.carry?.impactPhase01).toBe(LOOP_CUES.walk?.impactPhase01);
+    expect(LOOP_CUES.carry?.byClip?.Carry_Jog).toBe(LOOP_CUES.jog?.impactPhase01);
   });
 
   it('the attack key covers each attackClip a kind can swap in', () => {

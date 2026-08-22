@@ -67,8 +67,15 @@ export const LOOP_CUES: Partial<
   walk: { cue: 'footstep', impactPhase01: 0.05, perCycle: 2 },
   // Running_A lands on the ball of the foot: toe down 0.09, planted 0.12.
   jog: { cue: 'footstep', impactPhase01: 0.1, perCycle: 2 },
-  // Carry_Walk is composited from Walking_A's legs — same footfalls.
-  carry: { cue: 'footstep', impactPhase01: 0.05, perCycle: 2 },
+  // Carry composites borrow their legs (characters.ts): Carry_Walk from
+  // Walking_A — same footfalls — and a jogging carrier's Carry_Jog from
+  // Running_A, which lands like the jog.
+  carry: {
+    cue: 'footstep',
+    impactPhase01: 0.05,
+    perCycle: 2,
+    byClip: { Carry_Jog: 0.1 },
+  },
   // Chopping: one swing, 0.18..0.28, the axe stopping in the trunk.
   work: { cue: 'chop', impactPhase01: 0.27, perCycle: 1 },
   // Pickaxing and Hammering both genuinely strike twice per clip, on the
