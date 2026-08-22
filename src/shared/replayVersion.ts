@@ -20,6 +20,14 @@
  * directly.
  */
 /**
+ * 22: a sold Smith loses its forged hammers with the rest of its stock.
+ * The sale's rescue set carried 'hammer' unconditionally — meant for the
+ * hammer a half-built site borrows — so a built Smith's forged hammers
+ * walked to the storehouse for free while the axes on the same shelf
+ * were lost. The hammer now rides the rescue only for a site. Any log
+ * that sells a Smith holding hammers banks fewer tools from that tick
+ * on.
+ *
  * 21: trails come sooner and linger — the trail pass (which runs every
  * TRAILS_INTERVAL ticks, checking each tile after its wear decay) now
  * turns worn grass into a dirt trail at 10 wear instead of 12, and
@@ -117,4 +125,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 21;
+export const REPLAY_VERSION = 22;
