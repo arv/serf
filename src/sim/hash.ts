@@ -103,6 +103,15 @@ export function hashWorld(world: World): number {
         mix(o.started ? 1 : 0);
       }
     }
+    // The rally flag steers every soldier that steps out of the door for as
+    // long as it stands — a save that dropped it would march the next
+    // recruit to the wrong ground. The presence bit keeps "no flag" apart
+    // from "a flag on tile (0,0)".
+    mix(b.rally ? 1 : 0);
+    if (b.rally) {
+      mixU32(b.rally.x);
+      mixU32(b.rally.y);
+    }
   }
   for (const j of world.jobs.values()) {
     mixU32(j.id);

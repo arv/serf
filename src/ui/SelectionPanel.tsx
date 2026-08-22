@@ -27,7 +27,15 @@ import {
 } from './store';
 
 import { buildingName, goodName, techName, unitName } from './names';
-import { HIRE_KEY, RESEARCH_KEY, canHire, canTrain, trainKey, unitTechGate } from './commands';
+import {
+  HIRE_KEY,
+  RALLY_KEY,
+  RESEARCH_KEY,
+  canHire,
+  canTrain,
+  trainKey,
+  unitTechGate,
+} from './commands';
 import { SHORT } from './breakpoints';
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
@@ -90,6 +98,7 @@ export function SelectionPanel(props: {
   onHire: () => void;
   onDeselect: () => void;
   onArmOrder: (mode: OrderMode | null) => void;
+  onClearRally: (buildingId: number) => void;
   onSell: (buildingId: number) => void;
   onRepair: (buildingId: number, repair: boolean) => void;
   onTogglePause: (buildingId: number, paused: boolean) => void;
@@ -651,6 +660,52 @@ export function SelectionPanel(props: {
                       );
                     }}
                   </For>
+                </div>
+                {/* The rally flag: where fresh soldiers muster as they step
+                    out of the door. The button arms the next click/tap the
+                    way the squad card's Attack and Move do (desktop also
+                    takes a plain right-click with the barracks open); the
+                    slot beside it holds either the armed hint or the
+                    standing flag's note — one reserved line, so planting
+                    or striking the flag never moves the queue below. */}
+                <div class="sel-row">
+                  <TipWrap
+                    tip={() => (
+                      <TextTip
+                        title="Rally point"
+                        body="Then click a spot: every soldier that finishes training marches there instead of standing at the door. Click the barracks itself to take the flag down."
+                      />
+                    )}
+                  >
+                    <button
+                      classList={{ active: orderMode() === 'rally' }}
+                      onClick={() => props.onArmOrder(orderMode() === 'rally' ? null : 'rally')}
+                    >
+                      <Key label="Rally" k={RALLY_KEY} />
+                    </button>
+                  </TipWrap>
+                  <Show
+                    when={orderMode() === 'rally'}
+                    fallback={
+                      <Show when={b().rally}>
+                        <span class="sel-label">
+                          soldiers muster at the flag{' '}
+                          {/* The glyph is the whole visible label, so the
+                              accessible name has to be spelled out. */}
+                          <button
+                            class="sel-idle-clear"
+                            aria-label="Take the rally flag down"
+                            title="Take the rally flag down"
+                            onClick={() => props.onClearRally(b().id)}
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      </Show>
+                    }
+                  >
+                    <span class="sel-label">click where they should muster</span>
+                  </Show>
                 </div>
                 {/* The queue: TRAIN_QUEUE_CAP slots, declared rather than
                     measured — the same trick the build ribbon plays with

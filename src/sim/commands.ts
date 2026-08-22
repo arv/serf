@@ -30,6 +30,9 @@ export type SimCommand =
   | { kind: 'research'; tech: TechId }
   | { kind: 'trainUnit'; buildingId: EntityId; unit: UnitTypeId }
   | { kind: 'cancelTraining'; buildingId: EntityId; index: number; unit: UnitTypeId }
+  // Plant (x and y present) or take down (both absent) a barracks' rally
+  // flag: the tile fresh soldiers march to as they step out of the door.
+  | { kind: 'setRallyPoint'; buildingId: EntityId; x?: number; y?: number }
   | { kind: 'admin'; action: AdminAction };
 
 /** Sandbox tweaks (the ?admin panel). Single-player: no cheat gating needed. */
@@ -183,6 +186,16 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
         index: c.index,
         unit: c.unit as UnitTypeId,
       };
+    }
+    case 'setRallyPoint': {
+      if (!isId(c.buildingId)) return null;
+      // No coordinates at all is the take-the-flag-down order; a half-given
+      // pair is garbage rather than a guess at what was meant.
+      if (c.x === undefined && c.y === undefined) {
+        return { kind: 'setRallyPoint', buildingId: c.buildingId };
+      }
+      if (!isTile(c.x) || !isTile(c.y)) return null;
+      return { kind: 'setRallyPoint', buildingId: c.buildingId, x: c.x, y: c.y };
     }
     case 'admin':
       if (!ADMIN_ACTIONS.includes(c.action as AdminAction)) return null;
