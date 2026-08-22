@@ -160,8 +160,15 @@ function readSeatStash(code: string): SeatStash | null {
  * menu is fresh intent, and a stashed seat from the last match must not
  * quietly sit back down in it. */
 export function clearSeatStash(): void {
-  sessionStorage.removeItem(SEAT_STASH);
-  localStorage.removeItem(SEAT_STASH);
+  // Tolerated like the read above: where site data is blocked, touching
+  // storage itself throws, and a Begin click must not die clearing a
+  // stash that could never have been written.
+  try {
+    sessionStorage.removeItem(SEAT_STASH);
+    localStorage.removeItem(SEAT_STASH);
+  } catch {
+    // Nothing stored, nothing to clear.
+  }
 }
 
 /**
@@ -292,8 +299,12 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
             playerId: msg.playerId,
             seats: msg.seats,
           } satisfies SeatStash);
-        sessionStorage.setItem(SEAT_STASH, stashJson);
-        localStorage.setItem(SEAT_STASH, stashJson);
+        try {
+          sessionStorage.setItem(SEAT_STASH, stashJson);
+          localStorage.setItem(SEAT_STASH, stashJson);
+        } catch {
+          // Storage denied: the seat just doesn't survive a reload.
+        }
         unmount();
         ws.close();
         resolve({

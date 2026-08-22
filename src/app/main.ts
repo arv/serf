@@ -140,7 +140,7 @@ function showFatal(message: string, opts?: { retry?: boolean; menu?: boolean }):
     retry.addEventListener('click', () => {
       // Asking by hand re-arms the automatic tries: the count exists to stop
       // a reload loop running on its own, and this one is not on its own.
-      sessionStorage.removeItem('serf-gl-fails');
+      stashSet('session', 'serf-gl-fails', null);
       location.reload();
     });
     card.append(retry);
@@ -248,10 +248,35 @@ let current: Screen | null = null;
  * must not bounce back to the menu. (The menu's own Load goes through
  * ?load=<name>, which is a launch param like any other.)
  */
+/**
+ * Storage, tolerated: where site data is blocked, touching
+ * sessionStorage/localStorage itself throws — and the boot path must not
+ * die for a convenience stash (StartMenu and the stores wear the same
+ * try/catch). A denied read is an absent stash; a denied write is a
+ * handoff that doesn't survive, which every caller already tolerates.
+ */
+function stashGet(kind: 'local' | 'session', key: string): string | null {
+  try {
+    return (kind === 'session' ? sessionStorage : localStorage).getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function stashSet(kind: 'local' | 'session', key: string, value: string | null): void {
+  try {
+    const store = kind === 'session' ? sessionStorage : localStorage;
+    if (value === null) store.removeItem(key);
+    else store.setItem(key, value);
+  } catch {
+    // Denied or full: the stash just doesn't happen.
+  }
+}
+
 function gameChosen(params: URLSearchParams): boolean {
   return (
     LAUNCH_PARAMS.some((k) => params.has(k)) ||
-    sessionStorage.getItem('serf-load-pending') !== null
+    stashGet('session', 'serf-load-pending') !== null
   );
 }
 
@@ -426,10 +451,10 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
   // or duplicate the handoff), and that file is the world the player was
   // actually standing in — ?load=<name>, which the menu's shelf and every
   // ordinary reload of this URL carry, is the older intent.
-  const pending = sessionStorage.getItem('serf-load-pending');
-  sessionStorage.removeItem('serf-load-pending');
+  const pending = stashGet('session', 'serf-load-pending');
+  stashSet('session', 'serf-load-pending', null);
   // Migrate away any stale handoff left by the old localStorage flow.
-  localStorage.removeItem('serf-load-pending');
+  stashSet('local', 'serf-load-pending', null);
   let raw: string | null = null;
   /** What to call the village in a message about it. */
   let loadName: string | null = null;
@@ -723,10 +748,10 @@ async function runMatch(
   try {
     renderer = new GameRenderer(canvas);
     teardown.push(() => renderer.dispose());
-    sessionStorage.removeItem('serf-gl-fails');
+    stashSet('session', 'serf-gl-fails', null);
   } catch (err) {
-    const fails = Number(sessionStorage.getItem('serf-gl-fails') ?? '0') + 1;
-    sessionStorage.setItem('serf-gl-fails', String(fails));
+    const fails = Number(stashGet('session', 'serf-gl-fails') ?? '0') + 1;
+    stashSet('session', 'serf-gl-fails', String(fails));
     if (fails <= 2) setTimeout(() => location.reload(), fails * 1500);
     fatal(
       'The browser refused a WebGL context — this usually passes in a moment. ' +
@@ -774,7 +799,7 @@ async function runMatch(
         void rescue()
           .then((data) => saveGameNow(data))
           .then((name) => {
-            if (name !== null) sessionStorage.setItem('serf-load-pending', name);
+            if (name !== null) stashSet('session', 'serf-load-pending', name);
           })
           .finally(() => location.reload());
       }, 4000);
