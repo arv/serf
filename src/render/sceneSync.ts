@@ -687,8 +687,8 @@ export class SceneSync {
         const heldCarry = carrying > 0;
         let key: AnimKey;
         if (dead) key = 'death';
-        else if (moving) key = heldCarry ? 'carry' : visual.char.jog ? 'jog' : 'walk';
-        else if (pier) key = fishing ? 'fish' : 'walk';
+        else if (moving) key = heldCarry ? 'carry' : visual.char.gait;
+        else if (pier) key = fishing ? 'fish' : visual.char.gait;
         else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
         else if (action === ACTION.work) key = crankWell ? 'idle' : workAnimKey(workKind);
         else key = heldCarry ? 'carryIdle' : 'idle';
@@ -821,7 +821,10 @@ export class SceneSync {
       // During the 0.16s crossfade the outgoing action still wraps; a
       // clip that has already lost the blend is not the one being watched.
       if (e.action.getEffectiveWeight() < 0.5) return;
-      const dur = e.action.getClip().duration;
+      // Real seconds per cycle: gait actions play speed-matched (their
+      // timeScale grips the feet to the ground), so the clip's authored
+      // duration alone would schedule the footfall late.
+      const dur = e.action.getClip().duration / (e.action.getEffectiveTimeScale() || 1);
       fn(spec.cue, visual.ax, visual.az, spec.impactPhase01 * dur);
       // A gait cycle is two footfalls; the second lands half a clip later.
       if (spec.perCycle === 2) {
