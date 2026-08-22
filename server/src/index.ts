@@ -206,12 +206,27 @@ wss.on('connection', (ws) => {
     // A newer socket may have taken this seat over (worker rejoin after the
     // lobby socket) — only the current socket's close disconnects the seat.
     if (seat.ws !== ws) return;
+    if (room.state === 'lobby') {
+      // The rule releaseRoom already applies when a socket walks away on
+      // purpose, now for the socket that just vanished: nothing has been
+      // built yet, so the chair goes with them. Merely marking it
+      // disconnected left a seat nobody could ever reclaim — lobby
+      // occupants have no token until 'begin' — so a vanished host
+      // bricked the room outright ('start' wants playerId 0), and every
+      // reload stacked one more ghost toward MAX_SEATS. removeSeat
+      // reindexes playerIds, so the oldest remaining occupant inherits
+      // the host's chair, and the broadcast tells everyone where they
+      // now sit.
+      removeSeat(room, seat);
+      broadcastRoomState(room);
+      deleteRoomIfDead(room);
+      return;
+    }
     seat.connected = false;
     seat.ws = null;
     for (const s of room.seats) {
       if (s.connected && s.ws) sendJson(s.ws, { t: 'peer', playerId: seat.playerId, connected: false });
     }
-    if (room.state === 'lobby') broadcastRoomState(room);
     deleteRoomIfDead(room);
   });
 });
