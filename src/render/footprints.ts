@@ -3,8 +3,9 @@ import { hash2 } from '../shared/math';
 import { tileIdx, tileX, tileY } from '../shared/grid';
 import { ACTION, AUX_STRIDE, type SabReader } from '../protocol/sabLayout';
 import type { MapView } from '../sim/map';
+import type { Sole } from './characters';
 import { ribbonCover, type RibbonCover } from './pathRibbon';
-import { makeFootprintSprite } from './spriteTextures';
+import { FOOTPRINT_TEX_FILL, makeFootprintSprite } from './spriteTextures';
 import type { FogQuery } from './fogOfWar';
 import type { HeightField } from './heightField';
 
@@ -17,9 +18,11 @@ export const STRIDE = 0.45;
  * speeds). Past this the trail goes sparse instead of the pass going long.
  */
 export const MAX_PRINTS_PER_STEP = 6;
-/** Feet straddle the line of march by this much, in tiles. */
+/** Feet straddle the line of march by this much, in tiles — the fallback
+ * when no character sole is to hand; with one, its own offset is used. */
 const FOOT_OFFSET = 0.055;
-/** Print quad footprint on the ground, in tiles. */
+/** Fallback print quad size, in tiles; with a sole the quad is sized from
+ * the boot itself. */
 const PRINT_W = 0.09;
 const PRINT_L = 0.17;
 /** Above the terrain skin, below everything that stands on it. */
@@ -170,21 +173,34 @@ export class Footprints {
    * animation clock, so a pause doesn't wash the ground clean. */
   #now = 0;
   #stamped = false;
+  /** Sideways offset of each footfall from the march line. */
+  #footOffset: number;
 
-  constructor(reader: SabReader, map: MapView, heights: HeightField, owner: number) {
+  constructor(
+    reader: SabReader,
+    map: MapView,
+    heights: HeightField,
+    owner: number,
+    sole: Sole | null = null,
+  ) {
     this.#reader = reader;
     this.#map = map;
     this.#heights = heights;
     this.#owner = owner;
+    this.#footOffset = sole?.offset ?? FOOT_OFFSET;
 
-    const geometry = new THREE.PlaneGeometry(PRINT_W, PRINT_L);
+    // The quad carries the boot at its true size: the sole fills
+    // FOOTPRINT_TEX_FILL of the texture, the rest is soft-edge margin.
+    const printW = sole ? sole.width / FOOTPRINT_TEX_FILL : PRINT_W;
+    const printL = sole ? sole.length / FOOTPRINT_TEX_FILL : PRINT_L;
+    const geometry = new THREE.PlaneGeometry(printW, printL);
     geometry.rotateX(-Math.PI / 2); // flat on the ground, length along the march
     this.#birth = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITY), 1);
     this.#birth.setUsage(THREE.DynamicDrawUsage);
     geometry.setAttribute('aBirth', this.#birth);
 
     const material = new THREE.MeshLambertMaterial({
-      map: makeFootprintSprite(),
+      map: makeFootprintSprite(sole),
       transparent: true,
       // A skin on the ground, like the road decal: depth-tested against the
       // world but never written, nudged off the terrain to kill z-fighting.
@@ -325,8 +341,8 @@ export class Footprints {
     if (slot >= this.#high) this.#high = slot + 1;
 
     // Left and right feet straddle the march line.
-    const px = x + Math.cos(yaw) * FOOT_OFFSET * side;
-    const pz = y - Math.sin(yaw) * FOOT_OFFSET * side;
+    const px = x + Math.cos(yaw) * this.#footOffset * side;
+    const pz = y - Math.sin(yaw) * this.#footOffset * side;
     this.#printX[slot] = px;
     this.#printZ[slot] = pz;
     dummy.position.set(px, this.#heights.at(px, pz) + LIFT, pz);

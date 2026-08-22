@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Sole } from './characters';
 
 /**
  * Hand-"painted" vegetation sprites, drawn on canvases at boot. Alpha-tested
@@ -253,14 +254,68 @@ export function makeButterflySprite(): THREE.Texture {
 }
 
 /**
- * A single bootprint seen from above: a pressed sole and heel in trodden-soil
- * brown, soft-edged so the print sits into the ground rather than on it. The
- * toe sits at the canvas bottom — with the texture's flipY that is v = 0,
- * which the flat print quad maps to its march heading.
+ * How much of the footprint texture's span the sole itself fills; the rest
+ * is margin for the soft edge. The print quad is sized against the same
+ * fraction (footprints.ts), so the drawn sole comes out at the boot's true
+ * world size.
  */
-export function makeFootprintSprite(): THREE.Texture {
+export const FOOTPRINT_TEX_FILL = 0.78;
+
+/** Andrew's monotone chain, for the sole outline. */
+function convexHull(points: readonly [number, number][]): [number, number][] {
+  const pts = [...points].sort((a, z) => a[0] - z[0] || a[1] - z[1]);
+  const cross = (o: number[], a: number[], b: number[]): number =>
+    (a[0]! - o[0]!) * (b[1]! - o[1]!) - (a[1]! - o[1]!) * (b[0]! - o[0]!);
+  const half = (list: readonly [number, number][]): [number, number][] => {
+    const out: [number, number][] = [];
+    for (const p of list) {
+      while (out.length >= 2 && cross(out[out.length - 2]!, out[out.length - 1]!, p) <= 0) {
+        out.pop();
+      }
+      out.push(p);
+    }
+    out.pop();
+    return out;
+  };
+  return [...half(pts), ...half([...pts].reverse())];
+}
+
+/**
+ * A single bootprint seen from above, in trodden-soil brown, soft-edged so
+ * the print sits into the ground rather than on it. Given a sole (the boot
+ * outline lifted off the character model — characters.serfSole), the print
+ * is that exact silhouette; without one it falls back to a hand-drawn sole
+ * and heel. The toe sits at the canvas bottom — with the texture's flipY
+ * that is v = 0, which the flat print quad maps to its march heading.
+ */
+export function makeFootprintSprite(sole?: Sole | null): THREE.Texture {
   return canvasTexture(64, (ctx) => {
-    // Soft oval pad: a radial gradient drawn through a scaled context.
+    if (sole && sole.points.length >= 3) {
+      // Map the sole into the canvas, each axis filling the same fraction —
+      // the quad's aspect ratio restores the boot's true proportions. +z
+      // (the toe) grows down the canvas, which flipY turns into v = 0.
+      const sx = (64 * FOOTPRINT_TEX_FILL) / sole.width;
+      const sy = (64 * FOOTPRINT_TEX_FILL) / sole.length;
+      const hull = convexHull(sole.points);
+      // Soft edge without ctx.filter: nested refills shrinking toward the
+      // center, each pass stacking alpha over the ones beneath it.
+      for (let k = 0; k < 6; k++) {
+        const t = 1.1 - k * 0.07;
+        ctx.fillStyle = `rgba(56, 42, 26, ${(0.1 + k * 0.06).toFixed(2)})`;
+        ctx.beginPath();
+        for (const [i, [x, z]] of hull.entries()) {
+          const cx = 32 + x * sx * t;
+          const cy = 32 + z * sy * t;
+          if (i === 0) ctx.moveTo(cx, cy);
+          else ctx.lineTo(cx, cy);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+      return;
+    }
+    // Fallback: a hand-drawn print. Soft oval pad: a radial gradient drawn
+    // through a scaled context.
     const pad = (x: number, y: number, rx: number, ry: number): void => {
       ctx.save();
       ctx.translate(x, y);

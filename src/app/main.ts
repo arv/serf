@@ -17,7 +17,7 @@ import { SelectedReach } from '../render/reachOutline';
 import { FogOfWar } from '../render/fogOfWar';
 import { batteryFramePacer } from '../render/framePacer';
 import { HiddenSync } from './hiddenSync';
-import { loadCharacterAssets } from '../render/characters';
+import { loadCharacterAssets, serfSole } from '../render/characters';
 import { loadGlbAssets } from '../render/assets';
 import { Controls } from '../input/controls';
 import { DamageAlerts } from './damageAlerts';
@@ -876,8 +876,15 @@ async function runMatch(
   renderer.scene.add(butterflies.mesh);
   // Fading bootprints where people walk. Handed the mirror's map view —
   // the same live pathLevel grid the grass watches — so prints keep off
-  // the trails as they wear in.
-  const footprints = new Footprints(init.reader, mirror.map, heights, config.myPlayerId);
+  // the trails as they wear in; the print itself is the serf's own boot,
+  // lifted off the character model (loaded just above).
+  const footprints = new Footprints(
+    init.reader,
+    mirror.map,
+    heights,
+    config.myPlayerId,
+    serfSole(),
+  );
   renderer.scene.add(footprints.mesh);
 
   const buildingSync = new BuildingSync(renderer.scene, heights, config.myPlayerId);

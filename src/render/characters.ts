@@ -715,6 +715,85 @@ export function charactersReady(): boolean {
   return kkAssets !== null;
 }
 
+/** A boot sole projected onto the ground, in world units, centered. */
+export interface Sole {
+  /** (x, z) outline samples; +z is the toe (the model's facing). */
+  points: [number, number][];
+  width: number;
+  length: number;
+  /** How far the foot stands off the body's centerline — the natural
+   * straddle of a walker's two feet about their line of march. */
+  offset: number;
+}
+
+/**
+ * The serf's left sole: the vertices of the Rogue's boot (the serf body),
+ * projected onto the ground and scaled to world units — so the footprint
+ * layer stamps the actual boot the villagers wear, not an invented one.
+ * Every pack character stands on the same rig with near-identical boots,
+ * so one sole serves all kinds. Null until the character assets load.
+ */
+export function serfSole(): Sole | null {
+  const char = kkAssets?.chars.get('Rogue');
+  if (!char) return null;
+  // Boot vertices: dominant skin weight on the left foot or toe bones.
+  // (GLTFLoader may sanitize 'foot.l' to 'footl'; match both.)
+  const pts: [number, number, number][] = [];
+  char.scene.traverse((o) => {
+    if (!(o instanceof THREE.SkinnedMesh)) return;
+    const geo = o.geometry;
+    const pos = geo.getAttribute('position');
+    const jix = geo.getAttribute('skinIndex');
+    const wts = geo.getAttribute('skinWeight');
+    if (!pos || !jix || !wts) return;
+    const footJoints = new Set<number>();
+    o.skeleton.bones.forEach((b, i) => {
+      if (/^(foot|toes)\.?l$/.test(b.name)) footJoints.add(i);
+    });
+    if (footJoints.size === 0) return;
+    for (let v = 0; v < pos.count; v++) {
+      let best = 0;
+      for (let k = 1; k < 4; k++) {
+        if (wts.getComponent(v, k) > wts.getComponent(v, best)) best = k;
+      }
+      if (!footJoints.has(jix.getComponent(v, best))) continue;
+      pts.push([pos.getX(v), pos.getY(v), pos.getZ(v)]);
+    }
+  });
+  if (pts.length < 8) return null;
+  // Only the lower part of the boot prints — the ankle shaft overhangs it.
+  let y0 = Infinity;
+  let y1 = -Infinity;
+  for (const p of pts) {
+    y0 = Math.min(y0, p[1]);
+    y1 = Math.max(y1, p[1]);
+  }
+  const cut = y0 + (y1 - y0) * 0.45;
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let z0 = Infinity;
+  let z1 = -Infinity;
+  const sole: [number, number][] = [];
+  for (const p of pts) {
+    if (p[1] > cut) continue;
+    sole.push([p[0], p[2]]);
+    x0 = Math.min(x0, p[0]);
+    x1 = Math.max(x1, p[0]);
+    z0 = Math.min(z0, p[2]);
+    z1 = Math.max(z1, p[2]);
+  }
+  if (sole.length < 8) return null;
+  const s = char.scale;
+  const cx = (x0 + x1) / 2;
+  const cz = (z0 + z1) / 2;
+  return {
+    points: sole.map(([x, z]) => [(x - cx) * s, (z - cz) * s]),
+    width: (x1 - x0) * s,
+    length: (z1 - z0) * s,
+    offset: Math.abs(cx) * s,
+  };
+}
+
 /**
  * A dressed, animated character for one unit. Returns null until assets
  * are loaded (callers fall back to the procedural person).
