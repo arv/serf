@@ -11,6 +11,7 @@ import {
 } from './world.ts';
 import { Terrain } from './map.ts';
 import { COUNTER_TABLE, UNIT_DEFS } from './defs/units.ts';
+import { raidIntervalFor } from './defs/balance.ts';
 import { BUILDING_DEFS } from './defs/buildings.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { populationOf } from './population.ts';
@@ -175,6 +176,21 @@ describe('raids and victory', () => {
     expect(world.raidState.wave).toBeGreaterThan(0);
     expect(world.pendingEvents.some((e) => e.kind === 'raidIncoming')).toBe(true);
     expect(sh.hp).toBeLessThan(BUILDING_DEFS.storehouse.hp); // they reached it and did damage
+  });
+
+  it('schedules the next wave off the playable span, not the full grid', () => {
+    // Generated maps wrap the valley in a scenery margin: size is 2x play.
+    // The raid clock follows the commutes, and the margin adds marching
+    // distance for no one — the rule firstRaidTickFor already applies at
+    // world creation. Scaling by the grid side doubled every gap.
+    const world = bareWorld();
+    world.map.play = world.map.size / 2;
+    addStorehouse(world, 30, 30, {});
+    placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
+    world.raidState = { nextRaidTick: 10, wave: 0 };
+    run(world, 12);
+    expect(world.raidState.wave).toBe(1);
+    expect(world.raidState.nextRaidTick).toBe(10 + raidIntervalFor(world.map.play));
   });
 
   it('losing the storehouse loses the game', () => {
