@@ -215,8 +215,14 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispos
   }
   setMode('idle');
 
+  // `over` guards the re-schedule, not just the pending handle: a dispose
+  // that runs re-entrantly while a frame is executing would otherwise be
+  // followed by that frame scheduling one more tick against a disposed
+  // renderer — the same reason the match's teardown carries its own flag.
+  let over = false;
   let raf = 0;
   const loop = (): void => {
+    if (over) return;
     const dt = renderer.frame();
     for (const { visual } of cast) visual.mixer.update(dt);
     for (const l of labels) {
@@ -224,7 +230,7 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispos
       l.el.style.left = `${p.x}px`;
       l.el.style.top = `${p.y}px`;
     }
-    raf = requestAnimationFrame(loop);
+    if (!over) raf = requestAnimationFrame(loop);
   };
   raf = requestAnimationFrame(loop);
 
@@ -238,6 +244,7 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispos
   // so the next screen gets a fresh context.
   return {
     dispose(): void {
+      over = true;
       cancelAnimationFrame(raf);
       overlay.remove();
       renderer.dispose();
