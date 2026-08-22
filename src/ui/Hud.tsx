@@ -1953,7 +1953,7 @@ export function Hud(props: {
             mode="jump"
             onNavigate={() => setMinimapOpen(false)}
           />
-          <button class="minimap-close" onClick={() => setMinimapOpen(false)}>
+          <button class="minimap-close" aria-label="Close the map" onClick={() => setMinimapOpen(false)}>
             ✕
           </button>
         </div>

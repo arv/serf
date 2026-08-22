@@ -472,7 +472,8 @@ export class CameraRig {
    * fixed 45° yaw the two differ by nearly half their area, and a minimap
    * drawing the AABB would claim the camera sees ground it doesn't).
    * Order: screen top-left, top-right, bottom-right, bottom-left, packed
-   * as x,z pairs into `out` — this runs per minimap repaint.
+   * as x,z pairs into `out` — the minimap polls this every animation
+   * frame to see whether the camera moved, so it allocates nothing.
    */
   viewQuad(out: Float64Array): Float64Array {
     const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);

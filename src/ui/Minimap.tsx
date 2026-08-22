@@ -99,6 +99,10 @@ export function Minimap(props: {
   const prevQuad = new Float64Array(8).fill(NaN);
   let lastPaint = -Infinity;
   let raf = 0;
+  /** The canvas's 2D context, fetched once: getContext returns the same
+   * object for the canvas's whole life (resizes included), so the lookup
+   * has no business in the repaint path. */
+  let ctx2d: CanvasRenderingContext2D | null = null;
 
   const repaint = (now: number): void => {
     // Sized from what CSS says it is, on every paint: the sheet takes its
@@ -111,7 +115,7 @@ export function Minimap(props: {
       canvas.width = w;
       canvas.height = w;
     }
-    const ctx = canvas.getContext('2d');
+    const ctx = (ctx2d ??= canvas.getContext('2d'));
     if (!ctx) return;
     const s = w / playSide; // device pixels per tile
 
