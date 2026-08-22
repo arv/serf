@@ -20,6 +20,14 @@
  * directly.
  */
 /**
+ * 22: a garrisoned tower fires on the field archer's own period. The
+ * tower's cooldown gate continued on the tick the count reached zero,
+ * stretching every volley to cooldownTicks + 1 — two archers on the
+ * roof shot ~2.4% slower than the same two men on the grass, and the
+ * levy's 30-tick clock was really 31. Every tower volley after the
+ * first now lands a tick sooner, and every fight in reach of one
+ * re-times with it.
+ *
  * 21: trails come sooner and linger — the trail pass (which runs every
  * TRAILS_INTERVAL ticks, checking each tile after its wear decay) now
  * turns worn grass into a dirt trail at 10 wear instead of 12, and
@@ -117,4 +125,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 21;
+export const REPLAY_VERSION = 22;
