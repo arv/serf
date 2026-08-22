@@ -874,7 +874,7 @@ async function runMatch(
   // Ambient life over the meadows — pure scenery, no sim contact.
   const butterflies = new Butterflies(init.map, heights);
   renderer.scene.add(butterflies.mesh);
-  // Fading bootprints where armies march. Handed the mirror's map view —
+  // Fading bootprints where people walk. Handed the mirror's map view —
   // the same live pathLevel grid the grass watches — so prints keep off
   // the trails as they wear in.
   const footprints = new Footprints(init.reader, mirror.map, heights, config.myPlayerId);
@@ -1108,7 +1108,12 @@ async function runMatch(
     const changes = mirror.apply(msg);
     // Trails thread between tiles, so which clumps they trample is only
     // knowable once the new path levels are in the mirror.
-    if (wornTiles.length > 0) grass.clearUnderPaths(mirror.map, wornTiles);
+    if (wornTiles.length > 0) {
+      grass.clearUnderPaths(mirror.map, wornTiles);
+      // The prints stamped on this grass belong to the same feet that just
+      // wore it bare — the trail replaces them as the record.
+      footprints.clearUnderPaths(wornTiles);
+    }
     if (paved || changes.refreshAll) roads.rebuild(mirror.map);
     for (const tile of changes.resourceCleared) scatter.removeTile(tile);
     if (changes.refreshAll) scatter.resyncAll(mirror.map);
