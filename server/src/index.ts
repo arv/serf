@@ -107,10 +107,20 @@ const http = createServer((req, res) => {
     return;
   }
   // Static game: sanitized path under dist/, SPA-falling back to index.html.
-  const urlPath = normalize(decodeURIComponent((req.url ?? '/').split('?')[0]!)).replace(
-    /^(\.\.[/\\])+/,
-    '',
-  );
+  // decodeURIComponent throws on malformed percent-encoding ("GET /%"), and
+  // an uncaught throw on the request path takes the process down — every
+  // room with it, unpersisted (persist runs on SIGTERM, not on a crash).
+  // Junk encoding names no file of ours, so it gets a 400 rather than the
+  // SPA fallback.
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent((req.url ?? '/').split('?')[0]!);
+  } catch {
+    res.writeHead(400);
+    res.end();
+    return;
+  }
+  const urlPath = normalize(decoded).replace(/^(\.\.[/\\])+/, '');
   let file = join(DIST_DIR, urlPath);
   if (!file.startsWith(DIST_DIR) || !STATIC_FILES.has(file)) {
     file = join(DIST_DIR, 'index.html');
