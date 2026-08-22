@@ -111,3 +111,22 @@ is a hand-picked subset, not the pack — drop the full `Assets/gltf` folder in
 beside them if you want the rest (the awning stall, the market, the herds),
 and note that `extra/` carries no LICENSE.txt of its own the way the CC0
 folders next to it do.
+
+## Where the impacts land
+
+`animImpacts.mjs` reads the rig clips' bone tracks straight out of the
+GLBs (no browser, no three) and prints where each footfall plants, each
+swing stops, and the death fall comes to rest — the measurements behind
+`impactPhase01` in `src/audio/animCues.ts` and the death-thump delay in
+`cues.ts`. Re-run it when a clip mapping in `characters.ts` changes:
+
+```sh
+node tools/modelLab/animImpacts.mjs
+```
+
+A `curve` mode prints one bone's position and speed across a clip for
+judging anything the audit's heuristics summarize away:
+
+```sh
+node tools/modelLab/animImpacts.mjs curve Rig_Medium_Tools.glb Chopping handslot.r
+```

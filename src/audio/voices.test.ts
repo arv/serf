@@ -140,12 +140,56 @@ describe('CueScheduler', () => {
     s.request('chop', 0, 0.8, 0.5);
     const [solo] = flush(s, 1000);
     expect(solo!.delay).toBeCloseTo(0.5);
+    // Two units aiming at the same moment (one cooldown window apart at
+    // most — the crowd's natural stagger) still merge to the mean.
     s.request('chop', 0, 0.6, 0.2);
-    s.request('chop', 0, 0.6, 0.4);
-    const [merged] = flush(s, 2000);
-    expect(merged!.delay).toBeCloseTo(0.3, 5);
+    s.request('chop', 0, 0.6, 0.21);
+    const merged = flush(s, 2000);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.delay).toBeCloseTo(0.205, 5);
     s.request('click', 0, 1);
     expect(flush(s, 3000)[0]!.delay).toBe(0);
+  });
+
+  it('impacts aimed at different moments stay two voices, times intact', () => {
+    // A pickaxe cycle queues both strikes on the same wrap frame,
+    // seconds apart. Averaging them made one clink at a moment when
+    // nothing hits — landing-time buckets keep them separate.
+    const s = new CueScheduler(DEFS, CAPS);
+    s.request('chop', 0, 0.8, 0.22);
+    s.request('chop', 0, 0.8, 2.09);
+    const voices = flush(s, 1000);
+    expect(voices).toHaveLength(2);
+    const delays = voices.map((v) => v.delay).sort((a, b) => a - b);
+    expect(delays[0]).toBeCloseTo(0.22, 5);
+    expect(delays[1]).toBeCloseTo(2.09, 5);
+  });
+
+  it('cooldown lives at the landing, not the request', () => {
+    const s = new CueScheduler(DEFS, CAPS);
+    s.request('chop', 0, 0.8, 0.22);
+    s.request('chop', 0, 0.8, 2.09); // booked strikes land at 1220 and 3090
+    expect(flush(s, 1000)).toHaveLength(2);
+    // A request made moments later but landing beside the first booked
+    // strike is the strike already covered — folded.
+    s.request('chop', 0, 0.8, 0.15); // lands 1200, 20ms from 1220
+    expect(flush(s, 1050)).toHaveLength(0);
+    // One landing in the clear between the two bookings plays: the old
+    // request-time cooldown gagged it for arriving within 90ms of the
+    // pair's emit, though no sound rings anywhere near its moment.
+    s.request('chop', 0, 0.8, 1.0); // lands 2060
+    expect(flush(s, 1060)).toHaveLength(1);
+  });
+
+  it('a bucket-boundary straddle still folds into one voice', () => {
+    // 89ms and 91ms land 2ms apart but hash to different buckets; the
+    // grouping pass's proximity merge is what catches the flam — the
+    // emit-time cooldown deliberately ignores same-flush candidates (a
+    // stereo split must stay two voices), so it cannot.
+    const s = new CueScheduler(DEFS, CAPS);
+    s.request('chop', 0, 0.8, 0.089);
+    s.request('chop', 0, 0.8, 0.091);
+    expect(flush(s, 1000)).toHaveLength(1);
   });
 
   it('seeds are deterministic across identical runs', () => {
