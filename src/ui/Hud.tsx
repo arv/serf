@@ -18,7 +18,6 @@ import { LedgerIcon,
   FastestIcon,
   GoodIcon,
   LockIcon,
-  MapIcon,
   PauseIcon,
   PlayIcon,
   BandIcon,
@@ -741,6 +740,27 @@ export function Hud(props: {
            tap landed on a soldier. It keeps its slot and goes invisible
            instead — the same thumb travel to Muster, always. */
         #ui .hud-touch button.reserved { visibility: hidden; }
+        /* The map button's live face. The canvas fills the button and
+           must not take its taps — the button is the control, the chart
+           is its clothing. */
+        #ui .hud-touch button.map-thumb { padding: 3px; overflow: hidden; }
+        .map-thumb .minimap-canvas {
+          display: block; width: 100%; height: 100%;
+          border-radius: 10px; pointer-events: none;
+        }
+        /* A warning that knows a place makes the button beat until its
+           toast dies — the chart is where "where?" gets answered, and a
+           glanceable alarm is most of what a hidden minimap gives up.
+           A glow, not a border tint: one pixel of red border was
+           invisible on a 46px button over a busy map. */
+        @keyframes minimap-alarm {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(214, 106, 80, 0); }
+          50% { box-shadow: 0 0 12px 4px rgba(214, 106, 80, 0.7); }
+        }
+        #ui .hud-touch button.map-thumb.alarm {
+          border-color: rgba(214, 106, 80, 0.95);
+          animation: minimap-alarm 1.1s ease-in-out infinite;
+        }
         /* The :hover twin outlives a tap: touch leaves the button stuck
            in :hover, and the coarse-pointer hover neutralizer would
            otherwise strip the armed state right as it is switched on. */
@@ -1699,20 +1719,29 @@ export function Hud(props: {
           <div class="hud-touch">
             {/* The minimap's door on small screens: the standing card
                 below only renders where a corner can afford it, and a
-                phone has no such corner either way up. First in the rail
-                — Muster and Deselect keep their spots nearest the thumb. */}
+                phone has no such corner either way up. The button wears a
+                live thumbnail of the chart rather than an icon — standing
+                awareness at no cost the button wasn't already paying: your
+                white blob, rival colors, and the alarm pulse below when a
+                warning knows a place. First in the rail — Muster and
+                Deselect keep their spots nearest the thumb. */}
             <Show when={isCompact()}>
               <button
-                classList={{ active: minimapOpen() }}
+                class="map-thumb"
+                aria-label="Map"
+                classList={{
+                  active: minimapOpen(),
+                  alarm: toasts().some((t) => t.focus !== undefined),
+                }}
                 {...tooltip(() => (
                   <TextTip
                     title="Map"
-                    body="The whole valley at a glance — tap a spot on it to look there."
+                    body="The whole valley at a glance. Tap a spot to look there, or hold and drag to steer the camera."
                   />
                 ))}
                 onClick={() => setMinimapOpen(!minimapOpen())}
               >
-                <MapIcon />
+                <Minimap source={props.minimap} mode="thumb" />
               </button>
             </Show>
             {/* The lasso is the only way to band-select without a pointer

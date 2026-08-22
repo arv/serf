@@ -1,4 +1,5 @@
 import { PathLevel, Terrain, TileResource, playMin, type PlayArea } from '../sim/map';
+import { factionTint } from '../render/factionPalette';
 import {
   background,
   goldOre,
@@ -45,6 +46,23 @@ const ROAD = rgb(stoneRoad);
 /** What unexplored ground reads as — the scene's own unknown color, so the
  * chart's dark matches the fog's dark on the map beside it. */
 const UNKNOWN = rgb(background);
+
+/** Bandits keep their in-world grey on the chart too — a camp should read
+ * as somebody's, and grey is whose it is. */
+const BANDIT_TINT = 0x9d968a;
+/** Warm white, in the HUD's own key rather than a printer's #ffffff. */
+const VIEWER_TINT = 0xf7f4ea;
+
+/**
+ * What color a dot or rectangle wears: the viewer is white — the one
+ * banner that must read instantly is your own, and white is the tint no
+ * seat's faction color ever is — rivals wear their faction tints, and
+ * bandits their in-world grey.
+ */
+export function ownerTint(owner: number, viewer: number): number {
+  if (owner === viewer) return VIEWER_TINT;
+  return factionTint(owner) ?? BANDIT_TINT;
+}
 
 /**
  * One tile's color on the chart. Terrain first — a deposit only ever sits

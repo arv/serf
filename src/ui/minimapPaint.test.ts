@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { paintBase, tileRgb, type MinimapTiles } from './minimapPaint';
+import { ownerTint, paintBase, tileRgb, type MinimapTiles } from './minimapPaint';
 import { PathLevel, Terrain, TileResource, playMin } from '../sim/map';
 import { background, grass, leafDark, rock, water } from '../render/palette';
+import { factionTint } from '../render/factionPalette';
+import { BANDIT } from '../sim/entities';
 
 const rgb = (c: number): [number, number, number] => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
 
@@ -30,6 +32,18 @@ describe('tileRgb', () => {
     // A trail is noise at one pixel per tile; a road is worth the pixel.
     expect(tileRgb(Terrain.Grass, TileResource.None, PathLevel.Trail)).toEqual(rgb(grass));
     expect(tileRgb(Terrain.Grass, TileResource.None, PathLevel.Road)).not.toEqual(rgb(grass));
+  });
+});
+
+describe('ownerTint', () => {
+  it('paints the viewer white, whatever seat they hold', () => {
+    // White is nobody's faction color, so "the white banner is you" holds
+    // from every seat — including seat 1, whose faction red a rival sees.
+    expect(ownerTint(0, 0)).toBe(ownerTint(1, 1));
+    expect(ownerTint(0, 0)).not.toBe(factionTint(0));
+    // Rivals keep their faction tints; bandits their grey.
+    expect(ownerTint(1, 0)).toBe(factionTint(1));
+    expect(ownerTint(BANDIT, 0)).not.toBe(undefined);
   });
 });
 
