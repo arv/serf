@@ -20,6 +20,13 @@
  * directly.
  */
 /**
+23: the between-waves raid clock scales by the playable span, as the
+ * opening peace always did. banditsSystem was passing the full grid side
+ * (2x the playable side on every generated map) to raidIntervalFor, so
+ * every wave after the first arrived at half the tuned pressure — 540s
+ * apart on the default valley instead of 270s. Waves land on different
+ * ticks now, and everything after the second wave re-times with them.
+ *
  * 22: pausing a guard-tower construction site sticks. The staffing
  * exemption that keeps a BUILT tower's door open to soldiers while it is
  * halted also matched the tower's site, so a paused scaffold kept
@@ -125,4 +132,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 22;
+export const REPLAY_VERSION = 23;
