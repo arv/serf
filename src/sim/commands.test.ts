@@ -21,6 +21,8 @@ describe('command screening', () => {
       { kind: 'research', tech: 'irrigation' },
       { kind: 'trainUnit', buildingId: 7, unit: 'spearman' },
       { kind: 'cancelTraining', buildingId: 7, index: 2, unit: 'spearman' },
+      { kind: 'setRallyPoint', buildingId: 7, x: 10, y: 12 },
+      { kind: 'setRallyPoint', buildingId: 7 },
       { kind: 'admin', action: 'grantGoods' },
     ];
     for (const cmd of cases) expect(sanitizeCommand(cmd)).toEqual(cmd);
@@ -62,6 +64,13 @@ describe('command screening', () => {
     });
     expect(sanitizeCommand({ kind: 'placeBuilding', building: 'woodcutter' })).toBeNull();
     expect(sanitizeCommand({ kind: 'setBuildingRepair', buildingId: 'x', repair: true })).toBeNull();
+    // A half-given rally pair is garbage, not a guess at what was meant;
+    // only the fully absent pair reads as "take the flag down".
+    expect(sanitizeCommand({ kind: 'setRallyPoint', buildingId: 3, x: 10 })).toBeNull();
+    expect(sanitizeCommand({ kind: 'setRallyPoint', buildingId: 3, y: 10 })).toBeNull();
+    expect(sanitizeCommand({ kind: 'setRallyPoint', buildingId: 3, x: 1.5, y: 2 })).toBeNull();
+    expect(sanitizeCommand({ kind: 'setRallyPoint', buildingId: 3, x: NaN, y: 2 })).toBeNull();
+    expect(sanitizeCommand({ kind: 'setRallyPoint', buildingId: 'x', x: 1, y: 2 })).toBeNull();
     // A garbled flag reads as the cancel — of the two readings, the one
     // that spends nothing.
     expect(sanitizeCommand({ kind: 'setBuildingRepair', buildingId: 3, repair: 'yes' })).toEqual({

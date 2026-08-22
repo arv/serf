@@ -63,6 +63,8 @@ export interface BuildingSnap {
   maxHp: number;
   /** Barracks orders in queue order; the started one carries its progress 0..1. */
   trainQueue?: { unit: string; started: boolean; progress01?: number }[];
+  /** The rally flag fresh soldiers march to (barracks); absent when none stands. */
+  rally?: { x: number; y: number };
   /** Serf hires paid for and still walking in, and the leader's progress 0..1. */
   hireQueue?: number;
   hireProgress01?: number;

@@ -122,6 +122,7 @@ export function Hud(props: {
   onSelectArmy: () => void;
   onDeselect: () => void;
   onSell: (buildingId: number) => void;
+  onClearRally: (buildingId: number) => void;
   onRepair: (buildingId: number, repair: boolean) => void;
   onTogglePause: (buildingId: number, paused: boolean) => void;
   onSetRecipe: (buildingId: number, index: number) => void;
@@ -1788,6 +1789,7 @@ export function Hud(props: {
           onHire={props.onHire}
           onDeselect={props.onDeselect}
           onArmOrder={props.onArmOrder}
+          onClearRally={props.onClearRally}
           onSell={props.onSell}
           onRepair={props.onRepair}
           onTogglePause={props.onTogglePause}

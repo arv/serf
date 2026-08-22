@@ -95,6 +95,20 @@ export function trainingForKey(b: BuildingSnap, letter: string): UnitTypeId | nu
 export const HIRE_KEY = 'H';
 
 /**
+ * Arm the rally flag, at the barracks that is selected: the next click on
+ * the map plants it, and fresh soldiers march there as they step out of
+ * the door. Y so it can live inside its own word (Rall**y**) — R belongs
+ * to Research, which stays reachable with a barracks open.
+ */
+export const RALLY_KEY = 'Y';
+
+/** May this building fly a rally flag at all? A type-level question — the
+ * same one the sim asks (only buildings that train take one). */
+export function canRally(b: BuildingSnap): boolean {
+  return b.state === 'built' && BUILDING_DEFS[b.type].trains !== undefined;
+}
+
+/**
  * Open the tech tree. The one command here that is not contextual: the
  * tree is a sheet to read, not an order to give, and a player who wants to
  * check what Masonry costs should not first have to find their abbey. It

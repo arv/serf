@@ -20,12 +20,20 @@
  * directly.
  */
 /**
- * 20: trails come sooner and linger — the trail pass (which runs every
+ * 21: trails come sooner and linger — the trail pass (which runs every
  * TRAILS_INTERVAL ticks, checking each tile after its wear decay) now
  * turns worn grass into a dirt trail at 10 wear instead of 12, and
  * reverts an unused trail below 0.75 wear instead of 1.5. Trail tiles
  * are faster and preferred by A*, so earlier trails re-time every walk
  * that crosses them.
+ *
+ * 20: the barracks learns a rally point. A new command (setRallyPoint)
+ * plants or strikes a muster flag on any building that trains, and every
+ * soldier that finishes training marches from the door to the flag as a
+ * plain move. Old logs never carry the command and a flag never stands
+ * unasked, so their play is untouched — the bump is for the format: a log
+ * recorded on this build can carry an order older builds drop, and a
+ * dropped order is a different army standing in a different place.
  *
  * 19: sieges slow down and the castle hardens — damage against buildings
  * lands at a fraction set by the attacker's arm (BUILDING_DAMAGE_MULT:
@@ -109,4 +117,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 20;
+export const REPLAY_VERSION = 21;

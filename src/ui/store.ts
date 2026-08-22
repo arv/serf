@@ -89,12 +89,14 @@ export const [buildChord, setBuildChord] = createSignal(false);
  * An order armed and waiting for its target: A or M pressed (or the
  * selection card's buttons tapped) with people selected, and the next click
  * on the map says where. `'attack'` is the attack-move that engages what it
- * meets, `'move'` the plain walk that ignores it.
+ * meets, `'move'` the plain walk that ignores it. `'rally'` is the odd one
+ * out — armed from a selected barracks rather than a squad, and the click
+ * plants its muster flag instead of moving anyone.
  *
  * Controls owns the writing — see armOrder there — because leaving the mode
  * also has to put the cursor back.
  */
-export type OrderMode = 'attack' | 'move';
+export type OrderMode = 'attack' | 'move' | 'rally';
 export const [orderMode, setOrderMode] = createSignal<OrderMode | null>(null);
 
 /**
