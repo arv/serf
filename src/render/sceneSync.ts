@@ -46,6 +46,10 @@ interface UnitVisual {
    * transition rules).
    */
   audioKey: AnimKey | null;
+  /** A clip restart whose entry-cycle impacts are still owed: the restart
+   * happened on a paused frame (dt 0), where scheduling would strike over
+   * a frozen battlefield. Consumed on the first advancing frame. */
+  entryPending: boolean;
   /** Last on-screen world position, for the mixer-loop percussion —
    * the 'loop' event fires inside mixer.update, after the per-unit loop's
    * locals are gone. */
@@ -514,6 +518,7 @@ export class SceneSync {
           sepX: 0,
           sepY: 0,
           audioKey: null,
+          entryPending: false,
           ax: latest.xs[i]!,
           az: latest.ys[i]!,
         };
@@ -730,11 +735,13 @@ export class SceneSync {
         // as watching him take it up did. Three fine points: it runs
         // after mixer.update, measuring delays from the clip's actual
         // post-advance position (`action.time`) rather than one frame
-        // behind it; dt = 0 is the paused game, where a pan must not
-        // strike over a frozen battlefield; and a clip whose very first
-        // update already wrapped it hands the coming cycle to that wrap's
-        // own event instead of booking it twice.
-        if (fn && restarted && dt > 0) {
+        // behind it; a restart on a paused frame (dt 0) parks in
+        // entryPending until the world moves, because a pan over a frozen
+        // battlefield must neither strike now nor forfeit the cycle; and
+        // a clip whose very first update already wrapped hands the coming
+        // cycle to that wrap's own event instead of booking it twice.
+        if (fn && (restarted || visual.entryPending) && dt > 0) {
+          visual.entryPending = false;
           const spec = LOOP_CUES[key];
           // Missing clip: playAnimation fell back to idle — no percussion.
           const action = spec ? visual.char.actions.get(key) : undefined;
@@ -750,6 +757,8 @@ export class SceneSync {
               if (spec.perCycle === 2 && d2 > -dt) fn(spec.cue, x, y, Math.max(0, d2));
             }
           }
+        } else if (restarted) {
+          visual.entryPending = true;
         }
       }
 
@@ -865,11 +874,17 @@ export class SceneSync {
       // impact somewhere else entirely — byClip carries those phases.
       const clip = e.action.getClip();
       const phase = spec.byClip?.[clip.name] ?? spec.impactPhase01;
-      fn(spec.cue, visual.ax, visual.az, phase * clip.duration);
+      // The event fires mid-update with the action already advanced past
+      // the wrap, so the lead is measured from its actual position, not
+      // the wrap point — a wrap early in a long frame would land every
+      // impact late by the rest of that frame. An impact the same update
+      // stepped past comes out clamped to "now".
+      const t = e.action.time;
+      fn(spec.cue, visual.ax, visual.az, Math.max(0, phase * clip.duration - t));
       // perCycle 2 is a half-cycle symmetry: the gaits' second footfall,
       // the pick and hammer loops' second swing — half a clip later.
       if (spec.perCycle === 2) {
-        fn(spec.cue, visual.ax, visual.az, (phase + 0.5) * clip.duration);
+        fn(spec.cue, visual.ax, visual.az, Math.max(0, (phase + 0.5) * clip.duration - t));
       }
     };
     visual.loopCb = cb;

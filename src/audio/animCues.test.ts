@@ -89,9 +89,18 @@ describe('LOOP_CUES', () => {
   it('the attack key covers each attackClip a kind can swap in', () => {
     // characters.ts KKSpecs override the melee clip for the staff knight
     // and the barbarian; their impacts land elsewhere in the clip, so
-    // each needs its own phase.
-    expect(LOOP_CUES.attack?.byClip?.Melee_1H_Attack_Stab).toBeDefined();
-    expect(LOOP_CUES.attack?.byClip?.Melee_2H_Attack_Chop).toBeDefined();
+    // each needs its own phase. Shape, not exact constants (animCues.ts
+    // owns the measurements): the stab thrusts in the clip's first half
+    // where both chops swing in the second — a slide back toward one
+    // shared phase trips these.
+    const attack = LOOP_CUES.attack!;
+    const stab = attack.byClip?.Melee_1H_Attack_Stab ?? NaN;
+    const chop2h = attack.byClip?.Melee_2H_Attack_Chop ?? NaN;
+    expect(stab).toBeGreaterThan(0);
+    expect(stab).toBeLessThan(0.35);
+    expect(chop2h).toBeGreaterThan(0.35);
+    expect(chop2h).toBeLessThanOrEqual(attack.impactPhase01);
+    expect(attack.impactPhase01).toBeGreaterThan(0.35);
   });
 
   it('death and the idles have no percussion', () => {

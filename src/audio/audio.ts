@@ -112,9 +112,16 @@ export function unlockAudio(): void {
   if (!hiddenNow) void graph.ctx.resume();
 }
 
+/** No buffer yet — the render and decode land async after unlock, and a
+ * cue that cannot sound must vanish before it can claim a cooldown
+ * window, or the silence gags the first real one after it. */
+function ready(cue: CueId): boolean {
+  return sampleBuffers.has(cue) || buffers.has(cue);
+}
+
 /** A UI cue: centred, full design gain, no spatialization. */
 export function play(cue: CueId): void {
-  if (!scheduler || muted) return;
+  if (!scheduler || muted || !ready(cue)) return;
   scheduler.request(cue, 0, 1);
   armFallbackFlush();
 }
@@ -126,7 +133,7 @@ export function play(cue: CueId): void {
  * (loop-event percussion lands its impact mid-clip, not at the wrap).
  */
 export function playAt(cue: CueId, x: number, z: number, gainScale = 1, delaySec = 0): void {
-  if (!scheduler || muted || !hasView) return;
+  if (!scheduler || muted || !hasView || !ready(cue)) return;
   const s = spatialize(x, z, view, spatialScratch);
   if (!s.audible) return;
   const gain = s.gain * gainScale;

@@ -260,7 +260,9 @@ export class CueScheduler {
         groupLen--;
         this.#groups[b] = this.#groups[groupLen]!;
         this.#groups[groupLen] = gb;
-        b--;
+        // The merge moved ga's mean — groups already passed over may have
+        // drifted into range, so rescan ga's row from the top.
+        b = a;
       }
     }
 
