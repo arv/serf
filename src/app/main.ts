@@ -263,13 +263,18 @@ function stashGet(kind: 'local' | 'session', key: string): string | null {
   }
 }
 
-function stashSet(kind: 'local' | 'session', key: string, value: string | null): void {
+/** @returns whether the write actually landed — a caller whose next move
+ * depends on the stash surviving a reload (the gl-fails counter) must not
+ * take that move on a stash that went nowhere. */
+function stashSet(kind: 'local' | 'session', key: string, value: string | null): boolean {
   try {
     const store = kind === 'session' ? sessionStorage : localStorage;
     if (value === null) store.removeItem(key);
     else store.setItem(key, value);
+    return true;
   } catch {
     // Denied or full: the stash just doesn't happen.
+    return false;
   }
 }
 
@@ -751,8 +756,11 @@ async function runMatch(
     stashSet('session', 'serf-gl-fails', null);
   } catch (err) {
     const fails = Number(stashGet('session', 'serf-gl-fails') ?? '0') + 1;
-    stashSet('session', 'serf-gl-fails', String(fails));
-    if (fails <= 2) setTimeout(() => location.reload(), fails * 1500);
+    // The reload is only scheduled when the counter persisted: with storage
+    // denied every attempt reads as the first, and the page would bounce
+    // forever instead of settling on the card below.
+    const counted = stashSet('session', 'serf-gl-fails', String(fails));
+    if (counted && fails <= 2) setTimeout(() => location.reload(), fails * 1500);
     fatal(
       'The browser refused a WebGL context — this usually passes in a moment. ' +
         `(${err instanceof Error ? err.message : String(err)})`,
