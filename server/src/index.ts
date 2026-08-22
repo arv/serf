@@ -2,7 +2,7 @@ import { createServer, type ServerResponse } from 'node:http';
 import { createReadStream, existsSync, readdirSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WebSocketServer, type WebSocket } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { decodeState, encodePong } from '../../src/protocol/state.ts';
 import { defaultLobbyConfig, sanitizeLobbyConfig } from '../../src/protocol/lobby.ts';
 import { sanitizeCommands } from '../../src/sim/commands.ts';
@@ -162,7 +162,7 @@ function sendJson(ws: WebSocket, msg: unknown): void {
   // non-open socket is a no-op rather than a throw (sendAfterClose swallows
   // it when no callback is passed), so this guard is not crash protection —
   // it just says out loud that a message to a closing socket goes nowhere.
-  if (ws.readyState !== ws.OPEN) return;
+  if (ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify(msg));
 }
 
