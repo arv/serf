@@ -20,6 +20,13 @@
  * directly.
  */
 /**
+ * 21: trails come sooner and linger — the trail pass (which runs every
+ * TRAILS_INTERVAL ticks, checking each tile after its wear decay) now
+ * turns worn grass into a dirt trail at 10 wear instead of 12, and
+ * reverts an unused trail below 0.75 wear instead of 1.5. Trail tiles
+ * are faster and preferred by A*, so earlier trails re-time every walk
+ * that crosses them.
+ *
  * 20: the barracks learns a rally point. A new command (setRallyPoint)
  * plants or strikes a muster flag on any building that trains, and every
  * soldier that finishes training marches from the door to the flag as a
@@ -110,4 +117,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 20;
+export const REPLAY_VERSION = 21;

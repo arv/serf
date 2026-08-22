@@ -52,8 +52,8 @@ export const JOB_BLOCKED_BACKOFF = 40; // ticks before retrying an unreachable j
 // Trails
 export const TRAILS_INTERVAL = 20; // ticks between trail passes
 export const WEAR_DECAY = 0.98; // per pass multiplier
-export const TRAIL_WEAR_THRESHOLD = 12; // wear to become a dirt trail
-export const TRAIL_REVERT_WEAR = 1.5; // below this an unpaved trail reverts
+export const TRAIL_WEAR_THRESHOLD = 10; // wear to become a dirt trail
+export const TRAIL_REVERT_WEAR = 0.75; // below this an unpaved trail reverts
 export const REGROW_INTERVAL = 200; // tree regrowth cadence
 export const WOOD_MAX_AMT = 6;
 
