@@ -947,6 +947,7 @@ async function runMatch(
     // world->screen math (the wardrobe exposes its own pair).
     Object.assign(window as unknown as Record<string, unknown>, {
       __fog: fog,
+      __renderer: renderer,
       __rig: renderer.rig,
       __heights: heights,
       __damageAlerts: damageAlerts,
@@ -1201,7 +1202,9 @@ async function runMatch(
     mist.update(now);
     butterflies.update(now);
     const dt = renderer.frame();
-    buildingSync.frame(speed() === 0 ? 0 : dt);
+    // Same view rect the unit sync culls against — sails and roof watches
+    // off camera are not worth animating either.
+    buildingSync.frame(speed() === 0 ? 0 : dt, bounds);
     // Last: the frame's queued cues become at most a couple dozen voices.
     audioFrame(now);
     frame = requestAnimationFrame(loop);

@@ -12,6 +12,7 @@ import { eachMaterial, mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { WATER_LEVEL } from '../sim/map';
+import type { ViewBounds } from './cameraRig';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
 import type { FogQuery } from './fogOfWar';
@@ -74,7 +75,6 @@ interface BuildingVisual {
   clip?: { plane: THREE.Plane; height: number; baseY: number };
   /** Model height above ground, for floating the hp bar. */
   topY: number;
-  hpBar?: { group: THREE.Group; fg: THREE.Mesh };
   /** Latest hp fraction, for hover bars on healthy buildings. */
   pct: number;
   /** Physical stock piles against the front wall. */
@@ -167,25 +167,24 @@ const HP_BG_MAT = new THREE.MeshBasicMaterial({
   userData: { noFog: true },
 });
 
-/** Damage bar floating over a building, parallel with the screen plane. */
-function makeHpBar(
-  topY: number,
-  camQuat: THREE.Quaternion | null,
-): { group: THREE.Group; fg: THREE.Mesh } {
-  const group = new THREE.Group();
-  const bg = new THREE.Mesh(HP_BG_GEO, HP_BG_MAT);
-  const fg = new THREE.Mesh(
-    HP_FG_GEO,
-    new THREE.MeshBasicMaterial({ color: 0x3faf46, depthTest: false, userData: { noFog: true } }),
-  );
-  bg.renderOrder = 90;
-  fg.renderOrder = 91;
-  group.add(bg, fg);
-  if (camQuat) group.quaternion.copy(camQuat);
-  else group.rotation.y = Math.PI / 4;
-  group.position.y = topY + 0.45;
-  return { group, fg };
-}
+/** White, so each bar's per-instance colour comes through unmultiplied. */
+const HP_FG_MAT = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  depthTest: false,
+  userData: { noFog: true },
+});
+
+/** Bar scratch: one instance matrix, composed per bar per rebuild. */
+const BAR_POS = new THREE.Vector3();
+const BAR_OFFSET = new THREE.Vector3();
+const BAR_SCALE = new THREE.Vector3(1, 1, 1);
+const BAR_MATRIX = new THREE.Matrix4();
+const BAR_FALLBACK_QUAT = new THREE.Quaternion().setFromAxisAngle(
+  new THREE.Vector3(0, 1, 0),
+  Math.PI / 4,
+);
+/** Bars are rare (hurt, hovered or selected), so start small and grow. */
+const BAR_CAPACITY_MIN = 32;
 
 /**
  * Mirrors the building list into the scene. Sites show a timber frame with
@@ -199,6 +198,10 @@ export class BuildingSync {
   /** Seat viewing the scene — everyone else is an enemy to the fog. */
   #owner: number;
   #visuals = new Map<number, BuildingVisual>();
+  /** Every damage bar, batched — see #rebuildHpBars. Created on first use
+   * and regrown as the settlement takes more hits at once. */
+  #hpBg?: THREE.InstancedMesh;
+  #hpFg?: THREE.InstancedMesh;
   /** Fixed camera orientation for screen-parallel hp bars (set at boot). */
   cameraQuaternion: THREE.Quaternion | null = null;
   /** Fog test; enemy buildings hide until their ground has been explored. */
@@ -267,13 +270,11 @@ export class BuildingSync {
       this.#syncPiles(v, b);
       this.#syncGarrison(v, b);
 
-      // Damage bar: appears once hurt (hover() shows it on healthy ones).
+      // Damage bar: appears once hurt (highlight() shows it on healthy
+      // ones). Recorded here, drawn by #rebuildHpBars once the roster is
+      // settled — a bar is an instance in a shared mesh now, not an object
+      // hung off this building.
       v.pct = b.maxHp > 0 ? b.hp / b.maxHp : 1;
-      if (v.pct < 1 && !v.hpBar) {
-        v.hpBar = makeHpBar(v.topY, this.cameraQuaternion);
-        v.root.add(v.hpBar.group);
-      }
-      this.#styleBar(v, b.id === this.#hoverId || b.id === this.#selectedId);
     }
     for (const id of [...this.#visuals.keys()]) {
       // Gone from the roster: sold or razed. Instead of popping out of
@@ -282,6 +283,8 @@ export class BuildingSync {
       // building is not leaving, it is arriving.
       if (!seen.has(id)) this.#beginTeardown(id);
     }
+    // Once, with the roster, the damage and the fog all settled.
+    this.#rebuildHpBars();
   }
 
   #beginTeardown(id: number): void {
@@ -292,13 +295,6 @@ export class BuildingSync {
     // cloud is drawn (fog guard — see onCue).
     if (this.onCue && v.root.visible) {
       this.onCue('buildingCollapse', v.root.position.x, v.root.position.z);
-    }
-    if (v.hpBar) {
-      v.root.remove(v.hpBar.group);
-      // Geometry and the bg material are shared; only fg's tinted material
-      // is owned by this bar.
-      (v.hpBar.fg.material as THREE.Material).dispose();
-      v.hpBar = undefined;
     }
     // The cloud: a fistful of low-poly puffs bursting out past the walls,
     // each with its own heading, size, tumble and moment to join — chaos,
@@ -549,9 +545,36 @@ export class BuildingSync {
    * paused). Windlasses are not here — the well keeps no resident, so there
    * is nothing building-side to key them off; sceneSync turns each one under
    * the serf that came to draw from it. */
-  frame(dt: number): void {
+  /**
+   * Per-frame decor: sails, shoals and the watch on the roof.
+   *
+   * `bounds` is the camera's view rectangle. Everything this loop drives is
+   * decoration on a building the player is looking at, so a building that
+   * is fogged or off-camera is skipped outright — the sails of a mill
+   * nobody can see still cost a mixer update and a shoal of fish still
+   * costs a sin, a cos and a transform each. Buildings do not move, so
+   * `root.position` is the whole test.
+   *
+   * What that trades: a windmill picked up mid-turn rather than where it
+   * would have been had it kept spinning off-camera, and a roof archer
+   * resuming his clip instead of restarting it. Neither has anything on
+   * screen to be out of step with — the same reasoning sceneSync already
+   * applies when it culls a unit's animation off-screen.
+   */
+  frame(dt: number, bounds?: ViewBounds): void {
     if (dt <= 0) return;
     for (const v of this.#visuals.values()) {
+      // Most of a settlement is huts and warehouses with nothing that
+      // moves; this loop used to walk all of them to find that out.
+      if (!v.fan && !v.shoal && v.manned.length === 0) continue;
+      if (!v.root.visible) continue; // fogged: remembered, not watched
+      if (bounds !== undefined) {
+        const bx = v.root.position.x;
+        const bz = v.root.position.z;
+        if (bx < bounds.minX || bx > bounds.maxX || bz < bounds.minZ || bz > bounds.maxZ) {
+          continue;
+        }
+      }
       if (v.fan) {
         // The sails turn while the mill grinds — the mill keeps no resident
         // (the wind is the worker), so the cue is the batch itself
@@ -816,13 +839,102 @@ export class BuildingSync {
     }[];
   }[] = [];
 
-  #styleBar(v: BuildingVisual, highlighted: boolean): void {
-    if (!v.hpBar) return;
-    v.hpBar.group.visible = v.pct < 1 || highlighted;
-    const fg = v.hpBar.fg;
-    fg.scale.x = Math.max(v.pct, 0.02);
-    fg.position.x = (-(HP_BAR_W - 0.06) * (1 - fg.scale.x)) / 2;
-    (fg.material as THREE.MeshBasicMaterial).color.copy(hpColor(v.pct));
+  /**
+   * Every building's damage bar, in two draw calls.
+   *
+   * Each bar used to be a pair of meshes parented to its building, and the
+   * foreground material was cloned per building so #styleBar could tint it
+   * — so a raid that hurt twenty buildings cost forty draw calls and twenty
+   * materials. They are two InstancedMeshes now, rebuilt whenever something
+   * that decides a bar changes: the roster and the damage (update), or what
+   * is under the cursor (highlight). Not per frame — nothing about a bar
+   * moves between those.
+   */
+  #rebuildHpBars(): void {
+    const camQuat = this.cameraQuaternion ?? BAR_FALLBACK_QUAT;
+    // Counted before anything is written. Two reasons: growing reallocates
+    // the instance buffers, so doing it partway through the fill would
+    // throw away every bar already written (a bug that only appears once a
+    // settlement outgrows the starting capacity) — and an unhurt, unhovered
+    // settlement, which is most of a peaceful game, then never allocates
+    // the meshes at all.
+    let need = 0;
+    for (const [id, v] of this.#visuals) if (this.#wantsBar(id, v)) need++;
+    if (need === 0) {
+      if (this.#hpBg && this.#hpFg) {
+        this.#hpBg.count = 0;
+        this.#hpFg.count = 0;
+      }
+      return;
+    }
+    this.#ensureBarCapacity(need);
+    let n = 0;
+    for (const [id, v] of this.#visuals) {
+      if (!this.#wantsBar(id, v)) continue;
+      // The bar group hung at topY + 0.45 above a root that carries no
+      // rotation of its own (a building's facing turns its model, not its
+      // root), square to the screen.
+      BAR_POS.set(v.root.position.x, v.root.position.y + v.topY + 0.45, v.root.position.z);
+      BAR_SCALE.set(1, 1, 1);
+      BAR_MATRIX.compose(BAR_POS, camQuat, BAR_SCALE);
+      this.#hpBg!.setMatrixAt(n, BAR_MATRIX);
+      // The fill shrinks from the left, so it slides half of what it lost —
+      // the offset the foreground mesh used to carry, rotated into the
+      // screen plane because the bar is no longer parented to anything.
+      const w = Math.max(v.pct, 0.02);
+      BAR_SCALE.set(w, 1, 1);
+      BAR_OFFSET.set((-(HP_BAR_W - 0.06) * (1 - w)) / 2, 0, 0).applyQuaternion(camQuat);
+      BAR_POS.add(BAR_OFFSET);
+      BAR_MATRIX.compose(BAR_POS, camQuat, BAR_SCALE);
+      this.#hpFg!.setMatrixAt(n, BAR_MATRIX);
+      this.#hpFg!.setColorAt(n, hpColor(v.pct));
+      n++;
+    }
+    if (this.#hpBg && this.#hpFg) {
+      this.#hpBg.count = n;
+      this.#hpFg.count = n;
+      if (n > 0) {
+        this.#hpBg.instanceMatrix.needsUpdate = true;
+        this.#hpFg.instanceMatrix.needsUpdate = true;
+        if (this.#hpFg.instanceColor) this.#hpFg.instanceColor.needsUpdate = true;
+      }
+    }
+  }
+
+  /**
+   * Does this building show a bar right now? Hurt or under the cursor —
+   * and not lost in fog, which used to come free from the bar being a
+   * child of a hidden root and has to be asked for now that the bars live
+   * in world space. Missing it would float a bar over a building the
+   * player cannot see.
+   */
+  #wantsBar(id: number, v: BuildingVisual): boolean {
+    const highlighted = id === this.#hoverId || id === this.#selectedId;
+    return (v.pct < 1 || highlighted) && v.root.visible;
+  }
+
+  /** Grow the bar meshes to hold at least `need` instances. */
+  #ensureBarCapacity(need: number): void {
+    if (need <= 0) return;
+    if (this.#hpBg && this.#hpBg.instanceMatrix.count >= need) return;
+    const size = Math.max(BAR_CAPACITY_MIN, 1 << (32 - Math.clz32(need - 1)));
+    if (this.#hpBg) {
+      this.#scene.remove(this.#hpBg, this.#hpFg!);
+      this.#hpBg.dispose();
+      this.#hpFg!.dispose();
+    }
+    this.#hpBg = new THREE.InstancedMesh(HP_BG_GEO, HP_BG_MAT, size);
+    this.#hpFg = new THREE.InstancedMesh(HP_FG_GEO, HP_FG_MAT, size);
+    // The draw order the two meshes used to carry, and no frustum culling:
+    // the bounding sphere describes the quad at the origin, not where the
+    // instances of it actually stand.
+    this.#hpBg.renderOrder = 90;
+    this.#hpFg.renderOrder = 91;
+    this.#hpBg.frustumCulled = false;
+    this.#hpFg.frustumCulled = false;
+    this.#hpBg.count = 0;
+    this.#hpFg.count = 0;
+    this.#scene.add(this.#hpBg, this.#hpFg);
   }
 
   /** Hovered or selected buildings show their hp bar even at full health. */
@@ -830,14 +942,7 @@ export class BuildingSync {
     if (hover === this.#hoverId && selected === this.#selectedId) return;
     this.#hoverId = hover;
     this.#selectedId = selected;
-    for (const [id, v] of this.#visuals) {
-      const lit = id === hover || id === selected;
-      if (lit && !v.hpBar) {
-        v.hpBar = makeHpBar(v.topY, this.cameraQuaternion);
-        v.root.add(v.hpBar.group);
-      }
-      this.#styleBar(v, lit);
-    }
+    this.#rebuildHpBars();
   }
 
   #dispose(id: number): void {
@@ -871,10 +976,7 @@ export class BuildingSync {
         if (o instanceof THREE.Mesh) eachMaterial(o, (m) => m.dispose());
       });
     }
-    if (v.hpBar) {
-      // Geometry and the bg material are shared; only fg's tinted material
-      // is owned by this bar.
-      (v.hpBar.fg.material as THREE.Material).dispose();
-    }
+    // No bar material to free: bars are instances in a shared mesh now, and
+    // both their geometries and both their materials are module-level.
   }
 }

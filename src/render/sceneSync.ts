@@ -31,7 +31,6 @@ interface UnitVisual {
   kind: number;
   carrying: number;
   carryBox: THREE.Object3D | null;
-  hpBar: THREE.Mesh | null;
   /** The skinned GLB character driving this unit. */
   char: CharacterVisual | null;
   /** Smoothed visual de-overlap offset — render-only; the sim's positions
@@ -151,19 +150,36 @@ const hpBarGeometry = new THREE.PlaneGeometry(0.5, 0.06);
 
 /** Just clear of a villager's head — derived, so it cannot drift from him. */
 const HP_BAR_Y = TARGET_HEIGHT * 0.943;
-const hpBarMaterials = new Map<number, THREE.MeshBasicMaterial>();
 
-function hpBarMaterial(pct: number): THREE.MeshBasicMaterial {
-  // Bucketed green->red so materials are shared.
-  const bucket = Math.max(0, Math.min(4, Math.floor(pct * 5)));
-  let mat = hpBarMaterials.get(bucket);
-  if (!mat) {
-    const color = new THREE.Color().setHSL(0.33 * (bucket / 4), 0.8, 0.45);
-    mat = new THREE.MeshBasicMaterial({ color, depthTest: false, userData: { noFog: true } });
-    hpBarMaterials.set(bucket, mat);
-  }
-  return mat;
+/**
+ * The same bucketed green->red ramp the bars have always used, resolved
+ * once instead of on demand. The bucketing used to exist so that five
+ * materials could be shared between bars; the bars are one instanced mesh
+ * now and the colour rides per instance, but the five steps stay exactly
+ * as they were — this is a draw-call change, not a palette change.
+ */
+const HP_BUCKET_COLORS = Array.from(
+  { length: 5 },
+  (_, bucket) => new THREE.Color().setHSL(0.33 * (bucket / 4), 0.8, 0.45),
+);
+
+function hpBucket(pct: number): number {
+  return Math.max(0, Math.min(4, Math.floor(pct * 5)));
 }
+
+/** White, so the per-instance colour comes through unmultiplied. */
+const hpBarMaterial = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  depthTest: false,
+  userData: { noFog: true },
+});
+
+// Scratch for composing one bar's instance matrix.
+const HP_POS = new THREE.Vector3();
+const HP_SCALE = new THREE.Vector3(1, 1, 1);
+const HP_MATRIX = new THREE.Matrix4();
+/** Stands in for the camera before boot has handed one over. */
+const HP_IDENTITY = new THREE.Quaternion();
 
 /**
  * The only module that creates/destroys unit visuals. Reconciles against the
@@ -279,6 +295,22 @@ export class SceneSync {
    * loop below can skip a hashed Map.get per unit per frame.
    */
   #prevIdx = new Int32Array(MAX_UNITS);
+  /**
+   * Every unit health bar in one draw call.
+   *
+   * A bar is a quad the size of a postage stamp, and each one used to be
+   * its own Mesh parented to its unit — so band-selecting an army added a
+   * draw call per soldier, and the five hp colours split even those into
+   * separate material groups. As one InstancedMesh it is a single call at
+   * any army size, with the colour per instance.
+   *
+   * Rebuilt from scratch each frame: `#hpBarCount` is the write cursor,
+   * and `count` at the end is how many of the buffer three should draw.
+   * Frustum culling is off because the bounding sphere describes the
+   * geometry at the origin, not where the instances actually are.
+   */
+  #hpBars = new THREE.InstancedMesh(hpBarGeometry, hpBarMaterial, MAX_UNITS);
+  #hpBarCount = 0;
 
   /**
    * Soft visual separation: units drawn closer than SEP_RADIUS get pushed
@@ -355,6 +387,12 @@ export class SceneSync {
     this.#reader = reader;
     this.#heights = heights;
     this.#owner = owner;
+    // Same draw state the per-unit meshes carried: over everything, never
+    // depth-tested, never fogged.
+    this.#hpBars.renderOrder = 10;
+    this.#hpBars.frustumCulled = false;
+    this.#hpBars.count = 0;
+    scene.add(this.#hpBars);
   }
 
   /** Current interpolated world position of a unit (for picking/FX). */
@@ -437,6 +475,10 @@ export class SceneSync {
     this.#animNow += dt * 1000;
     const animNow = this.#animNow;
     this.#computeSeparation(latest, prev, alpha);
+    // The bars are rebuilt from scratch every frame, so the cursor starts
+    // over. camQuat is the screen plane: fixed camera, set once at boot.
+    this.#hpBarCount = 0;
+    const camQuat = this.cameraQuaternion ?? HP_IDENTITY;
     this.#hidden.clear();
     this.#spun.clear();
 
@@ -468,7 +510,6 @@ export class SceneSync {
           kind: kindKey,
           carrying: 0,
           carryBox: null,
-          hpBar: null,
           char: skinned.visual,
           sepX: 0,
           sepY: 0,
@@ -500,30 +541,37 @@ export class SceneSync {
       const pi = prevI < 0 ? undefined : prevI;
       const x = this.#posX[i]!;
       const y = this.#posY[i]!;
-      // Off-screen units keep position/rotation fresh but skip everything
-      // cosmetic — clip selection, mixer sampling, tools, IK, hp bars.
-      // Purely visual: nothing here feeds back into the sim or picking.
+      // Off-screen units skip everything cosmetic — clip selection, mixer
+      // sampling, tools, IK, hp bars. Purely visual: nothing here feeds
+      // back into the sim or picking.
       const offScreen =
         bounds !== undefined &&
         (x < bounds.minX || x > bounds.maxX || y < bounds.minZ || y > bounds.maxZ);
+      // ...and they leave the scene graph too. Skipping the work above
+      // still left every one of them a visible object, so the renderer
+      // walked its whole rig each frame — every bone, every skinned mesh,
+      // a bounding-sphere frustum test apiece — to conclude it was not on
+      // screen. `visible = false` makes three stop at the group.
+      //
+      // Safe because nothing outside this loop reads the scene graph for a
+      // unit: picking is analytic (input/picking.ts) and goes through
+      // positionOfInto, which reads the publish buffers. Note this is NOT
+      // the fog rule — a fogged enemy is added to #hidden and vanishes from
+      // picking too, which is the point of fog; being off-camera must
+      // never do that, or a drag-select would drop what it caught.
+      //
+      // Enemies already had `visible` set from the fog above, and a unit
+      // that failed that test never reaches here.
+      visual.group.visible = !offScreen;
 
-      // Health bar when damaged, hovered, or selected.
+      // Health bar when damaged, hovered, or selected. Decided here, where
+      // the hp and the highlight are to hand; written into the instanced
+      // mesh below, once this unit's final position is known.
+      let barPct = -1;
       if (!offScreen) {
         const hpPct = latest.aux[a + 2]! / 255;
         const highlighted = id === hoverId || (selected?.has(id) ?? false);
-        if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead) {
-          if (!visual.hpBar) {
-            visual.hpBar = new THREE.Mesh(hpBarGeometry, hpBarMaterial(hpPct));
-            visual.hpBar.position.y = HP_BAR_Y;
-            visual.hpBar.renderOrder = 10;
-            visual.group.add(visual.hpBar);
-          }
-          visual.hpBar.material = hpBarMaterial(hpPct);
-          visual.hpBar.scale.x = Math.max(hpPct, 0.05);
-        } else if (visual.hpBar) {
-          visual.group.remove(visual.hpBar);
-          visual.hpBar = null;
-        }
+        if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead) barPct = hpPct;
       }
 
       // Visible carried good — the core fantasy, as the actual object:
@@ -690,11 +738,31 @@ export class SceneSync {
       }
       const px = x + visual.sepX;
       const pz = y + visual.sepY;
-      // On the planks the deck carries him — the ground under a pier is
-      // lake bed, and the height field would sink him to it.
-      const groundY = this.#heights.at(px, pz);
-      const standY = pier && onDeck ? Math.max(groundY, pier.deckY) : groundY;
-      visual.group.position.set(px, standY + bob, pz);
+      // Placing a unit nobody can see is a height-field sample and a matrix
+      // for nothing. The de-overlap easing above still runs, because
+      // positionOfInto reports it to picking; only the drawn transform
+      // waits, and it is rewritten on the first frame back on screen —
+      // this loop runs before the render, so there is nothing to catch up.
+      if (!offScreen) {
+        // On the planks the deck carries him — the ground under a pier is
+        // lake bed, and the height field would sink him to it.
+        const groundY = this.#heights.at(px, pz);
+        const standY = pier && onDeck ? Math.max(groundY, pier.deckY) : groundY;
+        visual.group.position.set(px, standY + bob, pz);
+        if (barPct >= 0) {
+          // Exactly where the child mesh used to land. A unit's facing is a
+          // Y rotation, which leaves a point on the Y axis where it was, and
+          // the bar's own quaternion cancelled that facing out again — so
+          // the bar's world transform was always just "over the unit's head,
+          // square to the screen", which is what this composes.
+          const n = this.#hpBarCount++;
+          HP_POS.set(px, standY + bob + HP_BAR_Y, pz);
+          HP_SCALE.set(Math.max(barPct, 0.05), 1, 1);
+          HP_MATRIX.compose(HP_POS, camQuat, HP_SCALE);
+          this.#hpBars.setMatrixAt(n, HP_MATRIX);
+          this.#hpBars.setColorAt(n, HP_BUCKET_COLORS[hpBucket(barPct)]!);
+        }
+      }
       // Glue the cranking hand to the grip — after the group transform is
       // final for this frame, override the clip's right arm with a CCD
       // reach toward the grip's current world position.
@@ -708,15 +776,15 @@ export class SceneSync {
           ikReach(visual.arm, IK_TARGET);
         }
       }
-      // Keep the hp bar screen-stable regardless of unit facing.
-      if (!offScreen && visual.hpBar && this.cameraQuaternion) {
-        // Screen-parallel billboard: cancel the unit's facing, then adopt
-        // the (fixed) camera orientation.
-        visual.hpBar.quaternion
-          .copy(visual.group.quaternion)
-          .invert()
-          .multiply(this.cameraQuaternion);
-      }
+    }
+
+    // Hand three the frame's bars. Instances past the cursor are whatever
+    // last frame left there, which is why `count` — not the buffer length —
+    // is what gets drawn.
+    this.#hpBars.count = this.#hpBarCount;
+    if (this.#hpBarCount > 0) {
+      this.#hpBars.instanceMatrix.needsUpdate = true;
+      if (this.#hpBars.instanceColor) this.#hpBars.instanceColor.needsUpdate = true;
     }
 
     // Dispose visuals whose ids vanished from the latest publish.
