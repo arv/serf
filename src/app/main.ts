@@ -878,13 +878,16 @@ async function runMatch(
   // Fading bootprints where people walk. Handed the mirror's map view —
   // the same live pathLevel grid the grass watches — so prints keep off
   // the trails as they wear in; the print itself is the serf's own boot,
-  // lifted off the character model (loaded just above).
+  // lifted off the character model (loaded just above). A networked world
+  // runs on while this page hides, so there the print clock counts real
+  // time; solo, hiding freezes the sim worker and the prints hold with it.
   const footprints = new Footprints(
     init.reader,
     mirror.map,
     heights,
     config.myPlayerId,
     serfSole(),
+    net !== undefined,
   );
   renderer.scene.add(footprints.mesh);
 
@@ -1117,12 +1120,13 @@ async function runMatch(
     const changes = mirror.apply(msg);
     // Trails thread between tiles, so which clumps they trample is only
     // knowable once the new path levels are in the mirror.
-    if (wornTiles.length > 0) {
-      grass.clearUnderPaths(mirror.map, wornTiles);
-      // The prints stamped on this grass belong to the same feet that just
-      // wore it bare — the trail replaces them as the record.
-      footprints.clearUnderPaths(wornTiles);
-    }
+    if (wornTiles.length > 0) grass.clearUnderPaths(mirror.map, wornTiles);
+    // The prints stamped on this grass belong to the same feet that just
+    // wore it bare — the trail replaces them as the record. A rollback
+    // correction ships the whole path grid with no deltas at all, so there
+    // every print is re-tested rather than none.
+    if (changes.refreshAll) footprints.resyncPaths();
+    else if (wornTiles.length > 0) footprints.clearUnderPaths(wornTiles);
     if (paved || changes.refreshAll) roads.rebuild(mirror.map);
     for (const tile of changes.resourceCleared) scatter.removeTile(tile);
     if (changes.refreshAll) scatter.resyncAll(mirror.map);

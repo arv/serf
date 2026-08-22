@@ -21,6 +21,16 @@ export const STRIDE = 0.45;
  * speeds). Past this the trail goes sparse instead of the pass going long.
  */
 export const MAX_PRINTS_PER_STEP = 6;
+/**
+ * Real seconds without a rendered frame past which the trackers' positions
+ * are fiction — the page was hidden or the tab frozen while the world (or
+ * the publish stream) ran on. Every unit is then re-seeded where it stands
+ * instead of back-filling a straight line it never walked — possibly
+ * through ground the player never saw. Wall time, not missed publishes: a
+ * merely slow renderer under a heavy scene still frames well inside this,
+ * and must keep stamping.
+ */
+const STALE_GAP_S = 5;
 /** Feet straddle the line of march by this much, in tiles — the fallback
  * when no character sole is to hand; with one, its own offset is used. */
 const FOOT_OFFSET = 0.055;
@@ -178,6 +188,15 @@ export class Footprints {
   #stamped = false;
   /** Sideways offset of each footfall from the march line. */
   #footOffset: number;
+  /** The world runs on without this page (a networked match): elapsed real
+   * time always counts against the prints, hidden stretches included. */
+  #realtime: boolean;
+  /** The current unit's prints obey the fog (it belongs to someone else). */
+  #stampFogged = false;
+  /** A no-frames stretch was seen; the next stamp pass re-seeds instead.
+   * Latched, because the pass runs on the next fresh publish, which can be
+   * a couple of ordinary-length frames after the long one. */
+  #staleTrackers = false;
 
   constructor(
     reader: SabReader,
@@ -185,12 +204,14 @@ export class Footprints {
     heights: HeightField,
     owner: number,
     sole: Sole | null = null,
+    realtime = false,
   ) {
     this.#reader = reader;
     this.#map = map;
     this.#heights = heights;
     this.#owner = owner;
     this.#footOffset = sole?.offset ?? FOOT_OFFSET;
+    this.#realtime = realtime;
 
     // The quad carries the boot at its true size: the sole fills
     // FOOTPRINT_TEX_FILL of the texture, the rest is soft-edge margin.
@@ -216,12 +237,13 @@ export class Footprints {
     // a print costs nothing after its stamp. The fog patch wraps whatever
     // onBeforeCompile it finds, so this composes with it.
     //
-    // The explicit cache key is load-bearing. Three keys compiled programs
-    // on onBeforeCompile.toString() — but the fog wraps every material's
-    // hook with the same wrapper text, so once patched, this material would
-    // share a key with any other fog-patched Lambert of the same shape and
-    // could be handed that material's program, compiled without the fade
-    // splice below. The prints then simply never faded.
+    // The explicit cache key is load-bearing. three.js keys compiled
+    // shader programs by onBeforeCompile.toString() — but the fog wraps
+    // every material's hook with the same wrapper text, so once patched,
+    // this material would share a key with any other fog-patched Lambert
+    // of the same shape and could be handed that material's program,
+    // compiled without the fade splice below. The prints then simply
+    // never faded.
     material.customProgramCacheKey = () => 'footprints-fade';
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uNow = this.#uNow;
@@ -266,14 +288,25 @@ export class Footprints {
    * per rendered frame, after the unit sync has polled the reader.
    */
   update(nowMs: number, paused: boolean): void {
-    const dt = this.#lastMs > 0 ? Math.min((nowMs - this.#lastMs) / 1000, 0.1) : 0;
+    const raw = this.#lastMs > 0 ? (nowMs - this.#lastMs) / 1000 : 0;
+    // The clamp smooths frame hitches AND holds prints across a hidden
+    // stretch — correct solo, where hiding the page freezes the sim worker
+    // with the valley. A networked world runs on regardless, so there the
+    // whole real gap counts and prints on return are as old as they are.
+    const dt = this.#realtime ? raw : Math.min(raw, 0.1);
     this.#lastMs = nowMs;
     if (!paused) this.#now += dt;
     this.#uNow.value = this.#now;
+    if (raw > STALE_GAP_S) this.#staleTrackers = true;
 
     const latest = this.#reader.latest;
     if (latest.publishSeq === this.#lastSeq) return;
     this.#lastSeq = latest.publishSeq;
+    // A no-frames stretch (hidden page, frozen tab) leaves every tracker
+    // somewhere its unit stood long ago; striding from there would draw a
+    // straight line the unit never walked. Re-seed instead.
+    const stale = this.#staleTrackers;
+    this.#staleTrackers = false;
 
     this.#stamped = false;
     this.#planner.begin();
@@ -283,10 +316,14 @@ export class Footprints {
       const id = latest.ids[i]!;
       const x = latest.xs[i]!;
       const y = latest.ys[i]!;
-      if (latest.aux[a + 1] !== this.#owner && this.#fog && !this.#fog.visibleAt(x, y)) {
+      const foreign = latest.aux[a + 1] !== this.#owner;
+      if (stale || (foreign && this.#fog && !this.#fog.visibleAt(x, y))) {
         this.#planner.shadow(id, x, y);
         continue;
       }
+      // Someone else's strides can still cross the fog's edge between here
+      // and the last footfall; #stamp re-checks each print of theirs.
+      this.#stampFogged = foreign;
       this.#planner.advance(id, x, y, this.#stamp);
     }
     this.#planner.sweep();
@@ -320,13 +357,29 @@ export class Footprints {
         }
       }
     }
+    this.#cullCovered(swept);
+  }
+
+  /**
+   * Re-test every print against the whole current path grid. For the map
+   * updates that carry no per-tile deltas — a rollback correction replaces
+   * pathLevel wholesale — where clearUnderPaths has no tile list to sweep.
+   */
+  resyncPaths(): void {
+    this.#cullCovered(null);
+  }
+
+  /** Kill the live prints the (freshly updated) ribbon now covers —
+   * everywhere, or only on the swept tiles when a set is given. */
+  #cullCovered(swept: ReadonlySet<number> | null): void {
+    const size = this.#map.size;
     let culled = false;
     for (let slot = 0; slot < this.#high; slot++) {
       const born = this.#birth.getX(slot);
       if (this.#uNow.value - born >= PRINT_LIFE_S) continue; // already invisible
       const x = this.#printX[slot]!;
       const z = this.#printZ[slot]!;
-      if (!swept.has(tileIdx(Math.floor(x), Math.floor(z), size))) continue;
+      if (swept && !swept.has(tileIdx(Math.floor(x), Math.floor(z), size))) continue;
       if (!onRibbon(this.#map, x, z)) continue;
       this.#birth.setX(slot, FAR_PAST);
       this.#birth.addUpdateRange(slot, 1);
@@ -339,6 +392,10 @@ export class Footprints {
     // No prints on the trail: the ribbon's dirt is already the record of
     // feet, and packed ground takes no new mark.
     if (onRibbon(this.#map, x, y)) return;
+    // A stranger's footfall may land short of where the fog test passed —
+    // the stride between two publishes can cross the fog's edge — and a
+    // print in the dark would be a mark the player never saw made.
+    if (this.#stampFogged && this.#fog && !this.#fog.visibleAt(x, y)) return;
 
     const slot = this.#cursor;
     this.#cursor = (this.#cursor + 1) % CAPACITY;
