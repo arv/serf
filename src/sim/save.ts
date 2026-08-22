@@ -33,9 +33,9 @@ import { WORLD_SAVE_VERSION, canReadSave } from '../shared/saveVersion.ts';
  */
 
 interface SaveFile {
-  /** WORLD_SAVE_VERSION as of the write. What loads is canReadSave's
-   * call (shared/saveVersion.ts) — currently exactly this version and
-   * nothing older. */
+  /** WORLD_SAVE_VERSION as of the write. Loading is gated by the
+   * canReadSave check (shared/saveVersion.ts) — currently exactly this
+   * version and nothing older. */
   version: number;
   world: {
     /** Absent in saves from before the toggle existed; those ran bandits. */
