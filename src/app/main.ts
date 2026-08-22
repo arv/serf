@@ -1137,6 +1137,20 @@ async function runMatch(
     },
     // Tile y is world z — the same straight mapping as the home focusOn.
     focus: (x, y) => renderer.rig.glideTo(x, y),
+    // The minimap's world: live handles, assembled here because this is
+    // where the mirror, the fog, the unit reader and the rig all meet.
+    // The component polls them on its own clock — nothing here has to
+    // know when (or whether) the chart is on screen.
+    minimap: {
+      map: mirror.map,
+      fog,
+      buildings: () => mirror.buildings.values(),
+      units: () => init.reader.latest,
+      viewQuad: (out) => renderer.rig.viewQuad(out),
+      jumpTo: (x, z) => renderer.rig.focusOn(x, z),
+      glideTo: (x, z) => renderer.rig.glideTo(x, z),
+      myPlayerId: config.myPlayerId,
+    },
   });
   teardown.push(unmountHud);
 
