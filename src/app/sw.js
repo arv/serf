@@ -142,10 +142,16 @@ async function serveAsset(request) {
   // cache.
   const response = await fetch(request);
   const path = new URL(request.url).pathname;
+  // The content-type guard closes the same trap from the other side: an
+  // old page asking for an asset the new deploy deleted gets the server's
+  // SPA fallback — 200, text/html — and remembering the DOCUMENT under a
+  // model's URL poisons the cache as surely as caching it under a chunk's.
+  const isHtml = (response.headers.get('content-type') ?? '').includes('text/html');
   if (
     ASSET_FAMILIES.some((p) => path.startsWith(p)) &&
     response.ok &&
-    response.type === 'basic'
+    response.type === 'basic' &&
+    !isHtml
   ) {
     void assets.put(request, response.clone());
   }
