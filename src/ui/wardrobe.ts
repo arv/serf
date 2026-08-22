@@ -241,14 +241,25 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispos
   // context stayed spent — the next match would build a renderer against
   // a dead context. Same order as the editor's teardown: the renderer
   // lets go (context loss included), then the canvas element is replaced
-  // so the next screen gets a fresh context.
+  // so the next screen gets a fresh context. Each step wears its own
+  // guard, as the match teardown does: the canvas swap is what keeps the
+  // next screen off this spent context, and it must run even if the
+  // renderer refuses to die quietly.
   return {
     dispose(): void {
       over = true;
       cancelAnimationFrame(raf);
-      overlay.remove();
-      renderer.dispose();
-      canvas.replaceWith(canvas.cloneNode(false));
+      for (const step of [
+        (): void => overlay.remove(),
+        (): void => renderer.dispose(),
+        (): void => canvas.replaceWith(canvas.cloneNode(false)),
+      ]) {
+        try {
+          step();
+        } catch (err) {
+          console.warn('[wardrobe] teardown step failed:', err);
+        }
+      }
     },
   };
 }
