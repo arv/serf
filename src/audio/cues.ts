@@ -261,7 +261,10 @@ export const CUES = {
     pitchJitter: 0.08,
     layers: [
       tone({ wave: 'sawtooth', freq: 220, freqEnd: 70, gain: 0.35, decay: 0.45 }),
-      noise({ filter: 'lowpass', freq: 300, gain: 0.4, decay: 0.12, delay: 0.28 }),
+      // The body-fall thump. The cue fires as Death_A starts, and the
+      // clip lands him at ~0.53s (tools/modelLab/animImpacts.mjs) — the
+      // cry covers the fall, the thump meets the ground.
+      noise({ filter: 'lowpass', freq: 300, gain: 0.4, decay: 0.12, delay: 0.5 }),
     ],
     sample: '/audio/unitDeath.m4a',
   },

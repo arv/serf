@@ -708,6 +708,23 @@ export class SceneSync {
         if (this.onCue && visual.audioKey !== key) {
           const cue = animCue(visual.audioKey, key);
           if (cue) this.onCue(cue, x, y, 0);
+          // The 'loop' event only covers cycles after the first wrap, so
+          // a percussive clip entered now would play its whole first
+          // cycle mute — for Pickaxing that is two silent swings and
+          // nearly four seconds. Schedule the entry cycle's remaining
+          // impacts here, measured from the same per-id offset
+          // playAnimation just started the clip at.
+          const spec = LOOP_CUES[key];
+          const action = spec ? visual.char.actions.get(key) : undefined;
+          if (spec && action) {
+            const clip = action.getClip();
+            const phase = spec.byClip?.[clip.name] ?? spec.impactPhase01;
+            const start = hash2(id, 3);
+            if (phase > start) this.onCue(spec.cue, x, y, (phase - start) * clip.duration);
+            if (spec.perCycle === 2 && phase + 0.5 > start) {
+              this.onCue(spec.cue, x, y, (phase + 0.5 - start) * clip.duration);
+            }
+          }
         }
         visual.audioKey = key;
         // Where this unit is, for the loop-event percussion firing inside
@@ -821,11 +838,15 @@ export class SceneSync {
       // During the 0.16s crossfade the outgoing action still wraps; a
       // clip that has already lost the blend is not the one being watched.
       if (e.action.getEffectiveWeight() < 0.5) return;
-      const dur = e.action.getClip().duration;
-      fn(spec.cue, visual.ax, visual.az, spec.impactPhase01 * dur);
-      // A gait cycle is two footfalls; the second lands half a clip later.
+      // The attack key plays a different clip per unit kind, with the
+      // impact somewhere else entirely — byClip carries those phases.
+      const clip = e.action.getClip();
+      const phase = spec.byClip?.[clip.name] ?? spec.impactPhase01;
+      fn(spec.cue, visual.ax, visual.az, phase * clip.duration);
+      // perCycle 2 is a half-cycle symmetry: the gaits' second footfall,
+      // the pick and hammer loops' second swing — half a clip later.
       if (spec.perCycle === 2) {
-        fn(spec.cue, visual.ax, visual.az, (spec.impactPhase01 + 0.5) * dur);
+        fn(spec.cue, visual.ax, visual.az, (phase + 0.5) * clip.duration);
       }
     };
     visual.loopCb = cb;

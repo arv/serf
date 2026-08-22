@@ -56,15 +56,42 @@ describe('LOOP_CUES', () => {
       expect(CUES[spec.cue], key).toBeDefined();
       expect(spec.impactPhase01, key).toBeGreaterThanOrEqual(0);
       expect(spec.impactPhase01, key).toBeLessThan(1);
+      for (const [clip, phase] of Object.entries(spec.byClip ?? {})) {
+        expect(phase, `${key} ${clip}`).toBeGreaterThanOrEqual(0);
+        expect(phase, `${key} ${clip}`).toBeLessThan(1);
+      }
     }
   });
 
-  it('gaits are two footfalls a cycle; strikes are one', () => {
+  it('gaits are two footfalls a cycle; so are the pack tool loops', () => {
     expect(LOOP_CUES.walk?.perCycle).toBe(2);
     expect(LOOP_CUES.jog?.perCycle).toBe(2);
     expect(LOOP_CUES.carry?.perCycle).toBe(2);
+    // Pickaxing and Hammering genuinely strike twice per clip, on the
+    // half-cycle (animImpacts.mjs measures 0.06/0.56 and 0.09/0.59).
+    expect(LOOP_CUES.pickaxe?.perCycle).toBe(2);
+    expect(LOOP_CUES.hammer?.perCycle).toBe(2);
     expect(LOOP_CUES.work?.perCycle).toBe(1);
     expect(LOOP_CUES.attack?.perCycle).toBe(1);
+    expect(LOOP_CUES.shoot?.perCycle).toBe(1);
+  });
+
+  it('a twice-a-cycle phase stays in the first half — the mirror lands +0.5', () => {
+    for (const [key, spec] of Object.entries(LOOP_CUES)) {
+      if (spec.perCycle === 2) expect(spec.impactPhase01, key).toBeLessThan(0.5);
+    }
+  });
+
+  it('carry keeps step with walk — its clip is composited from the same legs', () => {
+    expect(LOOP_CUES.carry?.impactPhase01).toBe(LOOP_CUES.walk?.impactPhase01);
+  });
+
+  it('the attack key covers each attackClip a kind can swap in', () => {
+    // characters.ts KKSpecs override the melee clip for the staff knight
+    // and the barbarian; their impacts land elsewhere in the clip, so
+    // each needs its own phase.
+    expect(LOOP_CUES.attack?.byClip?.Melee_1H_Attack_Stab).toBeDefined();
+    expect(LOOP_CUES.attack?.byClip?.Melee_2H_Attack_Chop).toBeDefined();
   });
 
   it('death and the idles have no percussion', () => {

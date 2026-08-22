@@ -35,18 +35,62 @@ export function animCue(prev: AnimKey | null, next: AnimKey): CueId | null {
  * Per-cycle percussion, for the mixer 'loop'-event hook (step 2): the
  * impact lands `impactPhase01` through the clip, not at the wrap point
  * where the event fires, so the player schedules that far ahead —
- * Web Audio absolute time makes that exact and free. A gait cycle is two
- * footfalls (`perCycle: 2`), the second half a cycle later.
+ * Web Audio absolute time makes that exact and free. `perCycle: 2` is a
+ * half-cycle symmetry: the second impact lands half a clip after the
+ * first — a gait's other foot, a tool loop's second swing.
+ *
+ * The phases are measured, not guessed: tools/modelLab/animImpacts.mjs
+ * evaluates the clips' own bone tracks and prints where each contact
+ * lands (a footfall is the foot descending into its floor band; a strike
+ * is the hand's swing speed collapsing at the workpiece). Re-run it when
+ * a clip mapping in characters.ts changes. Two alignment rules, because
+ * there are two kinds of cue: an impact sound (footstep, tool bite)
+ * fires at the contact; a motion sound leads it — the sword whoosh
+ * starts where the blade starts so its sweep peaks at the hit, and the
+ * bow twang fires the instant the string hand lets go.
  */
 export const LOOP_CUES: Partial<
-  Record<AnimKey, { cue: CueId; impactPhase01: number; perCycle: 1 | 2 }>
+  Record<
+    AnimKey,
+    {
+      cue: CueId;
+      impactPhase01: number;
+      perCycle: 1 | 2;
+      /** Phase overrides by clip name, for keys that play a different
+       * clip per unit kind (KKSpec.attackClip) with the impact somewhere
+       * else entirely. */
+      byClip?: Record<string, number>;
+    }
+  >
 > = {
-  walk: { cue: 'footstep', impactPhase01: 0.15, perCycle: 2 },
-  jog: { cue: 'footstep', impactPhase01: 0.15, perCycle: 2 },
-  carry: { cue: 'footstep', impactPhase01: 0.15, perCycle: 2 },
-  work: { cue: 'chop', impactPhase01: 0.4, perCycle: 1 },
-  pickaxe: { cue: 'pickaxe', impactPhase01: 0.45, perCycle: 1 },
-  hammer: { cue: 'hammer', impactPhase01: 0.38, perCycle: 1 },
-  attack: { cue: 'swordSwing', impactPhase01: 0.35, perCycle: 1 },
-  shoot: { cue: 'bowRelease', impactPhase01: 0.85, perCycle: 1 },
+  // Walking_A: heel-strike ends right at the wrap, toes flat by 0.09.
+  walk: { cue: 'footstep', impactPhase01: 0.05, perCycle: 2 },
+  // Running_A lands on the ball of the foot: toe down 0.09, planted 0.12.
+  jog: { cue: 'footstep', impactPhase01: 0.1, perCycle: 2 },
+  // Carry_Walk is composited from Walking_A's legs — same footfalls.
+  carry: { cue: 'footstep', impactPhase01: 0.05, perCycle: 2 },
+  // Chopping: one swing, 0.18..0.28, the axe stopping in the trunk.
+  work: { cue: 'chop', impactPhase01: 0.27, perCycle: 1 },
+  // Pickaxing and Hammering both genuinely strike twice per clip, on the
+  // half-cycle: pick bites at 0.06 and 0.56, hammer falls at 0.09 and
+  // 0.59. One cue per loop left the second blow silent and put the first
+  // in the middle of the wind-up.
+  pickaxe: { cue: 'pickaxe', impactPhase01: 0.06, perCycle: 2 },
+  hammer: { cue: 'hammer', impactPhase01: 0.09, perCycle: 2 },
+  attack: {
+    cue: 'swordSwing',
+    // Melee_1H_Attack_Chop: blade travels 0.50..0.56 — whoosh from 0.50.
+    impactPhase01: 0.5,
+    perCycle: 1,
+    byClip: {
+      // The staff knight's thrust: 0.21..0.25, over before the default
+      // phase would even have started the sound.
+      Melee_1H_Attack_Stab: 0.21,
+      // The barbarian's slower two-handed arc, 0.39..0.53.
+      Melee_2H_Attack_Chop: 0.45,
+    },
+  },
+  // Ranged_Bow_Draw: the string hand snaps away at 0.50 and the pose
+  // freezes by 0.58 — the twang belongs to the release, not the hold.
+  shoot: { cue: 'bowRelease', impactPhase01: 0.5, perCycle: 1 },
 };
