@@ -46,6 +46,20 @@ describe('cloneWorld — the rollback snapshot primitive', () => {
     expect(hashWorld(viaSave)).toBe(hashWorld(world));
   });
 
+  it('isolates a repair bill in flight — repairNeeds must not be shared', () => {
+    // repairNeeds is the one GoodAmounts the repair flow decrements in
+    // place (applyRepairMaterial), so a clone sharing it by reference sees
+    // the original's spending — both worlds watch the bill fall twice as
+    // fast, and the save round-trip reference this file exists for lies.
+    const world = createWorld({ seed: 5, players: [{ kind: 'ai' }] });
+    run(world, 200);
+    const b = [...world.buildings.values()].find((x) => x.state === 'built')!;
+    b.repairNeeds = { wood: 3 };
+    const snap = cloneWorld(world);
+    b.repairNeeds.wood = 2; // the original works a plank in
+    expect(snap.buildings.get(b.id)!.repairNeeds).toEqual({ wood: 3 });
+  });
+
   it('stays cheap enough to snapshot a live world', () => {
     const world = createWorld({
       seed: 8,
