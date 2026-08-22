@@ -416,7 +416,7 @@ export function SelectionPanel(props: {
                             b().state !== 'built'
                               ? b().paused
                                 ? 'Resumes the build: materials flow again and a builder is called back to the frame.'
-                                : 'Halts the site where it stands — no deliveries, no progress — and the builder rejoins the serf pool. Nothing already delivered is lost.'
+                                : 'Halts the site where it stands — no new deliveries are called for (a load already on the road still lands), no progress — and the builder rejoins the serf pool. Nothing already delivered is lost.'
                               : manned()
                               ? b().paused
                                 ? 'Starts the tower: villagers answer the levy again, until archers arrive to take the wall for good.'
