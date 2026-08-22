@@ -1,0 +1,297 @@
+import * as THREE from 'three';
+import { hash2 } from '../shared/math';
+import { ACTION, AUX_STRIDE, type SabReader } from '../protocol/sabLayout';
+import { UNIT_DEFS } from '../sim/defs/units';
+import type { MapView } from '../sim/map';
+import { ribbonCover, type RibbonCover } from './pathRibbon';
+import { makeFootprintSprite } from './spriteTextures';
+import type { FogQuery } from './fogOfWar';
+import type { HeightField } from './heightField';
+
+/** How long a print stays on the ground, in (unpaused) real seconds. */
+export const PRINT_LIFE_S = 30;
+/** Tiles of march between successive prints — one footfall per stride. */
+export const STRIDE = 0.45;
+/**
+ * Backfill cap when a unit covers many strides in one publish (fast game
+ * speeds). Past this the trail goes sparse instead of the pass going long.
+ */
+export const MAX_PRINTS_PER_STEP = 6;
+/** Feet straddle the line of march by this much, in tiles. */
+const FOOT_OFFSET = 0.055;
+/** Print quad footprint on the ground, in tiles. */
+const PRINT_W = 0.09;
+const PRINT_L = 0.17;
+/** Above the terrain skin, below everything that stands on it. */
+const LIFT = 0.025;
+/**
+ * Print slots, reused oldest-first. An army marching hard can outrun this —
+ * a hundred soldiers stamp ~360 prints a second — and then the oldest
+ * prints simply fade early, which is the graceful way to be over budget.
+ */
+const CAPACITY = 8192;
+
+/**
+ * The units that march as an army: everything with a combat def, bandits
+ * included. Serfs and workers are the economy — their passage wears trails
+ * into the map instead.
+ */
+const ARMY_KINDS = new Set(
+  Object.values(UNIT_DEFS)
+    .filter((def) => def.combat)
+    .map((def) => def.kindCode),
+);
+
+/** One print to place: on the march line at (x, y), heading `yaw`, foot `side`. */
+export type StampFn = (x: number, y: number, yaw: number, side: number) => void;
+
+interface Tracker {
+  /** Where the last print fell (or where the unit was first seen). */
+  x: number;
+  y: number;
+  /** Which foot lands next: +1 right of the march line, -1 left. */
+  side: number;
+  /** Publish epoch this unit was last fed — sweep drops the rest. */
+  epoch: number;
+}
+
+/**
+ * The stride bookkeeping behind the prints, kept apart from the THREE layer
+ * so it can be tested headless: per unit, how far since the last footfall,
+ * and which foot lands next. Feed every army unit each publish — `advance`
+ * to march (emitting a print per stride crossed), `shadow` to move without
+ * marking (fog-hidden enemies) — then `sweep` to forget the units gone.
+ */
+export class FootprintPlanner {
+  #trackers = new Map<number, Tracker>();
+  #epoch = 0;
+
+  /** Start a publish pass; `advance`/`shadow` calls mark units as present. */
+  begin(): void {
+    this.#epoch++;
+  }
+
+  /** March a unit to (x, y), stamping a print per stride crossed. */
+  advance(id: number, x: number, y: number, stamp: StampFn): void {
+    const t = this.#trackers.get(id);
+    if (!t) {
+      // First sighting is a position, not a footfall — no print at spawn.
+      this.#trackers.set(id, { x, y, side: (id & 1) === 0 ? 1 : -1, epoch: this.#epoch });
+      return;
+    }
+    t.epoch = this.#epoch;
+    const dx = x - t.x;
+    const dy = y - t.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < STRIDE) return;
+    const yaw = Math.atan2(dx, dy);
+    const sx = (dx / dist) * STRIDE;
+    const sy = (dy / dist) * STRIDE;
+    let steps = Math.floor(dist / STRIDE);
+    if (steps > MAX_PRINTS_PER_STEP) {
+      // A long hop: drop the middle rather than carpet it.
+      steps = MAX_PRINTS_PER_STEP;
+      t.x = x - sx * steps;
+      t.y = y - sy * steps;
+    }
+    for (let k = 0; k < steps; k++) {
+      t.x += sx;
+      t.y += sy;
+      t.side = -t.side;
+      stamp(t.x, t.y, yaw, t.side);
+    }
+  }
+
+  /** Move a unit without marking, so re-emerging strides start from here. */
+  shadow(id: number, x: number, y: number): void {
+    const t = this.#trackers.get(id);
+    if (t) {
+      t.x = x;
+      t.y = y;
+      t.epoch = this.#epoch;
+    } else {
+      this.#trackers.set(id, { x, y, side: (id & 1) === 0 ? 1 : -1, epoch: this.#epoch });
+    }
+  }
+
+  /** Forget every unit the pass since `begin` did not feed. */
+  sweep(): void {
+    for (const [id, t] of this.#trackers) {
+      if (t.epoch !== this.#epoch) this.#trackers.delete(id);
+    }
+  }
+}
+
+const dummy = new THREE.Object3D();
+const cover: RibbonCover = { trail: 0, road: 0 };
+
+/**
+ * Bootprints where armies march, fading out over half a minute — the ground
+ * remembers a column's passing, and the width and density of the print trail
+ * says how big it was. Purely render-side: prints are stamped from the same
+ * SAB publishes the unit sync draws from, no sim contact.
+ *
+ * The prints live in one instanced mesh. A stamp writes a slot's matrix and
+ * birth time once; the fade happens on the GPU (a birth-time attribute
+ * against a clock uniform), so a stamped print never costs CPU again. Slots
+ * are a ring, reused oldest-first. Prints skip the trail and road ribbons —
+ * packed dirt takes no new mark — and fog-hidden enemies leave none, so the
+ * layer can't be used to scout the dark.
+ */
+export class Footprints {
+  readonly mesh: THREE.InstancedMesh;
+  #reader: SabReader;
+  #map: MapView;
+  #heights: HeightField;
+  /** Seat viewing the scene — other owners' prints obey the fog. */
+  #owner: number;
+  #fog: FogQuery | null = null;
+  #planner = new FootprintPlanner();
+  #birth: THREE.InstancedBufferAttribute;
+  #uNow = { value: 0 };
+  /** Next slot in the ring. */
+  #cursor = 0;
+  /** High-water mark of touched slots — what the mesh draws. */
+  #high = 0;
+  #lastSeq = -1;
+  #lastMs = 0;
+  /** Print clock, in seconds: holds while the game is paused, like the
+   * animation clock, so a pause doesn't wash the ground clean. */
+  #now = 0;
+  #stamped = false;
+
+  constructor(reader: SabReader, map: MapView, heights: HeightField, owner: number) {
+    this.#reader = reader;
+    this.#map = map;
+    this.#heights = heights;
+    this.#owner = owner;
+
+    const geometry = new THREE.PlaneGeometry(PRINT_W, PRINT_L);
+    geometry.rotateX(-Math.PI / 2); // flat on the ground, length along the march
+    this.#birth = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITY), 1);
+    this.#birth.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute('aBirth', this.#birth);
+
+    const material = new THREE.MeshLambertMaterial({
+      map: makeFootprintSprite(),
+      transparent: true,
+      // A skin on the ground, like the road decal: depth-tested against the
+      // world but never written, nudged off the terrain to kill z-fighting.
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    // Per-instance fade, computed on the GPU from the print's birth time so
+    // a print costs nothing after its stamp. The fog patch wraps whatever
+    // onBeforeCompile it finds, so this composes with it.
+    //
+    // The explicit cache key is load-bearing. Three keys compiled programs
+    // on onBeforeCompile.toString() — but the fog wraps every material's
+    // hook with the same wrapper text, so once patched, this material would
+    // share a key with any other fog-patched Lambert of the same shape and
+    // could be handed that material's program, compiled without the fade
+    // splice below. The prints then simply never faded.
+    material.customProgramCacheKey = () => 'footprints-fade';
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uNow = this.#uNow;
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nattribute float aBirth;\nuniform float uNow;\nvarying float vFade;',
+        )
+        .replace(
+          '#include <begin_vertex>',
+          /* glsl */ `#include <begin_vertex>
+          {
+            // Full strength for the first third of the print's life, then
+            // a straight fade to nothing over the rest.
+            float age = (uNow - aBirth) / ${PRINT_LIFE_S.toFixed(1)};
+            vFade = clamp(1.5 - age * 1.5, 0.0, 1.0);
+          }`,
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying float vFade;')
+        .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a *= vFade;');
+    };
+
+    this.mesh = new THREE.InstancedMesh(geometry, material, CAPACITY);
+    this.mesh.count = 0;
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // The bounding sphere describes the geometry at the origin, not where
+    // the instances are; prints span the whole map anyway.
+    this.mesh.frustumCulled = false;
+    this.mesh.castShadow = false;
+    this.mesh.receiveShadow = true;
+  }
+
+  /** Fog test; a hidden enemy's march leaves no marks to scout by. */
+  setFog(fog: FogQuery): void {
+    this.#fog = fog;
+  }
+
+  /**
+   * Advance the fade clock and stamp the latest publish's marches. Call once
+   * per rendered frame, after the unit sync has polled the reader.
+   */
+  update(nowMs: number, paused: boolean): void {
+    const dt = this.#lastMs > 0 ? Math.min((nowMs - this.#lastMs) / 1000, 0.1) : 0;
+    this.#lastMs = nowMs;
+    if (!paused) this.#now += dt;
+    this.#uNow.value = this.#now;
+
+    const latest = this.#reader.latest;
+    if (latest.publishSeq === this.#lastSeq) return;
+    this.#lastSeq = latest.publishSeq;
+
+    this.#stamped = false;
+    this.#planner.begin();
+    for (let i = 0; i < latest.count; i++) {
+      const a = i * AUX_STRIDE;
+      if (!ARMY_KINDS.has(latest.aux[a]!)) continue;
+      if (latest.aux[a + 4] === ACTION.dead) continue; // corpses don't march
+      const id = latest.ids[i]!;
+      const x = latest.xs[i]!;
+      const y = latest.ys[i]!;
+      if (latest.aux[a + 1] !== this.#owner && this.#fog && !this.#fog.visibleAt(x, y)) {
+        this.#planner.shadow(id, x, y);
+        continue;
+      }
+      this.#planner.advance(id, x, y, this.#stamp);
+    }
+    this.#planner.sweep();
+    if (this.#stamped) {
+      this.mesh.count = this.#high;
+      this.mesh.instanceMatrix.needsUpdate = true;
+      this.#birth.needsUpdate = true;
+    }
+  }
+
+  #stamp: StampFn = (x, y, yaw, side) => {
+    // No prints on the trail: the ribbon's dirt is already the record of
+    // feet, and packed ground takes no new mark. Same "the ribbon is here"
+    // thresholds the grass clumps use, so prints stop where the turf does.
+    ribbonCover(this.#map.pathLevel, x, y, cover);
+    if (cover.trail > 0.35 || cover.road > 0.02) return;
+
+    const slot = this.#cursor;
+    this.#cursor = (this.#cursor + 1) % CAPACITY;
+    if (slot >= this.#high) this.#high = slot + 1;
+
+    // Left and right feet straddle the march line.
+    const px = x + Math.cos(yaw) * FOOT_OFFSET * side;
+    const pz = y - Math.sin(yaw) * FOOT_OFFSET * side;
+    dummy.position.set(px, this.#heights.at(px, pz) + LIFT, pz);
+    // A little splay and size jitter, keyed to the slot, so a column reads
+    // as many boots rather than a stenciled dashed line.
+    dummy.rotation.set(0, yaw + (hash2(slot, 611) - 0.5) * 0.3, 0);
+    const s = 0.85 + hash2(slot, 613) * 0.3;
+    dummy.scale.set(s, 1, s);
+    dummy.updateMatrix();
+    this.mesh.setMatrixAt(slot, dummy.matrix);
+    this.mesh.instanceMatrix.addUpdateRange(slot * 16, 16);
+    this.#birth.setX(slot, this.#now);
+    this.#birth.addUpdateRange(slot, 1);
+    this.#stamped = true;
+  };
+}

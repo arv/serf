@@ -8,6 +8,7 @@ import { WaterMesh } from '../render/waterMesh';
 import { MarginMesh } from '../render/marginMesh';
 import { Mist } from '../render/mist';
 import { Butterflies } from '../render/butterflies';
+import { Footprints } from '../render/footprints';
 import { SceneSync } from '../render/sceneSync';
 import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
@@ -873,6 +874,11 @@ async function runMatch(
   // Ambient life over the meadows — pure scenery, no sim contact.
   const butterflies = new Butterflies(init.map, heights);
   renderer.scene.add(butterflies.mesh);
+  // Fading bootprints where armies march. Handed the mirror's map view —
+  // the same live pathLevel grid the grass watches — so prints keep off
+  // the trails as they wear in.
+  const footprints = new Footprints(init.reader, mirror.map, heights, config.myPlayerId);
+  renderer.scene.add(footprints.mesh);
 
   const buildingSync = new BuildingSync(renderer.scene, heights, config.myPlayerId);
   // Terrain feed for the pier measurement: on a corner-only shore the
@@ -955,6 +961,7 @@ async function runMatch(
   }
   sync.setFog(fog);
   buildingSync.setFog(fog);
+  footprints.setFog(fog);
   // Latest building roster, for the fog's sight sources.
   let roster = init.buildings;
 
@@ -1201,6 +1208,8 @@ async function runMatch(
     water.update(now);
     mist.update(now);
     butterflies.update(now);
+    // After sync.update: the stamps read the publish it just polled.
+    footprints.update(now, speed() === 0);
     const dt = renderer.frame();
     // Same view rect the unit sync culls against — sails and roof watches
     // off camera are not worth animating either.
