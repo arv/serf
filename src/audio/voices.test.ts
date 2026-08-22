@@ -183,7 +183,9 @@ describe('CueScheduler', () => {
 
   it('a bucket-boundary straddle still folds into one voice', () => {
     // 89ms and 91ms land 2ms apart but hash to different buckets; the
-    // landing-time cooldown at emit is what catches the flam.
+    // grouping pass's proximity merge is what catches the flam — the
+    // emit-time cooldown deliberately ignores same-flush candidates (a
+    // stereo split must stay two voices), so it cannot.
     const s = new CueScheduler(DEFS, CAPS);
     s.request('chop', 0, 0.8, 0.089);
     s.request('chop', 0, 0.8, 0.091);
