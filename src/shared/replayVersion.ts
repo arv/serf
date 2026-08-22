@@ -20,13 +20,28 @@
  * directly.
  */
 /**
- * 22: a sold Smith loses its forged hammers with the rest of its stock.
+ * 24: a sold Smith loses its forged hammers with the rest of its stock.
  * The sale's rescue set carried 'hammer' unconditionally — meant for the
  * hammer a half-built site borrows — so a built Smith's forged hammers
  * walked to the storehouse for free while the axes on the same shelf
  * were lost. The hammer now rides the rescue only for a site. Any log
  * that sells a Smith holding hammers banks fewer tools from that tick
  * on.
+ *
+23: the between-waves raid clock scales by the playable span, as the
+ * opening peace always did. banditsSystem was passing the full grid side
+ * (2x the playable side on every generated map) to raidIntervalFor, so
+ * every wave after the first arrived at half the tuned pressure — 540s
+ * apart on the default valley instead of 270s. Waves land on different
+ * ticks now, and everything after the second wave re-times with them.
+ *
+ * 22: pausing a guard-tower construction site sticks. The staffing
+ * exemption that keeps a BUILT tower's door open to soldiers while it is
+ * halted also matched the tower's site, so a paused scaffold kept
+ * summoning and re-binding the builder the order had just released — the
+ * pause silently undone, one hand bound doing nothing. The exemption now
+ * asks for a built tower. Any log in which a tower site sat paused staffs
+ * differently from that order on.
  *
  * 21: trails come sooner and linger — the trail pass (which runs every
  * TRAILS_INTERVAL ticks, checking each tile after its wear decay) now
@@ -125,4 +140,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 22;
+export const REPLAY_VERSION = 24;
