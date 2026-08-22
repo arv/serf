@@ -75,6 +75,12 @@ export interface Building {
   prodRecipeIndex?: number;
   /** Military training queue (barracks). */
   trainQueue?: { unit: UnitTypeId; ticksLeft: number; started: boolean }[];
+  /** Rally point (buildings that train): the tile a fresh soldier marches
+   * to as he steps out of the door. Absent = he stands at the door as
+   * ever. Only ever set on a building whose def trains, and deliberately a
+   * tile rather than an entity id: a flag planted on ground that later
+   * gets built over still means "muster near there". */
+  rally?: { x: number; y: number };
   /** Forge orders (Smith): recipeOptions indices worked in order, ahead of
    * the standing recipeIndex. Mirrors trainQueue — an item is marked
    * started when its batch takes the fire and removed when it lands, so a

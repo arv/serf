@@ -36,6 +36,7 @@ export function cloneWorld(world: World): World {
       siteNeeds: b.siteNeeds ? goods(b.siteNeeds) : undefined,
       trainQueue: b.trainQueue?.map((q) => ({ ...q })),
       forgeQueue: b.forgeQueue?.map((q) => ({ ...q })),
+      rally: b.rally ? { ...b.rally } : undefined,
     });
   }
   const jobs = new Map<number, HaulJob>();

@@ -20,6 +20,14 @@
  * directly.
  */
 /**
+ * 20: the barracks learns a rally point. A new command (setRallyPoint)
+ * plants or strikes a muster flag on any building that trains, and every
+ * soldier that finishes training marches from the door to the flag as a
+ * plain move. Old logs never carry the command and a flag never stands
+ * unasked, so their play is untouched — the bump is for the format: a log
+ * recorded on this build can carry an order older builds drop, and a
+ * dropped order is a different army standing in a different place.
+ *
  * 19: sieges slow down and the castle hardens — damage against buildings
  * lands at a fraction set by the attacker's arm (BUILDING_DAMAGE_MULT:
  * three quarters for melee, half for the bow — ten archers were leveling
@@ -102,4 +110,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 19;
+export const REPLAY_VERSION = 20;
