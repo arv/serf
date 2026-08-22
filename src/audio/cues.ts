@@ -263,7 +263,10 @@ export const CUES = {
       tone({ wave: 'sawtooth', freq: 220, freqEnd: 70, gain: 0.35, decay: 0.45 }),
       // The body-fall thump. The cue fires as Death_A starts, and the
       // clip lands him at ~0.53s (tools/modelLab/animImpacts.mjs) — the
-      // cry covers the fall, the thump meets the ground.
+      // cry covers the fall, the thump meets the ground. This times the
+      // synth path only: the recorded sample below replaces the whole
+      // recipe when it loads, internal timing and all, so matching it to
+      // the clip is an edit to the recording, not to this delay.
       noise({ filter: 'lowpass', freq: 300, gain: 0.4, decay: 0.12, delay: 0.5 }),
     ],
     sample: '/audio/unitDeath.m4a',

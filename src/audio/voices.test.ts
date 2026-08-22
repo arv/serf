@@ -140,12 +140,29 @@ describe('CueScheduler', () => {
     s.request('chop', 0, 0.8, 0.5);
     const [solo] = flush(s, 1000);
     expect(solo!.delay).toBeCloseTo(0.5);
+    // Two units aiming at the same moment (one cooldown window apart at
+    // most — the crowd's natural stagger) still merge to the mean.
     s.request('chop', 0, 0.6, 0.2);
-    s.request('chop', 0, 0.6, 0.4);
-    const [merged] = flush(s, 2000);
-    expect(merged!.delay).toBeCloseTo(0.3, 5);
+    s.request('chop', 0, 0.6, 0.21);
+    const merged = flush(s, 2000);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.delay).toBeCloseTo(0.205, 5);
     s.request('click', 0, 1);
     expect(flush(s, 3000)[0]!.delay).toBe(0);
+  });
+
+  it('impacts aimed at different moments stay two voices, times intact', () => {
+    // A pickaxe cycle queues both strikes on the same wrap frame,
+    // seconds apart. Averaging them made one clink at a moment when
+    // nothing hits — landing-time buckets keep them separate.
+    const s = new CueScheduler(DEFS, CAPS);
+    s.request('chop', 0, 0.8, 0.22);
+    s.request('chop', 0, 0.8, 2.09);
+    const voices = flush(s, 1000);
+    expect(voices).toHaveLength(2);
+    const delays = voices.map((v) => v.delay).sort((a, b) => a - b);
+    expect(delays[0]).toBeCloseTo(0.22, 5);
+    expect(delays[1]).toBeCloseTo(2.09, 5);
   });
 
   it('seeds are deterministic across identical runs', () => {

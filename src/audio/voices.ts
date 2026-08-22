@@ -12,11 +12,15 @@
  *  3. N identical cues collapse into one voice: gain grows by a log law
  *     (coincident equal sources are +3 dB per doubling; we flatten even
  *     that, because a crowd should read as *bigger*, not *louder*), panned
- *     at the gain-weighted centroid. One exception: when the group spans
+ *     at the gain-weighted centroid. Two exceptions. When the group spans
  *     the stereo field (spread > CLUSTER_SPREAD), it splits by side — a
  *     skirmish at the left edge and one at the right must not merge into
  *     a single centred blob, which is the exact failure that makes
- *     collapsed audio sound wrong.
+ *     collapsed audio sound wrong. And requests only group when they land
+ *     inside the same cooldown-sized window: the two strikes of one
+ *     pickaxe cycle arrive in the same frame but aim at moments seconds
+ *     apart, and averaging those made one clink at a time when nothing
+ *     hits.
  *  4. Per-bus caps keep the loudest-times-priority survivors; a global
  *     cap (minus voices still ringing in the engine) bounds the whole mix.
  *
@@ -42,9 +46,11 @@ export interface PlayRequest {
   pan: number;
   gain: number;
   /** Seconds ahead to schedule — the loop-event percussion fires at a
-   * clip's wrap point but the impact lands mid-clip. Collapsed voices
-   * carry the gain-weighted mean; the spread inside one collapse window
-   * is the crowd's natural stagger and one voice cannot keep it anyway. */
+   * clip's wrap point but the impact lands mid-clip. Requests collapse
+   * only with others landing in the same cooldown-sized window, where
+   * the gain-weighted mean is just the crowd's natural stagger; impacts
+   * aimed at different moments (a pickaxe cycle's two strikes) group
+   * apart and keep their own times. */
   delay: number;
   /** Deterministic per-voice jitter seed in [0, 1). */
   seed: number;
@@ -157,16 +163,21 @@ export class CueScheduler {
    * covers the sum, not just this frame's newcomers.
    */
   flush(now: number, activeVoices: number, out: PlayRequest[]): number {
-    // Group by cue, aggregating both a combined and a per-side view so the
-    // split decision needs no second pass.
+    // Group by cue and landing-time bucket (one cooldown window wide),
+    // aggregating both a combined and a per-side view so the split
+    // decision needs no second pass. The bucket keeps deliberately
+    // distinct impact times apart; a zero-delay request — nearly all of
+    // them — keys on the bare cue and allocates nothing.
     let groupLen = 0;
     this.#groupIdx.clear();
     for (let i = 0; i < this.#len; i++) {
       const cue = this.#cues[i]!;
-      let gi = this.#groupIdx.get(cue);
+      const bucket = Math.floor((this.#delays[i]! * 1000) / this.#defs[cue]!.cooldownMs);
+      const gkey = bucket === 0 ? cue : `${cue}|${bucket}`;
+      let gi = this.#groupIdx.get(gkey);
       if (gi === undefined) {
         gi = groupLen++;
-        this.#groupIdx.set(cue, gi);
+        this.#groupIdx.set(gkey, gi);
         let g = this.#groups[gi];
         if (!g) {
           g = this.#groups[gi] = {

@@ -696,6 +696,10 @@ export class SceneSync {
         // carried on the walk out too — a woodcutter heads to the trees
         // axe in fist. Only full hands stow it: cargo owns the grip.
         setWorkTool(visual.char, heldCarry ? TOOL_STOWED : workKind);
+        // Whether playAnimation below actually (re)starts the clip: a
+        // state change, or the first frame back from a cull (which nulled
+        // `current`). Read before the call — it sets `current` to key.
+        const restarted = visual.char.current !== key;
         if (dead && !visual.char.actions.has('death')) {
           // No death clip in this library: tip the body over instead.
           tipOver(visual.group, dt);
@@ -703,26 +707,33 @@ export class SceneSync {
         } else {
           playAnimation(visual.char, key, key === 'death' ? 0 : hash2(id, 3));
         }
+        const fn = this.onCue;
         // State-entry sound, from audio's own memory — char.current is
         // nulled by the cull above and would re-announce every re-entry.
-        if (this.onCue && visual.audioKey !== key) {
+        if (fn && visual.audioKey !== key) {
           const cue = animCue(visual.audioKey, key);
-          if (cue) this.onCue(cue, x, y, 0);
-          // The 'loop' event only covers cycles after the first wrap, so
-          // a percussive clip entered now would play its whole first
-          // cycle mute — for Pickaxing that is two silent swings and
-          // nearly four seconds. Schedule the entry cycle's remaining
-          // impacts here, measured from the same per-id offset
-          // playAnimation just started the clip at.
+          if (cue) fn(cue, x, y, 0);
+        }
+        // The 'loop' event only covers cycles after the first wrap, so a
+        // percussive clip (re)started this frame would play its whole
+        // first cycle mute — for Pickaxing that is two silent swings and
+        // nearly four seconds. Schedule the entry cycle's remaining
+        // impacts here, from the same per-id offset the clip started at.
+        // Gated on the restart, not the audioKey change: a culled worker
+        // scrolling back into view restarts his clip too, and his first
+        // swing back on screen deserves its sound as much as watching him
+        // take it up did.
+        if (fn && restarted) {
           const spec = LOOP_CUES[key];
+          // Missing clip: playAnimation fell back to idle — no percussion.
           const action = spec ? visual.char.actions.get(key) : undefined;
           if (spec && action) {
             const clip = action.getClip();
             const phase = spec.byClip?.[clip.name] ?? spec.impactPhase01;
             const start = hash2(id, 3);
-            if (phase > start) this.onCue(spec.cue, x, y, (phase - start) * clip.duration);
+            if (phase > start) fn(spec.cue, x, y, (phase - start) * clip.duration);
             if (spec.perCycle === 2 && phase + 0.5 > start) {
-              this.onCue(spec.cue, x, y, (phase + 0.5 - start) * clip.duration);
+              fn(spec.cue, x, y, (phase + 0.5 - start) * clip.duration);
             }
           }
         }

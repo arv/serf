@@ -183,14 +183,25 @@ function evaluator(file, clip) {
 const N = 400;
 const ph = (i) => (i / N).toFixed(2);
 
-/** Phases where a bone's Y descends into its floor band (min + 20% range). */
+/**
+ * Footfall contact for one bone: where its Y descends into the floor band
+ * (min + 20% of range), and where the descent then stalls — vertical
+ * speed dropping under a tenth of the descent's own peak. The band entry
+ * is first touch; the stall is the plant completing, which is the moment
+ * that reads as the step.
+ */
 function plantPhases(ev, bone) {
   const ys = ev.sampleBone(bone, N).pos.map((p) => p[1]);
   const min = Math.min(...ys);
   const band = min + 0.2 * (Math.max(...ys) - min);
+  let maxDrop = 0;
+  for (let i = 1; i <= N; i++) maxDrop = Math.max(maxDrop, ys[i - 1] - ys[i]);
   const events = [];
   for (let i = 0; i <= N; i++) {
-    if (ys[i] <= band && ys[(i + N) % (N + 1)] > band) events.push(ph(i));
+    if (!(ys[i] <= band && ys[(i + N) % (N + 1)] > band)) continue;
+    let j = i;
+    while (j - i < N / 4 && ys[j % (N + 1)] - ys[(j + 1) % (N + 1)] > 0.1 * maxDrop) j++;
+    events.push(`${ph(i)} (stalls ${ph(j % (N + 1))})`);
   }
   return events;
 }
@@ -199,7 +210,7 @@ function gait(file, clip) {
   const ev = evaluator(file, clip);
   console.log(`${clip}  (${ev.duration.toFixed(2)}s)`);
   for (const bone of ['toes.l', 'toes.r', 'foot.l', 'foot.r']) {
-    console.log(`  ${bone} plants at phase ${plantPhases(ev, bone).join(', ')}`);
+    console.log(`  ${bone} touches down at phase ${plantPhases(ev, bone).join(', ')}`);
   }
 }
 
