@@ -105,6 +105,16 @@ describe('hashWorld', () => {
       (u) => {
         u.path = [...(u.path ?? []), 999];
       },
+      // Fractional damage: the counter table's multipliers land fractional
+      // blows, so two worlds can differ ONLY below the integer line — the
+      // mutation keeps the integer part so a truncating digest sees nothing.
+      (u) => {
+        u.hp = Math.trunc(u.hp) + (u.hp % 1 < 0.5 ? 0.75 : 0.25);
+      },
+      // The repath backoff steers a blocked walker's next 45 ticks.
+      (u) => {
+        u.repathAt = 4242;
+      },
     ];
     for (const mutate of mutations) {
       const w = cloneWorld(world);
@@ -112,5 +122,19 @@ describe('hashWorld', () => {
       mutate(first);
       expect(hashWorld(w)).not.toBe(base);
     }
+  });
+
+  it('sees fractional building damage', () => {
+    // An arrow against masonry lands at half strength (BUILDING_DAMAGE_MULT),
+    // so building hp lives below the integer line too: a digest that
+    // truncates it calls two walls the same until one falls a tick earlier.
+    const world = createWorld({ seed: 21, players: [{ kind: 'ai' }] });
+    run(world, 400);
+    const base = hashWorld(world);
+    const w = cloneWorld(world);
+    const b = [...w.buildings.values()][0]!;
+    // Only the fraction moves: a truncating digest sees the same wall.
+    b.hp = Math.trunc(b.hp) + (b.hp % 1 < 0.5 ? 0.75 : 0.25);
+    expect(hashWorld(w)).not.toBe(base);
   });
 });
