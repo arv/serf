@@ -690,8 +690,12 @@ export function SelectionPanel(props: {
                       <Show when={b().rally}>
                         <span class="sel-label">
                           soldiers muster at the flag{' '}
+                          {/* The glyph is the whole visible label, so the
+                              accessible name has to be spelled out. */}
                           <button
                             class="sel-idle-clear"
+                            aria-label="Take the rally flag down"
+                            title="Take the rally flag down"
                             onClick={() => props.onClearRally(b().id)}
                           >
                             ✕

@@ -38,6 +38,14 @@ describe('the barracks rally flag', () => {
     tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id, x: 20, y: 21 }));
     expect(barracks.rally).toEqual({ x: 20, y: 21 });
 
+    // A half-given pair changes nothing — the sim reads it the way the
+    // sanitizer does, so a caller that skipped screening cannot strike a
+    // standing flag with a malformed plant.
+    tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id, x: 30 }));
+    expect(barracks.rally).toEqual({ x: 20, y: 21 });
+    tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id, y: 30 }));
+    expect(barracks.rally).toEqual({ x: 20, y: 21 });
+
     // No coordinates is the take-it-down order.
     tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id }));
     expect(barracks.rally).toBeUndefined();
