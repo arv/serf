@@ -1,5 +1,5 @@
 import { createServer, type ServerResponse } from 'node:http';
-import { createReadStream, existsSync, readdirSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -58,13 +58,17 @@ const SERVES_GAME = existsSync(join(DIST_DIR, 'index.html'));
  * the request path of its per-request existsSync/statSync, sync calls that
  * ran on the same thread that pumps every room's simulation.
  */
-const STATIC_FILES = new Set<string>();
+// Path -> the file's mtime, frozen at boot as its Last-Modified header.
+// The date is what lets 'no-cache' below actually be cheap: a client that
+// holds the bytes revalidates with If-Modified-Since and gets a 304, not a
+// second copy of a 10 MB model.
+const STATIC_FILES = new Map<string, string>();
 if (SERVES_GAME) {
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else STATIC_FILES.add(full);
+      else STATIC_FILES.set(full, statSync(full).mtime.toUTCString());
     }
   };
   walk(DIST_DIR);
@@ -132,6 +136,18 @@ const http = createServer((req, res) => {
     'cache-control',
     immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
   );
+  // The conditional half of no-cache: exact-match If-Modified-Since (the
+  // tree is frozen at boot, so the stamp a client echoes back is the stamp
+  // it was given). A miss just serves the bytes — never a false 304.
+  const lastModified = STATIC_FILES.get(file);
+  if (lastModified !== undefined) {
+    res.setHeader('last-modified', lastModified);
+    if (req.headers['if-modified-since'] === lastModified) {
+      res.writeHead(304);
+      res.end();
+      return;
+    }
+  }
   createReadStream(file).pipe(res);
 });
 
