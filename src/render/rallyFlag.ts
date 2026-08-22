@@ -11,23 +11,41 @@ import type { HeightField } from './heightField';
  * showing it with the card that can move it is what makes the card's
  * "soldiers muster at the flag" checkable at a glance.
  *
- * The cloth is the Dungeon Remastered pack's red banner (CC0, see
- * models/kaykit/dungeon/LICENSE.txt). The pack authors it as a WALL
+ * The cloth is the Dungeon Remastered pack's banner (CC0, see
+ * models/kaykit/dungeon/LICENSE.txt), in the owner's faction color: the
+ * pack happens to dye it in the faction palette's own four, so the flag is
+ * picked per seat rather than tinted. The pack authors it as a WALL
  * hanging — there is no free-standing flag in it — so the pole and
  * crossbar it hangs from here are ours, in the same wood the well's crank
- * wears. Red for every owner, on purpose: only your own selected barracks
- * ever shows its flag, so there is no rival's flag to tell apart — and red
- * is the game's own banner accent besides.
+ * wears.
  *
  * Same contract as SelectedReach: update() every frame with the selected
  * building (or null), and the mesh only moves when the answer changes —
  * terrain height never changes mid-match, so a planted banner can stand
  * still.
  */
+
+/** The pack banner that wears each seat's color — factionPalette's
+ * green/red/blue/gold, in the pack's own dyes, indexed by owner. */
+const BANNER_OF: readonly string[] = [
+  'dungeon/banner_green',
+  'dungeon/banner_red',
+  'dungeon/banner_blue',
+  'dungeon/banner_yellow',
+];
+
 export class RallyFlag {
   #scene: THREE.Scene;
   #heights: HeightField;
-  #group: THREE.Group | null = null;
+  /**
+   * One built standard per banner color, made on first need. In practice a
+   * client only ever selects its own buildings, so one entry — the map is
+   * for the day a spectator view selects across seats, and so a rebuilt
+   * group never has to be torn down (its cloth shares the loaded template's
+   * buffers, which must not be disposed).
+   */
+  #groups = new Map<string, THREE.Group>();
+  #shown: THREE.Group | null = null;
   /** What is currently planted: selection id + flag tile (-1 = nothing). */
   #id = -1;
   #x = -1;
@@ -41,7 +59,7 @@ export class RallyFlag {
   update(building: BuildingSnap | null): void {
     const rally = building?.rally;
     if (!building || !rally) {
-      if (this.#group) this.#group.visible = false;
+      if (this.#shown) this.#shown.visible = false;
       this.#id = -1;
       return;
     }
@@ -49,7 +67,14 @@ export class RallyFlag {
     this.#id = building.id;
     this.#x = rally.x;
     this.#y = rally.y;
-    const group = this.#group ?? (this.#group = this.#build());
+    const stem = BANNER_OF[building.owner] ?? BANNER_OF[0]!;
+    let group = this.#groups.get(stem);
+    if (!group) {
+      group = this.#build(stem);
+      this.#groups.set(stem, group);
+    }
+    if (this.#shown && this.#shown !== group) this.#shown.visible = false;
+    this.#shown = group;
     // Tile centers are at +0.5, the same convention units walk on.
     const cx = rally.x + 0.5;
     const cy = rally.y + 0.5;
@@ -59,13 +84,14 @@ export class RallyFlag {
 
   /** The standard plus a ground ring — built on first use and repositioned
    * ever after; three keeps the buffers for the page's life. */
-  #build(): THREE.Group {
+  #build(stem: string): THREE.Group {
     const group = new THREE.Group();
-    group.add(this.#standard());
+    group.add(this.#standard(stem));
 
     // The ring under it borrows the selection rings' language — "this spot
     // is spoken for" — a touch wider, so a soldier standing on the tile
-    // doesn't swallow it.
+    // doesn't swallow it. Vermillion whatever the cloth flies: it is
+    // selection feedback, not livery.
     const ringGeom = new THREE.RingGeometry(0.34, 0.44, 24);
     ringGeom.rotateX(-Math.PI / 2);
     const ring = new THREE.Mesh(
@@ -88,7 +114,7 @@ export class RallyFlag {
   /** Pole, crossbar and finial of our own wood, the pack's cloth hung from
    * them — taller than a soldier, so the muster point still reads once the
    * mustered are standing on it. */
-  #standard(): THREE.Group {
+  #standard(stem: string): THREE.Group {
     const g = new THREE.Group();
     const wood = new THREE.MeshLambertMaterial({ color: woodLight });
     const part = (geo: THREE.BufferGeometry, mat: THREE.Material): THREE.Mesh => {
@@ -114,7 +140,7 @@ export class RallyFlag {
     // Double-sided, because a hanging cloth has two faces wherever the
     // camera stands — the pack ships it single-sided for its dungeon walls.
     const CLOTH_H = 0.9;
-    const cloth = glbYardProp('dungeon/banner_red', CLOTH_H);
+    const cloth = glbYardProp(stem, CLOTH_H);
     if (cloth) {
       cloth.traverse((o) => {
         if (o instanceof THREE.Mesh) (o.material as THREE.Material).side = THREE.DoubleSide;

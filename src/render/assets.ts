@@ -138,10 +138,16 @@ const DECOR_PROP_FILES = [
  * list above suffixes: the Dungeon Remastered pack (CC0, see
  * dungeon/LICENSE.txt) embeds its texture per file. Registered in `props`
  * under the stem, so glbYardProp('dungeon/banner_red', h) works like any
- * other prop. Today that is one model: the standing banner the rally flag
- * plants.
+ * other prop. Today that is the rally flag's banner, one per seat: the
+ * pack dyes it in the faction palette's own four (factionPalette.ts —
+ * green, red, blue, gold), so each flag is picked, not tinted.
  */
-const GLB_PROP_FILES = ['dungeon/banner_red.glb'];
+const GLB_PROP_FILES = [
+  'dungeon/banner_green.glb',
+  'dungeon/banner_red.glb',
+  'dungeon/banner_blue.glb',
+  'dungeon/banner_yellow.glb',
+];
 
 // No goods-shaped decor on producers whose live stock piles up outside:
 // the woodcutter's baked lumber pile read as planks that were never
