@@ -209,6 +209,39 @@ describe('the AI under fog of war', () => {
     expect(single[0]).toMatchObject({ x: 67, y: 58 });
   });
 
+  it('completes the doorstep read from the watch point instead of ping-ponging', () => {
+    // The regression this pins: the read only counted inside five tiles of
+    // the goal, but the scout is never ordered closer than the watch point
+    // six north of it — so a scout that arrived stood one tile outside the
+    // radius, outside the gate band too, and scoutLeg walked it
+    // gate–watch–gate for the rest of the match while the picture never
+    // refreshed. Seen live: a lone archer bouncing between the same two
+    // tiles every eighty ticks until the recording ended.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 66, 66, {}, 1);
+    for (let i = 0; i < 3; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
+    spawnUnit(world, 'knight', 0, 64.5, 65.5); // close enough to have seen it
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    // Walk every errand to completion: each single-unit order lands its
+    // soldier exactly on the ordered tile before the next beat — the walk
+    // the sim would perform, minus the time it takes.
+    const legs: string[] = [];
+    for (let beat = 0; beat < 6; beat++) {
+      for (const m of moveOrders(brain.decide(world)).filter((c) => c.unitIds.length === 1)) {
+        legs.push(`${m.x},${m.y}`);
+        const scout = world.units.get(m.unitIds[0]!)!;
+        scout.x = m.x + 0.5;
+        scout.y = m.y + 0.5;
+      }
+      world.tick += 20;
+    }
+    // Gate, then watch, then done — never the gate a second time.
+    expect(legs).toEqual(['67,58', '67,65']);
+    expect(brain.intelReport().find((r) => r.owner === 1)?.reads).toBe(1);
+  });
+
   it('sweeps in force but never to the last man, and calls the garrison in', () => {
     // The whole army is out in the field when the next sweep leg is picked.
     // Losing the race home against a raid wave is the failure this guards:
