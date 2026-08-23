@@ -4,7 +4,8 @@ import { buildingDef, type BuildingTypeId } from '../sim/defs/buildings.ts';
 import { AI_INTEL, hostileNear, type AiBrain } from '../sim/systems/ai.ts';
 import type { Building, Owner } from '../sim/entities.ts';
 import { popCapOf, populationOf } from '../sim/population.ts';
-import { tileCount } from '../shared/grid.ts';
+import { playMin, playMax } from '../sim/map.ts';
+import { tileIdx } from '../shared/grid.ts';
 import type { World } from '../sim/world.ts';
 
 /**
@@ -224,9 +225,21 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
     });
   }
 
+  // Coverage of the PLAYABLE valley. Vision can never reach the scenery
+  // margin — units cannot enter it — and on every generated map the margin
+  // is 3/4 of all tiles, so measured over the full grid a seat that had
+  // scouted the entire valley reported explored=0.25 to a prompt that
+  // calls this "your map coverage, 0-1". The model was told the map was
+  // mostly unscouted forever.
   let exploredTiles = 0;
-  const tiles = tileCount(world.map.size);
-  for (let i = 0; i < tiles; i++) exploredTiles += vision.explored[i]!;
+  const p0 = playMin(world.map);
+  const p1 = playMax(world.map);
+  for (let y = p0; y < p1; y++) {
+    for (let x = p0; x < p1; x++) {
+      exploredTiles += vision.explored[tileIdx(x, y, world.map.size)]!;
+    }
+  }
+  const tiles = world.map.play * world.map.play;
 
   const techs = player?.techs;
   return {
