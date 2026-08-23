@@ -804,13 +804,14 @@ function makeKayKitCharacter(
 /**
  * Playback-rate band per gait. The walk's cap is the one knob for how much
  * hustle a villager shows: a serf's true speed ratio is ~6x, so his walk
- * rides this cap flat-out and everything above it is the accepted glide
- * (1.5x is a busy market walk; past ~2x the legs read as comedy). The jog
+ * rides this cap flat-out and everything above it is the accepted glide.
+ * Tuned by eye: 1.5x read as everyone hurrying somewhere; 1.3x is a
+ * purposeful working walk (past ~2x the legs read as comedy). The jog
  * band is wide enough that soldiers track their true speed — 1.2x to 1.8x
  * across kinds — before a leg-blur cap.
  */
 const GAIT_RATE = {
-  walk: { lo: 0.85, hi: 1.5 },
+  walk: { lo: 0.85, hi: 1.3 },
   jog: { lo: 0.8, hi: 1.8 },
 };
 
