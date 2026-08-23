@@ -121,6 +121,8 @@ const PAN_MARGIN = 4;
 const VIEW_PAN_INSET = 0.25;
 /** Scratch for #footprintExt, which runs per pan and per frame. */
 const EXT = { x: 0, z: 0 };
+/** Scratch for #apply, which runs on every pan, glide step and turn. */
+const DIR = new THREE.Vector3();
 
 /** Conservative world-space XZ rectangle of the visible ground. */
 export interface ViewBounds {
@@ -808,12 +810,22 @@ export class CameraRig {
   }
 
   #apply(): void {
-    const dir = new THREE.Vector3(
+    DIR.set(
       Math.cos(this.#pitch) * Math.sin(this.#yaw),
       Math.sin(this.#pitch),
       Math.cos(this.#pitch) * Math.cos(this.#yaw),
     );
-    this.camera.position.copy(this.#target).addScaledVector(dir, DISTANCE);
+    this.camera.position.copy(this.#target).addScaledVector(DIR, DISTANCE);
     this.camera.lookAt(this.#target);
+    // lookAt moves the camera's position and quaternion and stops there;
+    // the world matrix those feed is three's to rebuild, and it does that
+    // inside render(). Everything that picks — a hover, an order, a
+    // building being placed — projects through that matrix, and pointer
+    // handlers run whenever the hand moves, not only between frames. Left
+    // to render() it would answer for wherever the camera last *drew*,
+    // which a pan makes stale and a turn makes wrong. Rebuild it here, at
+    // the one place the camera ever moves, so a reader is never early.
+    this.camera.updateMatrixWorld();
+    this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
   }
 }

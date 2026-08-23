@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CAMERA_YAW, CameraRig } from './cameraRig';
+import { screenToGround, worldToScreen } from '../input/picking';
 
 /**
  * The rig's turn: Shift+wheel and Insert/Delete, stepped so the view lands
@@ -390,6 +391,50 @@ describe('CameraRig turn', () => {
     rig.setViewMode('game');
     settle(rig);
     expectYaw(rig, CAMERA_YAW, 10);
+  });
+
+  it('picking sees the camera as it stands, without waiting for a draw', () => {
+    // project/unproject read the camera's world matrix, which three
+    // rebuilds inside render(). Nothing here ever renders — exactly the
+    // position a pointer handler is in between frames — so a stale matrix
+    // shows up as picking answering for the camera's old angle.
+    //
+    // The strongest tie available: viewQuad's corners are the ground under
+    // the screen's corners, so projecting them has to land on the screen's
+    // corners. If picking and the rig disagree about the yaw, this parts.
+    const corners = (): { x: number; y: number }[] => {
+      const q = rig.viewQuad(new Float64Array(8));
+      return [0, 1, 2, 3].map((i) => worldToScreen(rig.camera, canvas, q[i * 2]!, 0, q[i * 2 + 1]!));
+    };
+    const expected = [
+      { x: 0, y: 0 },
+      { x: canvas.clientWidth, y: 0 },
+      { x: canvas.clientWidth, y: canvas.clientHeight },
+      { x: 0, y: canvas.clientHeight },
+    ];
+    const check = (): void => {
+      corners().forEach((c, i) => {
+        expect(c.x).toBeCloseTo(expected[i]!.x, 6);
+        expect(c.y).toBeCloseTo(expected[i]!.y, 6);
+      });
+    };
+    check(); // the boot line
+    for (let i = 0; i < 6; i++) wheel(canvas, 100); // a quarter turn
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + 6 * STEP, 10);
+    check();
+    // Mid-turn too — the ease moves the camera on a tick, and a hand on
+    // the mouse does not wait for the frame to finish.
+    wheel(canvas, -100);
+    rig.tick(FRAME);
+    check();
+    // And the round trip: the ground under the middle of the screen is
+    // the point the camera is looking at, whichever way it faces.
+    settle(rig);
+    const mid = screenToGround(rig.camera, canvas, canvas.clientWidth / 2, canvas.clientHeight / 2);
+    const q = rig.viewQuad(new Float64Array(8));
+    expect(mid!.x).toBeCloseTo((q[0]! + q[4]!) / 2, 6);
+    expect(mid!.z).toBeCloseTo((q[1]! + q[5]!) / 2, 6);
   });
 
   it('viewFrame hands the audio the basis viewQuad draws by', () => {
