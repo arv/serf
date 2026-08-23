@@ -143,6 +143,13 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   // widens the pan box to match), so the entire world fits in one frame.
   renderer.rig.setMaxViewFraction(1.0);
   renderer.rig.setViewMode(viewMode());
+  // This camera does not turn. The brush cursor, a stroke in progress and
+  // a start marker being dragged are all derived from the pointer and
+  // refreshed only when it moves, so a turn under a still hand would put
+  // the preview off the cursor and streak the next stroke from ground that
+  // has moved. The view toggle is how this screen changes its angle, and
+  // [ and ] go back to sizing the brush.
+  renderer.rig.setTurnEnabled(false);
 
   // Editing survives a lost context: the draft is saved on every pause
   // anyway, so the recovery is simply a reload back into ?editor.

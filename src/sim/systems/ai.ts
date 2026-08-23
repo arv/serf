@@ -103,6 +103,21 @@ export const AI_PACING = {
   stalePeriod: 2_000,
   staleFloor: 3,
   /**
+   * The other way a muster bar is never met: not two exhausted equals but
+   * an army that has stopped growing and started dying. The impatience
+   * ramp walks the bar down on a slow clock from `staleAfter`; an army
+   * bleeding to raids can shrink faster than the bar falls and stay under
+   * it forever — the bar chases the army down and never catches it. So
+   * when no soldier has been added for this long, the army is as big as it
+   * is getting: the bar drops to the force actually standing (never below
+   * `staleFloor`, the smallest force the impatience ramp itself thinks
+   * worth marching), and the seat fights with what it has rather than
+   * waiting for soldiers that are no longer coming. Set well past any gap
+   * a working barracks produces — a course is a few hundred ticks — so a
+   * seat that is still training never sees it.
+   */
+  growthStallAfter: 4_000,
+  /**
    * Past staleness lies desperation. The impatience rule walks the bar
    * down to `staleFloor`, but a war of mutual exhaustion can leave every
    * surviving seat unable to field even that — seed 42 under fog reaches
@@ -110,6 +125,9 @@ export const AI_PACING = {
    * the other with no army and no silver, forever. After this long without
    * a march the floor gives way too, and a seat sends whatever it has —
    * two archers razing an undefended castle end a game nothing else would.
+   * It also outranks the combat prediction: a hold (#oddsSay) older than
+   * this stops binding, or a seat whose scout dutifully keeps the enemy
+   * garrison inside the intel trust window would renew its veto forever.
    */
   forlornAfter: 30_000,
 } as const;
@@ -366,6 +384,12 @@ export class AiBrain {
   #lastAttackTick = 0;
   #lastRallyTick = 0;
   #attacking = false;
+  /** The growth-stall clamp's whole memory (AI_PACING.growthStallAfter):
+   * how many soldiers stood at the last beat, and the last tick the count
+   * grew. A march restamps the clock too — the survivors get the same
+   * grace to grow again before the bar drops to whatever walked home. */
+  #lastArmyCount = 0;
+  #armyGrewTick = 0;
   /** Diagnostics for the march gate: how often it was asked, and how often
    * it said no. A gate that never fires and a gate that fires without
    * helping produce the same win rate, and telling them apart is the whole
@@ -761,7 +785,17 @@ export class AiBrain {
     const rallyReady = world.tick - this.#lastRallyTick > s.rallyCooldown;
     const idleFor = world.tick - this.#lastAttackTick;
     const cooled = idleFor > s.attackCooldown;
-    const headcountReady = army.length >= mustersNeeded(s.armyAttackSize, idleFor) && cooled;
+    if (army.length > this.#lastArmyCount) this.#armyGrewTick = world.tick;
+    this.#lastArmyCount = army.length;
+    // The bar, with the growth-stall clamp over the impatience ramp: an
+    // army that has stopped growing is as big as it is getting, so waiting
+    // for the playbook's full size only feeds soldiers to the raids one at
+    // a time (see AI_PACING.growthStallAfter).
+    let bar = mustersNeeded(s.armyAttackSize, idleFor);
+    if (world.tick - this.#armyGrewTick > AI_PACING.growthStallAfter) {
+      bar = Math.min(bar, Math.max(army.length, AI_PACING.staleFloor));
+    }
+    const headcountReady = army.length >= bar && cooled;
     /**
      * What the combat prediction says about the fight at the end of this
      * march — true go, false hold, null no opinion (the knob is off, the
@@ -780,14 +814,22 @@ export class AiBrain {
      * one the bar would have allowed.
      */
     const odds = this.#oddsSay(world, army, target, s.marchConfidence);
+    // Past the forlorn line even a hold expires. #oddsSay's bargain — a
+    // seat that never likes its odds still eventually marches on the
+    // forlorn floor — used to lean on the defenders' picture going stale
+    // and the gate going blind, and a working scout makes sure it never
+    // does: it re-reads the rival's yard on the refresh clock, so the
+    // garrison stays inside the trust window and the veto renews itself
+    // forever. The clock, not the picture, is what breaks the standoff.
+    const heeded = idleFor > AI_PACING.forlornAfter ? null : odds;
     const mustered =
-      odds === null ? headcountReady : odds && cooled && army.length >= MIN_SORTIE;
+      heeded === null ? headcountReady : heeded && cooled && army.length >= MIN_SORTIE;
     // A hold has to reach the sweep as well: falling through to it would send
     // the army walking into unexplored ground instead, which is the one
     // outcome worse than the march it just refused. Only an actual hold
     // suppresses the sweep — a muster with no target found yet still goes
     // looking, which is how the map gets read.
-    const vetoed = odds === false;
+    const vetoed = heeded === false;
     // Bookkeeping on the lone scout: a dead one gives up its post, and one
     // that outlived its purpose is called home before it wanders into a
     // camp's guards. A discovery goal that killed its scout is written off
@@ -819,6 +861,7 @@ export class AiBrain {
       this.#attacking = true;
       this.#sweepGoal = -1;
       this.#lastAttackTick = world.tick;
+      this.#armyGrewTick = world.tick;
       commands.push({
         kind: 'moveUnits',
         unitIds: army.map((u) => u.id),
@@ -1091,8 +1134,12 @@ export class AiBrain {
    * fights we can see going badly, not a general reluctance.
    *
    * Refusing costs nothing permanent: #lastAttackTick is stamped only by the
-   * march itself, so mustersNeeded keeps grinding the bar down and a seat that
-   * never likes its odds still eventually marches on the forlorn floor.
+   * march itself, so mustersNeeded keeps grinding the bar down — and past
+   * AI_PACING.forlornAfter, decide() stops heeding a hold altogether, so a
+   * seat that never likes its odds still marches on the forlorn floor. That
+   * used to be left to the picture going stale, and a working scout never
+   * lets it: the yard is re-read on the refresh clock, the defenders stay
+   * inside the trust window, and the veto renews itself forever.
    */
   #oddsSay(
     world: World,

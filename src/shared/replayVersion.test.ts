@@ -26,11 +26,12 @@ import { REPLAY_VERSION } from './replayVersion';
  */
 const EXPECTED_VERSION = 26;
 // Moved for the AI brain's raid recovery (sim/economyRules.ts,
-// sim/systems/ai.ts). The version stands: playback never runs a brain — the
-// AI's moves are in the log, which is exactly why replay.ts stores them —
-// so re-deciding them differently cannot change how a recorded match
-// re-runs. The hash covers all of src/sim, brains included, hence the pin.
-const EXPECTED_HASH = '77ce1122e5ca25ddd2a2e3bb6d6842a4';
+// sim/systems/ai.ts) over main's own move for the spear work. The version
+// stands at both ends: playback never runs a brain — the AI's moves are in
+// the log, which is exactly why replay.ts stores them — so re-deciding them
+// differently cannot change how a recorded match re-runs. The hash covers
+// all of src/sim, brains included, hence the pin.
+const EXPECTED_HASH = 'f0863f9308a89337383cec073bd4891f';
 
 /**
  * Everything a replay's playback depends on, as raw source:

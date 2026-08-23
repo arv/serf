@@ -168,6 +168,90 @@ describe("the fishery's pier", () => {
   });
 });
 
+describe('the damage bars', () => {
+  /** The orientation baked into the first bar instance. The bars are
+   * instanced, so the matrix is where the camera's angle actually ends up. */
+  const barQuat = (scene: THREE.Scene): THREE.Quaternion => {
+    const bars = scene.children.filter(
+      (o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh,
+    );
+    expect(bars.length).toBeGreaterThan(0);
+    const m = new THREE.Matrix4();
+    bars[0]!.getMatrixAt(0, m);
+    const q = new THREE.Quaternion();
+    m.decompose(new THREE.Vector3(), q, new THREE.Vector3());
+    return q;
+  };
+
+  it('turn with the camera, not only when a building changes', () => {
+    const { sync, scene } = makeSync();
+    // The live object the rig turns, exactly as main.ts hands it over.
+    const cam = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 6);
+    sync.cameraQuaternion = cam;
+    sync.update([snap({ hp: 60 })]); // hurt, so it wears a bar
+    expect(barQuat(scene).angleTo(cam)).toBeCloseTo(0, 6);
+
+    // The camera turns. No roster change, no highlight change — nothing
+    // that has ever rebuilt these bars.
+    cam.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 3);
+    sync.frame(1 / 60);
+    expect(barQuat(scene).angleTo(cam)).toBeCloseTo(0, 6);
+
+    // And while the world is stopped: the game pauses, the camera does not.
+    cam.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 4);
+    sync.frame(0);
+    expect(barQuat(scene).angleTo(cam)).toBeCloseTo(0, 6);
+
+    // A camera at rest rebuilds nothing — the bars are left exactly as they
+    // were, instance buffer and all.
+    const bars = scene.children.find((o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh)!;
+    const before = bars.instanceMatrix.version;
+    sync.frame(1 / 60);
+    sync.frame(1 / 60);
+    expect(bars.instanceMatrix.version).toBe(before);
+  });
+
+  it('is not fooled into rebuilding by a pan', () => {
+    // lookAt derives the orientation from a position that is the target
+    // plus an offset, so panning wanders the quaternion's last bits while
+    // the angle stands still. An exact compare called that a turn and
+    // rewrote every bar in the settlement, most frames of every pan.
+    const { sync, scene } = makeSync();
+    const cam = new THREE.Quaternion();
+    const eye = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    const look = new THREE.Object3D();
+    /** Aim a camera at (x, z) from the rig's own fixed offset. */
+    const aimAt = (x: number, z: number): void => {
+      eye.set(x + 42.1, 51.6, z + 42.1);
+      look.position.copy(eye);
+      look.lookAt(x, 0, z);
+      cam.copy(look.quaternion);
+    };
+    aimAt(40, 55);
+    sync.cameraQuaternion = cam;
+    sync.update([snap({ hp: 60 })]);
+    const bars = scene.children.find((o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh)!;
+    const before = bars.instanceMatrix.version;
+    // A long pan, in the fractional steps a real one arrives in.
+    let differing = 0;
+    for (let i = 1; i <= 200; i++) {
+      const was = cam.clone();
+      aimAt(40 + i * 0.137, 55 - i * 0.211);
+      if (!cam.equals(was)) differing++;
+      sync.frame(1 / 60);
+    }
+    // The premise: an exact compare really would have fired, and often.
+    expect(differing).toBeGreaterThan(50);
+    expect(bars.instanceMatrix.version).toBe(before);
+    // A turn far too small to see still counts as a turn.
+    const tiny = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 1e-3);
+    cam.multiply(tiny);
+    sync.frame(1 / 60);
+    expect(bars.instanceMatrix.version).toBeGreaterThan(before);
+  });
+});
+
 describe("the mill's sails", () => {
   it('turn while a batch grinds and coast to rest when it ends', () => {
     const { sync, scene } = makeSync();

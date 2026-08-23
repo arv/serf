@@ -204,8 +204,9 @@ export class SceneSync {
   #lastNow = 0;
   /** Animation clock: advances only while the game is running. */
   #animNow = 0;
-  /** Live reference to the (fixed-angle) camera orientation, set at boot;
-   * hp bars copy it to stay parallel with the screen plane. */
+  /** Live reference to the camera's orientation, set at boot — the very
+   * quaternion the rig turns, so the bars follow a turned camera; hp bars
+   * copy it to stay parallel with the screen plane. */
   cameraQuaternion: THREE.Quaternion | null = null;
 
   /**
@@ -485,7 +486,7 @@ export class SceneSync {
     const animNow = this.#animNow;
     this.#computeSeparation(latest, prev, alpha);
     // The bars are rebuilt from scratch every frame, so the cursor starts
-    // over. camQuat is the screen plane: fixed camera, set once at boot.
+    // over. camQuat is the screen plane: the rig's live orientation.
     this.#hpBarCount = 0;
     const camQuat = this.cameraQuaternion ?? HP_IDENTITY;
     this.#hidden.clear();
