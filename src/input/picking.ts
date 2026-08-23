@@ -67,9 +67,14 @@ export interface BuildingHeights {
    * end and below it at the other — which is why the walk below compares
    * absolute heights rather than heights over the ground beneath it. */
   baseOf(id: number): number;
-  /** The tallest building drawn, so the walk starts just over the roofline
-   * instead of at some constant a taller model would quietly outgrow. */
-  tallest(): number;
+  /**
+   * The highest roofline standing, as an absolute elevation — where the walk
+   * gives up, since nothing is drawn above it. Absolute rather than a height,
+   * because the ground under a sample says nothing about how far the roof of
+   * a building on a hillside reaches over it. -Infinity when nothing stands,
+   * which reduces every pick to its ground hit.
+   */
+  ceiling(): number;
 }
 
 /** What screenToBuilding needs to know about what is standing where. */
@@ -95,9 +100,10 @@ const PROBE_STEP = 0.25;
 const HEADROOM = 0.2;
 
 /**
- * Probes one pick may take, however tall the settlement grows or however
- * flatly the ray runs — a backstop, not a working limit: the walk normally
- * ends after a castle's height in steps.
+ * Probes one pick may take, however high the settlement's highest roof
+ * stands over the ground being clicked, or however flatly the ray runs — a
+ * backstop, not a working limit: on this map's relief the walk ends in a
+ * castle's height in steps, give or take the hill it stands on.
  */
 const MAX_PROBES = 64;
 
@@ -125,17 +131,16 @@ export function screenToBuilding(
   if (ground < 0) return -1;
   // One PROBE_STEP of rise, as a distance back along the ray.
   const dt = PROBE_STEP / Math.abs(dir.y);
-  const reach = probe.tallest() + HEADROOM;
-  // Climb until the ray is clear of anything that could be standing on the
-  // ground below it — the ceiling is local, because ground nearer the camera
-  // may be higher than the ground that was clicked.
+  const ceiling = probe.ceiling() + HEADROOM;
+  // Climb until the ray is over every roof there is. The bar is an absolute
+  // elevation, not a height over the ground below the sample: a footprint on
+  // a hillside overhangs ground well under its own base, and measuring from
+  // that ground would call the walk off while the ray was still inside the
+  // building.
   let steps = 0;
   while (steps < MAX_PROBES) {
     const t = ground - (steps + 1) * dt;
-    if (t < 0) break;
-    const x = origin.x + dir.x * t;
-    const z = origin.z + dir.z * t;
-    if (origin.y + dir.y * t - heights.at(x, z) > reach) break;
+    if (t < 0 || origin.y + dir.y * t > ceiling) break;
     steps++;
   }
   for (let i = steps; i > 0; i--) {

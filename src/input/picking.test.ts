@@ -20,12 +20,15 @@ function flat(): HeightField {
   return new HeightField(new Float32Array(tileCount(SIZE)), SIZE);
 }
 
-/** A hillside falling away from the camera, `rise` per tile of x — the
- * ground a mine or a fishery is allowed to stand on (world.ts exempts both
- * from the half-unit corner-drop rule the rest of the settlement obeys). */
-function slope(rise: number): HeightField {
+/** A hillside falling away from the camera by `fall` per tile of x, level
+ * with the sea at the castle's center — the ground a mine or a fishery is
+ * allowed to stand on (world.ts exempts both from the half-unit corner-drop
+ * rule the rest of the settlement obeys). Away from the camera is the
+ * telling direction: that is where a ray leaving the roof runs on to, over
+ * ground falling out from under it. */
+function slope(fall: number): HeightField {
   const h = new Float32Array(tileCount(SIZE));
-  for (let i = 0; i < h.length; i++) h[i] = tileX(i, SIZE) * rise;
+  for (let i = 0; i < h.length; i++) h[i] = (tileX(i, SIZE) - CENTER) * fall;
   return new HeightField(h, SIZE);
 }
 
@@ -65,8 +68,13 @@ function probe(top: number, base = 0): BuildingProbe {
     },
     heightOf: (id) => (id === ID ? top : 0),
     baseOf: (id) => (id === ID ? base : 0),
-    tallest: () => top,
+    ceiling: () => (top > 0 ? base + top : Number.NEGATIVE_INFINITY),
   };
+}
+
+/** A screen point as the (px, py) pair the pick functions take. */
+function pt(p: { x: number; y: number }): [number, number] {
+  return [p.x, p.y];
 }
 
 /** Where on screen a world point lands. */
@@ -133,9 +141,8 @@ describe('screenToBuilding', () => {
   });
 
   it('measures a hillside building from its own base, not the ground it overhangs', () => {
-    const rise = 0.25;
     const cam = camera();
-    const heights = slope(rise);
+    const heights = slope(0.25);
     // A building stands level on the ground under its center, so its downhill
     // corner overhangs ground well below that — here by more than the box's
     // own headroom, which is what a terrain-following probe gets wrong.
@@ -152,5 +159,30 @@ describe('screenToBuilding', () => {
     // And its plate, which is the tile whatever else is true of the slope.
     const plate = at(cam, CENTER, base, CENTER);
     expect(screenToBuilding(cam, CANVAS, plate.x, plate.y, heights, hill)).toBe(ID);
+  });
+
+  it('climbs to an absolute ceiling, so a bluff cannot call the walk off early', () => {
+    const cam = camera();
+    // A mine's bluff — half a unit of drop per tile. A ray leaving the roof's
+    // downhill edge runs a long way down the hill before it meets ground, so
+    // the walk back up starts far below and far out, and by the time it
+    // reaches the roof the hillside beneath it has fallen away by more than
+    // the building's own height. Measured against that ground the ray reads
+    // as clear of every roof while it is still inside this one.
+    const heights = slope(0.5);
+    const base = heights.at(CENTER, CENTER);
+    const hill = probe(TOP, base);
+    const roof = base + TOP;
+    const downhill = X0 + 0.4;
+    // The ground under the ray, where the walk has to start, is a storey and
+    // a half below the roof's own height above it.
+    const landed = screenToGround(cam, CANVAS, ...pt(at(cam, downhill, roof, CENTER)), heights)!;
+    expect(hill.idAt(landed.x, landed.z)).toBe(-1);
+    expect(roof - heights.at(landed.x, landed.z)).toBeGreaterThan(TOP + 1);
+
+    for (const y of [roof, base + TOP * 0.6, base + 0.3]) {
+      const p = at(cam, downhill, y, CENTER);
+      expect(screenToBuilding(cam, CANVAS, p.x, p.y, heights, hill)).toBe(ID);
+    }
   });
 });

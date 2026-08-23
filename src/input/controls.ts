@@ -166,8 +166,8 @@ export class Controls {
    * How tall the renderer draws each building, for the pick that reaches up
    * a castle's walls instead of stopping at the plate it stands on. Null
    * until the renderer is wired in (and in tests), which costs nothing but
-   * the reach: the probe then answers with a height of zero everywhere,
-   * and a pick is the plain footprint hit it always was.
+   * the reach: the probe then answers with no ceiling to climb to, and a
+   * pick is the plain footprint hit it always was.
    */
   #buildingHeights: BuildingHeights | null = null;
   /** The map/height pair screenToBuilding walks, built once — a pick runs
@@ -264,7 +264,7 @@ export class Controls {
       },
       heightOf: (id) => this.#buildingHeights?.heightOf(id) ?? 0,
       baseOf: (id) => this.#buildingHeights?.baseOf(id) ?? 0,
-      tallest: () => this.#buildingHeights?.tallest() ?? 0,
+      ceiling: () => this.#buildingHeights?.ceiling() ?? Number.NEGATIVE_INFINITY,
     };
 
     this.#bandEl = document.createElement('div');

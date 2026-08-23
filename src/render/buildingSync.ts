@@ -242,13 +242,15 @@ export class BuildingSync {
   /** Fog test; enemy buildings hide until their ground has been explored. */
   #fog: FogQuery | null = null;
   /**
-   * Tallest model raised so far, in world units — the ceiling the pointer's
-   * pick walk starts from (see screenToBuilding). A high-water mark: it
-   * grows with the settlement and never shrinks, because a razed keep only
-   * costs the walk a couple of probes through empty air, where re-scanning
-   * every visual to reclaim them would cost more, every raze.
+   * Highest roofline raised so far, as an absolute elevation — where the
+   * pointer's pick walk gives up (see screenToBuilding). Absolute, because
+   * a keep on a ridge reaches higher over a valley than its own height says.
+   * A high-water mark: it grows with the settlement and never shrinks,
+   * because a razed keep only costs the walk a couple of probes through
+   * empty air, where re-scanning every visual to reclaim them would cost
+   * more, every raze.
    */
-  #tallest = 0;
+  #ceiling = Number.NEGATIVE_INFINITY;
   /**
    * Presentation cue channel, injected from main. Every call is guarded
    * on `v.root.visible`: unlike sceneSync, this loop does NOT skip fogged
@@ -288,9 +290,9 @@ export class BuildingSync {
     return this.#visuals.get(id)?.root.position.y ?? 0;
   }
 
-  /** The tallest model standing — see #tallest. */
-  tallest(): number {
-    return this.#tallest;
+  /** The highest roofline standing — see #ceiling. */
+  ceiling(): number {
+    return this.#ceiling;
   }
 
   constructor(scene: THREE.Scene, heights: HeightField, owner = 0) {
@@ -473,16 +475,16 @@ export class BuildingSync {
     if (shoal) shoal.position.y = (WATER_LEVEL - SHOAL_DRAFT - root.position.y) / model.scale.y;
 
     const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
-    // What this building will be at its tallest, which is what the pick walk
-    // wants as its ceiling: a site's finished height (topY is already that
-    // for a clipped one, and the seed scale away from it for a ghost), and
-    // never less than the frame it stands in while it gets there.
-    this.#tallest = Math.max(
-      this.#tallest,
+    // Where this building's roof will reach when it is finished, which is
+    // what the pick walk wants as its ceiling: a site's finished height
+    // (topY is already that for a clipped one, and the seed scale away from
+    // it for a ghost), never less than the frame it stands in while it gets
+    // there, and all of it over the ground this one stands on.
+    const finished =
       b.state === 'site'
         ? Math.max(SITE_FRAME_H, clip ? topY : topY / GHOST_SEED_SCALE)
-        : topY,
-    );
+        : topY;
+    this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
     this.#scene.add(root);
     return {
       root,

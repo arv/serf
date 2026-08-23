@@ -336,7 +336,8 @@ describe('the measurements the pointer picks against', () => {
     // Height is over the building's own base, and the base is where the
     // hillside put it — the two are read together or not at all.
     expect(sync.baseOf(7)).toBeCloseTo(1.5);
-    expect(sync.tallest()).toBeGreaterThanOrEqual(MODEL_TOP);
+    // The ceiling is absolute: the roof's elevation, ground included.
+    expect(sync.ceiling()).toBeCloseTo(1.5 + MODEL_TOP);
   });
 
   it('gives a fresh site its scaffolding, which is all there is to click', () => {
@@ -344,12 +345,16 @@ describe('the measurements the pointer picks against', () => {
     sync.update([snap({ state: 'site', progress01: 0, siteNeeds: {} })]);
     // The building itself is a sliver at this point; the frame is not.
     expect(sync.heightOf(7)).toBeCloseTo(SITE_FRAME_H);
-    expect(sync.tallest()).toBeGreaterThanOrEqual(SITE_FRAME_H);
+    // The ceiling counts the site by what it will be, frame included.
+    expect(sync.ceiling()).toBeGreaterThanOrEqual(SITE_FRAME_H);
   });
 
   it('knows nothing of a building that never stood', () => {
     const { sync } = makeSync();
     expect(sync.heightOf(99)).toBe(0);
     expect(sync.baseOf(99)).toBe(0);
+    // Nothing standing anywhere: no ceiling to climb to, so a pick is the
+    // ground hit it always was.
+    expect(sync.ceiling()).toBe(Number.NEGATIVE_INFINITY);
   });
 });
