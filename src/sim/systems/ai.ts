@@ -1169,6 +1169,21 @@ export class AiBrain {
       const rule = BUILDING_DEFS[b.type].garrison!;
       const room = rule.capacity - (b.garrison ?? 0);
       if (b.garrison && b.garrisonKind !== rule.levy.unit && room <= 0) continue;
+      // A soldier already walking to this tower is spoken for, and he stops
+      // counting as loose the moment staffing claims him. Halting on the
+      // beat in between would turn him away at the door he is nearly at —
+      // and he would go idle, be seen loose at the next beat, and be walked
+      // over again. So a tower with a soldier on the way is left alone.
+      const walking = b.recruitId !== undefined ? world.units.get(b.recruitId) : undefined;
+      if (
+        walking &&
+        !walking.dead &&
+        walking.kind === rule.unit &&
+        walking.task.t === 'staff' &&
+        walking.task.buildingId === b.id
+      ) {
+        continue;
+      }
       // Short of soldiers, and there are some standing about: run it and let
       // them climb. An archer on a wall shoots harder and cannot be shot
       // back at, and the village loses no hands by it — so a seat mans its

@@ -459,6 +459,23 @@ describe('the stall watchdog', () => {
     expect(out.filter((c) => c.kind === 'setBuildingPaused')).toHaveLength(1);
   });
 
+  it('leaves a tower alone while a soldier is walking to it', () => {
+    // The stand-down cycle: an archer stops counting as loose the moment
+    // staffing claims him, so a seat that halts on the next quiet beat turns
+    // him away at the door he has nearly reached — and he goes idle, is seen
+    // loose again, and is walked over again, forever.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    const archer = spawnUnit(world, 'archer', 0, 40.5, 40.5);
+    archer.task = { t: 'staff', buildingId: tower.id };
+    tower.recruitId = archer.id;
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
+  });
+
   it('never stands a tower its archers hold down, or up', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});

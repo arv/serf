@@ -427,7 +427,7 @@ export function SelectionPanel(props: {
                                 : 'Halts the site where it stands — no new deliveries are called for (a load already on the road still lands), no progress — and the builder rejoins the serf pool. Nothing already delivered is lost.'
                               : levy()
                                 ? b().paused
-                                  ? 'Mans the tower: archers walk in from the field and climb up, and until the village has any, villagers answer the levy and hold it with stones. Nobody up there can be shot at while the tower stands.'
+                                  ? 'Mans the tower: an archer with nothing else to do walks in from the field and climbs up. Whenever none is free — none trained yet, or every one of them marching — villagers answer the levy instead and hold it with stones until an archer turns up to relieve them. Nobody up there can be shot at while the tower stands.'
                                   : 'Empties the roof: the villagers go back to work and the archers walk back out of the door as soldiers, free to march with the army. Nobody is called up again until the tower is manned.'
                                 : b().paused
                                   ? 'Puts the place back to work: it calls for a worker again, and production, deliveries and construction pick up where they left off.'
