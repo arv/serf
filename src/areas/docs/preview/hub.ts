@@ -37,11 +37,52 @@ import { YAW, frame, frameFor, makeLights, makePlate, makeRenderer, type Framing
 const MAX_SHOT = 900;
 /** Animated cards repaint at ~20fps: idle loops read fine and phones stay cool. */
 const ANIM_INTERVAL_MS = 50;
+/** How far outside the viewport a card is still worth painting. */
+const PREPAINT_MARGIN = 400;
+
+/**
+ * Is this card near enough to paint, measured rather than observed?
+ *
+ * The observers are the cheap path and the right one, but they are not
+ * guaranteed to have reported yet — and in an environment that composites
+ * only on demand (headless Chrome driving a screenshot, notably) they may
+ * not report at all, which would leave every card blank forever.
+ * tools/modelLab/viewer.ts kept a timed sweep for the same reason; this
+ * measures instead, which is exact and costs one rect.
+ */
+function withinViewport(card: Card, margin: number): boolean {
+  const r = card.stage.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return false;
+  return r.bottom > -margin && r.top < window.innerHeight + margin;
+}
+
+/** Near enough to paint — the observer's answer once it has given one. */
+function isNear(card: Card): boolean {
+  return card.reported ? card.near : withinViewport(card, PREPAINT_MARGIN);
+}
+
+/** On screen, for deciding what may animate. */
+function isOnScreen(card: Card): boolean {
+  return card.screenReported ? card.visible : withinViewport(card, 0);
+}
 
 /** A page of looping idle animations is exactly what this preference is
  * about, so those cards paint one frame and hold it. */
 function motionAllowed(): boolean {
   return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/**
+ * Put the chosen clip on the skeleton, once.
+ *
+ * playAnimation only starts an action — nothing reaches the bones until a
+ * mixer update runs. Without this a reduced-motion card held the bind pose
+ * instead of an idle frame, and picking a different clip changed nothing
+ * on screen. Long enough to carry playAnimation's crossfade past its end,
+ * or the new clip would be sampled at zero weight and show the old one.
+ */
+function sampleOnce(visual: CharacterVisual): void {
+  visual.mixer.update(0.25);
 }
 
 export interface CardSpec {
@@ -59,10 +100,13 @@ export interface CardSpec {
 interface CardContent {
   group: THREE.Group;
   framing: Framing;
-  /** The turf this card built. Everything else in `group` is a clone that
-   * shares its geometry and materials with the game's template cache, so
-   * the plate is the only part a card may free. */
-  plate: THREE.Group;
+  /**
+   * What this card allocated and must give back: its turf, and the road's
+   * procedural pile when it has one. Everything else in `group` is a clone
+   * sharing geometry and materials with the game's template caches, which
+   * a card must not free.
+   */
+  owned: THREE.Object3D[];
   visual?: CharacterVisual;
 }
 
@@ -72,6 +116,10 @@ interface Card extends CardSpec {
   yaw: number;
   /** Close enough to be worth painting before it is scrolled to. */
   near: boolean;
+  /** Whether the prepaint observer has ever reported on this card. */
+  reported: boolean;
+  /** Whether the on-screen observer has. */
+  screenReported: boolean;
   /** Actually on screen. Animation follows this one — a card half a screen
    * below the fold should not be spending a phone's GPU. */
   visible: boolean;
@@ -92,6 +140,8 @@ interface Hub {
   raf: number;
   lastAnimPaint: number;
   onVisibility: () => void;
+  onResize: () => void;
+  resizeTimer: number;
 }
 
 let hub: Hub | null = null;
@@ -137,6 +187,7 @@ function getHub(): Hub | null {
         for (const card of hub.cards) {
           if (card.stage !== e.target) continue;
           card.near = e.isIntersecting;
+          card.reported = true;
           if (card.near && card.content && !card.painted) paint(card);
         }
       }
@@ -150,6 +201,7 @@ function getHub(): Hub | null {
       for (const card of hub.cards) {
         if (card.stage !== e.target) continue;
         card.visible = e.isIntersecting;
+        card.screenReported = true;
       }
     }
     wakeAnimLoop();
@@ -165,8 +217,23 @@ function getHub(): Hub | null {
     raf: 0,
     lastAnimPaint: 0,
     onVisibility: () => wakeAnimLoop(),
+    // A card is blitted at the size it had when it was painted, so a
+    // window resize or a turned phone leaves a stretched bitmap behind a
+    // camera framed for the old aspect. Static cards have no loop to
+    // correct them, so they are repainted here.
+    onResize: () => {
+      const h = hub;
+      if (!h) return;
+      clearTimeout(h.resizeTimer);
+      h.resizeTimer = window.setTimeout(() => {
+        if (!hub) return;
+        for (const card of hub.cards) if (card.painted && isNear(card)) paint(card);
+      }, 200);
+    },
+    resizeTimer: 0,
   };
   document.addEventListener('visibilitychange', hub.onVisibility);
+  window.addEventListener('resize', hub.onResize);
   // A context can go away long after it was handed over — the GPU resets,
   // or the browser reclaims one because another page wanted it. Without
   // this the cards keep their last blit and the loop keeps rendering into
@@ -193,8 +260,10 @@ function onContextLost(event: Event): void {
   if (h.raf !== 0) cancelAnimationFrame(h.raf);
   h.io.disconnect();
   h.onScreen.disconnect();
+  clearTimeout(h.resizeTimer);
   h.renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
   document.removeEventListener('visibilitychange', h.onVisibility);
+  window.removeEventListener('resize', h.onResize);
   for (const card of h.cards) {
     card.cleanupDrag?.();
     card.cleanupDrag = undefined;
@@ -239,7 +308,7 @@ function animCards(): Card[] {
   const h = hub;
   if (!h) return [];
   if (!motionAllowed()) return [];
-  return [...h.cards].filter((c) => c.animated && c.visible && c.content?.visual);
+  return [...h.cards].filter((c) => c.animated && isOnScreen(c) && c.content?.visual);
 }
 
 function wakeAnimLoop(): void {
@@ -274,19 +343,24 @@ function animTick(t: number): void {
 function buildContent(card: Card): CardContent | null {
   if (card.kind === 'building') {
     const id = card.id as BuildingTypeId;
-    // The road is the one type without a model of its own; its site pile
-    // stands in, exactly as it does in the world.
     // Owner picks the team-colour slot; the camp belongs to the raiders,
     // and BANDIT is the one owner factionTint leaves untinted.
     const owner = RAIDER_BUILDINGS.includes(id) ? BANDIT : 0;
-    const model = makeGlbBuilding(id, owner) ?? (BUILDING_DEFS[id].isRoad ? makeRoadPile() : null);
+    const cloned = makeGlbBuilding(id, owner);
+    // The road is the one type without a model of its own; its site pile
+    // stands in, exactly as it does in the world — and unlike every other
+    // model here it is built fresh rather than cloned from a cache, so it
+    // is this card's to give back.
+    const pile = cloned === null && BUILDING_DEFS[id].isRoad ? makeRoadPile() : null;
+    const model = cloned ?? pile;
     if (!model) return null;
     const def = BUILDING_DEFS[id];
     const plateR = Math.max(def.w, def.h) * 0.95 + 0.5;
     const group = new THREE.Group();
     const plate = makePlate(plateR, Math.floor(card.seed * 997));
     group.add(plate, model);
-    return { group, framing: frameFor(model, plateR), plate };
+    const owned: THREE.Object3D[] = pile ? [plate, pile] : [plate];
+    return { group, framing: frameFor(model, plateR), owned };
   }
   const unit = card.id as UnitTypeId;
   const made = makeCharacter(UNIT_DEFS[unit].kindCode, 0, RAIDER_UNITS.includes(unit) ? BANDIT : 0);
@@ -296,7 +370,10 @@ function buildContent(card: Card): CardContent | null {
   const plate = makePlate(plateR, Math.floor(card.seed * 997));
   group.add(plate, made.group);
   playAnimation(made.visual, 'idle', card.seed % 1);
-  return { group, framing: frameFor(made.group, plateR), plate, visual: made.visual };
+  // Sampled here so the very first paint shows an idle pose rather than
+  // the bind pose — the animation loop may never run at all.
+  sampleOnce(made.visual);
+  return { group, framing: frameFor(made.group, plateR), owned: [plate], visual: made.visual };
 }
 
 /**
@@ -319,14 +396,16 @@ function releaseContent(card: Card): void {
   if (!content) return;
   // The last card painted is still parented to the holder.
   content.group.removeFromParent();
-  content.plate.traverse((o) => {
-    if (!(o instanceof THREE.Mesh)) return;
-    o.geometry.dispose();
-    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-      // Not m.map: the ground speckle is one canvas shared by every plate.
-      m.dispose();
-    }
-  });
+  for (const owned of content.owned) {
+    owned.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      o.geometry.dispose();
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        // Not m.map: the ground speckle is one canvas shared by every plate.
+        m.dispose();
+      }
+    });
+  }
   const visual = content.visual;
   if (visual) {
     visual.mixer.stopAllAction();
@@ -420,7 +499,9 @@ export function registerCard(spec: CardSpec): CardHandle {
     content: null,
     yaw: YAW,
     near: false,
+    reported: false,
     visible: false,
+    screenReported: false,
     painted: false,
     w: 0,
     h: 0,
@@ -446,7 +527,7 @@ export function registerCard(spec: CardSpec): CardHandle {
     // tile advertising a grab (and swallowing horizontal gestures with
     // preventDefault) is a promise the card cannot keep.
     if (card.interactive) attachDrag(card);
-    if (card.near) paint(card);
+    if (isNear(card)) paint(card);
     wakeAnimLoop();
   });
 
@@ -458,9 +539,10 @@ export function registerCard(spec: CardSpec): CardHandle {
       // characters.ts) — started part-way through, a card would show the
       // last third of a fall. sceneSync makes the same exception.
       playAnimation(visual, key, key === 'death' ? 0 : card.seed);
-      // The loop carries the crossfade from here; a card that is somehow
-      // between loops still gets one frame.
-      if (card.near) paint(card);
+      // Put the new clip on the skeleton before painting: under reduced
+      // motion no loop will do it, so the picker would change nothing.
+      sampleOnce(visual);
+      if (isNear(card)) paint(card);
       wakeAnimLoop();
     },
     dispose(): void {
@@ -489,7 +571,9 @@ export function disposePreviewHub(): void {
   if (!h) return;
   hub = null;
   if (h.raf !== 0) cancelAnimationFrame(h.raf);
+  clearTimeout(h.resizeTimer);
   document.removeEventListener('visibilitychange', h.onVisibility);
+  window.removeEventListener('resize', h.onResize);
   h.io.disconnect();
   h.onScreen.disconnect();
   h.renderer.domElement.removeEventListener('webglcontextlost', onContextLost);

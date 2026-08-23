@@ -18,6 +18,19 @@ export const DOCS_STYLE = `
 
 #docs a { color: ${GOLD}; text-decoration: none; }
 #docs a:hover { text-decoration: underline; }
+/* Colour alone does not identify a link: gold on the body's grey is about
+   1.2:1 against the surrounding text, well under the 3:1 that would let
+   hue carry the meaning by itself, and a hover underline reaches neither a
+   touch screen nor a keyboard. So links set in running prose are underlined
+   always. The ones that sit in their own affordance — a nav pill, a cost
+   chip, a card — are left alone: their shape is the cue. */
+#docs .lede a, #docs p a, #docs ul.refs a, #docs td a, #docs .tech a {
+  text-decoration: underline; text-underline-offset: 2px;
+  text-decoration-color: rgba(229,196,105,0.5); text-decoration-thickness: 1px; }
+#docs .lede a:hover, #docs p a:hover, #docs ul.refs a:hover, #docs td a:hover,
+#docs .tech a:hover { text-decoration-color: ${GOLD}; }
+#docs td a.chip, #docs .lede a.chip, #docs p a.chip, #docs ul.refs a.chip,
+#docs .tech a.chip { text-decoration: none; }
 #docs a:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: 2px; border-radius: 3px; }
 /* A heading focused by a page turn is a destination, not a control: it
    gets the ring only if the reader is actually navigating by keyboard. */
