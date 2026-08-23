@@ -17,7 +17,11 @@ export function banditsSystem(world: World, rng: Rng): void {
   if (!camp) return; // camp destroyed — no more raids
 
   world.raidState.wave++;
-  world.raidState.nextRaidTick = world.tick + raidIntervalFor(world.map.size);
+  // The PLAYABLE span, exactly as firstRaidTickFor gets at world creation:
+  // the clock follows the commutes, and the scenery margin (size is 2x play
+  // on every generated map) adds marching distance for no one. Passing the
+  // full grid side here doubled every between-waves gap.
+  world.raidState.nextRaidTick = world.tick + raidIntervalFor(world.map.play);
   const wave = world.raidState.wave;
 
   const roster: UnitTypeId[] = [];

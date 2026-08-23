@@ -253,6 +253,43 @@ export function makeButterflySprite(): THREE.Texture {
 }
 
 /**
+ * How much of the footprint texture's span the boot fills; the rest is
+ * margin for the soft edge. The print quad is sized against the same
+ * fraction (footprints.ts), so the drawn boot comes out at the character
+ * model's true sole size.
+ */
+export const FOOTPRINT_TEX_FILL = 0.78;
+
+/**
+ * A single bootprint seen from above: a pressed sole and heel in
+ * trodden-soil brown, soft-edged so the print sits into the ground rather
+ * than on it. The drawing fills the texture's boot box (FOOTPRINT_TEX_FILL
+ * of each axis); the print quad's aspect ratio, taken from the measured
+ * sole, is what gives the shoe its real width. The toe sits at the canvas
+ * bottom — with the texture's flipY that is v = 0, which the flat print
+ * quad maps to its march heading.
+ */
+export function makeFootprintSprite(): THREE.Texture {
+  return canvasTexture(64, (ctx) => {
+    // Soft oval pad: a radial gradient drawn through a scaled context.
+    const pad = (x: number, y: number, rx: number, ry: number): void => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(rx / 16, ry / 16);
+      const g = ctx.createRadialGradient(0, 0, 3, 0, 0, 16);
+      g.addColorStop(0, 'rgba(56, 42, 26, 0.85)');
+      g.addColorStop(0.6, 'rgba(56, 42, 26, 0.55)');
+      g.addColorStop(1, 'rgba(56, 42, 26, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(-16, -16, 32, 32);
+      ctx.restore();
+    };
+    pad(32, 43, 25, 15); // sole, toe toward the heading
+    pad(32, 18, 19, 10); // heel
+  });
+}
+
+/**
  * Shared material factory for alpha-tested painted foliage quads. FrontSide
  * only — the crossed-quad geometry carries its own back-to-back faces so
  * two-sided lighting never flips the up-facing normals into darkness.
