@@ -20,6 +20,14 @@
  * directly.
  */
 /**
+ * 26: villagers slow to a walk — serf 1.8 -> 1.5 tiles/sec, worker 1.7 ->
+ * 1.4. Purely a pacing change asked for by eye: the village read as
+ * everyone sprinting between errands, and the renderer's gait work could
+ * only paper over so much (the legs are honest now; the ground speed was
+ * not). Soldiers, bandits, and the raid clock keep their tuning, so every
+ * haul, commute, and construction staffing re-times while combat does not
+ * — a replay recorded before this build diverges within the first errand.
+ *
  * 25: a sold Smith loses its forged hammers with the rest of its stock.
  * The sale's rescue set carried 'hammer' unconditionally — meant for the
  * hammer a half-built site borrows — so a built Smith's forged hammers
@@ -148,4 +156,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 25;
+export const REPLAY_VERSION = 26;
