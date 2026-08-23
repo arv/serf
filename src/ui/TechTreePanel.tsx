@@ -20,6 +20,11 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
     const t = techs();
     if (t.researched.includes(id)) return 'done';
     if (t.active?.tech === id) return 'researching';
+    // No abbey, no research. The head-note already says so in words; the
+    // node has to agree in form — 'available' dressed it in the pointer
+    // cursor and hover glow while the click handler (rightly) swallowed
+    // the click, a control that invites and then answers with nothing.
+    if (!t.hasAbbey) return 'locked';
     const def = TECH_DEFS[id];
     if (!def.prereqs.every((p) => t.researched.includes(p))) return 'locked';
     if (t.active) return 'locked';
