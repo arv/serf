@@ -198,6 +198,20 @@ describe('strategist overrides', () => {
     expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
   });
 
+  it('a hold does not outlive the forlorn clock', () => {
+    // The escape valve #oddsSay promises — a seat that never likes its odds
+    // still marches eventually — used to lean on the defenders' picture
+    // going stale, and a working scout never lets it: the yard is re-read
+    // on the refresh clock, the garrison stays inside the trust window,
+    // and the veto renews itself forever. Past the forlorn line the clock
+    // itself breaks the standoff.
+    const { world, brain } = siegeStandoff();
+    brain.setOverride({ marchConfidence: 60 });
+    expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]); // the hold, while fresh
+    world.tick = AI_PACING.forlornAfter + 1020;
+    expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
+  });
+
   it('marches on a good prediction before the headcount bar is met', () => {
     // Four knights against one defender: under the steward's armyAttackSize
     // of seven this seat would still be waiting, and the prediction is what
@@ -233,6 +247,47 @@ describe('strategist overrides', () => {
     // Advice can outlive the brain it was meant for; a seat that is not
     // there is a no-op, not a crash.
     seats.applyAdvice(9, { armyAttackSize: 3 });
+  });
+});
+
+/**
+ * The growth-stall clamp on the muster bar (AI_PACING.growthStallAfter).
+ * The blind spot it closes: an army that peaks below the playbook's size
+ * and then bleeds to raids stays under the impatience ramp forever — the
+ * bar chases the army down and never catches it, and the seat feeds its
+ * soldiers to the war one at a time without ever fighting it.
+ */
+describe('the muster bar under a growth stall', () => {
+  /** Five knights, a bar of seven, and an undefended rival castle the
+   * scout has lit: everything but the headcount says march. */
+  function shortMuster(): { world: World; brain: AiBrain } {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    for (let i = 0; i < 4; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
+    addStorehouse(world, 44, 30, {}, 1);
+    spawnUnit(world, 'knight', 0, 42.5, 30.5); // the scout, lighting it
+    world.tick = 1000;
+    return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size) };
+  }
+
+  it('marches what it has once the army has stopped growing', () => {
+    const { world, brain } = shortMuster();
+    expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]); // the playbook waits
+    // Long past the stall window with nobody new under arms, it marches —
+    // well before the impatience ramp would have moved the bar at all.
+    world.tick = 1000 + AI_PACING.growthStallAfter + 40;
+    expect(world.tick).toBeLessThan(AI_PACING.staleAfter);
+    expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
+  });
+
+  it('keeps the full bar while the barracks is still delivering', () => {
+    const { world, brain } = shortMuster();
+    expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]);
+    // A recruit lands just before the window closes: growth restamps the
+    // clock, and the seat keeps mustering toward the playbook's size.
+    spawnUnit(world, 'knight', 0, 33.5, 31.5);
+    world.tick = 1000 + AI_PACING.growthStallAfter + 40;
+    expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]);
   });
 });
 

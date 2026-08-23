@@ -155,12 +155,13 @@ export class RallyFlag {
     }
 
     // Facing +z, unrotated — the one horizontal facing that serves both
-    // masters. The camera looks in from yaw +π/4 (cameraRig), so +z is 45°
-    // off broadside and the cloth keeps ~70% of its width; the sun stands
-    // west of north (renderer seats it at -x +z), so the same face still
-    // catches direct light. The corners fail: +π/4 faced the camera
-    // squarely but away from the sun (a near-black slab), -π/4 was lit
-    // and exactly edge-on to the camera (an invisible one).
+    // masters. The camera looks in from yaw +π/6 by default (cameraRig —
+    // the player can turn it), so +z is 30° off broadside and the cloth
+    // keeps ~87% of its width (~70% at the 45° this was chosen at); the
+    // sun stands west of north (renderer seats it at -x +z), so the same
+    // face still catches direct light. The corners fail: +π/4 faced the
+    // 45° camera squarely but away from the sun (a near-black slab), -π/4
+    // was lit and exactly edge-on to it (an invisible one).
     return g;
   }
 }

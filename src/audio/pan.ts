@@ -1,7 +1,8 @@
 /**
  * Stereo position and loudness for a world-space sound, under this game's
- * one unusual constraint: the camera is orthographic, 90 world units out,
- * and never rotates.
+ * one unusual constraint: the camera is orthographic and 90 world units
+ * out, and the only way it moves is along the ground and about its own
+ * look-at point.
  *
  * That rules out the Web Audio PannerNode (and three's PositionalAudio
  * riding on it): with the listener parented to the camera, every unit on
@@ -11,27 +12,27 @@
  * the world distance to the camera by exactly nothing, so the panner
  * cannot hear it at all. So: plain StereoPanner values, computed here.
  *
- * The fixed 45° yaw (cameraRig's CAMERA_YAW — pan.test.ts pins the two
- * together) collapses the projection to arithmetic: screen-right is
- * proportional to (dx - dz). No trig, no camera matrix, no allocation —
- * this runs per audible unit per frame inside loops that pool everything.
- *
- * Everything is derived from the rig's public viewBounds() rect, which the
- * frame loop already computes: its centre is the look-at point, its
- * half-extent tracks zoom. The derivation assumes the rect is square
- * (true by construction today); pan.test.ts asserts that too, so an
- * anisotropic change fails loudly instead of skewing the stereo field.
+ * An orthographic camera collapses the projection to arithmetic: how far
+ * right of centre a sound sits on screen is the dot of its ground offset
+ * with the screen-right direction on the ground, which the rig hands over
+ * once per frame (viewFrame) along with the centre and a half-extent. No
+ * trig, no camera matrix, no allocation — this runs per audible unit per
+ * frame inside loops that pool everything. Turning the camera turns the
+ * basis and nothing here notices.
  */
 
 import { clamp } from '../shared/math';
 
-/** Matches ViewBounds from render/cameraRig — declared structurally so this
- * module (and its tests) never touch a file that imports three. */
-export interface Rect {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
+/** Matches ViewFrame from render/cameraRig — declared structurally so this
+ * module (and its tests) never touch a file that imports three. `ext` is
+ * the half-extent the falloff and the zoom fade are tuned against; the rig
+ * holds it yaw-invariant (see CameraRig.viewFrame). */
+export interface ViewFrame {
+  cx: number;
+  cz: number;
+  rx: number;
+  rz: number;
+  ext: number;
 }
 
 export interface Spatial {
@@ -59,22 +60,24 @@ const ZOOM_FLOOR = 0.35;
 export const MIN_AUDIBLE = 0.02;
 
 /**
- * Fill `out` with pan/gain for a source at world (x, z) under view `b`.
+ * Fill `out` with pan/gain for a source at world (x, z) under view `v`.
  * Writes into the caller's object — called per unit per frame.
  */
-export function spatialize(x: number, z: number, b: Rect, out: Spatial): Spatial {
-  const ext = (b.maxX - b.minX) / 2;
+export function spatialize(x: number, z: number, v: ViewFrame, out: Spatial): Spatial {
+  const ext = v.ext;
   if (ext <= 0) {
     out.pan = 0;
     out.gain = 0;
     out.audible = false;
     return out;
   }
-  const dx = x - (b.minX + b.maxX) / 2;
-  const dz = z - (b.minZ + b.maxZ) / 2;
-  // Screen basis for a fixed 45° yaw: right = (dx - dz)/√2, up = -(dx + dz)/√2.
-  const right = (dx - dz) * Math.SQRT1_2;
-  const fwd = (dx + dz) * Math.SQRT1_2;
+  const dx = x - v.cx;
+  const dz = z - v.cz;
+  // The offset in the screen's ground basis: right is the rig's, and
+  // screen-vertical is its perpendicular (rz, -rx) — the sign is moot,
+  // only its square is used. At 45° this is the old right = (dx - dz)/√2.
+  const right = dx * v.rx + dz * v.rz;
+  const fwd = dx * v.rz - dz * v.rx;
   out.pan = clamp(right / (ext * PAN_EDGE), -1, 1) * PAN_CEIL;
   const d2 = (right * right + fwd * fwd) / (ext * ext);
   const zoomGain = clamp(ZOOM_REF / ext, ZOOM_FLOOR, 1);
