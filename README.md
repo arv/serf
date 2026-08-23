@@ -172,6 +172,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Backspace | Jump to your keep |
 | Space | Jump to the last alert |
 | Mouse wheel | Zoom |
+| **Shift** + wheel / **Insert**, **Delete** / **[**, **]** | Turn the camera — 15° a notch, or hold the key; two notches square the default 30° view to the map, and the minimap frame with it (the brackets are for keyboards without an Insert key) |
 | Esc | Unwind one mode: chord → order → placement → open sheet → selection → fullscreen |
 | ` (backquote) | Logistics debug overlay |
 | `?seed=123` URL param | Pick a map seed |
@@ -179,7 +180,9 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 Shortcut letters are taught in place — the HUD bolds the letter inside its
 own label (**B**uild, We**l**l, **H**ire Serf) and shows nothing at all on a
 device with no keyboard. Camera control follows Warcraft III / StarCraft II:
-edge scroll (`input/edgeScroll.ts`), arrows, middle-drag, wheel zoom. WASD
+edge scroll (`input/edgeScroll.ts`), arrows, middle-drag, wheel zoom, and a
+camera that turns on Insert/Delete (Shift+wheel and [ ] too) over a minimap
+that stays north-up. WASD
 deliberately does *not* pan — those letters belong to the orders and the
 build chord, and `A` cannot both pan left and attack-move.
 

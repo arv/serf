@@ -1237,6 +1237,7 @@ async function runMatch(
   let fogLast = performance.now();
   // Reused every frame — viewBounds writes into it instead of allocating.
   const boundsScratch = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
+  const frameScratch = { cx: 0, cz: 0, rx: 0, rz: 0, ext: 0 };
   // Phones cap the loop at 30 fps: a 90 Hz panel otherwise renders the
   // whole valley 90 times a second, and the GPU is where the battery goes.
   // A skipped frame does nothing at all — every update below is time-based,
@@ -1274,11 +1275,11 @@ async function runMatch(
     // Hover picking is deferred from pointermove (which can fire at
     // hundreds of Hz) to at most once per frame, here.
     controls.updateHoverIfDirty();
-    // The view rect reaches the audio layer before the sync runs: the sync
-    // is what files this frame's positional cues, and they pan and fade
-    // against the rect of the frame they were heard in.
+    // The view reaches the audio layer before the sync runs: the sync is
+    // what files this frame's positional cues, and they pan and fade
+    // against the frame they were heard in.
     const bounds = renderer.rig.viewBounds(3, boundsScratch);
-    setAudioView(bounds);
+    setAudioView(renderer.rig.viewFrame(3, frameScratch));
     setAudioPaused(speed() === 0);
     sync.update(now, controls.hoverUnit, controls.selected, speed() === 0, bounds);
     buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);

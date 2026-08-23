@@ -202,7 +202,8 @@ export class BuildingSync {
    * and regrown as the settlement takes more hits at once. */
   #hpBg?: THREE.InstancedMesh;
   #hpFg?: THREE.InstancedMesh;
-  /** Fixed camera orientation for screen-parallel hp bars (set at boot). */
+  /** The camera's live orientation, for screen-parallel hp bars (set at
+   * boot; the rig turns this very quaternion). */
   cameraQuaternion: THREE.Quaternion | null = null;
   /** Fog test; enemy buildings hide until their ground has been explored. */
   #fog: FogQuery | null = null;
