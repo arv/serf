@@ -30,6 +30,7 @@ import {
   setLlmStatus,
   setMyPlayerId,
   setNetMode,
+  setFogEnabled,
   setNetStatus,
   pushToast,
   selectedBuilding,
@@ -708,6 +709,12 @@ async function runMatch(
   holdServiceWorkerUpdates();
   setMyPlayerId(config.myPlayerId);
   setNetMode(net !== undefined);
+  // Fog ON, whatever ?nofog said: the menu can walk into a networked
+  // match in place, where the module-load flags and the last
+  // resetMatchState still described a solo world. fogEnabled is a
+  // standing signal, so the gate is applied to it here, at the one door
+  // every networked match comes through.
+  if (net !== undefined) setFogEnabled(true);
   setReplayMode(replay !== undefined);
 
   // The LLM strategist runs on the CPU (llama.cpp wasm), so it exists
