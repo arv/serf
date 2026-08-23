@@ -853,7 +853,16 @@ export class AiBrain {
       // address, what matters is what stands there — the scout re-walks
       // living rivals' doorsteps as their picture goes stale, and the
       // counter-forging above reads what it brings back.
-      if ((!target || staleRival >= 0) && army.length > 0) {
+      // An errand already in flight is always serviced, stale clock or not.
+      // The clock is what STARTS a walk, and a successful walk stops it: a
+      // yard with a real force in it refreshes the rival's picture the
+      // moment the scout lights it (#observeRivals runs well above this),
+      // so on the beat he finally sees what he was sent to see, nothing is
+      // stale any more. Gating the whole branch on staleness alone left
+      // that scout standing at the enemy's gate for as long as the
+      // garrison stayed visible — the read never filed, the errand never
+      // retired, and the muster a soldier short of what it counted on.
+      if ((!target || staleRival >= 0 || this.#scoutGoal >= 0) && army.length > 0) {
         if (this.#scoutId < 0) {
           const idle = army.filter((u) => u.task.t === 'idle');
           const pick = idle.sort(
