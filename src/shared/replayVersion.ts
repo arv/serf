@@ -20,7 +20,15 @@
  * directly.
  */
 /**
-23: the between-waves raid clock scales by the playable span, as the
+ * 24: villagers slow to a walk — serf 1.8 -> 1.5 tiles/sec, worker 1.7 ->
+ * 1.4. Purely a pacing change asked for by eye: the village read as
+ * everyone sprinting between errands, and the renderer's gait work could
+ * only paper over so much (the legs are honest now; the ground speed was
+ * not). Soldiers, bandits, and the raid clock keep their tuning, so every
+ * haul, commute, and construction staffing re-times while combat does not
+ * — a replay recorded before this build diverges within the first errand.
+ *
+ * 23: the between-waves raid clock scales by the playable span, as the
  * opening peace always did. banditsSystem was passing the full grid side
  * (2x the playable side on every generated map) to raidIntervalFor, so
  * every wave after the first arrived at half the tuned pressure — 540s
@@ -132,4 +140,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 23;
+export const REPLAY_VERSION = 24;
