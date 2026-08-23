@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { tileCount, tileIdx } from '../shared/grid';
+import { tileCount, tileIdx, tileX } from '../shared/grid';
 import { HeightField } from '../render/heightField';
 import { screenToBuilding, screenToGround, worldToScreen, type BuildingProbe } from './picking';
 
@@ -18,6 +18,15 @@ const TOP = 3.2;
 /** Flat ground, so the only thing standing up on it is the building. */
 function flat(): HeightField {
   return new HeightField(new Float32Array(tileCount(SIZE)), SIZE);
+}
+
+/** A hillside falling away from the camera, `rise` per tile of x — the
+ * ground a mine or a fishery is allowed to stand on (world.ts exempts both
+ * from the half-unit corner-drop rule the rest of the settlement obeys). */
+function slope(rise: number): HeightField {
+  const h = new Float32Array(tileCount(SIZE));
+  for (let i = 0; i < h.length; i++) h[i] = tileX(i, SIZE) * rise;
+  return new HeightField(h, SIZE);
 }
 
 /** The game's rig, in miniature: orthographic, pitched 35°, yawed 30°. */
@@ -39,9 +48,10 @@ function camera(): THREE.OrthographicCamera {
   return cam;
 }
 
-/** The castle on the map, drawn `top` tall — 0 stands for a renderer that
- * has not measured it (or none at all), which is the old plate-only pick. */
-function probe(top: number): BuildingProbe {
+/** The castle on the map, drawn `top` tall from a base at `base`. A top of 0
+ * stands for a renderer that has not measured it (or none at all), which is
+ * the plate-only pick this all started as. */
+function probe(top: number, base = 0): BuildingProbe {
   const buildingAt = new Int32Array(tileCount(SIZE)).fill(-1);
   for (let z = Z0; z < Z0 + W; z++) {
     for (let x = X0; x < X0 + W; x++) buildingAt[tileIdx(x, z, SIZE)] = ID;
@@ -54,6 +64,7 @@ function probe(top: number): BuildingProbe {
       return buildingAt[tileIdx(tx, tz, SIZE)]!;
     },
     heightOf: (id) => (id === ID ? top : 0),
+    baseOf: (id) => (id === ID ? base : 0),
     tallest: () => top,
   };
 }
@@ -101,7 +112,8 @@ describe('screenToBuilding', () => {
     // Well clear of the footprint on the ground...
     const away = at(cam, CENTER + 8, 0, CENTER + 8);
     expect(screenToBuilding(cam, CANVAS, away.x, away.y, heights, probe(TOP))).toBe(-1);
-    // ...and the sky over the castle, which the walk must not reach up into.
+    // ...and the sky past the far roofline, which the walk must not reach up
+    // into: the ray under those pixels clears the footprint entirely.
     const sky = at(cam, CENTER, TOP + 1.5, CENTER);
     expect(screenToBuilding(cam, CANVAS, sky.x, sky.y, heights, probe(TOP))).toBe(-1);
   });
@@ -118,5 +130,27 @@ describe('screenToBuilding', () => {
     expect(tall.idAt(behindX, behindZ)).toBe(-1);
     const p = at(cam, behindX, 0, behindZ);
     expect(screenToBuilding(cam, CANVAS, p.x, p.y, heights, tall)).toBe(ID);
+  });
+
+  it('measures a hillside building from its own base, not the ground it overhangs', () => {
+    const rise = 0.25;
+    const cam = camera();
+    const heights = slope(rise);
+    // A building stands level on the ground under its center, so its downhill
+    // corner overhangs ground well below that — here by more than the box's
+    // own headroom, which is what a terrain-following probe gets wrong.
+    const base = heights.at(CENTER, CENTER);
+    const downhill = X0 + 0.35;
+    expect(base - heights.at(downhill, CENTER)).toBeGreaterThan(0.25);
+
+    const hill = probe(TOP, base);
+    const middle = at(cam, CENTER, base + TOP, CENTER);
+    expect(screenToBuilding(cam, CANVAS, middle.x, middle.y, heights, hill)).toBe(ID);
+    // The roof over the overhanging corner: the same roof, and clickable.
+    const corner = at(cam, downhill, base + TOP, CENTER);
+    expect(screenToBuilding(cam, CANVAS, corner.x, corner.y, heights, hill)).toBe(ID);
+    // And its plate, which is the tile whatever else is true of the slope.
+    const plate = at(cam, CENTER, base, CENTER);
+    expect(screenToBuilding(cam, CANVAS, plate.x, plate.y, heights, hill)).toBe(ID);
   });
 });

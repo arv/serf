@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
 import { WATER_LEVEL } from '../sim/map';
 import { HeightField } from './heightField';
+import { SITE_FRAME_H } from './models';
 import type { BuildingSnap } from '../protocol/messages';
 
 // The KayKit buildings carry material *arrays* on their meshes (the textured
@@ -319,5 +320,36 @@ describe("the fishery's shoal", () => {
       // tangent agree closely; tail-first would land near -1.
       expect(nose.dot(moved)).toBeGreaterThan(0.99);
     });
+  });
+});
+
+describe('the measurements the pointer picks against', () => {
+  /** The mocked model is a unit box centered on its origin. */
+  const MODEL_TOP = 0.5;
+
+  it('measures a built building by its model, from the ground it stands on', () => {
+    const scene = new THREE.Scene();
+    const ground = new Float32Array(tileCount(DEFAULT_MAP_SIZE)).fill(1.5);
+    const sync = new BuildingSync(scene, new HeightField(ground, DEFAULT_MAP_SIZE), 0);
+    sync.update([snap({ state: 'built' })]);
+    expect(sync.heightOf(7)).toBeCloseTo(MODEL_TOP);
+    // Height is over the building's own base, and the base is where the
+    // hillside put it — the two are read together or not at all.
+    expect(sync.baseOf(7)).toBeCloseTo(1.5);
+    expect(sync.tallest()).toBeGreaterThanOrEqual(MODEL_TOP);
+  });
+
+  it('gives a fresh site its scaffolding, which is all there is to click', () => {
+    const { sync } = makeSync();
+    sync.update([snap({ state: 'site', progress01: 0, siteNeeds: {} })]);
+    // The building itself is a sliver at this point; the frame is not.
+    expect(sync.heightOf(7)).toBeCloseTo(SITE_FRAME_H);
+    expect(sync.tallest()).toBeGreaterThanOrEqual(SITE_FRAME_H);
+  });
+
+  it('knows nothing of a building that never stood', () => {
+    const { sync } = makeSync();
+    expect(sync.heightOf(99)).toBe(0);
+    expect(sync.baseOf(99)).toBe(0);
   });
 });

@@ -263,6 +263,7 @@ export class Controls {
         return this.#mirror.map.buildingAt[tileIdx(tx, ty, this.#mirror.map.size)]!;
       },
       heightOf: (id) => this.#buildingHeights?.heightOf(id) ?? 0,
+      baseOf: (id) => this.#buildingHeights?.baseOf(id) ?? 0,
       tallest: () => this.#buildingHeights?.tallest() ?? 0,
     };
 

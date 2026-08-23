@@ -5,6 +5,7 @@ import {
   makeSiteFrame,
   PILE_SCALE,
   makeRoadPile,
+  SITE_FRAME_H,
 } from './models';
 import { glbYardProp, glbYardRock, makeGlbBuilding } from './assets';
 import { makeCharacter, playAnimation, type CharacterVisual } from './characters';
@@ -40,6 +41,13 @@ export interface PierInfo {
  * units — enough that the tallest swim circle and the fish bodies stay
  * submerged rather than breaking the surface. */
 const SHOAL_DRAFT = 0.14;
+
+/**
+ * The scale a ghost site starts at, when there is no GLB to clip and the
+ * building grows out of the ground instead. Its drawn height is this share
+ * of the model's own, which is what makes heightOf's arithmetic work.
+ */
+const GHOST_SEED_SCALE = 0.22;
 
 /** UNIT_DEFS.archer.kindCode — who mans a guard tower's roof. */
 const ARCHER_KIND = UNIT_DEFS.archer.kindCode;
@@ -256,17 +264,28 @@ export class BuildingSync {
 
   /**
    * How tall this building stands right now, in world units above its own
-   * ground — what the pointer picks against, so that clicking a castle's
+   * base — what the pointer picks against, so that clicking a castle's
    * towers picks the castle rather than reading through it to the ground
    * behind. A site answers with what it has raised so far, not with the
    * building it will be: half a keep is half a keep to the eye, and to the
-   * pointer.
+   * pointer. Its frame counts too, and early on it is all there is —
+   * scaffolding you can see is scaffolding you can click.
    */
   heightOf(id: number): number {
     const v = this.#visuals.get(id);
     if (!v) return 0;
-    if (v.clip) return Math.max(0, v.clip.plane.constant - v.clip.baseY);
-    return v.topY;
+    if (v.state !== 'site') return v.topY;
+    const raised = v.clip
+      ? Math.max(0, v.clip.plane.constant - v.clip.baseY)
+      : // The ghost site grows by scale rather than by clip, and topY was
+        // measured at the seed scale — read the drawn height back off it.
+        (v.topY * v.model.scale.y) / GHOST_SEED_SCALE;
+    return Math.max(SITE_FRAME_H, raised);
+  }
+
+  /** The elevation this building stands on — see BuildingHeights.baseOf. */
+  baseOf(id: number): number {
+    return this.#visuals.get(id)?.root.position.y ?? 0;
   }
 
   /** The tallest model standing — see #tallest. */
@@ -308,7 +327,7 @@ export class BuildingSync {
           // fresh sites read as more than an empty frame.
           v.clip.plane.constant = v.clip.baseY + 0.08 + v.clip.height * p;
         } else {
-          v.model.scale.setScalar(0.22 + 0.78 * p);
+          v.model.scale.setScalar(GHOST_SEED_SCALE + (1 - GHOST_SEED_SCALE) * p);
         }
       }
 
@@ -430,7 +449,7 @@ export class BuildingSync {
         // renders them hammering like any other unit.
       } else {
         model = makeGhostModel(b.type);
-        model.scale.setScalar(0.22);
+        model.scale.setScalar(GHOST_SEED_SCALE);
         root.add(model);
       }
     } else {
@@ -454,7 +473,16 @@ export class BuildingSync {
     if (shoal) shoal.position.y = (WATER_LEVEL - SHOAL_DRAFT - root.position.y) / model.scale.y;
 
     const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
-    this.#tallest = Math.max(this.#tallest, topY);
+    // What this building will be at its tallest, which is what the pick walk
+    // wants as its ceiling: a site's finished height (topY is already that
+    // for a clipped one, and the seed scale away from it for a ghost), and
+    // never less than the frame it stands in while it gets there.
+    this.#tallest = Math.max(
+      this.#tallest,
+      b.state === 'site'
+        ? Math.max(SITE_FRAME_H, clip ? topY : topY / GHOST_SEED_SCALE)
+        : topY,
+    );
     this.#scene.add(root);
     return {
       root,
