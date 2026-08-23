@@ -115,14 +115,38 @@ export function evictGarrison(world: World, b: Building, n: number): void {
   const door = doorOf(world, b);
   for (let i = 0; i < out; i++) {
     const unit = spawnUnit(world, kind, b.owner, door.x, door.y);
-    // Armour research is a soldier's; a serf goes back to work as he was.
-    if (!isLevy) {
+    // The man who went in is the man who comes out, wounds and all
+    // (garrisonHp): a tower is not a hospital, and standing one down is
+    // free. Last up is first down, so the array is popped rather than
+    // shifted — which man of an identical pair walks out first is a
+    // question about nothing.
+    const kept = b.garrisonHp?.pop();
+    if (kept !== undefined) {
+      unit.hp = kept;
+    } else if (!isLevy) {
+      // Armour research is a soldier's; a serf goes back to work as he was.
+      // Only for a garrison that never recorded a man (a save from before
+      // garrisonHp) — otherwise what he walked in with stands.
       unit.hp = Math.round(UNIT_DEFS[kind].hp * getModifier(world, b.owner, 'militaryHp'));
     }
+    // The bow does not reload for free either: a man leaving a tower that has
+    // just loosed carries what is left of its clock, or standing down between
+    // two volleys would be a way of firing twice. A fresh unit starts at zero
+    // (spawnUnit), so this is a carry rather than a reset.
+    unit.cooldownLeft = Math.max(unit.cooldownLeft, b.attackCooldown ?? 0);
   }
   b.garrison = (b.garrison ?? 0) - out || undefined;
   // Empty towers have no kind — that is what lets the next man set it.
-  if (b.garrison === undefined) b.garrisonKind = undefined;
+  if (b.garrison === undefined) {
+    b.garrisonKind = undefined;
+    b.garrisonHp = undefined;
+    // ...and no clock: the men took the reload out of the door with them
+    // (above), and towerFire stops counting an empty tower down, so a clock
+    // left behind here would still be standing when the next man climbed up
+    // — and he would serve it a second time, having already waited it out in
+    // the field.
+    b.attackCooldown = undefined;
+  }
 }
 
 /** Sum of goods the building's training queue still needs (for the matcher). */

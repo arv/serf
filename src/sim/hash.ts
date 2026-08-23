@@ -101,6 +101,11 @@ export function hashWorld(world: World): number {
     // into range. (Whether the tower is calling anyone up is `paused`,
     // which is mixed with the rest of the standing orders.)
     mix(b.garrisonKind === undefined ? 0 : UNIT_DEFS[b.garrisonKind].kindCode);
+    // ...and what each of them walked in with: a save that dropped their
+    // wounds would play on as the same world until the tower stood down and
+    // handed back men in better shape than the ones who went up.
+    mix(b.garrisonHp?.length ?? 0);
+    if (b.garrisonHp) for (const hp of b.garrisonHp) mixF64(hp);
     mix(b.attackCooldown ?? 0);
     // The forge's mind: standing order (255 = auto) and the queue ahead of
     // it steer batches for minutes — a save that dropped an order must not
