@@ -1225,7 +1225,7 @@ export class Controls {
   }
 
   /**
-   * Everyone of yours the band closed over.
+   * Every one of yours the band closed over.
    *
    * The card goes with it, exactly as a click's does. A unit selection and
    * an open building are mutually exclusive — SelectionPanel draws the

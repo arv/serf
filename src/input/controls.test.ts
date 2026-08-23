@@ -210,7 +210,7 @@ describe('band select', () => {
     vi.unstubAllGlobals();
   });
 
-  it('picks up everyone of yours the band closed over', () => {
+  it('picks up every one of yours the band closed over', () => {
     const h = harness();
     controls = h.controls;
     h.addUnit(1, -5, -3);
