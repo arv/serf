@@ -1215,7 +1215,12 @@ export class AiBrain {
       // back at, and the village loses no hands by it — so a seat mans its
       // towers in peacetime with soldiers, and only ever with villagers
       // while something hostile is in sight.
-      const pool = loose(rule.unit);
+      // Nobody is claimed for a door that cannot be reached. Staffing sets
+      // this hold when it fails to path to a post, and while it stands no
+      // recruit is dispatched — so men held back for this wall would be men
+      // held out of the army for a walk that is never going to start.
+      const reachable = (b.staffBackoffUntil ?? 0) <= world.tick;
+      const pool = reachable ? loose(rule.unit) : [];
       const spare = Math.min(room, pool.length);
       if (spare > 0) {
         // Taken off the pool and out of the army: these are the men this

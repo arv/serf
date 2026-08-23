@@ -512,6 +512,25 @@ describe('the stall watchdog', () => {
     expect(marched && started).toBe(false);
   });
 
+  it('claims nobody for a tower nothing can walk to', () => {
+    // Staffing holds off on a post it failed to path to. Men reserved for a
+    // wall while that hold stands are men kept out of the army for a walk
+    // that never starts — and a walled-off tower would keep reserving them
+    // for as long as it stood there.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    tower.paused = true;
+    tower.staffBackoffUntil = world.tick + 10_000; // walled off, for now
+    spawnUnit(world, 'archer', 0, 34.5, 34.5);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    // No point opening it: nobody can get in, and the archer stays the
+    // army's to spend.
+    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
+  });
+
   it('never stands a tower its archers hold down, or up', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
