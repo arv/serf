@@ -807,6 +807,22 @@ describe('the guard tower', () => {
     expect(archer.dead).toBe(true);
   });
 
+  it('marches the garrison out on the clock the tower was on, not a fresh one', () => {
+    // Standing down between two volleys would otherwise be a way of firing
+    // twice: the tower looses, the men walk out with a bow that has already
+    // reloaded, and they loose again in the same fight.
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = 1;
+    tower.garrisonKind = 'archer';
+    tower.attackCooldown = 17; // mid-reload, as if it had just loosed
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
+    const out = [...world.units.values()].filter((u) => !u.dead && u.kind === 'archer');
+    expect(out).toHaveLength(1);
+    expect(out[0]!.cooldownLeft).toBeGreaterThanOrEqual(16);
+  });
+
   it('gives back the man who went up, wounds and all — the roof is not a hospital', () => {
     // Standing a tower down is free and instant. If the men came back at
     // full strength, a wounded archer could be walked up and stood down

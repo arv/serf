@@ -1152,6 +1152,11 @@ export class AiBrain {
         for (const u of world.units.values()) {
           if (u.dead || u.owner !== this.playerId || u.kind !== kind) continue;
           if (u.task.t !== 'idle' || claimed.has(u.id)) continue;
+          // The standing scout is not loose, whatever his task says between
+          // legs: the scouting branch orders him by id rather than out of
+          // the army pool, so a wall that claimed him would be opened for a
+          // man walked off the map in the same beat.
+          if (u.id === this.#scoutId) continue;
           pool.push(u.id);
         }
         idleOf.set(kind, pool);
@@ -1198,6 +1203,11 @@ export class AiBrain {
         walking.task.t === 'staff' &&
         walking.task.buildingId === b.id
       ) {
+        // Claimed as well as left alone: `army` takes military units whatever
+        // their task, so a march order this beat would overwrite his walk and
+        // leave the tower running and empty — which on quiet ground is a
+        // tower that calls villagers up instead.
+        claimed.add(walking.id);
         continue;
       }
       // Short of soldiers, and there are some standing about: run it and let
