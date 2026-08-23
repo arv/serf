@@ -52,6 +52,14 @@ describe('prose linking', () => {
     expect(hrefFor('Ale is brewed here.', 'Ale', '/docs/goods/ale')).toBeUndefined();
   });
 
+  it('does not turn a verb into a link', () => {
+    // "keep" was a synonym for the Castle, and the plural rule then made a
+    // link of "keeps" in the live Ale Rations description.
+    expect(marked('The barracks keeps a cask: each soldier drinks 1 ale.')).toBe(
+      'The [barracks] keeps a cask: each soldier drinks 1 [ale].',
+    );
+  });
+
   it('leaves ordinary English alone', () => {
     // Every one of these is also the name of something, and linking them
     // on sight is what the ambiguity rules exist to prevent.

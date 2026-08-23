@@ -66,7 +66,8 @@ const SYNONYMS: { text: string; href: string }[] = [
   { text: 'grain', href: goodHref('wheat') },
   { text: 'coin', href: goodHref('silver') },
   { text: 'farm', href: buildingHref('wheatFarm') },
-  { text: 'keep', href: buildingHref('storehouse') },
+  // No 'keep' for the Castle: the plural rule below would make a link of
+  // the verb, and "the barracks keeps a cask" is live text.
 ];
 
 function collectTerms(): Term[] {

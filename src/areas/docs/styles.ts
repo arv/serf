@@ -47,12 +47,18 @@ export const DOCS_STYLE = `
 
 /* Grid pages: glass tiles. The whole tile is one link. */
 #docs .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-#docs .tile { display: flex; flex-direction: column; gap: 8px; padding: 14px;
+#docs .tile { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 14px;
   background: rgba(14,16,15,0.74); border: 1px solid rgba(255,255,255,0.09); border-radius: 16px;
   color: #e4e1d6; transition: border-color 0.15s, background 0.15s; }
 #docs .tile:hover { border-color: rgba(229,196,105,0.4); background: rgba(20,22,20,0.8); text-decoration: none; }
 #docs .tile .t-name { font-size: 15px; font-weight: 600; color: #f2efe4; }
 #docs .tile .t-sub { font-size: 12px; color: #85857c; }
+/* A tile that carries links of its own cannot be one: the name's anchor is
+   stretched over the card instead, and anything else interactive is lifted
+   above it. Keeps one big click target without nesting controls. */
+#docs .tile a.stretch::after { content: ''; position: absolute; inset: 0; border-radius: 16px; }
+#docs .tile a.stretch:hover { text-decoration: none; }
+#docs .tile .costs { position: relative; z-index: 1; align-self: flex-start; }
 
 /* Stat rows: a def-list with hairline separators, numbers right and tabular. */
 #docs .stats { display: flex; flex-direction: column; margin: 0; padding: 4px 16px;

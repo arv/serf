@@ -25,9 +25,6 @@ export function DocLink(props: {
       onClick={(e) => {
         if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         e.preventDefault();
-        // A cost chip can sit inside a tile that is itself a link; the
-        // click belongs to the innermost destination alone.
-        e.stopPropagation();
         goto(props.href);
       }}
     >

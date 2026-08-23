@@ -36,14 +36,12 @@ describe('the docs cross-reference graph', () => {
   });
 
   it('covers every building with the ribbon groups plus the world section', () => {
-    // BuildingsPage renders BUILD_GROUPS and derives the rest; this holds
-    // the two halves to exactly the def table (roads excepted — the road
-    // pass places those).
+    // BuildingsPage renders BUILD_GROUPS and derives the rest. Every
+    // building has a page, so every building needs a tile pointing at it —
+    // a page nothing links to is a page nobody reads.
     const inMenu = new Set(BUILD_GROUPS.flatMap((g) => g.types));
-    const world = ALL_BUILDINGS.filter((id) => !inMenu.has(id) && !BUILDING_DEFS[id].isRoad);
-    const shown = [...inMenu, ...world];
-    const everything = ALL_BUILDINGS.filter((id) => !BUILDING_DEFS[id].isRoad);
-    expect(shown.sort()).toEqual(everything.sort());
+    const world = ALL_BUILDINGS.filter((id) => !inMenu.has(id));
+    expect([...inMenu, ...world].sort()).toEqual([...ALL_BUILDINGS].sort());
   });
 
   it('resolves every tech gate to a real tech', () => {

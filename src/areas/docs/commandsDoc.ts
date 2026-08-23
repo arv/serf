@@ -1,4 +1,4 @@
-import type { AdminAction, SimCommand } from '../../sim/commands';
+import { MAX_UNITS_PER_ORDER, type AdminAction, type SimCommand } from '../../sim/commands';
 
 /**
  * The command reference. SimCommand is a type — erased at runtime — so the
@@ -17,7 +17,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   moveUnits: {
     summary:
       'Send selected units to a tile. Plain by default; attack-move engages what it meets, and the mobile half-and-half walks the first half of the route peacefully before going live.',
-    payload: 'unitIds (up to 1024), x, y, attack?: true | ‘half’',
+    payload: `unitIds (up to ${MAX_UNITS_PER_ORDER}), x, y, attack?: true | ‘half’`,
   },
   placeBuilding: {
     summary: 'Stake out a construction site. The sim revalidates ground, cost and tech gate.',

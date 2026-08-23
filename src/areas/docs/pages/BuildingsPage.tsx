@@ -8,22 +8,34 @@ import { CostList, DocLink } from '../components';
 import { ModelCard } from '../preview/ModelCard';
 import { buildingHref } from '../routes';
 
-/** The roofs no ribbon tab offers: worldgen's and the road pass's. Derived,
- * so a new system building cannot be silently missed — data.test.ts holds
- * the ribbon ∪ this = everything invariant. */
+/** The roofs no ribbon tab offers: worldgen's and the road pass's. Derived
+ * rather than listed, so a new system building cannot be silently missed —
+ * data.test.ts holds the ribbon ∪ this = every building invariant, roads
+ * included: each one has a page, and a page nothing links to is a page
+ * nobody reads. */
 export function worldBuildings(): BuildingTypeId[] {
   const inMenu = new Set(BUILD_GROUPS.flatMap((g) => g.types));
-  return ALL_BUILDINGS.filter((id) => !inMenu.has(id) && !BUILDING_DEFS[id].isRoad);
+  return ALL_BUILDINGS.filter((id) => !inMenu.has(id));
 }
 
+/**
+ * A wrapper, not one big link: the cost chips are links of their own, and
+ * an anchor inside an anchor is an invalid tree that no amount of
+ * stopPropagation repairs (the replay shelf keeps its row and its delete
+ * button siblings for the same reason). The name's link is stretched over
+ * the whole card instead, so the tile still clicks through as one target,
+ * and the chips sit above it.
+ */
 function BuildingTile(props: { id: BuildingTypeId }): JSX.Element {
   return (
-    <DocLink href={buildingHref(props.id)} class="tile">
+    <div class="tile">
       <ModelCard kind="building" id={props.id} />
-      <span class="t-name">{buildingName(props.id)}</span>
+      <DocLink href={buildingHref(props.id)} class="t-name stretch">
+        {buildingName(props.id)}
+      </DocLink>
       <span class="t-sub">{BUILDING_DESC[props.id]}</span>
       <CostList amounts={BUILDING_DEFS[props.id].cost} freeLabel="already standing" />
-    </DocLink>
+    </div>
   );
 }
 

@@ -20,6 +20,7 @@ import {
   firstRaidTickFor,
   raidIntervalFor,
 } from '../../../sim/defs/balance';
+import { BUILDING_DEFS } from '../../../sim/defs/buildings';
 import type { UnitClass } from '../../../sim/defs/units';
 import { fmtSecs } from '../data';
 import { CostList, Section, Stat, Stats } from '../components';
@@ -42,7 +43,7 @@ export function BasicsPage(): JSX.Element {
       <Section title="Opening">
         <Stats>
           <Stat label="Serfs">{START_SERFS}</Stat>
-          <Stat label="Beds">10, in the castle</Stat>
+          <Stat label="Beds">{BUILDING_DEFS.storehouse.housing}, in the castle</Stat>
           <Stat label="Stock">
             <CostList amounts={START_STOCK} />
           </Stat>

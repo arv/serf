@@ -36,6 +36,12 @@ const MAX_SHOT = 900;
 /** Animated cards repaint at ~20fps: idle loops read fine and phones stay cool. */
 const ANIM_INTERVAL_MS = 50;
 
+/** A page of looping idle animations is exactly what this preference is
+ * about, so those cards paint one frame and hold it. */
+function motionAllowed(): boolean {
+  return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 export interface CardSpec {
   stage: HTMLElement;
   canvas: HTMLCanvasElement;
@@ -51,6 +57,10 @@ export interface CardSpec {
 interface CardContent {
   group: THREE.Group;
   framing: Framing;
+  /** The turf this card built. Everything else in `group` is a clone that
+   * shares its geometry and materials with the game's template cache, so
+   * the plate is the only part a card may free. */
+  plate: THREE.Group;
   visual?: CharacterVisual;
 }
 
@@ -139,7 +149,27 @@ function getHub(): Hub | null {
     onVisibility: () => wakeAnimLoop(),
   };
   document.addEventListener('visibilitychange', hub.onVisibility);
+  // A context can go away long after it was handed over — the GPU resets,
+  // or the browser reclaims one because another page wanted it. Without
+  // this the cards keep their last blit and the loop keeps rendering into
+  // nothing, which is worse than the fallback they were promised.
+  renderer.domElement.addEventListener('webglcontextlost', onContextLost);
   return hub;
+}
+
+/** The context is gone: stop drawing and let every card show its tile. */
+function onContextLost(event: Event): void {
+  event.preventDefault();
+  const h = hub;
+  if (!h) return;
+  hubFailed = true;
+  if (h.raf !== 0) cancelAnimationFrame(h.raf);
+  h.raf = 0;
+  for (const card of h.cards) {
+    card.content = null;
+    card.painted = false;
+    card.onState('fallback');
+  }
 }
 
 function paint(card: Card): void {
@@ -175,6 +205,7 @@ function paint(card: Card): void {
 function animCards(): Card[] {
   const h = hub;
   if (!h) return [];
+  if (!motionAllowed()) return [];
   return [...h.cards].filter((c) => c.animated && c.visible && c.content?.visual);
 }
 
@@ -217,16 +248,56 @@ function buildContent(card: Card): CardContent | null {
     const def = BUILDING_DEFS[id];
     const plateR = Math.max(def.w, def.h) * 0.95 + 0.5;
     const group = new THREE.Group();
-    group.add(makePlate(plateR, Math.floor(card.seed * 997)), model);
-    return { group, framing: frameFor(model, plateR) };
+    const plate = makePlate(plateR, Math.floor(card.seed * 997));
+    group.add(plate, model);
+    return { group, framing: frameFor(model, plateR), plate };
   }
   const made = makeCharacter(UNIT_DEFS[card.id as UnitTypeId].kindCode, 0, 0);
   if (!made) return null;
   const plateR = 0.62;
   const group = new THREE.Group();
-  group.add(makePlate(plateR, Math.floor(card.seed * 997)), made.group);
+  const plate = makePlate(plateR, Math.floor(card.seed * 997));
+  group.add(plate, made.group);
   playAnimation(made.visual, 'idle', card.seed % 1);
-  return { group, framing: frameFor(made.group, plateR), visual: made.visual };
+  return { group, framing: frameFor(made.group, plateR), plate, visual: made.visual };
+}
+
+/**
+ * Give back what this card owns.
+ *
+ * The hub deliberately outlives page turns, so a reader walking twenty
+ * building pages registers and drops twenty cards inside one context —
+ * anything not freed here accumulates until they leave the guide.
+ *
+ * What a card owns is narrow: the plate it built, its character's skeleton
+ * (a clone gets its own bone texture) and its mixer's cached clips. The
+ * models themselves are clones that share geometry and materials with the
+ * template caches in assets.ts and characters.ts — disposing those would
+ * blank the same building on every other card, and in the match after.
+ */
+function releaseContent(card: Card): void {
+  const content = card.content;
+  card.content = null;
+  card.painted = false;
+  if (!content) return;
+  // The last card painted is still parented to the holder.
+  content.group.removeFromParent();
+  content.plate.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    o.geometry.dispose();
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+      // Not m.map: the ground speckle is one canvas shared by every plate.
+      m.dispose();
+    }
+  });
+  const visual = content.visual;
+  if (visual) {
+    visual.mixer.stopAllAction();
+    visual.mixer.uncacheRoot(content.group);
+    content.group.traverse((o) => {
+      if (o instanceof THREE.SkinnedMesh) o.skeleton.dispose();
+    });
+  }
 }
 
 function attachDrag(card: Card): void {
@@ -351,9 +422,7 @@ export function registerCard(spec: CardSpec): CardHandle {
       if (!live) return;
       live.io.unobserve(card.stage);
       live.cards.delete(card);
-      // The group's geometry and materials are shared with the game's
-      // template caches — dropping the reference is the whole cleanup.
-      card.content = null;
+      releaseContent(card);
     },
   };
 }
@@ -371,7 +440,11 @@ export function disposePreviewHub(): void {
   if (h.raf !== 0) cancelAnimationFrame(h.raf);
   document.removeEventListener('visibilitychange', h.onVisibility);
   h.io.disconnect();
-  for (const card of h.cards) card.cleanupDrag?.();
+  h.renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+  for (const card of h.cards) {
+    card.cleanupDrag?.();
+    releaseContent(card);
+  }
   h.cards.clear();
   h.renderer.dispose();
   // Prompt release rather than GC-timed: the next screen may want a

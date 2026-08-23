@@ -1,11 +1,16 @@
-import type { BuildingTypeId } from '../../sim/defs/buildings';
+import { BUILDING_DEFS, type BuildingTypeId } from '../../sim/defs/buildings';
 import type { GoodId } from '../../sim/defs/goods';
-import type { UnitTypeId } from '../../sim/defs/units';
+import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
 
 /**
  * The one authored layer of the wiki: a sentence or two of flavor and
- * strategy per thing. Every number stays on the defs — these carry only
- * what a table cannot.
+ * strategy per thing. These carry only what a table cannot.
+ *
+ * Where a sentence does want a number it reads it off the def rather than
+ * spelling it out, because prose is exactly where a balance change goes
+ * unnoticed: a description saying "ten beds" stays type-correct forever
+ * after housing moves to twelve, and the guide would contradict the stats
+ * card directly above it.
  *
  * Total Records on purpose: add a building, unit or good to the game and
  * this file refuses to compile until the wiki can say what it is. That is
@@ -13,9 +18,25 @@ import type { UnitTypeId } from '../../sim/defs/units';
  * here by the type checker.
  */
 
+/** What one turn of a building's fixed recipe yields. */
+function yieldOf(building: BuildingTypeId, good: GoodId): number {
+  const recipe = BUILDING_DEFS[building].recipe;
+  return (recipe?.kind === 'convert' ? recipe.outputs[good] : undefined) ?? 0;
+}
+
+/** What the Smith's recipe for `good` takes in `input`. */
+function forgeCost(good: GoodId, input: GoodId): number {
+  for (const option of BUILDING_DEFS.weaponsmith.recipeOptions ?? []) {
+    if (option.recipe.outputs[good] !== undefined) return option.recipe.inputs[input] ?? 0;
+  }
+  return 0;
+}
+
+const BAKED = yieldOf('bakery', 'food');
+
 export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   storehouse:
-    'The keep you start with: your store of every good, ten beds, and the building you lose the game by losing. It costs nothing to raise and real stone to mend.',
+    `The keep you start with: your store of every good, ${BUILDING_DEFS.storehouse.housing} beds, and the building you lose the game by losing. It costs nothing to raise and real stone to mend.`,
   banditCamp:
     'Where the raids muster. Worldgen places it, never a player — burn it down and the raids stop coming from it.',
   woodcutter:
@@ -23,13 +44,13 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   quarry:
     'Works exposed rock into building stone. Like every gatherer it must be placed where its worker can already see something to cut.',
   house:
-    'Ten beds of timber and a hearth. Housing is what the whole plan grows through: cheap on purpose, so the choice is when, not whether.',
+    `${BUILDING_DEFS.house.housing} beds of timber and a hearth. Housing is what the whole plan grows through: cheap on purpose, so the choice is when, not whether.`,
   well: 'A shaft and a windlass, no keeper. Water is drawn by whoever comes for it, which makes the well free to run and slow to rush.',
   wheatFarm:
     'Turns water into standing wheat. The head of the bread chain and the brewery both drink from it, so one farm rarely stays enough.',
   mill: 'Grinds wheat to flour on the wind — no resident. Deliberately slower than the farm that feeds it: one mill is meant to serve two.',
   bakery:
-    'Flour and water in, two loaves out. The far end of the bread chain and the best food rate in the game once the chain stands.',
+    `Flour and water in, ${BAKED} loaves out. The far end of the bread chain and the best food rate in the game once the chain stands.`,
   fishery:
     'One hut, one hand, and a pier that must touch water. Nothing goes in and food comes out slowly: the poor village’s food, ready long before the first loaf.',
   brewery:
@@ -47,7 +68,7 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   barracks:
     'Turns bread, a forged weapon and a walking serf into a soldier. The rally flag on its door is where fresh recruits march.',
   guardTower:
-    'Stone that shoots back. Two archers on the wall hit harder and further than the same two on the grass — and until archers exist, the levy drops stones.',
+    `Stone that shoots back. ${BUILDING_DEFS.guardTower.garrison?.capacity ?? 0} archers on the wall hit harder and further than the same number on the grass — and until archers exist, the levy drops stones.`,
   roadSite:
     'A single tile of paving, placed by the Masonry road pass rather than by hand. When it finishes, the trail beneath it is stone for good.',
 };
@@ -61,7 +82,7 @@ export const UNIT_DESC: Record<UnitTypeId, string> = {
   spearman:
     'The fast, cheap soldier: first to any fight and the counter to archers. Melts against knights.',
   archer:
-    'Range five and the pick of the tower garrison. Kites knights, dies to anything light that reaches it.',
+    `Range ${UNIT_DEFS.archer.combat?.range ?? 0} and the pick of the tower garrison. Kites knights, dies to anything light that reaches it.`,
   bandit: 'The raiders’ line infantry: light, quick, and fond of buildings that cannot fight back.',
   banditArcher: 'The raiders’ bow. Softer than yours, but a wave of them outranges a village with no answer.',
   marauder:
@@ -76,12 +97,12 @@ export const GOOD_DESC: Record<GoodId, string> = {
   iron: 'Ore from the iron mine. The Smith turns it into every serious weapon and tool.',
   silver: 'The coin: hires serfs and funds every research. The one good every plan runs short of.',
   gold: 'The deep metal. Exists to gild arms — the final warfare research is paid in it.',
-  sword: 'The knight’s weapon, forged from two iron. No sword, no knight.',
+  sword: `The knight’s weapon, forged from ${forgeCost('sword', 'iron')} iron. No sword, no knight.`,
   spear: 'The spearman’s arm: iron and wood, the cheapest way to put a soldier in the field.',
-  bow: 'Three wood and no iron — the weapon a poor village can still field, once Archery is read.',
+  bow: `${forgeCost('bow', 'wood')} wood and no iron — the weapon a poor village can still field, once Archery is read.`,
   ale: 'Brewed from wheat and water. The Abbey drinks it as festivals; the barracks as faster training.',
   flour: 'Milled wheat, halfway to bread.',
-  food: 'What soldiers train on and the village fights for. Baked in twos, fished in ones.',
+  food: 'What soldiers train on and the village fights for: baked at the oven, or pulled from the shore.',
   axe: 'The woodcutter’s tool: no axe in store, no new woodcutter staffed.',
   pickaxe:
     'The miner’s tool — and deliberately forged without iron, so losing every pick can never lock the mines shut for good.',

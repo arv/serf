@@ -66,6 +66,9 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
             {(option) => (
               <button
                 type="button"
+                // The gold fill says which clip is playing; aria-pressed is
+                // how that reaches anyone not looking at it.
+                aria-pressed={anim() === option.key}
                 class={anim() === option.key ? 'on' : undefined}
                 onClick={() => setAnim(option.key)}
               >
@@ -154,7 +157,7 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
               text={
                 `Hired at the castle for ${HIRE_SERF_COST} silver; the recruit walks in ` +
                 `after ${fmtSecs(HIRE_SERF_TICKS)}. Every serf needs a bed — the castle ` +
-                `sleeps ten, houses add the rest.`
+                `sleeps ${BUILDING_DEFS.storehouse.housing}, houses add the rest.`
               }
               self={unitHref(props.id)}
             />
