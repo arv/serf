@@ -124,13 +124,13 @@ export function linkifyProse(text: string, self?: string): ProsePiece[] {
     const whole = m[0];
     const term = m[1]!;
     const href = HREF_OF.get(term.toLowerCase());
-    // A capital on the first word says nothing about proper-noun-hood.
-    const capitalised = term[0] !== term[0]!.toLowerCase() && m.index > 0;
-    const article = text
-      .slice(0, m.index)
-      .trimEnd()
-      .split(/[\s(]+/)
-      .pop();
+    const preceding = text.slice(0, m.index).trimEnd();
+    // Every sentence opens with a capital, so the first word of one says
+    // nothing about proper-noun-hood — not just the first word of the
+    // whole string.
+    const opensSentence = preceding === '' || /[.!?]$/.test(preceding);
+    const capitalised = term[0] !== term[0]!.toLowerCase() && !opensSentence;
+    const article = preceding.split(/[\s(]+/).pop();
     const named = capitalised || ARTICLES.has((article ?? '').toLowerCase());
     if (
       href === undefined ||

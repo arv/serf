@@ -1,15 +1,10 @@
 import { For, type JSX } from 'solid-js';
 import { UNIT_DEFS, type UnitTypeId } from '../../../sim/defs/units';
 import { unitName } from '../../../ui/names';
-import { ALL_UNITS } from '../data';
+import { ALL_UNITS, RAIDER_UNITS } from '../data';
 import { DocLink } from '../components';
 import { ModelCard } from '../preview/ModelCard';
 import { unitHref } from '../routes';
-
-/** The raiders, by kind. A list rather than a def flag because the defs
- * deliberately carry no ownership — a marauder is a unit like any other to
- * the sim; only worldgen decides who fields one. */
-export const RAIDER_UNITS: UnitTypeId[] = ['bandit', 'banditArcher', 'marauder'];
 
 function UnitTile(props: { id: UnitTypeId }): JSX.Element {
   const def = UNIT_DEFS[props.id];

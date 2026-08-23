@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING_DEFS } from '../../sim/defs/buildings';
+import { TICKS_PER_SECOND } from '../../sim/defs/balance';
 import { GOODS, type GoodId } from '../../sim/defs/goods';
 import { TECH_DEFS } from '../../sim/defs/techs';
 import { BUILD_GROUPS } from '../../ui/buildMenu';
@@ -14,6 +15,7 @@ import {
   startStockOf,
 } from './data';
 import { parseDocsPath } from './routes';
+import { fmtSecs } from './data';
 
 /**
  * The wiki derives its whole cross-reference graph from the defs, so what
@@ -78,6 +80,16 @@ describe('the docs cross-reference graph', () => {
         if (effect.kind === 'unlockUnit') expect(TRAINED_AT.get(effect.unit)).toBeDefined();
       }
     }
+  });
+});
+
+describe('duration formatting', () => {
+  it('keeps the fraction a rate is computed from', () => {
+    // The woodcutter works a tile in 2.5 s; rounding that to "3 s" made the
+    // card contradict the "24/min" printed beside it.
+    expect(fmtSecs(2.5 * TICKS_PER_SECOND)).toBe('2.5 s');
+    expect(fmtSecs(20 * TICKS_PER_SECOND)).toBe('20 s');
+    expect(fmtSecs(90 * TICKS_PER_SECOND)).toBe('1 min 30 s');
   });
 });
 

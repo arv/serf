@@ -9,7 +9,9 @@ import {
 } from '../../../render/characters';
 import { makeRoadPile } from '../../../render/models';
 import { BUILDING_DEFS, type BuildingTypeId } from '../../../sim/defs/buildings';
+import { BANDIT } from '../../../sim/entities';
 import { UNIT_DEFS, type UnitTypeId } from '../../../sim/defs/units';
+import { RAIDER_BUILDINGS, RAIDER_UNITS } from '../data';
 import { YAW, frame, frameFor, makeLights, makePlate, makeRenderer, type Framing } from './scene';
 
 /**
@@ -258,7 +260,10 @@ function buildContent(card: Card): CardContent | null {
     const id = card.id as BuildingTypeId;
     // The road is the one type without a model of its own; its site pile
     // stands in, exactly as it does in the world.
-    const model = makeGlbBuilding(id, 0) ?? (BUILDING_DEFS[id].isRoad ? makeRoadPile() : null);
+    // Owner picks the team-colour slot; the camp belongs to the raiders,
+    // and BANDIT is the one owner factionTint leaves untinted.
+    const owner = RAIDER_BUILDINGS.includes(id) ? BANDIT : 0;
+    const model = makeGlbBuilding(id, owner) ?? (BUILDING_DEFS[id].isRoad ? makeRoadPile() : null);
     if (!model) return null;
     const def = BUILDING_DEFS[id];
     const plateR = Math.max(def.w, def.h) * 0.95 + 0.5;
@@ -267,7 +272,8 @@ function buildContent(card: Card): CardContent | null {
     group.add(plate, model);
     return { group, framing: frameFor(model, plateR), plate };
   }
-  const made = makeCharacter(UNIT_DEFS[card.id as UnitTypeId].kindCode, 0, 0);
+  const unit = card.id as UnitTypeId;
+  const made = makeCharacter(UNIT_DEFS[unit].kindCode, 0, RAIDER_UNITS.includes(unit) ? BANDIT : 0);
   if (!made) return null;
   const plateR = 0.62;
   const group = new THREE.Group();

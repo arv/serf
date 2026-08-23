@@ -21,16 +21,37 @@ export const ALL_BUILDINGS = Object.keys(BUILDING_DEFS) as BuildingTypeId[];
 export const ALL_UNITS = Object.keys(UNIT_DEFS) as UnitTypeId[];
 export const ALL_TECHS = Object.keys(TECH_DEFS) as TechId[];
 
+/**
+ * The kinds the raids are made of, and the camp they muster from.
+ *
+ * A list because the defs carry no allegiance — a marauder is a unit like
+ * any other to the sim, and only worldgen decides who fields one. Kept
+ * here rather than on the units page because the previews need it too: a
+ * raider rendered as owner 0 comes out in player one's green, where
+ * factionTint(BANDIT) deliberately leaves the pack's own grim look alone.
+ */
+export const RAIDER_UNITS: UnitTypeId[] = ['bandit', 'banditArcher', 'marauder'];
+export const RAIDER_BUILDINGS: BuildingTypeId[] = ['banditCamp'];
+
 export function secs(ticks: number): number {
   return ticks / TICKS_PER_SECOND;
 }
 
-/** "12 s" / "1 min 30 s" — durations on def scales, whole seconds. */
+/**
+ * "12 s" / "2.5 s" / "1 min 30 s".
+ *
+ * Not rounded to whole seconds: the woodcutter works a tile in 2.5, and
+ * rounding that to "3 s" put the card in contradiction with the "24/min"
+ * printed beside it, which is computed from the same tick count.
+ */
 export function fmtSecs(ticks: number): string {
-  const s = Math.round(secs(ticks));
-  if (s < 60) return `${s} s`;
-  const m = Math.floor(s / 60);
-  const r = s % 60;
+  const s = secs(ticks);
+  if (s < 60) return `${Number(s.toFixed(2))} s`;
+  // Past a minute the fraction is noise — nothing on these pages is tuned
+  // to a half-second at that scale.
+  const whole = Math.round(s);
+  const m = Math.floor(whole / 60);
+  const r = whole % 60;
   return r === 0 ? `${m} min` : `${m} min ${r} s`;
 }
 

@@ -90,5 +90,8 @@ describe('prose linking', () => {
     // "Food comes out slowly" opens a sentence; the capital is the
     // sentence's, not the good's.
     expect(hrefFor('Food comes out slowly here.', 'Food')).toBeUndefined();
+    // ...and that holds for every sentence, not just the first.
+    expect(hrefFor('Nothing goes in. Food comes out slowly.', 'Food')).toBeUndefined();
+    expect(hrefFor('One hut, one hand. Well water is drawn here.', 'Well')).toBeUndefined();
   });
 });
