@@ -241,6 +241,11 @@ interface Screen {
   /** Which screen this is; see screenKey(). */
   key: string;
   dispose(): void;
+  /** Same-key navigation: the URL moved but still names this screen. Most
+   * screens have nothing to do — the menu editing its own address bar lands
+   * here — but one that carries sub-navigation of its own (the docs wiki)
+   * re-reads location and turns its page in place. */
+  onRouteChange?(): void;
 }
 let current: Screen | null = null;
 
@@ -299,6 +304,14 @@ function gameChosen(params: URLSearchParams): boolean {
  * into the next mission are both real screen changes.
  */
 function screenKey(): string {
+  // The field guide is the one screen named by its path rather than its
+  // query string — /docs is a place a link can point at. Checked ahead of
+  // everything else so a stale launch param riding along in the query
+  // cannot turn a docs link into a match. One constant key for the whole
+  // wiki: page turns inside it are same-key navigations (onRouteChange),
+  // which is what lets it keep one preview renderer and its loaded model
+  // caches across twenty clicks instead of rebuilding per page.
+  if (location.pathname === '/docs' || location.pathname.startsWith('/docs/')) return 'docs';
   const params = new URLSearchParams(location.search);
   // The map editor is its own screen kind — and the check comes before
   // gameChosen, because a stale load-pending handoff (or a ?seed left in
@@ -343,8 +356,12 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
   // The same screen asking for itself is the menu moving its own address
   // bar, and tearing it down and rebuilding it would be visible. `force`
   // is how the two genuine exceptions say so: Play again and Watch again
-  // both mean "this exact screen, from the top".
-  if (!opts.force && current && current.key === key) return;
+  // both mean "this exact screen, from the top". A screen that navigates
+  // within itself still hears about the move (see Screen.onRouteChange).
+  if (!opts.force && current && current.key === key) {
+    current.onRouteChange?.();
+    return;
+  }
   const gen = ++generation;
   /** Hand a freshly built screen the page, or take it apart if the page has
    * already gone somewhere else. */
@@ -378,6 +395,19 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     // sim worker. Its chunk loads on demand — most sessions never edit.
     const { mountEditor } = await import('../editor/editorScreen');
     present(await mountEditor(document.getElementById('canvas') as HTMLCanvasElement));
+    return;
+  }
+  if (key === 'docs') {
+    // The field guide: every def in the game, cross-linked and read from
+    // the same tables the sim plays by. Its chunk (and the three.js preview
+    // code it carries) loads on demand — reading is rarer than playing.
+    const { mountDocs } = await import('../areas/docs/docsScreen');
+    const docs = mountDocs();
+    present({
+      key,
+      dispose: () => docs.dispose(),
+      onRouteChange: () => docs.onRouteChange(),
+    });
     return;
   }
   const mp = launchParams.get('mp');
