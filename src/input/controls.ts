@@ -1265,7 +1265,7 @@ export class Controls {
         sel.add(id);
       }
     }
-    setSelectedBuilding(null);
+    this.#setBuilding(null);
     this.#setSel(sel);
   }
 
