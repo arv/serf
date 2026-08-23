@@ -34,9 +34,9 @@
  *     join a newer chain.
  *   - One download runs at a time per origin (a Web Lock, with a same-page
  *     queue where the browser has none): the menu's warm-up and a match's
- *     load can meet around the handoff, and queue — sweep, probe and
- *     install included — instead of interleaving over the one staging
- *     directory.
+ *     load can meet around the handoff, and queue — sweep, probe, install
+ *     and the callers' wllama-native fallback included — instead of
+ *     interleaving over the one staging directory.
  *   - A stream that ends cleanly but early is a failure, not a finish:
  *     nothing short of the promised size is ever installed. A server that
  *     never says the size cannot make that promise, so it is not this
@@ -135,13 +135,25 @@ const PART_BYTES = 8 * 1024 * 1024;
  * where the browser has none. (In practice every browser whose OPFS the
  * store accepts ships Web Locks; the queue is belt over braces, and
  * cross-tab overlap without either is what the attempt-id fencing keeps
- * merely wasteful, never corrupting.) */
+ * merely wasteful, never corrupting.) Exported for the callers' native
+ * fallback: a wllama download is still a download, and belongs in the
+ * same critical section as every other. The signal covers the wait —
+ * a disposed caller queued behind a long download must not wake up
+ * later and start one of its own. */
 const DOWNLOAD_LOCK = 'serf-llm-download';
 let lockQueue: Promise<unknown> = Promise.resolve();
-function withDownloadLock<T>(work: () => Promise<T>): Promise<T> {
+export function withModelDownloadLock<T>(
+  work: () => Promise<T>,
+  signal?: AbortSignal,
+): Promise<T> {
   const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
-  if (locks) return locks.request(DOWNLOAD_LOCK, work) as Promise<T>;
-  const run = lockQueue.then(work);
+  if (locks) {
+    return locks.request(DOWNLOAD_LOCK, signal ? { signal } : {}, work) as Promise<T>;
+  }
+  const run = lockQueue.then(() => {
+    if (signal?.aborted) throw new Error('aborted waiting for the model download lock');
+    return work();
+  });
   lockQueue = run.catch(() => undefined);
   return run;
 }
@@ -166,7 +178,9 @@ export async function ensureModelCached(
   opts: EnsureModelOpts = {},
 ): Promise<EnsureModelResult> {
   const store = opts.store !== undefined ? opts.store : opfsPartialStore();
-  return withDownloadLock(async () => {
+  return withModelDownloadLock(async () => {
+    // The wait may have outlived the caller — granted is not wanted.
+    if (opts.signal?.aborted) throw new Error('model download aborted');
     await sweepWllamaCache(cache, url);
     if (await hasWholeModelSafe(cache, url)) {
       // A death between install and cleanup strands a finished chain
@@ -191,7 +205,7 @@ export async function ensureModelCached(
       if (err instanceof FallBackToWllama) return { status: 'unsupported', resumedFrom: 0 };
       throw err;
     }
-  });
+  }, opts.signal);
 }
 
 /** The download itself, from whatever `prior` bytes exist to the install.
@@ -204,7 +218,10 @@ async function download(
   opts: EnsureModelOpts,
 ): Promise<EnsureModelResult> {
   const fetcher = opts.fetcher ?? fetch;
-  const partBytes = opts.partBytes ?? PART_BYTES;
+  // Anything but a positive integer would turn flush's slicing loop into
+  // a spin; a nonsense override earns the default, not a hang.
+  const wanted = opts.partBytes ?? PART_BYTES;
+  const partBytes = Number.isSafeInteger(wanted) && wanted > 0 ? wanted : PART_BYTES;
 
   // Everything already here — a session that died between the last part
   // landing and the install. Nothing to fetch.
@@ -412,6 +429,13 @@ async function open(
   const fresh = async (): Promise<{ meta: PartialMeta; base: number; response: Response }> => {
     const response = await fetcher(url, init);
     if (!response.ok) throw new Error(`model download failed: HTTP ${response.status}`);
+    if (response.status !== 200) {
+      // An unsolicited partial answer to a whole-file ask — adopt a 206's
+      // shifted bytes at offset zero and every later check would bless
+      // the corruption. A server this noncompliant gets no download.
+      response.body?.cancel().catch(() => {});
+      throw new Error(`model download failed: HTTP ${response.status} to a whole-file request`);
+    }
     return adopt(response);
   };
   if (!prior) return fresh();
@@ -464,11 +488,13 @@ function strongEtag(response: Response): string {
 }
 
 /** Total size as this response states it: Content-Range's full length on
- * a 206, Content-Length otherwise, 0 for "never said". */
+ * a 206, Content-Length otherwise, 0 for "never said" — where absent,
+ * garbage and absurd all count as never said, because a NaN in
+ * particular would sail past every <= 0 guard downstream. */
 function contentTotal(response: Response): number {
   const range = /\/(\d+)$/.exec(response.headers.get('content-range') ?? '');
-  if (range) return Number(range[1]);
-  return Number(response.headers.get('content-length') ?? 0);
+  const total = range ? Number(range[1]) : Number(response.headers.get('content-length') ?? 0);
+  return Number.isSafeInteger(total) && total > 0 ? total : 0;
 }
 
 /**

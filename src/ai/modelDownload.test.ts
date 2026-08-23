@@ -115,6 +115,9 @@ interface Plan {
    * stream — or end it politely when `clean` is set. */
   serve?: number;
   clean?: boolean;
+  /** Answer 206 starting at this offset even though no Range was asked —
+   * the noncompliant server the adopt path must refuse. */
+  shift?: number;
 }
 
 /**
@@ -130,6 +133,8 @@ function weightsHost(
     bytes?: Uint8Array;
     /** A server (or proxy) that never says how big the file is. */
     noLength?: boolean;
+    /** A Content-Length that is not a number at all. */
+    badLength?: boolean;
     /** Headers a CORS layer strips from 206 answers only. */
     hide206?: ('etag' | 'content-range')[];
   } = {},
@@ -152,12 +157,15 @@ function weightsHost(
     if (plan.reject !== undefined) throw new Error(plan.reject);
     if (plan.status !== undefined) return new Response(null, { status: plan.status });
     const match = opts.ranges === false ? null : range && /^bytes=(\d+)-$/.exec(range);
-    const start = match ? Number(match[1]) : 0;
+    const start = plan.shift ?? (match ? Number(match[1]) : 0);
+    const partial = plan.shift !== undefined || match !== null;
     const slice = bytes.slice(start);
     const headers: Record<string, string> = {};
-    if (!opts.noLength) headers['content-length'] = String(slice.length);
+    if (!opts.noLength) {
+      headers['content-length'] = opts.badLength ? 'garbage' : String(slice.length);
+    }
     if (etag !== '') headers.etag = etag;
-    if (match) {
+    if (partial) {
       headers['content-range'] = `bytes ${start}-${bytes.length - 1}/${bytes.length}`;
       for (const name of opts.hide206 ?? []) delete headers[name];
     }
@@ -178,7 +186,7 @@ function weightsHost(
         at = end;
       },
     });
-    return new Response(body, { status: match ? 206 : 200, headers });
+    return new Response(body, { status: partial ? 206 : 200, headers });
   }) as typeof fetch;
   return {
     fetcher,
@@ -404,11 +412,10 @@ describe('ensureModelCached', () => {
     await expect(h.ensure()).rejects.toThrow();
     const controller = new AbortController();
     controller.abort();
-    h.host.plans.push({ reject: 'aborted' });
+    // Turned away at the lock, before any network or cache work — and
+    // the partial survives for the load that comes next.
     await expect(h.ensure({ signal: controller.signal })).rejects.toThrow('aborted');
-    // No plain retry behind the player's back, and the partial survives
-    // for the load that comes next.
-    expect(h.host.calls).toHaveLength(2);
+    expect(h.host.calls).toHaveLength(1);
     expect(h.store.held()).toBe(1000);
   });
 
@@ -540,6 +547,38 @@ describe('ensureModelCached', () => {
     expect(h.backend.files.size).toBe(0);
   });
 
+  it('a Content-Length that is not a number counts as never said', async () => {
+    // NaN in particular would sail past a <= 0 guard and turn a short
+    // stream into an early-termination failure loop instead of the
+    // wllama fallback.
+    const h = harness({ badLength: true });
+    expect(await h.ensure()).toEqual({ status: 'unsupported', resumedFrom: 0 });
+    expect(h.host.calls).toHaveLength(1);
+  });
+
+  it('an unsolicited 206 is refused, never adopted at offset zero', async () => {
+    // A noncompliant server answering a whole-file ask with shifted
+    // bytes: adopting them at zero is the one corruption every later
+    // check would bless, so nothing of it may enter the store.
+    const h = harness();
+    h.host.plans.push({ shift: 1000 });
+    await expect(h.ensure()).rejects.toThrow('HTTP 206 to a whole-file request');
+    expect(h.store.meta()).toBeNull();
+    expect(h.store.held()).toBe(0);
+    expect(h.backend.files.size).toBe(0);
+  });
+
+  it('a nonsense part granularity earns the default, not a hang', async () => {
+    const h = harness();
+    const result = await ensureModelCached(h.cache, URL_, {
+      store: h.store,
+      fetcher: h.host.fetcher,
+      partBytes: 0,
+    });
+    expect(result).toEqual({ status: 'downloaded', resumedFrom: 0 });
+    await expectInstalled(h);
+  });
+
   it('the install frees each part as it copies, even when clear cannot run', async () => {
     // The quota argument: mid-install the store holds the uncopied tail,
     // not a second whole model. A broken clear() must not change that.
@@ -616,7 +655,7 @@ describe('ensureModelCached', () => {
     let tail: Promise<unknown> = Promise.resolve();
     vi.stubGlobal('navigator', {
       locks: {
-        request: (_name: string, work: () => Promise<unknown>) => {
+        request: (_name: string, _opts: unknown, work: () => Promise<unknown>) => {
           const run = tail.then(work);
           tail = run.catch(() => undefined);
           return run;
@@ -639,7 +678,7 @@ describe('ensureModelCached', () => {
       storage: world.storage,
       // Web Locks is part of the store's support contract; a pass-through
       // grant serializes nothing but proves the probe.
-      locks: { request: (_name: string, work: () => Promise<unknown>) => work() },
+      locks: { request: (_name: string, _opts: unknown, work: () => Promise<unknown>) => work() },
     });
     vi.stubGlobal('FileSystemFileHandle', class { createWritable(): void {} });
     const backend = memoryBackend();

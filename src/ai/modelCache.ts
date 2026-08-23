@@ -58,9 +58,15 @@ export interface ModelCache {
 }
 
 /** Whole means both halves agree: the metadata record exists and says
- * this URL, and the bytes on disk are as many as it promised. */
+ * this URL, and the bytes on disk are as many as it promised — and there
+ * are at least as many of them as wllama's own validation floor (16)
+ * demands, so nothing this calls whole gets called invalid over there. */
 function isWholeCopy(entry: ModelCacheEntry, url: string): boolean {
-  return entry.metadata.originalURL === url && entry.metadata.originalSize === entry.size;
+  return (
+    entry.metadata.originalURL === url &&
+    entry.metadata.originalSize === entry.size &&
+    entry.size >= 16
+  );
 }
 
 /**
