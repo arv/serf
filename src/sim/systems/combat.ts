@@ -265,10 +265,13 @@ function towerFire(world: World, buildings: readonly Building[], units: readonly
     if (!rule || !b.garrison) continue;
     const volley = volleyOf(rule, b.garrisonKind, b.garrison);
     if (!volley) continue;
-    if ((b.attackCooldown ?? 0) > 0) {
-      b.attackCooldown!--;
-      continue;
-    }
+    // Decrement first, then fire the tick the count reaches zero — the
+    // unit flow's exact rhythm (cooldownLeft comes down at the top of the
+    // tick and the strike still lands at <= 0), so a garrisoned archer
+    // keeps the field archer's period. Continuing on the zeroing tick too,
+    // as this used to, stretched every volley to cooldownTicks + 1.
+    if ((b.attackCooldown ?? 0) > 0) b.attackCooldown!--;
+    if ((b.attackCooldown ?? 0) > 0) continue;
     const target = acquireForBuilding(units, b, volley.class, volley.range);
     if (!target) continue;
     const defClass = UNIT_DEFS[target.kind].combat?.class;

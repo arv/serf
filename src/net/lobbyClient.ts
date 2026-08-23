@@ -142,10 +142,35 @@ interface SeatStash {
   seats: { kind: 'human' | 'ai' }[];
 }
 
-function readSeatStash(code: string): SeatStash | null {
+/**
+ * One store, one guard. Where site data is blocked, touching storage itself
+ * throws — and the two stores can fail one without the other (a full
+ * session quota with room in local, an embedding that denies just one), so
+ * a shared try would let the session copy's failure take the local copy —
+ * the closed-tab rejoin — down with it.
+ */
+function stashRead(kind: 'session' | 'local'): string | null {
   try {
-    const raw = sessionStorage.getItem(SEAT_STASH) ?? localStorage.getItem(SEAT_STASH);
-    if (!raw) return null;
+    return (kind === 'session' ? sessionStorage : localStorage).getItem(SEAT_STASH);
+  } catch {
+    return null;
+  }
+}
+
+function stashWrite(kind: 'session' | 'local', value: string | null): void {
+  try {
+    const store = kind === 'session' ? sessionStorage : localStorage;
+    if (value === null) store.removeItem(SEAT_STASH);
+    else store.setItem(SEAT_STASH, value);
+  } catch {
+    // Denied or full: this copy of the seat just doesn't happen.
+  }
+}
+
+function readSeatStash(code: string): SeatStash | null {
+  const raw = stashRead('session') ?? stashRead('local');
+  if (!raw) return null;
+  try {
     const stash = JSON.parse(raw) as SeatStash;
     if (typeof stash.token !== 'string') return null;
     // 'new' is the host's URL — any stashed seat in this tab is the match
@@ -160,8 +185,8 @@ function readSeatStash(code: string): SeatStash | null {
  * menu is fresh intent, and a stashed seat from the last match must not
  * quietly sit back down in it. */
 export function clearSeatStash(): void {
-  sessionStorage.removeItem(SEAT_STASH);
-  localStorage.removeItem(SEAT_STASH);
+  stashWrite('session', null);
+  stashWrite('local', null);
 }
 
 /**
@@ -292,8 +317,8 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
             playerId: msg.playerId,
             seats: msg.seats,
           } satisfies SeatStash);
-        sessionStorage.setItem(SEAT_STASH, stashJson);
-        localStorage.setItem(SEAT_STASH, stashJson);
+        stashWrite('session', stashJson);
+        stashWrite('local', stashJson);
         unmount();
         ws.close();
         resolve({

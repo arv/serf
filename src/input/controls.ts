@@ -673,6 +673,17 @@ export class Controls {
     this.#dragStart = null;
     this.#dragging = false;
     this.#bandEl.style.display = 'none';
+    // An armed marquee whose drag was taken away: give the camera its
+    // finger back and drop the claim on this gesture. Without this, the
+    // pan stayed disabled until some later marquee resolved — and if the
+    // player disarmed the button in between, the stale #bandTouch turned
+    // their next plain pan into a band-select. bandArm itself survives:
+    // the button's one-shot offer was interrupted, not spent, so the next
+    // drag still draws the band.
+    if (this.#bandTouch) {
+      this.#bandTouch = false;
+      if (this.#rig) this.#rig.touchPanEnabled = true;
+    }
   };
 
   #onCancel = (): void => {
