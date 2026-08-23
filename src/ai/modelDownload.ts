@@ -24,20 +24,27 @@
  *   - A part file is committed atomically (OPFS writables swap on close),
  *     so a part either exists whole or not at all, and the parts must
  *     chain gaplessly from zero to count. Anything else is discarded.
- *   - Resuming requires the stored ETag to still match the server's; a
- *     changed file — or one whose server never named an ETag or a total —
- *     starts over rather than risk splicing two versions together.
+ *   - Resuming requires the server to prove continuity: a strong ETag
+ *     equal to the stored one, and a Content-Range that picks up exactly
+ *     where the parts end in a file of the promised size. A changed file,
+ *     a server that never named the proof, or a CORS layer that hides it
+ *     all start over rather than risk splicing two versions together.
  *   - Each metadata record carries a random attempt id and parts are named
  *     with it, so a straggling write from an abandoned attempt can never
  *     join a newer chain.
+ *   - One download runs at a time per origin (a Web Lock, where the
+ *     browser has one): the menu's warm-up and a match's load can meet
+ *     around the handoff, and queue instead of interleaving over the one
+ *     staging directory.
  *   - A stream that ends cleanly but early is a failure, not a finish:
  *     nothing short of the promised size is ever installed.
  *
  * And to never do worse than the old behavior: a browser whose OPFS can't
- * take main-thread writes gets 'unsupported' and the callers fall back to
- * wllama's own downloader, and a resume request the network refuses
- * outright (a proxy or CORS layer that balks at Range) retries once as the
- * plain fetch it would have been anyway.
+ * take main-thread writes — or whose storage exists but refuses to open —
+ * gets 'unsupported' and the callers fall back to wllama's own downloader,
+ * and a resume request the network refuses outright (a proxy or CORS
+ * layer that balks at Range) retries once as the plain fetch it would
+ * have been anyway.
  */
 
 import { discardPartialModel, hasWholeModel, type ModelCache } from './modelCache.ts';
@@ -115,6 +122,16 @@ export interface EnsureModelResult {
  * to lose casually, large enough that a 400 MB model is ~50 files. */
 const PART_BYTES = 8 * 1024 * 1024;
 
+/** One download at a time per origin. Cooperative and optional: without
+ * the API, the attempt-id fencing still keeps an overlap merely wasteful
+ * (a lost attempt at worst), never corrupting. */
+const DOWNLOAD_LOCK = 'serf-llm-download';
+function withDownloadLock<T>(work: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  if (!locks) return work();
+  return locks.request(DOWNLOAD_LOCK, work) as Promise<T>;
+}
+
 /**
  * Get the model into wllama's cache, resuming any earlier attempt's bytes.
  * Sweeps wllama-native wreckage first (see modelCache.ts) whatever else
@@ -126,13 +143,42 @@ export async function ensureModelCached(
   opts: EnsureModelOpts = {},
 ): Promise<EnsureModelResult> {
   await sweepWllamaCache(cache, url);
-  if (await hasWholeModel(cache, url)) return { status: 'cached', resumedFrom: 0 };
   const store = opts.store !== undefined ? opts.store : opfsPartialStore();
+  if (await hasWholeModelSafe(cache, url)) {
+    // A death between install and cleanup strands a finished chain beside
+    // the installed model; sweep it whenever the hit is confirmed, or the
+    // duplicate would hold quota forever.
+    if (store) await store.clear().catch(() => {});
+    return { status: 'cached', resumedFrom: 0 };
+  }
   if (!store) return { status: 'unsupported', resumedFrom: 0 };
+  return withDownloadLock(async () => {
+    // The lock may have been held by a download that finished the job.
+    if (await hasWholeModelSafe(cache, url)) return { status: 'cached', resumedFrom: 0 };
+    let prior: Awaited<ReturnType<typeof readState>>;
+    try {
+      prior = await readState(store, url);
+    } catch {
+      // The store's API exists but its storage refuses to open (site data
+      // blocked, quota machinery wedged): not this module's download to
+      // make. wllama's own path gets its chance instead.
+      return { status: 'unsupported', resumedFrom: 0 };
+    }
+    return download(cache, url, store, prior, opts);
+  });
+}
 
+/** The download itself, from whatever `prior` bytes exist to the install.
+ * Runs under the lock. */
+async function download(
+  cache: InstallableModelCache,
+  url: string,
+  store: PartialStore,
+  prior: Awaited<ReturnType<typeof readState>>,
+  opts: EnsureModelOpts,
+): Promise<EnsureModelResult> {
   const fetcher = opts.fetcher ?? fetch;
   const partBytes = opts.partBytes ?? PART_BYTES;
-  const prior = await readState(store, url);
 
   // Everything already here — a session that died between the last part
   // landing and the install. Nothing to fetch.
@@ -208,6 +254,17 @@ export async function ensureModelCached(
   return { status: 'downloaded', resumedFrom };
 }
 
+/** The whole-model probe, unable to take the download down with it: a
+ * cache that cannot be listed right now is treated as holding nothing —
+ * the download that follows has better odds than giving up here. */
+async function hasWholeModelSafe(cache: ModelCache, url: string): Promise<boolean> {
+  try {
+    return await hasWholeModel(cache, url);
+  } catch {
+    return false;
+  }
+}
+
 /** modelCache.ts's sweep, best-effort as ever: a cache that cannot even be
  * listed is not a reason to skip the download the player is waiting for. */
 async function sweepWllamaCache(cache: ModelCache, url: string): Promise<void> {
@@ -227,13 +284,17 @@ async function sweepWllamaCache(cache: ModelCache, url: string): Promise<void> {
  * that metadata's attempt) chaining gaplessly from zero. Anything less is
  * cleared and reported as nothing — a partial that cannot be trusted is
  * exactly the poison this module exists to not have.
+ *
+ * Also the storage probe: listParts runs whether or not metadata exists,
+ * so an OPFS that refuses to open rejects here — before any network — and
+ * the caller can fall back to wllama's own downloader.
  */
 async function readState(
   store: PartialStore,
   url: string,
 ): Promise<{ meta: PartialMeta; parts: PartialPart[]; size: number } | null> {
   const meta = await store.readMeta();
-  const all = meta ? await store.listParts() : [];
+  const all = await store.listParts();
   const parts = chainParts(all, meta);
   const size = parts.reduce((sum, part) => sum + part.size, 0);
   const usable =
@@ -323,15 +384,20 @@ async function open(
     throw new Error(`model download failed: HTTP ${response.status}`);
   }
   // 206: the range came back, but only the validators prove it is a range
-  // of *our* file. An ETag the server states must match the stored one,
-  // and a Content-Range it states must start where the parts end; either
-  // stated otherwise means the file changed and the bytes must not mix.
-  // (Stated at all is not guaranteed — CORS may hide both headers — and
-  // then the 206 to our single-range request is taken at its word.)
+  // of *our* file: a strong ETag equal to the stored one, and a
+  // Content-Range picking up exactly where the parts end in a file of the
+  // size the record promised. Any of it missing or saying otherwise — a
+  // changed file, a server that never named the proof, a CORS layer
+  // hiding it — means the bytes must not be mixed; a fresh start is never
+  // worse than a wrong splice.
   const etag = strongEtag(response);
-  const range = /^bytes (\d+)-\d+\/(\d+|\*)$/.exec(response.headers.get('content-range') ?? '');
-  const startsWrong = range !== null && Number(range[1]) !== prior.size;
-  if ((etag !== '' && etag !== prior.meta.etag) || startsWrong) {
+  const range = /^bytes (\d+)-\d+\/(\d+)$/.exec(response.headers.get('content-range') ?? '');
+  const provenOurs =
+    etag === prior.meta.etag &&
+    range !== null &&
+    Number(range[1]) === prior.size &&
+    Number(range[2]) === prior.meta.total;
+  if (!provenOurs) {
     response.body?.cancel().catch(() => {});
     return fresh();
   }
@@ -388,7 +454,9 @@ async function install(
     // way so the record is indistinguishable from its own.
     etag: meta.etag.replace(/[^A-Za-z0-9]/g, ''),
   });
-  await store.clear();
+  // Best-effort: the model is installed either way, and a chain this
+  // sweep misses is caught by the one every cache hit runs.
+  await store.clear().catch(() => {});
 }
 
 function concat(chunks: Uint8Array[], length: number): Uint8Array {

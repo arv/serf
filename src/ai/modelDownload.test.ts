@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CacheManager, ModelManager } from '@wllama/wllama/esm/index.js';
 import {
   ensureModelCached,
@@ -115,7 +115,15 @@ interface Plan {
  * queue of per-request plans — an empty queue means every request succeeds
  * whole.
  */
-function weightsHost(opts: { etag?: string; ranges?: boolean; bytes?: Uint8Array } = {}): {
+function weightsHost(
+  opts: {
+    etag?: string;
+    ranges?: boolean;
+    bytes?: Uint8Array;
+    /** Headers a CORS layer strips from 206 answers only. */
+    hide206?: ('etag' | 'content-range')[];
+  } = {},
+): {
   fetcher: typeof fetch;
   calls: { range: string | null }[];
   plans: Plan[];
@@ -138,7 +146,10 @@ function weightsHost(opts: { etag?: string; ranges?: boolean; bytes?: Uint8Array
     const slice = bytes.slice(start);
     const headers: Record<string, string> = { 'content-length': String(slice.length) };
     if (etag !== '') headers.etag = etag;
-    if (match) headers['content-range'] = `bytes ${start}-${bytes.length - 1}/${bytes.length}`;
+    if (match) {
+      headers['content-range'] = `bytes ${start}-${bytes.length - 1}/${bytes.length}`;
+      for (const name of opts.hide206 ?? []) delete headers[name];
+    }
     const cut = plan.serve ?? slice.length;
     let at = 0;
     const body = new ReadableStream<Uint8Array>({
@@ -201,6 +212,66 @@ function harness(hostOpts: Parameters<typeof weightsHost>[0] = {}): {
 }
 
 const quiet = { debug: () => {}, log: () => {}, warn: () => {}, error: () => {} };
+
+/**
+ * A miniature OPFS: named directories of named byte arrays, swap-on-close
+ * writables — just enough surface for opfsPartialStore to run for real,
+ * so its binary round-trip, part-name parsing and recursive clear are
+ * covered and not merely believed.
+ */
+function fakeOpfs(): {
+  storage: { getDirectory: () => Promise<unknown> };
+  dirs: Map<string, Map<string, Uint8Array>>;
+} {
+  const dirs = new Map<string, Map<string, Uint8Array>>();
+  const notFound = (): Error => Object.assign(new Error('not found'), { name: 'NotFoundError' });
+  const fileHandle = (files: Map<string, Uint8Array>, name: string) => ({
+    kind: 'file' as const,
+    getFile: async () => new Blob([files.get(name) as BlobPart]),
+    createWritable: async () => {
+      // Swap semantics, like the real thing: nothing lands until close.
+      const chunks: BlobPart[] = [];
+      return {
+        write: async (data: Uint8Array | string) => {
+          chunks.push(typeof data === 'string' ? new TextEncoder().encode(data) : (data as BlobPart));
+        },
+        close: async () => {
+          files.set(name, new Uint8Array(await new Blob(chunks).arrayBuffer()));
+        },
+      };
+    },
+  });
+  const dirHandle = (files: Map<string, Uint8Array>) => ({
+    getFileHandle: async (name: string, o?: { create?: boolean }) => {
+      if (!files.has(name)) {
+        if (!o?.create) throw notFound();
+        files.set(name, new Uint8Array());
+      }
+      return fileHandle(files, name);
+    },
+    entries: async function* () {
+      for (const name of [...files.keys()]) yield [name, fileHandle(files, name)] as const;
+    },
+  });
+  const root = {
+    getDirectoryHandle: async (name: string, o?: { create?: boolean }) => {
+      if (!dirs.has(name)) {
+        if (!o?.create) throw notFound();
+        dirs.set(name, new Map());
+      }
+      return dirHandle(dirs.get(name)!);
+    },
+    removeEntry: async (name: string) => {
+      if (!dirs.has(name)) throw notFound();
+      dirs.delete(name);
+    },
+  };
+  return { storage: { getDirectory: async () => root }, dirs };
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 /** What the whole exercise is for: the model sits in wllama's cache
  * exactly as its own download would, bytes and record agreeing. */
@@ -373,6 +444,26 @@ describe('ensureModelCached', () => {
     await expectInstalled(h);
   });
 
+  it('a 206 that hides its ETag is not proof enough — fresh start', async () => {
+    // The stored partial had a strong ETag, but the resume answer names
+    // none (a CORS layer between): nothing proves it is the same file.
+    const h = harness({ hide206: ['etag'] });
+    h.host.plans.push({ serve: 1000 });
+    await expect(h.ensure()).rejects.toThrow();
+    expect(await h.ensure()).toEqual({ status: 'downloaded', resumedFrom: 0 });
+    expect(h.host.calls.map((c) => c.range)).toEqual([null, 'bytes=1000-', null]);
+    await expectInstalled(h);
+  });
+
+  it('a 206 that hides its Content-Range is not proof enough — fresh start', async () => {
+    const h = harness({ hide206: ['content-range'] });
+    h.host.plans.push({ serve: 1000 });
+    await expect(h.ensure()).rejects.toThrow();
+    expect(await h.ensure()).toEqual({ status: 'downloaded', resumedFrom: 0 });
+    expect(h.host.calls.map((c) => c.range)).toEqual([null, 'bytes=1000-', null]);
+    await expectInstalled(h);
+  });
+
   it('a straggler from an abandoned attempt never joins the chain', async () => {
     // The race this guards: an aborted attempt's last flush landing after
     // a newer attempt has cleared and restarted. Its part carries the old
@@ -404,6 +495,97 @@ describe('ensureModelCached', () => {
     });
     expect(result).toEqual({ status: 'unsupported', resumedFrom: 0 });
     expect(h.host.calls).toHaveLength(0);
+  });
+
+  it('a store whose storage refuses to open means unsupported, not failure', async () => {
+    // The API exists (the store was constructed) but the disk says no —
+    // site data blocked, quota machinery wedged. The caller must get its
+    // wllama fallback, not a dead strategist.
+    const h = harness();
+    h.store.listParts = () => Promise.reject(new Error('storage blocked'));
+    expect(await h.ensure()).toEqual({ status: 'unsupported', resumedFrom: 0 });
+    expect(h.host.calls).toHaveLength(0);
+  });
+
+  it('a cache hit sweeps any partial stranded beside it', async () => {
+    // The crash window: install succeeded, the cleanup after it did not.
+    // Without the sweep the finished chain would double the model's
+    // footprint forever, because every later call stops at "cached".
+    const h = harness();
+    await h.ensure();
+    await h.store.writeMeta({ url: URL_, etag: '"v1"', total: SIZE, attempt: 'aaaa' });
+    await h.store.writePart('aaaa', 0, BYTES.slice(0, 1024));
+    expect(await h.ensure()).toEqual({ status: 'cached', resumedFrom: 0 });
+    expect(h.store.meta()).toBeNull();
+    expect(h.store.held()).toBe(0);
+  });
+
+  it('a cache that cannot be listed is a miss, not a dead end', async () => {
+    // The probe must not take the download down with it: list() failing
+    // transiently should cost a redundant fetch at worst.
+    const backend = memoryBackend();
+    const cache = new CacheManager([backend]);
+    const store = memoryStore();
+    const host = weightsHost();
+    const result = await ensureModelCached(
+      {
+        list: () => Promise.reject(new Error('transient storage error')),
+        getNameFromURL: (url) => cache.getNameFromURL(url),
+        delete: (name) => cache.delete(name),
+        write: (name, stream, metadata) => cache.write(name, stream, metadata),
+      },
+      URL_,
+      { store, fetcher: host.fetcher, partBytes: PART },
+    );
+    expect(result).toEqual({ status: 'downloaded', resumedFrom: 0 });
+    expect(backend.files.get(await cacheKey(URL_))).toEqual(BYTES);
+  });
+
+  it('overlapping downloads queue on the lock, and the second finds the first’s work', async () => {
+    // The menu-to-match handoff can have two callers over one staging
+    // directory; with a Web Lock they serialize, and the waiter's re-check
+    // turns its download into a cache hit — one fetch, not two.
+    let tail: Promise<unknown> = Promise.resolve();
+    vi.stubGlobal('navigator', {
+      locks: {
+        request: (_name: string, work: () => Promise<unknown>) => {
+          const run = tail.then(work);
+          tail = run.catch(() => undefined);
+          return run;
+        },
+      },
+    });
+    const h = harness();
+    const [first, second] = await Promise.all([h.ensure(), h.ensure()]);
+    expect([first.status, second.status].sort()).toEqual(['cached', 'downloaded']);
+    expect(h.host.calls).toHaveLength(1);
+    await expectInstalled(h);
+  });
+
+  it('carries a download across loads through the real OPFS store', async () => {
+    // The production store over a faked OPFS: binary parts, the JSON
+    // record, offset-named files and the recursive clear all round-trip,
+    // with fresh handles standing in for the next page load.
+    const world = fakeOpfs();
+    vi.stubGlobal('navigator', { storage: world.storage });
+    vi.stubGlobal('FileSystemFileHandle', class { createWritable(): void {} });
+    const backend = memoryBackend();
+    const cache = new CacheManager([backend]);
+    const host = weightsHost();
+    const ensure = (): ReturnType<typeof ensureModelCached> =>
+      ensureModelCached(cache, URL_, {
+        store: opfsPartialStore(),
+        fetcher: host.fetcher,
+        partBytes: PART,
+      });
+    host.plans.push({ serve: 1000 });
+    await expect(ensure()).rejects.toThrow('connection lost');
+    expect(world.dirs.has('serf-llm-download')).toBe(true);
+    expect(await ensure()).toEqual({ status: 'downloaded', resumedFrom: 1000 });
+    expect(host.calls[1]).toEqual({ range: 'bytes=1000-' });
+    expect(backend.files.get(await cacheKey(URL_))).toEqual(BYTES);
+    // Installed and swept: the staging directory is gone.
+    expect(world.dirs.has('serf-llm-download')).toBe(false);
   });
 });
 
