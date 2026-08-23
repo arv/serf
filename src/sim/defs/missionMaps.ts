@@ -3,14 +3,14 @@ import type { MapFile } from '../mapFile.ts';
 
 /**
  * The campaign's authored ground, loaded on demand. Dynamic imports on
- * purpose: the six map files are ~250 KB of JSON each, and a static
+ * purpose: the seven map files are ~250 KB of JSON each, and a static
  * import anywhere in the sim would sink them all into the boot bundle of
  * every surface that links the sim — the menu included. This table is the
  * only doorway; each file ships as its own code-split chunk and arrives
  * only when its mission actually boots (the module registry memoizes, so
  * a re-boot pays nothing).
  *
- * A table of six thunks rather than one `import(\`./maps/${id}\`)`: the
+ * A table of seven thunks rather than one `import(\`./maps/${id}\`)`: the
  * bundler statically sees exactly which files are reachable, and a
  * MissionId that somehow escaped parseMissionId fails here at compile
  * time, not as a 404 at boot. The thunks import the maps/<id>.ts wrappers
@@ -23,6 +23,7 @@ const MISSION_MAPS: Record<MissionId, () => Promise<{ default: MapFile }>> = {
   clearing: () => import('./maps/clearing.ts'),
   breadAndWater: () => import('./maps/breadAndWater.ts'),
   ledger: () => import('./maps/ledger.ts'),
+  hammerAndHaft: () => import('./maps/hammerAndHaft.ts'),
   levy: () => import('./maps/levy.ts'),
   holdTheValley: () => import('./maps/holdTheValley.ts'),
   rivalBanner: () => import('./maps/rivalBanner.ts'),

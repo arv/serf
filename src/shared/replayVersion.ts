@@ -20,6 +20,15 @@
  * directly.
  */
 /**
+ * 28: the campaign grew a fourth commission, Hammer and Haft, with an
+ * authored map of its own. Nothing about how the sim ticks moved — but a
+ * mission id is config, and an older build does not know this one:
+ * sanitizeConfig drops the id it cannot parse and replays the log in a
+ * bare seed-350 sandbox, with none of the mission's stock, techs,
+ * prebuilt village or objectives. Version equality has to mean the world
+ * rebuilds the same, so a new mission map is a bump — the rule
+ * defs/maps/README.md states for any map that lands or is tweaked.
+ *
  * 27: the tower's halt lever is the whole roof. Halting one used to stand
  * down its levy alone — soldiers were exempt, on the grounds that an idle
  * archer costs the village nothing to keep. What that bought was a tower
@@ -171,4 +180,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 27;
+export const REPLAY_VERSION = 28;
