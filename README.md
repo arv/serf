@@ -15,9 +15,10 @@ pnpm dev
 - **Goal**: destroy the bandit camp in the far corner. If your castle falls,
   the game is lost. The first raid waits out an opening peace that scales
   with the map — about 13.5 minutes on the default 96×96 valley.
-- **Campaign**: six commissions that double as the tutorial (start menu →
+- **Campaign**: seven commissions that double as the tutorial (start menu →
   Campaign, or `?mission=<id>`): camp-raising, the bread chain, silver and
-  research, the first raid, then the full game — and a bonus first rival.
+  research, the Smith and the tools every post is staffed with, the first
+  raid, then the full game — and a bonus first rival.
   Objectives are judged by the sim; hints are a separate layer you can hide
   and finishing a commission unseals the next (see
   `docs/plan-campaign-tutorial.md`).
@@ -172,6 +173,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Backspace | Jump to your keep |
 | Space | Jump to the last alert |
 | Mouse wheel | Zoom |
+| **Shift** + wheel / **Insert**, **Delete** / **[**, **]** | Turn the camera — 15° a notch, or hold the key; two notches square the default 30° view to the map, and the minimap frame with it. The brackets are for keyboards without an Insert key. The map editor's camera does not turn — its view toggle is how that screen changes its angle, and the brackets size the brush there |
 | Esc | Unwind one mode: chord → order → placement → open sheet → selection → fullscreen |
 | ` (backquote) | Logistics debug overlay |
 | `?seed=123` URL param | Pick a map seed |
@@ -179,7 +181,9 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 Shortcut letters are taught in place — the HUD bolds the letter inside its
 own label (**B**uild, We**l**l, **H**ire Serf) and shows nothing at all on a
 device with no keyboard. Camera control follows Warcraft III / StarCraft II:
-edge scroll (`input/edgeScroll.ts`), arrows, middle-drag, wheel zoom. WASD
+edge scroll (`input/edgeScroll.ts`), arrows, middle-drag, wheel zoom, and a
+camera that turns on Insert/Delete (Shift+wheel and [ ] too) over a minimap
+that stays north-up. WASD
 deliberately does *not* pan — those letters belong to the orders and the
 build chord, and `A` cannot both pan left and attack-move.
 

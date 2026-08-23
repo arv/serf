@@ -54,6 +54,7 @@ import { fullscreen, guardEsc } from '../ui/fullscreen';
 import { play } from '../audio/audio';
 import { screenToGround, worldToScreen } from './picking';
 import { keyDigit, matchingGroup } from './groups';
+import { foreignChord, typingInto } from './typing';
 import type { SceneSync } from '../render/sceneSync';
 import type { GhostPlacement } from '../render/ghost';
 import type { FogQuery } from '../render/fogOfWar';
@@ -339,8 +340,11 @@ export class Controls {
    */
   #onKey = (e: KeyboardEvent): void => {
     // Chords belong to the browser and the OS (⌘M minimises), and a key
-    // typed into a field is being typed, not pressed.
-    if (e.metaKey || e.altKey || e.isComposing) return;
+    // typed into a field is being typed, not pressed. Both tests live in
+    // input/typing.ts, which CameraRig's own listeners share — the rig
+    // sits on the window too, and a map being renamed in the editor must
+    // not turn the camera on every Delete.
+    if (foreignChord(e)) return;
     // Ctrl stopped being a blanket disqualifier the day control groups
     // landed: Ctrl+1 is half of how a group is stamped. Everything else
     // Ctrl touches is still the browser's.
@@ -355,13 +359,7 @@ export class Controls {
     // every platform it ships on.
     if (e.ctrlKey && keyDigit(e) === null) return;
     const t = e.target;
-    if (
-      t instanceof HTMLInputElement ||
-      t instanceof HTMLTextAreaElement ||
-      (t instanceof HTMLElement && t.isContentEditable)
-    ) {
-      return;
-    }
+    if (typingInto(t)) return;
 
     // Both spellings, for the reason keyLetter gives: `code` comes back
     // empty on some input paths, and Esc is the one key that must never be
@@ -1093,8 +1091,19 @@ export class Controls {
     this.deselectAll();
   }
 
+  /**
+   * The world under a still pointer has changed — the camera moved. Ask
+   * for the same scan a pointermove asks for, on the same once-a-frame
+   * budget: the deferral is about how often the scan runs, not about what
+   * is allowed to trigger it.
+   */
+  markHoverDirty(): void {
+    this.#hoverDirty = true;
+  }
+
   /** Run the deferred hover scan (and the placement ghost, which defers
-   * from pointermove the same way), if the pointer moved since last frame. */
+   * from pointermove the same way), if the pointer moved since last frame
+   * — or the camera did, which moves the world under it just the same. */
   updateHoverIfDirty(): void {
     if (!this.#hoverDirty) return;
     this.#hoverDirty = false;
@@ -1215,6 +1224,17 @@ export class Controls {
     this.#setSel(sel);
   }
 
+  /**
+   * Every one of yours the band closed over.
+   *
+   * The card goes with it, exactly as a click's does. A unit selection and
+   * an open building are mutually exclusive — SelectionPanel draws the
+   * "N units selected" card only where no building is open — and the band
+   * was the one gesture that picked people up without saying so. Lasso a
+   * squad with the keep's card standing and the squad was selected, rings
+   * and all, while the HUD went on showing the keep: the whole gesture
+   * read as having done nothing.
+   */
   #selectInRect(x0: number, y0: number, x1: number, y1: number, additive: boolean): void {
     const now = performance.now();
     const minX = Math.min(x0, x1);
@@ -1229,6 +1249,7 @@ export class Controls {
         sel.add(id);
       }
     }
+    setSelectedBuilding(null);
     this.#setSel(sel);
   }
 

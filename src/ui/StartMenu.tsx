@@ -1058,7 +1058,7 @@ export function StartMenu(props: StartMenuProps) {
                     </For>
                   </div>
                   <div class="row-hint">
-                    A tutorial in six commissions — hints can be hidden in the first minute.
+                    A tutorial in seven commissions — hints can be hidden in the first minute.
                     Finishing one unseals the next.
                   </div>
                 </div>

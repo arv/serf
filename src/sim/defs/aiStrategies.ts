@@ -262,8 +262,12 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // the gate back to soldiery measures worse, not better, and does so
       // on both seed ranges independently: this seat takes 56 campaigns in
       // 64 with the early gate against 59 with this one, and the deck as a
-      // whole 209 in 256 against 212. An early tower stands paused through
-      // the quiet opening and its archers arrive no sooner for it.
+      // whole 209 in 256 against 212. An early tower stands empty through
+      // the quiet opening either way: the seat mans it once there is an
+      // archer standing loose to climb it, and gating on the bow is what
+      // decides when that is. (Those campaign counts were measured before
+      // the halt lever took the soldiers with it; the gate they picked is
+      // unchanged, the margins want re-measuring.)
       // (tools/aiLab/balance.ts)
       { type: 'guardTower', count: 2, anchor: 'base', after: 'archery', needs: 'barracks' },
       // The wide half of the plan waits for the iron chain to stand: hired

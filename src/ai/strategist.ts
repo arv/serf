@@ -1,6 +1,6 @@
 import { parseAdvice, toOverride, type StrategyAdvice } from './advice.ts';
 import { POSTURE_JSON_SCHEMA } from './posture.ts';
-import { discardPartialModel, type ModelCache } from './modelCache.ts';
+import { ensureModelCached, withModelDownloadLock } from './modelDownload.ts';
 import { buildMessages, type ChatMessage } from './prompt.ts';
 import type { AiWorldSummary, SeatKnobs } from './summary.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
@@ -173,6 +173,10 @@ export class LlmStrategist {
    * visible again by the time the abort's rejection lands, and the flag is
    * what keeps that late rejection from counting as a model failure. */
   #currentPaused = false;
+  /** Aborts a model download still in flight when the match ends — the
+   * bytes it already banked stay in the partial store for the next load
+   * to resume (modelDownload.ts). */
+  readonly #loadAbort = new AbortController();
 
   constructor(opts: LlmStrategistOpts) {
     this.#opts = opts;
@@ -210,6 +214,7 @@ export class LlmStrategist {
 
   dispose(): void {
     this.#disposed = true;
+    this.#loadAbort.abort();
     this.#engine = null;
     this.#releaseWllama();
   }
@@ -344,23 +349,48 @@ export class LlmStrategist {
       { logger: LoggerWithoutDebug, allowOffline: true },
     );
     this.#wllama = wllama;
-    // Before the load, not after a failure: a half-written GGUF from an
-    // earlier session is a permanent "Model file not found" otherwise —
-    // and the menu's aborted warm-up is the likeliest way to have one.
-    await sweepPartialModel(wllama.cacheManager);
-    await wllama.loadModelFromUrl(LLM_MODEL_URL, {
-      n_ctx: N_CTX,
-      n_gpu_layers: GPU_LAYERS,
-      progressCallback: ({ loaded, total }) => {
-        if (!this.#disposed && total > 0) {
-          this.#opts.onStatus({
-            state: 'loading',
-            pct: Math.round((loaded / total) * 100),
-            text: 'downloading model',
-          });
-        }
-      },
+    const loading = ({ loaded, total }: { loaded: number; total: number }): void => {
+      if (!this.#disposed && total > 0) {
+        this.#opts.onStatus({
+          state: 'loading',
+          pct: Math.round((loaded / total) * 100),
+          text: 'downloading model',
+        });
+      }
+    };
+    // The bytes first, resumably: an unfinished download from the menu's
+    // warm-up — or any earlier session — is picked up where it stopped
+    // instead of starting over, and wllama's own wreckage is swept out of
+    // the way (see modelDownload.ts). 'unsupported' just means no
+    // resumable storage in this browser, and then loadModelFromUrl below
+    // downloads for itself exactly as it always did.
+    await ensureModelCached(wllama.cacheManager, LLM_MODEL_URL, {
+      onProgress: loading,
+      signal: this.#loadAbort.signal,
     });
+    // ensureModelCached's install step does not watch the signal, so a
+    // dispose during it resolves rather than rejects — and the wllama
+    // below has already been released. Stop here instead of loading a
+    // model into a worker that is gone. (.aborted, not throwIfAborted():
+    // the latter is missing from browsers old enough to still reach the
+    // native fallback below.)
+    if (this.#loadAbort.signal.aborted) throw new Error('match ended during the model load');
+    // Under the download lock: on the 'unsupported' path this call is
+    // also the download, and a download belongs in the same critical
+    // section as every other (modelDownload.ts). On a cache hit the lock
+    // is uncontended and costs nothing.
+    await withModelDownloadLock(
+      () =>
+        wllama.loadModelFromUrl(LLM_MODEL_URL, {
+          n_ctx: N_CTX,
+          n_gpu_layers: GPU_LAYERS,
+          progressCallback: loading,
+          // A disposed match must stop the fallback fetch too; a cache
+          // hit never consults it.
+          signal: this.#loadAbort.signal,
+        }),
+      this.#loadAbort.signal,
+    );
     let schemaBroken = false;
     return {
       complete: async (messages, schemaJson, signal) => {
@@ -400,33 +430,17 @@ export class LlmStrategist {
 }
 
 /**
- * A partial download is worse than none — see modelCache.ts. Best-effort:
- * a cache that cannot even be listed is not a reason to skip the attempt,
- * since the download is what the player is waiting for.
- */
-async function sweepPartialModel(cache: ModelCache): Promise<void> {
-  try {
-    const discarded = await discardPartialModel(cache, LLM_MODEL_URL);
-    if (discarded > 0) {
-      console.warn('[strategist] discarded an unfinished model download; fetching it again');
-    }
-  } catch (err) {
-    console.warn(`[strategist] could not check the model cache: ${String(err)}`);
-  }
-}
-
-/**
  * Warm the model cache from the start menu, so the download runs while the
  * player is still picking opponents instead of through the opening minutes
- * of the match. Pure download — wllama's ModelManager writes the GGUF into
- * cache storage without loading a byte of it, so the menu spends no CPU
- * and no memory beyond the fetch. A finished download survives into the
- * match, where the strategist finds the file on disk and skips the network.
+ * of the match. Pure download — no engine, no CPU, no model memory beyond
+ * the fetch. A finished download survives into the match, where the
+ * strategist finds the file on disk and skips the network.
  *
- * A launch mid-download does NOT resume: wllama has no notion of a partial
- * file, so the match starts the fetch over — and the leftover bytes are
- * swept first, because left in place they would poison every later attempt
- * (modelCache.ts).
+ * A launch mid-download no longer starts the fetch over: the bytes the
+ * warm-up banked persist between loads, and the match — or tomorrow's
+ * menu — resumes where they stop (modelDownload.ts). Only a browser
+ * without resumable storage still restarts from zero, through wllama's
+ * own downloader, the way every load once did.
  */
 export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () => void } {
   const controller = new AbortController();
@@ -434,33 +448,38 @@ export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () 
   const report = (status: LlmStatus): void => {
     if (!disposed) onStatus(status);
   };
+  const progress = ({ loaded, total }: { loaded: number; total: number }): void => {
+    if (total > 0) {
+      report({
+        state: 'loading',
+        pct: Math.round((loaded / total) * 100),
+        text: 'downloading model',
+      });
+    }
+  };
   void (async () => {
     try {
-      const { ModelManager } = await import('@wllama/wllama/esm/index.js');
-      const manager = new ModelManager();
-      const models = await manager.getModels();
-      if (models.some((m) => m.url === LLM_MODEL_URL)) {
-        report({ state: 'ready' });
-        return;
-      }
-      if (disposed) return;
-      // getModels only lists whole models, so reaching here means either a
-      // clean cache or the wreckage of an earlier attempt. Clear the second
-      // out before asking for the file, or wllama mistakes it for a hit.
-      await sweepPartialModel(manager.cacheManager);
-      if (disposed) return;
-      await manager.downloadModel(LLM_MODEL_URL, {
+      const { CacheManager, ModelManager } = await import('@wllama/wllama/esm/index.js');
+      const cache = new CacheManager();
+      const ensured = await ensureModelCached(cache, LLM_MODEL_URL, {
         signal: controller.signal,
-        progressCallback: ({ loaded, total }) => {
-          if (total > 0) {
-            report({
-              state: 'loading',
-              pct: Math.round((loaded / total) * 100),
-              text: 'downloading model',
-            });
-          }
-        },
+        onProgress: progress,
       });
+      if (ensured.status === 'unsupported') {
+        // No resumable storage in this browser: wllama's own downloader
+        // over the same cache, exactly as before — ensureModelCached has
+        // already swept any wreckage out of its way (modelCache.ts), and
+        // the download lock keeps a concurrent caller from sweeping this
+        // one's half-written file in turn.
+        await withModelDownloadLock(
+          () =>
+            new ModelManager({ cacheManager: cache }).downloadModel(LLM_MODEL_URL, {
+              signal: controller.signal,
+              progressCallback: progress,
+            }),
+          controller.signal,
+        );
+      }
       report({ state: 'ready' });
     } catch (err) {
       report({

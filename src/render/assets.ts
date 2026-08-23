@@ -180,8 +180,8 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
       name: 'fisheryPier',
     },
     // On the ridge, where the pack's sailing ship was — turned 45 degrees so
-    // it stands broadside to the fixed camera yaw. Along either axis the
-    // fish would be read end-on and vanish.
+    // it stands near broadside to the default camera yaw. Along either axis
+    // the fish would be read end-on and vanish.
     { make: (prop) => makeFishSign(0.19, prop), at: [0.06, -0.02], y: 0.34, size: 1, rot: Math.PI / 4 },
     { prop: 'extra/anchor', at: [-0.38, 0.26], size: 0.16, rot: 0.4 },
     { prop: 'extra/boatrack', at: [0.4, 0.3], size: 0.1, rot: -0.3 },
@@ -200,7 +200,7 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // what goes here is a character with a mixer, not a piece of scenery.
   //
   // Across from one another on the diagonal rather than side by side: from
-  // the fixed camera yaw that reads as two men watching two ways, and puts
+  // the default camera yaw that reads as two men watching two ways, and puts
   // one to either side of the tower instead of one behind the other. On
   // the diagonal POST_R splits evenly between the two axes. Nothing stands
   // in the middle of this deck, so unlike the roofed towers there is no

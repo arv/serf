@@ -114,17 +114,26 @@ describe('the ablation handle', () => {
 });
 
 describe('the real rules stay quiet on a healthy seat', () => {
+  /** A seat with its people, its buildings, and nothing wrong. */
+  const healthy = {
+    world: { units: new Map(), map: {} },
+    owner: 0,
+    mine: [],
+    stock: {},
+    serfCount: 3,
+    stalled: false,
+    strategy: { survivalFloor: 3 },
+  } as unknown as RuleContext;
+
   it('fires nothing when the watchdog reads no stall', () => {
-    // Both shipped rules are stall-gated, which is what keeps an unstalled
-    // game byte-identical to the one before this layer existed.
-    const healthy = {
-      world: { units: new Map(), map: {} },
-      owner: 0,
-      mine: [],
-      stock: {},
-      serfCount: 3,
-      stalled: false,
-    } as unknown as RuleContext;
+    // What keeps an unstalled game byte-identical to the one before this
+    // layer existed. Two of the rules are not stall-gated any more — a
+    // village short of hands is a dead end rather than evidence of one — so
+    // the guard that has to hold here is theirs: a seat with its people is
+    // never taken apart for a hauler, and its barracks is never stood down.
+    // Which side of THAT gate a reading falls on is covered against a real
+    // world in ai.test.ts, where there are buildings to order around.
     expect(runEconomyRules(healthy, all, 'recovery').fired).toEqual([]);
+    expect(runEconomyRules(healthy, all, 'production').fired).toEqual([]);
   });
 });
