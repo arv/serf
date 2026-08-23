@@ -15,8 +15,12 @@ import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
  * The engine-adapter and warmModel tests go through the strategist's real
  * #buildEngine / download paths, so the wllama module is mocked at the
  * boundary: a stand-in Wllama class whose chat behavior each test hangs
- * on `wllamaMock.chat`, and a stand-in ModelManager over an in-memory
- * cache. Tests that inject their own engineFactory never touch this.
+ * on `wllamaMock.chat`, and stand-in CacheManager/ModelManager over an
+ * in-memory cache. Node has no OPFS, so the resumable store reports
+ * unsupported here and both paths fall back to wllama's own downloader —
+ * which is why these tests exercise ModelManager.downloadModel; the
+ * resumable path itself is pinned down in modelDownload.test.ts. Tests
+ * that inject their own engineFactory never touch any of this.
  */
 type ChatOpts = {
   response_format?: { type?: string };
@@ -41,8 +45,6 @@ const wllamaMock = vi.hoisted(() => {
     loadFails: false,
     /** The model's answer; null = tests must not reach inference. */
     chat: null as null | ((opts: ChatOpts) => Promise<ChatReply>),
-    /** Model URLs ModelManager reports as already downloaded. */
-    cachedUrls: [] as string[],
     downloads: [] as { url: string; signal: AbortSignal | undefined }[],
     /** Override the download itself; null = instant success with progress. */
     downloadGate: null as
@@ -87,11 +89,15 @@ vi.mock('@wllama/wllama/esm/index.js', () => ({
       return Promise.resolve();
     }
   },
+  CacheManager: class {
+    constructor() {
+      // The one cache, whoever asks for it — `new CacheManager()` in
+      // warmModel must see the same disk the Wllama stand-in does.
+      return wllamaMock.cacheManager;
+    }
+  },
   ModelManager: class {
     cacheManager = wllamaMock.cacheManager;
-    getModels(): Promise<{ url: string }[]> {
-      return Promise.resolve(wllamaMock.cachedUrls.map((url) => ({ url })));
-    }
     downloadModel(
       url: string,
       opts?: { signal?: AbortSignal; progressCallback?: Progress },
@@ -149,7 +155,6 @@ afterEach(() => {
   wllamaMock.loadParams.length = 0;
   wllamaMock.loadFails = false;
   wllamaMock.chat = null;
-  wllamaMock.cachedUrls.length = 0;
   wllamaMock.downloads.length = 0;
   wllamaMock.downloadGate = null;
   wllamaMock.cacheEntries.length = 0;
@@ -163,6 +168,16 @@ function leaveUnfinishedDownload(url: string): void {
     name: `key:${url}`,
     size: 1024,
     metadata: { originalURL: '', originalSize: 1024 },
+  });
+}
+
+/** A download that completed some earlier session: bytes and record whole
+ * and agreeing — what makes every path skip the network. */
+function leaveFinishedDownload(url: string): void {
+  wllamaMock.cacheEntries.push({
+    name: `key:${url}`,
+    size: 4096,
+    metadata: { originalURL: url, originalSize: 4096 },
   });
 }
 
@@ -492,16 +507,17 @@ describe('LlmStrategist', () => {
 });
 
 /**
- * warmModel: the start menu's prefetch. Pure download through wllama's
- * ModelManager — what matters is that the cache fast-path fetches nothing,
- * a cold download reports progress and lands ready without ever building
- * an engine, and dispose (toggle off, menu unmount) aborts the fetch and
- * silences the status stream.
+ * warmModel: the start menu's prefetch. Pure download — what matters is
+ * that the cache fast-path fetches nothing, a cold download reports
+ * progress and lands ready without ever building an engine, and dispose
+ * (toggle off, menu unmount) aborts the fetch and silences the status
+ * stream. These runs take the wllama-downloader fallback (no OPFS in
+ * node — see the mock's header); the resumable path has its own suite.
  */
 describe('warmModel', () => {
   it('an already-cached model reports ready without downloading', async () => {
     const { LLM_MODEL_URL } = await import('./strategist.ts');
-    wllamaMock.cachedUrls.push(LLM_MODEL_URL);
+    leaveFinishedDownload(LLM_MODEL_URL);
     const statuses: LlmStatus[] = [];
     warmModel((s) => statuses.push(s));
     await settle();
@@ -545,14 +561,11 @@ describe('warmModel', () => {
 
   it('leaves a finished download in the cache', async () => {
     const { LLM_MODEL_URL } = await import('./strategist.ts');
-    wllamaMock.cacheEntries.push({
-      name: `key:${LLM_MODEL_URL}`,
-      size: 4096,
-      metadata: { originalURL: LLM_MODEL_URL, originalSize: 4096 },
-    });
+    leaveFinishedDownload(LLM_MODEL_URL);
     warmModel(() => {});
     await settle();
     expect(wllamaMock.cacheDeletes).toEqual([]);
+    expect(wllamaMock.downloads).toHaveLength(0);
   });
 
   it('a failed download reports why', async () => {

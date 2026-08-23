@@ -1,0 +1,475 @@
+/**
+ * The model download that survives being interrupted.
+ *
+ * wllama caches a *finished* GGUF forever, but knows nothing about an
+ * unfinished one: stop a download at 90% and the next attempt starts over
+ * at byte zero (after modelCache.ts has swept the leftovers out of its
+ * way). And stopping early is the ordinary path, not the unlucky one — the
+ * start menu warms the model while the player picks opponents and the
+ * launch abandons that warm-up, so on any connection slower than the
+ * player's patience the ~400 MB fetch restarts from scratch on every load
+ * and may simply never complete.
+ *
+ * So the bytes are kept between loads. Progress accumulates in a private
+ * OPFS directory — next to, never inside, wllama's cache — as a row of
+ * part files plus one metadata record naming the URL, the server's ETag
+ * and the promised size. The next attempt asks the server to continue
+ * (`Range: bytes=N-`) and appends; only when every byte has landed is the
+ * finished file installed into wllama's cache, correctly tagged, where
+ * every later load finds it exactly as if wllama had downloaded it itself.
+ *
+ * Written to be impossible to poison, because the failure it replaces was
+ * a permanent one:
+ *
+ *   - A part file is committed atomically (OPFS writables swap on close),
+ *     so a part either exists whole or not at all, and the parts must
+ *     chain gaplessly from zero to count. Anything else is discarded.
+ *   - Resuming requires the stored ETag to still match the server's; a
+ *     changed file — or one whose server never named an ETag or a total —
+ *     starts over rather than risk splicing two versions together.
+ *   - Each metadata record carries a random attempt id and parts are named
+ *     with it, so a straggling write from an abandoned attempt can never
+ *     join a newer chain.
+ *   - A stream that ends cleanly but early is a failure, not a finish:
+ *     nothing short of the promised size is ever installed.
+ *
+ * And to never do worse than the old behavior: a browser whose OPFS can't
+ * take main-thread writes gets 'unsupported' and the callers fall back to
+ * wllama's own downloader, and a resume request the network refuses
+ * outright (a proxy or CORS layer that balks at Range) retries once as the
+ * plain fetch it would have been anyway.
+ */
+
+import { discardPartialModel, hasWholeModel, type ModelCache } from './modelCache.ts';
+
+/** The slice of wllama's CacheManager this needs beyond the sweeper's:
+ * the way in. `write` is marked deprecated upstream in favor of letting
+ * wllama download for itself — which is precisely what this module is not
+ * doing — and it remains the one call that stores bytes and their
+ * metadata record together. */
+export interface InstallableModelCache extends ModelCache {
+  write(
+    name: string,
+    stream: ReadableStream<Uint8Array>,
+    metadata: { etag: string; originalSize: number; originalURL: string },
+  ): Promise<void>;
+}
+
+/** The record beside the parts: what the bytes are, and what would prove
+ * them stale. */
+export interface PartialMeta {
+  url: string;
+  /** The server's ETag, verbatim — resuming means proving the file has
+   * not changed under us. '' (none, or only a weak one) makes the partial
+   * unresumable, and readState treats it as absent. */
+  etag: string;
+  /** Bytes the server promised. Nothing short of this is ever installed. */
+  total: number;
+  /** Random id for this download's chain; parts carry it so a straggling
+   * write from an abandoned attempt can never join a newer chain. */
+  attempt: string;
+}
+
+export interface PartialPart {
+  attempt: string;
+  offset: number;
+  size: number;
+  blob: Blob;
+}
+
+/** Where partial downloads wait between loads. Structural, so tests run
+ * over a Map; the real one (opfsPartialStore) lives in OPFS. */
+export interface PartialStore {
+  /** null when absent or unreadable — either way, nothing to resume. */
+  readMeta(): Promise<PartialMeta | null>;
+  writeMeta(meta: PartialMeta): Promise<void>;
+  listParts(): Promise<PartialPart[]>;
+  /** Whole or not at all: a part interrupted mid-write must not appear. */
+  writePart(attempt: string, offset: number, bytes: Uint8Array): Promise<void>;
+  clear(): Promise<void>;
+}
+
+export type ModelProgress = (progress: { loaded: number; total: number }) => void;
+
+export interface EnsureModelOpts {
+  /** Counts from the resumed offset, not zero — the visible payoff. */
+  onProgress?: ModelProgress;
+  signal?: AbortSignal;
+  /** Test injections. `store: null` forces the unsupported path. */
+  store?: PartialStore | null;
+  fetcher?: typeof fetch;
+  partBytes?: number;
+}
+
+export interface EnsureModelResult {
+  /** cached: the cache already held the whole model, nothing was fetched.
+   * downloaded: it does now. unsupported: no resumable storage here — the
+   * caller should let wllama download for itself, exactly as before this
+   * module existed. */
+  status: 'cached' | 'downloaded' | 'unsupported';
+  /** Bytes carried over from an earlier attempt; 0 means started fresh. */
+  resumedFrom: number;
+}
+
+/** Commit granularity: how much an unclean death can cost. Small enough
+ * to lose casually, large enough that a 400 MB model is ~50 files. */
+const PART_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Get the model into wllama's cache, resuming any earlier attempt's bytes.
+ * Sweeps wllama-native wreckage first (see modelCache.ts) whatever else
+ * happens, so even the 'unsupported' fallback downloads onto clean ground.
+ */
+export async function ensureModelCached(
+  cache: InstallableModelCache,
+  url: string,
+  opts: EnsureModelOpts = {},
+): Promise<EnsureModelResult> {
+  await sweepWllamaCache(cache, url);
+  if (await hasWholeModel(cache, url)) return { status: 'cached', resumedFrom: 0 };
+  const store = opts.store !== undefined ? opts.store : opfsPartialStore();
+  if (!store) return { status: 'unsupported', resumedFrom: 0 };
+
+  const fetcher = opts.fetcher ?? fetch;
+  const partBytes = opts.partBytes ?? PART_BYTES;
+  const prior = await readState(store, url);
+
+  // Everything already here — a session that died between the last part
+  // landing and the install. Nothing to fetch.
+  if (prior && prior.size === prior.meta.total) {
+    await install(cache, url, store, prior.meta, prior.size);
+    return { status: 'downloaded', resumedFrom: prior.size };
+  }
+
+  const opened = await open(store, url, prior, fetcher, opts.signal);
+  const { meta, response } = opened;
+  const resumedFrom = opened.base;
+  let base = opened.base;
+  opts.onProgress?.({ loaded: base, total: meta.total });
+
+  // The stream, committed in atomic parts as it arrives. On ANY exit —
+  // network drop, abort, quota — whatever is buffered is flushed first:
+  // keeping the bytes is the entire point of this module.
+  const body = response.body;
+  if (!body) throw new Error(`model download had no body (HTTP ${response.status})`);
+  const reader = body.getReader();
+  let buffer: Uint8Array[] = [];
+  let buffered = 0;
+  const flush = async (): Promise<void> => {
+    if (buffered === 0) return;
+    const bytes = concat(buffer, buffered);
+    buffer = [];
+    buffered = 0;
+    await store.writePart(meta.attempt, base, bytes);
+    base += bytes.length;
+  };
+  // Report whenever the visible percent moves, not per network chunk — a
+  // Solid signal is on the other end. No total means no percent to move,
+  // so progress falls back to the part commits.
+  let lastPct = meta.total > 0 ? Math.floor((base / meta.total) * 100) : -1;
+  const report = (): void => {
+    if (!opts.onProgress) return;
+    const loaded = base + buffered;
+    if (meta.total <= 0) {
+      opts.onProgress({ loaded, total: 0 });
+      return;
+    }
+    const pct = Math.floor((loaded / meta.total) * 100);
+    if (pct === lastPct) return;
+    lastPct = pct;
+    opts.onProgress({ loaded, total: meta.total });
+  };
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer.push(value);
+      buffered += value.length;
+      if (buffered >= partBytes) await flush();
+      report();
+    }
+    await flush();
+  } catch (err) {
+    try {
+      await flush();
+    } catch {
+      // Storage refused the salvage; the failure that matters is below.
+    }
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+
+  // A clean end short of the promise is a failure, not a finish — install
+  // it and the cache holds a convincingly tagged corrupt model forever.
+  // The parts stay: the next attempt picks up right here.
+  if (meta.total > 0 && base !== meta.total) {
+    throw new Error(`model download ended early (${base} of ${meta.total} bytes)`);
+  }
+  await install(cache, url, store, meta, base);
+  return { status: 'downloaded', resumedFrom };
+}
+
+/** modelCache.ts's sweep, best-effort as ever: a cache that cannot even be
+ * listed is not a reason to skip the download the player is waiting for. */
+async function sweepWllamaCache(cache: ModelCache, url: string): Promise<void> {
+  try {
+    const discarded = await discardPartialModel(cache, url);
+    if (discarded > 0) {
+      console.warn('[strategist] discarded an unfinished model download; fetching it again');
+    }
+  } catch (err) {
+    console.warn(`[strategist] could not check the model cache: ${String(err)}`);
+  }
+}
+
+/**
+ * What the store holds for `url`, provided it is worth resuming: metadata
+ * that names this URL with a strong ETag and a known total, and parts (of
+ * that metadata's attempt) chaining gaplessly from zero. Anything less is
+ * cleared and reported as nothing — a partial that cannot be trusted is
+ * exactly the poison this module exists to not have.
+ */
+async function readState(
+  store: PartialStore,
+  url: string,
+): Promise<{ meta: PartialMeta; parts: PartialPart[]; size: number } | null> {
+  const meta = await store.readMeta();
+  const all = meta ? await store.listParts() : [];
+  const parts = chainParts(all, meta);
+  const size = parts.reduce((sum, part) => sum + part.size, 0);
+  const usable =
+    meta !== null &&
+    meta.url === url &&
+    meta.etag !== '' &&
+    meta.total > 0 &&
+    size > 0 &&
+    size <= meta.total;
+  if (!usable) {
+    await store.clear();
+    return null;
+  }
+  return { meta, parts, size };
+}
+
+/** The longest gapless run from offset zero, this attempt's parts only.
+ * Sorted by offset; a stray file — another attempt's straggler, or a
+ * duplicate offset — ends the chain rather than joining it. */
+function chainParts(parts: PartialPart[], meta: PartialMeta | null): PartialPart[] {
+  if (!meta) return [];
+  const own = parts.filter((p) => p.attempt === meta.attempt).sort((a, b) => a.offset - b.offset);
+  const chain: PartialPart[] = [];
+  let next = 0;
+  for (const part of own) {
+    if (part.offset !== next) break;
+    chain.push(part);
+    next += part.size;
+  }
+  return chain;
+}
+
+/**
+ * Open the response the stream loop will drain, resuming when the server
+ * cooperates and falling back to a fresh start whenever it does not: a 200
+ * where 206 was asked (no range support, or the file changed), a 206
+ * carrying a different ETag or the wrong offset, a 416, or a resume
+ * request the network refuses outright — each of those restarts from zero
+ * rather than failing, because starting over is what every load did before
+ * this module.
+ */
+async function open(
+  store: PartialStore,
+  url: string,
+  prior: { meta: PartialMeta; size: number } | null,
+  fetcher: typeof fetch,
+  signal: AbortSignal | undefined,
+): Promise<{ meta: PartialMeta; base: number; response: Response }> {
+  const init: RequestInit = signal ? { signal } : {};
+  // A start from zero, recorded around whichever response carries it.
+  const adopt = async (
+    response: Response,
+  ): Promise<{ meta: PartialMeta; base: number; response: Response }> => {
+    await store.clear();
+    const meta: PartialMeta = {
+      url,
+      etag: strongEtag(response),
+      total: contentTotal(response),
+      attempt: crypto.randomUUID().slice(0, 8),
+    };
+    await store.writeMeta(meta);
+    return { meta, base: 0, response };
+  };
+  const fresh = async (): Promise<{ meta: PartialMeta; base: number; response: Response }> => {
+    const response = await fetcher(url, init);
+    if (!response.ok) throw new Error(`model download failed: HTTP ${response.status}`);
+    return adopt(response);
+  };
+  if (!prior) return fresh();
+
+  let response: Response;
+  try {
+    response = await fetcher(url, { ...init, headers: { Range: `bytes=${prior.size}-` } });
+  } catch (err) {
+    // The ranged request itself was refused before any HTTP answer — most
+    // likely a CORS or proxy layer that balks at the Range header, which
+    // an unranged fetch never trips. But surface a deliberate abort as
+    // itself, not as whatever the fresh attempt then dies of.
+    if (signal?.aborted) throw err instanceof Error ? err : new Error(String(err));
+    return fresh();
+  }
+  if (response.status !== 206) {
+    // 200 is the whole file — the server ignored the range or the file
+    // changed. Either way it is a fresh start already in hand.
+    if (response.status === 200) return adopt(response);
+    if (response.status === 416) return fresh();
+    throw new Error(`model download failed: HTTP ${response.status}`);
+  }
+  // 206: the range came back, but only the validators prove it is a range
+  // of *our* file. An ETag the server states must match the stored one,
+  // and a Content-Range it states must start where the parts end; either
+  // stated otherwise means the file changed and the bytes must not mix.
+  // (Stated at all is not guaranteed — CORS may hide both headers — and
+  // then the 206 to our single-range request is taken at its word.)
+  const etag = strongEtag(response);
+  const range = /^bytes (\d+)-\d+\/(\d+|\*)$/.exec(response.headers.get('content-range') ?? '');
+  const startsWrong = range !== null && Number(range[1]) !== prior.size;
+  if ((etag !== '' && etag !== prior.meta.etag) || startsWrong) {
+    response.body?.cancel().catch(() => {});
+    return fresh();
+  }
+  return { meta: prior.meta, base: prior.size, response };
+}
+
+/** The ETag as a resume validator: verbatim, or '' when the server sent
+ * none — or only a weak one, which promises equivalence, not the byte
+ * identity that splicing ranges together requires. */
+function strongEtag(response: Response): string {
+  const etag = response.headers.get('etag') ?? '';
+  return etag.startsWith('W/') ? '' : etag;
+}
+
+/** Total size as this response states it: Content-Range's full length on
+ * a 206, Content-Length otherwise, 0 for "never said". */
+function contentTotal(response: Response): number {
+  const range = /\/(\d+)$/.exec(response.headers.get('content-range') ?? '');
+  if (range) return Number(range[1]);
+  return Number(response.headers.get('content-length') ?? 0);
+}
+
+/**
+ * The finish line: stream the chained parts into wllama's cache under the
+ * name and metadata its own download would have written, so every later
+ * load — and modelCache.ts's sweep — sees a finished download and nothing
+ * else. Only then is the staging directory dropped.
+ */
+async function install(
+  cache: InstallableModelCache,
+  url: string,
+  store: PartialStore,
+  meta: PartialMeta,
+  size: number,
+): Promise<void> {
+  const parts = chainParts(await store.listParts(), meta);
+  const chained = parts.reduce((sum, part) => sum + part.size, 0);
+  if (chained !== size) throw new Error('model download storage changed underneath');
+  let at = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull: async (controller) => {
+      const part = parts[at++];
+      if (!part) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(new Uint8Array(await part.blob.arrayBuffer()));
+    },
+  });
+  await cache.write(await cache.getNameFromURL(url), stream, {
+    originalURL: url,
+    originalSize: size,
+    // wllama stores its ETags stripped to alphanumerics; written the same
+    // way so the record is indistinguishable from its own.
+    etag: meta.etag.replace(/[^A-Za-z0-9]/g, ''),
+  });
+  await store.clear();
+}
+
+function concat(chunks: Uint8Array[], length: number): Uint8Array {
+  const bytes = new Uint8Array(length);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.length;
+  }
+  return bytes;
+}
+
+/** The staging directory: OPFS, beside wllama's `cache` directory and
+ * invisible to it, so nothing here can ever be mistaken for a cache hit. */
+const PARTIAL_DIR = 'serf-llm-download';
+const META_FILE = 'meta.json';
+const PART_RE = /^part-([0-9a-f]+)-(\d{12})$/;
+
+/**
+ * The real store, or null where it cannot work — no OPFS, or file handles
+ * without main-thread `createWritable` (older Safari; wllama covers those
+ * with its own worker-based writes, so the fallback is simply the old
+ * non-resuming behavior, not a regression).
+ */
+export function opfsPartialStore(): PartialStore | null {
+  if (
+    typeof navigator === 'undefined' ||
+    typeof navigator.storage?.getDirectory !== 'function' ||
+    typeof FileSystemFileHandle === 'undefined' ||
+    !('createWritable' in FileSystemFileHandle.prototype)
+  ) {
+    return null;
+  }
+  const dir = async (): Promise<FileSystemDirectoryHandle> => {
+    const root = await navigator.storage.getDirectory();
+    return root.getDirectoryHandle(PARTIAL_DIR, { create: true });
+  };
+  const put = async (name: string, data: Uint8Array | string): Promise<void> => {
+    const handle = await (await dir()).getFileHandle(name, { create: true });
+    // Committed on close, atomically: OPFS writables stage into a swap
+    // file, which is exactly what lets a part be whole or absent.
+    const writable = await handle.createWritable();
+    await writable.write(data as FileSystemWriteChunkType);
+    await writable.close();
+  };
+  return {
+    readMeta: async () => {
+      try {
+        const handle = await (await dir()).getFileHandle(META_FILE);
+        const meta = JSON.parse(await (await handle.getFile()).text()) as Partial<PartialMeta>;
+        if (
+          typeof meta.url !== 'string' ||
+          typeof meta.etag !== 'string' ||
+          typeof meta.total !== 'number' ||
+          typeof meta.attempt !== 'string'
+        ) {
+          return null;
+        }
+        return { url: meta.url, etag: meta.etag, total: meta.total, attempt: meta.attempt };
+      } catch {
+        return null;
+      }
+    },
+    writeMeta: (meta) => put(META_FILE, JSON.stringify(meta)),
+    listParts: async () => {
+      const parts: PartialPart[] = [];
+      for await (const [name, handle] of (await dir()).entries()) {
+        const match = PART_RE.exec(name);
+        if (!match || handle.kind !== 'file') continue;
+        const blob = await handle.getFile();
+        parts.push({ attempt: match[1]!, offset: Number(match[2]), size: blob.size, blob });
+      }
+      return parts;
+    },
+    writePart: (attempt, offset, bytes) =>
+      put(`part-${attempt}-${String(offset).padStart(12, '0')}`, bytes),
+    clear: async () => {
+      const root = await navigator.storage.getDirectory();
+      await root.removeEntry(PARTIAL_DIR, { recursive: true }).catch((err: unknown) => {
+        if ((err as { name?: string }).name !== 'NotFoundError') throw err;
+      });
+    },
+  };
+}

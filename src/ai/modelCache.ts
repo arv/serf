@@ -25,6 +25,12 @@
  * So the wreckage is swept before every attempt: an entry that is not a
  * complete, correctly tagged copy of the model is worse than no entry at
  * all, because no entry at least downloads.
+ *
+ * The resumable downloader (modelDownload.ts) never leaves this wreckage —
+ * its partials live in their own directory, as a resume point rather than
+ * a poison. The sweep stays for the paths where wllama still fetches for
+ * itself (browsers the resumable store can't serve) and for leftovers of
+ * sessions that predate it.
  */
 
 /** A cache entry as `CacheManager.list()` reports it. Structural, so
@@ -51,6 +57,23 @@ export interface ModelCache {
   delete(nameOrURL: string): Promise<void>;
 }
 
+/** Whole means both halves agree: the metadata record exists and says
+ * this URL, and the bytes on disk are as many as it promised. */
+function isWholeCopy(entry: ModelCacheEntry, url: string): boolean {
+  return entry.metadata.originalURL === url && entry.metadata.originalSize === entry.size;
+}
+
+/**
+ * Whether the cache holds a complete, correctly tagged copy of `url` — the
+ * same judgment the sweep below makes, asked the other way around. This is
+ * what lets a caller skip the network entirely (and what wllama's own
+ * `Model.validate` will agree with when it goes looking).
+ */
+export async function hasWholeModel(cache: ModelCache, url: string): Promise<boolean> {
+  const entries = await cache.list();
+  return entries.some((entry) => isWholeCopy(entry, url));
+}
+
 /**
  * Drop every cache entry for `url` that is not a whole, correctly tagged
  * copy of it. A complete download is left alone — that is the whole point
@@ -68,9 +91,7 @@ export async function discardPartialModel(cache: ModelCache, url: string): Promi
   let discarded = 0;
   for (const entry of entries) {
     if (entry.name !== key && entry.metadata.originalURL !== url) continue;
-    // Whole means both halves agree: the metadata record exists and says
-    // this URL, and the bytes on disk are as many as it promised.
-    if (entry.metadata.originalURL === url && entry.metadata.originalSize === entry.size) continue;
+    if (isWholeCopy(entry, url)) continue;
     await cache.delete(entry.name);
     discarded++;
   }
