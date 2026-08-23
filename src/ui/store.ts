@@ -114,7 +114,7 @@ export const [techs, setTechs] = createSignal<TechSnap>({
   hasAbbey: false,
 });
 /** At most one HUD popup at a time — opening any closes the others. */
-export type HudPanel = 'build' | 'menu' | 'tech' | 'economy';
+export type HudPanel = 'build' | 'menu' | 'tech' | 'economy' | 'map';
 export const [openPanel, setOpenPanel] = createSignal<HudPanel | null>(null);
 export const techPanelOpen = (): boolean => openPanel() === 'tech';
 export const setTechPanelOpen = (open: boolean): void => {
@@ -123,6 +123,12 @@ export const setTechPanelOpen = (open: boolean): void => {
 export const economyPanelOpen = (): boolean => openPanel() === 'economy';
 export const setEconomyPanelOpen = (open: boolean): void => {
   setOpenPanel(open ? 'economy' : null);
+};
+/** The minimap sheet (small screens only — the desktop card just stands).
+ * In the panel family so opening it closes the menu and Esc closes it. */
+export const minimapOpen = (): boolean => openPanel() === 'map';
+export const setMinimapOpen = (open: boolean): void => {
+  setOpenPanel(open ? 'map' : null);
 };
 
 /** The "leave the match?" question, asked by the HUD's own <dialog>
@@ -191,12 +197,18 @@ export const [adminState, setAdminState] = createSignal({
 /**
  * Whether client-side cheats are allowed to work at all. Single player is
  * the only place they are harmless; against a live opponent every one of
- * them is an advantage they cannot see you taking. `?mp` is how main.ts
- * decides to enter multiplayer, so it decides this too — and it has to be
- * the URL rather than the netMode() signal below, because this is read at
- * module load, before the lobby has resolved.
+ * them is an advantage they cannot see you taking.
+ *
+ * A function over two tells, not a module-load constant, because
+ * multiplayer is reached two ways. `?mp` is how main.ts decides to enter
+ * it from a URL; netMode() is a running match saying so itself. The menu
+ * walks into the council and the match IN PLACE — no reload — so a
+ * constant read before the lobby resolved stayed true for the whole
+ * networked match, and ?nofog / ?admin rode straight into live games.
  */
-export const CHEATS_ALLOWED = !new URLSearchParams(location.search).has('mp');
+export function cheatsAllowed(): boolean {
+  return !netMode() && !new URLSearchParams(location.search).has('mp');
+}
 
 /**
  * Fog of war. Unlike the switches above this one never reaches the sim:
@@ -210,7 +222,7 @@ export const CHEATS_ALLOWED = !new URLSearchParams(location.search).has('mp');
  * reading the health of enemy units. In a match that is a maphack.
  */
 export const [fogEnabled, setFogEnabled] = createSignal(
-  !(CHEATS_ALLOWED && new URLSearchParams(location.search).has('nofog')),
+  !(cheatsAllowed() && new URLSearchParams(location.search).has('nofog')),
 );
 
 /**
@@ -330,8 +342,7 @@ export function pushLlmTrace(trace: import('../ai/strategist').ConsultTrace): vo
  * that no longer exist.
  *
  * Deliberately not reset: the fullscreen preference and the campaign
- * profile (they belong to the player, not the match), and CHEATS_ALLOWED,
- * which is a const read once at module load.
+ * profile (they belong to the player, not the match).
  */
 export function resetMatchState(): void {
   setSpeed(1);
@@ -366,5 +377,5 @@ export function resetMatchState(): void {
   setLlmTraces([]);
   // Read afresh rather than restored: ?nofog belongs to the match being
   // started, and the URL has already become the next one by here.
-  setFogEnabled(!(CHEATS_ALLOWED && new URLSearchParams(location.search).has('nofog')));
+  setFogEnabled(!(cheatsAllowed() && new URLSearchParams(location.search).has('nofog')));
 }
