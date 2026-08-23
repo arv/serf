@@ -450,13 +450,46 @@ The campaign sweep, because it is the instrument with raids in it.
 
 Every range positive, and four of the five were never tuned against — which
 is the bar `tools/aiLab/README.md` sets for this instrument. Nearly all of
-the gain is seats that used to be counted dead.
+the gain was seats that used to be counted dead.
 
 Ranges 1300 and 1700 were added during review, to settle whether the
 barracks hold should reopen *at* the survival floor or a hand clear of it.
 The two read 497/640 and 491/640 pooled — a six-match difference over 640,
 which this instrument cannot resolve and its own README says not to believe.
 So the win rate did not decide it; the mechanism did (see the band, below).
+
+### And then the floor moved (2026-08-23, same day)
+
+Merging main before landing brought the spear work with it — a spearman
+could not be armed, having been handed the Mage's staff — and that is a fix
+to the same failure mode from the other end: a seat that cannot arm its
+cheapest soldier starves the way a seat short of hands does. So the
+README's own warning applies to this page, and the sweep was re-run on the
+merged tree:
+
+| range | before | after |
+| --- | --- | --- |
+| 101 | 109 | **111** |
+| 500 | 99 | 97 |
+| 900 | 88 | **94** |
+| 1300 | 97 | 96 |
+| 1700 | 100 | **106** |
+| total | 493 / 640 | **504 / 640** |
+
+The baseline rose 33 matches on its own, and what is left for this change
+is **+11 over 640, three ranges up and two down** — which this instrument
+cannot resolve, by the same standard that refused to call the six-match
+band comparison. The honest reading is that the two fixes overlap, and that
+the campaign win rate is now a guardrail for this work rather than evidence
+for it: no regression, nothing more claimed.
+
+What did not move is the case itself, which was never the win rate. Three
+seats in a played replay reached a state they could not leave, and not one
+recovery order was sent in 37851 ticks because the only rules that answer
+it were behind a fourteen-thousand-tick window. That is a bug whether or
+not fixing it wins more campaigns, and the seat unfreezing under a live
+brain (open jobs 54 → 9, storehouse 52 → 99) is the proof that it is
+fixed.
 
 The AI-vs-AI guardrail (`--engine none --seeds 1-24`) holds: 0 undecided
 before and after, median 15517 → 15391 ticks. Recovery orders go from 0 to

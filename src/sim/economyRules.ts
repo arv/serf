@@ -249,12 +249,24 @@ const resiteExtractor: EconomyRule = {
  * Re-measured when the gate moved off the watchdog and up to the survival
  * floor (2026-08-23), on the campaign sweep because that is the instrument
  * with raids in it: `pnpm balance 32` over five seed ranges, 128 matches
- * each, 460/640 wins before and 491/640 after — +3, +6, +6, +8, +8, every
- * range positive and four of the five never tuned against. Nearly all of it
- * is seats that used to be counted dead. The AI-vs-AI guardrail
+ * each. Read the number with its history, because the README's warning
+ * about re-measuring under a moving floor caught this change in the act:
+ *
+ *   - against the sim as it stood when this was written, 460/640 before and
+ *     491/640 after, every range positive;
+ *   - against the sim after main's spear work landed under it (a spearman
+ *     could not be armed with the Mage's staff, which starved seats of
+ *     their cheapest soldier), 493/640 and 504/640 — the same rescue worth
+ *     +11 rather than +31, on three ranges up and two down.
+ *
+ * So the win rate is a guardrail here, not the case: it says no regression,
+ * and at this sample it cannot resolve more than that. The case is the
+ * replay — three seats permanently paralysed with zero recovery orders sent
+ * in 37851 ticks, and the seat that unfreezes when the rule is allowed to
+ * fire (open jobs 54 -> 9, storehouse 52 -> 99). The AI-vs-AI guardrail
  * (`--engine none --seeds 1-24`) keeps 0 undecided and a flat median, at
  * 368 recovery orders against the old 0: below the floor is a place seats
- * visit often, and it used to cost them the game.
+ * visit often, and the rules that answer it were unreachable.
  */
 const freeCappedHauler: EconomyRule = {
   id: 'freeCappedHauler',
@@ -466,7 +478,9 @@ const forgeTheCounter: EconomyRule = {
  * before the hold comes back down (pinned in ai.test.ts). Closing at
  * `<= floor` instead of `< floor` removes that dip completely — and costs
  * the campaign 448 wins of 640 against this version's 491, which is worse
- * than having no rule at all (460). A seat that will not train while it
+ * than having no rule at all (460). (Measured before main's spear work
+ * landed under this branch, on the same tree as the 460/491 pair above; a
+ * 43-match gap on every range is far outside what that move could flip.) A seat that will not train while it
  * sits AT its floor is a seat that never fields an army, because sitting at
  * the floor is what a raided village does. One hand of overshoot is the
  * price of the seat having soldiers, and the sweep says it is worth paying

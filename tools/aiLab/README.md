@@ -464,13 +464,24 @@ rule, `handsBeforeSoldiers`, stands the barracks down over the same line, so
 a hand the seat hires is not spent on a recruit. The instrument that shows
 it is `pnpm balance` rather than this one, because the failure is a raid
 taking the hands and this sweep's undecided count was already zero: 460/640
-campaign wins before, 491/640 after, positive on all five seed ranges. The
+campaign wins before, 491/640 after, positive on all five seed ranges —
+though see the caveat below, because that floor moved before the change
+landed. The
 guardrail here is unchanged at 0 undecided and a flat median, at 368
 recovery orders against **0** on the same 48 matches — not the 30 in the
 table above, which is a different sweep (seeds 1-80). Zero is the finding
 restated: on seeds 1-24 the watchdog never once read a stall, so every rule
-it gated was unreachable for the whole sweep. Full write-up in
-`docs/plan-ai-robustness.md`.
+it gated was unreachable for the whole sweep.
+
+**And the floor moved under it, which is this page's own warning coming
+true.** Merging main brought the spear work — a spearman who could not be
+armed — which rescues seats from the other end of the same failure. Re-run
+on the merged tree the pair reads 493/640 and 504/640: the baseline gained
+33 on its own and the hand-shortage fix is left with **+11 over 640, three
+ranges up and two down**, which is inside what this instrument can resolve
+and therefore not a result. It stands as a guardrail (no regression) rather
+than as evidence, and the case for the change rests on the replay it was
+cut from. Full write-up in `docs/plan-ai-robustness.md`.
 
 ## Playbook against playbook (2026-08-20, map 96, bandits on, seeds 1-80)
 
