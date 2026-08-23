@@ -876,7 +876,15 @@ export class AiBrain {
           if (this.#scoutIntel >= 0) {
             const gx = tileX(this.#scoutGoal, world.map.size) + 0.5;
             const gy = tileY(this.#scoutGoal, world.map.size) + 0.5;
-            if (Math.abs(su.x - gx) + Math.abs(su.y - gy) <= 5) {
+            // Read against the scout's own sight circle rather than a
+            // number of its own, because the errand ends where the brain
+            // sends it: the watch point is WATCH_FROM tiles out, chosen so
+            // the yard sits just inside that circle. A tighter bar than the
+            // walk it orders is a goal that can never be answered — the
+            // scout stamps nothing, the doorstep stays stale, and scoutLeg
+            // walks him gate-to-watch-point-to-gate for the rest of the
+            // match while the picture he was sent for never updates.
+            if (exactDist(su.x - gx, su.y - gy) <= UNIT_DEFS[su.kind].sight) {
               this.#stampIntel(world, this.#scoutIntel);
               this.#clearScoutGoal();
             }
@@ -889,15 +897,22 @@ export class AiBrain {
             if (!target) {
               this.#scoutGoal = nextSearchGoal(world, this.#vision, this.#unreachable, su.x, su.y);
             }
-            if (this.#scoutGoal < 0 && staleRival >= 0) {
-              const door = rivalDoorstep(world, staleRival);
+            // The clock as it reads NOW, not as it read when the beat
+            // opened: a read stamped a few lines above may have answered
+            // the very rival that was stale then, and handing the scout
+            // straight back the errand he just finished is how he ends up
+            // living at the enemy's gate — never recalled, because the
+            // recall wants an errand that is over.
+            const nextRival = this.#scoutGoal < 0 ? this.#staleRival(world) : -1;
+            if (this.#scoutGoal < 0 && nextRival >= 0) {
+              const door = rivalDoorstep(world, nextRival);
               if (door >= 0) {
                 this.#scoutGoal = door;
-                this.#scoutIntel = staleRival;
+                this.#scoutIntel = nextRival;
               } else {
                 // No table entry to walk to: call it read, or the scout
                 // would ask again every beat forever.
-                this.#stampIntel(world, staleRival);
+                this.#stampIntel(world, nextRival);
               }
             }
             this.#scoutLeg = -1;

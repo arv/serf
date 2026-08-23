@@ -209,6 +209,50 @@ describe('the AI under fog of war', () => {
     expect(single[0]).toMatchObject({ x: 67, y: 58 });
   });
 
+  it('finishes that read from the watch point it was sent to', () => {
+    // The errand and the arrival test have to agree. The brain walks the
+    // scout to a watch point six tiles north of the doorstep — close
+    // enough that the yard sits inside his sight circle, far enough that
+    // the garrison does not chase him. If "close enough to read the yard"
+    // is measured tighter than the walk the brain orders, the read can
+    // never land: the doorstep stays stale, the errand is never retired,
+    // and scoutLeg re-issues the gate leg the instant he arrives. Seen in
+    // a real match as a lone AI soldier pacing the same two tiles at the
+    // player's castle from the fourth minute to the end of the game.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 66, 66, {}, 1);
+    for (let i = 0; i < 3; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
+    spawnUnit(world, 'knight', 0, 64.5, 65.5);
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const gateLeg = moveOrders(brain.decide(world)).filter((c) => c.unitIds.length === 1)[0]!;
+    expect(gateLeg).toMatchObject({ x: 67, y: 58 });
+    const scout = world.units.get(gateLeg.unitIds[0]!)!;
+    const legs: { x: number; y: number }[] = [];
+
+    // Walk what he is told to walk, beat by beat: teleport him to the last
+    // leg he was given and let the brain pick the next one.
+    for (let beat = 0; beat < 40; beat++) {
+      const last = legs.at(-1) ?? gateLeg;
+      scout.x = last.x + 0.5;
+      scout.y = last.y + 0.5;
+      world.tick += 20;
+      for (const c of moveOrders(brain.decide(world))) {
+        if (c.unitIds.includes(scout.id)) legs.push({ x: c.x, y: c.y });
+      }
+    }
+
+    // The descent to the watch point, and then the errand is over: the
+    // read is filed and he is never sent back to the gate.
+    expect(legs[0]).toEqual({ x: 67, y: 65 });
+    expect(brain.intelReport().find((r) => r.owner === 1)?.reads).toBe(1);
+    expect(legs.filter((l) => l.x === 67 && l.y === 58)).toHaveLength(0);
+    // And with nothing left to read he goes back to the muster, rather
+    // than pacing the rival's gate for the rest of the match.
+    expect(legs.at(-1)).toEqual({ x: 31, y: 35 });
+  });
+
   it('sweeps in force but never to the last man, and calls the garrison in', () => {
     // The whole army is out in the field when the next sweep leg is picked.
     // Losing the race home against a raid wave is the failure this guards:
