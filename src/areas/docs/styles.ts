@@ -19,6 +19,10 @@ export const DOCS_STYLE = `
 #docs a { color: ${GOLD}; text-decoration: none; }
 #docs a:hover { text-decoration: underline; }
 #docs a:focus-visible { outline: 2px solid rgba(229,196,105,0.55); outline-offset: 2px; border-radius: 3px; }
+/* A heading focused by a page turn is a destination, not a control: it
+   gets the ring only if the reader is actually navigating by keyboard. */
+#docs [tabindex="-1"]:focus { outline: none; }
+#docs [tabindex="-1"]:focus-visible { outline: 2px solid rgba(229,196,105,0.4); outline-offset: 4px; border-radius: 4px; }
 
 #docs .doc-head { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 14px;
   padding: calc(10px + var(--safe-top)) calc(18px + var(--safe-right)) 10px calc(18px + var(--safe-left));

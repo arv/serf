@@ -595,8 +595,14 @@ async function boot(): Promise<void> {
   // input/controls.ts, but the HUD, the menu and the end card are just as
   // much game surface) and long-press is a command gesture on phones.
   // Text fields keep theirs — copy and paste are how room codes travel.
+  //
+  // So does the field guide, which is a document rather than game surface:
+  // it hands text selection back deliberately and its links are real
+  // anchors, and neither is worth much if right-click cannot copy them.
   document.addEventListener('contextmenu', (e) => {
-    if (!isTextEntry(e.target)) e.preventDefault();
+    if (isTextEntry(e.target)) return;
+    if (e.target instanceof Element && e.target.closest('#docs')) return;
+    e.preventDefault();
   });
   // Before anything else takes a click: a player who asked for fullscreen
   // gets it back on their first gesture (see ui/fullscreen.ts). It survives

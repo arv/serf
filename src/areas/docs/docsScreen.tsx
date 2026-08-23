@@ -159,11 +159,32 @@ export function mountDocs(): { dispose(): void; onRouteChange(): void } {
 
   const disposeApp = render(() => <DocsApp route={route} />, root);
 
+  /**
+   * Send the reader to the new content.
+   *
+   * A page turn here swaps the article under a nav that never moves, so
+   * without this a keyboard user is left focused on the link they just
+   * pressed — or, when the link was inside the page being replaced, on
+   * nothing at all — and a screen reader announces no change. Focusing the
+   * new heading is what turns a same-key navigation into a page change.
+   *
+   * tabindex="-1" because a heading is not a control: it takes focus
+   * programmatically and stays out of the tab order.
+   */
+  const focusTarget = (el: HTMLElement | null): void => {
+    if (!el) return;
+    el.setAttribute('tabindex', '-1');
+    // The scroll is ours to place (below); focus must not fight it.
+    el.focus({ preventScroll: true });
+  };
+
   const showHashTarget = (): boolean => {
     if (location.hash === '') return false;
     const el = document.getElementById(location.hash.slice(1));
-    el?.scrollIntoView();
-    return el !== null;
+    if (!el) return false;
+    el.scrollIntoView();
+    focusTarget(el);
+    return true;
   };
   // A deep link can name an anchor on this first page too.
   showHashTarget();
@@ -174,7 +195,10 @@ export function mountDocs(): { dispose(): void; onRouteChange(): void } {
       // exist by the next line — a #tech-… link can be scrolled to at once.
       setRoute(parseDocsPath(location.pathname));
       document.title = `${pageTitle(route())} · Serf Valley`;
-      if (!showHashTarget() && location.pathname !== lastPath) root.scrollTop = 0;
+      if (!showHashTarget() && location.pathname !== lastPath) {
+        root.scrollTop = 0;
+        focusTarget(root.querySelector('main h1'));
+      }
       lastPath = location.pathname;
     },
     dispose(): void {
