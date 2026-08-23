@@ -415,7 +415,19 @@ long, is a detector that never fires.
   seat would hire a hand and hand it straight to the barracks. Halting
   rather than cancelling keeps the queue, turns away the recruit already
   walking, and stops the bread and weapon hauls competing for the few hands
-  left. It opens again the moment the pool is back.
+  left.
+- **The hold is a band, not a line.** It closes under the floor and reopens
+  only a hand clear of it. Training costs exactly one hand, so a barracks
+  reopened the instant the pool *touches* the floor takes a recruit and puts
+  the seat straight back under — and every one of those openings books a
+  fresh set of priority-2 bread-and-weapon hauls that outrank the storehouse
+  evacuation and survive the next hold, because pausing suppresses new
+  demand but does not stand down errands already on the board (`reconcile`
+  in `systems/logistics.ts` drops destinations that are gone, not
+  destinations that are halted). On the replay: a rule that reopened at the
+  floor flapped across it and served **nine** such hauls with the two hands
+  the seat had; with the band, **one** — the loaf already in a serf's hands
+  when the hold came down, which there is nothing to cancel anyway.
 - **Hire money is not spent on research below the floor.** Every tech is
   priced in silver and so is a hand; a seat three silver short of a hire
   that spends three silver on a tech stays three short forever. Only when
@@ -429,15 +441,22 @@ The campaign sweep, because it is the instrument with raids in it.
 
 | range | before | after |
 | --- | --- | --- |
-| 101 | 105 | **109** |
-| 500 | 92 | **103** |
-| 900 | 82 | **93** |
-| total | 279 / 384 | **305 / 384** |
+| 101 | 105 | **108** |
+| 500 | 92 | **98** |
+| 900 | 82 | **88** |
+| 1300 | 86 | **94** |
+| 1700 | 95 | **103** |
+| total | 460 / 640 | **491 / 640** |
 
-Two of the three ranges were not tuned against, which is the bar
-`tools/aiLab/README.md` sets for this instrument. Nearly all of the gain is
-seats that used to be counted dead — fletcher, the deck's thin end, goes
-10/14/15 dead to 9/9/8.
+Every range positive, and four of the five were never tuned against — which
+is the bar `tools/aiLab/README.md` sets for this instrument. Nearly all of
+the gain is seats that used to be counted dead.
+
+Ranges 1300 and 1700 were added during review, to settle whether the
+barracks hold should reopen *at* the survival floor or a hand clear of it.
+The two read 497/640 and 491/640 pooled — a six-match difference over 640,
+which this instrument cannot resolve and its own README says not to believe.
+So the win rate did not decide it; the mechanism did (see the band, below).
 
 The AI-vs-AI guardrail (`--engine none --seeds 1-24`) holds: 0 undecided
 before and after, median 15517 → 15391 ticks. Recovery orders go from 0 to

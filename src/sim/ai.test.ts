@@ -3,6 +3,7 @@ import { createWorld, type World, type WorldConfig } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
 import { AI_PACING, AI_STALL, AiBrain, LEVY_HOLD } from './systems/ai.ts';
 import { HIRE_SERF_COST } from './defs/balance.ts';
+import { TECH_DEFS } from './defs/techs.ts';
 import { AiSeats } from './aiSeats.ts';
 import { strategyOf, type AiStrategy } from './defs/aiStrategies.ts';
 import { checkInvariants } from './debug/invariants.ts';
@@ -511,35 +512,89 @@ describe('a village that lost its hands', () => {
     });
   });
 
-  it('opens the barracks again the moment the pool is back', () => {
+  it('opens the barracks again once the pool is a hand clear of the floor', () => {
     // Borrowed, not given away: a hold that outlives its reason is an army
-    // the seat never builds.
+    // the seat never builds. The margin is one hand, because taking a
+    // recruit costs exactly one — reopening AT the floor hands the
+    // recruiter the hand that put the seat back over it.
     const { world, brain, barracks } = raidedVillage();
     barracks.paused = true;
+    const open = { kind: 'setBuildingPaused', buildingId: barracks.id, paused: false };
     for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor; i++) addSerf(world, 31 + i, 31);
-    expect(beat(brain, world)).toContainEqual({
-      kind: 'setBuildingPaused',
-      buildingId: barracks.id,
-      paused: false,
-    });
+    expect(beat(brain, world)).not.toContainEqual(open); // at the floor: the hold stands
+
+    addSerf(world, 35, 31); // one clear of it
+    expect(beat(brain, world)).toContainEqual(open);
+  });
+
+  it('does not flap across the floor, booking hauls it cannot crew', () => {
+    // What the band is for. A barracks reopened at the floor takes a
+    // recruit, drops the seat back under, and is held again — and each
+    // opening books priority-2 bread and weapon hauls that outrank the
+    // storehouse evacuation and OUTLIVE the next hold, since pausing
+    // suppresses new demand but does not stand down errands already on the
+    // board. On the replay this was cut from, a flapping rule served nine
+    // such hauls with the two hands the seat had; with the band, one — the
+    // one already in a serf's hands when the hold came down.
+    const { world, brain, barracks } = raidedVillage();
+    const floor = AI_STRATEGIES.steward.survivalFloor;
+    for (let i = 0; i < floor; i++) addSerf(world, 31 + i, 31);
+    const halt = { kind: 'setBuildingPaused', buildingId: barracks.id, paused: true };
+    const open = { kind: 'setBuildingPaused', buildingId: barracks.id, paused: false };
+
+    // At the floor with the barracks running, nothing happens: the rule
+    // closes under the line, it does not go looking for a barracks to shut.
+    expect(beat(brain, world)).not.toContainEqual(halt);
+
+    // The recruiter takes one and the seat drops under: held.
+    const serfs = [...world.units.values()].filter((u) => u.kind === 'serf');
+    serfs[0]!.dead = true;
+    expect(beat(brain, world)).toContainEqual(halt);
+    barracks.paused = true; // the order lands
+
+    // The hire lands and the pool is back at the floor exactly. Without the
+    // band this is where it reopens, re-books the hauls, and takes the hand
+    // straight back. With it, the hold stands and the queue is not refilled.
+    serfs[0]!.dead = false;
+    const atFloor = beat(brain, world);
+    expect(atFloor).not.toContainEqual(open);
+    expect(atFloor.filter((c) => c.kind === 'trainUnit')).toEqual([]);
   });
 
   it('keeps the hire money back from a tech while it is short of hands', () => {
-    // Every tech is priced in silver and so is a hand. A seat three silver
-    // short of a hire that spends three silver on research is a seat that
-    // stays three short forever.
+    // Every tech is priced in silver and so is a hand. A seat that spends
+    // its way past the hire is a seat that stays short forever.
+    //
+    // The steward's first tech is Soldiery at 6 silver (defs/techs.ts), and
+    // the shelf has to be able to AFFORD it or the guard is not what the
+    // assertion is reading — an unaffordable tech is refused a line earlier
+    // and the test would pass with the guard deleted.
+    const soldiery = TECH_DEFS.soldiery.cost.silver!;
     const world = bareWorld();
-    const shelf = addStorehouse(world, 30, 30, { silver: HIRE_SERF_COST + 1, wheat: 20 });
+    const shelf = addStorehouse(world, 30, 30, { silver: soldiery + 1, wheat: 20 });
     placeBuiltBuilding(world, 'abbey', 0, 36, 36);
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
-    // Soldiery costs 6 silver: affordable, but not while a hire has to
-    // survive it. (The hire itself goes out on the same beat.)
     expect(beat(brain, world).filter((c) => c.kind === 'research')).toEqual([]);
 
-    // With the hand already back, the playbook's own reserve takes over and
-    // the queue runs as it always did.
+    // And the sum has to count the hire this same beat already ordered:
+    // commands apply in the order they are pushed, so the four silver the
+    // panic branch just spent is gone before research is charged. Ten
+    // silver looks like enough for a 6-silver tech with a hire left over
+    // and is not — it is 10 - 4 - 6 = 0.
+    shelf.stock.silver = HIRE_SERF_COST + soldiery;
+    const beat10 = beat(brain, world);
+    expect(beat10.filter((c) => c.kind === 'hireSerf')).not.toEqual([]);
+    expect(beat10.filter((c) => c.kind === 'research')).toEqual([]);
+
+    // Not a blanket ban: with the hand, the tech and the NEXT hand all paid
+    // for, the queue runs even below the floor.
+    shelf.stock.silver = HIRE_SERF_COST * 2 + soldiery;
+    expect(beat(brain, world).filter((c) => c.kind === 'research')).not.toEqual([]);
+
+    // And with the pool back over the floor the guard is silent entirely —
+    // the playbook's own research reserve takes over from here.
     for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor; i++) addSerf(world, 31 + i, 31);
-    shelf.stock.silver = 40;
+    shelf.stock.silver = soldiery;
     expect(beat(brain, world).filter((c) => c.kind === 'research')).not.toEqual([]);
   });
 

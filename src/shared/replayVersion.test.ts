@@ -30,7 +30,7 @@ const EXPECTED_VERSION = 26;
 // AI's moves are in the log, which is exactly why replay.ts stores them —
 // so re-deciding them differently cannot change how a recorded match
 // re-runs. The hash covers all of src/sim, brains included, hence the pin.
-const EXPECTED_HASH = '040c444d804fc56e919485b398c5e588';
+const EXPECTED_HASH = '05ab5ad1e1ea89ac029348b1e3a7e110';
 
 /**
  * Everything a replay's playback depends on, as raw source:

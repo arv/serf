@@ -463,11 +463,13 @@ that lived the fourteen thousand flat ticks a `stalled` reading costs. A new
 rule, `handsBeforeSoldiers`, stands the barracks down over the same line, so
 a hand the seat hires is not spent on a recruit. The instrument that shows
 it is `pnpm balance` rather than this one, because the failure is a raid
-taking the hands and this sweep's undecided count was already zero: 279/384
-campaign wins before, 305/384 after, holding across three seed ranges. The
+taking the hands and this sweep's undecided count was already zero: 460/640
+campaign wins before, 491/640 after, positive on all five seed ranges. The
 guardrail here is unchanged at 0 undecided and a flat median, at 368
-recovery orders against 30 — which is the finding restated, since these
-rules used to be reachable only through the watchdog. Full write-up in
+recovery orders against **0** on the same 48 matches — not the 30 in the
+table above, which is a different sweep (seeds 1-80). Zero is the finding
+restated: on seeds 1-24 the watchdog never once read a stall, so every rule
+it gated was unreachable for the whole sweep. Full write-up in
 `docs/plan-ai-robustness.md`.
 
 ## Playbook against playbook (2026-08-20, map 96, bandits on, seeds 1-80)

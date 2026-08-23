@@ -246,13 +246,13 @@ const resiteExtractor: EconomyRule = {
  *
  * Re-measured when the gate moved off the watchdog and up to the survival
  * floor (2026-08-23), on the campaign sweep because that is the instrument
- * with raids in it: `pnpm balance 32` over three seed ranges, 128 matches
- * each, 279/384 wins before and 305/384 after — +4, +11 and +11, holding on
- * two ranges it was not tuned against. Nearly all of it is seats that used
- * to be counted dead. The AI-vs-AI guardrail (`--engine none --seeds 1-24`)
- * keeps 0 undecided and a flat median, at 368 recovery orders against the
- * old 0: below the floor is a place seats visit often, and it used to cost
- * them the game.
+ * with raids in it: `pnpm balance 32` over five seed ranges, 128 matches
+ * each, 460/640 wins before and 491/640 after — +3, +6, +6, +8, +8, every
+ * range positive and four of the five never tuned against. Nearly all of it
+ * is seats that used to be counted dead. The AI-vs-AI guardrail
+ * (`--engine none --seeds 1-24`) keeps 0 undecided and a flat median, at
+ * 368 recovery orders against the old 0: below the floor is a place seats
+ * visit often, and it used to cost them the game.
  */
 const freeCappedHauler: EconomyRule = {
   id: 'freeCappedHauler',
@@ -443,6 +443,20 @@ const forgeTheCounter: EconomyRule = {
  * cancel out. Above it the rule is silent, so every seat that is not in
  * trouble plays exactly the game it played before.
  *
+ * The hold is a Schmitt trigger, not a threshold, and that is load-bearing
+ * rather than tidy. Training costs exactly one hand, so a barracks reopened
+ * the instant the pool *touches* the floor takes a recruit and puts the
+ * seat straight back under it — and each of those openings books a fresh
+ * set of priority-2 bread-and-weapon hauls that outrank the storehouse
+ * evacuation and survive the next hold, because a pause suppresses new
+ * demand but does not stand down errands already on the board
+ * (`systems/logistics.ts` reconciles destinations that are gone, not
+ * destinations that are halted). Measured on the replay this was cut from:
+ * a rule that reopened at the floor flapped across it and served nine such
+ * hauls with the two hands the seat had. So it closes UNDER the floor and
+ * opens only ABOVE it: one hand of margin, which is exactly the hand the
+ * recruiter is about to take.
+ *
  * Halting rather than cancelling, for three reasons. The queue survives —
  * an order stands until its batch lands, so the seat resumes the army it
  * had planned rather than re-deciding it. A halted barracks recruits
@@ -462,19 +476,24 @@ const handsBeforeSoldiers: EconomyRule = {
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
+    // The two lines of the trigger: close under the floor, open only above
+    // it. At the floor exactly, whatever the barracks is doing it keeps
+    // doing — which is the band that stops the flapping.
     const short = ctx.serfCount < ctx.strategy.survivalFloor;
+    const clear = ctx.serfCount > ctx.strategy.survivalFloor;
     for (const b of ctx.mine) {
       if (b.state !== 'built' || BUILDING_DEFS[b.type as BuildingTypeId].trains === undefined) {
         continue;
       }
       const halted = b.paused === true;
-      // A barracks already running in a village that is not short is not
-      // this rule's business, and claiming it would be the bug: a claim
-      // lasts one beat, so an unconditional one would silence
-      // `keepTheQueueWarm` for the whole match.
-      if (!short && !halted) continue;
-      if (short !== halted) {
-        commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: short });
+      const want = halted ? !clear : short;
+      // A barracks already running that this rule does not want to hold is
+      // not its business, and claiming it would be the bug: a claim lasts
+      // one beat, so an unconditional one would silence `keepTheQueueWarm`
+      // for the whole match.
+      if (!want && !halted) continue;
+      if (want !== halted) {
+        commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: want });
       }
       // Claimed on every beat the hold stands, order or no order: the pause
       // is sent once and the claim is what keeps the queue from being
