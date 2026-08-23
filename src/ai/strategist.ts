@@ -368,6 +368,11 @@ export class LlmStrategist {
       onProgress: loading,
       signal: this.#loadAbort.signal,
     });
+    // ensureModelCached's install step does not watch the signal, so a
+    // dispose during it resolves rather than rejects — and the wllama
+    // below has already been released. Stop here instead of loading a
+    // model into a worker that is gone.
+    this.#loadAbort.signal.throwIfAborted();
     await wllama.loadModelFromUrl(LLM_MODEL_URL, {
       n_ctx: N_CTX,
       n_gpu_layers: GPU_LAYERS,

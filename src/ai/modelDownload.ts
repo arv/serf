@@ -32,19 +32,25 @@
  *   - Each metadata record carries a random attempt id and parts are named
  *     with it, so a straggling write from an abandoned attempt can never
  *     join a newer chain.
- *   - One download runs at a time per origin (a Web Lock, where the
- *     browser has one): the menu's warm-up and a match's load can meet
- *     around the handoff, and queue instead of interleaving over the one
- *     staging directory.
+ *   - One download runs at a time per origin (a Web Lock, with a same-page
+ *     queue where the browser has none): the menu's warm-up and a match's
+ *     load can meet around the handoff, and queue — sweep, probe and
+ *     install included — instead of interleaving over the one staging
+ *     directory.
  *   - A stream that ends cleanly but early is a failure, not a finish:
- *     nothing short of the promised size is ever installed.
+ *     nothing short of the promised size is ever installed. A server that
+ *     never says the size cannot make that promise, so it is not this
+ *     module's to download at all.
+ *   - The install frees each part as it copies it, so the transient
+ *     footprint is the model plus one part — never two whole copies
+ *     racing the quota.
  *
  * And to never do worse than the old behavior: a browser whose OPFS can't
- * take main-thread writes — or whose storage exists but refuses to open —
- * gets 'unsupported' and the callers fall back to wllama's own downloader,
- * and a resume request the network refuses outright (a proxy or CORS
- * layer that balks at Range) retries once as the plain fetch it would
- * have been anyway.
+ * take main-thread writes — or whose storage exists but refuses to open
+ * or to take the staging record — gets 'unsupported' and the callers fall
+ * back to wllama's own downloader, and a resume request the network
+ * refuses outright (a proxy or CORS layer that balks at Range) retries
+ * once as the plain fetch it would have been anyway.
  */
 
 import { discardPartialModel, hasWholeModel, type ModelCache } from './modelCache.ts';
@@ -93,6 +99,8 @@ export interface PartialStore {
   listParts(): Promise<PartialPart[]>;
   /** Whole or not at all: a part interrupted mid-write must not appear. */
   writePart(attempt: string, offset: number, bytes: Uint8Array): Promise<void>;
+  /** Absent parts are not an error. */
+  deletePart(attempt: string, offset: number): Promise<void>;
   clear(): Promise<void>;
 }
 
@@ -122,39 +130,51 @@ export interface EnsureModelResult {
  * to lose casually, large enough that a 400 MB model is ~50 files. */
 const PART_BYTES = 8 * 1024 * 1024;
 
-/** One download at a time per origin. Cooperative and optional: without
- * the API, the attempt-id fencing still keeps an overlap merely wasteful
- * (a lost attempt at worst), never corrupting. */
+/** One download at a time per origin — a Web Lock, or a same-page queue
+ * where the browser has none. (In practice every browser whose OPFS the
+ * store accepts ships Web Locks; the queue is belt over braces, and
+ * cross-tab overlap without either is what the attempt-id fencing keeps
+ * merely wasteful, never corrupting.) */
 const DOWNLOAD_LOCK = 'serf-llm-download';
+let lockQueue: Promise<unknown> = Promise.resolve();
 function withDownloadLock<T>(work: () => Promise<T>): Promise<T> {
   const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
-  if (!locks) return work();
-  return locks.request(DOWNLOAD_LOCK, work) as Promise<T>;
+  if (locks) return locks.request(DOWNLOAD_LOCK, work) as Promise<T>;
+  const run = lockQueue.then(work);
+  lockQueue = run.catch(() => undefined);
+  return run;
 }
+
+/** Thrown when the resumable path must stand aside — staging storage that
+ * refuses to work, a server that names no size — as distinct from a
+ * failed download: the right answer is wllama's own downloader, not a
+ * dead strategist. */
+class FallBackToWllama extends Error {}
 
 /**
  * Get the model into wllama's cache, resuming any earlier attempt's bytes.
- * Sweeps wllama-native wreckage first (see modelCache.ts) whatever else
- * happens, so even the 'unsupported' fallback downloads onto clean ground.
+ * Everything runs under the download lock — the sweep and the cache probe
+ * included, so one caller cannot sweep away the half-written file another
+ * is in the middle of installing. Sweeps wllama-native wreckage (see
+ * modelCache.ts) whatever else happens, so even the 'unsupported'
+ * fallback downloads onto clean ground.
  */
 export async function ensureModelCached(
   cache: InstallableModelCache,
   url: string,
   opts: EnsureModelOpts = {},
 ): Promise<EnsureModelResult> {
-  await sweepWllamaCache(cache, url);
   const store = opts.store !== undefined ? opts.store : opfsPartialStore();
-  if (await hasWholeModelSafe(cache, url)) {
-    // A death between install and cleanup strands a finished chain beside
-    // the installed model; sweep it whenever the hit is confirmed, or the
-    // duplicate would hold quota forever.
-    if (store) await store.clear().catch(() => {});
-    return { status: 'cached', resumedFrom: 0 };
-  }
-  if (!store) return { status: 'unsupported', resumedFrom: 0 };
   return withDownloadLock(async () => {
-    // The lock may have been held by a download that finished the job.
-    if (await hasWholeModelSafe(cache, url)) return { status: 'cached', resumedFrom: 0 };
+    await sweepWllamaCache(cache, url);
+    if (await hasWholeModelSafe(cache, url)) {
+      // A death between install and cleanup strands a finished chain
+      // beside the installed model; sweep it whenever the hit is
+      // confirmed, or the duplicate would hold quota forever.
+      if (store) await store.clear().catch(() => {});
+      return { status: 'cached', resumedFrom: 0 };
+    }
+    if (!store) return { status: 'unsupported', resumedFrom: 0 };
     let prior: Awaited<ReturnType<typeof readState>>;
     try {
       prior = await readState(store, url);
@@ -164,7 +184,12 @@ export async function ensureModelCached(
       // make. wllama's own path gets its chance instead.
       return { status: 'unsupported', resumedFrom: 0 };
     }
-    return download(cache, url, store, prior, opts);
+    try {
+      return await download(cache, url, store, prior, opts);
+    } catch (err) {
+      if (err instanceof FallBackToWllama) return { status: 'unsupported', resumedFrom: 0 };
+      throw err;
+    }
   });
 }
 
@@ -188,6 +213,14 @@ async function download(
   }
 
   const opened = await open(store, url, prior, fetcher, opts.signal);
+  // A server that will not say how big the file is cannot prove a
+  // clean-looking stream complete, and an unproven install is the poison
+  // this module refuses. Such servers are wllama's to download, exactly
+  // as they were before this module existed.
+  if (opened.meta.total <= 0) {
+    opened.response.body?.cancel().catch(() => {});
+    throw new FallBackToWllama('server names no size');
+  }
   const { meta, response } = opened;
   const resumedFrom = opened.base;
   let base = opened.base;
@@ -210,16 +243,12 @@ async function download(
     base += bytes.length;
   };
   // Report whenever the visible percent moves, not per network chunk — a
-  // Solid signal is on the other end. No total means no percent to move,
-  // so progress falls back to the part commits.
-  let lastPct = meta.total > 0 ? Math.floor((base / meta.total) * 100) : -1;
+  // Solid signal is on the other end. (The total is always known here;
+  // a size-less server was turned away above.)
+  let lastPct = Math.floor((base / meta.total) * 100);
   const report = (): void => {
     if (!opts.onProgress) return;
     const loaded = base + buffered;
-    if (meta.total <= 0) {
-      opts.onProgress({ loaded, total: 0 });
-      return;
-    }
     const pct = Math.floor((loaded / meta.total) * 100);
     if (pct === lastPct) return;
     lastPct = pct;
@@ -247,7 +276,7 @@ async function download(
   // A clean end short of the promise is a failure, not a finish — install
   // it and the cache holds a convincingly tagged corrupt model forever.
   // The parts stay: the next attempt picks up right here.
-  if (meta.total > 0 && base !== meta.total) {
+  if (base !== meta.total) {
     throw new Error(`model download ended early (${base} of ${meta.total} bytes)`);
   }
   await install(cache, url, store, meta, base);
@@ -305,7 +334,10 @@ async function readState(
     size > 0 &&
     size <= meta.total;
   if (!usable) {
-    await store.clear();
+    // Best-effort, and only when there is something to discard: whatever
+    // a broken clear leaves behind wears an attempt id no later chain
+    // will accept. Storage that is truly broken already rejected above.
+    if (meta !== null || all.length > 0) await store.clear().catch(() => {});
     return null;
   }
   return { meta, parts, size };
@@ -348,14 +380,26 @@ async function open(
   const adopt = async (
     response: Response,
   ): Promise<{ meta: PartialMeta; base: number; response: Response }> => {
-    await store.clear();
     const meta: PartialMeta = {
       url,
       etag: strongEtag(response),
       total: contentTotal(response),
       attempt: crypto.randomUUID().slice(0, 8),
     };
-    await store.writeMeta(meta);
+    // The clear is best-effort — whatever survives it wears another
+    // attempt's id and can never join this chain. The record is not: it
+    // is the first write, before any byte has landed, so its failure is
+    // the store refusing to work, not a download failing — stand aside
+    // for wllama's own path. (A write that fails mid-stream stays a
+    // failure: those bytes were paid for, and quietly refetching them
+    // all natively would not be the cheaper outcome it pretends to be.)
+    await store.clear().catch(() => {});
+    try {
+      await store.writeMeta(meta);
+    } catch (err) {
+      response.body?.cancel().catch(() => {});
+      throw new FallBackToWllama(String(err));
+    }
     return { meta, base: 0, response };
   };
   const fresh = async (): Promise<{ meta: PartialMeta; base: number; response: Response }> => {
@@ -444,7 +488,13 @@ async function install(
         controller.close();
         return;
       }
-      controller.enqueue(new Uint8Array(await part.blob.arrayBuffer()));
+      const bytes = new Uint8Array(await part.blob.arrayBuffer());
+      // Freed as it is copied, so the transient footprint is the model
+      // plus one part rather than two whole copies racing the quota. The
+      // price: a death mid-install breaks the chain and costs a fresh
+      // download — seconds of copying weighed against doubling 400 MB.
+      await store.deletePart(part.attempt, part.offset).catch(() => {});
+      controller.enqueue(bytes);
     },
   });
   await cache.write(await cache.getNameFromURL(url), stream, {
@@ -474,6 +524,8 @@ function concat(chunks: Uint8Array[], length: number): Uint8Array {
 const PARTIAL_DIR = 'serf-llm-download';
 const META_FILE = 'meta.json';
 const PART_RE = /^part-([0-9a-f]+)-(\d{12})$/;
+const partName = (attempt: string, offset: number): string =>
+  `part-${attempt}-${String(offset).padStart(12, '0')}`;
 
 /**
  * The real store, or null where it cannot work — no OPFS, or file handles
@@ -531,8 +583,12 @@ export function opfsPartialStore(): PartialStore | null {
       }
       return parts;
     },
-    writePart: (attempt, offset, bytes) =>
-      put(`part-${attempt}-${String(offset).padStart(12, '0')}`, bytes),
+    writePart: (attempt, offset, bytes) => put(partName(attempt, offset), bytes),
+    deletePart: async (attempt, offset) => {
+      await (await dir()).removeEntry(partName(attempt, offset)).catch((err: unknown) => {
+        if ((err as { name?: string }).name !== 'NotFoundError') throw err;
+      });
+    },
     clear: async () => {
       const root = await navigator.storage.getDirectory();
       await root.removeEntry(PARTIAL_DIR, { recursive: true }).catch((err: unknown) => {

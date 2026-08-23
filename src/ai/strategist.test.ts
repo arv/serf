@@ -487,6 +487,16 @@ describe('LlmStrategist', () => {
     expect(statuses.at(-1)).toEqual({ state: 'ready' });
   });
 
+  it('disposed before the model load begins, it never loads one', async () => {
+    // ensureModelCached's install step resolves rather than rejects when
+    // the abort lands inside it; the guard after it must still keep a
+    // released Wllama from being handed a model.
+    const strategist = new LlmStrategist({ sendAdvice: () => {}, onStatus: () => {} });
+    strategist.dispose();
+    await strategist.start();
+    expect(wllamaMock.loadParams).toHaveLength(0);
+  });
+
   it('disposed mid-flight, it stops speaking', async () => {
     let resolveReply!: (v: string) => void;
     const { strategist, sent, traces } = harness({

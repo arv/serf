@@ -90,6 +90,9 @@ function memoryStore(): PartialStore & {
     writePart: async (attempt, offset, bytes) => {
       parts.set(`${attempt}:${offset}`, bytes.slice());
     },
+    deletePart: async (attempt, offset) => {
+      parts.delete(`${attempt}:${offset}`);
+    },
     clear: async () => {
       meta = null;
       parts.clear();
@@ -120,6 +123,8 @@ function weightsHost(
     etag?: string;
     ranges?: boolean;
     bytes?: Uint8Array;
+    /** A server (or proxy) that never says how big the file is. */
+    noLength?: boolean;
     /** Headers a CORS layer strips from 206 answers only. */
     hide206?: ('etag' | 'content-range')[];
   } = {},
@@ -144,7 +149,8 @@ function weightsHost(
     const match = opts.ranges === false ? null : range && /^bytes=(\d+)-$/.exec(range);
     const start = match ? Number(match[1]) : 0;
     const slice = bytes.slice(start);
-    const headers: Record<string, string> = { 'content-length': String(slice.length) };
+    const headers: Record<string, string> = {};
+    if (!opts.noLength) headers['content-length'] = String(slice.length);
     if (etag !== '') headers.etag = etag;
     if (match) {
       headers['content-range'] = `bytes ${start}-${bytes.length - 1}/${bytes.length}`;
@@ -248,6 +254,9 @@ function fakeOpfs(): {
         files.set(name, new Uint8Array());
       }
       return fileHandle(files, name);
+    },
+    removeEntry: async (name: string) => {
+      if (!files.delete(name)) throw notFound();
     },
     entries: async function* () {
       for (const name of [...files.keys()]) yield [name, fileHandle(files, name)] as const;
@@ -505,6 +514,45 @@ describe('ensureModelCached', () => {
     h.store.listParts = () => Promise.reject(new Error('storage blocked'));
     expect(await h.ensure()).toEqual({ status: 'unsupported', resumedFrom: 0 });
     expect(h.host.calls).toHaveLength(0);
+  });
+
+  it('a store that refuses the staging record means unsupported too', async () => {
+    // Reads worked, so the probe passed — but the first write (the record,
+    // before any byte lands) fails. Same answer: wllama's own path.
+    const h = harness();
+    h.store.writeMeta = () => Promise.reject(new Error('quota exceeded'));
+    expect(await h.ensure()).toEqual({ status: 'unsupported', resumedFrom: 0 });
+    expect(h.host.calls).toHaveLength(1);
+  });
+
+  it('a server that never says the size is not this downloader’s to trust', async () => {
+    // Without a total, a clean-looking stream cannot be proven complete,
+    // and installing an unproven file would poison the cache. Stand aside
+    // for wllama, which behaves for these servers as it always did.
+    const h = harness({ noLength: true });
+    expect(await h.ensure()).toEqual({ status: 'unsupported', resumedFrom: 0 });
+    expect(h.host.calls).toHaveLength(1);
+    expect(h.backend.files.size).toBe(0);
+  });
+
+  it('the install frees each part as it copies, even when clear cannot run', async () => {
+    // The quota argument: mid-install the store holds the uncopied tail,
+    // not a second whole model. A broken clear() must not change that.
+    const h = harness();
+    h.store.clear = () => Promise.reject(new Error('clear refused'));
+    expect(await h.ensure()).toEqual({ status: 'downloaded', resumedFrom: 0 });
+    expect(h.store.held()).toBe(0);
+    await expectInstalled(h);
+  });
+
+  it('overlap without Web Locks still queues within the page', async () => {
+    // Node has no navigator.locks, so this exercises the module's own
+    // queue: two callers, one fetch, the second finding the first's work.
+    const h = harness();
+    const [first, second] = await Promise.all([h.ensure(), h.ensure()]);
+    expect([first.status, second.status].sort()).toEqual(['cached', 'downloaded']);
+    expect(h.host.calls).toHaveLength(1);
+    await expectInstalled(h);
   });
 
   it('a cache hit sweeps any partial stranded beside it', async () => {
