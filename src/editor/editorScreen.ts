@@ -143,6 +143,10 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   // widens the pan box to match), so the entire world fits in one frame.
   renderer.rig.setMaxViewFraction(1.0);
   renderer.rig.setViewMode(viewMode());
+  // [ and ] size the brush here (editorControls), so the camera does not
+  // also take them — the view toggles to the game's line, where it would.
+  // Insert, Delete and Shift+wheel still turn it.
+  renderer.rig.setBracketTurn(false);
 
   // Editing survives a lost context: the draft is saved on every pause
   // anyway, so the recovery is simply a reload back into ?editor.

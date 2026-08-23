@@ -69,6 +69,10 @@ const KEY_TURN_RATE = Math.PI / 2;
  * its Insert does not exist. Keyed by code, the physical key, so the
  * bracket pair is the two keys right of P on any layout; the bare names
  * are the fallback for a source that leaves the code blank.
+ *
+ * The brackets are the pair a screen can take back (setBracketTurn): the
+ * map editor spends them on the brush radius, and one key must not mean
+ * two things at once.
  */
 const TURN_KEYS = new Map<string, number>([
   ['Delete', 1],
@@ -78,6 +82,8 @@ const TURN_KEYS = new Map<string, number>([
   [']', 1],
   ['[', -1],
 ]);
+/** The subset setBracketTurn(false) gives up. */
+const BRACKET_KEYS = new Set(['BracketRight', 'BracketLeft', ']', '[']);
 /**
  * How much world the camera frames at boot, and why it is not one number.
  *
@@ -195,6 +201,8 @@ export class CameraRig {
   #turns = 0;
   /** Wheel travel banked toward the next turn (see #turnByWheel). */
   #wheelAcc = 0;
+  /** Whether [ and ] turn the camera here — see setBracketTurn. */
+  #bracketTurn = true;
   /** The turn direction the keys held last tick (-1, 0, 1), and the step
    * the press began on — what the release settles against. */
   #keyTurn = 0;
@@ -259,14 +267,14 @@ export class CameraRig {
       if (foreignChord(e) || e.ctrlKey || typingInto(e.target)) return;
       const code = keyCode(e);
       this.#keys.add(code);
-      if (TURN_KEYS.has(code)) this.#unseenPress = code;
+      if (this.#turnKey(code) !== 0) this.#unseenPress = code;
     }, { signal });
     window.addEventListener('keyup', (e) => {
       const code = keyCode(e);
       this.#keys.delete(code);
       if (this.#unseenPress !== code) return;
       this.#unseenPress = null;
-      if (this.#pitch !== TOP_PITCH) this.#turns += TURN_KEYS.get(code)!;
+      if (this.#pitch !== TOP_PITCH) this.#turns += this.#turnKey(code);
     }, { signal });
     window.addEventListener('blur', () => {
       this.#keys.clear();
@@ -476,7 +484,7 @@ export class CameraRig {
   #heldTurn(): number {
     if (this.#pitch === TOP_PITCH) return 0;
     let d = 0;
-    for (const key of this.#keys) d += TURN_KEYS.get(key) ?? 0;
+    for (const key of this.#keys) d += this.#turnKey(key);
     return Math.sign(d);
   }
 
@@ -484,8 +492,30 @@ export class CameraRig {
    * tells a cancelled turn apart from a released one. */
   #turnKeyDown(): boolean {
     if (this.#pitch === TOP_PITCH) return false;
-    for (const key of this.#keys) if (TURN_KEYS.has(key)) return true;
+    for (const key of this.#keys) if (this.#turnKey(key) !== 0) return true;
     return false;
+  }
+
+  /** Which way this key turns the camera here, or 0 if it does not. */
+  #turnKey(code: string): number {
+    if (!this.#bracketTurn && BRACKET_KEYS.has(code)) return 0;
+    return TURN_KEYS.get(code) ?? 0;
+  }
+
+  /**
+   * Hand [ and ] back to the screen that owns them. The map editor binds
+   * them to the brush radius, and its rig is a live one — its view toggles
+   * to the game's own line, where a turn would otherwise happen on the
+   * same press that resized the brush. Insert, Delete and Shift+wheel are
+   * untouched, so the editor's camera still turns.
+   */
+  setBracketTurn(on: boolean): void {
+    this.#bracketTurn = on;
+    if (on) return;
+    for (const key of BRACKET_KEYS) this.#keys.delete(key);
+    if (this.#unseenPress !== null && BRACKET_KEYS.has(this.#unseenPress)) {
+      this.#unseenPress = null;
+    }
   }
 
   /** The step nearest the angle the camera is actually showing. */

@@ -172,7 +172,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Backspace | Jump to your keep |
 | Space | Jump to the last alert |
 | Mouse wheel | Zoom |
-| **Shift** + wheel / **Insert**, **Delete** / **[**, **]** | Turn the camera — 15° a notch, or hold the key; two notches square the default 30° view to the map, and the minimap frame with it (the brackets are for keyboards without an Insert key) |
+| **Shift** + wheel / **Insert**, **Delete** / **[**, **]** | Turn the camera — 15° a notch, or hold the key; two notches square the default 30° view to the map, and the minimap frame with it. The brackets are for keyboards without an Insert key; in the map editor they size the brush instead, and the camera there turns on the other two |
 | Esc | Unwind one mode: chord → order → placement → open sheet → selection → fullscreen |
 | ` (backquote) | Logistics debug overlay |
 | `?seed=123` URL param | Pick a map seed |

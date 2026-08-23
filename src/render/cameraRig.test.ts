@@ -372,6 +372,49 @@ describe('CameraRig turn', () => {
     expect(yawOf(rig)).toBeCloseTo(landed, 10);
   });
 
+  it('gives [ and ] back to a screen that owns them', () => {
+    // The editor sizes its brush with the brackets, and its view toggles
+    // to the game's own line — one press must not also turn the camera.
+    rig.setBracketTurn(false);
+    keyDown('BracketRight');
+    keyUp('BracketRight');
+    fire(window, 'keydown', { code: '', key: ']', repeat: false });
+    fire(window, 'keyup', { code: '', key: ']' });
+    hold(rig, 'BracketLeft', 0.5);
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW, 10);
+    // Warcraft's own pair still turns it, and so does the wheel.
+    keyDown('Delete');
+    keyUp('Delete');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + STEP, 10);
+    wheel(canvas, 100);
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + 2 * STEP, 10);
+    // Handed back.
+    rig.setBracketTurn(true);
+    keyDown('BracketRight');
+    keyUp('BracketRight');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + 3 * STEP, 10);
+  });
+
+  it('drops a bracket already held when the screen takes them back', () => {
+    // Down while the rig still owns it, revoked mid-hold: the key must not
+    // stay stuck turning, and its release must not settle a turn either.
+    keyDown('BracketRight');
+    for (let i = 0; i < 10; i++) rig.tick(FRAME);
+    rig.setBracketTurn(false);
+    for (let i = 0; i < 30; i++) rig.tick(FRAME);
+    keyUp('BracketRight');
+    settle(rig);
+    // The travel it did make settles once, and nothing turns after.
+    const landed = yawOf(rig);
+    for (let i = 0; i < 60; i++) rig.tick(FRAME);
+    expect(yawOf(rig)).toBeCloseTo(landed, 10);
+    expectYaw(rig, CAMERA_YAW + STEP, 6);
+  });
+
   it("the plan view is north-up by definition and doesn't turn", () => {
     rig.setViewMode('topDown');
     wheel(canvas, 100);
