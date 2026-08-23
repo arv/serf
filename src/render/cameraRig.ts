@@ -192,11 +192,9 @@ export class CameraRig {
   #turns = 0;
   /** Wheel travel banked toward the next turn (see #turnByWheel). */
   #wheelAcc = 0;
-  /** The turn direction the keys held last tick (-1, 0, 1), and the yaw
-   * and step count the press began at — what the release settles
-   * against. */
+  /** The turn direction the keys held last tick (-1, 0, 1), and the step
+   * the press began on — what the release settles against. */
   #keyTurn = 0;
-  #yawAtPress = 0;
   #turnsAtPress = 0;
   /** A turn-key press no tick has yet seen held. Down and up inside one
    * frame — a quick tap on a slow frame — would otherwise turn nothing;
@@ -472,17 +470,36 @@ export class CameraRig {
     return Math.sign(d);
   }
 
+  /** Whether any turn key is physically down, whatever they net to — what
+   * tells a cancelled turn apart from a released one. */
+  #turnKeyDown(): boolean {
+    if (this.#pitch === TOP_PITCH) return false;
+    for (const key of this.#keys) if (TURN_KEYS.has(key)) return true;
+    return false;
+  }
+
+  /** The step nearest the angle the camera is actually showing. */
+  #nearestStep(): number {
+    return Math.round((this.#yaw - (this.#pitch === TOP_PITCH ? 0 : YAW)) / YAW_STEP);
+  }
+
   /**
    * A key has just been let go: land on a step. The nearest one to where
-   * the hold reached, but never the one it started from — a tap turns a
-   * few degrees and has to mean one whole step, not a wobble back to
-   * where it was. Counted from the press's own starting step (not the
-   * live angle) so a tap landed mid-way through a wheel turn's ease adds
-   * a step to that turn instead of rounding it away.
+   * the hold left the camera — so a long turn stops where the eye says it
+   * should, never swinging back past what it just watched go by.
+   *
+   * With one floor under it: a press is worth at least one step past the
+   * one it began on, in the direction it went. That is what makes a tap a
+   * step at all (three degrees rounds to nothing), and it is why the floor
+   * is counted from #turnsAtPress rather than from the live angle — a tap
+   * landed mid-way through a wheel turn's ease is still short of that
+   * turn's target, and rounding where it stands would cancel the turn it
+   * was meant to add to.
    */
   #settleKeyTurn(): void {
-    const moved = Math.abs(this.#yaw - this.#yawAtPress) / YAW_STEP;
-    this.#turns = this.#turnsAtPress + this.#keyTurn * Math.max(1, Math.round(moved));
+    const near = this.#nearestStep();
+    const floor = this.#turnsAtPress + this.#keyTurn;
+    this.#turns = this.#keyTurn > 0 ? Math.max(near, floor) : Math.min(near, floor);
   }
 
   /** Swap between the game's isometric line and the editor's plan view. */
@@ -611,14 +628,28 @@ export class CameraRig {
     if (held !== 0) {
       // A held key turns freely, at its own pace; the step grid waits for
       // the release.
-      if (this.#keyTurn === 0) {
-        this.#yawAtPress = this.#yaw;
-        this.#turnsAtPress = this.#turns;
-      }
+      //
+      // A fresh press begins on the step the camera is bound for, which is
+      // where the floor in #settleKeyTurn has to count from — mid-ease
+      // that is the turn already under way, not the angle on screen. A
+      // direction flip under the hand begins wherever the flip caught the
+      // camera, which is off-grid, so the nearest step stands in: the leg
+      // being walked is the one the release settles against, not one
+      // abandoned before it.
+      if (this.#keyTurn === 0) this.#turnsAtPress = this.#turns;
+      else if (this.#keyTurn !== held) this.#turnsAtPress = this.#nearestStep();
       this.#yaw += held * KEY_TURN_RATE * dt;
       this.#apply();
+      this.#keyTurn = held;
+    } else if (this.#keyTurn !== 0 && this.#turnKeyDown()) {
+      // Both keys down at once: a stop, not a release. Hold the camera
+      // exactly where it is and keep the direction, so the step grid still
+      // waits for the release the way the branch above promises. Settling
+      // here would snap the view mid-hold and then resume free turning the
+      // moment one key came up — a cancel that lurches, twice.
     } else {
       if (this.#keyTurn !== 0) this.#settleKeyTurn();
+      this.#keyTurn = 0;
       const yawTarget = this.#yawTarget();
       if (this.#yaw !== yawTarget) {
         // Ease toward the target; the camera orbits its look-at point, so
@@ -629,7 +660,6 @@ export class CameraRig {
         this.#apply();
       }
     }
-    this.#keyTurn = held;
     const glide = this.#glide;
     if (glide) {
       glide.t = Math.min(glide.t + dt, glide.dur);

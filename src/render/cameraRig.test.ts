@@ -239,6 +239,49 @@ describe('CameraRig turn', () => {
     expectYaw(rig, CAMERA_YAW + STEP, 6);
   });
 
+  it('opposite keys stop the turn dead; they do not settle it mid-hold', () => {
+    // Turning, off the step grid, when the other key comes down under the
+    // same hand. The camera must hold exactly there: settling here would
+    // snap the view while a key is still down, and then lurch back into a
+    // free turn the moment one came up.
+    keyDown('Delete');
+    for (let i = 0; i < 7; i++) rig.tick(FRAME); // 10.5°, off-grid
+    const paused = yawOf(rig);
+    expect((paused - CAMERA_YAW) / STEP).toBeCloseTo(0.7, 6);
+    keyDown('Insert');
+    for (let i = 0; i < 30; i++) rig.tick(FRAME);
+    expect(yawOf(rig)).toBeCloseTo(paused, 12); // not a degree of it moved
+    // Lifting the second key hands the turn back to the first.
+    keyUp('Insert');
+    for (let i = 0; i < 3; i++) rig.tick(FRAME); // 15° in all
+    keyUp('Delete');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + STEP, 6);
+  });
+
+  it('a flip under the hand settles against the leg it ended on', () => {
+    // Out to 30° on Delete, stopped, then back on Insert. The release must
+    // land near where the eye left the camera — measuring the whole round
+    // trip against the final direction would fling it the other way.
+    keyDown('Delete');
+    for (let i = 0; i < 20; i++) rig.tick(FRAME); // +30°
+    keyDown('Insert');
+    for (let i = 0; i < 5; i++) rig.tick(FRAME); // held
+    keyUp('Delete'); // Insert alone now: the flip
+    for (let i = 0; i < 7; i++) rig.tick(FRAME); // back to +19.5°
+    const before = yawOf(rig);
+    keyUp('Insert');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + STEP, 6); // the step next door, not a swing past 0
+    expect(Math.abs(yawOf(rig) - before)).toBeLessThan(STEP);
+    // Far enough back and it simply stops where it is.
+    keyDown('Insert');
+    for (let i = 0; i < 20; i++) rig.tick(FRAME); // -30°
+    keyUp('Insert');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW - STEP, 6);
+  });
+
   it('a short hold still means one whole step, not a wobble back', () => {
     hold(rig, 'Delete', 2 * FRAME); // ~3°
     settle(rig);
