@@ -159,6 +159,46 @@ describe('the AI under fog of war', () => {
     expect(commands.find((c) => c.kind === 'trainUnit')).toMatchObject({ unit: 'archer' });
   });
 
+  it('holds the barracks slot with a unit the seat can actually train', () => {
+    // The Abbot's fallback is the archer, and the archer is behind Archery
+    // — which this seat has not researched yet. An order for a locked unit
+    // is not a slow order, it is no order: enqueueTraining drops it without
+    // a word, the queue it was meant to fill stays empty, and the rule
+    // re-issues the same refused order every beat for the rest of the
+    // research. The slot goes to the knight, which this seat can train.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, {}); // no weapon anywhere: the fallback path
+    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
+    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.abbot, world.map.size);
+    expect(brain.decide(world).find((c) => c.kind === 'trainUnit')).toMatchObject({
+      unit: 'knight',
+    });
+  });
+
+  it('will not order a locked unit even with its weapon on the shelf', () => {
+    // Bows in the store and the barracks open, but Archery is not in. The
+    // preference list must be read through the same gate the fallback is:
+    // an armed order the sim refuses fills no queue either.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, { bow: 4 });
+    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
+    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.abbot, world.map.size);
+    const order = brain.decide(world).find((c) => c.kind === 'trainUnit');
+    expect(order).toMatchObject({ unit: 'knight' });
+
+    // Once the research lands the archer is the playbook's own answer to a
+    // shelf of bows, and the rule goes back to giving it.
+    world.players[0]!.techs.researched.push('archery');
+    world.tick += 20;
+    expect(brain.decide(world).find((c) => c.kind === 'trainUnit')).toMatchObject({
+      unit: 'archer',
+    });
+  });
+
   it('keeps a trusted sighting through a doorstep read that saw nothing', () => {
     // The picture: four rival spearmen, seen and filed. They march off, the
     // clock goes stale, and the scout re-reads an empty doorstep. The read

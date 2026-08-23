@@ -10,6 +10,7 @@ import {
 import { FORGE_QUEUE_CAP } from './defs/balance.ts';
 import { findResourcesNear, nearestResource, RESOURCE_CODE } from './map.ts';
 import { WEAPON_OF } from './defs/units.ts';
+import { isUnitUnlocked } from './techHelpers.ts';
 import type { AiStrategy } from './defs/aiStrategies.ts';
 import type { TechId } from './defs/techs.ts';
 import type { UnitTypeId } from './defs/units.ts';
@@ -406,10 +407,30 @@ const keepTheQueueWarm: EconomyRule = {
     const prefs = ctx.counter
       ? [ctx.counter.unit, ...ctx.strategy.trainPreference]
       : ctx.strategy.trainPreference;
+    // Only what the seat can actually train. `enqueueTraining` refuses a
+    // unit whose tech is not in and says nothing about it, so an order for
+    // one is not a slow order — it is no order at all, and the queue it was
+    // meant to fill stays empty. The Abbot walks straight into this: its
+    // fallback is the archer, gated behind Archery, so from the beat its
+    // barracks opens until that research lands it re-orders the same
+    // refused archer every beat — a hundred of them inside twenty thousand
+    // ticks on the seed this was found on — while the barracks stands with
+    // an empty queue. And an empty queue is not merely idle: unstarted
+    // orders are what summon their own ingredients (trainingDemand), so
+    // nothing hauls bread or a weapon there either.
+    const trainable = (unit: UnitTypeId): boolean =>
+      isUnitUnlocked(ctx.world, ctx.owner, unit);
     const ready = prefs.find((unit) => {
       const weapon = WEAPON_OF[unit];
-      return weapon !== undefined && around(weapon);
+      return weapon !== undefined && around(weapon) && trainable(unit);
     });
+    // What to hold the slot with when no weapon is in reach: the playbook's
+    // fallback, or — when that is the locked one — the first preference the
+    // seat can actually put in the queue. None trainable at all and there
+    // is no order worth giving.
+    const warm = trainable(ctx.strategy.trainFallback)
+      ? ctx.strategy.trainFallback
+      : prefs.find(trainable);
 
     const commands: SimCommand[] = [];
     let cancelled = 0;
@@ -429,12 +450,12 @@ const keepTheQueueWarm: EconomyRule = {
         cancelled = 1;
       }
     }
-    if ((barracks.trainQueue?.length ?? 0) - cancelled < ctx.strategy.barracksQueueDepth) {
-      commands.push({
-        kind: 'trainUnit',
-        buildingId: barracks.id,
-        unit: ready ?? ctx.strategy.trainFallback,
-      });
+    const order = ready ?? warm;
+    if (
+      order !== undefined &&
+      (barracks.trainQueue?.length ?? 0) - cancelled < ctx.strategy.barracksQueueDepth
+    ) {
+      commands.push({ kind: 'trainUnit', buildingId: barracks.id, unit: order });
     }
     return commands.length > 0 ? { commands, claims: [barracks.id] } : null;
   },
