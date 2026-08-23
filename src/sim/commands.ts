@@ -79,7 +79,9 @@ function isSlot(v: unknown, cap: number): v is number {
  * any building has, since which building this is arrives with the id and
  * is resolved in the sim. */
 function isRecipeIndex(v: unknown): v is number {
-  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= MAX_RECIPE_OPTIONS;
+  // Strict: valid indices are 0..length-1, so the length itself — the
+  // first impossible value — is turned away with the rest.
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < MAX_RECIPE_OPTIONS;
 }
 
 /** The longest recipeOptions any def carries — the Smith's nine. */
