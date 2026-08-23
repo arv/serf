@@ -168,6 +168,50 @@ describe("the fishery's pier", () => {
   });
 });
 
+describe('the damage bars', () => {
+  /** The orientation baked into the first bar instance. The bars are
+   * instanced, so the matrix is where the camera's angle actually ends up. */
+  const barQuat = (scene: THREE.Scene): THREE.Quaternion => {
+    const bars = scene.children.filter(
+      (o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh,
+    );
+    expect(bars.length).toBeGreaterThan(0);
+    const m = new THREE.Matrix4();
+    bars[0]!.getMatrixAt(0, m);
+    const q = new THREE.Quaternion();
+    m.decompose(new THREE.Vector3(), q, new THREE.Vector3());
+    return q;
+  };
+
+  it('turn with the camera, not only when a building changes', () => {
+    const { sync, scene } = makeSync();
+    // The live object the rig turns, exactly as main.ts hands it over.
+    const cam = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 6);
+    sync.cameraQuaternion = cam;
+    sync.update([snap({ hp: 60 })]); // hurt, so it wears a bar
+    expect(barQuat(scene).angleTo(cam)).toBeCloseTo(0, 6);
+
+    // The camera turns. No roster change, no highlight change — nothing
+    // that has ever rebuilt these bars.
+    cam.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 3);
+    sync.frame(1 / 60);
+    expect(barQuat(scene).angleTo(cam)).toBeCloseTo(0, 6);
+
+    // And while the world is stopped: the game pauses, the camera does not.
+    cam.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 4);
+    sync.frame(0);
+    expect(barQuat(scene).angleTo(cam)).toBeCloseTo(0, 6);
+
+    // A camera at rest rebuilds nothing — the bars are left exactly as they
+    // were, instance buffer and all.
+    const bars = scene.children.find((o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh)!;
+    const before = bars.instanceMatrix.version;
+    sync.frame(1 / 60);
+    sync.frame(1 / 60);
+    expect(bars.instanceMatrix.version).toBe(before);
+  });
+});
+
 describe("the mill's sails", () => {
   it('turn while a batch grinds and coast to rest when it ends', () => {
     const { sync, scene } = makeSync();

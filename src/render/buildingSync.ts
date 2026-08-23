@@ -12,7 +12,7 @@ import { eachMaterial, mapMaterials } from './materials';
 import { buildingDef } from '../sim/defs/buildings';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { WATER_LEVEL } from '../sim/map';
-import type { ViewBounds } from './cameraRig';
+import { CAMERA_YAW, type ViewBounds } from './cameraRig';
 import { GOODS, type GoodId } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
 import type { FogQuery } from './fogOfWar';
@@ -179,9 +179,13 @@ const BAR_POS = new THREE.Vector3();
 const BAR_OFFSET = new THREE.Vector3();
 const BAR_SCALE = new THREE.Vector3(1, 1, 1);
 const BAR_MATRIX = new THREE.Matrix4();
+/** Stands in for the camera's orientation before boot has handed one
+ * over — the rig's own default line, so it cannot go stale the next time
+ * that line moves. A frame with the real camera in hand rebuilds off it
+ * regardless (see frame). */
 const BAR_FALLBACK_QUAT = new THREE.Quaternion().setFromAxisAngle(
   new THREE.Vector3(0, 1, 0),
-  Math.PI / 4,
+  CAMERA_YAW,
 );
 /** Bars are rare (hurt, hovered or selected), so start small and grow. */
 const BAR_CAPACITY_MIN = 32;
@@ -205,6 +209,12 @@ export class BuildingSync {
   /** The camera's live orientation, for screen-parallel hp bars (set at
    * boot; the rig turns this very quaternion). */
   cameraQuaternion: THREE.Quaternion | null = null;
+  /** The orientation the standing bars were built with. They are instanced
+   * — the quaternion is baked into each matrix at rebuild — and a rebuild
+   * only happens when the roster or the highlight changes. Neither of
+   * those is a camera turn, so without this the bars would hold the angle
+   * they were built at while the world swung round them. */
+  #hpQuat = new THREE.Quaternion();
   /** Fog test; enemy buildings hide until their ground has been explored. */
   #fog: FogQuery | null = null;
   /**
@@ -563,6 +573,15 @@ export class BuildingSync {
    * applies when it culls a unit's animation off-screen.
    */
   frame(dt: number, bounds?: ViewBounds): void {
+    // Re-aim the bars if the camera has turned under them. An exact
+    // compare, so a camera at rest costs nothing and the rebuild happens
+    // only on the frames that need it.
+    //
+    // Ahead of the dt gate on purpose: the game pauses, the camera does
+    // not. Turning while paused would otherwise leave every bar facing
+    // wherever the view was when the world stopped.
+    const camQuat = this.cameraQuaternion;
+    if (camQuat && !camQuat.equals(this.#hpQuat)) this.#rebuildHpBars();
     if (dt <= 0) return;
     for (const v of this.#visuals.values()) {
       // Most of a settlement is huts and warehouses with nothing that
@@ -853,6 +872,9 @@ export class BuildingSync {
    */
   #rebuildHpBars(): void {
     const camQuat = this.cameraQuaternion ?? BAR_FALLBACK_QUAT;
+    // Recorded before the early-out below: a settlement with no bars to
+    // draw has nothing to re-aim either, and must not ask again next frame.
+    this.#hpQuat.copy(camQuat);
     // Counted before anything is written. Two reasons: growing reallocates
     // the instance buffers, so doing it partway through the fill would
     // throw away every bar already written (a bug that only appears once a

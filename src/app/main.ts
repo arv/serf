@@ -1229,8 +1229,8 @@ async function runMatch(
   });
   teardown.push(unmountHud);
 
-  // The camera never rotates: hp bars copy its live orientation once to
-  // sit parallel with the screen plane.
+  // Hp bars sit parallel to the screen plane by copying the camera's
+  // orientation — the live object, so a turn carries them round with it.
   sync.cameraQuaternion = renderer.rig.camera.quaternion;
   buildingSync.cameraQuaternion = renderer.rig.camera.quaternion;
 
@@ -1272,6 +1272,11 @@ async function runMatch(
     fog.setEnabled(fogEnabled() && !fallen);
     fog.update(Math.min((now - fogLast) / 1000, 0.25), init.reader, roster, renderer.scene);
     fogLast = now;
+    // The camera moves before anything asks where it is looking. Picking,
+    // culling, the stereo basis and every billboard read it below, and the
+    // draw at the bottom is what the player actually sees — so they had all
+    // better be the same camera.
+    const dt = renderer.update();
     // Hover picking is deferred from pointermove (which can fire at
     // hundreds of Hz) to at most once per frame, here.
     controls.updateHoverIfDirty();
@@ -1298,10 +1303,11 @@ async function runMatch(
     butterflies.update(now);
     // After sync.update: the stamps read the publish it just polled.
     footprints.update(now, speed() === 0);
-    const dt = renderer.frame();
     // Same view rect the unit sync culls against — sails and roof watches
     // off camera are not worth animating either.
     buildingSync.frame(speed() === 0 ? 0 : dt, bounds);
+    // Everything above has had its say about this camera; draw it.
+    renderer.render();
     // Last: the frame's queued cues become at most a couple dozen voices.
     audioFrame(now);
     frame = requestAnimationFrame(loop);
