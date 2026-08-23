@@ -180,17 +180,18 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         const worker = world.units.get(b.workerId);
         if (worker && !worker.dead) unbindWorker(world, worker);
       }
-      // On a tower this one lever is the levy, both halves of it: halting
-      // stops villagers being called up AND sends the ones already up back
-      // to work. Keeping those apart left the order contradicting itself —
-      // a tower stood down but still holding two of the village's hands.
+      // On a tower the lever is the whole roof: halting empties it and
+      // stops it calling anyone else up, villagers and soldiers alike.
       //
-      // Soldiers are untouched. They are not what the lever is about: an
-      // idle archer costs the village nothing, so there is never a reason
-      // to send one down, and a halted tower still takes any that turn up.
-      if (cmd.paused && def.garrison && b.garrisonKind === def.garrison.levy.unit) {
-        evictGarrison(world, b, b.garrison ?? 0);
-      }
+      // Soldiers used to be exempt — an idle archer costs the village
+      // nothing, so there was said to be no reason to send one down. But
+      // that left the order describing a tower that was manned and shooting,
+      // over a lever that then moved nobody for the rest of the match: a
+      // standing tower's archers never came down, and no villager is ever
+      // let up beside one. The two men on the roof are two men not standing
+      // with the army, and deciding that is the whole point of the lever.
+      // Starting it again calls them straight back up.
+      if (cmd.paused && def.garrison) evictGarrison(world, b, b.garrison ?? 0);
       break;
     }
     case 'setBuildingRepair': {

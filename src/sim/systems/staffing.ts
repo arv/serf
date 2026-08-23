@@ -38,7 +38,10 @@ const BUILDER_STARVED_TICKS = 10 * TICKS_PER_SECOND;
  */
 export function staffingSystem(world: World): void {
   handleArrivals(world);
-  if (world.tick % REQUEST_INTERVAL === 0) releaseObsoletePosts(world);
+  if (world.tick % REQUEST_INTERVAL === 0) {
+    releaseObsoletePosts(world);
+    emptyHaltedTowers(world);
+  }
   requestRecruits(world, world.tick % REQUEST_INTERVAL !== 0);
 }
 
@@ -66,6 +69,27 @@ function releaseObsoletePosts(world: World): void {
     // every caller now — see its comment for why a half-finished gather task
     // would otherwise strand the hand for good.
     unbindWorker(world, worker);
+  }
+}
+
+/**
+ * Halted means empty, on every beat and not only on the tick the order was
+ * given. The command evicts as it lands, so nothing in a running match makes
+ * a halted tower with men on it — but a *save* does: a file written before
+ * the lever took the soldiers with it holds towers that are stood down and
+ * manned at once, which is the exact contradiction the lever was fixed to
+ * stop showing. They stand down on the first sweep after the load.
+ *
+ * Cheap enough to be worth having as a rule rather than a migration: it is
+ * a field test on the buildings that keep a garrison, and it makes "halted
+ * tower, empty roof" true by construction rather than by everyone
+ * remembering.
+ */
+function emptyHaltedTowers(world: World): void {
+  for (const b of world.buildings.values()) {
+    if (b.dead || b.state !== 'built' || !b.paused || !b.garrison) continue;
+    if (!buildingDef(b.type).garrison) continue;
+    evictGarrison(world, b, b.garrison);
   }
 }
 
@@ -105,11 +129,11 @@ function handleArrivals(world: World): void {
     // A post halted while its recruit was already walking turns him away at
     // the door: pausing empties the post, and binding the walker would
     // quietly re-man it. He went idle above, so he is back in the pool.
-    // Only a BUILT tower keeps the door open (soldiers climb in whatever
-    // the levy order says) — a tower still on the scaffold is a site like
-    // any other, and binding the walker would quietly restart a paused
-    // build.
-    if (b.paused && !(def.garrison && b.state === 'built')) continue;
+    // A tower is no exception in either form. Its scaffold is a site like
+    // any other, and its built form is halted precisely to take the men on
+    // the roof back — letting a soldier climb in anyway would hand one
+    // straight back to the order that just emptied it.
+    if (b.paused) continue;
     if (b.state === 'site') {
       // The builder: this serf raises the building (construction only
       // advances while they're on site) and stays on as its worker.
@@ -139,7 +163,9 @@ function handleArrivals(world: World): void {
       unit.dead = true;
       continue;
     }
-    if (def.garrison && unit.kind === def.garrison.levy.unit && !b.paused) {
+    // (No pause check: a halted tower turned him away at the door above,
+    // along with every other kind of man.)
+    if (def.garrison && unit.kind === def.garrison.levy.unit) {
       // A villager answering the levy. Same consumption as the soldier —
       // he is inside the wall, not standing at its foot — and he steps
       // aside for soldiers rather than the other way round, so he never
@@ -203,19 +229,21 @@ function handleArrivals(world: World): void {
  * room to stand, and no soldiers already holding the wall — so a tower the
  * archers reached is not a standing request for serfs nobody will fill.
  *
- * `paused` decides only the villagers. A stood-down tower still takes any
- * soldier who turns up — an idle archer costs the village nothing to keep —
- * but calls no villagers up, which is what keeps a tower from quietly eating
- * two of them the day it is built.
+ * `paused` decides the whole roof: a stood-down tower calls nobody up, of
+ * either kind. That is what keeps a tower from quietly eating two of the
+ * village's hands the day it is built — and, since halting sends the men
+ * already up back down, what makes the lever the one place a player decides
+ * whether two soldiers stand on this wall or with the army.
  */
 function wantedKinds(b: Building): UnitTypeId[] {
   const def = buildingDef(b.type);
   const g = def.garrison;
   if (!g || b.state !== 'built') return ['serf'];
+  if (b.paused) return [];
   const room = garrisonRoom(def, b);
   const kinds: UnitTypeId[] = [];
   if (room > 0 || b.garrisonKind === g.levy.unit) kinds.push(g.unit);
-  if (!b.paused && room > 0 && b.garrisonKind !== g.unit) kinds.push(g.levy.unit);
+  if (room > 0 && b.garrisonKind !== g.unit) kinds.push(g.levy.unit);
   return kinds;
 }
 
@@ -263,13 +291,10 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     // failed to reach.
     if ((b.staffBackoffUntil ?? 0) > world.tick) continue;
     const def = buildingDef(b.type);
-    // A halted post summons nobody — except a BUILT tower, which always
-    // takes the soldiers it would rather have. Halting one stands its
-    // *levy* down (see wantedKinds): villagers are hands the village needs
-    // back, and archers are hands it has nothing else to do with. A tower
-    // still on the scaffold is a site like any other: pausing it must not
-    // keep summoning the builder it just released.
-    if (b.paused && !(def.garrison && b.state === 'built')) continue;
+    // A halted post summons nobody, towers included (see wantedKinds):
+    // halting one is the order to take its roof back, so calling a soldier
+    // over to climb straight up it would undo the order as it was given.
+    if (b.paused) continue;
     if (b.state === 'site' ? def.isRoad : b.state !== 'built') continue;
 
     // Validate any recruit en route.

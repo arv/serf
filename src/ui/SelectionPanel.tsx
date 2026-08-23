@@ -350,17 +350,13 @@ export function SelectionPanel(props: {
           const garrison = () => b().garrison ?? 0;
           /** Villagers on the roof rather than soldiers. */
           const levied = () => b().levied === true;
-          /** The tower's halt lever, which is its levy: what pressing it
-              would do, and whether it would do anything at all. Undefined
+          /** The tower's halt lever, which is the manning of it. Undefined
               for every other building (and for a tower still on the
               scaffold), where the lever is the ordinary halt. */
           const levy = () => levyOrder(b());
-          /** The lever's face: a standing tower's is the levy's, every other
-              building's is the workshop halt it has always been. */
+          /** The lever's face: a standing tower's speaks of its roof, every
+              other building's is the workshop halt it has always been. */
           const pauseLabel = () => levy()?.label ?? (b().paused ? 'Resume' : 'Pause');
-          /** ...and a dead lever does not promise an act in its tooltip
-              title, because pressing it performs none. */
-          const pauseTitle = () => (levy()?.live === false ? 'The archers hold it' : pauseLabel());
           return (
             <div class="hud-selection panel">
               <div class="sel-head">
@@ -423,18 +419,16 @@ export function SelectionPanel(props: {
                     <TipWrap
                       tip={() => (
                         <TextTip
-                          title={pauseTitle()}
+                          title={pauseLabel()}
                           body={
                             b().state !== 'built'
                               ? b().paused
                                 ? 'Resumes the build: materials flow again and a builder is called back to the frame.'
                                 : 'Halts the site where it stands — no new deliveries are called for (a load already on the road still lands), no progress — and the builder rejoins the serf pool. Nothing already delivered is lost.'
                               : levy()
-                                ? levy()!.live === false
-                                  ? 'The archers hold the wall, and the tower shoots as one kind of man: no villager is let up beside a soldier, and a soldier on a standing tower never comes down. There is no levy here left to call up or send home.'
-                                  : b().paused
-                                    ? 'Calls the levy up: villagers climb to the roof and throw stones, and they hold it until archers arrive to take the wall for good.'
-                                    : 'Stands the levy down: the villagers on the roof climb down and go back to work, and no more are called up. Archers are untouched — an idle one costs the village nothing — and any that turn up still man it.'
+                                ? b().paused
+                                  ? 'Mans the tower: archers walk in from the field and climb up, and until the village has any, villagers answer the levy and hold it with stones. Nobody up there can be shot at while the tower stands.'
+                                  : 'Empties the roof: the villagers go back to work and the archers walk back out of the door as soldiers, free to march with the army. Nobody is called up again until the tower is manned.'
                                 : b().paused
                                   ? 'Puts the place back to work: it calls for a worker again, and production, deliveries and construction pick up where they left off.'
                                   : 'Halts the workshop without breaking it up — no production, no incoming deliveries, no construction progress — and sends the worker home a serf, free to haul or build. Finished stock still ships out.'
@@ -443,7 +437,6 @@ export function SelectionPanel(props: {
                       )}
                     >
                       <button
-                        disabled={levy()?.live === false}
                         onClick={() => props.onTogglePause(b().id, !b().paused)}
                       >
                         {pauseLabel()}
@@ -812,13 +805,14 @@ export function SelectionPanel(props: {
               <div class="sel-line sel-status">
                 {/* A tower unlocks with the barracks but shoots best with
                     archers, who wait on Archery — so it says which of the
-                    two is up there, and a stood-down one says that calling
-                    the levy up is what puts villagers on the wall today. */}
+                    two is up there, and a stood-down one says plainly that
+                    it is empty, because a tower nobody has manned defends
+                    nothing at all. */}
                 <Show when={manned() && b().state === 'built'}>
                   <span classList={{ good: garrison() > 0, bad: garrison() === 0 }}>
                     {garrison() === 0
                       ? b().paused
-                        ? 'stood down — call the levy up and villagers will man it'
+                        ? 'stood down — nobody on the roof until you man it'
                         : 'unmanned — waiting for someone to climb up'
                       : `${garrison()}/${b().garrisonCap} ${levied() ? 'villagers' : 'archers'} on the roof`}
                   </span>
@@ -838,12 +832,10 @@ export function SelectionPanel(props: {
                           : 'needs a worker!'}
                   </span>
                 </Show>
-                {/* Not on a standing tower: there the halt is the levy
+                {/* Not on a standing tower: there the halt is the manning
                     order, and the line above has already said whether the
-                    roof is manned and by whom. "paused" over "2/2 archers on
-                    the roof" read as a contradiction — the tower is halted
-                    in no sense a player can see, because the men it halts
-                    are not the men up there. */}
+                    roof is manned and by whom — a halted tower is an empty
+                    one, which is what that line says. */}
                 <Show when={b().paused && levy() === undefined}>
                   <span class="note"> · paused</span>
                 </Show>

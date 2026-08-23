@@ -413,11 +413,11 @@ describe('the stall watchdog', () => {
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     world.tick += AI_PACING.decisionInterval;
     const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
-    // Halting a tower stands its levy down; archers hold it either way, so
-    // an archer-held tower is halted on quiet ground and left there — the
-    // halt costs nothing, and there is never a second order about them.
-    expect(out).toContainEqual({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true });
-    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toHaveLength(1);
+    // Halting a tower now empties the roof whoever is on it, so the
+    // quiet-ground halt is held back from one the soldiers hold: standing
+    // them down would trade a wall that cannot be shot back at for two men
+    // in the open, and start them climbing back up at the next sighting.
+    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
     expect(tower.garrison).toBe(BUILDING_DEFS.guardTower.garrison!.capacity);
   });
 

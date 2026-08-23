@@ -20,6 +20,21 @@
  * directly.
  */
 /**
+ * 27: the tower's halt lever is the whole roof. Halting one used to stand
+ * down its levy alone — soldiers were exempt, on the grounds that an idle
+ * archer costs the village nothing to keep. What that bought was a tower
+ * that read as halted while it stood manned and shooting, and a lever that
+ * moved nobody ever again once archers reached it: a standing tower's
+ * soldiers never came down, and no villager is let up beside one. Halting
+ * now empties the roof whoever is on it, a halted tower calls nobody up and
+ * turns arrivals away at the door, and starting it calls them back. The
+ * seats keep their quiet-ground halt but hold it back from a tower their
+ * soldiers hold, which would otherwise trade a wall for two men in the open
+ * every time the ground went quiet. Who is in a tower, what a village has
+ * left to haul and fight with, and the commands the seats issue all change
+ * — a replay recorded before this build re-runs into a different world
+ * within a raid or two.
+ *
  * 26: villagers slow to a walk — serf 1.8 -> 1.5 tiles/sec, worker 1.7 ->
  * 1.4. Purely a pacing change asked for by eye: the village read as
  * everyone sprinting between errands, and the renderer's gait work could
@@ -156,4 +171,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 26;
+export const REPLAY_VERSION = 27;

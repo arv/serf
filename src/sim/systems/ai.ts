@@ -1079,11 +1079,29 @@ export class AiBrain {
    * it again once the ground has been quiet, which puts the villagers back
    * to work on its own.
    *
-   * Only ever the villagers. Archers man a tower whether it is running or
-   * not (they cost the village nothing to keep), so nothing here starts a
-   * tower for their sake or sends one of them down.
+   * Soldiers are on the same lever now — halting a tower empties the roof
+   * whoever is on it — so the quiet-ground halt is held back from a tower
+   * its soldiers hold. Standing them down would trade a wall the raiders
+   * cannot shoot back at for two men in the open, every time the ground
+   * went quiet, and start them walking back up the moment it did not.
    */
   #manTowers(world: World, mine: readonly Building[], commands: SimCommand[]): void {
+    // Soldiers standing loose, counted once and spent as towers claim them.
+    // Since halting now empties the roof, keeping a tower running whenever
+    // there is a man for it is a decision the seat has to make — the sim no
+    // longer walks archers into a stood-down tower behind its back.
+    const idleOf = new Map<UnitTypeId, number>();
+    const loose = (kind: UnitTypeId): number => {
+      let n = idleOf.get(kind);
+      if (n === undefined) {
+        n = 0;
+        for (const u of world.units.values()) {
+          if (!u.dead && u.owner === this.playerId && u.kind === kind && u.task.t === 'idle') n++;
+        }
+        idleOf.set(kind, n);
+      }
+      return n;
+    };
     for (const b of mine) {
       if (b.state !== 'built') continue;
       if (!BUILDING_DEFS[b.type].garrison) continue;
@@ -1097,7 +1115,25 @@ export class AiBrain {
       if (world.tick < (this.#levyHold.get(b.id) ?? 0)) continue;
       this.#levyHold.delete(b.id);
       // Halting is the whole stand-down: it stops the tower calling anyone
-      // else up and sends the villagers already on it back to work.
+      // else up and sends whoever is on it back down. Which is why a tower
+      // the soldiers hold is left running on quiet ground — the villagers it
+      // would give back are already back, and the men it would give back
+      // belong on that wall.
+      const rule = BUILDING_DEFS[b.type].garrison!;
+      const room = rule.capacity - (b.garrison ?? 0);
+      if (b.garrison && b.garrisonKind !== rule.levy.unit && room <= 0) continue;
+      // Short of soldiers, and there are some standing about: run it and let
+      // them climb. An archer on a wall shoots harder and cannot be shot
+      // back at, and the village loses no hands by it — so a seat mans its
+      // towers in peacetime with soldiers, and only ever with villagers
+      // while something hostile is in sight.
+      const spare = Math.min(room, loose(rule.unit));
+      if (spare > 0) {
+        idleOf.set(rule.unit, loose(rule.unit) - spare);
+        if (b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
+        continue;
+      }
+      if (b.garrison && b.garrisonKind !== rule.levy.unit) continue;
       if (!b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: true });
     }
   }
