@@ -161,6 +161,10 @@ function handleArrivals(world: World): void {
       b.garrison = (b.garrison ?? 0) + 1;
       b.garrisonKind = def.garrison.unit;
       (b.garrisonHp ??= []).push(unit.hp); // what he climbed up with
+      // ...including his half-drawn bow. The clock travels with the man, or
+      // a volley from one tower could be followed straight away by a volley
+      // from the next one he walked into.
+      if (unit.cooldownLeft > (b.attackCooldown ?? 0)) b.attackCooldown = unit.cooldownLeft;
       unit.dead = true;
       continue;
     }
@@ -176,6 +180,7 @@ function handleArrivals(world: World): void {
       b.garrison = (b.garrison ?? 0) + 1;
       b.garrisonKind = def.garrison.levy.unit;
       (b.garrisonHp ??= []).push(unit.hp);
+      if (unit.cooldownLeft > (b.attackCooldown ?? 0)) b.attackCooldown = unit.cooldownLeft;
       unit.dead = true;
       continue;
     }

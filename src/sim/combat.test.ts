@@ -823,6 +823,30 @@ describe('the guard tower', () => {
     expect(out[0]!.cooldownLeft).toBeGreaterThanOrEqual(16);
   });
 
+  it('carries a half-drawn bow into the next tower, and leaves no clock behind', () => {
+    // The other direction of the same rule. Loose from one tower, stand it
+    // down, walk the men into the tower next door: if the clock stayed
+    // behind, that second wall would fire with bows that had not reloaded.
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    const a = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const b = placeBuiltBuilding(world, 'guardTower', 0, 34, 30);
+    a.garrison = 1;
+    a.garrisonKind = 'archer';
+    a.attackCooldown = 200; // long enough to survive the walk next door
+
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: a.id, paused: true }));
+    expect(a.garrison).toBeUndefined();
+    // Nothing left standing on the empty tower's clock: towerFire does not
+    // count an empty tower down, so it would still be there next time.
+    expect(a.attackCooldown).toBeUndefined();
+
+    let guard = 0;
+    while ((b.garrison ?? 0) < 1 && guard++ < 800) tickWorld(world, []);
+    expect(b.garrison).toBe(1);
+    expect(b.attackCooldown ?? 0).toBeGreaterThan(0);
+  });
+
   it('gives back the man who went up, wounds and all — the roof is not a hospital', () => {
     // Standing a tower down is free and instant. If the men came back at
     // full strength, a wounded archer could be walked up and stood down

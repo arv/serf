@@ -140,6 +140,12 @@ export function evictGarrison(world: World, b: Building, n: number): void {
   if (b.garrison === undefined) {
     b.garrisonKind = undefined;
     b.garrisonHp = undefined;
+    // ...and no clock: the men took the reload out of the door with them
+    // (above), and towerFire stops counting an empty tower down, so a clock
+    // left behind here would still be standing when the next man climbed up
+    // — and he would serve it a second time, having already waited it out in
+    // the field.
+    b.attackCooldown = undefined;
   }
 }
 
