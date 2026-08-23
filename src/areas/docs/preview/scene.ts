@@ -36,7 +36,13 @@ let sharedGround: THREE.Texture | null = null;
  * Density is baked into each plate's UVs instead of the texture's repeat,
  * so plates of different sizes can share this one texture. */
 function groundTexture(): THREE.Texture {
-  sharedGround ??= makeGroundTexture(TEXTURE_UNITS);
+  if (!sharedGround) {
+    sharedGround = makeGroundTexture(TEXTURE_UNITS);
+    // makeGroundTexture bakes a map-sized repeat into the texture; the
+    // plates carry their density in their UVs instead, and leaving both in
+    // play multiplied them into a speckle twice the intended size.
+    sharedGround.repeat.set(1, 1);
+  }
   return sharedGround;
 }
 

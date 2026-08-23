@@ -76,6 +76,24 @@ function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
           with
         </li>
       );
+    case 'festival':
+      return (
+        <li>
+          Drunk at the{' '}
+          <DocLink href={buildingHref('abbey')}>{buildingName('abbey')}</DocLink> to hold a
+          festival, once <DocLink href={techHref('festivals')}>{techName('festivals')}</DocLink>{' '}
+          is researched
+        </li>
+      );
+    case 'ration':
+      return (
+        <li>
+          Kept in the{' '}
+          <DocLink href={buildingHref('barracks')}>{buildingName('barracks')}</DocLink> cask —
+          with <DocLink href={techHref('aleRations')}>{techName('aleRations')}</DocLink> each
+          recruit drinks one and trains faster
+        </li>
+      );
     case 'hire':
       return <li>Hires a serf ({HIRE_SERF_COST} silver each)</li>;
     case 'siteLoan':

@@ -13,6 +13,7 @@ import {
   TRAINED_AT,
   buildingTechGates,
   startStockOf,
+  worldBuildings,
 } from './data';
 import { parseDocsPath } from './routes';
 import { fmtSecs } from './data';
@@ -38,12 +39,12 @@ describe('the docs cross-reference graph', () => {
   });
 
   it('covers every building with the ribbon groups plus the world section', () => {
-    // BuildingsPage renders BUILD_GROUPS and derives the rest. Every
-    // building has a page, so every building needs a tile pointing at it —
-    // a page nothing links to is a page nobody reads.
-    const inMenu = new Set(BUILD_GROUPS.flatMap((g) => g.types));
-    const world = ALL_BUILDINGS.filter((id) => !inMenu.has(id));
-    expect([...inMenu, ...world].sort()).toEqual([...ALL_BUILDINGS].sort());
+    // Against worldBuildings() itself, not a copy of its arithmetic: the
+    // road was once filtered out of the catalogue and left with a page
+    // nothing linked to, and a test that recomputed the same complement
+    // would have stayed green through it.
+    const inMenu = BUILD_GROUPS.flatMap((g) => g.types);
+    expect([...inMenu, ...worldBuildings()].sort()).toEqual([...ALL_BUILDINGS].sort());
   });
 
   it('counts a repair bill as a use of the good', () => {

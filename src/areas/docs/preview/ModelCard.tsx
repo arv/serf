@@ -79,7 +79,10 @@ export function ModelCard(props: ModelCardProps): JSX.Element {
     <div
       ref={stage}
       class="stage"
-      classList={{ loading: state() === 'loading', grabbable: props.interactive === true }}
+      classList={{
+        loading: state() === 'loading',
+        grabbable: props.interactive === true && state() === 'ready',
+      }}
     >
       <canvas ref={canvas} />
       <Show when={state() === 'fallback'}>

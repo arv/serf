@@ -2,21 +2,11 @@ import { For, type JSX } from 'solid-js';
 import { BUILDING_DEFS, type BuildingTypeId } from '../../../sim/defs/buildings';
 import { BUILD_GROUPS } from '../../../ui/buildMenu';
 import { buildingName } from '../../../ui/names';
-import { ALL_BUILDINGS } from '../data';
+import { worldBuildings } from '../data';
 import { BUILDING_DESC } from '../descriptions';
 import { CostList, DocLink } from '../components';
 import { ModelCard } from '../preview/ModelCard';
 import { buildingHref } from '../routes';
-
-/** The roofs no ribbon tab offers: worldgen's and the road pass's. Derived
- * rather than listed, so a new system building cannot be silently missed —
- * data.test.ts holds the ribbon ∪ this = every building invariant, roads
- * included: each one has a page, and a page nothing links to is a page
- * nobody reads. */
-export function worldBuildings(): BuildingTypeId[] {
-  const inMenu = new Set(BUILD_GROUPS.flatMap((g) => g.types));
-  return ALL_BUILDINGS.filter((id) => !inMenu.has(id));
-}
 
 /**
  * A wrapper, not one big link: the cost chips are links of their own, and

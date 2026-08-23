@@ -9,6 +9,7 @@ import {
 import { GOODS, type GoodAmounts, type GoodId } from '../../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../../sim/defs/techs';
 import { UNIT_DEFS, WEAPON_OF, type UnitTypeId } from '../../sim/defs/units';
+import { BUILD_GROUPS } from '../../ui/buildMenu';
 
 /**
  * The cross-reference graph the wiki walks: every "produced by / used by /
@@ -32,6 +33,18 @@ export const ALL_TECHS = Object.keys(TECH_DEFS) as TechId[];
  */
 export const RAIDER_UNITS: UnitTypeId[] = ['bandit', 'banditArcher', 'marauder'];
 export const RAIDER_BUILDINGS: BuildingTypeId[] = ['banditCamp'];
+
+/**
+ * The roofs no ribbon tab offers: worldgen's and the road pass's. Derived
+ * rather than listed, so a new system building cannot be silently missed —
+ * every building has a page, and a page nothing links to is a page nobody
+ * reads. Lives here rather than beside the tiles that render it so the
+ * invariant can be tested without standing up a DOM.
+ */
+export function worldBuildings(): BuildingTypeId[] {
+  const inMenu = new Set(BUILD_GROUPS.flatMap((g) => g.types));
+  return ALL_BUILDINGS.filter((id) => !inMenu.has(id));
+}
 
 export function secs(ticks: number): number {
   return ticks / TICKS_PER_SECOND;
@@ -83,7 +96,9 @@ export type ConsumerRef =
   | { kind: 'tool'; building: BuildingTypeId }
   | { kind: 'weapon'; unit: UnitTypeId }
   | { kind: 'hire' }
-  | { kind: 'siteLoan' };
+  | { kind: 'siteLoan' }
+  | { kind: 'festival' }
+  | { kind: 'ration' };
 
 function goodsOf(amounts: GoodAmounts): GoodId[] {
   return Object.keys(amounts) as GoodId[];
@@ -186,10 +201,15 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
   for (const [unit, weapon] of Object.entries(WEAPON_OF) as [UnitTypeId, GoodId][]) {
     push(map, weapon, { kind: 'weapon', unit });
   }
-  // The two consumers no def table names: hiring is priced in balance.ts,
-  // and every construction site borrows a hammer (see TOOL_OF's comment).
+  // The consumers no def table names, because they are mechanics rather
+  // than recipe rows: hiring is priced in balance.ts, every construction
+  // site borrows a hammer (see TOOL_OF), and ale is drunk in two places —
+  // the abbey's festivals and the barracks' cask. Without these the ale
+  // page would list what research costs and nothing about what ale is for.
   push(map, 'silver', { kind: 'hire' });
   push(map, 'hammer', { kind: 'siteLoan' });
+  push(map, 'ale', { kind: 'festival' });
+  push(map, 'ale', { kind: 'ration' });
   return map;
 }
 

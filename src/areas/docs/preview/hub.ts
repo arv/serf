@@ -70,6 +70,10 @@ interface Card extends CardSpec {
   ctx: CanvasRenderingContext2D;
   content: CardContent | null;
   yaw: number;
+  /** Close enough to be worth painting before it is scrolled to. */
+  near: boolean;
+  /** Actually on screen. Animation follows this one — a card half a screen
+   * below the fold should not be spending a phone's GPU. */
   visible: boolean;
   painted: boolean;
   w: number;
@@ -83,6 +87,7 @@ interface Hub {
   camera: THREE.OrthographicCamera;
   holder: THREE.Group;
   io: IntersectionObserver;
+  onScreen: IntersectionObserver;
   cards: Set<Card>;
   raf: number;
   lastAnimPaint: number;
@@ -126,28 +131,39 @@ function getHub(): Hub | null {
   makeLights(scene);
   const holder = new THREE.Group();
   scene.add(holder);
+  // Two observers, because "paint it before the reader arrives" and
+  // "animate it while they are looking" are different distances.
   const io = new IntersectionObserver(
     (entries) => {
-      const h = hub;
-      if (!h) return;
+      if (!hub) return;
       for (const e of entries) {
-        for (const card of h.cards) {
+        for (const card of hub.cards) {
           if (card.stage !== e.target) continue;
-          card.visible = e.isIntersecting;
-          if (card.visible && card.content && !card.painted) paint(card);
+          card.near = e.isIntersecting;
+          if (card.near && card.content && !card.painted) paint(card);
         }
       }
-      wakeAnimLoop();
     },
     // Paint just before a card scrolls in, so the reader never sees it land.
     { rootMargin: '400px 0px' },
   );
+  const onScreen = new IntersectionObserver((entries) => {
+    if (!hub) return;
+    for (const e of entries) {
+      for (const card of hub.cards) {
+        if (card.stage !== e.target) continue;
+        card.visible = e.isIntersecting;
+      }
+    }
+    wakeAnimLoop();
+  });
   hub = {
     renderer,
     scene,
     camera: new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 60),
     holder,
     io,
+    onScreen,
     cards: new Set(),
     raf: 0,
     lastAnimPaint: 0,
@@ -179,9 +195,12 @@ function onContextLost(event: Event): void {
   hub = null;
   if (h.raf !== 0) cancelAnimationFrame(h.raf);
   h.io.disconnect();
+  h.onScreen.disconnect();
   h.renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
   document.removeEventListener('visibilitychange', h.onVisibility);
   for (const card of h.cards) {
+    card.cleanupDrag?.();
+    card.cleanupDrag = undefined;
     card.content = null;
     card.painted = false;
     card.onState('fallback');
@@ -403,6 +422,7 @@ export function registerCard(spec: CardSpec): CardHandle {
     ctx,
     content: null,
     yaw: YAW,
+    near: false,
     visible: false,
     painted: false,
     w: 0,
@@ -410,7 +430,7 @@ export function registerCard(spec: CardSpec): CardHandle {
   };
   h.cards.add(card);
   h.io.observe(card.stage);
-  if (card.interactive) attachDrag(card);
+  h.onScreen.observe(card.stage);
 
   const assets = card.kind === 'building' ? ensureBuildingAssets() : ensureUnitAssets();
   void assets.then((ok) => {
@@ -419,11 +439,17 @@ export function registerCard(spec: CardSpec): CardHandle {
     if (hubFailed || !hub || !hub.cards.has(card)) return;
     card.content = ok ? buildContent(card) : null;
     if (!card.content) {
+      card.cleanupDrag?.();
+      card.cleanupDrag = undefined;
       card.onState('fallback');
       return;
     }
     card.onState('ready');
-    if (card.visible) paint(card);
+    // Drag is only meaningful once there is something to turn: a fallback
+    // tile advertising a grab (and swallowing horizontal gestures with
+    // preventDefault) is a promise the card cannot keep.
+    if (card.interactive) attachDrag(card);
+    if (card.near) paint(card);
     wakeAnimLoop();
   });
 
@@ -437,7 +463,7 @@ export function registerCard(spec: CardSpec): CardHandle {
       playAnimation(visual, key, key === 'death' ? 0 : card.seed);
       // The loop carries the crossfade from here; a card that is somehow
       // between loops still gets one frame.
-      if (card.visible) paint(card);
+      if (card.near) paint(card);
       wakeAnimLoop();
     },
     dispose(): void {
@@ -445,6 +471,7 @@ export function registerCard(spec: CardSpec): CardHandle {
       card.cleanupDrag?.();
       if (!live) return;
       live.io.unobserve(card.stage);
+      live.onScreen.unobserve(card.stage);
       live.cards.delete(card);
       releaseContent(card);
     },
@@ -467,6 +494,7 @@ export function disposePreviewHub(): void {
   if (h.raf !== 0) cancelAnimationFrame(h.raf);
   document.removeEventListener('visibilitychange', h.onVisibility);
   h.io.disconnect();
+  h.onScreen.disconnect();
   h.renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
   for (const card of h.cards) {
     card.cleanupDrag?.();

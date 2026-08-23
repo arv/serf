@@ -333,7 +333,34 @@ export async function loadGltfRetry(
   throw new Error(`asset failed after ${attempts} attempts: ${url} (${String(lastErr)})`);
 }
 
-export async function loadGlbAssets(): Promise<boolean> {
+let glbLoading: Promise<boolean> | null = null;
+
+/**
+ * Fetch and prepare the building pack, once per page.
+ *
+ * Several screens want it — the menu backdrop, the editor, a match, the
+ * field guide — and this used to rebuild the whole cache on every call,
+ * re-fetching ~3 MB and replacing the templates that live clones already
+ * share. Idempotent here rather than at each call site, because the ones
+ * that overlap do not know about each other.
+ *
+ * A failure is not cached: the next screen to ask gets a fresh attempt.
+ */
+export function loadGlbAssets(): Promise<boolean> {
+  glbLoading ??= loadGlbAssetsOnce().then(
+    (ok) => {
+      if (!ok) glbLoading = null;
+      return ok;
+    },
+    (err: unknown) => {
+      glbLoading = null;
+      throw err;
+    },
+  );
+  return glbLoading;
+}
+
+async function loadGlbAssetsOnce(): Promise<boolean> {
   {
     const loader = new GLTFLoader();
     const files = new Set(Object.values(BUILDING_FILES));

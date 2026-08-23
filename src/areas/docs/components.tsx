@@ -16,12 +16,16 @@ import { goodHref } from './routes';
 export function DocLink(props: {
   href: string;
   class?: string;
+  /** Marks the nav entry for the section being read — the gold pill says
+   * so visually, and this is how that reaches a screen reader. */
+  current?: boolean;
   children: JSX.Element;
 }): JSX.Element {
   return (
     <a
       href={props.href}
       class={props.class}
+      aria-current={props.current === true ? 'location' : undefined}
       onClick={(e) => {
         if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         e.preventDefault();

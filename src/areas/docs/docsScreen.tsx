@@ -94,6 +94,7 @@ function DocsApp(props: { route: Accessor<DocsRoute> }): JSX.Element {
             <DocLink
               href={n.href}
               class={n.section.includes(props.route().page) ? 'on' : undefined}
+              current={n.section.includes(props.route().page)}
             >
               {n.label}
             </DocLink>
