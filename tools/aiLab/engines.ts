@@ -130,10 +130,13 @@ export function buildEngine(spec: EngineSpec, salt: number): LabEngine | null {
       return scriptEngine(spec.reply);
     case 'random':
       return randomEngine(spec.seed * 1_000_003 + salt);
+    // describeSpec is the one author of these labels: engine.label rides
+    // every advised[] JSONL line and describeSpec the report header, and a
+    // divergence files the two halves of one run under different names.
     case 'posture':
-      return postureEngine(choosePosture, 'posture (rule-based)');
+      return postureEngine(choosePosture, describeSpec(spec));
     case 'postureReads':
-      return postureEngine(choosePostureReadingOpponent, 'posture-reads (rule-based, reads the opponent)');
+      return postureEngine(choosePostureReadingOpponent, describeSpec(spec));
     case 'postureFixed':
       return scriptEngine({ posture: spec.posture, reason: 'fixed' });
     case 'http':
@@ -151,7 +154,12 @@ export function describeSpec(spec: EngineSpec): string {
     case 'random':
       return `random (seed ${spec.seed})`;
     case 'posture':
-      return 'posture (rule-based, reads the opponent, no model)';
+      // NOT opponent-reading: choosePosture decides without a look at the
+      // rival (that variant is 'postureReads'). This label rides every
+      // report header and archived JSONL line, and posture vs posture-reads
+      // is exactly the opponent-conditioning ablation the README scores —
+      // a run filed under the wrong arm is indistinguishable from its null.
+      return 'posture (rule-based, no model)';
     case 'postureReads':
       return 'posture-reads (rule-based, conditioned on an opponent archetype)';
     case 'postureFixed':
