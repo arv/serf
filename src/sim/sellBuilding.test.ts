@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
-import { canPlace, type World } from './world.ts';
+import { canPlace, placeBuiltBuilding, type World } from './world.ts';
 import { buildingDef } from './defs/buildings.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
 import {
@@ -54,6 +54,30 @@ describe('selling a building', () => {
     tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: site.id }));
     expect(sh.stock.wood).toBe(1); // floor(2 / 2)
     expect(world.buildings.get(site.id)).toBeUndefined();
+  });
+
+  it('a sold Smith loses its forged stock, hammers included', () => {
+    // The rescue set exists for the post's own tool and a site's borrowed
+    // hammer. A built Smith works with no tool and its hammers are forged
+    // STOCK — an unconditional hammer rescue walked them out of the sale
+    // while the axes on the same shelf were lost.
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, { wood: 0, hammer: 0, axe: 0 });
+    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    smith.stock = { hammer: 3, axe: 2 };
+    tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: smith.id }));
+    expect(sh.stock.hammer ?? 0).toBe(0); // lost with the rest of the shelf
+    expect(sh.stock.axe ?? 0).toBe(0);
+  });
+
+  it("a sold site's borrowed hammer walks back to the stores", () => {
+    const world = bareWorld();
+    const sh = addStorehouse(world, 30, 30, { wood: 0, hammer: 0 });
+    const site = addSite(world, 36, 30);
+    site.siteNeeds = { wood: buildingDef('woodcutter').cost.wood ?? 0 };
+    site.inputs = { hammer: 1 }; // the loan, delivered and waiting
+    tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: site.id }));
+    expect(sh.stock.hammer).toBe(1); // a move, not a refund
   });
 
   it("a rival cannot sell your buildings, and nobody sells a storehouse", () => {

@@ -20,6 +20,14 @@
  * directly.
  */
 /**
+ * 25: a sold Smith loses its forged hammers with the rest of its stock.
+ * The sale's rescue set carried 'hammer' unconditionally — meant for the
+ * hammer a half-built site borrows — so a built Smith's forged hammers
+ * walked to the storehouse for free while the axes on the same shelf
+ * were lost. The hammer now rides the rescue only for a site. Any log
+ * that sells a Smith holding hammers banks fewer tools from that tick
+ * on.
+ *
  * 24: a garrisoned tower fires on the field archer's own period. The
  * tower's cooldown gate continued on the tick the count reached zero,
  * stretching every volley to cooldownTicks + 1 — two archers on the
@@ -140,4 +148,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 24;
+export const REPLAY_VERSION = 25;
