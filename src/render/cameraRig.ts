@@ -28,9 +28,31 @@ const MIN_VIEW = 5;
  * few degrees off square every time.
  */
 const YAW_STEP = Math.PI / 12;
-/** Wheel travel that buys one turn: a notch of a mouse wheel, a short
- * two-finger drag on a trackpad. */
+/** Wheel travel that buys one turn, in pixels: a notch of a mouse wheel,
+ * a short two-finger drag on a trackpad. */
 const WHEEL_PER_TURN = 100;
+/**
+ * What a wheel event's delta means, per deltaMode, in pixels.
+ *
+ * Only Chromium-on-a-mouse hands over anything like pixels. Firefox
+ * reports lines — three of them to a notch, so raw deltas would want
+ * thirty-odd notches for one turn — and a page-mode event (rare, but the
+ * spec allows it) is one screenful. The zoom reads the same normalized
+ * number, so it too stops being three-hundredths of its intended speed on
+ * a Firefox mouse.
+ *
+ * Forty pixels to the line is the figure the scroll-normalizing libraries
+ * settled on; a notch of three lines lands just past one turn, which is
+ * what it should mean. Landing *past* the mark is safe because a turn
+ * spends the whole bank rather than the price (see #turnByWheel).
+ */
+const WHEEL_LINE_PX = 40;
+const WHEEL_PAGE_PX = 800;
+/** WheelEvent.DOM_DELTA_LINE / _PAGE. Written out rather than read off the
+ * constructor: the values are fixed by the spec, and naming the global
+ * would make this line throw wherever WheelEvent is not defined. */
+const DELTA_LINE = 1;
+const DELTA_PAGE = 2;
 /** Time constant of the turn's ease, seconds — quick enough that a run of
  * notches reads as one sweep, slow enough that a single turn is seen
  * happening rather than cut to. */
@@ -218,9 +240,12 @@ export class CameraRig {
     if (!interactive) return;
 
     const signal = this.#off.signal;
-    // Keys are tracked by code, with the key name standing in where a
-    // synthetic or assistive source leaves the code blank (controls.ts
-    // hedges the same way) — for the named keys here the two agree.
+    // Keys are tracked by code — the physical key — because that is what
+    // the bracket pair means: the two keys right of P, wherever a layout
+    // puts the glyphs. The key name stands in only where the code is
+    // blank, as synthetic and some assistive input paths leave it. (The
+    // letter shortcuts in controls.ts take the opposite order, and are
+    // right to: a player pressing B for Build wants the glyph they see.)
     const keyCode = (e: KeyboardEvent): string => e.code || e.key;
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
@@ -279,15 +304,24 @@ export class CameraRig {
       'wheel',
       (e) => {
         e.preventDefault();
+        // Deltas arrive in lines or pages as readily as in pixels; both
+        // the turn and the zoom want one unit.
+        const px =
+          e.deltaMode === DELTA_LINE
+            ? WHEEL_LINE_PX
+            : e.deltaMode === DELTA_PAGE
+              ? WHEEL_PAGE_PX
+              : 1;
         if (e.shiftKey) {
           // Shift+wheel turns. Some platforms hand a shifted wheel over as
           // horizontal travel (Chromium on Windows and Linux, a few
           // trackpad drivers) — whichever axis carries the motion is it.
-          this.#turnByWheel(Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY);
+          const travel = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+          this.#turnByWheel(travel * px);
           return;
         }
         this.#viewHeight = clamp(
-          this.#viewHeight * Math.exp(e.deltaY * 0.0012),
+          this.#viewHeight * Math.exp(e.deltaY * px * 0.0012),
           MIN_VIEW,
           this.#maxView(),
         );
@@ -399,10 +433,18 @@ export class CameraRig {
   }
 
   /**
-   * Bank wheel travel and turn once per WHEEL_PER_TURN of it, so a mouse
-   * notch is one turn and a trackpad's stream of small deltas adds up to
-   * the same. A reversal forgets what was banked: travel toward one turn
-   * must not be spent on the opposite one.
+   * Bank wheel travel (in pixels) and turn once it reaches WHEEL_PER_TURN,
+   * so a mouse notch is one turn and a trackpad's stream of small deltas
+   * adds up to the same. A reversal forgets what was banked: travel toward
+   * one turn must not be spent on the opposite one.
+   *
+   * A turn empties the bank rather than paying WHEEL_PER_TURN out of it,
+   * and one event can never buy two. Otherwise a notch worth more than the
+   * price — 120 pixels on a Windows mouse, 120 more once Firefox's three
+   * lines are normalized — would leave change behind every time, and every
+   * fifth notch would spend the pile on a second turn the hand never asked
+   * for. Overshoot is not travel the player means to bank; it is just how
+   * coarsely their device counts.
    */
   #turnByWheel(delta: number): void {
     if (delta === 0) return;
@@ -410,10 +452,9 @@ export class CameraRig {
     if (this.#pitch === TOP_PITCH) return;
     if (Math.sign(delta) !== Math.sign(this.#wheelAcc)) this.#wheelAcc = 0;
     this.#wheelAcc += delta;
-    const turns = Math.trunc(this.#wheelAcc / WHEEL_PER_TURN);
-    if (turns === 0) return;
-    this.#wheelAcc -= turns * WHEEL_PER_TURN;
-    this.#turns += turns;
+    if (Math.abs(this.#wheelAcc) < WHEEL_PER_TURN) return;
+    this.#turns += Math.sign(this.#wheelAcc);
+    this.#wheelAcc = 0;
   }
 
   /** The angle #turns names: the view mode's own line plus the steps. */
@@ -451,6 +492,7 @@ export class CameraRig {
     this.#turns = 0;
     this.#wheelAcc = 0;
     this.#keyTurn = 0;
+    this.#unseenPress = null;
     // Looking straight down, +Y up is parallel to the view line; -Z as up
     // puts north at the top of the screen instead.
     this.camera.up.set(0, mode === 'topDown' ? 0 : 1, mode === 'topDown' ? -1 : 0);

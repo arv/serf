@@ -30,8 +30,13 @@ const fire = (target: EventTarget, type: string, init: object): void => {
 const keyDown = (code: string, repeat = false): void =>
   fire(window, 'keydown', { code, key: code, repeat });
 const keyUp = (code: string): void => fire(window, 'keyup', { code, key: code });
-const wheel = (canvas: EventTarget, deltaY: number, shiftKey = true, deltaX = 0): void =>
-  fire(canvas, 'wheel', { deltaY, deltaX, shiftKey });
+const wheel = (
+  canvas: EventTarget,
+  deltaY: number,
+  shiftKey = true,
+  deltaX = 0,
+  deltaMode = 0,
+): void => fire(canvas, 'wheel', { deltaY, deltaX, shiftKey, deltaMode });
 
 /** The yaw the rig is actually showing, read back off its ground quad:
  * screen-right on the ground is the top edge, and the rig's basis for it
@@ -39,6 +44,15 @@ const wheel = (canvas: EventTarget, deltaY: number, shiftKey = true, deltaX = 0)
 const yawOf = (rig: CameraRig): number => {
   const q = rig.viewQuad(new Float64Array(8));
   return Math.atan2(-(q[3]! - q[1]!), q[2]! - q[0]!);
+};
+
+/** Assert the rig is looking down `expected`, comparing the two as
+ * directions rather than as numbers: turn far enough one way and the yaw
+ * passes π, where the quad it is read back off wraps and a raw comparison
+ * would be out by a whole turn. */
+const expectYaw = (rig: CameraRig, expected: number, digits = 10): void => {
+  const d = yawOf(rig) - expected;
+  expect(Math.atan2(Math.sin(d), Math.cos(d))).toBeCloseTo(0, digits);
 };
 
 /** Run the ease to rest: a second of frames is many time constants. */
@@ -70,7 +84,7 @@ describe('CameraRig turn', () => {
   });
 
   it('boots on the default line, two steps off square', () => {
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW, 10);
+    expectYaw(rig, CAMERA_YAW, 10);
     expect(CAMERA_YAW).toBeCloseTo(2 * STEP, 12);
   });
 
@@ -82,18 +96,18 @@ describe('CameraRig turn', () => {
     expect(mid).toBeGreaterThan(CAMERA_YAW);
     expect(mid).toBeLessThan(CAMERA_YAW + STEP);
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW + STEP, 10);
+    expectYaw(rig, CAMERA_YAW + STEP, 10);
     // Two notches back: square to the grid, exactly.
     wheel(canvas, -100);
     wheel(canvas, -100);
     wheel(canvas, -100);
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(0, 10);
+    expectYaw(rig, 0, 10);
     // The unshifted wheel is the zoom: the frame grows, the line holds.
     const before = rig.viewQuad(new Float64Array(8));
     wheel(canvas, 100, false);
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(0, 10);
+    expectYaw(rig, 0, 10);
     const after = rig.viewQuad(new Float64Array(8));
     expect(after[2]! - after[0]!).toBeGreaterThan(before[2]! - before[0]!);
   });
@@ -101,37 +115,88 @@ describe('CameraRig turn', () => {
   it('banks trackpad travel into whole steps and forgets it on a reversal', () => {
     for (let i = 0; i < 19; i++) wheel(canvas, 5);
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW, 10); // 95: not yet
+    expectYaw(rig, CAMERA_YAW, 10); // 95: not yet
     wheel(canvas, 5);
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW + STEP, 10); // 100: one
+    expectYaw(rig, CAMERA_YAW + STEP, 10); // 100: one
+    // The bank is spent, not debited: a swipe turns every 100 of travel,
+    // evenly, rather than gaining on the count.
+    for (let i = 0; i < 20; i++) wheel(canvas, 5);
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + 2 * STEP, 10);
     wheel(canvas, 60);
     wheel(canvas, -60);
     wheel(canvas, 60);
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW + STEP, 10); // never reached 100 one way
+    expectYaw(rig, CAMERA_YAW + 2 * STEP, 10); // never reached 100 one way
     // A shifted wheel some platforms hand over as horizontal travel.
     wheel(canvas, 0, true, 100);
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW + 2 * STEP, 10);
+    expectYaw(rig, CAMERA_YAW + 3 * STEP, 10);
+  });
+
+  it('reads a notch the same in pixels, lines and pages', () => {
+    // Chromium hands over pixels, Firefox three lines, and the spec allows
+    // a screenful. Each is one notch, and one notch is one step.
+    wheel(canvas, 100);
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + STEP, 10);
+    wheel(canvas, 3, true, 0, 1); // lines
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + 2 * STEP, 10);
+    wheel(canvas, 1, true, 0, 2); // pages
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + 3 * STEP, 10);
+    // Raw, a line-mode notch is 3 — a thirtieth of the price. Normalized
+    // it is one step, so the turn is not dead on Firefox.
+    for (let i = 0; i < 5; i++) wheel(canvas, -3, true, 0, 1);
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW - 2 * STEP, 10);
+    // The zoom reads the same unit: a line-mode notch reframes as much as
+    // its pixel-mode twin, rather than by three-hundredths of it.
+    const span = (): number => {
+      const q = rig.viewQuad(new Float64Array(8));
+      return Math.hypot(q[2]! - q[0]!, q[3]! - q[1]!);
+    };
+    const start = span();
+    wheel(canvas, 100, false);
+    const byPixels = span() / start;
+    wheel(canvas, -100, false); // back to where it was
+    expect(span()).toBeCloseTo(start, 8);
+    wheel(canvas, 2.5, false, 0, 1); // 2.5 lines = 100px
+    expect(span() / start).toBeCloseTo(byPixels, 8);
+  });
+
+  it('one event is never two turns, however coarsely a device counts', () => {
+    // A Windows notch is 120px, and Firefox's three lines normalize to the
+    // same. Change left banked would make every fifth notch turn twice.
+    for (let i = 1; i <= 10; i++) {
+      wheel(canvas, 120);
+      settle(rig);
+      expectYaw(rig, CAMERA_YAW + i * STEP, 6);
+    }
+    // Nor does one enormous event stand for the many notches it outweighs.
+    wheel(canvas, 10_000);
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + 11 * STEP, 6);
   });
 
   it('a Delete tap inside one frame is one step; Insert the other way', () => {
     keyDown('Delete');
     keyUp('Delete');
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW + STEP, 10);
+    expectYaw(rig, CAMERA_YAW + STEP, 10);
     keyDown('Insert');
     keyUp('Insert');
     keyDown('Insert');
     keyUp('Insert');
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW - STEP, 10);
+    expectYaw(rig, CAMERA_YAW - STEP, 10);
     // Key repeat is not more taps.
     keyDown('Insert', true);
     keyUp('Insert');
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW - STEP, 10);
+    expectYaw(rig, CAMERA_YAW - STEP, 10);
   });
 
   it('[ and ] are Insert and Delete for keyboards without them', () => {
@@ -142,26 +207,26 @@ describe('CameraRig turn', () => {
     fire(window, 'keydown', { code: '', key: ']', repeat: false });
     fire(window, 'keyup', { code: '', key: ']' });
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW + 2 * STEP, 10);
+    expectYaw(rig, CAMERA_YAW + 2 * STEP, 10);
     hold(rig, 'BracketLeft', 0.5);
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW - STEP, 6);
+    expectYaw(rig, CAMERA_YAW - STEP, 6);
     // Opposite keys held together cancel; the release settles on a step.
     keyDown('BracketRight');
     keyDown('Insert');
     for (let i = 0; i < 30; i++) rig.tick(FRAME);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW - STEP, 6);
+    expectYaw(rig, CAMERA_YAW - STEP, 6);
     keyUp('BracketRight');
     keyUp('Insert');
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW - STEP, 6);
+    expectYaw(rig, CAMERA_YAW - STEP, 6);
   });
 
   it('a held key turns freely at a quarter turn a second, then settles on the nearest step', () => {
     // Half a second: 45° of travel, three steps exactly.
     hold(rig, 'Delete', 0.5);
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW + 3 * STEP, 6);
+    expectYaw(rig, CAMERA_YAW + 3 * STEP, 6);
     // A third of a second: 30° — two steps; and mid-hold the yaw is off
     // the step grid, which is what "freely" means.
     keyDown('Insert');
@@ -171,13 +236,13 @@ describe('CameraRig turn', () => {
     for (let i = 0; i < 13; i++) rig.tick(FRAME); // 30° in all
     keyUp('Insert');
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW + STEP, 6);
+    expectYaw(rig, CAMERA_YAW + STEP, 6);
   });
 
   it('a short hold still means one whole step, not a wobble back', () => {
     hold(rig, 'Delete', 2 * FRAME); // ~3°
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW + STEP, 10);
+    expectYaw(rig, CAMERA_YAW + STEP, 10);
   });
 
   it('a tap landed mid-way through a wheel turn adds to that turn', () => {
@@ -187,7 +252,7 @@ describe('CameraRig turn', () => {
     rig.tick(FRAME);
     keyUp('Delete');
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW + 2 * STEP, 6);
+    expectYaw(rig, CAMERA_YAW + 2 * STEP, 6);
   });
 
   it('turns about the look-at point', () => {
@@ -210,11 +275,18 @@ describe('CameraRig turn', () => {
     keyDown('Insert');
     keyUp('Insert');
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(0, 10);
-    // Back in the game, on the game's own line, with nothing banked.
+    expectYaw(rig, 0, 10);
+    // Back in the game, on the game's own line, with nothing banked — a
+    // press the plan view swallowed must not turn the match's camera.
     rig.setViewMode('game');
     settle(rig);
-    expect(yawOf(rig)).toBeCloseTo(CAMERA_YAW, 10);
+    expectYaw(rig, CAMERA_YAW, 10);
+    keyDown('Delete');
+    rig.setViewMode('topDown');
+    keyUp('Delete');
+    rig.setViewMode('game');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW, 10);
   });
 
   it('viewFrame hands the audio the basis viewQuad draws by', () => {
@@ -234,7 +306,7 @@ describe('CameraRig turn', () => {
     keyDown('Insert');
     keyUp('Insert');
     settle(rig); // 45°
-    expect(yawOf(rig)).toBeCloseTo(Math.PI / 4, 10);
+    expectYaw(rig, Math.PI / 4, 10);
     const b = rig.viewBounds(3);
     const ext45 = rig.viewFrame(3).ext;
     expect(ext45).toBeCloseTo((b.maxX - b.minX) / 2, 10);
