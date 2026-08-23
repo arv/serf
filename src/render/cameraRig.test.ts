@@ -421,45 +421,46 @@ describe('CameraRig turn', () => {
     expect(rig.consumeMoved()).toBe(true);
   });
 
-  it('gives [ and ] back to a screen that owns them', () => {
-    // The editor sizes its brush with the brackets, and its view toggles
-    // to the game's own line — one press must not also turn the camera.
-    rig.setBracketTurn(false);
-    keyDown('BracketRight');
-    keyUp('BracketRight');
+  it('holds still on a screen that does not turn — the editor', () => {
+    // Every way in is closed, not just the brackets it wanted back.
+    rig.setTurnEnabled(false);
+    for (const code of ['Delete', 'Insert', 'BracketRight', 'BracketLeft']) {
+      keyDown(code);
+      keyUp(code);
+    }
     fire(window, 'keydown', { code: '', key: ']', repeat: false });
     fire(window, 'keyup', { code: '', key: ']' });
-    hold(rig, 'BracketLeft', 0.5);
+    hold(rig, 'Delete', 0.5);
+    wheel(canvas, 100);
+    wheel(canvas, 3, true, 0, 1);
     settle(rig);
     expectYaw(rig, CAMERA_YAW, 10);
-    // Warcraft's own pair still turns it, and so does the wheel.
+    // The zoom is not a turn and is left alone.
+    const span = (): number => {
+      const q = rig.viewQuad(new Float64Array(8));
+      return Math.hypot(q[2]! - q[0]!, q[3]! - q[1]!);
+    };
+    const before = span();
+    wheel(canvas, 100, false);
+    expect(span()).toBeGreaterThan(before);
+    // And it can be handed back.
+    rig.setTurnEnabled(true);
     keyDown('Delete');
     keyUp('Delete');
     settle(rig);
     expectYaw(rig, CAMERA_YAW + STEP, 10);
-    wheel(canvas, 100);
-    settle(rig);
-    expectYaw(rig, CAMERA_YAW + 2 * STEP, 10);
-    // Handed back.
-    rig.setBracketTurn(true);
-    keyDown('BracketRight');
-    keyUp('BracketRight');
-    settle(rig);
-    expectYaw(rig, CAMERA_YAW + 3 * STEP, 10);
   });
 
-  it('drops a bracket already held when the screen takes them back', () => {
-    // Down while the rig still owns it, revoked mid-hold: the key must not
-    // stay stuck turning, and its release must not settle a turn either.
-    keyDown('BracketRight');
+  it('lets go of a held key when a screen stops turning mid-hold', () => {
+    // The travel already made settles once; after that the key is inert
+    // rather than stuck turning a camera that no longer answers to it.
+    keyDown('Delete');
     for (let i = 0; i < 10; i++) rig.tick(FRAME);
-    rig.setBracketTurn(false);
+    rig.setTurnEnabled(false);
     for (let i = 0; i < 30; i++) rig.tick(FRAME);
-    keyUp('BracketRight');
-    settle(rig);
-    // The travel it did make settles once, and nothing turns after.
     const landed = yawOf(rig);
-    for (let i = 0; i < 60; i++) rig.tick(FRAME);
+    keyUp('Delete');
+    settle(rig);
     expect(yawOf(rig)).toBeCloseTo(landed, 10);
     expectYaw(rig, CAMERA_YAW + STEP, 6);
   });

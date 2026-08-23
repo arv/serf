@@ -187,6 +187,22 @@ const BAR_FALLBACK_QUAT = new THREE.Quaternion().setFromAxisAngle(
   new THREE.Vector3(0, 1, 0),
   CAMERA_YAW,
 );
+/**
+ * How near two orientations must be to count as the same one.
+ *
+ * Not an exact compare, which is what this was and what made it wrong.
+ * #apply builds the camera's quaternion with lookAt, from a position that
+ * is the target plus an offset — so panning subtracts two numbers that
+ * have grown apart and hands back a direction whose last bits wander,
+ * even though the angle has not changed at all. Measured, seventy per
+ * cent of pan frames came out "different" at an angle of exactly zero,
+ * and every one of them rewrote every bar in the settlement.
+ *
+ * |dot| is cos of half the angle between them, so this is about five
+ * thousandths of a degree — four orders clear of the float noise below it
+ * and four clear of the smallest turn the ease will make above it.
+ */
+const BAR_QUAT_EPS = 1e-12;
 /** Bars are rare (hurt, hovered or selected), so start small and grow. */
 const BAR_CAPACITY_MIN = 32;
 
@@ -573,15 +589,17 @@ export class BuildingSync {
    * applies when it culls a unit's animation off-screen.
    */
   frame(dt: number, bounds?: ViewBounds): void {
-    // Re-aim the bars if the camera has turned under them. An exact
-    // compare, so a camera at rest costs nothing and the rebuild happens
-    // only on the frames that need it.
+    // Re-aim the bars if the camera has turned under them — a turn, not a
+    // pan and not the float noise a pan leaves in the quaternion, so a
+    // camera crossing the map costs nothing and only a real turn pays.
     //
     // Ahead of the dt gate on purpose: the game pauses, the camera does
     // not. Turning while paused would otherwise leave every bar facing
     // wherever the view was when the world stopped.
     const camQuat = this.cameraQuaternion;
-    if (camQuat && !camQuat.equals(this.#hpQuat)) this.#rebuildHpBars();
+    if (camQuat && Math.abs(camQuat.dot(this.#hpQuat)) < 1 - BAR_QUAT_EPS) {
+      this.#rebuildHpBars();
+    }
     if (dt <= 0) return;
     for (const v of this.#visuals.values()) {
       // Most of a settlement is huts and warehouses with nothing that

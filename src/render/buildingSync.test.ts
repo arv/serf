@@ -210,6 +210,46 @@ describe('the damage bars', () => {
     sync.frame(1 / 60);
     expect(bars.instanceMatrix.version).toBe(before);
   });
+
+  it('is not fooled into rebuilding by a pan', () => {
+    // lookAt derives the orientation from a position that is the target
+    // plus an offset, so panning wanders the quaternion's last bits while
+    // the angle stands still. An exact compare called that a turn and
+    // rewrote every bar in the settlement, most frames of every pan.
+    const { sync, scene } = makeSync();
+    const cam = new THREE.Quaternion();
+    const eye = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    const look = new THREE.Object3D();
+    /** Aim a camera at (x, z) from the rig's own fixed offset. */
+    const aimAt = (x: number, z: number): void => {
+      eye.set(x + 42.1, 51.6, z + 42.1);
+      look.position.copy(eye);
+      look.lookAt(x, 0, z);
+      cam.copy(look.quaternion);
+    };
+    aimAt(40, 55);
+    sync.cameraQuaternion = cam;
+    sync.update([snap({ hp: 60 })]);
+    const bars = scene.children.find((o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh)!;
+    const before = bars.instanceMatrix.version;
+    // A long pan, in the fractional steps a real one arrives in.
+    let differing = 0;
+    for (let i = 1; i <= 200; i++) {
+      const was = cam.clone();
+      aimAt(40 + i * 0.137, 55 - i * 0.211);
+      if (!cam.equals(was)) differing++;
+      sync.frame(1 / 60);
+    }
+    // The premise: an exact compare really would have fired, and often.
+    expect(differing).toBeGreaterThan(50);
+    expect(bars.instanceMatrix.version).toBe(before);
+    // A turn far too small to see still counts as a turn.
+    const tiny = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 1e-3);
+    cam.multiply(tiny);
+    sync.frame(1 / 60);
+    expect(bars.instanceMatrix.version).toBeGreaterThan(before);
+  });
 });
 
 describe("the mill's sails", () => {

@@ -70,9 +70,8 @@ const KEY_TURN_RATE = Math.PI / 2;
  * bracket pair is the two keys right of P on any layout; the bare names
  * are the fallback for a source that leaves the code blank.
  *
- * The brackets are the pair a screen can take back (setBracketTurn): the
- * map editor spends them on the brush radius, and one key must not mean
- * two things at once.
+ * A screen with other plans for these can decline the whole lot — see
+ * setTurnEnabled.
  */
 const TURN_KEYS = new Map<string, number>([
   ['Delete', 1],
@@ -82,8 +81,6 @@ const TURN_KEYS = new Map<string, number>([
   [']', 1],
   ['[', -1],
 ]);
-/** The subset setBracketTurn(false) gives up. */
-const BRACKET_KEYS = new Set(['BracketRight', 'BracketLeft', ']', '[']);
 /**
  * How much world the camera frames at boot, and why it is not one number.
  *
@@ -201,8 +198,8 @@ export class CameraRig {
   #turns = 0;
   /** Wheel travel banked toward the next turn (see #turnByWheel). */
   #wheelAcc = 0;
-  /** Whether [ and ] turn the camera here — see setBracketTurn. */
-  #bracketTurn = true;
+  /** Whether this camera turns at all — see setTurnEnabled. */
+  #turnEnabled = true;
   /** The camera has moved since anyone last asked — see consumeMoved. */
   #moved = true;
   /** The turn direction the keys held last tick (-1, 0, 1), and the step
@@ -471,7 +468,7 @@ export class CameraRig {
    * coarsely their device counts.
    */
   #turnByWheel(delta: number): void {
-    if (delta === 0) return;
+    if (delta === 0 || !this.#turnEnabled) return;
     // The plan view is north-up by definition — a chart does not turn.
     if (this.#pitch === TOP_PITCH) return;
     if (Math.sign(delta) !== Math.sign(this.#wheelAcc)) this.#wheelAcc = 0;
@@ -506,24 +503,40 @@ export class CameraRig {
 
   /** Which way this key turns the camera here, or 0 if it does not. */
   #turnKey(code: string): number {
-    if (!this.#bracketTurn && BRACKET_KEYS.has(code)) return 0;
+    if (!this.#turnEnabled) return 0;
     return TURN_KEYS.get(code) ?? 0;
   }
 
   /**
-   * Hand [ and ] back to the screen that owns them. The map editor binds
-   * them to the brush radius, and its rig is a live one — its view toggles
-   * to the game's own line, where a turn would otherwise happen on the
-   * same press that resized the brush. Insert, Delete and Shift+wheel are
-   * untouched, so the editor's camera still turns.
+   * Whether this camera turns at all. The map editor says no.
+   *
+   * Turning is a thing the view does under a hand that is pointing at
+   * something, and the editor's hand is always pointing at something: a
+   * brush cursor on the ground, a stroke being painted from the last
+   * ground point to this one, a start marker held by a world-space
+   * offset. Every one of those is derived from a pointer event and
+   * recomputed only when the pointer moves, so a camera that turned under
+   * a still hand would leave the preview off the cursor, streak the next
+   * stroke segment from where the ground used to be, and slide a marker
+   * being dragged. The match answers this with consumeMoved and one hover
+   * scan; the editor would need it in three places, in a subsystem this
+   * has no other business in.
+   *
+   * And it loses the editor nothing: turning has never been available
+   * there, the view toggle is how that screen changes its angle, and the
+   * brackets it binds to the brush radius stop meaning two things at once.
+   *
+   * A turn already eased goes on to its step; what stops is taking any
+   * more. Held keys are let go of here so none can stick.
    */
-  setBracketTurn(on: boolean): void {
-    this.#bracketTurn = on;
+  setTurnEnabled(on: boolean): void {
+    this.#turnEnabled = on;
     if (on) return;
-    for (const key of BRACKET_KEYS) {
+    for (const key of TURN_KEYS.keys()) {
       this.#keys.delete(key);
       this.#unseen.delete(key);
     }
+    this.#wheelAcc = 0;
   }
 
   /** The step nearest the angle the camera is actually showing. */
