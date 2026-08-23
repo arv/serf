@@ -855,7 +855,16 @@ export function Hud(props: {
         .end-card h1 {
           margin: 0 0 8px; font-size: 26px; font-weight: 600; color: #e5c469;
         }
-        .end-card button { margin-top: 12px; padding: 8px 24px; font-size: 14px; }
+        /* The choices at the foot of a card read as one row, and the
+           gutter between them has to be a real number: the tags sit on
+           their own source lines, so the markup leaves no space at all
+           between two buttons, and a won campaign card offers four of
+           them — continue, again, observe, save — shoulder to shoulder.
+           Side margins rather than a flex row on the card, because the
+           buttons are the card's own children beside the copy, and it
+           is inline flow that folds them onto a second line when the
+           row outgrows the screen. */
+        .end-card button { margin: 18px 6px 0; padding: 8px 24px; font-size: 14px; }
         /* The "really leave?" card — a real <dialog>, so the browser does
            the modality itself: the page behind goes inert, focus is held
            to the two buttons, and the scrim is the ::backdrop. #ui's
