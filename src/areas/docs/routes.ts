@@ -1,0 +1,78 @@
+import { BUILDING_DEFS, type BuildingTypeId } from '../../sim/defs/buildings';
+import { GOODS, type GoodId } from '../../sim/defs/goods';
+import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
+
+/**
+ * What a /docs URL names. Pure — the screen feeds it location.pathname and
+ * tests feed it strings. Unknown paths and unknown ids both land on
+ * 'missing' rather than throwing: a docs URL is hand-editable, and the
+ * right answer to a typo is a page that says so with a way back.
+ */
+export type DocsRoute =
+  | { page: 'index' }
+  | { page: 'buildings' }
+  | { page: 'building'; id: BuildingTypeId }
+  | { page: 'units' }
+  | { page: 'unit'; id: UnitTypeId }
+  | { page: 'goods' }
+  | { page: 'good'; id: GoodId }
+  | { page: 'techs' }
+  | { page: 'commands' }
+  | { page: 'basics' }
+  | { page: 'missing'; path: string };
+
+/** Own-property lookup, like sanitizeCommand's isDefined: 'constructor' is
+ * truthy through the prototype and must not become a page. */
+function isKeyOf<T extends object>(table: T, key: string): key is Extract<keyof T, string> {
+  return Object.hasOwn(table, key);
+}
+
+export function parseDocsPath(pathname: string): DocsRoute {
+  const parts = pathname.split('/').filter((p) => p !== '');
+  // parts[0] is 'docs' — screenKey() only sends /docs paths here, but a
+  // stray call with something else is still just a missing page.
+  if (parts[0] !== 'docs') return { page: 'missing', path: pathname };
+  const [, section, id, ...rest] = parts;
+  if (rest.length > 0) return { page: 'missing', path: pathname };
+  switch (section) {
+    case undefined:
+      return { page: 'index' };
+    case 'buildings':
+      if (id === undefined) return { page: 'buildings' };
+      if (isKeyOf(BUILDING_DEFS, id)) return { page: 'building', id };
+      return { page: 'missing', path: pathname };
+    case 'units':
+      if (id === undefined) return { page: 'units' };
+      if (isKeyOf(UNIT_DEFS, id)) return { page: 'unit', id };
+      return { page: 'missing', path: pathname };
+    case 'goods':
+      if (id === undefined) return { page: 'goods' };
+      if ((GOODS as readonly string[]).includes(id)) return { page: 'good', id: id as GoodId };
+      return { page: 'missing', path: pathname };
+    case 'techs':
+      if (id === undefined) return { page: 'techs' };
+      return { page: 'missing', path: pathname };
+    case 'commands':
+      if (id === undefined) return { page: 'commands' };
+      return { page: 'missing', path: pathname };
+    case 'basics':
+      if (id === undefined) return { page: 'basics' };
+      return { page: 'missing', path: pathname };
+    default:
+      return { page: 'missing', path: pathname };
+  }
+}
+
+export function buildingHref(id: BuildingTypeId): string {
+  return `/docs/buildings/${id}`;
+}
+export function unitHref(id: UnitTypeId): string {
+  return `/docs/units/${id}`;
+}
+export function goodHref(id: GoodId): string {
+  return `/docs/goods/${id}`;
+}
+/** Techs share one page; a tech link is an anchor on it. */
+export function techHref(id: string): string {
+  return `/docs/techs#tech-${id}`;
+}

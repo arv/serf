@@ -926,8 +926,26 @@ export function setGaitSpeed(visual: CharacterVisual, speed: number): void {
  * Load the character + animation library once. Resolves false (and the
  * renderer falls back to procedural people) if the assets can't load.
  */
-export async function loadCharacterAssets(): Promise<boolean> {
-  return loadKayKitCharacters();
+let charLoading: Promise<boolean> | null = null;
+
+/**
+ * Fetch and prepare the character pack, once per page — the wardrobe, a
+ * match and the field guide all ask for it, and rebuilding the rig cache
+ * under a screen already using it re-fetches ~7 MB for nothing. A failure
+ * is not cached, so the next screen to ask retries.
+ */
+export function loadCharacterAssets(): Promise<boolean> {
+  charLoading ??= loadKayKitCharacters().then(
+    (ok) => {
+      if (!ok) charLoading = null;
+      return ok;
+    },
+    (err: unknown) => {
+      charLoading = null;
+      throw err;
+    },
+  );
+  return charLoading;
 }
 
 export function charactersReady(): boolean {
