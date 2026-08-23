@@ -600,7 +600,16 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
  * the pack's sword runs blade-forward from the hand and not up it; the
  * stab clip then drives this point at the enemy for free.
  */
+let spearTemplate: THREE.Group | null = null;
+
 function spearProp(): THREE.Group {
+  // Built once and cloned per man, exactly as the pack props are: a clone
+  // shares its template's geometry and materials, and sharing is what
+  // makes a prop free to throw away. #removeVisual disposes only what a
+  // unit uniquely owns (its skeleton) precisely because props do not own
+  // anything; four geometries and four materials built per spearman would
+  // have bled VRAM through a war's worth of muster and death.
+  if (spearTemplate) return spearTemplate.clone();
   // Named like a pack prop (the loader takes those names from the file),
   // so the fitting room can pick it out of a character.
   const g = new THREE.Group();
@@ -635,7 +644,8 @@ function spearProp(): THREE.Group {
   const butt = toolMesh(new THREE.CylinderGeometry(0.078, 0.078, 0.15, 6), goodColors.sword);
   butt.position.y = -0.79;
   g.add(shaft, blade, collar, butt);
-  return g;
+  spearTemplate = g;
+  return g.clone();
 }
 
 /** Workplace looks layered over the worker kind (profession byte). */
@@ -916,8 +926,26 @@ export function setGaitSpeed(visual: CharacterVisual, speed: number): void {
  * Load the character + animation library once. Resolves false (and the
  * renderer falls back to procedural people) if the assets can't load.
  */
-export async function loadCharacterAssets(): Promise<boolean> {
-  return loadKayKitCharacters();
+let charLoading: Promise<boolean> | null = null;
+
+/**
+ * Fetch and prepare the character pack, once per page — the wardrobe, a
+ * match and the field guide all ask for it, and rebuilding the rig cache
+ * under a screen already using it re-fetches ~7 MB for nothing. A failure
+ * is not cached, so the next screen to ask retries.
+ */
+export function loadCharacterAssets(): Promise<boolean> {
+  charLoading ??= loadKayKitCharacters().then(
+    (ok) => {
+      if (!ok) charLoading = null;
+      return ok;
+    },
+    (err: unknown) => {
+      charLoading = null;
+      throw err;
+    },
+  );
+  return charLoading;
 }
 
 export function charactersReady(): boolean {

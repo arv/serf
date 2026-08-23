@@ -17,16 +17,20 @@ import { parseMapData } from './mapFile.ts';
 import { rectClear } from './map.ts';
 import { deserializeWorld, serializeWorld } from './save.ts';
 import { firstRaidTickFor } from './defs/balance.ts';
-import type { BuildingTypeId } from './defs/buildings.ts';
+import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF, type BuildingTypeId } from './defs/buildings.ts';
+import type { GoodId } from './defs/goods.ts';
 import type { SimCommand } from './commands.ts';
 
 /**
  * The campaign missions hold the same line winnable.test.ts holds for the
  * solo game: every pinned seed affords its mission, and the mission can be
- * won with ordinary commands. Missions 2-4 are played by the AI brain (the
- * competent-player stand-in the whole suite uses); mission 1 is scripted
- * by hand because its lesson — six serfs, a tight purse — is below the
- * brain's operating floor.
+ * won with ordinary commands. Missions 2 and 5-7 are played by the AI brain
+ * (the competent-player stand-in the whole suite uses); missions 1, 3 and 4
+ * are scripted by hand, each for its own reason — mission 1's lesson (six
+ * serfs, a tight purse) is below the brain's operating floor, mission 3's
+ * checklist wants a stockpile the brain spends on soldiers, and mission 4
+ * asks for a batch at the forge that no rule ever orders (the whole point
+ * of its last objective).
  */
 
 function countBuilt(world: World, type: BuildingTypeId, owner = 0): number {
@@ -38,7 +42,7 @@ function countBuilt(world: World, type: BuildingTypeId, owner = 0): number {
 }
 
 /** Castle stock of one good (all storage buildings of the seat). */
-function stockOf(world: World, good: 'wood' | 'silver'): number {
+function stockOf(world: World, good: GoodId): number {
   let n = 0;
   for (const b of world.buildings.values()) {
     if (!b.dead && b.owner === 0 && b.type === 'storehouse') n += b.stock[good] ?? 0;
@@ -189,18 +193,95 @@ describe('the campaign missions', () => {
     expect(world.objectivesDone).toEqual([true, true, true, true, true, true]);
   }, 240_000);
 
-  it('mission 4 (The Levy) is winnable, early raid and all', async () => {
+  it('mission 4 (Hammer and Haft) is won by the taught line: raise the Smith, forge the rack', async () => {
+    // Scripted rather than AI-driven, and for the mission's own lesson: a
+    // hammer is wanted by a construction site, so a village with nothing
+    // rising wants none and the auto-forge goes cold. No rule in the game
+    // orders the batch this checklist asks for — a player does, by hand,
+    // at the forge menu.
+    const world = await createWorldAsync(missionWorldConfig('hammerAndHaft'));
+    const def = MISSION_DEFS.hammerAndHaft;
+
+    // The valley opens exactly as the briefing tells it: the huts stand,
+    // the racks are bare, and not one tool-gated post has a soul in it.
+    for (const spec of def.prebuilt!) {
+      expect(countBuilt(world, spec.type), `prebuilt ${spec.type} missing`).toBeGreaterThanOrEqual(
+        def.prebuilt!.filter((s) => s.type === spec.type).length,
+      );
+    }
+    for (const b of world.buildings.values()) {
+      if (b.owner !== 0 || b.state !== 'built' || !TOOL_OF[b.type]) continue;
+      expect(b.workerId, `${b.type} staffed with no tool`).toBeUndefined();
+    }
+    for (const tool of TOOL_GOODS) {
+      expect(stockOf(world, tool), `${tool} in the rack`).toBe(tool === 'hammer' ? 1 : 0);
+    }
+
+    const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const castle = { x: keep.x + 1, y: keep.y + 1 };
+    const spot = findSpot(world, 'weaponsmith', castle.x, castle.y);
+    // The one roof the mission is about — and the reeve's one hammer is
+    // what raises it, on loan until the roof goes on.
+    tickWorld(world, cmds({ kind: 'placeBuilding', building: 'weaponsmith', x: spot.x, y: spot.y }));
+
+    const HAMMER_RECIPE = BUILDING_DEFS.weaponsmith.recipeOptions!.findIndex(
+      (o) => (o.recipe.outputs.hammer ?? 0) > 0,
+    );
+    const staffed = (): boolean =>
+      [...world.buildings.values()].every((b) => {
+        if (b.dead || b.owner !== 0 || b.state !== 'built' || !TOOL_OF[b.type]) return true;
+        const w = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+        return w !== undefined && !w.dead;
+      });
+
+    let ordered = false;
+    const MAX = 45_000;
+    for (let t = 0; t < MAX && world.outcome.state === 'playing'; t++) {
+      // A player clicks when the button lights up; every 50 ticks is fine.
+      if (!ordered && world.tick % 50 === 0) {
+        const smith = [...world.buildings.values()].find(
+          (b) => b.type === 'weaponsmith' && !b.dead && b.state === 'built',
+        );
+        // Left alone the Smith tools the open posts and then lets the fire
+        // go cold. Once every peg is filled the player queues the batch the
+        // crown asked for — rather than leaving a standing order to eat the
+        // hill. Exactly two, not three: the hammer that raised the Smith is
+        // back on the shelf, and the checklist wants three in total. Which
+        // makes this the boundary the objective is actually written on — a
+        // third order would clear it whether the arithmetic held or not.
+        if (smith && staffed()) {
+          tickWorld(
+            world,
+            cmds(
+              { kind: 'enqueueForge', buildingId: smith.id, recipeIndex: HAMMER_RECIPE },
+              { kind: 'enqueueForge', buildingId: smith.id, recipeIndex: HAMMER_RECIPE },
+            ),
+          );
+          ordered = true;
+          continue;
+        }
+      }
+      tickWorld(world, []);
+    }
+
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: 'over', winner: 0 });
+    expect(world.objectivesDone).toEqual([true, true, true, true, true]);
+    // The loan came home rather than being forged twice over.
+    expect(stockOf(world, 'hammer')).toBe(3);
+  }, 240_000);
+
+  it('mission 5 (The Levy) is winnable, early raid and all', async () => {
     const world = await playMission('levy', 'steward', 60_000);
     expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: 'over', winner: 0 });
   }, 240_000);
 
-  it('mission 5 (Hold the Valley) is exactly the winnable map, reached by mission id', async () => {
+  it('mission 6 (Hold the Valley) is exactly the winnable map, reached by mission id', async () => {
     const world = await playMission('holdTheValley', 'steward', 45_000);
     expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: 'over', winner: 0 });
     expect(world.objectivesDone).toEqual([true]);
   }, 240_000);
 
-  it('mission 6 (The Rival Banner) reaches an ending under the elimination rules', async () => {
+  it('mission 7 (The Rival Banner) reaches an ending under the elimination rules', async () => {
     const config = missionWorldConfig('rivalBanner');
     config.players = config.players.map((p, i) => (i === 0 ? { kind: 'ai' as const } : p));
     const world = await createWorldAsync(config);
@@ -281,6 +362,8 @@ describe('the campaign missions', () => {
   it('the campaign order is complete and the id gate refuses junk', () => {
     expect([...MISSION_ORDER].sort()).toEqual(Object.keys(MISSION_DEFS).sort());
     expect(nextMissionId('clearing')).toBe('breadAndWater');
+    expect(nextMissionId('ledger')).toBe('hammerAndHaft');
+    expect(nextMissionId('hammerAndHaft')).toBe('levy');
     expect(nextMissionId('rivalBanner')).toBeUndefined();
     expect(parseMissionId('levy')).toBe('levy');
     expect(parseMissionId('constructor')).toBeUndefined(); // truthy on the prototype

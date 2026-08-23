@@ -1,8 +1,9 @@
 # Plan: single-player campaign + tutorial
 
-Status: implemented. Six missions, pinned-seed procedural maps, objectives
-evaluated in the sim (a `mission` on `WorldConfig`, checked in
-`victory.ts`), hints driven entirely on the main thread from
+Status: implemented. Seven missions (Hammer and Haft, mission 4 below,
+was added after the first six shipped), authored maps rolled from pinned
+seeds, objectives evaluated in the sim (a `mission` on `WorldConfig`,
+checked in `victory.ts`), hints driven entirely on the main thread from
 `StructuralUpdate` snapshots. No map editor, no new save format, no
 rewrite of the solo mode — the finale *is* the solo mode.
 
@@ -47,7 +48,7 @@ diffs, every phase green on its own.
 
 Framing: the player is a newly-made **reeve**, sent by the crown to
 settle a frontier valley — one commission per mission, each a different
-pinned seed. Six missions, ~60–90 minutes total for a first-timer; an
+pinned seed. Seven missions, ~70–105 minutes total for a first-timer; an
 RTS veteran can sprint any mission on objectives alone, because hints
 are a separate, dismissable layer that never gates anything.
 
@@ -63,9 +64,10 @@ takeable.
 | 1 | The Clearing | camera, select, placement + reach, trails, hiring, beds | off | build + stock objectives | castle falls (can't, practically) |
 | 2 | Bread and Water | converter chains, well, food fork, game speeds | off | food chain standing + 12 food | castle falls |
 | 3 | The Abbey's Ledger | silver economy, abbey + research, iron, the forge | off | ironworking + forge + 4 spears | castle falls |
-| 4 | The Levy | barracks, RPS triangle, defending raids, attacking | on, early | 6 soldiers, raze the camp | castle falls |
-| 5 | Hold the Valley | everything, unassisted | on, default | raze the camp (today's solo mode) | castle falls |
-| 6 | The Rival Banner (bonus) | facing an AI playbook | on (neutral, mid-map) | last banner standing | eliminated |
+| 4 | Hammer and Haft | the tools chain: the Smith, tool-gated posts, the borrowed hammer | off | Smith + iron, wood, food flowing + 3 hammers | castle falls |
+| 5 | The Levy | barracks, RPS triangle, defending raids, attacking | on, early | 6 soldiers, raze the camp | castle falls |
+| 6 | Hold the Valley | everything, unassisted | on, default | raze the camp (today's solo mode) | castle falls |
+| 7 | The Rival Banner (bonus) | facing an AI playbook | on (neutral, mid-map) | last banner standing | eliminated |
 
 ### Mission 1 — The Clearing
 
@@ -130,7 +132,47 @@ bake."*
   stand on mountainsides (the `mine` placement exemption); the forge's
   recipe menu (`recipeOptions` — spear/sword/bow). 10–12 min.
 
-### Mission 4 — The Levy
+### Mission 4 — Hammer and Haft
+
+*"They took every axe and pick with them. The huts still stand."*
+
+Added after the first six shipped: the campaign taught the Smith as the
+place spears come from (mission 3) and then handed every later mission a
+full tool shed in its `startStock`, so the half of the economy that
+decides *who can work at all* was never once played. This mission is that
+half, and nothing else.
+
+- **Setup**: `bandits: false`, `seed: 350`, `startSerfs: 12`,
+  **pre-built** and standing idle: woodcutter, quarry, house, well, wheat
+  farm, mill, bakery, iron mine — the predecessor's village, with no Smith
+  among them. Techs `cobbledBoots` + `ironworking` granted (research was
+  mission 3's lesson). `startStock: { wood: 30, stone: 15, iron: 4,
+  silver: 6, hammer: 1 }` — no axe, no pickaxe, no scythe, no cauldron,
+  and exactly one hammer.
+- **The puzzle is the bootstrap.** The one hammer raises the Smith (a site
+  borrows one and returns it at topping-out), and the four iron is all the
+  Smith has until the mine is manned — but the pickaxe deliberately costs
+  no iron (`buildings.ts` explains why), so forging the pick first and
+  staffing the mine is always the way out of a bare rack. There is no
+  hard-lock: even a player who burns the iron on the wrong tool can still
+  forge a pick.
+- **Objectives**: Smith ≥ 1; `stock iron ≥ 12` (the pickaxe → the mine);
+  `stock wood ≥ 45` (the axe → the woodcutter); `stock food ≥ 12` (the
+  scythe → the field and the cauldron → the oven); `stock hammer ≥ 3`.
+  The checklist asks for what the posts *make* rather than for the tools
+  themselves, because a forged tool is hauled to whichever post is calling
+  for it — it reaches the castle shelf only once nothing is waiting on it.
+  The hammers are the exception and the point: a hammer is wanted by a
+  construction site, so a village with nothing rising wants none and the
+  auto-forge goes cold. That batch is queued by hand at the forge menu, or
+  not at all.
+- **Hints**: the bare peg (*"no axe, no post"*); the iron-free pickaxe; the
+  auto-forge working down the open posts; the two tools the bread chain
+  needs and the two buildings (well, mill) that keep nobody and so want
+  none; the hammer as a loan that caps how many sites can rise at once.
+  8–10 min; won at tick ~8.5k on the taught line.
+
+### Mission 5 — The Levy
 
 *"Word from the pass: bandits have made camp in the north. The crown
 expects them gone."*
@@ -152,7 +194,7 @@ expects them gone."*
   marching; *"the camp's guards don't chase far — bring everyone at
   once"*. Fail = castle falls, and here it actually can. 12–15 min.
 
-### Mission 5 — Hold the Valley
+### Mission 6 — Hold the Valley
 
 *"No more letters from the crown. The valley is yours to keep — or
 lose."*
@@ -163,7 +205,7 @@ the briefing card and the objective line. This is the graduation exam,
 and it needs **zero new balance work** because `winnable.test.ts`
 already holds this exact line.
 
-### Mission 6 — The Rival Banner (bonus, post-campaign)
+### Mission 7 — The Rival Banner (bonus, post-campaign)
 
 *"A rival reeve claims the far end of the valley. Two banners, one
 charter."*
@@ -238,8 +280,8 @@ knows *whether* you've won; only the UI knows *how to help you*.
   `{ kind: 'objectiveComplete'; index; player }` `GameEvent` per
   newly-met one, and `endMatch(world, 0)` when all are latched. The
   storehouse-elimination loss above is untouched; the existing
-  raze-the-camp branch remains for non-mission solo, and mission 6
-  (objectives `[]`) falls through to the multi-seat elimination branch
+  raze-the-camp branch remains for non-mission solo, and The Rival
+  Banner (objectives `[]`) falls through to the multi-seat elimination branch
   unchanged. Evaluation helper lives in a small
   `src/sim/systems/objectives.ts` to keep `victory.ts` readable.
 - **Determinism**: `missions.ts` is pure data with no DOM
@@ -357,19 +399,21 @@ is a mission knob.
 
 ### 8. Tests — `src/sim/missions.test.ts` (new)
 
-- **Golden-path runs for missions 1–4**: scripted command sequences
+- **Golden-path runs for the teaching missions** (The Clearing, Bread
+  and Water, The Abbey's Ledger, The Levy — and Hammer and Haft, added
+  later): scripted command sequences
   (via `cmds()` / `tickWorld` on `createWorld({ mission })`, the
   `testUtils.ts` style) that play each mission's intended solution and
   assert `outcome === { state: 'over', winner: 0 }` within a tick
   budget. These double as the proof that the pinned seed actually
   affords the mission (shore near start for M2, etc.) — a failing seed
   fails the test at authoring time, not in a player's browser.
-- **Mission 5** is already covered: `winnable.test.ts` *is* its test
+- **Hold the Valley** is already covered: `winnable.test.ts` *is* its test
   (same seed, same config). Add a one-line variant constructing it via
   `{ mission: 'holdTheValley' }` to prove the mission path reaches the
   same outcome.
-- **Mission 6**: brain-vs-brain via the `aiStrategies.test.ts` harness
-  pattern; assert someone wins.
+- **The Rival Banner**: brain-vs-brain via the `aiStrategies.test.ts`
+  harness pattern; assert someone wins.
 - **Determinism guard**: run mission 1 twice from the same config,
   compare world hashes (`hash.ts`) — the same shape
   `determinism.test.ts` already uses.
@@ -392,9 +436,9 @@ is a mission knob.
    start, `HudPanel` union entry.
 4. **Menu + progress** — campaign pane in `StartMenu`, `serf-campaign`
    store, unlock/✓ states.
-5. **Content** — missions 2–4 defs, hint scripts, golden-path tests,
-   seed-pinning playtests; then mission 6 and README's solo-mode
-   section.
+5. **Content** — the Bread and Water, Ledger and Levy defs, hint
+   scripts, golden-path tests, seed-pinning playtests; then The Rival
+   Banner and README's solo-mode section.
 
 Each phase lands green with everything before it; nothing past phase 1
 touches the sim.
@@ -408,14 +452,14 @@ touches the sim.
 - **Hard mode**: is an "again, but harsher" finale variant (first raid
   at 7 min, +2 camp guards) worth a mission-def knob in the first pass,
   or a follow-up?
-- **Mission 6**: in the first pass or the second? It is nearly free
-  mechanically but doubles the playtest surface.
+- **The Rival Banner**: in the first pass or the second? It is nearly
+  free mechanically but doubles the playtest surface.
 - **Best times**: record `bestTicks: Record<MissionId, number>` in the
   campaign store now (cheap) or never (scope)?
 - **Save-slot namespacing**: is one global slot acceptable for v1 (a
   campaign save evicts a sandbox save), or should the campaign refuse
-  the Save button in missions 1–4 (each ≤ 15 min) instead?
-- **Raid-interval override**: mission 4 currently rides the stock
+  the Save button in the teaching missions (each ≤ 15 min) instead?
+- **Raid-interval override**: The Levy currently rides the stock
   3-minute `RAID_INTERVAL`. If playtesting wants a faster drumbeat
   there, the knob means threading an interval through `raidState` —
   small, but sim state, so deferred until a mission proves it needs it.

@@ -820,6 +820,7 @@ export function destroyBuilding(world: World, b: Building): void {
   // many the same tick.
   b.garrison = undefined;
   b.garrisonKind = undefined;
+  b.garrisonHp = undefined;
 }
 
 /**
