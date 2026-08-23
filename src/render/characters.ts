@@ -5,6 +5,7 @@ import { clamp } from '../shared/math';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { lathe } from './models';
 import { loadGltfRetry } from './assets';
+import { goodColors } from './palette';
 import { factionTint } from './factionPalette';
 
 /**
@@ -42,7 +43,6 @@ const KK_PROP_FILES = [
   'shield_badge',
   'axe_1handed',
   'axe_2handed',
-  'staff',
   'bow_withString',
   'dagger',
   'quiver',
@@ -90,6 +90,10 @@ interface KKSpec {
   right?: string;
   /** Euler fix-up for right-hand props that load facing the wrong way. */
   rightRot?: [number, number, number];
+  /** Right-hand weapon we build ourselves, for what the packs don't ship
+   * (spearProp). Authored in the pack props' frame, so it drops into the
+   * handslot at identity exactly like `right`. */
+  rightBuilt?: () => THREE.Group;
   /** The right-hand prop is a work tool, not a standing weapon: hidden
    * except while performing this WORK.* kind. */
   rightWorkKind?: number;
@@ -124,7 +128,9 @@ const KK_SPECS = new Map<number, KKSpec>([
   [4, {
     file: 'Knight',
     hide: ['Knight_Cape', 'Knight_HelmetVisor'],
-    right: 'staff',
+    // A spear, built here: the pack's wizard staff stood in for one and
+    // the crystal on its head gave the game away (see spearProp).
+    rightBuilt: spearProp,
     jog: true,
     attackClip: 'Melee_1H_Attack_Stab',
   }],
@@ -574,6 +580,64 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
   }
 }
 
+// --- Weapons the packs don't ship ---------------------------------------
+
+/**
+ * A spear.
+ *
+ * The spearman carried the pack's `staff` before this, borrowed for its
+ * long shaft — but it is the *Mage's* staff, and the crystal knot on the
+ * head of it gave the game away: at anything closer than village zoom the
+ * levy's spearman was a wizard marching to war. The free packs ship no
+ * spear (KayKit's Fantasy Weapons Bits does; if that pack is ever
+ * vendored, its file drops into KK_PROP_FILES and this build gives way to
+ * it, the way the modeled hammer and pickaxe took over from theirs).
+ *
+ * Built in the pack props' own frame, so it drops into the handslot at
+ * identity like any of them: grip at the origin, shaft up +Y, rig units —
+ * the character stands 2.54 tall in those, and this is 2.8 from butt to
+ * point. The rig lays a prop along that +Y out of the fist, which is why
+ * the pack's sword runs blade-forward from the hand and not up it; the
+ * stab clip then drives this point at the enemy for free.
+ */
+function spearProp(): THREE.Group {
+  // Named like a pack prop (the loader takes those names from the file),
+  // so the fitting room can pick it out of a character.
+  const g = new THREE.Group();
+  g.name = 'spear';
+  // Ash haft, thickening toward the butt, gripped a third of the way up.
+  const shaft = toolMesh(new THREE.CylinderGeometry(0.062, 0.07, 2.3, 6), goodColors.spear);
+  shaft.position.y = 0.3;
+  // Leaf head, turned rather than extruded: a flat blade is what the spade
+  // has, and it vanishes edge-on — a spear is seen from every side at once
+  // in a melee. Steel, and the same steel the smith's spear good is
+  // painted in, so the thing made in the shop is the thing carried.
+  const blade = lathe(
+    [
+      [0, 0],
+      [0.075, 0.05],
+      [0.14, 0.18],
+      [0.105, 0.36],
+      [0.052, 0.51],
+      [0, 0.62],
+    ],
+    goodColors.sword,
+    8,
+  );
+  // Flattened across the swing, the way a blade is: a full body of
+  // revolution reads as a bud on a stick.
+  blade.scale.z = 0.6;
+  blade.position.y = 1.35;
+  // Socket binding where the head is lashed on, and a butt cap that keeps
+  // the shaft from ending in nothing when it is seen against the grass.
+  const collar = toolMesh(new THREE.CylinderGeometry(0.088, 0.088, 0.12, 6), 0x6b4e2e);
+  collar.position.y = 1.36;
+  const butt = toolMesh(new THREE.CylinderGeometry(0.078, 0.078, 0.15, 6), goodColors.sword);
+  butt.position.y = -0.79;
+  g.add(shaft, blade, collar, butt);
+  return g;
+}
+
 /** Workplace looks layered over the worker kind (profession byte). */
 interface ProfLook {
   spec: KKSpec;
@@ -653,6 +717,11 @@ function makeKayKitCharacter(
     }
   });
 
+  // GLTFLoader sanitizes node names ('handslot.r' loads as 'handslotr'),
+  // so look up both spellings.
+  const boneOf = (bone: string): THREE.Object3D | undefined =>
+    root.getObjectByName(bone) ?? root.getObjectByName(bone.replace(/[^\w-]/g, ''));
+
   // Pack props are authored for the rig's handslot bones — identity drop-in.
   const slot = (
     bone: string,
@@ -662,10 +731,7 @@ function makeKayKitCharacter(
   ) => {
     if (!file) return;
     const prop = kkAssets!.props.get(file);
-    // GLTFLoader sanitizes node names ('handslot.r' loads as 'handslotr'),
-    // so look up both spellings.
-    const anchor =
-      root.getObjectByName(bone) ?? root.getObjectByName(bone.replace(/[^\w-]/g, ''));
+    const anchor = boneOf(bone);
     if (!prop || !anchor) {
       console.warn(`[characters] slot miss: prop=${file}:${!!prop} bone=${bone}:${!!anchor}`);
       return;
@@ -681,6 +747,15 @@ function makeKayKitCharacter(
     rightHand.inst.userData.workKind = spec.rightWorkKind;
     rightHand.inst.userData.workOnly = true;
     rightHand.inst.visible = false;
+  }
+  // Hand-built weapons ride the same bone in the same frame as pack props.
+  let builtWeapon: THREE.Group | undefined;
+  if (spec.rightBuilt) {
+    const anchor = boneOf('handslot.r');
+    if (anchor) {
+      builtWeapon = spec.rightBuilt();
+      anchor.add(builtWeapon);
+    }
   }
   slot('handslot.l', spec.left);
   slot('chest', spec.back, [0, 0, -0.14]);
@@ -724,8 +799,7 @@ function makeKayKitCharacter(
   let toolAnchor: THREE.Group | undefined;
   let toolCustom: THREE.Group | undefined;
   let proceduralTool: THREE.Object3D | undefined;
-  const hand =
-    root.getObjectByName('handslot.r') ?? root.getObjectByName('handslotr');
+  const hand = boneOf('handslot.r');
   if (hand) {
     toolAnchor = new THREE.Group();
     toolAnchor.scale.setScalar(1 / s);
@@ -794,7 +868,7 @@ function makeKayKitCharacter(
     carryAnchor,
     toolAnchor,
     toolCustom,
-    defaultTool: proceduralTool ?? rightHand?.inst,
+    defaultTool: proceduralTool ?? rightHand?.inst ?? builtWeapon,
     toolKind: 0,
   };
   setGaitSpeed(visual, simSpeed);
