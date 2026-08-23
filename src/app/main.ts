@@ -8,6 +8,7 @@ import { WaterMesh } from '../render/waterMesh';
 import { MarginMesh } from '../render/marginMesh';
 import { Mist } from '../render/mist';
 import { Butterflies } from '../render/butterflies';
+import { Footprints } from '../render/footprints';
 import { SceneSync } from '../render/sceneSync';
 import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
@@ -17,7 +18,7 @@ import { RallyFlag } from '../render/rallyFlag';
 import { FogOfWar } from '../render/fogOfWar';
 import { batteryFramePacer } from '../render/framePacer';
 import { HiddenSync } from './hiddenSync';
-import { loadCharacterAssets } from '../render/characters';
+import { loadCharacterAssets, serfSole } from '../render/characters';
 import { loadGlbAssets } from '../render/assets';
 import { Controls } from '../input/controls';
 import { DamageAlerts } from './damageAlerts';
@@ -907,6 +908,21 @@ async function runMatch(
   // Ambient life over the meadows — pure scenery, no sim contact.
   const butterflies = new Butterflies(init.map, heights);
   renderer.scene.add(butterflies.mesh);
+  // Fading bootprints where people walk. Handed the mirror's map view —
+  // the same live pathLevel grid the grass watches — so prints keep off
+  // the trails as they wear in; the print itself is the serf's own boot,
+  // lifted off the character model (loaded just above). A networked world
+  // runs on while this page hides, so there the print clock counts real
+  // time; solo, hiding freezes the sim worker and the prints hold with it.
+  const footprints = new Footprints(
+    init.reader,
+    mirror.map,
+    heights,
+    config.myPlayerId,
+    serfSole(),
+    net !== undefined,
+  );
+  renderer.scene.add(footprints.mesh);
 
   const buildingSync = new BuildingSync(renderer.scene, heights, config.myPlayerId);
   // Terrain feed for the pier measurement: on a corner-only shore the
@@ -989,6 +1005,7 @@ async function runMatch(
   }
   sync.setFog(fog);
   buildingSync.setFog(fog);
+  footprints.setFog(fog);
   // Latest building roster, for the fog's sight sources.
   let roster = init.buildings;
 
@@ -1137,6 +1154,12 @@ async function runMatch(
     // Trails thread between tiles, so which clumps they trample is only
     // knowable once the new path levels are in the mirror.
     if (wornTiles.length > 0) grass.clearUnderPaths(mirror.map, wornTiles);
+    // The prints stamped on this grass belong to the same feet that just
+    // wore it bare — the trail replaces them as the record. A rollback
+    // correction ships the whole path grid with no deltas at all, so there
+    // every print is re-tested rather than none.
+    if (changes.refreshAll) footprints.resyncPaths();
+    else if (wornTiles.length > 0) footprints.clearUnderPaths(wornTiles);
     if (paved || changes.refreshAll) roads.rebuild(mirror.map);
     for (const tile of changes.resourceCleared) scatter.removeTile(tile);
     if (changes.refreshAll) scatter.resyncAll(mirror.map);
@@ -1170,6 +1193,20 @@ async function runMatch(
     },
     // Tile y is world z — the same straight mapping as the home focusOn.
     focus: (x, y) => renderer.rig.glideTo(x, y),
+    // The minimap's world: live handles, assembled here because this is
+    // where the mirror, the fog, the unit reader and the rig all meet.
+    // The component polls them on its own clock — nothing here has to
+    // know when (or whether) the chart is on screen.
+    minimap: {
+      map: mirror.map,
+      fog,
+      buildings: () => mirror.buildings.values(),
+      units: () => init.reader.latest,
+      viewQuad: (out) => renderer.rig.viewQuad(out),
+      jumpTo: (x, z) => renderer.rig.focusOn(x, z),
+      glideTo: (x, z) => renderer.rig.glideTo(x, z),
+      myPlayerId: config.myPlayerId,
+    },
   });
   teardown.push(unmountHud);
 
@@ -1239,6 +1276,8 @@ async function runMatch(
     water.update(now);
     mist.update(now);
     butterflies.update(now);
+    // After sync.update: the stamps read the publish it just polled.
+    footprints.update(now, speed() === 0);
     const dt = renderer.frame();
     // Same view rect the unit sync culls against — sails and roof watches
     // off camera are not worth animating either.
