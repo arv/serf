@@ -600,7 +600,16 @@ export function setWorkTool(visual: CharacterVisual, workKind: number): void {
  * the pack's sword runs blade-forward from the hand and not up it; the
  * stab clip then drives this point at the enemy for free.
  */
+let spearTemplate: THREE.Group | null = null;
+
 function spearProp(): THREE.Group {
+  // Built once and cloned per man, exactly as the pack props are: a clone
+  // shares its template's geometry and materials, and sharing is what
+  // makes a prop free to throw away. #removeVisual disposes only what a
+  // unit uniquely owns (its skeleton) precisely because props do not own
+  // anything; four geometries and four materials built per spearman would
+  // have bled VRAM through a war's worth of muster and death.
+  if (spearTemplate) return spearTemplate.clone();
   // Named like a pack prop (the loader takes those names from the file),
   // so the fitting room can pick it out of a character.
   const g = new THREE.Group();
@@ -635,7 +644,8 @@ function spearProp(): THREE.Group {
   const butt = toolMesh(new THREE.CylinderGeometry(0.078, 0.078, 0.15, 6), goodColors.sword);
   butt.position.y = -0.79;
   g.add(shaft, blade, collar, butt);
-  return g;
+  spearTemplate = g;
+  return g.clone();
 }
 
 /** Workplace looks layered over the worker kind (profession byte). */
