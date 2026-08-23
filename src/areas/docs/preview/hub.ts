@@ -98,20 +98,17 @@ let hub: Hub | null = null;
 /** A context we asked for and were refused — every card falls back. */
 let hubFailed = false;
 
-// The game's loaders are not idempotent: a second call re-fetches every
-// model and rebuilds the cache. Cards register lazily and concurrently, so
-// the promise is memoized here — never call the loaders directly.
-let buildingAssets: Promise<boolean> | null = null;
-let unitAssets: Promise<boolean> | null = null;
-
+// The loaders coalesce concurrent calls themselves and drop their memo on
+// failure, so these only translate *this* attempt's rejection into a
+// fallback. Memoising the result here as well would cache that `false`
+// forever and leave one flaky fetch disabling previews for the rest of the
+// page's life, retry or no retry.
 function ensureBuildingAssets(): Promise<boolean> {
-  buildingAssets ??= loadGlbAssets().catch(() => false);
-  return buildingAssets;
+  return loadGlbAssets().catch(() => false);
 }
 
 function ensureUnitAssets(): Promise<boolean> {
-  unitAssets ??= loadCharacterAssets().catch(() => false);
-  return unitAssets;
+  return loadCharacterAssets().catch(() => false);
 }
 
 function getHub(): Hub | null {

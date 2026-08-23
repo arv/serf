@@ -86,7 +86,7 @@ export const UNIT_DESC: Record<UnitTypeId, string> = {
   bandit: 'The raiders’ line infantry: light, quick, and fond of buildings that cannot fight back.',
   banditArcher: 'The raiders’ bow. Softer than yours, but a wave of them outranges a village with no answer.',
   marauder:
-    'The raiders’ heavy: nearly a knight, and the sign a late wave means it. Bring spears and walls.',
+    'The raiders’ heavy: nearly a knight, and the sign a late wave means it. Bring bows and walls — spears are the wrong answer to armour.',
 };
 
 export const GOOD_DESC: Record<GoodId, string> = {

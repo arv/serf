@@ -39,13 +39,18 @@ export function DocLink(props: {
 
 /** One good with its icon and amount, as a chip linking to the good's page. */
 export function GoodChip(props: { good: GoodId; amount?: number }): JSX.Element {
+  // Amount and name in one text node, with a real space between them: as
+  // separate elements they carried only a CSS margin, and an accessible
+  // name is computed from text, so the chip was announced as "10Wood".
+  const label = (): string =>
+    props.amount === undefined
+      ? goodName(props.good)
+      : `${props.amount} ${goodName(props.good)}`;
   return (
     <DocLink href={goodHref(props.good)} class="chip">
-      <GoodIcon good={props.good} size={13} />
-      <Show when={props.amount !== undefined}>
-        <span>{props.amount}</span>
-      </Show>
-      <span>{goodName(props.good)}</span>
+      {/* The text names the good; a labelled icon would repeat it. */}
+      <GoodIcon good={props.good} size={13} decorative />
+      <span>{label()}</span>
     </DocLink>
   );
 }

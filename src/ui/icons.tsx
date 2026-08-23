@@ -226,14 +226,21 @@ const PATHS: Record<GoodId, (c: string) => JSX.Element> = {
   ),
 };
 
-export function GoodIcon(props: { good: GoodId; size?: number }) {
+/**
+ * `decorative` for the places the good is already named in text beside the
+ * icon — a labelled icon there is read out twice ("Wood 5 Wood"). The
+ * label stays on by default, since in the HUD the icon is often the only
+ * name a number has.
+ */
+export function GoodIcon(props: { good: GoodId; size?: number; decorative?: boolean }) {
   return (
     <svg
       viewBox="0 0 16 16"
       width={props.size ?? 14}
       height={props.size ?? 14}
       style={{ 'vertical-align': '-2px' }}
-      aria-label={goodName(props.good)}
+      aria-hidden={props.decorative === true ? 'true' : undefined}
+      aria-label={props.decorative === true ? undefined : goodName(props.good)}
     >
       {PATHS[props.good](GOOD_HEX[props.good])}
     </svg>

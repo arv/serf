@@ -111,7 +111,7 @@ export function GoodPage(props: { id: GoodId }): JSX.Element {
         <DocLink href="/docs/goods">Goods</DocLink>
       </p>
       <h1>
-        <GoodIcon good={props.id} size={26} /> {goodName(props.id)}
+        <GoodIcon good={props.id} size={26} decorative /> {goodName(props.id)}
       </h1>
       <p class="lede">
         <Prose text={GOOD_DESC[props.id]} self={goodHref(props.id)} />

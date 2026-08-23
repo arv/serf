@@ -18,7 +18,7 @@ export function GoodsPage(): JSX.Element {
         <For each={[...GOODS]}>
           {(good) => (
             <DocLink href={goodHref(good)} class="tile">
-              <GoodIcon good={good} size={28} />
+              <GoodIcon good={good} size={28} decorative />
               <span class="t-name">{goodName(good)}</span>
               <span class="t-sub">{GOOD_DESC[good]}</span>
             </DocLink>
