@@ -896,7 +896,16 @@ export class AiBrain {
       // address, what matters is what stands there — the scout re-walks
       // living rivals' doorsteps as their picture goes stale, and the
       // counter-forging above reads what it brings back.
-      if ((!target || staleRival >= 0) && army.length > 0) {
+      // An errand already in flight is always serviced, stale clock or not.
+      // The clock is what STARTS a walk, and a successful walk stops it: a
+      // yard with a real force in it refreshes the rival's picture the
+      // moment the scout lights it (#observeRivals runs well above this),
+      // so on the beat he finally sees what he was sent to see, nothing is
+      // stale any more. Gating the whole branch on staleness alone left
+      // that scout standing at the enemy's gate for as long as the
+      // garrison stayed visible — the read never filed, the errand never
+      // retired, and the muster a soldier short of what it counted on.
+      if ((!target || staleRival >= 0 || this.#scoutGoal >= 0) && army.length > 0) {
         if (this.#scoutId < 0) {
           const idle = army.filter((u) => u.task.t === 'idle');
           const pick = idle.sort(
@@ -919,7 +928,15 @@ export class AiBrain {
           if (this.#scoutIntel >= 0) {
             const gx = tileX(this.#scoutGoal, world.map.size) + 0.5;
             const gy = tileY(this.#scoutGoal, world.map.size) + 0.5;
-            if (Math.abs(su.x - gx) + Math.abs(su.y - gy) <= INTEL_READ_DIST) {
+            // Read against the scout's own sight circle rather than a
+            // number of its own, because the errand ends where the brain
+            // sends it: the watch point is WATCH_FROM tiles out, chosen so
+            // the yard sits just inside that circle. A tighter bar than the
+            // walk it orders is a goal that can never be answered — the
+            // scout stamps nothing, the doorstep stays stale, and scoutLeg
+            // walks him gate-to-watch-point-to-gate for the rest of the
+            // match while the picture he was sent for never updates.
+            if (exactDist(su.x - gx, su.y - gy) <= UNIT_DEFS[su.kind].sight) {
               this.#stampIntel(world, this.#scoutIntel);
               this.#clearScoutGoal();
             }
@@ -927,25 +944,27 @@ export class AiBrain {
             this.#clearScoutGoal();
           }
           // The next objective: discovery while no target is known, else
-          // the stalest living rival's doorstep. Staleness is re-asked
-          // rather than reused: an arrival above may have stamped the very
-          // rival the top-of-beat reading called stale, and re-picking it
-          // here would march the scout straight back out of the yard it
-          // just read.
+          // the stalest living rival's doorstep.
           if (this.#scoutGoal < 0) {
             if (!target) {
               this.#scoutGoal = nextSearchGoal(world, this.#vision, this.#unreachable, su.x, su.y);
             }
-            const dueRival = this.#scoutGoal < 0 ? this.#staleRival(world) : -1;
-            if (dueRival >= 0) {
-              const door = rivalDoorstep(world, dueRival);
+            // The clock as it reads NOW, not as it read when the beat
+            // opened: a read stamped a few lines above may have answered
+            // the very rival that was stale then, and handing the scout
+            // straight back the errand he just finished is how he ends up
+            // living at the enemy's gate — never recalled, because the
+            // recall wants an errand that is over.
+            const nextRival = this.#scoutGoal < 0 ? this.#staleRival(world) : -1;
+            if (this.#scoutGoal < 0 && nextRival >= 0) {
+              const door = rivalDoorstep(world, nextRival);
               if (door >= 0) {
                 this.#scoutGoal = door;
-                this.#scoutIntel = dueRival;
+                this.#scoutIntel = nextRival;
               } else {
                 // No table entry to walk to: call it read, or the scout
                 // would ask again every beat forever.
-                this.#stampIntel(world, dueRival);
+                this.#stampIntel(world, nextRival);
               }
             }
             this.#scoutLeg = -1;
@@ -1658,20 +1677,6 @@ const WATCH_FROM = 6;
 export function approachPoint(goal: number, size: number): { x: number; y: number } {
   return { x: tileX(goal, size), y: Math.max(0, tileY(goal, size) - WATCH_FROM) };
 }
-
-/**
- * How close a scout must stand to an intel goal for the yard to count as
- * read. The scout is never ordered closer than the watch point WATCH_FROM
- * tiles north — walking onto the doorstep is what wakes the garrison — so
- * this must reach at least that far, or the errand can never end. It once
- * stood at five: a scout on the watch point was one tile outside it, no
- * longer inside the gate band either, and scoutLeg walked it
- * gate–watch–gate forever while the read never stamped — a soldier lost to
- * a corridor for the rest of the match, and a rival picture refreshed only
- * by the scout's own death. One tile of slack past the watch ring forgives
- * a walk that ends a step off its mark.
- */
-const INTEL_READ_DIST = WATCH_FROM + 1;
 
 /**
  * Where a rival's garrison stands: four tiles south of their castle door —

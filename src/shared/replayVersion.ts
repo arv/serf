@@ -20,6 +20,45 @@
  * directly.
  */
 /**
+ * 26: villagers slow to a walk — serf 1.8 -> 1.5 tiles/sec, worker 1.7 ->
+ * 1.4. Purely a pacing change asked for by eye: the village read as
+ * everyone sprinting between errands, and the renderer's gait work could
+ * only paper over so much (the legs are honest now; the ground speed was
+ * not). Soldiers, bandits, and the raid clock keep their tuning, so every
+ * haul, commute, and construction staffing re-times while combat does not
+ * — a replay recorded before this build diverges within the first errand.
+ *
+ * 25: a sold Smith loses its forged hammers with the rest of its stock.
+ * The sale's rescue set carried 'hammer' unconditionally — meant for the
+ * hammer a half-built site borrows — so a built Smith's forged hammers
+ * walked to the storehouse for free while the axes on the same shelf
+ * were lost. The hammer now rides the rescue only for a site. Any log
+ * that sells a Smith holding hammers banks fewer tools from that tick
+ * on.
+ *
+ * 24: a garrisoned tower fires on the field archer's own period. The
+ * tower's cooldown gate continued on the tick the count reached zero,
+ * stretching every volley to cooldownTicks + 1 — two archers on the
+ * roof shot ~2.4% slower than the same two men on the grass, and the
+ * levy's 30-tick clock was really 31. Every tower volley after the
+ * first now lands a tick sooner, and every fight in reach of one
+ * re-times with it.
+ *
+ * 23: the between-waves raid clock scales by the playable span, as the
+ * opening peace always did. banditsSystem was passing the full grid side
+ * (2x the playable side on every generated map) to raidIntervalFor, so
+ * every wave after the first arrived at half the tuned pressure — 540s
+ * apart on the default valley instead of 270s. Waves land on different
+ * ticks now, and everything after the second wave re-times with them.
+ *
+ * 22: pausing a guard-tower construction site sticks. The staffing
+ * exemption that keeps a BUILT tower's door open to soldiers while it is
+ * halted also matched the tower's site, so a paused scaffold kept
+ * summoning and re-binding the builder the order had just released — the
+ * pause silently undone, one hand bound doing nothing. The exemption now
+ * asks for a built tower. Any log in which a tower site sat paused staffs
+ * differently from that order on.
+ *
  * 21: trails come sooner and linger — the trail pass (which runs every
  * TRAILS_INTERVAL ticks, checking each tile after its wear decay) now
  * turns worn grass into a dirt trail at 10 wear instead of 12, and
@@ -117,4 +156,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 21;
+export const REPLAY_VERSION = 26;

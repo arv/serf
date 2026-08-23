@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseAdvice } from '../../src/ai/advice.ts';
 import { parseArgs, parseStrategies } from './bakeoff.ts';
-import { buildEngine, parseEngineSpec, randomEngine, scriptEngine } from './engines.ts';
+import { buildEngine, describeSpec, parseEngineSpec, randomEngine, scriptEngine } from './engines.ts';
 import { POSTURE_ORDER } from '../../src/ai/posture.ts';
 import { queueAdvice, type PendingAdvice } from './match.ts';
 import { digestOf, playMatch, type MatchConfig, type MatchRecord, type SeatStrategies } from './match.ts';
@@ -50,11 +50,12 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
 
 const WARMONGER = { armyAttackSize: 4, attackCooldown: 300, prefersRivals: true };
 /** Long enough for this fixture to decide itself (seat 1 razes seat 0 at
- * tick 9915 unadvised). It has to run that deep: the steward's growth
- * knobs sit behind its growthAfter research and its war knobs behind a
- * mustered army, so the villages play identically for thousands of ticks
- * whatever the advice says — matchup.test.ts leans on the same fact. */
-const FULL_MATCH_TICKS = 10_000;
+ * tick 11299 unadvised, since the villager walk slowed in replay v24). It
+ * has to run that deep: the steward's growth knobs sit behind its
+ * growthAfter research and its war knobs behind a mustered army, so the
+ * villages play identically for thousands of ticks whatever the advice
+ * says — matchup.test.ts leans on the same fact. */
+const FULL_MATCH_TICKS = 12_000;
 
 describe('wilson intervals', () => {
   it('never reads a clean sweep as certainty', () => {
@@ -95,6 +96,22 @@ describe('engine specs', () => {
       baseUrl: 'http://localhost:8080/v1',
       model: 'qwen',
     });
+  });
+
+  it('labels the posture arms apart — the ablation lives in this text', () => {
+    // The persisted label is how an archived JSONL says which arm a run
+    // was: plain posture never reads the opponent, posture-reads does,
+    // and a run filed under the wrong text is indistinguishable from its
+    // own null when re-read later.
+    expect(describeSpec({ kind: 'posture' })).toBe('posture (rule-based, no model)');
+    expect(describeSpec({ kind: 'postureReads' })).toContain('opponent');
+    expect(describeSpec({ kind: 'posture' })).not.toContain('opponent');
+    // One archive names an arm twice — the report header via describeSpec,
+    // each advised[] JSONL line via engine.label — and both spellings must
+    // be the same word or the file disagrees with itself.
+    for (const kind of ['posture', 'postureReads'] as const) {
+      expect(buildEngine({ kind }, 0)?.label).toBe(describeSpec({ kind }));
+    }
   });
 
   it('refuses what it cannot run rather than guessing', () => {
@@ -793,6 +810,13 @@ describe('the command line', () => {
     expect(parseArgs(['--latency', '120']).latency).toBe(120);
     expect(parseArgs(['--latency', 'measured']).latency).toBe('measured');
     expect(() => parseArgs(['--latency', 'soon'])).toThrow(/measured/);
+  });
+
+  it('arms the match watchdog with a sane ceiling', () => {
+    expect(parseArgs([]).matchTimeoutMs).toBe(600_000);
+    expect(parseArgs(['--match-timeout-ms', '30000']).matchTimeoutMs).toBe(30_000);
+    expect(() => parseArgs(['--match-timeout-ms', '0'])).toThrow(/positive/);
+    expect(() => parseArgs(['--match-timeout-ms', '-5'])).toThrow(/positive/);
   });
 
   it('will not silently swallow a flag that wanted a value', () => {

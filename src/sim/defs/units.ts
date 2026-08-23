@@ -40,8 +40,8 @@ export type UnitTypeId =
  * kites heavy. Enemy kinds mirror the classes so counters matter both ways.
  */
 export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
-  serf: { id: 'serf', kindCode: 1, speed: 1.8, hp: 25, sight: 6.5 },
-  worker: { id: 'worker', kindCode: 2, speed: 1.7, hp: 25, sight: 6.5 },
+  serf: { id: 'serf', kindCode: 1, speed: 1.5, hp: 25, sight: 6.5 },
+  worker: { id: 'worker', kindCode: 2, speed: 1.4, hp: 25, sight: 6.5 },
   knight: {
     id: 'knight',
     kindCode: 3,
