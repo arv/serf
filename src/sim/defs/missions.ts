@@ -257,8 +257,10 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       { spec: { kind: 'stock', good: 'food', amount: 12 }, label: 'Lay in 12 food at the Castle' },
       // The one the auto-forge will never do for you: a hammer is wanted
       // by a site, so a village with nothing rising wants none, and the
-      // fire goes cold. Three on the shelf is a batch queued by hand at
-      // the forge menu — and three sites that can rise at once.
+      // fire goes cold. Three is a batch queued by hand at the forge menu
+      // — two of them, since the hammer the mission opens with comes back
+      // off the Smith's own site when the roof goes on. Three on the shelf
+      // is three sites that can rise at once.
       { spec: { kind: 'stock', good: 'hammer', amount: 3 }, label: 'Lay in 3 hammers at the Castle' },
     ],
   },

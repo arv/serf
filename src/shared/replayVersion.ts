@@ -20,6 +20,15 @@
  * directly.
  */
 /**
+ * 27: the campaign grew a fourth commission, Hammer and Haft, with an
+ * authored map of its own. Nothing about how the sim ticks moved — but a
+ * mission id is config, and an older build does not know this one:
+ * sanitizeConfig drops the id it cannot parse and replays the log in a
+ * bare seed-350 sandbox, with none of the mission's stock, techs,
+ * prebuilt village or objectives. Version equality has to mean the world
+ * rebuilds the same, so a new mission map is a bump — the rule
+ * defs/maps/README.md states for any map that lands or is tweaked.
+ *
  * 26: villagers slow to a walk — serf 1.8 -> 1.5 tiles/sec, worker 1.7 ->
  * 1.4. Purely a pacing change asked for by eye: the village read as
  * everyone sprinting between errands, and the renderer's gait work could
@@ -156,4 +165,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 26;
+export const REPLAY_VERSION = 27;

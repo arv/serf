@@ -280,8 +280,8 @@ knows *whether* you've won; only the UI knows *how to help you*.
   `{ kind: 'objectiveComplete'; index; player }` `GameEvent` per
   newly-met one, and `endMatch(world, 0)` when all are latched. The
   storehouse-elimination loss above is untouched; the existing
-  raze-the-camp branch remains for non-mission solo, and mission 6
-  (objectives `[]`) falls through to the multi-seat elimination branch
+  raze-the-camp branch remains for non-mission solo, and The Rival
+  Banner (objectives `[]`) falls through to the multi-seat elimination branch
   unchanged. Evaluation helper lives in a small
   `src/sim/systems/objectives.ts` to keep `victory.ts` readable.
 - **Determinism**: `missions.ts` is pure data with no DOM
@@ -399,19 +399,21 @@ is a mission knob.
 
 ### 8. Tests — `src/sim/missions.test.ts` (new)
 
-- **Golden-path runs for missions 1–4**: scripted command sequences
+- **Golden-path runs for the teaching missions** (The Clearing, Bread
+  and Water, The Abbey's Ledger, The Levy — and Hammer and Haft, added
+  later): scripted command sequences
   (via `cmds()` / `tickWorld` on `createWorld({ mission })`, the
   `testUtils.ts` style) that play each mission's intended solution and
   assert `outcome === { state: 'over', winner: 0 }` within a tick
   budget. These double as the proof that the pinned seed actually
   affords the mission (shore near start for M2, etc.) — a failing seed
   fails the test at authoring time, not in a player's browser.
-- **Mission 5** is already covered: `winnable.test.ts` *is* its test
+- **Hold the Valley** is already covered: `winnable.test.ts` *is* its test
   (same seed, same config). Add a one-line variant constructing it via
   `{ mission: 'holdTheValley' }` to prove the mission path reaches the
   same outcome.
-- **Mission 6**: brain-vs-brain via the `aiStrategies.test.ts` harness
-  pattern; assert someone wins.
+- **The Rival Banner**: brain-vs-brain via the `aiStrategies.test.ts`
+  harness pattern; assert someone wins.
 - **Determinism guard**: run mission 1 twice from the same config,
   compare world hashes (`hash.ts`) — the same shape
   `determinism.test.ts` already uses.
@@ -434,9 +436,9 @@ is a mission knob.
    start, `HudPanel` union entry.
 4. **Menu + progress** — campaign pane in `StartMenu`, `serf-campaign`
    store, unlock/✓ states.
-5. **Content** — missions 2–4 defs, hint scripts, golden-path tests,
-   seed-pinning playtests; then mission 6 and README's solo-mode
-   section.
+5. **Content** — the Bread and Water, Ledger and Levy defs, hint
+   scripts, golden-path tests, seed-pinning playtests; then The Rival
+   Banner and README's solo-mode section.
 
 Each phase lands green with everything before it; nothing past phase 1
 touches the sim.
@@ -450,14 +452,14 @@ touches the sim.
 - **Hard mode**: is an "again, but harsher" finale variant (first raid
   at 7 min, +2 camp guards) worth a mission-def knob in the first pass,
   or a follow-up?
-- **Mission 6**: in the first pass or the second? It is nearly free
-  mechanically but doubles the playtest surface.
+- **The Rival Banner**: in the first pass or the second? It is nearly
+  free mechanically but doubles the playtest surface.
 - **Best times**: record `bestTicks: Record<MissionId, number>` in the
   campaign store now (cheap) or never (scope)?
 - **Save-slot namespacing**: is one global slot acceptable for v1 (a
   campaign save evicts a sandbox save), or should the campaign refuse
-  the Save button in missions 1–4 (each ≤ 15 min) instead?
-- **Raid-interval override**: mission 4 currently rides the stock
+  the Save button in the teaching missions (each ≤ 15 min) instead?
+- **Raid-interval override**: The Levy currently rides the stock
   3-minute `RAID_INTERVAL`. If playtesting wants a faster drumbeat
   there, the knob means threading an interval through `raidState` —
   small, but sim state, so deferred until a mission proves it needs it.

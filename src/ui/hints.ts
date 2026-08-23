@@ -142,10 +142,10 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     {
       text:
         'A hammer is a loan, not a hire: every site borrows one and gives it ' +
-        'back when the roof goes on — which is why yours could raise ' +
-        'only one thing at a time. No site standing means no post wants a ' +
-        'hammer, so the Smith will never think of it: select it and queue ' +
-        'three yourself.',
+        'back when the roof goes on — which is why yours could raise only ' +
+        'one thing at a time, and why it is on the shelf again now. No site ' +
+        'standing means no post wants a hammer, so the Smith will never ' +
+        'think of it: select it and queue the other two yourself.',
       objective: 4,
     },
   ],

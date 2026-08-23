@@ -244,13 +244,15 @@ describe('the campaign missions', () => {
         );
         // Left alone the Smith tools the open posts and then lets the fire
         // go cold. Once every peg is filled the player queues the batch the
-        // crown asked for — three hammers, three sites that can rise at
-        // once — rather than leaving a standing order to eat the hill.
+        // crown asked for — rather than leaving a standing order to eat the
+        // hill. Exactly two, not three: the hammer that raised the Smith is
+        // back on the shelf, and the checklist wants three in total. Which
+        // makes this the boundary the objective is actually written on — a
+        // third order would clear it whether the arithmetic held or not.
         if (smith && staffed()) {
           tickWorld(
             world,
             cmds(
-              { kind: 'enqueueForge', buildingId: smith.id, recipeIndex: HAMMER_RECIPE },
               { kind: 'enqueueForge', buildingId: smith.id, recipeIndex: HAMMER_RECIPE },
               { kind: 'enqueueForge', buildingId: smith.id, recipeIndex: HAMMER_RECIPE },
             ),
@@ -264,6 +266,8 @@ describe('the campaign missions', () => {
 
     expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: 'over', winner: 0 });
     expect(world.objectivesDone).toEqual([true, true, true, true, true]);
+    // The loan came home rather than being forged twice over.
+    expect(stockOf(world, 'hammer')).toBe(3);
   }, 240_000);
 
   it('mission 5 (The Levy) is winnable, early raid and all', async () => {
