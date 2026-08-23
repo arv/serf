@@ -114,7 +114,7 @@ export const [techs, setTechs] = createSignal<TechSnap>({
   hasAbbey: false,
 });
 /** At most one HUD popup at a time — opening any closes the others. */
-export type HudPanel = 'build' | 'menu' | 'tech' | 'economy';
+export type HudPanel = 'build' | 'menu' | 'tech' | 'economy' | 'map';
 export const [openPanel, setOpenPanel] = createSignal<HudPanel | null>(null);
 export const techPanelOpen = (): boolean => openPanel() === 'tech';
 export const setTechPanelOpen = (open: boolean): void => {
@@ -123,6 +123,12 @@ export const setTechPanelOpen = (open: boolean): void => {
 export const economyPanelOpen = (): boolean => openPanel() === 'economy';
 export const setEconomyPanelOpen = (open: boolean): void => {
   setOpenPanel(open ? 'economy' : null);
+};
+/** The minimap sheet (small screens only — the desktop card just stands).
+ * In the panel family so opening it closes the menu and Esc closes it. */
+export const minimapOpen = (): boolean => openPanel() === 'map';
+export const setMinimapOpen = (open: boolean): void => {
+  setOpenPanel(open ? 'map' : null);
 };
 
 /** The "leave the match?" question, asked by the HUD's own <dialog>
