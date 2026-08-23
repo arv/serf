@@ -163,7 +163,7 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 | Right click | Move order / attack enemy building |
 | Click building | Building panel (barracks: train units) |
 | **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target |
-| **B** then a letter | Build: **H**ouse, **W**oodcutter, **Q**uarry, **A**bbey, We**l**l, Wheat **F**arm, **M**ill, **B**akery, Fi**s**hery, B**r**ewery, **I**ron Mine, Sil**v**er Mine, **G**old Mine, Wea**p**onsmith, Barrac**k**s |
+| **B** then a letter | Build: **H**ouse, **W**oodcutter, **Q**uarry, **A**bbey, We**l**l, Wheat **F**arm, **M**ill, **B**akery, Fish**e**ry, B**r**ewery, **I**ron Mine, Sil**v**er Mine, **G**old Mine, **S**mith, Barrac**k**s, Guard **T**ower |
 | **R** | Tech tree |
 | **H** (castle selected) | Hire Serf |
 | **K** / **S** / **A** (barracks selected) | Train **K**night / **S**pearman / **A**rcher |
@@ -241,7 +241,7 @@ instrument: a seed-sweeping, seat-mirrored bake-off with error bars
 (`pnpm bakeoff --help`, and the README there).
 
 ```sh
-pnpm test        # headless sim suite (58 tests)
+pnpm test        # headless suite: sim, editor, server, aiLab (800+ tests)
 pnpm typecheck   # TS 7, strict + erasableSyntaxOnly
 pnpm build       # typecheck + production bundle
 pnpm bakeoff     # LLM strategist bake-off (tools/aiLab)

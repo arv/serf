@@ -34,6 +34,7 @@ export function cloneWorld(world: World): World {
       demandSince: goods(b.demandSince),
       demandBackoff: b.demandBackoff ? goods(b.demandBackoff) : undefined,
       siteNeeds: b.siteNeeds ? goods(b.siteNeeds) : undefined,
+      repairNeeds: b.repairNeeds ? goods(b.repairNeeds) : undefined,
       trainQueue: b.trainQueue?.map((q) => ({ ...q })),
       forgeQueue: b.forgeQueue?.map((q) => ({ ...q })),
       rally: b.rally ? { ...b.rally } : undefined,
