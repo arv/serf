@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid.ts';
 import { SeatVision } from './visibility.ts';
-import { AiBrain, hostileNear, pickAttackTarget } from './systems/ai.ts';
+import { AiBrain, AI_INTEL, hostileNear, pickAttackTarget } from './systems/ai.ts';
 import { AI_STRATEGIES } from './defs/aiStrategies.ts';
 import { BANDIT } from './entities.ts';
 import { placeBuiltBuilding, spawnUnit } from './world.ts';
@@ -247,6 +247,87 @@ describe('the AI under fog of war', () => {
     // 66,66 on the 96-map two-seat layout), where their garrison stands.
     // The scout's first leg is the gate 13 north of it.
     expect(single[0]).toMatchObject({ x: 67, y: 58 });
+  });
+
+  it('finishes that read from the watch point it was sent to', () => {
+    // The errand and the arrival test have to agree. The brain walks the
+    // scout to a watch point six tiles north of the doorstep — close
+    // enough that the yard sits inside his sight circle, far enough that
+    // the garrison does not chase him. If "close enough to read the yard"
+    // is measured tighter than the walk the brain orders, the read can
+    // never land: the doorstep stays stale, the errand is never retired,
+    // and scoutLeg re-issues the gate leg the instant he arrives. Seen in
+    // a real match as a lone AI soldier pacing the same two tiles at the
+    // player's castle from the fourth minute to the end of the game.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 66, 66, {}, 1);
+    for (let i = 0; i < 3; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
+    spawnUnit(world, 'knight', 0, 64.5, 65.5);
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const gateLeg = moveOrders(brain.decide(world)).filter((c) => c.unitIds.length === 1)[0]!;
+    expect(gateLeg).toMatchObject({ x: 67, y: 58 });
+    const scout = world.units.get(gateLeg.unitIds[0]!)!;
+    const legs: { x: number; y: number }[] = [];
+
+    // Walk what he is told to walk, beat by beat: teleport him to the last
+    // leg he was given and let the brain pick the next one.
+    for (let beat = 0; beat < 40; beat++) {
+      const last = legs.at(-1) ?? gateLeg;
+      scout.x = last.x + 0.5;
+      scout.y = last.y + 0.5;
+      world.tick += 20;
+      for (const c of moveOrders(brain.decide(world))) {
+        if (c.unitIds.includes(scout.id)) legs.push({ x: c.x, y: c.y });
+      }
+    }
+
+    // The descent to the watch point, and then the errand is over: the
+    // read is filed and he is never sent back to the gate.
+    expect(legs[0]).toEqual({ x: 67, y: 65 });
+    expect(brain.intelReport().find((r) => r.owner === 1)?.reads).toBe(1);
+    expect(legs.filter((l) => l.x === 67 && l.y === 58)).toHaveLength(0);
+    // And with nothing left to read he goes back to the muster, rather
+    // than pacing the rival's gate for the rest of the match.
+    expect(legs.at(-1)).toEqual({ x: 31, y: 35 });
+  });
+
+  it('finishes it with the garrison standing there, which is the point of going', () => {
+    // The successful read is the awkward one. A yard with a real force in
+    // it refreshes the rival's clock the moment the scout lights it, so by
+    // the time the beat reaches the scouting branch nothing is stale any
+    // more — and the branch that retires the errand sits behind that very
+    // staleness. Left there, the scout who did his job stands at the
+    // enemy's gate for as long as the garrison is visible: the read is
+    // never filed, and the muster is a soldier short of what it counted on.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, {});
+    addStorehouse(world, 66, 66, {}, 1);
+    for (let i = 0; i < 3; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
+    spawnUnit(world, 'knight', 0, 64.5, 65.5);
+    // The garrison the errand was sent to count: minSighting of them, on
+    // the doorstep, inside the watch point's sight circle.
+    for (let i = 0; i < AI_INTEL.minSighting; i++) spawnUnit(world, 'spearman', 1, 66.5 + i, 71.5);
+    world.tick = 1000;
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const gateLeg = moveOrders(brain.decide(world)).filter((c) => c.unitIds.length === 1)[0]!;
+    const scout = world.units.get(gateLeg.unitIds[0]!)!;
+    const legs: { x: number; y: number }[] = [];
+    for (let beat = 0; beat < 40; beat++) {
+      const last = legs.at(-1) ?? gateLeg;
+      scout.x = last.x + 0.5;
+      scout.y = last.y + 0.5;
+      world.tick += 20;
+      for (const c of moveOrders(brain.decide(world))) {
+        if (c.unitIds.includes(scout.id)) legs.push({ x: c.x, y: c.y });
+      }
+    }
+    // The read lands — with three of theirs on the roster, which is what he
+    // was sent for — and he is called back to the muster.
+    expect(brain.intelReport().find((r) => r.owner === 1)?.reads).toBe(1);
+    expect(brain.intelReport().find((r) => r.owner === 1)?.total).toBe(AI_INTEL.minSighting);
+    expect(legs.at(-1)).toEqual({ x: 31, y: 35 });
   });
 
   it('sweeps in force but never to the last man, and calls the garrison in', () => {
