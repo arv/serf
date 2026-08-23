@@ -723,14 +723,18 @@ describe('the guard tower', () => {
     expect(tower.garrison ?? 0).toBe(0);
   });
 
-  it('keeps its archers when it is halted — the lever is the levy', () => {
+  it('marches its archers back out when it is halted — the lever is the roof', () => {
     const world = bareWorld();
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
     tower.garrison = 2;
     tower.garrisonKind = 'archer';
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
-    expect(tower.garrison).toBe(2);
-    expect(tower.garrisonKind).toBe('archer');
+    expect(tower.garrison).toBeUndefined();
+    expect(tower.garrisonKind).toBeUndefined();
+    // Not lost with the wall: they are two archers standing at the door
+    // again, which is the whole reason to press it.
+    const archers = [...world.units.values()].filter((u) => !u.dead && u.kind === 'archer');
+    expect(archers).toHaveLength(2);
   });
 
   it('calls an archer over to relieve a full levy, unasked', () => {
@@ -751,15 +755,119 @@ describe('the guard tower', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
-  it('takes an archer even while halted — a soldier costs the village nothing', () => {
+  it('empties a halted tower that somehow holds men — halted means empty', () => {
+    // Nothing in a running match makes this pair (the order evicts as it
+    // lands); a save written before the lever took the soldiers with it
+    // does, and it is the exact contradiction the lever was fixed to stop
+    // showing. The sweep stands them down.
     const world = bareWorld();
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
     tower.paused = true;
+    tower.garrison = 2;
+    tower.garrisonKind = 'archer';
+    run(world, 30);
+    expect(tower.garrison).toBeUndefined();
+    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'archer')).toHaveLength(2);
+  });
+
+  it('turns an archer away at the door when the tower is halted under him', () => {
+    // Both halves of the lever, and the door specifically: the archer is
+    // claimed while the tower is running, so he is walking with the tower's
+    // recruitId on him when the order lands. A halted tower that still
+    // swallowed the man already at its step was a tower the order could not
+    // empty — he would be back on the roof the same second.
+    const world = bareWorld();
+    // A storehouse because this one gives orders: a player without one is
+    // eliminated, and an eliminated player's commands are dropped.
+    addStorehouse(world, 20, 20, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
     const archer = spawnUnit(world, 'archer', 0, 36.5, 31.5);
+
+    // Claimed and walking, not yet arrived.
+    let guard = 0;
+    while (tower.recruitId === undefined && guard++ < 400) tickWorld(world, []);
+    expect(tower.recruitId).toBe(archer.id);
+    expect(archer.task.t).toBe('staff');
+    expect(tower.garrison ?? 0).toBe(0);
+
+    // Halted mid-walk: he reaches the door and is turned away, and nothing
+    // calls him back for as long as the tower stands down.
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
+    run(world, 20 * 20);
+    expect(tower.garrison ?? 0).toBe(0);
+    expect(tower.recruitId).toBeUndefined();
+    expect(archer.dead).toBe(false);
+    expect(archer.task.t).toBe('idle');
+
+    // Manned again, he climbs up as he always did.
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: false }));
     run(world, 20 * 20);
     expect(tower.garrison).toBe(1);
     expect(tower.garrisonKind).toBe('archer');
     expect(archer.dead).toBe(true);
+  });
+
+  it('marches the garrison out on the clock the tower was on, not a fresh one', () => {
+    // Standing down between two volleys would otherwise be a way of firing
+    // twice: the tower looses, the men walk out with a bow that has already
+    // reloaded, and they loose again in the same fight.
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    tower.garrison = 1;
+    tower.garrisonKind = 'archer';
+    tower.attackCooldown = 17; // mid-reload, as if it had just loosed
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
+    const out = [...world.units.values()].filter((u) => !u.dead && u.kind === 'archer');
+    expect(out).toHaveLength(1);
+    expect(out[0]!.cooldownLeft).toBeGreaterThanOrEqual(16);
+  });
+
+  it('carries a half-drawn bow into the next tower, and leaves no clock behind', () => {
+    // The other direction of the same rule. Loose from one tower, stand it
+    // down, walk the men into the tower next door: if the clock stayed
+    // behind, that second wall would fire with bows that had not reloaded.
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    const a = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const b = placeBuiltBuilding(world, 'guardTower', 0, 34, 30);
+    a.garrison = 1;
+    a.garrisonKind = 'archer';
+    a.attackCooldown = 200; // long enough to survive the walk next door
+
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: a.id, paused: true }));
+    expect(a.garrison).toBeUndefined();
+    // Nothing left standing on the empty tower's clock: towerFire does not
+    // count an empty tower down, so it would still be there next time.
+    expect(a.attackCooldown).toBeUndefined();
+
+    let guard = 0;
+    while ((b.garrison ?? 0) < 1 && guard++ < 800) tickWorld(world, []);
+    expect(b.garrison).toBe(1);
+    expect(b.attackCooldown ?? 0).toBeGreaterThan(0);
+  });
+
+  it('gives back the man who went up, wounds and all — the roof is not a hospital', () => {
+    // Standing a tower down is free and instant. If the men came back at
+    // full strength, a wounded archer could be walked up and stood down
+    // between two volleys for a full heal.
+    const world = bareWorld();
+    addStorehouse(world, 20, 20, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const archer = spawnUnit(world, 'archer', 0, 36.5, 31.5);
+    const hurt = Math.round(UNIT_DEFS.archer.hp / 3);
+    archer.hp = hurt;
+
+    let guard = 0;
+    while ((tower.garrison ?? 0) < 1 && guard++ < 800) tickWorld(world, []);
+    expect(tower.garrison).toBe(1);
+    expect(tower.garrisonHp).toEqual([hurt]);
+
+    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
+    const back = [...world.units.values()].filter((u) => !u.dead && u.kind === 'archer');
+    expect(back).toHaveLength(1);
+    expect(back[0]!.hp).toBe(hurt);
+    expect(tower.garrisonHp).toBeUndefined();
   });
 
   it('does not call villagers up to a tower the archers already hold', () => {

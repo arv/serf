@@ -24,14 +24,14 @@ import { REPLAY_VERSION } from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
-const EXPECTED_VERSION = 26;
-// Moved for the AI brain's raid recovery (sim/economyRules.ts,
-// sim/systems/ai.ts) over main's own move for the spear work. The version
-// stands at both ends: playback never runs a brain — the AI's moves are in
-// the log, which is exactly why replay.ts stores them — so re-deciding them
-// differently cannot change how a recorded match re-runs. The hash covers
-// all of src/sim, brains included, hence the pin.
-const EXPECTED_HASH = '481fb7b554d7b605df70c5cdaf1bc829';
+// 27 is main's number, for main's reasons — the AI brain's raid recovery
+// asks for none of its own. Playback never runs a brain: the AI's moves are
+// in the log, which is exactly why replay.ts stores them, so re-deciding
+// them differently cannot change how a recorded match re-runs. The hash is
+// over all of src/sim, brains included, so it moves for this branch anyway
+// and is re-pinned here.
+const EXPECTED_VERSION = 27;
+const EXPECTED_HASH = '1720818bd6682de2f18552a7e938cc0d';
 
 /**
  * Everything a replay's playback depends on, as raw source:
