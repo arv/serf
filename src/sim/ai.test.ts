@@ -476,6 +476,42 @@ describe('the stall watchdog', () => {
     expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
   });
 
+  it('lets an idle archer relieve a levy rather than standing it down', () => {
+    // A soldier at the door relieves the whole levy, so a tower full of
+    // villagers still has room for him. Reading the roof as full stood the
+    // levy down on quiet ground with an archer standing idle beside it.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
+    tower.garrisonKind = 'serf';
+    spawnUnit(world, 'archer', 0, 34.5, 34.5);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
+  });
+
+  it('does not open a tower for an archer it has just marched away', () => {
+    // The order is queued, not applied, so the archer still reads as idle
+    // when the walls are considered. A tower opened for him is a tower
+    // opened for nobody — and an empty running tower calls villagers up.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    tower.paused = true;
+    const archer = spawnUnit(world, 'archer', 0, 34.5, 34.5);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    const marched = out.some((c) => c.kind === 'moveUnits' && c.unitIds.includes(archer.id));
+    const started = out.some(
+      (c) => c.kind === 'setBuildingPaused' && c.buildingId === tower.id && !c.paused,
+    );
+    // Whichever the seat picks, it does not pick both for the one man.
+    expect(marched && started).toBe(false);
+  });
+
   it('never stands a tower its archers hold down, or up', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});

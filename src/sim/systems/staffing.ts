@@ -160,6 +160,7 @@ function handleArrivals(world: World): void {
       if (garrisonRoom(def, b) <= 0) continue; // filled while he walked
       b.garrison = (b.garrison ?? 0) + 1;
       b.garrisonKind = def.garrison.unit;
+      (b.garrisonHp ??= []).push(unit.hp); // what he climbed up with
       unit.dead = true;
       continue;
     }
@@ -174,6 +175,7 @@ function handleArrivals(world: World): void {
       if (garrisonRoom(def, b) <= 0) continue;
       b.garrison = (b.garrison ?? 0) + 1;
       b.garrisonKind = def.garrison.levy.unit;
+      (b.garrisonHp ??= []).push(unit.hp);
       unit.dead = true;
       continue;
     }

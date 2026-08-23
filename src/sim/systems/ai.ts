@@ -562,11 +562,14 @@ export class AiBrain {
     const countOf = (type: BuildingTypeId): number => mine.filter((b) => b.type === type).length;
 
     // --- The walls ------------------------------------------------------------
-    // Before the build order and well before the army: whether villagers
-    // are holding a tower is a question about the next few seconds, and it
-    // is answered by what can be seen right now rather than by anything the
-    // rest of this method decides.
-    this.#manTowers(world, mine, commands);
+    // Before the build order and well before the army: whether villagers are
+    // holding a tower is a question about the next few seconds, and it is
+    // answered by what can be seen right now rather than by anything the rest
+    // of this method decides. It picks first, too — the men it means to put on
+    // a wall are named here and left out of the march below, because a tower
+    // opened for an archer the army marches away in the same beat is a tower
+    // opened for nobody, and an empty running tower calls villagers up.
+    const manning = this.#manTowers(world, mine, commands);
 
     // --- The stall watchdog (AI_STALL) ---------------------------------------
     // Sampled first so the reading below is this beat's, and so a seat that
@@ -721,7 +724,7 @@ export class AiBrain {
 
     // --- Army: rally at home until strong, then march ------------------------
     const army = [...world.units.values()].filter(
-      (u) => !u.dead && u.owner === this.playerId && MILITARY.has(u.kind),
+      (u) => !u.dead && u.owner === this.playerId && MILITARY.has(u.kind) && !manning.has(u.id),
     );
     const target = pickAttackTarget(world, this.#vision, this.playerId, baseX, baseY, s.prefersRivals);
     const rallyReady = world.tick - this.#lastRallyTick > s.rallyCooldown;
@@ -1132,22 +1135,28 @@ export class AiBrain {
    * cannot shoot back at for two men in the open, every time the ground
    * went quiet, and start them walking back up the moment it did not.
    */
-  #manTowers(world: World, mine: readonly Building[], commands: SimCommand[]): void {
-    // Soldiers standing loose, counted once and spent as towers claim them.
-    // Since halting now empties the roof, keeping a tower running whenever
-    // there is a man for it is a decision the seat has to make — the sim no
-    // longer walks archers into a stood-down tower behind its back.
-    const idleOf = new Map<UnitTypeId, number>();
-    const loose = (kind: UnitTypeId): number => {
-      let n = idleOf.get(kind);
-      if (n === undefined) {
-        n = 0;
+  #manTowers(world: World, mine: readonly Building[], commands: SimCommand[]): Set<EntityId> {
+    // The men the walls are spending this beat, named rather than counted:
+    // the army pool below leaves them out, so a tower is never opened for an
+    // archer the same beat marches away. Since halting now empties the roof,
+    // "is there a man for this wall" is a decision the seat has to make — the
+    // sim no longer walks archers into a stood-down tower behind its back.
+    const claimed = new Set<EntityId>();
+    // Soldiers standing loose, gathered once per kind (in id order, as every
+    // scan here is) and drawn from as towers take them.
+    const idleOf = new Map<UnitTypeId, EntityId[]>();
+    const loose = (kind: UnitTypeId): EntityId[] => {
+      let pool = idleOf.get(kind);
+      if (!pool) {
+        pool = [];
         for (const u of world.units.values()) {
-          if (!u.dead && u.owner === this.playerId && u.kind === kind && u.task.t === 'idle') n++;
+          if (u.dead || u.owner !== this.playerId || u.kind !== kind) continue;
+          if (u.task.t !== 'idle' || claimed.has(u.id)) continue;
+          pool.push(u.id);
         }
-        idleOf.set(kind, n);
+        idleOf.set(kind, pool);
       }
-      return n;
+      return pool;
     };
     for (const b of mine) {
       if (b.state !== 'built') continue;
@@ -1167,7 +1176,14 @@ export class AiBrain {
       // would give back are already back, and the men it would give back
       // belong on that wall.
       const rule = BUILDING_DEFS[b.type].garrison!;
-      const room = rule.capacity - (b.garrison ?? 0);
+      // Room for a soldier, which is not room on the roof: a soldier at the
+      // door relieves the whole levy rather than queueing behind it (see
+      // wantedKinds in staffing), so a tower full of villagers has room for
+      // every place it holds. Reading it as full was a seat that stood its
+      // levy down on quiet ground with an archer standing idle who could
+      // have taken the wall.
+      const room =
+        b.garrisonKind === rule.levy.unit ? rule.capacity : rule.capacity - (b.garrison ?? 0);
       if (b.garrison && b.garrisonKind !== rule.levy.unit && room <= 0) continue;
       // A soldier already walking to this tower is spoken for, and he stops
       // counting as loose the moment staffing claims him. Halting on the
@@ -1189,15 +1205,20 @@ export class AiBrain {
       // back at, and the village loses no hands by it — so a seat mans its
       // towers in peacetime with soldiers, and only ever with villagers
       // while something hostile is in sight.
-      const spare = Math.min(room, loose(rule.unit));
+      const pool = loose(rule.unit);
+      const spare = Math.min(room, pool.length);
       if (spare > 0) {
-        idleOf.set(rule.unit, loose(rule.unit) - spare);
+        // Taken off the pool and out of the army: these are the men this
+        // wall is for. Staffing picks who actually walks (nearest first);
+        // what matters here is that the army is that many men short.
+        for (const id of pool.splice(0, spare)) claimed.add(id);
         if (b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
         continue;
       }
       if (b.garrison && b.garrisonKind !== rule.levy.unit) continue;
       if (!b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: true });
     }
+    return claimed;
   }
 
   /**
