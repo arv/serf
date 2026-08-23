@@ -31,7 +31,7 @@ import {
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, WEAPON_OF, type UnitClass, type UnitTypeId } from '../defs/units.ts';
 import { addGarrison, classHp, damageEquivalent, shouldCommit, type Force } from '../combatOdds.ts';
-import { HIRE_SERF_COST } from '../defs/balance.ts';
+import { HIRE_QUEUE_CAP, HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
 import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
 import { canPlace, type World } from '../world.ts';
@@ -150,8 +150,25 @@ export const AI_PACING = {
  * No amount of tuning reaches that. What reaches it is noticing, so the
  * brain samples a handful of integers on a slow clock and calls the seat
  * stalled when none of them has moved across the whole window. The rules
- * that answer are all in sim/economyRules.ts, and every one of them is gated on this
- * reading — an unstalled seat emits exactly the commands it always did.
+ * that answer are all in sim/economyRules.ts.
+ *
+ * One of them is gated on this reading: `resiteExtractor`, which sells a
+ * hut out from under its gatherer and so had better be sure. The rest read
+ * a condition instead, and the distinction is the point rather than an
+ * erosion of it. `stalled` is an INFERENCE about a village — nothing has
+ * moved in twelve minutes, so something must be wrong — and it is the right
+ * gate for a rule that pays to guess. The recovery pair `freeCappedHauler`
+ * and `resumeDrainedPost`, and the hold `handsBeforeSoldiers`, read the
+ * dead end DIRECTLY: hands under the playbook's survivalFloor. That is not
+ * a guess wanting corroboration, and waiting for the window to corroborate
+ * it costs fourteen thousand ticks a raided seat usually does not have —
+ * see those rules' comments and the 2026-08-23 correction in
+ * docs/plan-ai-robustness.md. (The production-phase rules — tools, forges,
+ * the barracks queue — are steering rather than rescue, and have never been
+ * gated on anything.)
+ *
+ * What every gate protects is the same guarantee: a seat that is going
+ * somewhere, with its people, emits exactly the commands it always did.
  *
  * Brain-local memory like `#intel` and `#vision`: never serialized, and the
  * determinism story is unchanged because the window is a pure function of
@@ -664,9 +681,22 @@ export class AiBrain {
     // Even the panic floor cannot conjure a bed. Asking anyway is harmless —
     // the sim refuses it — but a seat that knows it is full spends the beat
     // on the housing rule above instead of on an order that goes nowhere.
-    const room = hasRoomToHire(world, this.playerId);
+    // A hire the sim would refuse is not a hire. Beds are only half of it:
+    // `applyCommand` also turns one away when the storehouse's queue is
+    // already HIRE_QUEUE_CAP deep, and the guard below has to know whether
+    // four silver is actually leaving the shelf — a flag that says "ordered"
+    // where the sim says "refused" holds back research for a hire that never
+    // happens. Same predicate on both branches, so this only ever suppresses
+    // an order that would have been a no-op.
+    const room = hasRoomToHire(world, this.playerId) && (sh.hireQueue ?? 0) < HIRE_QUEUE_CAP;
+    // Whether this beat has already spent four silver on a hand. The
+    // research guard below reads it, because commands are applied in the
+    // order they are pushed and a hire pushed here is money the shelf still
+    // shows but no longer has.
+    let hiring = false;
     if (room && serfCount < s.survivalFloor && (stock.silver ?? 0) >= HIRE_SERF_COST) {
       commands.push({ kind: 'hireSerf' });
+      hiring = true;
     } else if (
       room &&
       growing &&
@@ -674,12 +704,20 @@ export class AiBrain {
       (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? reserve : 0)
     ) {
       commands.push({ kind: 'hireSerf' });
+      hiring = true;
     }
 
     // --- Breaking the stall: the rules that cost something -------------------
-    // Only ever reached by a seat the window says has not moved in twelve
-    // minutes. Everything above this line is the game as it was played
-    // before the watchdog existed.
+    // Mostly reached only by a seat the window says has not moved in twelve
+    // minutes. `freeCappedHauler` is the exception now (and
+    // `resumeDrainedPost`, which has to be able to undo it), for the reason
+    // its own comment gives: a village short of hands beside a capped post
+    // is not an inference the watchdog has to draw, it is the dead end
+    // itself, and a seat is routinely razed or the match over before a
+    // fourteen-thousand-tick window can confirm what is already true.
+    // Everything above this line is still the game as it was played before
+    // the watchdog existed, and so is everything below it for a seat that
+    // has its people.
     const ruleCtx: RuleContext = {
       world,
       owner: this.playerId,
@@ -710,7 +748,27 @@ export class AiBrain {
       if (next && has('abbey')) {
         const cost = TECH_DEFS[next].cost as Record<string, number>;
         const ok = Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
-        if (ok) commands.push({ kind: 'research', tech: next });
+        // Hands first, when there are barely any. Every tech is priced in
+        // silver and so is a hire, and the panic branch above only fires on
+        // the beat the shelf already holds the four — so a seat rebuilding
+        // after a raid could spend its way past the hire forever, three
+        // silver at a time, and never notice. Below the floor a tech waits
+        // until the NEXT hire is still affordable after it, counting the one
+        // this beat may already have ordered: `stock` is the shelf as
+        // logistics last left it, and a hireSerf pushed above is applied
+        // first, so ten silver against a six-silver tech is four for the
+        // hand, six for the tech, and nothing at all for the hand after.
+        // Above the floor this is the reserve's job and the reserve keeps
+        // it: the guard cannot fire on a seat with its people. Nor on one
+        // with nowhere to put them — silver held back for a hire there is no
+        // bed for is silver held back for nothing, so a full village
+        // researches.
+        const leavesHireMoney =
+          serfCount >= s.survivalFloor ||
+          !room ||
+          (stock.silver ?? 0) - (hiring ? HIRE_SERF_COST : 0) - (cost.silver ?? 0) >=
+            HIRE_SERF_COST;
+        if (ok && leavesHireMoney) commands.push({ kind: 'research', tech: next });
       }
     }
 
