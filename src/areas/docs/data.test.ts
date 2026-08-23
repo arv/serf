@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING_DEFS } from '../../sim/defs/buildings';
-import { GOODS } from '../../sim/defs/goods';
+import { GOODS, type GoodId } from '../../sim/defs/goods';
 import { TECH_DEFS } from '../../sim/defs/techs';
 import { BUILD_GROUPS } from '../../ui/buildMenu';
 import {
@@ -42,6 +42,17 @@ describe('the docs cross-reference graph', () => {
     const inMenu = new Set(BUILD_GROUPS.flatMap((g) => g.types));
     const world = ALL_BUILDINGS.filter((id) => !inMenu.has(id));
     expect([...inMenu, ...world].sort()).toEqual([...ALL_BUILDINGS].sort());
+  });
+
+  it('counts a repair bill as a use of the good', () => {
+    // The castle is raised for free and mended for real timber and stone;
+    // without repairCost in the graph neither page reports that use.
+    for (const good of Object.keys(BUILDING_DEFS.storehouse.repairCost ?? {}) as GoodId[]) {
+      const mends = (CONSUMED_BY.get(good) ?? []).filter(
+        (c) => c.kind === 'repair' && c.building === 'storehouse',
+      );
+      expect(mends).toHaveLength(1);
+    }
   });
 
   it('resolves every tech gate to a real tech', () => {

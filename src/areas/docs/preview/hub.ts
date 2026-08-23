@@ -108,8 +108,11 @@ function ensureUnitAssets(): Promise<boolean> {
 }
 
 function getHub(): Hub | null {
-  if (hub) return hub;
+  // The flag first: after a lost context `hub` may still be non-null while
+  // it is unusable, and handing it back would let a fresh card render into
+  // a dead context and restart the loop.
   if (hubFailed) return null;
+  if (hub) return hub;
   let renderer: THREE.WebGLRenderer;
   try {
     renderer = makeRenderer(document.createElement('canvas'));
@@ -157,19 +160,31 @@ function getHub(): Hub | null {
   return hub;
 }
 
-/** The context is gone: stop drawing and let every card show its tile. */
+/**
+ * The context is gone: stop drawing and let every card show its tile.
+ *
+ * A full teardown rather than a flag, because a half-dead hub is worse
+ * than none — every path out of here has to agree that there is nothing to
+ * draw into. The GPU resources are already gone, so nothing is disposed;
+ * `hubFailed` stays set until the reader leaves the guide, which is when a
+ * fresh context becomes worth trying again.
+ */
 function onContextLost(event: Event): void {
   event.preventDefault();
   const h = hub;
   if (!h) return;
   hubFailed = true;
+  hub = null;
   if (h.raf !== 0) cancelAnimationFrame(h.raf);
-  h.raf = 0;
+  h.io.disconnect();
+  h.renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+  document.removeEventListener('visibilitychange', h.onVisibility);
   for (const card of h.cards) {
     card.content = null;
     card.painted = false;
     card.onState('fallback');
   }
+  h.cards.clear();
 }
 
 function paint(card: Card): void {
@@ -393,9 +408,9 @@ export function registerCard(spec: CardSpec): CardHandle {
 
   const assets = card.kind === 'building' ? ensureBuildingAssets() : ensureUnitAssets();
   void assets.then((ok) => {
-    // The card may be gone (page turned) or the hub torn down (left /docs)
-    // by the time the models land.
-    if (!hub || !hub.cards.has(card)) return;
+    // The card may be gone (page turned), the hub torn down (left /docs),
+    // or the context lost while the models were in flight.
+    if (hubFailed || !hub || !hub.cards.has(card)) return;
     card.content = ok ? buildContent(card) : null;
     if (!card.content) {
       card.onState('fallback');
@@ -410,7 +425,10 @@ export function registerCard(spec: CardSpec): CardHandle {
     setAnim(key: AnimKey): void {
       const visual = card.content?.visual;
       if (!visual) return;
-      playAnimation(visual, key, card.seed);
+      // The seed desyncs looping clips, but death plays once (LoopOnce in
+      // characters.ts) — started part-way through, a card would show the
+      // last third of a fall. sceneSync makes the same exception.
+      playAnimation(visual, key, key === 'death' ? 0 : card.seed);
       // The loop carries the crossfade from here; a card that is somehow
       // between loops still gets one frame.
       if (card.visible) paint(card);
@@ -435,6 +453,9 @@ export function registerCard(spec: CardSpec): CardHandle {
  */
 export function disposePreviewHub(): void {
   const h = hub;
+  // A new visit deserves a new context: whatever killed the last one is
+  // usually long over by the time anyone opens the guide again.
+  hubFailed = false;
   if (!h) return;
   hub = null;
   if (h.raf !== 0) cancelAnimationFrame(h.raf);

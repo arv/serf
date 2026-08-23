@@ -42,6 +42,13 @@ function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
           <DocLink href={buildingHref(r.building)}>{buildingName(r.building)}</DocLink>
         </li>
       );
+    case 'repair':
+      return (
+        <li>
+          Mends the{' '}
+          <DocLink href={buildingHref(r.building)}>{buildingName(r.building)}</DocLink>
+        </li>
+      );
     case 'training':
       return (
         <li>

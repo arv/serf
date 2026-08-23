@@ -56,6 +56,7 @@ export interface ProducerRef {
 export type ConsumerRef =
   | { kind: 'recipe'; building: BuildingTypeId; requiresTech?: TechId }
   | { kind: 'construction'; building: BuildingTypeId }
+  | { kind: 'repair'; building: BuildingTypeId }
   | { kind: 'training'; building: BuildingTypeId; unit: UnitTypeId }
   | { kind: 'tech'; tech: TechId }
   | { kind: 'tool'; building: BuildingTypeId }
@@ -120,6 +121,13 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
   for (const id of ALL_BUILDINGS) {
     const def = BUILDING_DEFS[id];
     for (const good of goodsOf(def.cost)) push(map, good, { kind: 'construction', building: id });
+    // A mend bills against the build cost, so for most buildings the line
+    // above already names the goods. `repairCost` is the exception — the
+    // castle costs nothing to raise and real timber and stone to patch, so
+    // without this neither good's page reports that use at all.
+    for (const good of goodsOf(def.repairCost ?? {})) {
+      push(map, good, { kind: 'repair', building: id });
+    }
     if (def.recipe?.kind === 'convert') {
       for (const good of goodsOf(def.recipe.inputs)) push(map, good, { kind: 'recipe', building: id });
     }

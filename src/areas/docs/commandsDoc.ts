@@ -32,7 +32,8 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
     payload: 'buildingId',
   },
   setBuildingPaused: {
-    summary: 'Stop or resume a building’s production without dismissing its worker.',
+    summary:
+      'Halt or restart a building. Halting also empties the post — the resident (or a site’s builder) rejoins the serf pool, and a tower sends its levy back to work — so it is both “stop eating my wood” and “give me the hands back”.',
     payload: 'buildingId, paused',
   },
   setBuildingRepair: {
