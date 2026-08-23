@@ -917,7 +917,17 @@ export function StartMenu(props: StartMenuProps) {
                                 setPicked(picked() === r.code ? null : r.code);
                                 setRoom('');
                               }}
-                              onDblClick={launch}
+                              // This row's own code, not the selection: the
+                              // two clicks a double-click is made of have
+                              // already toggled the pick back off by the
+                              // time this fires, and launch() on an empty
+                              // target is a silent nothing. (The shelf rows
+                              // below dodge the same pitfall.)
+                              onDblClick={() => {
+                                setPicked(r.code);
+                                setRoom('');
+                                launch();
+                              }}
                             >
                               <span style="min-width:0">
                                 <span class="code">{r.code}</span>
