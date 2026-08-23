@@ -377,6 +377,10 @@ export class LlmStrategist {
       n_ctx: N_CTX,
       n_gpu_layers: GPU_LAYERS,
       progressCallback: loading,
+      // For the 'unsupported' fallback, where this call is also the
+      // download: a disposed match must stop that fetch too. A cache hit
+      // never consults it.
+      signal: this.#loadAbort.signal,
     });
     let schemaBroken = false;
     return {
@@ -455,7 +459,11 @@ export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () 
       if (ensured.status === 'unsupported') {
         // No resumable storage in this browser: wllama's own downloader
         // over the same cache, exactly as before — ensureModelCached has
-        // already swept any wreckage out of its way (modelCache.ts).
+        // already swept any wreckage out of its way (modelCache.ts). This
+        // runs outside the download lock, but 'unsupported' means either
+        // no Web Locks (nothing to hold) or storage the resumable store
+        // refused (where a concurrent sweep costs a retry, as it always
+        // has) — the pre-PR behavior either way.
         await new ModelManager({ cacheManager: cache }).downloadModel(LLM_MODEL_URL, {
           signal: controller.signal,
           progressCallback: progress,

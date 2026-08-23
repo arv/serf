@@ -46,11 +46,12 @@
  *     racing the quota.
  *
  * And to never do worse than the old behavior: a browser whose OPFS can't
- * take main-thread writes — or whose storage exists but refuses to open
- * or to take the staging record — gets 'unsupported' and the callers fall
- * back to wllama's own downloader, and a resume request the network
- * refuses outright (a proxy or CORS layer that balks at Range) retries
- * once as the plain fetch it would have been anyway.
+ * take main-thread writes or that has no Web Locks — or whose storage
+ * exists but refuses to open or to take the staging record — gets
+ * 'unsupported' and the callers fall back to wllama's own downloader, and
+ * a resume request the network refuses outright (a proxy or CORS layer
+ * that balks at Range) retries once as the plain fetch it would have
+ * been anyway.
  */
 
 import { discardPartialModel, hasWholeModel, type ModelCache } from './modelCache.ts';
@@ -239,8 +240,14 @@ async function download(
     const bytes = concat(buffer, buffered);
     buffer = [];
     buffered = 0;
-    await store.writePart(meta.attempt, base, bytes);
-    base += bytes.length;
+    // Sliced to the granularity, whatever size the network's reads came
+    // in: a part never exceeds partBytes, so the commit bound — and the
+    // install's one-part footprint — holds even against a giant chunk.
+    for (let at = 0; at < bytes.length; at += partBytes) {
+      const slice = bytes.subarray(at, Math.min(at + partBytes, bytes.length));
+      await store.writePart(meta.attempt, base, slice);
+      base += slice.length;
+    }
   };
   // Report whenever the visible percent moves, not per network chunk — a
   // Solid signal is on the other end. (The total is always known here;
@@ -528,15 +535,19 @@ const partName = (attempt: string, offset: number): string =>
   `part-${attempt}-${String(offset).padStart(12, '0')}`;
 
 /**
- * The real store, or null where it cannot work — no OPFS, or file handles
+ * The real store, or null where it cannot work — no OPFS, file handles
  * without main-thread `createWritable` (older Safari; wllama covers those
  * with its own worker-based writes, so the fallback is simply the old
- * non-resuming behavior, not a regression).
+ * non-resuming behavior, not a regression), or no Web Locks. The last is
+ * part of the contract, not a convenience: without a cross-tab lock, two
+ * tabs could interleave over this one directory, and every browser that
+ * passes the other checks ships Web Locks anyway.
  */
 export function opfsPartialStore(): PartialStore | null {
   if (
     typeof navigator === 'undefined' ||
     typeof navigator.storage?.getDirectory !== 'function' ||
+    typeof navigator.locks?.request !== 'function' ||
     typeof FileSystemFileHandle === 'undefined' ||
     !('createWritable' in FileSystemFileHandle.prototype)
   ) {

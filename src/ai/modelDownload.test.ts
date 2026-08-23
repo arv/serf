@@ -71,13 +71,17 @@ async function cacheKey(url: string): Promise<string> {
 function memoryStore(): PartialStore & {
   meta: () => PartialMeta | null;
   held: () => number;
+  maxPart: () => number;
 } {
   let meta: PartialMeta | null = null;
+  let maxPart = 0;
   const parts = new Map<string, Uint8Array>();
   return {
     meta: () => meta,
     /** Bytes waiting in parts, for the salvage assertions. */
     held: () => [...parts.values()].reduce((sum, bytes) => sum + bytes.length, 0),
+    /** The largest part ever committed — the commit-granularity bound. */
+    maxPart: () => maxPart,
     readMeta: async () => meta,
     writeMeta: async (m) => {
       meta = m;
@@ -88,6 +92,7 @@ function memoryStore(): PartialStore & {
         return { attempt, offset: Number(offset), size: bytes.length, blob: new Blob([bytes as BlobPart]) };
       }),
     writePart: async (attempt, offset, bytes) => {
+      maxPart = Math.max(maxPart, bytes.length);
       parts.set(`${attempt}:${offset}`, bytes.slice());
     },
     deletePart: async (attempt, offset) => {
@@ -545,6 +550,21 @@ describe('ensureModelCached', () => {
     await expectInstalled(h);
   });
 
+  it('a network chunk larger than the granularity is committed in bounded parts', async () => {
+    // The host reads in 64-byte chunks; a 48-byte granularity means every
+    // read overflows it. The bound must hold anyway — it is what keeps
+    // the install's transient footprint one part, not one chunk.
+    const h = harness();
+    const result = await ensureModelCached(h.cache, URL_, {
+      store: h.store,
+      fetcher: h.host.fetcher,
+      partBytes: 48,
+    });
+    expect(result).toEqual({ status: 'downloaded', resumedFrom: 0 });
+    expect(h.store.maxPart()).toBeLessThanOrEqual(48);
+    await expectInstalled(h);
+  });
+
   it('overlap without Web Locks still queues within the page', async () => {
     // Node has no navigator.locks, so this exercises the module's own
     // queue: two callers, one fetch, the second finding the first's work.
@@ -615,7 +635,12 @@ describe('ensureModelCached', () => {
     // record, offset-named files and the recursive clear all round-trip,
     // with fresh handles standing in for the next page load.
     const world = fakeOpfs();
-    vi.stubGlobal('navigator', { storage: world.storage });
+    vi.stubGlobal('navigator', {
+      storage: world.storage,
+      // Web Locks is part of the store's support contract; a pass-through
+      // grant serializes nothing but proves the probe.
+      locks: { request: (_name: string, work: () => Promise<unknown>) => work() },
+    });
     vi.stubGlobal('FileSystemFileHandle', class { createWritable(): void {} });
     const backend = memoryBackend();
     const cache = new CacheManager([backend]);
