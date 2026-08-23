@@ -459,6 +459,78 @@ describe('the stall watchdog', () => {
     expect(out.filter((c) => c.kind === 'setBuildingPaused')).toHaveLength(1);
   });
 
+  it('leaves a tower alone while a soldier is walking to it', () => {
+    // The stand-down cycle: an archer stops counting as loose the moment
+    // staffing claims him, so a seat that halts on the next quiet beat turns
+    // him away at the door he has nearly reached — and he goes idle, is seen
+    // loose again, and is walked over again, forever.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    const archer = spawnUnit(world, 'archer', 0, 40.5, 40.5);
+    archer.task = { t: 'staff', buildingId: tower.id };
+    tower.recruitId = archer.id;
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
+  });
+
+  it('lets an idle archer relieve a levy rather than standing it down', () => {
+    // A soldier at the door relieves the whole levy, so a tower full of
+    // villagers still has room for him. Reading the roof as full stood the
+    // levy down on quiet ground with an archer standing idle beside it.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
+    tower.garrisonKind = 'serf';
+    spawnUnit(world, 'archer', 0, 34.5, 34.5);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
+  });
+
+  it('does not open a tower for an archer it has just marched away', () => {
+    // The order is queued, not applied, so the archer still reads as idle
+    // when the walls are considered. A tower opened for him is a tower
+    // opened for nobody — and an empty running tower calls villagers up.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    tower.paused = true;
+    const archer = spawnUnit(world, 'archer', 0, 34.5, 34.5);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    const marched = out.some((c) => c.kind === 'moveUnits' && c.unitIds.includes(archer.id));
+    const started = out.some(
+      (c) => c.kind === 'setBuildingPaused' && c.buildingId === tower.id && !c.paused,
+    );
+    // Whichever the seat picks, it does not pick both for the one man.
+    expect(marched && started).toBe(false);
+  });
+
+  it('claims nobody for a tower nothing can walk to', () => {
+    // Staffing holds off on a post it failed to path to. Men reserved for a
+    // wall while that hold stands are men kept out of the army for a walk
+    // that never starts — and a walled-off tower would keep reserving them
+    // for as long as it stood there.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    tower.paused = true;
+    tower.staffBackoffUntil = world.tick + 10_000; // walled off, for now
+    spawnUnit(world, 'archer', 0, 34.5, 34.5);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    // No point opening it: nobody can get in, and the archer stays the
+    // army's to spend.
+    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
+  });
+
   it('never stands a tower its archers hold down, or up', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
@@ -468,11 +540,11 @@ describe('the stall watchdog', () => {
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     world.tick += AI_PACING.decisionInterval;
     const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
-    // Halting a tower stands its levy down; archers hold it either way, so
-    // an archer-held tower is halted on quiet ground and left there — the
-    // halt costs nothing, and there is never a second order about them.
-    expect(out).toContainEqual({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true });
-    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toHaveLength(1);
+    // Halting a tower now empties the roof whoever is on it, so the
+    // quiet-ground halt is held back from one the soldiers hold: standing
+    // them down would trade a wall that cannot be shot back at for two men
+    // in the open, and start them climbing back up at the next sighting.
+    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
     expect(tower.garrison).toBe(BUILDING_DEFS.guardTower.garrison!.capacity);
   });
 

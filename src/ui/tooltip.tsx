@@ -357,7 +357,7 @@ const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
   abbey: 'Monks research the tech tree here; delivered ale throws work-speed festivals.',
   barracks: 'Trains knights, spearmen, and archers from wheat and forged weapons.',
   guardTower:
-    'Two archers man the roof, shooting half again as hard and two tiles further than they would on the ground. They walk in from the field on their own. Until there are any, call the levy and villagers hold it with stones — far weaker, but today rather than three techs from now. Nobody manning it can be shot at while the tower stands.',
+    'Two archers man the roof, shooting half again as hard and two tiles further than they would on the ground. Man it and any archer with nothing else to do walks in from the field on his own; while none is free — none trained yet, or every one of them marching — villagers answer instead and hold it with stones, far weaker but today rather than three techs from now. Standing it down empties the roof again and gives the men back. Nobody manning it can be shot at while the tower stands.',
   house: 'Sleeps ten more villagers. Nobody lives here yet — beds are what let you hire.',
   storehouse: 'The heart of the village. All goods flow here — lose it and all is lost.',
 };

@@ -101,6 +101,20 @@ export interface Building {
    * two shoot nothing alike. Undefined exactly when the tower is empty.
    */
   garrisonKind?: UnitTypeId;
+  /**
+   * What each man walked in with, in the order they climbed up, so that the
+   * one who walks back out is the man who went in rather than a fresh one.
+   * Without it the roof was a field hospital: a wounded archer climbed up,
+   * the tower was stood down, and he came back at full strength for the
+   * price of a lever — free and instant, now that the lever gives soldiers
+   * back at all.
+   *
+   * Kept in step with `garrison` (pushed as a man is consumed, popped as he
+   * is evicted) and undefined exactly when the tower is empty. A save from
+   * a build before this has none, and its men come out at full health as
+   * they always did.
+   */
+  garrisonHp?: number[];
   /** Ticks before this building's garrison can loose again. */
   attackCooldown?: number;
   /** Paid-for serf hires still on their way in (storehouse), and the ticks

@@ -61,11 +61,12 @@ export function constructionSystem(world: World): void {
 
     b.state = 'built';
     b.hp = def.hp;
-    // A tower comes up with its levy stood down. Villagers are the whole
-    // village's hands — a running one would put two of them on the wall the
-    // moment the masons stepped off and hold them through every quiet hour
-    // after. Starting it is the order to call them up. Soldiers are not
-    // affected either way: they man it whenever they exist.
+    // A tower comes up stood down — an empty roof, waiting to be manned.
+    // Villagers are the whole village's hands, and a running tower would put
+    // two of them on the wall the moment the masons stepped off and hold
+    // them through every quiet hour after; a soldier who climbs up is two
+    // hands taken off the army the same way. Manning it is a decision, so
+    // the tower waits to be told, and the card says so in as many words.
     if (def.garrison) b.paused = true;
     delete b.siteNeeds;
     delete b.buildProgress;
