@@ -362,7 +362,18 @@ export function StartMenu(props: StartMenuProps) {
   // warm-up resumes on arrival, so a download the last session never
   // finished keeps going while the player picks opponents.
   const LLM_PREF_KEY = 'serf-llm';
-  const [llm, setLlm] = createSignal(localStorage.getItem(LLM_PREF_KEY) === '1');
+  /** Storage access can throw wholesale (site data blocked, some
+   * embeddings) — the same tolerance rememberedMode shows above, because
+   * this read runs in the component body: unguarded, it took the whole
+   * start menu down to the fatal-error card. */
+  const storedLlmPref = (): boolean => {
+    try {
+      return localStorage.getItem(LLM_PREF_KEY) === '1';
+    } catch {
+      return false;
+    }
+  };
+  const [llm, setLlm] = createSignal(storedLlmPref());
   // The menu is the waiting room: while the toggle is on, the model
   // downloads right here, so the GGUF is cached (or well underway) by the
   // time the match boots. The warm-up survives the launch reload —
@@ -389,8 +400,12 @@ export function StartMenu(props: StartMenuProps) {
   };
   const setLlmAndWarm = (on: boolean): void => {
     setLlm(on);
-    if (on) localStorage.setItem(LLM_PREF_KEY, '1');
-    else localStorage.removeItem(LLM_PREF_KEY);
+    try {
+      if (on) localStorage.setItem(LLM_PREF_KEY, '1');
+      else localStorage.removeItem(LLM_PREF_KEY);
+    } catch {
+      // Storage full or denied: the choice just doesn't outlive the session.
+    }
     warmHandle?.dispose();
     warmHandle = null;
     setLlmWarm(null);
