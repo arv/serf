@@ -54,6 +54,7 @@ import { fullscreen, guardEsc } from '../ui/fullscreen';
 import { play } from '../audio/audio';
 import { screenToGround, worldToScreen } from './picking';
 import { keyDigit, matchingGroup } from './groups';
+import { foreignChord, typingInto } from './typing';
 import type { SceneSync } from '../render/sceneSync';
 import type { GhostPlacement } from '../render/ghost';
 import type { FogQuery } from '../render/fogOfWar';
@@ -339,8 +340,11 @@ export class Controls {
    */
   #onKey = (e: KeyboardEvent): void => {
     // Chords belong to the browser and the OS (⌘M minimises), and a key
-    // typed into a field is being typed, not pressed.
-    if (e.metaKey || e.altKey || e.isComposing) return;
+    // typed into a field is being typed, not pressed. Both tests live in
+    // input/typing.ts, which CameraRig's own listeners share — the rig
+    // sits on the window too, and a map being renamed in the editor must
+    // not turn the camera on every Delete.
+    if (foreignChord(e)) return;
     // Ctrl stopped being a blanket disqualifier the day control groups
     // landed: Ctrl+1 is half of how a group is stamped. Everything else
     // Ctrl touches is still the browser's.
@@ -355,13 +359,7 @@ export class Controls {
     // every platform it ships on.
     if (e.ctrlKey && keyDigit(e) === null) return;
     const t = e.target;
-    if (
-      t instanceof HTMLInputElement ||
-      t instanceof HTMLTextAreaElement ||
-      (t instanceof HTMLElement && t.isContentEditable)
-    ) {
-      return;
-    }
+    if (typingInto(t)) return;
 
     // Both spellings, for the reason keyLetter gives: `code` comes back
     // empty on some input paths, and Esc is the one key that must never be

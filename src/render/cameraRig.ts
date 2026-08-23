@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { DEFAULT_MAP_SIZE } from '../shared/grid';
 import { clamp } from '../shared/math';
 import { EdgeScroll, edgeScrollEnabled } from '../input/edgeScroll';
+import { foreignChord, typingInto } from '../input/typing';
 
 /**
  * The line the game looks down at boot: 30° to the grid. The full 45°
@@ -247,6 +248,13 @@ export class CameraRig {
     const keyCode = (e: KeyboardEvent): string => e.code || e.key;
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
+      // A key going into a field is being typed, and a chord belongs to
+      // the browser: ⌘[ is Back, and it must not also turn the camera.
+      // Ctrl is foreign here too — unlike Controls, the rig binds nothing
+      // to it. Only keydown is gated; keyup below has to stay
+      // unconditional so a key held when focus moved into a field is
+      // still let go of.
+      if (foreignChord(e) || e.ctrlKey || typingInto(e.target)) return;
       const code = keyCode(e);
       this.#keys.add(code);
       if (TURN_KEYS.has(code)) this.#unseenPress = code;

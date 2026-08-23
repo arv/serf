@@ -29,6 +29,26 @@ const fire = (target: EventTarget, type: string, init: object): void => {
 
 const keyDown = (code: string, repeat = false): void =>
   fire(window, 'keydown', { code, key: code, repeat });
+
+/** A key pressed while something else on the page owns it: a focused
+ * field (pass a tag name) or a chord (pass modifiers). `target` has to be
+ * defined as an own property — Event.target is a getter, and dispatch
+ * would otherwise report the window it was fired on. */
+const keyDownFrom = (
+  code: string,
+  opts: { tagName?: string; isContentEditable?: boolean } & Partial<KeyboardEvent>,
+): void => {
+  const { tagName, isContentEditable, ...mods } = opts;
+  const e = new Event('keydown', { cancelable: true });
+  Object.assign(e, { code, key: code, repeat: false }, mods);
+  if (tagName !== undefined || isContentEditable !== undefined) {
+    Object.defineProperty(e, 'target', {
+      value: { tagName, isContentEditable },
+      configurable: true,
+    });
+  }
+  window.dispatchEvent(e);
+};
 const keyUp = (code: string): void => fire(window, 'keyup', { code, key: code });
 const wheel = (
   canvas: EventTarget,
@@ -309,6 +329,46 @@ describe('CameraRig turn', () => {
     const after = center(rig.viewQuad(new Float64Array(8)));
     expect(after[0]).toBeCloseTo(before[0]!, 8);
     expect(after[1]).toBeCloseTo(before[1]!, 8);
+  });
+
+  it('leaves the key to whoever already owns it', () => {
+    // Renaming a map in the editor: every Delete is a character, and none
+    // of them is a camera turn. Same for the HUD's volume slider taking
+    // an arrow, and for a select being walked.
+    for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT']) {
+      keyDownFrom('Delete', { tagName });
+      keyUp('Delete');
+    }
+    keyDownFrom('Delete', { tagName: 'DIV', isContentEditable: true });
+    keyUp('Delete');
+    // Chords belong to the browser: ⌘[ is Back, ⌥ and Ctrl are not ours.
+    keyDownFrom('BracketLeft', { metaKey: true });
+    keyUp('BracketLeft');
+    keyDownFrom('BracketRight', { altKey: true });
+    keyUp('BracketRight');
+    keyDownFrom('Delete', { ctrlKey: true });
+    keyUp('Delete');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW, 10);
+    // A plain press over the map still turns, so the guard is a gate and
+    // not a wall — and a DIV is not a field.
+    keyDownFrom('Delete', { tagName: 'DIV' });
+    keyUp('Delete');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + STEP, 10);
+  });
+
+  it('lets go of a key held when focus moved into a field', () => {
+    // Down over the map, up with a field focused: keyup is ungated, so
+    // the key cannot stick down and turn the camera forever.
+    keyDown('Delete');
+    for (let i = 0; i < 10; i++) rig.tick(FRAME);
+    fire(window, 'keyup', { code: 'Delete', key: 'Delete' });
+    settle(rig);
+    const landed = yawOf(rig);
+    expectYaw(rig, CAMERA_YAW + STEP, 6);
+    for (let i = 0; i < 60; i++) rig.tick(FRAME);
+    expect(yawOf(rig)).toBeCloseTo(landed, 10);
   });
 
   it("the plan view is north-up by definition and doesn't turn", () => {
