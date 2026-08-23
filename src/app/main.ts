@@ -1229,14 +1229,15 @@ async function runMatch(
   });
   teardown.push(unmountHud);
 
-  // The camera never rotates: hp bars copy its live orientation once to
-  // sit parallel with the screen plane.
+  // Hp bars sit parallel to the screen plane by copying the camera's
+  // orientation — the live object, so a turn carries them round with it.
   sync.cameraQuaternion = renderer.rig.camera.quaternion;
   buildingSync.cameraQuaternion = renderer.rig.camera.quaternion;
 
   let fogLast = performance.now();
   // Reused every frame — viewBounds writes into it instead of allocating.
   const boundsScratch = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
+  const frameScratch = { cx: 0, cz: 0, rx: 0, rz: 0, ext: 0 };
   // Phones cap the loop at 30 fps: a 90 Hz panel otherwise renders the
   // whole valley 90 times a second, and the GPU is where the battery goes.
   // A skipped frame does nothing at all — every update below is time-based,
@@ -1271,14 +1272,24 @@ async function runMatch(
     fog.setEnabled(fogEnabled() && !fallen);
     fog.update(Math.min((now - fogLast) / 1000, 0.25), init.reader, roster, renderer.scene);
     fogLast = now;
+    // The camera moves before anything asks where it is looking. Picking,
+    // culling, the stereo basis and every billboard read it below, and the
+    // draw at the bottom is what the player actually sees — so they had all
+    // better be the same camera.
+    const dt = renderer.update();
+    // A camera that moved slid the world under the cursor, so what is
+    // hovered — and where an armed building would land — has changed even
+    // though no pointer did. Without this the highlight and the ghost sit
+    // where the camera used to be until the hand jogs the mouse.
+    if (renderer.rig.consumeMoved()) controls.markHoverDirty();
     // Hover picking is deferred from pointermove (which can fire at
     // hundreds of Hz) to at most once per frame, here.
     controls.updateHoverIfDirty();
-    // The view rect reaches the audio layer before the sync runs: the sync
-    // is what files this frame's positional cues, and they pan and fade
-    // against the rect of the frame they were heard in.
+    // The view reaches the audio layer before the sync runs: the sync is
+    // what files this frame's positional cues, and they pan and fade
+    // against the frame they were heard in.
     const bounds = renderer.rig.viewBounds(3, boundsScratch);
-    setAudioView(bounds);
+    setAudioView(renderer.rig.viewFrame(3, frameScratch));
     setAudioPaused(speed() === 0);
     sync.update(now, controls.hoverUnit, controls.selected, speed() === 0, bounds);
     buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
@@ -1297,10 +1308,11 @@ async function runMatch(
     butterflies.update(now);
     // After sync.update: the stamps read the publish it just polled.
     footprints.update(now, speed() === 0);
-    const dt = renderer.frame();
     // Same view rect the unit sync culls against — sails and roof watches
     // off camera are not worth animating either.
     buildingSync.frame(speed() === 0 ? 0 : dt, bounds);
+    // Everything above has had its say about this camera; draw it.
+    renderer.render();
     // Last: the frame's queued cues become at most a couple dozen voices.
     audioFrame(now);
     frame = requestAnimationFrame(loop);

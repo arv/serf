@@ -2,15 +2,85 @@ import * as THREE from 'three';
 import { DEFAULT_MAP_SIZE } from '../shared/grid';
 import { clamp } from '../shared/math';
 import { EdgeScroll, edgeScrollEnabled } from '../input/edgeScroll';
+import { foreignChord, typingInto } from '../input/typing';
 
-/** Fixed 45° — models only need to read from one angle. Exported because
- * audio/pan.ts hard-codes the screen basis this yaw induces (a subtraction,
- * no trig); its test pins the two together so they cannot drift apart. */
-export const CAMERA_YAW = Math.PI / 4;
+/**
+ * The line the game looks down at boot: 30° to the grid. The full 45°
+ * diamond of Settlers and Age of Empires put the minimap's frame on the
+ * diagonal; square to the grid, Warcraft's way, reads as a flat elevation
+ * at this pitch. Thirty keeps the buildings' two faces showing while the
+ * frame on the chart leans rather than stands on its corner. The props
+ * were placed to read from 45° and none needed moving for it. The player
+ * may turn away from it — Shift+wheel, Insert/Delete or [ ], in YAW_STEP
+ * turns — and two turns square the view to the grid, where the minimap's
+ * frame sits axis-aligned. Exported so pan.test.ts can hear the default
+ * line through the same basis the rig hands the audio layer (viewFrame).
+ */
+export const CAMERA_YAW = Math.PI / 6;
 const YAW = CAMERA_YAW;
 const PITCH = (35 * Math.PI) / 180;
 const DISTANCE = 90;
 const MIN_VIEW = 5;
+/**
+ * One turn of the camera: 15°, so six make a quarter turn and two bring
+ * the default line square to the grid. Stepped rather than free because
+ * the aligned angles are the ones worth landing on exactly — a wheel that
+ * turned by raw delta would leave the view (and the minimap's frame) a
+ * few degrees off square every time.
+ */
+const YAW_STEP = Math.PI / 12;
+/** Wheel travel that buys one turn, in pixels: a notch of a mouse wheel,
+ * a short two-finger drag on a trackpad. */
+const WHEEL_PER_TURN = 100;
+/**
+ * What a wheel event's delta means, per deltaMode, in pixels.
+ *
+ * Only Chromium-on-a-mouse hands over anything like pixels. Firefox
+ * reports lines — three of them to a notch, so raw deltas would want
+ * thirty-odd notches for one turn — and a page-mode event (rare, but the
+ * spec allows it) is one screenful. The zoom reads the same normalized
+ * number, so it too stops being three-hundredths of its intended speed on
+ * a Firefox mouse.
+ *
+ * Forty pixels to the line is the figure the scroll-normalizing libraries
+ * settled on; a notch of three lines lands just past one turn, which is
+ * what it should mean. Landing *past* the mark is safe because a turn
+ * spends the whole bank rather than the price (see #turnByWheel).
+ */
+const WHEEL_LINE_PX = 40;
+const WHEEL_PAGE_PX = 800;
+/** WheelEvent.DOM_DELTA_LINE / _PAGE. Written out rather than read off the
+ * constructor: the values are fixed by the spec, and naming the global
+ * would make this line throw wherever WheelEvent is not defined. */
+const DELTA_LINE = 1;
+const DELTA_PAGE = 2;
+/** Time constant of the turn's ease, seconds — quick enough that a run of
+ * notches reads as one sweep, slow enough that a single turn is seen
+ * happening rather than cut to. */
+const YAW_EASE = 0.08;
+/** A held turn key turns at this rate, radians per second — a quarter
+ * turn a second, Warcraft's pace. The release settles on a step (see
+ * #settleKeyTurn), so the keys land where the wheel lands. */
+const KEY_TURN_RATE = Math.PI / 2;
+/**
+ * The turn keys and which way each turns (Delete's way is a wheel-down
+ * notch's). Insert and Delete are Warcraft's pair; [ and ] are for the
+ * keyboards that have neither — a Mac laptop's Delete is an fn chord and
+ * its Insert does not exist. Keyed by code, the physical key, so the
+ * bracket pair is the two keys right of P on any layout; the bare names
+ * are the fallback for a source that leaves the code blank.
+ *
+ * A screen with other plans for these can decline the whole lot — see
+ * setTurnEnabled.
+ */
+const TURN_KEYS = new Map<string, number>([
+  ['Delete', 1],
+  ['Insert', -1],
+  ['BracketRight', 1],
+  ['BracketLeft', -1],
+  [']', 1],
+  ['[', -1],
+]);
 /**
  * How much world the camera frames at boot, and why it is not one number.
  *
@@ -44,16 +114,18 @@ const PAN_MARGIN = 4;
 /**
  * How much of the view's ground span counts against the pan range.
  *
- * The footprint measure is the AABB around a diamond the yaw has turned
- * 45°, so along either world axis it reports the diamond's far corners —
- * true, but only across a thin band, and charging the whole of it would
- * lock the camera at zooms that still show a third of the map. A quarter
- * is what keeps the map filling the frame at every zoom without the pan
- * going stiff: near-free close in, near-centered at full zoom-out.
+ * The footprint measure is the AABB around a rectangle the yaw has turned
+ * (a diamond at 45°), so along either world axis it reports the far
+ * corners — true, but only across a thin band, and charging the whole of
+ * it would lock the camera at zooms that still show a third of the map. A
+ * quarter is what keeps the map filling the frame at every zoom without
+ * the pan going stiff: near-free close in, near-centered at full zoom-out.
  */
 const VIEW_PAN_INSET = 0.25;
 /** Scratch for #footprintExt, which runs per pan and per frame. */
 const EXT = { x: 0, z: 0 };
+/** Scratch for #apply, which runs on every pan, glide step and turn. */
+const DIR = new THREE.Vector3();
 
 /** Conservative world-space XZ rectangle of the visible ground. */
 export interface ViewBounds {
@@ -61,6 +133,20 @@ export interface ViewBounds {
   maxX: number;
   minZ: number;
   maxZ: number;
+}
+
+/**
+ * Where the frame sits on the ground, for code that places things by
+ * screen position without projecting through the camera (the audio layer
+ * pans by it): the look-at point, screen-right as a unit vector on the
+ * ground, and a half-extent. See viewFrame.
+ */
+export interface ViewFrame {
+  cx: number;
+  cz: number;
+  rx: number;
+  rz: number;
+  ext: number;
 }
 
 /**
@@ -76,8 +162,9 @@ export type ViewMode = 'game' | 'topDown';
 const TOP_PITCH = Math.PI / 2;
 
 /**
- * Classic isometric-style orthographic rig: fixed yaw/pitch, panning moves a
- * ground-plane target, zoom scales the frustum height.
+ * Classic isometric-style orthographic rig: fixed pitch, a yaw the player
+ * can turn in steps, panning moves a ground-plane target, zoom scales the
+ * frustum height.
  */
 export class CameraRig {
   /**
@@ -105,6 +192,31 @@ export class CameraRig {
    * every construction starts there — setViewMode is the editor's door. */
   #pitch = PITCH;
   #yaw = YAW;
+  /** How many YAW_STEPs the player has turned from the line the view mode
+   * starts on; tick eases #yaw toward that angle. An integer, not an
+   * accumulated angle, so a hundred turns still land exactly square. */
+  #turns = 0;
+  /** Wheel travel banked toward the next turn (see #turnByWheel). */
+  #wheelAcc = 0;
+  /** Whether this camera turns at all — see setTurnEnabled. */
+  #turnEnabled = true;
+  /** The camera has moved since anyone last asked — see consumeMoved. */
+  #moved = true;
+  /** The turn direction the keys held last tick (-1, 0, 1), and the step
+   * the press began on — what the release settles against. */
+  #keyTurn = 0;
+  #turnsAtPress = 0;
+  /**
+   * Turn-key presses no tick has yet seen held. Down and up inside one
+   * frame — a quick tap on a slow frame — would otherwise turn nothing;
+   * keyup turns each one a step instead.
+   *
+   * A set rather than the last key pressed, because opposite keys have to
+   * cancel here the way they cancel everywhere else: with one slot, a
+   * Delete and an Insert both pressed before a tick could run left only
+   * the second, and the pair turned a step instead of nothing.
+   */
+  #unseen = new Set<string>();
   #maxViewFraction = MAX_VIEW_FRACTION;
   #keys = new Set<string>();
   #dragging = false;
@@ -143,12 +255,35 @@ export class CameraRig {
     if (!interactive) return;
 
     const signal = this.#off.signal;
+    // Keys are tracked by code — the physical key — because that is what
+    // the bracket pair means: the two keys right of P, wherever a layout
+    // puts the glyphs. The key name stands in only where the code is
+    // blank, as synthetic and some assistive input paths leave it. (The
+    // letter shortcuts in controls.ts take the opposite order, and are
+    // right to: a player pressing B for Build wants the glyph they see.)
+    const keyCode = (e: KeyboardEvent): string => e.code || e.key;
     window.addEventListener('keydown', (e) => {
-      if (!e.repeat) this.#keys.add(e.code);
+      if (e.repeat) return;
+      // A key going into a field is being typed, and a chord belongs to
+      // the browser: ⌘[ is Back, and it must not also turn the camera.
+      // Ctrl is foreign here too — unlike Controls, the rig binds nothing
+      // to it. Only keydown is gated; keyup below has to stay
+      // unconditional so a key held when focus moved into a field is
+      // still let go of.
+      if (foreignChord(e) || e.ctrlKey || typingInto(e.target)) return;
+      const code = keyCode(e);
+      this.#keys.add(code);
+      if (this.#turnKey(code) !== 0) this.#unseen.add(code);
     }, { signal });
-    window.addEventListener('keyup', (e) => this.#keys.delete(e.code), { signal });
+    window.addEventListener('keyup', (e) => {
+      const code = keyCode(e);
+      this.#keys.delete(code);
+      if (!this.#unseen.delete(code)) return;
+      if (this.#pitch !== TOP_PITCH) this.#turns += this.#turnKey(code);
+    }, { signal });
     window.addEventListener('blur', () => {
       this.#keys.clear();
+      this.#unseen.clear();
       this.#edge.clear();
     }, { signal });
     window.addEventListener('resize', () => this.resize(), { signal });
@@ -190,8 +325,24 @@ export class CameraRig {
       'wheel',
       (e) => {
         e.preventDefault();
+        // Deltas arrive in lines or pages as readily as in pixels; both
+        // the turn and the zoom want one unit.
+        const px =
+          e.deltaMode === DELTA_LINE
+            ? WHEEL_LINE_PX
+            : e.deltaMode === DELTA_PAGE
+              ? WHEEL_PAGE_PX
+              : 1;
+        if (e.shiftKey) {
+          // Shift+wheel turns. Some platforms hand a shifted wheel over as
+          // horizontal travel (Chromium on Windows and Linux, a few
+          // trackpad drivers) — whichever axis carries the motion is it.
+          const travel = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+          this.#turnByWheel(travel * px);
+          return;
+        }
         this.#viewHeight = clamp(
-          this.#viewHeight * Math.exp(e.deltaY * 0.0012),
+          this.#viewHeight * Math.exp(e.deltaY * px * 0.0012),
           MIN_VIEW,
           this.#maxView(),
         );
@@ -302,10 +453,124 @@ export class CameraRig {
     return Math.round((this.#max - this.#min) * this.#maxViewFraction);
   }
 
+  /**
+   * Bank wheel travel (in pixels) and turn once it reaches WHEEL_PER_TURN,
+   * so a mouse notch is one turn and a trackpad's stream of small deltas
+   * adds up to the same. A reversal forgets what was banked: travel toward
+   * one turn must not be spent on the opposite one.
+   *
+   * A turn empties the bank rather than paying WHEEL_PER_TURN out of it,
+   * and one event can never buy two. Otherwise a notch worth more than the
+   * price — 120 pixels on a Windows mouse, 120 more once Firefox's three
+   * lines are normalized — would leave change behind every time, and every
+   * fifth notch would spend the pile on a second turn the hand never asked
+   * for. Overshoot is not travel the player means to bank; it is just how
+   * coarsely their device counts.
+   */
+  #turnByWheel(delta: number): void {
+    if (delta === 0 || !this.#turnEnabled) return;
+    // The plan view is north-up by definition — a chart does not turn.
+    if (this.#pitch === TOP_PITCH) return;
+    if (Math.sign(delta) !== Math.sign(this.#wheelAcc)) this.#wheelAcc = 0;
+    this.#wheelAcc += delta;
+    if (Math.abs(this.#wheelAcc) < WHEEL_PER_TURN) return;
+    this.#turns += Math.sign(this.#wheelAcc);
+    this.#wheelAcc = 0;
+  }
+
+  /** The angle #turns names: the view mode's own line plus the steps. */
+  #yawTarget(): number {
+    return (this.#pitch === TOP_PITCH ? 0 : YAW) + this.#turns * YAW_STEP;
+  }
+
+  /** Which way the held turn keys are asking to turn this tick. Opposite
+   * keys cancel, and the plan view no more turns for a key than for the
+   * wheel. */
+  #heldTurn(): number {
+    if (this.#pitch === TOP_PITCH) return 0;
+    let d = 0;
+    for (const key of this.#keys) d += this.#turnKey(key);
+    return Math.sign(d);
+  }
+
+  /** Whether any turn key is physically down, whatever they net to — what
+   * tells a cancelled turn apart from a released one. */
+  #turnKeyDown(): boolean {
+    if (this.#pitch === TOP_PITCH) return false;
+    for (const key of this.#keys) if (this.#turnKey(key) !== 0) return true;
+    return false;
+  }
+
+  /** Which way this key turns the camera here, or 0 if it does not. */
+  #turnKey(code: string): number {
+    if (!this.#turnEnabled) return 0;
+    return TURN_KEYS.get(code) ?? 0;
+  }
+
+  /**
+   * Whether this camera turns at all. The map editor says no.
+   *
+   * Turning is a thing the view does under a hand that is pointing at
+   * something, and the editor's hand is always pointing at something: a
+   * brush cursor on the ground, a stroke being painted from the last
+   * ground point to this one, a start marker held by a world-space
+   * offset. Every one of those is derived from a pointer event and
+   * recomputed only when the pointer moves, so a camera that turned under
+   * a still hand would leave the preview off the cursor, streak the next
+   * stroke segment from where the ground used to be, and slide a marker
+   * being dragged. The match answers this with consumeMoved and one hover
+   * scan; the editor would need it in three places, in a subsystem this
+   * has no other business in.
+   *
+   * And it loses the editor nothing: turning has never been available
+   * there, the view toggle is how that screen changes its angle, and the
+   * brackets it binds to the brush radius stop meaning two things at once.
+   *
+   * A turn already eased goes on to its step; what stops is taking any
+   * more. Held keys are let go of here so none can stick.
+   */
+  setTurnEnabled(on: boolean): void {
+    this.#turnEnabled = on;
+    if (on) return;
+    for (const key of TURN_KEYS.keys()) {
+      this.#keys.delete(key);
+      this.#unseen.delete(key);
+    }
+    this.#wheelAcc = 0;
+  }
+
+  /** The step nearest the angle the camera is actually showing. */
+  #nearestStep(): number {
+    return Math.round((this.#yaw - (this.#pitch === TOP_PITCH ? 0 : YAW)) / YAW_STEP);
+  }
+
+  /**
+   * A key has just been let go: land on a step. The nearest one to where
+   * the hold left the camera — so a long turn stops where the eye says it
+   * should, never swinging back past what it just watched go by.
+   *
+   * With one floor under it: a press is worth at least one step past the
+   * one it began on, in the direction it went. That is what makes a tap a
+   * step at all (three degrees rounds to nothing), and it is why the floor
+   * is counted from #turnsAtPress rather than from the live angle — a tap
+   * landed mid-way through a wheel turn's ease is still short of that
+   * turn's target, and rounding where it stands would cancel the turn it
+   * was meant to add to.
+   */
+  #settleKeyTurn(): void {
+    const near = this.#nearestStep();
+    const floor = this.#turnsAtPress + this.#keyTurn;
+    this.#turns = this.#keyTurn > 0 ? Math.max(near, floor) : Math.min(near, floor);
+  }
+
   /** Swap between the game's isometric line and the editor's plan view. */
   setViewMode(mode: ViewMode): void {
     this.#pitch = mode === 'topDown' ? TOP_PITCH : PITCH;
     this.#yaw = mode === 'topDown' ? 0 : YAW;
+    this.#turns = 0;
+    this.#wheelAcc = 0;
+    this.#keyTurn = 0;
+    this.#unseen.clear();
     // Looking straight down, +Y up is parallel to the view line; -Z as up
     // puts north at the top of the screen instead.
     this.camera.up.set(0, mode === 'topDown' ? 0 : 1, mode === 'topDown' ? -1 : 0);
@@ -324,8 +589,8 @@ export class CameraRig {
    * Half-extents, along world X and Z, of the AABB around the view
    * frustum's ground footprint (a parallelogram whose screen-vertical
    * extent stretches by 1/sin(pitch)). Screen right and screen "up" each
-   * project onto world X/Z through the yaw basis; at the game's 45° both
-   * weights are SQRT1_2 and the two axes come out equal.
+   * project onto world X/Z through the yaw basis (at 45° both weights are
+   * SQRT1_2 and the two axes come out equal).
    *
    * Written into the caller's object — this runs per pan and per frame.
    */
@@ -417,6 +682,45 @@ export class CameraRig {
   }
 
   tick(dt: number): void {
+    // A press this tick finds still down is a hold, whatever it nets to
+    // with the other keys — only a press no tick ever sees is a tap.
+    for (const key of this.#unseen) if (this.#keys.has(key)) this.#unseen.delete(key);
+    const held = this.#interactive ? this.#heldTurn() : 0;
+    if (held !== 0) {
+      // A held key turns freely, at its own pace; the step grid waits for
+      // the release.
+      //
+      // A fresh press begins on the step the camera is bound for, which is
+      // where the floor in #settleKeyTurn has to count from — mid-ease
+      // that is the turn already under way, not the angle on screen. A
+      // direction flip under the hand begins wherever the flip caught the
+      // camera, which is off-grid, so the nearest step stands in: the leg
+      // being walked is the one the release settles against, not one
+      // abandoned before it.
+      if (this.#keyTurn === 0) this.#turnsAtPress = this.#turns;
+      else if (this.#keyTurn !== held) this.#turnsAtPress = this.#nearestStep();
+      this.#yaw += held * KEY_TURN_RATE * dt;
+      this.#apply();
+      this.#keyTurn = held;
+    } else if (this.#keyTurn !== 0 && this.#turnKeyDown()) {
+      // Both keys down at once: a stop, not a release. Hold the camera
+      // exactly where it is and keep the direction, so the step grid still
+      // waits for the release the way the branch above promises. Settling
+      // here would snap the view mid-hold and then resume free turning the
+      // moment one key came up — a cancel that lurches, twice.
+    } else {
+      if (this.#keyTurn !== 0) this.#settleKeyTurn();
+      this.#keyTurn = 0;
+      const yawTarget = this.#yawTarget();
+      if (this.#yaw !== yawTarget) {
+        // Ease toward the target; the camera orbits its look-at point, so
+        // the spot mid-screen stays put while the world swings round it.
+        const d = yawTarget - this.#yaw;
+        this.#yaw =
+          Math.abs(d) < 1e-4 ? yawTarget : this.#yaw + d * (1 - Math.exp(-dt / YAW_EASE));
+        this.#apply();
+      }
+    }
     const glide = this.#glide;
     if (glide) {
       glide.t = Math.min(glide.t + dt, glide.dur);
@@ -468,9 +772,10 @@ export class CameraRig {
 
   /**
    * World-space XZ corners of the ground the frame shows — the exact
-   * parallelogram, not the AABB viewBounds() wraps around it (under the
-   * fixed 45° yaw the two differ by nearly half their area, and a minimap
-   * drawing the AABB would claim the camera sees ground it doesn't).
+   * rectangle, turned by the yaw, not the AABB viewBounds() wraps around
+   * it (turned 45° the two differ by nearly half their area, and a minimap
+   * drawing the AABB would claim the camera sees ground it doesn't; square
+   * to the grid they coincide).
    * Order: screen top-left, top-right, bottom-right, bottom-left, packed
    * as x,z pairs into `out` — the minimap polls this every animation
    * frame to see whether the camera moved, so it allocates nothing.
@@ -501,6 +806,35 @@ export class CameraRig {
   }
 
   /**
+   * The frame's place on the ground for code that cannot afford to project
+   * through the camera: centre, screen-right on the ground, and a
+   * half-extent padded by `margin` exactly as viewBounds pads — the
+   * off-screen allowance is part of what the audio layer was tuned to.
+   *
+   * The extent is the half-span of the square viewBounds becomes at 45°
+   * (the line the audio was tuned on), and it is held at that value
+   * whichever way the camera faces: the AABB of a footprint square to the
+   * grid is the footprint itself, narrower along one axis and wider along
+   * the other, and a loudness that swung with it would make a turn sound
+   * like a zoom.
+   *
+   * Screen-up on the ground is screen-right turned a quarter: (rz, -rx).
+   * Written into `out` — this runs per frame.
+   */
+  viewFrame(margin = 3, out: ViewFrame = { cx: 0, cz: 0, rx: 0, rz: 0, ext: 0 }): ViewFrame {
+    const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
+    const halfH = this.#viewHeight / 2;
+    const halfW = halfH * aspect;
+    const halfG = halfH / Math.sin(this.#pitch);
+    out.cx = this.#target.x;
+    out.cz = this.#target.z;
+    out.rx = Math.cos(this.#yaw);
+    out.rz = -Math.sin(this.#yaw);
+    out.ext = (halfW + halfG) * Math.SQRT1_2 + margin;
+    return out;
+  }
+
+  /**
    * Conservative world-space XZ bounds of the visible ground, with margin.
    * Used to skip per-frame animation work for units nobody can see; the
    * margin also absorbs the screen shift terrain height introduces.
@@ -526,13 +860,39 @@ export class CameraRig {
     this.#apply();
   }
 
+  /**
+   * Has the camera moved since this was last called? Asking clears it.
+   *
+   * For work that is deferred until something changes and would otherwise
+   * wait on the wrong thing: the hover scan runs when the pointer moves,
+   * which is the right trigger for a still camera and the wrong one for a
+   * turning camera under a still hand. The ground under the cursor
+   * changes either way.
+   */
+  consumeMoved(): boolean {
+    const moved = this.#moved;
+    this.#moved = false;
+    return moved;
+  }
+
   #apply(): void {
-    const dir = new THREE.Vector3(
+    this.#moved = true;
+    DIR.set(
       Math.cos(this.#pitch) * Math.sin(this.#yaw),
       Math.sin(this.#pitch),
       Math.cos(this.#pitch) * Math.cos(this.#yaw),
     );
-    this.camera.position.copy(this.#target).addScaledVector(dir, DISTANCE);
+    this.camera.position.copy(this.#target).addScaledVector(DIR, DISTANCE);
     this.camera.lookAt(this.#target);
+    // lookAt moves the camera's position and quaternion and stops there;
+    // the world matrix those feed is three's to rebuild, and it does that
+    // inside render(). Everything that picks — a hover, an order, a
+    // building being placed — projects through that matrix, and pointer
+    // handlers run whenever the hand moves, not only between frames. Left
+    // to render() it would answer for wherever the camera last *drew*,
+    // which a pan makes stale and a turn makes wrong. Rebuild it here, at
+    // the one place the camera ever moves, so a reader is never early.
+    this.camera.updateMatrixWorld();
+    this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
   }
 }

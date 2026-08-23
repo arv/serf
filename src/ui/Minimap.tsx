@@ -45,9 +45,12 @@ const TAP_SLOP_PX = 10;
  * The minimap: the play square at a pixel or three per tile — terrain and
  * deposits under the fog's own shading, buildings as faction rectangles,
  * units as faction dots (the viewer's own in white — the one banner that
- * must read instantly), the camera's actual ground footprint (a 45°
- * parallelogram, this being a fixed-yaw isometric rig) as the view frame,
- * and a ripple wherever a standing alert toast knows a place.
+ * must read instantly), the camera's actual ground footprint as the view
+ * frame — a rectangle turned by the camera's yaw, leaning 30° on the
+ * default line and square to the chart once the camera has been turned to
+ * the grid (Shift+wheel, Insert/Delete, [ ]); the chart itself stays north-up
+ * the way Warcraft's does, rather than turning with the camera — and a
+ * ripple wherever a standing alert toast knows a place.
  *
  * Three manners, picked by the frame it is mounted in:
  *   · 'pan' — the standing desktop card: press anywhere and the camera is

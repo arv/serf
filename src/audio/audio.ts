@@ -23,7 +23,7 @@
 
 import { type CueId, CUES } from './cues';
 import { MixerGraph } from './mixerGraph';
-import { MIN_AUDIBLE, type Rect, type Spatial, spatialize } from './pan';
+import { MIN_AUDIBLE, type Spatial, type ViewFrame, spatialize } from './pan';
 import { loadSamples } from './samples';
 import { renderCue } from './synth';
 import { CueScheduler, type PlayRequest } from './voices';
@@ -41,7 +41,7 @@ let muted = false;
 let paused = false;
 let hiddenNow = false;
 
-const view: Rect = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
+const view: ViewFrame = { cx: 0, cz: 0, rx: 0, rz: 0, ext: 0 };
 let hasView = false;
 const spatialScratch: Spatial = { pan: 0, gain: 0, audible: false };
 const playPool: PlayRequest[] = [];
@@ -142,12 +142,14 @@ export function playAt(cue: CueId, x: number, z: number, gainScale = 1, delaySec
   armFallbackFlush();
 }
 
-/** The frame's view rect (world XZ) — pan and distance both read from it. */
-export function setAudioView(b: Rect): void {
-  view.minX = b.minX;
-  view.maxX = b.maxX;
-  view.minZ = b.minZ;
-  view.maxZ = b.maxZ;
+/** The frame's place on the ground (the rig's viewFrame) — pan and
+ * distance both read from it. */
+export function setAudioView(v: ViewFrame): void {
+  view.cx = v.cx;
+  view.cz = v.cz;
+  view.rx = v.rx;
+  view.rz = v.rz;
+  view.ext = v.ext;
   hasView = true;
 }
 

@@ -128,18 +128,43 @@ export class GameRenderer {
   }
 
   /**
-   * Render one frame; returns dt (seconds) for anyone who needs it.
+   * Advance the camera and return the frame's dt (seconds).
+   *
+   * Split from the draw because half the frame reads the camera before
+   * anything is drawn — where the view falls on the ground (culling, the
+   * audio's stereo basis), and which way the screen faces (the billboards
+   * that have to sit parallel to it). Ticking last meant every one of
+   * them answered for the camera of the frame before, and the picture
+   * went out under the new one. A pan could hide that; a turn cannot.
+   *
+   * Call this first, then read the camera, then render.
+   */
+  update(): number {
+    const now = performance.now();
+    const dt = Math.min((now - this.#lastTime) / 1000, 0.25);
+    this.#lastTime = now;
+    this.rig.tick(dt);
+    return dt;
+  }
+
+  /**
+   * Draw the scene as the camera now stands.
    *
    * `camera` overrides the rig — the start screen's backdrop looks at the
    * same scene through a perspective lens from ground level, which the
    * orthographic rig cannot express.
    */
-  frame(camera?: THREE.Camera): number {
-    const now = performance.now();
-    const dt = Math.min((now - this.#lastTime) / 1000, 0.25);
-    this.#lastTime = now;
-    this.rig.tick(dt);
+  render(camera?: THREE.Camera): void {
     this.#webgl.render(this.scene, camera ?? this.rig.camera);
+  }
+
+  /**
+   * Advance and draw in one call, for a caller with nothing in between —
+   * the menu backdrop, which reads no camera of its own.
+   */
+  frame(camera?: THREE.Camera): number {
+    const dt = this.update();
+    this.render(camera);
     return dt;
   }
 }
