@@ -234,6 +234,14 @@ export class BuildingSync {
   /** Fog test; enemy buildings hide until their ground has been explored. */
   #fog: FogQuery | null = null;
   /**
+   * Tallest model raised so far, in world units — the ceiling the pointer's
+   * pick walk starts from (see screenToBuilding). A high-water mark: it
+   * grows with the settlement and never shrinks, because a razed keep only
+   * costs the walk a couple of probes through empty air, where re-scanning
+   * every visual to reclaim them would cost more, every raze.
+   */
+  #tallest = 0;
+  /**
    * Presentation cue channel, injected from main. Every call is guarded
    * on `v.root.visible`: unlike sceneSync, this loop does NOT skip fogged
    * buildings (they stay in the scene, merely invisible), so an unguarded
@@ -244,6 +252,26 @@ export class BuildingSync {
 
   setFog(fog: FogQuery): void {
     this.#fog = fog;
+  }
+
+  /**
+   * How tall this building stands right now, in world units above its own
+   * ground — what the pointer picks against, so that clicking a castle's
+   * towers picks the castle rather than reading through it to the ground
+   * behind. A site answers with what it has raised so far, not with the
+   * building it will be: half a keep is half a keep to the eye, and to the
+   * pointer.
+   */
+  heightOf(id: number): number {
+    const v = this.#visuals.get(id);
+    if (!v) return 0;
+    if (v.clip) return Math.max(0, v.clip.plane.constant - v.clip.baseY);
+    return v.topY;
+  }
+
+  /** The tallest model standing — see #tallest. */
+  tallest(): number {
+    return this.#tallest;
   }
 
   constructor(scene: THREE.Scene, heights: HeightField, owner = 0) {
@@ -426,6 +454,7 @@ export class BuildingSync {
     if (shoal) shoal.position.y = (WATER_LEVEL - SHOAL_DRAFT - root.position.y) / model.scale.y;
 
     const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
+    this.#tallest = Math.max(this.#tallest, topY);
     this.#scene.add(root);
     return {
       root,

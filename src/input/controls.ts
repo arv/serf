@@ -52,7 +52,13 @@ import {
 import { techName, unitName } from '../ui/names';
 import { fullscreen, guardEsc } from '../ui/fullscreen';
 import { play } from '../audio/audio';
-import { screenToGround, worldToScreen } from './picking';
+import {
+  screenToBuilding,
+  screenToGround,
+  worldToScreen,
+  type BuildingHeights,
+  type BuildingProbe,
+} from './picking';
 import { keyDigit, matchingGroup } from './groups';
 import { foreignChord, typingInto } from './typing';
 import type { SceneSync } from '../render/sceneSync';
@@ -156,6 +162,17 @@ export class Controls {
   #heights: HeightField;
   /** Fog test, so placement cannot probe ground nobody has scouted. */
   #fog: FogQuery | null = null;
+  /**
+   * How tall the renderer draws each building, for the pick that reaches up
+   * a castle's walls instead of stopping at the plate it stands on. Null
+   * until the renderer is wired in (and in tests), which costs nothing but
+   * the reach: the probe then answers with a height of zero everywhere,
+   * and a pick is the plain footprint hit it always was.
+   */
+  #buildingHeights: BuildingHeights | null = null;
+  /** The map/height pair screenToBuilding walks, built once — a pick runs
+   * every frame the pointer moves, and this would be an allocation each. */
+  #probe: BuildingProbe;
   #selection = new Set<number>();
   /**
    * Control groups, bound the way both StarCrafts bind them: digit → the
@@ -238,6 +255,16 @@ export class Controls {
     this.#ghost = ghost;
     this.#heights = heights;
     this.#rig = rig ?? null;
+    this.#probe = {
+      idAt: (x, z) => {
+        const tx = Math.floor(x);
+        const ty = Math.floor(z);
+        if (!inBounds(tx, ty, this.#mirror.map.size)) return -1;
+        return this.#mirror.map.buildingAt[tileIdx(tx, ty, this.#mirror.map.size)]!;
+      },
+      heightOf: (id) => this.#buildingHeights?.heightOf(id) ?? 0,
+      tallest: () => this.#buildingHeights?.tallest() ?? 0,
+    };
 
     this.#bandEl = document.createElement('div');
     this.#bandEl.style.cssText =
@@ -769,6 +796,11 @@ export class Controls {
     this.#fog = fog;
   }
 
+  /** Wire in the renderer's model measurements — see #buildingHeights. */
+  setBuildingHeights(heights: BuildingHeights): void {
+    this.#buildingHeights = heights;
+  }
+
   /**
    * You cannot build on ground you have never scouted.
    *
@@ -1150,17 +1182,7 @@ export class Controls {
       }
     }
     this.#hoverUnit = bestId;
-    this.#hoverBuilding = -1;
-    if (bestId < 0) {
-      const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
-      if (ground) {
-        const tx = Math.floor(ground.x);
-        const ty = Math.floor(ground.z);
-        if (inBounds(tx, ty, this.#mirror.map.size)) {
-          this.#hoverBuilding = this.#mirror.map.buildingAt[tileIdx(tx, ty, this.#mirror.map.size)]!;
-        }
-      }
-    }
+    this.#hoverBuilding = bestId < 0 ? this.#buildingAt(px, py) : -1;
   }
 
   /** Screen position of an own unit, written into `out`; false otherwise. */
@@ -1192,14 +1214,18 @@ export class Controls {
     return bestId;
   }
 
+  /**
+   * The building under a screen point, or -1. Walls and roofs count, not
+   * just the ground the building stands on: a castle is mostly sky from
+   * this camera, and a click on its towers means the castle.
+   */
+  #buildingAt(px: number, py: number): number {
+    return screenToBuilding(this.#camera, this.#canvas, px, py, this.#heights, this.#probe);
+  }
+
   /** The building of yours under a screen point, or null. */
   #ownBuildingAt(px: number, py: number): BuildingSnap | null {
-    const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
-    if (!ground) return null;
-    const tx = Math.floor(ground.x);
-    const ty = Math.floor(ground.z);
-    if (!inBounds(tx, ty, this.#mirror.map.size)) return null;
-    const bId = this.#mirror.map.buildingAt[tileIdx(tx, ty, this.#mirror.map.size)]!;
+    const bId = this.#buildingAt(px, py);
     const snap = bId >= 0 ? this.#mirror.buildings.get(bId) : undefined;
     return snap && snap.owner === myPlayerId() ? snap : null;
   }
