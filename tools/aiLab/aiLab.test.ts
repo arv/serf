@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseAdvice } from '../../src/ai/advice.ts';
 import { parseArgs, parseStrategies } from './bakeoff.ts';
-import { buildEngine, parseEngineSpec, randomEngine, scriptEngine } from './engines.ts';
+import { buildEngine, describeSpec, parseEngineSpec, randomEngine, scriptEngine } from './engines.ts';
 import { POSTURE_ORDER } from '../../src/ai/posture.ts';
 import { queueAdvice, type PendingAdvice } from './match.ts';
 import { digestOf, playMatch, type MatchConfig, type MatchRecord, type SeatStrategies } from './match.ts';
@@ -95,6 +95,22 @@ describe('engine specs', () => {
       baseUrl: 'http://localhost:8080/v1',
       model: 'qwen',
     });
+  });
+
+  it('labels the posture arms apart — the ablation lives in this text', () => {
+    // The persisted label is how an archived JSONL says which arm a run
+    // was: plain posture never reads the opponent, posture-reads does,
+    // and a run filed under the wrong text is indistinguishable from its
+    // own null when re-read later.
+    expect(describeSpec({ kind: 'posture' })).toBe('posture (rule-based, no model)');
+    expect(describeSpec({ kind: 'postureReads' })).toContain('opponent');
+    expect(describeSpec({ kind: 'posture' })).not.toContain('opponent');
+    // One archive names an arm twice — the report header via describeSpec,
+    // each advised[] JSONL line via engine.label — and both spellings must
+    // be the same word or the file disagrees with itself.
+    for (const kind of ['posture', 'postureReads'] as const) {
+      expect(buildEngine({ kind }, 0)?.label).toBe(describeSpec({ kind }));
+    }
   });
 
   it('refuses what it cannot run rather than guessing', () => {
