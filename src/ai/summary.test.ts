@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { playMax, playMin } from '../sim/map.ts';
+import { tileIdx } from '../shared/grid.ts';
 import { createWorld, type World } from '../sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../sim/tick.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
@@ -92,6 +94,24 @@ describe('summarizeForSeat', () => {
     // Intel is a scout's sighting, not a map property: exploring ground
     // does not conjure a look at an army nobody watched march.
     expect(lit.rivals[0]!.intel).toBeNull();
+  });
+
+  it('measures coverage over the playable valley, not the whole grid', () => {
+    // Light exactly the play square: a seat that has scouted the entire
+    // valley has seen everything scouting can ever deliver — the scenery
+    // margin is 3/4 of the grid and no unit can enter it. Measured over
+    // the full grid this read ≈0.25, telling the model the map was mostly
+    // unscouted forever.
+    const early = playedWorld(200);
+    const { world } = early;
+    const explored = early.brains[0]!.vision.explored;
+    explored.fill(0);
+    for (let y = playMin(world.map); y < playMax(world.map); y++) {
+      for (let x = playMin(world.map); x < playMax(world.map); x++) {
+        explored[tileIdx(x, y, world.map.size)] = 1;
+      }
+    }
+    expect(summarizeForSeat(world, early.brains[0]!).explored).toBe(1);
   });
 
   it('carries intel as the brain holds it, age attached', () => {
