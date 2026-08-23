@@ -1224,6 +1224,17 @@ export class Controls {
     this.#setSel(sel);
   }
 
+  /**
+   * Everyone of yours the band closed over.
+   *
+   * The card goes with it, exactly as a click's does. A unit selection and
+   * an open building are mutually exclusive — SelectionPanel draws the
+   * "N units selected" card only where no building is open — and the band
+   * was the one gesture that picked people up without saying so. Lasso a
+   * squad with the keep's card standing and the squad was selected, rings
+   * and all, while the HUD went on showing the keep: the whole gesture
+   * read as having done nothing.
+   */
   #selectInRect(x0: number, y0: number, x1: number, y1: number, additive: boolean): void {
     const now = performance.now();
     const minX = Math.min(x0, x1);
@@ -1238,6 +1249,7 @@ export class Controls {
         sel.add(id);
       }
     }
+    setSelectedBuilding(null);
     this.#setSel(sel);
   }
 
