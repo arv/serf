@@ -1277,6 +1277,11 @@ async function runMatch(
     // draw at the bottom is what the player actually sees — so they had all
     // better be the same camera.
     const dt = renderer.update();
+    // A camera that moved slid the world under the cursor, so what is
+    // hovered — and where an armed building would land — has changed even
+    // though no pointer did. Without this the highlight and the ghost sit
+    // where the camera used to be until the hand jogs the mouse.
+    if (renderer.rig.consumeMoved()) controls.markHoverDirty();
     // Hover picking is deferred from pointermove (which can fire at
     // hundreds of Hz) to at most once per frame, here.
     controls.updateHoverIfDirty();

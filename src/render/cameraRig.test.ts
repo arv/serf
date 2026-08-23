@@ -372,6 +372,55 @@ describe('CameraRig turn', () => {
     expect(yawOf(rig)).toBeCloseTo(landed, 10);
   });
 
+  it('cancels opposite keys pressed and released inside one frame', () => {
+    // The sub-frame path is the one #unseen exists for, and opposite keys
+    // have to cancel there too. Overlapping, in both orders.
+    keyDown('Delete');
+    keyDown('Insert');
+    keyUp('Delete');
+    keyUp('Insert');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW, 10);
+    keyDown('Insert');
+    keyDown('Delete');
+    keyUp('Insert');
+    keyUp('Delete');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW, 10);
+    // Nested, the inner pair released first.
+    keyDown('Delete');
+    keyDown('Insert');
+    keyUp('Insert');
+    keyUp('Delete');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW, 10);
+    // And two taps the same way still mean two steps, not one.
+    keyDown('Delete');
+    keyDown('BracketRight');
+    keyUp('Delete');
+    keyUp('BracketRight');
+    settle(rig);
+    expectYaw(rig, CAMERA_YAW + 2 * STEP, 10);
+  });
+
+  it('reports that it moved, once, to whoever asks', () => {
+    // The hover scan waits on a pointer that may never move; a camera
+    // turning under a still hand has to be able to say so.
+    expect(rig.consumeMoved()).toBe(true); // construction framed it
+    expect(rig.consumeMoved()).toBe(false);
+    rig.tick(FRAME);
+    expect(rig.consumeMoved()).toBe(false); // a camera at rest is still
+    wheel(canvas, 100);
+    rig.tick(FRAME);
+    expect(rig.consumeMoved()).toBe(true); // mid-ease
+    settle(rig);
+    rig.consumeMoved();
+    rig.tick(FRAME);
+    expect(rig.consumeMoved()).toBe(false); // settled again
+    rig.focusOn(20, 20);
+    expect(rig.consumeMoved()).toBe(true);
+  });
+
   it('gives [ and ] back to a screen that owns them', () => {
     // The editor sizes its brush with the brackets, and its view toggles
     // to the game's own line — one press must not also turn the camera.

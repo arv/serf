@@ -1091,8 +1091,19 @@ export class Controls {
     this.deselectAll();
   }
 
+  /**
+   * The world under a still pointer has changed — the camera moved. Ask
+   * for the same scan a pointermove asks for, on the same once-a-frame
+   * budget: the deferral is about how often the scan runs, not about what
+   * is allowed to trigger it.
+   */
+  markHoverDirty(): void {
+    this.#hoverDirty = true;
+  }
+
   /** Run the deferred hover scan (and the placement ghost, which defers
-   * from pointermove the same way), if the pointer moved since last frame. */
+   * from pointermove the same way), if the pointer moved since last frame
+   * — or the camera did, which moves the world under it just the same. */
   updateHoverIfDirty(): void {
     if (!this.#hoverDirty) return;
     this.#hoverDirty = false;

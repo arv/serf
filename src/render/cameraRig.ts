@@ -203,14 +203,23 @@ export class CameraRig {
   #wheelAcc = 0;
   /** Whether [ and ] turn the camera here — see setBracketTurn. */
   #bracketTurn = true;
+  /** The camera has moved since anyone last asked — see consumeMoved. */
+  #moved = true;
   /** The turn direction the keys held last tick (-1, 0, 1), and the step
    * the press began on — what the release settles against. */
   #keyTurn = 0;
   #turnsAtPress = 0;
-  /** A turn-key press no tick has yet seen held. Down and up inside one
+  /**
+   * Turn-key presses no tick has yet seen held. Down and up inside one
    * frame — a quick tap on a slow frame — would otherwise turn nothing;
-   * keyup turns it one step instead. */
-  #unseenPress: string | null = null;
+   * keyup turns each one a step instead.
+   *
+   * A set rather than the last key pressed, because opposite keys have to
+   * cancel here the way they cancel everywhere else: with one slot, a
+   * Delete and an Insert both pressed before a tick could run left only
+   * the second, and the pair turned a step instead of nothing.
+   */
+  #unseen = new Set<string>();
   #maxViewFraction = MAX_VIEW_FRACTION;
   #keys = new Set<string>();
   #dragging = false;
@@ -267,18 +276,17 @@ export class CameraRig {
       if (foreignChord(e) || e.ctrlKey || typingInto(e.target)) return;
       const code = keyCode(e);
       this.#keys.add(code);
-      if (this.#turnKey(code) !== 0) this.#unseenPress = code;
+      if (this.#turnKey(code) !== 0) this.#unseen.add(code);
     }, { signal });
     window.addEventListener('keyup', (e) => {
       const code = keyCode(e);
       this.#keys.delete(code);
-      if (this.#unseenPress !== code) return;
-      this.#unseenPress = null;
+      if (!this.#unseen.delete(code)) return;
       if (this.#pitch !== TOP_PITCH) this.#turns += this.#turnKey(code);
     }, { signal });
     window.addEventListener('blur', () => {
       this.#keys.clear();
-      this.#unseenPress = null;
+      this.#unseen.clear();
       this.#edge.clear();
     }, { signal });
     window.addEventListener('resize', () => this.resize(), { signal });
@@ -512,9 +520,9 @@ export class CameraRig {
   setBracketTurn(on: boolean): void {
     this.#bracketTurn = on;
     if (on) return;
-    for (const key of BRACKET_KEYS) this.#keys.delete(key);
-    if (this.#unseenPress !== null && BRACKET_KEYS.has(this.#unseenPress)) {
-      this.#unseenPress = null;
+    for (const key of BRACKET_KEYS) {
+      this.#keys.delete(key);
+      this.#unseen.delete(key);
     }
   }
 
@@ -549,7 +557,7 @@ export class CameraRig {
     this.#turns = 0;
     this.#wheelAcc = 0;
     this.#keyTurn = 0;
-    this.#unseenPress = null;
+    this.#unseen.clear();
     // Looking straight down, +Y up is parallel to the view line; -Z as up
     // puts north at the top of the screen instead.
     this.camera.up.set(0, mode === 'topDown' ? 0 : 1, mode === 'topDown' ? -1 : 0);
@@ -663,7 +671,7 @@ export class CameraRig {
   tick(dt: number): void {
     // A press this tick finds still down is a hold, whatever it nets to
     // with the other keys — only a press no tick ever sees is a tap.
-    if (this.#unseenPress !== null && this.#keys.has(this.#unseenPress)) this.#unseenPress = null;
+    for (const key of this.#unseen) if (this.#keys.has(key)) this.#unseen.delete(key);
     const held = this.#interactive ? this.#heldTurn() : 0;
     if (held !== 0) {
       // A held key turns freely, at its own pace; the step grid waits for
@@ -839,7 +847,23 @@ export class CameraRig {
     this.#apply();
   }
 
+  /**
+   * Has the camera moved since this was last called? Asking clears it.
+   *
+   * For work that is deferred until something changes and would otherwise
+   * wait on the wrong thing: the hover scan runs when the pointer moves,
+   * which is the right trigger for a still camera and the wrong one for a
+   * turning camera under a still hand. The ground under the cursor
+   * changes either way.
+   */
+  consumeMoved(): boolean {
+    const moved = this.#moved;
+    this.#moved = false;
+    return moved;
+  }
+
   #apply(): void {
+    this.#moved = true;
     DIR.set(
       Math.cos(this.#pitch) * Math.sin(this.#yaw),
       Math.sin(this.#pitch),
