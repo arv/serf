@@ -1,6 +1,6 @@
 {
   "name": "serf-valley",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "A medieval Settlers-like RTS in the browser",
   "private": true,
   "type": "module",

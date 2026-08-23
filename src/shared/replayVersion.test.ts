@@ -24,8 +24,13 @@ import { REPLAY_VERSION } from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
-const EXPECTED_VERSION = 27;
-const EXPECTED_HASH = '8432d435d0ae026b5761ff2868d8c48b';
+// 28 for the new mission map: a mission id is config an older build does
+// not know, so it would replay a Hammer and Haft log in a bare sandbox
+// (see replayVersion.ts). Main's 27 stands on its own reasoning — a brain
+// change needs no number of its own, since playback never runs a brain,
+// only the moves the log already holds.
+const EXPECTED_VERSION = 28;
+const EXPECTED_HASH = '445647b849111411b4940027b6da91e4';
 
 /**
  * Everything a replay's playback depends on, as raw source:
