@@ -329,12 +329,16 @@ export function SelectionPanel(props: {
            * A type-level question on purpose: the answer has to hold
            * for as long as the thing stays selected, because the row
            * appearing halfway through would be exactly the jump this
-           * card is meant to have stopped. Which of the buttons in it
-           * are live right now is a separate matter, settled with
-           * `reserved` below.
+           * card is meant to have stopped. That is why there is no
+           * state gate here — a site becomes built mid-selection, and
+           * gating on it made the row pop in at topping-out. Worse, it
+           * left a misplaced site uncancellable: the sim sells and
+           * pauses sites (a sale refunds half of what was delivered —
+           * the Sell tooltip has said so all along), but the buttons
+           * never appeared until the building finished. Which of the
+           * buttons are live right now is each button's own affair.
            */
-          const hasOrders = () =>
-            mine() && b().state === 'built' && !def().isRoad && !def().systemOnly;
+          const hasOrders = () => mine() && !def().isRoad && !def().systemOnly;
           /** What a fresh order would be struck against: the damage, less
               what a running repair has already been paid to put back (a mend
               runs on for a few seconds after the last plank lands). */
@@ -374,19 +378,21 @@ export function SelectionPanel(props: {
                       <TextTip
                         title={b().repairNeeds ? 'Call off the repair' : 'Repair building'}
                         body={
-                          b().repairNeeds
-                            ? 'Stops the order. Materials already worked into the walls stay there; the ones still walking over turn around and go back into the stores.'
-                            : b().repairPending !== undefined
-                              ? 'The last of the materials are in and the masons are at work — this one is paid for and finishing on its own.'
-                              : unpaid() > 0
-                                ? 'Calls for materials — half the build price, scaled by the damage. The serfs carry them over and the masons work them in, so the walls come back up over the next few seconds rather than all at once.'
-                                : 'Not a scratch on it. This is where the order will be when there is.'
+                          b().state !== 'built'
+                            ? 'A site heals as it rises — the builders are already putting every delivery on the walls, so there is nothing separate to mend.'
+                            : b().repairNeeds
+                              ? 'Stops the order. Materials already worked into the walls stay there; the ones still walking over turn around and go back into the stores.'
+                              : b().repairPending !== undefined
+                                ? 'The last of the materials are in and the masons are at work — this one is paid for and finishing on its own.'
+                                : unpaid() > 0
+                                  ? 'Calls for materials — half the build price, scaled by the damage. The serfs carry them over and the masons work them in, so the walls come back up over the next few seconds rather than all at once.'
+                                  : 'Not a scratch on it. This is where the order will be when there is.'
                         }
                       />
                     )}
                   >
                     <button
-                      disabled={!b().repairNeeds && unpaid() <= 0}
+                      disabled={b().state !== 'built' || (!b().repairNeeds && unpaid() <= 0)}
                       onClick={() => props.onRepair(b().id, b().repairNeeds === undefined)}
                     >
                       {b().repairNeeds ? 'Cancel repair' : 'Repair'}
@@ -394,7 +400,7 @@ export function SelectionPanel(props: {
                           damage is bought and only waiting on the masons:
                           repairBill of nothing is nothing, and "Repair none"
                           is worse than saying only "Repair". */}
-                      <Show when={!b().repairNeeds && unpaid() > 0}>
+                      <Show when={b().state === 'built' && !b().repairNeeds && unpaid() > 0}>
                         <span class="cost">
                           <GoodsLine amounts={repairBill(b().type, unpaid())} />
                         </span>
@@ -407,7 +413,11 @@ export function SelectionPanel(props: {
                         <TextTip
                           title={b().paused ? 'Resume' : 'Pause'}
                           body={
-                            manned()
+                            b().state !== 'built'
+                              ? b().paused
+                                ? 'Resumes the build: materials flow again and a builder is called back to the frame.'
+                                : 'Halts the site where it stands — no new deliveries are called for (a load already on the road still lands), no progress — and the builder rejoins the serf pool. Nothing already delivered is lost.'
+                              : manned()
                               ? b().paused
                                 ? 'Starts the tower: villagers answer the levy again, until archers arrive to take the wall for good.'
                                 : 'Stands the tower down: the villagers on the roof climb down and go back to work, and no more are called up. Archers stay — an idle one costs the village nothing — and any that turn up still man it.'
