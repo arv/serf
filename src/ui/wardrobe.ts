@@ -113,7 +113,7 @@ function makeLabel(parent: HTMLElement, text: string, header = false): HTMLSpanE
   return el;
 }
 
-export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<void> {
+export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispose(): void }> {
   await loadCharacterAssets();
   const renderer = new GameRenderer(canvas);
   // Same console handles the game exposes — texture forensics and scripted
@@ -215,7 +215,14 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<void> {
   }
   setMode('idle');
 
+  // `over` guards the re-schedule, not just the pending handle: a dispose
+  // that runs re-entrantly while a frame is executing would otherwise be
+  // followed by that frame scheduling one more tick against a disposed
+  // renderer — the same reason the match's teardown carries its own flag.
+  let over = false;
+  let raf = 0;
   const loop = (): void => {
+    if (over) return;
     const dt = renderer.frame();
     for (const { visual } of cast) visual.mixer.update(dt);
     for (const l of labels) {
@@ -223,7 +230,36 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<void> {
       l.el.style.left = `${p.x}px`;
       l.el.style.top = `${p.y}px`;
     }
-    requestAnimationFrame(loop);
+    if (!over) raf = requestAnimationFrame(loop);
   };
-  requestAnimationFrame(loop);
+  raf = requestAnimationFrame(loop);
+
+  // The router navigates in one document, so this screen ends by being
+  // taken apart, not by the page dying: without a dispose, the rAF loop
+  // rendered on, the overlay (and its click-taking move bar) sat over
+  // whatever screen came next, and the canvas's one-per-lifetime WebGL
+  // context stayed spent — the next match would build a renderer against
+  // a dead context. Same order as the editor's teardown: the renderer
+  // lets go (context loss included), then the canvas element is replaced
+  // so the next screen gets a fresh context. Each step wears its own
+  // guard, as the match teardown does: the canvas swap is what keeps the
+  // next screen off this spent context, and it must run even if the
+  // renderer refuses to die quietly.
+  return {
+    dispose(): void {
+      over = true;
+      cancelAnimationFrame(raf);
+      for (const step of [
+        (): void => overlay.remove(),
+        (): void => renderer.dispose(),
+        (): void => canvas.replaceWith(canvas.cloneNode(false)),
+      ]) {
+        try {
+          step();
+        } catch (err) {
+          console.warn('[wardrobe] teardown step failed:', err);
+        }
+      }
+    },
+  };
 }

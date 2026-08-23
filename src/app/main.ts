@@ -8,6 +8,7 @@ import { WaterMesh } from '../render/waterMesh';
 import { MarginMesh } from '../render/marginMesh';
 import { Mist } from '../render/mist';
 import { Butterflies } from '../render/butterflies';
+import { Footprints } from '../render/footprints';
 import { SceneSync } from '../render/sceneSync';
 import { SelectionFx } from '../render/selectionFx';
 import { BuildingSync } from '../render/buildingSync';
@@ -17,7 +18,7 @@ import { RallyFlag } from '../render/rallyFlag';
 import { FogOfWar } from '../render/fogOfWar';
 import { batteryFramePacer } from '../render/framePacer';
 import { HiddenSync } from './hiddenSync';
-import { loadCharacterAssets } from '../render/characters';
+import { loadCharacterAssets, serfSole } from '../render/characters';
 import { loadGlbAssets } from '../render/assets';
 import { Controls } from '../input/controls';
 import { DamageAlerts } from './damageAlerts';
@@ -29,6 +30,7 @@ import {
   setLlmStatus,
   setMyPlayerId,
   setNetMode,
+  setFogEnabled,
   setNetStatus,
   pushToast,
   selectedBuilding,
@@ -140,7 +142,7 @@ function showFatal(message: string, opts?: { retry?: boolean; menu?: boolean }):
     retry.addEventListener('click', () => {
       // Asking by hand re-arms the automatic tries: the count exists to stop
       // a reload loop running on its own, and this one is not on its own.
-      sessionStorage.removeItem('serf-gl-fails');
+      stashSet('session', 'serf-gl-fails', null);
       location.reload();
     });
     card.append(retry);
@@ -248,10 +250,40 @@ let current: Screen | null = null;
  * must not bounce back to the menu. (The menu's own Load goes through
  * ?load=<name>, which is a launch param like any other.)
  */
+/**
+ * Storage, tolerated: where site data is blocked, touching
+ * sessionStorage/localStorage itself throws — and the boot path must not
+ * die for a convenience stash (StartMenu and the stores wear the same
+ * try/catch). A denied read is an absent stash; a denied write is a
+ * handoff that doesn't survive, which every caller already tolerates.
+ */
+function stashGet(kind: 'local' | 'session', key: string): string | null {
+  try {
+    return (kind === 'session' ? sessionStorage : localStorage).getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/** @returns whether the write actually landed — a caller whose next move
+ * depends on the stash surviving a reload (the gl-fails counter) must not
+ * take that move on a stash that went nowhere. */
+function stashSet(kind: 'local' | 'session', key: string, value: string | null): boolean {
+  try {
+    const store = kind === 'session' ? sessionStorage : localStorage;
+    if (value === null) store.removeItem(key);
+    else store.setItem(key, value);
+    return true;
+  } catch {
+    // Denied or full: the stash just doesn't happen.
+    return false;
+  }
+}
+
 function gameChosen(params: URLSearchParams): boolean {
   return (
     LAUNCH_PARAMS.some((k) => params.has(k)) ||
-    sessionStorage.getItem('serf-load-pending') !== null
+    stashGet('session', 'serf-load-pending') !== null
   );
 }
 
@@ -272,6 +304,11 @@ function screenKey(): string {
   // gameChosen, because a stale load-pending handoff (or a ?seed left in
   // the URL) must not turn ?editor into a match.
   if (params.has('editor')) return 'editor';
+  // The wardrobe likewise — and likewise before gameChosen, so a stray
+  // launch param cannot turn the fitting room into a match. Without a key
+  // of its own it read as 'menu', and routing menu <-> wardrobe in one
+  // document either did nothing or stacked one screen on the other.
+  if (params.has('wardrobe')) return 'wardrobe';
   const chosen = gameChosen(params);
   // A room is chosen, but the choosing happens in the council — a menu
   // screen, and the one whose URL moves under it.
@@ -322,11 +359,18 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
   resetMatchState();
 
   const launchParams = new URLSearchParams(location.search);
-  if (launchParams.has('wardrobe')) {
+  if (key === 'wardrobe') {
     // The costume fitting room: every unit of every faction, labeled,
     // under the real camera and sun. Render-only — no sim, no HUD.
+    // Keyed off `key`, not launchParams: screenKey() gives ?editor
+    // precedence, and a branch that read the params directly would mount
+    // the wardrobe while recording the screen as 'editor' — breaking the
+    // same-key-same-screen invariant the router leans on.
     const { mountWardrobe } = await import('../ui/wardrobe');
-    await mountWardrobe(document.getElementById('canvas') as HTMLCanvasElement);
+    const wardrobe = await mountWardrobe(
+      document.getElementById('canvas') as HTMLCanvasElement,
+    );
+    present({ key, dispose: () => wardrobe.dispose() });
     return;
   }
   if (key === 'editor') {
@@ -426,10 +470,10 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
   // or duplicate the handoff), and that file is the world the player was
   // actually standing in — ?load=<name>, which the menu's shelf and every
   // ordinary reload of this URL carry, is the older intent.
-  const pending = sessionStorage.getItem('serf-load-pending');
-  sessionStorage.removeItem('serf-load-pending');
+  const pending = stashGet('session', 'serf-load-pending');
+  stashSet('session', 'serf-load-pending', null);
   // Migrate away any stale handoff left by the old localStorage flow.
-  localStorage.removeItem('serf-load-pending');
+  stashSet('local', 'serf-load-pending', null);
   let raw: string | null = null;
   /** What to call the village in a message about it. */
   let loadName: string | null = null;
@@ -677,6 +721,12 @@ async function runMatch(
   holdServiceWorkerUpdates();
   setMyPlayerId(config.myPlayerId);
   setNetMode(net !== undefined);
+  // Fog ON, whatever ?nofog said: the menu can walk into a networked
+  // match in place, where the module-load flags and the last
+  // resetMatchState still described a solo world. fogEnabled is a
+  // standing signal, so the gate is applied to it here, at the one door
+  // every networked match comes through.
+  if (net !== undefined) setFogEnabled(true);
   setReplayMode(replay !== undefined);
 
   // The LLM strategist runs on the CPU (llama.cpp wasm), so it exists
@@ -723,11 +773,14 @@ async function runMatch(
   try {
     renderer = new GameRenderer(canvas);
     teardown.push(() => renderer.dispose());
-    sessionStorage.removeItem('serf-gl-fails');
+    stashSet('session', 'serf-gl-fails', null);
   } catch (err) {
-    const fails = Number(sessionStorage.getItem('serf-gl-fails') ?? '0') + 1;
-    sessionStorage.setItem('serf-gl-fails', String(fails));
-    if (fails <= 2) setTimeout(() => location.reload(), fails * 1500);
+    const fails = Number(stashGet('session', 'serf-gl-fails') ?? '0') + 1;
+    // The reload is only scheduled when the counter persisted: with storage
+    // denied every attempt reads as the first, and the page would bounce
+    // forever instead of settling on the card below.
+    const counted = stashSet('session', 'serf-gl-fails', String(fails));
+    if (counted && fails <= 2) setTimeout(() => location.reload(), fails * 1500);
     fatal(
       'The browser refused a WebGL context — this usually passes in a moment. ' +
         `(${err instanceof Error ? err.message : String(err)})`,
@@ -774,7 +827,7 @@ async function runMatch(
         void rescue()
           .then((data) => saveGameNow(data))
           .then((name) => {
-            if (name !== null) sessionStorage.setItem('serf-load-pending', name);
+            if (name !== null) stashSet('session', 'serf-load-pending', name);
           })
           .finally(() => location.reload());
       }, 4000);
@@ -874,6 +927,21 @@ async function runMatch(
   // Ambient life over the meadows — pure scenery, no sim contact.
   const butterflies = new Butterflies(init.map, heights);
   renderer.scene.add(butterflies.mesh);
+  // Fading bootprints where people walk. Handed the mirror's map view —
+  // the same live pathLevel grid the grass watches — so prints keep off
+  // the trails as they wear in; the print itself is the serf's own boot,
+  // lifted off the character model (loaded just above). A networked world
+  // runs on while this page hides, so there the print clock counts real
+  // time; solo, hiding freezes the sim worker and the prints hold with it.
+  const footprints = new Footprints(
+    init.reader,
+    mirror.map,
+    heights,
+    config.myPlayerId,
+    serfSole(),
+    net !== undefined,
+  );
+  renderer.scene.add(footprints.mesh);
 
   const buildingSync = new BuildingSync(renderer.scene, heights, config.myPlayerId);
   // Terrain feed for the pier measurement: on a corner-only shore the
@@ -956,6 +1024,7 @@ async function runMatch(
   }
   sync.setFog(fog);
   buildingSync.setFog(fog);
+  footprints.setFog(fog);
   // Latest building roster, for the fog's sight sources.
   let roster = init.buildings;
 
@@ -1104,6 +1173,12 @@ async function runMatch(
     // Trails thread between tiles, so which clumps they trample is only
     // knowable once the new path levels are in the mirror.
     if (wornTiles.length > 0) grass.clearUnderPaths(mirror.map, wornTiles);
+    // The prints stamped on this grass belong to the same feet that just
+    // wore it bare — the trail replaces them as the record. A rollback
+    // correction ships the whole path grid with no deltas at all, so there
+    // every print is re-tested rather than none.
+    if (changes.refreshAll) footprints.resyncPaths();
+    else if (wornTiles.length > 0) footprints.clearUnderPaths(wornTiles);
     if (paved || changes.refreshAll) roads.rebuild(mirror.map);
     for (const tile of changes.resourceCleared) scatter.removeTile(tile);
     if (changes.refreshAll) scatter.resyncAll(mirror.map);
@@ -1220,6 +1295,8 @@ async function runMatch(
     water.update(now);
     mist.update(now);
     butterflies.update(now);
+    // After sync.update: the stamps read the publish it just polled.
+    footprints.update(now, speed() === 0);
     const dt = renderer.frame();
     // Same view rect the unit sync culls against — sails and roof watches
     // off camera are not worth animating either.
