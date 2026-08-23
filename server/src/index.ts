@@ -2,7 +2,7 @@ import { createServer, type ServerResponse } from 'node:http';
 import { createReadStream, existsSync, readdirSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WebSocketServer, type WebSocket } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { decodeState, encodePong } from '../../src/protocol/state.ts';
 import { defaultLobbyConfig, sanitizeLobbyConfig } from '../../src/protocol/lobby.ts';
 import { sanitizeCommands } from '../../src/sim/commands.ts';
@@ -167,6 +167,12 @@ type LobbyMsg =
   | { t: 'replay' };
 
 function sendJson(ws: WebSocket, msg: unknown): void {
+  // Simultaneous disconnects race the close callbacks: a seat can still
+  // read `connected` while its socket is already CLOSING. ws's send() on a
+  // non-open socket is a no-op rather than a throw (sendAfterClose swallows
+  // it when no callback is passed), so this guard is not crash protection —
+  // it just says out loud that a message to a closing socket goes nowhere.
+  if (ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify(msg));
 }
 
@@ -216,12 +222,27 @@ wss.on('connection', (ws) => {
     // A newer socket may have taken this seat over (worker rejoin after the
     // lobby socket) — only the current socket's close disconnects the seat.
     if (seat.ws !== ws) return;
+    if (room.state === 'lobby') {
+      // The rule releaseRoom already applies when a socket walks away on
+      // purpose, now for the socket that just vanished: nothing has been
+      // built yet, so the chair goes with them. Merely marking it
+      // disconnected left a seat nobody could ever reclaim — lobby
+      // occupants have no token until 'begin' — so a vanished host
+      // bricked the room outright ('start' wants playerId 0), and every
+      // reload stacked one more ghost toward MAX_SEATS. removeSeat
+      // reindexes playerIds, so the oldest remaining occupant inherits
+      // the host's chair, and the broadcast tells everyone where they
+      // now sit.
+      removeSeat(room, seat);
+      broadcastRoomState(room);
+      deleteRoomIfDead(room);
+      return;
+    }
     seat.connected = false;
     seat.ws = null;
     for (const s of room.seats) {
       if (s.connected && s.ws) sendJson(s.ws, { t: 'peer', playerId: seat.playerId, connected: false });
     }
-    if (room.state === 'lobby') broadcastRoomState(room);
     deleteRoomIfDead(room);
   });
 });
