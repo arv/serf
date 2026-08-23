@@ -2,7 +2,7 @@ import { createServer, type ServerResponse } from 'node:http';
 import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { WebSocketServer, type WebSocket } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { decodeState, encodePong } from '../../src/protocol/state.ts';
 import { defaultLobbyConfig, sanitizeLobbyConfig } from '../../src/protocol/lobby.ts';
 import { sanitizeCommands } from '../../src/sim/commands.ts';
@@ -111,10 +111,20 @@ const http = createServer((req, res) => {
     return;
   }
   // Static game: sanitized path under dist/, SPA-falling back to index.html.
-  const urlPath = normalize(decodeURIComponent((req.url ?? '/').split('?')[0]!)).replace(
-    /^(\.\.[/\\])+/,
-    '',
-  );
+  // decodeURIComponent throws on malformed percent-encoding ("GET /%"), and
+  // an uncaught throw on the request path takes the process down — every
+  // room with it, unpersisted (persist runs on SIGTERM, not on a crash).
+  // Junk encoding names no file of ours, so it gets a 400 rather than the
+  // SPA fallback.
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent((req.url ?? '/').split('?')[0]!);
+  } catch {
+    res.writeHead(400);
+    res.end();
+    return;
+  }
+  const urlPath = normalize(decoded).replace(/^(\.\.[/\\])+/, '');
   let file = join(DIST_DIR, urlPath);
   if (!file.startsWith(DIST_DIR) || !STATIC_FILES.has(file)) {
     file = join(DIST_DIR, 'index.html');
@@ -179,6 +189,12 @@ type LobbyMsg =
   | { t: 'replay' };
 
 function sendJson(ws: WebSocket, msg: unknown): void {
+  // Simultaneous disconnects race the close callbacks: a seat can still
+  // read `connected` while its socket is already CLOSING. ws's send() on a
+  // non-open socket is a no-op rather than a throw (sendAfterClose swallows
+  // it when no callback is passed), so this guard is not crash protection —
+  // it just says out loud that a message to a closing socket goes nowhere.
+  if (ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify(msg));
 }
 
@@ -228,12 +244,27 @@ wss.on('connection', (ws) => {
     // A newer socket may have taken this seat over (worker rejoin after the
     // lobby socket) — only the current socket's close disconnects the seat.
     if (seat.ws !== ws) return;
+    if (room.state === 'lobby') {
+      // The rule releaseRoom already applies when a socket walks away on
+      // purpose, now for the socket that just vanished: nothing has been
+      // built yet, so the chair goes with them. Merely marking it
+      // disconnected left a seat nobody could ever reclaim — lobby
+      // occupants have no token until 'begin' — so a vanished host
+      // bricked the room outright ('start' wants playerId 0), and every
+      // reload stacked one more ghost toward MAX_SEATS. removeSeat
+      // reindexes playerIds, so the oldest remaining occupant inherits
+      // the host's chair, and the broadcast tells everyone where they
+      // now sit.
+      removeSeat(room, seat);
+      broadcastRoomState(room);
+      deleteRoomIfDead(room);
+      return;
+    }
     seat.connected = false;
     seat.ws = null;
     for (const s of room.seats) {
       if (s.connected && s.ws) sendJson(s.ws, { t: 'peer', playerId: seat.playerId, connected: false });
     }
-    if (room.state === 'lobby') broadcastRoomState(room);
     deleteRoomIfDead(room);
   });
 });
@@ -351,6 +382,13 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       if (conn.seat !== seat) releaseRoom(conn, ws);
       seat.ws = ws;
       seat.connected = true;
+      // A fresh socket is a fresh command counter: a reloaded page's worker
+      // starts its seq back at 1, and the old high-water mark would silently
+      // eat its every order until the new count caught up — the same reason
+      // persist.ts resets this on a cross-deploy restore. Safe because only
+      // the socket that owns the seat may command it (see handleBinary), so
+      // there is no older stream left for the guard to dedupe against.
+      seat.lastSeq = -1;
       // A fresh socket is a watching client until it says otherwise (the
       // worker re-sends its hidden state right after this if it isn't).
       seat.hidden = false;
@@ -416,6 +454,13 @@ function handleBinary(ws: WebSocket, conn: Conn, data: Uint8Array): void {
   const frame = decodeState(data);
   if (!frame) throw new Error('unknown frame from client');
   if (frame.kind === 'cmd') {
+    // Only the socket that owns the seat gives orders — the same rule the
+    // close handler applies. A superseded socket (a second tab rejoined, a
+    // takeover mid-flight) could otherwise interleave its old, high seq
+    // numbers with the new socket's fresh count and knock the guard in
+    // queueCommands over. Dropped silently: the stale socket is already on
+    // its way out.
+    if (seat.ws !== ws) return;
     // A lobby room never pumps, so anything queued before the match starts
     // would sit in room.queued forever, growing with every frame. No client
     // submits before it has been told the match began.
