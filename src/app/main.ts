@@ -304,6 +304,11 @@ function screenKey(): string {
   // gameChosen, because a stale load-pending handoff (or a ?seed left in
   // the URL) must not turn ?editor into a match.
   if (params.has('editor')) return 'editor';
+  // The wardrobe likewise — and likewise before gameChosen, so a stray
+  // launch param cannot turn the fitting room into a match. Without a key
+  // of its own it read as 'menu', and routing menu <-> wardrobe in one
+  // document either did nothing or stacked one screen on the other.
+  if (params.has('wardrobe')) return 'wardrobe';
   const chosen = gameChosen(params);
   // A room is chosen, but the choosing happens in the council — a menu
   // screen, and the one whose URL moves under it.
@@ -354,11 +359,18 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
   resetMatchState();
 
   const launchParams = new URLSearchParams(location.search);
-  if (launchParams.has('wardrobe')) {
+  if (key === 'wardrobe') {
     // The costume fitting room: every unit of every faction, labeled,
     // under the real camera and sun. Render-only — no sim, no HUD.
+    // Keyed off `key`, not launchParams: screenKey() gives ?editor
+    // precedence, and a branch that read the params directly would mount
+    // the wardrobe while recording the screen as 'editor' — breaking the
+    // same-key-same-screen invariant the router leans on.
     const { mountWardrobe } = await import('../ui/wardrobe');
-    await mountWardrobe(document.getElementById('canvas') as HTMLCanvasElement);
+    const wardrobe = await mountWardrobe(
+      document.getElementById('canvas') as HTMLCanvasElement,
+    );
+    present({ key, dispose: () => wardrobe.dispose() });
     return;
   }
   if (key === 'editor') {
