@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CacheManager, ModelManager } from '@wllama/wllama/esm/index.js';
-import { discardPartialModel, type ModelCache, type ModelCacheEntry } from './modelCache.ts';
+import {
+  discardPartialModel,
+  hasWholeModel,
+  type ModelCache,
+  type ModelCacheEntry,
+} from './modelCache.ts';
 
 /**
  * The real wllama, not a stand-in: what is being pinned down here is the
@@ -115,6 +120,15 @@ describe('discardPartialModel', () => {
 
   it('discards a tagged entry whose bytes fall short of its metadata', async () => {
     const cache = fakeCache([entry({ size: SIZE - 1 })]);
+    expect(await discardPartialModel(cache, URL_)).toBe(1);
+  });
+
+  it('discards a tagged entry too small to be a model at all', async () => {
+    // Self-consistent (bytes match the record) but under wllama's 16-byte
+    // validation floor: calling this whole would report ready on a file
+    // wllama itself will refuse to load.
+    const cache = fakeCache([entry({ size: 8, metadata: { originalURL: URL_, originalSize: 8 } })]);
+    expect(await hasWholeModel(cache, URL_)).toBe(false);
     expect(await discardPartialModel(cache, URL_)).toBe(1);
   });
 
