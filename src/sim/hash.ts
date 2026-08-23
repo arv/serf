@@ -39,7 +39,10 @@ export function hashWorld(world: World): number {
     mixU32(u.id);
     mixF64(u.x);
     mixF64(u.y);
-    mixU32(u.hp);
+    // F64, not U32: the counter table's fractional multipliers land
+    // fractional blows, and truncation would call 9.75 and 9.5 the same
+    // man — identical until one falls a swing earlier.
+    mixF64(u.hp);
     mixU32(u.owner);
     mix(u.dead ? 1 : 0);
     mixU32(u.pathIdx);
@@ -53,6 +56,10 @@ export function hashWorld(world: World): number {
     // restored the wrong target hashed as the same world until the fight
     // resolved differently.
     mixU32(u.cooldownLeft);
+    // The repath backoff steers when a blocked walker tries again for 45
+    // ticks at a stretch. 0 is a safe "no backoff" sentinel: a real
+    // repathAt is always world.tick + 45 > 0.
+    mixU32(u.repathAt ?? 0);
     mixU32(u.targetId ?? 0); // 0 is a safe sentinel: entity ids start at 1
     mix(u.targetIsBuilding ? 1 : 0);
     for (let i = 0; i < u.task.t.length; i++) mix(u.task.t.charCodeAt(i)); // task tag
@@ -67,7 +74,10 @@ export function hashWorld(world: World): number {
   }
   for (const b of world.buildings.values()) {
     mixU32(b.id);
-    mixU32(b.hp);
+    // F64 for the same reason as a unit's hp: BUILDING_DAMAGE_MULT lands
+    // fractional blows on masonry, and a digest that truncates them calls
+    // two walls the same until one falls a tick earlier.
+    mixF64(b.hp);
     mixU32(b.owner);
     mix(b.state === 'built' ? 1 : 0);
     mix(b.dead ? 1 : 0);
