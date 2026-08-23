@@ -30,7 +30,7 @@ const MODIFIER_LABEL: Record<ModifierKey, string> = {
   militaryHp: 'Soldiers train with hit points',
 };
 
-function EffectLine(props: { effect: TechEffect }): JSX.Element {
+function EffectLine(props: { effect: TechEffect; self: string }): JSX.Element {
   const e = props.effect;
   switch (e.kind) {
     case 'unlockBuilding':
@@ -49,11 +49,11 @@ function EffectLine(props: { effect: TechEffect }): JSX.Element {
     case 'modifier':
       return (
         <>
-          {MODIFIER_LABEL[e.key]} ×{e.multiplier}
+          <Prose text={MODIFIER_LABEL[e.key]} self={props.self} /> ×{e.multiplier}
         </>
       );
     case 'unlockPaving':
-      return <>Trails pave into stone roads</>;
+      return <Prose text="Trails pave into stone roads" self={props.self} />;
   }
 }
 
@@ -100,7 +100,7 @@ export function TechsPage(): JSX.Element {
                           {(effect, i) => (
                             <>
                               {i() > 0 && ' · '}
-                              <EffectLine effect={effect} />
+                              <EffectLine effect={effect} self={techHref(id)} />
                             </>
                           )}
                         </For>
