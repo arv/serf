@@ -39,12 +39,13 @@ node tools/exportMissionMap.ts <seed> <seats> <name> <out.json> [play]
 
 It writes the world that seed generates and prints the `campSpot` the
 classic camp search would pick — paste that into the mission's def. These
-six were born from the missions' original pinned seeds:
+seven were born from the missions' original pinned seeds:
 
 ```
 node tools/exportMissionMap.ts 106 1 "The Clearing"      src/sim/defs/maps/clearing.json
 node tools/exportMissionMap.ts 202 1 "Bread and Water"   src/sim/defs/maps/breadAndWater.json
 node tools/exportMissionMap.ts 303 1 "The Abbey's Ledger" src/sim/defs/maps/ledger.json
+node tools/exportMissionMap.ts 350 1 "Hammer and Haft"    src/sim/defs/maps/hammerAndHaft.json
 node tools/exportMissionMap.ts 405 1 "The Levy"          src/sim/defs/maps/levy.json
 node tools/exportMissionMap.ts 17  1 "Hold the Valley"   src/sim/defs/maps/holdTheValley.json
 node tools/exportMissionMap.ts 11  2 "The Rival Banner"  src/sim/defs/maps/rivalBanner.json

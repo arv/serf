@@ -4,7 +4,7 @@ import type { TechId } from './techs.ts';
 import type { AiStrategyId } from './aiStrategies.ts';
 
 /**
- * The campaign: six commissions that double as the tutorial. Each mission is
+ * The campaign: seven commissions that double as the tutorial. Each mission is
  * an authored map plus a recipe of overrides — start-stock and raid-clock
  * overrides, a few pre-built buildings — and a checklist of objectives the
  * sim itself judges (systems/objectives.ts, victory.ts).
@@ -31,6 +31,7 @@ export type MissionId =
   | 'clearing'
   | 'breadAndWater'
   | 'ledger'
+  | 'hammerAndHaft'
   | 'levy'
   | 'holdTheValley'
   | 'rivalBanner';
@@ -113,7 +114,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // hire button must be needed, not optional. With no raids the 8-serf
     // balance floor doesn't apply.
     // Tools for the two posts this mission teaches, and hammers for its
-    // sites — the tool economy itself is mission 3's lesson, not this one's.
+    // sites — the tool economy itself is mission 4's lesson, not this one's.
     startStock: { wood: 20, stone: 6, silver: 24, axe: 1, pickaxe: 1, hammer: 2 },
     objectives: [
       { spec: { kind: 'building', type: 'woodcutter', count: 1 }, label: 'Raise a Woodcutter' },
@@ -197,6 +198,68 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       { spec: { kind: 'building', type: 'ironMine', count: 1 }, label: 'Dig an Iron Mine' },
       { spec: { kind: 'building', type: 'weaponsmith', count: 1 }, label: 'Raise a Weaponsmith' },
       { spec: { kind: 'stock', good: 'spear', amount: 4 }, label: 'Forge 4 spears' },
+    ],
+  },
+
+  hammerAndHaft: {
+    id: 'hammerAndHaft',
+    title: 'Hammer and Haft',
+    briefing:
+      'The last reeve’s people left in the night and took every axe and ' +
+      'pick with them. The huts still stand — woodcutter, quarry, field, ' +
+      'oven, and a mine cut into the eastern hill — and not one of them ' +
+      'will draw a soul until there is a tool on its peg. Raise a Smith and ' +
+      'put the valley back to work. You have one hammer of your own; mind ' +
+      'who you lend it to.',
+    tagline: 'Bare racks: forge the tools the valley works with.',
+    // A quiet valley with its ore a short walk east (nearest seam ~14
+    // tiles off the keep) and both timber and rock inside the opening
+    // sight — the shape this mission needs, since every post the player
+    // is tooling up is already standing on that ground.
+    seed: 350,
+    players: [{ kind: 'human' }],
+    bandits: false,
+    // A village this size is six posts and the haulage between them.
+    startSerfs: 12,
+    // The bare rack, and the whole puzzle: no axe, no pickaxe, no scythe,
+    // no cauldron, and exactly one hammer — the reeve's own. That hammer
+    // is what raises the Smith (a site borrows one and gives it back at
+    // topping-out), and the four iron is what the Smith has to work with
+    // until the mine is manned. The pickaxe costs no iron on purpose
+    // (buildings.ts says why), so the way out of a bare rack is always to
+    // forge the pick first and let the hill pay for the rest.
+    startStock: { wood: 30, stone: 15, iron: 4, silver: 6, hammer: 1 },
+    // Research was mission 3's lesson; the forge recipes it opened are
+    // granted here so the tools themselves are the only puzzle.
+    startTechs: ['cobbledBoots', 'ironworking'],
+    // The predecessor's village, standing and idle. No Smith among them:
+    // that is the one roof this mission is about.
+    prebuilt: [
+      { type: 'woodcutter', dx: -6, dy: -2 },
+      { type: 'quarry', dx: 5, dy: -6 },
+      { type: 'house', dx: -5, dy: 4 },
+      { type: 'well', dx: 4, dy: 4 },
+      { type: 'wheatFarm', dx: 8, dy: 3 },
+      { type: 'mill', dx: -3, dy: 7 },
+      { type: 'bakery', dx: 2, dy: 7 },
+      { type: 'ironMine', dx: 12, dy: -3 },
+    ],
+    // Every line past the first is a post that cannot produce until its
+    // tool hangs on the peg: the mine wants a pickaxe, the woodcutter an
+    // axe, the field a scythe and the oven a cauldron. The checklist asks
+    // for what those posts make rather than for the tools themselves,
+    // because a forged tool is hauled to whichever post is calling for it
+    // — it reaches the castle shelf only once nothing is waiting on it.
+    objectives: [
+      { spec: { kind: 'building', type: 'weaponsmith', count: 1 }, label: 'Raise a Smith' },
+      { spec: { kind: 'stock', good: 'iron', amount: 12 }, label: 'Lay in 12 iron at the Castle' },
+      { spec: { kind: 'stock', good: 'wood', amount: 45 }, label: 'Lay in 45 wood at the Castle' },
+      { spec: { kind: 'stock', good: 'food', amount: 12 }, label: 'Lay in 12 food at the Castle' },
+      // The one the auto-forge will never do for you: a hammer is wanted
+      // by a site, so a village with nothing rising wants none, and the
+      // fire goes cold. Three on the shelf is a batch queued by hand at
+      // the forge menu — and three sites that can rise at once.
+      { spec: { kind: 'stock', good: 'hammer', amount: 3 }, label: 'Lay in 3 hammers at the Castle' },
     ],
   },
 
@@ -304,6 +367,7 @@ export const MISSION_ORDER: MissionId[] = [
   'clearing',
   'breadAndWater',
   'ledger',
+  'hammerAndHaft',
   'levy',
   'holdTheValley',
   'rivalBanner',

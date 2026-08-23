@@ -111,6 +111,45 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     { text: 'Let the forge run: four spears in the castle settles the ledger.', objective: 5 },
   ],
 
+  hammerAndHaft: [
+    {
+      text:
+        'Every hut here is empty because its tool is gone: no axe, no post. ' +
+        'The Smith is where tools come from — and the only post that ' +
+        'needs none. Raise it with the hammer you brought.',
+      objective: 0,
+    },
+    {
+      text:
+        'A pickaxe costs wood and stone and no iron at all — forge that ' +
+        'first, put it in the mine, and the hill pays for every tool after it.',
+      objective: 1,
+    },
+    {
+      text:
+        'An axe puts the woodcutter back among the trees. Left to itself the ' +
+        'Smith forges whatever post stands open, in the order the village ' +
+        'most feels it.',
+      objective: 2,
+    },
+    {
+      text:
+        'Two tools stand between you and bread: a scythe for the field, a ' +
+        'cauldron for the oven. The well and the mill keep nobody, so they ' +
+        'never wanted one.',
+      objective: 3,
+    },
+    {
+      text:
+        'A hammer is a loan, not a hire: every site borrows one and gives it ' +
+        'back when the roof goes on — which is why yours could raise ' +
+        'only one thing at a time. No site standing means no post wants a ' +
+        'hammer, so the Smith will never think of it: select it and queue ' +
+        'three yourself.',
+      objective: 4,
+    },
+  ],
+
   levy: [
     {
       text:
