@@ -203,9 +203,11 @@ const resiteExtractor: EconomyRule = {
  * lost for good; `unbindWorker` resets the task now, but a rule whose whole
  * purpose is producing a hauler should not lean on that.
  *
- * The one rule in this file that does NOT wait on the stall watchdog, and
- * the reason is that its own condition is a stricter reading than the
- * window's. `stalled` is an inference — four scalars that have not moved —
+ * One of the rules here that does NOT wait on the stall watchdog — with
+ * `resumeDrainedPost`, which must be able to undo it whatever the window
+ * says, and `handsBeforeSoldiers`, which reads the same hand count — and
+ * the reason is that the condition is a stricter reading than the window's.
+ * `stalled` is an inference — four scalars that have not moved —
  * and it costs eight samples two thousand ticks apart to draw, so the
  * earliest it can be believed is fourteen thousand ticks after the village
  * stopped. A village short of hands beside a post at its cap is not an
@@ -456,6 +458,19 @@ const forgeTheCounter: EconomyRule = {
  * hauls with the two hands the seat had. So it closes UNDER the floor and
  * opens only ABOVE it: one hand of margin, which is exactly the hand the
  * recruiter is about to take.
+ *
+ * The lower edge is deliberately the loose one, and it was measured before
+ * it was left that way. Reopening at floor+1 can still dip the pool to
+ * floor-1: `staffingSystem` sweeps every 25 ticks against a brain that
+ * decides every 20, so a queue two deep takes a second recruit in the gap
+ * before the hold comes back down (pinned in ai.test.ts). Closing at
+ * `<= floor` instead of `< floor` removes that dip completely — and costs
+ * the campaign 448 wins of 640 against this version's 491, which is worse
+ * than having no rule at all (460). A seat that will not train while it
+ * sits AT its floor is a seat that never fields an army, because sitting at
+ * the floor is what a raided village does. One hand of overshoot is the
+ * price of the seat having soldiers, and the sweep says it is worth paying
+ * twice over.
  *
  * Halting rather than cancelling, for three reasons. The queue survives —
  * an order stands until its batch lands, so the seat resumes the army it

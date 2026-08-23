@@ -437,7 +437,7 @@ long, is a detector that never fires.
 ### Measured
 
 The campaign sweep, because it is the instrument with raids in it.
-`pnpm balance 32` over three seed ranges, 128 matches each:
+`pnpm balance 32` over five seed ranges, 128 matches each:
 
 | range | before | after |
 | --- | --- | --- |

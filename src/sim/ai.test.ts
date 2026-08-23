@@ -561,6 +561,41 @@ describe('a village that lost its hands', () => {
     expect(atFloor.filter((c) => c.kind === 'trainUnit')).toEqual([]);
   });
 
+  it('lets the recruiter take one hand past the floor, and no more', () => {
+    // The accepted cost of the band's loose lower edge, pinned so it cannot
+    // quietly get worse. Reopening at floor+1 hands the recruiter one, and
+    // `staffingSystem` sweeps every 25 ticks against a brain deciding every
+    // 20 — so a queue two deep can take a second before the hold comes back
+    // down. It lands at floor-1 and stops there.
+    //
+    // Closing the edge (`<= floor`) removes the dip and costs the campaign
+    // 448 wins of 640 against 491 — worse than having no rule at all. A
+    // seat that will not train while it sits AT its floor never fields an
+    // army, and sitting at the floor is what a raided village does.
+    const world = bareWorld(1, 2);
+    addStorehouse(world, 30, 30, { food: 40, sword: 40 });
+    addStorehouse(world, 60, 60, {}, 1); // a rival, so the match does not end at tick 1
+    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 36);
+    barracks.inputs = { food: 30, sword: 30 };
+    barracks.paused = true;
+    const floor = AI_STRATEGIES.steward.survivalFloor;
+    for (let i = 0; i < floor + 1; i++) addSerf(world, 31 + i, 31);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const loose = (): number =>
+      [...world.units.values()].filter((u) => !u.dead && u.kind === 'serf').length;
+    let low = loose();
+    for (let t = 0; t < 2000; t++) {
+      const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+      tickWorld(
+        world,
+        commands.map((cmd) => ({ playerId: 0, cmd })),
+      );
+      low = Math.min(low, loose());
+    }
+    expect(low).toBe(floor - 1); // one hand of overshoot
+    expect(barracks.paused).toBe(true); // and the hold caught it there
+  });
+
   it('keeps the hire money back from a tech while it is short of hands', () => {
     // Every tech is priced in silver and so is a hand. A seat that spends
     // its way past the hire is a seat that stays short forever.

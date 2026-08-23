@@ -31,7 +31,7 @@ import {
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, WEAPON_OF, type UnitClass, type UnitTypeId } from '../defs/units.ts';
 import { addGarrison, classHp, damageEquivalent, shouldCommit, type Force } from '../combatOdds.ts';
-import { HIRE_SERF_COST } from '../defs/balance.ts';
+import { HIRE_QUEUE_CAP, HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
 import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
 import { canPlace, type World } from '../world.ts';
@@ -654,7 +654,14 @@ export class AiBrain {
     // Even the panic floor cannot conjure a bed. Asking anyway is harmless —
     // the sim refuses it — but a seat that knows it is full spends the beat
     // on the housing rule above instead of on an order that goes nowhere.
-    const room = hasRoomToHire(world, this.playerId);
+    // A hire the sim would refuse is not a hire. Beds are only half of it:
+    // `applyCommand` also turns one away when the storehouse's queue is
+    // already HIRE_QUEUE_CAP deep, and the guard below has to know whether
+    // four silver is actually leaving the shelf — a flag that says "ordered"
+    // where the sim says "refused" holds back research for a hire that never
+    // happens. Same predicate on both branches, so this only ever suppresses
+    // an order that would have been a no-op.
+    const room = hasRoomToHire(world, this.playerId) && (sh.hireQueue ?? 0) < HIRE_QUEUE_CAP;
     // Whether this beat has already spent four silver on a hand. The
     // research guard below reads it, because commands are applied in the
     // order they are pushed and a hire pushed here is money the shelf still
