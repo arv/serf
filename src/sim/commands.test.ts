@@ -101,6 +101,9 @@ describe('command screening', () => {
     const enqueue = (recipeIndex: number) =>
       sanitizeCommand({ kind: 'enqueueForge', buildingId: 1, recipeIndex });
     expect(enqueue(menu - 1)).not.toBeNull();
+    // The length itself is the first impossible value — one past the
+    // longest menu — and used to slip through as <=.
+    expect(enqueue(menu)).toBeNull();
     expect(enqueue(menu + 1)).toBeNull();
     const recipe = (index: number) =>
       sanitizeCommand({ kind: 'setBuildingRecipe', buildingId: 1, index });

@@ -46,6 +46,20 @@ describe('cloneWorld — the rollback snapshot primitive', () => {
     expect(hashWorld(viaSave)).toBe(hashWorld(world));
   });
 
+  it('isolates a repair bill in flight — repairNeeds must not be shared', () => {
+    // repairNeeds is the one GoodAmounts the repair flow decrements in
+    // place (applyRepairMaterial), so a clone sharing it by reference sees
+    // the original's spending — both worlds watch the bill fall twice as
+    // fast, and the save round-trip reference this file exists for lies.
+    const world = createWorld({ seed: 5, players: [{ kind: 'ai' }] });
+    run(world, 200);
+    const b = [...world.buildings.values()].find((x) => x.state === 'built')!;
+    b.repairNeeds = { wood: 3 };
+    const snap = cloneWorld(world);
+    b.repairNeeds.wood = 2; // the original works a plank in
+    expect(snap.buildings.get(b.id)!.repairNeeds).toEqual({ wood: 3 });
+  });
+
   it('stays cheap enough to snapshot a live world', () => {
     const world = createWorld({
       seed: 8,
@@ -105,6 +119,16 @@ describe('hashWorld', () => {
       (u) => {
         u.path = [...(u.path ?? []), 999];
       },
+      // Fractional damage: the counter table's multipliers land fractional
+      // blows, so two worlds can differ ONLY below the integer line — the
+      // mutation keeps the integer part so a truncating digest sees nothing.
+      (u) => {
+        u.hp = Math.trunc(u.hp) + (u.hp % 1 < 0.5 ? 0.75 : 0.25);
+      },
+      // The repath backoff steers a blocked walker's next 45 ticks.
+      (u) => {
+        u.repathAt = 4242;
+      },
     ];
     for (const mutate of mutations) {
       const w = cloneWorld(world);
@@ -112,5 +136,19 @@ describe('hashWorld', () => {
       mutate(first);
       expect(hashWorld(w)).not.toBe(base);
     }
+  });
+
+  it('sees fractional building damage', () => {
+    // An arrow against masonry lands at half strength (BUILDING_DAMAGE_MULT),
+    // so building hp lives below the integer line too: a digest that
+    // truncates it calls two walls the same until one falls a tick earlier.
+    const world = createWorld({ seed: 21, players: [{ kind: 'ai' }] });
+    run(world, 400);
+    const base = hashWorld(world);
+    const w = cloneWorld(world);
+    const b = [...w.buildings.values()][0]!;
+    // Only the fraction moves: a truncating digest sees the same wall.
+    b.hp = Math.trunc(b.hp) + (b.hp % 1 < 0.5 ? 0.75 : 0.25);
+    expect(hashWorld(w)).not.toBe(base);
   });
 });

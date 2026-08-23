@@ -575,6 +575,30 @@ describe('the guard tower', () => {
     expect(tower.attackCooldown).toBe(combat.cooldownTicks);
   });
 
+  it("fires on the field archer's own period, not a tick behind it", () => {
+    // "Each man swings on the archer's own clock": a soldier decrements at
+    // the top of the tick and still strikes the tick his count reaches
+    // zero, so his period IS cooldownTicks. The tower used to continue on
+    // the zeroing tick too, firing every cooldownTicks + 1.
+    const world = bareWorld();
+    manned(world, 2);
+    const raider = spawnUnit(world, 'bandit', BANDIT, 34.5, 31.5);
+    raider.hp = 1_000_000; // stands through every volley measured
+    const combat = UNIT_DEFS.archer.combat!;
+    const fires: number[] = [];
+    let last = raider.hp;
+    for (let t = 0; t < combat.cooldownTicks * 3 + 2; t++) {
+      tickWorld(world, []);
+      if (raider.hp < last) fires.push(t);
+      last = raider.hp;
+    }
+    expect(fires[0]).toBe(0); // the cooldown starts at zero: the very first tick (t = 0) fires
+    expect(fires.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < fires.length; i++) {
+      expect(fires[i]! - fires[i - 1]!).toBe(combat.cooldownTicks);
+    }
+  });
+
   it('is never docked by the counter table, only paid by it', () => {
     // The bandit (light) is the matchup the table would dock a field archer
     // for, and the marauder (heavy) the one it pays him for. A tower keeps

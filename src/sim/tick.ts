@@ -298,11 +298,15 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         }
         // The kit walks away from the wreck: the post's own tool (left on
         // the shelf by the unbind above, or still waiting in the rack of a
-        // post that never staffed) and any hammer a half-built site had
-        // borrowed. Deliberately NOT every good — a sold Smith loses its
-        // forged stock the way a sold bakery loses its bread. A move, not
-        // a mint, so no ledger entry.
-        const rescue = new Set<GoodId>(['hammer']);
+        // post that never staffed) and the hammer a half-built site had
+        // borrowed — so the hammer only rides along for a SITE, where it
+        // is a loan and nothing else. Unconditional, it also walked a
+        // built Smith's forged hammers out of the sale while the axes and
+        // cauldrons on the same shelf were lost, and the rule two lines up
+        // is the rule: a sold Smith loses its forged stock the way a sold
+        // bakery loses its bread. A move, not a mint, so no ledger entry.
+        const rescue = new Set<GoodId>();
+        if (b.state === 'site') rescue.add('hammer');
         const postTool = TOOL_OF[b.type];
         if (postTool) rescue.add(postTool);
         for (const good of rescue) {

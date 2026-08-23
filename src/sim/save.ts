@@ -33,7 +33,9 @@ import { WORLD_SAVE_VERSION, canReadSave } from '../shared/saveVersion.ts';
  */
 
 interface SaveFile {
-  /** WORLD_SAVE_VERSION as of the write — or 4, which is still read. */
+  /** WORLD_SAVE_VERSION as of the write. Loading is gated by the
+   * canReadSave check (shared/saveVersion.ts) — currently exactly this
+   * version and nothing older. */
   version: number;
   world: {
     /** Absent in saves from before the toggle existed; those ran bandits. */
@@ -46,9 +48,11 @@ interface SaveFile {
     /** Playable side; absent in saves from before the margin existed —
      * those worlds were playable wall to wall. */
     mapPlay?: number;
-    /** The tile grids: base64 in this format, plain number arrays in a
-     * version 4 file (and `wear`, which is still written that way).
-     * Either spelling reads. */
+    /** The tile grids: base64 — except `wear`, which is written as a
+     * plain number array (see serializeWorld for the measurement). The
+     * readers below take either spelling for every grid anyway: a save is
+     * an importable file, and a tolerant reader at that boundary is
+     * cheap. */
     map: Record<Exclude<keyof GameMap, 'size' | 'play'>, string | number[]>;
     units: unknown[];
     buildings: unknown[];
@@ -107,8 +111,9 @@ export function serializeWorld(world: World): string {
   return JSON.stringify(file);
 }
 
-/** A grid from either spelling — base64, or the number array a version 4
- * file (and `wear`) carries. */
+/** A grid from either spelling — base64, or a plain number array. Only
+ * `wear` is written as digits today; the rest accept them for tolerance
+ * at the import boundary, not because any current writer uses them. */
 function bytes(raw: string | number[]): Uint8Array {
   return typeof raw === 'string' ? bytesFromBase64(raw) : Uint8Array.from(raw);
 }

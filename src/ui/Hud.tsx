@@ -38,7 +38,7 @@ import { goto } from '../app/router';
 import { latestSaveName } from '../app/saveStore';
 import { describeAdvice } from '../ai/insight';
 import {
-  CHEATS_ALLOWED,
+  cheatsAllowed,
   bandArm,
   buildChord,
   debugJobs,
@@ -136,7 +136,10 @@ export function Hud(props: {
   // The sim rejects admin commands in a match (world.admin.enabled is
   // false), so every button here no-ops — except the fog toggle, which
   // never reaches the sim. Hide the panel rather than leave that one live.
-  const adminMode = CHEATS_ALLOWED && new URLSearchParams(location.search).has('admin');
+  // Evaluated at mount, which is enough: runMatch sets netMode before it
+  // mounts the HUD, so a networked match reads the gate closed however it
+  // was entered.
+  const adminMode = cheatsAllowed() && new URLSearchParams(location.search).has('admin');
   // Mid-match, the menu is the only place to ask. The browser will not take
   // the request from anywhere but a gesture, and this button is one.
   const fs = fullscreen();
