@@ -163,6 +163,11 @@ export function SelectionPanel(props: {
         .sel-head .hp { font-size: 11.5px; color: #9b988d; }
         .sel-head .hp .num { min-width: 3ch; }
         .sel-head .hp .num.max { text-align: left; }
+        /* The control-group badge, quiet beside the name: it is the same
+           crumb the unit card carries, and the name is what the head is
+           for. Muted like the hp text rather than set in the name's own
+           13.5/600, which would read as a second title. */
+        .sel-head .note { font-size: 11.5px; color: #9b988d; }
 
         /* One reserved line. Whatever the building is doing right now
            goes on it, and the line is the same height whether that is
@@ -365,6 +370,15 @@ export function SelectionPanel(props: {
             <div class="hud-selection panel">
               <div class="sel-head">
                 <span class="name">{buildingName(b().type)}</span>
+                {/* The same feedback loop the unit card's badge is, for the
+                    half of the number row that opens a card: Ctrl+4 on the
+                    barracks changes nothing a player can see, so without
+                    this the stamp is a keypress into the void. Tested
+                    against null rather than truthiness — group 0 is a real
+                    group and a falsy number. */}
+                <Show when={selectionGroup() !== null}>
+                  <span class="note">group {selectionGroup()}</span>
+                </Show>
                 <span class="bar">
                   <span
                     style={{ width: `${Math.round((b().hp / Math.max(b().maxHp, 1)) * 100)}%` }}
