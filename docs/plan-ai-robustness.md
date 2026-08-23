@@ -146,12 +146,13 @@ own rule with its own trigger, so a seat takes only the ones it needs.
       which only counts tiles with amount left. Guarded twice — there must
       be a live deposit to move to, and the shelf must already hold the half
       the refund does not cover, or selling is just losing a building.
-- [ ] **Raise the survival floor's ceiling** — when pop is below
+- [x] **Raise the survival floor's ceiling** — when pop is below
       `survivalFloor` and silver is short, prioritise the cheapest path back
       to income over the build order entirely.
-      → **Not done, and not obviously needed.** Seeds 44 and 51 decide under
-      `--engine none` at both baselines, so this rule has no failing case to
-      be measured against. Left for whoever finds one.
+      → **Not done at the time**, for want of a failing case: seeds 44 and
+      51 decide under `--engine none` at both baselines. The case turned up
+      later, in a played replay rather than a sweep — see the correction of
+      2026-08-23 below.
 - [x] **Verify the escape valve still fires.** `mustersNeeded` already walks
       the attack bar down to `staleFloor: 3` after `staleAfter: 20_000` and
       to 1 after `forlornAfter: 30_000`. Seed 9 sat frozen for 80k ticks
@@ -358,7 +359,102 @@ author.
 - **Watchdog rules fight the playbook.** Every phase-1 rule overrides
   authored intent. Keep them stall-triggered only, so an unstalled seat is
   byte-identical to today — the same discipline `marchConfidence: 0` uses.
+  (Partly overtaken: two rules are gated on the seat's own hand count rather
+  than on `stalled` since 2026-08-23. The discipline is kept — a seat with
+  its people is still byte-identical — but the line is now "a village that
+  cannot move" instead of "a window that has not moved". See the correction
+  at the end.)
 - **Re-siting buildings touches the sim, not just the brain.** Demolition
   and refunds may not exist; check before designing around them.
 - **Search overfits.** See 3c. This is the failure most likely to produce a
   result that looks good and is not.
+
+---
+
+## Correction (2026-08-23): the watchdog is too slow to ever see this
+
+A four-player replay (seed 47786976, 37851 ticks) with three AI seats, all
+three of which died the same death — and not one recovery order sent in the
+whole match.
+
+The shape is the one this phase already named: the serf pool reaches zero,
+and a village with no loose hand cannot get one. Hauling, construction,
+staffing and the barracks recruit all want a serf; the only source of a serf
+is a hire; the hire is paid out of a storehouse that only a serf can reach.
+Seat 3 spends its last eleven thousand ticks with six residents standing at
+capped huts, fifty-four haul jobs open, five silver in the mine and one on
+the shelf.
+
+What is new is *why the rules never fired*. They are gated on `stalled`, and
+`AI_STALL` needs eight samples two thousand ticks apart with all four
+scalars unmoved — a floor of fourteen thousand ticks before the reading can
+turn, past a grace period of twenty thousand. Measured against the replay:
+
+| seat | serfs hit zero | earliest possible `stalled` | what actually happened |
+| --- | --- | --- | --- |
+| 1 (steward) | t=7245 | t=26000 | razed at t=25226 |
+| 2 (abbot) | t=7859 | — | razed at t=10619 |
+| 3 (warlord) | t=26584 | t=42000 | match ended at t=37851 |
+
+Worse, the event that empties the pool is a raid, and a raid moves `pop` and
+`built` for thousands of ticks afterwards — so the window is at its least
+flat exactly when the trap springs. A detector that can only confirm a dead
+village twelve minutes after the fact, on a village that rarely lives that
+long, is a detector that never fires.
+
+### What changed
+
+- **`freeCappedHauler` no longer waits on the watchdog.** Its own condition
+  is the stricter reading: hands under the playbook's `survivalFloor` beside
+  a post at its output cap. The gate moved off `stalled` and up from zero to
+  the floor — waiting for the *last* hand to be spent waits too long twice
+  over, since a village at one serf is one haul at a time.
+- **`handsBeforeSoldiers`**, a new rule: below the floor, the barracks
+  stands down. A knight is a serf plus a sword, so a warm queue is a
+  standing order against the one thing a raided village has none of — the
+  seat would hire a hand and hand it straight to the barracks. Halting
+  rather than cancelling keeps the queue, turns away the recruit already
+  walking, and stops the bread and weapon hauls competing for the few hands
+  left. It opens again the moment the pool is back.
+- **Hire money is not spent on research below the floor.** Every tech is
+  priced in silver and so is a hand; a seat three silver short of a hire
+  that spends three silver on a tech stays three short forever. Only when
+  there is a bed to hire into — silver held for a hire that cannot happen is
+  silver held for nothing.
+
+### Measured
+
+The campaign sweep, because it is the instrument with raids in it.
+`pnpm balance 32` over three seed ranges, 128 matches each:
+
+| range | before | after |
+| --- | --- | --- |
+| 101 | 105 | **109** |
+| 500 | 92 | **103** |
+| 900 | 82 | **93** |
+| total | 279 / 384 | **305 / 384** |
+
+Two of the three ranges were not tuned against, which is the bar
+`tools/aiLab/README.md` sets for this instrument. Nearly all of the gain is
+seats that used to be counted dead — fletcher, the deck's thin end, goes
+10/14/15 dead to 9/9/8.
+
+The AI-vs-AI guardrail (`--engine none --seeds 1-24`) holds: 0 undecided
+before and after, median 15517 → 15391 ticks. Recovery orders go from 0 to
+368 across the 48 matches, which is the finding restated — below the floor
+is a place seats visit constantly, and it used to cost them the game. The
+longest match grows (26896 → 37099): a seat that would have been a corpse
+now plays on.
+
+Against the replay itself, with a live brain taking seat 3 over at t=26600
+and the watchdog asleep the whole time: open jobs 54 → 9, storehouse total
+52 → 99, and a loose pool of two to four hands where there had been none.
+
+### What this does not fix
+
+The seat rebuilds slowly because its one or two hands take the haul board in
+priority order, and the silver evacuation that pays for the next hire is a
+priority-3 job among forty-seven others. Making a hire-critical good jump
+the queue is a logistics change, not a brain change — it moves the sim, and
+therefore `REPLAY_VERSION`. Left alone deliberately; the brain-side fix is
+what the failing case argued for.

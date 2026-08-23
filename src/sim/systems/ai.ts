@@ -650,9 +650,16 @@ export class AiBrain {
     }
 
     // --- Breaking the stall: the rules that cost something -------------------
-    // Only ever reached by a seat the window says has not moved in twelve
-    // minutes. Everything above this line is the game as it was played
-    // before the watchdog existed.
+    // Mostly reached only by a seat the window says has not moved in twelve
+    // minutes. `freeCappedHauler` is the exception now (and
+    // `resumeDrainedPost`, which has to be able to undo it), for the reason
+    // its own comment gives: a village short of hands beside a capped post
+    // is not an inference the watchdog has to draw, it is the dead end
+    // itself, and a seat is routinely razed or the match over before a
+    // fourteen-thousand-tick window can confirm what is already true.
+    // Everything above this line is still the game as it was played before
+    // the watchdog existed, and so is everything below it for a seat that
+    // has its people.
     const ruleCtx: RuleContext = {
       world,
       owner: this.playerId,
@@ -683,7 +690,21 @@ export class AiBrain {
       if (next && has('abbey')) {
         const cost = TECH_DEFS[next].cost as Record<string, number>;
         const ok = Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
-        if (ok) commands.push({ kind: 'research', tech: next });
+        // Hands first, when there are barely any. Every tech is priced in
+        // silver and so is a hire, and the panic branch above only fires on
+        // the beat the shelf already holds the four — so a seat rebuilding
+        // after a raid could spend its way past the hire forever, three
+        // silver at a time, and never notice. Below the floor a tech waits
+        // until the next hire is still affordable after it. Above the floor
+        // this is the reserve's job and the reserve keeps it: the guard
+        // cannot fire on a seat with its people. Nor on one with nowhere to
+        // put them — silver held back for a hire there is no bed for is
+        // silver held back for nothing, so a full village researches.
+        const leavesHireMoney =
+          serfCount >= s.survivalFloor ||
+          !room ||
+          (stock.silver ?? 0) - (cost.silver ?? 0) >= HIRE_SERF_COST;
+        if (ok && leavesHireMoney) commands.push({ kind: 'research', tech: next });
       }
     }
 

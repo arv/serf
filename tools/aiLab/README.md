@@ -455,6 +455,21 @@ while the source was being edited, and the harness spawns a process per match
 that reads the files at spawn time. The clean re-run differed by two recovery
 orders, which is exactly how a retracted finding starts.
 
+**Update (2026-08-23): the table above measures a gate that has since
+moved.** `freeCappedHauler` no longer waits on the stall watchdog, and it
+frees hands up to the playbook's `survivalFloor` rather than only at zero —
+a played replay turned up three seats that reached the dead end and none
+that lived the fourteen thousand flat ticks a `stalled` reading costs. A new
+rule, `handsBeforeSoldiers`, stands the barracks down over the same line, so
+a hand the seat hires is not spent on a recruit. The instrument that shows
+it is `pnpm balance` rather than this one, because the failure is a raid
+taking the hands and this sweep's undecided count was already zero: 279/384
+campaign wins before, 305/384 after, holding across three seed ranges. The
+guardrail here is unchanged at 0 undecided and a flat median, at 368
+recovery orders against 30 — which is the finding restated, since these
+rules used to be reachable only through the watchdog. Full write-up in
+`docs/plan-ai-robustness.md`.
+
 ## Playbook against playbook (2026-08-20, map 96, bandits on, seeds 1-80)
 
 The first sweeps the seating mirror made possible. Treat these as a

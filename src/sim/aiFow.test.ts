@@ -5,7 +5,7 @@ import { AiBrain, AI_INTEL, hostileNear, pickAttackTarget } from './systems/ai.t
 import { AI_STRATEGIES } from './defs/aiStrategies.ts';
 import { BANDIT } from './entities.ts';
 import { placeBuiltBuilding, spawnUnit } from './world.ts';
-import { addStorehouse, bareWorld } from './testUtils.ts';
+import { addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 import type { SimCommand } from './commands.ts';
 
 /**
@@ -15,6 +15,12 @@ import type { SimCommand } from './commands.ts';
  * with nothing on its map goes scouting rather than marching straight at
  * a camp nobody has found.
  */
+
+/** Enough loose serfs that the seat is not in the raid-recovery band —
+ * every playbook's `survivalFloor` is 3. */
+function hands(world: ReturnType<typeof bareWorld>): void {
+  for (let i = 0; i < 3; i++) addSerf(world, 31 + i, 31);
+}
 
 /** The campaign fixture: a castle, a muster of knights beside it, and a
  * bandit camp in the far corner nobody has been to. */
@@ -125,6 +131,11 @@ describe('the AI under fog of war', () => {
     // and the barracks trains the knight the sword in stock can arm.
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, { sword: 1, spear: 1 });
+    // Hands in the village, because that is what these fixtures mean by a
+    // seat with a barracks: below the survival floor `handsBeforeSoldiers`
+    // stands the barracks down, and a queue rule cannot be read through a
+    // hold that is doing its job.
+    hands(world);
     world.players[0]!.techs.researched.push('soldiery', 'ironworking');
     placeBuiltBuilding(world, 'barracks', 0, 34, 34);
     placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);
@@ -145,6 +156,7 @@ describe('the AI under fog of war', () => {
     // on bows and the barracks trains the archer it can actually arm.
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, { bow: 2 });
+    hands(world);
     world.players[0]!.techs.researched.push('soldiery', 'archery');
     placeBuiltBuilding(world, 'barracks', 0, 34, 34);
     placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);
@@ -168,6 +180,7 @@ describe('the AI under fog of war', () => {
     // research. The slot goes to the knight, which this seat can train.
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, {}); // no weapon anywhere: the fallback path
+    hands(world);
     world.players[0]!.techs.researched.push('soldiery', 'ironworking');
     placeBuiltBuilding(world, 'barracks', 0, 34, 34);
     world.tick = 1000;
@@ -183,6 +196,7 @@ describe('the AI under fog of war', () => {
     // an armed order the sim refuses fills no queue either.
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, { bow: 4 });
+    hands(world);
     world.players[0]!.techs.researched.push('soldiery', 'ironworking');
     placeBuiltBuilding(world, 'barracks', 0, 34, 34);
     world.tick = 1000;

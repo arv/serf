@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createWorld, type World, type WorldConfig } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
 import { AI_PACING, AI_STALL, AiBrain, LEVY_HOLD } from './systems/ai.ts';
+import { HIRE_SERF_COST } from './defs/balance.ts';
 import { AiSeats } from './aiSeats.ts';
 import { strategyOf, type AiStrategy } from './defs/aiStrategies.ts';
 import { checkInvariants } from './debug/invariants.ts';
@@ -10,7 +11,14 @@ import { placeBuiltBuilding, spawnUnit } from './world.ts';
 import { BUILDING_DEFS, OUTPUT_CAP } from './defs/buildings.ts';
 import { tileIdx } from '../shared/grid.ts';
 import { BANDIT, type Building } from './entities.ts';
-import { addBuiltHut, addResourceTile, addStorehouse, bareWorld, cmds } from './testUtils.ts';
+import {
+  addBuiltHut,
+  addResourceTile,
+  addSerf,
+  addStorehouse,
+  bareWorld,
+  cmds,
+} from './testUtils.ts';
 import type { SimCommand } from './commands.ts';
 
 function digest(world: World): unknown {
@@ -275,10 +283,14 @@ describe('the stall watchdog', () => {
     expect(brain.stallReport().beats).toBeGreaterThan(0);
   });
 
-  it('buys a hauler with a post nobody is using', () => {
+  it('buys a hauler with a post nobody is using, without waiting for the window', () => {
     const { world, brain, hut } = frozenVillage();
-    beatUntil(brain, world, AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100);
-    const commands = beatUntil(brain, world, world.tick + AI_PACING.decisionInterval * 2);
+    // The first beat, not the one fourteen thousand ticks later. Zero loose
+    // hands beside a capped post is the dead end itself rather than evidence
+    // of one — the replay this was re-cut from has three seats reach it and
+    // none of them live long enough for the watchdog to agree.
+    const commands = beatUntil(brain, world, AI_PACING.decisionInterval * 2);
+    expect(brain.stallReport().stalled).toBe(false);
     // The hut is capped, so its resident is producing nothing at all. He is
     // worth more carrying the pile to the storehouse than standing beside it,
     // and halting the hut is what hands him back.
@@ -288,6 +300,20 @@ describe('the stall watchdog', () => {
       paused: true,
     });
     expect(brain.stallReport().recoveries).toBeGreaterThan(0);
+  });
+
+  it('leaves the post alone once the pool is back over the floor', () => {
+    // The guard that keeps this off every healthy seat: hands enough to
+    // work with and the capped hut is somebody's next errand, not a village
+    // to break up.
+    const { world, brain, hut } = frozenVillage();
+    for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor; i++) addSerf(world, 31 + i, 31);
+    const commands = beatUntil(brain, world, AI_PACING.decisionInterval * 2);
+    expect(commands).not.toContainEqual({
+      kind: 'setBuildingPaused',
+      buildingId: hut.id,
+      paused: true,
+    });
   });
 
   it('starts the halted post again once its pile has shipped', () => {
@@ -428,4 +454,116 @@ describe('the stall watchdog', () => {
     const config: WorldConfig = { seed: 7, players: [{ kind: 'human' }, { kind: 'ai' }] };
     expect(digest(runWithBrains(config, 40_000))).toEqual(digest(runWithBrains(config, 40_000)));
   }, 240_000);
+});
+
+/**
+ * Rebuilding after a raid.
+ *
+ * A raid that takes the hands rather than the buildings leaves a seat that
+ * looks alive and is not: every post staffed, every gatherer capped, and
+ * nobody left to carry anything. The village cannot buy its way out either,
+ * because the silver that pays for a hire is in a mine only a serf can
+ * empty. What is covered here is the seat spending its way back — the hand
+ * it frees, the hand it refuses to spend, and the silver it keeps for the
+ * next one.
+ */
+describe('a village that lost its hands', () => {
+  /** A seat with a barracks and no loose serfs — a raid's aftermath, with
+   * the post that would eat the next hand still taking orders. */
+  function raidedVillage(): { world: World; brain: AiBrain; barracks: Building } {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 36);
+    return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size), barracks };
+  }
+
+  function beat(brain: AiBrain, world: World): SimCommand[] {
+    world.tick += AI_PACING.decisionInterval;
+    return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+  }
+
+  it('stands the barracks down while the pool is below the survival floor', () => {
+    const { world, brain, barracks } = raidedVillage();
+    expect(beat(brain, world)).toContainEqual({
+      kind: 'setBuildingPaused',
+      buildingId: barracks.id,
+      paused: true,
+    });
+  });
+
+  it('spends no hand on a soldier while it is short of hands', () => {
+    // The trade the hold exists for: a knight is a serf plus a sword, so a
+    // warm queue is a standing order against the one thing the village has
+    // none of. Paired on purpose — the same seat, the same beat, one serf
+    // either side of the floor.
+    const { world, brain, barracks } = raidedVillage();
+    for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor; i++) addSerf(world, 31 + i, 31);
+    expect(beat(brain, world).filter((c) => c.kind === 'trainUnit')).not.toEqual([]);
+
+    const raided = raidedVillage();
+    for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor - 1; i++) addSerf(raided.world, 31 + i, 31);
+    const held = beat(raided.brain, raided.world);
+    expect(held.filter((c) => c.kind === 'trainUnit')).toEqual([]);
+    expect(held).toContainEqual({
+      kind: 'setBuildingPaused',
+      buildingId: raided.barracks.id,
+      paused: true,
+    });
+  });
+
+  it('opens the barracks again the moment the pool is back', () => {
+    // Borrowed, not given away: a hold that outlives its reason is an army
+    // the seat never builds.
+    const { world, brain, barracks } = raidedVillage();
+    barracks.paused = true;
+    for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor; i++) addSerf(world, 31 + i, 31);
+    expect(beat(brain, world)).toContainEqual({
+      kind: 'setBuildingPaused',
+      buildingId: barracks.id,
+      paused: false,
+    });
+  });
+
+  it('keeps the hire money back from a tech while it is short of hands', () => {
+    // Every tech is priced in silver and so is a hand. A seat three silver
+    // short of a hire that spends three silver on research is a seat that
+    // stays three short forever.
+    const world = bareWorld();
+    const shelf = addStorehouse(world, 30, 30, { silver: HIRE_SERF_COST + 1, wheat: 20 });
+    placeBuiltBuilding(world, 'abbey', 0, 36, 36);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    // Soldiery costs 6 silver: affordable, but not while a hire has to
+    // survive it. (The hire itself goes out on the same beat.)
+    expect(beat(brain, world).filter((c) => c.kind === 'research')).toEqual([]);
+
+    // With the hand already back, the playbook's own reserve takes over and
+    // the queue runs as it always did.
+    for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor; i++) addSerf(world, 31 + i, 31);
+    shelf.stock.silver = 40;
+    expect(beat(brain, world).filter((c) => c.kind === 'research')).not.toEqual([]);
+  });
+
+  it('actually unfreezes: the pile moves and a hand comes back', () => {
+    // End to end, against the sim rather than the command list — the shape
+    // a four-player replay (seed 47786976) froze in for eleven thousand
+    // ticks: a capped hut, a resident standing beside it, and not one loose
+    // serf in the village.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    addResourceTile(world, 40, 41);
+    const hut = addBuiltHut(world, 40, 40);
+    hut.stock = { wood: OUTPUT_CAP };
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    let sawSerf = false;
+    for (let t = 0; t < 3000; t++) {
+      const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+      tickWorld(
+        world,
+        commands.map((cmd) => ({ playerId: 0, cmd })),
+      );
+      sawSerf ||= [...world.units.values()].some((u) => !u.dead && u.kind === 'serf');
+    }
+    expect(sawSerf).toBe(true);
+    expect(hut.stock.wood ?? 0).toBeLessThan(OUTPUT_CAP);
+  });
 });

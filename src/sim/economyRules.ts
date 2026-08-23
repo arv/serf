@@ -64,6 +64,7 @@ export type EconomyRuleId =
   | 'resumeDrainedPost'
   | 'keepTheToolsComing'
   | 'forgeTheCounter'
+  | 'handsBeforeSoldiers'
   | 'keepTheQueueWarm';
 
 /**
@@ -201,6 +202,40 @@ const resiteExtractor: EconomyRule = {
  * Only a worker reading idle is taken. A hand released mid-trip used to be
  * lost for good; `unbindWorker` resets the task now, but a rule whose whole
  * purpose is producing a hauler should not lean on that.
+ *
+ * The one rule in this file that does NOT wait on the stall watchdog, and
+ * the reason is that its own condition is a stricter reading than the
+ * window's. `stalled` is an inference — four scalars that have not moved —
+ * and it costs eight samples two thousand ticks apart to draw, so the
+ * earliest it can be believed is fourteen thousand ticks after the village
+ * stopped. A village short of hands beside a post at its cap is not an
+ * inference at all: hauling, construction, staffing and the barracks all
+ * want a serf, the only source of one is a hire paid out of a storehouse
+ * only a serf can reach, and nothing in the sim breaks that circle. At zero
+ * hands the village is already dead when this reads true, so waiting a
+ * further twelve minutes to confirm it only decides how much of the match
+ * the corpse sits through — a four-player replay (seed 47786976) has all
+ * three AI seats reach zero serfs and none of them survive to the reading:
+ * two are razed before the window fills and the third runs out of match
+ * with four thousand ticks still to go. Not one recovery order was sent in
+ * thirty-seven thousand ticks.
+ *
+ * The line is the playbook's `survivalFloor` rather than zero, which is the
+ * same line the panic hire draws and the same one `handsBeforeSoldiers`
+ * holds the barracks at. Waiting for the last hand to be spent is waiting
+ * too long twice over: one serf is one haul at a time, so a village at one
+ * crawls out of a raid over tens of thousands of ticks if it crawls out at
+ * all, and every post it frees on the way is a post that was producing
+ * nothing anyway — the buffer is full, which is precisely why its resident
+ * is standing idle. The trade is temporary in both directions:
+ * `resumeDrainedPost` starts each place again the moment its pile has
+ * shipped, and the rule goes quiet as soon as the pool is back over the
+ * floor.
+ *
+ * A healthy seat is untouched all the same, because `serfCount` counts
+ * serfs that EXIST rather than serfs standing idle: a village whose whole
+ * pool is out on hauls reads far above the floor, and one that reads under
+ * it has next to nothing to dispatch either way.
  */
 /*
  * The rule that carries the result. Ablated over seeds 1-80: alone it fires
@@ -208,14 +243,24 @@ const resiteExtractor: EconomyRule = {
  * matches to none, with the longest match dropping off the 120k horizon to
  * 72986 ticks. The binding constraint on a stalled village was never dead
  * ground — it was having no hand free to carry anything.
+ *
+ * Re-measured when the gate moved off the watchdog and up to the survival
+ * floor (2026-08-23), on the campaign sweep because that is the instrument
+ * with raids in it: `pnpm balance 32` over three seed ranges, 128 matches
+ * each, 279/384 wins before and 305/384 after — +4, +11 and +11, holding on
+ * two ranges it was not tuned against. Nearly all of it is seats that used
+ * to be counted dead. The AI-vs-AI guardrail (`--engine none --seeds 1-24`)
+ * keeps 0 undecided and a flat median, at 368 recovery orders against the
+ * old 0: below the floor is a place seats visit often, and it used to cost
+ * them the game.
  */
 const freeCappedHauler: EconomyRule = {
   id: 'freeCappedHauler',
-  when: 'the village has no loose hand and a post is sitting at its output cap',
+  when: 'the village is short of hands and a post is sitting at its output cap',
   phase: 'recovery',
   group: 'stallRecovery',
   fire(ctx) {
-    if (!ctx.stalled || ctx.serfCount > 0) return null;
+    if (ctx.serfCount >= ctx.strategy.survivalFloor) return null;
     for (const b of ctx.mine) {
       if (b.state !== 'built' || b.paused || b.workerId === undefined) continue;
       const out = gatherRecipeOf(BUILDING_DEFS[b.type as BuildingTypeId])?.output;
@@ -380,6 +425,67 @@ const forgeTheCounter: EconomyRule = {
 };
 
 /**
+ * Hands before soldiers: hold the barracks while the village is short of
+ * serfs, and open it again the moment the pool is back.
+ *
+ * A knight is a serf plus a sword. That is the whole of it: `staffing.ts`
+ * consumes an arriving serf as each recruit, so a barracks with a warm
+ * queue and its ingredients on the shelf is a standing order against the
+ * one resource a raided village cannot replace quickly. A seat that has
+ * just lost its hands to a raid will therefore spend the next one it hires
+ * on a soldier, and be back where it started — the silver gone, the haul
+ * board still frozen, and one more body walking the map instead of carrying
+ * anything.
+ *
+ * `survivalFloor` is the same line the panic hire draws (`systems/ai.ts`),
+ * and drawing it twice is the point: below it the seat pays for hands and
+ * refuses to spend them, which is one policy rather than two halves that
+ * cancel out. Above it the rule is silent, so every seat that is not in
+ * trouble plays exactly the game it played before.
+ *
+ * Halting rather than cancelling, for three reasons. The queue survives —
+ * an order stands until its batch lands, so the seat resumes the army it
+ * had planned rather than re-deciding it. A halted barracks recruits
+ * nobody, and turns away the recruit already walking to its door
+ * (`staffing.ts`), which is the hand this rule is actually trying to save.
+ * And it stops calling for bread and weapons (`systems/logistics.ts`), so
+ * the few hauls the village can still crew go to the storehouse — where
+ * hire silver has to land — instead of to a barracks that cannot train.
+ *
+ * Claims what it holds, so `keepTheQueueWarm` below cannot deepen a queue
+ * this rule is standing down in the same beat.
+ */
+const handsBeforeSoldiers: EconomyRule = {
+  id: 'handsBeforeSoldiers',
+  when: 'the raid took the hands: the barracks waits until the village has serfs again',
+  phase: 'production',
+  fire(ctx) {
+    const commands: SimCommand[] = [];
+    const claims: EntityId[] = [];
+    const short = ctx.serfCount < ctx.strategy.survivalFloor;
+    for (const b of ctx.mine) {
+      if (b.state !== 'built' || BUILDING_DEFS[b.type as BuildingTypeId].trains === undefined) {
+        continue;
+      }
+      const halted = b.paused === true;
+      // A barracks already running in a village that is not short is not
+      // this rule's business, and claiming it would be the bug: a claim
+      // lasts one beat, so an unconditional one would silence
+      // `keepTheQueueWarm` for the whole match.
+      if (!short && !halted) continue;
+      if (short !== halted) {
+        commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: short });
+      }
+      // Claimed on every beat the hold stands, order or no order: the pause
+      // is sent once and the claim is what keeps the queue from being
+      // refilled behind it on all the beats after.
+      claims.push(b.id);
+    }
+    return commands.length > 0 || claims.length > 0 ? { commands, claims } : null;
+  },
+};
+
+/**
  * Keep the barracks queue warm, and unjam it when it sticks.
  *
  * The counter unit jumps the queue when its weapon is at hand — `around` is
@@ -473,6 +579,7 @@ export const ECONOMY_RULES: readonly EconomyRule[] = [
   resumeDrainedPost,
   keepTheToolsComing,
   forgeTheCounter,
+  handsBeforeSoldiers,
   keepTheQueueWarm,
 ];
 
