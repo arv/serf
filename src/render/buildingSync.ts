@@ -919,7 +919,7 @@ export class BuildingSync {
     // hands its lane back for the next arrival to claim.
     const lanes = v.pileLanes;
     const present = new Set(shown.map(([g]) => g));
-    for (const g of [...lanes.keys()]) if (!present.has(g)) lanes.delete(g);
+    for (const g of lanes.keys()) if (!present.has(g)) lanes.delete(g);
     const taken = new Set(lanes.values());
     for (const [g] of shown) {
       if (lanes.has(g)) continue;
