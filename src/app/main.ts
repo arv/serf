@@ -1087,6 +1087,9 @@ async function runMatch(
     renderer.rig,
   );
   teardown.push(() => controls.dispose());
+  // Picking asks the renderer how tall each building is drawn, so a click
+  // on a keep's towers selects the keep instead of reading through it.
+  controls.setBuildingHeights(buildingSync);
   // Placement consults the fog: unscouted ground is not buildable, which is
   // what stops the build ghost being used to probe the dark.
   controls.setFog(fog);

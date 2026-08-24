@@ -96,6 +96,10 @@ function post(x: number, z: number, h: number): THREE.Mesh {
   return p;
 }
 
+/** Corner-post height of a construction frame, in world units — the top of
+ * a fresh site, before the building itself has risen past it. */
+export const SITE_FRAME_H = 0.7;
+
 /** Construction-site frame: corner posts + ground sill, Settlers-style. */
 export function makeSiteFrame(w: number, h: number): THREE.Group {
   const g = new THREE.Group();
@@ -103,7 +107,7 @@ export function makeSiteFrame(w: number, h: number): THREE.Group {
   const hh = h / 2 - 0.15;
   for (const sx of [-hw, hw]) {
     for (const sz of [-hh, hh]) {
-      g.add(post(sx, sz, 0.7));
+      g.add(post(sx, sz, SITE_FRAME_H));
     }
   }
   const sillNS = new THREE.BoxGeometry(w - 0.2, 0.08, 0.08);

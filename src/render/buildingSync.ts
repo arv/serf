@@ -5,6 +5,7 @@ import {
   makeSiteFrame,
   PILE_SCALE,
   makeRoadPile,
+  SITE_FRAME_H,
 } from './models';
 import { glbYardProp, glbYardRock, makeGlbBuilding } from './assets';
 import { makeCharacter, playAnimation, type CharacterVisual } from './characters';
@@ -41,6 +42,13 @@ export interface PierInfo {
  * submerged rather than breaking the surface. */
 const SHOAL_DRAFT = 0.14;
 
+/**
+ * The scale a ghost site starts at, when there is no GLB to clip and the
+ * building grows out of the ground instead. Its drawn height is this share
+ * of the model's own, which is what makes heightOf's arithmetic work.
+ */
+const GHOST_SEED_SCALE = 0.22;
+
 /** UNIT_DEFS.archer.kindCode — who mans a guard tower's roof. */
 const ARCHER_KIND = UNIT_DEFS.archer.kindCode;
 /** The levy on the roof wears the serf it is. */
@@ -75,6 +83,12 @@ interface BuildingVisual {
   clip?: { plane: THREE.Plane; height: number; baseY: number };
   /** Model height above ground, for floating the hp bar. */
   topY: number;
+  /**
+   * A road: flat ground once it is laid, and a thing units walk along
+   * rather than a thing anyone clicks. Its scaffolding is not worth a pick
+   * box — see heightOf.
+   */
+  road: boolean;
   /** Latest hp fraction, for hover bars on healthy buildings. */
   pct: number;
   /** Physical stock piles against the front wall. */
@@ -234,6 +248,16 @@ export class BuildingSync {
   /** Fog test; enemy buildings hide until their ground has been explored. */
   #fog: FogQuery | null = null;
   /**
+   * Highest roofline raised so far, as an absolute elevation — where the
+   * pointer's pick walk gives up (see screenToBuilding). Absolute, because
+   * a keep on a ridge reaches higher over a valley than its own height says.
+   * A high-water mark: it grows with the settlement and never shrinks,
+   * because a razed keep only costs the walk a couple of probes through
+   * empty air, where re-scanning every visual to reclaim them would cost
+   * more, every raze.
+   */
+  #ceiling = Number.NEGATIVE_INFINITY;
+  /**
    * Presentation cue channel, injected from main. Every call is guarded
    * on `v.root.visible`: unlike sceneSync, this loop does NOT skip fogged
    * buildings (they stay in the scene, merely invisible), so an unguarded
@@ -244,6 +268,42 @@ export class BuildingSync {
 
   setFog(fog: FogQuery): void {
     this.#fog = fog;
+  }
+
+  /**
+   * How tall this building stands right now, in world units above its own
+   * base — what the pointer picks against, so that clicking a castle's
+   * towers picks the castle rather than reading through it to the ground
+   * behind. A site answers with what it has raised so far, not with the
+   * building it will be: half a keep is half a keep to the eye, and to the
+   * pointer. Its frame counts too, and early on it is all there is —
+   * scaffolding you can see is scaffolding you can click.
+   */
+  heightOf(id: number): number {
+    const v = this.#visuals.get(id);
+    if (!v) return 0;
+    // A road is ground. Its site frame stands 0.7 up for the twenty ticks
+    // it takes to lay, and roads are laid in long chains along the very
+    // ground people order units down — a pick box on each would hang a
+    // wall of them over the route. Nobody means to click a road anyway.
+    if (v.road) return 0;
+    if (v.state !== 'site') return v.topY;
+    const raised = v.clip
+      ? Math.max(0, v.clip.plane.constant - v.clip.baseY)
+      : // The ghost site grows by scale rather than by clip, and topY was
+        // measured at the seed scale — read the drawn height back off it.
+        (v.topY * v.model.scale.y) / GHOST_SEED_SCALE;
+    return Math.max(SITE_FRAME_H, raised);
+  }
+
+  /** The elevation this building stands on — see BuildingHeights.baseOf. */
+  baseOf(id: number): number {
+    return this.#visuals.get(id)?.root.position.y ?? 0;
+  }
+
+  /** The highest roofline standing — see #ceiling. */
+  ceiling(): number {
+    return this.#ceiling;
   }
 
   constructor(scene: THREE.Scene, heights: HeightField, owner = 0) {
@@ -280,7 +340,7 @@ export class BuildingSync {
           // fresh sites read as more than an empty frame.
           v.clip.plane.constant = v.clip.baseY + 0.08 + v.clip.height * p;
         } else {
-          v.model.scale.setScalar(0.22 + 0.78 * p);
+          v.model.scale.setScalar(GHOST_SEED_SCALE + (1 - GHOST_SEED_SCALE) * p);
         }
       }
 
@@ -402,7 +462,7 @@ export class BuildingSync {
         // renders them hammering like any other unit.
       } else {
         model = makeGhostModel(b.type);
-        model.scale.setScalar(0.22);
+        model.scale.setScalar(GHOST_SEED_SCALE);
         root.add(model);
       }
     } else {
@@ -426,6 +486,17 @@ export class BuildingSync {
     if (shoal) shoal.position.y = (WATER_LEVEL - SHOAL_DRAFT - root.position.y) / model.scale.y;
 
     const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
+    // Where this building's roof will reach when it is finished, which is
+    // what the pick walk wants as its ceiling: a site's finished height
+    // (topY is already that for a clipped one, and the seed scale away from
+    // it for a ghost), never less than the frame it stands in while it gets
+    // there, and all of it over the ground this one stands on.
+    const road = buildingDef(b.type).isRoad === true;
+    const finished =
+      b.state === 'site'
+        ? Math.max(SITE_FRAME_H, clip ? topY : topY / GHOST_SEED_SCALE)
+        : topY;
+    if (!road) this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
     this.#scene.add(root);
     return {
       root,
@@ -434,6 +505,7 @@ export class BuildingSync {
       model,
       clip,
       topY,
+      road,
       pct: 1,
       pileKey: '',
       crank: model.getObjectByName('wellCrank') ?? undefined,
