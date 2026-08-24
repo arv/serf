@@ -2061,6 +2061,11 @@ export function Hud(props: {
                 its copy — but only for a decided match, which this card
                 is the proof of. */}
             <button onClick={() => props.onSaveReplay()}>Save replay</button>
+            {/* The way out. No confirmation: the match is decided, so
+                there is nothing left to abandon — the only thing this
+                card holds that the menu doesn't is the unsaved replay,
+                and its button sits right here. */}
+            <button onClick={() => goto(location.pathname)}>Quit to menu</button>
           </div>
         </div>
       </Show>
