@@ -178,19 +178,9 @@ const GLB_PROP_FILES = [
 // the woodcutter's baked lumber pile read as planks that were never
 // hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
-  // The bakehouse carries its own oven, counter and firewood (see
-  // procBuildings), so all the yard needs is the two things the recipe
-  // takes in: flour from the mill and water from the well.
-  bakery: [
-    { prop: 'sack', at: [-0.38, 0.46], size: 0.085, rot: 0.5 },
-    { prop: 'bucket_water', at: [-0.12, 0.43], size: 0.07, rot: -0.4 },
-    // The oven's firewood. It used to be six hand-rolled cylinders stacked
-    // against the wall, which from the camera's angle read as a bunch of
-    // dark circles half-buried in the corner block beside them. The pack
-    // ships a log pile — the same one the woodcutter's yard stock and a
-    // serf's shoulder load are made of — so use that and stand it clear.
-    { prop: 'resource_lumber', at: [0.42, -0.06], size: 0.11 },
-  ],
+  // No bakery entry: it dresses its own yard from procBuildings — hearth
+  // apron, arch, loaves — and a sack, a bucket and a log pile round its
+  // feet on top of that were clutter, not story.
   mill: [{ prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5 }],
   fishery: [
     // The pier runs out of the front face, so the building's facing carries
