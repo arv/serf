@@ -1426,6 +1426,22 @@ export function StartMenu(props: StartMenuProps) {
               </svg>
               Map editor
             </button>
+            {/* The field guide is a place to read rather than a way into a
+                match, so it sits at the end of the shelf row. A path, not a
+                query param — it is the one screen worth linking to. */}
+            <button
+              title="Every building, unit, good and research, cross-referenced"
+              onClick={() => {
+                releaseMenuBackdrop();
+                goto('/docs');
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 4.5A1.5 1.5 0 0 1 4.5 3H9a3 3 0 0 1 3 3v14a2.5 2.5 0 0 0-2.5-2.5H3z" />
+                <path d="M21 4.5A1.5 1.5 0 0 0 19.5 3H15a3 3 0 0 0-3 3v14a2.5 2.5 0 0 1 2.5-2.5H21z" />
+              </svg>
+              Field guide
+            </button>
           </div>
         </div>
 
