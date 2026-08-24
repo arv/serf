@@ -59,8 +59,9 @@ import {
   type BuildingHeights,
   type BuildingProbe,
 } from './picking';
-import { keyDigit, matchingGroup } from './groups';
+import { groupEmpty, keyDigit, matchingGroup } from './groups';
 import { foreignChord, typingInto } from './typing';
+import type { ControlGroup } from './groups';
 import type { SceneSync } from '../render/sceneSync';
 import type { GhostPlacement } from '../render/ghost';
 import type { FogQuery } from '../render/fogOfWar';
@@ -134,9 +135,12 @@ const MILITARY_CODES = new Set(
  * placement and with each other, and Esc unwinds them one at a time.
  *
  * The number row is StarCraft's ten control groups (#controlGroup): Ctrl+N
- * stamps, Shift+N adds, N calls back, N twice rides the camera out. They
- * are the one binding here that is not a mode at all — no click is claimed,
- * nothing has to be unwound, and Esc has no business with them.
+ * stamps, Shift+N adds, N calls back, N twice rides the camera out. What is
+ * stamped is whatever is selected, so a number holds either a band of
+ * people or one of your buildings — a barracks on 4 means 4 opens its card
+ * from anywhere, which is how a soldier gets hired without the trip back.
+ * They are the one binding here that is not a mode at all — no click is
+ * claimed, nothing has to be unwound, and Esc has no business with them.
  *
  * Touch speaks selection-first, like every phone RTS: tap a unit to select,
  * then tap the ground to send the selection there as a half attack-move —
@@ -176,14 +180,15 @@ export class Controls {
   #selection = new Set<number>();
   /**
    * Control groups, bound the way both StarCrafts bind them: digit → the
-   * unit ids stamped onto it.
+   * unit ids stamped onto it, or the one building (see ControlGroup).
    *
    * They live here beside the selection rather than in the store because
    * they are lists of ids and ids die: prune() already weeds the dead out
-   * of the selection every frame, and a group is exactly the same problem.
+   * of the selection every frame, and a group is exactly the same problem —
+   * a razed barracks as much as a fallen knight.
    * The HUD gets the one crumb it needs (selectionGroup) pushed to it.
    */
-  #groups = new Map<number, Set<number>>();
+  #groups = new Map<number, ControlGroup>();
   /** The last group number called back, for the second press that rides
    * the camera out to it instead of re-selecting what is already selected. */
   #lastRecall: { digit: number; time: number } | null = null;
@@ -652,10 +657,21 @@ export class Controls {
     // knights who fell three minutes ago, and the camera it rides out to
     // is aimed at wherever they last stood.
     let groupsChanged = false;
-    for (const group of this.#groups.values()) {
-      for (const id of group) {
+    for (const [digit, group] of this.#groups) {
+      if (group.kind === 'building') {
+        // A razed (or sold) building is the same problem one entry wide,
+        // and the number goes with it: an empty unit group can still be
+        // grown by a Shift press, but a building group has nothing left to
+        // be, so it is dropped whole and the number falls free again.
+        if (!this.#mirror.buildings.has(group.id)) {
+          this.#groups.delete(digit);
+          groupsChanged = true;
+        }
+        continue;
+      }
+      for (const id of group.ids) {
         if (!this.#sync.latestIds.has(id) || this.#sync.isDead(id)) {
-          group.delete(id);
+          group.ids.delete(id);
           groupsChanged = true;
         }
       }
@@ -1049,7 +1065,7 @@ export class Controls {
     // click radius is generous), and coming back without it would be the
     // gesture failing at the very unit it was aimed at.
     sel.add(unitId);
-    setSelectedBuilding(null);
+    this.#setBuilding(null);
     this.#setSel(sel);
   }
 
@@ -1083,7 +1099,7 @@ export class Controls {
         this.#selectSameKind(unitId, false);
         return;
       }
-      setSelectedBuilding(null);
+      this.#setBuilding(null);
       this.#setSel(new Set([unitId]));
       return;
     }
@@ -1091,7 +1107,7 @@ export class Controls {
     if (building) {
       this.#lastMoveTap = null;
       this.#setSel(new Set());
-      setSelectedBuilding(building);
+      this.#setBuilding(building);
       return;
     }
     if (this.#selection.size > 0) {
@@ -1265,11 +1281,11 @@ export class Controls {
       const snap = this.#ownBuildingAt(px, py);
       if (snap) {
         this.#setSel(new Set());
-        setSelectedBuilding(snap);
+        this.#setBuilding(snap);
         return;
       }
     }
-    setSelectedBuilding(null);
+    this.#setBuilding(null);
     const sel = additive ? new Set(this.#selection) : new Set<number>();
     if (bestId >= 0) {
       if (additive && sel.has(bestId)) sel.delete(bestId);
@@ -1303,7 +1319,7 @@ export class Controls {
         sel.add(id);
       }
     }
-    setSelectedBuilding(null);
+    this.#setBuilding(null);
     this.#setSel(sel);
   }
 
@@ -1320,51 +1336,116 @@ export class Controls {
    *   the half of this binding that makes it a two-front game rather than a
    *   selection shortcut.
    *
+   * What is stamped is whatever is selected, and that is either people or
+   * one of your buildings. A building on a number is the economy's half of
+   * this binding: Ctrl+4 on the barracks, and 4 opens its card from
+   * anywhere, so hiring a soldier costs a keypress instead of a trip back
+   * across the map — and 4 twice brings the camera along when the trip is
+   * the point. The castle, the smithy and the storehouse all earn a number
+   * the same way.
+   *
    * A group is a list of ids, not a snapshot of a squad, and prune() weeds
-   * the dead out of every group each frame. So a group that lost half its
-   * soldiers calls back the half that lived, and one that lost all of them
+   * the dead out of every group each frame — razed buildings as much as
+   * fallen soldiers. So a group that lost half its soldiers calls back the
+   * half that lived, and one that lost all of them (or the barracks it was)
    * refuses out loud rather than answering with an empty selection — losing
    * the squad you still had selected is the worse of the two failures.
    */
   #controlGroup(digit: number, assign: boolean, add: boolean): void {
-    if (assign || add) {
-      // Nothing to stamp. Refuse rather than write the empty set: Ctrl+1
-      // pressed a moment after the squad was wiped (or after a stray click
-      // on empty ground) would otherwise quietly throw away the group it
-      // was meant to confirm.
-      if (this.#selection.size === 0) {
+    if (assign || add) this.#stampGroup(digit, assign);
+    else this.#recallGroup(digit);
+  }
+
+  /** Ctrl+N and Shift+N: put the standing selection on this number. */
+  #stampGroup(digit: number, assign: boolean): void {
+    const held = this.#groups.get(digit);
+    // Shift is the half of this binding that has never destroyed a group,
+    // and a building is no reason to start: a number holding people is not
+    // somewhere Shift may put a barracks, and a number holding a barracks
+    // is not somewhere it may add a soldier — there is nothing to add to,
+    // since a building group is the one building. So Shift takes a free
+    // number and refuses a taken one; Ctrl is how a group is overwritten,
+    // here as anywhere. A group emptied by casualties counts as free.
+    const building = selectedBuilding();
+    if (building) {
+      const already = held?.kind === 'building' && held.id === building.id;
+      if (!assign && !already && !groupEmpty(held)) {
         play('uiRefused');
         return;
       }
-      const group = assign ? new Set<number>() : (this.#groups.get(digit) ?? new Set<number>());
-      for (const id of this.#selection) group.add(id);
-      this.#groups.set(digit, group);
+      this.#groups.set(digit, { kind: 'building', id: building.id });
       play('uiClick');
-      // The badge on the selection card is the only thing on screen that
-      // says the stamp took, so it has to be republished here: neither
-      // spelling of this changed the selection itself.
+      // The badge on the card is the only thing on screen that says the
+      // stamp took, so it has to be republished here: neither spelling of
+      // this changed the selection itself.
       this.#publishGroup();
       return;
     }
-
-    const group = this.#groups.get(digit);
-    if (!group || group.size === 0) {
+    // Nothing to stamp. Refuse rather than write the empty set: Ctrl+1
+    // pressed a moment after the squad was wiped (or after a stray click
+    // on empty ground) would otherwise quietly throw away the group it
+    // was meant to confirm.
+    if (this.#selection.size === 0) {
       play('uiRefused');
+      return;
+    }
+    if (!assign && held?.kind === 'building') {
+      play('uiRefused');
+      return;
+    }
+    const ids = assign || held?.kind !== 'units' ? new Set<number>() : held.ids;
+    for (const id of this.#selection) ids.add(id);
+    this.#groups.set(digit, { kind: 'units', ids });
+    play('uiClick');
+    this.#publishGroup();
+  }
+
+  /** N: call this number back — and the second press rides out to it. */
+  #recallGroup(digit: number): void {
+    const group = this.#groups.get(digit);
+    if (!group || groupEmpty(group)) {
+      play('uiRefused');
+      return;
+    }
+    // A razed (or sold) building, caught in the narrow window before
+    // prune() gets to its group: still a refusal, not a card opened onto a
+    // stale snapshot. The press is not remembered either — a refusal is not
+    // a first press, and recording it would hand the *next* press of this
+    // number to the camera when that press is someone's first real recall.
+    const snap = group.kind === 'building' ? this.#mirror.buildings.get(group.id) : null;
+    if (group.kind === 'building' && !snap) {
+      this.#groups.delete(digit);
+      play('uiRefused');
+      this.#publishGroup();
       return;
     }
     const now = performance.now();
     const prev = this.#lastRecall;
     this.#lastRecall = { digit, time: now };
-    if (prev && prev.digit === digit && now - prev.time <= GROUP_RECALL_MS) {
-      // The second press is the camera's. Further presses land here again
-      // and simply re-centre, which is what a player leaning on the key
-      // means by it.
-      this.#glideToGroup(group);
-      return;
-    }
-    setSelectedBuilding(null);
     this.#lastMoveTap = null;
-    this.#setSel(new Set(group));
+    // Every press recalls. The camera is what the second press *adds*, not
+    // something it does instead: a player who let go of what the number
+    // holds (Esc, a click on grass) and then pressed it twice was flown out
+    // to a squad that was no longer selected — or to a barracks whose card
+    // never opened, which is the one thing the stamp was for. Re-calling
+    // what is already standing is a no-op, so the ordinary double-press
+    // pays nothing for this.
+    if (snap) {
+      // The two selections are mutually exclusive: clear first, then open.
+      // #setSel republishes the badge, which reads the open card.
+      this.#setSel(new Set());
+      this.#setBuilding(snap);
+    } else if (group.kind === 'units') {
+      this.#setBuilding(null);
+      this.#setSel(new Set(group.ids));
+    }
+    // The second press is the camera's. Further presses land here again
+    // and simply re-centre, which is what a player leaning on the key
+    // means by it.
+    if (prev !== null && prev.digit === digit && now - prev.time <= GROUP_RECALL_MS) {
+      if (snap) this.#rig?.glideTo(snap.x + snap.w / 2, snap.y + snap.h / 2);
+      else if (group.kind === 'units') this.#glideToGroup(group.ids);
+    }
   }
 
   /** Ride out to the middle of a group — the second press of its number. */
@@ -1392,7 +1473,20 @@ export class Controls {
 
   /** Push the card's group badge — see matchingGroup for what it means. */
   #publishGroup(): void {
-    setSelectionGroup(matchingGroup(this.#groups, this.#selection));
+    const b = selectedBuilding();
+    setSelectionGroup(matchingGroup(this.#groups, this.#selection, b?.id ?? null));
+  }
+
+  /**
+   * Open a building's card, or close it — and republish the badge, since
+   * the open card is now half of what the badge is computed from. Every
+   * path in here goes through this rather than the store's setter for that
+   * one reason; the store's setter is still main.ts's, which only ever
+   * swaps a fresh snapshot of the same building in.
+   */
+  #setBuilding(snap: BuildingSnap | null): void {
+    setSelectedBuilding(snap);
+    this.#publishGroup();
   }
 
   /**
@@ -1525,7 +1619,7 @@ export class Controls {
   deselectAll(): void {
     this.#lastMoveTap = null;
     this.#setSel(new Set());
-    setSelectedBuilding(null);
+    this.#setBuilding(null);
   }
 
   /** Select every soldier you own — the phone answer to band-dragging an army. */
@@ -1536,7 +1630,7 @@ export class Controls {
       const kind = this.#sync.kindOf(id);
       if (kind !== null && MILITARY_CODES.has(kind)) sel.add(id);
     }
-    setSelectedBuilding(null);
+    this.#setBuilding(null);
     this.#setSel(sel);
   }
 }
