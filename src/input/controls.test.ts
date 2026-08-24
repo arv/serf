@@ -14,7 +14,7 @@ vi.hoisted(() => {
   };
 });
 import { Controls } from './controls';
-import { worldToScreen } from './picking';
+import { screenToGround, worldToScreen } from './picking';
 import type { BuildingSnap } from '../protocol/messages';
 import type { SceneSync } from '../render/sceneSync';
 import type { GhostPlacement } from '../render/ghost';
@@ -121,6 +121,11 @@ function ptr(x: number, y: number, shiftKey = false): Record<string, unknown> {
   };
 }
 
+/** The right button, which is the order button on the desktop. */
+function rightPtr(x: number, y: number): Record<string, unknown> {
+  return { ...ptr(x, y), button: 2, buttons: 2 };
+}
+
 /** A storehouse of yours, as the HUD's card would have it. */
 function building(id: number): BuildingSnap {
   return {
@@ -146,12 +151,26 @@ function building(id: number): BuildingSnap {
  * down on flat ground, and units whose screen positions the test reads
  * back through the same projection picking uses.
  */
-function harness() {
+function harness(opts: { pitched?: { x: number; z: number } } = {}) {
   const canvas = fakeEl();
   const camera = new THREE.OrthographicCamera(-20, 20, 15, -15, 0.1, 200);
-  camera.position.set(0, 50, 0);
-  camera.up.set(0, 0, -1);
-  camera.lookAt(0, 0, 0);
+  if (opts.pitched) {
+    // The game's rig, in miniature: pitched 35° and yawed 30°, so the ground
+    // under a roof is tiles away behind it and the two can differ.
+    const pitch = (35 * Math.PI) / 180;
+    const yaw = Math.PI / 6;
+    const dir = new THREE.Vector3(
+      Math.cos(pitch) * Math.sin(yaw),
+      Math.sin(pitch),
+      Math.cos(pitch) * Math.cos(yaw),
+    );
+    camera.position.set(opts.pitched.x, 0, opts.pitched.z).addScaledVector(dir, 90);
+    camera.lookAt(opts.pitched.x, 0, opts.pitched.z);
+  } else {
+    camera.position.set(0, 50, 0);
+    camera.up.set(0, 0, -1);
+    camera.lookAt(0, 0, 0);
+  }
   camera.updateMatrixWorld(true);
 
   /** id → world (x, z) and owner; the ones picking asks about. */
@@ -181,7 +200,11 @@ function harness() {
 
   const heights = { at: () => 0 };
   const ghost = { show: () => {}, hide: () => {}, moveTo: () => {} };
-  const host = { sendCommands: () => {} };
+  /** Every command the pointer sent, in order — what an order test reads. */
+  const commands: Record<string, unknown>[] = [];
+  const host = {
+    sendCommands: (cs: Record<string, unknown>[]) => void commands.push(...cs),
+  };
   const mirror = {
     map: { size: 64, buildingAt: new Int32Array(64 * 64).fill(-1) },
     buildings: new Map<number, BuildingSnap>(),
@@ -197,6 +220,18 @@ function harness() {
   const win = fakeWindow();
   vi.stubGlobal('window', win);
 
+  /** Stand a building on the map: the roster the pick reads, and the tiles
+   * under it. `top` is how tall the renderer draws it, 0 for a flat plate. */
+  const addBuilding = (b: BuildingSnap, top = 0): void => {
+    mirror.buildings.set(b.id, b);
+    for (let z = b.y; z < b.y + b.h; z++) {
+      for (let x = b.x; x < b.x + b.w; x++) mirror.map.buildingAt[z * 64 + x] = b.id;
+    }
+    tops.set(b.id, top);
+  };
+  /** id -> drawn height, standing in for the renderer's measurements. */
+  const tops = new Map<number, number>();
+
   // Stand-ins all the way down: these are the members the pointer path
   // actually reaches, and a real SceneSync would want a worker behind it.
   const controls = new Controls(
@@ -209,6 +244,13 @@ function harness() {
     heights as unknown as HeightField,
     rig,
   );
+  // The renderer's measurements, as BuildingSync would answer them: flat
+  // ground, so a building's base is 0 and its ceiling is its own height.
+  controls.setBuildingHeights({
+    heightOf: (id) => tops.get(id) ?? 0,
+    baseOf: () => 0,
+    ceiling: () => Math.max(Number.NEGATIVE_INFINITY, ...[...tops.values()]),
+  });
 
   /** Drag a band from one screen point to another, the way a mouse does. */
   const band = (
@@ -225,7 +267,52 @@ function harness() {
   const press = (digit: number, mods: { ctrlKey?: boolean; shiftKey?: boolean } = {}): void =>
     win.fire('keydown', keyDown(`Digit${digit}`, String(digit), mods));
 
-  return { canvas, controls, addUnit, screenOf, band, mirror, rides, press };
+  /** Where a world point lands on screen — the pixel a test clicks. */
+  const at = (x: number, y: number, z: number): { x: number; y: number } =>
+    worldToScreen(camera, canvas as unknown as HTMLCanvasElement, x, y, z);
+
+  /** The tile the plain ground hit under a screen point falls on — what an
+   * order used to aim at, and what the test contrasts the new aim with. */
+  const groundTileAt = (p: { x: number; y: number }): { x: number; y: number } | null => {
+    const g = screenToGround(camera, canvas as unknown as HTMLCanvasElement, p.x, p.y, heights as unknown as HeightField);
+    return g && { x: Math.floor(g.x), y: Math.floor(g.z) };
+  };
+
+  /** Right-click a screen point, which is how the desktop gives an order. */
+  const order = (p: { x: number; y: number }): void => {
+    canvas.fire('pointerdown', rightPtr(p.x, p.y));
+  };
+
+  /** What the pointer is over, as the hover highlight reads it. */
+  const hoverAt = (p: { x: number; y: number }): number => {
+    canvas.fire('pointermove', ptr(p.x, p.y));
+    controls.updateHoverIfDirty();
+    return controls.hoverBuilding;
+  };
+
+  /** Select one unit the plain way: press and release on it. */
+  const click = (p: { x: number; y: number }): void => {
+    canvas.fire('pointerdown', ptr(p.x, p.y));
+    canvas.fire('pointerup', ptr(p.x, p.y));
+  };
+
+  return {
+    canvas,
+    controls,
+    addUnit,
+    addBuilding,
+    screenOf,
+    band,
+    at,
+    order,
+    hoverAt,
+    click,
+    groundTileAt,
+    commands,
+    mirror,
+    rides,
+    press,
+  };
 }
 
 /** The rectangle that covers these screen points, with room to spare. */
@@ -566,5 +653,86 @@ describe('control groups', () => {
     h.press(9);
 
     expect(selectedBuilding()?.id).toBe(7);
+  });
+});
+
+describe('right-click orders', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: { appendChild: () => {} },
+      head: { appendChild: () => {} },
+    });
+    vi.stubGlobal('window', { addEventListener: () => {}, removeEventListener: () => {} });
+    setMyPlayerId(ME);
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setSelection(new Set<number>());
+    setSelectedBuilding(null);
+    vi.unstubAllGlobals();
+  });
+
+  /** The keep, its center, and a squad standing clear of it. */
+  function keepAndSquad(): ReturnType<typeof harness> {
+    const keep = { ...building(7), owner: THEM };
+    const cx = keep.x + keep.w / 2;
+    const h = harness({ pitched: { x: cx, z: cx } });
+    h.addBuilding(keep, TOP);
+    h.addUnit(1, keep.x - 4, keep.y - 4);
+    h.click(h.screenOf(1));
+    expect([...selection()]).toEqual([1]);
+    return h;
+  }
+
+  /** How tall the keep is drawn — a castle's 3x3 model, near enough. */
+  const TOP = 3.2;
+  /** The keep's middle tile, which is what an order aimed at it means. */
+  const KEEP_TILE = { x: 11, y: 11 };
+
+  it('aims at the keep the pointer is lit on, not the ground behind it', () => {
+    const h = keepAndSquad();
+    controls = h.controls;
+    const roof = h.at(11.5, TOP, 11.5);
+
+    // The highlight promises the keep...
+    expect(h.hoverAt(roof)).toBe(7);
+    // ...and the order keeps that promise. Before this, the click read the
+    // ground under those pixels — tiles behind the wall — and the squad
+    // marched around the keep onto the open ground on its far side.
+    h.order(roof);
+
+    expect(h.commands.at(-1)).toMatchObject({ kind: 'moveUnits', ...KEEP_TILE });
+  });
+
+  it('reads the roof pixel as the keep even though the ground there is not', () => {
+    // Guards the test above: if that pixel's ground hit happened to land on
+    // the footprint anyway, the order would aim right without the fix.
+    const h = keepAndSquad();
+    controls = h.controls;
+    const roof = h.at(11.5, TOP, 11.5);
+
+    const ground = h.groundTileAt(roof)!;
+    const onFootprint = ground.x >= 10 && ground.x < 13 && ground.y >= 10 && ground.y < 13;
+    expect(onFootprint).toBe(false);
+  });
+
+  it('leaves bare ground exactly where it was', () => {
+    const h = keepAndSquad();
+    controls = h.controls;
+    // Well clear of the keep and of anything it covers.
+    const grass = h.at(11.5, 0, 17.5);
+
+    expect(h.hoverAt(grass)).toBe(-1);
+    h.order(grass);
+
+    expect(h.commands.at(-1)).toMatchObject({ kind: 'moveUnits', x: 11, y: 17 });
   });
 });

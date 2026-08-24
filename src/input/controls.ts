@@ -52,7 +52,13 @@ import {
 import { techName, unitName } from '../ui/names';
 import { fullscreen, guardEsc } from '../ui/fullscreen';
 import { play } from '../audio/audio';
-import { screenToGround, worldToScreen } from './picking';
+import {
+  screenToBuilding,
+  screenToGround,
+  worldToScreen,
+  type BuildingHeights,
+  type BuildingProbe,
+} from './picking';
 import { groupEmpty, keyDigit, matchingGroup } from './groups';
 import { foreignChord, typingInto } from './typing';
 import type { ControlGroup } from './groups';
@@ -160,6 +166,17 @@ export class Controls {
   #heights: HeightField;
   /** Fog test, so placement cannot probe ground nobody has scouted. */
   #fog: FogQuery | null = null;
+  /**
+   * How tall the renderer draws each building, for the pick that reaches up
+   * a castle's walls instead of stopping at the plate it stands on. Null
+   * until the renderer is wired in (and in tests), which costs nothing but
+   * the reach: the probe then answers with no ceiling to climb to, and a
+   * pick is the plain footprint hit it always was.
+   */
+  #buildingHeights: BuildingHeights | null = null;
+  /** The map/height pair screenToBuilding walks, built once — a pick runs
+   * every frame the pointer moves, and this would be an allocation each. */
+  #probe: BuildingProbe;
   #selection = new Set<number>();
   /**
    * Control groups, bound the way both StarCrafts bind them: digit → the
@@ -243,6 +260,17 @@ export class Controls {
     this.#ghost = ghost;
     this.#heights = heights;
     this.#rig = rig ?? null;
+    this.#probe = {
+      idAt: (x, z) => {
+        const tx = Math.floor(x);
+        const ty = Math.floor(z);
+        if (!inBounds(tx, ty, this.#mirror.map.size)) return -1;
+        return this.#mirror.map.buildingAt[tileIdx(tx, ty, this.#mirror.map.size)]!;
+      },
+      heightOf: (id) => this.#buildingHeights?.heightOf(id) ?? 0,
+      baseOf: (id) => this.#buildingHeights?.baseOf(id) ?? 0,
+      ceiling: () => this.#buildingHeights?.ceiling() ?? Number.NEGATIVE_INFINITY,
+    };
 
     this.#bandEl = document.createElement('div');
     this.#bandEl.style.cssText =
@@ -785,6 +813,11 @@ export class Controls {
     this.#fog = fog;
   }
 
+  /** Wire in the renderer's model measurements — see #buildingHeights. */
+  setBuildingHeights(heights: BuildingHeights): void {
+    this.#buildingHeights = heights;
+  }
+
   /**
    * You cannot build on ground you have never scouted.
    *
@@ -1047,7 +1080,11 @@ export class Controls {
    * the panels reachable only by deselecting first. Nothing is lost: a
    * building's tiles are blocked, so that order only ever walked them to
    * the free ground beside it, which is exactly what tapping beside it
-   * does. Foreign buildings stay an order, so an enemy camp still raids.
+   * does. That still holds now the tap reaches up the walls rather than
+   * stopping at the plate, because the order it outranks would aim at the
+   * building's own tile too (see #orderTarget) — blocked ground, and the
+   * same walk to the same doorstep. Foreign buildings stay an order, so an
+   * enemy camp still raids.
    */
   #touchTap(px: number, py: number): void {
     const unitId = this.#unitAt(px, py);
@@ -1166,17 +1203,7 @@ export class Controls {
       }
     }
     this.#hoverUnit = bestId;
-    this.#hoverBuilding = -1;
-    if (bestId < 0) {
-      const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
-      if (ground) {
-        const tx = Math.floor(ground.x);
-        const ty = Math.floor(ground.z);
-        if (inBounds(tx, ty, this.#mirror.map.size)) {
-          this.#hoverBuilding = this.#mirror.map.buildingAt[tileIdx(tx, ty, this.#mirror.map.size)]!;
-        }
-      }
-    }
+    this.#hoverBuilding = bestId < 0 ? this.#buildingAt(px, py) : -1;
   }
 
   /** Screen position of an own unit, written into `out`; false otherwise. */
@@ -1208,14 +1235,41 @@ export class Controls {
     return bestId;
   }
 
-  /** The building of yours under a screen point, or null. */
-  #ownBuildingAt(px: number, py: number): BuildingSnap | null {
+  /**
+   * The building under a screen point, or -1. Walls and roofs count, not
+   * just the ground the building stands on: a castle is mostly sky from
+   * this camera, and a click on its towers means the castle.
+   */
+  #buildingAt(px: number, py: number): number {
+    return screenToBuilding(this.#camera, this.#canvas, px, py, this.#heights, this.#probe);
+  }
+
+  /**
+   * The tile an order aimed at this screen point should go to. A point on a
+   * building's drawn box aims at that building; bare ground aims where the
+   * ray meets it.
+   *
+   * Orders read the same pick as the hover highlight for one reason: the
+   * highlight is the promise. The bar that lights under the pointer says
+   * "this is what you are about to order against", and a click that then
+   * landed on the ground four tiles behind the wall — which is where the
+   * ground under a keep's tower is — marched the squad around the thing
+   * they aimed at. The footprint's center rather than the tile the box was
+   * crossed over: a building is one target, and aiming at the middle of it
+   * puts the pathing on the same footing wherever on the walls you clicked.
+   */
+  #orderTarget(px: number, py: number): { x: number; y: number } | null {
+    const id = this.#buildingAt(px, py);
+    const b = id >= 0 ? this.#mirror.buildings.get(id) : undefined;
+    if (b) return { x: Math.floor(b.x + b.w / 2), y: Math.floor(b.y + b.h / 2) };
     const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
     if (!ground) return null;
-    const tx = Math.floor(ground.x);
-    const ty = Math.floor(ground.z);
-    if (!inBounds(tx, ty, this.#mirror.map.size)) return null;
-    const bId = this.#mirror.map.buildingAt[tileIdx(tx, ty, this.#mirror.map.size)]!;
+    return { x: Math.floor(ground.x), y: Math.floor(ground.z) };
+  }
+
+  /** The building of yours under a screen point, or null. */
+  #ownBuildingAt(px: number, py: number): BuildingSnap | null {
+    const bId = this.#buildingAt(px, py);
     const snap = bId >= 0 ? this.#mirror.buildings.get(bId) : undefined;
     return snap && snap.owner === myPlayerId() ? snap : null;
   }
@@ -1451,13 +1505,11 @@ export class Controls {
    */
   #issueMove(px: number, py: number, attack: boolean | 'half'): { x: number; y: number } | null {
     if (this.#selection.size === 0) return null;
-    const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
-    if (!ground) return null;
-    const x = Math.floor(ground.x);
-    const y = Math.floor(ground.z);
-    this.#sendMove(x, y, attack);
+    const target = this.#orderTarget(px, py);
+    if (!target) return null;
+    this.#sendMove(target.x, target.y, attack);
     this.#orderPulse(px, py, attack);
-    return { x, y };
+    return target;
   }
 
   /**
@@ -1498,11 +1550,13 @@ export class Controls {
   #issueRally(px: number, py: number): void {
     const b = this.#rallyTarget();
     if (!b) return;
-    const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
-    if (!ground) return;
-    const x = Math.floor(ground.x);
-    const y = Math.floor(ground.z);
-    const onSelf = x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
+    // Its own walls count as its door: the flag comes down for a click
+    // anywhere the barracks is drawn, which is the same pixel that lights
+    // it under the pointer.
+    const onSelf = this.#buildingAt(px, py) === b.id;
+    const target = this.#orderTarget(px, py);
+    if (!target) return;
+    const { x, y } = target;
     this.#host.sendCommands([
       onSelf
         ? { kind: 'setRallyPoint', buildingId: b.id }
