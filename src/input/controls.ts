@@ -1353,42 +1353,45 @@ export class Controls {
       play('uiRefused');
       return;
     }
+    // A razed (or sold) building, caught in the narrow window before
+    // prune() gets to its group: still a refusal, not a card opened onto a
+    // stale snapshot. The press is not remembered either — a refusal is not
+    // a first press, and recording it would hand the *next* press of this
+    // number to the camera when that press is someone's first real recall.
+    const snap = group.kind === 'building' ? this.#mirror.buildings.get(group.id) : null;
+    if (group.kind === 'building' && !snap) {
+      this.#groups.delete(digit);
+      play('uiRefused');
+      this.#publishGroup();
+      return;
+    }
     const now = performance.now();
     const prev = this.#lastRecall;
     this.#lastRecall = { digit, time: now };
+    this.#lastMoveTap = null;
+    // Every press recalls. The camera is what the second press *adds*, not
+    // something it does instead: a player who let go of what the number
+    // holds (Esc, a click on grass) and then pressed it twice was flown out
+    // to a squad that was no longer selected — or to a barracks whose card
+    // never opened, which is the one thing the stamp was for. Re-calling
+    // what is already standing is a no-op, so the ordinary double-press
+    // pays nothing for this.
+    if (snap) {
+      // The two selections are mutually exclusive: clear first, then open.
+      // #setSel republishes the badge, which reads the open card.
+      this.#setSel(new Set());
+      this.#setBuilding(snap);
+    } else if (group.kind === 'units') {
+      this.#setBuilding(null);
+      this.#setSel(new Set(group.ids));
+    }
     // The second press is the camera's. Further presses land here again
     // and simply re-centre, which is what a player leaning on the key
     // means by it.
-    const ride = prev !== null && prev.digit === digit && now - prev.time <= GROUP_RECALL_MS;
-    if (group.kind === 'building') {
-      // prune() drops a razed building's group the frame it goes, so this
-      // is the narrow window between the two — and it is still a refusal,
-      // not a card opened onto a stale snapshot.
-      const snap = this.#mirror.buildings.get(group.id);
-      if (!snap) {
-        this.#groups.delete(digit);
-        play('uiRefused');
-        this.#publishGroup();
-        return;
-      }
-      if (ride) {
-        this.#rig?.glideTo(snap.x + snap.w / 2, snap.y + snap.h / 2);
-        return;
-      }
-      this.#lastMoveTap = null;
-      // Clear first, then open: the two selections are mutually exclusive,
-      // and #setSel republishes the badge, which reads the open card.
-      this.#setSel(new Set());
-      this.#setBuilding(snap);
-      return;
+    if (prev !== null && prev.digit === digit && now - prev.time <= GROUP_RECALL_MS) {
+      if (snap) this.#rig?.glideTo(snap.x + snap.w / 2, snap.y + snap.h / 2);
+      else if (group.kind === 'units') this.#glideToGroup(group.ids);
     }
-    if (ride) {
-      this.#glideToGroup(group.ids);
-      return;
-    }
-    this.#setBuilding(null);
-    this.#lastMoveTap = null;
-    this.#setSel(new Set(group.ids));
   }
 
   /** Ride out to the middle of a group — the second press of its number. */

@@ -493,6 +493,69 @@ describe('control groups', () => {
     expect(selectedBuilding()?.id).toBe(8);
   });
 
+  it('opens the card on the second press too, not just rides out to it', () => {
+    // The camera is what the second press adds, not what it does instead.
+    // Let the card go and press the number twice and you want the card
+    // back and the view on it — a ride to a barracks whose card never
+    // opened is the one thing the stamp was not for.
+    const h = harness();
+    controls = h.controls;
+    const b = building(7);
+    h.mirror.buildings.set(b.id, b);
+    setSelectedBuilding(b);
+    h.press(1, { ctrlKey: true });
+
+    h.press(1);
+    h.controls.deselectAll(); // Esc, inside the beat
+    h.press(1);
+
+    expect(selectedBuilding()?.id).toBe(7);
+    expect(h.rides).toEqual([{ x: 11.5, z: 11.5 }]);
+  });
+
+  it('re-selects a squad on the second press too', () => {
+    // Same rule on the units half of the binding, for the same reason.
+    const h = harness();
+    controls = h.controls;
+    h.addUnit(1, -5, -3);
+    h.band(...around([h.screenOf(1)]));
+    h.press(2, { ctrlKey: true });
+
+    h.press(2);
+    h.controls.deselectAll();
+    h.press(2);
+
+    expect([...selection()]).toEqual([1]);
+    expect(h.rides.length).toBe(1);
+  });
+
+  it('does not hand the next press to the camera after a refusal', () => {
+    // A refusal is not a first press. When the razed building's group is
+    // dropped here rather than by prune(), remembering the press would
+    // make the next number press — someone's first real recall — fly the
+    // camera instead of opening the card it was pressed for.
+    const h = harness();
+    controls = h.controls;
+    const gone = building(7);
+    h.mirror.buildings.set(7, gone);
+    setSelectedBuilding(gone);
+    h.press(4, { ctrlKey: true });
+
+    h.mirror.buildings.delete(7);
+    setSelectedBuilding(null);
+    h.press(4); // refused: razed, and the group goes with it
+
+    const fresh = building(8);
+    h.mirror.buildings.set(8, fresh);
+    setSelectedBuilding(fresh);
+    h.press(4, { ctrlKey: true });
+    setSelectedBuilding(null);
+    h.press(4);
+
+    expect(selectedBuilding()?.id).toBe(8);
+    expect(h.rides).toEqual([]); // the first recall of a number never rides
+  });
+
   it('refuses a number that holds nothing, leaving the card standing', () => {
     const h = harness();
     controls = h.controls;
