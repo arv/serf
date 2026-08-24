@@ -367,3 +367,90 @@ describe('the measurements the pointer picks against', () => {
     expect(sync.ceiling()).toBe(Number.NEGATIVE_INFINITY);
   });
 });
+
+describe('the stock piles at a building door', () => {
+  // The piles hang off the visual's root as one group, parked just outside
+  // the front wall. Each good's stack is a cluster of props around its lane
+  // (each prop jittered a few centimetres off it), so read the ground back
+  // as the centre of every cluster.
+  function stackXs(scene: THREE.Scene, h = 3): number[] {
+    const root = scene.children.find((o) => o instanceof THREE.Group) as THREE.Group;
+    const piles = root.children.find(
+      (o) => o instanceof THREE.Group && Math.abs(o.position.z - (h / 2 + 0.3)) < 1e-6,
+    ) as THREE.Group | undefined;
+    if (!piles) return [];
+    const clusters: number[][] = [];
+    for (const prop of [...piles.children].sort((a, b) => a.position.x - b.position.x)) {
+      const last = clusters[clusters.length - 1];
+      if (last && Math.abs(prop.position.x - last[0]!) < 0.1) last.push(prop.position.x);
+      else clusters.push([prop.position.x]);
+    }
+    return clusters.map((c) => c.reduce((a, b) => a + b, 0) / c.length);
+  }
+
+  /** Is a stack still standing on the ground it stood on before? */
+  function stands(xs: number[], was: number): boolean {
+    return xs.some((x) => Math.abs(x - was) < 0.05);
+  }
+
+  function castle(stock: Record<string, number>): BuildingSnap {
+    return snap({ type: 'storehouse', w: 3, h: 3, stock });
+  }
+
+  it('leaves the stacks already standing where they are when a new good arrives', () => {
+    const { sync, scene } = makeSync();
+    // A castle, so the goods are free to be anything: wood first...
+    sync.update([castle({ wood: 4 })]);
+    const first = stackXs(scene);
+    expect(first.length).toBe(1);
+
+    // ...then stone lands beside it. Before lanes, the row was centred on
+    // however many kinds it held, so this second kind shoved the wood half
+    // a lane sideways — piles sliding for goods nobody had touched.
+    sync.update([castle({ wood: 4, stone: 2 })]);
+    const second = stackXs(scene);
+    expect(second.length).toBe(2);
+    expect(stands(second, first[0]!)).toBe(true);
+
+    // A third kind flanks the other way, and still nothing moves.
+    sync.update([castle({ wood: 4, stone: 2, iron: 1 })]);
+    const third = stackXs(scene);
+    expect(third.length).toBe(3);
+    for (const x of second) expect(stands(third, x)).toBe(true);
+  });
+
+  it('holds a stack still while its own count moves', () => {
+    const { sync, scene } = makeSync();
+    sync.update([castle({ wood: 2, stone: 3 })]);
+    const before = stackXs(scene);
+    // A carrier takes a plank off the stack: the goods that remain keep
+    // their ground.
+    sync.update([castle({ wood: 1, stone: 3 })]);
+    const after = stackXs(scene);
+    expect(after.length).toBe(2);
+    for (const x of before) expect(stands(after, x)).toBe(true);
+  });
+
+  it('hands a drained good its lane back for the next arrival', () => {
+    const { sync, scene } = makeSync();
+    sync.update([castle({ wood: 2, stone: 2 })]);
+    const both = stackXs(scene);
+    // The wood goes out the door entirely, and its lane empties.
+    sync.update([castle({ stone: 2 })]);
+    const alone = stackXs(scene);
+    expect(alone.length).toBe(1);
+    expect(stands(both, alone[0]!)).toBe(true);
+    // Iron arrives: it takes the freed lane rather than opening a third one
+    // past the stone, and the stone still has not moved.
+    const refilled = (sync.update([castle({ stone: 2, iron: 3 })]), stackXs(scene));
+    expect(refilled.length).toBe(2);
+    for (const x of both) expect(stands(refilled, x)).toBe(true);
+  });
+
+  it('stands a lone good squarely at the door', () => {
+    const { sync, scene } = makeSync();
+    sync.update([castle({ wood: 3 })]);
+    // Lane 0, jitter aside.
+    expect(Math.abs(stackXs(scene)[0]!)).toBeLessThan(0.05);
+  });
+});
