@@ -349,6 +349,15 @@ describe('the measurements the pointer picks against', () => {
     expect(sync.ceiling()).toBeGreaterThanOrEqual(SITE_FRAME_H);
   });
 
+  it('leaves a road flat: its scaffolding is not a pick box', () => {
+    const { sync } = makeSync();
+    sync.update([snap({ type: 'roadSite', w: 1, h: 1, state: 'site', progress01: 0, siteNeeds: {} })]);
+    // The frame stands 0.7 up while the road is laid, but a road is ground:
+    // picking it by its scaffolding would shadow the route it is part of.
+    expect(sync.heightOf(7)).toBe(0);
+    expect(sync.ceiling()).toBe(Number.NEGATIVE_INFINITY);
+  });
+
   it('knows nothing of a building that never stood', () => {
     const { sync } = makeSync();
     expect(sync.heightOf(99)).toBe(0);

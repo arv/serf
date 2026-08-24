@@ -83,6 +83,12 @@ interface BuildingVisual {
   clip?: { plane: THREE.Plane; height: number; baseY: number };
   /** Model height above ground, for floating the hp bar. */
   topY: number;
+  /**
+   * A road: flat ground once it is laid, and a thing units walk along
+   * rather than a thing anyone clicks. Its scaffolding is not worth a pick
+   * box — see heightOf.
+   */
+  road: boolean;
   /** Latest hp fraction, for hover bars on healthy buildings. */
   pct: number;
   /** Physical stock piles against the front wall. */
@@ -276,6 +282,11 @@ export class BuildingSync {
   heightOf(id: number): number {
     const v = this.#visuals.get(id);
     if (!v) return 0;
+    // A road is ground. Its site frame stands 0.7 up for the twenty ticks
+    // it takes to lay, and roads are laid in long chains along the very
+    // ground people order units down — a pick box on each would hang a
+    // wall of them over the route. Nobody means to click a road anyway.
+    if (v.road) return 0;
     if (v.state !== 'site') return v.topY;
     const raised = v.clip
       ? Math.max(0, v.clip.plane.constant - v.clip.baseY)
@@ -480,11 +491,12 @@ export class BuildingSync {
     // (topY is already that for a clipped one, and the seed scale away from
     // it for a ghost), never less than the frame it stands in while it gets
     // there, and all of it over the ground this one stands on.
+    const road = buildingDef(b.type).isRoad === true;
     const finished =
       b.state === 'site'
         ? Math.max(SITE_FRAME_H, clip ? topY : topY / GHOST_SEED_SCALE)
         : topY;
-    this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
+    if (!road) this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
     this.#scene.add(root);
     return {
       root,
@@ -493,6 +505,7 @@ export class BuildingSync {
       model,
       clip,
       topY,
+      road,
       pct: 1,
       pileKey: '',
       crank: model.getObjectByName('wellCrank') ?? undefined,
