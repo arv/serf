@@ -3,7 +3,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
-import { makeBakeOven, makeFishSign, makeShoal } from './procParts';
+import { makeBakehouse } from './procBuildings';
+import { makeFishSign, makeShoal } from './procParts';
 
 /**
  * GLB asset pipeline: building, tree, rock and prop models loaded from the
@@ -27,11 +28,7 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   well: 'building_well_green.gltf',
   wheatFarm: 'farm_plot.glb',
   mill: 'building_windmill_green.gltf',
-  // The pack has no bakery. The second house model is the closest shell —
-  // unused until now, so it costs the town no other identity — and the
-  // stone oven bolted to its flank (BUILDING_DECOR) is what actually says
-  // "bread" at village zoom.
-  bakery: 'building_home_B_green.gltf',
+  // (No bakery: it is the one building we model ourselves — BUILT_BUILDINGS.)
   // The EXTRA shipyard: a hull on the slipway, an anchor, barrels on the
   // quay. The one food building that needed nothing built by hand.
   fishery: 'extra/building_shipyard_green.gltf',
@@ -55,6 +52,25 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   guardTower: 'building_tower_base_green.gltf',
 };
 
+/**
+ * Buildings with no pack model at all, modelled by us instead (see
+ * procBuildings.ts). They go through the same mill as a loaded one —
+ * normalized to the unit square, dressed from BUILDING_DECOR, split for
+ * team color, scaled by footprint — and differ only in where the geometry
+ * came from. Both are drawn with the pack's material and both carry the
+ * team slot in their atlas UVs, so nothing downstream can tell them apart.
+ *
+ * The bakery is here because every shell the pack could have lent it is
+ * either a house or already someone else's: the blacksmith is a domed
+ * stone oven, so any oven we add to a house shell reads as a second smithy
+ * from the air.
+ */
+const BUILT_BUILDINGS: Partial<
+  Record<BuildingTypeId, (piece: PieceFactory, packMaterial: THREE.Material | null) => THREE.Group>
+> = {
+  bakery: makeBakehouse,
+};
+
 /** Tints so buildings sharing a model read apart. Empty since the smiths
  * merged; the mechanism stays for the next shared model. */
 const TINTS: Partial<Record<BuildingTypeId, number>> = {};
@@ -62,6 +78,15 @@ const TINTS: Partial<Record<BuildingTypeId, number>> = {};
 /** Clones a loaded pack prop, scaled to `span` across and keeping its own
  * vertical origin. Null when the name is not in DECOR_PROP_FILES. */
 export type PropFactory = (name: string, span: number) => THREE.Object3D | null;
+
+/**
+ * Clones a piece cut out of a pack model (PACK_PIECES), scaled to `height`.
+ * The clone is centered in x, stands on y=0 and presents its face on z=0,
+ * so a wall-mounted piece is placed by the wall plane it sits in. Null when
+ * the name is unknown or its source model failed to load — every caller has
+ * to survive that, the same way decor does.
+ */
+export type PieceFactory = (name: string, height: number) => THREE.Object3D | null;
 
 /** Prop dressing placed around a building, in its unit-square space. */
 interface Decor {
@@ -153,11 +178,18 @@ const GLB_PROP_FILES = [
 // the woodcutter's baked lumber pile read as planks that were never
 // hauled. Tools and scenery (wheelbarrows, ore rocks) stay.
 const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
-  // The oven is the bakery's whole tell — it has to sit proud of the wall
-  // on the side the camera sees, not tucked behind the roof.
+  // The bakehouse carries its own oven, counter and firewood (see
+  // procBuildings), so all the yard needs is the two things the recipe
+  // takes in: flour from the mill and water from the well.
   bakery: [
-    { make: () => makeBakeOven(0.62), at: [0.42, 0.3], size: 1, rot: -0.55 },
-    { prop: 'barrel', at: [-0.38, 0.33], size: 0.13 },
+    { prop: 'sack', at: [-0.38, 0.46], size: 0.085, rot: 0.5 },
+    { prop: 'bucket_water', at: [-0.12, 0.43], size: 0.07, rot: -0.4 },
+    // The oven's firewood. It used to be six hand-rolled cylinders stacked
+    // against the wall, which from the camera's angle read as a bunch of
+    // dark circles half-buried in the corner block beside them. The pack
+    // ships a log pile — the same one the woodcutter's yard stock and a
+    // serf's shoulder load are made of — so use that and stand it clear.
+    { prop: 'resource_lumber', at: [0.42, -0.06], size: 0.11 },
   ],
   mill: [{ prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5 }],
   fishery: [
@@ -288,6 +320,131 @@ function stripTrianglesInBox(geo: THREE.BufferGeometry, box: THREE.Box3): THREE.
   return out;
 }
 
+/**
+ * Pieces cut back *out* of a pack model, for the buildings we model
+ * ourselves (BUILT_BUILDINGS). Kay already drew a door; drawing a second
+ * one that is nearly but not quite his is how a hand-built building starts
+ * to look like a mod. Cutting his out and hanging it in our wall is both
+ * less work and a closer match than we could author.
+ *
+ * A piece is a box in the source model's own space plus the atlas cells to
+ * keep inside it, because the interesting details are all coplanar with the
+ * wall around them and a box alone cannot separate the two. Cells are
+ * `col,row` of the atlas' 8x4 swatch grid (see hexagons_medieval.png);
+ * `5,0` and `6,0` are its two timbers.
+ */
+const PACK_PIECES: Record<
+  string,
+  { file: string; box: [number, number, number, number, number, number]; cells: string[] }
+> = {
+  // The house's front door: an arched plank leaf in a timber frame, with a
+  // knob. The box stops just under the wall rail above it, and the cells
+  // drop the plaster reveal behind it — both of those belong to the house
+  // and would fight the wall we hang this in.
+  door: {
+    file: 'building_home_A_green.gltf',
+    box: [-0.115, -0.01, 0.25, 0.115, 0.335, 0.4],
+    cells: ['5,0', '6,0'],
+  },
+};
+
+/** Which atlas cell a UV lands in, as `col,row` of the 8x4 swatch grid. */
+function atlasCell(u: number, v: number): string {
+  return `${Math.floor(u * 8)},${Math.floor(v * 4)}`;
+}
+
+/**
+ * Cut one PACK_PIECES entry out of its loaded model: the triangles whose
+ * centroid is inside the box and whose atlas cell is listed, re-origined so
+ * the piece is centered in x, stands on y=0, and presents its front face on
+ * z=0 — which is how a wall-mounted piece wants to arrive.
+ */
+function cutPackPiece(scene: THREE.Group, spec: (typeof PACK_PIECES)[string]): THREE.Mesh | null {
+  const [x0, y0, z0, x1, y1, z1] = spec.box;
+  const box = new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1));
+  const cells = new Set(spec.cells);
+  let out: THREE.Mesh | null = null;
+  scene.traverse((o) => {
+    if (out || !(o instanceof THREE.Mesh)) return;
+    const geo = o.geometry as THREE.BufferGeometry;
+    const index = geo.getIndex();
+    const pos = geo.getAttribute('position');
+    const uv = geo.getAttribute('uv');
+    if (!index || !uv) return;
+    const kept: number[] = [];
+    const v = new THREE.Vector3();
+    const bounds = new THREE.Box3();
+    // Whole triangles only: a centroid test alone also admits long slivers
+    // of NEIGHBOURING members — the house's wall rails run through the
+    // door's box, and their fragments came along with the cut and dangled
+    // beside the case once the piece was scaled up. A triangle is the
+    // piece's own only if all three corners are in the box (with a hair of
+    // tolerance for corners exactly on it).
+    const whole = box.clone().expandByScalar(0.012);
+    for (let i = 0; i < index.count; i += 3) {
+      const a = index.getX(i);
+      const b = index.getX(i + 1);
+      const c = index.getX(i + 2);
+      v.set(
+        (pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3,
+        (pos.getY(a) + pos.getY(b) + pos.getY(c)) / 3,
+        (pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3,
+      );
+      if (!box.containsPoint(v)) continue;
+      const inWhole = [a, b, c].every((i2) =>
+        whole.containsPoint(v.set(pos.getX(i2), pos.getY(i2), pos.getZ(i2))),
+      );
+      if (!inWhole) continue;
+      const cu = (uv.getX(a) + uv.getX(b) + uv.getX(c)) / 3;
+      const cv = (uv.getY(a) + uv.getY(b) + uv.getY(c)) / 3;
+      if (!cells.has(atlasCell(cu, cv))) continue;
+      kept.push(a, b, c);
+      for (const i2 of [a, b, c]) {
+        bounds.expandByPoint(new THREE.Vector3(pos.getX(i2), pos.getY(i2), pos.getZ(i2)));
+      }
+    }
+    if (kept.length === 0) return;
+    // Compact to just the vertices the cut keeps. Re-indexing a clone would
+    // be shorter, but every bounds query in three reads the *position
+    // attribute*, not the index — so a clone that still carries the whole
+    // house's vertices reports the whole house's box, and `normalize` would
+    // then size the building we hang this in around a model it cannot see.
+    const remap = new Map<number, number>();
+    const px: number[] = [];
+    const nx: number[] = [];
+    const tx: number[] = [];
+    const idx: number[] = [];
+    const nor = geo.getAttribute('normal');
+    for (const i of kept) {
+      let j = remap.get(i);
+      if (j === undefined) {
+        j = remap.size;
+        remap.set(i, j);
+        px.push(pos.getX(i), pos.getY(i), pos.getZ(i));
+        if (nor) nx.push(nor.getX(i), nor.getY(i), nor.getZ(i));
+        tx.push(uv.getX(i), uv.getY(i));
+      }
+      idx.push(j);
+    }
+    const cut = new THREE.BufferGeometry();
+    cut.setAttribute('position', new THREE.Float32BufferAttribute(px, 3));
+    if (nor) cut.setAttribute('normal', new THREE.Float32BufferAttribute(nx, 3));
+    cut.setAttribute('uv', new THREE.Float32BufferAttribute(tx, 2));
+    cut.setIndex(idx);
+    cut.translate(-(bounds.min.x + bounds.max.x) / 2, -bounds.min.y, -bounds.max.z);
+    const m = new THREE.Mesh(cut, o.material);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    m.userData.size = [
+      bounds.max.x - bounds.min.x,
+      bounds.max.y - bounds.min.y,
+      bounds.max.z - bounds.min.z,
+    ];
+    out = m;
+  });
+  return out;
+}
+
 /** Feet on y=0, footprint normalized to a unit square around the origin. */
 function normalize(scene: THREE.Group): THREE.Group {
   const bbox = new THREE.Box3().setFromObject(scene);
@@ -364,6 +521,10 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
   {
     const loader = new GLTFLoader();
     const files = new Set(Object.values(BUILDING_FILES));
+    // The models we cut pieces out of. Usually already loaded as a shell of
+    // their own; listed anyway so a piece can come from a model no building
+    // happens to be using.
+    for (const p of Object.values(PACK_PIECES)) files.add(p.file);
     const TREE_FILES = ['tree_single_A.gltf', 'tree_single_B.gltf'];
     const ROCK_FILES = ['rock_single_A.gltf', 'rock_single_B.gltf', 'rock_single_C.gltf'];
     // Natural dressing the scatter system strews on its own: lily pads on
@@ -475,6 +636,41 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       g.scale.setScalar(size / h);
       g.add(c);
       return g;
+    };
+
+    /**
+     * Dress a normalized building's yard: ore boulders, carts, sacks — the
+     * mines in particular read apart by their spoil, not just their roof
+     * color. Positions are in the unit square the template was normalized
+     * to, so decor is placed the same whether the shell was loaded or built.
+     */
+    const dress = (type: BuildingTypeId, group: THREE.Group): void => {
+      for (const d of BUILDING_DECOR[type] ?? []) {
+        let obj: THREE.Object3D | undefined;
+        if (d.make !== undefined) {
+          obj = d.make((name, span) => {
+            const src = loaded.get(`${name}.gltf`);
+            return src ? propOfSpan(src, span) : null;
+          });
+        } else if (d.prop !== undefined) {
+          const src = loaded.get(`${d.prop}.gltf`);
+          if (src) obj = d.span !== undefined ? propOfSpan(src, d.span) : propOfSize(src, d.size);
+        } else if (d.rock !== undefined && rocks[0]) {
+          const mat = natureMaterial.clone();
+          mat.color.set(d.rock);
+          const boulder = new THREE.Mesh(rocks[0], mat);
+          boulder.castShadow = true;
+          const g = new THREE.Group();
+          g.scale.setScalar(d.size);
+          g.add(boulder);
+          obj = g;
+        }
+        if (!obj) continue;
+        if (d.name) obj.name = d.name;
+        obj.position.set(d.at[0], d.y ?? 0, d.at[1]);
+        obj.rotation.y = d.rot ?? 0;
+        group.add(obj);
+      }
     };
 
     const buildings = new Map<BuildingTypeId, THREE.Group>();
@@ -626,34 +822,43 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
         });
       }
       const group = normalize(scene);
-      // Dress the yard: ore boulders, carts, sacks — the mines in
-      // particular read apart by their spoil, not just their roof color.
-      for (const d of BUILDING_DECOR[type] ?? []) {
-        let obj: THREE.Object3D | undefined;
-        if (d.make !== undefined) {
-          obj = d.make((name, span) => {
-            const src = loaded.get(`${name}.gltf`);
-            return src ? propOfSpan(src, span) : null;
-          });
-        } else if (d.prop !== undefined) {
-          const src = loaded.get(`${d.prop}.gltf`);
-          if (src) obj = d.span !== undefined ? propOfSpan(src, d.span) : propOfSize(src, d.size);
-        } else if (d.rock !== undefined && rocks[0]) {
-          const mat = natureMaterial.clone();
-          mat.color.set(d.rock);
-          const boulder = new THREE.Mesh(rocks[0], mat);
-          boulder.castShadow = true;
-          const g = new THREE.Group();
-          g.scale.setScalar(d.size);
-          g.add(boulder);
-          obj = g;
-        }
-        if (!obj) continue;
-        if (d.name) obj.name = d.name;
-        obj.position.set(d.at[0], d.y ?? 0, d.at[1]);
-        obj.rotation.y = d.rot ?? 0;
-        group.add(obj);
-      }
+      dress(type, group);
+      splitTeamColorGroups(group);
+      buildings.set(type, group);
+    }
+
+    // The buildings we model ourselves. Same normalize, same dressing, same
+    // team-color split — they are UV-mapped into the pack's atlas like a
+    // loaded model, so nothing downstream needs a special case.
+    const pieces = new Map<string, THREE.Mesh>();
+    for (const [name, spec] of Object.entries(PACK_PIECES)) {
+      const src = loaded.get(spec.file);
+      const piece = src ? cutPackPiece(src, spec) : null;
+      if (piece) pieces.set(name, piece);
+    }
+    const piece: PieceFactory = (name, height) => {
+      const src = pieces.get(name);
+      if (!src) return null;
+      const c = src.clone();
+      const [, h] = src.userData.size as [number, number, number];
+      c.scale.setScalar(height / Math.max(h, 1e-6));
+      return c;
+    };
+    // The pack's own material — one texture, one set of parameters, shared
+    // by every model in it. A built building draws from the same one, so
+    // there is no second material in the scene pretending to match it.
+    let packMaterial: THREE.Material | null = null;
+    loaded.get('building_home_A_green.gltf')?.traverse((o) => {
+      if (!packMaterial && o instanceof THREE.Mesh) packMaterial = o.material as THREE.Material;
+    });
+    for (const [type, build] of Object.entries(BUILT_BUILDINGS) as [
+      BuildingTypeId,
+      (piece: PieceFactory, packMaterial: THREE.Material | null) => THREE.Group,
+    ][]) {
+      const group = normalize(build(piece, packMaterial));
+      dress(type, group);
+      // Its roof is UV-mapped into the same atlas cell a pack roof uses, so
+      // the ordinary team-color split finds it without a special case.
       splitTeamColorGroups(group);
       buildings.set(type, group);
     }
