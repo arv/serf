@@ -40,6 +40,33 @@ camera, which is the only way to judge a throw: on a roof the men face
 outward and you are usually behind them. `w`/`h`/`zoom`/`fy` size and frame
 the shot.
 
+## The four ore posts
+
+`_mines.html` is the page the quarry, the iron, the silver and the gold
+mine were pulled apart on. All four play the pack's one mine model, and
+before this they were separated by a wheelbarrow's rotation and three
+thumb-sized boulders that only appear when there is stock in the yard — at
+village zoom, four copies of the same hill. The page draws them the way a
+match does (`makeGlbBuilding` plus the stock stacks `buildingSync` piles on
+`MINE_SPOTS`), in a row, at the rig's own angles, with the yards both empty
+and full — which is the only way to see that the empty case was the one
+doing the damage.
+
+```sh
+pnpm dev   # then /tools/modelLab/_mines.html
+```
+
+`?stock=0|1` shows one row instead of both. `?yaw=<deg>` walks the camera
+round: the rig opens at 30° and turns in 15° steps, so a silhouette has to
+survive being looked at from behind as well as from the front. `w`/`h` set
+the canvas — shrink it to about 160px a row and you are looking at what the
+player actually sees.
+
+`_plan.html` is its companion: one mine straight down with a tenth-of-a-unit
+grid over it, which is how the coordinates in `BUILDING_DECOR` get read off
+rather than guessed. Red is the z axis, blue the x axis, and the grid box is
+the unit square a decor entry is placed in.
+
 ## Publishing the gallery
 
 ```sh
