@@ -73,6 +73,21 @@ function disposeTree(group: THREE.Object3D): void {
   });
 }
 
+/**
+ * The free lane nearest the middle, counting outward: 0, +1, -1, +2, -2…
+ *
+ * The first good a building holds stands squarely at its door, and each
+ * later kind flanks what is already there — which is the whole point of
+ * lanes rather than a centered row: the row would have had to shuffle.
+ */
+function freeLane(taken: Set<number>): number {
+  if (!taken.has(0)) return 0;
+  for (let step = 1; ; step++) {
+    if (!taken.has(step)) return step;
+    if (!taken.has(-step)) return -step;
+  }
+}
+
 interface BuildingVisual {
   root: THREE.Group;
   state: 'site' | 'built';
@@ -95,6 +110,9 @@ interface BuildingVisual {
   piles?: THREE.Group;
   /** Serialized pile contents — rebuilt only when the counts change. */
   pileKey: string;
+  /** Which lane each good's stack stands in, kept across rebuilds so a
+   * stack never slides sideways because a *different* good arrived. */
+  pileLanes: Map<GoodId, number>;
   /** The well's windlass, spun per frame while the well is staffed. */
   crank?: THREE.Object3D;
   /** The mill's sail assembly, turned per frame while the mill grinds. */
@@ -508,6 +526,7 @@ export class BuildingSync {
       road,
       pct: 1,
       pileKey: '',
+      pileLanes: new Map(),
       crank: model.getObjectByName('wellCrank') ?? undefined,
       fan: model.getObjectByName('millFan') ?? undefined,
       fanSpeed: 0,
@@ -892,6 +911,22 @@ export class BuildingSync {
     const key = shown.map(([g, n]) => `${g}${n}`).join('.');
     if (key === v.pileKey) return;
     v.pileKey = key;
+    // Lanes are sticky. Laying the stacks out by their index in `shown`
+    // meant every kind already on the ground jumped sideways the moment a
+    // new kind was set down beside it — half a lane, for goods nobody had
+    // touched. A good keeps the lane it was first given instead, so an
+    // arrival only ever adds a stack at the edge; a good that runs out
+    // hands its lane back for the next arrival to claim.
+    const lanes = v.pileLanes;
+    const present = new Set(shown.map(([g]) => g));
+    for (const g of lanes.keys()) if (!present.has(g)) lanes.delete(g);
+    const taken = new Set(lanes.values());
+    for (const [g] of shown) {
+      if (lanes.has(g)) continue;
+      const lane = freeLane(taken);
+      lanes.set(g, lane);
+      taken.add(lane);
+    }
     if (v.piles) {
       v.root.remove(v.piles);
       v.piles = undefined;
@@ -902,23 +937,24 @@ export class BuildingSync {
     // Just outside the front wall, Settlers-style — goods wait at the door
     // (they're ankle-high; carriers step over them).
     piles.position.set(0, 0, b.h / 2 + 0.3);
-    shown.forEach(([good, n], col) => {
+    for (const [good, n] of shown) {
+      const lane = lanes.get(good)!;
       // The lattice grows with the props (PILE_SCALE), or the fatter
       // stacks interpenetrate.
-      const cx = (col - (shown.length - 1) / 2) * 0.42 * PILE_SCALE;
+      const cx = lane * 0.42 * PILE_SCALE;
       for (let i = 0; i < n; i++) {
         const prop = makePileProp(good);
         const row = i % 3;
         const layer = (i / 3) | 0;
         prop.position.set(
-          cx + (hash2(b.id * 31 + i, col) - 0.5) * 0.06,
+          cx + (hash2(b.id * 31 + i, lane) - 0.5) * 0.06,
           layer * 0.12 * PILE_SCALE,
           (row * 0.17 - 0.17) * PILE_SCALE,
         );
-        prop.rotation.y = (hash2(b.id * 17 + i, col + 9) - 0.5) * 0.7;
+        prop.rotation.y = (hash2(b.id * 17 + i, lane + 9) - 0.5) * 0.7;
         piles.add(prop);
       }
-    });
+    }
     v.root.add(piles);
     v.piles = piles;
   }

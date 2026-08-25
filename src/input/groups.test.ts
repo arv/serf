@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { keyDigit, matchingGroup } from './groups';
+import { groupEmpty, keyDigit, matchingGroup } from './groups';
+import type { ControlGroup } from './groups';
 
 /** A keydown as the DOM reports it — only the two fields keyDigit reads. */
 const key = (code: string, k: string) => ({ code, key: k });
@@ -46,25 +47,41 @@ describe('keyDigit', () => {
   });
 });
 
+describe('groupEmpty', () => {
+  it('is what an untouched number and a wiped squad have in common', () => {
+    expect(groupEmpty(undefined)).toBe(true);
+    expect(groupEmpty({ kind: 'units', ids: new Set() })).toBe(true);
+  });
+
+  it('is not a squad that still has someone, or a building at all', () => {
+    expect(groupEmpty({ kind: 'units', ids: new Set([7]) })).toBe(false);
+    // A building group is its building or it has been dropped whole —
+    // there is no emptied-by-casualties middle for it to sit in.
+    expect(groupEmpty({ kind: 'building', id: 7 })).toBe(false);
+  });
+});
+
 describe('matchingGroup', () => {
-  const groups = (entries: [number, number[]][]) =>
-    new Map(entries.map(([d, ids]) => [d, new Set(ids)]));
+  const groups = (entries: [number, number[]][]): Map<number, ControlGroup> =>
+    new Map(entries.map(([d, ids]) => [d, { kind: 'units', ids: new Set(ids) }]));
+  const halls = (entries: [number, number][]): Map<number, ControlGroup> =>
+    new Map(entries.map(([d, id]) => [d, { kind: 'building', id }]));
 
   it('names the group a selection is exactly', () => {
-    expect(matchingGroup(groups([[1, [4, 5, 6]]]), new Set([6, 5, 4]))).toBe(1);
+    expect(matchingGroup(groups([[1, [4, 5, 6]]]), new Set([6, 5, 4]), null)).toBe(1);
   });
 
   it('says nothing about a selection that merely overlaps one', () => {
     const g = groups([[1, [4, 5, 6]]]);
-    expect(matchingGroup(g, new Set([4, 5]))).toBeNull();
-    expect(matchingGroup(g, new Set([4, 5, 6, 7]))).toBeNull();
-    expect(matchingGroup(g, new Set([4, 5, 7]))).toBeNull();
+    expect(matchingGroup(g, new Set([4, 5]), null)).toBeNull();
+    expect(matchingGroup(g, new Set([4, 5, 6, 7]), null)).toBeNull();
+    expect(matchingGroup(g, new Set([4, 5, 7]), null)).toBeNull();
   });
 
   it('is nobody’s group when nothing is selected', () => {
     // Not even a group that has been emptied by casualties: the badge would
     // then be claiming a squad that no longer exists.
-    expect(matchingGroup(groups([[1, []]]), new Set())).toBeNull();
+    expect(matchingGroup(groups([[1, []]]), new Set(), null)).toBeNull();
   });
 
   it('prefers the lower number when two groups hold the same squad', () => {
@@ -76,6 +93,7 @@ describe('matchingGroup', () => {
           [1, [1, 2]],
         ]),
         new Set([1, 2]),
+        null,
       ),
     ).toBe(1);
   });
@@ -90,8 +108,50 @@ describe('matchingGroup', () => {
           [9, [3]],
         ]),
         new Set([3]),
+        null,
       ),
     ).toBe(9);
-    expect(matchingGroup(groups([[0, [3]]]), new Set([3]))).toBe(0);
+    expect(matchingGroup(groups([[0, [3]]]), new Set([3]), null)).toBe(0);
+  });
+
+  it('names the group an open building card is', () => {
+    expect(matchingGroup(halls([[4, 88]]), new Set(), 88)).toBe(4);
+    expect(matchingGroup(halls([[4, 88]]), new Set(), 89)).toBeNull();
+  });
+
+  it('prefers the lower number for a building on two of them too', () => {
+    expect(
+      matchingGroup(
+        halls([
+          [7, 88],
+          [2, 88],
+        ]),
+        new Set(),
+        88,
+      ),
+    ).toBe(2);
+  });
+
+  it('never reads one kind of group as the other', () => {
+    // Units and buildings draw ids from one pool, so a barracks can share a
+    // number with a soldier — and a card open on #12 must not light up the
+    // group that holds soldier #12.
+    const mixed = new Map<number, ControlGroup>([
+      [1, { kind: 'units', ids: new Set([12]) }],
+      [2, { kind: 'building', id: 12 }],
+    ]);
+    expect(matchingGroup(mixed, new Set(), 12)).toBe(2);
+    expect(matchingGroup(mixed, new Set([12]), null)).toBe(1);
+  });
+
+  it('is the card’s group while a card is open, whatever else is held', () => {
+    // The two selections are mutually exclusive on screen: with a card
+    // open the selection set is empty, and it is the card that is asked
+    // about — a stale unit group can never answer for it.
+    const mixed = new Map<number, ControlGroup>([
+      [1, { kind: 'units', ids: new Set([4, 5]) }],
+      [3, { kind: 'building', id: 90 }],
+    ]);
+    expect(matchingGroup(mixed, new Set(), 90)).toBe(3);
   });
 });

@@ -158,9 +158,9 @@ four cycles, forced GC); it now sits flat at 21–22 MB.
 |---|---|
 | Left click / drag | Select units (shift = add) |
 | Double-click a unit | Select every unit of that kind on screen (shift = add) |
-| **Ctrl+1**…**Ctrl+0** | Stamp the selection as a control group |
-| **Shift+1**…**Shift+0** | Add the selection to that group |
-| **1**…**0** | Call the group back; twice in a beat also jumps the camera to it |
+| **Ctrl+1**…**Ctrl+0** | Stamp the selection — units *or* a building — as a control group |
+| **Shift+1**…**Shift+0** | Add the selection to that group (never overwrites one) |
+| **1**…**0** | Call the group back — units selected, or a building's panel opened; twice in a beat also jumps the camera to it |
 | Right click | Move order / attack enemy building |
 | Click building | Building panel (barracks: train units) |
 | **A** / **M** (units selected) | Arm attack-move / plain move — next click is the target |
@@ -195,6 +195,18 @@ soldiers calls back the half that lived, and one that lost all of them
 refuses out loud rather than answering with an empty selection. The
 selection card names the group it is standing on, which is the whole
 feedback loop: Ctrl+1 changes nothing else a player can see.
+
+A number holds whatever was selected when it was stamped, and that is either
+a band of people or one of your buildings — the same either/or the selection
+itself is. A building on a number is the economy's half of the binding:
+Ctrl+4 on the barracks, and from then on 4 opens its card wherever the
+fighting has taken the view, so hiring a soldier costs a keypress instead of
+a trip back across the map. The castle, the smithy and the storehouse earn
+their numbers the same way, and 4 twice still brings the camera along when
+the trip is the point. A razed building takes its number with it, freeing it
+to be stamped again; Shift is the half that never destroys a group, so it
+takes a free number and refuses a taken one rather than trading a squad for
+a barracks.
 
 Ctrl on a Mac too, not ⌘ — ⌘1–⌘9 switch browser tabs above the page, where
 no `preventDefault` reaches, and macOS ships its own ⌃1–⌃9 (switch to
