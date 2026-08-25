@@ -316,6 +316,11 @@ export function Hud(props: {
           /* How far the HUD's two strips stand off the window's edges,
              before the system's own chrome is added to it. */
           --hud-margin: 12px;
+          /* One square button in the floating thumb rail. Named rather
+             than written twice because the Build pill stands beside the
+             rail on an upright phone and has to be exactly as tall —
+             two literals drift the moment one of them is tuned. */
+          --touch-btn: 52px;
         }
         /* A number that changes while you watch it: right-aligned in a
            slot wide enough for its largest value. The digits move, the
@@ -732,7 +737,7 @@ export function Hud(props: {
           pointer-events: auto; z-index: 11;
         }
         #ui .hud-touch button {
-          width: 52px; height: 52px; padding: 0;
+          width: var(--touch-btn); height: var(--touch-btn); padding: 0;
           border-radius: 14px; font-size: 20px;
           display: grid; place-items: center;
           background: rgba(14, 16, 15, 0.72);
@@ -981,6 +986,37 @@ export function Hud(props: {
              a stale max-height silently capped the sheet. */
           .hud-debug { display: none; } /* desktop-only diagnostics */
 
+          /* The rail lies across rather than down at this size, and it
+             hangs from its right edge either way up. So the slot held
+             open for Deselect has to be the one at the left end: last in
+             the row, its reserved width was a whole invisible button
+             between the swords and the margin, which left the three
+             buttons that are always there standing short of the edge
+             every other thing on the screen lines up with. Moved with
+             order, not markup — the column below a tablet's thumb still
+             wants it last, nearest the hand. */
+          .hud-touch .deselect { order: -1; }
+
+          /* "…Silver Mine" on the Build pill is what the placing bar
+             standing beside it already says in full — the bar is a
+             phone's only way out of placement, so the two are never
+             apart here. Saying it twice is also what tipped the upright
+             row over its width: pill plus thumb rail came to 395px of a
+             370px line, and the rail wrapped underneath for exactly as
+             long as a building was in hand. Build is all the pill needs
+             to say while the bar is there to say the rest. */
+          .hud-build-pill .cost { display: none; }
+
+          /* Squared with whatever shares its row, both ways. The pill's
+             own flex-start is a desktop rule; on a phone it hung the
+             pill from the top of a row 8px taller than itself upright,
+             and 14px above the placing bar's foot sideways. And the
+             coarse-pointer 44px floor is the tap-target minimum, not a
+             size that agrees with anything — beside a rail of 52px
+             squares the pill read as the odd one out, so it takes the
+             rail's own number. */
+          #ui .hud-build-pill { align-self: flex-end; min-height: var(--touch-btn); }
+
           /* ——— The minimap is a sheet here, never a card ———
              A phone has no corner to spare: upright, the bottom is a
              full-width column; sideways, height is the whole budget.
@@ -1068,19 +1104,41 @@ export function Hud(props: {
           }
           .hud-resources span.res { flex: 0 0 auto; padding: 4px 8px; font-size: 13px; }
 
-          .hud-bottom { flex-direction: column; align-items: stretch; gap: 8px; }
+          /* A stack of full-width cards standing on one row of controls.
+             The thumb rail and the Build pill are each a single row of
+             buttons, and giving them a line apiece spent a band of map
+             to say on two lines what one line says — with the pill left
+             and the rail right, so nothing in the corner of the screen
+             agreed with anything else in it.
+             Wrap and order rather than new markup: the cards each claim
+             a whole line, the two controls fall in together beneath
+             them, and flex-end levels their bottom edges against the
+             same margin the cards sit on. */
+          .hud-bottom { flex-flow: row wrap; align-items: flex-end; gap: 8px; }
+          /* border-box, because #ui is otherwise content-box: a stacked
+             column got its width from align-items:stretch, which sizes
+             the border box, and a wrapped row gets it from a basis,
+             which sizes the content box. On the default the build
+             card's own padding and border landed outside the margin and
+             sliced the Woodcutter's price off the right edge. */
+          .hud-bottom > .hud-placing,
+          .hud-bottom > .hud-build,
+          .hud-bottom > .hud-selection { box-sizing: border-box; flex: 1 0 100%; }
           .hud-selection { margin-left: 0; width: auto; }
-          /* The thumb rail joins the column instead of floating over it.
+          /* The thumb rail joins the flow instead of floating over it.
              Fixed at 38vh it was a guess about how tall the cards would
              be, and a barracks with touch-sized buttons is 370px of
              card — the rail's ✕ ended up inside it. In the flow it
-             cannot be wrong: it rides up when the card below it grows.
+             cannot be wrong: it rides up when the cards above it grow.
              Laid across rather than down, because a column of three
              would be a third of the stack. */
           .hud-touch {
-            position: static; flex-direction: row; align-self: flex-end;
-            margin-bottom: 2px;
+            position: static; flex-direction: row;
+            order: 2; margin-left: auto;
           }
+          /* Last in the row, so the rail's auto margin has something to
+             push away from and the pill keeps the left margin. */
+          .hud-build-pill { order: 1; }
           /* The card is the screen's width here, so the grid takes it
              all and fits however many cells it holds — two on a phone,
              three on a tablet. The frame is a share of the screen
@@ -1127,10 +1185,20 @@ export function Hud(props: {
           @supports (height: 1svh) {
             #ui { --hud-bottom-h: min(52svh, 250px); }
           }
+          /* One row, and it does not wrap. A landscape phone is inside
+             both blocks — 667x375 is narrow and short at once — so
+             everything the upright rules did to stack this row has to
+             be undone here, not just its direction: the line break the
+             cards claim, and the order that sent the two controls down
+             beneath them. */
           .hud-bottom {
-            flex-direction: row; align-items: flex-end;
+            flex-flow: row nowrap; align-items: flex-end;
             max-height: var(--hud-bottom-h); gap: 8px;
           }
+          .hud-bottom > .hud-placing,
+          .hud-bottom > .hud-build { flex: 0 1 auto; }
+          .hud-bottom > .hud-selection { flex: 0 0 auto; }
+          .hud-build-pill { order: 0; }
           /* The same length again on the children, not 100%: a
              percentage max-height resolves against a parent's height,
              and this parent has only a max-height, so the percentage
@@ -1215,13 +1283,22 @@ export function Hud(props: {
              with its ✕ on the building's health. It lies along the
              band above them rather than down it: three 46px buttons
              stacked are 154px, and the band between the goods strip
-             and the cards is barely a hundred. */
+             and the cards is barely a hundred.
+             position: fixed is restated because the upright block sets
+             static and an iPhone SE sideways — 667x375 — is inside both
+             of them. It kept the static, sat in the row as a flex item,
+             and the two lengths below did nothing on the very phone
+             they were measured for: the rail stood at the row's left
+             margin with the Build pill beside it while a 932px phone
+             floated the same rail in the band above. Fixed here, both
+             land in the band. */
           .hud-touch {
-            flex-direction: row;
+            position: fixed; flex-direction: row;
             bottom: calc(var(--hud-bottom-h) + 14px + var(--safe-bottom));
             right: calc(10px + var(--safe-right));
           }
-          #ui .hud-touch button { width: 46px; height: 46px; border-radius: 12px; }
+          #ui { --touch-btn: 46px; }
+          #ui .hud-touch button { border-radius: 12px; }
           /* Seven full-size rows do not fit in 58% of a 390px screen
              whatever we do — but at desktop sizing only three of them
              did, and Quit was never one. */
@@ -1788,11 +1865,16 @@ export function Hud(props: {
             {/* This one really does answer to the keyboard: Esc clears the
                 selection, and every hardware keyboard has one. Rendered
                 whenever there is no keyboard and merely hidden when
-                nothing is selected: the column hangs from its bottom
-                edge, so a button that comes and goes would walk the two
-                above it up and down the screen. */}
+                nothing is selected: the rail hangs from an edge — a
+                tablet's from the bottom, a phone's from the right — so a
+                button that comes and goes would walk the others along it
+                every time a tap landed on a soldier. Last in the markup
+                because that is the far end of the tablet's column; the
+                phone's row puts the held slot at its own far end with
+                `order`. */}
             <Show when={!hasKeyboard()}>
               <button
+                class="deselect"
                 classList={{ reserved: selection().size === 0 }}
                 aria-hidden={selection().size === 0}
                 tabindex={selection().size === 0 ? -1 : undefined}
