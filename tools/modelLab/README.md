@@ -67,6 +67,21 @@ grid over it, which is how the coordinates in `BUILDING_DECOR` get read off
 rather than guessed. Red is the z axis, blue the x axis, and the grid box is
 the unit square a decor entry is placed in.
 
+`_spoil.html` is where the ground paint is judged instead of the models.
+The other two stand their buildings on a plain lit plane, which is the
+right stage for a silhouette and the wrong one for a tint the terrain mesh
+draws — so this page builds a small real map, deposits and footprints and
+all, and hands `TerrainMesh` the same spoil lookup `main.ts` gives it. The
+seam scatter is in too, because the question is whether a post's spoiled
+ground joins up with the seam it works.
+
+```sh
+pnpm dev   # then /tools/modelLab/_spoil.html
+```
+
+`?spoil=0` paints with the lookup disabled, which is the before shot;
+`?yaw` and `w`/`h` behave as they do on `_mines.html`.
+
 ## Publishing the gallery
 
 ```sh

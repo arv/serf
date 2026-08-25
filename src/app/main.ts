@@ -1,5 +1,5 @@
 import { GameRenderer } from '../render/renderer';
-import { TerrainMesh } from '../render/terrainMesh';
+import { TerrainMesh, spoilOf } from '../render/terrainMesh';
 import { ScatterMesh } from '../render/scatterMesh';
 import { HeightField } from '../render/heightField';
 import { GrassField } from '../render/grassField';
@@ -936,7 +936,11 @@ async function runMatch(
   // is added to the scene.
   renderer.setWorldExtent(init.map.play, init.map.size);
   const heights = new HeightField(init.map.height, init.map.size);
-  const terrain = new TerrainMesh(init.map, heights);
+  // The terrain paints spoil around the quarry and the mines, and only the
+  // mirror knows which building an id in map.buildingAt is.
+  const terrain = new TerrainMesh(init.map, heights, (id) =>
+    spoilOf(mirror.buildings.get(id)?.type),
+  );
   renderer.scene.add(terrain.mesh);
   const roads = new RoadDecal(init.map, heights);
   renderer.scene.add(roads.mesh);
