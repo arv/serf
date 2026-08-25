@@ -33,7 +33,7 @@ import { buildingName, techName } from './names';
 import { BUILD_GROUPS, buildAffordable, buildKey, buildUnlocked } from './buildMenu';
 import { Key } from './shortcut';
 import { hasKeyboard } from '../input/keyboard';
-import { COMPACT, NARROW, SHORT, useMedia } from './breakpoints';
+import { COMPACT, NARROW, SHORT, UPRIGHT, useMedia } from './breakpoints';
 import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
 import { latestSaveName } from '../app/saveStore';
@@ -154,6 +154,7 @@ export function Hud(props: {
    */
   const isCompact = useMedia(COMPACT);
   const isCoarse = useMedia('(pointer: coarse)');
+  const isUpright = useMedia(UPRIGHT);
   // A mouse or trackpad — the thing that makes a drag draw a selection
   // band instead of panning the camera (controls.ts hands plain touch
   // drags to the rig). Not the same question as "is there a keyboard":
@@ -207,6 +208,95 @@ export function Hud(props: {
     >
       ✕
     </button>
+  );
+  /**
+   * The two controls that stand at the foot of the HUD — Build, and the
+   * floating thumb rail — as one piece, because upright they share the last
+   * line of the bottom row and a screen reader should meet them there. The
+   * two calls in .hud-bottom render this at one end of the row or the other;
+   * see the comment on the first of them.
+   */
+  const BottomControls = (): JSX.Element => (
+    <>
+      <Show when={!buildVisible() && !replayMode()}>
+        <button class="hud-build-pill panel" onClick={() => setBuildOpen(true)}>
+          <MalletIcon /> <Key label="Build" k="B" />
+          <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
+        </button>
+      </Show>
+      <Show when={isCoarse() || isCompact()}>
+        <div class="hud-touch">
+          {/* The phone's rail lies across and hangs from its right edge,
+              so the far end is this one: the ✕ leads, and Muster stays
+              nearest the thumb whether or not anything is selected.
+              Only ever one of these two renders. */}
+          <Show when={!hasKeyboard() && isCompact()}>
+            <DeselectButton />
+          </Show>
+          {/* The minimap's door on small screens: the standing card
+              below only renders where a corner can afford it, and a
+              phone has no such corner either way up. The button wears a
+              live thumbnail of the chart rather than an icon — standing
+              awareness at no cost the button wasn't already paying: your
+              white blob, rival colors, and the alarm pulse below when a
+              warning knows a place. First in the rail — Muster and
+              Deselect keep their spots nearest the thumb. */}
+          <Show when={isCompact()}>
+            <button
+              class="map-thumb"
+              aria-label="Map"
+              classList={{
+                active: minimapOpen(),
+                alarm: toasts().some((t) => t.focus !== undefined),
+              }}
+              {...tooltip(() => (
+                <TextTip
+                  title="Map"
+                  body="The whole valley at a glance. Tap a spot to look there, or hold and drag to steer the camera."
+                />
+              ))}
+              onClick={() => setMinimapOpen(!minimapOpen())}
+            >
+              <Minimap source={props.minimap} mode="thumb" />
+            </button>
+          </Show>
+          {/* The lasso is the only way to band-select without a pointer
+              that drags one: bandArm() is what tells Controls to draw a
+              band rather than let the camera have the drag, and this
+              button is its only writer. So it retires for a mouse or
+              trackpad — never for a keyboard, which types but cannot
+              drag. */}
+          <Show when={!hasFinePointer()}>
+            <button
+              classList={{ active: bandArm() }}
+              {...tooltip(() => (
+                <TextTip
+                  title="Band select"
+                  body="Arm it, then drag a box over your people. The camera holds still for that one drag."
+                />
+              ))}
+              onClick={() => setBandArm(!bandArm())}
+            >
+              <BandIcon />
+            </button>
+          </Show>
+          <button
+            {...tooltip(() => (
+              <TextTip title="Muster the army" body="Selects every soldier you own, wherever they are." />
+            ))}
+            onClick={() => props.onSelectArmy()}
+          >
+            <SwordsIcon />
+          </button>
+          {/* The tablet's column hangs from its bottom edge, so this is
+              the far end here. See DeselectButton for why the ✕ is
+              written at both ends of the rail rather than moved. */}
+          <Show when={!hasKeyboard() && !isCompact()}>
+            <DeselectButton />
+          </Show>
+        </div>
+      </Show>
+    </>
   );
   const cost = (type: BuildingTypeId) => Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
   const affordable = (type: BuildingTypeId): boolean => buildAffordable(type, stock());
@@ -1151,11 +1241,8 @@ export function Hud(props: {
              would be a third of the stack. */
           .hud-touch {
             position: static; flex-direction: row;
-            order: 2; margin-left: auto;
+            margin-left: auto;
           }
-          /* Last in the row, so the rail's auto margin has something to
-             push away from and the pill keeps the left margin. */
-          .hud-build-pill { order: 1; }
           /* The card is the screen's width here, so the grid takes it
              all and fits however many cells it holds — two on a phone,
              three on a tablet. The frame is a share of the screen
@@ -1203,11 +1290,11 @@ export function Hud(props: {
             #ui { --hud-bottom-h: min(52svh, 250px); }
           }
           /* One row, and it does not wrap. A landscape phone is inside
-             both blocks — 667x375 is narrow and short at once — so
-             everything the upright rules did to stack this row has to
-             be undone here, not just its direction: the line break the
-             cards claim, and the order that sent the two controls down
-             beneath them. */
+             both blocks — 667x375 is narrow and short at once — so the
+             line break the upright rules hand the cards has to be
+             undone here, not just the direction. (The controls need no
+             undoing: they are markup, not order, and the upright markup
+             only answers to a screen that is narrow and tall.) */
           .hud-bottom {
             flex-flow: row nowrap; align-items: flex-end;
             max-height: var(--hud-bottom-h); gap: 8px;
@@ -1215,7 +1302,6 @@ export function Hud(props: {
           .hud-bottom > .hud-placing,
           .hud-bottom > .hud-build { flex: 0 1 auto; }
           .hud-bottom > .hud-selection { flex: 0 0 auto; }
-          .hud-build-pill { order: 0; }
           /* The same length again on the children, not 100%: a
              percentage max-height resolves against a parent's height,
              and this parent has only a max-height, so the percentage
@@ -1822,77 +1908,14 @@ export function Hud(props: {
 
 
       <div class="hud-bottom">
-        <Show when={isCoarse() || isCompact()}>
-          <div class="hud-touch">
-            {/* The phone's rail lies across and hangs from its right edge,
-                so the far end is this one: the ✕ leads, and Muster stays
-                nearest the thumb whether or not anything is selected.
-                Only ever one of these two renders. */}
-            <Show when={!hasKeyboard() && isCompact()}>
-              <DeselectButton />
-            </Show>
-            {/* The minimap's door on small screens: the standing card
-                below only renders where a corner can afford it, and a
-                phone has no such corner either way up. The button wears a
-                live thumbnail of the chart rather than an icon — standing
-                awareness at no cost the button wasn't already paying: your
-                white blob, rival colors, and the alarm pulse below when a
-                warning knows a place. First in the rail — Muster and
-                Deselect keep their spots nearest the thumb. */}
-            <Show when={isCompact()}>
-              <button
-                class="map-thumb"
-                aria-label="Map"
-                classList={{
-                  active: minimapOpen(),
-                  alarm: toasts().some((t) => t.focus !== undefined),
-                }}
-                {...tooltip(() => (
-                  <TextTip
-                    title="Map"
-                    body="The whole valley at a glance. Tap a spot to look there, or hold and drag to steer the camera."
-                  />
-                ))}
-                onClick={() => setMinimapOpen(!minimapOpen())}
-              >
-                <Minimap source={props.minimap} mode="thumb" />
-              </button>
-            </Show>
-            {/* The lasso is the only way to band-select without a pointer
-                that drags one: bandArm() is what tells Controls to draw a
-                band rather than let the camera have the drag, and this
-                button is its only writer. So it retires for a mouse or
-                trackpad — never for a keyboard, which types but cannot
-                drag. */}
-            <Show when={!hasFinePointer()}>
-              <button
-                classList={{ active: bandArm() }}
-                {...tooltip(() => (
-                  <TextTip
-                    title="Band select"
-                    body="Arm it, then drag a box over your people. The camera holds still for that one drag."
-                  />
-                ))}
-                onClick={() => setBandArm(!bandArm())}
-              >
-                <BandIcon />
-              </button>
-            </Show>
-            <button
-              {...tooltip(() => (
-                <TextTip title="Muster the army" body="Selects every soldier you own, wherever they are." />
-              ))}
-              onClick={() => props.onSelectArmy()}
-            >
-              <SwordsIcon />
-            </button>
-            {/* The tablet's column hangs from its bottom edge, so this is
-                the far end here. See DeselectButton for why the ✕ is
-                written at both ends of the rail rather than moved. */}
-            <Show when={!hasKeyboard() && !isCompact()}>
-              <DeselectButton />
-            </Show>
-          </div>
+        {/* Upright, the cards stack and these two stand on the last line
+            of them; every other shape lays the row out in a line and the
+            rail floats clear of it above. Rendered from one end of the row
+            or the other rather than placed once and moved with a CSS
+            `order`, so what a screen reader walks is the order it is
+            looking at. Only ever one of the two calls renders. */}
+        <Show when={!isUpright()}>
+          <BottomControls />
         </Show>
 
         <Show when={(isCoarse() || isCompact()) && !replayMode() && placing()}>
@@ -1909,18 +1932,10 @@ export function Hud(props: {
         </Show>
 
         {/* A replay takes no orders, so it offers no build card: the map
-            and the goods strip are the whole story. */}
-        <Show
-          when={buildVisible() && !replayMode()}
-          fallback={
-            <Show when={!replayMode()}>
-              <button class="hud-build-pill panel" onClick={() => setBuildOpen(true)}>
-                <MalletIcon /> <Key label="Build" k="B" />
-                <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
-              </button>
-            </Show>
-          }
-        >
+            and the goods strip are the whole story. The pill this folds
+            down to lives in BottomControls, at the foot of the row —
+            never both. */}
+        <Show when={buildVisible() && !replayMode()}>
           {/* The sheet's backstop, and only ever a sheet's: #ui is
               pointer-events:none, so without something taking the taps a
               finger aimed beside the open menu would land on the map and
@@ -2027,6 +2042,10 @@ export function Hud(props: {
           <div class="hud-minimap panel">
             <Minimap source={props.minimap} mode="pan" />
           </div>
+        </Show>
+
+        <Show when={isUpright()}>
+          <BottomControls />
         </Show>
       </div>
 
