@@ -241,10 +241,12 @@ export function Hud(props: {
       </Show>
       <Show when={isCoarse() || isCompact()}>
         <div class="hud-touch">
-          {/* The phone's rail lies across and hangs from its right edge,
-              so the far end is this one: the ✕ leads, and Muster stays
-              nearest the thumb whether or not anything is selected.
-              Only ever one of these two renders. */}
+          {/* A phone's rail hangs from a margin — the right one upright,
+              the bottom one sideways — so the far end is this one either
+              way: the ✕ leads, the buttons that are always there keep
+              the margin, and Muster stays nearest the thumb whether or
+              not anything is selected. Only ever one of these two
+              renders. */}
           <Show when={!hasKeyboard() && isCompact()}>
             <DeselectButton />
           </Show>
@@ -1313,6 +1315,15 @@ export function Hud(props: {
           .hud-bottom {
             flex-flow: row nowrap; align-items: flex-end;
             max-height: var(--hud-bottom-h); gap: 8px;
+            /* The right margin is the rail's now: it stands down the
+               edge here (below), and a column on the right and a
+               selection card on the right want the same corner. The
+               cards stop short of it rather than the rail floating over
+               them — floating is what put the ✕ on a building's health
+               the last time these two shared a corner. */
+            right: calc(
+              var(--hud-margin) + var(--safe-right) + var(--touch-btn) + 10px
+            );
           }
           .hud-bottom > .hud-placing,
           .hud-bottom > .hud-build { flex: 0 1 auto; }
@@ -1322,10 +1333,15 @@ export function Hud(props: {
              and this parent has only a max-height, so the percentage
              would come out as no limit at all — which is exactly how a
              369px selection card ended up standing on a 375px screen. */
-          /* :not(.hud-build) — the build menu is a sheet at this size
-             (below) and has left the row; capping it to the row's height
-             would put back exactly the limit it left to escape. */
-          .hud-bottom > *:not(.hud-build) {
+          /* The two exclusions are the two that have left the row: the
+             build menu is a sheet at this size and the thumb rail is a
+             fixed column down the edge, and capping either to the row's
+             height puts back exactly the limit it left to escape. The
+             rail showed what that costs — four buttons want 204px, the
+             cap on a 360px screen is 187, and the column being anchored
+             at its foot pushed the overflow downward: Muster hung three
+             pixels off the bottom of the screen. */
+          .hud-bottom > *:not(.hud-build):not(.hud-touch) {
             /* border-box, because #ui is otherwise content-box: on the
                default the cap leaves out the card's own padding and
                border, and the selection card stood 26px taller than
@@ -1396,24 +1412,26 @@ export function Hud(props: {
              the sheet is the height of one row. Only a tab that outgrows
              the sheet's cap scrolls. */
           .hud-build .hud-items { flex: 0 1 auto; min-height: 0; height: auto; }
-          /* The thumb rail clears the cards rather than floating over
-             them — at 38vh it landed on the selection card's shoulder,
-             with its ✕ on the building's health. It lies along the
-             band above them rather than down it: three 46px buttons
-             stacked are 154px, and the band between the goods strip
-             and the cards is barely a hundred.
+          /* Down the right edge, not across the band above the cards.
+             Across was a way of clearing them — a column of four is
+             208px and the band between the goods strip and the cards is
+             barely a hundred — but it left the buttons stranded in the
+             middle of the screen agreeing with nothing, and a rail read
+             as a rail in neither orientation. Sideways there is width to
+             spare and height to count, so the column takes the width:
+             it hangs from the bottom margin like the upright row hangs
+             from the right one, in the corner the thumb curls around,
+             and the cards give up the strip it stands in rather than
+             passing under it.
              position: fixed is restated because the upright block sets
              static and an iPhone SE sideways — 667x375 — is inside both
              of them. It kept the static, sat in the row as a flex item,
              and the two lengths below did nothing on the very phone
-             they were measured for: the rail stood at the row's left
-             margin with the Build pill beside it while a 932px phone
-             floated the same rail in the band above. Fixed here, both
-             land in the band. */
+             they were measured for. */
           .hud-touch {
-            position: fixed; flex-direction: row;
-            bottom: calc(var(--hud-bottom-h) + 14px + var(--safe-bottom));
-            right: calc(10px + var(--safe-right));
+            position: fixed; flex-direction: column;
+            bottom: calc(var(--hud-margin) + var(--safe-bottom));
+            right: calc(var(--hud-margin) + var(--safe-right));
           }
           #ui { --touch-btn: 46px; }
           #ui .hud-touch button { border-radius: 12px; }
