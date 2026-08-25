@@ -33,6 +33,41 @@ const crossOriginIsolation = {
   'Cross-Origin-Embedder-Policy': 'require-corp',
 };
 
+/**
+ * Dependencies that are given a chunk of their own, keyed by the path every
+ * one of their files sits under. (pnpm's real directory is
+ * `.pnpm/<name>@<version>/node_modules/<name>/`, so the trailing slash is
+ * what keeps `three` off `@types/three` and `solid-js` off a package merely
+ * named after it.)
+ *
+ * These are the files that do not change. App code is rewritten daily and
+ * its chunk hashes turn over with it; three.js and Solid turn over when the
+ * lockfile says so, which is a handful of times a year. Left to the
+ * automatic chunker they were mixed into whichever app chunk happened to
+ * pull them — three.js shared a 683 kB chunk with six render modules, Solid
+ * shared one with the building table — so a one-line balance tweak handed
+ * every returning player 176 kB of three.js to fetch again. Named here they
+ * keep their own file names across such a deploy, and the browser (and the
+ * service worker's shell precache, which fetches through the HTTP cache)
+ * keeps what it already has.
+ *
+ * 'llm' is the name build/swPlugin.ts looks for: the wllama chunk is kept
+ * out of the all-or-nothing shell precache, since only the opt-in LLM
+ * opponent ever fetches it (the 7 MB wasm keeps its own name as an asset).
+ */
+const VENDOR_CHUNKS: Record<string, string> = {
+  'node_modules/three/': 'three',
+  'node_modules/solid-js/': 'solid',
+  'node_modules/@wllama/wllama/': 'llm',
+};
+
+function vendorChunk(id: string): string | undefined {
+  for (const [dir, name] of Object.entries(VENDOR_CHUNKS)) {
+    if (id.includes(dir)) return name;
+  }
+  return undefined;
+}
+
 // Honor PORT so several checkouts (worktrees) can run dev servers side by
 // side without fighting over one hardcoded port. An explicit --port still
 // wins, and without either we fall through to Vite's own default.
@@ -54,12 +89,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // The wllama engine into its own 'llm-*' chunk: inference glue
-        // that only the opt-in LLM opponent ever imports, and the service
-        // worker plugin recognizes llm/wllama-named files to keep them out
-        // of the all-or-nothing shell precache (the 7 MB wasm keeps its
-        // own name as an asset).
-        manualChunks: (id) => (id.includes('@wllama/wllama') ? 'llm' : undefined),
+        manualChunks: vendorChunk,
       },
     },
   },
