@@ -57,8 +57,9 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
  * procBuildings.ts). They go through the same mill as a loaded one —
  * normalized to the unit square, dressed from BUILDING_DECOR, split for
  * team color, scaled by footprint — and differ only in where the geometry
- * came from. Both are drawn with the pack's material and both carry the
- * team slot in their atlas UVs, so nothing downstream can tell them apart.
+ * came from: a built building and a loaded one are drawn with the same
+ * material and carry the team slot in the same atlas UVs, so nothing
+ * downstream can tell the two apart.
  *
  * The bakery is here because every shell the pack could have lent it is
  * either a house or already someone else's: the blacksmith is a domed

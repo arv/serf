@@ -51,7 +51,13 @@ import type { PieceFactory } from './assets';
  * never uses.
  */
 interface Paint {
-  cell: [number, number];
+  /**
+   * ROW then COL of the atlas' 8x4 grid — the opposite order to the
+   * `col,row` strings PACK_PIECES uses in assets.ts. Two files talking
+   * about the same grid in two orders is a swap waiting to happen, so the
+   * tuple is labelled rather than left to the reader.
+   */
+  cell: [row: number, col: number];
   from?: number;
   to?: number;
 }
@@ -303,17 +309,19 @@ const OZ = 0.22;
 
 /**
  * The bakehouse: a small timber-framed house under a team-colored gable,
- * with the oven built against its front corner as a battered limestone mass
- * that carries its own flue clear of the ridge — and the arch cut into the
- * foot of it, loaves showing on the hearthstone inside.
+ * with the oven built against that gable as a battered chimney breast that
+ * carries its flue clear of the ridge — and the arch cut into the foot of
+ * it, loaves showing on the hearthstone inside.
  *
  * Why we model this rather than dress a pack shell. The pack's blacksmith
  * *is* a domed stone oven with a flue, so any oven bolted onto a house
  * gives the village two buildings with one silhouette; and the only shells
  * nobody was using are two more houses and a market stall. Building it
- * settles both: the oven can be a third of the whole building instead of a
- * prop on its flank, and it can be the one thing on the street made of
- * warm limestone rather than the pack's cool grey.
+ * lets the oven be a third of the whole building instead of a prop on its
+ * flank. It does NOT license a material of its own: the oven is masonry
+ * from the same cool grey ramp as the walls, a lighter slice of it, because
+ * a warm stone here was exactly what made the building read as another
+ * pack's asset.
  *
  * The arch is the tell and everything is arranged to protect it — it faces
  * +z, which is the way a building faces, it is the full height of the oven
@@ -379,7 +387,7 @@ function house(g: THREE.Group, piece: PieceFactory): void {
   box(g, HW - 0.05, 0.08, HD - 0.05, KAY.timber, HX, COURSE + 0.032, HZ);
   box(g, HW - 0.04, 0.075, HD - 0.04, KAY.timber, HX, EAVE - 0.042, HZ);
 
-  // Gable ends. The ridge runs along x, so these face front and back and
+  // Gable ends. The ridge runs along z, so these face front and back and
   // the front one is what the camera is looking at.
   for (const sz of [-1, 1]) {
     const tri = mesh(gableGeo(HW, RISE, 0.055), KAY.plaster);
@@ -400,13 +408,12 @@ function house(g: THREE.Group, piece: PieceFactory): void {
     box(g, 0.05, RISE * 0.8, 0.032, KAY.timber, HX, EAVE + RISE * 0.6, zf);
   }
 
-  // Roof: two slabs to a ridge, with the trim PARENTED to the slab it
-  // edges. Hanging the boards in world space is what made the corners look
-  // broken: each was positioned by its own arithmetic, so the bargeboards
-  // floated a hair off the slope with daylight under them, the fascia
-  // stopped short of the rake instead of meeting it, and the two rakes
-  // crossed in mid-air at the ridge. As children they inherit the slope
-  // exactly and cannot drift.
+  // Roof: two slopes to a ridge, each laid as several slabs, with every
+  // slab and board PARENTED to the slope it belongs to. Positioning the
+  // pieces in world space is what made the corners look broken — each was
+  // placed by its own arithmetic, so boards floated a hair off the slope
+  // with daylight under them. As children they inherit one rotation and
+  // cannot drift relative to each other.
   const ROOF_D = HD + 2 * OVER;
 
   /**
