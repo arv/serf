@@ -35,9 +35,9 @@ const SLOTS: Slot[] = [
     slot: 'bakery',
     name: 'Bakery',
     recipe: 'flour + water → food',
-    sub: 'Nothing in any pack is a bakery, so the oven is ours either way.',
-    pick: 'The oven house — a purpose-built stone bakehouse whose whole front is the arch — is still the better silhouette. This went in first because it needed no new machinery in the renderer, and the swap is contained.',
-    extra: 'EXTRA’s awning stall with the hanging meat and grain sacks is the closest thing to a food shop in any KayKit pack — worth trying as a second bakery shell if the house shell ever reads too much like a house.',
+    sub: 'Nothing in any pack is a bakery, so in the end the whole building is ours.',
+    pick: 'Every shell the pack could have lent this slot is either a house or already someone else’s, and the one we were using was a house — with a clay dome bolted to its flank, which is the blacksmith’s silhouette exactly: the pack ships the forge as a domed stone oven under a round flue. Modelling it settles that, and drawing it with the pack’s own texture settles the rest: the atlas is not a grid of flat swatches but a set of nine-stop gradients, and Kay rides them, so a building painted in flat colours picked out of it can never sit beside one that is not. The oven takes a lighter slice of the same grey ramp as the walls rather than a colour of its own.',
+    extra: 'Nothing in EXTRA changes this one. The awning stall is the nearest thing to a food shop in any KayKit pack, but a stall is not a bakehouse and it has nowhere to put a fire.',
   },
   {
     slot: 'fishery',
