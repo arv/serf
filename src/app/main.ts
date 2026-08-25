@@ -1299,7 +1299,11 @@ async function runMatch(
     // we were away and are back, and wakes the workers even when the
     // visibilitychange that should have said so was dropped.
     hidden.frame(now);
-    if (!pacer.due(now)) {
+    // Asked before the pacer, so a frame the GPU is not ready for is not
+    // also counted as one the cap has spent. See GameRenderer.gpuReady: the
+    // loop must not run ahead of the GPU, or the pipeline fills with frames
+    // that arrive on time and are already old.
+    if (!renderer.gpuReady() || !pacer.due(now)) {
       frame = requestAnimationFrame(loop);
       return;
     }
