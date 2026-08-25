@@ -34,11 +34,14 @@ const crossOriginIsolation = {
 };
 
 /**
- * Dependencies that are given a chunk of their own, keyed by the path every
- * one of their files sits under. (pnpm's real directory is
- * `.pnpm/<name>@<version>/node_modules/<name>/`, so the trailing slash is
- * what keeps `three` off `@types/three` and `solid-js` off a package merely
- * named after it.)
+ * Dependencies that are given a chunk of their own, matched on the
+ * directory every one of their files sits in. (pnpm's real directory is
+ * `.pnpm/<name>@<version>/node_modules/<name>/`, so the trailing separator
+ * is what keeps `three` off `@types/three` and `solid-js` off a package
+ * merely named after it. `[\\/]` rather than `/` for every separator: a
+ * module id arrives in the platform's own spelling, and on Windows that is
+ * a backslash — which a forward-slash substring would quietly never match,
+ * leaving the whole split silently undone.)
  *
  * These are the files that do not change. App code is rewritten daily and
  * its chunk hashes turn over with it; three.js and Solid turn over when the
@@ -55,15 +58,15 @@ const crossOriginIsolation = {
  * out of the all-or-nothing shell precache, since only the opt-in LLM
  * opponent ever fetches it (the 7 MB wasm keeps its own name as an asset).
  */
-const VENDOR_CHUNKS: Record<string, string> = {
-  'node_modules/three/': 'three',
-  'node_modules/solid-js/': 'solid',
-  'node_modules/@wllama/wllama/': 'llm',
-};
+const VENDOR_CHUNKS: [inside: RegExp, chunk: string][] = [
+  [/node_modules[\\/]three[\\/]/, 'three'],
+  [/node_modules[\\/]solid-js[\\/]/, 'solid'],
+  [/node_modules[\\/]@wllama[\\/]wllama[\\/]/, 'llm'],
+];
 
 function vendorChunk(id: string): string | undefined {
-  for (const [dir, name] of Object.entries(VENDOR_CHUNKS)) {
-    if (id.includes(dir)) return name;
+  for (const [inside, chunk] of VENDOR_CHUNKS) {
+    if (inside.test(id)) return chunk;
   }
   return undefined;
 }
