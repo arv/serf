@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createSignal } from 'solid-js';
+import type { JSX } from 'solid-js';
 import type { GoodId } from '../sim/defs/goods';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { TechId } from '../sim/defs/techs';
@@ -153,6 +154,22 @@ export function Hud(props: {
    */
   const isCompact = useMedia(COMPACT);
   const isCoarse = useMedia('(pointer: coarse)');
+  /**
+   * Upright and only upright — a phone narrow enough to stack, minus the
+   * landscape phones that are also narrow (an iPhone SE sideways is 667x375
+   * and inside NARROW). Almost nothing needs the distinction, because the
+   * stylesheet gets it for free from cascade order: the SHORT block is
+   * written after the NARROW one and simply overrides what it said. Markup
+   * has no cascade, and the bottom row needs the answer in markup — stacked
+   * it wants its controls at the end of the row, in a line it wants them at
+   * the head. So it is spelled out here as the same two questions in the
+   * same order, rather than as a third media query drawing the line again:
+   * a `min-height: 521px` twin to SHORT leaves 520.5px in a gap where CSS
+   * has stacked the row and this still says it hasn't.
+   */
+  const isNarrow = useMedia(NARROW);
+  const isShort = useMedia(SHORT);
+  const isUpright = (): boolean => isNarrow() && !isShort();
   // A mouse or trackpad — the thing that makes a drag draw a selection
   // band instead of panning the camera (controls.ts hands plain touch
   // drags to the rig). Not the same question as "is there a keyboard":
@@ -167,6 +184,18 @@ export function Hud(props: {
     props.onPlace(type);
     if (type !== null && isCompact()) setBuildOpen(false);
   };
+  /**
+   * Whether the speed cluster is holding exactly one control, and so can be
+   * the same square as the ☰ beside it rather than a panel around a row.
+   * The three conditions are the three <Show>s inside it: a match puts the
+   * ping chip in the panel (and takes the speed control out — you cannot
+   * hurry a match), a replay adds its own chip, fog eye and divider, and
+   * away from COMPACT the one cycling button becomes a button per speed.
+   * Read here rather than asked of the DOM with :has, which drops the whole
+   * rule on a browser that lacks it and costs more to recalculate on one
+   * that doesn't. The markup knows; it can say so.
+   */
+  const speedIsSingle = (): boolean => isCompact() && !netMode() && !replayMode();
   const menuOpen = (): boolean => openPanel() === 'menu';
   /** The newest saved game, as of the last time the menu was opened: what
    * the Load button reads to know whether there is anything to load, and
@@ -180,6 +209,167 @@ export function Hud(props: {
     setOpenPanel(open ? 'menu' : null);
     if (open) void latestSaveName().then(setLastSave);
   };
+  /**
+   * The thumb rail's Deselect ✕, which stands at whichever end of the rail
+   * is the far one — the bottom of a tablet's column, the left of a phone's
+   * row — so the buttons nearest the hand never move. Written once and
+   * rendered from either end of the rail rather than placed once and moved
+   * with CSS `order`: order moves the picture and leaves the markup where it
+   * was, and a screen reader swiping this rail would have been offered the
+   * ✕ last while looking at it first. It is a touch control by definition
+   * (a keyboard has Esc, and the rail doesn't render this at all when there
+   * is one), so the reading order is the only order it has.
+   */
+  const DeselectButton = (): JSX.Element => (
+    <button
+      classList={{ reserved: selection().size === 0 }}
+      aria-hidden={selection().size === 0}
+      tabindex={selection().size === 0 ? -1 : undefined}
+      {...tooltip(() => (
+        <TextTip
+          title="Deselect"
+          body="Lets the current selection go — taps stop being move orders."
+        />
+      ))}
+      onClick={() => props.onDeselect()}
+    >
+      ✕
+    </button>
+  );
+  /**
+   * The two controls that stand at the foot of the HUD — Build, and the
+   * floating thumb rail — as one piece, because upright they share the last
+   * line of the bottom row and a screen reader should meet them there. The
+   * two calls in .hud-bottom render this at one end of the row or the other;
+   * see the comment on the first of them.
+   */
+  const BottomControls = (): JSX.Element => (
+    <>
+      {/* Build is a toggle, and a toggle that moves is two buttons. It
+          stands here whenever the open card leaves the spot free —
+          upright the card is a line of the stack and the pill keeps its
+          place under it, so this is the toggle and it never budges.
+          Sideways the sheet covers this whole row, so the strip at the
+          sheet's foot stands in for it instead, to the pixel (see
+          BuildTabs). Off entirely on a desktop, where the card never
+          folds and `buildVisible()` is always true. */}
+      <Show when={!replayMode() && (!buildVisible() || isUpright())}>
+        {/* No pressed state: the card standing open above it is the
+            state, and the strip's twin sideways carries none either —
+            the two have to be the same button to be the same tap. */}
+        <button class="hud-build-pill panel" onClick={() => setBuildOpen(!buildOpen())}>
+          <MalletIcon /> <Key label="Build" k="B" />
+          <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
+        </button>
+      </Show>
+      <Show when={isCoarse() || isCompact()}>
+        <div class="hud-touch">
+          {/* A phone's rail hangs from a margin — the right one upright,
+              the bottom one sideways — so the far end is this one either
+              way: the ✕ leads, the buttons that are always there keep
+              the margin, and Muster stays nearest the thumb whether or
+              not anything is selected. Only ever one of these two
+              renders. */}
+          <Show when={!hasKeyboard() && isCompact()}>
+            <DeselectButton />
+          </Show>
+          {/* The minimap's door on small screens: the standing card
+              below only renders where a corner can afford it, and a
+              phone has no such corner either way up. The button wears a
+              live thumbnail of the chart rather than an icon — standing
+              awareness at no cost the button wasn't already paying: your
+              white blob, rival colors, and the alarm pulse below when a
+              warning knows a place. First in the rail — Muster and
+              Deselect keep their spots nearest the thumb. */}
+          <Show when={isCompact()}>
+            <button
+              class="map-thumb"
+              aria-label="Map"
+              classList={{
+                active: minimapOpen(),
+                alarm: toasts().some((t) => t.focus !== undefined),
+              }}
+              {...tooltip(() => (
+                <TextTip
+                  title="Map"
+                  body="The whole valley at a glance. Tap a spot to look there, or hold and drag to steer the camera."
+                />
+              ))}
+              onClick={() => setMinimapOpen(!minimapOpen())}
+            >
+              <Minimap source={props.minimap} mode="thumb" />
+            </button>
+          </Show>
+          {/* The lasso is the only way to band-select without a pointer
+              that drags one: bandArm() is what tells Controls to draw a
+              band rather than let the camera have the drag, and this
+              button is its only writer. So it retires for a mouse or
+              trackpad — never for a keyboard, which types but cannot
+              drag. */}
+          <Show when={!hasFinePointer()}>
+            <button
+              classList={{ active: bandArm() }}
+              {...tooltip(() => (
+                <TextTip
+                  title="Band select"
+                  body="Arm it, then drag a box over your people. The camera holds still for that one drag."
+                />
+              ))}
+              onClick={() => setBandArm(!bandArm())}
+            >
+              <BandIcon />
+            </button>
+          </Show>
+          <button
+            {...tooltip(() => (
+              <TextTip title="Muster the army" body="Selects every soldier you own, wherever they are." />
+            ))}
+            onClick={() => props.onSelectArmy()}
+          >
+            <SwordsIcon />
+          </button>
+          {/* The tablet's column hangs from its bottom edge, so this is
+              the far end here. See DeselectButton for why the ✕ is
+              written at both ends of the rail rather than moved. */}
+          <Show when={!hasKeyboard() && !isCompact()}>
+            <DeselectButton />
+          </Show>
+        </div>
+      </Show>
+    </>
+  );
+  /**
+   * The build card's tab strip — its head at a desk, and under COMPACT its
+   * foot, where a thumb already is.
+   *
+   * Under SHORT it also leads with Build, in place of a ✕ closing the sheet
+   * from the far end. SHORT is where the card becomes a sheet and covers
+   * the whole bottom row, pill and all, so the button that folds it away
+   * has to stand in the very place the pill that opened it stood — and then
+   * the same tap twice opens and closes without the thumb moving. It is
+   * full-bleed to the sheet's foot (the CSS) for exactly that reason: the
+   * sheet's own padding is all the two positions would otherwise differ by,
+   * and as it is they land within a pixel.
+   * Upright there is no need. The card is a line of the stack rather than a
+   * sheet over it, the pill is still standing underneath, and it is the
+   * toggle itself.
+   */
+  const BuildTabs = (): JSX.Element => (
+    <div class="hud-tabs">
+      <Show when={isShort()}>
+        <button class="build-fold panel" onClick={() => setBuildOpen(false)}>
+          <MalletIcon /> <Key label="Build" k="B" />
+        </button>
+      </Show>
+      <For each={BUILD_GROUPS}>
+        {(group, i) => (
+          <button classList={{ active: activeTab() === i() }} onClick={() => setActiveTab(i())}>
+            {group.label}
+          </button>
+        )}
+      </For>
+    </div>
+  );
   const cost = (type: BuildingTypeId) => Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
   const affordable = (type: BuildingTypeId): boolean => buildAffordable(type, stock());
   const unlocked = (type: BuildingTypeId): boolean => buildUnlocked(type, techs().researched);
@@ -316,6 +506,13 @@ export function Hud(props: {
           /* How far the HUD's two strips stand off the window's edges,
              before the system's own chrome is added to it. */
           --hud-margin: 12px;
+          /* One square button, wherever a thumb is the pointer. The
+             thumb rail is made of these; the Build pill stands beside
+             the rail upright and has to be exactly as tall; and on a
+             phone the speed button and the ☰ are the same square again
+             in the opposite corner. One number rather than four
+             literals, which drift the moment one of them is tuned. */
+          --touch-btn: 52px;
         }
         /* A number that changes while you watch it: right-aligned in a
            slot wide enough for its largest value. The digits move, the
@@ -652,11 +849,16 @@ export function Hud(props: {
           display: flex; gap: 2px; padding: 3px; align-self: flex-start;
           background: rgba(0, 0, 0, 0.35); border-radius: 9px;
         }
-        #ui .hud-tabs button {
+        /* :not(.build-fold) — every button in the strip is a tab
+           except the one that isn't. Build wears .panel, and a bare
+           tag selector here outranks that class, so without this the
+           panel was quietly doing nothing: transparent, borderless,
+           7px-cornered — a tab in all but name. */
+        #ui .hud-tabs button:not(.build-fold) {
           padding: 4px 14px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
           color: #a3a099; background: transparent; border: none; border-radius: 7px;
         }
-        #ui .hud-tabs button:hover:not(.active) { color: #f0ede4; background: transparent; border: none; }
+        #ui .hud-tabs button:not(.build-fold):hover:not(.active) { color: #f0ede4; background: transparent; border: none; }
         #ui .hud-tabs button.active { background: #e5c469; color: #0e100f; }
         /* A declared grid, not a wrapping row. Shrink-to-fit made the
            card a different width per tab — Industry 613px, War 295px —
@@ -732,7 +934,7 @@ export function Hud(props: {
           pointer-events: auto; z-index: 11;
         }
         #ui .hud-touch button {
-          width: 52px; height: 52px; padding: 0;
+          width: var(--touch-btn); height: var(--touch-btn); padding: 0;
           border-radius: 14px; font-size: 20px;
           display: grid; place-items: center;
           background: rgba(14, 16, 15, 0.72);
@@ -798,9 +1000,18 @@ export function Hud(props: {
         }
         .hud-placing .what b { color: #e5c469; font-weight: 600; }
         #ui .hud-placing .cancel { flex: 0 0 auto; }
-        #ui .build-fold {
-          margin-left: auto; min-height: 0;
-          padding: 4px 12px; background: transparent; border: none; color: #a3a099;
+        /* Rendered under SHORT only (BuildTabs) — a phone sideways, or
+           any window squashed as flat, which gets the same layout and
+           the same answer. It has to be the pill to the eye as well as
+           to the thumb, so it takes its whole face from the same two
+           places the pill takes it (.panel, and #ui button) and states
+           only what is left: the touch square, and a gap before the
+           tabs begin. Nothing about weight or padding here on purpose —
+           anything this sets that the pill doesn't is a way the two can
+           come out different, and they have to be one button. */
+        #ui .hud-tabs button.build-fold {
+          margin-right: 8px;
+          min-height: var(--touch-btn);
         }
         .hud-debug {
           width: 380px; max-height: 60vh;
@@ -896,7 +1107,7 @@ export function Hud(props: {
           #ui button { padding: 11px 15px; min-height: 44px; }
           #ui .hud-speed button { padding: 9px 14px; min-height: 44px; }
           #ui .hud-speed button.icon { width: 46px; height: 44px; }
-          #ui .hud-tabs button { padding: 9px 18px; min-height: 40px; }
+          #ui .hud-tabs button:not(.build-fold) { padding: 9px 18px; min-height: 40px; }
           #ui .menu-close { min-height: 36px; padding: 4px 12px; }
           .hud-resources span.res { padding: 7px 10px; }
           /* Hover styling is meaningless without a hover cursor and just
@@ -947,8 +1158,62 @@ export function Hud(props: {
           .hud-top, .hud-bottom {
             --hud-margin: 10px;
           }
-          /* The fold ✕ sits at the row's end, so the tab strip stretches. */
-          .hud-tabs { align-self: stretch; }
+          /* ——— The chrome's two controls are one pair ———
+             A phone's speed control is a single button — one tap cycles
+             play, fast, pause — and the ☰ beside it is a single button,
+             so they take the same square as each other and as the thumb
+             rail in the opposite corner. They did not: the ☰ asked for
+             38 and got 38x38 with the coarse block's 44px tap floor
+             stretching it, while the speed button wore a panel with
+             padding and came out 60x56 beside it. Two lozenges, no two
+             edges agreeing.
+             The panel is what the speed button wears, so the panel is
+             what gets sized, and the button fills it — border-box, so
+             the number here is the whole thing including the border the
+             ☰ counts inside its own. */
+          #ui .hud-menu-btn {
+            width: var(--touch-btn); height: var(--touch-btn);
+          }
+          /* And when it really is a cluster it still stands exactly as
+             tall: the icon's own 44 (38 sideways) plus 3px of padding
+             each side plus the border is --touch-btn either way up. A
+             replay's row of controls is wider than the ☰ — it is more
+             controls — but its top and foot are the ☰'s. */
+          #ui .hud-speed { padding: 3px 6px; }
+          /* .single — set by the component when the panel really is
+             holding just the one button (see speedIsSingle). A replay
+             puts a fog eye and a divider in beside it and a match puts
+             the ping chip there, and then it is a cluster again and
+             wants its padding back. */
+          #ui .hud-speed.single {
+            box-sizing: border-box; padding: 0;
+            width: var(--touch-btn); height: var(--touch-btn);
+            border-radius: 12px;
+          }
+          /* A hair inside the panel's own corner, so the gold of the
+             active state doesn't square off the rounding it sits in. */
+          #ui .hud-speed.single button.icon {
+            width: 100%; height: 100%; border-radius: 11px;
+          }
+
+          /* The strip is the sheet's foot here, not its head, and it is
+             full-bleed to it: the sheet's own 10px of padding is
+             exactly what would otherwise stand between the Build button
+             leading the strip and the place the pill it replaces was
+             standing, and the whole point of that button is that it
+             does not move. Negative margins rather than an unpadded
+             sheet, because the ribbon above it still wants the padding.
+             The panel under it is surface enough, so the strip's own
+             dark backing goes. */
+          .hud-tabs {
+            align-self: stretch; align-items: center;
+            margin: 0 -10px -10px; padding: 0;
+            background: transparent; border-radius: 0;
+          }
+          /* Room for a fifth control on the strip. At the coarse
+             block's 18px the four tabs and Build came to 407px of a
+             373px screen upright, and the War tab hung off the end. */
+          #ui .hud-tabs button:not(.build-fold) { padding: 9px 12px; }
           .hud-build .hud-items {
             width: auto;
             touch-action: pan-y;
@@ -980,6 +1245,26 @@ export function Hud(props: {
              that component renders later, so rules here lost the tie and
              a stale max-height silently capped the sheet. */
           .hud-debug { display: none; } /* desktop-only diagnostics */
+
+          /* "…Silver Mine" on the Build pill is what the placing bar
+             standing beside it already says in full — the bar is a
+             phone's only way out of placement, so the two are never
+             apart here. Saying it twice is also what tipped the upright
+             row over its width: pill plus thumb rail came to 395px of a
+             370px line, and the rail wrapped underneath for exactly as
+             long as a building was in hand. Build is all the pill needs
+             to say while the bar is there to say the rest. */
+          .hud-build-pill .cost { display: none; }
+
+          /* Squared with whatever shares its row, both ways. The pill's
+             own flex-start is a desktop rule; on a phone it hung the
+             pill from the top of a row 8px taller than itself upright,
+             and 14px above the placing bar's foot sideways. And the
+             coarse-pointer 44px floor is the tap-target minimum, not a
+             size that agrees with anything — beside a rail of 52px
+             squares the pill read as the odd one out, so it takes the
+             rail's own number. */
+          #ui .hud-build-pill { align-self: flex-end; min-height: var(--touch-btn); }
 
           /* ——— The minimap is a sheet here, never a card ———
              A phone has no corner to spare: upright, the bottom is a
@@ -1068,18 +1353,37 @@ export function Hud(props: {
           }
           .hud-resources span.res { flex: 0 0 auto; padding: 4px 8px; font-size: 13px; }
 
-          .hud-bottom { flex-direction: column; align-items: stretch; gap: 8px; }
+          /* A stack of full-width cards standing on one row of controls.
+             The thumb rail and the Build pill are each a single row of
+             buttons, and giving them a line apiece spent a band of map
+             to say on two lines what one line says — with the pill left
+             and the rail right, so nothing in the corner of the screen
+             agreed with anything else in it.
+             Wrap and order rather than new markup: the cards each claim
+             a whole line, the two controls fall in together beneath
+             them, and flex-end levels their bottom edges against the
+             same margin the cards sit on. */
+          .hud-bottom { flex-flow: row wrap; align-items: flex-end; gap: 8px; }
+          /* border-box, because #ui is otherwise content-box: a stacked
+             column got its width from align-items:stretch, which sizes
+             the border box, and a wrapped row gets it from a basis,
+             which sizes the content box. On the default the build
+             card's own padding and border landed outside the margin and
+             sliced the Woodcutter's price off the right edge. */
+          .hud-bottom > .hud-placing,
+          .hud-bottom > .hud-build,
+          .hud-bottom > .hud-selection { box-sizing: border-box; flex: 1 0 100%; }
           .hud-selection { margin-left: 0; width: auto; }
-          /* The thumb rail joins the column instead of floating over it.
+          /* The thumb rail joins the flow instead of floating over it.
              Fixed at 38vh it was a guess about how tall the cards would
              be, and a barracks with touch-sized buttons is 370px of
              card — the rail's ✕ ended up inside it. In the flow it
-             cannot be wrong: it rides up when the card below it grows.
+             cannot be wrong: it rides up when the cards above it grow.
              Laid across rather than down, because a column of three
              would be a third of the stack. */
           .hud-touch {
-            position: static; flex-direction: row; align-self: flex-end;
-            margin-bottom: 2px;
+            position: static; flex-direction: row;
+            margin-left: auto;
           }
           /* The card is the screen's width here, so the grid takes it
              all and fits however many cells it holds — two on a phone,
@@ -1105,7 +1409,6 @@ export function Hud(props: {
           .hud-resources span.res.pop .num { min-width: 2.5ch; }
           #ui .hud-speed button.icon { width: 42px; height: 38px; }
           #ui .hud-speed button { min-height: 38px; }
-          #ui .menu-toggle { min-height: 38px; }
 
           /* The whole bottom row, capped. --hud-bottom-h is the number
              the cards inside it are cut to fit, and it is deliberately
@@ -1127,19 +1430,42 @@ export function Hud(props: {
           @supports (height: 1svh) {
             #ui { --hud-bottom-h: min(52svh, 250px); }
           }
+          /* One row, and it does not wrap. A landscape phone is inside
+             both blocks — 667x375 is narrow and short at once — so the
+             line break the upright rules hand the cards has to be
+             undone here, not just the direction. (The controls need no
+             undoing: they are markup, not order, and the upright markup
+             only answers to a screen that is narrow and tall.) */
           .hud-bottom {
-            flex-direction: row; align-items: flex-end;
+            flex-flow: row nowrap; align-items: flex-end;
             max-height: var(--hud-bottom-h); gap: 8px;
+            /* The right margin is the rail's now: it stands down the
+               edge here (below), and a column on the right and a
+               selection card on the right want the same corner. The
+               cards stop short of it rather than the rail floating over
+               them — floating is what put the ✕ on a building's health
+               the last time these two shared a corner. */
+            right: calc(
+              var(--hud-margin) + var(--safe-right) + var(--touch-btn) + 10px
+            );
           }
+          .hud-bottom > .hud-placing,
+          .hud-bottom > .hud-build { flex: 0 1 auto; }
+          .hud-bottom > .hud-selection { flex: 0 0 auto; }
           /* The same length again on the children, not 100%: a
              percentage max-height resolves against a parent's height,
              and this parent has only a max-height, so the percentage
              would come out as no limit at all — which is exactly how a
              369px selection card ended up standing on a 375px screen. */
-          /* :not(.hud-build) — the build menu is a sheet at this size
-             (below) and has left the row; capping it to the row's height
-             would put back exactly the limit it left to escape. */
-          .hud-bottom > *:not(.hud-build) {
+          /* The two exclusions are the two that have left the row: the
+             build menu is a sheet at this size and the thumb rail is a
+             fixed column down the edge, and capping either to the row's
+             height puts back exactly the limit it left to escape. The
+             rail showed what that costs — four buttons want 204px, the
+             cap on a 360px screen is 187, and the column being anchored
+             at its foot pushed the overflow downward: Muster hung three
+             pixels off the bottom of the screen. */
+          .hud-bottom > *:not(.hud-build):not(.hud-touch) {
             /* border-box, because #ui is otherwise content-box: on the
                default the cap leaves out the card's own padding and
                border, and the selection card stood 26px taller than
@@ -1210,18 +1536,29 @@ export function Hud(props: {
              the sheet is the height of one row. Only a tab that outgrows
              the sheet's cap scrolls. */
           .hud-build .hud-items { flex: 0 1 auto; min-height: 0; height: auto; }
-          /* The thumb rail clears the cards rather than floating over
-             them — at 38vh it landed on the selection card's shoulder,
-             with its ✕ on the building's health. It lies along the
-             band above them rather than down it: three 46px buttons
-             stacked are 154px, and the band between the goods strip
-             and the cards is barely a hundred. */
+          /* Down the right edge, not across the band above the cards.
+             Across was a way of clearing them — a column of four is
+             208px and the band between the goods strip and the cards is
+             barely a hundred — but it left the buttons stranded in the
+             middle of the screen agreeing with nothing, and a rail read
+             as a rail in neither orientation. Sideways there is width to
+             spare and height to count, so the column takes the width:
+             it hangs from the bottom margin like the upright row hangs
+             from the right one, in the corner the thumb curls around,
+             and the cards give up the strip it stands in rather than
+             passing under it.
+             position: fixed is restated because the upright block sets
+             static and an iPhone SE sideways — 667x375 — is inside both
+             of them. It kept the static, sat in the row as a flex item,
+             and the two lengths below did nothing on the very phone
+             they were measured for. */
           .hud-touch {
-            flex-direction: row;
-            bottom: calc(var(--hud-bottom-h) + 14px + var(--safe-bottom));
-            right: calc(10px + var(--safe-right));
+            position: fixed; flex-direction: column;
+            bottom: calc(var(--hud-margin) + var(--safe-bottom));
+            right: calc(var(--hud-margin) + var(--safe-right));
           }
-          #ui .hud-touch button { width: 46px; height: 46px; border-radius: 12px; }
+          #ui { --touch-btn: 46px; }
+          #ui .hud-touch button { border-radius: 12px; }
           /* Seven full-size rows do not fit in 58% of a 390px screen
              whatever we do — but at desktop sizing only three of them
              did, and Quit was never one. */
@@ -1289,7 +1626,7 @@ export function Hud(props: {
           right-anchored row that pins the menu button to the corner
           and lets the chips beside it grow away into open sky. */}
       <Show when={!netMode() || netStatus()?.state === 'ok'}>
-      <div class="hud-speed panel">
+      <div class="hud-speed panel" classList={{ single: speedIsSingle() }}>
         <Show when={netMode() && netStatus()?.state === 'ok'}>
           <span
             class="net-chip"
@@ -1728,86 +2065,14 @@ export function Hud(props: {
 
 
       <div class="hud-bottom">
-        <Show when={isCoarse() || isCompact()}>
-          <div class="hud-touch">
-            {/* The minimap's door on small screens: the standing card
-                below only renders where a corner can afford it, and a
-                phone has no such corner either way up. The button wears a
-                live thumbnail of the chart rather than an icon — standing
-                awareness at no cost the button wasn't already paying: your
-                white blob, rival colors, and the alarm pulse below when a
-                warning knows a place. First in the rail — Muster and
-                Deselect keep their spots nearest the thumb. */}
-            <Show when={isCompact()}>
-              <button
-                class="map-thumb"
-                aria-label="Map"
-                classList={{
-                  active: minimapOpen(),
-                  alarm: toasts().some((t) => t.focus !== undefined),
-                }}
-                {...tooltip(() => (
-                  <TextTip
-                    title="Map"
-                    body="The whole valley at a glance. Tap a spot to look there, or hold and drag to steer the camera."
-                  />
-                ))}
-                onClick={() => setMinimapOpen(!minimapOpen())}
-              >
-                <Minimap source={props.minimap} mode="thumb" />
-              </button>
-            </Show>
-            {/* The lasso is the only way to band-select without a pointer
-                that drags one: bandArm() is what tells Controls to draw a
-                band rather than let the camera have the drag, and this
-                button is its only writer. So it retires for a mouse or
-                trackpad — never for a keyboard, which types but cannot
-                drag. */}
-            <Show when={!hasFinePointer()}>
-              <button
-                classList={{ active: bandArm() }}
-                {...tooltip(() => (
-                  <TextTip
-                    title="Band select"
-                    body="Arm it, then drag a box over your people. The camera holds still for that one drag."
-                  />
-                ))}
-                onClick={() => setBandArm(!bandArm())}
-              >
-                <BandIcon />
-              </button>
-            </Show>
-            <button
-              {...tooltip(() => (
-                <TextTip title="Muster the army" body="Selects every soldier you own, wherever they are." />
-              ))}
-              onClick={() => props.onSelectArmy()}
-            >
-              <SwordsIcon />
-            </button>
-            {/* This one really does answer to the keyboard: Esc clears the
-                selection, and every hardware keyboard has one. Rendered
-                whenever there is no keyboard and merely hidden when
-                nothing is selected: the column hangs from its bottom
-                edge, so a button that comes and goes would walk the two
-                above it up and down the screen. */}
-            <Show when={!hasKeyboard()}>
-              <button
-                classList={{ reserved: selection().size === 0 }}
-                aria-hidden={selection().size === 0}
-                tabindex={selection().size === 0 ? -1 : undefined}
-                {...tooltip(() => (
-                  <TextTip
-                    title="Deselect"
-                    body="Lets the current selection go — taps stop being move orders."
-                  />
-                ))}
-                onClick={() => props.onDeselect()}
-              >
-                ✕
-              </button>
-            </Show>
-          </div>
+        {/* Upright, the cards stack and these two stand on the last line
+            of them; every other shape lays the row out in a line and the
+            rail floats clear of it above. Rendered from one end of the row
+            or the other rather than placed once and moved with a CSS
+            `order`, so what a screen reader walks is the order it is
+            looking at. Only ever one of the two calls renders. */}
+        <Show when={!isUpright()}>
+          <BottomControls />
         </Show>
 
         <Show when={(isCoarse() || isCompact()) && !replayMode() && placing()}>
@@ -1824,18 +2089,10 @@ export function Hud(props: {
         </Show>
 
         {/* A replay takes no orders, so it offers no build card: the map
-            and the goods strip are the whole story. */}
-        <Show
-          when={buildVisible() && !replayMode()}
-          fallback={
-            <Show when={!replayMode()}>
-              <button class="hud-build-pill panel" onClick={() => setBuildOpen(true)}>
-                <MalletIcon /> <Key label="Build" k="B" />
-                <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
-              </button>
-            </Show>
-          }
-        >
+            and the goods strip are the whole story. The pill this folds
+            down to lives in BottomControls, at the foot of the row —
+            never both. */}
+        <Show when={buildVisible() && !replayMode()}>
           {/* The sheet's backstop, and only ever a sheet's: #ui is
               pointer-events:none, so without something taking the taps a
               finger aimed beside the open menu would land on the map and
@@ -1868,20 +2125,11 @@ export function Hud(props: {
                 </span>
               </div>
             </Show>
-            <div class="hud-tabs">
-              <For each={BUILD_GROUPS}>
-                {(group, i) => (
-                  <button classList={{ active: activeTab() === i() }} onClick={() => setActiveTab(i())}>
-                    {group.label}
-                  </button>
-                )}
-              </For>
-              <Show when={isCompact()}>
-                <button class="build-fold" onClick={() => setBuildOpen(false)}>
-                  ✕
-                </button>
-              </Show>
-            </div>
+            {/* Head of the card on a desktop, foot of the sheet on a
+                phone — see BuildTabs. Only one of the two renders. */}
+            <Show when={!isCompact()}>
+              <BuildTabs />
+            </Show>
             <div class="hud-items">
               <For each={BUILD_GROUPS[activeTab()]!.types}>
                 {(type) => (
@@ -1916,6 +2164,9 @@ export function Hud(props: {
                 )}
               </For>
             </div>
+            <Show when={isCompact()}>
+              <BuildTabs />
+            </Show>
           </div>
         </Show>
 
@@ -1942,6 +2193,10 @@ export function Hud(props: {
           <div class="hud-minimap panel">
             <Minimap source={props.minimap} mode="pan" />
           </div>
+        </Show>
+
+        <Show when={isUpright()}>
+          <BottomControls />
         </Show>
       </div>
 
