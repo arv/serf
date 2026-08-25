@@ -327,18 +327,19 @@ export function Hud(props: {
     </>
   );
   /**
-   * The build card's tab strip — its head on a desktop, and on a phone its
+   * The build card's tab strip — its head at a desk, and under COMPACT its
    * foot, where a thumb already is.
    *
-   * Sideways the strip also leads with Build, in place of a ✕ closing the
-   * sheet from the far end: the sheet covers the whole bottom row there,
-   * pill and all, so the button that folds it away stands in the very
-   * place the pill that opened it stood and the same tap twice opens and
-   * closes without the thumb moving. It is full-bleed to the sheet's foot
-   * (the CSS) for exactly that reason — the sheet's own padding is all the
-   * two positions would otherwise differ by, and they land within a pixel.
-   * Upright there is no need: the card is a line of the stack rather than
-   * a sheet over it, the pill is still standing underneath, and it is the
+   * Under SHORT it also leads with Build, in place of a ✕ closing the sheet
+   * from the far end. SHORT is where the card becomes a sheet and covers
+   * the whole bottom row, pill and all, so the button that folds it away
+   * has to stand in the very place the pill that opened it stood — and then
+   * the same tap twice opens and closes without the thumb moving. It is
+   * full-bleed to the sheet's foot (the CSS) for exactly that reason: the
+   * sheet's own padding is all the two positions would otherwise differ by,
+   * and as it is they land within a pixel.
+   * Upright there is no need. The card is a line of the stack rather than a
+   * sheet over it, the pill is still standing underneath, and it is the
    * toggle itself.
    */
   const BuildTabs = (): JSX.Element => (
@@ -982,11 +983,12 @@ export function Hud(props: {
         }
         .hud-placing .what b { color: #e5c469; font-weight: 600; }
         #ui .hud-placing .cancel { flex: 0 0 auto; }
-        /* Only ever rendered on a phone (BuildTabs), so this is all of
-           it: the strip's Build button, wearing the pill's own face
-           because it stands in the pill's own place. #ui .hud-tabs
-           button would otherwise outrank a bare class and paint it as
-           a tab. */
+        /* Rendered under SHORT only (BuildTabs) — a phone sideways, or
+           any window squashed as flat, which gets the same layout and
+           the same answer — so this rule is all of it: the strip's
+           Build button, wearing the pill's own face because it stands
+           in the pill's own place. #ui .hud-tabs button would otherwise
+           outrank a bare class and paint it as a tab. */
         #ui .hud-tabs button.build-fold {
           margin-right: 8px;
           min-height: var(--touch-btn);
