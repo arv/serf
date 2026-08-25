@@ -21,6 +21,7 @@ import { HiddenSync } from './hiddenSync';
 import { loadCharacterAssets, serfSole } from '../render/characters';
 import { loadGlbAssets } from '../render/assets';
 import { Controls } from '../input/controls';
+import { installMouseCapture } from '../input/mouseCapture';
 import { DamageAlerts } from './damageAlerts';
 import { mountHud } from '../ui/mount';
 import {
@@ -1087,6 +1088,11 @@ async function runMatch(
     renderer.rig,
   );
   teardown.push(() => controls.dispose());
+  // The pointer belongs to the match while the match owns the screen: full
+  // screen plus the preference, and the menu bar stops reaching into the
+  // top of the map. A no-op until both are true, and torn down with the
+  // rest of the input so no lock outlives the world it was steering.
+  teardown.push(installMouseCapture());
   // Picking asks the renderer how tall each building is drawn, so a click
   // on a keep's towers selects the keep instead of reading through it.
   controls.setBuildingHeights(buildingSync);
