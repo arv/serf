@@ -106,8 +106,18 @@ const KAY = {
  */
 let atlas: THREE.Material | null = null;
 
+/**
+ * What a surface draws with if the pack never loaded. One instance for the
+ * whole building, like the atlas material it stands in for — building it
+ * per mesh would spend sixty materials on a path that only runs when the
+ * models are already missing. It is untextured, so the building comes out
+ * flat white; that is the honest look for "the pack is not here", and
+ * loadGlbAssets turns a real failure into a visible error anyway.
+ */
+const fallback = new THREE.MeshStandardMaterial({ metalness: 0, roughness: 0.5 });
+
 function mesh(geo: THREE.BufferGeometry, paint: Paint): THREE.Mesh {
-  const m = new THREE.Mesh(geo, atlas ?? new THREE.MeshStandardMaterial());
+  const m = new THREE.Mesh(geo, atlas ?? fallback);
   m.userData.paint = paint;
   m.castShadow = true;
   m.receiveShadow = true;
