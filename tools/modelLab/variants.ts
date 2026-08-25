@@ -353,9 +353,9 @@ export const VARIANTS: Variant[] = [
     slot: 'bakery',
     title: 'Bake-house',
     blurb:
-      'The pack’s second house with a clay oven built onto its flank: domed hearth, arched mouth with a fire behind it, short chimney, firewood stacked against the side. The oven is the whole tell — the shell alone would read as another dwelling.',
-    pack: ['building_home_B_green', 'barrel'],
-    handmade: ['clay oven + chimney'],
+      'The one building in the game with no KayKit model under it at all. A low timber-framed house under a team-colored gable, with the oven built against its gable as a battered chimney breast that carries its flue clear of the ridge, and a pale voussoir arch cut into the foot of it with the day’s loaves on the hearthstone. It draws with the pack’s texture rather than colours copied out of it — every surface UV-mapped into an atlas cell and ramped down world Y, which is how Kay gets the soft falloff on every wall and roof slope he draws. Its door is his, cut out of the house model; its roof is laid as offset slabs and trimmed only down the rakes, the way his is.',
+    pack: ['building_home_A_green (its door)'],
+    handmade: ['the whole building'],
     w: 2,
     h: 2,
     build(K) {
