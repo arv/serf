@@ -184,6 +184,18 @@ export function Hud(props: {
     props.onPlace(type);
     if (type !== null && isCompact()) setBuildOpen(false);
   };
+  /**
+   * Whether the speed cluster is holding exactly one control, and so can be
+   * the same square as the ☰ beside it rather than a panel around a row.
+   * The three conditions are the three <Show>s inside it: a match puts the
+   * ping chip in the panel (and takes the speed control out — you cannot
+   * hurry a match), a replay adds its own chip, fog eye and divider, and
+   * away from COMPACT the one cycling button becomes a button per speed.
+   * Read here rather than asked of the DOM with :has, which drops the whole
+   * rule on a browser that lacks it and costs more to recalculate on one
+   * that doesn't. The markup knows; it can say so.
+   */
+  const speedIsSingle = (): boolean => isCompact() && !netMode() && !replayMode();
   const menuOpen = (): boolean => openPanel() === 'menu';
   /** The newest saved game, as of the last time the menu was opened: what
    * the Load button reads to know whether there is anything to load, and
@@ -1168,18 +1180,19 @@ export function Hud(props: {
              replay's row of controls is wider than the ☰ — it is more
              controls — but its top and foot are the ☰'s. */
           #ui .hud-speed { padding: 3px 6px; }
-          /* :has — the cluster is only a single button when it is
-             actually alone. A replay puts a fog eye and a divider in
-             beside it and a match puts the ping chip there, and then it
-             is a cluster again and wants its padding back. */
-          #ui .hud-speed:has(> button:only-child) {
+          /* .single — set by the component when the panel really is
+             holding just the one button (see speedIsSingle). A replay
+             puts a fog eye and a divider in beside it and a match puts
+             the ping chip there, and then it is a cluster again and
+             wants its padding back. */
+          #ui .hud-speed.single {
             box-sizing: border-box; padding: 0;
             width: var(--touch-btn); height: var(--touch-btn);
             border-radius: 12px;
           }
           /* A hair inside the panel's own corner, so the gold of the
              active state doesn't square off the rounding it sits in. */
-          #ui .hud-speed:has(> button:only-child) button.icon {
+          #ui .hud-speed.single button.icon {
             width: 100%; height: 100%; border-radius: 11px;
           }
 
@@ -1613,7 +1626,7 @@ export function Hud(props: {
           right-anchored row that pins the menu button to the corner
           and lets the chips beside it grow away into open sky. */}
       <Show when={!netMode() || netStatus()?.state === 'ok'}>
-      <div class="hud-speed panel">
+      <div class="hud-speed panel" classList={{ single: speedIsSingle() }}>
         <Show when={netMode() && netStatus()?.state === 'ok'}>
           <span
             class="net-chip"
