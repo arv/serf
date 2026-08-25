@@ -348,16 +348,18 @@ export function makeBakehouse(piece: PieceFactory, packMaterial: THREE.Material 
 }
 
 function house(g: THREE.Group, piece: PieceFactory): void {
-
   // One footing block at each base corner, and nothing else on the wall.
+  //
+  // That is the pack's whole vocabulary for masonry on a house: its walls
+  // carry no marks at all, and each corner carries one big stone standing
+  // proud on both faces. Scattering small stones across the course instead
+  // reads as damage at village zoom, which is what the eye is best at
+  // picking out.
+  //
   // Measured off building_home_A: 0.12 across and 0.08 tall once the model
   // is normalized — wide and low, sitting just proud of the plinth. A cube
-  // of the same width is half again too tall and reads as a boulder parked
-  // against the corner rather than as the stone the corner stands on. This is the pack's whole vocabulary for masonry on a house: its
-  // walls carry no marks at all, and the corners carry one big stone that
-  // stands proud on both faces. Scattering small stones across the course
-  // instead reads as damage at village zoom, which is what the eye is
-  // actually good at picking out.
+  // of the same width is half again too tall, and reads as a boulder parked
+  // against the corner rather than as the stone the corner stands on.
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       box(g, 0.15, 0.09, 0.15, KAY.stone, HX + sx * (HW / 2 - 0.06), 0.045, HZ + sz * (HD / 2 - 0.06));

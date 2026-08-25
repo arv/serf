@@ -339,9 +339,18 @@ const PACK_PIECES: Record<
   },
 };
 
-/** Which atlas cell a UV lands in, as `col,row` of the 8x4 swatch grid. */
+/**
+ * Which atlas cell a UV lands in, as `col,row` of the 8x4 swatch grid.
+ *
+ * Clamped, because a UV of exactly 1.0 floors to column 8 or row 4 — one
+ * past the grid — and the cell string then matches nothing in a piece's
+ * `cells` list, so cutPackPiece silently drops the triangle. A UV on the
+ * far edge belongs to the last cell, not to one that does not exist.
+ */
 function atlasCell(u: number, v: number): string {
-  return `${Math.floor(u * 8)},${Math.floor(v * 4)}`;
+  const col = Math.min(7, Math.max(0, Math.floor(u * 8)));
+  const row = Math.min(3, Math.max(0, Math.floor(v * 4)));
+  return `${col},${row}`;
 }
 
 /**
