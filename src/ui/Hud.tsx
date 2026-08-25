@@ -837,11 +837,16 @@ export function Hud(props: {
           display: flex; gap: 2px; padding: 3px; align-self: flex-start;
           background: rgba(0, 0, 0, 0.35); border-radius: 9px;
         }
-        #ui .hud-tabs button {
+        /* :not(.build-fold) — every button in the strip is a tab
+           except the one that isn't. Build wears .panel, and a bare
+           tag selector here outranks that class, so without this the
+           panel was quietly doing nothing: transparent, borderless,
+           7px-cornered — a tab in all but name. */
+        #ui .hud-tabs button:not(.build-fold) {
           padding: 4px 14px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
           color: #a3a099; background: transparent; border: none; border-radius: 7px;
         }
-        #ui .hud-tabs button:hover:not(.active) { color: #f0ede4; background: transparent; border: none; }
+        #ui .hud-tabs button:not(.build-fold):hover:not(.active) { color: #f0ede4; background: transparent; border: none; }
         #ui .hud-tabs button.active { background: #e5c469; color: #0e100f; }
         /* A declared grid, not a wrapping row. Shrink-to-fit made the
            card a different width per tab — Industry 613px, War 295px —
@@ -985,17 +990,16 @@ export function Hud(props: {
         #ui .hud-placing .cancel { flex: 0 0 auto; }
         /* Rendered under SHORT only (BuildTabs) — a phone sideways, or
            any window squashed as flat, which gets the same layout and
-           the same answer — so this rule is all of it: the strip's
-           Build button, wearing the pill's own face because it stands
-           in the pill's own place. #ui .hud-tabs button would otherwise
-           outrank a bare class and paint it as a tab. */
+           the same answer. It has to be the pill to the eye as well as
+           to the thumb, so it takes its whole face from the same two
+           places the pill takes it (.panel, and #ui button) and states
+           only what is left: the touch square, and a gap before the
+           tabs begin. Nothing about weight or padding here on purpose —
+           anything this sets that the pill doesn't is a way the two can
+           come out different, and they have to be one button. */
         #ui .hud-tabs button.build-fold {
           margin-right: 8px;
           min-height: var(--touch-btn);
-          padding: 11px 15px;
-          font-weight: 600; letter-spacing: normal;
-          color: #eceade;
-          display: flex; align-items: center; gap: 6px;
         }
         .hud-debug {
           width: 380px; max-height: 60vh;
@@ -1091,7 +1095,7 @@ export function Hud(props: {
           #ui button { padding: 11px 15px; min-height: 44px; }
           #ui .hud-speed button { padding: 9px 14px; min-height: 44px; }
           #ui .hud-speed button.icon { width: 46px; height: 44px; }
-          #ui .hud-tabs button { padding: 9px 18px; min-height: 40px; }
+          #ui .hud-tabs button:not(.build-fold) { padding: 9px 18px; min-height: 40px; }
           #ui .menu-close { min-height: 36px; padding: 4px 12px; }
           .hud-resources span.res { padding: 7px 10px; }
           /* Hover styling is meaningless without a hover cursor and just
@@ -1196,7 +1200,7 @@ export function Hud(props: {
           /* Room for a fifth control on the strip. At the coarse
              block's 18px the four tabs and Build came to 407px of a
              373px screen upright, and the War tab hung off the end. */
-          #ui .hud-tabs button { padding: 9px 12px; }
+          #ui .hud-tabs button:not(.build-fold) { padding: 9px 12px; }
           .hud-build .hud-items {
             width: auto;
             touch-action: pan-y;
