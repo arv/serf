@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createSignal } from 'solid-js';
+import type { JSX } from 'solid-js';
 import type { GoodId } from '../sim/defs/goods';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { TechId } from '../sim/defs/techs';
@@ -180,6 +181,33 @@ export function Hud(props: {
     setOpenPanel(open ? 'menu' : null);
     if (open) void latestSaveName().then(setLastSave);
   };
+  /**
+   * The thumb rail's Deselect ✕, which stands at whichever end of the rail
+   * is the far one — the bottom of a tablet's column, the left of a phone's
+   * row — so the buttons nearest the hand never move. Written once and
+   * rendered from either end of the rail rather than placed once and moved
+   * with CSS `order`: order moves the picture and leaves the markup where it
+   * was, and a screen reader swiping this rail would have been offered the
+   * ✕ last while looking at it first. It is a touch control by definition
+   * (a keyboard has Esc, and the rail doesn't render this at all when there
+   * is one), so the reading order is the only order it has.
+   */
+  const DeselectButton = (): JSX.Element => (
+    <button
+      classList={{ reserved: selection().size === 0 }}
+      aria-hidden={selection().size === 0}
+      tabindex={selection().size === 0 ? -1 : undefined}
+      {...tooltip(() => (
+        <TextTip
+          title="Deselect"
+          body="Lets the current selection go — taps stop being move orders."
+        />
+      ))}
+      onClick={() => props.onDeselect()}
+    >
+      ✕
+    </button>
+  );
   const cost = (type: BuildingTypeId) => Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
   const affordable = (type: BuildingTypeId): boolean => buildAffordable(type, stock());
   const unlocked = (type: BuildingTypeId): boolean => buildUnlocked(type, techs().researched);
@@ -985,17 +1013,6 @@ export function Hud(props: {
              that component renders later, so rules here lost the tie and
              a stale max-height silently capped the sheet. */
           .hud-debug { display: none; } /* desktop-only diagnostics */
-
-          /* The rail lies across rather than down at this size, and it
-             hangs from its right edge either way up. So the slot held
-             open for Deselect has to be the one at the left end: last in
-             the row, its reserved width was a whole invisible button
-             between the swords and the margin, which left the three
-             buttons that are always there standing short of the edge
-             every other thing on the screen lines up with. Moved with
-             order, not markup — the column below a tablet's thumb still
-             wants it last, nearest the hand. */
-          .hud-touch .deselect { order: -1; }
 
           /* "…Silver Mine" on the Build pill is what the placing bar
              standing beside it already says in full — the bar is a
@@ -1807,6 +1824,13 @@ export function Hud(props: {
       <div class="hud-bottom">
         <Show when={isCoarse() || isCompact()}>
           <div class="hud-touch">
+            {/* The phone's rail lies across and hangs from its right edge,
+                so the far end is this one: the ✕ leads, and Muster stays
+                nearest the thumb whether or not anything is selected.
+                Only ever one of these two renders. */}
+            <Show when={!hasKeyboard() && isCompact()}>
+              <DeselectButton />
+            </Show>
             {/* The minimap's door on small screens: the standing card
                 below only renders where a corner can afford it, and a
                 phone has no such corner either way up. The button wears a
@@ -1862,32 +1886,11 @@ export function Hud(props: {
             >
               <SwordsIcon />
             </button>
-            {/* This one really does answer to the keyboard: Esc clears the
-                selection, and every hardware keyboard has one. Rendered
-                whenever there is no keyboard and merely hidden when
-                nothing is selected: the rail hangs from an edge — a
-                tablet's from the bottom, a phone's from the right — so a
-                button that comes and goes would walk the others along it
-                every time a tap landed on a soldier. Last in the markup
-                because that is the far end of the tablet's column; the
-                phone's row puts the held slot at its own far end with
-                `order`. */}
-            <Show when={!hasKeyboard()}>
-              <button
-                class="deselect"
-                classList={{ reserved: selection().size === 0 }}
-                aria-hidden={selection().size === 0}
-                tabindex={selection().size === 0 ? -1 : undefined}
-                {...tooltip(() => (
-                  <TextTip
-                    title="Deselect"
-                    body="Lets the current selection go — taps stop being move orders."
-                  />
-                ))}
-                onClick={() => props.onDeselect()}
-              >
-                ✕
-              </button>
+            {/* The tablet's column hangs from its bottom edge, so this is
+                the far end here. See DeselectButton for why the ✕ is
+                written at both ends of the rail rather than moved. */}
+            <Show when={!hasKeyboard() && !isCompact()}>
+              <DeselectButton />
             </Show>
           </div>
         </Show>
