@@ -451,10 +451,12 @@ export function Hud(props: {
           /* How far the HUD's two strips stand off the window's edges,
              before the system's own chrome is added to it. */
           --hud-margin: 12px;
-          /* One square button in the floating thumb rail. Named rather
-             than written twice because the Build pill stands beside the
-             rail on an upright phone and has to be exactly as tall —
-             two literals drift the moment one of them is tuned. */
+          /* One square button, wherever a thumb is the pointer. The
+             thumb rail is made of these; the Build pill stands beside
+             the rail upright and has to be exactly as tall; and on a
+             phone the speed button and the ☰ are the same square again
+             in the opposite corner. One number rather than four
+             literals, which drift the moment one of them is tuned. */
           --touch-btn: 52px;
         }
         /* A number that changes while you watch it: right-aligned in a
@@ -1087,6 +1089,43 @@ export function Hud(props: {
           .hud-top, .hud-bottom {
             --hud-margin: 10px;
           }
+          /* ——— The chrome's two controls are one pair ———
+             A phone's speed control is a single button — one tap cycles
+             play, fast, pause — and the ☰ beside it is a single button,
+             so they take the same square as each other and as the thumb
+             rail in the opposite corner. They did not: the ☰ asked for
+             38 and got 38x38 with the coarse block's 44px tap floor
+             stretching it, while the speed button wore a panel with
+             padding and came out 60x56 beside it. Two lozenges, no two
+             edges agreeing.
+             The panel is what the speed button wears, so the panel is
+             what gets sized, and the button fills it — border-box, so
+             the number here is the whole thing including the border the
+             ☰ counts inside its own. */
+          #ui .hud-menu-btn {
+            width: var(--touch-btn); height: var(--touch-btn);
+          }
+          /* And when it really is a cluster it still stands exactly as
+             tall: the icon's own 44 (38 sideways) plus 3px of padding
+             each side plus the border is --touch-btn either way up. A
+             replay's row of controls is wider than the ☰ — it is more
+             controls — but its top and foot are the ☰'s. */
+          #ui .hud-speed { padding: 3px 6px; }
+          /* :has — the cluster is only a single button when it is
+             actually alone. A replay puts a fog eye and a divider in
+             beside it and a match puts the ping chip there, and then it
+             is a cluster again and wants its padding back. */
+          #ui .hud-speed:has(> button:only-child) {
+            box-sizing: border-box; padding: 0;
+            width: var(--touch-btn); height: var(--touch-btn);
+            border-radius: 12px;
+          }
+          /* A hair inside the panel's own corner, so the gold of the
+             active state doesn't square off the rounding it sits in. */
+          #ui .hud-speed:has(> button:only-child) button.icon {
+            width: 100%; height: 100%; border-radius: 11px;
+          }
+
           /* The fold ✕ sits at the row's end, so the tab strip stretches. */
           .hud-tabs { align-self: stretch; }
           .hud-build .hud-items {
@@ -1284,7 +1323,6 @@ export function Hud(props: {
           .hud-resources span.res.pop .num { min-width: 2.5ch; }
           #ui .hud-speed button.icon { width: 42px; height: 38px; }
           #ui .hud-speed button { min-height: 38px; }
-          #ui .menu-toggle { min-height: 38px; }
 
           /* The whole bottom row, capped. --hud-bottom-h is the number
              the cards inside it are cut to fit, and it is deliberately
