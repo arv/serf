@@ -1,9 +1,9 @@
 import { domGestures, fullscreen } from '../ui/fullscreen';
 
-// Same escalation as ui/store.ts and edgeScroll.ts: the preference and the
-// live flag below are module-level state, and a hot swap would leave the
-// menu writing one module's signal while the installed capture reads the
-// other's — with a locked pointer and a drawn cursor riding on the answer.
+// Same escalation as ui/store.ts: the installed capture below is
+// module-level state, and a hot swap would strand it — a locked pointer, a
+// drawn cursor and a window full of listeners owned by a module nothing
+// left alive can reach to take them down.
 if (import.meta.hot) {
   import.meta.hot.accept(() => import.meta.hot?.invalidate());
 }
@@ -460,8 +460,8 @@ class MouseCapture {
     }, { capture: true, signal });
   }
 
-  /** Take the lock, or give it up — whichever the preference, the screen
-   * and the player's last word between them ask for. */
+  /** Take the lock, or give it up — whichever the screen, the platform and
+   * the player's last word between them ask for. */
   sync(): void {
     const want = capturable() && !this.#declined && immersive();
     if (want === this.#on) return;
