@@ -22,8 +22,8 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
   clearing: [
     {
       text:
-        'Push the cursor to a screen edge — or drag with a finger — to pan, ' +
-        'and scroll or pinch to zoom. The big roof is your ' +
+        'Arrow keys pan, and so does a finger; scroll or pinch to zoom. ' +
+        'In full screen the screen edges pan too. The big roof is your ' +
         'castle: your stores, your beds, and the one building you cannot lose.',
     },
     {

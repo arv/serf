@@ -21,6 +21,7 @@ import { HiddenSync } from './hiddenSync';
 import { loadCharacterAssets, serfSole } from '../render/characters';
 import { loadGlbAssets } from '../render/assets';
 import { Controls } from '../input/controls';
+import { installMouseCapture } from '../input/mouseCapture';
 import { DamageAlerts } from './damageAlerts';
 import { mountHud } from '../ui/mount';
 import {
@@ -1087,6 +1088,12 @@ async function runMatch(
     renderer.rig,
   );
   teardown.push(() => controls.dispose());
+  // The pointer belongs to the match while the match owns the screen: the
+  // lock is taken when full screen is, and the menu bar stops reaching into
+  // the top of the map. A no-op wherever there is no fine pointer or no
+  // lock to take, and torn down with the rest of the input so no lock
+  // outlives the world it was steering.
+  teardown.push(installMouseCapture());
   // Picking asks the renderer how tall each building is drawn, so a click
   // on a keep's towers selects the keep instead of reading through it.
   controls.setBuildingHeights(buildingSync);
@@ -1299,7 +1306,11 @@ async function runMatch(
     // we were away and are back, and wakes the workers even when the
     // visibilitychange that should have said so was dropped.
     hidden.frame(now);
-    if (!pacer.due(now)) {
+    // Asked before the pacer, so a frame the GPU is not ready for is not
+    // also counted as one the cap has spent. See GameRenderer.gpuReady: the
+    // loop must not run ahead of the GPU, or the pipeline fills with frames
+    // that arrive on time and are already old.
+    if (!renderer.gpuReady() || !pacer.due(now)) {
       frame = requestAnimationFrame(loop);
       return;
     }

@@ -192,7 +192,11 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   const loop = (): void => {
     if (stopped) return;
     const now = performance.now();
-    if (!pacer.due(now)) {
+    // The same gate the match loop uses, for the same reason: the menu is
+    // where the player is clicking buttons, and a backdrop that fills the
+    // frame pipeline makes those buttons answer six frames late. See
+    // GameRenderer.gpuReady.
+    if (!renderer.gpuReady() || !pacer.due(now)) {
       raf = requestAnimationFrame(loop);
       return;
     }
