@@ -27,22 +27,10 @@ export const NARROW = '(max-width: 760px)';
  * never be the reason a device lands on the wrong side. A desktop window
  * squashed this flat has the same problem and gets the same answer.
  */
-const SHORT_MAX = 520;
-export const SHORT = `(max-height: ${SHORT_MAX}px)`;
+export const SHORT = '(max-height: 520px)';
 /** Either of the above — a media query list, which is legal in both a
  *  stylesheet's `@media` and matchMedia(). */
 export const COMPACT = `${NARROW}, ${SHORT}`;
-/**
- * NARROW minus the landscape phones that also match it — upright and only
- * upright. Most adaptations don't need the distinction, because the two
- * blocks are written in cascade order and SHORT simply overrides what
- * NARROW said. The bottom row does: stacked, it wants its controls at the
- * end of the row, and in a line it wants them at the start, and that is an
- * order in the markup rather than a rule in a stylesheet. Tied to the same
- * number SHORT is cut from, so the two can never drift into a gap no
- * screen answers to.
- */
-export const UPRIGHT = `${NARROW} and (min-height: ${SHORT_MAX + 1}px)`;
 
 /** Reactive media query (no dependency; one listener per call site). */
 export function useMedia(query: string): () => boolean {

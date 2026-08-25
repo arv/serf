@@ -33,7 +33,7 @@ import { buildingName, techName } from './names';
 import { BUILD_GROUPS, buildAffordable, buildKey, buildUnlocked } from './buildMenu';
 import { Key } from './shortcut';
 import { hasKeyboard } from '../input/keyboard';
-import { COMPACT, NARROW, SHORT, UPRIGHT, useMedia } from './breakpoints';
+import { COMPACT, NARROW, SHORT, useMedia } from './breakpoints';
 import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
 import { latestSaveName } from '../app/saveStore';
@@ -154,7 +154,22 @@ export function Hud(props: {
    */
   const isCompact = useMedia(COMPACT);
   const isCoarse = useMedia('(pointer: coarse)');
-  const isUpright = useMedia(UPRIGHT);
+  /**
+   * Upright and only upright — a phone narrow enough to stack, minus the
+   * landscape phones that are also narrow (an iPhone SE sideways is 667x375
+   * and inside NARROW). Almost nothing needs the distinction, because the
+   * stylesheet gets it for free from cascade order: the SHORT block is
+   * written after the NARROW one and simply overrides what it said. Markup
+   * has no cascade, and the bottom row needs the answer in markup — stacked
+   * it wants its controls at the end of the row, in a line it wants them at
+   * the head. So it is spelled out here as the same two questions in the
+   * same order, rather than as a third media query drawing the line again:
+   * a `min-height: 521px` twin to SHORT leaves 520.5px in a gap where CSS
+   * has stacked the row and this still says it hasn't.
+   */
+  const isNarrow = useMedia(NARROW);
+  const isShort = useMedia(SHORT);
+  const isUpright = (): boolean => isNarrow() && !isShort();
   // A mouse or trackpad — the thing that makes a drag draw a selection
   // band instead of panning the camera (controls.ts hands plain touch
   // drags to the rig). Not the same question as "is there a keyboard":
