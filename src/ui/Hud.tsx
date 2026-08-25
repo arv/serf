@@ -233,8 +233,19 @@ export function Hud(props: {
    */
   const BottomControls = (): JSX.Element => (
     <>
-      <Show when={!buildVisible() && !replayMode()}>
-        <button class="hud-build-pill panel" onClick={() => setBuildOpen(true)}>
+      {/* Build is a toggle, and a toggle that moves is two buttons. It
+          stands here whenever the open card leaves the spot free —
+          upright the card is a line of the stack and the pill keeps its
+          place under it, so this is the toggle and it never budges.
+          Sideways the sheet covers this whole row, so the strip at the
+          sheet's foot stands in for it instead, to the pixel (see
+          BuildTabs). Off entirely on a desktop, where the card never
+          folds and `buildVisible()` is always true. */}
+      <Show when={!replayMode() && (!buildVisible() || isUpright())}>
+        {/* No pressed state: the card standing open above it is the
+            state, and the strip's twin sideways carries none either —
+            the two have to be the same button to be the same tap. */}
+        <button class="hud-build-pill panel" onClick={() => setBuildOpen(!buildOpen())}>
           <MalletIcon /> <Key label="Build" k="B" />
           <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
         </button>
@@ -314,6 +325,37 @@ export function Hud(props: {
         </div>
       </Show>
     </>
+  );
+  /**
+   * The build card's tab strip — its head on a desktop, and on a phone its
+   * foot, where a thumb already is.
+   *
+   * Sideways the strip also leads with Build, in place of a ✕ closing the
+   * sheet from the far end: the sheet covers the whole bottom row there,
+   * pill and all, so the button that folds it away stands in the very
+   * place the pill that opened it stood and the same tap twice opens and
+   * closes without the thumb moving. It is full-bleed to the sheet's foot
+   * (the CSS) for exactly that reason — the sheet's own padding is all the
+   * two positions would otherwise differ by, and they land within a pixel.
+   * Upright there is no need: the card is a line of the stack rather than
+   * a sheet over it, the pill is still standing underneath, and it is the
+   * toggle itself.
+   */
+  const BuildTabs = (): JSX.Element => (
+    <div class="hud-tabs">
+      <Show when={isShort()}>
+        <button class="build-fold panel" onClick={() => setBuildOpen(false)}>
+          <MalletIcon /> <Key label="Build" k="B" />
+        </button>
+      </Show>
+      <For each={BUILD_GROUPS}>
+        {(group, i) => (
+          <button classList={{ active: activeTab() === i() }} onClick={() => setActiveTab(i())}>
+            {group.label}
+          </button>
+        )}
+      </For>
+    </div>
   );
   const cost = (type: BuildingTypeId) => Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
   const affordable = (type: BuildingTypeId): boolean => buildAffordable(type, stock());
@@ -940,9 +982,18 @@ export function Hud(props: {
         }
         .hud-placing .what b { color: #e5c469; font-weight: 600; }
         #ui .hud-placing .cancel { flex: 0 0 auto; }
-        #ui .build-fold {
-          margin-left: auto; min-height: 0;
-          padding: 4px 12px; background: transparent; border: none; color: #a3a099;
+        /* Only ever rendered on a phone (BuildTabs), so this is all of
+           it: the strip's Build button, wearing the pill's own face
+           because it stands in the pill's own place. #ui .hud-tabs
+           button would otherwise outrank a bare class and paint it as
+           a tab. */
+        #ui .hud-tabs button.build-fold {
+          margin-right: 8px;
+          min-height: var(--touch-btn);
+          padding: 11px 15px;
+          font-weight: 600; letter-spacing: normal;
+          color: #eceade;
+          display: flex; align-items: center; gap: 6px;
         }
         .hud-debug {
           width: 380px; max-height: 60vh;
@@ -1126,8 +1177,24 @@ export function Hud(props: {
             width: 100%; height: 100%; border-radius: 11px;
           }
 
-          /* The fold ✕ sits at the row's end, so the tab strip stretches. */
-          .hud-tabs { align-self: stretch; }
+          /* The strip is the sheet's foot here, not its head, and it is
+             full-bleed to it: the sheet's own 10px of padding is
+             exactly what would otherwise stand between the Build button
+             leading the strip and the place the pill it replaces was
+             standing, and the whole point of that button is that it
+             does not move. Negative margins rather than an unpadded
+             sheet, because the ribbon above it still wants the padding.
+             The panel under it is surface enough, so the strip's own
+             dark backing goes. */
+          .hud-tabs {
+            align-self: stretch; align-items: center;
+            margin: 0 -10px -10px; padding: 0;
+            background: transparent; border-radius: 0;
+          }
+          /* Room for a fifth control on the strip. At the coarse
+             block's 18px the four tabs and Build came to 407px of a
+             373px screen upright, and the War tab hung off the end. */
+          #ui .hud-tabs button { padding: 9px 12px; }
           .hud-build .hud-items {
             width: auto;
             touch-action: pan-y;
@@ -2039,20 +2106,11 @@ export function Hud(props: {
                 </span>
               </div>
             </Show>
-            <div class="hud-tabs">
-              <For each={BUILD_GROUPS}>
-                {(group, i) => (
-                  <button classList={{ active: activeTab() === i() }} onClick={() => setActiveTab(i())}>
-                    {group.label}
-                  </button>
-                )}
-              </For>
-              <Show when={isCompact()}>
-                <button class="build-fold" onClick={() => setBuildOpen(false)}>
-                  ✕
-                </button>
-              </Show>
-            </div>
+            {/* Head of the card on a desktop, foot of the sheet on a
+                phone — see BuildTabs. Only one of the two renders. */}
+            <Show when={!isCompact()}>
+              <BuildTabs />
+            </Show>
             <div class="hud-items">
               <For each={BUILD_GROUPS[activeTab()]!.types}>
                 {(type) => (
@@ -2087,6 +2145,9 @@ export function Hud(props: {
                 )}
               </For>
             </div>
+            <Show when={isCompact()}>
+              <BuildTabs />
+            </Show>
           </div>
         </Show>
 
