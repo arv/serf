@@ -460,6 +460,21 @@ class MouseCapture {
     }, { capture: true, signal });
   }
 
+  /** Live: is the pointer ours this instant? */
+  get engaged(): boolean {
+    return this.#on;
+  }
+
+  /**
+   * Aim the rest of this gesture at `el`, whatever the drawn cursor goes
+   * on to stand over — the capture the platform would have granted, kept
+   * here instead because it will not grant one while it is locked. See
+   * capturePointer, the only caller.
+   */
+  hold(el: Element): void {
+    this.#held = el;
+  }
+
   /** Take the lock, or give it up — whichever the screen, the platform and
    * the player's last word between them ask for. */
   sync(): void {
@@ -642,12 +657,17 @@ class MouseCapture {
         break;
       case 'pointerdown': {
         const target = this.#aim();
+        // Cleared before the press rather than after it: a listener that
+        // takes the pointer does so through capturePointer, which writes
+        // straight to #held, and reading the answer back afterwards must
+        // not overwrite what the press itself just asked for.
+        this.#held = null;
         this.#send(raw, 'pointerdown', target);
         // Whoever took the pointer during that press keeps it until the
         // release, exactly as the platform would have given it to them —
         // the rig's middle-drag pan asks for this, and without it the pan
         // would stall the moment the cursor crossed a HUD strip.
-        this.#held = target !== null && held(target, raw) ? target : null;
+        if (this.#held === null && target !== null && held(target, raw)) this.#held = target;
         break;
       }
       case 'pointerup': {
@@ -1118,6 +1138,41 @@ function capturable(): boolean {
 }
 
 let live: MouseCapture | null = null;
+
+/**
+ * Take the pointer for the length of a gesture: aim everything that
+ * follows at `el`, wherever the pointer wanders, until the button comes
+ * back up.
+ *
+ * `Element.setPointerCapture` is the platform's own answer, and it cannot
+ * be the only one here. Blink throws InvalidStateError from it for as long
+ * as a pointer lock is engaged — whoever asks, and whether the event is
+ * the browser's or one of ours — so every drag that reached for a capture
+ * lost the rest of its handler to the throw the moment full screen started
+ * capturing the mouse. The selection band was the visible half of that:
+ * `display = 'block'` sits on the line after the capture, so the lasso
+ * stopped being drawn while the selection it made went on working.
+ *
+ * Locked, the capture is this module's to keep — #held is the same
+ * redirection by hand, and the relay already aims a held gesture's moves
+ * and its release at the holder. Unlocked, the platform still does it, and
+ * a refusal is swallowed: a capture is what a drag would like, never what
+ * it needs, and no drag should end because one was declined.
+ */
+export function capturePointer(el: Element, e: PointerEvent): void {
+  // A finger or a pen on the same machine keeps its own coordinates and is
+  // none of this module's business (see `relayable`), so it is left to ask
+  // the platform even while the mouse is ours.
+  if (live?.engaged === true && e.pointerType !== 'touch' && e.pointerType !== 'pen') {
+    live.hold(el);
+    return;
+  }
+  try {
+    el.setPointerCapture(e.pointerId);
+  } catch {
+    /* no capture to be had; the gesture goes on without one */
+  }
+}
 
 /**
  * Wire capture up for a match; the returned function takes it all down

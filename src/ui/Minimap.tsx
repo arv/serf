@@ -5,6 +5,7 @@ import type { FogQuery } from '../render/fogOfWar';
 import { playMin } from '../sim/map';
 import { clamp } from '../shared/math';
 import { play } from '../audio/audio';
+import { capturePointer } from '../input/mouseCapture';
 import { paintBase, ownerTint } from './minimapPaint';
 import { toasts } from './store';
 
@@ -264,7 +265,7 @@ export function Minimap(props: {
       onPointerDown={(e) => {
         if (props.mode === 'thumb') return;
         e.preventDefault();
-        canvas.setPointerCapture(e.pointerId);
+        capturePointer(canvas, e);
         down = true;
         scrubbing = false;
         downX = e.clientX;

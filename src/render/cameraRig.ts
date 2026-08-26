@@ -3,6 +3,7 @@ import { DEFAULT_MAP_SIZE } from '../shared/grid';
 import { clamp } from '../shared/math';
 import { EdgeScroll, edgeScrollEnabled } from '../input/edgeScroll';
 import { foreignChord, typingInto } from '../input/typing';
+import { capturePointer } from '../input/mouseCapture';
 
 /**
  * The line the game looks down at boot: 30° to the grid. The full 45°
@@ -355,7 +356,7 @@ export class CameraRig {
       if (e.button === 1) {
         e.preventDefault();
         this.#dragging = true;
-        canvas.setPointerCapture(e.pointerId);
+        capturePointer(canvas, e);
       }
     }, { signal });
     canvas.addEventListener('pointerup', (e) => {

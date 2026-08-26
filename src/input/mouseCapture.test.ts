@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { boundary, commonAncestor, hoverAlias, relayable, slide } from './mouseCapture';
+import {
+  boundary,
+  capturePointer,
+  commonAncestor,
+  hoverAlias,
+  relayable,
+  slide,
+} from './mouseCapture';
 
 /**
  * The DOM half of mouse capture — the lock, the drawn sprite, the
@@ -154,5 +161,32 @@ describe('relayable', () => {
     // A laptop screen is still a screen while the mouse is locked.
     expect(relayable('pointerdown', 'touch', 1)).toBe(false);
     expect(relayable('click', 'pen', 1)).toBe(false);
+  });
+});
+
+describe('capturePointer', () => {
+  const mouse = { pointerId: 7, pointerType: 'mouse' } as PointerEvent;
+
+  it('asks the platform while the pointer is still the platform’s', () => {
+    const asked: number[] = [];
+    const el = { setPointerCapture: (id: number) => void asked.push(id) } as unknown as Element;
+
+    capturePointer(el, mouse);
+
+    expect(asked).toEqual([7]);
+  });
+
+  it('lets a refusal go rather than taking the gesture down with it', () => {
+    // Blink throws InvalidStateError from setPointerCapture for as long as
+    // a pointer lock is engaged, which full screen now keeps for the whole
+    // match. Every caller of this has a drag half-built when it asks, and
+    // a capture is what a drag would like, never what it needs.
+    const el = {
+      setPointerCapture: () => {
+        throw new DOMException('locked', 'InvalidStateError');
+      },
+    } as unknown as Element;
+
+    expect(() => capturePointer(el, mouse)).not.toThrow();
   });
 });
