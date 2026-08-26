@@ -20,6 +20,39 @@
  * directly.
  */
 /**
+ * 29: metal seams are priced, not measured, and silver is priced higher.
+ *
+ * A generated valley used to give each faction its iron and silver as a
+ * flat amount per tile over a small disc, which meant the seam was worth
+ * whatever the ground allowed: a blob on open grass was six tiles and six
+ * times the metal, one against a grove or a lake was a single tile. Across
+ * four starts that ran to a tenfold spread — 20 silver against 200 — and
+ * the seat dealt the thin end mined its whole birthright out mid-match and
+ * sent a mine across the map onto a rival's seam. A seam now takes the
+ * nearest open tiles it can find and splits a fixed budget over them, so
+ * every start is worth the same however the terrain lies. Silver's budget
+ * is set above the old best case as well: the tech tree costs 79 and every
+ * hand taken off haulage for a post costs four more, so the old ceiling
+ * bought the techs or the people and never both.
+ *
+ * Every generated multiplayer map reshapes — the seam pass draws from the
+ * Rng differently, so every downstream draw shifts — and the AI seats then
+ * play a different economy on it. The solo mid-ring layout is untouched,
+ * deliberately: it has its own tuning and its own winnable coverage, and
+ * a solo seat leaves most of its silver in the ground as it is.
+ *
+ * Riding with it, a change to what the seats do with a tower under attack.
+ * A tower with something hostile in sight took the villager levy and
+ * nothing else — the manning rule bailed out before it could walk an
+ * archer up, and stayed bailed out for thirty seconds after the attacker
+ * left. Since the levy throws rocks for about a quarter of what the same
+ * two men do with bows, and exists to hold a wall UNTIL archers do, that
+ * had it backwards: a seat with archers in the yard answered raids with
+ * stones and marched the archers away. Towers now claim soldiers under
+ * siege exactly as they do on quiet ground, with the levy as the fallback
+ * it was written to be — so who is in a tower, who is left in the field,
+ * and the commands the seats issue all move.
+ *
  * 28: the campaign grew a fourth commission, Hammer and Haft, with an
  * authored map of its own. Nothing about how the sim ticks moved — but a
  * mission id is config, and an older build does not know this one:
@@ -180,4 +213,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 28;
+export const REPLAY_VERSION = 29;

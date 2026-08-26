@@ -486,6 +486,57 @@ describe('the stall watchdog', () => {
     expect(out.filter((c) => c.kind === 'setBuildingPaused')).toHaveLength(1);
   });
 
+  it('walks an archer up to a tower under attack instead of leaving it to the levy', () => {
+    // The levy is the stopgap, not the answer. It throws rocks for 4 damage
+    // on a 30-tick clock — about a quarter of what the same two men do with
+    // bows — and exists to hold a wall UNTIL archers do. The manning rule
+    // used to bail out the moment anything hostile came into sight, which
+    // had it backwards: a seat with an archer standing in the yard answered
+    // the raid with stones and kept the archer for the field.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    // Running, and the villagers are already up — the raid caught it as the
+    // levy branch always used to leave it.
+    tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
+    tower.garrisonKind = 'serf';
+    spawnUnit(world, 'bandit', BANDIT, 37.5, 38.5);
+    const archer = spawnUnit(world, 'archer', 0, 34.5, 34.5);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    // He is the wall's now: claimed for the tower means left out of the
+    // army, so nothing marches him anywhere. A soldier at the door relieves
+    // the whole levy, so the villagers go back to their errands.
+    expect(out.some((c) => c.kind === 'moveUnits' && c.unitIds.includes(archer.id))).toBe(false);
+    // And the tower keeps running while he walks — a besieged wall is never
+    // stood down, whoever is holding it.
+    expect(out).not.toContainEqual({
+      kind: 'setBuildingPaused',
+      buildingId: tower.id,
+      paused: true,
+    });
+  });
+
+  it('keeps a besieged tower running when there is no soldier to spare', () => {
+    // The other half of the same rule: the levy is still the fallback. With
+    // nobody to walk up, a tower with something hostile in sight is left
+    // running for the villagers to climb rather than emptied.
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, {});
+    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    tower.paused = true; // as one comes off the scaffold
+    spawnUnit(world, 'bandit', BANDIT, 37.5, 38.5);
+    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    world.tick += AI_PACING.decisionInterval;
+    const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+    expect(out).toContainEqual({
+      kind: 'setBuildingPaused',
+      buildingId: tower.id,
+      paused: false,
+    });
+  });
+
   it('leaves a tower alone while a soldier is walking to it', () => {
     // The stand-down cycle: an archer stops counting as loose the moment
     // staffing claims him, so a seat that halts on the next quiet beat turns
