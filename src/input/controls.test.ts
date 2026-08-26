@@ -121,6 +121,11 @@ function ptr(x: number, y: number, shiftKey = false): Record<string, unknown> {
   };
 }
 
+/** The same press made with a finger. */
+function touchPtr(x: number, y: number): Record<string, unknown> {
+  return { ...ptr(x, y), pointerType: 'touch' };
+}
+
 /** The right button, which is the order button on the desktop. */
 function rightPtr(x: number, y: number): Record<string, unknown> {
   return { ...ptr(x, y), button: 2, buttons: 2 };
@@ -390,6 +395,47 @@ describe('band select', () => {
 
     expect(selection().size).toBe(0);
     expect(selectedBuilding()).toBeNull();
+  });
+
+  it('draws the band even where the platform refuses the capture', () => {
+    // Full screen captures the mouse now (input/mouseCapture.ts), and Blink
+    // throws InvalidStateError out of setPointerCapture for as long as a
+    // pointer lock is engaged — whoever asks. That call sits one line above
+    // the line that shows the band, so the throw took the lasso with it:
+    // the rectangle went on being sized and selecting, invisibly, and the
+    // drag read as having done nothing until the units lit up at the end.
+    const made: ReturnType<typeof fakeEl>[] = [];
+    vi.stubGlobal('document', {
+      createElement: () => {
+        const el = fakeEl();
+        made.push(el);
+        return el;
+      },
+      getElementById: () => null,
+      body: { appendChild: () => {} },
+      head: { appendChild: () => {} },
+    });
+    const h = harness();
+    controls = h.controls;
+    h.canvas.setPointerCapture = () => {
+      throw new DOMException('locked', 'InvalidStateError');
+    };
+    h.addUnit(1, -5, -3);
+    const [from, to] = around([h.screenOf(1)]);
+
+    h.canvas.fire('pointerdown', ptr(from.x, from.y));
+    h.canvas.fire('pointermove', ptr(to.x, to.y));
+
+    const rect = made.find((el) => el.style.cssText.includes('border:1px solid'))!;
+    expect(rect.style.display).toBe('block');
+    expect(rect.style.left).toBe(`${Math.min(from.x, to.x)}px`);
+    expect(rect.style.top).toBe(`${Math.min(from.y, to.y)}px`);
+    expect(rect.style.width).toBe(`${Math.abs(to.x - from.x)}px`);
+    expect(rect.style.height).toBe(`${Math.abs(to.y - from.y)}px`);
+
+    h.canvas.fire('pointerup', ptr(to.x, to.y));
+    expect(rect.style.display).toBe('none');
+    expect([...selection()]).toEqual([1]);
   });
 
   it('adds to the standing selection when Shift is held', () => {
@@ -722,6 +768,41 @@ describe('right-click orders', () => {
     const ground = h.groundTileAt(roof)!;
     const onFootprint = ground.x >= 10 && ground.x < 13 && ground.y >= 10 && ground.y < 13;
     expect(onFootprint).toBe(false);
+  });
+
+  it('a finger dragging the map hovers nothing, and asks nothing of the scan', () => {
+    const h = keepAndSquad();
+    controls = h.controls;
+    const roof = h.at(11.5, TOP, 11.5);
+
+    // Standing on the keep with a finger down: still the keep.
+    expect(h.hoverAt(roof)).toBe(7);
+    h.canvas.fire('pointerdown', touchPtr(roof.x, roof.y));
+
+    // The finger travels past the slop — the camera has the drag now, and
+    // there is nothing under a fingertip to light up. The pan marks the
+    // hover dirty every frame it moves the world, and the scan that would
+    // answer walks every unit and rays the buildings; this is the frame
+    // that skips it.
+    h.canvas.fire('pointermove', touchPtr(roof.x + 60, roof.y + 60));
+    controls.updateHoverIfDirty();
+    expect(controls.hoverBuilding).toBe(-1);
+
+    // Even back over the keep mid-swipe: a finger on the glass is holding
+    // ground still, not pointing at what slid beneath it.
+    h.canvas.fire('pointermove', touchPtr(roof.x, roof.y));
+    controls.updateHoverIfDirty();
+    expect(controls.hoverBuilding).toBe(-1);
+
+    // Off the glass, and nothing is lit: the release marks no hover dirty,
+    // and a touchscreen with no finger on it has no cursor for a highlight
+    // to belong to.
+    h.canvas.fire('pointerup', touchPtr(roof.x, roof.y));
+    controls.updateHoverIfDirty();
+    expect(controls.hoverBuilding).toBe(-1);
+
+    // A pointer that actually moves picks it back up.
+    expect(h.hoverAt(roof)).toBe(7);
   });
 
   it('leaves bare ground exactly where it was', () => {

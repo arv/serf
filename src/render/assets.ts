@@ -5,6 +5,14 @@ import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
 import { makeBakehouse } from './procBuildings';
 import { makeFishSign, makeShoal } from './procParts';
+import {
+  makeAshlar,
+  makeHeadframe,
+  makeOreChute,
+  makeSheerlegs,
+  makeSluice,
+  makeWindlassHouse,
+} from './procMines';
 
 /**
  * GLB asset pipeline: building, tree, rock and prop models loaded from the
@@ -24,6 +32,7 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   storehouse: 'building_castle_green.gltf',
   house: 'building_home_A_green.gltf',
   woodcutter: 'building_lumbermill_green.gltf',
+  // The quarry plays the mine too — see the note on ironMine below.
   quarry: 'building_mine_green.gltf',
   well: 'building_well_green.gltf',
   wheatFarm: 'farm_plot.glb',
@@ -33,9 +42,10 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
   // quay. The one food building that needed nothing built by hand.
   fishery: 'extra/building_shipyard_green.gltf',
   brewery: 'building_tavern_green.gltf',
-  // The mines share one model and read apart by their spoil (rust, silver,
-  // gold boulders in BUILDING_DECOR) — the pack's color variants only vary
-  // the team-color slot, which now belongs to the owning faction.
+  // The quarry and the three mines all play this one model — the pack's
+  // color variants only vary the team-color slot, which belongs to the
+  // owning faction now. What separates the four is the headworks standing
+  // in each one's yard; see BUILDING_DECOR below.
   ironMine: 'building_mine_green.gltf',
   silverMine: 'building_mine_green.gltf',
   goldMine: 'building_mine_green.gltf',
@@ -232,10 +242,48 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     { make: () => new THREE.Group(), at: [-POST_D, POST_D], y: ROOF_Y, size: 1, name: 'towerPost0' },
     { make: () => new THREE.Group(), at: [POST_D, -POST_D], y: ROOF_Y, size: 1, name: 'towerPost1' },
   ],
-  quarry: [{ prop: 'wheelbarrow', at: [-0.36, 0.3], size: 0.15, rot: 0.6 }],
-  ironMine: [{ prop: 'wheelbarrow', at: [-0.35, 0.32], size: 0.15, rot: -0.5 }],
-  silverMine: [{ prop: 'sack', at: [-0.33, 0.33], size: 0.11 }],
-  goldMine: [{ prop: 'sack', at: [-0.33, 0.33], size: 0.11, rot: 1.1 }],
+  // The four extraction posts. They share one pack model — a rock mound
+  // with a timbered adit — and used to share very nearly one look with it:
+  // empty-yarded they were the same building four times, and stocked they
+  // differed by three thumb-sized boulders that the mound hides at most
+  // camera yaws. What tells them apart now is what stands in the yard, and
+  // it is chosen to differ in *outline* rather than in tint, because tint
+  // is what village zoom takes away first:
+  //
+  //   quarry  sheerlegs over sawn ashlar — a bare triangle, no roof, no
+  //           wheel, no shaft; the one post of the four that works the
+  //           surface, which is also what the sim has it do
+  //   iron    an ore chute down to a trestle bin — a long low slant
+  //   silver  a roofed windlass over a shaft collar — the only roof
+  //   gold    a headframe with the winding wheel at the apex, and a
+  //           washing sluice — the only circle, on the tallest frame
+  //
+  // Each also carries permanent spoil in its own ore's color, so an idle
+  // post with nothing in its yard still says which ore it is. That is a
+  // different thing from the stock stacks buildingSync piles on the spots
+  // in MINE_SPOTS, and it stands clear of them, out on the mouth's left.
+  quarry: [
+    { make: () => makeSheerlegs(), at: [0.34, 0.44], size: 1, rot: -0.5 },
+    { make: () => makeAshlar(), at: [-0.38, 0.45], size: 1, rot: 0.35 },
+    { prop: 'wheelbarrow', at: [0.06, 0.62], size: 0.15, rot: 0.85 },
+  ],
+  ironMine: [
+    { make: () => makeOreChute(), at: [0.36, 0.42], size: 1, rot: -0.3 },
+    { rock: 0x8a5238, at: [-0.42, 0.44], size: 0.17 },
+    { rock: 0x6b4132, at: [-0.28, 0.55], size: 0.11 },
+    { prop: 'wheelbarrow', at: [0.06, 0.62], size: 0.15, rot: 0.85 },
+  ],
+  silverMine: [
+    { make: () => makeWindlassHouse(), at: [0.35, 0.43], size: 1, rot: -0.45 },
+    { rock: 0xdde3ea, at: [-0.42, 0.44], size: 0.17 },
+    { rock: 0xb2bcc6, at: [-0.28, 0.55], size: 0.11 },
+    { prop: 'sack', at: [-0.04, 0.61], size: 0.12, rot: 0.7 },
+  ],
+  goldMine: [
+    { make: () => makeHeadframe(), at: [0.34, 0.43], size: 1, rot: -0.55 },
+    { make: () => makeSluice(), at: [-0.34, 0.5], size: 1, rot: 0.3 },
+    { rock: 0xe8c257, at: [-0.52, 0.3], size: 0.13 },
+  ],
 };
 
 interface Assets {

@@ -29,7 +29,6 @@ import {
 import type { ImportResult, StoredFileInfo } from '../app/fileStore';
 import { WORLD_SAVE_VERSION, canReadSave } from '../shared/saveVersion';
 import { fullscreen } from './fullscreen';
-import { edgeScrollEnabled, edgeScrollOffered, setEdgeScroll } from '../input/edgeScroll';
 import { goto } from '../app/router';
 import { muted, toggleMuted } from './store';
 
@@ -1315,13 +1314,21 @@ export function StartMenu(props: StartMenuProps) {
                   it belongs to a replay and a multiplayer room as much as
                   to a skirmish. Switched here rather than merely armed — a
                   toggle is a gesture, and a gesture is the only thing a
-                  browser takes a fullscreen request from. */}
+                  browser takes a fullscreen request from.
+
+                  One switch, three behaviours: the screen, the pointer
+                  captured inside it (input/mouseCapture.ts), and the map
+                  following that pointer at the edges (input/edgeScroll.ts).
+                  They were three rows once. They are one because they are
+                  one decision — a player asking for the whole screen is
+                  asking to play with the whole screen, and the two that
+                  used to be separate only ever made sense together. */}
               <Show when={fs.offerable()}>
                 <div class="row">
-                  {/* No hint under this one: the label is the whole story,
-                      and a row of small print explaining what full screen
-                      means would be the loudest thing on the card. */}
-                  <div class="row-label">Full screen</div>
+                  <div>
+                    <div class="row-label">Full screen</div>
+                    <div class="row-hint">The pointer plays inside it, and the edges pan the map</div>
+                  </div>
                   <button
                     class={`toggle ${fs.active() ? 'on' : ''}`}
                     role="switch"
@@ -1334,24 +1341,6 @@ export function StartMenu(props: StartMenuProps) {
                 </div>
               </Show>
 
-              {/* Its neighbour above, and for the same reason: a property of
-                  the window rather than of the match. Offered only where a
-                  pointer can rest against an edge — a finger drags the map
-                  itself and has nothing to gain. */}
-              <Show when={edgeScrollOffered()}>
-                <div class="row">
-                  <div class="row-label">Edge scrolling</div>
-                  <button
-                    class={`toggle ${edgeScrollEnabled() ? 'on' : ''}`}
-                    role="switch"
-                    aria-checked={edgeScrollEnabled()}
-                    aria-label="Edge scrolling"
-                    onClick={() => setEdgeScroll(!edgeScrollEnabled())}
-                  >
-                    <span />
-                  </button>
-                </div>
-              </Show>
             </div>
 
             <div class="cta-wrap">

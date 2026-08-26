@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, TileResource, playMin, playMax, type MapView } from '../sim/map';
+import type { BuildingTypeId } from '../sim/defs/buildings';
 import {
   bankMoss,
   earthTrail,
@@ -47,6 +48,55 @@ const CLASS_WATER = 1;
 const CLASS_ROCK = 2;
 
 /**
+ * Spoil: the ground an extraction post throws its waste onto.
+ *
+ * A quarry or a mine does not stop at its own footprint — rubble goes over
+ * the side and the ground around the mouth takes the colour of what is
+ * being dug. This is the same trick the deposits themselves use two dozen
+ * lines down, and it is what makes a post read as continuous with its seam
+ * rather than as a hut parked on grass. It also survives what the building
+ * cannot: the mound is 2.5 tiles across on a 2-tile footprint, so from
+ * anywhere but the mouth side the model hides its own yard — the ground
+ * around it does not.
+ *
+ * 0 is no spoil; the rest index SPOIL_COL.
+ */
+export const Spoil = { None: 0, Stone: 1, Iron: 2, Silver: 3, Gold: 4 } as const;
+export type SpoilKind = (typeof Spoil)[keyof typeof Spoil];
+
+/** Which posts spoil their ground, and in what. Everything absent from
+ * here throws nothing. */
+const SPOIL_OF: Partial<Record<BuildingTypeId, SpoilKind>> = {
+  quarry: Spoil.Stone,
+  ironMine: Spoil.Iron,
+  silverMine: Spoil.Silver,
+  goldMine: Spoil.Gold,
+};
+
+/**
+ * The spoil a post throws, or None for a type that throws none — and for
+ * no type at all, which is what the mirror hands back for a building id it
+ * has no snapshot for. Exported so a caller can build the id lookup the
+ * mesh takes without knowing the table's shape.
+ *
+ * Absent is checked rather than falsy: None is 0, so `||` would read the
+ * same today, but only by the accident of where None sits in the enum.
+ */
+export function spoilOf(type: BuildingTypeId | undefined): SpoilKind {
+  if (type === undefined) return Spoil.None;
+  return SPOIL_OF[type] ?? Spoil.None;
+}
+
+/**
+ * Resolves a building id (what map.buildingAt holds) to the spoil it
+ * throws. The renderer's building mirror is the only thing that knows the
+ * type behind an id, and the terrain has no business holding one, so the
+ * caller passes this in. Absent — the map editor, which has no buildings —
+ * and no ground is ever spoiled.
+ */
+export type SpoilLookup = (buildingId: number) => SpoilKind;
+
+/**
  * The ground: one high-resolution mesh painted like a stylized RTS map.
  * Macro layer: per-tile classes (grass, water) sampled through a noise-warped
  * lookup so shorelines wander organically. Meso layer: meadow noise blends
@@ -85,10 +135,14 @@ export class TerrainMesh {
   #tileClass: Uint8Array;
   #tileEarth: Float32Array;
   #tileDeposit: Int8Array;
+  #tileSpoil: Uint8Array;
+  #tileSpoilAmt: Float32Array;
+  #spoilAt: SpoilLookup;
 
-  constructor(map: MapView, heights: HeightField) {
+  constructor(map: MapView, heights: HeightField, spoilAt: SpoilLookup = () => Spoil.None) {
     this.#map = map;
     this.#heights = heights;
+    this.#spoilAt = spoilAt;
     const size = map.size;
     this.#size = size;
     const p0 = playMin(map);
@@ -98,6 +152,8 @@ export class TerrainMesh {
     this.#tileClass = new Uint8Array(tileCount(size));
     this.#tileEarth = new Float32Array(tileCount(size));
     this.#tileDeposit = new Int8Array(tileCount(size));
+    this.#tileSpoil = new Uint8Array(tileCount(size));
+    this.#tileSpoilAmt = new Float32Array(tileCount(size));
     this.#geometry = new THREE.PlaneGeometry(play, play, this.#grid, this.#grid);
     this.#geometry.rotateX(-Math.PI / 2);
     this.#geometry.translate(p0 + play / 2, 0, p0 + play / 2);
@@ -171,11 +227,12 @@ export class TerrainMesh {
 
   /**
    * Recolor only around the given changed tiles. Per-tile fields are
-   * recomputed in a 1-tile ring (the trampled-earth feather reaches that
-   * far); vertices are repainted in a 2-tile apron (feather, the boundary
-   * warp of at most ±0.55 tiles, and the ribbon a new path tile grows into
-   * its neighbors), and only the touched spans of the color buffer are
-   * re-uploaded.
+   * recomputed in a SPOIL_REACH-tile ring — the furthest any per-tile field
+   * carries a change outward, which used to be the trampled-earth feather's
+   * one tile and is now the spoil throw's two; vertices are repainted one
+   * tile wider again (that ring, the boundary warp of at most ±0.55 tiles,
+   * and the ribbon a new path tile grows into its neighbors), and only the
+   * touched spans of the color buffer are re-uploaded.
    */
   repaintTiles(tiles: readonly number[]): void {
     if (tiles.length === 0) return;
@@ -184,11 +241,12 @@ export class TerrainMesh {
     const grid = this.#grid;
     const dirty = new Set<number>(tiles);
     const recompute = new Set<number>();
+    const R = SPOIL_REACH;
     for (const t of dirty) {
       const tx = tileX(t, size);
       const ty = tileY(t, size);
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -R; dy <= R; dy++) {
+        for (let dx = -R; dx <= R; dx++) {
           const nx = tx + dx;
           const ny = ty + dy;
           if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
@@ -204,10 +262,10 @@ export class TerrainMesh {
     for (const t of dirty) {
       const tx = tileX(t, size) - this.#p0;
       const ty = tileY(t, size) - this.#p0;
-      const c0 = Math.max(0, (tx - 2) * SEG);
-      const c1 = Math.min(grid, (tx + 3) * SEG);
-      const r0 = Math.max(0, (ty - 2) * SEG);
-      const r1 = Math.min(grid, (ty + 3) * SEG);
+      const c0 = Math.max(0, (tx - R - 1) * SEG);
+      const c1 = Math.min(grid, (tx + R + 2) * SEG);
+      const r0 = Math.max(0, (ty - R - 1) * SEG);
+      const r1 = Math.min(grid, (ty + R + 2) * SEG);
       for (let r = r0; r <= r1; r++) {
         const base = r * (grid + 1);
         for (let col = c0; col <= c1; col++) dirtyVerts.add(base + col);
@@ -359,6 +417,35 @@ export class TerrainMesh {
           : res === TileResource.GoldDep
             ? 3
             : 0;
+    // Spoil reaches further than the trodden apron and fades as it goes:
+    // waste is thrown, not walked. Two rings, strongest against the
+    // footprint. The scan cannot stop at the first building it finds the
+    // way the earth mask does — a mine next door to a house must still
+    // spoil this tile, and which of the two an offset loop reaches first is
+    // an accident of the offsets.
+    let spoil: SpoilKind = Spoil.None;
+    let amt = 0;
+    for (let dy = -SPOIL_REACH; dy <= SPOIL_REACH; dy++) {
+      for (let dx = -SPOIL_REACH; dx <= SPOIL_REACH; dx++) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+        const b = map.buildingAt[tileIdx(nx, ny, size)]!;
+        if (b < 0) continue;
+        const kind = this.#spoilAt(b);
+        if (kind === Spoil.None) continue;
+        // Chebyshev, because the footprint is a rectangle: ring 0 is the
+        // building's own tiles, ring 1 the apron, ring 2 the last of it.
+        const ring = Math.max(Math.abs(dx), Math.abs(dy));
+        const f = SPOIL_FALLOFF[ring]!;
+        if (f <= amt) continue;
+        amt = f;
+        spoil = kind;
+      }
+    }
+    this.#tileSpoil[i] = spoil;
+    this.#tileSpoilAmt[i] = amt;
+
     if (map.buildingAt[i]! >= 0) {
       this.#tileEarth[i] = 1;
       return;
@@ -409,9 +496,27 @@ export class TerrainMesh {
         c.lerp(m < 0.5 ? COL.rock : COL.rockDark, rocky * 0.9);
         if (y > 1.95) c.lerp(COL.snow, Math.min((y - 1.95) / 0.45, 1) * 0.85);
       }
-      // Trampled ground near buildings.
+      // Trampled ground near buildings — pulled back where spoil is going
+      // to land on it. Both are brown-ish, and at full strength the apron
+      // ate the rust clean out of an iron mine's ground: what should have
+      // read as ore read as more mud.
+      const sa = this.#tileSpoilAmt[tile]!;
       const e = this.#tileEarth[tile]!;
-      if (e > 0) c.lerp(COL.earth, e * 0.7);
+      if (e > 0) c.lerp(COL.earth, e * 0.7 * (1 - sa * 0.62));
+      // Spoil: waste thrown out of a quarry or a mine, in the colour of
+      // what it digs. Weaker than a deposit — this is rubble scattered on
+      // worked ground, not the seam itself — and laid before the deposit
+      // tint so a post standing on its own seam still reads as seam first.
+      const sp = this.#tileSpoil[tile]!;
+      if (sp !== Spoil.None) {
+        // Broken up by the meadow field so the throw blotches instead of
+        // ending on a tile line. The rings alone drew a square rug, which
+        // is the one thing ground paint must never look like; riding the
+        // same noise the grass hue rides also means the dry patches take
+        // the most dust, which is what dry ground does.
+        const blot = Math.min(1, 0.42 + this.#meadow[v]! * 1.15);
+        c.lerp(SPOIL_COL[sp]!, SPOIL_MIX[sp]! * sa * blot);
+      }
       // Deposits tint the rocky ground (never on the rim — it carries none).
       const dep = this.#tileDeposit[tile];
       if (dep === 1) c.lerp(COL.iron, 0.5);
@@ -464,6 +569,28 @@ const COL = {
   rockDark: new THREE.Color(rockDark),
   snow: new THREE.Color(peakSnow),
 };
+/** Spoil tints, indexed by Spoil. The same palette entries the deposits
+ * and the yard boulders use, so a post's ground, its spoil heaps and the
+ * seam it works are all one colour. */
+const SPOIL_COL: (THREE.Color | undefined)[] = [
+  undefined,
+  new THREE.Color(rock),
+  new THREE.Color(ironOre),
+  new THREE.Color(silverOre),
+  new THREE.Color(goldOre),
+];
+/** How hard each one takes at full strength. Stone is quietest: grey
+ * chippings on brown ground are nearly the ground already, and a quarry
+ * that shouted would read as a mine. Iron takes hardest because it has the
+ * furthest to travel — rust against trodden earth is brown against brown. */
+const SPOIL_MIX: (number | undefined)[] = [undefined, 0.4, 0.62, 0.34, 0.44];
+
+/** How far spoil is thrown, in tiles beyond the footprint. */
+const SPOIL_REACH = 2;
+/** Strength by Chebyshev ring: the footprint itself, the apron, the edge of
+ * the throw. Indexed to SPOIL_REACH. */
+const SPOIL_FALLOFF = [1, 0.78, 0.34];
+
 const SCRATCH = new THREE.Color();
 /** Ribbon distances for the vertex being painted — one, reused. */
 const DIST = newRibbonDist();

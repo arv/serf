@@ -421,6 +421,47 @@ describe('CameraRig turn', () => {
     expect(rig.consumeMoved()).toBe(true);
   });
 
+  it('counts as under way for a beat after the last motion', () => {
+    // What the frame pacer asks before it decides whether to draw: a
+    // camera the player is pushing around earns frames a resting one
+    // does not.
+    const at = performance.now();
+    rig.focusOn(20, 20);
+    expect(rig.driving(at)).toBe(true);
+    // The tail outlives a gap between touch samples...
+    expect(rig.driving(at + 100)).toBe(true);
+    // ...and not a finger that has come off the glass.
+    expect(rig.driving(at + 1000)).toBe(false);
+    // Any way the camera moves counts, a turn as much as a pan.
+    wheel(canvas, 100);
+    rig.tick(FRAME);
+    expect(rig.driving(performance.now())).toBe(true);
+  });
+
+  it('is under way the instant a glide is ordered, not a frame later', () => {
+    // driving() is asked by the pacer, which decides whether the frame
+    // that would tick this glide runs at all. Answering from the last
+    // motion alone would open the ride on a resting-cap frame.
+    rig.tick(FRAME);
+    const at = performance.now();
+    expect(rig.driving(at + 1000)).toBe(false); // nothing doing
+    rig.glideTo(40, 40);
+    expect(rig.driving(at + 1000)).toBe(true); // filed, not yet applied
+  });
+
+  it('is under way while a key holds the camera, before the tick that moves it', () => {
+    rig.tick(FRAME);
+    const at = performance.now();
+    expect(rig.driving(at + 1000)).toBe(false);
+    keyDown('ArrowLeft');
+    expect(rig.driving(at + 1000)).toBe(true);
+    keyUp('ArrowLeft');
+    // The key is up and the pan it asked for is spent; only the tail is
+    // left, and this is well past it.
+    rig.tick(FRAME);
+    expect(rig.driving(performance.now() + 1000)).toBe(false);
+  });
+
   it('holds still on a screen that does not turn — the editor', () => {
     // Every way in is closed, not just the brackets it wanted back.
     rig.setTurnEnabled(false);

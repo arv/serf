@@ -1,11 +1,4 @@
-import { createSignal } from 'solid-js';
-
-// Same escalation as ui/store.ts: the preference below is module-level
-// state, and a hot swap would leave the start screen's switch writing one
-// module's signal while the camera reads the other's.
-if (import.meta.hot) {
-  import.meta.hot.accept(() => import.meta.hot?.invalidate());
-}
+import { immersive } from './mouseCapture';
 
 /**
  * Edge scrolling: the map follows the pointer as it nears the screen's edge.
@@ -19,6 +12,12 @@ if (import.meta.hot) {
  * there: past that point pushing further buys nothing, so nobody pushes,
  * and the bar mostly never comes. (Chrome and Safari drop their own
  * toolbar on the same hover, and the same clearance covers both.)
+ *
+ * Mouse capture (mouseCapture.ts) comes with the same full screen this
+ * does, and while it holds, the bar cannot come at all — a locked pointer
+ * has no way out of the window — so everything below goes unexercised.
+ * It stays for the case where the lock does not hold: a browser that
+ * refuses it, and a player who took their cursor back with Esc.
  *
  * When it comes anyway, the cursor is over the bar rather than the page:
  * the moves stop arriving and a pointerout turns up with a null
@@ -116,50 +115,34 @@ export class EdgeScroll {
   }
 }
 
-/** How the preference travels between the menu's page and the match's —
- * launching a game is a navigation, same as the fullscreen switch. */
-const PREF_KEY = 'serf-edge-scroll';
-
-/** A fine pointer is the whole precondition. A finger drags the map
+/**
+ * Whether the map follows the pointer at the edges right now.
+ *
+ * Not a preference any more, and deliberately: full screen is the one
+ * switch, and it carries this and mouse capture (mouseCapture.ts) with it.
+ * A player who wants the edges to pan asks for the screen; a player who
+ * does not, does not — and neither has to find a second switch to explain
+ * why the first one behaved oddly.
+ *
+ * That the two arrive together is what makes them safe together. Edge
+ * scrolling exists exactly where the pointer is ours, so the gesture the
+ * band asks for cannot hand the cursor to the menu bar; and a window,
+ * where an edge is a browser toolbar or another application, no longer has
+ * a band at all. (The ramp and the latch above stay for the one gap left:
+ * a player who released the capture with Esc while still full screen.)
+ *
+ * A fine pointer is still the whole precondition. A finger drags the map
  * directly and cannot rest against an edge, so there is nothing the band
  * could add; the guard also lets this module be imported where there is no
- * window at all. */
+ * window at all.
+ */
+export function edgeScrollEnabled(): boolean {
+  return finePointer() && immersive();
+}
+
+/** Same matchMedia shape as renderer.ts and framePacer.ts: a window
+ * without matchMedia is rare but real (jsdom ships without one). */
 function finePointer(): boolean {
   if (typeof window === 'undefined') return false;
-  // Same shape as renderer.ts and framePacer.ts: a window without
-  // matchMedia is rare but real (jsdom ships without it), and this one runs
-  // at import, where a throw would take the whole module down rather than
-  // costing a query.
   return window.matchMedia?.('(any-pointer: fine)').matches ?? false;
-}
-
-/** Whether the start screen has any reason to show the switch. */
-export function edgeScrollOffered(): boolean {
-  return finePointer();
-}
-
-/** The stored answer, or null from a player who has not given one. Both
- * answers are written out: an absent key has to mean "never asked" rather
- * than "declined", or a deliberate off would not survive a reload. */
-function storedPref(): boolean | null {
-  try {
-    const v = localStorage.getItem(PREF_KEY);
-    return v === '1' ? true : v === '0' ? false : null;
-  } catch {
-    return null;
-  }
-}
-
-// On where a mouse is driving — it is what the genre does, and the switch
-// is one row under Full screen for anyone it annoys.
-const [edgeScrollEnabled, setSignal] = createSignal(storedPref() ?? finePointer());
-export { edgeScrollEnabled };
-
-export function setEdgeScroll(on: boolean): void {
-  setSignal(on);
-  try {
-    localStorage.setItem(PREF_KEY, on ? '1' : '0');
-  } catch {
-    /* no storage, no memory */
-  }
 }

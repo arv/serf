@@ -2,9 +2,11 @@ import { onCleanup, onMount } from 'solid-js';
 import type { BuildingSnap, MapSnapshot } from '../protocol/messages';
 import { ACTION, AUX_STRIDE, type SlotCopy } from '../protocol/sabLayout';
 import type { FogQuery } from '../render/fogOfWar';
+import { batteryFramePacer } from '../render/framePacer';
 import { playMin } from '../sim/map';
 import { clamp } from '../shared/math';
 import { play } from '../audio/audio';
+import { capturePointer } from '../input/mouseCapture';
 import { paintBase, ownerTint } from './minimapPaint';
 import { toasts } from './store';
 
@@ -219,6 +221,17 @@ export function Minimap(props: {
   };
 
   onMount(() => {
+    // The chart draws on the same main thread the valley does, and on the
+    // same clock — the battery cap, not the panel's own refresh. Following
+    // a pan is what makes that matter: the branch below deliberately
+    // escapes the 150ms repaint clock, and unpaced that meant a phone
+    // repainting the whole chart 90 or 120 times a second — every
+    // building, every unit, a scaled blit apiece — for the length of a
+    // swipe, against the pan those frames were competing with. The cap is
+    // taken plain, with no interaction boost: what the finger is dragging
+    // is the valley, and the chart is a chart. Desktop is uncapped, as
+    // before.
+    const pacer = batteryFramePacer();
     const loop = (now: number): void => {
       raf = requestAnimationFrame(loop);
       src.viewQuad(quad);
@@ -230,9 +243,15 @@ export function Minimap(props: {
         }
       }
       // The repaint clock covers the world changing; a camera pan redraws
-      // immediately so the frame tracks the drag it is part of, and a
-      // standing alert redraws too so its ripple actually travels.
-      if (moved || alerts().length > 0 || now - lastPaint >= REPAINT_MS) repaint(now);
+      // as fast as the device draws anything so the frame tracks the drag
+      // it is part of, and a standing alert redraws too so its ripple
+      // actually travels.
+      if (!(moved || alerts().length > 0 || now - lastPaint >= REPAINT_MS)) return;
+      // Asked only once there is something to draw, so a chart that has
+      // been idle repaints on the first frame that needs it rather than
+      // waiting out an interval nothing was spending.
+      if (!pacer.due(now)) return;
+      repaint(now);
     };
     raf = requestAnimationFrame(loop);
   });
@@ -264,7 +283,7 @@ export function Minimap(props: {
       onPointerDown={(e) => {
         if (props.mode === 'thumb') return;
         e.preventDefault();
-        canvas.setPointerCapture(e.pointerId);
+        capturePointer(canvas, e);
         down = true;
         scrubbing = false;
         downX = e.clientX;
