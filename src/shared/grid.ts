@@ -16,16 +16,21 @@ export const MAX_MAP_SIZE = 128;
  * and the ring around the play square is real, editable tiles — scenery the
  * camera can see but nothing can walk, build, or gather on.
  *
- * A quarter of the play side per edge. It used to be half, which is how
- * far the camera looks past the boundary from a screen corner at full
- * zoom-out — the ring had to reach the whole way, because the mesh drawing
- * it stopped where the tiles stopped. It does not any more (see the skirt
- * in render/marginMesh.ts), and once the horizon is the renderer's
- * business the ring only has to be deep enough to read as a border: the
- * far half of it was ground nobody could use, generated, stored, saved,
- * scattered with trees and pathfinder-scratched, to be looked at through
- * haze. A quarter side still frames the valley, and the grid is 2.25x the
- * playable area instead of 4x.
+ * A quarter of the play side per edge. It was half — the distance the
+ * camera looks past the boundary from a screen corner at full zoom-out, so
+ * that the ring reached everywhere a frame could reach. What that bought
+ * was a grid four times the area anyone could play on: every tile of the
+ * far half generated, stored, saved, scattered with timber and scratched
+ * by the pathfinder, to be looked at through haze in the corner of one
+ * zoom level. A quarter side still frames the valley from every ordinary
+ * view, and the grid is 2.25x the playable area instead of 4x.
+ *
+ * What it gives up is that corner: at maximum zoom-out on a wide window
+ * the frame can now reach past the grid, and the melt at the ring's outer
+ * edge (render/marginMesh.ts) is what the horizon has left to fade into.
+ * The lever on the other side of that trade is the zoom-out cap, not this
+ * number — MAX_VIEW_FRACTION in render/cameraRig.ts is what decides how
+ * far a frame reaches.
  */
 export function marginFor(play: number): number {
   // Rounded: playable sides are even, not necessarily multiples of four,

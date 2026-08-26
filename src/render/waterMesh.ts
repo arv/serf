@@ -24,9 +24,8 @@ export class WaterMesh {
   constructor(map: MapView) {
     const size = map.size;
     // Half a grid of slack past the grid itself: the camera is bounded to
-    // the play square, and what it does see out there — the margin mesh's
-    // horizon skirt — reaches nothing like this far, so a sea border keeps
-    // its surface all the way out and the plane's own rim never arrives.
+    // the play square and barely frames past the grid edge, and the fog
+    // band (renderer.ts) hazes the distance long before the plane's rim.
     const geometry = new THREE.PlaneGeometry(size * 2, size * 2, 1, 1);
     geometry.rotateX(-Math.PI / 2);
     geometry.translate(size / 2, WATER_LEVEL, size / 2);
