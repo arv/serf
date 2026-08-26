@@ -24,13 +24,14 @@ import { REPLAY_VERSION } from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
-// 28 for the new mission map: a mission id is config an older build does
-// not know, so it would replay a Hammer and Haft log in a bare sandbox
-// (see replayVersion.ts). Main's 27 stands on its own reasoning — a brain
-// change needs no number of its own, since playback never runs a brain,
-// only the moves the log already holds.
-const EXPECTED_VERSION = 28;
-const EXPECTED_HASH = '445647b849111411b4940027b6da91e4';
+// 29 for priced metal seams: worldgen itself moved, so every generated
+// multiplayer map is a different valley and a log recorded on the old ones
+// replays into a world that never existed (see replayVersion.ts). The
+// tower-manning change that rides with it needs no number of its own — a
+// brain never runs during playback, only the moves the log already holds —
+// but worldgen does.
+const EXPECTED_VERSION = 29;
+const EXPECTED_HASH = 'e02a12d5b7b7134e22fcbc3359461bd6';
 
 /**
  * Everything a replay's playback depends on, as raw source:

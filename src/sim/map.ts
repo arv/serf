@@ -577,6 +577,73 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
     return placed;
   };
 
+  /** Tiles a metal seam aims to cover, and how far it may spread looking
+   * for them. The reach stays inside a mine's own gather radius, so a seam
+   * that had to widen is still one mine's worth of ground rather than two. */
+  const SEAM_TILES = 6;
+  const SEAM_REACH = 3;
+
+  /**
+   * A metal seam of fixed total worth, however the ground lets it lie.
+   *
+   * `placeCluster` writes a flat amount per tile, which prices a seam by
+   * whatever the terrain happened to allow: a blob that lands on open grass
+   * is six tiles and six times the metal, while one that lands against a
+   * grove or a lake is a single tile. Across the four starts of a generated
+   * valley that ran to a tenfold spread — 20 silver against 200 — and the
+   * seat dealt the thin end mined its whole birthright out inside twenty
+   * minutes and went prospecting across the map. That is not a difficulty
+   * setting, it is the seed deciding the match.
+   *
+   * So a seam is priced rather than measured. It takes the nearest open
+   * tiles it can find, widening until it has SEAM_TILES of them or runs out
+   * of room, and splits `budget` evenly over whatever landed: ground with
+   * space for two tiles gets two rich ones. Every faction mines the same
+   * amount of metal out of its own valley, which is what "ore is a
+   * birthright" was always meant to say.
+   *
+   * Nearest-first and index-ordered, drawing nothing from the Rng — where a
+   * seam sits is still a roll (see seamFor), but how it lies once the center
+   * is chosen is the terrain's business alone.
+   *
+   * Budgets stay under 256: `resourceAmt` is a byte per tile, and a seam
+   * squeezed onto one tile carries the whole budget on it.
+   *
+   * Returns how many tiles were written, so a caller that must place a seam
+   * knows to try another center.
+   */
+  const placeSeam = (res: TileResourceKind, budget: number, cx: number, cy: number): number => {
+    const open: { i: number; d2: number }[] = [];
+    for (let dy = -SEAM_REACH; dy <= SEAM_REACH; dy++) {
+      for (let dx = -SEAM_REACH; dx <= SEAM_REACH; dx++) {
+        const d2 = dx * dx + dy * dy;
+        if (d2 > SEAM_REACH * SEAM_REACH) continue;
+        const x = cx + dx;
+        const y = cy + dy;
+        if (!inPlayArea(map, x, y)) continue;
+        const i = tileIdx(x, y, size);
+        if (map.terrain[i] !== Terrain.Grass || map.resource[i] !== TileResource.None) continue;
+        open.push({ i, d2 });
+      }
+    }
+    // Nearest first, ties by index: a seam short of room grows as a blob
+    // around its center instead of reaching for whichever corner the scan
+    // happened to walk first.
+    open.sort((a, b) => a.d2 - b.d2 || a.i - b.i);
+    const take = open.slice(0, SEAM_TILES);
+    if (take.length === 0) return 0;
+    // The even split, with the remainder going to the tiles nearest the
+    // middle. Whole tiles of the budget land and none of it is lost, so two
+    // seams priced the same are worth exactly the same.
+    const per = Math.floor(budget / take.length);
+    let over = budget - per * take.length;
+    for (const { i } of take) {
+      map.resource[i] = res;
+      map.resourceAmt[i] = per + (over-- > 0 ? 1 : 0);
+    }
+    return take.length;
+  };
+
   const randomSpot = (minEdge: number): [number, number] => {
     for (;;) {
       const x = p0 + rng.int(play);
@@ -684,7 +751,7 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
       const a = anchorOf(s);
       return Math.hypot(x - a.x, y - a.y) <= startDist(x, y) + 1e-6;
     };
-    const seamFor = (start: StartSpot, res: TileResourceKind, amt: number): void => {
+    const seamFor = (start: StartSpot, res: TileResourceKind, budget: number): void => {
       const a = anchorOf(start);
       const tiers: ((x: number, y: number) => boolean)[] = [
         (x, y) => isOwnGround(start, x, y) && heightAt(x, y) > 0.8,
@@ -701,13 +768,20 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
           if (playEdgeDist(map, x, y) < 3) continue;
           if (map.terrain[tileIdx(x, y, size)] !== Terrain.Grass) continue;
           if (!pred(x, y)) continue;
-          if (placeCluster(res, amt, x, y, rng.range(1.2, 1.9), 1) > 0) return;
+          if (placeSeam(res, budget, x, y) > 0) return;
         }
       }
     };
     for (const start of starts) {
-      seamFor(start, TileResource.IronDep, 24);
-      seamFor(start, TileResource.SilverDep, 20);
+      // What a seam is worth, not what a tile holds. Iron is priced at the
+      // total the old six-tile blob carried, so the fair map is the map the
+      // lucky seat already had. Silver is priced above it: the tech tree
+      // costs 79 silver and a hand costs four every time one is taken off
+      // haulage for a post, so 120 — the best a seat used to draw — bought
+      // the techs or the people and never both, and the seats that drew
+      // less spent the back half of the match with nothing to spend.
+      seamFor(start, TileResource.IronDep, 144);
+      seamFor(start, TileResource.SilverDep, 180);
     }
 
     // Gold is the exception by design: contested, not owned. It sits in
