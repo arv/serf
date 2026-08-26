@@ -234,6 +234,9 @@ export class Controls {
     null;
   /** A marquee drag in flight (armed by the HUD's band button). */
   #bandTouch = false;
+  /** A finger past the slop, dragging the valley rather than pointing at
+   * it — see #onMove and updateHoverIfDirty. */
+  #touchPan = false;
   /**
    * The camera, as much of it as this file has business touching: the touch
    * gate it closes while a marquee drag owns the finger, and the glide the
@@ -712,6 +715,7 @@ export class Controls {
    */
   #abortGesture = (): void => {
     this.#touchOrigin = null;
+    this.#touchPan = false;
     this.#dragStart = null;
     this.#dragging = false;
     this.#bandEl.style.display = 'none';
@@ -911,6 +915,33 @@ export class Controls {
     if (e.pointerType === 'touch' && !this.#bandTouch) {
       // The camera owns plain finger drags; only an armed marquee selects.
       this.#cancelTap(e.clientX, e.clientY);
+      // Past the slop the finger is dragging the valley, not pointing into
+      // it, and a highlight is a claim about what a pointer is over. There
+      // is no pointer: the finger is on the glass holding ground still
+      // while the world slides beneath it, so whatever the scan found
+      // would be a different unit every frame, lit under a fingertip that
+      // is already covering it. Dropped rather than frozen: a highlight
+      // left standing would ride a unit across the screen for the length
+      // of the swipe, pointing at nothing at all.
+      //
+      // Dropping it is also the cheapest frame in the swipe. The scan
+      // walks every unit on the field projecting each through the camera
+      // and casts a ray at the buildings, it is marked dirty by the pan
+      // itself as well as by the finger, and so it would run once per
+      // frame for the whole gesture — against the pan, on the one thread
+      // the pan is drawn from.
+      //
+      // The next pointer move picks the highlight back up: a mouse on a
+      // device that has one, or the press that starts the next gesture. A
+      // finger merely lifted does not, and should not — the release marks
+      // no hover dirty, so nothing is left lit once the hand is off the
+      // glass, which is the honest state of a screen with no cursor
+      // resting anywhere on it.
+      if (this.#touchOrigin === null && !this.#touchPan) {
+        this.#touchPan = true;
+        this.#hoverUnit = -1;
+        this.#hoverBuilding = -1;
+      }
       return;
     }
     const dx = e.clientX - this.#dragStart.x;
@@ -934,6 +965,7 @@ export class Controls {
     if (this.#secondaryTouch(e)) return;
     const heldStill = this.#touchOrigin !== null;
     this.#touchOrigin = null;
+    this.#touchPan = false;
 
     // An armed order takes the release the same way placement does, and for
     // the same reason: on touch the press only staked a claim.
@@ -1161,6 +1193,10 @@ export class Controls {
     if (!this.#hoverDirty) return;
     this.#hoverDirty = false;
     this.#updateGhost(this.#hoverX, this.#hoverY);
+    // A finger dragging the map is not hovering over it — see #onMove. The
+    // ghost above still tracks: a building being aimed is the one thing a
+    // travelling finger is genuinely pointing at.
+    if (this.#touchPan) return;
     this.#updateHover(this.#hoverX, this.#hoverY);
   }
 
