@@ -121,6 +121,11 @@ function ptr(x: number, y: number, shiftKey = false): Record<string, unknown> {
   };
 }
 
+/** The same press made with a finger. */
+function touchPtr(x: number, y: number): Record<string, unknown> {
+  return { ...ptr(x, y), pointerType: 'touch' };
+}
+
 /** The right button, which is the order button on the desktop. */
 function rightPtr(x: number, y: number): Record<string, unknown> {
   return { ...ptr(x, y), button: 2, buttons: 2 };
@@ -763,6 +768,41 @@ describe('right-click orders', () => {
     const ground = h.groundTileAt(roof)!;
     const onFootprint = ground.x >= 10 && ground.x < 13 && ground.y >= 10 && ground.y < 13;
     expect(onFootprint).toBe(false);
+  });
+
+  it('a finger dragging the map hovers nothing, and asks nothing of the scan', () => {
+    const h = keepAndSquad();
+    controls = h.controls;
+    const roof = h.at(11.5, TOP, 11.5);
+
+    // Standing on the keep with a finger down: still the keep.
+    expect(h.hoverAt(roof)).toBe(7);
+    h.canvas.fire('pointerdown', touchPtr(roof.x, roof.y));
+
+    // The finger travels past the slop — the camera has the drag now, and
+    // there is nothing under a fingertip to light up. The pan marks the
+    // hover dirty every frame it moves the world, and the scan that would
+    // answer walks every unit and rays the buildings; this is the frame
+    // that skips it.
+    h.canvas.fire('pointermove', touchPtr(roof.x + 60, roof.y + 60));
+    controls.updateHoverIfDirty();
+    expect(controls.hoverBuilding).toBe(-1);
+
+    // Even back over the keep mid-swipe: a finger on the glass is holding
+    // ground still, not pointing at what slid beneath it.
+    h.canvas.fire('pointermove', touchPtr(roof.x, roof.y));
+    controls.updateHoverIfDirty();
+    expect(controls.hoverBuilding).toBe(-1);
+
+    // Off the glass, and nothing is lit: the release marks no hover dirty,
+    // and a touchscreen with no finger on it has no cursor for a highlight
+    // to belong to.
+    h.canvas.fire('pointerup', touchPtr(roof.x, roof.y));
+    controls.updateHoverIfDirty();
+    expect(controls.hoverBuilding).toBe(-1);
+
+    // A pointer that actually moves picks it back up.
+    expect(h.hoverAt(roof)).toBe(7);
   });
 
   it('leaves bare ground exactly where it was', () => {

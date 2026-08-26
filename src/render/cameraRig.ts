@@ -123,6 +123,34 @@ const PAN_MARGIN = 4;
  * the pan going stiff: near-free close in, near-centered at full zoom-out.
  */
 const VIEW_PAN_INSET = 0.25;
+/**
+ * The keys that pan, and the screen-space direction each asks for.
+ *
+ * Arrows only. WASD panned here too until the letters were needed for
+ * orders and the build chord — A cannot both pan left and attack-move, and
+ * a square with its left corner missing is worse than no square. Nothing
+ * lost a home: the arrows do this, the edge push does it without a key at
+ * all, and a middle-drag does it faster than either.
+ *
+ * A table rather than the four ifs it replaces because #motionPending has
+ * to read the same list, and two copies of it would drift.
+ */
+const PAN_KEYS: readonly (readonly [string, number, number])[] = [
+  ['ArrowUp', 0, -1],
+  ['ArrowDown', 0, 1],
+  ['ArrowLeft', -1, 0],
+  ['ArrowRight', 1, 0],
+];
+
+/**
+ * How long the view still counts as under way after its last motion — see
+ * CameraRig.driving. Touch deltas arrive in bursts and a finger paused
+ * mid-swipe is still mid-swipe, so a strict "moved this very instant"
+ * would drop the frame rate back to its resting cap between samples and
+ * hand the gesture a stutter the cap on its own never had.
+ */
+const DRIVE_TAIL_MS = 200;
+
 /** Scratch for #footprintExt, which runs per pan and per frame. */
 const EXT = { x: 0, z: 0 };
 /** Scratch for #apply, which runs on every pan, glide step and turn. */
@@ -201,6 +229,8 @@ export class CameraRig {
   #wheelAcc = 0;
   /** Whether this camera turns at all — see setTurnEnabled. */
   #turnEnabled = true;
+  /** performance.now() at the camera's last motion — see driving. */
+  #movedAt = -Infinity;
   /** The camera has moved since anyone last asked — see consumeMoved. */
   #moved = true;
   /** The turn direction the keys held last tick (-1, 0, 1), and the step
@@ -737,15 +767,11 @@ export class CameraRig {
     const speed = this.#viewHeight * 0.9 * dt;
     let dx = 0;
     let dz = 0;
-    // Arrows only. WASD panned here too until the letters were needed for
-    // orders and the build chord — A cannot both pan left and attack-move,
-    // and a square with its left corner missing is worse than no square.
-    // Nothing lost a home: the arrows do this, the edge push does it without
-    // a key at all, and a middle-drag does it faster than either.
-    if (this.#keys.has('ArrowUp')) dz -= speed;
-    if (this.#keys.has('ArrowDown')) dz += speed;
-    if (this.#keys.has('ArrowLeft')) dx -= speed;
-    if (this.#keys.has('ArrowRight')) dx += speed;
+    for (const [code, kx, kz] of PAN_KEYS) {
+      if (!this.#keys.has(code)) continue;
+      dx += kx * speed;
+      dz += kz * speed;
+    }
     // Same units as a held key, so a corner pushing both axes travels at the
     // diagonal rate two held arrows already do rather than being normalized
     // apart.
@@ -876,8 +902,57 @@ export class CameraRig {
     return moved;
   }
 
+  /**
+   * Is the view under way — moving now, or a moment ago?
+   *
+   * Unlike consumeMoved this answers without spending anything, because
+   * it is asked before the frame is committed to rather than during it:
+   * the frame pacer asks (see MOBILE_INTERACT_FPS_CAP), and a phone that
+   * draws the valley at 30 fps to spare its battery lifts that cap for as
+   * long as the player is actually pushing the camera around. Nothing on
+   * screen minds the resting rate until the ground itself is the thing
+   * being dragged, and then the frame rate *is* how far behind the finger
+   * the map runs.
+   *
+   * Every way the camera moves counts — a finger, a pinch, a middle-drag,
+   * the arrow keys, the edge push, a turn, a glide. All of them are the
+   * whole picture sliding, and all of them are watched while they happen.
+   */
+  driving(now: number): boolean {
+    return this.#motionPending() || now - this.#movedAt < DRIVE_TAIL_MS;
+  }
+
+  /**
+   * Motion the camera is committed to but has not applied yet.
+   *
+   * #movedAt on its own always answers a frame late at the start of a
+   * movement, because of where driving is asked from: the pacer decides
+   * whether this frame runs, and tick — where every deferred motion is
+   * realized — runs inside the frame being decided about. A glide is the
+   * plain case. glideTo files the ride and applies nothing until the tick
+   * the pacer has not allowed yet, so the camera would open the ride on a
+   * resting-cap frame: the one moment of a "take me there" a player is
+   * certain to be watching. Held keys are the same shape, an easing yaw
+   * likewise.
+   *
+   * The edge push is the one deferred source left out. It is mouse-only
+   * (see the pointerType gate in the constructor), and a device with a
+   * mouse is a device whose pacer is uncapped — there is no cap there for
+   * it to lift. Its state is also private to EdgeScroll, and reaching for
+   * it would mean a reader that exists for nothing.
+   */
+  #motionPending(): boolean {
+    if (this.#glide !== null) return true;
+    if (this.#yaw !== this.#yawTarget()) return true;
+    // Both key paths in tick are gated on this, so this predicate is too.
+    if (!this.#interactive) return false;
+    if (this.#heldTurn() !== 0) return true;
+    return PAN_KEYS.some(([code]) => this.#keys.has(code));
+  }
+
   #apply(): void {
     this.#moved = true;
+    this.#movedAt = performance.now();
     DIR.set(
       Math.cos(this.#pitch) * Math.sin(this.#yaw),
       Math.sin(this.#pitch),
