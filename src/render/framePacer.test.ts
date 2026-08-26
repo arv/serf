@@ -72,6 +72,18 @@ describe('FramePacer', () => {
     expect(pacer.due(50)).toBe(true);
   });
 
+  it('an uncapped boost still writes down the frames it spends', () => {
+    // The resting cap has to hold across the handover: a boost that kept
+    // no mark would let a capped frame follow a boosted one immediately.
+    const pacer = new FramePacer(MOBILE_FPS_CAP, null);
+    expect(pacer.due(0, true)).toBe(true);
+    expect(pacer.due(8.3, true)).toBe(true); // uncapped: every frame
+    expect(pacer.due(16.6, true)).toBe(true);
+    // Gesture over, 16.6ms after the last frame drawn — not a 30 Hz frame.
+    expect(pacer.due(25)).toBe(false);
+    expect(pacer.due(50)).toBe(true);
+  });
+
   it('recovers cleanly after a long stall', () => {
     const pacer = new FramePacer(MOBILE_FPS_CAP);
     expect(pacer.due(0)).toBe(true);

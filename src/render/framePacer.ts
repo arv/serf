@@ -69,7 +69,13 @@ export class FramePacer {
    */
   due(now: number, boost = false): boolean {
     const interval = boost ? this.#boostInterval : this.#interval;
-    if (interval === 0) return true;
+    // An uncapped interval needs no special case and must not have one:
+    // the grace already puts the threshold below zero, so every frame is
+    // due — and the frame it keeps is still written down. A pacer that
+    // skipped the bookkeeping while uncapped would come off an uncapped
+    // boost with a stale mark and hand out a capped frame on the heels of
+    // a boosted one, which is the resting cap broken at exactly the
+    // moment it takes over.
     if (now - this.#last < interval - GRACE_MS) return false;
     this.#last = now;
     return true;
