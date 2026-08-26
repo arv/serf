@@ -29,7 +29,7 @@ import { REPLAY_VERSION } from './replayVersion';
 // re-run on an older build is a log played on different ground (see
 // replayVersion.ts).
 const EXPECTED_VERSION = 29;
-const EXPECTED_HASH = '50c724d9c49e9e690c4010b33c2d2a4a';
+const EXPECTED_HASH = '4ff0be6b7bad0b7cde839d31eb8dd239';
 
 /**
  * Everything a replay's playback depends on, as raw source:

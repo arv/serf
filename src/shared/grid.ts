@@ -25,12 +25,12 @@ export const MAX_MAP_SIZE = 128;
  * zoom level. A quarter side still frames the valley from every ordinary
  * view, and the grid is 2.25x the playable area instead of 4x.
  *
- * What it gives up is that corner: at maximum zoom-out on a wide window
- * the frame can now reach past the grid, and the melt at the ring's outer
- * edge (render/marginMesh.ts) is what the horizon has left to fade into.
- * The lever on the other side of that trade is the zoom-out cap, not this
- * number — MAX_VIEW_FRACTION in render/cameraRig.ts is what decides how
- * far a frame reaches.
+ * The ring's depth is not a free number: it is however far a frame reaches
+ * past the boundary, and that is the zoom-out cap's to say. So the two
+ * moved together — MAX_VIEW_FRACTION in render/cameraRig.ts came in from
+ * 0.8 to 0.35 in the same breath, and the comment there is the other half
+ * of this one. Changing either alone puts the end of the world in a
+ * screen corner or pays for ground nobody looks at.
  */
 export function marginFor(play: number): number {
   // Rounded: playable sides are even, not necessarily multiples of four,
