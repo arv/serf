@@ -64,8 +64,8 @@ const CLASS_ROCK = 2;
 export const Spoil = { None: 0, Stone: 1, Iron: 2, Silver: 3, Gold: 4 } as const;
 export type SpoilKind = (typeof Spoil)[keyof typeof Spoil];
 
-/** Which posts spoil their ground, and in what. Exported so the caller can
- * build the id lookup the mesh takes without knowing the enum's shape. */
+/** Which posts spoil their ground, and in what. Everything absent from
+ * here throws nothing. */
 const SPOIL_OF: Partial<Record<BuildingTypeId, SpoilKind>> = {
   quarry: Spoil.Stone,
   ironMine: Spoil.Iron,
@@ -73,8 +73,18 @@ const SPOIL_OF: Partial<Record<BuildingTypeId, SpoilKind>> = {
   goldMine: Spoil.Gold,
 };
 
+/**
+ * The spoil a post throws, or None for a type that throws none — and for
+ * no type at all, which is what the mirror hands back for a building id it
+ * has no snapshot for. Exported so a caller can build the id lookup the
+ * mesh takes without knowing the table's shape.
+ *
+ * Absent is checked rather than falsy: None is 0, so `||` would read the
+ * same today, but only by the accident of where None sits in the enum.
+ */
 export function spoilOf(type: BuildingTypeId | undefined): SpoilKind {
-  return (type && SPOIL_OF[type]) || Spoil.None;
+  if (type === undefined) return Spoil.None;
+  return SPOIL_OF[type] ?? Spoil.None;
 }
 
 /**
