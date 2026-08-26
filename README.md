@@ -134,6 +134,18 @@ exactly where they did before. Routing is keyed on which screen a URL
 names, not on the URL itself — the council rewrites its own address bar as
 the relay names the room, and that must not tear the room down.
 
+Each screen is also its own bundle chunk, fetched when a URL first names
+it: the match (`src/app/matchScreen.ts` — three.js, the render stack, the
+HUD, the input layer), the map editor, the field guide, the wardrobe, and
+the menu's own live backdrop (`src/ui/menuBackdrop.ts` fetches the scene
+behind it, which is cosmetic by design). What a cold visit must fetch
+before the start menu is on the glass is about 60 kB gzipped rather than
+330; the match's chunk is then warmed behind the menu, so pressing Play
+does not start a download. Dependencies that do not change get chunks of
+their own too — `three`, `solid-js` and wllama, named in `vite.config.ts`
+— so an ordinary deploy rotates the app's chunk names and leaves 170 kB
+of gzipped three.js sitting in the cache where it already was.
+
 A match owns a WebGL context, a sim worker whose timers are deliberately
 unthrottled, listeners on window and document, and a Solid root; ending one
 gives all of it back. Its canvas is replaced rather than reused, since a
