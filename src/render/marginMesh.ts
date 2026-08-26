@@ -102,10 +102,16 @@ export class MarginMesh {
     // The plane's own quads, less the ones whose four corners are all
     // buried. Same vertex numbering and the same winding PlaneGeometry
     // wrote — this drops triangles, it does not re-lay them.
+    //
+    // The lattice is read back off the geometry rather than assumed from
+    // `size`: they are the same number today, one vertex per tile, and the
+    // day they stop being (a coarser margin mesh is the obvious reason)
+    // this would otherwise index off the end of the buffer.
+    const { widthSegments, heightSegments } = geometry.parameters;
     const index: number[] = [];
-    const row = size + 1;
-    for (let iz = 0; iz < size; iz++) {
-      for (let ix = 0; ix < size; ix++) {
+    const row = widthSegments + 1;
+    for (let iz = 0; iz < heightSegments; iz++) {
+      for (let ix = 0; ix < widthSegments; ix++) {
         const a = iz * row + ix;
         const b = a + row;
         if (buried[a] && buried[a + 1] && buried[b] && buried[b + 1]) continue;
