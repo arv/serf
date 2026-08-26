@@ -753,8 +753,14 @@ describe('right-click orders', () => {
     controls.updateHoverIfDirty();
     expect(controls.hoverBuilding).toBe(-1);
 
-    // Off the glass, and the highlight is the pointer's again.
+    // Off the glass, and nothing is lit: the release marks no hover dirty,
+    // and a touchscreen with no finger on it has no cursor for a highlight
+    // to belong to.
     h.canvas.fire('pointerup', touchPtr(roof.x, roof.y));
+    controls.updateHoverIfDirty();
+    expect(controls.hoverBuilding).toBe(-1);
+
+    // A pointer that actually moves picks it back up.
     expect(h.hoverAt(roof)).toBe(7);
   });
 

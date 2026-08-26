@@ -929,8 +929,14 @@ export class Controls {
       // and casts a ray at the buildings, it is marked dirty by the pan
       // itself as well as by the finger, and so it would run once per
       // frame for the whole gesture — against the pan, on the one thread
-      // the pan is drawn from. The next mouse move or lifted finger picks
-      // the highlight back up.
+      // the pan is drawn from.
+      //
+      // The next pointer move picks the highlight back up: a mouse on a
+      // device that has one, or the press that starts the next gesture. A
+      // finger merely lifted does not, and should not — the release marks
+      // no hover dirty, so nothing is left lit once the hand is off the
+      // glass, which is the honest state of a screen with no cursor
+      // resting anywhere on it.
       if (this.#touchOrigin === null && !this.#touchPan) {
         this.#touchPan = true;
         this.#hoverUnit = -1;
