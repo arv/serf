@@ -421,6 +421,23 @@ describe('CameraRig turn', () => {
     expect(rig.consumeMoved()).toBe(true);
   });
 
+  it('counts as under way for a beat after the last motion', () => {
+    // What the frame pacer asks before it decides whether to draw: a
+    // camera the player is pushing around earns frames a resting one
+    // does not.
+    const at = performance.now();
+    rig.focusOn(20, 20);
+    expect(rig.driving(at)).toBe(true);
+    // The tail outlives a gap between touch samples...
+    expect(rig.driving(at + 100)).toBe(true);
+    // ...and not a finger that has come off the glass.
+    expect(rig.driving(at + 1000)).toBe(false);
+    // Any way the camera moves counts, a turn as much as a pan.
+    wheel(canvas, 100);
+    rig.tick(FRAME);
+    expect(rig.driving(performance.now())).toBe(true);
+  });
+
   it('holds still on a screen that does not turn — the editor', () => {
     // Every way in is closed, not just the brackets it wanted back.
     rig.setTurnEnabled(false);

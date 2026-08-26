@@ -752,7 +752,12 @@ export async function runMatch(
     // also counted as one the cap has spent. See GameRenderer.gpuReady: the
     // loop must not run ahead of the GPU, or the pipeline fills with frames
     // that arrive on time and are already old.
-    if (!renderer.gpuReady() || !pacer.due(now)) {
+    //
+    // A camera under the player's hand raises the cap for as long as the
+    // gesture lasts (see CameraRig.driving): a phone spares its battery by
+    // drawing the valley half as often, which reads as the map lagging the
+    // finger the moment the finger is what is moving it.
+    if (!renderer.gpuReady() || !pacer.due(now, renderer.rig.driving(now))) {
       frame = requestAnimationFrame(loop);
       return;
     }

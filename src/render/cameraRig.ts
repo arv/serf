@@ -122,6 +122,15 @@ const PAN_MARGIN = 4;
  * the pan going stiff: near-free close in, near-centered at full zoom-out.
  */
 const VIEW_PAN_INSET = 0.25;
+/**
+ * How long the view still counts as under way after its last motion — see
+ * CameraRig.driving. Touch deltas arrive in bursts and a finger paused
+ * mid-swipe is still mid-swipe, so a strict "moved this very instant"
+ * would drop the frame rate back to its resting cap between samples and
+ * hand the gesture a stutter the cap on its own never had.
+ */
+const DRIVE_TAIL_MS = 200;
+
 /** Scratch for #footprintExt, which runs per pan and per frame. */
 const EXT = { x: 0, z: 0 };
 /** Scratch for #apply, which runs on every pan, glide step and turn. */
@@ -200,6 +209,8 @@ export class CameraRig {
   #wheelAcc = 0;
   /** Whether this camera turns at all — see setTurnEnabled. */
   #turnEnabled = true;
+  /** performance.now() at the camera's last motion — see driving. */
+  #movedAt = -Infinity;
   /** The camera has moved since anyone last asked — see consumeMoved. */
   #moved = true;
   /** The turn direction the keys held last tick (-1, 0, 1), and the step
@@ -875,8 +886,29 @@ export class CameraRig {
     return moved;
   }
 
+  /**
+   * Is the view under way — moving now, or a moment ago?
+   *
+   * Unlike consumeMoved this answers without spending anything, because
+   * it is asked before the frame is committed to rather than during it:
+   * the frame pacer asks (see MOBILE_INTERACT_FPS_CAP), and a phone that
+   * draws the valley at 30 fps to spare its battery lifts that cap for as
+   * long as the player is actually pushing the camera around. Nothing on
+   * screen minds the resting rate until the ground itself is the thing
+   * being dragged, and then the frame rate *is* how far behind the finger
+   * the map runs.
+   *
+   * Every way the camera moves counts — a finger, a pinch, a middle-drag,
+   * the arrow keys, the edge push, a turn, a glide. All of them are the
+   * whole picture sliding, and all of them are watched while they happen.
+   */
+  driving(now: number): boolean {
+    return now - this.#movedAt < DRIVE_TAIL_MS;
+  }
+
   #apply(): void {
     this.#moved = true;
+    this.#movedAt = performance.now();
     DIR.set(
       Math.cos(this.#pitch) * Math.sin(this.#yaw),
       Math.sin(this.#pitch),
