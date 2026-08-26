@@ -31,7 +31,7 @@ import { REPLAY_VERSION } from './replayVersion';
 // brain never runs during playback, only the moves the log already holds —
 // but worldgen does.
 const EXPECTED_VERSION = 29;
-const EXPECTED_HASH = 'e02a12d5b7b7134e22fcbc3359461bd6';
+const EXPECTED_HASH = '9a489f2ba73ca0429136da25707fc511';
 
 /**
  * Everything a replay's playback depends on, as raw source:

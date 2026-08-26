@@ -606,13 +606,22 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
    * seam sits is still a roll (see seamFor), but how it lies once the center
    * is chosen is the terrain's business alone.
    *
-   * Budgets stay under 256: `resourceAmt` is a byte per tile, and a seam
-   * squeezed onto one tile carries the whole budget on it.
+   * The budget is checked rather than merely documented, because both ends
+   * of its range fail silently. `resourceAmt` is a byte, so a budget past
+   * 255 wraps on a seam that lands on one tile — 300 becoming 44 — and a
+   * map that reads as fair while one faction mines a seventh of what its
+   * rivals do is the exact failure this function exists to remove. A budget
+   * thinner than the tiles it is split over rounds some of them to nothing,
+   * and a resource tile holding nothing is a seam a miner walks to and
+   * cannot work (mapFile refuses one outright: 'resource with no amount').
    *
    * Returns how many tiles were written, so a caller that must place a seam
    * knows to try another center.
    */
   const placeSeam = (res: TileResourceKind, budget: number, cx: number, cy: number): number => {
+    if (!Number.isInteger(budget) || budget < 1 || budget > 255) {
+      throw new Error(`seam budget must be a whole number of 1..255 (got ${budget})`);
+    }
     const open: { i: number; d2: number }[] = [];
     for (let dy = -SEAM_REACH; dy <= SEAM_REACH; dy++) {
       for (let dx = -SEAM_REACH; dx <= SEAM_REACH; dx++) {
@@ -630,7 +639,10 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
     // around its center instead of reaching for whichever corner the scan
     // happened to walk first.
     open.sort((a, b) => a.d2 - b.d2 || a.i - b.i);
-    const take = open.slice(0, SEAM_TILES);
+    // Never more tiles than the budget can put metal in: a seam priced
+    // below SEAM_TILES buys fewer, richer tiles rather than padding itself
+    // out with empty ones. At the budgets in use this takes all six.
+    const take = open.slice(0, Math.min(SEAM_TILES, budget));
     if (take.length === 0) return 0;
     // The even split, with the remainder going to the tiles nearest the
     // middle. Whole tiles of the budget land and none of it is lost, so two
