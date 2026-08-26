@@ -49,13 +49,23 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
 }
 
 const WARMONGER = { armyAttackSize: 4, attackCooldown: 300, prefersRivals: true };
-/** Long enough for this fixture to decide itself (seat 1 razes seat 0 at
- * tick 27119 unadvised, on the world the shallower scenery margin
- * generates from seed 42). It has to run that deep: the steward's growth
- * knobs sit behind its growthAfter research and its war knobs behind a
- * mustered army, so the villages play identically for thousands of ticks
- * whatever the advice says — matchup.test.ts leans on the same fact. */
-const FULL_MATCH_TICKS = 30_000;
+/** The full-match fixture, and how deep it has to run. Seat 1 razes seat 0
+ * at tick 13958 unadvised and at 12296 advised, so the bound sits above the
+ * slower of the two with room to spare.
+ *
+ * It has to run this deep at all because the steward's growth knobs sit
+ * behind its growthAfter research and its war knobs behind a mustered
+ * army: the villages play identically for thousands of ticks whatever the
+ * advice says — matchup.test.ts leans on the same fact.
+ *
+ * Seed and bound are both pure data, re-pinned whenever worldgen rolls
+ * this fixture a different valley (seed 42 moved when the villager walk
+ * slowed in replay v24, 24 when metal seams learned a fixed price, and 5
+ * when the scenery margin came in and took the grid with it). What is
+ * being asserted is that advice changes the war, not that any particular
+ * map does. */
+const FULL_MATCH_SEED = 5;
+const FULL_MATCH_TICKS = 14_500;
 
 describe('wilson intervals', () => {
   it('never reads a clean sweep as certainty', () => {
@@ -225,9 +235,12 @@ describe('a headless match', () => {
     // dies before its army knobs ever gate a decision, so advising it is a
     // genuine no-op — which is itself the kind of truth the bake-off's
     // mirrored arms exist to average out.
-    const control = await playMatch(config({ maxTicks: FULL_MATCH_TICKS }));
+    const control = await playMatch(
+      config({ seed: FULL_MATCH_SEED, maxTicks: FULL_MATCH_TICKS }),
+    );
     const advised = await playMatch(
       config({
+        seed: FULL_MATCH_SEED,
         engines: new Map<Owner, LabEngine>([[1, scriptEngine(WARMONGER)]]),
         maxTicks: FULL_MATCH_TICKS,
       }),
@@ -237,6 +250,7 @@ describe('a headless match', () => {
     // no-op — tick for tick the control, not merely a similar game.
     const tooLate = await playMatch(
       config({
+        seed: FULL_MATCH_SEED,
         engines: new Map<Owner, LabEngine>([[1, scriptEngine(WARMONGER)]]),
         maxTicks: FULL_MATCH_TICKS,
         latencyTicks: FULL_MATCH_TICKS * 2,

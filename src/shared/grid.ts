@@ -32,18 +32,44 @@ export const MAX_MAP_SIZE = 128;
  * There is a floor under this, and it is not the cap. A square play area
  * on a 16:9 screen that fits the frame's height leaves the frame 1.78x as
  * wide as the map — about 0.39 sides showing past each side edge before
- * pitch or panning enter into it. A ring much under two fifths cannot
- * frame the valley at any cap.
+ * pitch or panning enter into it. Measured against the rig's own numbers
+ * at a cap of 0.5, the deepest a frame reaches on a 16:9 window is 0.373
+ * sides past the boundary, at the smallest legal map (the pan allowance is
+ * four flat tiles, so it weighs most on the smallest side). That figure is
+ * the floor, and MARGIN_FLOOR below is where it is enforced.
  */
 const MARGIN_FRACTION = 0.42;
 
 /**
- * A whole number of texture repeats, not just a whole number of tiles: the
- * ground detail texture repeats every four tiles, measured from the play
- * square's corner on the fine mesh and from the grid's on the margin mesh
- * (render/groundTexture.ts). An offset between those corners that is not a
- * multiple of four puts the two out of phase along the boundary, and the
- * seam the meshes work so hard to hide reappears as a step in the speckle.
+ * What the ring is allowed to come out at, as a fraction of the play side,
+ * once the rounding below has had its way: 0.42 asked for, 0.40 to 0.445
+ * delivered across the legal sizes. The low end is what has to clear the
+ * 0.373 above, and it does, by more than half a tile on the smallest map
+ * and by six on the default one. Pinned by grid.test.ts so that a future
+ * hand on MARGIN_FRACTION — or on MIN/MAX_MAP_SIZE — cannot quietly put a
+ * frame's corner past the end of the world.
+ */
+export const MARGIN_FLOOR = 0.4;
+export const MARGIN_CEIL = 0.445;
+
+/**
+ * The ring, in tiles: MARGIN_FRACTION of the play side, snapped to the
+ * NEAREST four.
+ *
+ * Four, because that is a whole number of texture repeats and not merely a
+ * whole number of tiles: the ground detail texture repeats every four
+ * tiles, measured from the play square's corner on the fine mesh and from
+ * the grid's on the margin mesh (render/groundTexture.ts). An offset
+ * between those corners that is not a multiple of four puts the two out of
+ * phase along the boundary, and the seam the meshes work so hard to hide
+ * reappears as a step in the speckle.
+ *
+ * Nearest rather than up, which is the direction a minimum would argue
+ * for: four tiles is a coarse step against a tolerance of a few percent,
+ * so rounding up costs the default map a ring of 44 where 40 already
+ * clears the reach by six tiles — a tenth of the grid bought for nothing.
+ * The realized band is narrow enough to state and to test (MARGIN_FLOOR),
+ * which is the guarantee that was wanted, at the size it actually costs.
  */
 export function marginFor(play: number): number {
   return 4 * Math.round((play * MARGIN_FRACTION) / 4);

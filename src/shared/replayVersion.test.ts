@@ -24,12 +24,13 @@ import { REPLAY_VERSION } from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
-// 29 for the shallower scenery margin: worldgen lays out a different grid
+// 30 for the shallower scenery margin: worldgen lays out a different grid
 // at every seed and the mission maps were cropped onto it, so a log re-run
-// on an older build is a log played on different ground (see
-// replayVersion.ts).
-const EXPECTED_VERSION = 29;
-const EXPECTED_HASH = '0433afa36d30bfb63675fa730c0adf85';
+// on an older build is a log played on different ground. Main's 29, priced
+// metal seams, moved worldgen for the same kind of reason and stands on
+// its own (see replayVersion.ts).
+const EXPECTED_VERSION = 30;
+const EXPECTED_HASH = '7e09c51e7c1ff25a2b3e1c5b9fcd368d';
 
 /**
  * Everything a replay's playback depends on, as raw source:

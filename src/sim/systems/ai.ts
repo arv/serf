@@ -575,7 +575,20 @@ export class AiBrain {
     const stock = sh.stock as Record<string, number>;
     const techs = p.techs;
     const researched = (id: TechId): boolean => techs.researched.includes(id);
+    // Standing OR planned: the build order reads this to decide whether a
+    // step's prerequisite is on the way, and a scaffold is on the way.
     const has = (type: BuildingTypeId): boolean => mine.some((b) => b.type === type);
+    // Standing, and only standing. The distinction is not academic: the sim
+    // asks for a BUILT abbey before it will take a research order (see
+    // canResearch), so a seat that read a scaffold as an abbey filed the
+    // same order every beat from the moment it laid the foundation until
+    // the roof went on, and the sim dropped every one of them. In a
+    // four-seat match that was 174 of 618 recorded commands — no gameplay
+    // cost, since an order refused before any resource moves changes
+    // nothing, but a decision beat spent on a command that cannot land, and
+    // a replay log mostly made of it.
+    const hasBuilt = (type: BuildingTypeId): boolean =>
+      mine.some((b) => b.type === type && b.state === 'built');
     const countOf = (type: BuildingTypeId): number => mine.filter((b) => b.type === type).length;
 
     // --- The walls ------------------------------------------------------------
@@ -745,7 +758,7 @@ export class AiBrain {
           !techs.researched.includes(id) &&
           TECH_DEFS[id].prereqs.every((pre) => techs.researched.includes(pre)),
       );
-      if (next && has('abbey')) {
+      if (next && hasBuilt('abbey')) {
         const cost = TECH_DEFS[next].cost as Record<string, number>;
         const ok = Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
         // Hands first, when there are barely any. Every tech is priced in
@@ -1226,13 +1239,31 @@ export class AiBrain {
       if (!BUILDING_DEFS[b.type].garrison) continue;
       const bx = b.x + b.w / 2;
       const by = b.y + b.h / 2;
-      if (hostileNear(world, this.#vision, this.playerId, bx, by, AI_INTEL.raidRadius)) {
-        this.#levyHold.set(b.id, world.tick + LEVY_HOLD);
-        if (b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
-        continue;
-      }
-      if (world.tick < (this.#levyHold.get(b.id) ?? 0)) continue;
-      this.#levyHold.delete(b.id);
+      // Under attack, and for LEVY_HOLD after the attacker leaves. The only
+      // thing a siege changes is that the tower is never stood down: it is
+      // held by whoever the village can put on it, and the levy is who it
+      // has when there is no soldier to spare.
+      //
+      // It used to change more than that — a tower with something hostile
+      // in sight took the villager levy and nothing else, because the whole
+      // branch bailed out here before a soldier could be claimed. Which had
+      // it exactly backwards. The levy throws rocks for 4 damage on a
+      // 30-tick clock, about a quarter of what the same two men do with
+      // bows, and it is meant to hold the wall UNTIL archers exist, not
+      // instead of them. So a seat with archers standing in the yard
+      // answered a raid with stones, kept answering it with stones for
+      // thirty seconds after the raiders left, and sent the archers to the
+      // field. Now the walk-an-archer-up rule below runs in a siege exactly
+      // as it does on quiet ground, and the levy is the fallback it was
+      // written to be.
+      //
+      // What this costs is real and deliberate: a man claimed for a wall is
+      // a man left out of the march (see `claimed`), so a besieged seat
+      // fields a smaller army while it is besieged.
+      const hostile = hostileNear(world, this.#vision, this.playerId, bx, by, AI_INTEL.raidRadius);
+      if (hostile) this.#levyHold.set(b.id, world.tick + LEVY_HOLD);
+      const besieged = hostile || world.tick < (this.#levyHold.get(b.id) ?? 0);
+      if (!besieged) this.#levyHold.delete(b.id);
       // Halting is the whole stand-down: it stops the tower calling anyone
       // else up and sends whoever is on it back down. Which is why a tower
       // the soldiers hold is left running on quiet ground — the villagers it
@@ -1289,6 +1320,15 @@ export class AiBrain {
         continue;
       }
       if (b.garrison && b.garrisonKind !== rule.levy.unit) continue;
+      // No soldier to spare. On quiet ground that is the stand-down — the
+      // villagers go back to their errands. Under siege it is the opposite
+      // order: run the tower and let them climb, because a wall held by
+      // anyone beats a wall held by nobody while there is something out
+      // there to shoot at.
+      if (besieged) {
+        if (b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
+        continue;
+      }
       if (!b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: true });
     }
     return claimed;

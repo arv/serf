@@ -299,7 +299,8 @@ function NewMapDialog(props: { actions: EditorActions }) {
         />
       </label>
       <div class="ed-dim">
-        A scenery ring two fifths of the playable side surrounds it — paintable, unwalkable.
+        A scenery ring about two fifths of the playable side surrounds it — paintable,
+        unwalkable.
       </div>
       <div class="ed-row">
         Players
