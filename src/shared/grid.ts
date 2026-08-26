@@ -14,13 +14,23 @@ export const MAX_MAP_SIZE = 128;
 /**
  * Warcraft-style world layout: the grid is larger than the playable area,
  * and the ring around the play square is real, editable tiles — scenery the
- * camera can see but nothing can walk, build, or gather on. Half the play
- * side per edge: at full zoom-out in a corner the camera sees about that
- * far past the boundary, and the horizon melt (margin mesh) takes over
- * before the grid runs out.
+ * camera can see but nothing can walk, build, or gather on.
+ *
+ * A quarter of the play side per edge. It used to be half, which is how
+ * far the camera looks past the boundary from a screen corner at full
+ * zoom-out — the ring had to reach the whole way, because the mesh drawing
+ * it stopped where the tiles stopped. It does not any more (see the skirt
+ * in render/marginMesh.ts), and once the horizon is the renderer's
+ * business the ring only has to be deep enough to read as a border: the
+ * far half of it was ground nobody could use, generated, stored, saved,
+ * scattered with trees and pathfinder-scratched, to be looked at through
+ * haze. A quarter side still frames the valley, and the grid is 2.25x the
+ * playable area instead of 4x.
  */
 export function marginFor(play: number): number {
-  return play / 2;
+  // Rounded: playable sides are even, not necessarily multiples of four,
+  // and playMin ((size - play) / 2) is a tile index.
+  return Math.round(play / 4);
 }
 
 /** Full grid side for a playable side (play sizes are even by contract). */

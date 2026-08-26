@@ -50,12 +50,12 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
 
 const WARMONGER = { armyAttackSize: 4, attackCooldown: 300, prefersRivals: true };
 /** Long enough for this fixture to decide itself (seat 1 razes seat 0 at
- * tick 11299 unadvised, since the villager walk slowed in replay v24). It
- * has to run that deep: the steward's growth knobs sit behind its
- * growthAfter research and its war knobs behind a mustered army, so the
- * villages play identically for thousands of ticks whatever the advice
- * says — matchup.test.ts leans on the same fact. */
-const FULL_MATCH_TICKS = 12_000;
+ * tick 27119 unadvised, on the world the quarter-side scenery margin
+ * generates from seed 42). It has to run that deep: the steward's growth
+ * knobs sit behind its growthAfter research and its war knobs behind a
+ * mustered army, so the villages play identically for thousands of ticks
+ * whatever the advice says — matchup.test.ts leans on the same fact. */
+const FULL_MATCH_TICKS = 30_000;
 
 describe('wilson intervals', () => {
   it('never reads a clean sweep as certainty', () => {

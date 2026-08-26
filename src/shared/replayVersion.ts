@@ -20,6 +20,16 @@
  * directly.
  */
 /**
+ * 29: the scenery margin comes in to a quarter of the playable side, from
+ * a half. Every generated world is a different world at the same seed —
+ * the grid is 1.5x the play square instead of 2x, so every tile sits at a
+ * different index, worldgen's far-field profile runs a shorter distance,
+ * and the seven authored mission maps were cropped to the new grid (their
+ * playable ground is the same ground, re-indexed, and each mission's
+ * pinned campSpot moved with it). Nothing about how a tick works moved,
+ * and nothing had to: a log re-run against a world built from the same
+ * seed on an older build is a log played on different ground.
+ *
  * 28: the campaign grew a fourth commission, Hammer and Haft, with an
  * authored map of its own. Nothing about how the sim ticks moved — but a
  * mission id is config, and an older build does not know this one:
@@ -180,4 +190,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 28;
+export const REPLAY_VERSION = 29;

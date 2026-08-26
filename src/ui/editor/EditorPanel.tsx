@@ -298,7 +298,9 @@ function NewMapDialog(props: { actions: EditorActions }) {
           onInput={(e) => setSize(Number(e.currentTarget.value))}
         />
       </label>
-      <div class="ed-dim">A scenery ring half the playable side surrounds it — paintable, unwalkable.</div>
+      <div class="ed-dim">
+        A scenery ring a quarter of the playable side surrounds it — paintable, unwalkable.
+      </div>
       <div class="ed-row">
         Players
         <div class="ed-seg">

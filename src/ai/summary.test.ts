@@ -99,9 +99,9 @@ describe('summarizeForSeat', () => {
   it('measures coverage over the playable valley, not the whole grid', () => {
     // Light exactly the play square: a seat that has scouted the entire
     // valley has seen everything scouting can ever deliver — the scenery
-    // margin is 3/4 of the grid and no unit can enter it. Measured over
-    // the full grid this read ≈0.25, telling the model the map was mostly
-    // unscouted forever.
+    // margin is over half the grid and no unit can enter it. Measured over
+    // the full grid this read well under half, telling the model the map
+    // was mostly unscouted forever.
     const early = playedWorld(200);
     const { world } = early;
     const explored = early.brains[0]!.vision.explored;

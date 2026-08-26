@@ -15,7 +15,7 @@ function rot90<T extends Uint8Array | Float32Array>(arr: T, size: number): T {
   return out;
 }
 
-// createBlankMap({size: 64}) => play 64, grid 128, play region [32, 96).
+// createBlankMap({size: 64}) => play 64, grid 96, play region [16, 80).
 
 describe('kaleidoscope symmetry of painting', () => {
   it('fold-4 water painting leaves the map rot-90 invariant', () => {
@@ -229,9 +229,19 @@ describe('organic edges and scatter', () => {
   it('the roughen brush rolls symmetric hills within the legal bands', () => {
     const state = createBlankMap({ size: 64, players: 4 });
     const size = state.map.size;
-    applyBrush(state, { kind: 'terrain', terrain: Terrain.Water }, 52, 46, { radius: 4, folds: 4 });
+    // Clear of the center by more than the radius, so the four fold discs
+    // stand apart. Where they overlap, a tile takes the relief of whichever
+    // copy is nearest — and for a tile the copies are equidistant from,
+    // "nearest" is decided in the last bits of two distances that are equal
+    // on paper, which is not a question a quarter turn answers the same way
+    // twice. The height tool has no such field and is exact either way (see
+    // the overlapping-discs test above); this one is asked where the
+    // question is well posed.
+    const bx = size / 2 - 12;
+    const by = size / 2 - 18;
+    applyBrush(state, { kind: 'terrain', terrain: Terrain.Water }, bx, by, { radius: 4, folds: 4 });
     for (let n = 0; n < 6; n++) {
-      applyBrush(state, { kind: 'noise' }, 52, 46, { radius: 8, folds: 4 });
+      applyBrush(state, { kind: 'noise' }, bx, by, { radius: 8, folds: 4 });
     }
     const rotH = rot90(state.map.height, size);
     for (let i = 0; i < rotH.length; i++) {

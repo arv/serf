@@ -227,10 +227,10 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
 
   // Coverage of the PLAYABLE valley. Vision can never reach the scenery
   // margin — units cannot enter it — and on every generated map the margin
-  // is 3/4 of all tiles, so measured over the full grid a seat that had
-  // scouted the entire valley reported explored=0.25 to a prompt that
-  // calls this "your map coverage, 0-1". The model was told the map was
-  // mostly unscouted forever.
+  // is over half of all tiles, so measured over the full grid a seat that
+  // had scouted the entire valley reported well under half to a prompt
+  // that calls this "your map coverage, 0-1". The model was told the map
+  // was mostly unscouted forever.
   let exploredTiles = 0;
   const p0 = playMin(world.map);
   const p1 = playMax(world.map);
