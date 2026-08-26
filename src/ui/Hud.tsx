@@ -155,6 +155,13 @@ export function Hud(props: {
   const isCompact = useMedia(COMPACT);
   const isCoarse = useMedia('(pointer: coarse)');
   /**
+   * A thumb is doing the pointing — either the device says so, or the
+   * screen is small enough that one is doing it anyway. The question the
+   * thumb rail and the placing bar both ask before they render: both exist
+   * to give a finger what a mouse already has.
+   */
+  const hasThumb = (): boolean => isCoarse() || isCompact();
+  /**
    * Upright and only upright — a phone narrow enough to stack, minus the
    * landscape phones that are also narrow (an iPhone SE sideways is 667x375
    * and inside NARROW). Almost nothing needs the distinction, because the
@@ -185,17 +192,25 @@ export function Hud(props: {
     if (type !== null && isCompact()) setBuildOpen(false);
   };
   /**
+   * Nobody else's clock: no server ticking this match, and no log playing
+   * one back. Both are worlds this player doesn't own outright, and the
+   * parts of the HUD that write to the world ask before they offer —
+   * saving, loading, and hurrying time are all only a solo game's to do.
+   */
+  const isSolo = (): boolean => !netMode() && !replayMode();
+  /**
    * Whether the speed cluster is holding exactly one control, and so can be
    * the same square as the ☰ beside it rather than a panel around a row.
-   * The three conditions are the three <Show>s inside it: a match puts the
-   * ping chip in the panel (and takes the speed control out — you cannot
-   * hurry a match), a replay adds its own chip, fog eye and divider, and
-   * away from COMPACT the one cycling button becomes a button per speed.
+   * isCompact() and isSolo() between them are the three <Show>s inside it:
+   * a match puts the ping chip in the panel (and takes the speed control
+   * out — you cannot hurry a match), a replay adds its own chip, fog eye
+   * and divider, and away from COMPACT the one cycling button becomes a
+   * button per speed.
    * Read here rather than asked of the DOM with :has, which drops the whole
    * rule on a browser that lacks it and costs more to recalculate on one
    * that doesn't. The markup knows; it can say so.
    */
-  const speedIsSingle = (): boolean => isCompact() && !netMode() && !replayMode();
+  const speedIsSingle = (): boolean => isCompact() && isSolo();
   const menuOpen = (): boolean => openPanel() === 'menu';
   /** The newest saved game, as of the last time the menu was opened: what
    * the Load button reads to know whether there is anything to load, and
@@ -209,6 +224,9 @@ export function Hud(props: {
     setOpenPanel(open ? 'menu' : null);
     if (open) void latestSaveName().then(setLastSave);
   };
+  /** Nothing in hand: what greys the rail's ✕ out, and what leaves M free
+   *  to be the mute key rather than the move order. */
+  const nothingSelected = (): boolean => selection().size === 0;
   /**
    * The thumb rail's Deselect ✕, which stands at whichever end of the rail
    * is the far one — the bottom of a tablet's column, the left of a phone's
@@ -222,9 +240,9 @@ export function Hud(props: {
    */
   const DeselectButton = (): JSX.Element => (
     <button
-      classList={{ reserved: selection().size === 0 }}
-      aria-hidden={selection().size === 0}
-      tabindex={selection().size === 0 ? -1 : undefined}
+      classList={{ reserved: nothingSelected() }}
+      aria-hidden={nothingSelected()}
+      tabindex={nothingSelected() ? -1 : undefined}
       {...tooltip(() => (
         <TextTip
           title="Deselect"
@@ -234,6 +252,30 @@ export function Hud(props: {
       onClick={() => props.onDeselect()}
     >
       ✕
+    </button>
+  );
+  /**
+   * Build, the toggle — written once and rendered in two places, never
+   * both at once: the pill at the foot of the HUD, and, where a sheet has
+   * covered that spot, the button leading the strip at the sheet's own
+   * foot, standing in the pill's very pixels. The whole point of that is
+   * that the same tap opens and closes without the thumb moving, and two
+   * buttons that have to be one button should be one button. Only the
+   * class differs, because the stylesheet still has to tell a strip's
+   * Build from the tabs beside it.
+   *
+   * Toggling rather than closing serves both: the strip's twin only ever
+   * renders while the card is open, so `!buildOpen()` is false there —
+   * and no pressed state on either, because the card standing open above
+   * is the state.
+   */
+  const BuildToggle = (props: { class: string }): JSX.Element => (
+    <button class={props.class + ' panel'} onClick={() => setBuildOpen(!buildOpen())}>
+      <MalletIcon /> <Key label="Build" k="B" />
+      {/* Hidden by the CSS everywhere the strip's twin can appear, so the
+          two never come out different widths — and the placing bar is
+          standing beside it there saying the same name in full. */}
+      <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
     </button>
   );
   /**
@@ -254,15 +296,9 @@ export function Hud(props: {
           BuildTabs). Off entirely on a desktop, where the card never
           folds and `buildVisible()` is always true. */}
       <Show when={!replayMode() && (!buildVisible() || isUpright())}>
-        {/* No pressed state: the card standing open above it is the
-            state, and the strip's twin sideways carries none either —
-            the two have to be the same button to be the same tap. */}
-        <button class="hud-build-pill panel" onClick={() => setBuildOpen(!buildOpen())}>
-          <MalletIcon /> <Key label="Build" k="B" />
-          <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
-        </button>
+        <BuildToggle class="hud-build-pill" />
       </Show>
-      <Show when={isCoarse() || isCompact()}>
+      <Show when={hasThumb()}>
         <div class="hud-touch">
           {/* A phone's rail hangs from a margin — the right one upright,
               the bottom one sideways — so the far end is this one either
@@ -357,9 +393,7 @@ export function Hud(props: {
   const BuildTabs = (): JSX.Element => (
     <div class="hud-tabs">
       <Show when={isShort()}>
-        <button class="build-fold panel" onClick={() => setBuildOpen(false)}>
-          <MalletIcon /> <Key label="Build" k="B" />
-        </button>
+        <BuildToggle class="build-fold" />
       </Show>
       <For each={BUILD_GROUPS}>
         {(group, i) => (
@@ -1253,8 +1287,10 @@ export function Hud(props: {
              row over its width: pill plus thumb rail came to 395px of a
              370px line, and the rail wrapped underneath for exactly as
              long as a building was in hand. Build is all the pill needs
-             to say while the bar is there to say the rest. */
-          .hud-build-pill .cost { display: none; }
+             to say while the bar is there to say the rest. The strip's
+             twin is the same button (see BuildToggle) and wants the same
+             silence — it only ever stands here, inside COMPACT. */
+          .hud-build-pill .cost, .build-fold .cost { display: none; }
 
           /* Squared with whatever shares its row, both ways. The pill's
              own flex-start is a desktop rule; on a phone it hung the
@@ -1952,7 +1988,11 @@ export function Hud(props: {
                 ✕
               </button>
             </div>
-            <Show when={!netMode() && !replayMode()}>
+            {/* Everything the local disk is party to, under one gate:
+                only a solo game's world is this device's to write down or
+                to put back. A match lives on the server and a replay is
+                already a recording. */}
+            <Show when={isSolo()}>
               <button
                 onClick={() => {
                   props.onSave();
@@ -1961,13 +2001,11 @@ export function Hud(props: {
               >
                 Save village
               </button>
-            </Show>
-            {/* Any time in a solo match: the log runs from boot, so a
-                mid-match save records everything up to this moment and
-                playback pauses there. Multiplayer still records on the
-                server, which only hands the log out once the match is
-                decided — its button lives on the end card. */}
-            <Show when={!netMode() && !replayMode()}>
+              {/* Any time in a solo match: the log runs from boot, so a
+                  mid-match save records everything up to this moment and
+                  playback pauses there. Multiplayer still records on the
+                  server, which only hands the log out once the match is
+                  decided — its button lives on the end card. */}
               <button
                 onClick={() => {
                   props.onSaveReplay();
@@ -1976,8 +2014,6 @@ export function Hud(props: {
               >
                 Save replay
               </button>
-            </Show>
-            <Show when={!netMode() && !replayMode()}>
               <button
                 disabled={lastSave() === null}
                 title={
@@ -2028,7 +2064,7 @@ export function Hud(props: {
                 // would march the army instead is worse than no hint.
                 title={
                   (muted() ? 'Sound off' : 'Sound on') +
-                  (hasKeyboard() && selection().size === 0 ? ' (M)' : '')
+                  (hasKeyboard() && nothingSelected() ? ' (M)' : '')
                 }
                 onClick={() => toggleMuted()}
               >
@@ -2075,7 +2111,7 @@ export function Hud(props: {
           <BottomControls />
         </Show>
 
-        <Show when={(isCoarse() || isCompact()) && !replayMode() && placing()}>
+        <Show when={hasThumb() && !replayMode() && placing()}>
           {(type) => (
             <div class="hud-placing panel">
               <span class="what">
