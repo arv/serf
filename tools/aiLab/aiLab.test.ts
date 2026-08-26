@@ -50,7 +50,7 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
 
 const WARMONGER = { armyAttackSize: 4, attackCooldown: 300, prefersRivals: true };
 /** Long enough for this fixture to decide itself (seat 1 razes seat 0 at
- * tick 27119 unadvised, on the world the quarter-side scenery margin
+ * tick 27119 unadvised, on the world the shallower scenery margin
  * generates from seed 42). It has to run that deep: the steward's growth
  * knobs sit behind its growthAfter research and its war knobs behind a
  * mustered army, so the villages play identically for thousands of ticks

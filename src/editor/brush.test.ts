@@ -15,7 +15,7 @@ function rot90<T extends Uint8Array | Float32Array>(arr: T, size: number): T {
   return out;
 }
 
-// createBlankMap({size: 64}) => play 64, grid 96, play region [16, 80).
+// createBlankMap({size: 64}) => play 64, grid 120, play region [28, 92).
 
 describe('kaleidoscope symmetry of painting', () => {
   it('fold-4 water painting leaves the map rot-90 invariant', () => {

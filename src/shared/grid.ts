@@ -16,26 +16,37 @@ export const MAX_MAP_SIZE = 128;
  * and the ring around the play square is real, editable tiles — scenery the
  * camera can see but nothing can walk, build, or gather on.
  *
- * A quarter of the play side per edge. It was half — the distance the
- * camera looks past the boundary from a screen corner at full zoom-out, so
- * that the ring reached everywhere a frame could reach. What that bought
- * was a grid four times the area anyone could play on: every tile of the
- * far half generated, stored, saved, scattered with timber and scratched
- * by the pathfinder, to be looked at through haze in the corner of one
- * zoom level. A quarter side still frames the valley from every ordinary
- * view, and the grid is 2.25x the playable area instead of 4x.
+ * The depth is not a free number: it is however far a frame reaches past
+ * the boundary, and that is the zoom-out cap's to say. So this constant
+ * and MAX_VIEW_FRACTION (render/cameraRig.ts) are one decision written in
+ * two places, and the comment there is the other half of this one.
  *
- * The ring's depth is not a free number: it is however far a frame reaches
- * past the boundary, and that is the zoom-out cap's to say. So the two
- * moved together — MAX_VIEW_FRACTION in render/cameraRig.ts came in from
- * 0.8 to 0.35 in the same breath, and the comment there is the other half
- * of this one. Changing either alone puts the end of the world in a
- * screen corner or pays for ground nobody looks at.
+ * It was half a side, against a cap of 0.8 — a grid four times the area
+ * anyone could play on, three quarters of it ground nobody could enter,
+ * most of that seen only in the corner of one zoom level. The pair is now
+ * 0.42 against 0.5: the ring is a sixth shallower, the grid 3.4x the
+ * playable area rather than 4x, and full zoom-out frames the valley
+ * roughly to its own edges instead of the valley and a valley of scenery
+ * around it.
+ *
+ * There is a floor under this, and it is not the cap. A square play area
+ * on a 16:9 screen that fits the frame's height leaves the frame 1.78x as
+ * wide as the map — about 0.39 sides showing past each side edge before
+ * pitch or panning enter into it. A ring much under two fifths cannot
+ * frame the valley at any cap.
+ */
+const MARGIN_FRACTION = 0.42;
+
+/**
+ * A whole number of texture repeats, not just a whole number of tiles: the
+ * ground detail texture repeats every four tiles, measured from the play
+ * square's corner on the fine mesh and from the grid's on the margin mesh
+ * (render/groundTexture.ts). An offset between those corners that is not a
+ * multiple of four puts the two out of phase along the boundary, and the
+ * seam the meshes work so hard to hide reappears as a step in the speckle.
  */
 export function marginFor(play: number): number {
-  // Rounded: playable sides are even, not necessarily multiples of four,
-  // and playMin ((size - play) / 2) is a tile index.
-  return Math.round(play / 4);
+  return 4 * Math.round((play * MARGIN_FRACTION) / 4);
 }
 
 /** Full grid side for a playable side (play sizes are even by contract). */

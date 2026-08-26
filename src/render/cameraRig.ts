@@ -117,13 +117,15 @@ const BOOT_VIEW = 30;
  * nobody could enter, most of that seen only in one corner of one zoom
  * level.
  *
- * At 0.35 the same corner reaches about a quarter side out, which is what
- * the ring is now, with less left over than the old pairing had. What it
- * costs is the zoom itself: full zoom-out no longer frames the whole
- * valley — it frames about 60 of a 96-tile side — so the minimap, not the
- * wheel, is what shows the player the whole map.
+ * At 0.5 the same corner reaches about two fifths of a side out, which is
+ * what the ring is now. What it costs is the far end of the wheel: full
+ * zoom-out frames about 84 tiles of a 96-tile side rather than 134, so the
+ * valley fills the frame at its widest instead of sitting in the middle of
+ * a frame half again its size. The wheel still opens 30 to 48 — a 1.6x
+ * range where the old pairing had 2.6x, and the minimap is what carries
+ * the rest.
  */
-const MAX_VIEW_FRACTION = 0.35;
+const MAX_VIEW_FRACTION = 0.5;
 /** Shore breathing room: how far past the box the pan target may reach at
  * the closest zooms, before the view's own footprint is what bounds it
  * (see #panRange). The scenery margin beyond is for looking at, not for

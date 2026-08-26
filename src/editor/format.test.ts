@@ -7,7 +7,7 @@ import { parseEditorMap, serializeEditorMap } from './format.ts';
 import type { EditorMapFile } from './format.ts';
 
 function sampleState() {
-  // play 64 -> grid 96, play region [16, 80).
+  // play 64 -> grid 120, play region [28, 92).
   const state = createBlankMap({ size: 64, players: 4 });
   state.name = 'Crossroads';
   applyBrush(state, { kind: 'terrain', terrain: Terrain.Water }, 52, 46, { radius: 4, folds: 4 });
@@ -25,7 +25,7 @@ describe('map file round-trip', () => {
     expect(back.players).toBe(4);
     expect(back.starts).toEqual(state.starts);
     expect(back.map.play).toBe(64);
-    expect(back.map.size).toBe(96);
+    expect(back.map.size).toBe(120);
     expect(back.map.terrain).toEqual(state.map.terrain);
     expect(back.map.resource).toEqual(state.map.resource);
     expect(back.map.resourceAmt).toEqual(state.map.resourceAmt);

@@ -6,7 +6,7 @@ import { createBlankMap } from './editorMap.ts';
 import { naturalize } from './naturalize.ts';
 
 function paintedState() {
-  // play 64 -> grid 96; a symmetric lake and range, 4-fold.
+  // play 64 -> grid 120; a symmetric lake and range, 4-fold.
   const state = createBlankMap({ size: 64, players: 4 });
   applyBrush(state, { kind: 'terrain', terrain: Terrain.Water }, 52, 46, { radius: 5, folds: 4 });
   applyBrush(state, { kind: 'terrain', terrain: Terrain.Rock }, 76, 76, { radius: 3, folds: 4 });

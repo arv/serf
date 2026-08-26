@@ -11,7 +11,7 @@ import { createBlankMap } from './editorMap.ts';
 import { worldFromEditor } from './playWorld.ts';
 
 function authoredState() {
-  // play 64 -> grid 96, play region [16, 80).
+  // play 64 -> grid 120, play region [28, 92).
   const state = createBlankMap({ size: 64, players: 2 });
   // A lake, a range, a grove and a seam — enough authored variety that the
   // world builder has something real to keep intact.
@@ -81,7 +81,7 @@ describe('worldFromEditor', () => {
     const world = worldFromEditor(authoredState(), PLAY);
     const back = deserializeWorld(serializeWorld(world));
     expect(back.map.play).toBe(64);
-    expect(back.map.size).toBe(96);
+    expect(back.map.size).toBe(120);
     expect(back.map.terrain).toEqual(world.map.terrain);
     expect(back.buildings.size).toBe(world.buildings.size);
     expect(back.units.size).toBe(world.units.size);
