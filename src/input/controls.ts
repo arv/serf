@@ -61,6 +61,7 @@ import {
 } from './picking';
 import { groupEmpty, keyDigit, matchingGroup } from './groups';
 import { foreignChord, typingInto } from './typing';
+import { capturePointer } from './mouseCapture';
 import type { ControlGroup } from './groups';
 import type { SceneSync } from '../render/sceneSync';
 import type { GhostPlacement } from '../render/ghost';
@@ -798,7 +799,7 @@ export class Controls {
           // band, and the camera holds still until the finger lifts.
           this.#bandTouch = true;
           if (this.#rig) this.#rig.touchPanEnabled = false;
-          this.#canvas.setPointerCapture(e.pointerId);
+          capturePointer(this.#canvas, e);
         }
       }
     } else if (e.button === 2) {
@@ -948,7 +949,7 @@ export class Controls {
     const dy = e.clientY - this.#dragStart.y;
     if (!this.#dragging && dx * dx + dy * dy > DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) {
       this.#dragging = true;
-      this.#canvas.setPointerCapture(e.pointerId);
+      capturePointer(this.#canvas, e);
       this.#bandEl.style.display = 'block';
     }
     if (this.#dragging) {

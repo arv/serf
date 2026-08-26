@@ -397,6 +397,47 @@ describe('band select', () => {
     expect(selectedBuilding()).toBeNull();
   });
 
+  it('draws the band even where the platform refuses the capture', () => {
+    // Full screen captures the mouse now (input/mouseCapture.ts), and Blink
+    // throws InvalidStateError out of setPointerCapture for as long as a
+    // pointer lock is engaged — whoever asks. That call sits one line above
+    // the line that shows the band, so the throw took the lasso with it:
+    // the rectangle went on being sized and selecting, invisibly, and the
+    // drag read as having done nothing until the units lit up at the end.
+    const made: ReturnType<typeof fakeEl>[] = [];
+    vi.stubGlobal('document', {
+      createElement: () => {
+        const el = fakeEl();
+        made.push(el);
+        return el;
+      },
+      getElementById: () => null,
+      body: { appendChild: () => {} },
+      head: { appendChild: () => {} },
+    });
+    const h = harness();
+    controls = h.controls;
+    h.canvas.setPointerCapture = () => {
+      throw new DOMException('locked', 'InvalidStateError');
+    };
+    h.addUnit(1, -5, -3);
+    const [from, to] = around([h.screenOf(1)]);
+
+    h.canvas.fire('pointerdown', ptr(from.x, from.y));
+    h.canvas.fire('pointermove', ptr(to.x, to.y));
+
+    const rect = made.find((el) => el.style.cssText.includes('border:1px solid'))!;
+    expect(rect.style.display).toBe('block');
+    expect(rect.style.left).toBe(`${Math.min(from.x, to.x)}px`);
+    expect(rect.style.top).toBe(`${Math.min(from.y, to.y)}px`);
+    expect(rect.style.width).toBe(`${Math.abs(to.x - from.x)}px`);
+    expect(rect.style.height).toBe(`${Math.abs(to.y - from.y)}px`);
+
+    h.canvas.fire('pointerup', ptr(to.x, to.y));
+    expect(rect.style.display).toBe('none');
+    expect([...selection()]).toEqual([1]);
+  });
+
   it('adds to the standing selection when Shift is held', () => {
     const h = harness();
     controls = h.controls;
