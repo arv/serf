@@ -15,13 +15,14 @@ import { strategyOf } from './defs/aiStrategies.ts';
  */
 describe('the campaign is winnable', () => {
   it('the AI player beats the default map', () => {
-    // Seed 3: the pinned default valley, re-picked after the pan clamp
-    // took a share of the scenery ring and re-rolled every world with it.
-    // Chosen by sweep, on the same two counts as the seeds before it —
-    // it satisfies the fairness contract at 2/3/4 seats (mapFairness's
-    // own suite, run against it), and every playbook takes it with room
-    // to spare: 10.4k, 11.1k, 21.5k and 24.5k of the 45k budget.
-    const world = createWorld({ seed: 3, players: [{ kind: 'ai' }] });
+    // Seed 37: the pinned default valley, re-picked after the pan clamp
+    // and the zoom-out cap each took a share of the scenery ring and
+    // re-rolled every world with it. Chosen by sweep, on the same two
+    // counts as the seeds before it — it satisfies the fairness contract
+    // at 2/3/4 seats (mapFairness's own suite, run against it), and every
+    // playbook takes it with room to spare: 13.5k, 14.7k, 16.3k and 18.9k
+    // of the 45k budget.
+    const world = createWorld({ seed: 37, players: [{ kind: 'ai' }] });
     // Whichever playbook this seed dealt the seat — every one of them can
     // take this map (aiStrategies.test.ts holds that line); what is tested
     // here is that the map stays takeable.

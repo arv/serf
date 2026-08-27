@@ -53,10 +53,10 @@ node tools/exportMissionMap.ts 11  2 "The Rival Banner"  src/sim/defs/maps/rival
 
 Re-running one of those today does **not** reproduce the file beside it.
 The scenery margin has come in twice — from half the playable side, to
-0.42 of one, and now to an affine depth that works out at 32 tiles on a
+0.42 of one, and now to an affine depth that works out at 28 tiles on a
 96-tile valley — and worldgen lays out a different grid at every seed each
 time. Rather than reroll seven proven maps, the files were cropped onto
-each new grid: the same playable ground, its tiles re-indexed by the 16 the
+each new grid: the same playable ground, its tiles re-indexed by the 20 the
 margin has lost in total, and each mission's pinned `campSpot` moved with
 them. The commands above are how a map is born, not how these seven are
 rebuilt.
