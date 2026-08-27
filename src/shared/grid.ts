@@ -16,63 +16,83 @@ export const MAX_MAP_SIZE = 128;
  * and the ring around the play square is real, editable tiles — scenery the
  * camera can see but nothing can walk, build, or gather on.
  *
- * The depth is not a free number: it is however far a frame reaches past
- * the boundary, and that is the zoom-out cap's to say. So this constant
- * and MAX_VIEW_FRACTION (render/cameraRig.ts) are one decision written in
- * two places, and the comment there is the other half of this one.
+ * The depth is not a free number. It is exactly how far a frame overshoots
+ * the play square at full zoom-out, which two constants in
+ * render/cameraRig.ts decide between them: MAX_VIEW_FRACTION, how much
+ * world a frame covers, and VIEW_PAN_INSET, how much of that frame the pan
+ * clamp charges against the play square before it stops. The comments
+ * there are the other half of this one, and cameraRig.test.ts is what
+ * holds the three together — prose cannot.
  *
- * It was half a side, against a cap of 0.8 — a grid four times the area
- * anyone could play on, three quarters of it ground nobody could enter,
- * most of that seen only in the corner of one zoom level. The pair is now
- * 0.42 against 0.5: the ring is a sixth shallower, the grid 3.4x the
- * playable area rather than 4x, and full zoom-out frames the valley
- * roughly to its own edges instead of the valley and a valley of scenery
- * around it.
+ * Working the overshoot out gives its shape. With the pan allowance still
+ * in play the clamp puts the frame's centre at `play/2 + PAN_MARGIN -
+ * 2·ext·INSET` from the middle, so the far edge lands
  *
- * There is a floor under this, and it is not the cap. A square play area
- * on a 16:9 screen that fits the frame's height leaves the frame 1.78x as
- * wide as the map — about 0.39 sides showing past each side edge before
- * pitch or panning enter into it. Measured against the rig's own numbers
- * at a cap of 0.5, the deepest a frame reaches on a 16:9 window is 0.373
- * sides past the boundary, at the smallest legal map (the pan allowance is
- * four flat tiles, so it weighs most on the smallest side). That figure is
- * the floor, and MARGIN_FLOOR below is where it is enforced.
+ *     ring = ext·(1 - 2·INSET) + PAN_MARGIN
+ *
+ * past the boundary. `ext` — the frame's half-footprint, stretched by the
+ * 35° pitch and turned by the yaw — scales with the play side; PAN_MARGIN
+ * does not. So the ring is **affine, not proportional**: a share of the
+ * play side plus a flat few tiles of shore. That is why this is not a
+ * fraction any more. A fraction has to be cut deep enough for the smallest
+ * map, where four flat tiles are a sixteenth of the side, and then spends
+ * that same share on the largest, where they are a thirty-second.
+ *
+ * At the shipped pair (cap 0.5, inset 0.28) the overshoot measures
+ * 0.274·play + 4 on a 16:9 window, which is what the constants below
+ * carry, with four tiles and more in hand at every legal size. A 21:9
+ * window wants 0.322·play + 4 and is still a tile short at the largest
+ * maps — better than the tile and a half it was short before, and the same
+ * standing exception rather than a new one.
+ *
+ * What that leaves: rings of 28 / 36 / 44 tiles at the smallest, default
+ * and largest maps, against 28 / 40 / 52 before and 32 / 48 / 64 before
+ * that. The grid is 3.1x the playable area where it was 3.4x, and 4x when
+ * this started.
+ *
+ * It does not go much below this without paying in something worth more.
+ * VIEW_PAN_INSET is the lever, and it runs into a wall well before the
+ * arithmetic does: at 0.30 the largest valley's corners stop being
+ * reachable on the default camera line at full zoom-out, and at 0.35 no
+ * valley's are. 0.28 is the last step that leaves the camera doing what it
+ * already did, and cameraRig.test.ts holds it there from both sides.
+ *
+ * Warcraft III gets a ring near a tenth of its side, and the difference is
+ * not this number: its frame never grows anywhere near the size of its
+ * map. Going further here is a question for the wheel, not for the ring.
+ *
+ * (MARGIN_SLOPE and VIEW_PAN_INSET are both 0.28 and have nothing to do
+ * with each other — one is a share of the play side, the other a share of
+ * a frustum. Do not be tempted to fold them together.)
  */
-const MARGIN_FRACTION = 0.42;
+const MARGIN_SLOPE = 0.28;
+const MARGIN_FLAT = 8;
 
 /**
- * What the ring is allowed to come out at, as a fraction of the play side,
- * once the rounding below has had its way: 0.42 asked for, 0.40 to 0.445
- * delivered across the legal sizes. The low end is what has to clear the
- * 0.373 above, and it does, by more than half a tile on the smallest map
- * and by six on the default one. Pinned by grid.test.ts so that a future
- * hand on MARGIN_FRACTION — or on MIN/MAX_MAP_SIZE — cannot quietly put a
- * frame's corner past the end of the world.
+ * The ring, in tiles, rounded UP to a whole number of texture repeats.
+ *
+ * Four, because that is a whole number of repeats and not merely a whole
+ * number of tiles: the ground detail texture repeats every four, measured
+ * from the play square's corner on the fine mesh and from the grid's on
+ * the margin mesh (render/groundTexture.ts). An offset between those
+ * corners that is not a multiple of four puts the two out of phase along
+ * the boundary, and the seam the meshes work so hard to hide reappears as
+ * a step in the speckle.
+ *
+ * Up rather than to the nearest, now that the target is the overshoot
+ * itself rather than a fraction chosen with slack in it: rounding down
+ * from a figure that IS the requirement is rounding into the void.
+ *
+ * marginTargetFor is that unrounded depth, exported so grid.test.ts can
+ * pin the rounding's direction without restating the slope and the flat
+ * term where they could drift apart from these.
  */
-export const MARGIN_FLOOR = 0.4;
-export const MARGIN_CEIL = 0.445;
+export function marginTargetFor(play: number): number {
+  return play * MARGIN_SLOPE + MARGIN_FLAT;
+}
 
-/**
- * The ring, in tiles: MARGIN_FRACTION of the play side, snapped to the
- * NEAREST four.
- *
- * Four, because that is a whole number of texture repeats and not merely a
- * whole number of tiles: the ground detail texture repeats every four
- * tiles, measured from the play square's corner on the fine mesh and from
- * the grid's on the margin mesh (render/groundTexture.ts). An offset
- * between those corners that is not a multiple of four puts the two out of
- * phase along the boundary, and the seam the meshes work so hard to hide
- * reappears as a step in the speckle.
- *
- * Nearest rather than up, which is the direction a minimum would argue
- * for: four tiles is a coarse step against a tolerance of a few percent,
- * so rounding up costs the default map a ring of 44 where 40 already
- * clears the reach by six tiles — a tenth of the grid bought for nothing.
- * The realized band is narrow enough to state and to test (MARGIN_FLOOR),
- * which is the guarantee that was wanted, at the size it actually costs.
- */
 export function marginFor(play: number): number {
-  return 4 * Math.round((play * MARGIN_FRACTION) / 4);
+  return 4 * Math.ceil(marginTargetFor(play) / 4);
 }
 
 /** Full grid side for a playable side (play sizes are even by contract). */

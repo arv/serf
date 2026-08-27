@@ -117,13 +117,14 @@ const BOOT_VIEW = 30;
  * nobody could enter, most of that seen only in one corner of one zoom
  * level.
  *
- * At 0.5 the same corner reaches about two fifths of a side out, which is
- * what the ring is now. What it costs is the far end of the wheel: full
- * zoom-out frames about 84 tiles of a 96-tile side rather than 134, so the
- * valley fills the frame at its widest instead of sitting in the middle of
- * a frame half again its size. The wheel still opens 30 to 48 — a 1.6x
- * range where the old pairing had 2.6x, and the minimap is what carries
- * the rest.
+ * At 0.5 the corner reaches about two fifths of a side out before the pan
+ * clamp has its say — and VIEW_PAN_INSET below is what takes most of that
+ * back, leaving the ring at under a third. What the cap costs is the far
+ * end of the wheel: full zoom-out frames about 84 tiles of a 96-tile side
+ * rather than 134, so the valley fills the frame at its widest instead of
+ * sitting in the middle of a frame half again its size. The wheel opens 30
+ * to 48 — a 1.6x range where the original pairing had 2.6x, and the
+ * minimap is what carries the rest.
  */
 const MAX_VIEW_FRACTION = 0.5;
 /** Shore breathing room: how far past the box the pan target may reach at
@@ -134,14 +135,36 @@ const PAN_MARGIN = 4;
 /**
  * How much of the view's ground span counts against the pan range.
  *
+ * This is the constant that buys the scenery ring, and it is worth being
+ * plain about the trade. Whatever share of its own footprint the pan does
+ * NOT charge, the frame is free to hang past the play square — and real
+ * ground has to be there to fill it, which is what marginFor
+ * (shared/grid.ts) is. Charge less and the pan stays loose while the ring
+ * pays for it; charge more and the ring comes in while the pan stiffens at
+ * the zoomed-out end.
+ *
  * The footprint measure is the AABB around a rectangle the yaw has turned
  * (a diamond at 45°), so along either world axis it reports the far
- * corners — true, but only across a thin band, and charging the whole of
- * it would lock the camera at zooms that still show a third of the map. A
- * quarter is what keeps the map filling the frame at every zoom without
- * the pan going stiff: near-free close in, near-centered at full zoom-out.
+ * corners — true, but only across a thin band. Charging the whole of it
+ * would be the strictest reading and it is far too strict: past about 0.37
+ * the play square's corner cannot be brought into frame at full zoom-out
+ * at any angle, which is a valley you cannot look at the whole of.
+ *
+ * The binding limit arrives earlier than that cliff, and it is about the
+ * DEFAULT angle rather than the best one. At full zoom-out on the default
+ * line, two of the four corners are reachable and two are not — the frame
+ * is a turned rectangle over a square map, so it favours one diagonal. At
+ * 0.30 the largest valley loses even those two, and at 0.35 every valley
+ * does: the player has to turn the camera square to the grid to look at
+ * the edge of their own map. 0.28 is the last step that keeps them.
+ *
+ * So: near-free close in, tighter than it was at full zoom-out, the same
+ * corners in frame on the default line as before, and a ring of 36 tiles
+ * on the default valley where a quarter wanted 40. Both halves are pinned
+ * in cameraRig.test.ts — one test says the frame never leaves the grid,
+ * the other says the valley can still be looked at.
  */
-const VIEW_PAN_INSET = 0.25;
+const VIEW_PAN_INSET = 0.28;
 /**
  * The keys that pan, and the screen-space direction each asks for.
  *

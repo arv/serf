@@ -20,6 +20,18 @@
  * directly.
  */
 /**
+ * 31: the scenery ring comes in again, and this time the camera's pan
+ * clamp pays for it. VIEW_PAN_INSET charges 0.28 of the frame's footprint
+ * against the play square where it charged a quarter, so the frame hangs
+ * less far past the boundary and the ring that has to fill it is shallower
+ * — 36 tiles on the default valley where it was 40, 44 on the largest
+ * where it was 52, and affine in the play side now rather than a flat
+ * fraction of it. Every generated world is a different world at the same
+ * seed, every tile sits at a different index, and the seven authored
+ * mission maps were cropped onto the new grid again (their playable ground
+ * is the same ground, re-indexed, campSpots moved with it). Nothing about
+ * how a tick works moved.
+ *
  * 30: the scenery margin comes in to 0.42 of the playable side, from a
  * half, with the camera's zoom-out cap (the two size each other). Every
  * generated world is a different world at the same seed — the grid is
@@ -224,4 +236,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 30;
+export const REPLAY_VERSION = 31;

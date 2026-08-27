@@ -133,9 +133,15 @@ describe('strategist overrides', () => {
   /** Ticks until the brain first marches its army away from home — the
    * observable a changed muster size moves. Under fog a brain also emits
    * one-soldier scout errands and whole-army rallies to the spot south of
-   * the castle; a march is the whole muster ordered anywhere else. */
+   * the castle; a march is the whole muster ordered anywhere else.
+   *
+   * Seed 17 is pure data, re-pinned when a worldgen change rolls it a
+   * valley the steward musters differently on (20260724 held it until the
+   * pan clamp took a share of the scenery ring). What has to hold is only
+   * that the unadvised march lands inside the budget with room for an
+   * eager one to beat it: 13.7k against a 20k cap here. */
   function firstMarchTick(override: Partial<AiStrategy> | null, maxTicks: number): number {
-    const world = createWorld({ seed: 20260724, players: [{ kind: 'ai', strategy: 'steward' }] });
+    const world = createWorld({ seed: 17, players: [{ kind: 'ai', strategy: 'steward' }] });
     const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy), world.map.size);
     if (override) brain.setOverride(override);
     const castle = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;

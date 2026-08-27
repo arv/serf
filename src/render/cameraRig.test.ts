@@ -628,57 +628,211 @@ describe('CameraRig turn', () => {
  * castle without asking, and #clampAxis then ratchets rather than yanking
  * the view back), so it is not what this measures.
  *
- * 16:9, which is the window the ring is cut for. A wide enough window
- * always wins — the frustum grows sideways with the aspect while the cap
- * only bounds its height — and no ring this side of the old 4x grid covers
- * every aspect a monitor can be.
+ * Both window shapes, each to its own allowance (see ASPECTS): 16:9 is cut
+ * for exactly and gets none, 21:9 carries the standing exception, pinned
+ * so it cannot quietly grow.
  */
-describe('the frame never leaves the grid', () => {
-  /** Distinct yaws: the rig turns in 15° steps and the grid is square, so
-   * a quarter turn is every case there is. */
-  const TURNS = 6;
-  const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+/** Distinct yaws: the rig turns in 15° steps and the grid is square, so a
+ * quarter turn is every case there is. */
+const TURNS = 6;
+const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+/**
+ * The two window shapes, and how far each is allowed past the grid.
+ *
+ * 16:9 is what the ring is cut for and gets none. 21:9 is the standing
+ * exception and always has been: the frustum grows sideways with the
+ * aspect while the zoom cap only bounds its height, so a wide enough
+ * window always wins in the end and no ring short of the old 4x grid
+ * covers every shape a monitor can be. What is pinned here is the SIZE of
+ * that exception — about a tile at the largest maps, where it used to be
+ * nearer two. Left unpinned it would be free to grow back.
+ */
+const ASPECTS = [
+  { name: '16:9', w: 1600, h: 900, slack: 0 },
+  { name: '21:9', w: 2560, h: 1080, slack: 2 },
+];
 
-  beforeEach(() => {
-    vi.stubGlobal('window', Object.assign(new EventTarget(), { innerWidth: 1600, innerHeight: 900 }));
-    vi.stubGlobal('document', Object.assign(new EventTarget(), { hidden: false }));
-    vi.stubGlobal('location', { search: '' });
-  });
+const stubWindow = (): void => {
+  vi.stubGlobal('window', Object.assign(new EventTarget(), { innerWidth: 1600, innerHeight: 900 }));
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { hidden: false }));
+  vi.stubGlobal('location', { search: '' });
+};
+
+/** A rig on a window of the given shape, bounded to a play square of
+ * `play` tiles sitting in its ring. */
+const rigFor = (play: number, w: number, h: number): { rig: CameraRig; canvas: HTMLCanvasElement } => {
+  const canvas = makeCanvas();
+  Object.assign(canvas, { clientWidth: w, clientHeight: h });
+  const rig = new CameraRig(canvas);
+  rig.resize();
+  const margin = marginFor(play);
+  rig.setPlayBounds(margin, margin + play);
+  return { rig, canvas };
+};
+
+/** Far more wheel than the cap allows, so the cap is what stops it. */
+const zoomOut = (canvas: EventTarget): void => {
+  for (let i = 0; i < 40; i++) wheel(canvas, 400, false);
+};
+
+/** Where the frame is centred, read off its own ground quad. */
+const centreOf = (rig: CameraRig, out: Float64Array): [number, number] => {
+  rig.viewQuad(out);
+  return [(out[0]! + out[4]!) / 2, (out[1]! + out[5]!) / 2];
+};
+
+describe('the frame never leaves the grid', () => {
+  beforeEach(stubWindow);
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  for (const play of [MIN_MAP_SIZE, DEFAULT_MAP_SIZE, MAX_MAP_SIZE]) {
-    it(`holds on a ${play}-tile valley, at every turn and every corner`, () => {
-      const margin = marginFor(play);
-      const grid = gridFor(play);
-      const quad = new Float64Array(8);
-      for (let turn = 0; turn < TURNS; turn++) {
-        // A rig apiece: the pan clamp ratchets, so a case must not inherit
-        // where the last one left the camera.
-        const canvas = makeCanvas();
-        const rig = new CameraRig(canvas);
-        rig.setPlayBounds(margin, margin + play);
-        for (let t = 0; t < turn; t++) wheel(canvas, 100, true);
-        settle(rig);
-        // Far more wheel than the cap allows, so the cap is what stops it.
-        for (let i = 0; i < 40; i++) wheel(canvas, 400, false);
-        // Then lean on the pan in every direction. The clamps are per-axis
-        // and hold what they have, so by the last one the camera is in the
-        // corner of everything it is allowed to reach.
-        for (const code of ARROWS) {
-          hold(rig, code, 6);
-          rig.viewQuad(quad);
-          for (let i = 0; i < 8; i += 2) {
-            const where = `play ${play}, turn ${turn}, ${code}, corner ${i / 2}`;
-            expect(quad[i], `x — ${where}`).toBeGreaterThanOrEqual(0);
-            expect(quad[i], `x — ${where}`).toBeLessThanOrEqual(grid);
-            expect(quad[i + 1], `z — ${where}`).toBeGreaterThanOrEqual(0);
-            expect(quad[i + 1], `z — ${where}`).toBeLessThanOrEqual(grid);
+  for (const { name, w, h, slack } of ASPECTS) {
+    for (const play of [MIN_MAP_SIZE, DEFAULT_MAP_SIZE, MAX_MAP_SIZE]) {
+      it(`holds on a ${play}-tile valley at ${name}, every turn, every corner`, () => {
+        const grid = gridFor(play);
+        const quad = new Float64Array(8);
+        for (let turn = 0; turn < TURNS; turn++) {
+          // A rig apiece: the pan clamp ratchets, so a case must not inherit
+          // where the last one left the camera.
+          const { rig, canvas } = rigFor(play, w, h);
+          for (let t = 0; t < turn; t++) wheel(canvas, 100, true);
+          settle(rig);
+          zoomOut(canvas);
+          // Then lean on the pan in every direction. The clamps are per-axis
+          // and hold what they have, so by the last one the camera is in the
+          // corner of everything it is allowed to reach.
+          for (const code of ARROWS) {
+            hold(rig, code, 6);
+            rig.viewQuad(quad);
+            for (let i = 0; i < 8; i += 2) {
+              const where = `play ${play}, ${name}, turn ${turn}, ${code}, corner ${i / 2}`;
+              expect(quad[i], `x — ${where}`).toBeGreaterThanOrEqual(-slack);
+              expect(quad[i], `x — ${where}`).toBeLessThanOrEqual(grid + slack);
+              expect(quad[i + 1], `z — ${where}`).toBeGreaterThanOrEqual(-slack);
+              expect(quad[i + 1], `z — ${where}`).toBeLessThanOrEqual(grid + slack);
+            }
           }
+          rig.dispose();
         }
-        rig.dispose();
+      });
+    }
+  }
+});
+
+/**
+ * The other side of the same cliff.
+ *
+ * VIEW_PAN_INSET decides how much of its own footprint the pan charges
+ * against the play square, and it is the constant the scenery ring is
+ * bought with: charge more of it and the ring comes in, which is the
+ * direction anyone reading `the frame never leaves the grid` alone would
+ * be pushed. There is no complaint from that test when the pan is charged
+ * too much — a camera bolted to the middle of the map never leaves the
+ * grid at all. This is what stands on the far side.
+ *
+ * What it pins is not "every corner, always". The frame is a rectangle the
+ * yaw has turned, over a square map, so at full zoom-out it favours one
+ * diagonal: on the default line two corners are in reach and two are not,
+ * and squaring the view to the grid brings all four. That is the shape of
+ * the affordance as it already is, so it is the shape asserted here —
+ * raise the inset and the two go to none, which is the player having to
+ * turn the camera to look at the edge of their own valley.
+ */
+describe('the whole valley can still be looked at', () => {
+  /** Is a world point inside the view quad? The quad is a rectangle the yaw
+   * has turned, so the cheap axis-aligned test would not do: a point is in
+   * it when it lies on the inner side of all four edges, taken in order. */
+  const inQuad = (q: Float64Array, x: number, z: number): boolean => {
+    let sign = 0;
+    for (let i = 0; i < 8; i += 2) {
+      const ax = q[i]!;
+      const az = q[i + 1]!;
+      const bx = q[(i + 2) % 8]!;
+      const bz = q[(i + 3) % 8]!;
+      const cross = (bx - ax) * (z - az) - (bz - az) * (x - ax);
+      if (Math.abs(cross) < 1e-9) continue;
+      const s = Math.sign(cross);
+      if (sign === 0) sign = s;
+      else if (s !== sign) return false;
+    }
+    return true;
+  };
+
+  const OPPOSITE: Record<string, string> = {
+    ArrowUp: 'ArrowDown',
+    ArrowDown: 'ArrowUp',
+    ArrowLeft: 'ArrowRight',
+    ArrowRight: 'ArrowLeft',
+  };
+
+  /**
+   * Pan as near a world point as the clamps allow, then say whether it is
+   * in frame. Which arrow carries the camera which way is a question of the
+   * yaw basis and the key table both, so it is not assumed: each is tried,
+   * and a burst that made things worse is walked back.
+   */
+  const canReach = (play: number, w: number, h: number, turn: number, x: number, z: number): boolean => {
+    const { rig, canvas } = rigFor(play, w, h);
+    for (let t = 0; t < turn; t++) wheel(canvas, 100, true);
+    settle(rig);
+    zoomOut(canvas);
+    const quad = new Float64Array(8);
+    const away = (): number => {
+      const [cx, cz] = centreOf(rig, quad);
+      return Math.hypot(cx - x, cz - z);
+    };
+    for (const code of ARROWS) hold(rig, code, 4);
+    for (let round = 0; round < 6; round++) {
+      for (const code of ARROWS) {
+        const before = away();
+        hold(rig, code, 2);
+        if (away() > before) hold(rig, OPPOSITE[code]!, 2);
       }
-    });
+    }
+    rig.viewQuad(quad);
+    const reached = inQuad(quad, x, z);
+    rig.dispose();
+    return reached;
+  };
+
+  const cornersOf = (play: number): [number, number][] => {
+    const m = marginFor(play);
+    return [
+      [m, m],
+      [m + play, m],
+      [m, m + play],
+      [m + play, m + play],
+    ];
+  };
+
+  beforeEach(stubWindow);
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  for (const { name, w, h } of ASPECTS) {
+    for (const play of [MIN_MAP_SIZE, DEFAULT_MAP_SIZE, MAX_MAP_SIZE]) {
+      it(`keeps the default line's corners on a ${play}-tile valley at ${name}`, () => {
+        const reached = cornersOf(play).filter(([x, z]) => canReach(play, w, h, 0, x, z));
+        // Two, because the turned frame favours one diagonal — but never
+        // none, which is what a heavier pan charge costs.
+        expect(reached.length, `play ${play}, ${name}, default line`).toBeGreaterThanOrEqual(2);
+      });
+
+      it(`reaches all four corners of a ${play}-tile valley at ${name}, square to the grid`, () => {
+        // The default line is already two 15° steps off square (CAMERA_YAW
+        // is 30°), so four more bring it round to 90° — square to the grid,
+        // where the frame's axes and the map's agree and every corner is in
+        // play.
+        const square = 4;
+        for (const [x, z] of cornersOf(play)) {
+          expect(
+            canReach(play, w, h, square, x, z),
+            `play ${play}, ${name}, corner ${x},${z} out of frame square to the grid`,
+          ).toBe(true);
+        }
+      });
+    }
   }
 });

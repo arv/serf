@@ -33,7 +33,7 @@ import {
   tool,
   viewMode,
 } from '../../editor/uiState.ts';
-import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE } from '../../shared/grid.ts';
+import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE, marginFor } from '../../shared/grid.ts';
 
 /**
  * The editor's whole DOM overlay: tool palette on the left, the session
@@ -299,7 +299,7 @@ function NewMapDialog(props: { actions: EditorActions }) {
         />
       </label>
       <div class="ed-dim">
-        A scenery ring about two fifths of the playable side surrounds it — paintable,
+        A scenery ring {marginFor(size())} tiles deep surrounds it — paintable,
         unwalkable.
       </div>
       <div class="ed-row">
