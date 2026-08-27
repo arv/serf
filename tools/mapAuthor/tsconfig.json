@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Node for the CLIs' fs/process, vite/client because the sim modules
+    // these import (world.ts and its neighbours) read import.meta.env.
+    "types": ["node", "vite/client"]
+  },
+  // The kit, the recipes, and the two CLIs that drive them from tools/.
+  "include": ["*.ts", "missions/*.ts", "../authorMissionMaps.ts", "../mapPreview.ts"]
+}

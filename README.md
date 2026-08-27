@@ -21,7 +21,12 @@ pnpm dev
   raid, then the full game — and a bonus first rival.
   Objectives are judged by the sim; hints are a separate layer you can hide
   and finishing a commission unseals the next (see
-  `docs/plan-campaign-tutorial.md`).
+  `docs/plan-campaign-tutorial.md`). Each commission has its own authored
+  valley — composed around the lesson rather than rolled from a seed: the
+  treeline west and the stone east of the first camp, the river the bread
+  chain is built along, the one gap in the crags every raid walks through,
+  and a last map drawn as one half and mirrored so two banners get the
+  same ground (`src/sim/defs/maps/README.md`).
 - **Goods** (19): water, wheat, wood, stone, iron, silver, gold, sword, spear,
   bow, ale, flour, food — and six tools: axe, pickaxe, scythe, hammer,
   cauldron, fishing rod. Everything is hauled by serfs — there is no magic

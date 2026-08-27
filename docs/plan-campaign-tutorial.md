@@ -1,11 +1,20 @@
 # Plan: single-player campaign + tutorial
 
 Status: implemented. Seven missions (Hammer and Haft, mission 4 below,
-was added after the first six shipped), authored maps rolled from pinned
-seeds, objectives evaluated in the sim (a `mission` on `WorldConfig`,
-checked in `victory.ts`), hints driven entirely on the main thread from
-`StructuralUpdate` snapshots. No map editor, no new save format, no
-rewrite of the solo mode — the finale *is* the solo mode.
+was added after the first six shipped), authored maps, objectives
+evaluated in the sim (a `mission` on `WorldConfig`, checked in
+`victory.ts`), hints driven entirely on the main thread from
+`StructuralUpdate` snapshots. No new save format, no rewrite of the solo
+mode — the finale *is* the solo mode.
+
+Since landing, the ground has stopped being a roll. The plan below leans
+on pinned seeds and the fairness repair pass to promise every start its
+wood, rock and silver — which they did, and nothing else. The maps are
+checked-in files now, composed by recipe around each mission's lesson
+(`tools/mapAuthor/`, `src/sim/defs/maps/README.md`): the seeds still deal
+AI playbooks and raid waves, but they no longer decide a tile, and the
+promises the repair pass used to make are held by
+`src/sim/missionMaps.test.ts` instead.
 
 Notes from the landing: seeds pinned at 101 / 202 / 303 / 404 /
 20260724 / 606, each held by `missions.test.ts`; hints advance on the
@@ -57,7 +66,8 @@ editor exists and none is needed; the fairness repair pass already
 promises every start its wood, rock and silver. Seeds below are
 placeholders to be pinned during implementation by playtest — except the
 finale's: `20260724` is the seed `winnable.test.ts` already proves
-takeable.
+takeable. *(Superseded — see the note under Status: the maps are authored
+files, and the seeds no longer describe the ground.)*
 
 | # | Mission | Teaches | Bandits | Win | Fail |
 |---|---|---|---|---|---|

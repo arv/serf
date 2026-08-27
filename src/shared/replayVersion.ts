@@ -20,6 +20,16 @@
  * directly.
  */
 /**
+ * 32: the campaign's seven maps are composed rather than rolled. They
+ * used to be worldgen output at pinned seeds, frozen to files; they are
+ * recipes now (tools/mapAuthor/), each valley shaped around the lesson
+ * its mission teaches — timber on one side of the town and stone on the
+ * other, the river the bread chain is built along, the one gap a raid can
+ * walk through, and a duel map authored as one half and mirrored. Every
+ * tile of every mission map moved, so a mission replay recorded on an
+ * older build is a log played on different ground. Nothing about how a
+ * tick works moved.
+ *
  * 31: the scenery ring comes in again, and this time the camera pays for
  * it twice over. VIEW_PAN_INSET charges 0.28 of the frame's footprint
  * against the play square where it charged a quarter, and the zoom-out cap
@@ -237,4 +247,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 31;
+export const REPLAY_VERSION = 32;

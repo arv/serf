@@ -1,0 +1,75 @@
+/**
+ * Build the campaign's authored ground from its recipes.
+ *
+ *   node --experimental-strip-types tools/authorMissionMaps.ts [id...] [--dry]
+ *
+ * With no ids it rebuilds all seven. Each recipe (tools/mapAuthor/missions/)
+ * composes its valley out of the authoring kit's landforms and hands back
+ * the landmarks the audit holds it to — a town site that can be built on,
+ * stone in the opening view, water within a fishery's walk, ore a serf can
+ * reach, ground for the bandit camp and for every prebuilt hut the mission
+ * def places. Problems are printed and the run exits non-zero; the files
+ * are still written unless `--dry`, because reading a broken map in the
+ * preview is how it gets fixed.
+ *
+ * This is not a step in the build: the map files are checked in, and a
+ * rebuild is something a person decides to do. After one, run
+ * `pnpm vitest run src/sim/missions.test.ts` (the fast guard first, then
+ * the playthroughs) and bump REPLAY_VERSION — mission ground is replay
+ * surface.
+ *
+ * Plain node (>= 22 with --experimental-strip-types, >= 23 native), like
+ * the other node-side scripts here.
+ */
+import { writeFileSync } from 'node:fs';
+import { audit, type Authored } from './mapAuthor/kit.ts';
+import { MISSION_ORDER, MISSION_DEFS, type MissionId } from '../src/sim/defs/missions.ts';
+import { build as clearing } from './mapAuthor/missions/clearing.ts';
+import { build as breadAndWater } from './mapAuthor/missions/breadAndWater.ts';
+import { build as ledger } from './mapAuthor/missions/ledger.ts';
+import { build as hammerAndHaft } from './mapAuthor/missions/hammerAndHaft.ts';
+import { build as levy } from './mapAuthor/missions/levy.ts';
+import { build as holdTheValley } from './mapAuthor/missions/holdTheValley.ts';
+import { build as rivalBanner } from './mapAuthor/missions/rivalBanner.ts';
+
+const RECIPES: Record<MissionId, () => Authored> = {
+  clearing,
+  breadAndWater,
+  ledger,
+  hammerAndHaft,
+  levy,
+  holdTheValley,
+  rivalBanner,
+};
+
+const args = process.argv.slice(2);
+const dry = args.includes('--dry');
+const ids = args.filter((a) => !a.startsWith('--')) as MissionId[];
+for (const id of ids) {
+  if (!RECIPES[id]) {
+    console.error(`unknown mission: ${id} (${MISSION_ORDER.join(', ')})`);
+    process.exit(1);
+  }
+}
+
+let failed = false;
+for (const id of ids.length > 0 ? ids : MISSION_ORDER) {
+  const def = MISSION_DEFS[id];
+  const authored = RECIPES[id]();
+  // The def is the other half of the contract: the camp it pins and the
+  // huts it pre-places have to fit the ground the recipe just laid.
+  authored.campSpot ??= def.campSpot;
+  authored.prebuilt ??= def.prebuilt;
+  const json = authored.valley.serialize(authored.name, authored.starts);
+  const out = `src/sim/defs/maps/${id}.json`;
+  if (!dry) writeFileSync(out, json);
+  const report = audit(authored);
+  console.log(`\n=== ${id} — ${authored.name} (${json.length} bytes)${dry ? ' [dry]' : ''}`);
+  for (const line of authored.intent) console.log(`  · ${line}`);
+  for (const line of report.lines) console.log(`  ${line}`);
+  for (const problem of report.problems) {
+    console.log(`  !! ${problem}`);
+    failed = true;
+  }
+}
+if (failed) process.exit(1);
