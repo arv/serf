@@ -201,7 +201,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       // Forces Cobbled Boots first — the tree's prereq line teaches itself.
       { spec: { kind: 'research', tech: 'ironworking' }, label: 'Research Ironworking' },
       { spec: { kind: 'building', type: 'ironMine', count: 1 }, label: 'Dig an Iron Mine' },
-      { spec: { kind: 'building', type: 'weaponsmith', count: 1 }, label: 'Raise a Weaponsmith' },
+      { spec: { kind: 'building', type: 'weaponsmith', count: 1 }, label: 'Raise a Smith' },
       { spec: { kind: 'stock', good: 'spear', amount: 4 }, label: 'Forge 4 spears' },
     ],
   },
