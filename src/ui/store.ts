@@ -78,6 +78,27 @@ export const [population, setPopulation] = createSignal<{ pop: number; cap: numb
 export const [placing, setPlacing] = createSignal<BuildingTypeId | null>(null);
 
 /**
+ * The building the ribbon has last been aimed at — which is not the same
+ * question as what is armed for placement, and the difference is the whole
+ * reason this exists.
+ *
+ * A chord that names a mill the stores cannot pay for arms nothing, so a
+ * ribbon following `placing` never moves: the player gets a toast about a
+ * cost, and the button that spells that cost out sits greyed on a tab they
+ * are not looking at. The aim is written before the two gates rather than
+ * after them, so the tab comes along whether or not the placement does, and
+ * the refusal has something on screen to point at.
+ *
+ * `equals: false` because the same building aimed at twice has to move the
+ * tabs twice. Refused a Mill, tabbed over to Village to count the silver,
+ * chorded the Mill again — under the default equality that second write is
+ * the value already there and the ribbon never hears about it.
+ */
+export const [buildAim, setBuildAim] = createSignal<BuildingTypeId | null>(null, {
+  equals: false,
+});
+
+/**
  * The build chord is half-typed: B has been pressed and the next letter
  * picks the building. A signal rather than a local in Controls because the
  * build card has to say so — a mode nothing on screen acknowledges reads as
@@ -357,6 +378,7 @@ export function resetMatchState(): void {
   setStock({});
   setPopulation({ pop: 0, cap: 0 });
   setPlacing(null);
+  setBuildAim(null);
   setBuildChord(false);
   setOrderMode(null);
   setBandArm(false);

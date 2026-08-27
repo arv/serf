@@ -77,7 +77,9 @@ export function CommandsPage(): JSX.Element {
       <Section title="Build chord">
         <p class="lede">
           Press <b>B</b>, then the building’s letter — the same letter the ribbon bolds in its
-          name.
+          name. The ribbon turns to that building’s tab either way: if the stores are short or the
+          research is missing, nothing is armed, but the button is in front of you with the cost or
+          the lock on it.
         </p>
         <div class="scroll-x">
           <table>

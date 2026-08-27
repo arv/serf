@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { createComputed, createRoot } from 'solid-js';
 
 // Controls pulls in the UI store, and the store reads the URL and the
 // saved audio prefs the moment it is imported. Hoisted above the imports
@@ -22,11 +23,17 @@ import type { HeightField } from '../render/heightField';
 import type { WorldMirror } from '../app/mirror';
 import type { SimHost } from '../app/simHost';
 import {
+  buildAim,
+  placing,
   selectedBuilding,
   selection,
+  setBuildAim,
   setMyPlayerId,
+  setPlacing,
   setSelectedBuilding,
   setSelection,
+  setStock,
+  setTechs,
 } from '../ui/store';
 
 const CANVAS_W = 800;
@@ -272,6 +279,11 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
   const press = (digit: number, mods: { ctrlKey?: boolean; shiftKey?: boolean } = {}): void =>
     win.fire('keydown', keyDown(`Digit${digit}`, String(digit), mods));
 
+  /** Type a letter — B and the chord letter after it, as the build card
+   * is driven. Both spellings, the way keyLetter reads them. */
+  const type = (letter: string): void =>
+    win.fire('keydown', keyDown(`Key${letter.toUpperCase()}`, letter.toLowerCase()));
+
   /** Where a world point lands on screen — the pixel a test clicks. */
   const at = (x: number, y: number, z: number): { x: number; y: number } =>
     worldToScreen(camera, canvas as unknown as HTMLCanvasElement, x, y, z);
@@ -317,6 +329,7 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
     mirror,
     rides,
     press,
+    type,
   };
 }
 
@@ -815,5 +828,107 @@ describe('right-click orders', () => {
     h.order(grass);
 
     expect(h.commands.at(-1)).toMatchObject({ kind: 'moveUnits', x: 11, y: 17 });
+  });
+});
+
+describe('build chord', () => {
+  let controls: ReturnType<typeof harness>['controls'] | null = null;
+
+  beforeEach(() => {
+    vi.stubGlobal('document', {
+      createElement: () => fakeEl(),
+      getElementById: () => null,
+      body: { appendChild: () => {} },
+      head: { appendChild: () => {} },
+    });
+    setMyPlayerId(ME);
+    setStock({});
+    setTechs({ researched: [], festivalTicksLeft: 0, pavingUnlocked: false, hasAbbey: false });
+    setPlacing(null);
+    setBuildAim(null);
+  });
+
+  afterEach(() => {
+    controls?.dispose();
+    controls = null;
+    setStock({});
+    setTechs({ researched: [], festivalTicksLeft: 0, pavingUnlocked: false, hasAbbey: false });
+    setPlacing(null);
+    setBuildAim(null);
+    vi.unstubAllGlobals();
+  });
+
+  it('arms the building the letter names, and aims the ribbon at it', () => {
+    const h = harness();
+    controls = h.controls;
+    setStock({ wood: 20, stone: 20 });
+
+    h.type('B');
+    h.type('M');
+
+    expect(placing()).toBe('mill');
+    expect(buildAim()).toBe('mill');
+  });
+
+  it('aims the ribbon at a building the stores cannot pay for', () => {
+    // The refusal is the case that needs the tab most: the toast says the
+    // stores are short, and the button that says short of what is on a tab
+    // the player is not looking at. Nothing is armed — the gate still
+    // holds — but the ribbon has been pointed at the answer.
+    const h = harness();
+    controls = h.controls;
+    setStock({ wood: 1 });
+
+    h.type('B');
+    h.type('M');
+
+    expect(placing()).toBeNull();
+    expect(buildAim()).toBe('mill');
+  });
+
+  it('aims the ribbon at a building that is not researched yet', () => {
+    const h = harness();
+    controls = h.controls;
+    setStock({ wood: 99, stone: 99 });
+
+    h.type('B');
+    h.type('I'); // the Iron Mine, behind ironworking
+
+    expect(placing()).toBeNull();
+    expect(buildAim()).toBe('ironMine');
+  });
+
+  it('aims again when the same refused building is chorded twice', () => {
+    // The signal is written with equals:false for exactly this: a player
+    // who read the cost, tabbed away and typed the chord again gets the
+    // tab back. Plain signal equality would swallow the second write.
+    const h = harness();
+    controls = h.controls;
+    setStock({});
+    const aims: (string | null)[] = [];
+
+    const stop = createRoot((dispose) => {
+      createComputed(() => void aims.push(buildAim()));
+      return dispose;
+    });
+    h.type('B');
+    h.type('M');
+    h.type('B');
+    h.type('M');
+    stop();
+
+    expect(aims).toEqual([null, 'mill', 'mill']);
+  });
+
+  it('leaves a stray letter alone', () => {
+    const h = harness();
+    controls = h.controls;
+    setStock({ wood: 99, stone: 99 });
+
+    h.type('B');
+    h.type('Z');
+
+    expect(placing()).toBeNull();
+    expect(buildAim()).toBeNull();
   });
 });

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { BUILD_GROUPS, BUILD_KEYS, buildKey, buildingForKey, playerBuildable } from './buildMenu';
+import {
+  BUILD_GROUPS,
+  BUILD_KEYS,
+  buildKey,
+  buildTab,
+  buildingForKey,
+  playerBuildable,
+} from './buildMenu';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 
 const TYPES = Object.keys(BUILDING_DEFS) as BuildingTypeId[];
@@ -70,6 +77,18 @@ describe('the build chord', () => {
       (t) => !BUILDING_DEFS[t].name.toUpperCase().includes(buildKey(t)),
     );
     expect(unbolded).toEqual([]);
+  });
+
+  it('points every menu building at the tab that holds it', () => {
+    // What the HUD reads when the keyboard names a building: the chord can
+    // reach a mine from the Food tab, and the ribbon has to follow.
+    for (const type of inMenu) {
+      const i = buildTab(type);
+      expect(BUILD_GROUPS[i]?.types).toContain(type);
+    }
+    // Storage is never in the ribbon, so nothing to show and no tab to
+    // show it on — the caller's own -1 branch.
+    expect(buildTab('storehouse')).toBe(-1);
   });
 
   it('resolves a letter back to its building, in either case', () => {
