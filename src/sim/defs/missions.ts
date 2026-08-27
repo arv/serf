@@ -9,15 +9,17 @@ import type { AiStrategyId } from './aiStrategies.ts';
  * overrides, a few pre-built buildings — and a checklist of objectives the
  * sim itself judges (systems/objectives.ts, victory.ts).
  *
- * The maps are checked-in serf-map files (defs/maps/<id>.json) — hard
- * ground, not a worldgen roll: tweak a mission by editing its JSON or by
- * round-tripping it through the map editor, and roll a fresh one from a
- * seed with tools/exportMissionMap.ts. Each was born as the exact world
- * its old pinned seed generated, so the per-mission seed comments below
- * are provenance — the story of the roll the file froze. The files are NOT
- * imported here — they're half a megabyte each, and this table rides in
- * every bundle that touches the sim: missionMaps.ts holds the code-split
- * doorway, and createWorldAsync fetches a map only when its mission boots.
+ * The maps are checked-in serf-map files (defs/maps/<id>.json), and they
+ * are COMPOSED rather than rolled: each one is a recipe in
+ * tools/mapAuthor/missions/, a valley shaped around the lesson its
+ * mission teaches — the woods on one side of the town and the stone on
+ * the other, the river the bread chain is built along, the one gap the
+ * raid walks through. Rebuild them with tools/authorMissionMaps.ts, read
+ * them back with tools/mapPreview.ts, and see defs/maps/README.md. The
+ * files are NOT imported here — they're a quarter of a megabyte each, and
+ * this table rides in every bundle that touches the sim: missionMaps.ts
+ * holds the code-split doorway, and createWorldAsync fetches a map only
+ * when its mission boots.
  *
  * Pure data, like the AI playbooks next door: the sim resolves a mission by
  * id on whichever host owns the world, so two hosts reading the same table
@@ -66,12 +68,13 @@ export interface MissionDef {
   briefing: string;
   /** One line for the mission-select list. */
   tagline: string;
-  /** No longer the ground (that's the mission's map file): the seed deals
-   * unnamed AI seats their playbooks and starts the world's own rng —
-   * raid waves, and the corner search a mission without a campSpot falls
-   * back on. The authored ground itself lives at defs/maps/<id>.json,
-   * loaded on demand through missionMaps.ts — the file owns the terrain,
-   * resources, heights, grid size, and start positions. */
+  /** Not the ground (that's the mission's map file, and these days not
+   * even the ghost of it): the seed deals unnamed AI seats their
+   * playbooks and starts the world's own rng — raid waves, and the corner
+   * search a mission without a campSpot falls back on. The authored
+   * ground lives at defs/maps/<id>.json, loaded on demand through
+   * missionMaps.ts — the file owns the terrain, resources, heights, grid
+   * size, and start positions. */
   seed: number;
   players: { kind: 'human' | 'ai'; strategy?: AiStrategyId }[];
   bandits: boolean;
@@ -103,9 +106,11 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'stone for the hearth, beds for the hands you hire — put a roof ' +
       'over them, reeve, and lay in timber for what comes next.',
     tagline: 'Raise a camp: wood, stone, and beds.',
-    // Re-pinned (101 -> 104 -> 110 -> 106) as border and grid passes
-    // re-rolled the worlds: the taught line must finish comfortably, and
-    // this roll wins it by tick ~4.3k of the 36k budget.
+    // Nothing about the valley any more — see `seed` above. The ground is
+    // authored (mapAuthor/missions/clearing.ts): a clearing with the
+    // treeline west, the stone shoulder east, and the meadow south of the
+    // keep left empty for the houses. The taught line wins it inside a
+    // fifth of the 36k budget.
     seed: 106,
     players: [{ kind: 'human' }],
     bandits: false,
@@ -212,10 +217,11 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'put the valley back to work. You have one hammer of your own; mind ' +
       'who you lend it to.',
     tagline: 'Bare racks: forge the tools the valley works with.',
-    // A quiet valley with its ore a short walk east (nearest seam ~14
-    // tiles off the keep) and both timber and rock inside the opening
-    // sight — the shape this mission needs, since every post the player
-    // is tooling up is already standing on that ground.
+    // The ground is authored (mapAuthor/missions/hammerAndHaft.ts): a
+    // closed bowl with the whole abandoned village on its floor, timber
+    // and rock inside the opening sight, and the ore a short walk east in
+    // the hill the briefing names — the shape this mission needs, since
+    // every post the player is tooling up already stands on it.
     seed: 350,
     players: [{ kind: 'human' }],
     bandits: false,
@@ -274,10 +280,10 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'The crown expects them gone. Raise the barracks, feed your ' +
       'soldiers, and answer for the valley.',
     tagline: 'Face the first raid, then take the camp.',
-    // Re-pinned (404 -> 405 -> 406) with the buffer-cap pass: the early
-    // raid must be survivable, and 405 stopped being. It was a knife-edge
-    // roll, not a broken mission — of seeds 400-430 under the new caps
-    // exactly two (403 and 405) lose, and this one is won by tick ~12k.
+    // The raid's road is the map's whole argument now
+    // (mapAuthor/missions/levy.ts): a rock spur off the western wall and
+    // another off the northern hills, and one gap between them on the
+    // diagonal to the camp. Everything that comes for the town walks it.
     seed: 406,
     players: [{ kind: 'human' }],
     bandits: true,
@@ -331,8 +337,10 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'yours to keep — or lose. The bandits will come in waves until their ' +
       'camp is ash; see that your castle outlives it.',
     tagline: 'The full game: no help, no headstart.',
-    // The seed winnable.test.ts proves takeable — the one map with a
-    // standing guarantee that it can be held.
+    // The campaign's signature valley, and the only authored map that has
+    // to hold a long game rather than teach one lesson: a firth west,
+    // hill country east, and the beck with its two fords between the
+    // valley and the bandits' heath (mapAuthor/missions/holdTheValley.ts).
     seed: 17,
     players: [{ kind: 'human' }],
     bandits: true,
@@ -350,11 +358,13 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'charter, and the crown does not care which of you it honors. The ' +
       'bandits in the middle care even less. Last banner standing.',
     tagline: 'Bonus: your first rival. Last banner standing.',
-    // Re-pinned (606 -> 609 -> ... -> 11 -> 12) after the buffer-cap pass.
-    // The rule each time is the same: the war has to end inside what the
-    // elimination test can afford under a loaded suite. 11's stopped
-    // ending at all — still playing at 120k — while 12 settles at ~10.7k,
-    // which is where most of this neighbourhood lands.
+    // The one map that has to be FAIR, so it is the one authored as a half
+    // and mirrored: every landform, stand and seam is laid against the
+    // north-western banner and repeated at its half-turn about the middle
+    // of the grid, the valley's own grain included
+    // (mapAuthor/missions/rivalBanner.ts — missionMaps.test.ts holds it to
+    // exact symmetry). The camp sits on the line the two are equidistant
+    // from, which is why its footprint is off-centre.
     seed: 12,
     players: [{ kind: 'human' }, { kind: 'ai', strategy: 'steward' }],
     bandits: true,

@@ -24,12 +24,11 @@ import { REPLAY_VERSION } from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
-// 31 for the ring coming in again, this time paid for by the camera's pan
-// clamp: worldgen lays out a different grid at every seed and the mission
-// maps were cropped onto it, so a log re-run on an older build is a log
-// played on different ground (see replayVersion.ts).
-const EXPECTED_VERSION = 31;
-const EXPECTED_HASH = '7a5780899d4445e73dc063c49f9d531d';
+// 32 for the campaign's ground being composed rather than rolled: every
+// tile of every mission map moved, so a mission log re-run on an older
+// build is a log played on different ground (see replayVersion.ts).
+const EXPECTED_VERSION = 32;
+const EXPECTED_HASH = '56590a245b9cfe7ffb037ffedc068f52';
 
 /**
  * Everything a replay's playback depends on, as raw source:
