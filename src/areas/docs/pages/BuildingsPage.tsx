@@ -3,7 +3,7 @@ import { BUILDING_DEFS, type BuildingTypeId } from '../../../sim/defs/buildings'
 import { BUILD_GROUPS } from '../../../ui/buildMenu';
 import { buildingName } from '../../../ui/names';
 import { worldBuildings } from '../data';
-import { BUILDING_DESC } from '../descriptions';
+import { BUILDING_DESC, GROUP_DESC } from '../descriptions';
 import { CostList, DocLink } from '../components';
 import { ModelCard } from '../preview/ModelCard';
 import { buildingHref } from '../routes';
@@ -34,13 +34,14 @@ export function BuildingsPage(): JSX.Element {
     <>
       <h1>Buildings</h1>
       <p class="lede">
-        Grouped the way the build ribbon groups them — the village first, then the food chain,
-        the industry it feeds, and the war it pays for.
+        Grouped the way the build ribbon groups them, and for the same reason it does: by what a
+        building's output buys, rather than by what the building looks like.
       </p>
       <For each={BUILD_GROUPS}>
         {(group) => (
           <section>
             <h2>{group.label}</h2>
+            <p class="group-lede">{GROUP_DESC[group.label]}</p>
             <div class="tiles">
               <For each={group.types}>{(id) => <BuildingTile id={id} />}</For>
             </div>
@@ -49,6 +50,10 @@ export function BuildingsPage(): JSX.Element {
       </For>
       <section>
         <h2>The World’s</h2>
+        <p class="group-lede">
+          No tab offers these and no serf raises them: the keep the match begins with, the camp the
+          raids muster in, and the road the paving lays over a worn trail.
+        </p>
         <div class="tiles">
           <For each={worldBuildings()}>{(id) => <BuildingTile id={id} />}</For>
         </div>

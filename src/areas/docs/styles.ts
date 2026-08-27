@@ -60,6 +60,11 @@ export const DOCS_STYLE = `
 #docs h2 { margin: 30px 0 10px; font-size: 13px; font-weight: 600; letter-spacing: 0.18em;
   text-transform: uppercase; color: #cbbd93; }
 #docs .lede { margin: 0 0 18px; color: #a9a698; max-width: 62ch; text-wrap: pretty; }
+/* The same voice as the page's lede, sitting under a section heading
+   rather than a title: tighter above, because the h2's own margin is
+   already the gap, and tighter below, because the tiles it introduces
+   are the next line rather than the next section. */
+#docs .group-lede { margin: -2px 0 12px; color: #a9a698; max-width: 62ch; text-wrap: pretty; }
 #docs .crumb { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #85857c; }
 
 /* Grid pages: glass tiles. The whole tile is one link. */
