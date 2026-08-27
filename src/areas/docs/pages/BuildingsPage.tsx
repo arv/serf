@@ -34,8 +34,8 @@ export function BuildingsPage(): JSX.Element {
     <>
       <h1>Buildings</h1>
       <p class="lede">
-        Grouped the way the build ribbon groups them — what the village is built from and paid
-        for with, what it eats and drinks, and what it fights with.
+        Grouped the way the build ribbon groups them — what the village is built from, paid for
+        with and kept in good cheer by; what it eats; and what it fights with.
       </p>
       <For each={BUILD_GROUPS}>
         {(group) => (
