@@ -21,6 +21,7 @@ import {
   replayMode,
   selectedBuilding,
   setBandArm,
+  setBuildAim,
   setBuildChord,
   setDebugOpen,
   setFogEnabled,
@@ -318,6 +319,10 @@ export class Controls {
    */
   setPlacement(type: BuildingTypeId | null): void {
     setPlacing(type);
+    // The ribbon follows the aim, so anything armed from anywhere brings
+    // its own tab. A button click is already on that tab and this changes
+    // nothing; the chord below has aimed before it ever gets here.
+    if (type !== null) setBuildAim(type);
     if (type === null) this.#ghost.hide();
     // Two modes that both claim the next click cannot both be armed.
     else this.armOrder(null);
@@ -602,6 +607,11 @@ export class Controls {
    */
   #armBuild(type: BuildingTypeId): void {
     const name = buildingDef(type).name;
+    // Before the gates, not after: a refusal is exactly when the player
+    // most needs the button in front of them — greyed, with the cost or
+    // the lock on it — and a tab that stayed put leaves the toast as the
+    // only account of what just happened.
+    setBuildAim(type);
     if (!buildUnlocked(type, techs().researched)) {
       pushToast(`The ${name} needs researching first.`);
       play('uiRefused');

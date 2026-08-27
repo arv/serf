@@ -89,6 +89,19 @@ export const BUILD_GROUPS: { label: BuildGroupLabel; types: BuildingTypeId[] }[]
 ];
 
 /**
+ * Which tab holds this building — the index into BUILD_GROUPS, or -1 for a
+ * type the ribbon never offers.
+ *
+ * The HUD asks whenever the keyboard names a building, so that the tab
+ * comes along with the chord; here rather than inline in Hud.tsx so the
+ * answer can be checked against BUILD_GROUPS without standing up a DOM,
+ * which is the same reason the groups themselves live in this file.
+ */
+export function buildTab(type: BuildingTypeId): number {
+  return BUILD_GROUPS.findIndex((g) => g.types.includes(type));
+}
+
+/**
  * Can a player place this at all? The same two refusals the sim applies in
  * tick.ts — storage is the elimination token and never buildable, and
  * system-only types are worldgen's or the road pass's to place. Kept beside

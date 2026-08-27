@@ -30,7 +30,7 @@ import { LedgerIcon,
 } from './icons';
 import { BuildingTip, GoodTip, TextTip, TipWrap, TooltipLayer, tooltip } from './tooltip';
 import { buildingName, techName } from './names';
-import { BUILD_GROUPS, buildAffordable, buildKey, buildUnlocked } from './buildMenu';
+import { BUILD_GROUPS, buildAffordable, buildKey, buildTab, buildUnlocked } from './buildMenu';
 import { Key } from './shortcut';
 import { hasKeyboard } from '../input/keyboard';
 import { COMPACT, NARROW, SHORT, useMedia } from './breakpoints';
@@ -41,6 +41,7 @@ import { describeAdvice } from '../ai/insight';
 import {
   cheatsAllowed,
   bandArm,
+  buildAim,
   buildChord,
   debugJobs,
   debugOpen,
@@ -408,15 +409,20 @@ export function Hud(props: {
   const affordable = (type: BuildingTypeId): boolean => buildAffordable(type, stock());
   const unlocked = (type: BuildingTypeId): boolean => buildUnlocked(type, techs().researched);
 
-  // A building armed from the keyboard has to bring its tab with it: the
+  // A building named from the keyboard has to bring its tab with it: the
   // chord can reach a mine while the Food tab is showing, and a placement
   // whose button is on a tab nobody is looking at is a ghost on the map
   // with nothing on the HUD claiming it. Clicking a button lands here too
   // and changes nothing — that tab was already the open one.
+  //
+  // The aim rather than the placement, because a chord that names a
+  // building the stores cannot pay for arms nothing at all, and that is the
+  // case that needs the tab most: the answer to "why not" is the greyed
+  // button and the cost written under it. See buildAim in the store.
   createEffect(() => {
-    const type = placing();
+    const type = buildAim();
     if (!type) return;
-    const i = BUILD_GROUPS.findIndex((g) => g.types.includes(type));
+    const i = buildTab(type);
     if (i >= 0) setActiveTab(i);
   });
   // Phones fold the card down to a pill, and a chord typed at a folded card
