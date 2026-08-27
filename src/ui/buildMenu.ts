@@ -15,13 +15,12 @@ import type { TechId } from '../sim/defs/techs';
  * Three tabs, and three is the count the frame asks for. The grid is a
  * declared three columns by two rows (Hud.tsx), so six is the most a tab
  * can hold before a button hides below a scroll line — and sixteen
- * buildings across three tabs is 6/5/5, nothing hidden and no tab that is
+ * buildings across three tabs is 5/6/5, nothing hidden and no tab that is
  * half an empty card. Four could not have both: War stood at two buttons
  * in a six-slot frame while the player hunted for the Smith that armed it.
  *
- * What each tab holds is one sentence — what the village is built from,
- * paid for with and kept in good cheer by; what it eats; what it fights
- * with. The sort is by what the output buys, which is the question the
+ * What each tab holds is one sentence — what the village is built from and
+ * paid for with, what it eats and drinks, what it fights with. The sort is by what the output buys, which is the question the
  * player is actually asking, and not by what a building looks like: that is
  * what once put the Brewery under Industry beside three mines, on the
  * strength of it being a stone shed with a worker in it.
@@ -42,27 +41,26 @@ import type { TechId } from '../sim/defs/techs';
  * true, and still not a reason to look for a forge under housing. The chord
  * (B, then S) reaches it from any tab regardless.
  *
- * Ale is not food, which is why the Brewery is not on the Food tab. `food`
- * is a good, the tab is named for it, and every building there exists to
- * make it — the Brewery cannot and never could. It stands with the Abbey
- * instead, because that is where its first sink is: festivals are the
- * reason to brew at all, and the barracks cask (Ale Rations) comes later
- * and deeper. So the Village tab's bottom row is the Abbey and the two
- * things the village hands it, silver for the research and ale for the
- * festival.
+ * The Brewery is the one building placed by what goes in rather than what
+ * comes out, and it earns the exception. Ale is brewed from the Food tab's
+ * own wheat and water, and it bids for the very wheat the mill wants: bread
+ * or beer is a single decision about a single field, and a player taking it
+ * should have both halves under one hand. Sorting it by its sinks instead
+ * sends it to the Abbey, and sends the only chain in the ribbon across a
+ * tab boundary for the privilege.
  *
- * The cost of that is the one chain in the ribbon that crosses a tab: ale
- * is brewed from the Food tab's own wheat and water, and it bids for the
- * wheat the mill wants. Bread or beer is a real decision and it is now
- * taken across two tabs. Worth it — a tab that names a good has to hold
- * only buildings that make it, or it is a small lie told every time the
- * card opens.
+ * The tab is named Food and ale is not food — `food` is a good, and the
+ * Brewery cannot make it. Read the label as the larder rather than the
+ * good: what the village eats and drinks, which is what this tab has held
+ * from the first cut. The alternative is renaming the tab to something no
+ * good is called, and Larder was tried; a name nobody arrives knowing is a
+ * worse tax than a name that is a shade broader than its cargo.
  *
  * Each tab is filled in chain order, and the rows are three wide, so a
  * chain reads left to right the way it runs: well, farm, mill along the
  * first row of Food and the bakery under them; ore, forge, barracks along
- * the top of Arms. Bread and iron are followed without a click; ale is the
- * one that is not, and the paragraph above is the price being paid.
+ * the top of Arms. Following a chain never costs a click, because no chain
+ * crosses a tab.
  */
 /**
  * The tab names, as a union rather than bare strings: the field guide owes
@@ -74,16 +72,16 @@ export type BuildGroupLabel = 'Village' | 'Food' | 'Arms';
 
 export const BUILD_GROUPS: { label: BuildGroupLabel; types: BuildingTypeId[] }[] = [
   // Top row the three you raise without thinking; under them the Abbey and
-  // the two things the village hands it — the coin that pays for the
-  // research, the ale that pays for the festival.
-  { label: 'Village', types: ['house', 'woodcutter', 'quarry', 'abbey', 'silverMine', 'brewery'] },
+  // the coin that pays for what it researches.
+  { label: 'Village', types: ['house', 'woodcutter', 'quarry', 'abbey', 'silverMine'] },
   // The well leads: water is an input to the farm, the bakery and the
   // brewery and to nothing else, so the player building the chain finds it
-  // at the head of the chain. Bread's four in order, then the shore under
-  // them — no inputs, no chain, and the whole of the other way to feed a
-  // village. Fish or bake is the decision this tab exists to put side by
-  // side.
-  { label: 'Food', types: ['well', 'wheatFarm', 'mill', 'bakery', 'fishery'] },
+  // at the head of the chain. Bread's four along the top and round the
+  // corner, then the two that stand apart from it: the shore, which needs
+  // no chain at all, and the brewery, which bids against the mill for the
+  // same wheat. Fish or bake, bread or beer — both decisions sit inside
+  // this one tab, which is the whole of why it is grouped this way.
+  { label: 'Food', types: ['well', 'wheatFarm', 'mill', 'bakery', 'fishery', 'brewery'] },
   // Ore, forge, army along the top, in that order and in that direction.
   // Under them the two that come later: the wall raised when the raids
   // start, and the gilding affordable once the army already stands.
