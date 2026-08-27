@@ -26,11 +26,12 @@
  * comes in from 0.5 to 0.35 — between them the frame hangs less far past
  * the boundary, and the ring that has to fill it is shallower: 28 tiles on
  * the default valley where it was 40, 36 on the largest where it was 52,
- * and affine in the play side now rather than a flat fraction of it. Every generated world is a different world at the same
- * seed, every tile sits at a different index, and the seven authored
- * mission maps were cropped onto the new grid again (their playable ground
- * is the same ground, re-indexed, campSpots moved with it). Nothing about
- * how a tick works moved.
+ * and affine in the play side now rather than a flat fraction of it.
+ * Every generated world is a different world at the same seed, every tile
+ * sits at a different index, and the seven authored mission maps were
+ * cropped onto the new grid again (their playable ground is the same
+ * ground, re-indexed, campSpots moved with it). Nothing about how a tick
+ * works moved.
  *
  * 30: the scenery margin comes in to 0.42 of the playable side, from a
  * half, with the camera's zoom-out cap (the two size each other). Every

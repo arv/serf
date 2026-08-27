@@ -38,12 +38,27 @@ export const MAX_MAP_SIZE = 128;
  * map, where four flat tiles are a sixteenth of the side, and then spends
  * that same share on the largest, where they are a thirty-second.
  *
- * At the shipped pair (cap 0.35, inset 0.28) the overshoot measures
- * 0.192·play + 4 on a 16:9 window and 0.225·play + 4 on a 21:9 one.
- * MARGIN_SLOPE covers the wider of the two, which makes this the first
- * ring an ultrawide window has been inside rather than a stated exception
- * — it was a tile and a half short three passes ago and half a tile short
- * one pass ago.
+ * At the shipped pair (cap 0.35, inset 0.28) the overshoot measures about
+ * 0.19·play + 4 on a 16:9 window and about 0.23·play + 4 on a 21:9 one —
+ * 16.1 / 22.6 / 28.7 tiles at the three map sizes, and 18.2 / 25.9 / 33.0
+ * on the ultrawide.
+ *
+ * The constants below are not that steeper line written down. They are a
+ * shallower slope carrying twice the flat term, which is this comment's
+ * own trade made once more: 0.2·play + 8 sits above 0.225·play + 4 for
+ * every play below 160 — where the two cross, and MAX_MAP_SIZE is 128 —
+ * so across the whole legal range it covers the ultrawide requirement,
+ * with 2.7 / 1.3 / 0.7 tiles to spare BEFORE the round-up to a whole
+ * texture repeat, and it does that without charging the 64-tile map an
+ * ultrawide slope it does not need. Which makes this the first ring an
+ * ultrawide window has been inside rather than a stated exception — it
+ * was a tile and a half short three passes ago and half a tile short one
+ * pass ago.
+ *
+ * (Raise MAX_MAP_SIZE past that crossing and the dominance ends. Nothing
+ * here would say so, but cameraRig.test.ts would: `the frame never leaves
+ * the grid` runs at MIN, DEFAULT and MAX on both window shapes, so a
+ * ceiling moved past 160 fails there rather than shipping a hole.)
  *
  * What that leaves: rings of 24 / 28 / 36 tiles at the smallest, default
  * and largest maps, against 24 / 32 / 40 last pass, 28 / 40 / 52 before

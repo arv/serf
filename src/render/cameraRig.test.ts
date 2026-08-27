@@ -89,10 +89,19 @@ const settle = (rig: CameraRig): void => {
 };
 
 /** Hold a key for `seconds` of frames, then let go. */
-const hold = (rig: CameraRig, code: string, seconds: number): void => {
-  keyDown(code);
+const hold = (rig: CameraRig, code: string, seconds: number): void => holdAll(rig, [code], seconds);
+
+/** The same, for a chord: every key down together, held together, released
+ * together. Pressing them in sequence is a different gesture and a weaker
+ * one — the pan is in screen space, so a lean the yaw has turned moves on
+ * both world axes, and a second key pressed after the first has let go can
+ * walk the camera back off the clamp the first one reached. Two arrows at
+ * once is what a player's hand does and what drives into the corner of the
+ * clamp box. */
+const holdAll = (rig: CameraRig, codes: readonly string[], seconds: number): void => {
+  for (const code of codes) keyDown(code);
   for (let t = 0; t < seconds - 1e-9; t += FRAME) rig.tick(FRAME);
-  keyUp(code);
+  for (const code of codes) keyUp(code);
 };
 
 describe('CameraRig turn', () => {
@@ -675,12 +684,6 @@ const zoomOut = (canvas: EventTarget): void => {
   for (let i = 0; i < 40; i++) wheel(canvas, 400, false);
 };
 
-/** Where the frame is centred, read off its own ground quad. */
-const centreOf = (rig: CameraRig, out: Float64Array): [number, number] => {
-  rig.viewQuad(out);
-  return [(out[0]! + out[4]!) / 2, (out[1]! + out[5]!) / 2];
-};
-
 describe('the frame never leaves the grid', () => {
   beforeEach(stubWindow);
   afterEach(() => {
@@ -806,7 +809,7 @@ describe('the whole valley can still be looked at', () => {
       // has to hold. Zoomed out the clamp holds the camera near the middle
       // by design, and the corners of a square map fall outside a turned
       // frame — see this block's own comment.
-      for (const code of lean) hold(rig, code, 4);
+      holdAll(rig, lean, 4);
       rig.viewQuad(quad);
       const reached = inQuad(quad, x, z);
       rig.dispose();

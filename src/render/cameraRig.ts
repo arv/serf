@@ -189,10 +189,12 @@ const PAN_MARGIN = 4;
  * the edge of their own map. 0.28 is the last step that keeps them.
  *
  * So: near-free close in, tighter than it was at full zoom-out, the same
- * corners in frame on the default line as before, and a ring of 36 tiles
- * on the default valley where a quarter wanted 40. Both halves are pinned
- * in cameraRig.test.ts — one test says the frame never leaves the grid,
- * the other says the valley can still be looked at.
+ * corners in frame on the default line as before, and a ring of 28 tiles
+ * on the default valley where a quarter wanted 32. Measured on the 21:9
+ * window, which asks for the most: the frame reaches 25.9 tiles past the
+ * play square here against 28.9 at a quarter. Both halves are pinned in
+ * cameraRig.test.ts — one test says the frame never leaves the grid, the
+ * other says the valley can still be looked at.
  */
 const VIEW_PAN_INSET = 0.28;
 /**
