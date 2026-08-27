@@ -895,10 +895,11 @@ export function Hud(props: {
         #ui .hud-tabs button:not(.build-fold):hover:not(.active) { color: #f0ede4; background: transparent; border: none; }
         #ui .hud-tabs button.active { background: #e5c469; color: #0e100f; }
         /* A declared grid, not a wrapping row. Shrink-to-fit made the
-           card a different width per tab — Industry 613px, War 295px —
-           so picking a tab jumped the card's whole right edge by three
-           hundred pixels and every button under the cursor with it.
-           The frame below is one size for all four tabs, and because
+           card a different width per tab — a six-building tab 613px,
+           a two-building one 295px — so picking a tab jumped the card's
+           whole right edge by three hundred pixels and every button
+           under the cursor with it.
+           The frame below is one size for all three tabs, and because
            the cells are declared rather than measured, a building that
            unlocks and gains a price tag grows inside its own cell
            instead of re-wrapping the tab around it. */
@@ -1244,9 +1245,12 @@ export function Hud(props: {
             margin: 0 -10px -10px; padding: 0;
             background: transparent; border-radius: 0;
           }
-          /* Room for a fifth control on the strip. At the coarse
-             block's 18px the four tabs and Build came to 407px of a
-             373px screen upright, and the War tab hung off the end. */
+          /* Room for every control on the strip. Measured when there
+             were four tabs: at the coarse block's 18px they and Build
+             came to 407px of a 373px screen upright and the last tab
+             hung off the end. Three tabs clear that width even at the
+             coarse padding, but the tighter one is what leaves a fourth
+             room to come back. */
           #ui .hud-tabs button:not(.build-fold) { padding: 9px 12px; }
           .hud-build .hud-items {
             width: auto;

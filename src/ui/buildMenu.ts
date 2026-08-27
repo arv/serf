@@ -12,22 +12,49 @@ import type { TechId } from '../sim/defs/techs';
  * shipped that way and nobody noticed until someone went looking for the
  * mill.
  *
- * Food earns a tab of its own now that feeding an army is four buildings
- * and a well rather than one field. The well comes with them: water is an
- * input to the farm, the bakery and the brewery and to nothing else, so the
- * player building the chain finds it where the chain is.
+ * Three tabs, and three is the count the frame asks for. The grid is a
+ * declared three columns by two rows (Hud.tsx), so six is the most a tab
+ * can hold before a button hides below a scroll line — and sixteen
+ * buildings across three tabs is 6/6/4, nothing hidden and no tab that is
+ * half an empty card. Four could not have both: War stood at two buttons
+ * in a six-slot frame while the player hunted for the Smith that armed it.
+ *
+ * What each tab holds is one sentence — what the village is built from and
+ * paid for with, what it eats and drinks, what it fights with. The sort is
+ * by what the output buys, which is the question the player is actually
+ * asking; sorting by what a building looks like is what put the Brewery
+ * under Industry beside three mines, though it eats wheat and water,
+ * unlocks off the agriculture branch, and sells to the Abbey and the
+ * barracks. Every neighbour it has is on the Food tab.
+ *
+ * Silver and gold are not industry either. Silver buys research and hires
+ * serfs (HIRE_SERF_COST), gold buys the late techs: that is the Abbey's
+ * income, so the two mines stand with the Abbey that spends it. Iron is the
+ * only ore a workshop ever sees, so it goes to the forge, and the forge
+ * goes where its output is spent. That moves the Smith out of Village,
+ * where it sat for being ungated and the source of every tool — true, and
+ * still not a reason to look for a forge under housing. The chord (B, then
+ * S) reaches it from any tab regardless.
+ *
+ * Each tab is filled in chain order, and the rows are three wide, so a
+ * chain reads left to right the way it runs: well, farm, mill on the first
+ * row of Food and the bakery under them; ore, forge, barracks along the top
+ * of Arms. Following a chain never costs a click, because no chain crosses
+ * a tab.
  */
 export const BUILD_GROUPS: { label: string; types: BuildingTypeId[] }[] = [
-  // The Smith lives in Village, not Industry: ungated, and the tool source
-  // nine of the ten posts depend on — the player raising a second
-  // woodcutter should find the forge beside it.
-  { label: 'Village', types: ['house', 'woodcutter', 'quarry', 'weaponsmith', 'abbey'] },
-  { label: 'Food', types: ['well', 'wheatFarm', 'mill', 'bakery', 'fishery'] },
-  {
-    label: 'Industry',
-    types: ['brewery', 'ironMine', 'silverMine', 'goldMine'],
-  },
-  { label: 'War', types: ['barracks', 'guardTower'] },
+  // Top row the three you raise without thinking; bottom row the Abbey and
+  // the two mints that pay for what it researches.
+  { label: 'Village', types: ['house', 'woodcutter', 'quarry', 'abbey', 'silverMine', 'goldMine'] },
+  // The well leads: water is an input to the farm, the bakery and the
+  // brewery and to nothing else, so the player building the chain finds it
+  // at the head of the chain. Bread's four along the top and round the
+  // corner, then the two that stand outside it — the shore for a village
+  // with no field, the brewery for one with wheat to spare.
+  { label: 'Food', types: ['well', 'wheatFarm', 'mill', 'bakery', 'fishery', 'brewery'] },
+  // Ore, forge, army, in that order and in that direction. The tower is the
+  // one entry that consumes men rather than making them.
+  { label: 'Arms', types: ['ironMine', 'weaponsmith', 'barracks', 'guardTower'] },
 ];
 
 /**
