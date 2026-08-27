@@ -38,34 +38,38 @@ export const MAX_MAP_SIZE = 128;
  * map, where four flat tiles are a sixteenth of the side, and then spends
  * that same share on the largest, where they are a thirty-second.
  *
- * At the shipped pair (cap 0.5, inset 0.28) the overshoot measures
- * 0.274·play + 4 on a 16:9 window, which is what the constants below
- * carry, with four tiles and more in hand at every legal size. A 21:9
- * window wants 0.322·play + 4 and is still a tile short at the largest
- * maps — better than the tile and a half it was short before, and the same
- * standing exception rather than a new one.
+ * At the shipped pair (cap 0.45, inset 0.28) the overshoot measures
+ * 0.247·play + 4 on a 16:9 window, and MARGIN_SLOPE is that rounded up,
+ * which leaves four tiles and more in hand at every legal size. A 21:9
+ * window wants 0.290·play + 4 and is still a tile short at the largest
+ * maps — the standing exception, and smaller every time this pair moves
+ * (it was a tile and a half two passes ago).
  *
- * What that leaves: rings of 28 / 36 / 44 tiles at the smallest, default
- * and largest maps, against 28 / 40 / 52 before and 32 / 48 / 64 before
- * that. The grid is 3.1x the playable area where it was 3.4x, and 4x when
- * this started.
+ * What that leaves: rings of 24 / 32 / 40 tiles at the smallest, default
+ * and largest maps, against 28 / 36 / 44 last time, 28 / 40 / 52 before
+ * that, and 32 / 48 / 64 when this started. The grid is 2.8x the playable
+ * area, down from 4x.
  *
- * It does not go much below this without paying in something worth more.
- * VIEW_PAN_INSET is the lever, and it runs into a wall well before the
- * arithmetic does: at 0.30 the largest valley's corners stop being
- * reachable on the default camera line at full zoom-out, and at 0.35 no
- * valley's are. 0.28 is the last step that leaves the camera doing what it
- * already did, and cameraRig.test.ts holds it there from both sides.
+ * Both levers are at their stops now, and it is the same stop: the play
+ * square's corners have to stay reachable on the default camera line at
+ * full zoom-out. VIEW_PAN_INSET runs into it from one side (0.30 loses the
+ * largest valley's, 0.35 loses every valley's) and MAX_VIEW_FRACTION from
+ * the other (0.44 loses one of the two, since a smaller frame contains a
+ * distant corner less easily however far it may now pan). Neither can go
+ * further without the player having to turn the camera to look at the edge
+ * of their own map. cameraRig.test.ts holds both from both sides.
  *
- * Warcraft III gets a ring near a tenth of its side, and the difference is
- * not this number: its frame never grows anywhere near the size of its
- * map. Going further here is a question for the wheel, not for the ring.
+ * Warcraft III gets a ring near a tenth of its side. The difference left
+ * is not either of these numbers — it is that WC3's frame never grows
+ * anywhere near the size of its map at all, and ours still frames two
+ * thirds of one. Closing that is a question for BOOT_VIEW and how the game
+ * is meant to be read, not for the ring.
  *
- * (MARGIN_SLOPE and VIEW_PAN_INSET are both 0.28 and have nothing to do
- * with each other — one is a share of the play side, the other a share of
- * a frustum. Do not be tempted to fold them together.)
+ * (MARGIN_SLOPE and VIEW_PAN_INSET have nothing to do with each other —
+ * one is a share of the play side, the other a share of a frustum. Do not
+ * be tempted to fold them together.)
  */
-const MARGIN_SLOPE = 0.28;
+const MARGIN_SLOPE = 0.25;
 const MARGIN_FLAT = 8;
 
 /**

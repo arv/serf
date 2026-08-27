@@ -20,13 +20,13 @@
  * directly.
  */
 /**
- * 31: the scenery ring comes in again, and this time the camera's pan
- * clamp pays for it. VIEW_PAN_INSET charges 0.28 of the frame's footprint
- * against the play square where it charged a quarter, so the frame hangs
- * less far past the boundary and the ring that has to fill it is shallower
- * — 36 tiles on the default valley where it was 40, 44 on the largest
- * where it was 52, and affine in the play side now rather than a flat
- * fraction of it. Every generated world is a different world at the same
+ * 31: the scenery ring comes in again, and this time the camera pays for
+ * it twice over. VIEW_PAN_INSET charges 0.28 of the frame's footprint
+ * against the play square where it charged a quarter, and the zoom-out cap
+ * comes in from 0.5 to 0.45 — between them the frame hangs less far past
+ * the boundary, and the ring that has to fill it is shallower: 32 tiles on
+ * the default valley where it was 40, 40 on the largest where it was 52,
+ * and affine in the play side now rather than a flat fraction of it. Every generated world is a different world at the same
  * seed, every tile sits at a different index, and the seven authored
  * mission maps were cropped onto the new grid again (their playable ground
  * is the same ground, re-indexed, campSpots moved with it). Nothing about

@@ -29,7 +29,7 @@ import { REPLAY_VERSION } from './replayVersion';
 // maps were cropped onto it, so a log re-run on an older build is a log
 // played on different ground (see replayVersion.ts).
 const EXPECTED_VERSION = 31;
-const EXPECTED_HASH = '04553e605141aef2b1c9ae90a952ef71';
+const EXPECTED_HASH = '341a472a331dd2250d7a91288fcfda98';
 
 /**
  * Everything a replay's playback depends on, as raw source:

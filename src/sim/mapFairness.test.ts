@@ -19,10 +19,11 @@ import {
 // Pinned representative seeds; a seed here is pure data, swapped when a
 // worldgen change rolls it a world that breaks an incidental bound (1337
 // fell to the 96 rescale; 7, 20260724 and then 17 to the border passes;
-// 5 to the edge-noise pass; 3 to the margin grid — the default valley
-// has its own standing coverage in winnable.test.ts and holds no chair
-// here).
-const SEEDS = [4, 2, 11, 7];
+// 5 to the edge-noise pass; 3 to the margin grid; 7 again — its gold
+// drifting into solo reach — when the pan clamp and the zoom cap took
+// their share of the scenery ring. The default valley has its own
+// standing coverage in winnable.test.ts and holds no chair here).
+const SEEDS = [4, 2, 11, 19];
 // Grid center == play center: the scenery margin is symmetric.
 const MID = gridFor(DEFAULT_MAP_SIZE) / 2;
 

@@ -117,16 +117,35 @@ const BOOT_VIEW = 30;
  * nobody could enter, most of that seen only in one corner of one zoom
  * level.
  *
- * At 0.5 the corner reaches about two fifths of a side out before the pan
+ * At 0.45 the corner reaches about a third of a side out before the pan
  * clamp has its say — and VIEW_PAN_INSET below is what takes most of that
- * back, leaving the ring at under a third. What the cap costs is the far
- * end of the wheel: full zoom-out frames about 84 tiles of a 96-tile side
- * rather than 134, so the valley fills the frame at its widest instead of
- * sitting in the middle of a frame half again its size. The wheel opens 30
- * to 48 — a 1.6x range where the original pairing had 2.6x, and the
- * minimap is what carries the rest.
+ * back, leaving the ring at a quarter to a third. What the cap costs is
+ * the far end of the wheel: full zoom-out frames about 75 tiles of a
+ * 96-tile side, where 0.8 framed 134 and 0.5 framed 84. The map no longer
+ * fits in one frame at any zoom, which is the Warcraft and StarCraft
+ * arrangement — the minimap is what shows the whole valley, and the wheel
+ * is for reading ground rather than surveying it.
+ *
+ * This is as low as the cap goes, and the stop is the same one the pan
+ * inset runs into from the other side. Zooming out does not only widen the
+ * frame, it shrinks it relative to the map: past 0.45 the play square's
+ * corners stop being reachable on the default camera line at full zoom-out
+ * — 0.44 already loses one of the two — and the player has to turn the
+ * view square to the grid to look at the edge of their own valley.
+ * `the whole valley can still be looked at` is where that is held.
+ *
+ * Below that wall it would stop paying anyway: 0.40 buys no shallower ring
+ * than this on the default map, the rounding to texture repeats absorbing
+ * the difference, and 0.32 is where the wheel stops existing at all,
+ * BOOT_VIEW being 30. Going further is a question for BOOT_VIEW and how
+ * the game is meant to be read, not for this.
+ *
+ * The wheel opens 30 to 43 — a 1.43x range, against 1.6x before and 2.6x
+ * originally. On a 64-tile map the cap is 29, just under BOOT_VIEW's
+ * ceiling, so those boot at the stop and do not zoom out at all (they very
+ * nearly did not before either, at 30 to 32).
  */
-const MAX_VIEW_FRACTION = 0.5;
+const MAX_VIEW_FRACTION = 0.45;
 /** Shore breathing room: how far past the box the pan target may reach at
  * the closest zooms, before the view's own footprint is what bounds it
  * (see #panRange). The scenery margin beyond is for looking at, not for
