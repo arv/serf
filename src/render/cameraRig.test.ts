@@ -89,10 +89,19 @@ const settle = (rig: CameraRig): void => {
 };
 
 /** Hold a key for `seconds` of frames, then let go. */
-const hold = (rig: CameraRig, code: string, seconds: number): void => {
-  keyDown(code);
+const hold = (rig: CameraRig, code: string, seconds: number): void => holdAll(rig, [code], seconds);
+
+/** The same, for a chord: every key down together, held together, released
+ * together. Pressing them in sequence is a different gesture and a weaker
+ * one — the pan is in screen space, so a lean the yaw has turned moves on
+ * both world axes, and a second key pressed after the first has let go can
+ * walk the camera back off the clamp the first one reached. Two arrows at
+ * once is what a player's hand does and what drives into the corner of the
+ * clamp box. */
+const holdAll = (rig: CameraRig, codes: readonly string[], seconds: number): void => {
+  for (const code of codes) keyDown(code);
   for (let t = 0; t < seconds - 1e-9; t += FRAME) rig.tick(FRAME);
-  keyUp(code);
+  for (const code of codes) keyUp(code);
 };
 
 describe('CameraRig turn', () => {
@@ -628,57 +637,213 @@ describe('CameraRig turn', () => {
  * castle without asking, and #clampAxis then ratchets rather than yanking
  * the view back), so it is not what this measures.
  *
- * 16:9, which is the window the ring is cut for. A wide enough window
- * always wins — the frustum grows sideways with the aspect while the cap
- * only bounds its height — and no ring this side of the old 4x grid covers
- * every aspect a monitor can be.
+ * Both window shapes, each to its own allowance (see ASPECTS): 16:9 is cut
+ * for exactly and gets none, 21:9 carries the standing exception, pinned
+ * so it cannot quietly grow.
  */
-describe('the frame never leaves the grid', () => {
-  /** Distinct yaws: the rig turns in 15° steps and the grid is square, so
-   * a quarter turn is every case there is. */
-  const TURNS = 6;
-  const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+/** Distinct yaws: the rig turns in 15° steps and the grid is square, so a
+ * quarter turn is every case there is. */
+const TURNS = 6;
+const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+/**
+ * The two window shapes, and how far each is allowed past the grid.
+ *
+ * 16:9 is what the ring is cut for and gets none. 21:9 is the standing
+ * exception and always has been: the frustum grows sideways with the
+ * aspect while the zoom cap only bounds its height, so a wide enough
+ * window always wins in the end and no ring short of the old 4x grid
+ * covers every shape a monitor can be. What is pinned here is the SIZE of
+ * that exception — about a tile at the largest maps, where it used to be
+ * nearer two. Left unpinned it would be free to grow back.
+ */
+const ASPECTS = [
+  { name: '16:9', w: 1600, h: 900, slack: 0 },
+  { name: '21:9', w: 2560, h: 1080, slack: 2 },
+];
 
-  beforeEach(() => {
-    vi.stubGlobal('window', Object.assign(new EventTarget(), { innerWidth: 1600, innerHeight: 900 }));
-    vi.stubGlobal('document', Object.assign(new EventTarget(), { hidden: false }));
-    vi.stubGlobal('location', { search: '' });
-  });
+const stubWindow = (): void => {
+  vi.stubGlobal('window', Object.assign(new EventTarget(), { innerWidth: 1600, innerHeight: 900 }));
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { hidden: false }));
+  vi.stubGlobal('location', { search: '' });
+};
+
+/** A rig on a window of the given shape, bounded to a play square of
+ * `play` tiles sitting in its ring. */
+const rigFor = (play: number, w: number, h: number): { rig: CameraRig; canvas: HTMLCanvasElement } => {
+  const canvas = makeCanvas();
+  Object.assign(canvas, { clientWidth: w, clientHeight: h });
+  const rig = new CameraRig(canvas);
+  rig.resize();
+  const margin = marginFor(play);
+  rig.setPlayBounds(margin, margin + play);
+  return { rig, canvas };
+};
+
+/** Far more wheel than the cap allows, so the cap is what stops it. */
+const zoomOut = (canvas: EventTarget): void => {
+  for (let i = 0; i < 40; i++) wheel(canvas, 400, false);
+};
+
+describe('the frame never leaves the grid', () => {
+  beforeEach(stubWindow);
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  for (const play of [MIN_MAP_SIZE, DEFAULT_MAP_SIZE, MAX_MAP_SIZE]) {
-    it(`holds on a ${play}-tile valley, at every turn and every corner`, () => {
-      const margin = marginFor(play);
-      const grid = gridFor(play);
-      const quad = new Float64Array(8);
-      for (let turn = 0; turn < TURNS; turn++) {
-        // A rig apiece: the pan clamp ratchets, so a case must not inherit
-        // where the last one left the camera.
-        const canvas = makeCanvas();
-        const rig = new CameraRig(canvas);
-        rig.setPlayBounds(margin, margin + play);
-        for (let t = 0; t < turn; t++) wheel(canvas, 100, true);
-        settle(rig);
-        // Far more wheel than the cap allows, so the cap is what stops it.
-        for (let i = 0; i < 40; i++) wheel(canvas, 400, false);
-        // Then lean on the pan in every direction. The clamps are per-axis
-        // and hold what they have, so by the last one the camera is in the
-        // corner of everything it is allowed to reach.
-        for (const code of ARROWS) {
-          hold(rig, code, 6);
-          rig.viewQuad(quad);
-          for (let i = 0; i < 8; i += 2) {
-            const where = `play ${play}, turn ${turn}, ${code}, corner ${i / 2}`;
-            expect(quad[i], `x — ${where}`).toBeGreaterThanOrEqual(0);
-            expect(quad[i], `x — ${where}`).toBeLessThanOrEqual(grid);
-            expect(quad[i + 1], `z — ${where}`).toBeGreaterThanOrEqual(0);
-            expect(quad[i + 1], `z — ${where}`).toBeLessThanOrEqual(grid);
+  for (const { name, w, h, slack } of ASPECTS) {
+    for (const play of [MIN_MAP_SIZE, DEFAULT_MAP_SIZE, MAX_MAP_SIZE]) {
+      it(`holds on a ${play}-tile valley at ${name}, every turn, every corner`, () => {
+        const grid = gridFor(play);
+        const quad = new Float64Array(8);
+        for (let turn = 0; turn < TURNS; turn++) {
+          // A rig apiece: the pan clamp ratchets, so a case must not inherit
+          // where the last one left the camera.
+          const { rig, canvas } = rigFor(play, w, h);
+          for (let t = 0; t < turn; t++) wheel(canvas, 100, true);
+          settle(rig);
+          zoomOut(canvas);
+          // Then lean on the pan in every direction. The clamps are per-axis
+          // and hold what they have, so by the last one the camera is in the
+          // corner of everything it is allowed to reach.
+          for (const code of ARROWS) {
+            hold(rig, code, 6);
+            rig.viewQuad(quad);
+            for (let i = 0; i < 8; i += 2) {
+              const where = `play ${play}, ${name}, turn ${turn}, ${code}, corner ${i / 2}`;
+              expect(quad[i], `x — ${where}`).toBeGreaterThanOrEqual(-slack);
+              expect(quad[i], `x — ${where}`).toBeLessThanOrEqual(grid + slack);
+              expect(quad[i + 1], `z — ${where}`).toBeGreaterThanOrEqual(-slack);
+              expect(quad[i + 1], `z — ${where}`).toBeLessThanOrEqual(grid + slack);
+            }
           }
+          rig.dispose();
         }
-        rig.dispose();
-      }
-    });
+      });
+    }
+  }
+});
+
+/**
+ * The other side of the same cliff.
+ *
+ * VIEW_PAN_INSET decides how much of its own footprint the pan charges
+ * against the play square, and MAX_VIEW_FRACTION how much world a frame
+ * covers; between them they set how far the frame hangs past the boundary,
+ * which is what the scenery ring is cut to fill. Both therefore want to go
+ * up and in, which is the direction anyone reading `the frame never leaves
+ * the grid` alone would be pushed — and that test never complains, because
+ * a camera bolted to the middle of the map never leaves the grid at all.
+ * This is what stands on the far side.
+ *
+ * What it pins is that the player can look at every part of their own
+ * valley: every corner of the play square can be brought inside the frame,
+ * at the zoom the game is played at, at some angle the camera can be
+ * turned to. Three qualifications, each of them deliberate.
+ *
+ * At the working zoom, not at full zoom-out. The pan clamp charges the
+ * frame's own footprint, so the further out the wheel goes the nearer the
+ * middle the camera is held, and by the stop it holds station over the
+ * centre with the map's corners outside a turned frame. That is the clamp
+ * working, not failing — the arrangement Warcraft and StarCraft ship,
+ * where the wheel does not survey and the minimap does.
+ *
+ * At some angle, not at every one. The frame is a rectangle the yaw has
+ * turned over a square map, so it favours one diagonal; on a wide window
+ * a corner can want the camera squared up before it comes in. Turning is
+ * a thing the player has, and two notches of it is not a hardship.
+ *
+ * (An earlier version asserted the corners at full zoom-out, and so held
+ * MAX_VIEW_FRACTION at 0.45 for a reason that was never a requirement.
+ * Do not tighten it back without first deciding that surveying by wheel is
+ * something the game promises.)
+ */
+describe('the whole valley can still be looked at', () => {
+  /** Is a world point inside the view quad? The quad is a rectangle the yaw
+   * has turned, so the cheap axis-aligned test would not do: a point is in
+   * it when it lies on the inner side of all four edges, taken in order. */
+  const inQuad = (q: Float64Array, x: number, z: number): boolean => {
+    let sign = 0;
+    for (let i = 0; i < 8; i += 2) {
+      const ax = q[i]!;
+      const az = q[i + 1]!;
+      const bx = q[(i + 2) % 8]!;
+      const bz = q[(i + 3) % 8]!;
+      const cross = (bx - ax) * (z - az) - (bz - az) * (x - ax);
+      if (Math.abs(cross) < 1e-9) continue;
+      const s = Math.sign(cross);
+      if (sign === 0) sign = s;
+      else if (s !== sign) return false;
+    }
+    return true;
+  };
+
+  /**
+   * Every way the pan can be leaned on from rest: each arrow alone, and
+   * each pair of adjacent ones. The clamp box is axis-aligned and a long
+   * enough hold always slams into it, so these eight reach every corner
+   * and edge of it — which is every position the camera is allowed to
+   * take. Exhaustive rather than aimed: working out which arrows lead
+   * toward a point means a dot product against a measured heading, and on
+   * the diagonals that quantity passes through zero, so noise picks an
+   * arrow that undoes the other.
+   */
+  const LEANS: string[][] = [
+    ['ArrowUp'],
+    ['ArrowDown'],
+    ['ArrowLeft'],
+    ['ArrowRight'],
+    ['ArrowUp', 'ArrowLeft'],
+    ['ArrowUp', 'ArrowRight'],
+    ['ArrowDown', 'ArrowLeft'],
+    ['ArrowDown', 'ArrowRight'],
+  ];
+
+  /** Can the player bring this world point into frame at all, at this yaw? */
+  const canReach = (play: number, w: number, h: number, turn: number, x: number, z: number): boolean => {
+    const quad = new Float64Array(8);
+    for (const lean of LEANS) {
+      const { rig, canvas } = rigFor(play, w, h);
+      for (let t = 0; t < turn; t++) wheel(canvas, 100, true);
+      settle(rig);
+      // No wheel: the boot view is where the game is played and where this
+      // has to hold. Zoomed out the clamp holds the camera near the middle
+      // by design, and the corners of a square map fall outside a turned
+      // frame — see this block's own comment.
+      holdAll(rig, lean, 4);
+      rig.viewQuad(quad);
+      const reached = inQuad(quad, x, z);
+      rig.dispose();
+      if (reached) return true;
+    }
+    return false;
+  };
+
+  const cornersOf = (play: number): [number, number][] => {
+    const m = marginFor(play);
+    return [
+      [m, m],
+      [m + play, m],
+      [m, m + play],
+      [m + play, m + play],
+    ];
+  };
+
+  beforeEach(stubWindow);
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  for (const { name, w, h } of ASPECTS) {
+    for (const play of [MIN_MAP_SIZE, DEFAULT_MAP_SIZE, MAX_MAP_SIZE]) {
+      it(`reaches every corner of a ${play}-tile valley at ${name}`, () => {
+        for (const [x, z] of cornersOf(play)) {
+          const turns = [...Array(TURNS).keys()].filter((turn) => canReach(play, w, h, turn, x, z));
+          expect(
+            turns.length,
+            `play ${play}, ${name}, corner ${x},${z} cannot be brought into frame at any turn`,
+          ).toBeGreaterThan(0);
+        }
+      });
+    }
   }
 });

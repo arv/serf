@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MARGIN_CEIL,
-  MARGIN_FLOOR,
   MAX_MAP_SIZE,
   MIN_MAP_SIZE,
   gridFor,
   marginFor,
+  marginTargetFor,
 } from './grid.ts';
 
 /** Every playable side a world can be built at (resolveMapSize forces even). */
@@ -27,17 +26,31 @@ describe('marginFor', () => {
     }
   });
 
-  it('stays inside the band the camera was sized against', () => {
-    // Snapping to the nearest four moves the realized fraction away from
-    // MARGIN_FRACTION, and it may move DOWN — which is the direction that
-    // matters, because the ring has to cover how far a frame reaches past
-    // the boundary at full zoom-out (0.373 sides on the worst 16:9 case,
-    // see marginFor's own comment). The floor is what keeps that true; the
-    // ceiling is what keeps the saving honest.
+  it('rounds the target up, never into it', () => {
+    // marginTargetFor is the frame's overshoot itself, not a figure with
+    // slack in it, so the rounding may only ever add. The upper bound is
+    // the other half of that: one repeat is all it is allowed to add, or
+    // the snapping has quietly become a second margin.
     for (const play of legalPlaySizes()) {
-      const fraction = marginFor(play) / play;
-      expect(fraction, `play ${play}`).toBeGreaterThanOrEqual(MARGIN_FLOOR);
-      expect(fraction, `play ${play}`).toBeLessThanOrEqual(MARGIN_CEIL);
+      const target = marginTargetFor(play);
+      expect(marginFor(play), `play ${play}`).toBeGreaterThanOrEqual(target);
+      expect(marginFor(play), `play ${play}`).toBeLessThan(target + 4);
+    }
+  });
+
+  it('is affine in the play side, not proportional', () => {
+    // The shape is the point: a share of the side plus a flat allowance.
+    // Were it a fraction, the ring would be the same proportion of the
+    // smallest map as the largest, and the smallest is where the flat four
+    // tiles of pan weigh most. So the proportion must FALL as maps grow.
+    const small = marginFor(MIN_MAP_SIZE) / MIN_MAP_SIZE;
+    const large = marginFor(MAX_MAP_SIZE) / MAX_MAP_SIZE;
+    expect(large).toBeLessThan(small);
+    // And it must still be a ring, not a rounding error at one end or half
+    // the world at the other, anywhere in the range.
+    for (const play of legalPlaySizes()) {
+      expect(marginFor(play) / play, `play ${play}`).toBeGreaterThan(0.15);
+      expect(marginFor(play) / play, `play ${play}`).toBeLessThan(0.5);
     }
   });
 

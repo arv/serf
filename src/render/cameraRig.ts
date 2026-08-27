@@ -93,16 +93,26 @@ const TURN_KEYS = new Map<string, number>([
  * wide because the aspect had spent all that width on fog.
  *
  * So the boot view is a number of pixels per world unit instead, and the
- * span is whatever the window makes of it. BOOT_VIEW is the ceiling, and
- * it is the old constant exactly: a desktop window is tall enough to hit
- * it, so nothing changes there. Everything shorter frames less world and
- * draws it at the size it was designed to be read at.
+ * span is whatever the window makes of it. BOOT_VIEW is the ceiling on
+ * that span, and the two are set to meet on a 900-pixel-tall window: 900 /
+ * 36 is 25. That is what keeps them one decision rather than two — the
+ * reference window sits exactly on the corner, so a taller window frames
+ * the same 25 units and a shorter one frames less at the same 36 pixels to
+ * the unit. Move one and move the other, or the pair stops agreeing about
+ * how big the game is.
+ *
+ * They were 30 and 30, meeting at the same window on a 30-unit span. This
+ * is that view a fifth closer in: the castle and the villagers around it
+ * are what the opening asks the player to read, and at 30 units they sat
+ * in the middle of a frame mostly given over to unexplored dark.
  *
  * The player's own zoom is untouched — this sets where they start, and
- * the wheel and the pinch go where they always went.
+ * the wheel and the pinch go where they always went. It does hand the
+ * wheel some room back, though: against a cap of 0.35 the default valley
+ * now opens 25 to 34 rather than 30 to 34.
  */
-const BOOT_PX_PER_UNIT = 30;
-const BOOT_VIEW = 30;
+const BOOT_PX_PER_UNIT = 36;
+const BOOT_VIEW = 25;
 /**
  * Zoom-out cap as a fraction of the playable side, whatever the map size.
  *
@@ -117,15 +127,36 @@ const BOOT_VIEW = 30;
  * nobody could enter, most of that seen only in one corner of one zoom
  * level.
  *
- * At 0.5 the same corner reaches about two fifths of a side out, which is
- * what the ring is now. What it costs is the far end of the wheel: full
- * zoom-out frames about 84 tiles of a 96-tile side rather than 134, so the
- * valley fills the frame at its widest instead of sitting in the middle of
- * a frame half again its size. The wheel still opens 30 to 48 — a 1.6x
- * range where the old pairing had 2.6x, and the minimap is what carries
- * the rest.
+ * At 0.35 a frame covers about 59 tiles of a 96-tile side, where 0.8
+ * covered 134 and 0.5 covered 84. The map does not fit in one frame at any
+ * zoom now, which is the Warcraft and StarCraft arrangement: the minimap
+ * surveys, the wheel reads ground. What that buys, through the overshoot
+ * marginFor is cut to (shared/grid.ts), is a scenery ring of 28 tiles on
+ * the default valley where the first pass here had 40.
+ *
+ * The wheel opens 30 to 34 — a 1.13x range, against 1.43x a step ago and
+ * 2.6x originally. It is nearly gone, and what is left of it is bounded by
+ * BOOT_VIEW rather than by this: at 0.31 the cap meets the boot view on a
+ * 96-tile map and there is no wheel at all. On a 64-tile map that has
+ * already happened — the cap is 22, under BOOT_VIEW's ceiling, so those
+ * boot at the stop and boot closer in than the pixels-per-unit rule would
+ * otherwise put them.
+ *
+ * There is no longer a gameplay floor under this. There was: the play
+ * square's corners have to stay reachable, and an earlier pass read that
+ * as "reachable at full zoom-out" and stopped the cap at 0.45 for it. That
+ * was the wrong bar. The pan clamp charges the frame's footprint, so
+ * zooming out holds the camera nearer the middle by design; what has to
+ * hold is that the corners come into frame at the zoom the game is played
+ * at, and lowering the cap makes that EASIER, not harder — a smaller frame
+ * is charged less and may pan further. `the whole valley can still be
+ * looked at` is where that is held, and it now passes at every cap down to
+ * 0.20. So this number is a judgement about how the game should read, not
+ * a bound: it is here because being able to zoom out this far made the
+ * valley small and the scenery large, not because 0.34 would break
+ * something.
  */
-const MAX_VIEW_FRACTION = 0.5;
+const MAX_VIEW_FRACTION = 0.35;
 /** Shore breathing room: how far past the box the pan target may reach at
  * the closest zooms, before the view's own footprint is what bounds it
  * (see #panRange). The scenery margin beyond is for looking at, not for
@@ -134,14 +165,38 @@ const PAN_MARGIN = 4;
 /**
  * How much of the view's ground span counts against the pan range.
  *
+ * This is the constant that buys the scenery ring, and it is worth being
+ * plain about the trade. Whatever share of its own footprint the pan does
+ * NOT charge, the frame is free to hang past the play square — and real
+ * ground has to be there to fill it, which is what marginFor
+ * (shared/grid.ts) is. Charge less and the pan stays loose while the ring
+ * pays for it; charge more and the ring comes in while the pan stiffens at
+ * the zoomed-out end.
+ *
  * The footprint measure is the AABB around a rectangle the yaw has turned
  * (a diamond at 45°), so along either world axis it reports the far
- * corners — true, but only across a thin band, and charging the whole of
- * it would lock the camera at zooms that still show a third of the map. A
- * quarter is what keeps the map filling the frame at every zoom without
- * the pan going stiff: near-free close in, near-centered at full zoom-out.
+ * corners — true, but only across a thin band. Charging the whole of it
+ * would be the strictest reading and it is far too strict: past about 0.37
+ * the play square's corner cannot be brought into frame at full zoom-out
+ * at any angle, which is a valley you cannot look at the whole of.
+ *
+ * The binding limit arrives earlier than that cliff, and it is about the
+ * DEFAULT angle rather than the best one. At full zoom-out on the default
+ * line, two of the four corners are reachable and two are not — the frame
+ * is a turned rectangle over a square map, so it favours one diagonal. At
+ * 0.30 the largest valley loses even those two, and at 0.35 every valley
+ * does: the player has to turn the camera square to the grid to look at
+ * the edge of their own map. 0.28 is the last step that keeps them.
+ *
+ * So: near-free close in, tighter than it was at full zoom-out, the same
+ * corners in frame on the default line as before, and a ring of 28 tiles
+ * on the default valley where a quarter wanted 32. Measured on the 21:9
+ * window, which asks for the most: the frame reaches 25.9 tiles past the
+ * play square here against 28.9 at a quarter. Both halves are pinned in
+ * cameraRig.test.ts — one test says the frame never leaves the grid, the
+ * other says the valley can still be looked at.
  */
-const VIEW_PAN_INSET = 0.25;
+const VIEW_PAN_INSET = 0.28;
 /**
  * The keys that pan, and the screen-space direction each asks for.
  *

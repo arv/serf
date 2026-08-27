@@ -11,7 +11,8 @@
  * instead of JSON number arrays, which halves a save. Version 6 is the
  * tools economy. Version 7 brought the scenery margin in, which is the
  * same kind of change as 4: the grid an older file describes is not a grid
- * this build makes. Older saves are refused rather than silently
+ * this build makes. Version 8 is the same change again, the ring having
+ * come in a second time. Older saves are refused rather than silently
  * mis-loaded.
  *
  * A module of its own, next to REPLAY_VERSION and for the same reason: the
@@ -20,7 +21,7 @@
  * number without pulling the whole serializer — a worker's worth of code —
  * into the main thread's bundle.
  */
-export const WORLD_SAVE_VERSION = 7;
+export const WORLD_SAVE_VERSION = 8;
 
 /**
  * Can this build open a file written in that format? Version 5 changed how
@@ -33,8 +34,9 @@ export const WORLD_SAVE_VERSION = 7;
  * arrays describe a grid wider than anything this build lays out — the
  * widest of them do not even fit the ceiling a file is allowed, and the
  * rest would load a valley framed by a ring no editor here can paint and
- * no seed here can roll. Either way the village loads into something it
- * cannot explain, which is worse than being turned away.
+ * no seed here can roll — and eight says it of seven for the same reason.
+ * Either way the village loads into something it cannot explain, which is
+ * worse than being turned away.
  *
  * The gate every surface asks: the sim on the way in, and the menu twice
  * over — the shelf greys a row it cannot open, and the boot path says so
