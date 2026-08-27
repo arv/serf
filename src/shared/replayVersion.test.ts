@@ -24,14 +24,13 @@ import { REPLAY_VERSION } from './replayVersion';
  *     playing on the new build, which is the honest outcome).
  *  3. Either way: update EXPECTED_HASH to the value the failure prints.
  */
-// 29 for priced metal seams: worldgen itself moved, so every generated
-// multiplayer map is a different valley and a log recorded on the old ones
-// replays into a world that never existed (see replayVersion.ts). The
-// tower-manning change that rides with it needs no number of its own — a
-// brain never runs during playback, only the moves the log already holds —
-// but worldgen does.
-const EXPECTED_VERSION = 29;
-const EXPECTED_HASH = '9a489f2ba73ca0429136da25707fc511';
+// 30 for the shallower scenery margin: worldgen lays out a different grid
+// at every seed and the mission maps were cropped onto it, so a log re-run
+// on an older build is a log played on different ground. Main's 29, priced
+// metal seams, moved worldgen for the same kind of reason and stands on
+// its own (see replayVersion.ts).
+const EXPECTED_VERSION = 30;
+const EXPECTED_HASH = '7e09c51e7c1ff25a2b3e1c5b9fcd368d';
 
 /**
  * Everything a replay's playback depends on, as raw source:

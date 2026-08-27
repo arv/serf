@@ -281,7 +281,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     seed: 406,
     players: [{ kind: 'human' }],
     bandits: true,
-    campSpot: { x: 63, y: 63 },
+    campSpot: { x: 55, y: 55 },
     // Five minutes — the point of this mission IS the raid, arriving before
     // the player feels ready. (Default is nine.)
     firstRaidTick: 6000,
@@ -336,7 +336,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     seed: 17,
     players: [{ kind: 'human' }],
     bandits: true,
-    campSpot: { x: 126, y: 126 },
+    campSpot: { x: 118, y: 118 },
     objectives: [
       { spec: { kind: 'razeCamp' }, label: 'Raze the bandit camp' },
     ],
@@ -358,7 +358,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     seed: 12,
     players: [{ kind: 'human' }, { kind: 'ai', strategy: 'steward' }],
     bandits: true,
-    campSpot: { x: 96, y: 93 },
+    campSpot: { x: 88, y: 85 },
     // No checklist: the ordinary last-faction-standing rules decide it.
     objectives: [],
   },

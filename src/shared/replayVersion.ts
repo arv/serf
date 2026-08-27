@@ -20,6 +20,17 @@
  * directly.
  */
 /**
+ * 30: the scenery margin comes in to 0.42 of the playable side, from a
+ * half, with the camera's zoom-out cap (the two size each other). Every
+ * generated world is a different world at the same seed — the grid is
+ * 1.83x the play square instead of 2x, so every tile sits at a different
+ * index, worldgen's far-field profile runs a shorter distance, and the
+ * seven authored mission maps were cropped to the new grid (their playable
+ * ground is the same ground, re-indexed, and each mission's pinned
+ * campSpot moved with it). Nothing about how a tick works moved, and
+ * nothing had to: a log re-run against a world built from the same seed on
+ * an older build is a log played on different ground.
+ *
  * 29: metal seams are priced, not measured, and silver is priced higher.
  *
  * A generated valley used to give each faction its iron and silver as a
@@ -213,4 +224,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 29;
+export const REPLAY_VERSION = 30;

@@ -75,10 +75,12 @@ describe('save/load', () => {
     const world = createWorld(1);
     for (let t = 0; t < 500; t++) tickWorld(world, cmds(...commandScript(t)));
     const size = serializeWorld(world).length;
-    // Halved when the map's grids became base64 (a 192² world went from
-    // ~1.27 MB to ~0.62 MB); the ceiling moved with it, so the next thing
-    // to print itself in digits per tile is caught here.
-    expect(size).toBeLessThan(800_000);
+    // Halved when the map's grids became base64 (the then-192² world went
+    // from ~1.27 MB to ~0.62 MB), and cut again when the scenery margin
+    // came in to 0.42 of a side and the grid with it (176², ~0.52 MB). The
+    // ceiling moves with the measurement each time, so the next thing to
+    // print itself in digits per tile is still caught here.
+    expect(size).toBeLessThan(660_000);
   });
 
   it('opens a save written before towers knew who was in them', () => {

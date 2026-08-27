@@ -103,10 +103,29 @@ const TURN_KEYS = new Map<string, number>([
  */
 const BOOT_PX_PER_UNIT = 30;
 const BOOT_VIEW = 30;
-/** Zoom-out cap as a fraction of the map side — the whole island plus a
- * ring of open water frames at full zoom, whatever the map size (matches
- * the classic 52-on-64 feel). */
-const MAX_VIEW_FRACTION = 0.8;
+/**
+ * Zoom-out cap as a fraction of the playable side, whatever the map size.
+ *
+ * This number and the scenery ring's depth (marginFor, shared/grid.ts) are
+ * one decision written in two places, and this is the half that decides
+ * it. A frame's footprint on the ground is not its height: the 35° pitch
+ * stretches it by 1/sin, so a view of 0.8 playable sides lay across 1.4 of
+ * them, and once the pan allowance was added the far corner reached about
+ * half a playable side past the boundary. The ring had to be that deep or
+ * the corner found the end of the world — which is how the grid came to be
+ * four times the area anyone could play on, three quarters of it ground
+ * nobody could enter, most of that seen only in one corner of one zoom
+ * level.
+ *
+ * At 0.5 the same corner reaches about two fifths of a side out, which is
+ * what the ring is now. What it costs is the far end of the wheel: full
+ * zoom-out frames about 84 tiles of a 96-tile side rather than 134, so the
+ * valley fills the frame at its widest instead of sitting in the middle of
+ * a frame half again its size. The wheel still opens 30 to 48 — a 1.6x
+ * range where the old pairing had 2.6x, and the minimap is what carries
+ * the rest.
+ */
+const MAX_VIEW_FRACTION = 0.5;
 /** Shore breathing room: how far past the box the pan target may reach at
  * the closest zooms, before the view's own footprint is what bounds it
  * (see #panRange). The scenery margin beyond is for looking at, not for

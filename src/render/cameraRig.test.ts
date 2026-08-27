@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CAMERA_YAW, CameraRig } from './cameraRig';
 import { screenToGround, worldToScreen } from '../input/picking';
+import {
+  DEFAULT_MAP_SIZE,
+  MAX_MAP_SIZE,
+  MIN_MAP_SIZE,
+  gridFor,
+  marginFor,
+} from '../shared/grid';
 
 /**
  * The rig's turn: Shift+wheel and Insert/Delete, stepped so the view lands
@@ -602,4 +609,76 @@ describe('CameraRig turn', () => {
     expect(s.maxX - s.minX).not.toBeCloseTo(s.maxZ - s.minZ, 1);
     expect(rig.viewFrame(3).ext).toBeCloseTo(ext45, 10);
   });
+});
+
+
+/**
+ * The zoom-out cap and the scenery ring's depth are one decision: the ring
+ * is however far a frame reaches past the play square at full zoom-out, and
+ * the cap is what decides that distance. They are written in two files
+ * (MAX_VIEW_FRACTION here, marginFor in shared/grid.ts) and cannot be
+ * written in one — grid.ts is imported by the server, which has no camera —
+ * so what keeps them together is this: not a shared number, which two hands
+ * can edit apart just as easily, but the property the pair exists to
+ * deliver, asserted against the rig's real behavior. Move either constant
+ * the wrong way and this fails.
+ *
+ * Panning, not focusOn: the pan clamp is the rule the ring was sized
+ * against. focusOn is allowed past it on purpose (it centers a border
+ * castle without asking, and #clampAxis then ratchets rather than yanking
+ * the view back), so it is not what this measures.
+ *
+ * 16:9, which is the window the ring is cut for. A wide enough window
+ * always wins — the frustum grows sideways with the aspect while the cap
+ * only bounds its height — and no ring this side of the old 4x grid covers
+ * every aspect a monitor can be.
+ */
+describe('the frame never leaves the grid', () => {
+  /** Distinct yaws: the rig turns in 15° steps and the grid is square, so
+   * a quarter turn is every case there is. */
+  const TURNS = 6;
+  const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+
+  beforeEach(() => {
+    vi.stubGlobal('window', Object.assign(new EventTarget(), { innerWidth: 1600, innerHeight: 900 }));
+    vi.stubGlobal('document', Object.assign(new EventTarget(), { hidden: false }));
+    vi.stubGlobal('location', { search: '' });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  for (const play of [MIN_MAP_SIZE, DEFAULT_MAP_SIZE, MAX_MAP_SIZE]) {
+    it(`holds on a ${play}-tile valley, at every turn and every corner`, () => {
+      const margin = marginFor(play);
+      const grid = gridFor(play);
+      const quad = new Float64Array(8);
+      for (let turn = 0; turn < TURNS; turn++) {
+        // A rig apiece: the pan clamp ratchets, so a case must not inherit
+        // where the last one left the camera.
+        const canvas = makeCanvas();
+        const rig = new CameraRig(canvas);
+        rig.setPlayBounds(margin, margin + play);
+        for (let t = 0; t < turn; t++) wheel(canvas, 100, true);
+        settle(rig);
+        // Far more wheel than the cap allows, so the cap is what stops it.
+        for (let i = 0; i < 40; i++) wheel(canvas, 400, false);
+        // Then lean on the pan in every direction. The clamps are per-axis
+        // and hold what they have, so by the last one the camera is in the
+        // corner of everything it is allowed to reach.
+        for (const code of ARROWS) {
+          hold(rig, code, 6);
+          rig.viewQuad(quad);
+          for (let i = 0; i < 8; i += 2) {
+            const where = `play ${play}, turn ${turn}, ${code}, corner ${i / 2}`;
+            expect(quad[i], `x — ${where}`).toBeGreaterThanOrEqual(0);
+            expect(quad[i], `x — ${where}`).toBeLessThanOrEqual(grid);
+            expect(quad[i + 1], `z — ${where}`).toBeGreaterThanOrEqual(0);
+            expect(quad[i + 1], `z — ${where}`).toBeLessThanOrEqual(grid);
+          }
+        }
+        rig.dispose();
+      }
+    });
+  }
 });

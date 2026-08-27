@@ -34,6 +34,11 @@ function ease01(t: number): number {
  * the boundary between the two is a resolution change, not a seam; the
  * ring's outer quarter melts into the fog color so no camera ever meets
  * a cut edge. Static by design — nothing in the margin ever changes.
+ *
+ * The ground under the play mesh is not drawn: those quads were parked at
+ * y=-2.5, where the fine mesh covers every one of them, and on the old
+ * half-side ring they were a quarter of the plane. Only the tuck along the
+ * boundary's inner side survives, which is the part that has a job.
  */
 export class MarginMesh {
   readonly mesh: THREE.Mesh;
@@ -49,6 +54,8 @@ export class MarginMesh {
 
     const pos = geometry.attributes.position!;
     const colors = new Float32Array(pos.count * 3);
+    /** Vertices parked under the play mesh: no quad of their own is drawn. */
+    const buried = new Uint8Array(pos.count);
     const c = SCRATCH;
     for (let v = 0; v < pos.count; v++) {
       const x = pos.getX(v);
@@ -62,8 +69,10 @@ export class MarginMesh {
       if (d === 0) {
         const inset = Math.min(x - p0, z - p0, p1 - x, p1 - z);
         if (inset > 1.5) {
-          // Deep under the play mesh: parked below any bed, never visible.
+          // Deep under the play mesh: parked below any bed, never visible
+          // — and, buried, never given a quad to be invisible on.
           y = -2.5;
+          buried[v] = 1;
           this.#bedColor(c, y);
         } else {
           // Under-terrain tuck along the boundary's inner side. Painted
@@ -90,6 +99,26 @@ export class MarginMesh {
       colors[v * 3 + 2] = c.b * s;
     }
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    // The plane's own quads, less the ones whose four corners are all
+    // buried. Same vertex numbering and the same winding PlaneGeometry
+    // wrote — this drops triangles, it does not re-lay them.
+    //
+    // The lattice is read back off the geometry rather than assumed from
+    // `size`: they are the same number today, one vertex per tile, and the
+    // day they stop being (a coarser margin mesh is the obvious reason)
+    // this would otherwise index off the end of the buffer.
+    const { widthSegments, heightSegments } = geometry.parameters;
+    const index: number[] = [];
+    const row = widthSegments + 1;
+    for (let iz = 0; iz < heightSegments; iz++) {
+      for (let ix = 0; ix < widthSegments; ix++) {
+        const a = iz * row + ix;
+        const b = a + row;
+        if (buried[a] && buried[a + 1] && buried[b] && buried[b + 1]) continue;
+        index.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+    geometry.setIndex(index);
     geometry.computeVertexNormals();
 
     this.mesh = new THREE.Mesh(

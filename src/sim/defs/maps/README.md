@@ -50,3 +50,11 @@ node tools/exportMissionMap.ts 405 1 "The Levy"          src/sim/defs/maps/levy.
 node tools/exportMissionMap.ts 17  1 "Hold the Valley"   src/sim/defs/maps/holdTheValley.json
 node tools/exportMissionMap.ts 11  2 "The Rival Banner"  src/sim/defs/maps/rivalBanner.json
 ```
+
+Re-running one of those today does **not** reproduce the file beside it.
+The scenery margin came in from half the playable side to 0.42 of one, so
+worldgen lays out a different grid at every seed; rather than reroll seven
+proven maps, the files were cropped onto the new grid — the same playable
+ground, its tiles re-indexed by the 8 the margin lost, and each mission's
+pinned `campSpot` moved with them. The commands above are how a map is
+born, not how these seven are rebuilt.

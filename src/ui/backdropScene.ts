@@ -7,6 +7,7 @@ import { GrassField } from '../render/grassField';
 import { WaterMesh } from '../render/waterMesh';
 import { MarginMesh } from '../render/marginMesh';
 import { Mist } from '../render/mist';
+import { background } from '../render/palette';
 import { BuildingSync } from '../render/buildingSync';
 import { loadGlbAssets } from '../render/assets';
 import { snapBuildings } from '../protocol/snapshot';
@@ -72,6 +73,27 @@ const OFF_CENTRE = -0.42;
 /** Aspect at which no shift is applied, and where it reaches full. */
 const SHIFT_FROM = 1.0;
 const SHIFT_TO = 1.8;
+/**
+ * The haze band, in tiles from the eye: where the valley starts to go and
+ * where it is gone.
+ *
+ * The match has a band of its own (GameRenderer.setWorldExtent) and it is
+ * cut for the other camera — an orthographic rig parked ninety tiles back
+ * over ground it frames from above, where the far edge of the frame is
+ * barely further from the lens than the near one. Standing in the grass is
+ * the opposite case: the keep is twenty tiles off and the valley behind it
+ * runs until the map stops. Lit evenly, that far ground reads as a painted
+ * flat pinned up behind the castle — every ridge as crisp as the grass at
+ * the eye, and the grid's own rim somewhere in it — and no amount of blur
+ * on the canvas gives it depth, because blur is not what distance does.
+ *
+ * So the distance is taken away instead: near is set past the keep so the
+ * subject keeps its contrast, and far lands short of the map's edge so the
+ * horizon is dark long before there is an edge to see.
+ */
+const FOG_NEAR = 26;
+const FOG_FAR = 100;
+
 /** Where the walk starts — chosen so the sun rakes across the keep. */
 const START_ANGLE = 2.2;
 const DRIFT_PERIOD = 96_000;
@@ -130,6 +152,11 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   // room code in the menu above would pan the scene behind it.
   const renderer = new GameRenderer(canvas, false);
   renderer.setWorldExtent(world.map.play, world.map.size);
+  // ...and then take its fog band back: setWorldExtent cut one for the
+  // match's camera, not for this one. The scene's own background is the
+  // color to fade into — it is what lies behind the last ridge, so a
+  // horizon that reaches it has nowhere left to show a seam.
+  renderer.scene.fog = new THREE.Fog(background, FOG_NEAR, FOG_FAR);
   const heights = new HeightField(world.map.height, world.map.size);
   const terrain = new TerrainMesh(world.map, heights);
   const scatter = new ScatterMesh(world.map, heights);
