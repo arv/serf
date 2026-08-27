@@ -93,16 +93,26 @@ const TURN_KEYS = new Map<string, number>([
  * wide because the aspect had spent all that width on fog.
  *
  * So the boot view is a number of pixels per world unit instead, and the
- * span is whatever the window makes of it. BOOT_VIEW is the ceiling, and
- * it is the old constant exactly: a desktop window is tall enough to hit
- * it, so nothing changes there. Everything shorter frames less world and
- * draws it at the size it was designed to be read at.
+ * span is whatever the window makes of it. BOOT_VIEW is the ceiling on
+ * that span, and the two are set to meet on a 900-pixel-tall window: 900 /
+ * 36 is 25. That is what keeps them one decision rather than two — the
+ * reference window sits exactly on the corner, so a taller window frames
+ * the same 25 units and a shorter one frames less at the same 36 pixels to
+ * the unit. Move one and move the other, or the pair stops agreeing about
+ * how big the game is.
+ *
+ * They were 30 and 30, meeting at the same window on a 30-unit span. This
+ * is that view a fifth closer in: the castle and the villagers around it
+ * are what the opening asks the player to read, and at 30 units they sat
+ * in the middle of a frame mostly given over to unexplored dark.
  *
  * The player's own zoom is untouched — this sets where they start, and
- * the wheel and the pinch go where they always went.
+ * the wheel and the pinch go where they always went. It does hand the
+ * wheel some room back, though: against a cap of 0.35 the default valley
+ * now opens 25 to 34 rather than 30 to 34.
  */
-const BOOT_PX_PER_UNIT = 30;
-const BOOT_VIEW = 30;
+const BOOT_PX_PER_UNIT = 36;
+const BOOT_VIEW = 25;
 /**
  * Zoom-out cap as a fraction of the playable side, whatever the map size.
  *
