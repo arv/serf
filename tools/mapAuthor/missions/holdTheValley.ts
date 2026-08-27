@@ -47,8 +47,16 @@ export function build(): Authored {
     // The beck, out of the eastern hills and down to the southern range —
     // the line between the valley and the bandits' heath.
     .river([at(35, 2), at(26, 13), at(17, 25), at(10, 38)], 2.2, 0.12)
-    .ford(at(28, 10), 3)
-    .ford(at(13, 32), 3)
+    // The beck ends in a tarn under the southern range rather than
+    // petering out in a field: that border is mountain, not coast, so the
+    // water has nowhere else to go.
+    .pond(at(9, 41), 3.5)
+    // Narrow crossings. A ford wide enough to be comfortable stops
+    // reading as a ford at all — the beck comes out as two rivers with a
+    // gap between them, and the map's whole argument (one line, two
+    // places to cross it) goes with it.
+    .ford(at(28, 10), 1.8)
+    .ford(at(13, 32), 1.8)
     .borders({ n: 'forest', e: 'ridge', s: 'ridge', w: 'sea' });
 
   const drowned = v.settle(keepAnchor(start!));

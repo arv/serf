@@ -36,7 +36,7 @@ export function build(): Authored {
     .level(at(8, 4), 7, 0.44, 5)
     .level(at(-2, 13), 6, 0.43, 5)
     // The beck that comes down between the hills and pools below the town.
-    .river([at(14, -11), at(15, 2), at(11, 16), at(6, 30)], 1.6, 0.1)
+    .river([at(16, -27), at(14, -11), at(15, 2), at(11, 16), at(6, 30), at(2, 44)], 1.6, 0.1)
     .pond(at(9, 19), 3.5)
     .borders({ n: 'ridge', e: 'ridge', s: 'sea', w: 'forest' });
 

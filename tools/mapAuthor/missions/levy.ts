@@ -46,7 +46,7 @@ export function build(): Authored {
     // The mere south-west of the town and the beck draining out of it:
     // the valley's water, well behind the pass.
     .pond(at(-15, 9), 4)
-    .river([at(-15, 10), at(-18, 21), at(-22, 33)], 1.3, 0.08)
+    .river([at(-15, 10), at(-18, 21), at(-22, 33), at(-25, 44)], 1.3, 0.08)
     .borders({ n: 'ridge', e: 'forest', s: 'sea', w: 'ridge' });
 
   const drowned = v.settle(keepAnchor(start!));

@@ -38,7 +38,7 @@ export function build(): Authored {
     // The tarn in the western meadow — the valley's water, out of the
     // village's way but inside a fishery's walk.
     .pond(at(-12, 7), 3.6)
-    .river([at(-12, 7), at(-19, 17), at(-24, 30)], 1.2, 0.06)
+    .river([at(-12, 7), at(-20, 14), at(-29, 19), at(-38, 23)], 1.2, 0.06)
     .borders({ n: 'ridge', e: 'ridge', s: 'forest', w: 'sea' });
 
   const drowned = v.settle(keepAnchor(start!));
@@ -51,6 +51,8 @@ export function build(): Authored {
   v.grove(at(-8, 17), 6, 0.8);
   v.grove(at(9, 19), 5.5, 0.75);
   v.grove(at(-21, 20), 5, 0.7);
+  v.grove(at(23, -15), 5, 0.7);
+  v.grove(at(24, 17), 5.5, 0.72);
 
   // --- The stone the old quarry worked -----------------------------------
   // Its hut stands five east and six north of the keep.

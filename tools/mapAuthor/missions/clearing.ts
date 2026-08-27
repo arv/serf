@@ -40,7 +40,7 @@ export function build(): Authored {
     // The brook off those eastern hills, running south-west to the sea,
     // with a pool at the clearing's foot: the water every valley owes its
     // fishery, a walk south of the keep and out of the town's way.
-    .river([at(19, 6), at(9, 14), at(-2, 18), at(-13, 30)], 1.4, 0.09)
+    .river([at(19, 6), at(9, 14), at(-2, 18), at(-12, 30), at(-18, 42)], 1.4, 0.09)
     .pond(at(-3, 13), 3)
     .borders({ n: 'forest', e: 'ridge', s: 'sea', w: 'forest' });
 

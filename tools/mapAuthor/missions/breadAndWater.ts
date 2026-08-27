@@ -36,11 +36,7 @@ export function build(): Authored {
     .level(keep, 9, 0.45, 5)
     .level(at(7, 13), 12, 0.36, 7)
     // The river itself, out of the northern hills and down to the sea.
-    .river(
-      [at(28, -28), at(17, -9), at(10, 5), at(2, 19), at(-6, 34)],
-      2.2,
-      0.12,
-    )
+    .river([at(28, -28), at(17, -9), at(10, 5), at(2, 19), at(-6, 34), at(-9, 45)], 2.2, 0.12)
     .borders({ n: 'ridge', e: 'ridge', s: 'sea', w: 'forest' });
 
   const drowned = v.settle(keepAnchor(start!));

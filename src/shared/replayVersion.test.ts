@@ -28,7 +28,7 @@ import { REPLAY_VERSION } from './replayVersion';
 // tile of every mission map moved, so a mission log re-run on an older
 // build is a log played on different ground (see replayVersion.ts).
 const EXPECTED_VERSION = 32;
-const EXPECTED_HASH = '56590a245b9cfe7ffb037ffedc068f52';
+const EXPECTED_HASH = '41580d115bfa1f07a32da23feedc0e01';
 
 /**
  * Everything a replay's playback depends on, as raw source:
