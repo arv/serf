@@ -53,6 +53,7 @@ import {
   RESOURCE_CODE,
   countResourceNear,
   inPlayArea,
+  playEdgeDist,
   recomputeBlocked,
   resourceBlocks,
   tileBlocks,
@@ -169,6 +170,10 @@ export class Valley {
   /** Border-forest tiles: 1 = full belt, 2 = ragged inner treeline. */
   private readonly belt: Uint8Array;
   private styles: BorderStyles = { n: 'forest', e: 'forest', s: 'forest', w: 'forest' };
+  /** Which style owns a perimeter position, set by `borders` — the far
+   * field has to carry the same handover the band inside does, or the
+   * horizon changes style at the boundary. */
+  private perimeterStyle: (p: number, i: number) => RimStyle = () => 'forest';
   /** Salt for the incidental detail (rim teeth, grove edges, grain). */
   readonly grain: number;
   /**
@@ -489,9 +494,18 @@ export class Valley {
     const fringe = Math.max(1, Math.floor(play / 24));
     const perimeter = play * 4;
 
-    // Band depth around the perimeter: per-position jitter smoothed once,
-    // riding a long meander a few dozen tiles across, so the border swings
-    // in and out in bays and headlands instead of holding one depth.
+    /** Value noise around the perimeter, in [0,1], wrapping seamlessly. */
+    const meander = (salt: number, p: number, wavelength: number): number => {
+      const cells = Math.max(4, Math.round(perimeter / wavelength));
+      const f = (((p % perimeter) + perimeter) % perimeter / perimeter) * cells;
+      const i0 = Math.floor(f);
+      const t = ease01(f - i0);
+      const a = hash2(this.grain + salt, i0 % cells);
+      const b = hash2(this.grain + salt, (i0 + 1) % cells);
+      return a + (b - a) * t;
+    };
+    // The finest scale: per-position jitter, smoothed once around the loop
+    // so the very edge is bitten rather than sawn.
     const wobble = new Float32Array(perimeter);
     for (let i = 0; i < perimeter; i++) wobble[i] = hash2(this.grain + 313, i) * fringe;
     for (let i = 0; i < perimeter; i++) {
@@ -499,14 +513,68 @@ export class Valley {
       const next = wobble[(i + 1) % perimeter]!;
       wobble[i] = (prev + wobble[i]! * 2 + next) / 4;
     }
-    const meander = (salt: number, p: number, wavelength: number): number => {
-      const cells = Math.max(4, Math.round(perimeter / wavelength));
-      const f = ((p % perimeter) / perimeter) * cells;
-      const i0 = Math.floor(f);
-      const s = ease01(f - i0);
-      const a = hash2(this.grain + salt, i0 % cells);
-      const b = hash2(this.grain + salt, (i0 + 1) % cells);
-      return a + (b - a) * s;
+
+    // --- Where one style hands over to the next --------------------------
+    // Not at the corner. A border that changes from forest to mountain
+    // exactly where the map's corner is reads as a frame around a picture,
+    // because that is what it is: four sides, mitred. So each of the four
+    // handovers slides along the perimeter by up to a sixth of a side, and
+    // then interleaves across a dozen tiles rather than cutting — the last
+    // trees stand among the first rocks, the way a treeline actually ends.
+    const HANDOVER = Math.max(6, Math.round(play / 9));
+    const shift = [0, 1, 2, 3].map((c) => (hash2(this.grain + 601, c) - 0.5) * 0.34 * play);
+    /** Side that owns perimeter position `p`, before interleaving. */
+    const sideAt = (p: number): number => {
+      const q = ((p % perimeter) + perimeter) % perimeter;
+      for (let c = 3; c >= 0; c--) {
+        const start = c * play + shift[c]!;
+        if (q >= start) return c;
+      }
+      // Before the first handover: the last side still owns the wrap.
+      return q >= 3 * play + shift[3]! - perimeter ? 3 : 3;
+    };
+    /** Signed distance to the nearest handover, in perimeter units. */
+    const toHandover = (p: number): number => {
+      let best = Infinity;
+      for (let c = 0; c < 4; c++) {
+        for (const turn of [-perimeter, 0, perimeter]) {
+          const d = p - (c * play + shift[c]! + turn);
+          if (Math.abs(d) < Math.abs(best)) best = d;
+        }
+      }
+      return best;
+    };
+    const styleAt = (p: number, i: number): RimStyle => {
+      const own = sideAt(p);
+      const d = toHandover(p);
+      if (Math.abs(d) >= HANDOVER) return order[own]!;
+      // Inside the handover: the two styles interfinger, the far one
+      // thinning out as the near one takes over.
+      const other = order[(own + (d < 0 ? 3 : 1)) % 4]!;
+      const mine = 0.5 + 0.5 * ease01(Math.abs(d) / HANDOVER);
+      return hash2(i, 877) < mine ? order[own]! : other;
+    };
+    this.perimeterStyle = styleAt;
+
+    /**
+     * How far the band reaches in at `p`. Three scales, and the big one is
+     * squared: most of a coast sits close to its nominal line and then, two
+     * or three times a side, swings deep into a bay or a forest tongue.
+     * That variation is most of what stops a border reading as a strip.
+     * Sea and forest may reach further than rock — a bay and a wood are
+     * places, while a mountain that eats a quarter of the valley is just
+     * less valley.
+     */
+    const depthAt = (p: number, style: RimStyle, i: number): number => {
+      const big = meander(2, p, play / 1.7);
+      const mid = meander(3, p, play / 5);
+      const reach = style === 'ridge' ? 1.5 : style === 'sea' ? 2.1 : 2.4;
+      const tooth = hash2(i, 211);
+      return (
+        fringe * (0.5 + big * big * reach * 1.5 + mid * 0.8) +
+        wobble[((p % perimeter) + perimeter) % perimeter]! * 0.5 +
+        (tooth < 0.2 ? 2 : tooth < 0.5 ? 1 : 0)
+      );
     };
 
     for (let y = p0; y < p1; y++) {
@@ -519,17 +587,20 @@ export class Valley {
         const along = side % 2 === 0 ? px : py;
         const p = side * play + along;
         const i = this.idx(x, y);
-        const tooth = hash2(i, 211);
-        const depth =
-          fringe +
-          Math.min(wobble[p]! + meander(1, p, play / 5) * fringe * 1.2, 2 * fringe) +
-          (tooth < 0.2 ? 2 : tooth < 0.5 ? 1 : 0);
+        const style = styleAt(p, i);
+        const depth = depthAt(p, style, i);
         const d = dists[side]!;
         if (d >= depth) continue;
-        switch (order[side]!) {
+        switch (style) {
           case 'sea':
             this.terrain[i] = Terrain.Water;
             this.field[i] = WATER;
+            // Stacks: a few of the drowned rocks never went under. They
+            // stand off the shore and break the line of it.
+            if (d > 1 && hash2(i, 733) < 0.014) {
+              this.terrain[i] = Terrain.Rock;
+              this.field[i] = 0.52 + hash2(i, 734) * 0.22;
+            }
             break;
           case 'ridge': {
             this.terrain[i] = Terrain.Rock;
@@ -538,22 +609,50 @@ export class Valley {
             break;
           }
           case 'forest':
-            this.belt[i] = depth - d <= 1 ? 2 : 1;
+            // How deep into the wood this tile sits, so the belt can
+            // thicken inward instead of standing as one wall.
+            this.belt[i] = Math.min(255, Math.max(1, Math.round(depth - d)));
             break;
         }
       }
     }
 
+    // Scree: a few boulders shaken off the range onto the meadow below it,
+    // so the mountain has a foot instead of an edge. Sparse and close in —
+    // every one of these is an obstacle in the playfield, and a scatter of
+    // them far enough out starts fencing off pockets of meadow that
+    // `settle` then has to drown.
+    for (let y = p0; y < p1; y++) {
+      for (let x = p0; x < p1; x++) {
+        const i = this.idx(x, y);
+        if (this.terrain[i] !== Terrain.Grass || hash2(i, 919) >= 0.05) continue;
+        let touching = false;
+        for (let dy = -1; dy <= 1 && !touching; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (!inBounds(x + dx, y + dy, size)) continue;
+            if (this.terrain[this.idx(x + dx, y + dy)] === Terrain.Rock) {
+              touching = true;
+              break;
+            }
+          }
+        }
+        if (touching) this.terrain[i] = Terrain.Rock;
+      }
+    }
+
     // The margin: up to two sides claim a tile, weighted by how far past
     // each edge it sits, so corners morph along a coastline instead of
-    // averaging a sea bed against rising land.
+    // averaging a sea bed against rising land. Which style each claim
+    // carries is the same perimeter lookup the band inside used, so the
+    // handover runs straight out through the scenery ring.
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         if (this.inPlay(x, y)) continue;
         const i = this.idx(x, y);
-        let best = this.marginMix(x, y)[0]!;
-        for (const s of this.marginMix(x, y)) if (s.w > best.w) best = s;
-        const style = order[best.side]!;
+        const mix = this.marginMix(x, y);
+        let best = mix[0]!;
+        for (const s of mix) if (s.w > best.w) best = s;
+        const style = styleAt(this.perimeterOf(best.side, best.u), i);
         if (style === 'sea') this.terrain[i] = Terrain.Water;
         else if (style === 'ridge') this.terrain[i] = Terrain.Rock;
         // A forest margin stays grass here; it takes its timber in `plantBelt`.
@@ -566,7 +665,31 @@ export class Valley {
       const t = this.rimRamp[i]!;
       if (t > 0) this.field[i] = Math.max(this.field[i]!, 0.55 + 0.45 * ease01(t));
     }
+
+    // A mirrored map's border is mirrored too. The perimeter noise runs
+    // around the loop rather than across the grid, so nothing above is
+    // symmetric by construction — and now that a bay can reach twenty
+    // tiles in, that asymmetry is inside the ground the two banners
+    // actually play on, not out in the scenery. Rather than teach every
+    // draw about the half turn, take the canonical half of what was just
+    // painted and stamp it on the other.
+    if (this.mirror) {
+      for (let i = 0; i < tileCount(size); i++) {
+        const j = this.twinOf(i);
+        if (j <= i) continue;
+        this.terrain[j] = this.terrain[i]!;
+        this.field[j] = this.field[i]!;
+        this.rimRamp[j] = this.rimRamp[i]!;
+        this.belt[j] = this.belt[i]!;
+      }
+    }
     return this;
+  }
+
+  /** Perimeter position of a point `u` (grid coordinate) along `side`. */
+  private perimeterOf(side: number, u: number): number {
+    const along = Math.min(this.play - 1, Math.max(0, Math.round(u) - this.p0));
+    return side * this.play + along;
   }
 
   private marginMix(x: number, y: number): { side: number; w: number; u: number; d: number }[] {
@@ -581,9 +704,7 @@ export class Valley {
 
   /** One style's far-field ground height `d` tiles past the boundary —
    * the horizon the camera sees behind the border. */
-  private marginHeight(side: number, u: number, d: number): number {
-    const styles: RimStyle[] = [this.styles.n, this.styles.e, this.styles.s, this.styles.w];
-    const style = styles[side]!;
+  private marginHeight(side: number, u: number, d: number, style: RimStyle): number {
     const s7 = this.grain + side * 7;
     if (style === 'sea') return -1.5 - valueNoise(s7 + 71, u, d, 6) * 0.5;
     if (style === 'ridge') {
@@ -614,10 +735,15 @@ export class Valley {
    * far-field profile onto the boundary rows.
    *
    * `home` is the tile the landmass is judged from (a castle anchor).
-   * Returns how many tiles it had to drown: a recipe that isolates ground
-   * by accident should hear about it, so `finish` reports the count.
+   *
+   * Returns what it had to drown, split in two. A pocket sealed off down
+   * at the border — a lagoon behind a spit where a bay and a headland
+   * happened to close on each other — is scenery, and the map is better
+   * for it. A pocket out in the valley is a recipe cutting its own ground
+   * up, which is a thing to hear about, so the audit reads the second
+   * number rather than the total.
    */
-  settle(home: Pt): number {
+  settle(home: Pt): { total: number; inland: number } {
     const { size } = this;
     const tiles = tileCount(size);
 
@@ -651,11 +777,17 @@ export class Valley {
       }
     }
     let drowned = 0;
+    let inland = 0;
     for (let i = 0; i < tiles; i++) {
-      if (!this.inPlay(i % size, (i / size) | 0)) continue;
+      const x = i % size;
+      const y = (i / size) | 0;
+      if (!this.inPlay(x, y)) continue;
       if (this.terrain[i] === Terrain.Grass && !reached[i]) {
         this.terrain[i] = Terrain.Water;
         drowned++;
+        // Past the deepest a border band can reach: this one is the
+        // valley's own ground, not the rim's.
+        if (playEdgeDist(this, x, y) > 24) inland++;
       }
     }
 
@@ -723,7 +855,8 @@ export class Valley {
         let h = 0;
         let d = 0;
         for (const s of this.marginMix(x, y)) {
-          h += this.marginHeight(s.side, s.u, s.d) * s.w;
+          const style = this.perimeterStyle(this.perimeterOf(s.side, s.u), i);
+          h += this.marginHeight(s.side, s.u, s.d, style) * s.w;
           d = Math.max(d, s.d);
         }
         const edgeH =
@@ -734,7 +867,7 @@ export class Valley {
       }
     }
     this.settled = true;
-    return drowned;
+    return { total: drowned, inland };
   }
 
   // --- 3. Dress ---------------------------------------------------------
@@ -906,10 +1039,21 @@ export class Valley {
       const x = i % this.size;
       const y = (i / this.size) | 0;
       if (this.terrain[i] !== Terrain.Grass || this.resource[i] !== TileResource.None) continue;
+      // Glades: a low-frequency thinning that runs through the whole belt
+      // and out into the horizon behind it, so the wood has depth to it
+      // rather than being a hedge with a ragged inside face.
+      const glade = 0.45 + 0.55 * ease01((this.noise(12, x, y, 11) - 0.22) / 0.5);
       if (this.inPlay(x, y)) {
-        if (!this.belt[i]) continue;
-        // The inner treeline thins so the wall ends ragged, not ruled.
-        if (this.belt[i] === 2 && this.jitter(x, y, 3) < 0.55) continue;
+        const deep = this.belt[i]!;
+        if (!deep) continue;
+        // The treeline thickens over the first few tiles rather than
+        // starting at full stand: an edge of wood is a gradient.
+        const p = (0.2 + 0.8 * ease01((deep - 1) / 3.5)) * glade;
+        if (this.jitter(x, y, 3) > p) continue;
+      } else if (this.jitter(x, y, 3) > Math.max(glade, 0.7)) {
+        // Scenery: nearly solid, but not perfectly — a horizon of
+        // unbroken canopy reads as a texture rather than as trees.
+        continue;
       }
       this.resource[i] = TileResource.Wood;
       this.resourceAmt[i] = WOOD_MAX_AMT;
@@ -1105,8 +1249,9 @@ export interface Authored {
   /** Free-form notes about what the ground is meant to teach — printed
    * with the audit so a rebuild reads its own intent back. */
   intent: string[];
-  /** How many tiles `settle` had to drown, filled in by the recipe. */
-  drowned: number;
+  /** What `settle` had to drown, filled in by the recipe: the total, and
+   * how much of it was out in the valley rather than down at the rim. */
+  drowned: { total: number; inland: number };
   /** Set by a duel map authored as one half and mirrored: the audit then
    * holds the finished tiles to that claim, inside the rim (the border
    * band is scenery and draws its own wobble). */
@@ -1235,9 +1380,16 @@ export function audit(a: Authored): AuditReport {
     const t = totals.get(Number(code));
     lines.push(`  ${name.padEnd(6)} ${String(t?.amt ?? 0).padStart(5)} in ${t?.tiles ?? 0} tiles`);
   }
-  if (a.drowned > 0) lines.push(`  settle drowned ${a.drowned} stranded tiles`);
-  if (a.drowned > 40) {
-    problems.push(`settle drowned ${a.drowned} tiles — a landform is cutting the valley up`);
+  if (a.drowned.total > 0) {
+    lines.push(
+      `  settle drowned ${a.drowned.total} stranded tiles ` +
+        `(${a.drowned.inland} of them inland)`,
+    );
+  }
+  if (a.drowned.inland > 12) {
+    problems.push(
+      `settle drowned ${a.drowned.inland} tiles out in the valley — a landform is cutting it up`,
+    );
   }
 
   for (const [si, s] of a.starts.entries()) {
