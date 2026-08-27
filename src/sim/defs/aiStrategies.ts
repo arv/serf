@@ -24,8 +24,16 @@ import type { UnitTypeId } from './units.ts';
 export type AiStrategyId = 'steward' | 'warlord' | 'abbot' | 'fletcher';
 
 /** Where a build step looks for ground: the home base, a resource seam, or
- * the shore (the fishery is the only thing that wants the last one). */
-export type BuildAnchor = 'base' | 'wood' | 'rock' | 'iron' | 'silver' | 'water';
+ * the shore (the fishery is the only thing that wants the last one).
+ *
+ * `gold` is not a seam like the others, and a plan that anchors on it should
+ * know why: worldgen puts the gold in the middle of the map with the bandit
+ * camp (mapFairness.test.ts), so it is the one anchor that reliably sends a
+ * builder out of his own valley. Measured from the castle it is about as
+ * near as the silver on a solo campaign map — where the base sits at the
+ * centre itself — and roughly twice as far in a four-seat game, which is
+ * exactly the case the balance sweep cannot see. */
+export type BuildAnchor = 'base' | 'wood' | 'rock' | 'iron' | 'silver' | 'gold' | 'water';
 
 export interface BuildStep {
   type: BuildingTypeId;
@@ -184,7 +192,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
   warlord: {
     id: 'warlord',
     name: 'The Warlord',
-    blurb: 'Forges nothing but swords, digs the iron to pay for them, and comes early.',
+    blurb: 'Forges nothing but swords, comes early — and gilds them in gold if the war runs long.',
     build: [
       {
         type: 'woodcutter',
@@ -209,10 +217,42 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // men instead of an army — a second mine is what makes the plan real.
       { type: 'ironMine', count: 2, anchor: 'iron', radius: 4, after: 'ironworking' },
       { type: 'weaponsmith', count: 2, anchor: 'base', after: 'ironworking', needs: 'barracks' },
+      // The gold, and only on this seat. Gold has exactly one sink in the
+      // whole game — Gilded Arms, 4 of it for another 20% on every soldier's
+      // health — and Gilded Arms sits behind Mail Armor, which no other
+      // playbook researches. A gold mine anywhere else in the deck would be
+      // a hand and fourteen materials digging a good nobody can spend.
+      //
+      // Behind the forges on purpose: the seam is out in the middle of the
+      // map (see BuildAnchor), so this is the plan's outpost, and an outpost
+      // laid before the swords are being made is a rush that stopped to mine.
+      { type: 'goldMine', count: 1, anchor: 'gold', radius: 4, after: 'deepMining' },
       // Last, and only once the forges stand — see the campaign line's note.
       { type: 'fishery', count: 1, anchor: 'water', radius: 8, after: 'ironworking', needs: 'barracks' },
     ],
-    researchOrder: ['soldiery', 'cobbledBoots', 'ironworking', 'mailArmor'],
+    // Deep Mining before the armor, which is not where the war techs would
+    // put it: it is the seat's economy tech first and the gold's gate second.
+    // Three seams stand by then — two iron and the silver — and 30% off every
+    // one of them is what keeps two sword forges fed. Gilded Arms then closes
+    // the line, last, because it cannot be paid for until the gold is dug.
+    //
+    // The tail is free, and that is the whole claim being made for it. This
+    // seat takes the campaign map at a median 15_000 ticks having researched
+    // three techs, so on the sweep the gold line is never reached and never
+    // costs anything either: 25 campaigns in 32 on one range and 31 in 32 on
+    // the other, both unchanged to the win. Where it does land is the long
+    // game the sweep cannot stage — a four-seat match on seed 42 has this
+    // seat through Deep Mining by tick 21_000, and left alone in a peaceful
+    // world it lays the mine itself around tick 25_000. That is the case the
+    // line is written for. (tools/aiLab/balance.ts)
+    researchOrder: [
+      'soldiery',
+      'cobbledBoots',
+      'ironworking',
+      'deepMining',
+      'mailArmor',
+      'gildedArms',
+    ],
     researchReserve: 6,
     serfTarget: 11,
     survivalFloor: 3,
@@ -294,11 +334,35 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // over. Nothing else in the deck researches both lines.
       'archery',
       'irrigation',
-      'masonry',
-      // Last, so a dry spell at the brewery (Festivals costs 2 ale) can
-      // never block a tech the war effort is waiting on.
+      // Brewing and Festivals ahead of Masonry, where they used to sit
+      // behind it. The old order was a safety rule — put the ale last so a
+      // dry brewery (Festivals costs 2 ale) can never hold up a tech the war
+      // effort wants — but the queue takes the FIRST unresearched tech whose
+      // prereqs are in and then simply waits until it can afford that one,
+      // so everything behind a slot is hostage to it either way. The choice
+      // is only which tech gets the seventh slot in a campaign that ends
+      // around the sixth, and paving is the right thing to lose: it is a
+      // comfort, and the ale is what this seat is built around.
+      //
+      // Worth the demotion but not by much, and the honest numbers say so:
+      // over the 64 campaigns of both sweep ranges this raises the brewery 7
+      // times against the old order's 4, and takes 44 of those campaigns
+      // against 46. Both movements sit inside the sweep's noise (see
+      // aiLab/README.md), so what is claimed here is small: a step this plan
+      // has always carried gets built about twice as often, for nothing
+      // measurable off the win rate.
+      //
+      // What caps it is wood, not tech order, and no reordering here will
+      // fix that. This seat's second forge turns every log into bowstaves
+      // and does not stop for a shelf already holding eleven unclaimed bows,
+      // so from about tick 12_000 the storehouse reads nought wood for the
+      // rest of the match and the brewery's ten wood is simply never on it —
+      // left alone in a peaceful world out to 60_000 ticks, Brewing long
+      // since in, this seat still laid no brewery on any of four seeds. The
+      // forge is where that wants fixing. (tools/aiLab/balance.ts)
       'brewing',
       'festivals',
+      'masonry',
     ],
     // The smallest purse in the deck, on the longest research order. This is
     // the widest plan and the one that runs closest to the edge: it staffs
