@@ -1,4 +1,5 @@
 import { BUILDING_DEFS, type BuildingTypeId } from '../../sim/defs/buildings';
+import type { BuildGroupLabel } from '../../ui/buildMenu';
 import type { GoodId } from '../../sim/defs/goods';
 import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
 
@@ -33,6 +34,22 @@ function forgeCost(good: GoodId, input: GoodId): number {
 }
 
 const BAKED = yieldOf('bakery', 'food');
+
+/**
+ * What each tab of the build ribbon is for, one sentence apiece.
+ *
+ * The guide groups the buildings exactly the way the ribbon does, and a
+ * heading alone does not explain why a Brewery sits under Village or a Gold
+ * Mine under Arms — the grouping is by what a building's output buys, which
+ * is a rule a reader has to be told once. Keyed by BuildGroupLabel and
+ * total, so a renamed or added tab cannot reach the guide unexplained.
+ */
+export const GROUP_DESC: Record<BuildGroupLabel, string> = {
+  Village:
+    'Homes, the two trades that raise them, and the Abbey — with the silver that pays for its research and the ale that pays for its festivals.',
+  Food: 'The bread chain end to end, starting at the well that waters it, and beside it the shore: the other way to feed a village, and the one that needs no chain at all.',
+  Arms: 'Iron out of the hillside, into the Smith, onto a soldier. The tower and the deep gold seam come after — when there is something worth defending, and something worth gilding.',
+};
 
 export const BUILDING_DESC: Record<BuildingTypeId, string> = {
   storehouse:

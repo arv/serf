@@ -21,6 +21,13 @@
 > - **Fixture tool kit** (`FIXTURE_TOOLS` in testUtils.ts): every test
 >   storehouse ships tools so the hundreds of pre-tools fixtures stay
 >   honest; tool-economy tests zero it explicitly.
+>
+> Later than this plan, and noted here because §3 below still says
+> otherwise: **the Smith is on the Arms tab, not Village.** The ribbon was
+> regrouped into three tabs sorted by what a building's output buys, so the
+> forge sits with the weapons it makes and the ore it eats. The reasoning
+> lives in `src/ui/buildMenu.ts`; the tab names in §3 (Industry, Village)
+> no longer exist.
 
 ## Context
 

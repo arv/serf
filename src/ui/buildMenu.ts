@@ -64,7 +64,15 @@ import type { TechId } from '../sim/defs/techs';
  * the top of Arms. Bread and iron are followed without a click; ale is the
  * one that is not, and the paragraph above is the price being paid.
  */
-export const BUILD_GROUPS: { label: string; types: BuildingTypeId[] }[] = [
+/**
+ * The tab names, as a union rather than bare strings: the field guide owes
+ * each group a sentence (GROUP_DESC in the docs' descriptions.ts, a total
+ * Record over this type), so renaming a tab or adding one stops compiling
+ * until the guide has been told what the new group is for.
+ */
+export type BuildGroupLabel = 'Village' | 'Food' | 'Arms';
+
+export const BUILD_GROUPS: { label: BuildGroupLabel; types: BuildingTypeId[] }[] = [
   // Top row the three you raise without thinking; under them the Abbey and
   // the two things the village hands it — the coin that pays for the
   // research, the ale that pays for the festival.
