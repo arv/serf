@@ -27,8 +27,12 @@ import { REPLAY_VERSION } from './replayVersion';
 // 32 for the campaign's ground being composed rather than rolled: every
 // tile of every mission map moved, so a mission log re-run on an older
 // build is a log played on different ground (see replayVersion.ts).
+// Still 32 after the Warlord's gold line and the Abbot's reordered ale:
+// both are AI playbook data, and playback never runs a brain — a replay
+// stores the seats' commands rather than re-deriving them (app/replay.ts),
+// so a seat that would decide differently today replays as it decided then.
 const EXPECTED_VERSION = 32;
-const EXPECTED_HASH = '05de10f5d59b7fe138b4f54bb8e1c0f7';
+const EXPECTED_HASH = '40de2589e381b43c457612d100b6275b';
 
 /**
  * Everything a replay's playback depends on, as raw source:
