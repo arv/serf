@@ -187,6 +187,8 @@ export class Valley {
    */
   private readonly mirror: boolean;
   private settled = false;
+  /** Places the border must stop short of — see `keepClear`. */
+  private readonly reserved: { c: Pt; r: number }[] = [];
 
   constructor(play: number, grain: number, opts: { mirror?: boolean } = {}) {
     this.mirror = opts.mirror ?? false;
@@ -450,9 +452,15 @@ export class Valley {
         const d = Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y);
         if (d > r) continue;
         const i = this.idx(x, y);
-        // Barely above the waterline in the middle of the crossing, so the
-        // ford reads as a shallow bar rather than as a causeway.
-        this.field[i] = Math.max(this.field[i]!, LAKE_LEVEL + 0.04 * ease01(1 - d / r));
+        // Dry all the way to the rim, and only then eased. Easing down TO
+        // the lake line at the rim was the whole disc's undoing: the bar
+        // came out narrower than the channel it was crossing — a river
+        // has banks and a wander, so its wet width is a good deal more
+        // than twice its half-width — and a ford that stops short of the
+        // far bank is not a ford, it is an island. Everything past it
+        // stays off the landmass, and `settle` drowns the lot.
+        const t = ease01((r - d) / (r * 0.35));
+        this.field[i] = Math.max(this.field[i]!, LAKE_LEVEL + 0.02 + 0.06 * t);
       }
     }
     return this;
@@ -473,6 +481,24 @@ export class Valley {
         this.field[i] = Math.min(this.field[i]!, WATER + ease01(d / rim) * (SHALLOW - WATER));
       }
     }
+    return this;
+  }
+
+  /**
+   * Ground the border may not take.
+   *
+   * A band that reaches thirty tiles in on its deepest lobe will
+   * eventually reach something a mission def has pinned — the bandit
+   * camp's 3x3 above all, which sits fifteen tiles off the corner because
+   * that is where the balance was proven. So a recipe reserves it, and
+   * the band's depth eases to nothing over the last few tiles rather than
+   * stopping at a line: what the map gets is a hollow in the hills with
+   * the camp in it, which is a better place for a camp anyway.
+   *
+   * Called before `borders`.
+   */
+  keepClear(c: Pt, r: number): this {
+    this.reserved.push({ c, r });
     return this;
   }
 
@@ -568,12 +594,58 @@ export class Valley {
     const depthAt = (p: number, style: RimStyle, i: number): number => {
       const big = meander(2, p, play / 1.7);
       const mid = meander(3, p, play / 5);
-      const reach = style === 'ridge' ? 1.5 : style === 'sea' ? 2.1 : 2.4;
-      const tooth = hash2(i, 211);
+      const small = meander(4, p, play / 11);
+      const reach = style === 'ridge' ? 1.9 : style === 'sea' ? 2.1 : 2.4;
+      // Only a nibble of per-tile jitter. The old two-tile teeth were most
+      // of what made an edge look sawn rather than drawn: at this scale
+      // the eye reads them as a staircase, and the warp above is doing the
+      // real work of breaking the line up.
+      //
+      // Three scales rather than one, and the middle two carry real
+      // weight. With only the big squared lobe, most of a side sat at the
+      // floor — and a floor that is the same number for eighty tiles is a
+      // straight line however deep the two bays either side of it go. The
+      // squared term still supplies the occasional deep bay; the other two
+      // scallop everything between them.
       return (
-        fringe * (0.5 + big * big * reach * 1.5 + mid * 0.8) +
+        fringe * (0.7 + big * big * reach * 1.4 + mid * 1.5 + small * 0.7) +
         wobble[((p % perimeter) + perimeter) % perimeter]! * 0.5 +
-        (tooth < 0.2 ? 2 : tooth < 0.5 ? 1 : 0)
+        hash2(i, 211) * 0.8
+      );
+    };
+
+    /**
+     * How far a tile is from the border — but not the square's own
+     * distance.
+     *
+     * `playEdgeDist` is a min over the four sides, and a min draws a
+     * square: its contours are squares with square corners, and a band cut
+     * at a threshold of it is a rectangle however much the threshold
+     * wobbles. Two things fix that. A soft min rounds the corners (the
+     * four sides blend over `k` tiles instead of one winning outright),
+     * and a domain-warped noise field pushes the whole measurement about
+     * by up to a dozen tiles at scales from three tiles to twenty — so
+     * the contour curls, doubles back, pinches a bay's mouth and leaves a
+     * headland standing, none of which a depth measured along one axis
+     * can do.
+     */
+    const K = 5;
+    const softEdge = (px: number, py: number): number => {
+      const d = [py, play - 1 - px, play - 1 - py, px];
+      let sum = 0;
+      for (const v of d) sum += Math.exp(-v / K);
+      return -K * Math.log(sum);
+    };
+    const coastWarp = (x: number, y: number): number => {
+      // The domain warp is what makes a coast curl rather than merely
+      // wobble: the field is sampled at a point that has itself been
+      // moved by another field.
+      const wx = (this.noise(21, x, y, 23) - 0.5) * 16;
+      const wy = (this.noise(22, x, y, 23) - 0.5) * 16;
+      return (
+        (this.noise(23, x + wx, y + wy, 19) - 0.5) * 1.0 +
+        (this.noise(24, x + wx, y + wy, 8) - 0.5) * 0.55 +
+        (this.noise(25, x, y, 3.4) - 0.5) * 0.3
       );
     };
 
@@ -589,8 +661,28 @@ export class Valley {
         const i = this.idx(x, y);
         const style = styleAt(p, i);
         const depth = depthAt(p, style, i);
-        const d = dists[side]!;
-        if (d >= depth) continue;
+        // The warp only ever cuts INWARD. Outside the play square is not
+        // more valley, it is the scenery ring, so a coast cannot bulge
+        // outward — a headland is simply a stretch where the band is thin.
+        // Two-sided, the warp could cancel the band outright, and the
+        // stretches where it did showed the raw edge of the square: the
+        // straightest line on the map, produced by the very field meant to
+        // break it up.
+        //
+        // Capped, though, and the cap is not cosmetic. Depth lobe and warp
+        // are independent, so now and then both go deep at once; on the
+        // Ledger that put a bay far enough in to meet the beck coming
+        // down the other way and cut a third of the valley off the
+        // landmass. No border takes more than a fifth of the playable
+        // side, wherever the two fields happen to agree.
+        const cut =
+          Math.min(depth + Math.max(0, -coastWarp(x, y)) * 22, play * 0.2) *
+          this.reservedFalloff(x, y);
+        /** How far in from the border this tile sits, and how far the
+         * border reaches here — the two numbers the rock ramp and the
+         * treeline's thickness are both drawn from. */
+        const d = softEdge(px, py);
+        if (d >= cut) continue;
         switch (style) {
           case 'sea':
             this.terrain[i] = Terrain.Water;
@@ -605,13 +697,13 @@ export class Valley {
           case 'ridge': {
             this.terrain[i] = Terrain.Rock;
             const crest = 0.62 + meander(9, p, play / 9) * 0.5 + (hash2(i, 251) - 0.5) * 0.24;
-            this.rimRamp[i] = Math.min(1, ((depth - d) / depth) * crest);
+            this.rimRamp[i] = Math.min(1, ((cut - d) / Math.max(cut, 1)) * crest);
             break;
           }
           case 'forest':
             // How deep into the wood this tile sits, so the belt can
             // thicken inward instead of standing as one wall.
-            this.belt[i] = Math.min(255, Math.max(1, Math.round(depth - d)));
+            this.belt[i] = Math.min(255, Math.max(1, Math.round(cut - d)));
             break;
         }
       }
@@ -684,6 +776,17 @@ export class Valley {
       }
     }
     return this;
+  }
+
+  /** How much of its depth the band keeps here: 1 well away from
+   * reserved ground, easing to 0 at it. */
+  private reservedFalloff(x: number, y: number): number {
+    let f = 1;
+    for (const { c, r } of this.reserved) {
+      const d = Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y);
+      f = Math.min(f, ease01((d - r) / 8));
+    }
+    return f;
   }
 
   /** Perimeter position of a point `u` (grid coordinate) along `side`. */

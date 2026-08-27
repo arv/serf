@@ -52,6 +52,10 @@ export function build(): Authored {
   // Each banner's water, at its back.
   for (const p of twin(-12, -9)) v.pond(p, 4);
   for (const course of both([a(-12, -9), a(-20, -14), a(-30, -20)])) v.river(course, 1.6, 0.08);
+  // The camp stands in the middle, far from any border — but the two
+  // banners open twenty-seven tiles off their corners, which a deep bay
+  // can reach. Reserved in pairs, like everything else here.
+  for (const s of starts) v.keepClear({ x: s.x + 1.5, y: s.y + 1.5 }, 6);
   v.borders({ n: 'ridge', e: 'sea', s: 'ridge', w: 'sea' });
 
   const drowned = v.settle(keepAnchor(starts[0]!));

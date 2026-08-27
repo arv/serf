@@ -37,6 +37,12 @@ export function build(): Authored {
     .level(at(-2, 13), 6, 0.43, 5)
     // The beck that comes down between the hills and pools below the town.
     .river([at(16, -27), at(14, -11), at(15, 2), at(11, 16), at(6, 30), at(2, 44)], 1.6, 0.1)
+    // The abbey road's ford. The beck runs the whole height of the valley
+    // now that it reaches the hills at one end and the sea at the other,
+    // and a border deep enough to meet both ends turns it into a wall:
+    // everything east of it — the iron, the gold — off the landmass. One
+    // crossing, and it is a beck again.
+    .ford(at(14, -3), 4)
     .pond(at(9, 19), 3.5)
     .borders({ n: 'ridge', e: 'ridge', s: 'sea', w: 'forest' });
 

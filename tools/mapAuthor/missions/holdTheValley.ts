@@ -55,8 +55,10 @@ export function build(): Authored {
     // reading as a ford at all — the beck comes out as two rivers with a
     // gap between them, and the map's whole argument (one line, two
     // places to cross it) goes with it.
-    .ford(at(28, 10), 1.8)
-    .ford(at(13, 32), 1.8)
+    .ford(at(28, 10), 3)
+    .ford(at(13, 32), 3)
+    // The camp's ground, which the southern range would otherwise take.
+    .keepClear({ x: 107.5, y: 107.5 }, 8)
     .borders({ n: 'forest', e: 'ridge', s: 'ridge', w: 'sea' });
 
   const drowned = v.settle(keepAnchor(start!));
