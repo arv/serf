@@ -65,14 +65,14 @@ export function build(): Authored {
   // ranges and both sea borders are sea), so every stick of timber on it
   // is a stand somebody put there — and a war of elimination that runs
   // out of wood does not end. Each banner gets the same seven.
-  for (const course of both([a(-15, 1), a(-8, 10), a(3, 13)])) v.treeline(course, 5, 0.88);
-  for (const p of twin(-18, -5)) v.grove(p, 6, 0.85);
-  for (const p of twin(-5, -19)) v.grove(p, 6, 0.85);
-  for (const p of twin(12, 15)) v.grove(p, 5.5, 0.8);
-  for (const p of twin(20, -5)) v.grove(p, 5.5, 0.8);
-  for (const p of twin(-20, -15)) v.grove(p, 5.5, 0.78);
-  for (const p of twin(7, 23)) v.grove(p, 5.5, 0.78);
-  for (const p of twin(23, 8)) v.grove(p, 5, 0.75);
+  for (const course of both([a(-15, 1), a(-8, 10), a(3, 13)])) v.treeline(course, 6.5, 0.88);
+  for (const p of twin(-18, -5)) v.grove(p, 7, 0.85);
+  for (const p of twin(-5, -19)) v.grove(p, 7, 0.85);
+  for (const p of twin(12, 15)) v.grove(p, 6.5, 0.8);
+  for (const p of twin(20, -5)) v.grove(p, 6.5, 0.8);
+  for (const p of twin(-20, -15)) v.grove(p, 6.5, 0.78);
+  for (const p of twin(7, 23)) v.grove(p, 6.5, 0.78);
+  for (const p of twin(23, 8)) v.grove(p, 6, 0.75);
 
   for (const p of twin(7, -6)) v.outcrop(p, 2.8, 0.9);
   for (const p of twin(-7, 6)) v.outcrop(p, 2.6, 0.85);
@@ -82,7 +82,7 @@ export function build(): Authored {
   // --- Ore is a birthright ------------------------------------------------
   // Priced exactly as worldgen prices a two-seat valley's seams, and set
   // in each banner's own ground rather than on a shared ring.
-  for (const p of twin(-11, -6)) v.silverSeam(180, p);
+  for (const p of twin(-9, -5)) v.silverSeam(180, p);
   for (const p of twin(-5, -14)) v.ironSeam(144, p);
   // The gold is the exception by design: contested, in the middle, with
   // the bandit camp standing over it.

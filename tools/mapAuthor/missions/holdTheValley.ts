@@ -64,7 +64,10 @@ export function build(): Authored {
   const drowned = v.settle(keepAnchor(start!));
 
   // --- Timber: the northern woods come down to the town's elbow ----------
-  v.treeline([at(-6, -13), at(4, -14), at(14, -12)], 4, 0.85);
+  v.treeline([at(-7, -12), at(3, -13), at(14, -11)], 5, 0.85);
+  // The stand at the town's own elbow: the first woodcutter should not
+  // be a seven-ring walk out of the gate.
+  v.grove(at(-10, -6), 5, 0.82);
   v.grove(at(-12, -20), 6, 0.8);
   v.grove(at(8, -22), 6, 0.8);
   v.grove(at(-13, 13), 5.5, 0.8);

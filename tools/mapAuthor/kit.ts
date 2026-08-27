@@ -291,10 +291,18 @@ export class Valley {
    */
   meadow(level = MEADOW, roughness = 0.07): this {
     this.each((x, y, i) => {
+      // Four scales and a ridged one. The ridged term is the difference
+      // between ground and a tablecloth: absolute-valued noise creases
+      // rather than undulating, so the valley floor gets shallow spurs
+      // and the hollows between them, which is what makes the flat parts
+      // read as flat BECAUSE something near them is not.
+      const crease = 1 - Math.abs(2 * this.noise(14, x, y, 26) - 1);
       this.field[i] =
         level +
         (this.noise(1, x, y, 17) - 0.5) * 2 * roughness +
-        (this.noise(2, x, y, 6) - 0.5) * roughness;
+        (this.noise(2, x, y, 6) - 0.5) * roughness +
+        (this.noise(13, x, y, 2.6) - 0.5) * roughness * 0.55 +
+        (crease * crease - 0.3) * roughness * 2.2;
     });
     return this;
   }
@@ -422,14 +430,17 @@ export class Valley {
         if (dd < d) d = dd;
       }
       const wander = (this.noise(7, x, y, 15) - 0.5) * halfWidth * 0.9;
+      // Reaches and narrows: a channel of one width down its whole length
+      // is a canal.
+      const bed = halfWidth * (0.62 + 0.8 * this.noise(20, x, y, 17));
       const w = d + wander;
-      if (w <= halfWidth) {
+      if (w <= bed) {
         // Wet: deep in the middle, shelving up to the waterline.
-        const t = ease01(w / halfWidth);
+        const t = ease01(w / bed);
         this.field[i] = Math.min(this.field[i]!, WATER + t * (SHALLOW - WATER));
-      } else if (w <= halfWidth + 3) {
+      } else if (w <= bed + 3) {
         // Banks: a low levee, so the course reads as cut rather than spilled.
-        const t = ease01(1 - (w - halfWidth) / 3);
+        const t = ease01(1 - (w - bed) / 3);
         this.field[i] = this.field[i]! + bank * t;
       }
     });
@@ -595,7 +606,7 @@ export class Valley {
       const big = meander(2, p, play / 1.7);
       const mid = meander(3, p, play / 5);
       const small = meander(4, p, play / 11);
-      const reach = style === 'ridge' ? 1.9 : style === 'sea' ? 2.1 : 2.4;
+      const reach = style === 'ridge' ? 2.2 : style === 'sea' ? 2.1 : 2.4;
       // Only a nibble of per-tile jitter. The old two-tile teeth were most
       // of what made an edge look sawn rather than drawn: at this scale
       // the eye reads them as a staircase, and the warp above is doing the
@@ -639,13 +650,22 @@ export class Valley {
     const coastWarp = (x: number, y: number): number => {
       // The domain warp is what makes a coast curl rather than merely
       // wobble: the field is sampled at a point that has itself been
-      // moved by another field.
-      const wx = (this.noise(21, x, y, 23) - 0.5) * 16;
-      const wy = (this.noise(22, x, y, 23) - 0.5) * 16;
+      // moved by another field, at two scales.
+      const wx =
+        (this.noise(21, x, y, 47) - 0.5) * 30 + (this.noise(26, x, y, 15) - 0.5) * 11;
+      const wy =
+        (this.noise(22, x, y, 47) - 0.5) * 30 + (this.noise(27, x, y, 15) - 0.5) * 11;
+      // Five octaves, and the first one is nearly half the map across.
+      // That octave is what stops the LANDMASS being a rounded square: the
+      // finer scales only ever decorate an outline, while a wavelength
+      // this long moves whole quarters of the coast in or out and leaves
+      // the valley a shape rather than a rectangle with bites in it.
       return (
-        (this.noise(23, x + wx, y + wy, 19) - 0.5) * 1.0 +
-        (this.noise(24, x + wx, y + wy, 8) - 0.5) * 0.55 +
-        (this.noise(25, x, y, 3.4) - 0.5) * 0.3
+        (this.noise(28, x + wx, y + wy, 44) - 0.5) * 1.15 +
+        (this.noise(23, x + wx, y + wy, 19) - 0.5) * 0.8 +
+        (this.noise(24, x + wx, y + wy, 8) - 0.5) * 0.45 +
+        (this.noise(25, x, y, 3.4) - 0.5) * 0.26 +
+        (this.noise(29, x, y, 1.7) - 0.5) * 0.14
       );
     };
 
@@ -675,9 +695,13 @@ export class Valley {
         // down the other way and cut a third of the valley off the
         // landmass. No border takes more than a fifth of the playable
         // side, wherever the two fields happen to agree.
-        const cut =
-          Math.min(depth + Math.max(0, -coastWarp(x, y)) * 22, play * 0.2) *
-          this.reservedFalloff(x, y);
+        // Saturating rather than clamped. A hard `min` draws a straight
+        // line of its own wherever two deep fields agree — the coast runs
+        // along the cap for as far as the saturation lasts — so the cap
+        // is approached and never reached.
+        const want = depth + Math.max(0, -coastWarp(x, y)) * 26;
+        const ceiling = play * 0.24;
+        const cut = ceiling * (1 - Math.exp(-want / ceiling)) * this.reservedFalloff(x, y);
         /** How far in from the border this tile sits, and how far the
          * border reaches here — the two numbers the rock ramp and the
          * treeline's thickness are both drawn from. */
@@ -746,7 +770,17 @@ export class Valley {
         for (const s of mix) if (s.w > best.w) best = s;
         const style = styleAt(this.perimeterOf(best.side, best.u), i);
         if (style === 'sea') this.terrain[i] = Terrain.Water;
-        else if (style === 'ridge') this.terrain[i] = Terrain.Rock;
+        else if (style === 'ridge') {
+          // Rock above the treeline, ground below it. A range whose every
+          // tile is bare stone from the valley floor to the sky is one
+          // pale slab on the horizon — and at a distance the slab's inner
+          // limit is the straightest line on the map, because it is the
+          // play boundary. Where the far field comes out low, the slope
+          // stays ground, takes timber with the rest of the margin, and
+          // the mountain gains a wooded foot to stand on.
+          const h = this.marginHeight(best.side, best.u, best.d, 'ridge');
+          this.terrain[i] = h < 1.25 ? Terrain.Grass : Terrain.Rock;
+        }
         // A forest margin stays grass here; it takes its timber in `plantBelt`.
       }
     }
@@ -1003,18 +1037,25 @@ export class Valley {
     density: number,
   ): number {
     let placed = 0;
-    const R = Math.ceil(r) + 1;
+    // Room for the outline to bulge past the nominal radius.
+    const R = Math.ceil(r * 1.5) + 1;
     for (let dy = -R; dy <= R; dy++) {
       for (let dx = -R; dx <= R; dx++) {
         const x = Math.floor(c.x) + dx;
         const y = Math.floor(c.y) + dy;
         if (!this.inPlay(x, y)) continue;
         const d = Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y);
-        if (d > r) continue;
-        // Full density through the heart, thinning over the outer third:
-        // a stand should read as a wood with a ragged edge, not as a
-        // scatter of single trees over a wide circle.
-        const p = density * (1 - 0.85 * ease01((d - r * 0.62) / (r * 0.38)));
+        // The outline is a lobed one, not a circle. `r` is what the stand
+        // is worth rather than where it ends: the edge runs from about
+        // two thirds of it to about half again, on a noise whose
+        // wavelength scales with the stand, so a big wood gets big lobes
+        // and a copse gets a rounded one. A disc reads as a stamp.
+        const lobe = r * (0.7 + 0.72 * this.noise(res * 7 + 30, x, y, Math.max(3.5, r * 1.1)));
+        if (d > lobe) continue;
+        // Full density through the heart, thinning over the outer third,
+        // with the stand's own glades cut into it.
+        const glade = 0.64 + 0.5 * this.noise(res * 7 + 31, x, y, Math.max(2.6, r * 0.55));
+        const p = density * (1 - 0.85 * ease01((d - lobe * 0.6) / (lobe * 0.4))) * glade;
         if (this.jitter(x, y, res * 31 + 5) > p) continue;
         if (this.plant(x, y, res, amt)) placed++;
       }
@@ -1036,10 +1077,14 @@ export class Valley {
           const dd = distToSegment(x + 0.5, y + 0.5, course[s]!, course[s + 1]!);
           if (dd < d) d = dd;
         }
-        const wander = (this.noise(9, x, y, 11) - 0.5) * halfWidth * 0.7;
+        // The line wanders, and its depth breathes: a treeline that holds
+        // one width for forty tiles is a hedge.
+        const wander = (this.noise(9, x, y, 19) - 0.5) * halfWidth * 1.1;
+        const swell = halfWidth * (0.62 + 1.05 * this.noise(18, x, y, 21));
         const w = d + wander;
-        if (w > halfWidth) continue;
-        const p = density * (1 - 0.8 * ease01((w - halfWidth * 0.6) / (halfWidth * 0.4)));
+        if (w > swell) continue;
+        const glade = 0.58 + 0.6 * this.noise(19, x, y, 9);
+        const p = density * (1 - 0.8 * ease01((w - swell * 0.55) / (swell * 0.45))) * glade;
         if (this.jitter(x, y, 17) > p) continue;
         if (this.plant(x, y, TileResource.Wood, amt)) placed++;
       }
@@ -1241,12 +1286,20 @@ export class Valley {
    * Timber only, and near the keep only. Out in the valley a thin stand
    * is a thin stand, and a player who sites a hut at one has made a
    * choice rather than been handed a trap.
+   *
+   * Two numbers hold this to a nibble. `want` is three tiles' worth, not
+   * a day's work: a hut that clips the corner of a real wood is a thin
+   * spot, not a trap, and felling what IT sees leaves the next site short
+   * in turn — the pass then eats a stand's near edge outward, pass after
+   * pass, until nothing stands within a hut's reach of the town. And the
+   * passes are capped, so even where it does bite, it bites three tiles
+   * deep and stops.
    */
-  noDeadWoodSites(starts: readonly StartSpot[], rings = 6, want = 40): number {
+  noDeadWoodSites(starts: readonly StartSpot[], rings = 6, want = 24): number {
     const def = buildingDef('woodcutter');
     const radius = gatherRecipeOf(def)!.radius;
     let felled = 0;
-    for (let pass = 0; pass < 12; pass++) {
+    for (let pass = 0; pass < 3; pass++) {
       const map = this.toMap();
       for (const s of starts) {
         for (let dy = 0; dy < 3; dy++) {
@@ -1693,11 +1746,15 @@ export function audit(a: Authored): AuditReport {
       const gather = gatherRecipeOf(buildingDef(type))!;
       const o = gatherOrigin(buildingDef(type), at.x, at.y);
       const held = countResourceNear(v, o.x, o.y, RESOURCE_CODE[gather.resource]!, gather.radius);
-      if (held < want) {
+      // A trap, not a merely thin spot: below four tiles' worth is a hut
+      // that fells what it can see and then stands idle.
+      if (held < 24) {
         problems.push(
           `the first legal ${type} site out of the keep can only work ${held} — a stray ` +
             'grove tile is making a dead spot look legal',
         );
+      } else if (held < want) {
+        lines.push(`  (the first ${type} site is a thin one at ${held})`);
       }
     }
   }

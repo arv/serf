@@ -45,8 +45,8 @@ export function build(): Authored {
     .level(keep, 12, 0.45, 6)
     // The mere south-west of the town and the beck draining out of it:
     // the valley's water, well behind the pass.
-    .pond(at(-15, 9), 4)
-    .river([at(-15, 10), at(-18, 21), at(-22, 33), at(-25, 44)], 1.3, 0.08)
+    .pond(at(-13, 8), 4.6)
+    .river([at(-13, 9), at(-17, 21), at(-21, 33), at(-25, 44)], 1.3, 0.08)
     // The camp's own ground: the def pins it fifteen tiles off the corner,
     // and the western range would otherwise take it. The band eases away
     // instead, leaving the hollow in the hills the bandits sit in.
