@@ -3,6 +3,7 @@ import type { CouncilHooks, CouncilView } from '../ui/WarCouncil';
 import { sanitizeLobbyConfig, defaultLobbyConfig, type LobbyConfig } from '../protocol/lobby';
 import type { NetInfo } from '../protocol/messages';
 import { PlayerKind } from '../sim/player';
+import { CouncilPhase } from '../ui/WarCouncil.tsx';
 
 /**
  * Main-thread lobby flow: a short-lived JSON WebSocket for room setup. On
@@ -214,7 +215,7 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
 
     const [view, setView] = createSignal<CouncilView>({
       notice: req.notice,
-      phase: 'connecting',
+      phase: CouncilPhase.connecting,
       code: '',
       yourSeat: isHost ? 0 : -1,
       seats: [],
@@ -303,7 +304,7 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
       } else if (msg.t === 'room') {
         setView({
           notice: view().notice,
-          phase: 'lobby',
+          phase: CouncilPhase.lobby,
           code: String(msg.code ?? ''),
           yourSeat: Number(msg.yourSeat ?? -1),
           // Sliced because the length is the relay's word too, and a table

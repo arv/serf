@@ -1,4 +1,8 @@
 import type { AiWorldSummary, RivalSummary } from './summary.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as ArchetypeNs from './archetypeEnum.ts';
+export * as Archetype from './archetypeEnum.ts';
+export type Archetype = Enum<typeof ArchetypeNs>;
 
 /**
  * Reading the opponent: what kind of game is the other lord playing?
@@ -36,7 +40,6 @@ import type { AiWorldSummary, RivalSummary } from './summary.ts';
  * because behind fog three quite different openings look much alike.
  */
 
-export type Archetype = 'rusher' | 'booming' | 'turtling' | 'unknown';
 
 /**
  * The numbers the classifier turns on. Calibrated by watching the three
@@ -69,12 +72,12 @@ export const ARCHETYPE = {
  * things at minute five and at minute twenty.
  */
 export function classifyRival(rival: RivalSummary, minutes: number): Archetype {
-  if (!rival.alive) return 'unknown';
-  if (minutes < ARCHETYPE.readableFrom) return 'unknown';
+  if (!rival.alive) return ArchetypeNs.unmet;
+  if (minutes < ARCHETYPE.readableFrom) return ArchetypeNs.unmet;
 
   // A force at our gates settles it, whatever else they have been doing.
   const raid = rival.contact.firstAttackMin;
-  if (raid >= 0 && raid <= ARCHETYPE.rushBefore) return 'rusher';
+  if (raid >= 0 && raid <= ARCHETYPE.rushBefore) return ArchetypeNs.rusher;
 
   // Their strength as best the scout knows it. `peak` rather than `total`:
   // it is the more accurate of the two by a fifth (summary.ts, RivalIntel).
@@ -83,12 +86,12 @@ export function classifyRival(rival: RivalSummary, minutes: number): Archetype {
   // Without their castle located there is no village to weigh the army
   // against, and a seat that has simply not looked must not read its own
   // idleness as an opponent playing quietly.
-  if (!rival.found) return 'unknown';
+  if (!rival.found) return ArchetypeNs.unmet;
 
-  if (army >= ARCHETYPE.force && rival.buildings < ARCHETYPE.village) return 'rusher';
-  if (army <= ARCHETYPE.quiet && rival.buildings >= ARCHETYPE.village) return 'booming';
-  if (army >= ARCHETYPE.force) return 'turtling';
-  return 'unknown';
+  if (army >= ARCHETYPE.force && rival.buildings < ARCHETYPE.village) return ArchetypeNs.rusher;
+  if (army <= ARCHETYPE.quiet && rival.buildings >= ARCHETYPE.village) return ArchetypeNs.booming;
+  if (army >= ARCHETYPE.force) return ArchetypeNs.turtling;
+  return ArchetypeNs.unmet;
 }
 
 /**
@@ -98,10 +101,10 @@ export function classifyRival(rival: RivalSummary, minutes: number): Archetype {
  * the clock), then turtling, then booming; ties break on the lower seat id
  * so two hosts read the same valley identically.
  */
-const LOUDNESS: Record<Archetype, number> = { rusher: 3, turtling: 2, booming: 1, unknown: 0 };
+const LOUDNESS: Record<Archetype, number> = { [ArchetypeNs.rusher]: 3, [ArchetypeNs.turtling]: 2, [ArchetypeNs.booming]: 1, [ArchetypeNs.unmet]: 0 };
 
 export function readOpponent(summary: AiWorldSummary): Archetype {
-  let best: Archetype = 'unknown';
+  let best: Archetype = ArchetypeNs.unmet;
   for (const rival of summary.rivals) {
     if (!rival.alive) continue;
     const kind = classifyRival(rival, summary.minutes);

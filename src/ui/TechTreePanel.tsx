@@ -9,6 +9,10 @@ import { COMPACT, SHORT } from './breakpoints';
 import { goodEntries } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { TECH_IDS } from '../sim/defs/techs';
+import type { Enum } from '../shared/enum.ts';
+import * as TechNodeStateNs from './techNodeStateEnum.ts';
+export * as TechNodeState from './techNodeStateEnum.ts';
+export type TechNodeState = Enum<typeof TechNodeStateNs>;
 
 const BRANCH_LABELS: Record<string, string> = {
   agriculture: 'Agriculture',
@@ -16,24 +20,23 @@ const BRANCH_LABELS: Record<string, string> = {
   warfare: 'Warfare',
 };
 
-type NodeState = 'done' | 'researching' | 'available' | 'unaffordable' | 'locked';
 
 export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
-  const state = (id: TechId): NodeState => {
+  const state = (id: TechId): TechNodeState => {
     const t = techs();
-    if (t.researched.includes(id)) return 'done';
-    if (t.active?.tech === id) return 'researching';
+    if (t.researched.includes(id)) return TechNodeStateNs.done;
+    if (t.active?.tech === id) return TechNodeStateNs.researching;
     // No abbey, no research. The head-note already says so in words; the
     // node has to agree in form — 'available' dressed it in the pointer
     // cursor and hover glow while the click handler (rightly) swallowed
     // the click, a control that invites and then answers with nothing.
-    if (!t.hasAbbey) return 'locked';
+    if (!t.hasAbbey) return TechNodeStateNs.locked;
     const def = TECH_DEFS[id];
-    if (!def.prereqs.every((p) => t.researched.includes(p))) return 'locked';
-    if (t.active) return 'locked';
+    if (!def.prereqs.every((p) => t.researched.includes(p))) return TechNodeStateNs.locked;
+    if (t.active) return TechNodeStateNs.locked;
     const s = stock();
     const affordable = GOODS.every((g) => (s[g] ?? 0) >= (def.cost[g] ?? 0));
-    return affordable ? 'available' : 'unaffordable';
+    return affordable ? TechNodeStateNs.available : TechNodeStateNs.unaffordable;
   };
 
   const progress = (id: TechId): number => {
@@ -237,15 +240,15 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
                     classList={{ 'tech-node': true, [state(id)]: true }}
                     {...tooltip(() => <TechTip tech={id} />)}
                     onClick={() => {
-                      if (state(id) === 'available' && techs().hasAbbey) props.onResearch(id);
+                      if (state(id) === TechNodeStateNs.available && techs().hasAbbey) props.onResearch(id);
                     }}
                   >
                     {/* First in the DOM so it paints behind the text. */}
-                    <Show when={state(id) === 'researching'}>
+                    <Show when={state(id) === TechNodeStateNs.researching}>
                       <div class="fill" style={{ width: `${progress(id)}%` }} />
                     </Show>
                     <b>
-                      {state(id) === 'done' ? '✓ ' : ''}
+                      {state(id) === TechNodeStateNs.done ? '✓ ' : ''}
                       {techName(id)}
                     </b>
                     <span class="cost">

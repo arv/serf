@@ -2,6 +2,7 @@ import { isPostureId, postureAdvice, type PostureId } from './posture.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 import { UnitTypeId } from '../sim/defs/units.ts';
 import { asUnitTypeId } from '../sim/defs/units.ts';
+import { postureFromKey } from './posture.ts';
 
 /**
  * The contract between the LLM strategist and the AI brain: which playbook
@@ -154,9 +155,12 @@ export function parseAdvice(raw: string): StrategyAdvice | null {
   // A posture names every knob it steers, so it goes down first and the
   // per-key passes below overwrite whatever the reply also spelled out.
   const advice: StrategyAdvice = {};
-  if (Object.hasOwn(obj, 'posture') && isPostureId(obj['posture'])) {
-    Object.assign(advice, postureAdvice(obj['posture']));
-    advice.posture = obj['posture'];
+  // The model answers with the word it was shown; a posture reaching this
+  // screen as an id (the lab, a replayed trace) is read too.
+  const posture = postureFromKey(obj['posture']) ?? (isPostureId(obj['posture']) ? obj['posture'] : undefined);
+  if (posture !== undefined) {
+    Object.assign(advice, postureAdvice(posture));
+    advice.posture = posture;
   }
 
   for (const key of Object.keys(ADVICE_RANGES) as (keyof typeof ADVICE_RANGES)[]) {

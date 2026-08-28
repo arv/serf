@@ -4,41 +4,7 @@ import { buildingDef } from '../sim/defs/buildings';
 import { canPlace } from '../sim/world';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { HIRE_SERF_COST } from '../sim/defs/balance';
-import {
-  bandArm,
-  buildChord,
-  debugOpen,
-  fogEnabled,
-  lastAlert,
-  muted,
-  myPlayerId,
-  openPanel,
-  orderMode,
-  placing,
-  population,
-  pushToast,
-  quitConfirm,
-  replayMode,
-  selectedBuilding,
-  setBandArm,
-  setBuildAim,
-  setBuildChord,
-  setDebugOpen,
-  setFogEnabled,
-  setOpenPanel,
-  setOrderMode,
-  setPlacing,
-  setQuitConfirm,
-  setSelectedBuilding,
-  setSelection,
-  setSelectionGroup,
-  setTechPanelOpen,
-  stock,
-  techPanelOpen,
-  techs,
-  toggleMuted,
-  type OrderMode,
-} from '../ui/store';
+import { bandArm, buildChord, debugOpen, fogEnabled, lastAlert, muted, myPlayerId, openPanel, orderMode, placing, population, pushToast, quitConfirm, replayMode, selectedBuilding, setBandArm, setBuildAim, setBuildChord, setDebugOpen, setFogEnabled, setOpenPanel, setOrderMode, setPlacing, setQuitConfirm, setSelectedBuilding, setSelection, setSelectionGroup, setTechPanelOpen, stock, techPanelOpen, techs, toggleMuted } from '../ui/store';
 import { buildAffordable, buildUnlocked, buildingForKey } from '../ui/buildMenu';
 import {
   HIRE_KEY,
@@ -76,6 +42,7 @@ import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
 import { CommandKind } from '../sim/commands';
 import { ControlGroupKind } from './groups';
+import { OrderMode } from '../ui/store';
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
@@ -346,7 +313,7 @@ export class Controls {
     // Nobody to order about — an armed order over an empty selection would
     // eat the click that was going to select someone. The rally flag is
     // the exception: it is armed from a selected barracks, not a squad.
-    if (mode === 'rally') {
+    if (mode === OrderMode.rally) {
       if (!this.#rallyTarget()) return;
     } else if (mode !== null && (this.#selection.size === 0 || replayMode())) {
       return;
@@ -488,7 +455,7 @@ export class Controls {
       play('uiClick');
     } else if (letter === 'A' || letter === 'M') {
       if (this.#selection.size > 0 && !replayMode()) {
-        this.armOrder(letter === 'A' ? 'attack' : 'move');
+        this.armOrder(letter === 'A' ? OrderMode.attack : OrderMode.move);
         play('uiClick');
       } else if (letter === 'M') {
         toggleMuted();
@@ -568,7 +535,7 @@ export class Controls {
 
     if (letter === RALLY_KEY && canRally(b)) {
       // Arms the flag for the next click, exactly like the card's button.
-      this.armOrder('rally');
+      this.armOrder(OrderMode.rally);
       play('uiClick');
       return true;
     }
@@ -713,7 +680,7 @@ export class Controls {
     // Without this, recalling a control group left rally armed with
     // nothing to plant for, and the next map click was swallowed. The
     // empty-selection case is the disarm further down.
-    if (sel.size > 0 && orderMode() === 'rally') this.armOrder(null);
+    if (sel.size > 0 && orderMode() === OrderMode.rally) this.armOrder(null);
     this.#selection = sel;
     setSelection(new Set(sel));
     this.#publishGroup();
@@ -773,8 +740,8 @@ export class Controls {
           this.#touchOrigin = { x: e.clientX, y: e.clientY };
           return;
         }
-        if (order === 'rally') this.#issueRally(e.clientX, e.clientY);
-        else this.#issueMove(e.clientX, e.clientY, order === 'attack');
+        if (order === OrderMode.rally) this.#issueRally(e.clientX, e.clientY);
+        else this.#issueMove(e.clientX, e.clientY, order === OrderMode.attack);
         this.armOrder(null);
       } else if (e.button === 2) {
         this.armOrder(null);
@@ -988,8 +955,8 @@ export class Controls {
     const order = this.#liveOrder();
     if (order) {
       if (e.pointerType === 'touch' && e.button === 0 && heldStill) {
-        if (order === 'rally') this.#issueRally(e.clientX, e.clientY);
-        else this.#issueMove(e.clientX, e.clientY, order === 'attack');
+        if (order === OrderMode.rally) this.#issueRally(e.clientX, e.clientY);
+        else this.#issueMove(e.clientX, e.clientY, order === OrderMode.attack);
         this.armOrder(null);
       }
       return;
@@ -1573,7 +1540,7 @@ export class Controls {
    */
   #liveOrder(): OrderMode | null {
     const order = orderMode();
-    if (order === 'rally' && !this.#rallyTarget()) {
+    if (order === OrderMode.rally && !this.#rallyTarget()) {
       this.armOrder(null);
       return null;
     }

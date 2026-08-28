@@ -88,6 +88,10 @@ import { GoodId } from '../sim/defs/goods';
 import { goodEntries } from '../sim/defs/goods';
 import { MatchState } from '../sim/world';
 import { NetState } from '../protocol/messages';
+import { HudPanel } from './store';
+import { MinimapMode } from './Minimap.tsx';
+import { LlmState } from '../ai/strategist';
+import { CONSULT_OUTCOME_KEYS } from '../ai/strategist';
 
 const SPEEDS = [
   { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },
@@ -215,7 +219,7 @@ export function Hud(props: {
    * that doesn't. The markup knows; it can say so.
    */
   const speedIsSingle = (): boolean => isCompact() && isSolo();
-  const menuOpen = (): boolean => openPanel() === 'menu';
+  const menuOpen = (): boolean => openPanel() === HudPanel.menu;
   /** The newest saved game, as of the last time the menu was opened: what
    * the Load button reads to know whether there is anything to load, and
    * to name it. Read on open rather than once at mount, because saving
@@ -225,7 +229,7 @@ export function Hud(props: {
    * not necessarily the current one. The click settles that itself. */
   const [lastSave, setLastSave] = createSignal<string | null>(null);
   const setMenuOpen = (open: boolean): void => {
-    setOpenPanel(open ? 'menu' : null);
+    setOpenPanel(open ? HudPanel.menu : null);
     if (open) void latestSaveName().then(setLastSave);
   };
   /** Nothing in hand: what greys the rail's ✕ out, and what leaves M free
@@ -339,7 +343,7 @@ export function Hud(props: {
               ))}
               onClick={() => setMinimapOpen(!minimapOpen())}
             >
-              <Minimap source={props.minimap} mode="thumb" />
+              <Minimap source={props.minimap} mode={MinimapMode.thumb} />
             </button>
           </Show>
           {/* The lasso is the only way to band-select without a pointer
@@ -441,8 +445,8 @@ export function Hud(props: {
    * a one-time toast, not a standing shrug. */
   const llmBadge = (): string | null => {
     const s = llmStatus();
-    if (s?.state === 'loading') return `Strategist: downloading ${s.pct}%`;
-    if (s?.state === 'ready') return 'Strategist: on';
+    if (s?.state === LlmState.loading) return `Strategist: downloading ${s.pct}%`;
+    if (s?.state === LlmState.ready) return 'Strategist: on';
     return null;
   };
   /** Each seat's newest standing pile, in English — the "where the AI
@@ -1906,7 +1910,7 @@ export function Hud(props: {
                     {(t) => (
                       <details>
                         <summary>
-                          <span class={t.outcome}>{t.outcome}</span> · seat {t.playerId} · min{' '}
+                          <span class={CONSULT_OUTCOME_KEYS[t.outcome]}>{CONSULT_OUTCOME_KEYS[t.outcome]}</span> · seat {t.playerId} · min{' '}
                           {t.minutes} · {(t.ms / 1000).toFixed(1)}s
                           {t.advice?.reason ? ` — ${t.advice.reason}` : ''}
                         </summary>
@@ -2242,7 +2246,7 @@ export function Hud(props: {
             while the card is off. Press-and-drag steers the camera. */}
         <Show when={!isCompact()}>
           <div class="hud-minimap panel">
-            <Minimap source={props.minimap} mode="pan" />
+            <Minimap source={props.minimap} mode={MinimapMode.pan} />
           </div>
         </Show>
 
@@ -2268,7 +2272,7 @@ export function Hud(props: {
         <div class="hud-minimap-sheet panel">
           <Minimap
             source={props.minimap}
-            mode="jump"
+            mode={MinimapMode.jump}
             onNavigate={() => setMinimapOpen(false)}
           />
           <button class="minimap-close" aria-label="Close the map" onClick={() => setMinimapOpen(false)}>

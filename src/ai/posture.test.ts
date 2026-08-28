@@ -1,16 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { parseAdvice, toOverride, ADVICE_RANGES } from './advice.ts';
-import {
-  choosePosture,
-  choosePostureReadingOpponent,
-  isPostureId,
-  POSTURES,
-  POSTURE_JSON_SCHEMA,
-  POSTURE_ORDER,
-  postureAdvice,
-  type PostureId,
-} from './posture.ts';
+import { choosePosture, choosePostureReadingOpponent, isPostureId, POSTURES, POSTURE_JSON_SCHEMA, POSTURE_ORDER, postureAdvice } from './posture.ts';
 import type { AiWorldSummary } from './summary.ts';
+import { PostureId } from './posture.ts';
+import { POSTURE_KEYS } from './posture.ts';
+import { postureFromKey } from './posture.ts';
 
 /**
  * Postures are the strategist's whole vocabulary now, so what is covered
@@ -81,30 +75,35 @@ describe('the posture table', () => {
   });
 
   it('quotes every stance to the model, and only real ones', () => {
-    expect([...POSTURE_JSON_SCHEMA.properties.posture.enum]).toEqual([...POSTURE_ORDER]);
+    // The schema quotes words, because the model answers in words.
+    expect([...POSTURE_JSON_SCHEMA.properties.posture.enum]).toEqual(
+      POSTURE_ORDER.map((id) => POSTURE_KEYS[id]),
+    );
     expect(POSTURE_ORDER.every(isPostureId)).toBe(true);
-    expect(isPostureId('turtle')).toBe(false);
-    expect(isPostureId('__proto__')).toBe(false);
+    expect(POSTURE_ORDER.map((id) => postureFromKey(POSTURE_KEYS[id]))).toEqual([...POSTURE_ORDER]);
+    expect(postureFromKey('turtle')).toBeUndefined();
+    expect(postureFromKey('__proto__')).toBeUndefined();
+    expect(isPostureId(99)).toBe(false);
   });
 
   it('hands out copies, so one seat cannot edit the stance another seat will get', () => {
-    const a = postureAdvice('siege');
+    const a = postureAdvice(PostureId.siege);
     a.serfTarget = 99;
-    expect(postureAdvice('siege').serfTarget).toBe(POSTURES.siege.knobs.serfTarget);
+    expect(postureAdvice(PostureId.siege).serfTarget).toBe(POSTURES[PostureId.siege].knobs.serfTarget);
   });
 });
 
 describe('parseAdvice on a posture reply', () => {
   it('expands a stance name into its whole knob set', () => {
     const advice = parseAdvice('{"posture":"siege","reason":"castle found"}');
-    expect(advice).toMatchObject({ ...POSTURES.siege.knobs, posture: 'siege' });
+    expect(advice).toMatchObject({ ...POSTURES[PostureId.siege].knobs, posture: PostureId.siege });
     expect(advice?.reason).toBe('castle found');
   });
 
   it('keeps the stance out of what reaches the sim', () => {
     const advice = parseAdvice('{"posture":"fortify","reason":"raided"}');
     const override = toOverride(advice!);
-    expect(override).toEqual(POSTURES.fortify.knobs);
+    expect(override).toEqual(POSTURES[PostureId.fortify].knobs);
     expect('posture' in override).toBe(false);
     expect('reason' in override).toBe(false);
   });
@@ -118,7 +117,7 @@ describe('parseAdvice on a posture reply', () => {
   it('lets an explicitly named knob beat the stance it came with', () => {
     const advice = parseAdvice('{"posture":"expand","serfTarget":7}');
     expect(advice?.serfTarget).toBe(7);
-    expect(advice?.houseLimit).toBe(POSTURES.expand.knobs.houseLimit);
+    expect(advice?.houseLimit).toBe(POSTURES[PostureId.expand].knobs.houseLimit);
   });
 
   it('still parses a bare knob reply, so the noise floor is unchanged', () => {
@@ -129,40 +128,40 @@ describe('parseAdvice on a posture reply', () => {
 describe('choosePosture — the null', () => {
   it('drops everything to fortify when the castle is under attack', () => {
     expect(choosePosture(summary({ me: { ...summary().me, underAttack: true } }))).toBe(
-      'fortify',
+      PostureId.fortify,
     );
   });
 
   it('musters while no rival castle has been found', () => {
     const hidden = rival({ found: false, distance: -1 });
-    expect(choosePosture(summary({ rivals: [hidden] }))).toBe('muster');
+    expect(choosePosture(summary({ rivals: [hidden] }))).toBe(PostureId.muster);
   });
 
   it('sieges as soon as a castle is on the map, thin army and all', () => {
     const thin = { ...summary().me, army: { knight: 1, spearman: 0, archer: 0 } };
-    expect(choosePosture(summary({ me: thin, rivals: [rival()] }))).toBe('siege');
+    expect(choosePosture(summary({ me: thin, rivals: [rival()] }))).toBe(PostureId.siege);
   });
 
   it('keeps sieging while merely outgunned — only the yard breaks stance', () => {
     const seen = rival({ intel: { ageTicks: 400, heavy: 9, light: 0, ranged: 0, total: 9, peak: 9 } });
-    expect(choosePosture(summary({ rivals: [seen] }))).toBe('siege');
+    expect(choosePosture(summary({ rivals: [seen] }))).toBe(PostureId.siege);
   });
 
   it('does not go economy on a small village, which is what lost the draft rule', () => {
     const small = { ...summary().me, serfs: 6, pop: 8 };
-    expect(choosePosture(summary({ me: small, rivals: [rival()] }))).toBe('siege');
+    expect(choosePosture(summary({ me: small, rivals: [rival()] }))).toBe(PostureId.siege);
   });
 
   it('ignores rivals that are already dead', () => {
     const dead = rival({ alive: false });
-    expect(choosePosture(summary({ rivals: [dead] }))).toBe('muster');
+    expect(choosePosture(summary({ rivals: [dead] }))).toBe(PostureId.muster);
   });
 
   it('never reads the opponent, whatever the opponent is doing', () => {
     const boomer = rival({ buildings: 16, intel: null });
     const rusher = rival({ contact: { firstSoldierMin: 2, firstAttackMin: 5, buildingsAtFive: 3 } });
-    expect(choosePosture(summary({ rivals: [boomer] }))).toBe('siege');
-    expect(choosePosture(summary({ rivals: [rusher] }))).toBe('siege');
+    expect(choosePosture(summary({ rivals: [boomer] }))).toBe(PostureId.siege);
+    expect(choosePosture(summary({ rivals: [rusher] }))).toBe(PostureId.siege);
   });
 });
 
@@ -179,7 +178,7 @@ describe('choosePostureReadingOpponent — the same cascade, reading the opponen
   });
 
   it('pounces on a rival that has shown no army worth the name', () => {
-    expect(choosePostureReadingOpponent(summary({ rivals: [quiet] }))).toBe('pounce');
+    expect(choosePostureReadingOpponent(summary({ rivals: [quiet] }))).toBe(PostureId.pounce);
   });
 
   it('still sieges a rival that has an army, thin as ours may be', () => {
@@ -187,7 +186,7 @@ describe('choosePostureReadingOpponent — the same cascade, reading the opponen
       buildings: 16,
       intel: { ageTicks: 200, heavy: 5, light: 0, ranged: 0, total: 5, peak: 5 },
     });
-    expect(choosePostureReadingOpponent(summary({ rivals: [armed] }))).toBe('siege');
+    expect(choosePostureReadingOpponent(summary({ rivals: [armed] }))).toBe(PostureId.siege);
   });
 
   it('keeps the stance when the hostile in the yard is not the opponent in force', () => {
@@ -195,8 +194,8 @@ describe('choosePostureReadingOpponent — the same cascade, reading the opponen
     // Breaking a siege for one of those is the deviation that left the
     // blind rule short of the siege constant it could have named.
     const raided = summary({ me: { ...summary().me, underAttack: true }, rivals: [quiet] });
-    expect(choosePosture(raided)).toBe('fortify');
-    expect(choosePostureReadingOpponent(raided)).toBe('pounce');
+    expect(choosePosture(raided)).toBe(PostureId.fortify);
+    expect(choosePostureReadingOpponent(raided)).toBe(PostureId.pounce);
   });
 
   it('still fortifies when the opponent itself is the one at the gates', () => {
@@ -205,13 +204,13 @@ describe('choosePostureReadingOpponent — the same cascade, reading the opponen
       contact: { firstSoldierMin: 2, firstAttackMin: 5, buildingsAtFive: 3 },
     });
     const raided = summary({ me: { ...summary().me, underAttack: true }, rivals: [rusher] });
-    expect(choosePostureReadingOpponent(raided)).toBe('fortify');
+    expect(choosePostureReadingOpponent(raided)).toBe(PostureId.fortify);
   });
 
   it('fortifies against an unread board — ignorance is not safety', () => {
     const unread = rival({ found: false, buildings: 0, intel: null });
     const raided = summary({ me: { ...summary().me, underAttack: true }, rivals: [unread] });
-    expect(choosePostureReadingOpponent(raided)).toBe('fortify');
+    expect(choosePostureReadingOpponent(raided)).toBe(PostureId.fortify);
   });
 
   it('only ever names a stance the table has', () => {

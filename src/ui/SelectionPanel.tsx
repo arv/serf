@@ -7,18 +7,7 @@ import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
 import { TextTip, TipWrap, UnitTip } from './tooltip';
 import { Key } from './shortcut';
-import {
-  myPlayerId,
-  orderMode,
-  population,
-  selectedBuilding,
-  selection,
-  selectionGroup,
-  setTechPanelOpen,
-  stock,
-  techs,
-  type OrderMode,
-} from './store';
+import { myPlayerId, orderMode, population, selectedBuilding, selection, selectionGroup, setTechPanelOpen, stock, techs } from './store';
 
 import { buildingName, goodName, techName, unitName } from './names';
 import {
@@ -40,6 +29,7 @@ import { BuildingState } from '../sim/entities';
 import { TileResource } from '../sim/map';
 import type { TileResourceKind } from '../sim/map';
 import { StaffingState } from '../protocol/messages';
+import { OrderMode } from './store';
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
   const entries = () =>
@@ -710,14 +700,14 @@ export function SelectionPanel(props: {
                     )}
                   >
                     <button
-                      classList={{ active: orderMode() === 'rally' }}
-                      onClick={() => props.onArmOrder(orderMode() === 'rally' ? null : 'rally')}
+                      classList={{ active: orderMode() === OrderMode.rally }}
+                      onClick={() => props.onArmOrder(orderMode() === OrderMode.rally ? null : OrderMode.rally)}
                     >
                       <Key label="Rally" k={RALLY_KEY} />
                     </button>
                   </TipWrap>
                   <Show
-                    when={orderMode() === 'rally'}
+                    when={orderMode() === OrderMode.rally}
                     fallback={
                       <Show when={b().rally}>
                         <span class="sel-label">
@@ -953,8 +943,8 @@ export function SelectionPanel(props: {
               )}
             >
               <button
-                classList={{ active: orderMode() === 'attack' }}
-                onClick={() => props.onArmOrder(orderMode() === 'attack' ? null : 'attack')}
+                classList={{ active: orderMode() === OrderMode.attack }}
+                onClick={() => props.onArmOrder(orderMode() === OrderMode.attack ? null : OrderMode.attack)}
               >
                 <Key label="Attack" k="A" />
               </button>
@@ -968,8 +958,8 @@ export function SelectionPanel(props: {
               )}
             >
               <button
-                classList={{ active: orderMode() === 'move' }}
-                onClick={() => props.onArmOrder(orderMode() === 'move' ? null : 'move')}
+                classList={{ active: orderMode() === OrderMode.move }}
+                onClick={() => props.onArmOrder(orderMode() === OrderMode.move ? null : OrderMode.move)}
               >
                 <Key label="Move" k="M" />
               </button>
@@ -984,9 +974,9 @@ export function SelectionPanel(props: {
               the buttons, so swapping one sentence for another cannot
               shuffle them. */}
           <div class="sel-line" style={{ opacity: 0.6 }}>
-            {orderMode() === 'attack'
+            {orderMode() === OrderMode.attack
               ? 'click where to attack-move'
-              : orderMode() === 'move'
+              : orderMode() === OrderMode.move
                 ? 'click where to walk'
                 : matchMedia('(pointer: coarse)').matches
                   ? 'tap the ground to send them'

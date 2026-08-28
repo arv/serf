@@ -13,6 +13,13 @@ import type { BuildingSnap, JobSnap, OutcomeSnap, PlayerSnap, TechSnap } from '.
 import { play, setAudioMuted, setAudioVolume } from '../audio/audio';
 import { audioFromUrl, loadAudioPrefs, saveAudioPrefs, volumeToGain } from '../audio/settings';
 import { MatchState } from '../sim/world';
+import type { Enum } from '../shared/enum.ts';
+import * as OrderModeNs from './orderModeEnum.ts';
+export * as OrderMode from './orderModeEnum.ts';
+export type OrderMode = Enum<typeof OrderModeNs>;
+import * as HudPanelNs from './hudPanelEnum.ts';
+export * as HudPanel from './hudPanelEnum.ts';
+export type HudPanel = Enum<typeof HudPanelNs>;
 
 /**
  * Main-thread UI state. Worker structural updates write into this; Solid
@@ -118,7 +125,6 @@ export const [buildChord, setBuildChord] = createSignal(false);
  * Controls owns the writing — see armOrder there — because leaving the mode
  * also has to put the cursor back.
  */
-export type OrderMode = 'attack' | 'move' | 'rally';
 export const [orderMode, setOrderMode] = createSignal<OrderMode | null>(null);
 
 /**
@@ -136,21 +142,20 @@ export const [techs, setTechs] = createSignal<TechSnap>({
   hasAbbey: false,
 });
 /** At most one HUD popup at a time — opening any closes the others. */
-export type HudPanel = 'build' | 'menu' | 'tech' | 'economy' | 'map';
 export const [openPanel, setOpenPanel] = createSignal<HudPanel | null>(null);
-export const techPanelOpen = (): boolean => openPanel() === 'tech';
+export const techPanelOpen = (): boolean => openPanel() === HudPanelNs.tech;
 export const setTechPanelOpen = (open: boolean): void => {
-  setOpenPanel(open ? 'tech' : null);
+  setOpenPanel(open ? HudPanelNs.tech : null);
 };
-export const economyPanelOpen = (): boolean => openPanel() === 'economy';
+export const economyPanelOpen = (): boolean => openPanel() === HudPanelNs.economy;
 export const setEconomyPanelOpen = (open: boolean): void => {
-  setOpenPanel(open ? 'economy' : null);
+  setOpenPanel(open ? HudPanelNs.economy : null);
 };
 /** The minimap sheet (small screens only — the desktop card just stands).
  * In the panel family so opening it closes the menu and Esc closes it. */
-export const minimapOpen = (): boolean => openPanel() === 'map';
+export const minimapOpen = (): boolean => openPanel() === HudPanelNs.map;
 export const setMinimapOpen = (open: boolean): void => {
-  setOpenPanel(open ? 'map' : null);
+  setOpenPanel(open ? HudPanelNs.map : null);
 };
 
 /** The "leave the match?" question, asked by the HUD's own <dialog>

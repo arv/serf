@@ -32,6 +32,7 @@ import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
 import { muted, toggleMuted } from './store';
 import { parseMissionId } from '../sim/defs/missions';
+import { LlmState } from '../ai/strategist';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -395,7 +396,7 @@ export function StartMenu(props: StartMenuProps) {
       .catch(() => {
         // The strategist chunk itself failed to fetch (offline, deploy in
         // flight): same story as a failed model download.
-        if (!menuGone) setLlmWarm({ state: 'failed', reason: 'strategist code failed to load' });
+        if (!menuGone) setLlmWarm({ state: LlmState.failed, reason: 'strategist code failed to load' });
       });
   };
   const setLlmAndWarm = (on: boolean): void => {
@@ -418,9 +419,9 @@ export function StartMenu(props: StartMenuProps) {
   });
   const llmHint = (): string => {
     const s = llmWarm();
-    if (s?.state === 'loading') return `Downloading the model — ${s.pct}%`;
-    if (s?.state === 'ready') return 'Model ready — opponents will consult it from the start';
-    if (s?.state === 'failed') return 'Download failed — opponents will use standard tactics';
+    if (s?.state === LlmState.loading) return `Downloading the model — ${s.pct}%`;
+    if (s?.state === LlmState.ready) return 'Model ready — opponents will consult it from the start';
+    if (s?.state === LlmState.failed) return 'Download failed — opponents will use standard tactics';
     return 'Opponents consult an on-device language model (~400 MB one-time download)';
   };
   // One roll per visit to this screen, which is one roll per launch:

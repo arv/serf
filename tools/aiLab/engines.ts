@@ -10,6 +10,8 @@ import type { PostureId } from '../../src/ai/posture.ts';
 import type { AiWorldSummary } from '../../src/ai/summary.ts';
 import type { ChatEngine } from '../../src/ai/strategist.ts';
 import { UnitTypeId } from '../../src/sim/defs/units.ts';
+import { postureFromKey } from '../../src/ai/posture.ts';
+import { POSTURE_KEYS } from '../../src/ai/posture.ts';
 
 /**
  * The models a bake-off can put in the strategist's seat.
@@ -66,7 +68,7 @@ export type EngineSpec =
   | { kind: 'random'; seed: number }
   | { kind: 'posture' }
   | { kind: 'postureReads' }
-  | { kind: 'postureFixed'; posture: string }
+  | { kind: 'postureFixed'; posture: PostureId }
   | { kind: 'http'; baseUrl: string; model: string };
 
 /**
@@ -86,9 +88,12 @@ export function parseEngineSpec(raw: string, model = 'local-model'): EngineSpec 
   if (raw === 'posture') return { kind: 'posture' };
   if (raw === 'posture-reads') return { kind: 'postureReads' };
   if (raw.startsWith('posture:')) {
-    const posture = raw.slice('posture:'.length);
-    if (!(POSTURE_ORDER as readonly string[]).includes(posture)) {
-      throw new Error(`--engine posture: wants one of ${POSTURE_ORDER.join(', ')}, got "${posture}"`);
+    const word = raw.slice('posture:'.length);
+    const posture = postureFromKey(word);
+    if (posture === undefined) {
+      throw new Error(
+        `--engine posture: wants one of ${POSTURE_ORDER.map((id) => POSTURE_KEYS[id]).join(', ')}, got "${word}"`,
+      );
     }
     return { kind: 'postureFixed', posture };
   }

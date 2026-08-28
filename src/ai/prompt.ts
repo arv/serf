@@ -1,6 +1,7 @@
 import { POSTURES, POSTURE_ORDER } from './posture.ts';
 import type { StrategyAdvice } from './advice.ts';
 import type { AiWorldSummary } from './summary.ts';
+import { POSTURE_KEYS } from './posture.ts';
 
 /**
  * Summary → chat messages. Kept apart from the strategist so the whole
@@ -37,7 +38,7 @@ Fog of war: you know only what your seat has scouted ("explored" is your map cov
 Your one job is posture: how the seat spends the next minute and a half.
 
 Choose exactly one posture:
-${POSTURE_ORDER.map((id) => `- ${id}: ${POSTURES[id].when}`).join('\n')}
+${POSTURE_ORDER.map((id) => `- ${POSTURE_KEYS[id]}: ${POSTURES[id].when}`).join('\n')}
 
 Reply with a single JSON object: {"posture": "<one of the postures above>", "reason": "<a few words citing a specific fact from the match state>"}. Nothing else.`;
 
@@ -113,7 +114,7 @@ export function buildMessages(
     // lfm2.5-350m spent a whole sweep replying with the playbook's own
     // trainPreference — and it has no decision to make about them anyway.
     lastAdvice?.posture
-      ? `Your standing posture is "${lastAdvice.posture}". Keep it or change it, as the state warrants.`
+      ? `Your standing posture is "${POSTURE_KEYS[lastAdvice.posture]}". Keep it or change it, as the state warrants.`
       : 'You have not set a posture yet; the playbook runs at its printed values.',
     'Reply with only the JSON object naming your posture.',
   ];

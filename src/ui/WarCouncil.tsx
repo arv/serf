@@ -8,6 +8,10 @@ import {
 } from '../sim/defs/aiStrategies';
 import { DiceIcon } from './menuChrome';
 import { PlayerKind } from '../sim/player';
+import type { Enum } from '../shared/enum.ts';
+import * as CouncilPhaseNs from './councilPhaseEnum.ts';
+export * as CouncilPhase from './councilPhaseEnum.ts';
+export type CouncilPhase = Enum<typeof CouncilPhaseNs>;
 
 /**
  * The multiplayer waiting room: the start screen's sibling, not its
@@ -28,7 +32,7 @@ export interface CouncilView {
   /** One-line context from the journey here ('Your previous match has
    * ended.') — shown quietly above the lobby. */
   notice?: string;
-  phase: 'connecting' | 'lobby';
+  phase: CouncilPhase;
   code: string;
   yourSeat: number;
   seats: { kind: PlayerKind.human | 'ai'; connected: boolean }[];
@@ -97,7 +101,7 @@ interface SeatRow {
 export function WarCouncil(props: CouncilHooks) {
   const [shared, setShared] = createSignal(false);
   const v = props.view;
-  const inRoom = (): boolean => v().phase === 'lobby';
+  const inRoom = (): boolean => v().phase === CouncilPhaseNs.lobby;
   // Seat 0 runs the council. Derived, not passed in: if the host leaves the
   // lobby the relay renumbers the seats, and whoever lands at 0 inherits
   // the controls without a reload.

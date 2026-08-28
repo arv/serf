@@ -16,6 +16,7 @@ import { UnitTypeId } from '../../src/sim/defs/units.ts';
 import { BuildingState } from '../../src/sim/entities.ts';
 import { PlayerKind } from '../../src/sim/player.ts';
 import { MatchState } from '../../src/sim/world.ts';
+import { LlmState } from '../../src/ai/strategist.ts';
 
 /**
  * One headless match, played the way the game plays it.
@@ -245,7 +246,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
         });
       },
       onStatus: (status: LlmStatus) => {
-        if (status.state === 'failed') failures.push({ playerId, reason: status.reason });
+        if (status.state === LlmState.failed) failures.push({ playerId, reason: status.reason });
       },
       ...(cfg.timeoutMs !== undefined ? { timeoutMs: cfg.timeoutMs } : {}),
       engineFactory: () =>

@@ -85,6 +85,7 @@ import { GameEventKind } from '../sim/world';
 import { MISSION_KEYS } from '../sim/defs/missions';
 import { MatchState } from '../sim/world';
 import { PlayerKind } from '../sim/player';
+import { LlmState } from '../ai/strategist';
 
 /**
  * The playing screen, and everything only it needs: three.js, the render
@@ -116,7 +117,7 @@ async function bootLlmStrategist(
   const strategist = new LlmStrategist({
     sendAdvice: (playerId, override) => host.sendAiAdvice(playerId, override),
     onStatus: (status) => {
-      if (status.state === 'failed') {
+      if (status.state === LlmState.failed) {
         // The badge would just be a standing shrug; say it once and move on.
         console.warn(`[strategist] ${status.reason}`);
         pushToast('The LLM strategist is unavailable — opponents use standard tactics');
@@ -125,7 +126,7 @@ async function bootLlmStrategist(
       }
       setLlmStatus(status);
       // "On" has nothing more to report; linger long enough to be seen.
-      if (status.state === 'ready') setTimeout(() => setLlmStatus(null), 10_000);
+      if (status.state === LlmState.ready) setTimeout(() => setLlmStatus(null), 10_000);
     },
     // Dev builds watch the model work: every consultation lands in the
     // backquote overlay's ledger and prints one console line (the trace

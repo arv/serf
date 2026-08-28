@@ -4,6 +4,13 @@ import { ensureModelCached, withModelDownloadLock } from './modelDownload.ts';
 import { buildMessages, type ChatMessage } from './prompt.ts';
 import type { AiWorldSummary, SeatKnobs } from './summary.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as LlmStateNs from './llmStateEnum.ts';
+export * as LlmState from './llmStateEnum.ts';
+export type LlmState = Enum<typeof LlmStateNs>;
+import * as ConsultOutcomeNs from './consultOutcomeEnum.ts';
+export * as ConsultOutcome from './consultOutcomeEnum.ts';
+export type ConsultOutcome = Enum<typeof ConsultOutcomeNs>;
 
 /**
  * The LLM strategist: the main-thread controller that turns seat summaries
@@ -90,9 +97,9 @@ export interface ChatEngine {
 }
 
 export type LlmStatus =
-  | { state: 'loading'; pct: number; text: string }
-  | { state: 'ready' }
-  | { state: 'failed'; reason: string };
+  | { state: LlmStateNs.loading; pct: number; text: string }
+  | { state: LlmStateNs.ready }
+  | { state: LlmStateNs.failed; reason: string };
 
 /**
  * One consultation, recorded whole for whoever is watching the model work:
@@ -117,7 +124,7 @@ export interface ConsultTrace {
   /** sent = advice went downstairs; kept = the reply parsed but changed
    * nothing (an empty {} or a repeat of standing advice); failed = the
    * engine threw or the reply was unsalvageable. */
-  outcome: 'sent' | 'kept' | 'failed';
+  outcome: ConsultOutcome;
   /** This reply alone, clamped — reason included (sent/kept). */
   advice?: StrategyAdvice;
   /** The whole standing pile after merging this reply (sent/kept). */
@@ -189,7 +196,7 @@ export class LlmStrategist {
       const engine = await (this.#opts.engineFactory ?? (() => this.#buildEngine()))();
       if (this.#disposed) return;
       this.#engine = engine;
-      this.#opts.onStatus({ state: 'ready' });
+      this.#opts.onStatus({ state: LlmStateNs.ready });
     } catch (err) {
       this.#fail(`model failed to load: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -267,15 +274,15 @@ export class LlmStrategist {
       if (Object.keys(override).length > 0 && key !== seat.sentKey) {
         seat.sentKey = key;
         this.#opts.sendAdvice(playerId, override);
-        trace({ outcome: 'sent', advice, standing: seat.advice, override });
+        trace({ outcome: ConsultOutcomeNs.sent, advice, standing: seat.advice, override });
       } else {
-        trace({ outcome: 'kept', advice, standing: seat.advice });
+        trace({ outcome: ConsultOutcomeNs.kept, advice, standing: seat.advice });
       }
     } catch (err) {
       // A hide aborts the consultation on purpose; only genuine failures
       // count toward giving up — or into the trace ledger.
       if (!this.#currentPaused && !this.#disposed) {
-        trace({ outcome: 'failed', error: err instanceof Error ? err.message : String(err) });
+        trace({ outcome: LlmStateNs.failed, error: err instanceof Error ? err.message : String(err) });
       }
       if (!this.#currentPaused && ++this.#failures >= MAX_CONSECUTIVE_FAILURES && !this.#dead) {
         this.#fail(
@@ -323,7 +330,7 @@ export class LlmStrategist {
     // Inert is inert: a strategist that gave up must not keep the model —
     // and its memory and worker — alive for the rest of the match.
     this.#releaseWllama();
-    if (!this.#disposed) this.#opts.onStatus({ state: 'failed', reason });
+    if (!this.#disposed) this.#opts.onStatus({ state: LlmStateNs.failed, reason });
   }
 
   #releaseWllama(): void {
@@ -352,7 +359,7 @@ export class LlmStrategist {
     const loading = ({ loaded, total }: { loaded: number; total: number }): void => {
       if (!this.#disposed && total > 0) {
         this.#opts.onStatus({
-          state: 'loading',
+          state: LlmStateNs.loading,
           pct: Math.round((loaded / total) * 100),
           text: 'downloading model',
         });
@@ -451,7 +458,7 @@ export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () 
   const progress = ({ loaded, total }: { loaded: number; total: number }): void => {
     if (total > 0) {
       report({
-        state: 'loading',
+        state: LlmStateNs.loading,
         pct: Math.round((loaded / total) * 100),
         text: 'downloading model',
       });
@@ -480,10 +487,10 @@ export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () 
           controller.signal,
         );
       }
-      report({ state: 'ready' });
+      report({ state: LlmStateNs.ready });
     } catch (err) {
       report({
-        state: 'failed',
+        state: LlmStateNs.failed,
         reason: `model failed to download: ${err instanceof Error ? err.message : String(err)}`,
       });
     }
@@ -495,3 +502,10 @@ export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () 
     },
   };
 }
+
+/** The spelling of each outcome, for the dev overlay's row class and label. */
+export const CONSULT_OUTCOME_KEYS: Readonly<Record<ConsultOutcome, string>> = {
+  [ConsultOutcomeNs.sent]: 'sent',
+  [ConsultOutcomeNs.kept]: 'kept',
+  [ConsultOutcomeNs.failed]: 'failed',
+};

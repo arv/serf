@@ -7,6 +7,8 @@ import { POSTURES, POSTURE_ORDER, postureAdvice } from './posture.ts';
 import { toOverride } from './advice.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 import { PlayerKind } from '../sim/player.ts';
+import { PostureId } from './posture.ts';
+import { POSTURE_KEYS } from './posture.ts';
 
 /**
  * The prompt is judged on the two things that matter to a small model:
@@ -45,7 +47,7 @@ describe('buildMessages', () => {
     // comes with the situation to pick it under — the model is matching a
     // valley to a label, so a bare list of names would not be the ask.
     for (const id of POSTURE_ORDER) {
-      expect(messages[0]!.content).toContain(id);
+      expect(messages[0]!.content).toContain(POSTURE_KEYS[id]);
       expect(messages[0]!.content).toContain(POSTURES[id].when);
     }
     // Knob values are the table's business, not the model's: quoting them
@@ -63,7 +65,7 @@ describe('buildMessages', () => {
 
   it('names the standing posture without quoting the numbers under it', () => {
     const { first, later } = summaries();
-    const advice = { ...postureAdvice('siege'), posture: 'siege' as const, reason: 'castle found' };
+    const advice = { ...postureAdvice(PostureId.siege), posture: PostureId.siege, reason: 'castle found' };
     const withAdvice = buildMessages(later, advice, first);
     expect(withAdvice[1]!.content).toContain('standing posture is "siege"');
     // The stance's knob blob must not ride along: see the note in
@@ -94,7 +96,7 @@ describe('buildMessages', () => {
 
   it('holds the token budget: the whole prompt stays small', () => {
     const { first, later } = summaries();
-    const total = buildMessages(later, { ...postureAdvice('siege'), posture: 'siege' }, first)
+    const total = buildMessages(later, { ...postureAdvice(PostureId.siege), posture: PostureId.siege }, first)
       .map((m) => m.content)
       .join('').length;
     // ~4 chars per token: 4500 chars keeps the prompt near the 900-token
