@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createWorld } from '../sim/world.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
 import { strategyOf } from '../sim/defs/aiStrategies.ts';
-import { buildMessages, extractSummary } from './prompt.ts';
+import { buildMessages, extractSummary, ChatRole, CHAT_ROLE_KEYS } from './prompt.ts';
 import { POSTURES, POSTURE_ORDER, postureAdvice, PostureId, POSTURE_KEYS } from './posture.ts';
 import { toOverride } from './advice.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
@@ -43,7 +43,7 @@ describe('buildMessages', () => {
   it('is one system briefing and one user report', () => {
     const { first } = summaries();
     const messages = buildMessages(first, null, null);
-    expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
+    expect(messages.map((m) => m.role)).toEqual([ChatRole.system, ChatRole.user]);
     // The menu names every stance the parser will accept, and each one
     // comes with the situation to pick it under — the model is matching a
     // valley to a label, so a bare list of names would not be the ask.
@@ -62,6 +62,18 @@ describe('buildMessages', () => {
     // The report carries the whole summary, not a paraphrase of it.
     expect(messages[1]!.content).toContain(JSON.stringify(first));
     expect(messages[1]!.content).toContain('first consultation');
+  });
+
+  it('spells the roles out again at the engine door', () => {
+    // The ids are ours; 'system' and 'user' are llama.cpp's, which renders
+    // the model's chat template off those words. Nothing else covers the
+    // hand-off — the lab and the tests hand fake engines a ChatMessage[]
+    // straight — so a slip there would reach only a real model, silently.
+    const wire = buildMessages(summaries().first, null, null).map((m) => ({
+      role: CHAT_ROLE_KEYS[m.role],
+      content: m.content,
+    }));
+    expect(wire.map((m) => m.role)).toEqual(['system', 'user']);
   });
 
   it('names the standing posture without quoting the numbers under it', () => {
@@ -86,7 +98,7 @@ describe('buildMessages', () => {
   it('hands the summary back to engines that reason over state', () => {
     const { first, later } = summaries();
     expect(extractSummary(buildMessages(later, null, first))).toEqual(later);
-    expect(extractSummary([{ role: 'user', content: 'no json here' }])).toBeNull();
+    expect(extractSummary([{ role: ChatRole.user, content: 'no json here' }])).toBeNull();
     expect(extractSummary([])).toBeNull();
   });
 

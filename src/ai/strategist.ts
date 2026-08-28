@@ -1,7 +1,7 @@
 import { parseAdvice, toOverride, type StrategyAdvice } from './advice.ts';
 import { POSTURE_JSON_SCHEMA } from './posture.ts';
 import { ensureModelCached, withModelDownloadLock } from './modelDownload.ts';
-import { buildMessages, type ChatMessage } from './prompt.ts';
+import { buildMessages, type ChatMessage, CHAT_ROLE_KEYS } from './prompt.ts';
 import type { AiWorldSummary, SeatKnobs } from './summary.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 import type { Enum } from '../shared/enum.ts';
@@ -406,7 +406,10 @@ export class LlmStrategist {
       complete: async (messages, schemaJson, signal) => {
         const ask = (withSchema: boolean) =>
           wllama.createChatCompletion({
-            messages,
+            // The words, not the ids: llama.cpp keys the model's chat
+            // template on 'system' and 'user'. This is the only place the
+            // spelling is needed, and the only place it is spelled.
+            messages: messages.map((m) => ({ role: CHAT_ROLE_KEYS[m.role], content: m.content })),
             temperature: 0.6,
             max_tokens: MAX_TOKENS,
             abortSignal: signal,

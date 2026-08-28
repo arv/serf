@@ -12,6 +12,7 @@ import {
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 import { PlayerKind } from '../sim/player.ts';
 import { LlmState, ConsultOutcome } from './strategist.ts';
+import { ChatRole } from './prompt.ts';
 
 /**
  * The engine-adapter and warmModel tests go through the strategist's real
@@ -243,7 +244,7 @@ describe('LlmStrategist', () => {
       override: { armyAttackSize: 16 },
     });
     // The prompt verbatim — system glossary plus the match state.
-    expect(t.messages.map((m) => m.role)).toEqual(['system', 'user']);
+    expect(t.messages.map((m) => m.role)).toEqual([ChatRole.system, ChatRole.user]);
     expect(t.ms).toBeGreaterThanOrEqual(0);
     expect(t.minutes).toBeGreaterThanOrEqual(0);
     // The playbook print rides along, so the overlay can show the delta.

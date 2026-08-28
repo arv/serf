@@ -1,6 +1,22 @@
 import { POSTURES, POSTURE_ORDER, POSTURE_KEYS } from './posture.ts';
 import type { StrategyAdvice } from './advice.ts';
 import type { AiWorldSummary } from './summary.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as ChatRoleNs from './chatRoleEnum.ts';
+
+export * as ChatRole from './chatRoleEnum.ts';
+export type ChatRole = Enum<typeof ChatRoleNs>;
+
+/**
+ * The spelling each role is rendered as. llama.cpp applies the model's own
+ * chat template to these words, so they are the engine's vocabulary rather
+ * than ours — the one place they are needed is the hand-off in
+ * strategist.ts.
+ */
+export const CHAT_ROLE_KEYS: Readonly<Record<ChatRole, 'system' | 'user'>> = {
+  [ChatRoleNs.system]: 'system',
+  [ChatRoleNs.user]: 'user',
+};
 
 /**
  * Summary → chat messages. Kept apart from the strategist so the whole
@@ -26,7 +42,7 @@ import type { AiWorldSummary } from './summary.ts';
 /** OpenAI-style chat shape, structurally what WebLLM accepts — declared
  * here so nothing on this path imports the engine package. */
 export interface ChatMessage {
-  role: 'system' | 'user';
+  role: ChatRole;
   content: string;
 }
 
@@ -84,7 +100,7 @@ function intelLine(intel: { heavy: number; light: number; ranged: number; total:
  * genuine pipeline instead of a private side channel into the sim.
  */
 export function extractSummary(messages: readonly ChatMessage[]): AiWorldSummary | null {
-  const user = messages.find((m) => m.role === 'user');
+  const user = messages.find((m) => m.role === ChatRoleNs.user);
   if (!user) return null;
   // Second block of buildMessages' `parts`, which are joined on a blank
   // line and never contain one internally.
@@ -118,7 +134,7 @@ export function buildMessages(
     'Reply with only the JSON object naming your posture.',
   ];
   return [
-    { role: 'system', content: SYSTEM },
-    { role: 'user', content: parts.join('\n\n') },
+    { role: ChatRoleNs.system, content: SYSTEM },
+    { role: ChatRoleNs.user, content: parts.join('\n\n') },
   ];
 }

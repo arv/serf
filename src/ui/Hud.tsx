@@ -90,6 +90,7 @@ import { NetState } from '../protocol/messages';
 import { HudPanel } from './store';
 import { MinimapMode } from './Minimap.tsx';
 import { LlmState, CONSULT_OUTCOME_KEYS } from '../ai/strategist';
+import { CHAT_ROLE_KEYS } from '../ai/prompt';
 
 const SPEEDS = [
   { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },
@@ -1963,7 +1964,7 @@ export function Hud(props: {
                             <For each={t.messages}>
                               {(m) => (
                                 <pre>
-                                  [{m.role}] {m.content}
+                                  [{CHAT_ROLE_KEYS[m.role]}] {m.content}
                                 </pre>
                               )}
                             </For>
