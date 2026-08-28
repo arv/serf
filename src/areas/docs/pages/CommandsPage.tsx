@@ -8,10 +8,13 @@ import { ADMIN_DOCS, COMMAND_DOCS } from '../commandsDoc';
 import { DocLink, Section } from '../components';
 import { Prose } from '../prose';
 import { buildingHref, unitHref } from '../routes';
+import { UNIT_TYPES } from '../../../sim/defs/units';
 
 export function CommandsPage(): JSX.Element {
   const buildKeys = Object.entries(BUILD_KEYS) as [BuildingTypeId, string][];
-  const trainKeys = Object.entries(TRAIN_KEYS) as [UnitTypeId, string][];
+  const trainKeys = UNIT_TYPES.flatMap((u): [UnitTypeId, string][] =>
+    TRAIN_KEYS[u] === undefined ? [] : [[u, TRAIN_KEYS[u]]],
+  );
   return (
     <>
       <h1>Commands</h1>

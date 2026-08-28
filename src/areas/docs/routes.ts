@@ -3,6 +3,8 @@ import { GOODS, type GoodId } from '../../sim/defs/goods';
 import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
 import { goodFromKey } from '../../sim/defs/goods';
 import { GOOD_KEYS } from '../../sim/defs/goods';
+import { UNIT_KEYS } from '../../sim/defs/units';
+import { unitFromKey } from '../../sim/defs/units';
 
 /**
  * What a /docs URL names. Pure — the screen feeds it location.pathname and
@@ -45,7 +47,10 @@ export function parseDocsPath(pathname: string): DocsRoute {
       return { page: 'missing', path: pathname };
     case 'units':
       if (id === undefined) return { page: 'units' };
-      if (isKeyOf(UNIT_DEFS, id)) return { page: 'unit', id };
+      {
+        const unit = unitFromKey(id);
+        if (unit !== undefined) return { page: 'unit', id: unit };
+      }
       return { page: 'missing', path: pathname };
     case 'goods':
       if (id === undefined) return { page: 'goods' };
@@ -70,7 +75,7 @@ export function buildingHref(id: BuildingTypeId): string {
   return `/docs/buildings/${id}`;
 }
 export function unitHref(id: UnitTypeId): string {
-  return `/docs/units/${id}`;
+  return `/docs/units/${UNIT_KEYS[id]}`;
 }
 export function goodHref(id: GoodId): string {
   return `/docs/goods/${GOOD_KEYS[id]}`;

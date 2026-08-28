@@ -1,10 +1,11 @@
 import { REPAIR_COST_SHARE } from './balance.ts';
 import type { GoodAmounts } from './goods.ts';
-import type { UnitClass, UnitTypeId } from './units.ts';
+import type { UnitClass } from './units.ts';
 import type { TechId } from './techs.ts';
 import { GoodId } from './goods.ts';
 import { goodEntries } from './goods.ts';
 import { goodKeys } from './goods.ts';
+import { UnitTypeId } from './units.ts';
 
 /**
  * Two recipe kinds cover every producer in the game:
@@ -245,7 +246,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     buildTicks: 15 * S,
     hp: 150,
     sight: 5.5,
-    workerKind: 'worker',
+    workerKind: UnitTypeId.worker,
     recipe: { kind: 'gather', resource: 'wood', output: GoodId.wood, radius: 8, workTicks: 2.5 * S },
   },
   quarry: {
@@ -258,7 +259,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 150,
     modelScale: 1.2,
     sight: 5.5,
-    workerKind: 'worker',
+    workerKind: UnitTypeId.worker,
     recipe: { kind: 'gather', resource: 'rock', output: GoodId.stone, radius: 8, workTicks: 3 * S },
   },
   house: {
@@ -310,7 +311,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     buildTicks: 15 * S,
     hp: 100,
     sight: 5.5,
-    workerKind: 'worker',
+    workerKind: UnitTypeId.worker,
     recipe: { kind: 'convert', inputs: { [GoodId.water]: 1 }, outputs: { [GoodId.wheat]: 1 }, durationTicks: 10 * S },
   },
   mill: {
@@ -341,7 +342,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     buildTicks: 20 * S,
     hp: 160,
     sight: 5.5,
-    workerKind: 'worker',
+    workerKind: UnitTypeId.worker,
     // The well is already on every build order; making bread want water
     // ties the food chain to it rather than adding a parallel one.
     recipe: {
@@ -360,7 +361,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     buildTicks: 20 * S,
     hp: 150,
     sight: 6.5,
-    workerKind: 'worker',
+    workerKind: UnitTypeId.worker,
     // The early food, and the slow one. Nothing goes in: no field, no well,
     // no flour — one hut and one hand, feeding the barracks the beat it is
     // finished, where the bread chain is a well, a farm, a mill and a bakery
@@ -395,7 +396,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     buildTicks: 20 * S,
     hp: 160,
     sight: 5.5,
-    workerKind: 'worker',
+    workerKind: UnitTypeId.worker,
     // Twenty seconds, up from fifteen: sized to its market rather than its
     // model. Ale's sinks are the abbey's festival sip (1/min at full buff
     // uptime) and, with Ale Rations, the barracks cask (2-3/min at war
@@ -421,7 +422,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 180,
     modelScale: 1.2,
     sight: 5.5,
-    workerKind: 'worker',
+    workerKind: UnitTypeId.worker,
     recipe: { kind: 'gather', resource: 'ironDep', output: GoodId.iron, radius: 4, workTicks: 4 * S },
     mine: true,
   },
@@ -435,7 +436,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 180,
     modelScale: 1.2,
     sight: 5.5,
-    workerKind: 'worker',
+    workerKind: UnitTypeId.worker,
     recipe: { kind: 'gather', resource: 'silverDep', output: GoodId.silver, radius: 4, workTicks: 4 * S },
     mine: true,
   },
@@ -450,7 +451,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 180,
     modelScale: 1.2,
     sight: 5.5,
-    workerKind: 'worker',
+    workerKind: UnitTypeId.worker,
     recipe: { kind: 'gather', resource: 'goldDep', output: GoodId.gold, radius: 4, workTicks: 5 * S },
     mine: true,
   },
@@ -470,7 +471,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     buildTicks: 20 * S,
     hp: 180,
     sight: 5.5,
-    workerKind: 'worker',
+    workerKind: UnitTypeId.worker,
     recipeOptions: [
       {
         recipe: {
@@ -587,9 +588,9 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     trains: [
       // Soldiers march on bread, not on raw grain: the barracks is the far
       // end of mill -> bakery, and wheat is a crop again.
-      { unit: 'knight', cost: { [GoodId.food]: 3, [GoodId.sword]: 1 }, durationTicks: 15 * S },
-      { unit: 'spearman', cost: { [GoodId.food]: 2, [GoodId.spear]: 1 }, durationTicks: 10 * S },
-      { unit: 'archer', cost: { [GoodId.food]: 2, [GoodId.bow]: 1 }, durationTicks: 12 * S },
+      { unit: UnitTypeId.knight, cost: { [GoodId.food]: 3, [GoodId.sword]: 1 }, durationTicks: 15 * S },
+      { unit: UnitTypeId.spearman, cost: { [GoodId.food]: 2, [GoodId.spear]: 1 }, durationTicks: 10 * S },
+      { unit: UnitTypeId.archer, cost: { [GoodId.food]: 2, [GoodId.bow]: 1 }, durationTicks: 12 * S },
     ],
   },
   guardTower: {
@@ -615,7 +616,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // while it stands, and a tower that also hit like four of them made
     // fielding an army the wrong move.
     garrison: {
-      unit: 'archer',
+      unit: UnitTypeId.archer,
       capacity: 2,
       damageMult: 1.5,
       rangeBonus: 2,
@@ -627,7 +628,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       // `light` rather than `ranged`: it is a rock and not a bow, and the
       // light column is the one that does not flinch at the bandits every
       // early wave is made of.
-      levy: { unit: 'serf', class: 'light', damage: 4, cooldownTicks: 30, range: 4 },
+      levy: { unit: UnitTypeId.serf, class: 'light', damage: 4, cooldownTicks: 30, range: 4 },
     },
   },
   roadSite: {

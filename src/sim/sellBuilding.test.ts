@@ -12,6 +12,7 @@ import {
   cmds,
 } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -38,7 +39,7 @@ describe('selling a building', () => {
     expect(sh.stock[GoodId.wood]).toBe(Math.floor(cost / 2));
     const worker = world.units.get(workerId)!;
     expect(worker.dead).toBe(false);
-    expect(worker.kind).toBe('serf');
+    expect(worker.kind).toBe(UnitTypeId.serf);
     expect(worker.homeId).toBeUndefined();
     expect(world.buildings.get(hut.id)).toBeUndefined();
     expect(canPlace(world.map, 'woodcutter', 36, 30)).toBe(true);

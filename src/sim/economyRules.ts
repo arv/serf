@@ -723,7 +723,7 @@ const keepTheQueueWarm: EconomyRule = {
     if (!barracks) return null;
     const around = (good: GoodId): boolean =>
       (ctx.stock[good] ?? 0) + (barracks.inputs[good] ?? 0) + (barracks.inbound[good] ?? 0) > 0;
-    const prefs = ctx.counter
+    const prefs: readonly UnitTypeId[] = ctx.counter
       ? [ctx.counter.unit, ...ctx.strategy.trainPreference]
       : ctx.strategy.trainPreference;
     // Only what the seat can actually train. `enqueueTraining` refuses a

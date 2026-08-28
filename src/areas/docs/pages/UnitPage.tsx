@@ -2,13 +2,7 @@ import { For, Show, createSignal, type JSX } from 'solid-js';
 import type { AnimKey } from '../../../render/characters';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS } from '../../../sim/defs/balance';
 import { BUILDING_DEFS } from '../../../sim/defs/buildings';
-import {
-  COUNTER_TABLE,
-  UNIT_DEFS,
-  WEAPON_OF,
-  type UnitClass,
-  type UnitTypeId,
-} from '../../../sim/defs/units';
+import { COUNTER_TABLE, UNIT_DEFS, WEAPON_OF, type UnitClass } from '../../../sim/defs/units';
 import { buildingName, techName, unitName } from '../../../ui/names';
 import { ALL_BUILDINGS, TRAINED_AT, UNIT_UNLOCKED_BY, fmtSecs } from '../data';
 import { UNIT_DESC } from '../descriptions';
@@ -16,6 +10,7 @@ import { CostList, DocLink, GoodChip, Section, Stat, Stats } from '../components
 import { ModelCard } from '../preview/ModelCard';
 import { Prose } from '../prose';
 import { buildingHref, techHref, unitHref } from '../routes';
+import { UnitTypeId } from '../../../sim/defs/units';
 
 const CLASSES: UnitClass[] = ['heavy', 'light', 'ranged'];
 
@@ -148,7 +143,7 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
           </Section>
         )}
       </Show>
-      <Show when={props.id === 'serf'}>
+      <Show when={props.id === UnitTypeId.serf}>
         <Section title="Hiring">
           <p class="lede">
             <Prose
@@ -175,9 +170,9 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
           </ul>
         </Section>
       </Show>
-      <Show when={props.id === 'worker'}>
+      <Show when={props.id === UnitTypeId.worker}>
         <p class="lede">
-          A worker is a <DocLink href={unitHref('serf')}>serf</DocLink> who took one of the posts
+          A worker is a <DocLink href={unitHref(UnitTypeId.serf)}>serf</DocLink> who took one of the posts
           above; dismiss the post and he is a serf again.
         </p>
       </Show>

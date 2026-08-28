@@ -5,6 +5,7 @@ import { findPath, nearestWalkable, tileSpeedMult } from '../path.ts';
 import { getModifier } from '../techHelpers.ts';
 import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
+import { UnitTypeId } from '../defs/units.ts';
 
 /**
  * Advance every unit along its path. Waypoints are tile centers; speed is the
@@ -33,7 +34,7 @@ export function movementSystem(world: World): void {
       }
       unit.lastTile = here;
     }
-    const civilian = unit.kind === 'serf' || unit.kind === 'worker';
+    const civilian = unit.kind === UnitTypeId.serf || unit.kind === UnitTypeId.worker;
     let budget =
       (UNIT_DEFS[unit.kind].speed *
         tileSpeedMult(world.map, here) *

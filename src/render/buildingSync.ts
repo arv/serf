@@ -21,6 +21,7 @@ import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
 import type { CueId } from '../audio/cues';
 import { GoodId } from '../sim/defs/goods';
+import { UnitTypeId } from '../sim/defs/units';
 
 /** A built fishery's pier, in world space: the deck line from its landward
  * end to the fishing spot near the tip, plank height, and the yaw that
@@ -50,10 +51,10 @@ const SHOAL_DRAFT = 0.14;
  */
 const GHOST_SEED_SCALE = 0.22;
 
-/** UNIT_DEFS.archer.kindCode — who mans a guard tower's roof. */
-const ARCHER_KIND = UNIT_DEFS.archer.kindCode;
+/** Who mans a guard tower's roof. */
+const ARCHER_KIND = UnitTypeId.archer;
 /** The levy on the roof wears the serf it is. */
-const LEVY_KIND = UNIT_DEFS.serf.kindCode;
+const LEVY_KIND = UnitTypeId.serf;
 
 /** Reused for the post->root coordinate hop; buildings do not move. */
 const SCRATCH_POS = new THREE.Vector3();

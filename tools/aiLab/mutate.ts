@@ -156,7 +156,7 @@ function stepNumber(value: number, knob: NumericKnob, rng: Rng, stepShare: numbe
  * missing unit. Never empties — an empty preference leaves the barracks
  * training nothing, which is why `parseAdvice` drops one too. */
 function stepPreference(list: readonly UnitTypeId[], rng: Rng): UnitTypeId[] {
-  const next = [...list];
+  const next: UnitTypeId[] = [...list];
   const missing = ADVISABLE_UNITS.filter((u) => !next.includes(u));
   const canSwap = next.length >= 2;
   const canDrop = next.length >= 2;
@@ -170,7 +170,9 @@ function stepPreference(list: readonly UnitTypeId[], rng: Rng): UnitTypeId[] {
     const i = rng.int(next.length);
     let j = rng.int(next.length - 1);
     if (j >= i) j++;
-    [next[i], next[j]] = [next[j]!, next[i]!];
+    const swap = next[i]!;
+    next[i] = next[j]!;
+    next[j] = swap;
   } else if (move === 'drop') {
     next.splice(rng.int(next.length), 1);
   } else {

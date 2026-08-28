@@ -29,6 +29,7 @@ import { banditsSystem } from '../../src/sim/systems/bandits.ts';
 import { trailsSystem } from '../../src/sim/systems/trails.ts';
 import { victorySystem } from '../../src/sim/systems/victory.ts';
 import type { BuildingType } from '../../src/sim/defs/buildings.ts';
+import { UnitTypeId } from '../../src/sim/defs/units.ts';
 
 function arg(name: string, dflt: number): number {
   const i = process.argv.indexOf(`--${name}`);
@@ -73,10 +74,10 @@ for (let attempt = 0; attempt < 4000 && placed < 90; attempt++) {
 }
 
 for (let i = 0; i < SERFS; i++) {
-  spawnUnitNearby(world, 'serf', 0, sh.x + (i % 20) - 10, sh.y + Math.floor(i / 20) - 5);
+  spawnUnitNearby(world, UnitTypeId.serf, 0, sh.x + (i % 20) - 10, sh.y + Math.floor(i / 20) - 5);
 }
 for (let i = 0; i < 40; i++) {
-  spawnUnitNearby(world, 'knight', 0, sh.x + (i % 10) - 5, sh.y + 12 + Math.floor(i / 10));
+  spawnUnitNearby(world, UnitTypeId.knight, 0, sh.x + (i % 10) - 5, sh.y + 12 + Math.floor(i / 10));
 }
 
 const systems: [string, (w: World) => void][] = [

@@ -4,6 +4,7 @@ import { tickWorld } from './tick.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import { spawnUnit, type World } from './world.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -24,7 +25,7 @@ describe('a route obstructed mid-walk', () => {
   it('routes around a building dropped on the path instead of stopping dead', () => {
     const world = bareWorld();
     addStorehouse(world, 50, 50, {});
-    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 40, y: 30 }));
     expect(knight.task.t).toBe('move');
     run(world, 10); // under way, well short of the goal
@@ -46,7 +47,7 @@ describe('a route obstructed mid-walk', () => {
   it('re-aims beside a destination that was built over, not back where it stands', () => {
     const world = bareWorld();
     addStorehouse(world, 50, 50, {});
-    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 40, y: 30 }));
     run(world, 10);
 
@@ -71,7 +72,7 @@ describe('a route obstructed mid-walk', () => {
   it('releases a unit whose goal is sealed off, rather than stranding it', () => {
     const world = bareWorld();
     addStorehouse(world, 50, 50, {});
-    const knight = spawnUnit(world, 'knight', 0, 30.5, 30.5);
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 40, y: 30 }));
     run(world, 10);
 
@@ -109,7 +110,7 @@ describe('a route obstructed mid-walk', () => {
     const world = bareWorld();
     addStorehouse(world, 50, 50, {});
     const ids: number[] = [];
-    for (let i = 0; i < 4; i++) ids.push(spawnUnit(world, 'knight', 0, 30.5, 29.5 + i).id);
+    for (let i = 0; i < 4; i++) ids.push(spawnUnit(world, UnitTypeId.knight, 0, 30.5, 29.5 + i).id);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: ids, x: 42, y: 30 }));
     run(world, 10);
 

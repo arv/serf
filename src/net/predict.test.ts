@@ -4,6 +4,7 @@ import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { ACTION } from '../protocol/sabLayout';
 import type { UnitSnapshot } from '../protocol/sabLayout';
+import { UnitTypeId } from '../sim/defs/units';
 
 const openMap = () => ({
   size: DEFAULT_MAP_SIZE,
@@ -17,7 +18,7 @@ function unit(id: number, x: number, y: number, owner = 0): UnitSnapshot {
     id,
     x,
     y,
-    kind: UNIT_DEFS.serf.kindCode,
+    kind: UnitTypeId.serf,
     owner,
     hpPct: 255,
     carrying: 0,
@@ -49,7 +50,7 @@ describe('move prediction', () => {
     const u = unit(1, 10.5, 10.5);
     p.order([1], 30, 10, new Map([[1, u]]));
 
-    const perTick = UNIT_DEFS.serf.speed / 20;
+    const perTick = UNIT_DEFS[UnitTypeId.serf].speed / 20;
     const frame = stillFrame(u);
     p.apply(frame, 0);
     expect(frame[0]!.x - 10.5).toBeCloseTo(perTick, 4);
@@ -67,7 +68,7 @@ describe('move prediction', () => {
     let serverX = 10.5;
     let last = 0;
     for (let i = 0; i < 40; i++) {
-      serverX += UNIT_DEFS.serf.speed / 20;
+      serverX += UNIT_DEFS[UnitTypeId.serf].speed / 20;
       const frame = [{ ...u, x: serverX }];
       p.apply(frame, 0);
       last = frame[0]!.x;
@@ -84,7 +85,7 @@ describe('move prediction', () => {
 
     // The server finally moves it one tick's worth: our prediction is well
     // ahead. Rendered position must not jump back to the server's.
-    const serverX = 10.5 + UNIT_DEFS.serf.speed / 20;
+    const serverX = 10.5 + UNIT_DEFS[UnitTypeId.serf].speed / 20;
     const frame = [{ ...u, x: serverX }];
     p.apply(frame, 0);
     expect(frame[0]!.x).toBeGreaterThan(serverX);

@@ -59,7 +59,7 @@ interface Prediction {
 }
 
 const SPEED_BY_KIND_CODE = new Map<number, number>(
-  Object.values(UNIT_DEFS).map((d) => [d.kindCode, d.speed]),
+  Object.values(UNIT_DEFS).map((d) => [d.id, d.speed]),
 );
 
 export class MovePredictor {

@@ -1,8 +1,8 @@
 import { RAID_CAP, raidIntervalFor } from '../defs/balance.ts';
-import { type UnitTypeId } from '../defs/units.ts';
 import { BANDIT, isPlayerOwner, type Building } from '../entities.ts';
 import { spawnUnitNearby, type World } from '../world.ts';
 import { Rng } from '../../shared/rng.ts';
+import { UnitTypeId } from '../defs/units.ts';
 
 /**
  * Escalating raids: waves grow and diversify (light -> +ranged -> +heavy) so
@@ -26,9 +26,9 @@ export function banditsSystem(world: World, rng: Rng): void {
 
   const roster: UnitTypeId[] = [];
   const bandits = Math.min(2 + wave, 5);
-  for (let i = 0; i < bandits; i++) roster.push('bandit');
-  for (let i = 0; i < wave - 2; i++) roster.push('banditArcher');
-  for (let i = 0; i < wave - 4; i++) roster.push('marauder');
+  for (let i = 0; i < bandits; i++) roster.push(UnitTypeId.bandit);
+  for (let i = 0; i < wave - 2; i++) roster.push(UnitTypeId.banditArcher);
+  for (let i = 0; i < wave - 4; i++) roster.push(UnitTypeId.marauder);
   roster.length = Math.min(roster.length, RAID_CAP);
 
   const target = pickTarget(world, rng);
@@ -46,12 +46,12 @@ export function banditsSystem(world: World, rng: Rng): void {
     unit.task = { t: 'raid', buildingId: target.id };
   }
 
-  const counts = new Map<string, number>();
+  const counts = new Map<UnitTypeId, number>();
   for (const kind of roster) counts.set(kind, (counts.get(kind) ?? 0) + 1);
-  const names: Record<string, string> = {
-    bandit: 'bandits',
-    banditArcher: 'bandit archers',
-    marauder: 'marauders',
+  const names: Partial<Record<UnitTypeId, string>> = {
+    [UnitTypeId.bandit]: 'bandits',
+    [UnitTypeId.banditArcher]: 'bandit archers',
+    [UnitTypeId.marauder]: 'marauders',
   };
   const text = [...counts.entries()].map(([k, n]) => `${n} ${names[k] ?? k}`).join(', ');
   world.pendingEvents.push({

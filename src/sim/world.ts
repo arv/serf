@@ -41,6 +41,7 @@ import { makePlayer, type PlayerState } from './player.ts';
 import { GoodId } from './defs/goods.ts';
 import { goodKeys } from './defs/goods.ts';
 import { goodEntries } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 export interface HaulJob {
   id: number;
@@ -414,7 +415,7 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
             const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, cx + dx, cy + dy);
             // Standing guards defend the camp (auto-acquire handles the rest).
             for (let g = 0; g < 3; g++) {
-              spawnUnitNearby(world, 'bandit', BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
+              spawnUnitNearby(world, UnitTypeId.bandit, BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
             }
             campPlaced = true;
             break outer;
@@ -446,7 +447,7 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
     for (let i = 0; i < serfs; i++) {
       const x = shX - 1 + (i % 5) + 0.5;
       const y = shY + 4 + Math.floor(i / 5) + 0.5;
-      spawnSerf(world, 'serf', p, x, y);
+      spawnSerf(world, UnitTypeId.serf, p, x, y);
     }
   }
 

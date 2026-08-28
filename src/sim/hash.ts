@@ -100,7 +100,7 @@ export function hashWorld(world: World): number {
     // dropped it would play on as the same world until something walked
     // into range. (Whether the tower is calling anyone up is `paused`,
     // which is mixed with the rest of the standing orders.)
-    mix(b.garrisonKind === undefined ? 0 : UNIT_DEFS[b.garrisonKind].kindCode);
+    mix(b.garrisonKind === undefined ? 0 : b.garrisonKind);
     // ...and what each of them walked in with: a save that dropped their
     // wounds would play on as the same world until the tower stood down and
     // handed back men in better shape than the ones who went up.

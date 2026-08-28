@@ -1,9 +1,15 @@
-import { GOODS } from './goods.ts';
+import type { Enum } from '../../shared/enum.ts';
 import { GoodId } from './goods.ts';
+import * as UnitTypeIdNs from './unitTypeIdEnum.ts';
+
+export * as UnitTypeId from './unitTypeIdEnum.ts';
+export type UnitTypeId = Enum<typeof UnitTypeIdNs>;
+
+const U = UnitTypeIdNs;
 
 /**
- * Unit definitions. `kindCode`/`ownerCode` are the compact byte encodings
- * used in the SAB hot path — keep them stable.
+ * Unit definitions. A unit's id IS its compact byte encoding in the SAB hot
+ * path (unitTypeIdEnum.ts) — keep the numbers stable.
  */
 export type UnitClass = 'heavy' | 'light' | 'ranged';
 
@@ -17,7 +23,6 @@ export interface CombatStats {
 
 export interface UnitDef {
   id: UnitTypeId;
-  kindCode: number;
   speed: number; // tiles/sec
   hp: number;
   /** How far this unit reveals the map, in tiles. Read by both the server's
@@ -26,66 +31,50 @@ export interface UnitDef {
   combat?: CombatStats;
 }
 
-export type UnitTypeId =
-  | 'serf'
-  | 'worker'
-  | 'knight'
-  | 'spearman'
-  | 'archer'
-  | 'bandit'
-  | 'banditArcher'
-  | 'marauder';
-
 /**
  * The military triangle: heavy beats light, light catches ranged, ranged
  * kites heavy. Enemy kinds mirror the classes so counters matter both ways.
  */
 export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
-  serf: { id: 'serf', kindCode: 1, speed: 1.5, hp: 25, sight: 6.5 },
-  worker: { id: 'worker', kindCode: 2, speed: 1.4, hp: 25, sight: 6.5 },
-  knight: {
-    id: 'knight',
-    kindCode: 3,
+  [U.serf]: { id: U.serf, speed: 1.5, hp: 25, sight: 6.5 },
+  [U.worker]: { id: U.worker, speed: 1.4, hp: 25, sight: 6.5 },
+  [U.knight]: {
+    id: U.knight,
     speed: 1.6,
     hp: 80,
     sight: 6.5,
     combat: { class: 'heavy', damage: 10, cooldownTicks: 20, range: 1.3, acquireRadius: 6 },
   },
-  spearman: {
-    id: 'spearman',
-    kindCode: 4,
+  [U.spearman]: {
+    id: U.spearman,
     speed: 2.4,
     hp: 45,
     sight: 6.5,
     combat: { class: 'light', damage: 7, cooldownTicks: 20, range: 1.3, acquireRadius: 6 },
   },
-  archer: {
-    id: 'archer',
-    kindCode: 5,
+  [U.archer]: {
+    id: U.archer,
     speed: 2.0,
     hp: 35,
     sight: 6.5,
     combat: { class: 'ranged', damage: 6, cooldownTicks: 24, range: 5, acquireRadius: 7 },
   },
-  bandit: {
-    id: 'bandit',
-    kindCode: 6,
+  [U.bandit]: {
+    id: U.bandit,
     speed: 2.0,
     hp: 40,
     sight: 6.5,
     combat: { class: 'light', damage: 6, cooldownTicks: 20, range: 1.3, acquireRadius: 8 },
   },
-  banditArcher: {
-    id: 'banditArcher',
-    kindCode: 7,
+  [U.banditArcher]: {
+    id: U.banditArcher,
     speed: 1.9,
     hp: 30,
     sight: 6.5,
     combat: { class: 'ranged', damage: 5, cooldownTicks: 24, range: 5, acquireRadius: 8 },
   },
-  marauder: {
-    id: 'marauder',
-    kindCode: 8,
+  [U.marauder]: {
+    id: U.marauder,
     speed: 1.5,
     hp: 70,
     sight: 6.5,
@@ -118,7 +107,52 @@ export function goodFromCarryingCode(code: number): GoodId | undefined {
 
 /** What a soldier needs forged before the barracks can start on them. */
 export const WEAPON_OF: Partial<Record<UnitTypeId, GoodId>> = {
-  knight: GoodId.sword,
-  spearman: GoodId.spear,
-  archer: GoodId.bow,
+  [U.knight]: GoodId.sword,
+  [U.spearman]: GoodId.spear,
+  [U.archer]: GoodId.bow,
 };
+
+/** Every unit kind, in id order — the enumeration order UNIT_DEFS had. */
+export const UNIT_TYPES: readonly UnitTypeId[] = [
+  U.serf,
+  U.worker,
+  U.knight,
+  U.spearman,
+  U.archer,
+  U.bandit,
+  U.banditArcher,
+  U.marauder,
+];
+
+/** The spelling of each id, for docs URLs and the strategist's prompt. */
+export const UNIT_KEYS: Readonly<Record<UnitTypeId, string>> = {
+  [U.serf]: 'serf',
+  [U.worker]: 'worker',
+  [U.knight]: 'knight',
+  [U.spearman]: 'spearman',
+  [U.archer]: 'archer',
+  [U.bandit]: 'bandit',
+  [U.banditArcher]: 'banditArcher',
+  [U.marauder]: 'marauder',
+};
+
+const UNIT_BY_KEY = new Map<string, UnitTypeId>(UNIT_TYPES.map((u) => [UNIT_KEYS[u], u]));
+
+/** The id a spelling names, or undefined — the read side of UNIT_KEYS. */
+export function unitFromKey(key: string): UnitTypeId | undefined {
+  return UNIT_BY_KEY.get(key);
+}
+
+/**
+ * One untrusted value as a unit id, or undefined.
+ *
+ * Two dialects reach the advice screen and both are legitimate: the model
+ * answers in words, because the menu it was shown is words, while the lab's
+ * mutator builds advice out of ids directly. Neither is more trusted than
+ * the other, so both are screened here rather than at either caller.
+ */
+export function asUnitTypeId(value: unknown): UnitTypeId | undefined {
+  if (typeof value === 'string') return unitFromKey(value);
+  if (typeof value !== 'number' || !Number.isInteger(value)) return undefined;
+  return Object.hasOwn(UNIT_KEYS, value) ? (value as UnitTypeId) : undefined;
+}

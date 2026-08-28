@@ -23,6 +23,7 @@ import type { Building, Owner } from '../sim/entities.ts';
 import type { Unit } from '../sim/units.ts';
 import type { BuildingSnap, JobSnap, PlayerSnap } from './messages.ts';
 import { GoodId } from '../sim/defs/goods.ts';
+import { UnitTypeId } from '../sim/defs/units.ts';
 
 export function snapBuilding(world: World, b: Building): BuildingSnap {
   const def = buildingDef(b.type);
@@ -288,7 +289,7 @@ function actionOf(w: World, u: Unit, engaged: boolean): number {
 
 /** Workplace flavor for profession-dressed worker bodies (the farmer's straw hat). */
 function professionOf(w: World, u: Unit): number {
-  if (u.kind !== 'worker' || u.homeId === undefined) return PROFESSION.none;
+  if (u.kind !== UnitTypeId.worker || u.homeId === undefined) return PROFESSION.none;
   const home = w.buildings.get(u.homeId);
   if (!home || home.dead) return PROFESSION.none;
   // The look comes with the job, not the job offer: a builder raising his
@@ -337,7 +338,7 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
       id: u.id,
       x: u.x,
       y: u.y,
-      kind: UNIT_DEFS[u.kind].kindCode,
+      kind: u.kind,
       owner: u.owner, // numeric owner rides the aux byte raw
       hpPct:
         action === ACTION.dead

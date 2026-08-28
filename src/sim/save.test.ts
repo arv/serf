@@ -8,6 +8,7 @@ import { BANDIT } from './entities.ts';
 import { UNIT_DEFS } from './defs/units.ts';
 import { BUILDING_DEFS } from './defs/buildings.ts';
 import type { SimCommand } from './commands.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 function commandScript(tick: number): SimCommand[] {
   if (tick === 50) return [{ kind: 'placeBuilding', building: 'woodcutter', x: 26, y: 36 }];
@@ -103,16 +104,16 @@ describe('save/load', () => {
     expect(loaded.garrisonKind).toBeUndefined();
 
     // It shoots like the archers it always was, not like a levy.
-    const raider = spawnUnit(back, 'bandit', BANDIT, 34.5, 31.5);
+    const raider = spawnUnit(back, UnitTypeId.bandit, BANDIT, 34.5, 31.5);
     const before = raider.hp;
     tickWorld(back, []);
-    const combat = UNIT_DEFS.archer.combat!;
+    const combat = UNIT_DEFS[UnitTypeId.archer].combat!;
     const rule = BUILDING_DEFS.guardTower.garrison!;
     expect(before - raider.hp).toBeCloseTo(combat.damage * rule.damageMult * 2, 5);
 
     // And hands archers back, not serfs, when it is emptied.
     tickWorld(back, cmds({ kind: 'sellBuilding', buildingId: loaded.id }));
-    const out = [...back.units.values()].filter((u) => !u.dead && u.kind === 'archer');
+    const out = [...back.units.values()].filter((u) => !u.dead && u.kind === UnitTypeId.archer);
     expect(out).toHaveLength(2);
   });
 });

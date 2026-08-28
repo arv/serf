@@ -16,6 +16,7 @@ import {
 import { TileResource } from './map.ts';
 import type { GoodAmounts } from './defs/goods.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -100,7 +101,7 @@ describe('logistics matcher', () => {
     expect(site.workerId).toBeDefined(); // wood hut spawns its worker
     expect(world.jobs.size).toBe(0);
     for (const u of world.units.values()) {
-      if (u.kind === 'serf') expect(u.carrying).toBeUndefined();
+      if (u.kind === UnitTypeId.serf) expect(u.carrying).toBeUndefined();
     }
     expectClean(world, initial);
   });
@@ -160,7 +161,7 @@ describe('cancellation table', () => {
 
     expect(world.jobs.size).toBe(0);
     for (const u of world.units.values()) {
-      if (u.kind === 'serf') expect(u.jobId).toBeUndefined();
+      if (u.kind === UnitTypeId.serf) expect(u.jobId).toBeUndefined();
     }
     expectClean(world, initial);
   });
@@ -227,7 +228,7 @@ describe('fuzz: 10k ticks of random destruction never corrupts the economy', () 
         // Random mayhem, weighted toward serf deaths.
         const roll = rng.next();
         if (roll < 0.5) {
-          const serfs = [...world.units.values()].filter((u) => u.kind === 'serf' && !u.dead);
+          const serfs = [...world.units.values()].filter((u) => u.kind === UnitTypeId.serf && !u.dead);
           if (serfs.length > 2) killUnit(world, serfs[rng.int(serfs.length)]!);
         } else if (roll < 0.65) {
           const targets = [...world.buildings.values()].filter(
@@ -239,7 +240,7 @@ describe('fuzz: 10k ticks of random destruction never corrupts the economy', () 
           const y = 18 + rng.int(24);
           tickWorld(world, cmds({ kind: 'placeBuilding', building: 'woodcutter', x, y }));
         } else {
-          const serfs = [...world.units.values()].filter((u) => u.kind === 'serf');
+          const serfs = [...world.units.values()].filter((u) => u.kind === UnitTypeId.serf);
           if (serfs.length < 8) addSerf(world, 30 + rng.int(4), 35);
         }
       }
@@ -345,7 +346,7 @@ describe('move orders outrank employment', () => {
 
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [worker.id], x: 24, y: 24 }));
     expect(worker.homeId).toBeUndefined();
-    expect(worker.kind).toBe('serf');
+    expect(worker.kind).toBe(UnitTypeId.serf);
     expect(hut.workerId).toBeUndefined();
     expect(worker.task.t).toBe('move');
     expect(checkInvariants(world).violations).toEqual([]);
@@ -374,7 +375,7 @@ describe('move orders outrank employment', () => {
     // ex-worker holding a gather task no system drives: production had lost
     // him with the post, and wander, dispatch and staffing all want a unit
     // that is genuinely idle. The population silently lost a man.
-    expect(worker.kind).toBe('worker');
+    expect(worker.kind).toBe(UnitTypeId.worker);
     expect(worker.homeId).toBe(hut.id);
     expect(hut.workerId).toBe(worker.id);
     expect(worker.task.t).not.toBe('move');

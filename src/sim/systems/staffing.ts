@@ -6,11 +6,11 @@ import { atBuilding, walkToBuilding } from '../arrival.ts';
 import { bindWorker, consumePostTool, unbindWorker } from './production.ts';
 import { evictGarrison } from './training.ts';
 import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
-import type { UnitTypeId } from '../defs/units.ts';
 import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
 import { GoodId } from '../defs/goods.ts';
 import { goodEntries } from '../defs/goods.ts';
+import { UnitTypeId } from '../defs/units.ts';
 
 const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
 const UNREACHABLE_BACKOFF = REQUEST_INTERVAL; // hold before re-pathing to a walled-off post
@@ -140,7 +140,7 @@ function handleArrivals(world: World): void {
       // The builder: this serf raises the building (construction only
       // advances while they're on site) and stays on as its worker.
       if (def.isRoad || liveWorker(world, b)) continue;
-      unit.kind = def.workerKind ?? 'worker';
+      unit.kind = def.workerKind ?? UnitTypeId.worker;
       bindWorker(b, unit);
       continue;
     }
@@ -247,7 +247,7 @@ function handleArrivals(world: World): void {
 function wantedKinds(b: Building): UnitTypeId[] {
   const def = buildingDef(b.type);
   const g = def.garrison;
-  if (!g || b.state !== 'built') return ['serf'];
+  if (!g || b.state !== 'built') return [UnitTypeId.serf];
   if (b.paused) return [];
   const room = garrisonRoom(def, b);
   const kinds: UnitTypeId[] = [];
@@ -372,7 +372,7 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
   // deciding for itself and drifting: the scan used to bucket archers for
   // a tower that was still a building site and wanted a builder.
   const wanted = new Set<UnitTypeId>(wanting.flatMap(wantedKinds));
-  wanted.add('serf');
+  wanted.add(UnitTypeId.serf);
 
   // Idle people available for recruitment this pass, bucketed by faction and
   // kind — buildings only ever draw from their own owner's pool.

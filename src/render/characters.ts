@@ -8,6 +8,7 @@ import { loadGltfRetry } from './assets';
 import { goodColors } from './palette';
 import { factionTint } from './factionPalette';
 import { GoodId } from '../sim/defs/goods';
+import { UnitTypeId } from '../sim/defs/units';
 
 /**
  * Skinned-character pipeline: KayKit Adventurers 2.0 characters animated by
@@ -157,7 +158,7 @@ const KK_SPECS = new Map<number, KKSpec>([
 
 /** Sim ground speed by kind byte, for matching gait playback to it. */
 const KIND_SPEED = new Map<number, number>(
-  Object.values(UNIT_DEFS).map((d) => [d.kindCode, d.speed]),
+  Object.values(UNIT_DEFS).map((d) => [d.id, d.speed]),
 );
 
 interface KKCharacter {
@@ -681,13 +682,13 @@ const PROF_LOOKS = new Map<number, ProfLook>([
 ]);
 
 function makeKayKitCharacter(
-  kindCode: number,
+  kind: number,
   profession = 0,
   owner = 0,
 ): { group: THREE.Group; visual: CharacterVisual } | null {
   if (!kkAssets) return null;
-  const look = kindCode === 2 ? PROF_LOOKS.get(profession) : undefined;
-  const spec = look?.spec ?? KK_SPECS.get(kindCode) ?? KK_SPECS.get(1)!;
+  const look = kind === 2 ? PROF_LOOKS.get(profession) : undefined;
+  const spec = look?.spec ?? KK_SPECS.get(kind) ?? KK_SPECS.get(1)!;
   const char = kkAssets.chars.get(spec.file);
   if (!char) return null;
   const root = skeletonClone(char.scene);
@@ -788,7 +789,7 @@ function makeKayKitCharacter(
   // The base kind speed only seeds the rate — the real thing also wears
   // road/trail multipliers and the serfSpeed tech, so sceneSync keeps
   // re-feeding the speed it observes (setGaitSpeed).
-  const simSpeed = KIND_SPEED.get(kindCode) ?? UNIT_DEFS.worker.speed;
+  const simSpeed = KIND_SPEED.get(kind) ?? UNIT_DEFS[UnitTypeId.worker].speed;
   const walkNat = kkAssets.gaitSpeeds.walk * s;
   const jogNat = kkAssets.gaitSpeeds.jog * s;
   const gait: 'walk' | 'jog' = spec.jog ? 'jog' : 'walk';
@@ -1033,11 +1034,11 @@ export function serfSole(): Sole | null {
  * are loaded (callers fall back to the procedural person).
  */
 export function makeCharacter(
-  kindCode: number,
+  kind: number,
   profession = 0,
   owner = 0,
 ): { group: THREE.Group; visual: CharacterVisual } | null {
-  return makeKayKitCharacter(kindCode, profession, owner);
+  return makeKayKitCharacter(kind, profession, owner);
 }
 
 /** Crossfade to the clip for this key; no-op when already playing it. */

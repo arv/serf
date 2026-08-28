@@ -14,6 +14,7 @@ import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
 import { loadCharacterAssets, makeCharacter, playAnimation } from '../../src/render/characters';
 import { UNIT_DEFS } from '../../src/sim/defs/units';
 import { makeLights, makeRenderer, YAW, PITCH } from './scene';
+import { UnitTypeId } from '../../src/sim/defs/units';
 
 const params = new URLSearchParams(location.search);
 const t = Number(params.get('t') ?? '0');
@@ -98,12 +99,12 @@ const strip = params.get('strip');
 if (strip) {
   // The clip laid out left to right, one figure per phase.
   const clip = strip === 'shoot' ? 'shoot' : 'throw';
-  const kind = clip === 'shoot' ? UNIT_DEFS.archer.kindCode : UNIT_DEFS.serf.kindCode;
+  const kind = clip === 'shoot' ? UnitTypeId.archer : UnitTypeId.serf;
   const N = 6;
   for (let i = 0; i < N; i++) figure(kind, clip, (i - (N - 1) / 2) * 0.92, i / N);
 } else {
-  tower(UNIT_DEFS.serf.kindCode, 'throw', -1.5);
-  tower(UNIT_DEFS.archer.kindCode, 'shoot', 1.5);
+  tower(UnitTypeId.serf, 'throw', -1.5);
+  tower(UnitTypeId.archer, 'shoot', 1.5);
 }
 
 // Framed on the two roofs rather than the towers: the stonework is not

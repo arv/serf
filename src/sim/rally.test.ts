@@ -9,13 +9,14 @@ import { checkInvariants } from './debug/invariants.ts';
 import { cmds, addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 import type { Unit } from './units.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
 }
 
 /** Tick until the first unit of this kind exists, or the guard runs out. */
-function trainOut(world: World, kind: string, guard = 20 * 120): Unit | undefined {
+function trainOut(world: World, kind: UnitTypeId, guard = 20 * 120): Unit | undefined {
   let unit: Unit | undefined;
   while (
     !(unit = [...world.units.values()].find((u) => u.kind === kind && !u.dead)) &&
@@ -78,9 +79,9 @@ describe('the barracks rally flag', () => {
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id, x: 45, y: 40 }));
-    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'knight' }));
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.knight }));
 
-    const knight = trainOut(world, 'knight');
+    const knight = trainOut(world, UnitTypeId.knight);
     expect(knight).toBeDefined();
     // He steps out already under way: a plain move — not an attack-move, so
     // a flag near a fight cannot trickle recruits into it one at a time —
@@ -102,9 +103,9 @@ describe('the barracks rally flag', () => {
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
-    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'knight' }));
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.knight }));
 
-    const knight = trainOut(world, 'knight');
+    const knight = trainOut(world, UnitTypeId.knight);
     expect(knight).toBeDefined();
     expect(knight!.path).toBeNull();
   });
@@ -115,18 +116,18 @@ describe('the barracks rally flag', () => {
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id, x: 45, y: 40 }));
-    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'knight' }));
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.knight }));
 
     let guard = 20 * 120;
     while (!barracks.trainQueue?.[0]?.started && guard-- > 0) tickWorld(world, []);
     expect(barracks.trainQueue?.[0]?.started).toBe(true);
     tickWorld(
       world,
-      cmds({ kind: 'cancelTraining', buildingId: barracks.id, index: 0, unit: 'knight' }),
+      cmds({ kind: 'cancelTraining', buildingId: barracks.id, index: 0, unit: UnitTypeId.knight }),
     );
     // The person walks back out a serf, and the flag — a soldiers' muster —
     // is no order of his.
-    const serf = [...world.units.values()].find((u) => u.kind === 'serf' && !u.dead);
+    const serf = [...world.units.values()].find((u) => u.kind === UnitTypeId.serf && !u.dead);
     expect(serf).toBeDefined();
     expect(serf!.path).toBeNull();
   });

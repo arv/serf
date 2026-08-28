@@ -6,6 +6,7 @@ import { tickWorld } from './tick.ts';
 import { addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 import type { SimCommand } from './commands.ts';
 import type { PlayerCommand } from './tick.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 describe('command screening', () => {
   it('accepts what the client actually sends', () => {
@@ -19,8 +20,8 @@ describe('command screening', () => {
       { kind: 'setBuildingPaused', buildingId: 3, paused: true },
       { kind: 'setBuildingRepair', buildingId: 3, repair: true },
       { kind: 'research', tech: 'irrigation' },
-      { kind: 'trainUnit', buildingId: 7, unit: 'spearman' },
-      { kind: 'cancelTraining', buildingId: 7, index: 2, unit: 'spearman' },
+      { kind: 'trainUnit', buildingId: 7, unit: UnitTypeId.spearman },
+      { kind: 'cancelTraining', buildingId: 7, index: 2, unit: UnitTypeId.spearman },
       { kind: 'setRallyPoint', buildingId: 7, x: 10, y: 12 },
       { kind: 'setRallyPoint', buildingId: 7 },
       { kind: 'admin', action: 'grantGoods' },
@@ -91,7 +92,7 @@ describe('command screening', () => {
     expect(forge(FORGE_QUEUE_CAP)).toBeNull();
     expect(forge(-1)).toBeNull();
     const train = (index: number) =>
-      sanitizeCommand({ kind: 'cancelTraining', buildingId: 1, index, unit: 'spearman' });
+      sanitizeCommand({ kind: 'cancelTraining', buildingId: 1, index, unit: UnitTypeId.spearman });
     expect(train(TRAIN_QUEUE_CAP - 1)).not.toBeNull();
     expect(train(TRAIN_QUEUE_CAP)).toBeNull();
   });

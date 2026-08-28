@@ -9,6 +9,7 @@ import { Rng } from '../../src/shared/rng.ts';
 import type { PostureId } from '../../src/ai/posture.ts';
 import type { AiWorldSummary } from '../../src/ai/summary.ts';
 import type { ChatEngine } from '../../src/ai/strategist.ts';
+import { UnitTypeId } from '../../src/sim/defs/units.ts';
 
 /**
  * The models a bake-off can put in the strategist's seat.
@@ -206,11 +207,13 @@ export function randomEngine(seed: number): LabEngine {
         } else if (which === numeric.length) {
           reply['prefersRivals'] = rng.next() < 0.5;
         } else if (which === numeric.length + 1) {
-          const order = [...ADVISABLE_UNITS];
+          const order: UnitTypeId[] = [...ADVISABLE_UNITS];
           // Fisher-Yates, so every priority order is reachable.
           for (let j = order.length - 1; j > 0; j--) {
             const k = rng.int(j + 1);
-            [order[j], order[k]] = [order[k]!, order[j]!];
+            const swap = order[j]!;
+            order[j] = order[k]!;
+            order[k] = swap;
           }
           reply['trainPreference'] = order;
         } else {

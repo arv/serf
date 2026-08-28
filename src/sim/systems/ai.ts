@@ -29,7 +29,7 @@ import {
   type BuildingTypeId,
 } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
-import { UNIT_DEFS, WEAPON_OF, type UnitClass, type UnitTypeId } from '../defs/units.ts';
+import { UNIT_DEFS, WEAPON_OF, type UnitClass } from '../defs/units.ts';
 import { addGarrison, classHp, damageEquivalent, shouldCommit, type Force } from '../combatOdds.ts';
 import { HIRE_QUEUE_CAP, HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
@@ -41,6 +41,7 @@ import type { Unit } from '../units.ts';
 import type { SimCommand } from '../commands.ts';
 import { goodEntries } from '../defs/goods.ts';
 import type { GoodAmounts } from '../defs/goods.ts';
+import { UnitTypeId } from '../defs/units.ts';
 
 /**
  * The AI opponent's brain: a pure strategic layer that reads a World and
@@ -359,12 +360,12 @@ export interface IntelReport {
  * ranged; recipeOptions order is [spear, sword, bow].)
  */
 const COUNTER_PICK: Record<UnitClass, { unit: UnitTypeId; recipe: number }> = {
-  heavy: { unit: 'archer', recipe: 2 },
-  light: { unit: 'knight', recipe: 1 },
-  ranged: { unit: 'spearman', recipe: 0 },
+  heavy: { unit: UnitTypeId.archer, recipe: 2 },
+  light: { unit: UnitTypeId.knight, recipe: 1 },
+  ranged: { unit: UnitTypeId.spearman, recipe: 0 },
 };
 
-const MILITARY = new Set<UnitTypeId>(['knight', 'spearman', 'archer']);
+const MILITARY = new Set<UnitTypeId>([UnitTypeId.knight, UnitTypeId.spearman, UnitTypeId.archer]);
 
 /** Fewest soldiers that may be sent on a prediction alone. The impatience
  * ramp already treats three as the smallest force worth marching
@@ -680,7 +681,7 @@ export class AiBrain {
     // --- Population: keep loose serfs around ---------------------------------
     let serfCount = 0;
     for (const u of world.units.values()) {
-      if (!u.dead && u.owner === this.playerId && u.kind === 'serf') serfCount++;
+      if (!u.dead && u.owner === this.playerId && u.kind === UnitTypeId.serf) serfCount++;
     }
     const researchPending = s.researchOrder.some((id) => !techs.researched.includes(id));
     // The two free stall rules, and the reason they come first: neither

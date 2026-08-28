@@ -1,7 +1,7 @@
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import { TECH_DEFS, type TechId } from '../sim/defs/techs';
-import type { UnitTypeId } from '../sim/defs/units';
 import { GoodId } from '../sim/defs/goods';
+import { UnitTypeId } from '../sim/defs/units';
 
 /**
  * Display-name helpers. Buildings and techs carry their names and
@@ -22,14 +22,14 @@ export function techDesc(id: TechId): string {
 }
 
 const UNIT_NAMES: Record<UnitTypeId, string> = {
-  serf: 'Serf',
-  worker: 'Worker',
-  knight: 'Knight',
-  spearman: 'Spearman',
-  archer: 'Archer',
-  bandit: 'Bandit',
-  banditArcher: 'Bandit Archer',
-  marauder: 'Marauder',
+  [UnitTypeId.serf]: 'Serf',
+  [UnitTypeId.worker]: 'Worker',
+  [UnitTypeId.knight]: 'Knight',
+  [UnitTypeId.spearman]: 'Spearman',
+  [UnitTypeId.archer]: 'Archer',
+  [UnitTypeId.bandit]: 'Bandit',
+  [UnitTypeId.banditArcher]: 'Bandit Archer',
+  [UnitTypeId.marauder]: 'Marauder',
 };
 
 export function unitName(unit: UnitTypeId): string {

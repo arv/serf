@@ -24,6 +24,7 @@ import type { HaulJob, World } from '../world.ts';
 import { GoodId } from '../defs/goods.ts';
 import { goodEntries } from '../defs/goods.ts';
 import { goodKeys } from '../defs/goods.ts';
+import { UnitTypeId } from '../defs/units.ts';
 
 /**
  * The heart of the game: goods physically live in building buffers and on
@@ -419,7 +420,7 @@ function createJob(
 function rehomeCarriedGoods(world: World): void {
   for (const serf of world.units.values()) {
     if (serf.dead || serf.jobId !== undefined || serf.carrying === undefined) continue;
-    if (serf.kind !== 'serf' || !isPlayerOwner(serf.owner)) continue;
+    if (serf.kind !== UnitTypeId.serf || !isPlayerOwner(serf.owner)) continue;
     if (serf.task.t !== 'idle') continue; // let him finish the walk he was sent on
 
     const good = serf.carrying;
@@ -495,7 +496,7 @@ function dispatch(world: World): void {
   // its own owner.
   const idleByOwner = new Map<Owner, Unit[]>();
   for (const u of world.units.values()) {
-    if (u.dead || u.kind !== 'serf' || !isPlayerOwner(u.owner) || u.jobId !== undefined) continue;
+    if (u.dead || u.kind !== UnitTypeId.serf || !isPlayerOwner(u.owner) || u.jobId !== undefined) continue;
     // Walking under a player's move order is not idleness — leave them be
     // until they arrive (movement flips the task back to idle there). Nor
     // is a serf who is still holding something free: the pickup below

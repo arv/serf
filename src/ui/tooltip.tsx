@@ -22,12 +22,13 @@ import {
 } from '../sim/defs/buildings';
 import { type GoodAmounts } from '../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../sim/defs/techs';
-import { COUNTER_TABLE, UNIT_DEFS, type UnitClass, type UnitTypeId } from '../sim/defs/units';
+import { COUNTER_TABLE, UNIT_DEFS, type UnitClass } from '../sim/defs/units';
 import { GoodIcon } from './icons';
 import { buildingName, goodName, techDesc, techName, unitName } from './names';
 import { stock, techs } from './store';
 import { GoodId } from '../sim/defs/goods';
 import { goodEntries } from '../sim/defs/goods';
+import { UnitTypeId } from '../sim/defs/units';
 
 /**
  * One floating tooltip layer for the whole HUD. Spread `{...tooltip(...)}`
@@ -417,9 +418,9 @@ const CLASS_INFO: Record<UnitClass, { name: string; beats: UnitClass; losesTo: U
 };
 
 const UNIT_FLAVOR: Partial<Record<UnitTypeId, string>> = {
-  knight: 'Slow, armored, and lethal up close.',
-  spearman: 'Fast peasant spears — they run archers down.',
-  archer: 'Keeps its distance and kites heavy armor.',
+  [UnitTypeId.knight]: 'Slow, armored, and lethal up close.',
+  [UnitTypeId.spearman]: 'Fast peasant spears — they run archers down.',
+  [UnitTypeId.archer]: 'Keeps its distance and kites heavy armor.',
 };
 
 export function UnitTip(props: { unit: UnitTypeId; cost?: GoodAmounts; lockedBy?: string | null }) {

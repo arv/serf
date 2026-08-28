@@ -5,6 +5,7 @@ import { placeBuiltBuilding, type World } from './world.ts';
 import { addBuiltHut, addResourceTile, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
 import type { Unit } from './units.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 /** Put a unit where its walk would have left it had the route died: far from
  * where it was going, with nothing left to walk. */
@@ -107,7 +108,7 @@ describe('work only happens where the worker is standing', () => {
     tickWorld(world, []);
 
     expect(hut.workerId).toBeUndefined(); // not staffed from across the map
-    expect(serf.kind).toBe('serf'); // and not turned into its worker
+    expect(serf.kind).toBe(UnitTypeId.serf); // and not turned into its worker
     expect(serf.task.t).toBe('staff'); // the post is still his to walk to
     expect(serf.path).not.toBeNull();
   });
@@ -116,7 +117,7 @@ describe('work only happens where the worker is standing', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
-    barracks.trainQueue = [{ unit: 'knight', started: false, ticksLeft: 0 }];
+    barracks.trainQueue = [{ unit: UnitTypeId.knight, started: false, ticksLeft: 0 }];
     barracks.inputs = { [GoodId.food]: 3, [GoodId.sword]: 1 };
     const serf = addSerf(world, 34, 30);
     serf.task = { t: 'staff', buildingId: barracks.id };

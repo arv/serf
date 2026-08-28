@@ -69,13 +69,12 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
       <Show when={def.workerKind !== undefined || tool !== undefined}>
         <Section title="Staffing">
           <ul class="refs">
-            <Show when={def.workerKind}>
-              {(kind) => (
-                <li>
-                  Staffed by a <DocLink href={unitHref(kind())}>{unitName(kind())}</DocLink> when
-                  construction completes
-                </li>
-              )}
+            <Show when={def.workerKind !== undefined}>
+              <li>
+                Staffed by a{' '}
+                <DocLink href={unitHref(def.workerKind!)}>{unitName(def.workerKind!)}</DocLink> when
+                construction completes
+              </li>
             </Show>
             <Show when={tool !== undefined}>
               <li>

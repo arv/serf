@@ -26,6 +26,7 @@ import {
   type CharacterVisual,
 } from './characters';
 import type { HeightField } from './heightField';
+import { UnitTypeId } from '../sim/defs/units';
 
 interface UnitVisual {
   group: THREE.Group;
@@ -84,7 +85,7 @@ interface Well {
 
 /** The render-walk speed out along the pier — the worker's own sim gait,
  * so the commute reads like every other one. */
-const PIER_WALK_SPEED = UNIT_DEFS.worker.speed;
+const PIER_WALK_SPEED = UNIT_DEFS[UnitTypeId.worker].speed;
 
 /** GLTFLoader sanitizes bone names ('upperarm.r' → 'upperarmr'). */
 function findArm(group: THREE.Group): ArmChain | null {
@@ -448,7 +449,7 @@ export class SceneSync {
     return this.#reader.latest.aux[li * AUX_STRIDE + 1]!;
   }
 
-  /** Unit kind code (UNIT_DEFS kindCode), for kind-aware selection. */
+  /** Unit kind (UnitTypeId — its own SAB byte), for kind-aware selection. */
   kindOf(id: number): number | null {
     const li = this.#reader.latest.index.get(id);
     if (li === undefined) return null;

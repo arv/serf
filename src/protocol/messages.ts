@@ -1,6 +1,7 @@
 import type { AiWorldSummary } from '../ai/summary.ts';
 import type { EntityId, Owner } from '../sim/entities.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
+import type { UnitTypeId } from '../sim/defs/units.ts';
 import type { BuildingTypeId } from '../sim/defs/buildings.ts';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods.ts';
 import type { MissionId } from '../sim/defs/missions.ts';
@@ -62,7 +63,7 @@ export interface BuildingSnap {
   reservedOut: GoodAmounts;
   maxHp: number;
   /** Barracks orders in queue order; the started one carries its progress 0..1. */
-  trainQueue?: { unit: string; started: boolean; progress01?: number }[];
+  trainQueue?: { unit: UnitTypeId; started: boolean; progress01?: number }[];
   /** The rally flag fresh soldiers march to (barracks); absent when none stands. */
   rally?: { x: number; y: number };
   /** Serf hires paid for and still walking in, and the leader's progress 0..1. */

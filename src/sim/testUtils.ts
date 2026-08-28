@@ -10,6 +10,7 @@ import type { GoodAmounts } from './defs/goods.ts';
 import type { Building, Owner } from './entities.ts';
 import type { Unit } from './units.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 /** An all-grass, empty 64x64 map for deterministic logistics tests. */
 export function bareMap(size = DEFAULT_MAP_SIZE): GameMap {
@@ -106,7 +107,7 @@ export function addBuiltHut(
 ): Building {
   const b = placeBuiltBuilding(world, 'woodcutter', owner, x, y);
   if (withWorker) {
-    const worker = spawnUnit(world, 'worker', owner, x + 0.5, y + b.h + 0.5);
+    const worker = spawnUnit(world, UnitTypeId.worker, owner, x + 0.5, y + b.h + 0.5);
     bindWorker(b, worker);
   }
   return b;
@@ -117,12 +118,12 @@ export function addSite(world: World, x: number, y: number, owner: Owner = 0): B
 }
 
 export function addSerf(world: World, x: number, y: number, owner: Owner = 0): Unit {
-  return spawnUnit(world, 'serf', owner, x + 0.5, y + 0.5);
+  return spawnUnit(world, UnitTypeId.serf, owner, x + 0.5, y + 0.5);
 }
 
 /** Staff a building directly (tests that don't exercise recruitment). */
 export function staffBuilding(world: World, b: Building): Unit {
-  const worker = spawnUnit(world, 'worker', b.owner, b.x + b.w / 2, b.y + b.h + 0.5);
+  const worker = spawnUnit(world, UnitTypeId.worker, b.owner, b.x + b.w / 2, b.y + b.h + 0.5);
   bindWorker(b, worker);
   return worker;
 }

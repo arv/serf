@@ -1,10 +1,10 @@
 import { BUILDING_DEFS } from '../sim/defs/buildings';
 import { TECH_DEFS, type TechId } from '../sim/defs/techs';
-import type { UnitTypeId } from '../sim/defs/units';
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { BuildingSnap } from '../protocol/messages';
 import { HIRE_QUEUE_CAP, HIRE_SERF_COST, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
 import { GoodId } from '../sim/defs/goods';
+import { UnitTypeId } from '../sim/defs/units';
 
 /**
  * The commands a selected building offers: who may run them, and which
@@ -74,9 +74,9 @@ export function canTrain(
  * one lives in its own unit's name so the button can bold it in place.
  */
 export const TRAIN_KEYS: Partial<Record<UnitTypeId, string>> = {
-  knight: 'K',
-  spearman: 'S',
-  archer: 'A',
+  [UnitTypeId.knight]: 'K',
+  [UnitTypeId.spearman]: 'S',
+  [UnitTypeId.archer]: 'A',
 };
 
 export function trainKey(unit: UnitTypeId): string {

@@ -1,6 +1,8 @@
 import { TICK_MS } from '../sim/defs/balance.ts';
 import type { StrategyAdvice } from './advice.ts';
 import type { SeatKnobs } from './summary.ts';
+import { UNIT_KEYS } from '../sim/defs/units.ts';
+import { UnitTypeId } from '../sim/defs/units.ts';
 
 /**
  * Advice → English, for the dev overlay. The model speaks in knob JSON;
@@ -29,6 +31,10 @@ export interface AdviceLine {
 
 /** Recipe indices as the forge knows them: 0 spear, 1 sword, 2 bow. */
 const WEAPON_NAMES = ['spear', 'sword', 'bow'] as const;
+
+/** A training preference in the words the overlay reads in. */
+const unitList = (units: readonly UnitTypeId[]): string =>
+  units.map((u) => UNIT_KEYS[u]).join(' > ');
 
 const secs = (ticks: number): string => `${Math.round((ticks * TICK_MS) / 1000)}s`;
 const weapons = (mix: readonly number[]): string =>
@@ -91,9 +97,9 @@ export function describeAdvice(advice: StrategyAdvice, playbook?: SeatKnobs): Ad
   }
   if (advice.trainPreference !== undefined) {
     put(
-      `training: ${advice.trainPreference.join(' > ')}`,
+      `training: ${unitList(advice.trainPreference)}`,
       advice.trainPreference.join() !== playbook?.trainPreference.join(),
-      playbook?.trainPreference.join(' > ') ?? '',
+      playbook === undefined ? '' : unitList(playbook.trainPreference),
     );
   }
   if (advice.weaponMix !== undefined) {

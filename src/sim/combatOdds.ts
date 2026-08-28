@@ -1,4 +1,5 @@
 import { COUNTER_TABLE, UNIT_DEFS, type UnitClass } from './defs/units.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 /**
  * Will this fight be won? — the question the brain never asked.
@@ -56,10 +57,10 @@ export interface Force {
  * for rival seats, who train exactly these; bandits are never predicted
  * against (their camps are exempt from the gate), so their slightly cheaper
  * stats never come up. */
-const CLASS_UNIT: Record<UnitClass, 'knight' | 'spearman' | 'archer'> = {
-  heavy: 'knight',
-  light: 'spearman',
-  ranged: 'archer',
+const CLASS_UNIT: Record<UnitClass, UnitTypeId> = {
+  heavy: UnitTypeId.knight,
+  light: UnitTypeId.spearman,
+  ranged: UnitTypeId.archer,
 };
 
 const CLASSES: readonly UnitClass[] = ['heavy', 'light', 'ranged'];

@@ -6,6 +6,7 @@ import { makePlayer } from '../sim/player.ts';
 import { campCorners, placeBuiltBuilding, spawnUnitNearby, type World } from '../sim/world.ts';
 import { clearResources, rectClear, recomputeBlocked, type GameMap } from '../sim/map.ts';
 import type { EditorMapState } from './editorMap.ts';
+import { UnitTypeId } from '../sim/defs/units.ts';
 
 export interface EditorPlayConfig {
   /** Deals the AI seats their playbooks (and the solo camp its corner). */
@@ -111,7 +112,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
           if (rectClear(map, cx + dx, cy + dy, 3, 3)) {
             const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, cx + dx, cy + dy);
             for (let g = 0; g < 3; g++) {
-              spawnUnitNearby(world, 'bandit', BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
+              spawnUnitNearby(world, UnitTypeId.bandit, BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
             }
             campPlaced = true;
             break outer;
@@ -139,7 +140,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
     for (let i = 0; i < START_SERFS; i++) {
       const x = shX - 1 + (i % 5) + 0.5;
       const y = shY + 4 + Math.floor(i / 5) + 0.5;
-      spawnUnitNearby(world, 'serf', p, x, y);
+      spawnUnitNearby(world, UnitTypeId.serf, p, x, y);
     }
   }
 

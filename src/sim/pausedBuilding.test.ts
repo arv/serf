@@ -4,6 +4,7 @@ import { placeBuiltBuilding, placeSite, type World } from './world.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { addSerf, addSite, addStorehouse, bareWorld, cmds, staffBuilding } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -28,7 +29,7 @@ describe('pausing a building', () => {
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: smith.id, paused: true }));
     // The post empties on the order itself: the hand is loose again.
     expect(smith.workerId).toBeUndefined();
-    expect(worker.kind).toBe('serf');
+    expect(worker.kind).toBe(UnitTypeId.serf);
     run(world, 1200);
 
     // Nothing hauled in, nothing forged: the piles are untouched.

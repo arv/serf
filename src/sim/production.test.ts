@@ -7,6 +7,7 @@ import { TRAILS_INTERVAL } from './defs/balance.ts';
 import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
 import type { World } from './world.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -112,8 +113,8 @@ describe('gather production', () => {
 
     // The builder is now the worker; the serf pool is empty.
     const worker = site.workerId !== undefined ? world.units.get(site.workerId) : undefined;
-    expect(worker?.kind).toBe('worker');
-    expect([...world.units.values()].filter((u) => u.kind === 'serf')).toEqual([]);
+    expect(worker?.kind).toBe(UnitTypeId.worker);
+    expect([...world.units.values()].filter((u) => u.kind === UnitTypeId.serf)).toEqual([]);
   });
 });
 

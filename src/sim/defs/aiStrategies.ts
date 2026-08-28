@@ -1,7 +1,7 @@
 import { Rng } from '../../shared/rng.ts';
 import type { BuildingTypeId } from './buildings.ts';
 import type { TechId } from './techs.ts';
-import type { UnitTypeId } from './units.ts';
+import { UnitTypeId } from './units.ts';
 
 /**
  * The playbooks the AI seats run.
@@ -178,8 +178,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     housingHeadroom: 3,
     houseLimit: 4,
     weaponMix: [1, 0], // first smith on swords, the rest on spears
-    trainPreference: ['knight'],
-    trainFallback: 'spearman',
+    trainPreference: [UnitTypeId.knight],
+    trainFallback: UnitTypeId.spearman,
     barracksQueueDepth: 2,
     armyAttackSize: 7,
     attackCooldown: 900,
@@ -260,8 +260,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     housingHeadroom: 3,
     houseLimit: 4,
     weaponMix: [1], // every forge on swords: knights or nothing
-    trainPreference: ['knight'],
-    trainFallback: 'spearman',
+    trainPreference: [UnitTypeId.knight],
+    trainFallback: UnitTypeId.spearman,
     barracksQueueDepth: 3,
     armyAttackSize: 6,
     attackCooldown: 500,
@@ -379,8 +379,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // plan running two weapon lines, because it wants knights in the field
     // and archers on the walls.
     weaponMix: [1, 2],
-    trainPreference: ['knight', 'archer'],
-    trainFallback: 'archer',
+    trainPreference: [UnitTypeId.knight, UnitTypeId.archer],
+    trainFallback: UnitTypeId.archer,
     barracksQueueDepth: 2,
     // Ten, unchanged by the towers, and that is the measured answer rather
     // than the obvious one. Two towers swallow four archers outright — a
@@ -471,8 +471,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     weaponMix: [2], // every forge on bowstaves
     // The spear in the armory arms the first defender; after that the queue
     // waits on bows, since no iron chain is coming.
-    trainPreference: ['archer', 'spearman'],
-    trainFallback: 'archer',
+    trainPreference: [UnitTypeId.archer, UnitTypeId.spearman],
+    trainFallback: UnitTypeId.archer,
     barracksQueueDepth: 3,
     // Ten, up from eight: bows trickle out of the forges three staves at a
     // time, and a muster of eight on the campaign map marched between the

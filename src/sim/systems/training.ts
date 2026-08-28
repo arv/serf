@@ -10,6 +10,7 @@ import type { GoodId } from '../defs/goods.ts';
 import type { Building } from '../entities.ts';
 import type { Unit } from '../units.ts';
 import { goodEntries } from '../defs/goods.ts';
+import { UnitTypeId } from '../defs/units.ts';
 
 /**
  * Barracks training. A queue item starts when its ingredients are in the input
@@ -90,7 +91,7 @@ export function hiringSystem(world: World): void {
     if (b.hireTicksLeft > 0) continue;
     if (populationOf(world, b.owner) >= popCapOf(world, b.owner)) continue; // no bed yet
     const door = doorOf(world, b);
-    spawnUnit(world, 'serf', b.owner, door.x, door.y);
+    spawnUnit(world, UnitTypeId.serf, b.owner, door.x, door.y);
     b.hireQueue--;
     b.hireTicksLeft = b.hireQueue > 0 ? HIRE_SERF_TICKS : undefined;
   }
@@ -166,7 +167,7 @@ export function trainingDemand(b: Building): Partial<Record<GoodId, number>> {
   return need;
 }
 
-export function enqueueTraining(world: World, b: Building, unit: string): void {
+export function enqueueTraining(world: World, b: Building, unit: UnitTypeId): void {
   const def = buildingDef(b.type);
   const option = def.trains?.find((o) => o.unit === unit);
   if (!option || b.state !== 'built' || b.dead) return;
@@ -189,7 +190,7 @@ export function enqueueTraining(world: World, b: Building, unit: string): void {
  * recruit, and both walk back out — goods into the input buffer, the person
  * out the door as a serf. Only the training time already spent is lost.
  */
-export function cancelTraining(world: World, b: Building, index: number, unit: string): void {
+export function cancelTraining(world: World, b: Building, index: number, unit: UnitTypeId): void {
   const item = b.trainQueue?.[index];
   if (!item || item.unit !== unit) return;
   b.trainQueue!.splice(index, 1);
@@ -202,7 +203,7 @@ export function cancelTraining(world: World, b: Building, index: number, unit: s
     }
   }
   const door = doorOf(world, b);
-  spawnUnit(world, 'serf', b.owner, door.x, door.y);
+  spawnUnit(world, UnitTypeId.serf, b.owner, door.x, door.y);
 }
 
 export function doorOf(world: World, b: Building): { x: number; y: number } {

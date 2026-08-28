@@ -14,6 +14,7 @@ import { tileIdx } from '../../shared/grid.ts';
 import type { Building } from '../entities.ts';
 import { GoodId } from '../defs/goods.ts';
 import { goodKeys } from '../defs/goods.ts';
+import { UnitTypeId } from '../defs/units.ts';
 
 /**
  * Sites whose materials are fully delivered tick a build timer, then become
@@ -89,7 +90,7 @@ export function constructionSystem(world: World): void {
     if (b.workerId !== undefined && (def.workerKind === undefined || !consumePostTool(world, b))) {
       const builder = world.units.get(b.workerId);
       if (builder && !builder.dead) {
-        builder.kind = 'serf';
+        builder.kind = UnitTypeId.serf;
         builder.homeId = undefined;
       }
       b.workerId = undefined;

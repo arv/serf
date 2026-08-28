@@ -96,8 +96,16 @@ const isTile = isId;
 
 /** Own-property lookup on purpose: `BUILDING_DEFS['constructor']` is truthy
  * through the prototype and would sail past a plain truthiness test. */
+/**
+ * Does this untrusted value name a row of a def table?
+ *
+ * Both spellings are live while the ids are moving from words to numbers:
+ * `Object.hasOwn` reads either, and the integer check is what keeps a
+ * fractional or NaN "id" from indexing anything.
+ */
 function isDefined(table: object, key: unknown): boolean {
-  return typeof key === 'string' && Object.hasOwn(table, key);
+  if (typeof key === 'string') return Object.hasOwn(table, key);
+  return typeof key === 'number' && Number.isInteger(key) && Object.hasOwn(table, key);
 }
 
 /**

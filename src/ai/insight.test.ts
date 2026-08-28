@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { describeAdvice } from './insight.ts';
 import type { SeatKnobs } from './summary.ts';
+import { UnitTypeId } from '../sim/defs/units.ts';
 
 /**
  * The humanizer is judged the way the prompt is: a reader who knows
@@ -15,7 +16,7 @@ const playbook: SeatKnobs = {
   attackCooldown: 600,
   homeGuard: 0,
   prefersRivals: false,
-  trainPreference: ['spearman', 'archer'],
+  trainPreference: [UnitTypeId.spearman, UnitTypeId.archer],
   weaponMix: [0, 2],
   barracksQueueDepth: 2,
   houseLimit: 3,
@@ -35,7 +36,7 @@ describe('describeAdvice', () => {
         attackCooldown: 700,
         homeGuard: 10,
         prefersRivals: true,
-        trainPreference: ['archer'],
+        trainPreference: [UnitTypeId.archer],
         weaponMix: [2],
         barracksQueueDepth: 3,
         houseLimit: 4,

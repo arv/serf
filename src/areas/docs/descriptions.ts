@@ -1,7 +1,8 @@
 import { BUILDING_DEFS, type BuildingTypeId } from '../../sim/defs/buildings';
 import type { BuildGroupLabel } from '../../ui/buildMenu';
-import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
+import { UNIT_DEFS } from '../../sim/defs/units';
 import { GoodId } from '../../sim/defs/goods';
+import { UnitTypeId } from '../../sim/defs/units';
 
 /**
  * The one authored layer of the wiki: a sentence or two of flavor and
@@ -91,18 +92,18 @@ export const BUILDING_DESC: Record<BuildingTypeId, string> = {
 };
 
 export const UNIT_DESC: Record<UnitTypeId, string> = {
-  serf: 'The village’s hands: hauls every good, raises every building, and becomes whatever the village needs next. No weapon, no fight.',
-  worker:
+  [UnitTypeId.serf]: 'The village’s hands: hauls every good, raises every building, and becomes whatever the village needs next. No weapon, no fight.',
+  [UnitTypeId.worker]:
     'A serf who took a post. Workers live at their building and work its trade; lose the building and the trade stops.',
-  knight:
+  [UnitTypeId.knight]:
     'The heavy line. Slow to make — bread, a sword, the longest course at the barracks — and the unit that walks through spearmen.',
-  spearman:
+  [UnitTypeId.spearman]:
     'The fast, cheap soldier: first to any fight and the counter to archers. Melts against knights.',
-  archer:
-    `Range ${UNIT_DEFS.archer.combat?.range ?? 0} and the pick of the tower garrison. Kites knights, dies to anything light that reaches it.`,
-  bandit: 'The raiders’ line infantry: light, quick, and fond of buildings that cannot fight back.',
-  banditArcher: 'The raiders’ bow. Softer than yours, but a wave of them outranges a village with no answer.',
-  marauder:
+  [UnitTypeId.archer]:
+    `Range ${UNIT_DEFS[UnitTypeId.archer].combat?.range ?? 0} and the pick of the tower garrison. Kites knights, dies to anything light that reaches it.`,
+  [UnitTypeId.bandit]: 'The raiders’ line infantry: light, quick, and fond of buildings that cannot fight back.',
+  [UnitTypeId.banditArcher]: 'The raiders’ bow. Softer than yours, but a wave of them outranges a village with no answer.',
+  [UnitTypeId.marauder]:
     'The raiders’ heavy: nearly a knight, and the sign a late wave means it. Bring bows and walls — spears are the wrong answer to armour.',
 };
 

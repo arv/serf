@@ -6,6 +6,7 @@ import { goodName, techName, unitName } from '../../ui/names';
 import { buildingHref, goodHref, techHref, unitHref } from './routes';
 import { GoodId } from '../../sim/defs/goods';
 import { GOOD_KEYS } from '../../sim/defs/goods';
+import { UNIT_TYPES } from '../../sim/defs/units';
 
 /**
  * Which words in a sentence name something with a page of its own.
@@ -77,7 +78,7 @@ function collectTerms(): Term[] {
   for (const id of Object.keys(BUILDING_DEFS) as BuildingTypeId[]) {
     terms.push({ text: BUILDING_DEFS[id].name, href: buildingHref(id) });
   }
-  for (const id of Object.keys(UNIT_DEFS) as UnitTypeId[]) {
+  for (const id of UNIT_TYPES) {
     const name = unitName(id);
     const href = unitHref(id);
     terms.push({ text: name, href });

@@ -20,6 +20,7 @@ import { createWorld } from '../../src/sim/world.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
 import { AiBrain } from '../../src/sim/systems/ai.ts';
 import { AI_STRATEGIES, type AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
+import { UnitTypeId } from '../../src/sim/defs/units.ts';
 
 /** Long enough that a seat which is going to win has, and a stalled one is
  * visibly stalled rather than merely slow. */
@@ -38,7 +39,7 @@ interface Run {
   army: number;
 }
 
-const SOLDIERS = new Set(['knight', 'spearman', 'archer']);
+const SOLDIERS = new Set<UnitTypeId>([UnitTypeId.knight, UnitTypeId.spearman, UnitTypeId.archer]);
 
 function playCampaign(id: AiStrategyId, seed: number): Run {
   // The seat names its playbook rather than being dealt one, so the world's
@@ -59,7 +60,7 @@ function playCampaign(id: AiStrategyId, seed: number): Run {
     );
     if (world.tick % SAMPLE_EVERY !== 0) continue;
     for (const b of world.buildings.values()) {
-      if (b.dead || b.owner !== 0 || b.garrisonKind !== 'serf') continue;
+      if (b.dead || b.owner !== 0 || b.garrisonKind !== UnitTypeId.serf) continue;
       levyTicks += SAMPLE_EVERY;
       break;
     }

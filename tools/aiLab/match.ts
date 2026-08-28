@@ -12,6 +12,7 @@ import type { ChatMessage } from '../../src/ai/prompt.ts';
 import type { Owner } from '../../src/sim/entities.ts';
 import type { EconomyRuleId } from '../../src/sim/economyRules.ts';
 import type { LabEngine } from './engines.ts';
+import { UnitTypeId } from '../../src/sim/defs/units.ts';
 
 /**
  * One headless match, played the way the game plays it.
@@ -410,10 +411,9 @@ export function standingOf(world: World, playerId: Owner): SeatStanding {
   for (const u of world.units.values()) {
     if (u.dead || u.owner !== playerId) continue;
     pop++;
-    if (u.kind === 'knight' || u.kind === 'spearman' || u.kind === 'archer') {
-      army[u.kind]++;
-      armyHp += u.hp;
-    }
+    if (u.kind === UnitTypeId.knight) (army.knight++, (armyHp += u.hp));
+    else if (u.kind === UnitTypeId.spearman) (army.spearman++, (armyHp += u.hp));
+    else if (u.kind === UnitTypeId.archer) (army.archer++, (armyHp += u.hp));
   }
   return {
     playerId,

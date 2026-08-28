@@ -5,6 +5,7 @@ import { tickWorld } from '../sim/tick.ts';
 import { placeBuiltBuilding, placeSite, spawnUnit } from '../sim/world.ts';
 import { BUILDING_DEFS } from '../sim/defs/buildings.ts';
 import { addSerf, addStorehouse, bareWorld, cmds } from '../sim/testUtils.ts';
+import { UnitTypeId } from '../sim/defs/units.ts';
 
 const CAP = BUILDING_DEFS.guardTower.garrison!.capacity;
 
@@ -37,7 +38,7 @@ describe('the tower manning order', () => {
     let guard = 0;
     while ((tower.garrison ?? 0) < CAP && guard++ < 4000) tickWorld(world, []);
     expect(tower.garrison).toBe(CAP);
-    expect(tower.garrisonKind).toBe('serf');
+    expect(tower.garrisonKind).toBe(UnitTypeId.serf);
     expect(levyOrder(snapBuilding(world, tower))).toEqual({ label: 'Stand down' });
 
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
@@ -48,10 +49,10 @@ describe('the tower manning order', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
     const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 30);
-    for (let i = 0; i < CAP; i++) spawnUnit(world, 'archer', 0, 33.5, 33.5 + i);
+    for (let i = 0; i < CAP; i++) spawnUnit(world, UnitTypeId.archer, 0, 33.5, 33.5 + i);
     let guard = 0;
     while ((tower.garrison ?? 0) < CAP && guard++ < 4000) tickWorld(world, []);
-    expect(tower.garrisonKind).toBe('archer');
+    expect(tower.garrisonKind).toBe(UnitTypeId.archer);
     expect(levyOrder(snapBuilding(world, tower))).toEqual({ label: 'Stand down' });
 
     // Stand it down: the roof empties and the archers are two soldiers
@@ -60,7 +61,7 @@ describe('the tower manning order', () => {
     const snap = snapBuilding(world, tower);
     expect(snap.garrison).toBe(0);
     expect(levyOrder(snap)).toEqual({ label: 'Man the tower' });
-    expect([...world.units.values()].filter((u) => !u.dead && u.kind === 'archer')).toHaveLength(
+    expect([...world.units.values()].filter((u) => !u.dead && u.kind === UnitTypeId.archer)).toHaveLength(
       CAP,
     );
 

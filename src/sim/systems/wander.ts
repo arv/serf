@@ -3,6 +3,7 @@ import { inBounds, tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { PathLevel } from '../map.ts';
 import { findPath } from '../path.ts';
 import type { World } from '../world.ts';
+import { UnitTypeId } from '../defs/units.ts';
 
 /** How far from itself an idle serf will look for somewhere to go. */
 const RANGE = 4;
@@ -61,7 +62,7 @@ export function wanderSystem(world: World, rng: Rng): void {
   for (const unit of world.units.values()) {
     // Only truly idle, jobless serfs stroll; workers are run by production
     // and anyone with a job is owned by logistics.
-    if (unit.dead || unit.kind !== 'serf' || unit.jobId !== undefined) continue;
+    if (unit.dead || unit.kind !== UnitTypeId.serf || unit.jobId !== undefined) continue;
     if (unit.task.t !== 'idle' || world.tick < unit.task.until) continue;
 
     // Mostly loiter; occasionally stroll. Keeps villages alive, not frantic.

@@ -13,7 +13,7 @@ import type { BuildingSnap } from '../protocol/messages';
  * would send things this never lights, or light ground it was sent nothing
  * for. See src/sim/visibility.ts. */
 const SIGHT_BY_KIND_CODE = new Map<number, number>(
-  Object.values(UNIT_DEFS).map((d) => [d.kindCode, d.sight]),
+  Object.values(UNIT_DEFS).map((d) => [d.id, d.sight]),
 );
 /** Tiles over which a sight circle fades out at its rim. Generous on
  * purpose: a long feather is what makes the frontier read as fog rolling

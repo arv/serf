@@ -15,6 +15,7 @@ import { tileIdx } from '../shared/grid.ts';
 import { OUTPUT_CAP } from './defs/buildings.ts';
 import { bindWorker } from './systems/production.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -46,7 +47,7 @@ describe('releasing a worker', () => {
 
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: true }));
 
-    expect(worker.kind).toBe('serf');
+    expect(worker.kind).toBe(UnitTypeId.serf);
     // Idle, or already claimed for a haul — either is in the pool. What is
     // fatal is a leftover gather task.
     expect(['idle', 'haul']).toContain(worker.task.t);
@@ -63,7 +64,7 @@ describe('releasing a worker', () => {
     tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: hut.id }));
 
     expect(worker.dead).toBe(false);
-    expect(worker.kind).toBe('serf');
+    expect(worker.kind).toBe(UnitTypeId.serf);
     expect(['idle', 'haul']).toContain(worker.task.t);
   });
 });
@@ -77,7 +78,7 @@ describe('the population economy', () => {
     const serf = addSerf(world, 36, 34);
     run(world, 20 * 15);
 
-    expect(serf.kind).toBe('worker');
+    expect(serf.kind).toBe(UnitTypeId.worker);
     expect(farm.workerId).toBe(serf.id);
     expect(farm.stock[GoodId.wheat] ?? 0).toBeGreaterThan(0); // staffed => producing
     expect(checkInvariants(world).violations).toEqual([]);
@@ -102,7 +103,7 @@ describe('the population economy', () => {
     killUnit(world, worker);
     run(world, 20 * 15);
 
-    expect(spare.kind).toBe('worker');
+    expect(spare.kind).toBe(UnitTypeId.worker);
     expect(farm.workerId).toBe(spare.id);
   });
 
@@ -115,7 +116,7 @@ describe('the population economy', () => {
 
     // The lone serf took the farm post — nobody is left to haul.
     const kinds = [...world.units.values()].map((u) => u.kind);
-    expect(kinds).toEqual(['worker']);
+    expect(kinds).toEqual([UnitTypeId.worker]);
   });
 
   it('training a soldier consumes a serf (people become the army)', () => {
@@ -126,10 +127,10 @@ describe('the population economy', () => {
     addSerf(world, 34, 34);
     addSerf(world, 33, 34); // one hauls, one enlists
     const peopleBefore = [...world.units.values()].filter((u) => !u.dead).length;
-    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'spearman' }));
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.spearman }));
     run(world, 20 * 90);
 
-    const spearman = [...world.units.values()].filter((u) => u.kind === 'spearman');
+    const spearman = [...world.units.values()].filter((u) => u.kind === UnitTypeId.spearman);
     expect(spearman.length).toBe(1);
     // Net population unchanged: serf out, soldier in.
     const peopleAfter = [...world.units.values()].filter((u) => !u.dead).length;
@@ -148,7 +149,7 @@ describe('the population economy', () => {
     run(world, 20 * 10);
 
     expect(serf.dead).toBe(false);
-    expect(serf.kind).toBe('serf');
+    expect(serf.kind).toBe(UnitTypeId.serf);
     expect(serf.task.t === 'idle' || serf.task.t === 'move').toBe(true);
   });
 
@@ -174,14 +175,14 @@ describe('the population economy', () => {
     // Exactly what an older save deserializes into: a standing well with a
     // resident bound to it, from the days when its def asked for one.
     const keeper = addSerf(world, 30, 31);
-    keeper.kind = 'worker';
+    keeper.kind = UnitTypeId.worker;
     bindWorker(well, keeper);
     expect(well.workerId).toBe(keeper.id);
 
     run(world, 30); // past one recruitment sweep
 
     expect(well.workerId).toBeUndefined();
-    expect(keeper.kind).toBe('serf');
+    expect(keeper.kind).toBe(UnitTypeId.serf);
     expect(keeper.homeId).toBeUndefined();
     expect(keeper.task.t).toBe('idle');
     expect(checkInvariants(world).violations).toEqual([]);

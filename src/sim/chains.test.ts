@@ -21,6 +21,7 @@ import {
   staffBuilding,
 } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -223,7 +224,7 @@ describe('gatherer placement', () => {
     expect(canPlace(world.map, 'woodcutter', 30, 30)).toBe(true);
 
     const hut = placeBuiltBuilding(world, 'woodcutter', 0, 30, 30);
-    bindWorker(hut, spawnUnit(world, 'worker', 0, 30.5, 32.5));
+    bindWorker(hut, spawnUnit(world, UnitTypeId.worker, 0, 30.5, 32.5));
     run(world, 20 * 60);
     expect(hut.stock[GoodId.wood] ?? 0).toBeGreaterThan(0);
   });
@@ -234,7 +235,7 @@ describe('gatherer placement', () => {
     world.map.resource[dep] = TileResource.IronDep;
     world.map.resourceAmt[dep] = 10;
     const mine = placeBuiltBuilding(world, 'ironMine', 0, 30, 30);
-    const miner = spawnUnit(world, 'worker', 0, 30.5, 33.5);
+    const miner = spawnUnit(world, UnitTypeId.worker, 0, 30.5, 33.5);
     bindWorker(mine, miner);
     run(world, 20 * 60);
 
@@ -283,7 +284,7 @@ describe('stone-road paving', () => {
 
 describe('hiring a serf', () => {
   const serfCount = (world: World): number =>
-    [...world.units.values()].filter((u) => !u.dead && u.kind === 'serf').length;
+    [...world.units.values()].filter((u) => !u.dead && u.kind === UnitTypeId.serf).length;
 
   it('charges up front and delivers the recruit after the wait', () => {
     const world = bareWorld();

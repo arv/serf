@@ -7,6 +7,7 @@ import { HIRE_SERF_COST, HIRE_SERF_TICKS, START_SERFS } from './defs/balance.ts'
 import { BUILDING_DEFS } from './defs/buildings.ts';
 import { addSerf, addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 /**
  * The population cap. Beds, not bodies, are the ceiling: the castle sleeps
@@ -32,17 +33,17 @@ describe('the population cap', () => {
 
   it('counts workers and soldiers, not just idle serfs', () => {
     const { world } = village(0);
-    spawnUnit(world, 'serf', 0, 5, 5);
-    spawnUnit(world, 'worker', 0, 6, 5);
-    spawnUnit(world, 'knight', 0, 7, 5);
+    spawnUnit(world, UnitTypeId.serf, 0, 5, 5);
+    spawnUnit(world, UnitTypeId.worker, 0, 6, 5);
+    spawnUnit(world, UnitTypeId.knight, 0, 7, 5);
     expect(populationOf(world, 0)).toBe(3);
   });
 
   it('leaves the dead and other seats out of the count', () => {
     const { world } = village(0);
-    spawnUnit(world, 'serf', 0, 5, 5);
-    spawnUnit(world, 'serf', 0, 6, 5).dead = true;
-    spawnUnit(world, 'serf', 1, 7, 5);
+    spawnUnit(world, UnitTypeId.serf, 0, 5, 5);
+    spawnUnit(world, UnitTypeId.serf, 0, 6, 5).dead = true;
+    spawnUnit(world, UnitTypeId.serf, 1, 7, 5);
     expect(populationOf(world, 0)).toBe(1);
   });
 

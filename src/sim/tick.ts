@@ -32,6 +32,7 @@ import { hasRoomToHire } from './population.ts';
 import type { AdminAction, SimCommand } from './commands.ts';
 import { GoodId } from './defs/goods.ts';
 import { goodEntries } from './defs/goods.ts';
+import { UNIT_TYPES } from './defs/units.ts';
 
 export { TICKS_PER_SECOND, TICK_MS } from './defs/balance.ts';
 
@@ -376,17 +377,7 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
       // wardrobe and animation work. Issuer-owned so nobody starts a war.
       const sh = findStorehouse(world, playerId);
       if (!sh) break;
-      const kinds = [
-        'serf',
-        'worker',
-        'knight',
-        'spearman',
-        'archer',
-        'bandit',
-        'banditArcher',
-        'marauder',
-      ] as const;
-      kinds.forEach((k, i) => {
+      UNIT_TYPES.forEach((k, i) => {
         spawnUnit(world, k, playerId, sh.x - 2.5 + i, sh.y + sh.h + 2.5);
       });
       break;

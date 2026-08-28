@@ -117,10 +117,10 @@ function keyLetter(e: KeyboardEvent): string {
 }
 
 /** Kind codes that count as army for the select-army shortcut. */
-const MILITARY_CODES = new Set(
+const MILITARY_CODES = new Set<number>(
   Object.values(UNIT_DEFS)
     .filter((d) => d.combat !== undefined)
-    .map((d) => d.kindCode),
+    .map((d) => d.id),
 );
 
 /**

@@ -20,6 +20,7 @@ import { getModifier } from '../techHelpers.ts';
 import type { Unit } from '../units.ts';
 import { GoodId } from '../defs/goods.ts';
 import { goodEntries } from '../defs/goods.ts';
+import { UnitTypeId } from '../defs/units.ts';
 
 /**
  * How many nearby resource tiles one trip-start will try to path to before
@@ -564,6 +565,6 @@ export function unbindWorker(world: World, worker: Unit): void {
     }
   }
   worker.homeId = undefined;
-  worker.kind = 'serf';
+  worker.kind = UnitTypeId.serf;
   worker.task = { t: 'idle', until: world.tick };
 }

@@ -16,6 +16,7 @@ import { WORK } from '../protocol/sabLayout';
 import { unitName } from './names';
 import { BANDIT } from '../sim/entities';
 import { DEFAULT_MAP_SIZE as MAP_SIZE } from '../shared/grid';
+import { UnitTypeId } from '../sim/defs/units';
 
 /**
  * ?wardrobe — the costume fitting room. Every unit kind of every faction
@@ -48,16 +49,16 @@ interface Row {
 function columns(): Column[] {
   const out: Column[] = [];
   for (const def of Object.values(UNIT_DEFS)) {
-    if (def.id === 'worker') {
+    if (def.id === UnitTypeId.worker) {
       // One column per trade: the profession looks (see PROF_LOOKS) plus
       // the work each performs in Work mode — tool in hand, proper loop.
-      out.push({ code: def.kindCode, profession: 0, label: 'Builder', workKind: WORK.hammer });
-      out.push({ code: def.kindCode, profession: 0, label: 'Woodcutter', workKind: WORK.chop });
-      out.push({ code: def.kindCode, profession: 1, label: 'Farmer', workKind: WORK.dig });
-      out.push({ code: def.kindCode, profession: 2, label: 'Miner', workKind: WORK.pickaxe });
-      out.push({ code: def.kindCode, profession: 0, label: 'Fisher', workKind: WORK.fish });
+      out.push({ code: def.id, profession: 0, label: 'Builder', workKind: WORK.hammer });
+      out.push({ code: def.id, profession: 0, label: 'Woodcutter', workKind: WORK.chop });
+      out.push({ code: def.id, profession: 1, label: 'Farmer', workKind: WORK.dig });
+      out.push({ code: def.id, profession: 2, label: 'Miner', workKind: WORK.pickaxe });
+      out.push({ code: def.id, profession: 0, label: 'Fisher', workKind: WORK.fish });
     } else {
-      out.push({ code: def.kindCode, profession: 0, label: unitName(def.id) });
+      out.push({ code: def.id, profession: 0, label: unitName(def.id) });
     }
   }
   return out;

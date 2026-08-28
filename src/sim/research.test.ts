@@ -6,6 +6,7 @@ import { BARRACKS_ALE_CAP, FESTIVAL_DURATION } from './defs/balance.ts';
 import { getModifier, isBuildingUnlocked } from './techHelpers.ts';
 import { cmds, addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -162,7 +163,7 @@ describe('research', () => {
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     barracks.inputs[GoodId.ale] = 1;
     addSerf(world, 34, 34);
-    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'spearman' }));
+    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.spearman }));
 
     let guard = 20 * 120;
     while (!barracks.trainQueue?.[0]?.started && guard-- > 0) tickWorld(world, []);

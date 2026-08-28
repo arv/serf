@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
-import { UNIT_DEFS, type UnitTypeId } from '../sim/defs/units';
+import { UNIT_DEFS } from '../sim/defs/units';
 import { HIRE_KEY, RESEARCH_KEY, TRAIN_KEYS, trainKey, trainingForKey } from './commands';
 import { BUILD_KEYS } from './buildMenu';
 import type { BuildingSnap } from '../protocol/messages';
+import { UnitTypeId } from '../sim/defs/units';
+import { UNIT_TYPES } from '../sim/defs/units';
 
 const TYPES = Object.keys(BUILDING_DEFS) as BuildingTypeId[];
 /** Every unit any building can be ordered to drill. */
@@ -25,7 +27,7 @@ describe('building command keys', () => {
   });
 
   it('gives no letter to a unit nobody trains', () => {
-    const stray = (Object.keys(TRAIN_KEYS) as UnitTypeId[]).filter((u) => !TRAINABLE.includes(u));
+    const stray = UNIT_TYPES.filter((u) => TRAIN_KEYS[u] !== undefined && !TRAINABLE.includes(u));
     expect(stray).toEqual([]);
   });
 
@@ -38,14 +40,14 @@ describe('building command keys', () => {
 
   it('picks letters the unit name can bold', () => {
     const NAMES: Record<UnitTypeId, string> = {
-      serf: 'Serf',
-      worker: 'Worker',
-      knight: 'Knight',
-      spearman: 'Spearman',
-      archer: 'Archer',
-      bandit: 'Bandit',
-      banditArcher: 'Bandit Archer',
-      marauder: 'Marauder',
+      [UnitTypeId.serf]: 'Serf',
+      [UnitTypeId.worker]: 'Worker',
+      [UnitTypeId.knight]: 'Knight',
+      [UnitTypeId.spearman]: 'Spearman',
+      [UnitTypeId.archer]: 'Archer',
+      [UnitTypeId.bandit]: 'Bandit',
+      [UnitTypeId.banditArcher]: 'Bandit Archer',
+      [UnitTypeId.marauder]: 'Marauder',
     };
     const unbolded = TRAINABLE.filter((u) => !NAMES[u].toUpperCase().includes(trainKey(u)));
     expect(unbolded).toEqual([]);

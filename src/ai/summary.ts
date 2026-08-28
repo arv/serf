@@ -1,5 +1,5 @@
 import { TICK_MS } from '../sim/defs/balance.ts';
-import { UNIT_DEFS, type UnitTypeId } from '../sim/defs/units.ts';
+import { UNIT_DEFS } from '../sim/defs/units.ts';
 import { buildingDef, type BuildingTypeId } from '../sim/defs/buildings.ts';
 import { AI_INTEL, hostileNear, type AiBrain } from '../sim/systems/ai.ts';
 import type { Building, Owner } from '../sim/entities.ts';
@@ -9,6 +9,7 @@ import { tileIdx } from '../shared/grid.ts';
 import type { World } from '../sim/world.ts';
 import { GOOD_KEYS } from '../sim/defs/goods.ts';
 import { goodEntries } from '../sim/defs/goods.ts';
+import { UnitTypeId } from '../sim/defs/units.ts';
 
 /**
  * One AI seat's view of the match, folded down for a language model. The
@@ -183,10 +184,10 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
   }
   for (const u of world.units.values()) {
     if (u.dead || u.owner !== playerId) continue;
-    if (u.kind === 'serf') serfs++;
-    else if (u.kind === 'knight' || u.kind === 'spearman' || u.kind === 'archer') {
-      army[u.kind]++;
-    }
+    if (u.kind === UnitTypeId.serf) serfs++;
+    else if (u.kind === UnitTypeId.knight) army.knight++;
+    else if (u.kind === UnitTypeId.spearman) army.spearman++;
+    else if (u.kind === UnitTypeId.archer) army.archer++;
   }
 
   const intelByOwner = new Map(brain.intelReport().map((r) => [r.owner, r]));

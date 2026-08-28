@@ -4,6 +4,7 @@ import { killUnit, spawnUnit, type World } from './world.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -58,12 +59,12 @@ describe("a builder's death never orphans the site", () => {
     // Kill the builder AND every loose serf: the village is out of hands.
     killUnit(world, world.units.get(firstBuilder)!);
     for (const u of world.units.values()) {
-      if (!u.dead && u.kind === 'serf') killUnit(world, u);
+      if (!u.dead && u.kind === UnitTypeId.serf) killUnit(world, u);
     }
     run(world, 300);
     expect(site.state).toBe('site'); // stalled, correctly — nobody to send
     // A new serf arrives (hire); the site should claim him.
-    spawnUnit(world, 'serf', 0, 30.5, 34.5);
+    spawnUnit(world, UnitTypeId.serf, 0, 30.5, 34.5);
     guard = 0;
     while (site.state !== 'built' && guard++ < 4000) tickWorld(world, []);
     expect(site.state).toBe('built');
@@ -136,7 +137,7 @@ describe('the pause escape hatch', () => {
     // the player had just emptied on purpose.
     expect(site.workerId).toBeUndefined();
     expect(walker.homeId).toBeUndefined();
-    expect(walker.kind).toBe('serf');
+    expect(walker.kind).toBe(UnitTypeId.serf);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 

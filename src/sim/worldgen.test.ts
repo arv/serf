@@ -5,6 +5,7 @@ import { createWorld } from './world.ts';
 import { BANDIT, isPlayerOwner } from './entities.ts';
 import { START_SERFS } from './defs/balance.ts';
 import { tickWorld } from './tick.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 /** 4-connected grass reachability between two tiles. */
 function reachable(map: { size: number; terrain: Uint8Array }, from: number, to: number): boolean {
@@ -47,7 +48,7 @@ describe('N-player worldgen', () => {
         for (let p = 0; p < n; p++) {
           expect(storehouses.some((b) => b.owner === p)).toBe(true);
           const serfs = [...world.units.values()].filter(
-            (u) => u.owner === p && u.kind === 'serf',
+            (u) => u.owner === p && u.kind === UnitTypeId.serf,
           );
           expect(serfs.length).toBe(START_SERFS);
         }

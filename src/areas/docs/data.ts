@@ -8,11 +8,13 @@ import {
 } from '../../sim/defs/buildings';
 import { GOODS, type GoodAmounts } from '../../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../../sim/defs/techs';
-import { UNIT_DEFS, WEAPON_OF, type UnitTypeId } from '../../sim/defs/units';
+import { UNIT_DEFS, WEAPON_OF } from '../../sim/defs/units';
 import { BUILD_GROUPS } from '../../ui/buildMenu';
 import { GoodId } from '../../sim/defs/goods';
 import { goodEntries } from '../../sim/defs/goods';
 import { goodKeys } from '../../sim/defs/goods';
+import { UnitTypeId } from '../../sim/defs/units';
+import { UNIT_TYPES } from '../../sim/defs/units';
 
 /**
  * The cross-reference graph the wiki walks: every "produced by / used by /
@@ -22,7 +24,7 @@ import { goodKeys } from '../../sim/defs/goods';
  */
 
 export const ALL_BUILDINGS = Object.keys(BUILDING_DEFS) as BuildingTypeId[];
-export const ALL_UNITS = Object.keys(UNIT_DEFS) as UnitTypeId[];
+export const ALL_UNITS: readonly UnitTypeId[] = UNIT_TYPES;
 export const ALL_TECHS = Object.keys(TECH_DEFS) as TechId[];
 
 /**
@@ -34,7 +36,7 @@ export const ALL_TECHS = Object.keys(TECH_DEFS) as TechId[];
  * raider rendered as owner 0 comes out in player one's green, where
  * factionTint(BANDIT) deliberately leaves the pack's own grim look alone.
  */
-export const RAIDER_UNITS: UnitTypeId[] = ['bandit', 'banditArcher', 'marauder'];
+export const RAIDER_UNITS: UnitTypeId[] = [UnitTypeId.bandit, UnitTypeId.banditArcher, UnitTypeId.marauder];
 export const RAIDER_BUILDINGS: BuildingTypeId[] = ['banditCamp'];
 
 /**
@@ -201,8 +203,9 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
   for (const [building, tool] of Object.entries(TOOL_OF) as [BuildingTypeId, GoodId][]) {
     push(map, tool, { kind: 'tool', building });
   }
-  for (const [unit, weapon] of Object.entries(WEAPON_OF) as [UnitTypeId, GoodId][]) {
-    push(map, weapon, { kind: 'weapon', unit });
+  for (const unit of UNIT_TYPES) {
+    const weapon = WEAPON_OF[unit];
+    if (weapon !== undefined) push(map, weapon, { kind: 'weapon', unit });
   }
   // The consumers no def table names, because they are mechanics rather
   // than recipe rows: hiring is priced in balance.ts, every construction

@@ -13,6 +13,7 @@ import { BANDIT } from '../../../sim/entities';
 import { UNIT_DEFS, type UnitTypeId } from '../../../sim/defs/units';
 import { RAIDER_BUILDINGS, RAIDER_UNITS } from '../data';
 import { YAW, frame, frameFor, makeLights, makePlate, makeRenderer, type Framing } from './scene';
+import { unitFromKey } from '../../../sim/defs/units';
 
 /**
  * One WebGL context for every preview on every wiki page.
@@ -362,8 +363,9 @@ function buildContent(card: Card): CardContent | null {
     const owned: THREE.Object3D[] = pile ? [plate, pile] : [plate];
     return { group, framing: frameFor(model, plateR), owned };
   }
-  const unit = card.id as UnitTypeId;
-  const made = makeCharacter(UNIT_DEFS[unit].kindCode, 0, RAIDER_UNITS.includes(unit) ? BANDIT : 0);
+  const unit = unitFromKey(card.id);
+  if (unit === undefined) return null;
+  const made = makeCharacter(unit, 0, RAIDER_UNITS.includes(unit) ? BANDIT : 0);
   if (!made) return null;
   const plateR = 0.62;
   const group = new THREE.Group();

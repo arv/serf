@@ -3,6 +3,7 @@ import type { AnimKey } from '../../../render/characters';
 import type { BuildingTypeId } from '../../../sim/defs/buildings';
 import type { UnitTypeId } from '../../../sim/defs/units';
 import { registerCard, type CardHandle } from './hub';
+import { UNIT_KEYS } from '../../../sim/defs/units';
 
 /**
  * A live 3D preview of a building or unit, rendered from the game's own
@@ -59,10 +60,10 @@ export function ModelCard(props: ModelCardProps): JSX.Element {
       stage,
       canvas,
       kind: props.kind,
-      id: props.id,
+      id: props.kind === 'unit' ? UNIT_KEYS[props.id] : props.id,
       animated: props.animated === true,
       interactive: props.interactive === true,
-      seed: seedFrom(props.id),
+      seed: seedFrom(props.kind === 'unit' ? UNIT_KEYS[props.id] : props.id),
       onState: setState,
     });
   });

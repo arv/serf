@@ -1,7 +1,7 @@
 import type { GoodAmounts } from './goods.ts';
 import type { BuildingTypeId } from './buildings.ts';
-import type { UnitTypeId } from './units.ts';
 import { GoodId } from './goods.ts';
+import { UnitTypeId } from './units.ts';
 
 /**
  * The tech tree: three short branches researched at the Abbey for goods +
@@ -194,7 +194,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     durationTicks: 30 * S,
     effects: [
       { kind: 'unlockBuilding', building: 'barracks' },
-      { kind: 'unlockUnit', unit: 'spearman' },
+      { kind: 'unlockUnit', unit: UnitTypeId.spearman },
     ],
     desc: 'Unlocks the Barracks and Spearmen.',
   },
@@ -205,7 +205,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     prereqs: ['soldiery'],
     cost: { [GoodId.wood]: 8, [GoodId.silver]: 6 },
     durationTicks: 30 * S,
-    effects: [{ kind: 'unlockUnit', unit: 'archer' }],
+    effects: [{ kind: 'unlockUnit', unit: UnitTypeId.archer }],
     desc: 'Unlocks bowmaking at the Smith, and Archers.',
   },
   mailArmor: {

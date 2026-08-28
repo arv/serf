@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createWorld } from './world.ts';
 import { tickWorld } from './tick.ts';
+import { UnitTypeId } from './defs/units.ts';
 
 /**
  * A world generated without bandits has no camp, no guards, and no
@@ -17,7 +18,7 @@ describe('a banditless world', () => {
     });
     const camps = [...world.buildings.values()].filter((b) => b.type === 'banditCamp');
     expect(camps).toEqual([]);
-    const bandits = [...world.units.values()].filter((u) => u.kind === 'bandit');
+    const bandits = [...world.units.values()].filter((u) => u.kind === UnitTypeId.bandit);
     expect(bandits).toEqual([]);
 
     for (let i = 0; i < 600; i++) tickWorld(world, []);

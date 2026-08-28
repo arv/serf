@@ -18,6 +18,7 @@ import {
 import { parseDocsPath } from './routes';
 import { fmtSecs } from './data';
 import { goodKeys } from '../../sim/defs/goods';
+import { UnitTypeId } from '../../sim/defs/units';
 
 /**
  * The wiki derives its whole cross-reference graph from the defs, so what
@@ -100,7 +101,7 @@ describe('the docs router', () => {
     expect(parseDocsPath('/docs')).toEqual({ page: 'index' });
     expect(parseDocsPath('/docs/buildings')).toEqual({ page: 'buildings' });
     expect(parseDocsPath('/docs/buildings/bakery')).toEqual({ page: 'building', id: 'bakery' });
-    expect(parseDocsPath('/docs/units/knight')).toEqual({ page: 'unit', id: 'knight' });
+    expect(parseDocsPath('/docs/units/knight')).toEqual({ page: 'unit', id: UnitTypeId.knight });
     expect(parseDocsPath('/docs/goods/wood')).toEqual({ page: 'good', id: GoodId.wood });
     expect(parseDocsPath('/docs/techs')).toEqual({ page: 'techs' });
     expect(parseDocsPath('/docs/commands')).toEqual({ page: 'commands' });

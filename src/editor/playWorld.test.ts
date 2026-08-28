@@ -9,6 +9,7 @@ import { checkInvariants } from '../sim/debug/invariants.ts';
 import { applyBrush } from './brush.ts';
 import { createBlankMap } from './editorMap.ts';
 import { worldFromEditor } from './playWorld.ts';
+import { UnitTypeId } from '../sim/defs/units.ts';
 
 function authoredState() {
   // play 64 -> grid 112, play region [24, 88).
@@ -52,7 +53,7 @@ describe('worldFromEditor', () => {
     const world = worldFromEditor(authoredState(), PLAY);
     const units = [...world.units.values()];
     for (let p = 0; p < 2; p++) {
-      expect(units.filter((u) => u.owner === p && u.kind === 'serf')).toHaveLength(START_SERFS);
+      expect(units.filter((u) => u.owner === p && u.kind === UnitTypeId.serf)).toHaveLength(START_SERFS);
     }
     const camp = [...world.buildings.values()].find((b) => b.type === 'banditCamp');
     expect(camp).toBeDefined();
