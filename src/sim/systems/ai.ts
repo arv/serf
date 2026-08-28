@@ -376,6 +376,7 @@ const ANCHOR_RESOURCE: Record<Exclude<BuildAnchor, 'base' | 'water'>, number> = 
   rock: TileResource.Rock,
   iron: TileResource.IronDep,
   silver: TileResource.SilverDep,
+  gold: TileResource.GoldDep,
 };
 
 export class AiBrain {

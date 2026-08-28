@@ -27,13 +27,17 @@ import { REPLAY_VERSION } from './replayVersion';
 // 32 for the campaign's ground being composed rather than rolled: every
 // tile of every mission map moved, so a mission log re-run on an older
 // build is a log played on different ground (see replayVersion.ts).
-const EXPECTED_VERSION = 32;
-// Still 32 across the glut-forge rule (sim/economyRules.ts): the brain is
-// inside the hashed surface but outside playback, which replays the AI's
-// recorded commands and never runs a brain at all (see app/replay.ts). A
-// seat that halts a forge it used to leave running emits orders whose tick
+// Still 32 after the Warlord's gold line and the Abbot's reordered ale:
+// both are AI playbook data, and playback never runs a brain — a replay
+// stores the seats' commands rather than re-deriving them (app/replay.ts),
+// so a seat that would decide differently today replays as it decided then.
+// Still 32 again across the glut-forge rule (sim/economyRules.ts), on that
+// same reasoning one step further in: not playbook data this time but the
+// rule layer that reads it, which is equally outside playback. A seat that
+// now halts a forge it used to leave running emits orders whose tick
 // semantics are untouched, so yesterday's logs still play back exactly.
-const EXPECTED_HASH = '2a9fa7ff8cff1b785372f88b28d4aed7';
+const EXPECTED_VERSION = 32;
+const EXPECTED_HASH = 'e90c7c6152533cac21d183f41f3e6fe6';
 
 /**
  * Everything a replay's playback depends on, as raw source:
