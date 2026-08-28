@@ -9,6 +9,7 @@ import type { GoodAmounts } from '../sim/defs/goods';
 import { GoodId } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
+import { StaffingState } from '../protocol/messages';
 
 // The KayKit buildings carry material *arrays* on their meshes (the textured
 // group plus the team-color group). The real loader needs GLB files, so mock
@@ -290,7 +291,7 @@ describe("the mill's sails", () => {
 describe("the fishery's shoal", () => {
   it('swims under the waterline, not at the deck height the template bakes', () => {
     const { sync, scene } = makeSync();
-    sync.update([snap({ type: BuildingTypeId.fishery, staffing: 'staffed' })]);
+    sync.update([snap({ type: BuildingTypeId.fishery, staffing: StaffingState.staffed })]);
     const shoal = scene.getObjectByName('fisheryShoal')!;
     // The test heightfield is flat zero, so the shore sits at y=0 — well
     // above the water plane. The group must have been re-seated below it.
@@ -300,7 +301,7 @@ describe("the fishery's shoal", () => {
 
   it('swims nose-first, whichever way round its circle it goes', () => {
     const { sync, scene } = makeSync();
-    sync.update([snap({ type: BuildingTypeId.fishery, staffing: 'staffed' })]);
+    sync.update([snap({ type: BuildingTypeId.fishery, staffing: StaffingState.staffed })]);
     const shoal = scene.getObjectByName('fisheryShoal');
     expect(shoal).toBeDefined();
     // Three fish, and the pack deals them both directions.

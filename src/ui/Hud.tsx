@@ -87,6 +87,7 @@ import { play } from '../audio/audio';
 import { GoodId } from '../sim/defs/goods';
 import { goodEntries } from '../sim/defs/goods';
 import { MatchState } from '../sim/world';
+import { NetState } from '../protocol/messages';
 
 const SPEEDS = [
   { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },
@@ -489,7 +490,7 @@ export function Hud(props: {
     // playback owes is the one that says the recording has run out.
     if (replayMode()) return replayOver() ? 'replayOver' : undefined;
     if (outcome().state === MatchState.over) return observing() ? undefined : 'outcome';
-    if (netMode() && netStatus()?.state === 'gone') return 'gone';
+    if (netMode() && netStatus()?.state === NetState.gone) return 'gone';
     if (eliminated() && !spectating()) return 'eliminated';
     return undefined;
   };
@@ -1675,9 +1676,9 @@ export function Hud(props: {
       {/* The speed cluster comes first and the ☰ last: in a
           right-anchored row that pins the menu button to the corner
           and lets the chips beside it grow away into open sky. */}
-      <Show when={!netMode() || netStatus()?.state === 'ok'}>
+      <Show when={!netMode() || netStatus()?.state === NetState.ok}>
       <div class="hud-speed panel" classList={{ single: speedIsSingle() }}>
-        <Show when={netMode() && netStatus()?.state === 'ok'}>
+        <Show when={netMode() && netStatus()?.state === NetState.ok}>
           <span
             class="net-chip"
             {...tooltip(() => (
@@ -1838,7 +1839,7 @@ export function Hud(props: {
               </For>
             </button>
           </Show>
-          <Show when={netMode() && netStatus()?.state === 'disconnected'}>
+          <Show when={netMode() && netStatus()?.state === NetState.disconnected}>
             <div class="hud-nettrouble panel">
               Connection to the server lost. Reconnecting… — your seat is held,
               and the match rides out even a server restart.

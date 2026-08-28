@@ -14,6 +14,8 @@ import type { GoodAmounts } from '../sim/defs/goods';
 import type { PlayerCommand } from '../sim/tick';
 import type { MainToWorker, StructuralUpdate, WorkerToMain } from '../protocol/messages';
 import { MatchState } from '../sim/world';
+import { MainToWorkerKind } from '../protocol/messages';
+import { WorkerToMainKind } from '../protocol/messages';
 
 /**
  * Single player: owns the World and the fixed-timestep loop, publishes unit
@@ -73,7 +75,7 @@ const post = (msg: WorkerToMain): void => {
 self.onmessage = (e: MessageEvent<MainToWorker>) => {
   const msg = e.data;
   switch (msg.type) {
-    case 'init':
+    case MainToWorkerKind.init:
       // init awaits a mission's code-split map chunk, so it's async; a
       // failure must still reach worker.onerror (simHost surfaces it and
       // rejects start), so rethrow outside the promise chain — as a real
@@ -88,31 +90,31 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
         });
       });
       break;
-    case 'commands':
+    case MainToWorkerKind.commands:
       // A replay's diet is the log, nothing else: a stray order clicked
       // during playback must not fork the recorded history.
       if (replay) break;
       pendingCommands.push(...msg.commands);
       break;
-    case 'aiAdvice':
+    case MainToWorkerKind.aiAdvice:
       // Pre-validated on the main thread; the brain merges it over its
       // playbook and plays on. Nothing to log: whatever the advice changes
       // shows up in the AI commands the recording already captures. (In
       // playback there are no brains at all — the log speaks for them.)
       ai?.applyAdvice(msg.playerId, msg.override);
       break;
-    case 'setSpeed':
+    case MainToWorkerKind.setSpeed:
       speed = msg.speed;
       // Pausing stopped the pump timer (see pump); waking restarts it.
       if (speed > 0) startPump();
       break;
-    case 'setDebug':
+    case MainToWorkerKind.setDebug:
       debugEnabled = msg.enabled;
       // Fill the overlay at once instead of waiting for the next matcher
       // interval to ship a structural frame.
       if (debugEnabled) postStructural();
       break;
-    case 'setHidden':
+    case MainToWorkerKind.setHidden:
       // Backgrounded: freeze the world where it stands. The timer goes too —
       // not just the ticks — so the worker stops waking the CPU 100 times a
       // second for nothing. `speed` is untouched: coming back resumes at
@@ -121,10 +123,10 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       if (hidden) stopPump();
       else startPump();
       break;
-    case 'requestSave':
-      if (world) post({ type: 'saved', data: serializeWorld(world) });
+    case MainToWorkerKind.requestSave:
+      if (world) post({ type: WorkerToMainKind.saved, data: serializeWorld(world) });
       break;
-    case 'requestReplay':
+    case MainToWorkerKind.requestReplay:
       // Unlike the server's replayFor, solo answers at any point in the
       // match: the only human whose game could be spoiled is the one
       // asking. endTick marks where the recording was cut — playback
@@ -134,7 +136,7 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       // to save.
       if (world && recording) {
         post({
-          type: 'replayData',
+          type: WorkerToMainKind.replayData,
           // replayVersion right after format — readReplayVersion scans
           // only the head of the file for it.
           data: serializeReplay({
@@ -154,7 +156,7 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
           }),
         });
       } else {
-        post({ type: 'replayData', data: '' });
+        post({ type: WorkerToMainKind.replayData, data: '' });
       }
       break;
   }
@@ -191,7 +193,7 @@ async function init(
   writer = new SabWriter(sab);
 
   post({
-    type: 'ready',
+    type: WorkerToMainKind.ready,
     sab,
     map: {
       size: world.map.size,
@@ -272,7 +274,7 @@ function pump(): void {
         speed = 0;
         if (!replayEndedPosted) {
           replayEndedPosted = true;
-          post({ type: 'replayEnded' });
+          post({ type: WorkerToMainKind.replayEnded });
           // The pause skips future matcher intervals, so whatever the HUD
           // is still owed (outcome, rosters) ships now or never.
           postStructural();
@@ -338,7 +340,7 @@ function postSummaries(): void {
     // Through the brain, not the raw world: the strategist may know only
     // what the seat has scouted.
     const brain = ai.brainFor(playerId);
-    if (brain) post({ type: 'aiSummary', playerId, summary: summarizeForSeat(world, brain) });
+    if (brain) post({ type: WorkerToMainKind.aiSummary, playerId, summary: summarizeForSeat(world, brain) });
   }
 }
 
@@ -390,7 +392,7 @@ function postStructural(): void {
   lastPlayersBody = playersBody;
   lastMiscBody = miscBody;
   const msg: StructuralUpdate = {
-    type: 'structural',
+    type: WorkerToMainKind.structural,
     tick: world.tick,
     mapDeltas,
     admin: { ...world.admin },

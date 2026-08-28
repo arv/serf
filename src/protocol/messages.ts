@@ -12,6 +12,21 @@ import type { MissionId } from '../sim/defs/missions.ts';
 import type { TechId } from '../sim/defs/techs.ts';
 import type { PlayerCommand } from '../sim/tick.ts';
 import type { GameEvent, MapDelta, WorldConfig } from '../sim/world.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as MainToWorkerKindNs from './mainToWorkerKindEnum.ts';
+import * as WorkerToMainKindNs from './workerToMainKindEnum.ts';
+import * as NetStateNs from './netStateEnum.ts';
+import * as StaffingStateNs from './staffingStateEnum.ts';
+
+export * as MainToWorkerKind from './mainToWorkerKindEnum.ts';
+export type MainToWorkerKind = Enum<typeof MainToWorkerKindNs>;
+export * as WorkerToMainKind from './workerToMainKindEnum.ts';
+export type WorkerToMainKind = Enum<typeof WorkerToMainKindNs>;
+export * as NetState from './netStateEnum.ts';
+export type NetState = Enum<typeof NetStateNs>;
+export * as StaffingState from './staffingStateEnum.ts';
+export type StaffingState = Enum<typeof StaffingStateNs>;
+
 
 /** Tech-tree state for the UI. */
 export interface TechSnap {
@@ -78,7 +93,7 @@ export interface BuildingSnap {
   /** Quarter turns from "front faces +z" — shore buildings only. */
   facing?: 0 | 1 | 2 | 3;
   /** Staffing state (undefined = building needs no worker). */
-  staffing?: 'staffed' | 'recruiting' | 'needed';
+  staffing?: StaffingState;
   /** Present (as `true`) only while a convert batch is mid-grind and not
    * paused; omitted otherwise — `false` is never sent. The cue for decor
    * that moves with production rather than with staff (the mill's sails,
@@ -150,15 +165,15 @@ export interface NetInfo {
  * happen now that one machine simulates and the rest render what it sends.
  */
 export type NetStatus =
-  | { state: 'ok'; rttMs: number }
-  | { state: 'disconnected' }
+  | { state: NetStateNs.ok; rttMs: number }
+  | { state: NetStateNs.disconnected }
   /** The room no longer knows us (swept, or the relay restarted): the
    * match is unreachable for good — stop reconnecting, say so. */
-  | { state: 'gone'; message: string };
+  | { state: NetStateNs.gone; message: string };
 
 export type MainToWorker =
   | {
-      type: 'init';
+      type: MainToWorkerKindNs.init;
       config: WorldConfig;
       loadData?: string;
       net?: NetInfo;
@@ -170,27 +185,27 @@ export type MainToWorker =
        * above are ignored — the replay carries its own. */
       replay?: import('../app/replay.ts').ReplayData;
     }
-  | { type: 'commands'; commands: PlayerCommand[] }
+  | { type: MainToWorkerKindNs.commands; commands: PlayerCommand[] }
   /** Strategist advice for one AI seat: playbook knobs to lay over its
    * strategy. Validated and clamped on the main thread (src/ai/advice.ts)
    * before it is ever posted. */
-  | { type: 'aiAdvice'; playerId: number; override: Partial<AiStrategy> }
-  | { type: 'setSpeed'; speed: number }
+  | { type: MainToWorkerKindNs.aiAdvice; playerId: number; override: Partial<AiStrategy> }
+  | { type: MainToWorkerKindNs.setSpeed; speed: number }
   /** Debug overlay visibility: the worker only serializes its jobs table
    * into structural updates while someone is actually watching. */
-  | { type: 'setDebug'; enabled: boolean }
+  | { type: MainToWorkerKindNs.setDebug; enabled: boolean }
   /** Page visibility: hidden freezes the single-player sim (and its pump
    * timer) so a backgrounded phone stops burning battery on a valley
    * nobody is watching. Multiplayer ignores it — the server's world keeps
    * running either way, and the socket has to stay warm. */
-  | { type: 'setHidden'; hidden: boolean }
-  | { type: 'requestSave' }
+  | { type: MainToWorkerKindNs.setHidden; hidden: boolean }
+  | { type: MainToWorkerKindNs.requestSave }
   /** Solo only: serialize the recording so the main thread can write it to
    * OPFS. Answered with 'replayData'. `explored` is the packed fog memory
    * the match booted with (a loaded save's), which the worker cannot know
    * — fog is render-side — and carries into the file unread, so playback
    * from that save resumes with the ground the player had scouted. */
-  | { type: 'requestReplay'; explored?: string };
+  | { type: MainToWorkerKindNs.requestReplay; explored?: string };
 
 /**
  * Low-frequency structural state (every 5 ticks / on change): building
@@ -198,7 +213,7 @@ export type MainToWorker =
  * per-tick unit state rides the SharedArrayBuffer instead.
  */
 export interface StructuralUpdate {
-  type: 'structural';
+  type: WorkerToMainKindNs.structural;
   tick: number;
   /** Absent = unchanged since the last frame (the mirror keeps what it has). */
   buildings?: BuildingSnap[];
@@ -233,7 +248,7 @@ export interface StructuralUpdate {
 
 export type WorkerToMain =
   | {
-      type: 'ready';
+      type: WorkerToMainKindNs.ready;
       sab: SharedArrayBuffer;
       map: MapSnapshot;
       buildings: BuildingSnap[];
@@ -243,14 +258,14 @@ export type WorkerToMain =
       explored?: Uint8Array;
     }
   | StructuralUpdate
-  | { type: 'saved'; data: string }
+  | { type: WorkerToMainKindNs.saved; data: string }
   /** The recording, serialized — the answer to 'requestReplay'. */
-  | { type: 'replayData'; data: string }
+  | { type: WorkerToMainKindNs.replayData; data: string }
   /** Replay playback reached the log's end tick; the sim has paused itself. */
-  | { type: 'replayEnded' }
-  | { type: 'netStatus'; status: NetStatus }
+  | { type: WorkerToMainKindNs.replayEnded }
+  | { type: WorkerToMainKindNs.netStatus; status: NetStatus }
   /** One AI seat's folded-down view of the match, on the advice cadence
    * (~45 s) — the input the LLM strategist prompts from. Only sent when
    * init asked with `llm`. */
-  | { type: 'aiSummary'; playerId: number; summary: AiWorldSummary }
-  | { type: 'log'; message: string };
+  | { type: WorkerToMainKindNs.aiSummary; playerId: number; summary: AiWorldSummary }
+  | { type: WorkerToMainKindNs.log; message: string };

@@ -30,6 +30,7 @@ import { UnitTaskKind } from '../sim/units.ts';
 import { HaulPhase } from '../sim/world.ts';
 import { RecipeKind } from '../sim/defs/buildings.ts';
 import { TileResource } from '../sim/map.ts';
+import { StaffingState } from './messages.ts';
 
 export function snapBuilding(world: World, b: Building): BuildingSnap {
   const def = buildingDef(b.type);
@@ -42,7 +43,11 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
   if (wantsStaff) {
     const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
     staffing =
-      worker && !worker.dead ? 'staffed' : b.recruitId !== undefined ? 'recruiting' : 'needed';
+      worker && !worker.dead
+        ? StaffingState.staffed
+        : b.recruitId !== undefined
+          ? StaffingState.recruiting
+          : StaffingState.needed;
   }
   return {
     staffing,

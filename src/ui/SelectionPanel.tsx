@@ -39,6 +39,7 @@ import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
 import { TileResource } from '../sim/map';
 import type { TileResourceKind } from '../sim/map';
+import { StaffingState } from '../protocol/messages';
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
   const entries = () =>
@@ -829,16 +830,16 @@ export function SelectionPanel(props: {
                   </span>
                 </Show>
                 <Show when={b().staffing}>
-                  <span classList={{ good: b().staffing === 'staffed', bad: b().staffing !== 'staffed' }}>
+                  <span classList={{ good: b().staffing === StaffingState.staffed, bad: b().staffing !== StaffingState.staffed }}>
                     {b().state === BuildingState.site
-                      ? b().staffing === 'staffed'
+                      ? b().staffing === StaffingState.staffed
                         ? 'builder at work'
-                        : b().staffing === 'recruiting'
+                        : b().staffing === StaffingState.recruiting
                           ? 'builder on the way'
                           : 'needs a builder!'
-                      : b().staffing === 'staffed'
+                      : b().staffing === StaffingState.staffed
                         ? 'worker at post'
-                        : b().staffing === 'recruiting'
+                        : b().staffing === StaffingState.recruiting
                           ? 'worker on the way'
                           : 'needs a worker!'}
                   </span>

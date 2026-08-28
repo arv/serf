@@ -24,6 +24,7 @@ import { GoodId } from '../sim/defs/goods';
 import { UnitTypeId } from '../sim/defs/units';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
+import { StaffingState } from '../protocol/messages';
 
 /** A built fishery's pier, in world space: the deck line from its landward
  * end to the fishing spot near the tip, plank height, and the yaw that
@@ -373,7 +374,7 @@ export class BuildingSync {
         v.root.visible = this.#fog.exploredAt(b.x + b.w / 2, b.y + b.h / 2);
       }
 
-      v.staffed = b.staffing === 'staffed';
+      v.staffed = b.staffing === StaffingState.staffed;
       v.working = b.working === true;
       v.firing = b.firing === true;
       this.#syncPiles(v, b);
