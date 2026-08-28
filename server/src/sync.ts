@@ -16,17 +16,31 @@
  * so they are emptied a single time per pump and then distributed. Draining
  * per seat would hand seat 0 the map deltas and leave everyone else stale.
  */
-import { encodeHot, encodeInit, encodeStructBody } from '../../src/protocol/state.ts';
-import { snapBuilding, snapJobs, snapPlayers, unitSnapshots } from '../../src/protocol/snapshot.ts';
-import { tileCount } from '../../src/shared/grid.ts';
-import { tileBlocks } from '../../src/sim/map.ts';
-import { SeatVision } from '../../src/sim/visibility.ts';
-import type { UnitSnapshot } from '../../src/protocol/sabLayout.ts';
-import type { BuildingSnap, MapSnapshot, PlayerSnap } from '../../src/protocol/messages.ts';
-import type { EntityId } from '../../src/sim/entities.ts';
-import type { GameEvent, MapDelta, World } from '../../src/sim/world.ts';
-import type { Room, Seat } from './rooms.ts';
+
+import type {
+  BuildingSnap,
+  MapSnapshot,
+  PlayerSnap,
+} from '../../src/protocol/messages.ts';
+import type {UnitSnapshot} from '../../src/protocol/sabLayout.ts';
+import {
+  snapBuilding,
+  snapJobs,
+  snapPlayers,
+  unitSnapshots,
+} from '../../src/protocol/snapshot.ts';
+import {
+  encodeHot,
+  encodeInit,
+  encodeStructBody,
+} from '../../src/protocol/state.ts';
+import {tileCount} from '../../src/shared/grid.ts';
+import type {EntityId} from '../../src/sim/entities.ts';
 import * as GameEventKind from '../../src/sim/gameEventKindEnum.ts';
+import {tileBlocks} from '../../src/sim/map.ts';
+import {SeatVision} from '../../src/sim/visibility.ts';
+import type {GameEvent, MapDelta, World} from '../../src/sim/world.ts';
+import type {Room, Seat} from './rooms.ts';
 
 /** Ticks between structural-frame *checks* — a cadence cap, not a schedule:
  * a checked frame identical to the last one sent goes nowhere. */
@@ -152,7 +166,9 @@ function initialMap(world: World, view: SeatView): MapSnapshot {
       pathLevel[i] = world.map.pathLevel[i]!;
       blocked[i] = world.map.blocked[i]!;
     } else {
-      blocked[i] = tileBlocks(world.map.terrain[i]!, world.map.resource[i]!) ? 1 : 0;
+      blocked[i] = tileBlocks(world.map.terrain[i]!, world.map.resource[i]!)
+        ? 1
+        : 0;
     }
   }
   return {
@@ -170,7 +186,7 @@ function initialMap(world: World, view: SeatView): MapSnapshot {
 /** Every seat's block, but only our own carries stock and tech. Rival
  * economies are exactly the thing scouting is supposed to cost. */
 function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
-  return players.map((p) =>
+  return players.map(p =>
     p.id === seatId
       ? p
       : {
@@ -197,7 +213,7 @@ function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
 /** Raid warnings and damage are addressed; eliminations and the result are
  * public. Damage stays private so fights don't leak through rivals' fog. */
 function eventsFor(events: GameEvent[], seatId: number): GameEvent[] {
-  return events.filter((e) =>
+  return events.filter(e =>
     e.kind === GameEventKind.raidIncoming || e.kind === GameEventKind.damage
       ? e.player === seatId
       : true,
@@ -274,13 +290,24 @@ export function sendInit(room: Room, seat: Seat): void {
   view.lastMiscBody = '';
   send(
     seat,
-    encodeInit(world.tick, seat.playerId, initialMap(world, view), view.vision.explored, {
-      buildings: buildingsFor(world, seat.playerId, view, snapLiveBuildings(world)),
-      players: redactPlayers(snapPlayers(world), seat.playerId),
-      admin: { ...world.admin },
-      outcome: world.outcome,
-      seats: room.seats.map((s) => ({ kind: s.kind })),
-    }),
+    encodeInit(
+      world.tick,
+      seat.playerId,
+      initialMap(world, view),
+      view.vision.explored,
+      {
+        buildings: buildingsFor(
+          world,
+          seat.playerId,
+          view,
+          snapLiveBuildings(world),
+        ),
+        players: redactPlayers(snapPlayers(world), seat.playerId),
+        admin: {...world.admin},
+        outcome: world.outcome,
+        seats: room.seats.map(s => ({kind: s.kind})),
+      },
+    ),
   );
 }
 
@@ -293,7 +320,7 @@ export function sendHot(room: Room): void {
   // sweep — snapping every unit at 20 Hz for them was pure waste. Hidden
   // seats count as off the line too: a backgrounded phone told us not to
   // spend its radio on frames nobody is watching.
-  if (!room.seats.some((s) => s.view && s.connected && s.ws && !s.hidden)) return;
+  if (!room.seats.some(s => s.view && s.connected && s.ws && !s.hidden)) return;
   const all: UnitSnapshot[] = [...unitSnapshots(world)];
   for (const seat of room.seats) {
     const view = seat.view;
@@ -301,13 +328,22 @@ export function sendHot(room: Room): void {
     const spectator = world.players[seat.playerId]?.alive === false;
     const mine: UnitSnapshot[] = [];
     for (const u of all) {
-      if (spectator || u.owner === seat.playerId || view.vision.canSee(u.x, u.y)) mine.push(u);
+      if (
+        spectator ||
+        u.owner === seat.playerId ||
+        view.vision.canSee(u.x, u.y)
+      )
+        mine.push(u);
     }
     send(seat, encodeHot(world.tick, mine), true);
   }
 }
 
-export function sendStruct(room: Room, deltas: MapDelta[], events: GameEvent[]): void {
+export function sendStruct(
+  room: Room,
+  deltas: MapDelta[],
+  events: GameEvent[],
+): void {
   const world = room.world;
   if (!world) return;
   // Lazy, and shared: seats only take struct frames every few ticks, and
@@ -335,7 +371,8 @@ export function sendStruct(room: Room, deltas: MapDelta[], events: GameEvent[]):
     view.owedEvents.push(...eventsFor(events, seat.playerId));
 
     const due = world.tick - view.lastStructTick >= MIN_STRUCT_GAP;
-    if (!due && view.owedTiles.size === 0 && view.owedEvents.length === 0) continue;
+    if (!due && view.owedTiles.size === 0 && view.owedEvents.length === 0)
+      continue;
     players ??= snapPlayers(world);
     snaps ??= snapLiveBuildings(world);
     view.lastStructTick = world.tick;
@@ -351,7 +388,9 @@ export function sendStruct(room: Room, deltas: MapDelta[], events: GameEvent[]):
     // building list and every player block along at 4 Hz, which was most
     // of the room's bandwidth. The frame is assembled from the compared
     // strings directly, so nothing is stringified twice.
-    const buildingsBody = JSON.stringify(buildingsFor(world, seat.playerId, view, snaps));
+    const buildingsBody = JSON.stringify(
+      buildingsFor(world, seat.playerId, view, snaps),
+    );
     const playersBody = JSON.stringify(redactPlayers(players, seat.playerId));
     const miscBody = JSON.stringify([world.admin, world.outcome]);
     const buildingsChanged = buildingsBody !== view.lastBuildingsBody;

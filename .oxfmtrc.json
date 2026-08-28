@@ -1,6 +1,16 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "singleQuote": true,
+  "trailingComma": "all",
+  "arrowParens": "avoid",
+  "bracketSpacing": false,
+  "quoteProps": "consistent",
+  "printWidth": 80,
+  "sortImports": {
+    "newlinesBetween": false,
+    "partitionByNewline": true
+  },
+  "sortPackageJson": true,
   "ignorePatterns": [
     "**/*.md",
     "public/models/**",

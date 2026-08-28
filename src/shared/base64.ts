@@ -32,7 +32,8 @@ export function bytesToBase64(bytes: Uint8Array): string {
  * on anything that is not base64 — callers that read untrusted documents
  * catch and report in their own vocabulary. */
 export function bytesFromBase64(text: string): Uint8Array {
-  if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(text);
+  if (typeof Uint8Array.fromBase64 === 'function')
+    return Uint8Array.fromBase64(text);
   const binary = atob(text);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -42,7 +43,8 @@ export function bytesFromBase64(text: string): Uint8Array {
 export function int16ToBase64(values: Int16Array): string {
   const bytes = new Uint8Array(values.length * 2);
   const view = new DataView(bytes.buffer);
-  for (let i = 0; i < values.length; i++) view.setInt16(i * 2, values[i]!, true);
+  for (let i = 0; i < values.length; i++)
+    view.setInt16(i * 2, values[i]!, true);
   return bytesToBase64(bytes);
 }
 
@@ -52,14 +54,16 @@ export function int16FromBase64(text: string): Int16Array {
   const bytes = bytesFromBase64(text);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const values = new Int16Array(bytes.length >> 1);
-  for (let i = 0; i < values.length; i++) values[i] = view.getInt16(i * 2, true);
+  for (let i = 0; i < values.length; i++)
+    values[i] = view.getInt16(i * 2, true);
   return values;
 }
 
 export function float32ToBase64(values: Float32Array): string {
   const bytes = new Uint8Array(values.length * 4);
   const view = new DataView(bytes.buffer);
-  for (let i = 0; i < values.length; i++) view.setFloat32(i * 4, values[i]!, true);
+  for (let i = 0; i < values.length; i++)
+    view.setFloat32(i * 4, values[i]!, true);
   return bytesToBase64(bytes);
 }
 
@@ -68,6 +72,7 @@ export function float32FromBase64(text: string): Float32Array {
   const bytes = bytesFromBase64(text);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const values = new Float32Array(bytes.length >> 2);
-  for (let i = 0; i < values.length; i++) values[i] = view.getFloat32(i * 4, true);
+  for (let i = 0; i < values.length; i++)
+    values[i] = view.getFloat32(i * 4, true);
   return values;
 }

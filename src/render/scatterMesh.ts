@@ -1,9 +1,13 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { tileCount, tileX, tileY } from '../shared/grid';
-import { hash2 } from '../shared/math';
-import { WATER_LEVEL, playEdgeDist, type MapView } from '../sim/map';
-import { goldOre, ironOre, rock, rockDark, silverOre } from './palette';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {tileCount, tileX, tileY} from '../shared/grid';
+import {hash2} from '../shared/math';
+import {WATER_LEVEL, playEdgeDist, type MapView} from '../sim/map';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import {glbDoodads, glbForest, glbRocks, glbTrees} from './assets';
+import type {HeightField} from './heightField';
+import {goldOre, ironOre, rock, rockDark, silverOre} from './palette';
 import {
   foliageMaterial,
   makeBushSprite,
@@ -11,10 +15,6 @@ import {
   makeStalkTexture,
   makeLeafSprite,
 } from './spriteTextures';
-import { glbDoodads, glbForest, glbRocks, glbTrees } from './assets';
-import type { HeightField } from './heightField';
-import * as Terrain from '../sim/terrainEnum.ts';
-import * as TileResource from '../sim/tileResourceEnum.ts';
 
 /**
  * Two quads crossed at 90°, each doubled back-to-back — the classic
@@ -22,7 +22,10 @@ import * as TileResource from '../sim/tileResourceEnum.ts';
  * so two-sided lighting can't flip normals into shadow), and every normal
  * points straight up so the cards take the same light as the ground.
  */
-export function crossedQuads(width: number, height: number): THREE.BufferGeometry {
+export function crossedQuads(
+  width: number,
+  height: number,
+): THREE.BufferGeometry {
   const a = new THREE.PlaneGeometry(width, height);
   const b = a.clone();
   b.rotateY(Math.PI / 2);
@@ -126,7 +129,13 @@ export class ScatterMesh {
    * ring affordable.
    */
   #nearShadow(tile: number): boolean {
-    return playEdgeDist(this.#map, tileX(tile, this.#size), tileY(tile, this.#size)) >= -8;
+    return (
+      playEdgeDist(
+        this.#map,
+        tileX(tile, this.#size),
+        tileY(tile, this.#size),
+      ) >= -8
+    );
   }
 
   /** Rock archetype for a seed — a KayKit variant, or the one procedural. */
@@ -169,7 +178,11 @@ export class ScatterMesh {
       } else if (res === TileResource.Rock) rockTiles++;
       else if (res !== TileResource.None) oreTiles++;
       // Rocky banks: grass tiles touching water, thinned by hash.
-      if (map.terrain[i] === Terrain.Grass && hash2(i, 91) < 0.45 && touchesWater(map, i)) {
+      if (
+        map.terrain[i] === Terrain.Grass &&
+        hash2(i, 91) < 0.45 &&
+        touchesWater(map, i)
+      ) {
         shoreTiles.push(i);
       } else if (
         map.terrain[i] === Terrain.Grass &&
@@ -179,17 +192,23 @@ export class ScatterMesh {
         if (hash2(i, 427) < 0.05) pebbleTiles.push(i);
         // Scrub gathers where the woods thin out (a grove next door) and
         // strays sparsely across the open meadow.
-        else if (hash2(i, 461) < (touchesWood(map, i) ? 0.28 : 0.02)) bushTiles.push(i);
+        else if (hash2(i, 461) < (touchesWood(map, i) ? 0.28 : 0.02))
+          bushTiles.push(i);
         // A bare trunk here and there on the dry high ground, and the odd
         // snag standing at a treeline. Rare on purpose: one is scenery,
         // a field of them is a graveyard.
         else if (
-          hash2(i, 491) < (map.height[i]! > 0.75 ? 0.012 : touchesWood(map, i) ? 0.02 : 0.002)
+          hash2(i, 491) <
+          (map.height[i]! > 0.75 ? 0.012 : touchesWood(map, i) ? 0.02 : 0.002)
         ) {
           deadTreeTiles.push(i);
-        } else if (map.height[i]! < 1.0 && hash2(i, 463) < 0.06) flowerTiles.push(i);
+        } else if (map.height[i]! < 1.0 && hash2(i, 463) < 0.06)
+          flowerTiles.push(i);
       }
-      if (map.terrain[i] === Terrain.Rock && hash2(i, 93) < (this.#nearShadow(i) ? 0.3 : 0.12)) {
+      if (
+        map.terrain[i] === Terrain.Rock &&
+        hash2(i, 93) < (this.#nearShadow(i) ? 0.3 : 0.12)
+      ) {
         ridgeTiles.push(i);
       }
       if (map.terrain[i] === Terrain.Water) {
@@ -202,9 +221,13 @@ export class ScatterMesh {
       }
     }
 
-    const lambert = (color: number) => new THREE.MeshLambertMaterial({ color });
+    const lambert = (color: number) => new THREE.MeshLambertMaterial({color});
     const flat = (color: number) =>
-      new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.95 });
+      new THREE.MeshStandardMaterial({
+        color,
+        flatShading: true,
+        roughness: 0.95,
+      });
 
     // Groves: a mixed wood of GLB tree species when the pack loaded;
     // otherwise tall whip-thin procedural stalks (5 per tile) wearing a
@@ -214,14 +237,26 @@ export class ScatterMesh {
     this.#treeSpecies = trees?.geometries.length ?? 0;
     if (trees) {
       trees.geometries.forEach((geo, i) => {
-        this.#addArchetype(`tree${i}`, geo, trees.material, groveTiles * TREES_PER_TILE, {
-          receiveShadow: false,
-        });
+        this.#addArchetype(
+          `tree${i}`,
+          geo,
+          trees.material,
+          groveTiles * TREES_PER_TILE,
+          {
+            receiveShadow: false,
+          },
+        );
         // The horizon's stands: identical geometry, no shadow pass.
-        this.#addArchetype(`treeFar${i}`, geo, trees.material, farGroveTiles * TREES_PER_TILE, {
-          castShadow: false,
-          receiveShadow: false,
-        });
+        this.#addArchetype(
+          `treeFar${i}`,
+          geo,
+          trees.material,
+          farGroveTiles * TREES_PER_TILE,
+          {
+            castShadow: false,
+            receiveShadow: false,
+          },
+        );
       });
     } else {
       const culmTexture = makeStalkTexture();
@@ -231,16 +266,16 @@ export class ScatterMesh {
       this.#addArchetype(
         'culm',
         new THREE.CylinderGeometry(0.03, 0.045, 1, 6),
-        new THREE.MeshLambertMaterial({ map: culmTexture }),
+        new THREE.MeshLambertMaterial({map: culmTexture}),
         groveTiles * CULMS_PER_TILE,
-        { receiveShadow: false }, // dense groves would shadow-spam themselves
+        {receiveShadow: false}, // dense groves would shadow-spam themselves
       );
       this.#addArchetype(
         'spray',
         crossedQuads(1.5, 1.1),
         foliageMaterial(makeLeafSprite()),
         groveTiles * CULMS_PER_TILE * 3,
-        { castShadow: false, receiveShadow: false },
+        {castShadow: false, receiveShadow: false},
       );
     }
     // Rocks: KayKit boulder variants when the pack loaded (ore deposits
@@ -266,23 +301,43 @@ export class ScatterMesh {
         'rock',
         new THREE.DodecahedronGeometry(0.32),
         flat(0xffffff),
-        rockTiles * 2 + shoreTiles.length * 2 + ridgeTiles.length * 2 + pebbleTiles.length * 2,
+        rockTiles * 2 +
+          shoreTiles.length * 2 +
+          ridgeTiles.length * 2 +
+          pebbleTiles.length * 2,
       );
-      this.#addArchetype('ore', new THREE.OctahedronGeometry(0.16), flat(0xffffff), oreTiles * 4);
+      this.#addArchetype(
+        'ore',
+        new THREE.OctahedronGeometry(0.16),
+        flat(0xffffff),
+        oreTiles * 4,
+      );
     }
     // Water doodads ride the same palette texture; no shadow pass — a lily
     // pad's shadow lands on water that doesn't receive it anyway.
     const doodads = glbDoodads();
     this.#doodads = doodads !== null;
     if (doodads) {
-      this.#addArchetype('lily', doodads.lily, doodads.material, lilyTiles.length * 2, {
-        castShadow: false,
-        receiveShadow: false,
-      });
-      this.#addArchetype('reed', doodads.reed, doodads.material, reedTiles.length * 2, {
-        castShadow: false,
-        receiveShadow: false,
-      });
+      this.#addArchetype(
+        'lily',
+        doodads.lily,
+        doodads.material,
+        lilyTiles.length * 2,
+        {
+          castShadow: false,
+          receiveShadow: false,
+        },
+      );
+      this.#addArchetype(
+        'reed',
+        doodads.reed,
+        doodads.material,
+        reedTiles.length * 2,
+        {
+          castShadow: false,
+          receiveShadow: false,
+        },
+      );
     }
     // Scrub and deadfall: the forest pack's own models when it loaded,
     // painted crossed quads otherwise. (Squashing a live tree to shrub
@@ -294,14 +349,26 @@ export class ScatterMesh {
     this.#deadSpecies = forest?.deadTrees.length ?? 0;
     if (forest) {
       forest.bushes.forEach((geo, i) => {
-        this.#addArchetype(`bush${i}`, geo, forest.material, bushTiles.length * 2, {
-          receiveShadow: false,
-        });
+        this.#addArchetype(
+          `bush${i}`,
+          geo,
+          forest.material,
+          bushTiles.length * 2,
+          {
+            receiveShadow: false,
+          },
+        );
       });
       forest.deadTrees.forEach((geo, i) => {
-        this.#addArchetype(`dead${i}`, geo, forest.material, deadTreeTiles.length, {
-          receiveShadow: false,
-        });
+        this.#addArchetype(
+          `dead${i}`,
+          geo,
+          forest.material,
+          deadTreeTiles.length,
+          {
+            receiveShadow: false,
+          },
+        );
       });
     } else {
       this.#addArchetype(
@@ -309,7 +376,7 @@ export class ScatterMesh {
         crossedQuads(1.05, 0.8),
         foliageMaterial(makeBushSprite()),
         bushTiles.length * 2,
-        { receiveShadow: false },
+        {receiveShadow: false},
       );
     }
     this.#addArchetype(
@@ -317,7 +384,7 @@ export class ScatterMesh {
       crossedQuads(0.5, 0.4),
       foliageMaterial(makeFlowerSprite()),
       flowerTiles.length * 2,
-      { castShadow: false, receiveShadow: true },
+      {castShadow: false, receiveShadow: true},
     );
 
     for (let i = 0; i < tiles; i++) {
@@ -402,11 +469,14 @@ export class ScatterMesh {
    * *restores* a tree we had already felled, it stays hidden until
    * regrowth; a cosmetic, self-healing gap.
    */
-  resyncAll(map: { resource: Uint8Array; buildingAt: Int16Array }): void {
+  resyncAll(map: {resource: Uint8Array; buildingAt: Int16Array}): void {
     for (const a of this.#archetypes.values()) {
       for (const tile of [...a.byTile.keys()]) {
         if (this.#cosmetic.has(tile)) continue;
-        if (map.resource[tile] === TileResource.None || map.buildingAt[tile]! >= 0) {
+        if (
+          map.resource[tile] === TileResource.None ||
+          map.buildingAt[tile]! >= 0
+        ) {
           this.removeTile(tile);
         }
       }
@@ -433,14 +503,18 @@ export class ScatterMesh {
     geometry: THREE.BufferGeometry,
     material: THREE.Material,
     capacity: number,
-    opts?: { castShadow?: boolean; receiveShadow?: boolean },
+    opts?: {castShadow?: boolean; receiveShadow?: boolean},
   ): void {
-    const mesh = new THREE.InstancedMesh(geometry, material, Math.max(capacity, 1));
+    const mesh = new THREE.InstancedMesh(
+      geometry,
+      material,
+      Math.max(capacity, 1),
+    );
     mesh.castShadow = opts?.castShadow ?? true;
     mesh.receiveShadow = opts?.receiveShadow ?? true;
     mesh.count = 0;
     this.group.add(mesh);
-    this.#archetypes.set(name, { mesh, byTile: new Map(), cursor: 0 });
+    this.#archetypes.set(name, {mesh, byTile: new Map(), cursor: 0});
   }
 
   #put(
@@ -604,7 +678,9 @@ export class ScatterMesh {
       // The models are span-normalized (a unit footprint), so this is how
       // much of a tile a shrub covers — well under half, or it reads as a
       // hedge. The sprite is sized by its own height instead.
-      const s = modeled ? 0.34 + hash2(tile + k, 469) * 0.24 : 0.62 + hash2(tile + k, 469) * 0.5;
+      const s = modeled
+        ? 0.34 + hash2(tile + k, 469) * 0.24
+        : 0.62 + hash2(tile + k, 469) * 0.5;
       const warm = hash2(tile + k, 470);
       const species = (hash2(tile * 2 + k, 466) * this.#bushSpecies) | 0;
       this.#put(
@@ -622,7 +698,13 @@ export class ScatterMesh {
         // The forest pack's foliage is a bright lime against this game's
         // deeper woodland greens, so the models are pulled well down
         // toward the valley's own palette; the odd shrub turns dusty.
-        modeled ? (warm > 0.88 ? 0.6 : 0.45 + warm * 0.25) : warm > 0.86 ? 0.3 : warm * 0.18,
+        modeled
+          ? warm > 0.88
+            ? 0.6
+            : 0.45 + warm * 0.25
+          : warm > 0.86
+            ? 0.3
+            : warm * 0.18,
         modeled && warm > 0.88 ? 0xa89a5e : modeled ? 0x4f7a34 : 0x86a860,
       );
     }
@@ -690,7 +772,9 @@ export class ScatterMesh {
       if (k === 1 && hash2(tile, 431) < 0.6) continue;
       const jx = 0.15 + hash2(tile * 2 + k, 432) * 0.7;
       const jz = 0.15 + hash2(tile * 2 + k, 433) * 0.7;
-      const s = tex ? 0.09 + hash2(tile + k, 434) * 0.08 : 0.18 + hash2(tile + k, 434) * 0.14;
+      const s = tex
+        ? 0.09 + hash2(tile + k, 434) * 0.08
+        : 0.18 + hash2(tile + k, 434) * 0.14;
       this.#put(
         this.#rockName(tile * 2 + k + 13),
         tile,
@@ -767,9 +851,15 @@ export class ScatterMesh {
     const tex = this.#rockSpecies > 0;
     for (let k = 0; k < 2; k++) {
       if (k === 1 && hash2(tile, 95) < 0.5) continue;
-      const jx = tex ? 0.35 + hash2(tile * 2 + k, 96) * 0.3 : 0.1 + hash2(tile * 2 + k, 96) * 0.8;
-      const jz = tex ? 0.35 + hash2(tile * 2 + k, 97) * 0.3 : 0.1 + hash2(tile * 2 + k, 97) * 0.8;
-      const s = tex ? 0.4 + hash2(tile + k, 98) * 0.3 : 0.55 + hash2(tile + k, 98) * 0.75;
+      const jx = tex
+        ? 0.35 + hash2(tile * 2 + k, 96) * 0.3
+        : 0.1 + hash2(tile * 2 + k, 96) * 0.8;
+      const jz = tex
+        ? 0.35 + hash2(tile * 2 + k, 97) * 0.3
+        : 0.1 + hash2(tile * 2 + k, 97) * 0.8;
+      const s = tex
+        ? 0.4 + hash2(tile + k, 98) * 0.3
+        : 0.55 + hash2(tile + k, 98) * 0.75;
       this.#put(
         this.#rockName(tile * 2 + k + 7),
         tile,

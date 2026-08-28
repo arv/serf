@@ -1,4 +1,3 @@
-import type { Enum } from '../shared/enum.ts';
 import {
   For,
   Show,
@@ -8,28 +7,33 @@ import {
   type JSX,
   type ParentProps,
 } from 'solid-js';
+import type {Enum} from '../shared/enum.ts';
 
 // The tooltip layer's shared signal has the same HMR fragility as store.ts:
 // a hot swap splits it and tooltips freeze. Escalate to a full reload.
 if (import.meta.hot) {
   import.meta.hot.accept(() => import.meta.hot?.invalidate());
 }
-import { TICKS_PER_SECOND } from '../sim/defs/balance';
-import { BUILDING_DEFS, gatherRecipeOf, type Recipe } from '../sim/defs/buildings';
-import { type GoodAmounts, goodEntries } from '../sim/defs/goods';
-import { TECH_DEFS, type TechId } from '../sim/defs/techs';
-import { COUNTER_TABLE, UNIT_DEFS } from '../sim/defs/units';
-import { GoodIcon } from './icons';
-import { buildingName, goodName, techDesc, techName, unitName } from './names';
-import { stock, techs } from './store';
-import type { TileResourceKind } from '../sim/map';
+import {TICKS_PER_SECOND} from '../sim/defs/balance';
+import {
+  BUILDING_DEFS,
+  gatherRecipeOf,
+  type Recipe,
+} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import * as RecipeKind from '../sim/defs/recipeKindEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import {type GoodAmounts, goodEntries} from '../sim/defs/goods';
+import * as RecipeKind from '../sim/defs/recipeKindEnum.ts';
 import * as TechEffectKind from '../sim/defs/techEffectKindEnum.ts';
-import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {TECH_DEFS, type TechId} from '../sim/defs/techs';
 import * as UnitClass from '../sim/defs/unitClassEnum.ts';
+import {COUNTER_TABLE, UNIT_DEFS} from '../sim/defs/units';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import type {TileResourceKind} from '../sim/map';
 import * as TileResource from '../sim/tileResourceEnum.ts';
+import {GoodIcon} from './icons';
+import {buildingName, goodName, techDesc, techName, unitName} from './names';
+import {stock, techs} from './store';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 type GoodId = Enum<typeof GoodId>;
@@ -92,12 +96,12 @@ export function tooltip(content: () => JSX.Element): {
 } {
   const show = (target: HTMLElement, delay: number): void => {
     clearTimeout(showTimer);
-    showTimer = setTimeout(() => setTip({ target, content }), delay);
+    showTimer = setTimeout(() => setTip({target, content}), delay);
   };
   const hide = hideTip;
   // Where a touch started, so a press that turns into a scroll gives the
   // gesture back to the list instead of popping a tip over it.
-  let from: { x: number; y: number } | null = null;
+  let from: {x: number; y: number} | null = null;
   return {
     // Hover via pointerenter, not mouseenter: after every tap the browser
     // fires a compatibility mouseenter, and a touchscreen never sends the
@@ -111,7 +115,7 @@ export function tooltip(content: () => JSX.Element): {
     // clears on release. (Mouse presses are already covered by hover.)
     onPointerDown: (e: PointerEvent) => {
       if (e.pointerType === 'mouse') return;
-      from = { x: e.clientX, y: e.clientY };
+      from = {x: e.clientX, y: e.clientY};
       show(e.currentTarget as HTMLElement, 260);
     },
     onPointerMove: (e: PointerEvent) => {
@@ -170,10 +174,10 @@ export function TooltipLayer() {
   // window lost focus) is the other way a tip used to stick to the glass.
   // Capture, so it lands before the press that a touch tip opens on — that
   // one is still only a timer at this point, and clearing it is the point.
-  window.addEventListener('pointerdown', hideTip, { capture: true });
+  window.addEventListener('pointerdown', hideTip, {capture: true});
   window.addEventListener('blur', hideTip);
   onCleanup(() => {
-    window.removeEventListener('pointerdown', hideTip, { capture: true });
+    window.removeEventListener('pointerdown', hideTip, {capture: true});
     window.removeEventListener('blur', hideTip);
     setAnchor(null);
   });
@@ -246,7 +250,7 @@ export function TooltipLayer() {
           auto popover would light-dismiss on the very press that opens a
           touch tip. */}
       <div ref={el} popover="manual" class="panel tip" role="tooltip">
-        <Show when={tip()}>{(t) => t().content()}</Show>
+        <Show when={tip()}>{t => t().content()}</Show>
       </div>
     </>
   );
@@ -256,7 +260,7 @@ export function TooltipLayer() {
  * Tooltip carrier for buttons that can be disabled — disabled elements don't
  * fire mouse events, so the wrapping span holds the handlers instead.
  */
-export function TipWrap(props: ParentProps<{ tip: () => JSX.Element }>) {
+export function TipWrap(props: ParentProps<{tip: () => JSX.Element}>) {
   return (
     <span class="tipwrap" {...tooltip(props.tip)}>
       {props.children}
@@ -266,7 +270,11 @@ export function TipWrap(props: ParentProps<{ tip: () => JSX.Element }>) {
 
 // --- Shared fragments -------------------------------------------------------
 
-export function CostLine(props: { label: string; cost: GoodAmounts; extra?: string }) {
+export function CostLine(props: {
+  label: string;
+  cost: GoodAmounts;
+  extra?: string;
+}) {
   const entries = () => goodEntries(props.cost).filter(([, n]) => n > 0);
   const short = () => {
     const s = stock();
@@ -278,7 +286,7 @@ export function CostLine(props: { label: string; cost: GoodAmounts; extra?: stri
       <Show when={entries().length > 0} fallback={<span> free</span>}>
         <For each={entries()}>
           {([good, n]) => (
-            <span classList={{ 'tip-bad': (stock()[good] ?? 0) < n }}>
+            <span classList={{'tip-bad': (stock()[good] ?? 0) < n}}>
               <GoodIcon good={good} size={12} />
               {n}
             </span>
@@ -301,7 +309,8 @@ export function CostLine(props: { label: string; cost: GoodAmounts; extra?: stri
  * lives here. */
 const GOOD_DESC: Record<GoodId, string> = {
   [GoodId.water]: 'Drawn at wells. Soaks the fields and thins the ale.',
-  [GoodId.wheat]: 'The crop. Milled into flour, brewed into ale, and it funds research.',
+  [GoodId.wheat]:
+    'The crop. Milled into flour, brewed into ale, and it funds research.',
   [GoodId.wood]: 'Felled in the forest. The village is built from it.',
   [GoodId.stone]: 'Quarried from outcrops. Heavy building and road paving.',
   [GoodId.iron]: 'Hauled from mountain seams. Becomes blades and spearheads.',
@@ -313,16 +322,21 @@ const GOOD_DESC: Record<GoodId, string> = {
   [GoodId.ale]: 'Brewed from wheat and water. Fuels festivals at the Abbey.',
   [GoodId.flour]: 'Ground at the mill. On its own it feeds nobody.',
   [GoodId.food]: 'Baked from flour and water. What a soldier costs.',
-  [GoodId.axe]: 'Ground keen at the Smith. A woodcutter works with one or not at all.',
+  [GoodId.axe]:
+    'Ground keen at the Smith. A woodcutter works with one or not at all.',
   [GoodId.pickaxe]:
     'Wood and stone \u2014 never iron, so the mines can always restart. Staffs the quarry and every mine.',
-  [GoodId.scythe]: 'A long blade from the Smith. No farmer takes a field without one.',
-  [GoodId.hammer]: 'The builder\u2019s loan: every site borrows one and returns it at topping-out.',
-  [GoodId.cauldron]: 'Smithed copperwork. The bakery and the brewery cook out of it.',
-  [GoodId.rod]: 'Cut and strung at the Smith \u2014 no iron in it. Staffs the fishery.',
+  [GoodId.scythe]:
+    'A long blade from the Smith. No farmer takes a field without one.',
+  [GoodId.hammer]:
+    'The builder\u2019s loan: every site borrows one and returns it at topping-out.',
+  [GoodId.cauldron]:
+    'Smithed copperwork. The bakery and the brewery cook out of it.',
+  [GoodId.rod]:
+    'Cut and strung at the Smith \u2014 no iron in it. Staffs the fishery.',
 };
 
-export function GoodTip(props: { good: GoodId }) {
+export function GoodTip(props: {good: GoodId}) {
   return (
     <>
       <div class="tip-title">
@@ -366,7 +380,8 @@ function recipeText(recipe: Recipe): string {
 const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
   [BuildingTypeId.abbey]:
     'Monks research the tech tree here; delivered ale throws work-speed festivals.',
-  [BuildingTypeId.barracks]: 'Trains knights, spearmen, and archers from wheat and forged weapons.',
+  [BuildingTypeId.barracks]:
+    'Trains knights, spearmen, and archers from wheat and forged weapons.',
   [BuildingTypeId.guardTower]:
     'Two archers man the roof, shooting half again as hard and two tiles further than they would on the ground. Man it and any archer with nothing else to do walks in from the field on his own; while none is free — none trained yet, or every one of them marching — villagers answer instead and hold it with stones, far weaker but today rather than three techs from now. Standing it down empties the roof again and gives the men back. Nobody manning it can be shot at while the tower stands.',
   [BuildingTypeId.house]:
@@ -375,7 +390,7 @@ const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
     'The heart of the village. All goods flow here — lose it and all is lost.',
 };
 
-export function BuildingTip(props: { type: BuildingTypeId }) {
+export function BuildingTip(props: {type: BuildingTypeId}) {
   const def = () => BUILDING_DEFS[props.type];
   const lockedBy = () => {
     const req = def().requiresTech;
@@ -383,7 +398,9 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
     const researched = techs().researched;
     if (Array.isArray(req)) {
       // Any one of them opens the door; name them all while none has.
-      return req.some((t) => researched.includes(t)) ? null : req.map(techName).join(' or ');
+      return req.some(t => researched.includes(t))
+        ? null
+        : req.map(techName).join(' or ');
     }
     return researched.includes(req) ? null : techName(req);
   };
@@ -396,14 +413,15 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
         </span>
       </div>
       <div class="tip-desc">
-        {BUILDING_FLAVOR[props.type] ?? (def().recipe ? recipeText(def().recipe!) : '')}
+        {BUILDING_FLAVOR[props.type] ??
+          (def().recipe ? recipeText(def().recipe!) : '')}
       </div>
       <Show when={gatherRecipeOf(def())}>
-        {(gather) => (
+        {gather => (
           <div class="tip-line">
             Must be built within {gather().radius} tiles of{' '}
-            {RESOURCE_NAMES[gather().resource] ?? gather().resource} — that is as far as its worker
-            will walk.
+            {RESOURCE_NAMES[gather().resource] ?? gather().resource} — that is
+            as far as its worker will walk.
           </div>
         )}
       </Show>
@@ -414,17 +432,33 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
       />
       <Show when={lockedBy()}>
         <div class="tip-warn">
-          Requires {lockedBy()} (research at the {buildingName(BuildingTypeId.abbey)})
+          Requires {lockedBy()} (research at the{' '}
+          {buildingName(BuildingTypeId.abbey)})
         </div>
       </Show>
     </>
   );
 }
 
-const CLASS_INFO: Record<UnitClass, { name: string; beats: UnitClass; losesTo: UnitClass }> = {
-  [UnitClass.heavy]: { name: 'Heavy', beats: UnitClass.light, losesTo: UnitClass.ranged },
-  [UnitClass.light]: { name: 'Light', beats: UnitClass.ranged, losesTo: UnitClass.heavy },
-  [UnitClass.ranged]: { name: 'Ranged', beats: UnitClass.heavy, losesTo: UnitClass.light },
+const CLASS_INFO: Record<
+  UnitClass,
+  {name: string; beats: UnitClass; losesTo: UnitClass}
+> = {
+  [UnitClass.heavy]: {
+    name: 'Heavy',
+    beats: UnitClass.light,
+    losesTo: UnitClass.ranged,
+  },
+  [UnitClass.light]: {
+    name: 'Light',
+    beats: UnitClass.ranged,
+    losesTo: UnitClass.heavy,
+  },
+  [UnitClass.ranged]: {
+    name: 'Ranged',
+    beats: UnitClass.heavy,
+    losesTo: UnitClass.light,
+  },
 };
 
 const UNIT_FLAVOR: Partial<Record<UnitTypeId, string>> = {
@@ -433,7 +467,11 @@ const UNIT_FLAVOR: Partial<Record<UnitTypeId, string>> = {
   [UnitTypeId.archer]: 'Keeps its distance and kites heavy armor.',
 };
 
-export function UnitTip(props: { unit: UnitTypeId; cost?: GoodAmounts; lockedBy?: string | null }) {
+export function UnitTip(props: {
+  unit: UnitTypeId;
+  cost?: GoodAmounts;
+  lockedBy?: string | null;
+}) {
   const def = () => UNIT_DEFS[props.unit];
   const combat = () => def().combat!;
   const cls = () => CLASS_INFO[combat().class];
@@ -449,11 +487,13 @@ export function UnitTip(props: { unit: UnitTypeId; cost?: GoodAmounts; lockedBy?
       </div>
       <div class="tip-line">
         <span class="tip-good">
-          ×{COUNTER_TABLE[combat().class][cls().beats]} vs {CLASS_INFO[cls().beats].name}
+          ×{COUNTER_TABLE[combat().class][cls().beats]} vs{' '}
+          {CLASS_INFO[cls().beats].name}
         </span>
         {' · '}
         <span class="tip-bad">
-          ×{COUNTER_TABLE[combat().class][cls().losesTo]} vs {CLASS_INFO[cls().losesTo].name}
+          ×{COUNTER_TABLE[combat().class][cls().losesTo]} vs{' '}
+          {CLASS_INFO[cls().losesTo].name}
         </span>
       </div>
       <Show when={props.cost}>
@@ -461,18 +501,19 @@ export function UnitTip(props: { unit: UnitTypeId; cost?: GoodAmounts; lockedBy?
       </Show>
       <Show when={props.lockedBy}>
         <div class="tip-warn">
-          Requires {props.lockedBy} (research at the {buildingName(BuildingTypeId.abbey)})
+          Requires {props.lockedBy} (research at the{' '}
+          {buildingName(BuildingTypeId.abbey)})
         </div>
       </Show>
     </>
   );
 }
 
-export function TechTip(props: { tech: TechId }) {
+export function TechTip(props: {tech: TechId}) {
   const def = () => TECH_DEFS[props.tech];
   const unlockNames = () =>
     def()
-      .effects.flatMap((e) =>
+      .effects.flatMap(e =>
         e.kind === TechEffectKind.unlockBuilding
           ? [buildingName(e.building)]
           : e.kind === TechEffectKind.unlockUnit
@@ -482,8 +523,8 @@ export function TechTip(props: { tech: TechId }) {
       .join(', ');
   const prereqNames = () =>
     def()
-      .prereqs.filter((p) => !techs().researched.includes(p))
-      .map((p) => techName(p))
+      .prereqs.filter(p => !techs().researched.includes(p))
+      .map(p => techName(p))
       .join(', ');
   return (
     <>
@@ -507,7 +548,7 @@ export function TechTip(props: { tech: TechId }) {
 }
 
 /** Plain title + body tip for simple controls. */
-export function TextTip(props: { title: string; body?: string }) {
+export function TextTip(props: {title: string; body?: string}) {
   return (
     <>
       <div class="tip-title">{props.title}</div>

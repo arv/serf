@@ -1,14 +1,19 @@
-import { For, Show } from 'solid-js';
-import { TECH_BRANCHES, TECH_DEFS, type TechId, TECH_IDS } from '../sim/defs/techs';
-import { GOODS, type GoodId, goodEntries } from '../sim/defs/goods';
-import { GoodIcon } from './icons';
-import { TechTip, tooltip } from './tooltip';
-import { buildingName, techDesc, techName } from './names';
-import { setTechPanelOpen, stock, techs } from './store';
-import { COMPACT, SHORT } from './breakpoints';
-import type { Enum } from '../shared/enum.ts';
-import * as TechNodeStateNs from './techNodeStateEnum.ts';
+import {For, Show} from 'solid-js';
+import type {Enum} from '../shared/enum.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import {GOODS, type GoodId, goodEntries} from '../sim/defs/goods';
+import {
+  TECH_BRANCHES,
+  TECH_DEFS,
+  type TechId,
+  TECH_IDS,
+} from '../sim/defs/techs';
+import {COMPACT, SHORT} from './breakpoints';
+import {GoodIcon} from './icons';
+import {buildingName, techDesc, techName} from './names';
+import {setTechPanelOpen, stock, techs} from './store';
+import * as TechNodeStateNs from './techNodeStateEnum.ts';
+import {TechTip, tooltip} from './tooltip';
 export type TechNodeState = Enum<typeof TechNodeStateNs>;
 
 const BRANCH_LABELS: Record<string, string> = {
@@ -17,7 +22,7 @@ const BRANCH_LABELS: Record<string, string> = {
   warfare: 'Warfare',
 };
 
-export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
+export function TechTreePanel(props: {onResearch: (tech: TechId) => void}) {
   const state = (id: TechId): TechNodeState => {
     const t = techs();
     if (t.researched.includes(id)) return TechNodeStateNs.done;
@@ -28,11 +33,14 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
     // the click, a control that invites and then answers with nothing.
     if (!t.hasAbbey) return TechNodeStateNs.locked;
     const def = TECH_DEFS[id];
-    if (!def.prereqs.every((p) => t.researched.includes(p))) return TechNodeStateNs.locked;
+    if (!def.prereqs.every(p => t.researched.includes(p)))
+      return TechNodeStateNs.locked;
     if (t.active) return TechNodeStateNs.locked;
     const s = stock();
-    const affordable = GOODS.every((g) => (s[g] ?? 0) >= (def.cost[g] ?? 0));
-    return affordable ? TechNodeStateNs.available : TechNodeStateNs.unaffordable;
+    const affordable = GOODS.every(g => (s[g] ?? 0) >= (def.cost[g] ?? 0));
+    return affordable
+      ? TechNodeStateNs.available
+      : TechNodeStateNs.unaffordable;
   };
 
   const progress = (id: TechId): number => {
@@ -216,7 +224,8 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
               defs care to call it. */}
           <div class="tech-note">
             <Show when={!techs().hasAbbey}>
-              The {buildingName(BuildingTypeId.abbey)} opens this tree — build one to begin.
+              The {buildingName(BuildingTypeId.abbey)} opens this tree — build
+              one to begin.
             </Show>
           </div>
           <button class="tech-close" onClick={() => setTechPanelOpen(false)}>
@@ -225,22 +234,27 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
         </div>
         <div class="tech-branches">
           <For each={TECH_BRANCHES}>
-            {(branch) => (
+            {branch => (
               <div class="tech-branch">
                 <h3>{BRANCH_LABELS[branch]}</h3>
-                <For each={TECH_IDS.filter((id) => TECH_DEFS[id].branch === branch)}>
-                  {(id) => (
+                <For
+                  each={TECH_IDS.filter(id => TECH_DEFS[id].branch === branch)}
+                >
+                  {id => (
                     <div
-                      classList={{ 'tech-node': true, [state(id)]: true }}
+                      classList={{'tech-node': true, [state(id)]: true}}
                       {...tooltip(() => <TechTip tech={id} />)}
                       onClick={() => {
-                        if (state(id) === TechNodeStateNs.available && techs().hasAbbey)
+                        if (
+                          state(id) === TechNodeStateNs.available &&
+                          techs().hasAbbey
+                        )
                           props.onResearch(id);
                       }}
                     >
                       {/* First in the DOM so it paints behind the text. */}
                       <Show when={state(id) === TechNodeStateNs.researching}>
-                        <div class="fill" style={{ width: `${progress(id)}%` }} />
+                        <div class="fill" style={{width: `${progress(id)}%`}} />
                       </Show>
                       <b>
                         {state(id) === TechNodeStateNs.done ? '✓ ' : ''}

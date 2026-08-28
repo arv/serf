@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_MAP_SIZE, tileCount, tileIdx, tileX, tileY } from '../shared/grid.ts';
-import type { GameMap } from './map.ts';
-import { findPath, findPathToAdjacent, nearestWalkable } from './path.ts';
+import {describe, expect, it} from 'vitest';
+import {
+  DEFAULT_MAP_SIZE,
+  tileCount,
+  tileIdx,
+  tileX,
+  tileY,
+} from '../shared/grid.ts';
+import type {GameMap} from './map.ts';
+import {findPath, findPathToAdjacent, nearestWalkable} from './path.ts';
 import * as PathLevel from './pathLevelEnum.ts';
 
 const MAP_SIZE = DEFAULT_MAP_SIZE;
@@ -61,10 +67,16 @@ describe('A* pathfinding', () => {
     // nothing, and the 4096 floor is part of it at small map sizes.
     const oldCap = Math.max(4096, (MAP_SIZE * MAP_SIZE) >> 1);
     const open = map.blocked.reduce((n, b) => n + (b ? 0 : 1), 0);
-    expect(open, 'the corridor must outrun the old cap to be a regression').toBeGreaterThan(oldCap);
+    expect(
+      open,
+      'the corridor must outrun the old cap to be a regression',
+    ).toBeGreaterThan(oldCap);
 
     const path = findPath(map, 0, 0, 0, MAP_SIZE - 1);
-    expect(path, 'a reachable goal must never hit the search cap').not.toBeNull();
+    expect(
+      path,
+      'a reachable goal must never hit the search cap',
+    ).not.toBeNull();
     expect(path!.length).toBe(open - 1);
   });
 
@@ -118,16 +130,18 @@ describe('A* pathfinding', () => {
     const map = emptyMap();
     // Straight line (5,5)->(15,5) costs 10. Pave a parallel detour via y=6:
     // road cost 0.72 makes 5,5 -> …road… -> 15,5 cheaper despite extra steps.
-    for (let x = 5; x <= 15; x++) map.pathLevel[tileIdx(x, 6, map.size)] = PathLevel.Road;
+    for (let x = 5; x <= 15; x++)
+      map.pathLevel[tileIdx(x, 6, map.size)] = PathLevel.Road;
     const path = findPath(map, 5, 5, 15, 5)!;
-    const onRoad = path.filter((i) => map.pathLevel[i] === PathLevel.Road).length;
+    const onRoad = path.filter(i => map.pathLevel[i] === PathLevel.Road).length;
     expect(onRoad).toBeGreaterThan(5);
   });
 
   it('findPathToAdjacent reaches a building ring, not the building', () => {
     const map = emptyMap();
     // 3x3 building at (20,20)..(22,22).
-    for (let y = 20; y <= 22; y++) for (let x = 20; x <= 22; x++) block(map, x, y);
+    for (let y = 20; y <= 22; y++)
+      for (let x = 20; x <= 22; x++) block(map, x, y);
     const path = findPathToAdjacent(map, 5, 21, 20, 20, 3, 3)!;
     expect(path).not.toBeNull();
     const last = path[path.length - 1]!;

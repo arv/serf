@@ -20,16 +20,16 @@
  * come back with every seat disconnected, so the five-minute sweep clears
  * them like any other abandoned room.
  */
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { tileCount } from '../../src/shared/grid.ts';
-import { deserializeWorld, serializeWorld } from '../../src/sim/save.ts';
-import { AiSeats } from '../../src/sim/aiSeats.ts';
-import type { EntityId } from '../../src/sim/entities.ts';
-import type { LobbyConfig } from '../../src/protocol/lobby.ts';
-import type { BuildingSnap } from '../../src/protocol/messages.ts';
-import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
+import {mkdirSync, readFileSync, renameSync, writeFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import type {LobbyConfig} from '../../src/protocol/lobby.ts';
+import type {BuildingSnap} from '../../src/protocol/messages.ts';
+import {tileCount} from '../../src/shared/grid.ts';
+import {REPLAY_VERSION} from '../../src/shared/replayVersion.ts';
+import {AiSeats} from '../../src/sim/aiSeats.ts';
+import type {EntityId} from '../../src/sim/entities.ts';
+import {deserializeWorld, serializeWorld} from '../../src/sim/save.ts';
 import {
   TICK_MS,
   adoptRoom,
@@ -38,7 +38,7 @@ import {
   type Room,
   type Seat,
 } from './rooms.ts';
-import { SeatView, recomputeVision } from './sync.ts';
+import {SeatView, recomputeVision} from './sync.ts';
 
 interface PersistedSeat {
   kind: 'human' | 'ai';
@@ -107,14 +107,14 @@ export function roomToRecord(room: Room): PersistedRoom | undefined {
     visibility: room.visibility,
     createdMs: room.createdMs,
     config: room.config,
-    seats: room.seats.map((s) => ({
+    seats: room.seats.map(s => ({
       kind: s.kind,
       token: s.token,
       explored: packBits(s.view?.vision.explored ?? new Uint8Array(0)),
       lastSeen: s.view ? [...s.view.lastSeen] : [],
     })),
     world: serializeWorld(room.world),
-    ...(room.replay ? { replay: room.replay } : {}),
+    ...(room.replay ? {replay: room.replay} : {}),
   };
 }
 
@@ -147,7 +147,7 @@ export function roomFromRecord(record: PersistedRoom, nowMs: number): Room {
       // at zero — a preserved counter would silently eat its first orders.
       lastSeq: -1,
       connected: false,
-      ...(view ? { view } : {}),
+      ...(view ? {view} : {}),
     };
   });
   const room: Room = {
@@ -197,7 +197,7 @@ export function roomFromRecord(record: PersistedRoom, nowMs: number): Room {
           // sits on disk (the client unpacks the same format). A rebased
           // replay resumes mid-match, so without it playback would open on
           // a dark map the seat had long since scouted.
-          exploredBySeat: record.seats.map((s) => s.explored),
+          exploredBySeat: record.seats.map(s => s.explored),
           commands: [],
         };
   // Same reason startMatch does it: a rejoin can arrive before the first
@@ -215,9 +215,9 @@ export function persistRooms(): number {
     const record = roomToRecord(room);
     if (record) records.push(record);
   }
-  const snapshot: Snapshot = { version: 1, savedMs: Date.now(), rooms: records };
+  const snapshot: Snapshot = {version: 1, savedMs: Date.now(), rooms: records};
   const dir = stateDir();
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, {recursive: true});
   // Whole file, then rename: a SIGKILL mid-write (the grace period running
   // out) leaves the previous snapshot intact rather than half of this one.
   const tmp = join(dir, `${SNAPSHOT_FILE}.tmp`);
@@ -239,13 +239,18 @@ export function restorePersistedRooms(nowMs: number): number {
   try {
     const snapshot = JSON.parse(raw) as Snapshot;
     if (snapshot.version !== 1) {
-      console.warn(`[serf] rooms snapshot is version ${snapshot.version}; ignoring it`);
+      console.warn(
+        `[serf] rooms snapshot is version ${snapshot.version}; ignoring it`,
+      );
       return 0;
     }
     for (const record of snapshot.rooms) {
       try {
         if (adoptRoom(roomFromRecord(record, nowMs))) restored++;
-        else console.warn(`[serf] room ${record.code} is already live; snapshot copy dropped`);
+        else
+          console.warn(
+            `[serf] room ${record.code} is already live; snapshot copy dropped`,
+          );
       } catch (err) {
         console.warn(`[serf] room ${record.code} failed to restore:`, err);
       }

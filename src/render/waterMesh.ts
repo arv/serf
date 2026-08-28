@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { WATER_LEVEL, type MapView } from '../sim/map';
-import { water, waterDeep, waterShore } from './palette';
+import {WATER_LEVEL, type MapView} from '../sim/map';
+import {water, waterDeep, waterShore} from './palette';
 
 /**
  * The water surface: one plane at the waterline, shaded against the terrain
@@ -18,7 +18,7 @@ import { water, waterDeep, waterShore } from './palette';
  */
 export class WaterMesh {
   readonly mesh: THREE.Mesh;
-  #time = { value: 0 };
+  #time = {value: 0};
   #bed: THREE.DataTexture;
 
   constructor(map: MapView) {
@@ -33,7 +33,13 @@ export class WaterMesh {
     // Bed elevations as a single-channel float texture. Nearest sampling on
     // purpose: the shader does its own bilinear so it matches HeightField
     // (samples at tile centers) and never depends on float-filtering support.
-    const bed = new THREE.DataTexture(map.height, size, size, THREE.RedFormat, THREE.FloatType);
+    const bed = new THREE.DataTexture(
+      map.height,
+      size,
+      size,
+      THREE.RedFormat,
+      THREE.FloatType,
+    );
     bed.magFilter = THREE.NearestFilter;
     bed.minFilter = THREE.NearestFilter;
     bed.wrapS = THREE.ClampToEdgeWrapping;
@@ -50,17 +56,20 @@ export class WaterMesh {
       transparent: true,
       depthWrite: false,
     });
-    material.onBeforeCompile = (shader) => {
+    material.onBeforeCompile = shader => {
       shader.uniforms.uTime = this.#time;
-      shader.uniforms.uBed = { value: bed };
-      shader.uniforms.uMapSize = { value: size };
-      shader.uniforms.uWaterLevel = { value: WATER_LEVEL };
-      shader.uniforms.uShallow = { value: new THREE.Color(waterShore) };
-      shader.uniforms.uMid = { value: new THREE.Color(water) };
-      shader.uniforms.uDeep = { value: new THREE.Color(waterDeep) };
+      shader.uniforms.uBed = {value: bed};
+      shader.uniforms.uMapSize = {value: size};
+      shader.uniforms.uWaterLevel = {value: WATER_LEVEL};
+      shader.uniforms.uShallow = {value: new THREE.Color(waterShore)};
+      shader.uniforms.uMid = {value: new THREE.Color(water)};
+      shader.uniforms.uDeep = {value: new THREE.Color(waterDeep)};
 
       shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nvarying vec3 vWorldPos;')
+        .replace(
+          '#include <common>',
+          '#include <common>\nvarying vec3 vWorldPos;',
+        )
         .replace(
           '#include <worldpos_vertex>',
           '#include <worldpos_vertex>\nvWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;',

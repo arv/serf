@@ -21,7 +21,7 @@
  * basis and nothing here notices.
  */
 
-import { clamp } from '../shared/math';
+import {clamp} from '../shared/math';
 
 /** Matches ViewFrame from render/cameraRig — declared structurally so this
  * module (and its tests) never touch a file that imports three. `ext` is
@@ -63,7 +63,12 @@ export const MIN_AUDIBLE = 0.02;
  * Fill `out` with pan/gain for a source at world (x, z) under view `v`.
  * Writes into the caller's object — called per unit per frame.
  */
-export function spatialize(x: number, z: number, v: ViewFrame, out: Spatial): Spatial {
+export function spatialize(
+  x: number,
+  z: number,
+  v: ViewFrame,
+  out: Spatial,
+): Spatial {
   const ext = v.ext;
   if (ext <= 0) {
     out.pan = 0;

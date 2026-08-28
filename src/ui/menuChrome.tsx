@@ -8,7 +8,7 @@
  * their screen.
  */
 
-import { SHORT } from './breakpoints';
+import {SHORT} from './breakpoints';
 
 export const GOLD = '#e5c469';
 

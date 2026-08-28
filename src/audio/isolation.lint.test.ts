@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import {describe, expect, it} from 'vitest';
 
 /**
  * The audio layer's two structural rules, made executable:
@@ -11,14 +11,22 @@ import { describe, expect, it } from 'vitest';
  *    lint already bans the maths; this bans the dependency.
  */
 
-const AUDIO = import.meta.glob('./**/*.ts', { query: '?raw', import: 'default', eager: true });
-const SIM = import.meta.glob('../sim/**/*.ts', { query: '?raw', import: 'default', eager: true });
+const AUDIO = import.meta.glob('./**/*.ts', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
+const SIM = import.meta.glob('../sim/**/*.ts', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
 
 /** Value imports only: `import type { … } from` is erased at runtime. */
 const IMPORT = /^\s*import\s+(?!type\s)[^;]*?from\s+['"]([^'"]+)['"]/gm;
 
 function valueImports(raw: string): string[] {
-  return [...raw.matchAll(IMPORT)].map((m) => m[1]!);
+  return [...raw.matchAll(IMPORT)].map(m => m[1]!);
 }
 
 describe('audio isolation lint', () => {
@@ -27,7 +35,11 @@ describe('audio isolation lint', () => {
     for (const [path, raw] of Object.entries(AUDIO)) {
       if (path.endsWith('.test.ts')) continue;
       for (const spec of valueImports(raw as string)) {
-        if (spec === 'three' || spec.startsWith('three/') || spec.includes('/sim/')) {
+        if (
+          spec === 'three' ||
+          spec.startsWith('three/') ||
+          spec.includes('/sim/')
+        ) {
           offenders.push(`${path}: ${spec}`);
         }
       }

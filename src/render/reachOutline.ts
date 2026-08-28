@@ -1,9 +1,13 @@
 import * as THREE from 'three';
-import { verdictBad, verdictGood } from './palette';
-import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings';
-import { findResourceNear, type MapView, type TileResourceKind } from '../sim/map';
-import type { BuildingSnap } from '../protocol/messages';
-import type { HeightField } from './heightField';
+import type {BuildingSnap} from '../protocol/messages';
+import {buildingDef, gatherOrigin, gatherRecipeOf} from '../sim/defs/buildings';
+import {
+  findResourceNear,
+  type MapView,
+  type TileResourceKind,
+} from '../sim/map';
+import type {HeightField} from './heightField';
+import {verdictBad, verdictGood} from './palette';
 
 /** Half-thickness of the reach outline's band, and how far it floats above
  * the ground so it doesn't fight the terrain for the same pixels. */
@@ -74,7 +78,10 @@ export class ReachOutline {
     this.#positions = new Float32Array((offsets.length / 4) * 6);
 
     const geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.BufferAttribute(this.#positions, 3));
+    geom.setAttribute(
+      'position',
+      new THREE.BufferAttribute(this.#positions, 3),
+    );
     geom.setIndex(indices);
     this.#mesh = new THREE.Mesh(geom, this.#material);
     this.#mesh.visible = false;
@@ -96,7 +103,9 @@ export class ReachOutline {
         pos[v + 2] = z;
       }
     }
-    const attr = this.#mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const attr = this.#mesh.geometry.getAttribute(
+      'position',
+    ) as THREE.BufferAttribute;
     attr.needsUpdate = true;
     this.#mesh.geometry.computeBoundingSphere();
     this.#material.color.copy(color);
@@ -124,7 +133,12 @@ export class ReachOutline {
 
 /** Cross-sections along one straight band of the outline, roughly one per
  * tile so the strip follows a hillside instead of sinking into it. */
-function band(axis: 'x' | 'z', fixed: number, from: number, to: number): number[] {
+function band(
+  axis: 'x' | 'z',
+  fixed: number,
+  from: number,
+  to: number,
+): number[] {
   const segments = Math.max(1, Math.ceil(Math.abs(to - from)));
   const out: number[] = [];
   for (let i = 0; i <= segments; i++) {
@@ -166,7 +180,12 @@ export class SelectedReach {
   /** The selected gatherer's search: the tile it hunts from, and what for.
    * Kept so the per-frame question costs one map scan and no def lookups;
    * null while the selection works no land. */
-  #search: { x: number; y: number; code: TileResourceKind; radius: number } | null = null;
+  #search: {
+    x: number;
+    y: number;
+    code: TileResourceKind;
+    radius: number;
+  } | null = null;
   /** Last drawn verdict (null = nothing drawn yet for this selection). */
   #rich: boolean | null = null;
 
@@ -205,7 +224,9 @@ export class SelectedReach {
     // an outline that only asked once would stay green over bare ground.
     // A hit is usually a ring or two out, and a miss — the case that scans
     // the whole square — is a few hundred array reads.
-    const rich = findResourceNear(map, search.x, search.y, search.code, search.radius) >= 0;
+    const rich =
+      findResourceNear(map, search.x, search.y, search.code, search.radius) >=
+      0;
     if (rich === this.#rich) return;
     this.#rich = rich;
     this.#outline.moveTo(search.x + 0.5, search.y + 0.5, rich ? RICH : SPENT);

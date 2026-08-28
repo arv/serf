@@ -1,5 +1,4 @@
-import { playMin, type PlayArea } from '../sim/map';
-import { factionTint } from '../render/factionPalette';
+import {factionTint} from '../render/factionPalette';
 import {
   background,
   goldOre,
@@ -12,6 +11,7 @@ import {
   stoneRoad,
   water,
 } from '../render/palette';
+import {playMin, type PlayArea} from '../sim/map';
 import * as PathLevel from '../sim/pathLevelEnum.ts';
 import * as Terrain from '../sim/terrainEnum.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
@@ -73,7 +73,11 @@ export function ownerTint(owner: number, viewer: number): number {
  * mountain is the story. Roads last: a road is worth a pixel, a trail is
  * noise at this scale.
  */
-export function tileRgb(terrain: number, resource: number, pathLevel: number): Rgb {
+export function tileRgb(
+  terrain: number,
+  resource: number,
+  pathLevel: number,
+): Rgb {
   if (terrain === Terrain.Water) return WATER;
   if (terrain === Terrain.Rock) return MOUNTAIN;
   switch (resource) {
@@ -106,7 +110,7 @@ export function paintBase(
   out: Uint8ClampedArray,
 ): void {
   const p0 = playMin(map);
-  const { size, play, terrain, resource, pathLevel } = map;
+  const {size, play, terrain, resource, pathLevel} = map;
   let o = 0;
   for (let z = 0; z < play; z++) {
     const row = (z + p0) * size + p0;

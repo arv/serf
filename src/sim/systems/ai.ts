@@ -1,15 +1,20 @@
-import type { Enum } from '../../shared/enum.ts';
-import { tileCount, tileIdx, tileX, tileY } from '../../shared/grid.ts';
+import type {Enum} from '../../shared/enum.ts';
+import {tileCount, tileIdx, tileX, tileY} from '../../shared/grid.ts';
+import {exactDist} from '../../shared/math.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
 import {
-  ALL_ECONOMY_RULES,
-  runEconomyRules,
-  type EconomyRuleId,
-  type RuleContext,
-} from '../economyRules.ts';
-import { exactDist } from '../../shared/math.ts';
-import { findResourcesNear, nearestResource, playMin, playMax, tileBlocks } from '../map.ts';
-import { SeatVision } from '../visibility.ts';
-import { campCorners, startLayout, canPlace, type World } from '../world.ts';
+  addGarrison,
+  classHp,
+  damageEquivalent,
+  shouldCommit,
+  type Force,
+  tallyClass,
+} from '../combatOdds.ts';
+import * as CommandKind from '../commandKindEnum.ts';
+import type {SimCommand} from '../commands.ts';
+import type {AiStrategy, BuildStep} from '../defs/aiStrategies.ts';
+import {HIRE_QUEUE_CAP, HIRE_SERF_COST} from '../defs/balance.ts';
+import * as BuildAnchor from '../defs/buildAnchorEnum.ts';
 import {
   BUILDING_DEFS,
   buildingDef,
@@ -19,35 +24,41 @@ import {
   OUTPUT_CAP,
   repairBill,
 } from '../defs/buildings.ts';
-import { TECH_DEFS, type TechId } from '../defs/techs.ts';
-import { UNIT_DEFS, WEAPON_OF } from '../defs/units.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
+import {goodEntries, type GoodAmounts} from '../defs/goods.ts';
+import {TECH_DEFS, type TechId} from '../defs/techs.ts';
+import * as UnitClass from '../defs/unitClassEnum.ts';
+import {UNIT_DEFS, WEAPON_OF} from '../defs/units.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 import {
-  addGarrison,
-  classHp,
-  damageEquivalent,
-  shouldCommit,
-  type Force,
-  tallyClass,
-} from '../combatOdds.ts';
-import { HIRE_QUEUE_CAP, HIRE_SERF_COST } from '../defs/balance.ts';
-import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
-import type { AiStrategy, BuildStep } from '../defs/aiStrategies.ts';
-import { isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
-import { goodEntries, type GoodAmounts } from '../defs/goods.ts';
-import type { Unit } from '../units.ts';
-import type { SimCommand } from '../commands.ts';
+  ALL_ECONOMY_RULES,
+  runEconomyRules,
+  type EconomyRuleId,
+  type RuleContext,
+} from '../economyRules.ts';
+import {
+  isPlayerOwner,
+  type Building,
+  type EntityId,
+  type Owner,
+} from '../entities.ts';
+import {
+  findResourcesNear,
+  nearestResource,
+  playMin,
+  playMax,
+  tileBlocks,
+} from '../map.ts';
+import * as MatchState from '../matchStateEnum.ts';
+import {hasRoomToHire, plannedPopCapOf, populationOf} from '../population.ts';
+import * as RulePhase from '../rulePhaseEnum.ts';
 import * as Terrain from '../terrainEnum.ts';
 import * as TileResource from '../tileResourceEnum.ts';
-import * as MatchState from '../matchStateEnum.ts';
-import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
-import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
-import * as UnitClass from '../defs/unitClassEnum.ts';
-import * as BuildAnchor from '../defs/buildAnchorEnum.ts';
-import * as BuildingState from '../buildingStateEnum.ts';
-import * as GoodId from '../defs/goodIdEnum.ts';
+import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
-import * as CommandKind from '../commandKindEnum.ts';
-import * as RulePhase from '../rulePhaseEnum.ts';
+import {SeatVision} from '../visibility.ts';
+import {campCorners, startLayout, canPlace, type World} from '../world.ts';
 
 type BuildAnchor = Enum<typeof BuildAnchor>;
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -269,7 +280,7 @@ interface StallSample {
 /** One look at a rival's forces: when it was taken, and what stood there. */
 interface Sighting {
   tick: number;
-  counts: { heavy: number; light: number; ranged: number };
+  counts: {heavy: number; light: number; ranged: number};
   total: number;
 }
 
@@ -315,7 +326,7 @@ interface IntelSample {
  */
 interface RivalPicture {
   /** Soldiers seen and not yet written off, by unit id. */
-  roster: Map<number, { tick: number; cls: UnitClass }>;
+  roster: Map<number, {tick: number; cls: UnitClass}>;
   /** How the roster has grown, oldest first, `seriesLen` deep. */
   series: IntelSample[];
   /** Last tick anything of theirs stood in our light. -1 = never. */
@@ -353,7 +364,7 @@ export interface IntelReport {
    * accurate single number this brain has about a rival's strength (see
    * RivalPicture's table), and the one a posture should read. */
   peak: number;
-  counts: { heavy: number; light: number; ranged: number };
+  counts: {heavy: number; light: number; ranged: number};
   firstSoldierTick: number;
   firstAttackTick: number;
   buildingsAtFive: number;
@@ -361,7 +372,7 @@ export interface IntelReport {
   reads: number;
   /** Oldest kept sample and newest, so a reader can see the slope without
    * carrying the whole series: null until two samples exist. */
-  trend: { fromTick: number; from: number; toTick: number; to: number } | null;
+  trend: {fromTick: number; from: number; toTick: number; to: number} | null;
 }
 
 /**
@@ -370,13 +381,17 @@ export interface IntelReport {
  * that arms one. (Ranged beats heavy, heavy beats light, light beats
  * ranged; recipeOptions order is [spear, sword, bow].)
  */
-const COUNTER_PICK: Record<UnitClass, { unit: UnitTypeId; recipe: number }> = {
-  [UnitClass.heavy]: { unit: UnitTypeId.archer, recipe: 2 },
-  [UnitClass.light]: { unit: UnitTypeId.knight, recipe: 1 },
-  [UnitClass.ranged]: { unit: UnitTypeId.spearman, recipe: 0 },
+const COUNTER_PICK: Record<UnitClass, {unit: UnitTypeId; recipe: number}> = {
+  [UnitClass.heavy]: {unit: UnitTypeId.archer, recipe: 2},
+  [UnitClass.light]: {unit: UnitTypeId.knight, recipe: 1},
+  [UnitClass.ranged]: {unit: UnitTypeId.spearman, recipe: 0},
 };
 
-const MILITARY = new Set<UnitTypeId>([UnitTypeId.knight, UnitTypeId.spearman, UnitTypeId.archer]);
+const MILITARY = new Set<UnitTypeId>([
+  UnitTypeId.knight,
+  UnitTypeId.spearman,
+  UnitTypeId.archer,
+]);
 
 /** Fewest soldiers that may be sent on a prediction alone. The impatience
  * ramp already treats three as the smallest force worth marching
@@ -518,7 +533,7 @@ export class AiBrain {
   /** Read by the lab so a null measurement is diagnosable rather than merely
    * disappointing: a gate that never fires and a gate that fires without
    * helping print the same win rate. */
-  oddsReport(): { asked: number; vetoed: number; blind: number; camps: number } {
+  oddsReport(): {asked: number; vetoed: number; blind: number; camps: number} {
     return {
       asked: this.#oddsAsked,
       vetoed: this.#oddsVetoed,
@@ -529,7 +544,7 @@ export class AiBrain {
 
   /** What the stall watchdog saw, for the same reason oddsReport() exists:
    * the harness counts stalls instead of inferring them from `undecided`. */
-  stallReport(): { beats: number; recoveries: number; stalled: boolean } {
+  stallReport(): {beats: number; recoveries: number; stalled: boolean} {
     return {
       beats: this.#stalledBeats,
       recoveries: this.#recoveries,
@@ -556,7 +571,12 @@ export class AiBrain {
         reads: pic.reads,
         trend:
           first && last && first !== last
-            ? { fromTick: first.tick, from: first.total, toTick: last.tick, to: last.total }
+            ? {
+                fromTick: first.tick,
+                from: first.total,
+                toTick: last.tick,
+                to: last.total,
+              }
             : null,
       };
     });
@@ -565,21 +585,27 @@ export class AiBrain {
   /** Is `tick` one of this seat's decision beats? (Seats stagger so two
    * brains never fire on the same tick.) */
   shouldDecide(tick: number): boolean {
-    const { decisionInterval, seatStagger } = AI_PACING;
-    return tick % decisionInterval === (this.playerId * seatStagger) % decisionInterval;
+    const {decisionInterval, seatStagger} = AI_PACING;
+    return (
+      tick % decisionInterval ===
+      (this.playerId * seatStagger) % decisionInterval
+    );
   }
 
   /** Read the world, emit this beat's commands. Pure apart from the brain's
    * own pacing memory. */
   decide(world: World): SimCommand[] {
-    const s = this.#override ? { ...this.strategy, ...this.#override } : this.strategy;
+    const s = this.#override
+      ? {...this.strategy, ...this.#override}
+      : this.strategy;
     const p = world.players[this.playerId];
     if (!p || !p.alive || world.outcome.state !== MatchState.playing) return [];
     this.#vision.recompute(world, this.playerId);
     const commands: SimCommand[] = [];
     const mine = ownedBuildings(world, this.playerId);
     const sh = mine.find(
-      (b) => b.type === BuildingTypeId.storehouse && b.state === BuildingState.built,
+      b =>
+        b.type === BuildingTypeId.storehouse && b.state === BuildingState.built,
     );
     // Watching comes before the castle check, and before every decision
     // below reads the picture: a seat about to lose its last storehouse has
@@ -593,7 +619,8 @@ export class AiBrain {
     const researched = (id: TechId): boolean => techs.researched.includes(id);
     // Standing OR planned: the build order reads this to decide whether a
     // step's prerequisite is on the way, and a scaffold is on the way.
-    const has = (type: BuildingTypeId): boolean => mine.some((b) => b.type === type);
+    const has = (type: BuildingTypeId): boolean =>
+      mine.some(b => b.type === type);
     // Standing, and only standing. The distinction is not academic: the sim
     // asks for a BUILT abbey before it will take a research order (see
     // canResearch), so a seat that read a scaffold as an abbey filed the
@@ -604,8 +631,9 @@ export class AiBrain {
     // nothing, but a decision beat spent on a command that cannot land, and
     // a replay log mostly made of it.
     const hasBuilt = (type: BuildingTypeId): boolean =>
-      mine.some((b) => b.type === type && b.state === BuildingState.built);
-    const countOf = (type: BuildingTypeId): number => mine.filter((b) => b.type === type).length;
+      mine.some(b => b.type === type && b.state === BuildingState.built);
+    const countOf = (type: BuildingTypeId): number =>
+      mine.filter(b => b.type === type).length;
 
     // --- The walls ------------------------------------------------------------
     // Before the build order and well before the army: whether villagers are
@@ -635,7 +663,8 @@ export class AiBrain {
     for (const step of s.build) {
       if (step.after && !researched(step.after)) continue;
       if (step.needs && !has(step.needs)) continue;
-      const desired = step.more && researched(step.more.after) ? step.more.count : step.count;
+      const desired =
+        step.more && researched(step.more.after) ? step.more.count : step.count;
       if (countOf(step.type) >= desired) continue;
       // Price before ground. Both tests are pure reads and the step that
       // wins is still the first one that is BOTH affordable and placeable,
@@ -646,7 +675,12 @@ export class AiBrain {
       if (!affordable(BUILDING_DEFS[step.type].cost, stock)) continue;
       const spot = spotFor(world, step, baseX, baseY);
       if (!spot) continue;
-      commands.push({ kind: CommandKind.placeBuilding, building: step.type, x: spot.x, y: spot.y });
+      commands.push({
+        kind: CommandKind.placeBuilding,
+        building: step.type,
+        x: spot.x,
+        y: spot.y,
+      });
       placed = true;
       break; // one placement per decision to keep hauling focused
     }
@@ -662,7 +696,8 @@ export class AiBrain {
     if (
       !placed &&
       countOf(BuildingTypeId.house) < s.houseLimit &&
-      plannedPopCapOf(world, this.playerId) - populationOf(world, this.playerId) <
+      plannedPopCapOf(world, this.playerId) -
+        populationOf(world, this.playerId) <
         s.housingHeadroom &&
       affordable(BUILDING_DEFS[BuildingTypeId.house].cost, stock)
     ) {
@@ -684,25 +719,40 @@ export class AiBrain {
     // village waits for stone it hasn't quarried yet.
     let worst: Building | undefined;
     for (const b of mine) {
-      if (b.state !== BuildingState.built || b.repairNeeds || b.repairPending !== undefined)
+      if (
+        b.state !== BuildingState.built ||
+        b.repairNeeds ||
+        b.repairPending !== undefined
+      )
         continue;
       const max = BUILDING_DEFS[b.type].hp;
       if (b.hp >= max * AI_REPAIR_BELOW) continue;
-      if (!worst || b.hp / max < worst.hp / BUILDING_DEFS[worst.type].hp) worst = b;
+      if (!worst || b.hp / max < worst.hp / BUILDING_DEFS[worst.type].hp)
+        worst = b;
     }
     if (worst) {
-      const bill = repairBill(worst.type, BUILDING_DEFS[worst.type].hp - worst.hp);
+      const bill = repairBill(
+        worst.type,
+        BUILDING_DEFS[worst.type].hp - worst.hp,
+      );
       if (affordable(bill, stock)) {
-        commands.push({ kind: CommandKind.setBuildingRepair, buildingId: worst.id, repair: true });
+        commands.push({
+          kind: CommandKind.setBuildingRepair,
+          buildingId: worst.id,
+          repair: true,
+        });
       }
     }
 
     // --- Population: keep loose serfs around ---------------------------------
     let serfCount = 0;
     for (const u of world.units.values()) {
-      if (!u.dead && u.owner === this.playerId && u.kind === UnitTypeId.serf) serfCount++;
+      if (!u.dead && u.owner === this.playerId && u.kind === UnitTypeId.serf)
+        serfCount++;
     }
-    const researchPending = s.researchOrder.some((id) => !techs.researched.includes(id));
+    const researchPending = s.researchOrder.some(
+      id => !techs.researched.includes(id),
+    );
     // The two free stall rules, and the reason they come first: neither
     // destroys anything, both are undone the moment the seat moves again,
     // and both undo a hold the playbook only ever meant as pacing.
@@ -712,7 +762,8 @@ export class AiBrain {
     // restart it. And ignore the growth gate: `growthAfter` defers hiring
     // behind a tech a stalled seat may never reach, which turns a pacing
     // choice into a life sentence.
-    const growing = s.growthAfter === null || researched(s.growthAfter) || stalled;
+    const growing =
+      s.growthAfter === null || researched(s.growthAfter) || stalled;
     const reserve = stalled ? 0 : s.researchReserve;
     // Even the panic floor cannot conjure a bed. Asking anyway is harmless —
     // the sim refuses it — but a seat that knows it is full spends the beat
@@ -724,22 +775,29 @@ export class AiBrain {
     // where the sim says "refused" holds back research for a hire that never
     // happens. Same predicate on both branches, so this only ever suppresses
     // an order that would have been a no-op.
-    const room = hasRoomToHire(world, this.playerId) && (sh.hireQueue ?? 0) < HIRE_QUEUE_CAP;
+    const room =
+      hasRoomToHire(world, this.playerId) &&
+      (sh.hireQueue ?? 0) < HIRE_QUEUE_CAP;
     // Whether this beat has already spent four silver on a hand. The
     // research guard below reads it, because commands are applied in the
     // order they are pushed and a hire pushed here is money the shelf still
     // shows but no longer has.
     let hiring = false;
-    if (room && serfCount < s.survivalFloor && (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST) {
-      commands.push({ kind: CommandKind.hireSerf });
+    if (
+      room &&
+      serfCount < s.survivalFloor &&
+      (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST
+    ) {
+      commands.push({kind: CommandKind.hireSerf});
       hiring = true;
     } else if (
       room &&
       growing &&
       serfCount < s.serfTarget &&
-      (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST + (researchPending ? reserve : 0)
+      (stock[GoodId.silver] ?? 0) >=
+        HIRE_SERF_COST + (researchPending ? reserve : 0)
     ) {
-      commands.push({ kind: CommandKind.hireSerf });
+      commands.push({kind: CommandKind.hireSerf});
       hiring = true;
     }
 
@@ -766,7 +824,11 @@ export class AiBrain {
       counter: this.#counterPlan(world),
     };
     if (this.#rules.size > 0) {
-      const recovery = runEconomyRules(ruleCtx, this.#rules, RulePhase.recovery);
+      const recovery = runEconomyRules(
+        ruleCtx,
+        this.#rules,
+        RulePhase.recovery,
+      );
       commands.push(...recovery.commands);
       this.#recoveries += recovery.fired.length;
     }
@@ -777,13 +839,15 @@ export class AiBrain {
     // stalling the whole queue on an order the sim will refuse.
     if (!techs.active) {
       const next = s.researchOrder.find(
-        (id) =>
+        id =>
           !techs.researched.includes(id) &&
-          TECH_DEFS[id].prereqs.every((pre) => techs.researched.includes(pre)),
+          TECH_DEFS[id].prereqs.every(pre => techs.researched.includes(pre)),
       );
       if (next && hasBuilt(BuildingTypeId.abbey)) {
         const cost = TECH_DEFS[next].cost;
-        const ok = goodEntries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
+        const ok = goodEntries(cost).every(
+          ([good, n]) => (stock[good] ?? 0) >= n,
+        );
         // Hands first, when there are barely any. Every tech is priced in
         // silver and so is a hire, and the panic branch above only fires on
         // the beat the shelf already holds the four — so a seat rebuilding
@@ -806,7 +870,8 @@ export class AiBrain {
             (hiring ? HIRE_SERF_COST : 0) -
             (cost[GoodId.silver] ?? 0) >=
             HIRE_SERF_COST;
-        if (ok && leavesHireMoney) commands.push({ kind: CommandKind.research, tech: next });
+        if (ok && leavesHireMoney)
+          commands.push({kind: CommandKind.research, tech: next});
       }
     }
 
@@ -815,12 +880,18 @@ export class AiBrain {
     // earlier, because command order inside a tick is load-bearing: research
     // above spends the same shelf these orders draw on.
     if (this.#rules.size > 0) {
-      commands.push(...runEconomyRules(ruleCtx, this.#rules, RulePhase.production).commands);
+      commands.push(
+        ...runEconomyRules(ruleCtx, this.#rules, RulePhase.production).commands,
+      );
     }
 
     // --- Army: rally at home until strong, then march ------------------------
     const army = [...world.units.values()].filter(
-      (u) => !u.dead && u.owner === this.playerId && MILITARY.has(u.kind) && !manning.has(u.id),
+      u =>
+        !u.dead &&
+        u.owner === this.playerId &&
+        MILITARY.has(u.kind) &&
+        !manning.has(u.id),
     );
     const target = pickAttackTarget(
       world,
@@ -871,7 +942,9 @@ export class AiBrain {
     // forever. The clock, not the picture, is what breaks the standoff.
     const heeded = idleFor > AI_PACING.forlornAfter ? null : odds;
     const mustered =
-      heeded === null ? headcountReady : heeded && cooled && army.length >= MIN_SORTIE;
+      heeded === null
+        ? headcountReady
+        : heeded && cooled && army.length >= MIN_SORTIE;
     // A hold has to reach the sweep as well: falling through to it would send
     // the army walking into unexplored ground instead, which is the one
     // outcome worse than the march it just refused. Only an actual hold
@@ -885,10 +958,12 @@ export class AiBrain {
     // alone is not intelligence work, it is tribute. A rival's doorstep is
     // not: that ground stays worth reading, so only its clock is stamped
     // and the next round goes in knowing more.
-    const scout = this.#scoutId >= 0 ? world.units.get(this.#scoutId) : undefined;
+    const scout =
+      this.#scoutId >= 0 ? world.units.get(this.#scoutId) : undefined;
     const staleRival = this.#staleRival(world);
     if (this.#scoutId >= 0 && (!scout || scout.dead)) {
-      if (this.#scoutGoal >= 0 && this.#scoutIntel < 0) this.#unreachable.add(this.#scoutGoal);
+      if (this.#scoutGoal >= 0 && this.#scoutIntel < 0)
+        this.#unreachable.add(this.#scoutGoal);
       if (this.#scoutIntel >= 0) this.#stampIntel(world, this.#scoutIntel);
       this.#clearScout();
     } else if (scout && target && this.#scoutIntel < 0 && staleRival < 0) {
@@ -912,7 +987,7 @@ export class AiBrain {
       this.#armyGrewTick = world.tick;
       commands.push({
         kind: CommandKind.moveUnits,
-        unitIds: army.map((u) => u.id),
+        unitIds: army.map(u => u.id),
         x: target.x + 1,
         y: target.y + 1,
       });
@@ -933,7 +1008,7 @@ export class AiBrain {
       this.#lastRallyTick = world.tick;
       commands.push({
         kind: CommandKind.moveUnits,
-        unitIds: army.map((u) => u.id),
+        unitIds: army.map(u => u.id),
         attack: true,
         x: baseX,
         y: baseY + 4,
@@ -953,27 +1028,41 @@ export class AiBrain {
       // split is as deterministic as everything else here.
       const byHome = [...army].sort(
         (a, z) =>
-          exactDist(a.x - baseX, a.y - baseY) - exactDist(z.x - baseX, z.y - baseY) || a.id - z.id,
+          exactDist(a.x - baseX, a.y - baseY) -
+            exactDist(z.x - baseX, z.y - baseY) || a.id - z.id,
       );
       const held = Math.min(SWEEP_GARRISON, Math.floor(army.length / 2));
       const garrison = byHome.slice(0, held);
       const party = byHome.slice(held);
-      const arrived = party.every((u) => u.task.t === UnitTaskKind.idle);
-      if (this.#sweepGoal >= 0 && arrived && !this.#vision.explored[this.#sweepGoal]) {
+      const arrived = party.every(u => u.task.t === UnitTaskKind.idle);
+      if (
+        this.#sweepGoal >= 0 &&
+        arrived &&
+        !this.#vision.explored[this.#sweepGoal]
+      ) {
         // Stood down short of the goal and it never lit up: not reachable.
         this.#unreachable.add(this.#sweepGoal);
         this.#sweepGoal = -1;
       }
-      if ((this.#sweepGoal < 0 || this.#vision.explored[this.#sweepGoal]) && party.length > 0) {
+      if (
+        (this.#sweepGoal < 0 || this.#vision.explored[this.#sweepGoal]) &&
+        party.length > 0
+      ) {
         // From the party's own position, not home: the sweep walks the
         // frontier tile to tile instead of ping-ponging across the base.
         const from = party[0]!;
-        this.#sweepGoal = nextSearchGoal(world, this.#vision, this.#unreachable, from.x, from.y);
+        this.#sweepGoal = nextSearchGoal(
+          world,
+          this.#vision,
+          this.#unreachable,
+          from.x,
+          from.y,
+        );
         if (this.#sweepGoal >= 0) {
           const at = approachPoint(this.#sweepGoal, world.map.size);
           commands.push({
             kind: CommandKind.moveUnits,
-            unitIds: party.map((u) => u.id),
+            unitIds: party.map(u => u.id),
             attack: true,
             x: at.x,
             y: at.y,
@@ -983,12 +1072,12 @@ export class AiBrain {
           // are called in with the same beat. Only those: re-ordering a
           // soldier already at his post just restarts his walk.
           const strays = garrison.filter(
-            (u) => exactDist(u.x - baseX, u.y - baseY) > GARRISON_POST,
+            u => exactDist(u.x - baseX, u.y - baseY) > GARRISON_POST,
           );
           if (strays.length > 0) {
             commands.push({
               kind: CommandKind.moveUnits,
-              unitIds: strays.map((u) => u.id),
+              unitIds: strays.map(u => u.id),
               attack: true,
               x: baseX,
               y: baseY + 4,
@@ -1014,18 +1103,23 @@ export class AiBrain {
       // that scout standing at the enemy's gate for as long as the
       // garrison stayed visible — the read never filed, the errand never
       // retired, and the muster a soldier short of what it counted on.
-      if ((!target || staleRival >= 0 || this.#scoutGoal >= 0) && army.length > 0) {
+      if (
+        (!target || staleRival >= 0 || this.#scoutGoal >= 0) &&
+        army.length > 0
+      ) {
         if (this.#scoutId < 0) {
-          const idle = army.filter((u) => u.task.t === UnitTaskKind.idle);
+          const idle = army.filter(u => u.task.t === UnitTaskKind.idle);
           const pick = idle.sort(
-            (a, z) => UNIT_DEFS[z.kind].speed - UNIT_DEFS[a.kind].speed || a.id - z.id,
+            (a, z) =>
+              UNIT_DEFS[z.kind].speed - UNIT_DEFS[a.kind].speed || a.id - z.id,
           )[0];
           if (pick) {
             this.#scoutId = pick.id;
             this.#clearScoutGoal();
           }
         }
-        const su = this.#scoutId >= 0 ? world.units.get(this.#scoutId) : undefined;
+        const su =
+          this.#scoutId >= 0 ? world.units.get(this.#scoutId) : undefined;
         if (su) {
           let fresh = false;
           // Retire the goal once it is answered. Discovery is done when the
@@ -1049,14 +1143,23 @@ export class AiBrain {
               this.#stampIntel(world, this.#scoutIntel);
               this.#clearScoutGoal();
             }
-          } else if (this.#scoutGoal >= 0 && (target || this.#vision.explored[this.#scoutGoal])) {
+          } else if (
+            this.#scoutGoal >= 0 &&
+            (target || this.#vision.explored[this.#scoutGoal])
+          ) {
             this.#clearScoutGoal();
           }
           // The next objective: discovery while no target is known, else
           // the stalest living rival's doorstep.
           if (this.#scoutGoal < 0) {
             if (!target) {
-              this.#scoutGoal = nextSearchGoal(world, this.#vision, this.#unreachable, su.x, su.y);
+              this.#scoutGoal = nextSearchGoal(
+                world,
+                this.#vision,
+                this.#unreachable,
+                su.x,
+                su.y,
+              );
             }
             // The clock as it reads NOW, not as it read when the beat
             // opened: a read stamped a few lines above may have answered
@@ -1064,7 +1167,8 @@ export class AiBrain {
             // straight back the errand he just finished is how he ends up
             // living at the enemy's gate — never recalled, because the
             // recall wants an errand that is over.
-            const nextRival = this.#scoutGoal < 0 ? this.#staleRival(world) : -1;
+            const nextRival =
+              this.#scoutGoal < 0 ? this.#staleRival(world) : -1;
             if (this.#scoutGoal < 0 && nextRival >= 0) {
               const door = rivalDoorstep(world, nextRival);
               if (door >= 0) {
@@ -1080,7 +1184,10 @@ export class AiBrain {
             fresh = this.#scoutGoal >= 0;
             if (!fresh) this.#scoutId = -1; // nothing left worth walking to
           }
-          if (this.#scoutGoal >= 0 && (fresh || su.task.t === UnitTaskKind.idle)) {
+          if (
+            this.#scoutGoal >= 0 &&
+            (fresh || su.task.t === UnitTaskKind.idle)
+          ) {
             const at = scoutLeg(this.#scoutGoal, su.x, su.y, world.map.size);
             const leg = tileIdx(at.x, at.y, world.map.size);
             if (!fresh && leg === this.#scoutLeg) {
@@ -1092,7 +1199,12 @@ export class AiBrain {
               this.#clearScoutGoal();
             } else {
               this.#scoutLeg = leg;
-              commands.push({ kind: CommandKind.moveUnits, unitIds: [su.id], x: at.x, y: at.y });
+              commands.push({
+                kind: CommandKind.moveUnits,
+                unitIds: [su.id],
+                x: at.x,
+                y: at.y,
+              });
             }
           }
         }
@@ -1100,11 +1212,13 @@ export class AiBrain {
       if (!this.#attacking && army.length > 0 && rallyReady) {
         // Garrison duty: stand by the storehouse so auto-acquire covers it.
         this.#lastRallyTick = world.tick;
-        const idle = army.filter((u) => u.task.t === UnitTaskKind.idle && u.id !== this.#scoutId);
+        const idle = army.filter(
+          u => u.task.t === UnitTaskKind.idle && u.id !== this.#scoutId,
+        );
         if (idle.length > 0) {
           commands.push({
             kind: CommandKind.moveUnits,
-            unitIds: idle.map((u) => u.id),
+            unitIds: idle.map(u => u.id),
             x: baseX,
             y: baseY + 4,
           });
@@ -1146,7 +1260,7 @@ export class AiBrain {
     if (this.#progress.length < AI_STALL.window) return false;
     const first = this.#progress[0]!;
     return this.#progress.every(
-      (x) =>
+      x =>
         x.pop === first.pop &&
         x.built === first.built &&
         x.sites === first.sites &&
@@ -1205,7 +1319,7 @@ export class AiBrain {
       return null;
     }
 
-    const mine: Force = { heavy: 0, light: 0, ranged: 0, hp: 0 };
+    const mine: Force = {heavy: 0, light: 0, ranged: 0, hp: 0};
     for (const u of army) {
       const cls = UNIT_DEFS[u.kind].combat?.class;
       if (cls === undefined) continue;
@@ -1242,7 +1356,11 @@ export class AiBrain {
    * cannot shoot back at for two men in the open, every time the ground
    * went quiet, and start them walking back up the moment it did not.
    */
-  #manTowers(world: World, mine: readonly Building[], commands: SimCommand[]): Set<EntityId> {
+  #manTowers(
+    world: World,
+    mine: readonly Building[],
+    commands: SimCommand[],
+  ): Set<EntityId> {
     // The men the walls are spending this beat, named rather than counted:
     // the army pool below leaves them out, so a tower is never opened for an
     // archer the same beat marches away. Since halting now empties the roof,
@@ -1296,7 +1414,14 @@ export class AiBrain {
       // What this costs is real and deliberate: a man claimed for a wall is
       // a man left out of the march (see `claimed`), so a besieged seat
       // fields a smaller army while it is besieged.
-      const hostile = hostileNear(world, this.#vision, this.playerId, bx, by, AI_INTEL.raidRadius);
+      const hostile = hostileNear(
+        world,
+        this.#vision,
+        this.playerId,
+        bx,
+        by,
+        AI_INTEL.raidRadius,
+      );
       if (hostile) this.#levyHold.set(b.id, world.tick + LEVY_HOLD);
       const besieged = hostile || world.tick < (this.#levyHold.get(b.id) ?? 0);
       if (!besieged) this.#levyHold.delete(b.id);
@@ -1313,14 +1438,18 @@ export class AiBrain {
       // levy down on quiet ground with an archer standing idle who could
       // have taken the wall.
       const room =
-        b.garrisonKind === rule.levy.unit ? rule.capacity : rule.capacity - (b.garrison ?? 0);
-      if (b.garrison && b.garrisonKind !== rule.levy.unit && room <= 0) continue;
+        b.garrisonKind === rule.levy.unit
+          ? rule.capacity
+          : rule.capacity - (b.garrison ?? 0);
+      if (b.garrison && b.garrisonKind !== rule.levy.unit && room <= 0)
+        continue;
       // A soldier already walking to this tower is spoken for, and he stops
       // counting as loose the moment staffing claims him. Halting on the
       // beat in between would turn him away at the door he is nearly at —
       // and he would go idle, be seen loose at the next beat, and be walked
       // over again. So a tower with a soldier on the way is left alone.
-      const walking = b.recruitId !== undefined ? world.units.get(b.recruitId) : undefined;
+      const walking =
+        b.recruitId !== undefined ? world.units.get(b.recruitId) : undefined;
       if (
         walking &&
         !walking.dead &&
@@ -1353,7 +1482,11 @@ export class AiBrain {
         // what matters here is that the army is that many men short.
         for (const id of pool.splice(0, spare)) claimed.add(id);
         if (b.paused)
-          commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
+          commands.push({
+            kind: CommandKind.setBuildingPaused,
+            buildingId: b.id,
+            paused: false,
+          });
         continue;
       }
       if (b.garrison && b.garrisonKind !== rule.levy.unit) continue;
@@ -1364,11 +1497,19 @@ export class AiBrain {
       // there to shoot at.
       if (besieged) {
         if (b.paused)
-          commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
+          commands.push({
+            kind: CommandKind.setBuildingPaused,
+            buildingId: b.id,
+            paused: false,
+          });
         continue;
       }
       if (!b.paused)
-        commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: true });
+        commands.push({
+          kind: CommandKind.setBuildingPaused,
+          buildingId: b.id,
+          paused: true,
+        });
     }
     return claimed;
   }
@@ -1389,7 +1530,7 @@ export class AiBrain {
   #defendersAt(world: World, target: Building): Force | null {
     const cx = target.x + target.w / 2;
     const cy = target.y + target.h / 2;
-    const seen: Force = { heavy: 0, light: 0, ranged: 0, hp: 0 };
+    const seen: Force = {heavy: 0, light: 0, ranged: 0, hp: 0};
     for (const u of world.units.values()) {
       if (u.dead || u.owner === this.playerId) continue;
       const cls = UNIT_DEFS[u.kind].combat?.class;
@@ -1405,7 +1546,12 @@ export class AiBrain {
     // roster of people, so a tower nobody has laid eyes on is missed, which
     // errs toward marching like the rest of this estimate.
     for (const b of world.buildings.values()) {
-      if (b.dead || b.state !== BuildingState.built || b.owner === this.playerId) continue;
+      if (
+        b.dead ||
+        b.state !== BuildingState.built ||
+        b.owner === this.playerId
+      )
+        continue;
       const rule = buildingDef(b.type).garrison;
       if (!rule || !b.garrison) continue;
       const bx = b.x + b.w / 2;
@@ -1416,8 +1562,14 @@ export class AiBrain {
         // Villagers with stones still hold ground, and a captain who reads
         // a levied tower as an empty one marches under a wall that is
         // hitting him. Priced at what the rock is worth beside a weapon.
-        const { class: cls, damage, cooldownTicks } = rule.levy;
-        addGarrison(seen, cls, b.garrison, damageEquivalent(cls, damage, cooldownTicks), b.hp);
+        const {class: cls, damage, cooldownTicks} = rule.levy;
+        addGarrison(
+          seen,
+          cls,
+          b.garrison,
+          damageEquivalent(cls, damage, cooldownTicks),
+          b.hp,
+        );
       } else {
         const cls = UNIT_DEFS[rule.unit].combat?.class;
         if (cls) addGarrison(seen, cls, b.garrison, rule.damageMult, b.hp);
@@ -1426,8 +1578,13 @@ export class AiBrain {
     if (seen.hp > 0) return seen;
 
     const pic = this.#intel.get(target.owner);
-    if (!pic || pic.seenTick < 0 || world.tick - pic.seenTick > AI_INTEL.trustFor) return null;
-    const { heavy, light, ranged } = rosterMuster(pic).counts;
+    if (
+      !pic ||
+      pic.seenTick < 0 ||
+      world.tick - pic.seenTick > AI_INTEL.trustFor
+    )
+      return null;
+    const {heavy, light, ranged} = rosterMuster(pic).counts;
     if (heavy + light + ranged === 0) return null;
     return {
       heavy,
@@ -1469,7 +1626,7 @@ export class AiBrain {
       if (!this.#vision.canSee(u.x, u.y)) continue;
       if (u.dead) continue; // a corpse is not a garrison
       const pic = this.#pictureOf(u.owner);
-      pic.roster.set(u.id, { tick, cls });
+      pic.roster.set(u.id, {tick, cls});
       pic.seenTick = tick;
       if (pic.firstSoldierTick < 0) pic.firstSoldierTick = tick;
       if (
@@ -1499,7 +1656,7 @@ export class AiBrain {
       }
       if (tick - pic.sampledTick >= AI_INTEL.samplePeriod) {
         pic.sampledTick = tick;
-        pic.series.push({ tick, total: pic.roster.size });
+        pic.series.push({tick, total: pic.roster.size});
         if (pic.series.length > AI_INTEL.seriesLen) pic.series.shift();
       }
     }
@@ -1508,7 +1665,8 @@ export class AiBrain {
       this.#earlyMarkTaken = true;
       const counts = new Map<Owner, number>();
       for (const b of world.buildings.values()) {
-        if (b.dead || b.owner === this.playerId || !isPlayerOwner(b.owner)) continue;
+        if (b.dead || b.owner === this.playerId || !isPlayerOwner(b.owner))
+          continue;
         if (!this.#vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
         counts.set(b.owner, (counts.get(b.owner) ?? 0) + 1);
       }
@@ -1516,7 +1674,8 @@ export class AiBrain {
       // nothing of theirs by minute five" is itself the loudest fact about
       // a village, and leaving it unknown would read as no evidence.
       for (const p of world.players) {
-        if (p.id === this.playerId || !p.alive || !isPlayerOwner(p.id)) continue;
+        if (p.id === this.playerId || !p.alive || !isPlayerOwner(p.id))
+          continue;
         this.#pictureOf(p.id).buildingsAtFive = counts.get(p.id) ?? 0;
       }
     }
@@ -1587,22 +1746,31 @@ export class AiBrain {
    * scarier read — heavy first, then ranged — and null means the map has
    * shown nothing worth retooling for, so the playbook stands as written.
    */
-  #counterPlan(world: World): { unit: UnitTypeId; recipe: number } | null {
+  #counterPlan(world: World): {unit: UnitTypeId; recipe: number} | null {
     let best: Sighting | undefined;
     let bestOwner: Owner = -1;
     for (const [owner, pic] of this.#intel) {
       if (!world.players[owner]?.alive) continue;
-      if (pic.seenTick < 0 || world.tick - pic.seenTick > AI_INTEL.trustFor) continue;
+      if (pic.seenTick < 0 || world.tick - pic.seenTick > AI_INTEL.trustFor)
+        continue;
       const muster = rosterMuster(pic);
       if (muster.total < AI_INTEL.minSighting) continue;
-      const s: Sighting = { tick: pic.seenTick, counts: muster.counts, total: muster.total };
-      if (!best || s.tick > best.tick || (s.tick === best.tick && owner < bestOwner)) {
+      const s: Sighting = {
+        tick: pic.seenTick,
+        counts: muster.counts,
+        total: muster.total,
+      };
+      if (
+        !best ||
+        s.tick > best.tick ||
+        (s.tick === best.tick && owner < bestOwner)
+      ) {
         best = s;
         bestOwner = owner;
       }
     }
     if (!best) return null;
-    const { heavy, light, ranged } = best.counts;
+    const {heavy, light, ranged} = best.counts;
     const dominant: UnitClass =
       heavy >= light && heavy >= ranged
         ? UnitClass.heavy
@@ -1616,17 +1784,20 @@ export class AiBrain {
 /** The army a roster adds up to: every soldier still on the list, by class.
  * Entries past the trust window are pruned as they are written, so what is
  * here is what the seat still believes is standing. */
-function rosterMuster(pic: RivalPicture): { counts: Sighting['counts']; total: number } {
-  const counts = { heavy: 0, light: 0, ranged: 0 };
+function rosterMuster(pic: RivalPicture): {
+  counts: Sighting['counts'];
+  total: number;
+} {
+  const counts = {heavy: 0, light: 0, ranged: 0};
   for (const seen of pic.roster.values()) tallyClass(counts, seen.cls);
-  return { counts, total: pic.roster.size };
+  return {counts, total: pic.roster.size};
 }
 
 /** The muster this beat asks for: the playbook's size, less one soldier for
  * every `stalePeriod` the army has stood idle past `staleAfter` — down to
  * `staleFloor`, and past `forlornAfter` down to a single soldier. */
 export function mustersNeeded(armyAttackSize: number, idleFor: number): number {
-  const { staleAfter, stalePeriod, staleFloor, forlornAfter } = AI_PACING;
+  const {staleAfter, stalePeriod, staleFloor, forlornAfter} = AI_PACING;
   if (idleFor <= staleAfter) return armyAttackSize;
   const impatience = Math.floor((idleFor - staleAfter) / stalePeriod) + 1;
   const floor = idleFor > forlornAfter ? 1 : staleFloor;
@@ -1639,7 +1810,9 @@ function affordable(cost: GoodAmounts, stock: GoodAmounts): boolean {
 }
 
 function ownedBuildings(world: World, owner: Owner): Building[] {
-  return [...world.buildings.values()].filter((b) => !b.dead && b.owner === owner);
+  return [...world.buildings.values()].filter(
+    b => !b.dead && b.owner === owner,
+  );
 }
 
 /** By id, so two hosts pick the same building out of a set. Insertion order
@@ -1655,7 +1828,7 @@ function spotFor(
   step: BuildStep,
   baseX: number,
   baseY: number,
-): { x: number; y: number } | null {
+): {x: number; y: number} | null {
   if (step.anchor === BuildAnchor.base)
     return findSpot(world, step.type, baseX, baseY, step.radius);
   // The shore is terrain, not a resource seam, so it gets its own search.
@@ -1665,14 +1838,26 @@ function spotFor(
     const shore = nearestWater(world, baseX, baseY);
     if (shore < 0) return null;
     const size = world.map.size;
-    return findSpot(world, step.type, tileX(shore, size), tileY(shore, size), step.radius);
+    return findSpot(
+      world,
+      step.type,
+      tileX(shore, size),
+      tileY(shore, size),
+      step.radius,
+    );
   }
   const code = ANCHOR_RESOURCE[step.anchor];
   if (code === undefined) return null; // the keep anchor sites off the castle, not a seam
   const tile = nearestResource(world.map, code, baseX, baseY);
   if (tile < 0) return null;
   const size = world.map.size;
-  return findSpot(world, step.type, tileX(tile, size), tileY(tile, size), step.radius);
+  return findSpot(
+    world,
+    step.type,
+    tileX(tile, size),
+    tileY(tile, size),
+    step.radius,
+  );
 }
 
 /**
@@ -1687,7 +1872,7 @@ function findSpot(
   cx: number,
   cy: number,
   maxR = 14,
-): { x: number; y: number } | null {
+): {x: number; y: number} | null {
   const def = BUILDING_DEFS[type];
   const size = world.map.size;
   const spaced = (x: number, y: number): boolean => {
@@ -1705,7 +1890,7 @@ function findSpot(
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const x = cx + dx;
         const y = cy + dy;
-        if (canPlace(world.map, type, x, y) && spaced(x, y)) return { x, y };
+        if (canPlace(world.map, type, x, y) && spaced(x, y)) return {x, y};
       }
     }
   }
@@ -1823,7 +2008,8 @@ export function pickAttackTarget(
     const better =
       best === undefined ||
       rank < bestRank ||
-      (rank === bestRank && (d < bestDist || (d === bestDist && b.id < best.id)));
+      (rank === bestRank &&
+        (d < bestDist || (d === bestDist && b.id < best.id)));
     if (better) {
       bestDist = d;
       bestRank = rank;
@@ -1831,7 +2017,7 @@ export function pickAttackTarget(
     }
   }
   if (best && prefersRivals && best.type === BuildingTypeId.banditCamp) {
-    const rivalStands = world.players.some((p) => p.id !== owner && p.alive);
+    const rivalStands = world.players.some(p => p.id !== owner && p.alive);
     if (rivalStands) return undefined;
   }
   return best;
@@ -1849,8 +2035,11 @@ function searchLandmarks(world: World): [number, number][] {
   const pts: [number, number][] = [];
   // Rival doorsteps (the seat's own start is explored from tick 0 and
   // drops out on its own). Storehouses are 3x3, so +1 is the center.
-  for (const [sx, sy] of startLayout(world.map.play, playMin(world.map), world.players.length) ??
-    []) {
+  for (const [sx, sy] of startLayout(
+    world.map.play,
+    playMin(world.map),
+    world.players.length,
+  ) ?? []) {
     pts.push([sx + 1, sy + 1]);
   }
   // Camp seeds: the middle, then the corners — the very spots worldgen
@@ -1910,8 +2099,11 @@ export function nextSearchGoal(
  */
 const WATCH_FROM = 6;
 
-export function approachPoint(goal: number, size: number): { x: number; y: number } {
-  return { x: tileX(goal, size), y: Math.max(0, tileY(goal, size) - WATCH_FROM) };
+export function approachPoint(
+  goal: number,
+  size: number,
+): {x: number; y: number} {
+  return {x: tileX(goal, size), y: Math.max(0, tileY(goal, size) - WATCH_FROM)};
 }
 
 /**
@@ -1922,7 +2114,11 @@ export function approachPoint(goal: number, size: number): { x: number; y: numbe
  */
 export function rivalDoorstep(world: World, owner: Owner): number {
   const size = world.map.size;
-  const start = startLayout(world.map.play, playMin(world.map), world.players.length)?.[owner];
+  const start = startLayout(
+    world.map.play,
+    playMin(world.map),
+    world.players.length,
+  )?.[owner];
   if (!start) return -1;
   return tileIdx(start[0] + 1, Math.min(size - 1, start[1] + 5), size);
 }
@@ -1968,13 +2164,13 @@ export function scoutLeg(
   sx: number,
   sy: number,
   size: number,
-): { x: number; y: number } {
+): {x: number; y: number} {
   const gx = tileX(goal, size);
   const gy = tileY(goal, size);
   const gateY = Math.max(0, gy - GATE_NORTH);
   const atGate = Math.abs(sx - gx) <= 3 && Math.abs(sy - gateY) <= 2;
   if (atGate) return approachPoint(goal, size);
-  return { x: gx, y: gateY };
+  return {x: gx, y: gateY};
 }
 
 /**

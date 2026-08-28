@@ -1,16 +1,20 @@
-import { describe, expect, it } from 'vitest';
-import { tileCount, tileIdx } from '../shared/grid.ts';
-import { createWorld } from './world.ts';
-import { BANDIT, isPlayerOwner } from './entities.ts';
-import { START_SERFS } from './defs/balance.ts';
-import { tickWorld } from './tick.ts';
-import * as Terrain from './terrainEnum.ts';
-import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import {describe, expect, it} from 'vitest';
+import {tileCount, tileIdx} from '../shared/grid.ts';
+import {START_SERFS} from './defs/balance.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import {BANDIT, isPlayerOwner} from './entities.ts';
 import * as PlayerKind from './playerKindEnum.ts';
+import * as Terrain from './terrainEnum.ts';
+import {tickWorld} from './tick.ts';
+import {createWorld} from './world.ts';
 
 /** 4-connected grass reachability between two tiles. */
-function reachable(map: { size: number; terrain: Uint8Array }, from: number, to: number): boolean {
+function reachable(
+  map: {size: number; terrain: Uint8Array},
+  from: number,
+  to: number,
+): boolean {
   const size = map.size;
   const seen = new Uint8Array(tileCount(size));
   const queue = [from];
@@ -43,22 +47,24 @@ describe('N-player worldgen', () => {
       for (const seed of [1, 42, 20260724]) {
         const world = createWorld({
           seed,
-          players: Array.from({ length: n }, () => ({ kind: PlayerKind.human })),
+          players: Array.from({length: n}, () => ({kind: PlayerKind.human})),
         });
         const storehouses = [...world.buildings.values()].filter(
-          (b) => b.type === BuildingTypeId.storehouse,
+          b => b.type === BuildingTypeId.storehouse,
         );
         expect(storehouses.length).toBe(n);
         for (let p = 0; p < n; p++) {
-          expect(storehouses.some((b) => b.owner === p)).toBe(true);
+          expect(storehouses.some(b => b.owner === p)).toBe(true);
           const serfs = [...world.units.values()].filter(
-            (u) => u.owner === p && u.kind === UnitTypeId.serf,
+            u => u.owner === p && u.kind === UnitTypeId.serf,
           );
           expect(serfs.length).toBe(START_SERFS);
         }
         // Every pair of starts shares the landmass (door tiles south of each
         // storehouse — the footprint itself is blocked).
-        const doors = storehouses.map((b) => tileIdx(b.x + 1, b.y + b.h, world.map.size));
+        const doors = storehouses.map(b =>
+          tileIdx(b.x + 1, b.y + b.h, world.map.size),
+        );
         for (const door of doors) {
           expect(world.map.terrain[door]).toBe(Terrain.Grass);
         }
@@ -67,7 +73,7 @@ describe('N-player worldgen', () => {
         }
         // The camp exists and belongs to the bandits.
         const camp = [...world.buildings.values()].find(
-          (b) => b.type === BuildingTypeId.banditCamp,
+          b => b.type === BuildingTypeId.banditCamp,
         );
         expect(camp).toBeDefined();
         expect(camp!.owner).toBe(BANDIT);
@@ -80,14 +86,20 @@ describe('N-player worldgen', () => {
         // while everyone is still standing around doing nothing.
         for (let t = 0; t < 1500; t++) tickWorld(world, []);
         for (const p of world.players) {
-          expect(p.alive, `seat ${p.id} was eliminated before doing anything`).toBe(true);
+          expect(
+            p.alive,
+            `seat ${p.id} was eliminated before doing anything`,
+          ).toBe(true);
         }
       }
     });
   }
 
   it('deterministic: same config twice gives identical maps', () => {
-    const config = { seed: 7, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.human }] };
+    const config = {
+      seed: 7,
+      players: [{kind: PlayerKind.human}, {kind: PlayerKind.human}],
+    };
     const a = createWorld(config);
     const b = createWorld(config);
     expect([...a.map.terrain]).toEqual([...b.map.terrain]);

@@ -1,19 +1,19 @@
-import type { Enum } from '../shared/enum.ts';
-import { TICK_MS } from '../sim/defs/balance.ts';
-import { UNIT_DEFS } from '../sim/defs/units.ts';
-import { buildingDef, BUILDING_KEYS } from '../sim/defs/buildings.ts';
-import { AI_INTEL, hostileNear, type AiBrain } from '../sim/systems/ai.ts';
-import type { Building, Owner } from '../sim/entities.ts';
-import { popCapOf, populationOf } from '../sim/population.ts';
-import { playMin, playMax } from '../sim/map.ts';
-import { tileIdx } from '../shared/grid.ts';
-import type { World } from '../sim/world.ts';
-import { GOOD_KEYS, goodEntries } from '../sim/defs/goods.ts';
-import { TECH_KEYS } from '../sim/defs/techs.ts';
-import { AI_STRATEGY_KEYS } from '../sim/defs/aiStrategies.ts';
-import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
-import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import type {Enum} from '../shared/enum.ts';
+import {tileIdx} from '../shared/grid.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
+import {AI_STRATEGY_KEYS} from '../sim/defs/aiStrategies.ts';
+import {TICK_MS} from '../sim/defs/balance.ts';
+import {buildingDef, BUILDING_KEYS} from '../sim/defs/buildings.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import {GOOD_KEYS, goodEntries} from '../sim/defs/goods.ts';
+import {TECH_KEYS} from '../sim/defs/techs.ts';
+import {UNIT_DEFS} from '../sim/defs/units.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import type {Building, Owner} from '../sim/entities.ts';
+import {playMin, playMax} from '../sim/map.ts';
+import {popCapOf, populationOf} from '../sim/population.ts';
+import {AI_INTEL, hostileNear, type AiBrain} from '../sim/systems/ai.ts';
+import type {World} from '../sim/world.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -110,7 +110,7 @@ export interface AiWorldSummary {
   minutes: number;
   /** Fraction of the map this seat has explored, 0..1. */
   explored: number;
-  seat: { id: number; strategyId: string; knobs: SeatKnobs };
+  seat: {id: number; strategyId: string; knobs: SeatKnobs};
   me: {
     /** Storehouse stock, zero lines dropped. */
     stock: Record<string, number>;
@@ -122,7 +122,7 @@ export interface AiWorldSummary {
      * JSON.stringify'd into the model's prompt, and a 1B model shown
      * `{"5":2}` has been told nothing. */
     buildings: Record<string, number>;
-    army: { knight: number; spearman: number; archer: number };
+    army: {knight: number; spearman: number; archer: number};
     researched: string[];
     researching: string | null;
     /** A hostile fighter visible within sight of the castle right now. */
@@ -130,7 +130,7 @@ export interface AiWorldSummary {
   };
   rivals: RivalSummary[];
   /** Camps on explored ground only — a camp in the dark does not exist. */
-  bandits: { camps: number; nearestCamp: number };
+  bandits: {camps: number; nearestCamp: number};
 }
 
 /** "Within sight of the castle": the homeGuard scale, not the whole map. */
@@ -174,7 +174,7 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
 
   const buildings: Record<string, number> = {};
   let serfs = 0;
-  const army = { knight: 0, spearman: 0, archer: 0 };
+  const army = {knight: 0, spearman: 0, archer: 0};
   /** Rival buildings on explored ground, and camps likewise. */
   const rivalBuildings = new Map<Owner, number>();
   let camps = 0;
@@ -205,17 +205,22 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
     else if (u.kind === UnitTypeId.archer) army.archer++;
   }
 
-  const intelByOwner = new Map(brain.intelReport().map((r) => [r.owner, r]));
+  const intelByOwner = new Map(brain.intelReport().map(r => [r.owner, r]));
   const rivals: RivalSummary[] = [];
   for (const rival of world.players) {
     if (rival.id === playerId) continue;
     const theirCastle = castleOf(world, rival.id);
     const found =
       theirCastle !== undefined &&
-      vision.hasExplored(theirCastle.x + theirCastle.w / 2, theirCastle.y + theirCastle.h / 2);
+      vision.hasExplored(
+        theirCastle.x + theirCastle.w / 2,
+        theirCastle.y + theirCastle.h / 2,
+      );
     const report = intelByOwner.get(rival.id);
     const intel =
-      report && report.tick >= 0 && world.tick - report.tick <= AI_INTEL.trustFor
+      report &&
+      report.tick >= 0 &&
+      world.tick - report.tick <= AI_INTEL.trustFor
         ? {
             ageTicks: world.tick - report.tick,
             heavy: report.counts.heavy,
@@ -289,13 +294,14 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
       popCap: popCapOf(world, playerId),
       buildings,
       army,
-      researched: techs ? techs.researched.map((t) => TECH_KEYS[t]) : [],
-      researching: techs?.active === undefined ? null : TECH_KEYS[techs.active.tech],
+      researched: techs ? techs.researched.map(t => TECH_KEYS[t]) : [],
+      researching:
+        techs?.active === undefined ? null : TECH_KEYS[techs.active.tech],
       underAttack: castle
         ? hostileNear(world, vision, playerId, bx, by, UNDER_ATTACK_RADIUS)
         : false,
     },
     rivals,
-    bandits: { camps, nearestCamp },
+    bandits: {camps, nearestCamp},
   };
 }

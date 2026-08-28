@@ -1,20 +1,20 @@
 import * as THREE from 'three';
-import { GameRenderer } from '../render/renderer';
-import { TerrainMesh } from '../render/terrainMesh';
-import { ScatterMesh } from '../render/scatterMesh';
-import { HeightField } from '../render/heightField';
-import { GrassField } from '../render/grassField';
-import { WaterMesh } from '../render/waterMesh';
-import { MarginMesh } from '../render/marginMesh';
-import { Mist } from '../render/mist';
-import { background } from '../render/palette';
-import { BuildingSync } from '../render/buildingSync';
-import { loadGlbAssets } from '../render/assets';
-import { snapBuildings } from '../protocol/snapshot';
-import { createWorld } from '../sim/world';
-import { batteryFramePacer } from '../render/framePacer';
+import {snapBuildings} from '../protocol/snapshot';
+import {loadGlbAssets} from '../render/assets';
+import {BuildingSync} from '../render/buildingSync';
+import {batteryFramePacer} from '../render/framePacer';
+import {GrassField} from '../render/grassField';
+import {HeightField} from '../render/heightField';
+import {MarginMesh} from '../render/marginMesh';
+import {Mist} from '../render/mist';
+import {background} from '../render/palette';
+import {GameRenderer} from '../render/renderer';
+import {ScatterMesh} from '../render/scatterMesh';
+import {TerrainMesh} from '../render/terrainMesh';
+import {WaterMesh} from '../render/waterMesh';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
+import {createWorld} from '../sim/world';
 
 /**
  * The pre-boot background, shared by every menu screen: the actual game,
@@ -122,7 +122,7 @@ let live: Backdrop | null = null;
 let generation = 0;
 
 /** Already gone by the time it was ready; nothing to stop. */
-const DEAD: Backdrop = { stop() {} };
+const DEAD: Backdrop = {stop() {}};
 
 /**
  * Give the backdrop's WebGL context back, now. Safe to call at any time,
@@ -134,7 +134,9 @@ export function releaseMenuBackdrop(): void {
   live = null;
 }
 
-export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Backdrop> {
+export async function startMenuBackdrop(
+  canvas: HTMLCanvasElement,
+): Promise<Backdrop> {
   const mine = ++generation;
   // Buildings only — the castle is the subject, and skipping the character
   // atlas keeps the menu's first paint quick.
@@ -145,7 +147,7 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
 
   const world = createWorld({
     seed: BACKDROP_SEED,
-    players: [{ kind: PlayerKind.human }],
+    players: [{kind: PlayerKind.human}],
     adminEnabled: false,
     banditsEnabled: false,
   });
@@ -180,7 +182,9 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   buildings.update(snapBuildings(world));
 
   // Frame the player's keep — the castle at the map's heart.
-  const keep = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse);
+  const keep = [...world.buildings.values()].find(
+    b => b.type === BuildingTypeId.storehouse,
+  );
   const half = world.map.size / 2;
   const cx = keep ? keep.x + keep.w / 2 : half;
   const cz = keep ? keep.y + keep.h / 2 : half;
@@ -207,7 +211,10 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
     const aspect = canvas.clientWidth / Math.max(canvas.clientHeight, 1);
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
-    const room = Math.min(Math.max((aspect - SHIFT_FROM) / (SHIFT_TO - SHIFT_FROM), 0), 1);
+    const room = Math.min(
+      Math.max((aspect - SHIFT_FROM) / (SHIFT_TO - SHIFT_FROM), 0),
+      1,
+    );
     yawOffset = OFF_CENTRE * room;
     aim(angle, lift); // re-apply: the offset just changed
   };
@@ -215,7 +222,8 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   const observer = new ResizeObserver(fit);
   observer.observe(canvas);
 
-  const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  const still =
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   aim(START_ANGLE, 0);
   let raf = 0;
   // Same 30 fps phone cap as the match loop — a menu left open on a phone
@@ -239,7 +247,10 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
       // clean circle reads as a turntable, which is the single thing that
       // makes a live scene look canned.
       const t = (now / DRIFT_PERIOD) * Math.PI * 2;
-      aim(START_ANGLE + t + Math.sin(t * 0.41) * 0.12, Math.sin(t * 0.63) * 0.5);
+      aim(
+        START_ANGLE + t + Math.sin(t * 0.41) * 0.12,
+        Math.sin(t * 0.63) * 0.5,
+      );
     }
     water.update(now);
     mist.update(now);

@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { FramePacer, MOBILE_FPS_CAP, MOBILE_INTERACT_FPS_CAP } from './framePacer';
+import {describe, expect, it} from 'vitest';
+import {
+  FramePacer,
+  MOBILE_FPS_CAP,
+  MOBILE_INTERACT_FPS_CAP,
+} from './framePacer';
 
 /** Run rAF timestamps at `hz` for one second, count frames the pacer keeps. */
 function keptPerSecond(pacer: FramePacer, hz: number, boost = false): number {
@@ -20,7 +24,7 @@ describe('FramePacer', () => {
     expect(new FramePacer(MOBILE_FPS_CAP).due(0)).toBe(true);
   });
 
-  it.each([60, 90, 120])('holds the cap on a %d Hz display', (hz) => {
+  it.each([60, 90, 120])('holds the cap on a %d Hz display', hz => {
     const kept = keptPerSecond(new FramePacer(MOBILE_FPS_CAP), hz);
     // The cap divides all three rates evenly, so it should land exactly —
     // ±1 for the fencepost at the second's edge.
@@ -42,21 +46,23 @@ describe('FramePacer', () => {
 
   it('has no boost to give unless it was given one', () => {
     // The one-argument constructor is a plain cap either way it is asked.
-    expect(keptPerSecond(new FramePacer(MOBILE_FPS_CAP), 120, true)).toBeLessThanOrEqual(
-      MOBILE_FPS_CAP + 1,
-    );
+    expect(
+      keptPerSecond(new FramePacer(MOBILE_FPS_CAP), 120, true),
+    ).toBeLessThanOrEqual(MOBILE_FPS_CAP + 1);
   });
 
   it('lifts the cap for the frames a gesture asks for', () => {
     const pacer = new FramePacer(MOBILE_FPS_CAP, MOBILE_INTERACT_FPS_CAP);
-    expect(Math.abs(keptPerSecond(pacer, 120, true) - MOBILE_INTERACT_FPS_CAP)).toBeLessThanOrEqual(
-      1,
-    );
+    expect(
+      Math.abs(keptPerSecond(pacer, 120, true) - MOBILE_INTERACT_FPS_CAP),
+    ).toBeLessThanOrEqual(1);
   });
 
   it('boosts a 90 Hz panel to a steady 45 — the rate 60 comes out to there', () => {
     const pacer = new FramePacer(MOBILE_FPS_CAP, MOBILE_INTERACT_FPS_CAP);
-    expect(Math.abs(keptPerSecond(pacer, 90, true) - 45)).toBeLessThanOrEqual(1);
+    expect(Math.abs(keptPerSecond(pacer, 90, true) - 45)).toBeLessThanOrEqual(
+      1,
+    );
   });
 
   it('drops back to the resting cap the moment the gesture stops asking', () => {

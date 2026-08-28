@@ -1,15 +1,20 @@
-import { REPAIR_MEND_TICKS } from '../defs/balance.ts';
-import { buildingDef, repairBill } from '../defs/buildings.ts';
-import { GOODS, goodKeys } from '../defs/goods.ts';
-import { abortJob, availableOut } from './logistics.ts';
-import { consumePostTool } from './production.ts';
-import { applyRepairMaterial, clearRepairOrder, destroyBuilding, type World } from '../world.ts';
-import { tileIdx } from '../../shared/grid.ts';
-import type { Building } from '../entities.ts';
-import * as GoodId from '../defs/goodIdEnum.ts';
-import * as PathLevel from '../pathLevelEnum.ts';
+import {tileIdx} from '../../shared/grid.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
+import {REPAIR_MEND_TICKS} from '../defs/balance.ts';
+import {buildingDef, repairBill} from '../defs/buildings.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
+import {GOODS, goodKeys} from '../defs/goods.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import type {Building} from '../entities.ts';
+import * as PathLevel from '../pathLevelEnum.ts';
+import {
+  applyRepairMaterial,
+  clearRepairOrder,
+  destroyBuilding,
+  type World,
+} from '../world.ts';
+import {abortJob, availableOut} from './logistics.ts';
+import {consumePostTool} from './production.ts';
 
 /**
  * Sites whose materials are fully delivered tick a build timer, then become
@@ -25,7 +30,8 @@ export function constructionSystem(world: World): void {
       if (b.repairNeeds) spendOwnStores(world, b);
       if (b.repairPending !== undefined) mendRepair(world, b);
     }
-    if (b.dead || b.state !== BuildingState.site || !b.siteNeeds || b.paused) continue;
+    if (b.dead || b.state !== BuildingState.site || !b.siteNeeds || b.paused)
+      continue;
 
     // Sandbox: sites need nothing and finish now (reconcile cancels any
     // in-flight material hauls via the "site no longer needs good" rule).
@@ -34,14 +40,15 @@ export function constructionSystem(world: World): void {
       b.buildProgress = buildingDef(b.type).buildTicks;
     }
 
-    const needsLeft = GOODS.some((g) => (b.siteNeeds![g] ?? 0) > 0);
+    const needsLeft = GOODS.some(g => (b.siteNeeds![g] ?? 0) > 0);
     if (needsLeft) continue;
 
     const def = buildingDef(b.type);
     // Raising the frame needs hands: the staffing system's recruited
     // builder must be on site (roads pave themselves; sandbox skips).
     if (!def.isRoad && !world.admin.instantBuild) {
-      const builder = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+      const builder =
+        b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
       if (!builder || builder.dead) continue;
     }
     b.buildProgress = (b.buildProgress ?? 0) + 1;
@@ -74,7 +81,8 @@ export function constructionSystem(world: World): void {
     // what makes hammers a cap on concurrent construction rather than a
     // cost — the only way to lose one is to lose the site itself.
     if ((b.inputs[GoodId.hammer] ?? 0) > 0) {
-      b.stock[GoodId.hammer] = (b.stock[GoodId.hammer] ?? 0) + (b.inputs[GoodId.hammer] ?? 0);
+      b.stock[GoodId.hammer] =
+        (b.stock[GoodId.hammer] ?? 0) + (b.inputs[GoodId.hammer] ?? 0);
       b.inputs[GoodId.hammer] = 0;
     }
     // The builder stays on as the building's worker — if the post's tool
@@ -82,7 +90,10 @@ export function constructionSystem(world: World): void {
     // the planks). Buildings that keep no resident (barracks, abbey), and
     // tool-gated posts whose tool is still on the road, release him back
     // to the serf pool; the post then recruits normally once equipped.
-    if (b.workerId !== undefined && (def.workerKind === undefined || !consumePostTool(world, b))) {
+    if (
+      b.workerId !== undefined &&
+      (def.workerKind === undefined || !consumePostTool(world, b))
+    ) {
       const builder = world.units.get(b.workerId);
       if (builder && !builder.dead) {
         builder.kind = UnitTypeId.serf;
@@ -164,7 +175,8 @@ function unpaidDamage(b: Building): number {
 /** Can this building be told to mend itself right now? */
 export function canRepair(b: Building): boolean {
   const def = buildingDef(b.type);
-  if (b.dead || b.state !== BuildingState.built || def.isRoad || def.systemOnly) return false;
+  if (b.dead || b.state !== BuildingState.built || def.isRoad || def.systemOnly)
+    return false;
   // A site heals as it rises (constructionSystem), a building nobody has
   // scratched has nothing to pay for, and damage a running repair has
   // already bought is waiting on the masons, not on a second order.
@@ -211,6 +223,7 @@ export function cancelRepair(world: World, b: Building): void {
   if (!needs) return;
   clearRepairOrder(b, goodKeys(needs));
   for (const job of world.jobs.values()) {
-    if (job.repair && job.to === b.id) abortJob(world, job, 'repair called off', true);
+    if (job.repair && job.to === b.id)
+      abortJob(world, job, 'repair called off', true);
   }
 }

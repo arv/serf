@@ -15,14 +15,14 @@
  * and the iron sits a short walk east, in the hill the briefing says it
  * is in.
  */
-import { HILL, MEADOW, Valley, type Authored } from '../kit.ts';
-import { keepAnchor, keepCenter, seats } from '../layout.ts';
+import {HILL, MEADOW, Valley, type Authored} from '../kit.ts';
+import {keepAnchor, keepCenter, seats} from '../layout.ts';
 
 export function build(): Authored {
   const v = new Valley(96, 4049);
   const [start] = seats(1);
   const keep = keepCenter(start!);
-  const at = (dx: number, dy: number) => ({ x: keep.x + dx, y: keep.y + dy });
+  const at = (dx: number, dy: number) => ({x: keep.x + dx, y: keep.y + dy});
 
   v.meadow(MEADOW, 0.05)
     // The bowl: wooded shoulders north and south, the ore hill east, and
@@ -39,7 +39,7 @@ export function build(): Authored {
     // village's way but inside a fishery's walk.
     .pond(at(-12, 7), 3.6)
     .river([at(-12, 7), at(-20, 14), at(-29, 19), at(-38, 23)], 1.2, 0.06)
-    .borders({ n: 'ridge', e: 'ridge', s: 'forest', w: 'sea' });
+    .borders({n: 'ridge', e: 'ridge', s: 'forest', w: 'sea'});
 
   const drowned = v.settle(keepAnchor(start!));
 

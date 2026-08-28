@@ -1,11 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { parseReplay, type ReplayData } from '../../src/app/replay.ts';
-import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
-import { deserializeWorld, serializeWorld } from '../../src/sim/save.ts';
-import { createWorld } from '../../src/sim/world.ts';
-import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
-import type { SimCommand } from '../../src/sim/commands.ts';
-import { DEFAULT_MAP_SIZE } from '../../src/shared/grid.ts';
+import {describe, expect, it} from 'vitest';
+import {parseReplay, type ReplayData} from '../../src/app/replay.ts';
+import {DEFAULT_MAP_SIZE} from '../../src/shared/grid.ts';
+import {REPLAY_VERSION} from '../../src/shared/replayVersion.ts';
+import * as CommandKind from '../../src/sim/commandKindEnum.ts';
+import type {SimCommand} from '../../src/sim/commands.ts';
+import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+import * as MatchState from '../../src/sim/matchStateEnum.ts';
+import {deserializeWorld, serializeWorld} from '../../src/sim/save.ts';
+import {tickWorld, type PlayerCommand} from '../../src/sim/tick.ts';
+import {createWorld} from '../../src/sim/world.ts';
+import {roomFromRecord, roomToRecord} from './persist.ts';
 import {
   TICK_MS,
   addSeat,
@@ -17,10 +21,6 @@ import {
   type Room,
   type Seat,
 } from './rooms.ts';
-import { roomFromRecord, roomToRecord } from './persist.ts';
-import * as MatchState from '../../src/sim/matchStateEnum.ts';
-import * as CommandKind from '../../src/sim/commandKindEnum.ts';
-import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 
 /** Pump exactly `ticks` ticks, one per call, on the room's own clock. */
 function advance(room: Room, ticks: number): void {
@@ -39,11 +39,16 @@ function order(room: Room, seat: Seat, ...commands: SimCommand[]): void {
  * AiSeats anywhere — the log already holds the brains' moves. */
 function playBack(replay: ReplayData) {
   const world =
-    replay.loadData !== undefined ? deserializeWorld(replay.loadData) : createWorld(replay.config);
+    replay.loadData !== undefined
+      ? deserializeWorld(replay.loadData)
+      : createWorld(replay.config);
   let cursor = 0;
   while (world.tick < replay.endTick) {
     const executed: PlayerCommand[] = [];
-    while (cursor < replay.commands.length && replay.commands[cursor]!.tick === world.tick) {
+    while (
+      cursor < replay.commands.length &&
+      replay.commands[cursor]!.tick === world.tick
+    ) {
       executed.push(...replay.commands[cursor]!.commands);
       cursor++;
     }
@@ -91,7 +96,7 @@ describe('server replay recording', () => {
     expect(room.world!.outcome.state).toBe(MatchState.playing);
     expect(replayFor(room, fallen)).toBeNull();
     // Decided: now every seat may take its copy home, the fallen included.
-    room.world!.outcome = { state: MatchState.over, winner: winner.playerId };
+    room.world!.outcome = {state: MatchState.over, winner: winner.playerId};
     expect(replayFor(room, fallen)).not.toBeNull();
     expect(replayFor(room, winner)).not.toBeNull();
   });
@@ -108,9 +113,14 @@ describe('server replay recording', () => {
     startMatch(room);
 
     advance(room, 50);
-    order(room, seat, { kind: CommandKind.hireSerf });
+    order(room, seat, {kind: CommandKind.hireSerf});
     advance(room, 100);
-    order(room, seat, { kind: CommandKind.moveUnits, unitIds: [7, 8], x: 20, y: 20 });
+    order(room, seat, {
+      kind: CommandKind.moveUnits,
+      unitIds: [7, 8],
+      x: 20,
+      y: 20,
+    });
     order(room, seat, {
       kind: CommandKind.placeBuilding,
       building: BuildingTypeId.well,
@@ -122,7 +132,7 @@ describe('server replay recording', () => {
     const expected = serializeWorld(room.world!);
     // The gate wants a decided match; the test decides it by fiat. Captured
     // `expected` first — playback cannot know about this mutation.
-    room.world!.outcome = { state: MatchState.over, winner: 0 };
+    room.world!.outcome = {state: MatchState.over, winner: 0};
 
     const data = replayFor(room, seat)!;
     expect(data).not.toBeNull();
@@ -132,7 +142,9 @@ describe('server replay recording', () => {
     expect(replay.config.myPlayerId).toBe(seat.playerId);
     expect(replay.endTick).toBe(room.world!.tick);
     // The AI seat's moves are in the log, not left for playback to invent.
-    expect(replay.commands.some((e) => e.commands.some((c) => c.playerId === 1))).toBe(true);
+    expect(
+      replay.commands.some(e => e.commands.some(c => c.playerId === 1)),
+    ).toBe(true);
 
     expect(serializeWorld(playBack(replay))).toBe(expected);
   });
@@ -148,23 +160,31 @@ describe('server replay recording', () => {
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 60);
-    order(room, seat, { kind: CommandKind.hireSerf });
+    order(room, seat, {kind: CommandKind.hireSerf});
     advance(room, 60);
 
     // Deploy under the same version: the log rides the snapshot and keeps
     // being written; the brains being rebuilt doesn't matter, since their
     // moves land in the log as they actually happen.
     const record = roomToRecord(room)!;
-    const revived = roomFromRecord(JSON.parse(JSON.stringify(record)), Date.now());
+    const revived = roomFromRecord(
+      JSON.parse(JSON.stringify(record)),
+      Date.now(),
+    );
     expect(revived.replay?.loadData).toBeUndefined();
 
     const seat2 = revived.seats[0]!;
     advance(revived, 40);
-    order(revived, seat2, { kind: CommandKind.moveUnits, unitIds: [3], x: 10, y: 12 });
+    order(revived, seat2, {
+      kind: CommandKind.moveUnits,
+      unitIds: [3],
+      x: 10,
+      y: 12,
+    });
     advance(revived, 100);
 
     const expected = serializeWorld(revived.world!);
-    revived.world!.outcome = { state: MatchState.over, winner: 0 };
+    revived.world!.outcome = {state: MatchState.over, winner: 0};
 
     const replay = parseReplay(replayFor(revived, seat2)!)!;
     // From the very beginning: pre-restore commands are in the log too.
@@ -185,7 +205,7 @@ describe('server replay recording', () => {
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 80);
-    order(room, seat, { kind: CommandKind.hireSerf });
+    order(room, seat, {kind: CommandKind.hireSerf});
     advance(room, 40);
 
     const record = roomToRecord(room)!;
@@ -202,7 +222,7 @@ describe('server replay recording', () => {
     const seat2 = revived.seats[0]!;
     advance(revived, 120);
     const expected = serializeWorld(revived.world!);
-    revived.world!.outcome = { state: MatchState.over, winner: 0 };
+    revived.world!.outcome = {state: MatchState.over, winner: 0};
 
     const replay = parseReplay(replayFor(revived, seat2)!)!;
     expect(replay.loadData).toBe(record.world);

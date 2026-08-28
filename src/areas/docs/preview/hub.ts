@@ -1,19 +1,31 @@
-import type { Enum } from '../../../shared/enum.ts';
 import * as THREE from 'three';
-import { loadGlbAssets, makeGlbBuilding } from '../../../render/assets';
+import * as AnimKey from '../../../render/animKeyEnum.ts';
+import {loadGlbAssets, makeGlbBuilding} from '../../../render/assets';
 import {
   loadCharacterAssets,
   makeCharacter,
   playAnimation,
   type CharacterVisual,
 } from '../../../render/characters';
-import { makeRoadPile } from '../../../render/models';
-import { BUILDING_DEFS, type BuildingTypeId, buildingFromKey } from '../../../sim/defs/buildings';
-import { BANDIT } from '../../../sim/entities';
-import { UNIT_DEFS, type UnitTypeId, unitFromKey } from '../../../sim/defs/units';
-import { RAIDER_BUILDINGS, RAIDER_UNITS } from '../data';
-import { YAW, frame, frameFor, makeLights, makePlate, makeRenderer, type Framing } from './scene';
-import * as AnimKey from '../../../render/animKeyEnum.ts';
+import {makeRoadPile} from '../../../render/models';
+import type {Enum} from '../../../shared/enum.ts';
+import {
+  BUILDING_DEFS,
+  type BuildingTypeId,
+  buildingFromKey,
+} from '../../../sim/defs/buildings';
+import {UNIT_DEFS, type UnitTypeId, unitFromKey} from '../../../sim/defs/units';
+import {BANDIT} from '../../../sim/entities';
+import {RAIDER_BUILDINGS, RAIDER_UNITS} from '../data';
+import {
+  YAW,
+  frame,
+  frameFor,
+  makeLights,
+  makePlate,
+  makeRenderer,
+  type Framing,
+} from './scene';
 
 type AnimKey = Enum<typeof AnimKey>;
 
@@ -184,7 +196,7 @@ function getHub(): Hub | null {
   // Two observers, because "paint it before the reader arrives" and
   // "animate it while they are looking" are different distances.
   const io = new IntersectionObserver(
-    (entries) => {
+    entries => {
       if (!hub) return;
       for (const e of entries) {
         for (const card of hub.cards) {
@@ -196,9 +208,9 @@ function getHub(): Hub | null {
       }
     },
     // Paint just before a card scrolls in, so the reader never sees it land.
-    { rootMargin: '400px 0px' },
+    {rootMargin: '400px 0px'},
   );
-  const onScreen = new IntersectionObserver((entries) => {
+  const onScreen = new IntersectionObserver(entries => {
     if (!hub) return;
     for (const e of entries) {
       for (const card of hub.cards) {
@@ -230,7 +242,8 @@ function getHub(): Hub | null {
       clearTimeout(h.resizeTimer);
       h.resizeTimer = window.setTimeout(() => {
         if (!hub) return;
-        for (const card of hub.cards) if (card.painted && isNear(card)) paint(card);
+        for (const card of hub.cards)
+          if (card.painted && isNear(card)) paint(card);
       }, 200);
     },
     resizeTimer: 0,
@@ -283,7 +296,10 @@ function paint(card: Card): void {
   const rect = card.stage.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const scale = Math.min(1, MAX_SHOT / Math.max(rect.width * dpr, rect.height * dpr));
+  const scale = Math.min(
+    1,
+    MAX_SHOT / Math.max(rect.width * dpr, rect.height * dpr),
+  );
   const w = Math.max(1, Math.round(rect.width * dpr * scale));
   const h2 = Math.max(1, Math.round(rect.height * dpr * scale));
   if (card.w !== w || card.h !== h2) {
@@ -311,7 +327,9 @@ function animCards(): Card[] {
   const h = hub;
   if (!h) return [];
   if (!motionAllowed()) return [];
-  return [...h.cards].filter((c) => c.animated && isOnScreen(c) && c.content?.visual);
+  return [...h.cards].filter(
+    c => c.animated && isOnScreen(c) && c.content?.visual,
+  );
 }
 
 function wakeAnimLoop(): void {
@@ -355,7 +373,8 @@ function buildContent(card: Card): CardContent | null {
     // stands in, exactly as it does in the world — and unlike every other
     // model here it is built fresh rather than cloned from a cache, so it
     // is this card's to give back.
-    const pile = cloned === null && BUILDING_DEFS[id].isRoad ? makeRoadPile() : null;
+    const pile =
+      cloned === null && BUILDING_DEFS[id].isRoad ? makeRoadPile() : null;
     const model = cloned ?? pile;
     if (!model) return null;
     const def = BUILDING_DEFS[id];
@@ -364,7 +383,7 @@ function buildContent(card: Card): CardContent | null {
     const plate = makePlate(plateR, Math.floor(card.seed * 997));
     group.add(plate, model);
     const owned: THREE.Object3D[] = pile ? [plate, pile] : [plate];
-    return { group, framing: frameFor(model, plateR), owned };
+    return {group, framing: frameFor(model, plateR), owned};
   }
   const unit = unitFromKey(card.id);
   if (unit === undefined) return null;
@@ -378,7 +397,12 @@ function buildContent(card: Card): CardContent | null {
   // Sampled here so the very first paint shows an idle pose rather than
   // the bind pose — the animation loop may never run at all.
   sampleOnce(made.visual);
-  return { group, framing: frameFor(made.group, plateR), owned: [plate], visual: made.visual };
+  return {
+    group,
+    framing: frameFor(made.group, plateR),
+    owned: [plate],
+    visual: made.visual,
+  };
 }
 
 /**
@@ -402,7 +426,7 @@ function releaseContent(card: Card): void {
   // The last card painted is still parented to the holder.
   content.group.removeFromParent();
   for (const owned of content.owned) {
-    owned.traverse((o) => {
+    owned.traverse(o => {
       if (!(o instanceof THREE.Mesh)) return;
       o.geometry.dispose();
       for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
@@ -415,7 +439,7 @@ function releaseContent(card: Card): void {
   if (visual) {
     visual.mixer.stopAllAction();
     visual.mixer.uncacheRoot(content.group);
-    content.group.traverse((o) => {
+    content.group.traverse(o => {
       if (o instanceof THREE.SkinnedMesh) o.skeleton.dispose();
     });
   }
@@ -466,7 +490,7 @@ function attachDrag(card: Card): void {
     axis = null;
   };
   card.stage.addEventListener('pointerdown', down);
-  window.addEventListener('pointermove', move, { passive: false });
+  window.addEventListener('pointermove', move, {passive: false});
   window.addEventListener('pointerup', up);
   window.addEventListener('pointercancel', up);
   card.cleanupDrag = () => {
@@ -496,7 +520,7 @@ export function registerCard(spec: CardSpec): CardHandle {
   const ctx = spec.canvas.getContext('2d');
   if (!h || !ctx) {
     spec.onState('fallback');
-    return { setAnim: () => undefined, dispose: () => undefined };
+    return {setAnim: () => undefined, dispose: () => undefined};
   }
   const card: Card = {
     ...spec,
@@ -515,8 +539,9 @@ export function registerCard(spec: CardSpec): CardHandle {
   h.io.observe(card.stage);
   h.onScreen.observe(card.stage);
 
-  const assets = card.kind === 'building' ? ensureBuildingAssets() : ensureUnitAssets();
-  void assets.then((ok) => {
+  const assets =
+    card.kind === 'building' ? ensureBuildingAssets() : ensureUnitAssets();
+  void assets.then(ok => {
     // The card may be gone (page turned), the hub torn down (left /docs),
     // or the context lost while the models were in flight.
     if (hubFailed || !hub || !hub.cards.has(card)) return;

@@ -1,15 +1,19 @@
-import type { Enum } from '../../src/shared/enum.ts';
-import { ADVICE_RANGES, ADVISABLE_UNITS } from '../../src/ai/advice.ts';
+import {ADVICE_RANGES, ADVISABLE_UNITS} from '../../src/ai/advice.ts';
 import {
   choosePosture,
   choosePostureReadingOpponent,
   POSTURE_ORDER,
 } from '../../src/ai/posture.ts';
-import { extractSummary } from '../../src/ai/prompt.ts';
-import { Rng } from '../../src/shared/rng.ts';
-import { type PostureId, postureFromKey, POSTURE_KEYS } from '../../src/ai/posture.ts';
-import type { AiWorldSummary } from '../../src/ai/summary.ts';
-import type { ChatEngine } from '../../src/ai/strategist.ts';
+import {
+  type PostureId,
+  postureFromKey,
+  POSTURE_KEYS,
+} from '../../src/ai/posture.ts';
+import {extractSummary} from '../../src/ai/prompt.ts';
+import type {ChatEngine} from '../../src/ai/strategist.ts';
+import type {AiWorldSummary} from '../../src/ai/summary.ts';
+import type {Enum} from '../../src/shared/enum.ts';
+import {Rng} from '../../src/shared/rng.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
@@ -64,13 +68,13 @@ export interface TokenUsage {
 }
 
 export type EngineSpec =
-  | { kind: 'none' }
-  | { kind: 'script'; reply: unknown }
-  | { kind: 'random'; seed: number }
-  | { kind: 'posture' }
-  | { kind: 'postureReads' }
-  | { kind: 'postureFixed'; posture: PostureId }
-  | { kind: 'http'; baseUrl: string; model: string };
+  | {kind: 'none'}
+  | {kind: 'script'; reply: unknown}
+  | {kind: 'random'; seed: number}
+  | {kind: 'posture'}
+  | {kind: 'postureReads'}
+  | {kind: 'postureFixed'; posture: PostureId}
+  | {kind: 'http'; baseUrl: string; model: string};
 
 /**
  * `--engine` text → a spec. Accepts:
@@ -83,25 +87,29 @@ export type EngineSpec =
  *   script:{"armyAttackSize":4}   one fixed personality
  *   http://host:port/v1           any OpenAI-compatible server
  */
-export function parseEngineSpec(raw: string, model = 'local-model'): EngineSpec {
-  if (raw === 'none') return { kind: 'none' };
-  if (raw === 'random') return { kind: 'random', seed: 1 };
-  if (raw === 'posture') return { kind: 'posture' };
-  if (raw === 'posture-reads') return { kind: 'postureReads' };
+export function parseEngineSpec(
+  raw: string,
+  model = 'local-model',
+): EngineSpec {
+  if (raw === 'none') return {kind: 'none'};
+  if (raw === 'random') return {kind: 'random', seed: 1};
+  if (raw === 'posture') return {kind: 'posture'};
+  if (raw === 'posture-reads') return {kind: 'postureReads'};
   if (raw.startsWith('posture:')) {
     const word = raw.slice('posture:'.length);
     const posture = postureFromKey(word);
     if (posture === undefined) {
       throw new Error(
-        `--engine posture: wants one of ${POSTURE_ORDER.map((id) => POSTURE_KEYS[id]).join(', ')}, got "${word}"`,
+        `--engine posture: wants one of ${POSTURE_ORDER.map(id => POSTURE_KEYS[id]).join(', ')}, got "${word}"`,
       );
     }
-    return { kind: 'postureFixed', posture };
+    return {kind: 'postureFixed', posture};
   }
   if (raw.startsWith('random:')) {
     const seed = Number(raw.slice('random:'.length));
-    if (!Number.isFinite(seed)) throw new Error(`--engine random: wants a number, got "${raw}"`);
-    return { kind: 'random', seed };
+    if (!Number.isFinite(seed))
+      throw new Error(`--engine random: wants a number, got "${raw}"`);
+    return {kind: 'random', seed};
   }
   if (raw.startsWith('script:')) {
     const json = raw.slice('script:'.length);
@@ -111,10 +119,10 @@ export function parseEngineSpec(raw: string, model = 'local-model'): EngineSpec 
     } catch {
       throw new Error(`--engine script: wants JSON, could not parse "${json}"`);
     }
-    return { kind: 'script', reply };
+    return {kind: 'script', reply};
   }
   if (raw.startsWith('http://') || raw.startsWith('https://')) {
-    return { kind: 'http', baseUrl: raw.replace(/\/+$/, ''), model };
+    return {kind: 'http', baseUrl: raw.replace(/\/+$/, ''), model};
   }
   throw new Error(
     `unrecognized --engine "${raw}" (want none | random[:n] | posture | posture-reads | ` +
@@ -145,7 +153,7 @@ export function buildEngine(spec: EngineSpec, salt: number): LabEngine | null {
     case 'postureReads':
       return postureEngine(choosePostureReadingOpponent, describeSpec(spec));
     case 'postureFixed':
-      return scriptEngine({ posture: spec.posture, reason: 'fixed' });
+      return scriptEngine({posture: spec.posture, reason: 'fixed'});
     case 'http':
       return httpEngine(spec.baseUrl, spec.model);
   }
@@ -201,7 +209,7 @@ export function randomEngine(seed: number): LabEngine {
     label: `random (seed ${seed})`,
     usage: [],
     complete: () => {
-      const reply: Record<string, unknown> = { reason: 'dice' };
+      const reply: Record<string, unknown> = {reason: 'dice'};
       // One to four knobs, like a terse model that names only what moved.
       const knobs = 1 + rng.int(4);
       for (let i = 0; i < knobs; i++) {
@@ -223,7 +231,9 @@ export function randomEngine(seed: number): LabEngine {
           }
           reply['trainPreference'] = order;
         } else {
-          reply['weaponMix'] = Array.from({ length: 1 + rng.int(3) }, () => rng.pick([0, 1, 2]));
+          reply['weaponMix'] = Array.from({length: 1 + rng.int(3)}, () =>
+            rng.pick([0, 1, 2]),
+          );
         }
       }
       return Promise.resolve(JSON.stringify(reply));
@@ -258,10 +268,12 @@ export function postureEngine(
   return {
     label,
     usage: [],
-    complete: (messages) => {
+    complete: messages => {
       const summary = extractSummary(messages);
       if (!summary) return Promise.resolve('{}');
-      return Promise.resolve(JSON.stringify({ posture: pick(summary), reason: 'rule' }));
+      return Promise.resolve(
+        JSON.stringify({posture: pick(summary), reason: 'rule'}),
+      );
     },
   };
 }
@@ -288,11 +300,11 @@ export function httpEngine(baseUrl: string, model: string): LabEngine {
         'content-type': 'application/json',
         // Servers that want a key read it here; llama-server ignores it.
         ...(process.env['OPENAI_API_KEY']
-          ? { authorization: `Bearer ${process.env['OPENAI_API_KEY']}` }
+          ? {authorization: `Bearer ${process.env['OPENAI_API_KEY']}`}
           : {}),
       },
       body: JSON.stringify(body),
-      ...(signal ? { signal } : {}),
+      ...(signal ? {signal} : {}),
     });
 
   return {
@@ -309,18 +321,23 @@ export function httpEngine(baseUrl: string, model: string): LabEngine {
             response_format: withSchema
               ? {
                   type: 'json_schema',
-                  json_schema: { name: 'advice', schema: JSON.parse(schemaJson) as unknown },
+                  json_schema: {
+                    name: 'advice',
+                    schema: JSON.parse(schemaJson) as unknown,
+                  },
                 }
-              : { type: 'json_object' },
+              : {type: 'json_object'},
           },
           signal,
         );
         if (!res.ok) {
-          throw new Error(`${res.status} ${res.statusText}: ${(await res.text()).slice(0, 200)}`);
+          throw new Error(
+            `${res.status} ${res.statusText}: ${(await res.text()).slice(0, 200)}`,
+          );
         }
         const json = (await res.json()) as {
-          choices?: { message?: { content?: string } }[];
-          usage?: { prompt_tokens?: number; completion_tokens?: number };
+          choices?: {message?: {content?: string}}[];
+          usage?: {prompt_tokens?: number; completion_tokens?: number};
         };
         if (json.usage) {
           usage.push({
@@ -335,7 +352,8 @@ export function httpEngine(baseUrl: string, model: string): LabEngine {
       try {
         return await ask(true);
       } catch (err) {
-        if (signal?.aborted) throw err instanceof Error ? err : new Error(String(err));
+        if (signal?.aborted)
+          throw err instanceof Error ? err : new Error(String(err));
         schemaBroken = true;
         console.warn(
           `[aiLab] schema-constrained generation failed, falling back to plain JSON mode: ` +

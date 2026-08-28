@@ -1,7 +1,7 @@
-import { Kit } from './kit';
-import { requiredFiles, GAME_BUILDINGS } from './variants';
-import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
-import { BUILDING_KEYS } from '../../src/sim/defs/buildings';
+import {loadGlbAssets, makeGlbBuilding} from '../../src/render/assets';
+import {BUILDING_KEYS} from '../../src/sim/defs/buildings';
+import {Kit} from './kit';
+import {requiredFiles, GAME_BUILDINGS} from './variants';
 
 /**
  * The bake page: flatten everything the gallery draws into vertex-colored

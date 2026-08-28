@@ -54,7 +54,11 @@
  * been anyway.
  */
 
-import { discardPartialModel, hasWholeModel, type ModelCache } from './modelCache.ts';
+import {
+  discardPartialModel,
+  hasWholeModel,
+  type ModelCache,
+} from './modelCache.ts';
 
 /** The slice of wllama's CacheManager this needs beyond the sweeper's:
  * the way in. `write` is marked deprecated upstream in favor of letting
@@ -65,7 +69,7 @@ export interface InstallableModelCache extends ModelCache {
   write(
     name: string,
     stream: ReadableStream<Uint8Array>,
-    metadata: { etag: string; originalSize: number; originalURL: string },
+    metadata: {etag: string; originalSize: number; originalURL: string},
   ): Promise<void>;
 }
 
@@ -105,7 +109,7 @@ export interface PartialStore {
   clear(): Promise<void>;
 }
 
-export type ModelProgress = (progress: { loaded: number; total: number }) => void;
+export type ModelProgress = (progress: {loaded: number; total: number}) => void;
 
 export interface EnsureModelOpts {
   /** Counts from the resumed offset, not zero — the visible payoff. */
@@ -142,13 +146,21 @@ const PART_BYTES = 8 * 1024 * 1024;
  * later and start one of its own. */
 const DOWNLOAD_LOCK = 'serf-llm-download';
 let lockQueue: Promise<unknown> = Promise.resolve();
-export function withModelDownloadLock<T>(work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+export function withModelDownloadLock<T>(
+  work: () => Promise<T>,
+  signal?: AbortSignal,
+): Promise<T> {
   const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
   if (locks) {
-    return locks.request(DOWNLOAD_LOCK, signal ? { signal } : {}, work) as Promise<T>;
+    return locks.request(
+      DOWNLOAD_LOCK,
+      signal ? {signal} : {},
+      work,
+    ) as Promise<T>;
   }
   const run = lockQueue.then(() => {
-    if (signal?.aborted) throw new Error('aborted waiting for the model download lock');
+    if (signal?.aborted)
+      throw new Error('aborted waiting for the model download lock');
     return work();
   });
   lockQueue = run.catch(() => undefined);
@@ -184,9 +196,9 @@ export async function ensureModelCached(
       // beside the installed model; sweep it whenever the hit is
       // confirmed, or the duplicate would hold quota forever.
       if (store) await store.clear().catch(() => {});
-      return { status: 'cached', resumedFrom: 0 };
+      return {status: 'cached', resumedFrom: 0};
     }
-    if (!store) return { status: 'unsupported', resumedFrom: 0 };
+    if (!store) return {status: 'unsupported', resumedFrom: 0};
     let prior: Awaited<ReturnType<typeof readState>>;
     try {
       prior = await readState(store, url);
@@ -194,12 +206,13 @@ export async function ensureModelCached(
       // The store's API exists but its storage refuses to open (site data
       // blocked, quota machinery wedged): not this module's download to
       // make. wllama's own path gets its chance instead.
-      return { status: 'unsupported', resumedFrom: 0 };
+      return {status: 'unsupported', resumedFrom: 0};
     }
     try {
       return await download(cache, url, store, prior, opts);
     } catch (err) {
-      if (err instanceof FallBackToWllama) return { status: 'unsupported', resumedFrom: 0 };
+      if (err instanceof FallBackToWllama)
+        return {status: 'unsupported', resumedFrom: 0};
       throw err;
     }
   }, opts.signal);
@@ -218,13 +231,14 @@ async function download(
   // Anything but a positive integer would turn flush's slicing loop into
   // a spin; a nonsense override earns the default, not a hang.
   const wanted = opts.partBytes ?? PART_BYTES;
-  const partBytes = Number.isSafeInteger(wanted) && wanted > 0 ? wanted : PART_BYTES;
+  const partBytes =
+    Number.isSafeInteger(wanted) && wanted > 0 ? wanted : PART_BYTES;
 
   // Everything already here — a session that died between the last part
   // landing and the install. Nothing to fetch.
   if (prior && prior.size === prior.meta.total) {
     await install(cache, url, store, prior.meta, prior.size);
-    return { status: 'downloaded', resumedFrom: prior.size };
+    return {status: 'downloaded', resumedFrom: prior.size};
   }
 
   const opened = await open(store, url, prior, fetcher, opts.signal);
@@ -236,16 +250,17 @@ async function download(
     opened.response.body?.cancel().catch(() => {});
     throw new FallBackToWllama('server names no size');
   }
-  const { meta, response } = opened;
+  const {meta, response} = opened;
   const resumedFrom = opened.base;
   let base = opened.base;
-  opts.onProgress?.({ loaded: base, total: meta.total });
+  opts.onProgress?.({loaded: base, total: meta.total});
 
   // The stream, committed in atomic parts as it arrives. On ANY exit —
   // network drop, abort, quota — whatever is buffered is flushed first:
   // keeping the bytes is the entire point of this module.
   const body = response.body;
-  if (!body) throw new Error(`model download had no body (HTTP ${response.status})`);
+  if (!body)
+    throw new Error(`model download had no body (HTTP ${response.status})`);
   const reader = body.getReader();
   let buffer: Uint8Array[] = [];
   let buffered = 0;
@@ -273,11 +288,11 @@ async function download(
     const pct = Math.floor((loaded / meta.total) * 100);
     if (pct === lastPct) return;
     lastPct = pct;
-    opts.onProgress({ loaded, total: meta.total });
+    opts.onProgress({loaded, total: meta.total});
   };
   try {
     for (;;) {
-      const { done, value } = await reader.read();
+      const {done, value} = await reader.read();
       if (done) break;
       buffer.push(value);
       buffered += value.length;
@@ -298,16 +313,21 @@ async function download(
   // it and the cache holds a convincingly tagged corrupt model forever.
   // The parts stay: the next attempt picks up right here.
   if (base !== meta.total) {
-    throw new Error(`model download ended early (${base} of ${meta.total} bytes)`);
+    throw new Error(
+      `model download ended early (${base} of ${meta.total} bytes)`,
+    );
   }
   await install(cache, url, store, meta, base);
-  return { status: 'downloaded', resumedFrom };
+  return {status: 'downloaded', resumedFrom};
 }
 
 /** The whole-model probe, unable to take the download down with it: a
  * cache that cannot be listed right now is treated as holding nothing —
  * the download that follows has better odds than giving up here. */
-async function hasWholeModelSafe(cache: ModelCache, url: string): Promise<boolean> {
+async function hasWholeModelSafe(
+  cache: ModelCache,
+  url: string,
+): Promise<boolean> {
   try {
     return await hasWholeModel(cache, url);
   } catch {
@@ -321,10 +341,14 @@ async function sweepWllamaCache(cache: ModelCache, url: string): Promise<void> {
   try {
     const discarded = await discardPartialModel(cache, url);
     if (discarded > 0) {
-      console.warn('[strategist] discarded an unfinished model download; fetching it again');
+      console.warn(
+        '[strategist] discarded an unfinished model download; fetching it again',
+      );
     }
   } catch (err) {
-    console.warn(`[strategist] could not check the model cache: ${String(err)}`);
+    console.warn(
+      `[strategist] could not check the model cache: ${String(err)}`,
+    );
   }
 }
 
@@ -342,7 +366,7 @@ async function sweepWllamaCache(cache: ModelCache, url: string): Promise<void> {
 async function readState(
   store: PartialStore,
   url: string,
-): Promise<{ meta: PartialMeta; parts: PartialPart[]; size: number } | null> {
+): Promise<{meta: PartialMeta; parts: PartialPart[]; size: number} | null> {
   const meta = await store.readMeta();
   const all = await store.listParts();
   const parts = chainParts(all, meta);
@@ -361,15 +385,20 @@ async function readState(
     if (meta !== null || all.length > 0) await store.clear().catch(() => {});
     return null;
   }
-  return { meta, parts, size };
+  return {meta, parts, size};
 }
 
 /** The longest gapless run from offset zero, this attempt's parts only.
  * Sorted by offset; a stray file — another attempt's straggler, or a
  * duplicate offset — ends the chain rather than joining it. */
-function chainParts(parts: PartialPart[], meta: PartialMeta | null): PartialPart[] {
+function chainParts(
+  parts: PartialPart[],
+  meta: PartialMeta | null,
+): PartialPart[] {
   if (!meta) return [];
-  const own = parts.filter((p) => p.attempt === meta.attempt).sort((a, b) => a.offset - b.offset);
+  const own = parts
+    .filter(p => p.attempt === meta.attempt)
+    .sort((a, b) => a.offset - b.offset);
   const chain: PartialPart[] = [];
   let next = 0;
   for (const part of own) {
@@ -392,15 +421,15 @@ function chainParts(parts: PartialPart[], meta: PartialMeta | null): PartialPart
 async function open(
   store: PartialStore,
   url: string,
-  prior: { meta: PartialMeta; size: number } | null,
+  prior: {meta: PartialMeta; size: number} | null,
   fetcher: typeof fetch,
   signal: AbortSignal | undefined,
-): Promise<{ meta: PartialMeta; base: number; response: Response }> {
-  const init: RequestInit = signal ? { signal } : {};
+): Promise<{meta: PartialMeta; base: number; response: Response}> {
+  const init: RequestInit = signal ? {signal} : {};
   // A start from zero, recorded around whichever response carries it.
   const adopt = async (
     response: Response,
-  ): Promise<{ meta: PartialMeta; base: number; response: Response }> => {
+  ): Promise<{meta: PartialMeta; base: number; response: Response}> => {
     const meta: PartialMeta = {
       url,
       etag: strongEtag(response),
@@ -421,17 +450,24 @@ async function open(
       response.body?.cancel().catch(() => {});
       throw new FallBackToWllama(String(err));
     }
-    return { meta, base: 0, response };
+    return {meta, base: 0, response};
   };
-  const fresh = async (): Promise<{ meta: PartialMeta; base: number; response: Response }> => {
+  const fresh = async (): Promise<{
+    meta: PartialMeta;
+    base: number;
+    response: Response;
+  }> => {
     const response = await fetcher(url, init);
-    if (!response.ok) throw new Error(`model download failed: HTTP ${response.status}`);
+    if (!response.ok)
+      throw new Error(`model download failed: HTTP ${response.status}`);
     if (response.status !== 200) {
       // An unsolicited partial answer to a whole-file ask — adopt a 206's
       // shifted bytes at offset zero and every later check would bless
       // the corruption. A server this noncompliant gets no download.
       response.body?.cancel().catch(() => {});
-      throw new Error(`model download failed: HTTP ${response.status} to a whole-file request`);
+      throw new Error(
+        `model download failed: HTTP ${response.status} to a whole-file request`,
+      );
     }
     return adopt(response);
   };
@@ -439,13 +475,17 @@ async function open(
 
   let response: Response;
   try {
-    response = await fetcher(url, { ...init, headers: { Range: `bytes=${prior.size}-` } });
+    response = await fetcher(url, {
+      ...init,
+      headers: {Range: `bytes=${prior.size}-`},
+    });
   } catch (err) {
     // The ranged request itself was refused before any HTTP answer — most
     // likely a CORS or proxy layer that balks at the Range header, which
     // an unranged fetch never trips. But surface a deliberate abort as
     // itself, not as whatever the fresh attempt then dies of.
-    if (signal?.aborted) throw err instanceof Error ? err : new Error(String(err));
+    if (signal?.aborted)
+      throw err instanceof Error ? err : new Error(String(err));
     return fresh();
   }
   if (response.status !== 206) {
@@ -463,7 +503,9 @@ async function open(
   // hiding it — means the bytes must not be mixed; a fresh start is never
   // worse than a wrong splice.
   const etag = strongEtag(response);
-  const range = /^bytes (\d+)-\d+\/(\d+)$/.exec(response.headers.get('content-range') ?? '');
+  const range = /^bytes (\d+)-\d+\/(\d+)$/.exec(
+    response.headers.get('content-range') ?? '',
+  );
   const provenOurs =
     etag === prior.meta.etag &&
     range !== null &&
@@ -473,7 +515,7 @@ async function open(
     response.body?.cancel().catch(() => {});
     return fresh();
   }
-  return { meta: prior.meta, base: prior.size, response };
+  return {meta: prior.meta, base: prior.size, response};
 }
 
 /** The ETag as a resume validator: verbatim, or '' when the server sent
@@ -490,7 +532,9 @@ function strongEtag(response: Response): string {
  * particular would sail past every <= 0 guard downstream. */
 function contentTotal(response: Response): number {
   const range = /\/(\d+)$/.exec(response.headers.get('content-range') ?? '');
-  const total = range ? Number(range[1]) : Number(response.headers.get('content-length') ?? 0);
+  const total = range
+    ? Number(range[1])
+    : Number(response.headers.get('content-length') ?? 0);
   return Number.isSafeInteger(total) && total > 0 ? total : 0;
 }
 
@@ -509,10 +553,11 @@ async function install(
 ): Promise<void> {
   const parts = chainParts(await store.listParts(), meta);
   const chained = parts.reduce((sum, part) => sum + part.size, 0);
-  if (chained !== size) throw new Error('model download storage changed underneath');
+  if (chained !== size)
+    throw new Error('model download storage changed underneath');
   let at = 0;
   const stream = new ReadableStream<Uint8Array>({
-    pull: async (controller) => {
+    pull: async controller => {
       const part = parts[at++];
       if (!part) {
         controller.close();
@@ -578,10 +623,13 @@ export function opfsPartialStore(): PartialStore | null {
   }
   const dir = async (): Promise<FileSystemDirectoryHandle> => {
     const root = await navigator.storage.getDirectory();
-    return root.getDirectoryHandle(PARTIAL_DIR, { create: true });
+    return root.getDirectoryHandle(PARTIAL_DIR, {create: true});
   };
-  const put = async (name: string, data: Uint8Array | string): Promise<void> => {
-    const handle = await (await dir()).getFileHandle(name, { create: true });
+  const put = async (
+    name: string,
+    data: Uint8Array | string,
+  ): Promise<void> => {
+    const handle = await (await dir()).getFileHandle(name, {create: true});
     // Committed on close, atomically: OPFS writables stage into a swap
     // file, which is exactly what lets a part be whole or absent.
     const writable = await handle.createWritable();
@@ -592,7 +640,9 @@ export function opfsPartialStore(): PartialStore | null {
     readMeta: async () => {
       try {
         const handle = await (await dir()).getFileHandle(META_FILE);
-        const meta = JSON.parse(await (await handle.getFile()).text()) as Partial<PartialMeta>;
+        const meta = JSON.parse(
+          await (await handle.getFile()).text(),
+        ) as Partial<PartialMeta>;
         if (
           typeof meta.url !== 'string' ||
           typeof meta.etag !== 'string' ||
@@ -601,33 +651,50 @@ export function opfsPartialStore(): PartialStore | null {
         ) {
           return null;
         }
-        return { url: meta.url, etag: meta.etag, total: meta.total, attempt: meta.attempt };
+        return {
+          url: meta.url,
+          etag: meta.etag,
+          total: meta.total,
+          attempt: meta.attempt,
+        };
       } catch {
         return null;
       }
     },
-    writeMeta: (meta) => put(META_FILE, JSON.stringify(meta)),
+    writeMeta: meta => put(META_FILE, JSON.stringify(meta)),
     listParts: async () => {
       const parts: PartialPart[] = [];
       for await (const [name, handle] of (await dir()).entries()) {
         const match = PART_RE.exec(name);
         if (!match || handle.kind !== 'file') continue;
         const blob = await handle.getFile();
-        parts.push({ attempt: match[1]!, offset: Number(match[2]), size: blob.size, blob });
+        parts.push({
+          attempt: match[1]!,
+          offset: Number(match[2]),
+          size: blob.size,
+          blob,
+        });
       }
       return parts;
     },
-    writePart: (attempt, offset, bytes) => put(partName(attempt, offset), bytes),
+    writePart: (attempt, offset, bytes) =>
+      put(partName(attempt, offset), bytes),
     deletePart: async (attempt, offset) => {
-      await (await dir()).removeEntry(partName(attempt, offset)).catch((err: unknown) => {
-        if ((err as { name?: string }).name !== 'NotFoundError') throw err;
-      });
+      await (
+        await dir()
+      )
+        .removeEntry(partName(attempt, offset))
+        .catch((err: unknown) => {
+          if ((err as {name?: string}).name !== 'NotFoundError') throw err;
+        });
     },
     clear: async () => {
       const root = await navigator.storage.getDirectory();
-      await root.removeEntry(PARTIAL_DIR, { recursive: true }).catch((err: unknown) => {
-        if ((err as { name?: string }).name !== 'NotFoundError') throw err;
-      });
+      await root
+        .removeEntry(PARTIAL_DIR, {recursive: true})
+        .catch((err: unknown) => {
+          if ((err as {name?: string}).name !== 'NotFoundError') throw err;
+        });
     },
   };
 }

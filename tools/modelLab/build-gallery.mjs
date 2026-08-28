@@ -9,10 +9,10 @@
  * published Artifact's CSP requires, and what makes the page work on a
  * phone with the screen locked and the tunnel gone.
  */
-import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {readFileSync, writeFileSync, existsSync} from 'node:fs';
+import {dirname, join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
@@ -28,7 +28,7 @@ execFileSync(
     '--config',
     join(here, 'vite.gallery.config.ts'),
   ],
-  { cwd: root, stdio: 'inherit' },
+  {cwd: root, stdio: 'inherit'},
 );
 const bundle = readFileSync(join(root, '.gallery-build', 'gallery.js'), 'utf8');
 
@@ -55,7 +55,11 @@ const html = shell
   .replace('__FONT__', () => font)
   .replace('/*__CSS__*/', () => readFileSync(join(here, 'lab.css'), 'utf8'))
   .replace('__MODELS__', () => modelJson.replace(/<\//g, '<\\/'))
-  .replace('/*__BUNDLE__*/', () => bundle.replace(/<\/script>/gi, '<\\/script>'));
+  .replace('/*__BUNDLE__*/', () =>
+    bundle.replace(/<\/script>/gi, '<\\/script>'),
+  );
 
 writeFileSync(out, html);
-console.log(`wrote ${out} (${(Buffer.byteLength(html) / 1024 / 1024).toFixed(2)} MB)`);
+console.log(
+  `wrote ${out} (${(Buffer.byteLength(html) / 1024 / 1024).toFixed(2)} MB)`,
+);

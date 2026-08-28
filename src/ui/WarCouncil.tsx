@@ -1,15 +1,15 @@
-import { For, Index, Show, createSignal, type Accessor } from 'solid-js';
-import { MAX_SEATS, type LobbyConfig } from '../protocol/lobby';
+import {For, Index, Show, createSignal, type Accessor} from 'solid-js';
+import {MAX_SEATS, type LobbyConfig} from '../protocol/lobby';
+import type {Enum} from '../shared/enum.ts';
 import {
   AI_STRATEGIES,
   AI_STRATEGY_ORDER,
   parseStrategyId,
   type AiStrategyId,
 } from '../sim/defs/aiStrategies';
-import { DiceIcon } from './menuChrome';
-import type { Enum } from '../shared/enum.ts';
-import * as CouncilPhaseNs from './councilPhaseEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
+import * as CouncilPhaseNs from './councilPhaseEnum.ts';
+import {DiceIcon} from './menuChrome';
 export type CouncilPhase = Enum<typeof CouncilPhaseNs>;
 
 /**
@@ -34,7 +34,7 @@ export interface CouncilView {
   phase: CouncilPhase;
   code: string;
   yourSeat: number;
-  seats: { kind: PlayerKind.human | 'ai'; connected: boolean }[];
+  seats: {kind: PlayerKind.human | 'ai'; connected: boolean}[];
   config: LobbyConfig;
 }
 
@@ -53,7 +53,7 @@ export interface CouncilHooks {
  * and gold the players' castles wear in the match. */
 const SEAT_COLORS = ['#008454', '#d22227', '#257ebc', '#f9aa4e'];
 
-const AI_CHOICES = Array.from({ length: MAX_SEATS }, (_, i) => i);
+const AI_CHOICES = Array.from({length: MAX_SEATS}, (_, i) => i);
 
 const COUNCIL_STYLE = `
 #menu .council-code { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px 3px; }
@@ -121,21 +121,23 @@ export function WarCouncil(props: CouncilHooks) {
    * seed, but a roll everyone can read before the march is not a roll.
    */
   const picks = (): (AiStrategyId | undefined)[] => {
-    const { seats, config } = v();
+    const {seats, config} = v();
     const aiFill = Math.max(0, Math.min(config.ai, MAX_SEATS - seats.length));
-    return Array.from({ length: aiFill }, (_, i) => parseStrategyId(config.bots[i]));
+    return Array.from({length: aiFill}, (_, i) =>
+      parseStrategyId(config.bots[i]),
+    );
   };
 
   const setBot = (index: number, id: string): void => {
     const bots = [...v().config.bots];
     bots[index] = id === '' ? null : id;
-    props.onConfig({ bots });
+    props.onConfig({bots});
   };
 
   /** The table, always MAX_SEATS chairs: humans, then the computer seats
    * the host asked for, then what is still open. */
   const rows = (): SeatRow[] => {
-    const { seats, yourSeat, config } = v();
+    const {seats, yourSeat, config} = v();
     const named = picks();
     const out: SeatRow[] = seats.map((s, i) => ({
       color: SEAT_COLORS[i % SEAT_COLORS.length]!,
@@ -171,7 +173,7 @@ export function WarCouncil(props: CouncilHooks) {
   };
 
   const share = (): void => {
-    void props.onShare().then((how) => {
+    void props.onShare().then(how => {
       if (how === 'shared') return; // the share sheet is its own feedback
       setShared(true);
       setTimeout(() => setShared(false), 1600);
@@ -186,7 +188,7 @@ export function WarCouncil(props: CouncilHooks) {
   };
 
   const seedInput = (raw: string): void => {
-    patch({ seed: Number(raw.replace(/\D/g, '')) || 0 });
+    patch({seed: Number(raw.replace(/\D/g, '')) || 0});
   };
 
   return (
@@ -205,12 +207,20 @@ export function WarCouncil(props: CouncilHooks) {
             </div>
             <h1>WAR COUNCIL</h1>
             <Show when={props.view().notice}>
-              <p style={{ color: '#e5c469', 'font-size': '13px', margin: '2px 0 0' }}>
+              <p
+                style={{
+                  'color': '#e5c469',
+                  'font-size': '13px',
+                  'margin': '2px 0 0',
+                }}
+              >
                 {props.view().notice}
               </p>
             </Show>
             <p class="tagline">
-              {inRoom() ? 'The march begins when the host gives the word.' : 'Reaching the relay…'}
+              {inRoom()
+                ? 'The march begins when the host gives the word.'
+                : 'Reaching the relay…'}
             </p>
           </div>
 
@@ -229,9 +239,12 @@ export function WarCouncil(props: CouncilHooks) {
 
               <div class="seats">
                 <For each={rows()}>
-                  {(r) => (
+                  {r => (
                     <div class={`seat ${r.open ? 'open' : ''}`}>
-                      <span class="banner" style={r.open ? '' : `background:${r.color}`} />
+                      <span
+                        class="banner"
+                        style={r.open ? '' : `background:${r.color}`}
+                      />
                       <span class="who">{r.who}</span>
                       <span class={`state ${r.stateClass}`}>{r.state}</span>
                     </div>
@@ -239,20 +252,22 @@ export function WarCouncil(props: CouncilHooks) {
                 </For>
               </div>
 
-              <div class="rows" classList={{ locked: !isHost() }}>
+              <div class="rows" classList={{locked: !isHost()}}>
                 <div class="row">
                   <div>
                     <div class="row-label">Computer seats</div>
                     <div class="row-hint">
-                      {isHost() ? 'Filling seats humans don’t take' : 'Set by the host'}
+                      {isHost()
+                        ? 'Filling seats humans don’t take'
+                        : 'Set by the host'}
                     </div>
                   </div>
                   <div class="pills">
                     <For each={AI_CHOICES}>
-                      {(n) => (
+                      {n => (
                         <button
                           class={v().config.ai === n ? 'on' : ''}
-                          onClick={() => patch({ ai: n })}
+                          onClick={() => patch({ai: n})}
                         >
                           {n}
                         </button>
@@ -266,7 +281,9 @@ export function WarCouncil(props: CouncilHooks) {
                     <div>
                       <div class="row-label">Who they are</div>
                       <div class="row-hint">
-                        {isHost() ? 'Random keeps it to itself until the march' : 'Set by the host'}
+                        {isHost()
+                          ? 'Random keeps it to itself until the march'
+                          : 'Set by the host'}
                       </div>
                     </div>
                     <div class="opponents">
@@ -277,11 +294,15 @@ export function WarCouncil(props: CouncilHooks) {
                           <select
                             disabled={!isHost()}
                             value={pick() ?? ''}
-                            onChange={(e) => setBot(i, e.currentTarget.value)}
+                            onChange={e => setBot(i, e.currentTarget.value)}
                           >
                             <option value="">Random</option>
                             <For each={AI_STRATEGY_ORDER}>
-                              {(id) => <option value={id}>{AI_STRATEGIES[id].name}</option>}
+                              {id => (
+                                <option value={id}>
+                                  {AI_STRATEGIES[id].name}
+                                </option>
+                              )}
                             </For>
                           </select>
                         )}
@@ -293,14 +314,16 @@ export function WarCouncil(props: CouncilHooks) {
                 <div class="row">
                   <div>
                     <div class="row-label">Bandit raids</div>
-                    <div class="row-hint">Neutral hostiles harass the roads</div>
+                    <div class="row-hint">
+                      Neutral hostiles harass the roads
+                    </div>
                   </div>
                   <button
                     class={`toggle ${v().config.bandits ? 'on' : ''}`}
                     role="switch"
                     aria-checked={v().config.bandits}
                     aria-label="Bandit raids"
-                    onClick={() => patch({ bandits: !v().config.bandits })}
+                    onClick={() => patch({bandits: !v().config.bandits})}
                   >
                     <span />
                   </button>
@@ -323,12 +346,14 @@ export function WarCouncil(props: CouncilHooks) {
                       <input
                         class="seed"
                         value={String(v().config.seed)}
-                        onInput={(e) => seedInput(e.currentTarget.value)}
+                        onInput={e => seedInput(e.currentTarget.value)}
                       />
                       <button
                         class="icon-btn"
                         title="Random seed"
-                        onClick={() => patch({ seed: Math.floor(Math.random() * 9e7) + 1e7 })}
+                        onClick={() =>
+                          patch({seed: Math.floor(Math.random() * 9e7) + 1e7})
+                        }
                       >
                         <DiceIcon />
                       </button>
@@ -348,7 +373,12 @@ export function WarCouncil(props: CouncilHooks) {
                   }
                 >
                   <button class="cta" onClick={() => props.onStart()}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
                       <path d="M8 5.5v13l11-6.5z" />
                     </svg>
                     Begin the match

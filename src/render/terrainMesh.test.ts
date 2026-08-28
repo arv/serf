@@ -1,11 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { HeightField } from './heightField';
-import { Spoil, TerrainMesh, spoilOf, type SpoilKind } from './terrainMesh';
-import { tileIdx } from '../shared/grid';
-import type { MapView } from '../sim/map';
-import * as Terrain from '../sim/terrainEnum.ts';
+import {describe, expect, it, vi} from 'vitest';
+import {tileIdx} from '../shared/grid';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import type {MapView} from '../sim/map';
+import * as Terrain from '../sim/terrainEnum.ts';
+import {HeightField} from './heightField';
+import {Spoil, TerrainMesh, spoilOf, type SpoilKind} from './terrainMesh';
 
 // The speckle detail sheet is drawn on a 2D canvas, which node has none of.
 // It multiplies over the vertex colours at draw time and never touches the
@@ -53,7 +53,11 @@ function footprint(): number[] {
 }
 
 function mesh(map: MapView, spoil: SpoilKind = Spoil.Gold): TerrainMesh {
-  return new TerrainMesh(map, new HeightField(map.height as Float32Array, SIZE), () => spoil);
+  return new TerrainMesh(
+    map,
+    new HeightField(map.height as Float32Array, SIZE),
+    () => spoil,
+  );
 }
 
 function colors(m: TerrainMesh): Float32Array {

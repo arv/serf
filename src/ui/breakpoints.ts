@@ -1,4 +1,4 @@
-import { createSignal, onCleanup } from 'solid-js';
+import {createSignal, onCleanup} from 'solid-js';
 
 /**
  * The two shapes a hand-held screen comes in, and the one name for both.

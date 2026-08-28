@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'vitest';
-import { AUX_STRIDE, SAB_BYTES, SabReader, SabWriter, type UnitSnapshot } from './sabLayout';
+import {describe, expect, it} from 'vitest';
+import {
+  AUX_STRIDE,
+  SAB_BYTES,
+  SabReader,
+  SabWriter,
+  type UnitSnapshot,
+} from './sabLayout';
 
 function unit(id: number, x: number, y: number): UnitSnapshot {
-  return { id, x, y, kind: 1, owner: 0, hpPct: 255, carrying: 0, action: 0 };
+  return {id, x, y, kind: 1, owner: 0, hpPct: 255, carrying: 0, action: 0};
 }
 
 describe('SAB slot protocol', () => {

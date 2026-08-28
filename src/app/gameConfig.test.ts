@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { configFromUrl } from './gameConfig';
-import { MISSION_DEFS } from '../sim/defs/missions';
-import * as MissionId from '../sim/defs/missionIdEnum.ts';
-import * as PlayerKind from '../sim/playerKindEnum.ts';
+import {describe, expect, it} from 'vitest';
 import * as AiStrategyId from '../sim/defs/aiStrategyIdEnum.ts';
+import * as MissionId from '../sim/defs/missionIdEnum.ts';
+import {MISSION_DEFS} from '../sim/defs/missions';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
+import {configFromUrl} from './gameConfig';
 
 /**
  * The start screen speaks to the game entirely through the query string, so
@@ -13,7 +13,7 @@ import * as AiStrategyId from '../sim/defs/aiStrategyIdEnum.ts';
 describe('configFromUrl', () => {
   it('defaults to a solo sandbox with bandits on', () => {
     const c = configFromUrl('');
-    expect(c.players).toEqual([{ kind: PlayerKind.human }]);
+    expect(c.players).toEqual([{kind: PlayerKind.human}]);
     expect(c.banditsEnabled).toBe(true);
     expect(c.seed).toBe(17);
   });
@@ -29,9 +29,9 @@ describe('configFromUrl', () => {
     const c = configFromUrl('?ai=2&seed=1234');
     expect(c.seed).toBe(1234);
     expect(c.players).toEqual([
-      { kind: PlayerKind.human },
-      { kind: PlayerKind.ai },
-      { kind: PlayerKind.ai },
+      {kind: PlayerKind.human},
+      {kind: PlayerKind.ai},
+      {kind: PlayerKind.ai},
     ]);
     expect(c.myPlayerId).toBe(0);
   });
@@ -39,30 +39,34 @@ describe('configFromUrl', () => {
   it('caps computer opponents at the three the menu offers', () => {
     expect(configFromUrl('?ai=3').players).toHaveLength(4);
     expect(configFromUrl('?ai=9').players).toHaveLength(4);
-    expect(configFromUrl('?ai=-1').players).toEqual([{ kind: PlayerKind.human }]);
+    expect(configFromUrl('?ai=-1').players).toEqual([{kind: PlayerKind.human}]);
   });
 
   it('names the opponents ?bots asks for, seat by seat', () => {
     const c = configFromUrl('?ai=3&bots=warlord,,abbot');
-    expect(c.players.map((p) => p.strategy)).toEqual([
+    expect(c.players.map(p => p.strategy)).toEqual([
       undefined,
       AiStrategyId.warlord,
       undefined,
       AiStrategyId.abbot,
     ]);
     // No param at all: every opponent is left to the seed's deal.
-    expect(configFromUrl('?ai=2').players.map((p) => p.strategy)).toEqual([
+    expect(configFromUrl('?ai=2').players.map(p => p.strategy)).toEqual([
       undefined,
       undefined,
       undefined,
     ]);
     // A playbook nobody has heard of names nothing — it never reaches the
     // world as a strategy id.
-    expect(configFromUrl('?ai=1&bots=nonesuch').players[1]!.strategy).toBeUndefined();
+    expect(
+      configFromUrl('?ai=1&bots=nonesuch').players[1]!.strategy,
+    ).toBeUndefined();
   });
 
   it('ignores junk rather than booting a broken world', () => {
-    expect(configFromUrl('?ai=abc').players).toEqual([{ kind: PlayerKind.human }]);
+    expect(configFromUrl('?ai=abc').players).toEqual([
+      {kind: PlayerKind.human},
+    ]);
     // A NaN seed used to reach worldgen and produce nonsense.
     expect(configFromUrl('?seed=abc').seed).toBe(17);
     expect(configFromUrl('?seed=').seed).toBe(17);
@@ -75,18 +79,18 @@ describe('configFromUrl', () => {
     // test is about the def winning over the URL, not about which seed.
     expect(c.seed).toBe(MISSION_DEFS[MissionId.levy].seed);
     expect(c.banditsEnabled).toBe(true);
-    expect(c.players).toEqual([{ kind: PlayerKind.human }]);
+    expect(c.players).toEqual([{kind: PlayerKind.human}]);
     expect(c.myPlayerId).toBe(0);
     // The def is the whole recipe: a stray ?seed or ?ai does not perturb
     // the mission's pinned world.
     const pinned = configFromUrl('?mission=clearing&seed=999&ai=2');
     expect(pinned.seed).toBe(MISSION_DEFS[MissionId.clearing].seed);
-    expect(pinned.players).toEqual([{ kind: PlayerKind.human }]);
+    expect(pinned.players).toEqual([{kind: PlayerKind.human}]);
     expect(pinned.banditsEnabled).toBe(false);
     // The bonus mission carries its rival.
     expect(configFromUrl('?mission=rivalBanner').players).toEqual([
-      { kind: PlayerKind.human },
-      { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
+      {kind: PlayerKind.human},
+      {kind: PlayerKind.ai, strategy: AiStrategyId.steward},
     ]);
   });
 

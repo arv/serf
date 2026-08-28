@@ -1,16 +1,16 @@
 import * as THREE from 'three';
-import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
-import { hash2 } from '../shared/math';
-import { inPlayArea, type MapView } from '../sim/map';
-import { crossedQuads } from './scatterMesh';
-import { ribbonCover, type RibbonCover } from './pathRibbon';
-import { foliageMaterial, makeGrassSprite } from './spriteTextures';
-import type { HeightField } from './heightField';
+import {tileCount, tileIdx, tileX, tileY} from '../shared/grid';
+import {hash2} from '../shared/math';
+import {inPlayArea, type MapView} from '../sim/map';
 import * as Terrain from '../sim/terrainEnum.ts';
+import type {HeightField} from './heightField';
+import {ribbonCover, type RibbonCover} from './pathRibbon';
+import {crossedQuads} from './scatterMesh';
+import {foliageMaterial, makeGrassSprite} from './spriteTextures';
 
 const dummy = new THREE.Object3D();
 const tmpColor = new THREE.Color();
-const cover: RibbonCover = { trail: 0, road: 0 };
+const cover: RibbonCover = {trail: 0, road: 0};
 
 const MAX_PER_TILE = 3;
 
@@ -67,7 +67,10 @@ export class GrassField {
     // timber and coarse paint — clumps out there are instances nobody sees.
     let grassTiles = 0;
     for (let i = 0; i < tiles; i++) {
-      if (map.terrain[i] === Terrain.Grass && inPlayArea(map, i % size, (i / size) | 0)) {
+      if (
+        map.terrain[i] === Terrain.Grass &&
+        inPlayArea(map, i % size, (i / size) | 0)
+      ) {
         grassTiles++;
       }
     }
@@ -109,7 +112,7 @@ export class GrassField {
         // Tint follows the same lush -> gold idea as the terrain paint.
         tmpColor.copy(lush).lerp(gold, hash2(i * 3 + k, 406));
         this.mesh.setColorAt(id, tmpColor);
-        const clump: Clump = { id, x: px, z: pz };
+        const clump: Clump = {id, x: px, z: pz};
         const list = this.#byTile.get(i);
         if (list) list.push(clump);
         else this.#byTile.set(i, [clump]);
@@ -151,7 +154,7 @@ export class GrassField {
           swept.add(idx);
           const clumps = this.#byTile.get(idx);
           if (!clumps) continue;
-          const kept = clumps.filter((clump) => {
+          const kept = clumps.filter(clump => {
             if (!onPath(map, clump.x, clump.z)) return true;
             this.#hide(clump.id);
             touched = true;

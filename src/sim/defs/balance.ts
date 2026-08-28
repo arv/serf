@@ -2,9 +2,9 @@
  * Global tunables. Per-thing numbers (hp, speeds, costs) live on their defs;
  * this file holds cross-cutting knobs so a balance pass is one screen.
  */
-import type { Enum } from '../../shared/enum.ts';
-import type { GoodAmounts } from './goods.ts';
+import type {Enum} from '../../shared/enum.ts';
 import * as GoodId from './goodIdEnum.ts';
+import type {GoodAmounts} from './goods.ts';
 import * as UnitClass from './unitClassEnum.ts';
 
 type UnitClass = Enum<typeof UnitClass>;

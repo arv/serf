@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { BUS_CAPS } from './voices';
-import { type CueDef, type CueId, CUES } from './cues';
+import {describe, expect, it} from 'vitest';
+import {type CueDef, type CueId, CUES} from './cues';
+import {BUS_CAPS} from './voices';
 
 const entries = Object.entries(CUES) as [CueId, CueDef][];
 
@@ -39,8 +39,10 @@ describe('cue catalogue', () => {
         expect(l.decay, id).toBeGreaterThan(0);
         expect(l.freq, id).toBeGreaterThan(0);
         if (l.freqEnd !== undefined) expect(l.freqEnd, id).toBeGreaterThan(0);
-        if (l.attack !== undefined) expect(l.attack, id).toBeGreaterThanOrEqual(0);
-        if (l.delay !== undefined) expect(l.delay, id).toBeGreaterThanOrEqual(0);
+        if (l.attack !== undefined)
+          expect(l.attack, id).toBeGreaterThanOrEqual(0);
+        if (l.delay !== undefined)
+          expect(l.delay, id).toBeGreaterThanOrEqual(0);
       }
     }
   });

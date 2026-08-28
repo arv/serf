@@ -1,7 +1,10 @@
-import { For, Show, type JSX } from 'solid-js';
-import type { GoodId } from '../../../sim/defs/goods';
-import { GoodIcon } from '../../../ui/icons';
-import { buildingName, goodName, techName, unitName } from '../../../ui/names';
+import {For, Show, type JSX} from 'solid-js';
+import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
+import type {GoodId} from '../../../sim/defs/goods';
+import * as TechId from '../../../sim/defs/techIdEnum.ts';
+import {GoodIcon} from '../../../ui/icons';
+import {buildingName, goodName, techName, unitName} from '../../../ui/names';
+import {DocLink, Section} from '../components';
 import {
   CONSUMED_BY,
   HIRE_SERF_COST,
@@ -10,28 +13,28 @@ import {
   startStockOf,
   type ConsumerRef,
 } from '../data';
-import { GOOD_DESC } from '../descriptions';
-import { DocLink, Section } from '../components';
-import { Prose } from '../prose';
-import { buildingHref, goodHref, techHref, unitHref } from '../routes';
-import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
-import * as TechId from '../../../sim/defs/techIdEnum.ts';
+import {GOOD_DESC} from '../descriptions';
+import {Prose} from '../prose';
+import {buildingHref, goodHref, techHref, unitHref} from '../routes';
 
 // `entry`, not `ref`: ref is a reserved prop in Solid (element forwarding),
 // and a component that borrows the name never receives the value.
-function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
+function ConsumerLine(props: {entry: ConsumerRef}): JSX.Element {
   const r = props.entry;
   switch (r.kind) {
     case 'recipe':
       return (
         <li>
           An ingredient at the{' '}
-          <DocLink href={buildingHref(r.building)}>{buildingName(r.building)}</DocLink>
+          <DocLink href={buildingHref(r.building)}>
+            {buildingName(r.building)}
+          </DocLink>
           <Show when={r.requiresTech}>
-            {(tech) => (
+            {tech => (
               <>
                 {' '}
-                (with <DocLink href={techHref(tech())}>{techName(tech())}</DocLink>)
+                (with{' '}
+                <DocLink href={techHref(tech())}>{techName(tech())}</DocLink>)
               </>
             )}
           </Show>
@@ -41,39 +44,52 @@ function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
       return (
         <li>
           Building material for the{' '}
-          <DocLink href={buildingHref(r.building)}>{buildingName(r.building)}</DocLink>
+          <DocLink href={buildingHref(r.building)}>
+            {buildingName(r.building)}
+          </DocLink>
         </li>
       );
     case 'repair':
       return (
         <li>
-          Mends the <DocLink href={buildingHref(r.building)}>{buildingName(r.building)}</DocLink>
+          Mends the{' '}
+          <DocLink href={buildingHref(r.building)}>
+            {buildingName(r.building)}
+          </DocLink>
         </li>
       );
     case 'training':
       return (
         <li>
-          Spent training a <DocLink href={unitHref(r.unit)}>{unitName(r.unit)}</DocLink> at the{' '}
-          <DocLink href={buildingHref(r.building)}>{buildingName(r.building)}</DocLink>
+          Spent training a{' '}
+          <DocLink href={unitHref(r.unit)}>{unitName(r.unit)}</DocLink> at the{' '}
+          <DocLink href={buildingHref(r.building)}>
+            {buildingName(r.building)}
+          </DocLink>
         </li>
       );
     case 'tech':
       return (
         <li>
-          Pays for the <DocLink href={techHref(r.tech)}>{techName(r.tech)}</DocLink> research
+          Pays for the{' '}
+          <DocLink href={techHref(r.tech)}>{techName(r.tech)}</DocLink> research
         </li>
       );
     case 'tool':
       return (
         <li>
           The tool that staffs the{' '}
-          <DocLink href={buildingHref(r.building)}>{buildingName(r.building)}</DocLink>
+          <DocLink href={buildingHref(r.building)}>
+            {buildingName(r.building)}
+          </DocLink>
         </li>
       );
     case 'weapon':
       return (
         <li>
-          The weapon a <DocLink href={unitHref(r.unit)}>{unitName(r.unit)}</DocLink> is trained with
+          The weapon a{' '}
+          <DocLink href={unitHref(r.unit)}>{unitName(r.unit)}</DocLink> is
+          trained with
         </li>
       );
     case 'festival':
@@ -84,8 +100,10 @@ function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
             {buildingName(BuildingTypeId.abbey)}
           </DocLink>{' '}
           to hold a festival, once{' '}
-          <DocLink href={techHref(TechId.festivals)}>{techName(TechId.festivals)}</DocLink> is
-          researched
+          <DocLink href={techHref(TechId.festivals)}>
+            {techName(TechId.festivals)}
+          </DocLink>{' '}
+          is researched
         </li>
       );
     case 'ration':
@@ -96,18 +114,24 @@ function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
             {buildingName(BuildingTypeId.barracks)}
           </DocLink>{' '}
           cask — with{' '}
-          <DocLink href={techHref(TechId.aleRations)}>{techName(TechId.aleRations)}</DocLink> each
-          recruit drinks one and trains faster
+          <DocLink href={techHref(TechId.aleRations)}>
+            {techName(TechId.aleRations)}
+          </DocLink>{' '}
+          each recruit drinks one and trains faster
         </li>
       );
     case 'hire':
       return <li>Hires a serf ({HIRE_SERF_COST} silver each)</li>;
     case 'siteLoan':
-      return <li>Loaned to every construction site, and handed back at the topping-out</li>;
+      return (
+        <li>
+          Loaned to every construction site, and handed back at the topping-out
+        </li>
+      );
   }
 }
 
-export function GoodPage(props: { id: GoodId }): JSX.Element {
+export function GoodPage(props: {id: GoodId}): JSX.Element {
   const producers = PRODUCED_BY.get(props.id) ?? [];
   const consumers = CONSUMED_BY.get(props.id) ?? [];
   const start = startStockOf(props.id);
@@ -123,19 +147,27 @@ export function GoodPage(props: { id: GoodId }): JSX.Element {
         <Prose text={GOOD_DESC[props.id]} self={goodHref(props.id)} />
       </p>
       <Section title="Produced by">
-        <Show when={producers.length > 0} fallback={<p class="lede">No building makes this.</p>}>
+        <Show
+          when={producers.length > 0}
+          fallback={<p class="lede">No building makes this.</p>}
+        >
           <ul class="refs">
             <For each={producers}>
-              {(p) => (
+              {p => (
                 <li>
-                  <DocLink href={buildingHref(p.building)}>{buildingName(p.building)}</DocLink> ·{' '}
-                  {fmtPerMinute(p.amount, p.durationTicks)}
+                  <DocLink href={buildingHref(p.building)}>
+                    {buildingName(p.building)}
+                  </DocLink>{' '}
+                  · {fmtPerMinute(p.amount, p.durationTicks)}
                   <Show when={p.via === 'forge'}> · on the forge menu</Show>
                   <Show when={p.requiresTech}>
-                    {(tech) => (
+                    {tech => (
                       <>
                         {' '}
-                        · needs <DocLink href={techHref(tech())}>{techName(tech())}</DocLink>
+                        · needs{' '}
+                        <DocLink href={techHref(tech())}>
+                          {techName(tech())}
+                        </DocLink>
                       </>
                     )}
                   </Show>
@@ -146,16 +178,21 @@ export function GoodPage(props: { id: GoodId }): JSX.Element {
         </Show>
       </Section>
       <Section title="Used by">
-        <Show when={consumers.length > 0} fallback={<p class="lede">Nothing takes this.</p>}>
+        <Show
+          when={consumers.length > 0}
+          fallback={<p class="lede">Nothing takes this.</p>}
+        >
           <ul class="refs">
-            <For each={consumers}>{(c) => <ConsumerLine entry={c} />}</For>
+            <For each={consumers}>{c => <ConsumerLine entry={c} />}</For>
           </ul>
         </Show>
       </Section>
       <Show when={start > 0}>
         <Section title="Starting stock">
           <p class="lede">
-            <Prose text={`The village opens with ${start} in the castle store.`} />
+            <Prose
+              text={`The village opens with ${start} in the castle store.`}
+            />
           </p>
         </Section>
       </Show>

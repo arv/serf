@@ -1,8 +1,8 @@
-import type { Enum } from '../shared/enum.ts';
-import { describe, expect, it } from 'vitest';
-import { CUES } from './cues';
-import { animCue, LOOP_CUES } from './animCues';
+import {describe, expect, it} from 'vitest';
 import * as AnimKey from '../render/animKeyEnum.ts';
+import type {Enum} from '../shared/enum.ts';
+import {animCue, LOOP_CUES} from './animCues';
+import {CUES} from './cues';
 
 type AnimKey = Enum<typeof AnimKey>;
 
@@ -92,8 +92,12 @@ describe('LOOP_CUES', () => {
   it('carry keeps step with the legs it borrowed — walk by default, jog by clip', () => {
     // characters.ts composites Carry_Walk from Walking_A and Carry_Jog
     // from Running_A; the footfalls are those gaits' own.
-    expect(LOOP_CUES[AnimKey.carry]?.impactPhase01).toBe(LOOP_CUES[AnimKey.walk]?.impactPhase01);
-    expect(LOOP_CUES[AnimKey.carry]?.byClip?.Carry_Jog).toBe(LOOP_CUES[AnimKey.jog]?.impactPhase01);
+    expect(LOOP_CUES[AnimKey.carry]?.impactPhase01).toBe(
+      LOOP_CUES[AnimKey.walk]?.impactPhase01,
+    );
+    expect(LOOP_CUES[AnimKey.carry]?.byClip?.Carry_Jog).toBe(
+      LOOP_CUES[AnimKey.jog]?.impactPhase01,
+    );
   });
 
   it('the attack key covers each attackClip a kind can swap in', () => {

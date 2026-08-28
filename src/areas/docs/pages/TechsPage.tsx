@@ -1,14 +1,18 @@
-import type { Enum } from '../../../shared/enum.ts';
-import { For, Show, type JSX } from 'solid-js';
-import { TECH_BRANCHES, TECH_DEFS, type TechEffect } from '../../../sim/defs/techs';
-import { buildingName, unitName } from '../../../ui/names';
-import { ALL_TECHS, fmtSecs } from '../data';
-import { CostList, DocLink } from '../components';
-import { Prose } from '../prose';
-import { buildingHref, techHref, unitHref } from '../routes';
+import {For, Show, type JSX} from 'solid-js';
+import type {Enum} from '../../../shared/enum.ts';
 import * as ModifierKey from '../../../sim/defs/modifierKeyEnum.ts';
 import * as TechBranch from '../../../sim/defs/techBranchEnum.ts';
 import * as TechEffectKind from '../../../sim/defs/techEffectKindEnum.ts';
+import {
+  TECH_BRANCHES,
+  TECH_DEFS,
+  type TechEffect,
+} from '../../../sim/defs/techs';
+import {buildingName, unitName} from '../../../ui/names';
+import {CostList, DocLink} from '../components';
+import {ALL_TECHS, fmtSecs} from '../data';
+import {Prose} from '../prose';
+import {buildingHref, techHref, unitHref} from '../routes';
 
 type ModifierKey = Enum<typeof ModifierKey>;
 type TechBranch = Enum<typeof TechBranch>;
@@ -31,25 +35,30 @@ const MODIFIER_LABEL: Record<ModifierKey, string> = {
   [ModifierKey.militaryHp]: 'Soldiers train with hit points',
 };
 
-function EffectLine(props: { effect: TechEffect; self: string }): JSX.Element {
+function EffectLine(props: {effect: TechEffect; self: string}): JSX.Element {
   const e = props.effect;
   switch (e.kind) {
     case TechEffectKind.unlockBuilding:
       return (
         <>
-          Unlocks the <DocLink href={buildingHref(e.building)}>{buildingName(e.building)}</DocLink>
+          Unlocks the{' '}
+          <DocLink href={buildingHref(e.building)}>
+            {buildingName(e.building)}
+          </DocLink>
         </>
       );
     case TechEffectKind.unlockUnit:
       return (
         <>
-          Unlocks the <DocLink href={unitHref(e.unit)}>{unitName(e.unit)}</DocLink>
+          Unlocks the{' '}
+          <DocLink href={unitHref(e.unit)}>{unitName(e.unit)}</DocLink>
         </>
       );
     case TechEffectKind.modifier:
       return (
         <>
-          <Prose text={MODIFIER_LABEL[e.key]} self={props.self} /> ×{e.multiplier}
+          <Prose text={MODIFIER_LABEL[e.key]} self={props.self} /> ×
+          {e.multiplier}
         </>
       );
     case TechEffectKind.unlockPaving:
@@ -65,11 +74,11 @@ export function TechsPage(): JSX.Element {
         <Prose text="Studied at the Abbey, paid in goods and time. Three branches; a tech waits on its prerequisites and nothing else." />
       </p>
       <For each={TECH_BRANCHES}>
-        {(branch) => (
+        {branch => (
           <section>
             <h2>{BRANCH_LABEL[branch]}</h2>
-            <For each={ALL_TECHS.filter((id) => TECH_DEFS[id].branch === branch)}>
-              {(id) => {
+            <For each={ALL_TECHS.filter(id => TECH_DEFS[id].branch === branch)}>
+              {id => {
                 const def = TECH_DEFS[id];
                 return (
                   <article class="tech" id={`tech-${id}`}>

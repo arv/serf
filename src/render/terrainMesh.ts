@@ -1,8 +1,14 @@
-import type { Enum } from '../shared/enum.ts';
 import * as THREE from 'three';
-import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
-import { hash2 } from '../shared/math';
-import { playMin, playMax, type MapView } from '../sim/map';
+import type {Enum} from '../shared/enum.ts';
+import {tileCount, tileIdx, tileX, tileY} from '../shared/grid';
+import {hash2} from '../shared/math';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import {playMin, playMax, type MapView} from '../sim/map';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import {makeGroundTexture} from './groundTexture';
+import type {HeightField} from './heightField';
+import {vnoise} from './noise';
 import {
   bankMoss,
   earthTrail,
@@ -20,8 +26,6 @@ import {
   trampledEarth,
   water,
 } from './palette';
-import { makeGroundTexture } from './groundTexture';
-import { vnoise } from './noise';
 import {
   ROAD_HALF,
   TRAIL_HALF,
@@ -32,10 +36,6 @@ import {
   ribbonWarpZ,
   ribbonWidth,
 } from './pathRibbon';
-import type { HeightField } from './heightField';
-import * as Terrain from '../sim/terrainEnum.ts';
-import * as TileResource from '../sim/tileResourceEnum.ts';
-import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
@@ -66,7 +66,7 @@ const CLASS_ROCK = 2;
  *
  * 0 is no spoil; the rest index SPOIL_COL.
  */
-export const Spoil = { None: 0, Stone: 1, Iron: 2, Silver: 3, Gold: 4 } as const;
+export const Spoil = {None: 0, Stone: 1, Iron: 2, Silver: 3, Gold: 4} as const;
 export type SpoilKind = (typeof Spoil)[keyof typeof Spoil];
 
 /** Which posts spoil their ground, and in what. Everything absent from
@@ -144,7 +144,11 @@ export class TerrainMesh {
   #tileSpoilAmt: Float32Array;
   #spoilAt: SpoilLookup;
 
-  constructor(map: MapView, heights: HeightField, spoilAt: SpoilLookup = () => Spoil.None) {
+  constructor(
+    map: MapView,
+    heights: HeightField,
+    spoilAt: SpoilLookup = () => Spoil.None,
+  ) {
     this.#map = map;
     this.#heights = heights;
     this.#spoilAt = spoilAt;
@@ -159,7 +163,12 @@ export class TerrainMesh {
     this.#tileDeposit = new Int8Array(tileCount(size));
     this.#tileSpoil = new Uint8Array(tileCount(size));
     this.#tileSpoilAmt = new Float32Array(tileCount(size));
-    this.#geometry = new THREE.PlaneGeometry(play, play, this.#grid, this.#grid);
+    this.#geometry = new THREE.PlaneGeometry(
+      play,
+      play,
+      this.#grid,
+      this.#grid,
+    );
     this.#geometry.rotateX(-Math.PI / 2);
     this.#geometry.translate(p0 + play / 2, 0, p0 + play / 2);
 
@@ -194,7 +203,9 @@ export class TerrainMesh {
       this.#pathWidth[v] = ribbonWidth(x, z);
       // Meadow patches at three scales.
       this.#meadow[v] =
-        vnoise(51, x, z, 9) * 0.5 + vnoise(53, x, z, 3.4) * 0.34 + vnoise(57, x, z, 1.2) * 0.16;
+        vnoise(51, x, z, 9) * 0.5 +
+        vnoise(53, x, z, 3.4) * 0.34 +
+        vnoise(57, x, z, 1.2) * 0.16;
       this.#speck[v] = 0.92 + hash2(v, 977) * 0.16;
     }
     this.#geometry.computeVertexNormals();
@@ -259,7 +270,8 @@ export class TerrainMesh {
         }
       }
     }
-    for (const i of recompute) this.#recomputeTile(tileX(i, size), tileY(i, size));
+    for (const i of recompute)
+      this.#recomputeTile(tileX(i, size), tileY(i, size));
 
     // Vertices live on a (grid+1)^2 lattice, SEG per tile edge, row-major —
     // vertex (row, col) sits at world (p0 + col/SEG, p0 + row/SEG).
@@ -321,7 +333,8 @@ export class TerrainMesh {
         }
       }
     }
-    for (const i of recompute) this.#recomputeTile(tileX(i, size), tileY(i, size));
+    for (const i of recompute)
+      this.#recomputeTile(tileX(i, size), tileY(i, size));
 
     // Same play-relative lattice walk as repaintTiles — a dirty margin
     // tile near the boundary still refreshes the play verts its bilinear
@@ -359,8 +372,12 @@ export class TerrainMesh {
       const cr = Math.min(grid, c + 1);
       const ru = Math.max(0, r - 1);
       const rd = Math.min(grid, r + 1);
-      const dydx = ((this.#vertY[r * row + cr]! - this.#vertY[r * row + cl]!) * SEG) / (cr - cl);
-      const dydz = ((this.#vertY[rd * row + c]! - this.#vertY[ru * row + c]!) * SEG) / (rd - ru);
+      const dydx =
+        ((this.#vertY[r * row + cr]! - this.#vertY[r * row + cl]!) * SEG) /
+        (cr - cl);
+      const dydz =
+        ((this.#vertY[rd * row + c]! - this.#vertY[ru * row + c]!) * SEG) /
+        (rd - ru);
       const inv = 1 / Math.sqrt(dydx * dydx + 1 + dydz * dydz);
       normalAttr.setXYZ(v, -dydx * inv, inv, -dydz * inv);
     }
@@ -485,7 +502,10 @@ export class TerrainMesh {
     const y = this.#vertY[v]!;
 
     if (cls === CLASS_WATER) {
-      c.copy(COL.bed).lerp(COL.water, Math.min(Math.max((-y - 0.2) * 1.4, 0), 1) * 0.75);
+      c.copy(COL.bed).lerp(
+        COL.water,
+        Math.min(Math.max((-y - 0.2) * 1.4, 0), 1) * 0.75,
+      );
     } else {
       // Meadow: lush -> olive -> sun-dried gold.
       const m = this.#meadow[v]!;
@@ -539,7 +559,12 @@ export class TerrainMesh {
     // threaded tile-center to tile-center, wobbled and pinched by noise so
     // its shoulders fray instead of running ruler-straight.
     if (cls !== CLASS_WATER) {
-      ribbonDistances(this.#map.pathLevel, x + this.#pathWarpX[v]!, z + this.#pathWarpZ[v]!, DIST);
+      ribbonDistances(
+        this.#map.pathLevel,
+        x + this.#pathWarpX[v]!,
+        z + this.#pathWarpZ[v]!,
+        DIST,
+      );
       const wob = this.#pathWidth[v]!;
       const trail = ribbonStrength(DIST.trail, TRAIL_HALF * wob);
       if (trail > 0) {

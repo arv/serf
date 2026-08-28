@@ -9,7 +9,7 @@
  * signal the stores read a free name from.
  */
 
-import { vi } from 'vitest';
+import {vi} from 'vitest';
 
 interface Entry {
   text: string;
@@ -45,7 +45,7 @@ export function installOpfs(extra: Record<string, unknown> = {}): OpfsMock {
     getFile: () => {
       const entry = dir.get(name);
       if (!entry) throw missing(name);
-      return new File([entry.text], name, { lastModified: entry.lastModified });
+      return new File([entry.text], name, {lastModified: entry.lastModified});
     },
     createWritable: () => {
       let buffer = '';
@@ -55,7 +55,7 @@ export function installOpfs(extra: Record<string, unknown> = {}): OpfsMock {
           return Promise.resolve();
         },
         close: () => {
-          dir.set(name, { text: buffer, lastModified: clock++ });
+          dir.set(name, {text: buffer, lastModified: clock++});
           return Promise.resolve();
         },
       });
@@ -65,7 +65,7 @@ export function installOpfs(extra: Record<string, unknown> = {}): OpfsMock {
   const dirHandle = (dirName: string, dir: Map<string, Entry>) => ({
     kind: 'directory' as const,
     name: dirName,
-    getFileHandle: (name: string, opts?: { create?: boolean }) => {
+    getFileHandle: (name: string, opts?: {create?: boolean}) => {
       if (!dir.has(name) && !opts?.create) throw missing(name);
       return Promise.resolve(fileHandle(dir, name));
     },
@@ -79,7 +79,7 @@ export function installOpfs(extra: Record<string, unknown> = {}): OpfsMock {
   });
 
   const root = {
-    getDirectoryHandle: (name: string, opts?: { create?: boolean }) => {
+    getDirectoryHandle: (name: string, opts?: {create?: boolean}) => {
       let dir = dirs.get(name);
       if (!dir) {
         if (!opts?.create) throw missing(name);
@@ -91,19 +91,22 @@ export function installOpfs(extra: Record<string, unknown> = {}): OpfsMock {
   };
 
   vi.stubGlobal('navigator', {
-    storage: { getDirectory: () => Promise.resolve(root) },
+    storage: {getDirectory: () => Promise.resolve(root)},
     ...extra,
   });
 
   return {
-    dump: (name) =>
+    dump: name =>
       Object.fromEntries(
-        [...(dirs.get(name) ?? new Map<string, Entry>())].map(([k, v]) => [k, v.text]),
+        [...(dirs.get(name) ?? new Map<string, Entry>())].map(([k, v]) => [
+          k,
+          v.text,
+        ]),
       ),
     put: (dirName, name, text, lastModified) => {
       let dir = dirs.get(dirName);
       if (!dir) dirs.set(dirName, (dir = new Map()));
-      dir.set(name, { text, lastModified: lastModified ?? clock++ });
+      dir.set(name, {text, lastModified: lastModified ?? clock++});
     },
   };
 }

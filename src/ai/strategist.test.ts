@@ -1,7 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createWorld } from '../sim/world.ts';
-import { AiBrain } from '../sim/systems/ai.ts';
-import { strategyOf } from '../sim/defs/aiStrategies.ts';
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import {strategyOf} from '../sim/defs/aiStrategies.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
+import {AiBrain} from '../sim/systems/ai.ts';
+import {createWorld} from '../sim/world.ts';
+import * as ChatRole from './chatRoleEnum.ts';
+import * as ConsultOutcome from './consultOutcomeEnum.ts';
+import * as LlmState from './llmStateEnum.ts';
 import {
   LlmStrategist,
   warmModel,
@@ -9,11 +13,7 @@ import {
   type ConsultTrace,
   type LlmStatus,
 } from './strategist.ts';
-import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
-import * as PlayerKind from '../sim/playerKindEnum.ts';
-import * as LlmState from './llmStateEnum.ts';
-import * as ConsultOutcome from './consultOutcomeEnum.ts';
-import * as ChatRole from './chatRoleEnum.ts';
+import {summarizeForSeat, type AiWorldSummary} from './summary.ts';
 
 /**
  * The engine-adapter and warmModel tests go through the strategist's real
@@ -27,15 +27,15 @@ import * as ChatRole from './chatRoleEnum.ts';
  * that inject their own engineFactory never touch any of this.
  */
 type ChatOpts = {
-  response_format?: { type?: string };
+  response_format?: {type?: string};
   abortSignal?: AbortSignal;
 };
-type ChatReply = { choices: { message: { content: string } }[] };
-type Progress = (p: { loaded: number; total: number }) => void;
+type ChatReply = {choices: {message: {content: string}}[]};
+type Progress = (p: {loaded: number; total: number}) => void;
 type CacheEntry = {
   name: string;
   size: number;
-  metadata: { originalURL: string; originalSize: number };
+  metadata: {originalURL: string; originalSize: number};
 };
 const wllamaMock = vi.hoisted(() => {
   /** Files on the fake disk, as CacheManager.list() reports them. */
@@ -43,27 +43,31 @@ const wllamaMock = vi.hoisted(() => {
   const cacheDeletes: string[] = [];
   return {
     /** Every Wllama the adapter constructed, with its exit count. */
-    instances: [] as { exited: number }[],
+    instances: [] as {exited: number}[],
     /** The params of every loadModelFromUrl call the adapter made. */
     loadParams: [] as Record<string, unknown>[],
     loadFails: false,
     /** The model's answer; null = tests must not reach inference. */
     chat: null as null | ((opts: ChatOpts) => Promise<ChatReply>),
-    downloads: [] as { url: string; signal: AbortSignal | undefined }[],
+    downloads: [] as {url: string; signal: AbortSignal | undefined}[],
     /** Override the download itself; null = instant success with progress. */
     downloadGate: null as
       | null
-      | ((opts?: { signal?: AbortSignal; progressCallback?: Progress }) => Promise<unknown>),
+      | ((opts?: {
+          signal?: AbortSignal;
+          progressCallback?: Progress;
+        }) => Promise<unknown>),
     cacheEntries,
     cacheDeletes,
     /** The one cache both stand-ins hand out — the same OPFS directory
      * wllama's ModelManager and Wllama share in the browser. */
     cacheManager: {
       list: (): Promise<CacheEntry[]> => Promise.resolve(cacheEntries.slice()),
-      getNameFromURL: (url: string): Promise<string> => Promise.resolve(`key:${url}`),
+      getNameFromURL: (url: string): Promise<string> =>
+        Promise.resolve(`key:${url}`),
       delete: (name: string): Promise<void> => {
         cacheDeletes.push(name);
-        const at = cacheEntries.findIndex((e) => e.name === name);
+        const at = cacheEntries.findIndex(e => e.name === name);
         if (at >= 0) cacheEntries.splice(at, 1);
         return Promise.resolve();
       },
@@ -78,14 +82,19 @@ vi.mock('@wllama/wllama/esm/index.js', () => ({
     constructor() {
       wllamaMock.instances.push(this);
     }
-    loadModelFromUrl(_url: string, params?: { progressCallback?: Progress }): Promise<void> {
-      wllamaMock.loadParams.push({ ...params });
-      if (wllamaMock.loadFails) return Promise.reject(new Error('403 from the weights CDN'));
-      params?.progressCallback?.({ loaded: 1, total: 2 });
+    loadModelFromUrl(
+      _url: string,
+      params?: {progressCallback?: Progress},
+    ): Promise<void> {
+      wllamaMock.loadParams.push({...params});
+      if (wllamaMock.loadFails)
+        return Promise.reject(new Error('403 from the weights CDN'));
+      params?.progressCallback?.({loaded: 1, total: 2});
       return Promise.resolve();
     }
     createChatCompletion(opts: ChatOpts): Promise<ChatReply> {
-      if (!wllamaMock.chat) return Promise.reject(new Error('wllamaMock.chat unset'));
+      if (!wllamaMock.chat)
+        return Promise.reject(new Error('wllamaMock.chat unset'));
       return wllamaMock.chat(opts);
     }
     exit(): Promise<void> {
@@ -104,16 +113,18 @@ vi.mock('@wllama/wllama/esm/index.js', () => ({
     cacheManager = wllamaMock.cacheManager;
     downloadModel(
       url: string,
-      opts?: { signal?: AbortSignal; progressCallback?: Progress },
+      opts?: {signal?: AbortSignal; progressCallback?: Progress},
     ): Promise<unknown> {
-      wllamaMock.downloads.push({ url, signal: opts?.signal });
+      wllamaMock.downloads.push({url, signal: opts?.signal});
       if (wllamaMock.downloadGate) return wllamaMock.downloadGate(opts);
-      opts?.progressCallback?.({ loaded: 1, total: 4 });
-      return Promise.resolve({ url });
+      opts?.progressCallback?.({loaded: 1, total: 4});
+      return Promise.resolve({url});
     }
   },
 }));
-vi.mock('@wllama/wllama/esm/wasm/wllama.wasm?url', () => ({ default: 'wllama.wasm' }));
+vi.mock('@wllama/wllama/esm/wasm/wllama.wasm?url', () => ({
+  default: 'wllama.wasm',
+}));
 
 /**
  * The strategist run against fake engines — the failure half is the point.
@@ -126,16 +137,20 @@ vi.mock('@wllama/wllama/esm/wasm/wllama.wasm?url', () => ({ default: 'wllama.was
 function testSummary(): AiWorldSummary {
   const world = createWorld({
     seed: 5,
-    players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
+    players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
   });
-  const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
+  const brain = new AiBrain(
+    1,
+    strategyOf(world.players[1]!.strategy),
+    world.map.size,
+  );
   brain.decide(world); // one beat, so vision exists
   return summarizeForSeat(world, brain);
 }
 
 interface Harness {
   strategist: LlmStrategist;
-  sent: { playerId: number; override: Record<string, unknown> }[];
+  sent: {playerId: number; override: Record<string, unknown>}[];
   statuses: LlmStatus[];
   traces: ConsultTrace[];
 }
@@ -145,17 +160,17 @@ function harness(engine: ChatEngine, timeoutMs?: number): Harness {
   const statuses: LlmStatus[] = [];
   const traces: ConsultTrace[] = [];
   const strategist = new LlmStrategist({
-    sendAdvice: (playerId, override) => sent.push({ playerId, override }),
-    onStatus: (s) => statuses.push(s),
+    sendAdvice: (playerId, override) => sent.push({playerId, override}),
+    onStatus: s => statuses.push(s),
     engineFactory: () => Promise.resolve(engine),
     timeoutMs,
-    onTrace: (t) => traces.push(t),
+    onTrace: t => traces.push(t),
   });
-  return { strategist, sent, statuses, traces };
+  return {strategist, sent, statuses, traces};
 }
 
 /** Let the fire-and-forget consultation settle. */
-const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+const settle = (): Promise<void> => new Promise(r => setTimeout(r, 0));
 
 afterEach(() => {
   wllamaMock.instances.length = 0;
@@ -174,7 +189,7 @@ function leaveUnfinishedDownload(url: string): void {
   wllamaMock.cacheEntries.push({
     name: `key:${url}`,
     size: 1024,
-    metadata: { originalURL: '', originalSize: 1024 },
+    metadata: {originalURL: '', originalSize: 1024},
   });
 }
 
@@ -184,39 +199,50 @@ function leaveFinishedDownload(url: string): void {
   wllamaMock.cacheEntries.push({
     name: `key:${url}`,
     size: 4096,
-    metadata: { originalURL: url, originalSize: 4096 },
+    metadata: {originalURL: url, originalSize: 4096},
   });
 }
 
 describe('LlmStrategist', () => {
   it('turns a valid reply into clamped advice for the right seat', async () => {
-    const { strategist, sent, statuses } = harness({
-      complete: async () => '{"armyAttackSize": 99, "reason": "overwhelm them"}',
+    const {strategist, sent, statuses} = harness({
+      complete: async () =>
+        '{"armyAttackSize": 99, "reason": "overwhelm them"}',
     });
     await strategist.start();
-    expect(statuses).toEqual([{ state: LlmState.ready }]);
+    expect(statuses).toEqual([{state: LlmState.ready}]);
     strategist.onSummary(1, testSummary());
     await settle();
     // Clamped to the published range, reason kept out of the override.
-    expect(sent).toEqual([{ playerId: 1, override: { armyAttackSize: 16 } }]);
+    expect(sent).toEqual([{playerId: 1, override: {armyAttackSize: 16}}]);
   });
 
   it('accumulates advice across consultations, newest knob over oldest', async () => {
     let call = 0;
-    const replies = ['{"armyAttackSize": 12}', '{"homeGuard": 8, "armyAttackSize": 10}'];
-    const { strategist, sent } = harness({ complete: async () => replies[call++]! });
+    const replies = [
+      '{"armyAttackSize": 12}',
+      '{"homeGuard": 8, "armyAttackSize": 10}',
+    ];
+    const {strategist, sent} = harness({
+      complete: async () => replies[call++]!,
+    });
     await strategist.start();
     strategist.onSummary(1, testSummary());
     await settle();
     strategist.onSummary(1, testSummary());
     await settle();
-    expect(sent[1]).toEqual({ playerId: 1, override: { armyAttackSize: 10, homeGuard: 8 } });
+    expect(sent[1]).toEqual({
+      playerId: 1,
+      override: {armyAttackSize: 10, homeGuard: 8},
+    });
   });
 
   it('sends nothing for garbage, and nothing for "change nothing"', async () => {
     let call = 0;
     const replies = ['the peasants are revolting', '{}'];
-    const { strategist, sent, statuses } = harness({ complete: async () => replies[call++]! });
+    const {strategist, sent, statuses} = harness({
+      complete: async () => replies[call++]!,
+    });
     await strategist.start();
     strategist.onSummary(1, testSummary());
     await settle();
@@ -224,12 +250,12 @@ describe('LlmStrategist', () => {
     await settle();
     expect(sent).toEqual([]);
     // Garbage counted a strike, but one strike is not out.
-    expect(statuses).toEqual([{ state: LlmState.ready }]);
+    expect(statuses).toEqual([{state: LlmState.ready}]);
   });
 
   it('traces a consultation whole: prompt, reply, timing, and what was sent', async () => {
     const reply = '{"armyAttackSize": 99, "reason": "overwhelm them"}';
-    const { strategist, traces } = harness({ complete: async () => reply });
+    const {strategist, traces} = harness({complete: async () => reply});
     await strategist.start();
     strategist.onSummary(1, testSummary());
     await settle();
@@ -241,12 +267,15 @@ describe('LlmStrategist', () => {
       raw: reply,
       // Clamped like the advice itself; reason rides along for the overlay
       // but stays out of the override, exactly as sendAdvice saw it.
-      advice: { armyAttackSize: 16, reason: 'overwhelm them' },
-      standing: { armyAttackSize: 16, reason: 'overwhelm them' },
-      override: { armyAttackSize: 16 },
+      advice: {armyAttackSize: 16, reason: 'overwhelm them'},
+      standing: {armyAttackSize: 16, reason: 'overwhelm them'},
+      override: {armyAttackSize: 16},
     });
     // The prompt verbatim — system glossary plus the match state.
-    expect(t.messages.map((m) => m.role)).toEqual([ChatRole.system, ChatRole.user]);
+    expect(t.messages.map(m => m.role)).toEqual([
+      ChatRole.system,
+      ChatRole.user,
+    ]);
     expect(t.ms).toBeGreaterThanOrEqual(0);
     expect(t.minutes).toBeGreaterThanOrEqual(0);
     // The playbook print rides along, so the overlay can show the delta.
@@ -255,8 +284,14 @@ describe('LlmStrategist', () => {
 
   it('traces "change nothing" and repeats as kept, standing pile attached', async () => {
     let call = 0;
-    const replies = ['{"homeGuard": 8}', '{"homeGuard": 8, "reason": "hold"}', '{}'];
-    const { strategist, sent, traces } = harness({ complete: async () => replies[call++]! });
+    const replies = [
+      '{"homeGuard": 8}',
+      '{"homeGuard": 8, "reason": "hold"}',
+      '{}',
+    ];
+    const {strategist, sent, traces} = harness({
+      complete: async () => replies[call++]!,
+    });
     await strategist.start();
     for (let i = 0; i < 3; i++) {
       strategist.onSummary(1, testSummary());
@@ -264,17 +299,19 @@ describe('LlmStrategist', () => {
     }
     // One message downstairs, three entries in the ledger.
     expect(sent).toHaveLength(1);
-    expect(traces.map((t) => t.outcome)).toEqual([
+    expect(traces.map(t => t.outcome)).toEqual([
       ConsultOutcome.sent,
       ConsultOutcome.kept,
       ConsultOutcome.kept,
     ]);
     expect(traces[2]!.advice).toEqual({});
-    expect(traces[2]!.standing).toEqual({ homeGuard: 8, reason: 'hold' });
+    expect(traces[2]!.standing).toEqual({homeGuard: 8, reason: 'hold'});
   });
 
   it('traces a failure with the reply that caused it', async () => {
-    const { strategist, traces } = harness({ complete: async () => 'the peasants are revolting' });
+    const {strategist, traces} = harness({
+      complete: async () => 'the peasants are revolting',
+    });
     await strategist.start();
     strategist.onSummary(1, testSummary());
     await settle();
@@ -289,10 +326,10 @@ describe('LlmStrategist', () => {
   it('drops a summary while the seat is still being thought about', async () => {
     let resolveFirst!: (v: string) => void;
     let calls = 0;
-    const { strategist, sent } = harness({
+    const {strategist, sent} = harness({
       complete: () => {
         calls++;
-        return new Promise((r) => {
+        return new Promise(r => {
           resolveFirst = r;
         });
       },
@@ -311,7 +348,7 @@ describe('LlmStrategist', () => {
 
   it('goes permanently inert after three straight failures', async () => {
     let calls = 0;
-    const { strategist, sent, statuses } = harness({
+    const {strategist, sent, statuses} = harness({
       complete: () => {
         calls++;
         return Promise.reject(new Error('out of VRAM'));
@@ -326,22 +363,25 @@ describe('LlmStrategist', () => {
     expect(sent).toEqual([]);
     const last = statuses.at(-1)!;
     expect(last.state).toBe(LlmState.failed);
-    expect((last as { reason: string }).reason).toContain('out of VRAM');
+    expect((last as {reason: string}).reason).toContain('out of VRAM');
   });
 
   it('counts a hung engine as a failure instead of waiting forever', async () => {
-    const { strategist, statuses } = harness({ complete: () => new Promise(() => {}) }, 5);
+    const {strategist, statuses} = harness(
+      {complete: () => new Promise(() => {})},
+      5,
+    );
     await strategist.start();
     for (let i = 0; i < 3; i++) {
       strategist.onSummary(1, testSummary());
-      await new Promise((r) => setTimeout(r, 15));
+      await new Promise(r => setTimeout(r, 15));
     }
     expect(statuses.at(-1)!.state).toBe(LlmState.failed);
   });
 
   it('a hide aborts the consultation mid-thought, and it never counts as a strike', async () => {
     let calls = 0;
-    const { strategist, sent, statuses, traces } = harness({
+    const {strategist, sent, statuses, traces} = harness({
       complete: (_messages, _schema, signal) =>
         new Promise((_resolve, reject) => {
           calls++;
@@ -361,14 +401,14 @@ describe('LlmStrategist', () => {
       await settle();
     }
     expect(sent).toEqual([]);
-    expect(statuses).toEqual([{ state: LlmState.ready }]); // never 'failed'
+    expect(statuses).toEqual([{state: LlmState.ready}]); // never 'failed'
     // A pause is not model behavior: nothing for the ledger either.
     expect(traces).toEqual([]);
   });
 
   it('consults nobody while hidden, and picks up again on return', async () => {
     let calls = 0;
-    const { strategist } = harness({
+    const {strategist} = harness({
       complete: async () => {
         calls++;
         return '{}';
@@ -390,11 +430,11 @@ describe('LlmStrategist', () => {
     const statuses: LlmStatus[] = [];
     const strategist = new LlmStrategist({
       sendAdvice: (p, o) => sent.push([p, o]),
-      onStatus: (s) => statuses.push(s),
+      onStatus: s => statuses.push(s),
       engineFactory: () => Promise.reject(new Error('no adapter')),
     });
     await strategist.start();
-    expect(statuses.at(-1)).toMatchObject({ state: LlmState.failed });
+    expect(statuses.at(-1)).toMatchObject({state: LlmState.failed});
     strategist.onSummary(1, testSummary());
     await settle();
     expect(sent).toEqual([]);
@@ -405,10 +445,13 @@ describe('LlmStrategist', () => {
     // WebGPU offload wherever the browser has it — which puts inference on
     // the GPU the renderer is drawing with and drops frames on every
     // consultation. The zero must be spelled out, so pin it.
-    const strategist = new LlmStrategist({ sendAdvice: () => {}, onStatus: () => {} });
+    const strategist = new LlmStrategist({
+      sendAdvice: () => {},
+      onStatus: () => {},
+    });
     await strategist.start();
     expect(wllamaMock.loadParams).toHaveLength(1);
-    expect(wllamaMock.loadParams[0]).toMatchObject({ n_gpu_layers: 0 });
+    expect(wllamaMock.loadParams[0]).toMatchObject({n_gpu_layers: 0});
     strategist.dispose();
   });
 
@@ -418,7 +461,7 @@ describe('LlmStrategist', () => {
     // No engineFactory: this runs the real wllama adapter over the mocks.
     const strategist = new LlmStrategist({
       sendAdvice: () => {},
-      onStatus: (s) => statuses.push(s),
+      onStatus: s => statuses.push(s),
     });
     await strategist.start();
     expect(wllamaMock.instances).toHaveLength(1);
@@ -434,10 +477,10 @@ describe('LlmStrategist', () => {
   it('one consultation at a time, across every seat', async () => {
     let resolveReply!: (v: string) => void;
     let calls = 0;
-    const { strategist, sent } = harness({
+    const {strategist, sent} = harness({
       complete: () => {
         calls++;
-        return new Promise((r) => {
+        return new Promise(r => {
           resolveReply = r;
         });
       },
@@ -455,12 +498,14 @@ describe('LlmStrategist', () => {
 
   it('falls back to plain JSON mode when the schema breaks the engine', async () => {
     const formats: (string | undefined)[] = [];
-    wllamaMock.chat = (opts) => {
+    wllamaMock.chat = opts => {
       formats.push(opts.response_format?.type);
       if (opts.response_format?.type === 'json_schema') {
         return Promise.reject(new Error('grammar failed to compile'));
       }
-      return Promise.resolve({ choices: [{ message: { content: '{"homeGuard": 6}' } }] });
+      return Promise.resolve({
+        choices: [{message: {content: '{"homeGuard": 6}'}}],
+      });
     };
     const sent: unknown[] = [];
     const strategist = new LlmStrategist({
@@ -472,7 +517,7 @@ describe('LlmStrategist', () => {
     await settle();
     // The constrained attempt failed, the plain retry answered — one piece
     // of advice, no strike toward inert.
-    expect(sent).toEqual([[1, { homeGuard: 6 }]]);
+    expect(sent).toEqual([[1, {homeGuard: 6}]]);
     // A broken schema stays broken: the next consultation skips it.
     strategist.onSummary(1, testSummary());
     await settle();
@@ -484,34 +529,37 @@ describe('LlmStrategist', () => {
     const statuses: LlmStatus[] = [];
     const strategist = new LlmStrategist({
       sendAdvice: () => {},
-      onStatus: (s) => statuses.push(s),
+      onStatus: s => statuses.push(s),
     });
     await strategist.start();
-    expect(statuses.at(-1)).toMatchObject({ state: LlmState.failed });
-    expect((statuses.at(-1) as { reason: string }).reason).toContain('403');
+    expect(statuses.at(-1)).toMatchObject({state: LlmState.failed});
+    expect((statuses.at(-1) as {reason: string}).reason).toContain('403');
     expect(wllamaMock.instances[0]!.exited).toBe(1);
   });
 
   /** The match side sweeps too: the warm-up that left the partial behind
    * belongs to a menu that is already gone, and nobody else will. */
   it('throws away an interrupted download before loading the model', async () => {
-    const { LLM_MODEL_URL } = await import('./strategist.ts');
+    const {LLM_MODEL_URL} = await import('./strategist.ts');
     leaveUnfinishedDownload(LLM_MODEL_URL);
     const statuses: LlmStatus[] = [];
     const strategist = new LlmStrategist({
       sendAdvice: () => {},
-      onStatus: (s) => statuses.push(s),
+      onStatus: s => statuses.push(s),
     });
     await strategist.start();
     expect(wllamaMock.cacheDeletes).toEqual([`key:${LLM_MODEL_URL}`]);
-    expect(statuses.at(-1)).toEqual({ state: LlmState.ready });
+    expect(statuses.at(-1)).toEqual({state: LlmState.ready});
   });
 
   it('disposed before the model load begins, it never loads one', async () => {
     // ensureModelCached's install step resolves rather than rejects when
     // the abort lands inside it; the guard after it must still keep a
     // released Wllama from being handed a model.
-    const strategist = new LlmStrategist({ sendAdvice: () => {}, onStatus: () => {} });
+    const strategist = new LlmStrategist({
+      sendAdvice: () => {},
+      onStatus: () => {},
+    });
     strategist.dispose();
     await strategist.start();
     expect(wllamaMock.loadParams).toHaveLength(0);
@@ -519,9 +567,9 @@ describe('LlmStrategist', () => {
 
   it('disposed mid-flight, it stops speaking', async () => {
     let resolveReply!: (v: string) => void;
-    const { strategist, sent, traces } = harness({
+    const {strategist, sent, traces} = harness({
       complete: () =>
-        new Promise((r) => {
+        new Promise(r => {
           resolveReply = r;
         }),
     });
@@ -546,21 +594,21 @@ describe('LlmStrategist', () => {
  */
 describe('warmModel', () => {
   it('an already-cached model reports ready without downloading', async () => {
-    const { LLM_MODEL_URL } = await import('./strategist.ts');
+    const {LLM_MODEL_URL} = await import('./strategist.ts');
     leaveFinishedDownload(LLM_MODEL_URL);
     const statuses: LlmStatus[] = [];
-    warmModel((s) => statuses.push(s));
+    warmModel(s => statuses.push(s));
     await settle();
-    expect(statuses).toEqual([{ state: LlmState.ready }]);
+    expect(statuses).toEqual([{state: LlmState.ready}]);
     expect(wllamaMock.downloads).toHaveLength(0);
   });
 
   it('a cold cache downloads with progress, and never builds an engine', async () => {
     const statuses: LlmStatus[] = [];
-    warmModel((s) => statuses.push(s));
+    warmModel(s => statuses.push(s));
     await settle();
-    expect(statuses[0]).toMatchObject({ state: LlmState.loading, pct: 25 });
-    expect(statuses.at(-1)).toEqual({ state: LlmState.ready });
+    expect(statuses[0]).toMatchObject({state: LlmState.loading, pct: 25});
+    expect(statuses.at(-1)).toEqual({state: LlmState.ready});
     expect(wllamaMock.downloads).toHaveLength(1);
     // Download only — the menu spends no CPU and holds no model memory.
     expect(wllamaMock.instances).toHaveLength(0);
@@ -573,24 +621,24 @@ describe('warmModel', () => {
    * throws it away before asking for the file, not after failing on it.
    */
   it('throws away an interrupted download before fetching again', async () => {
-    const { LLM_MODEL_URL } = await import('./strategist.ts');
+    const {LLM_MODEL_URL} = await import('./strategist.ts');
     leaveUnfinishedDownload(LLM_MODEL_URL);
     // The sweep has to come first: once the download starts, the leftovers
     // are already the thing being mistaken for a hit.
-    wllamaMock.downloadGate = (opts) => {
+    wllamaMock.downloadGate = opts => {
       expect(wllamaMock.cacheDeletes).toEqual([`key:${LLM_MODEL_URL}`]);
-      opts?.progressCallback?.({ loaded: 1, total: 4 });
+      opts?.progressCallback?.({loaded: 1, total: 4});
       return Promise.resolve({});
     };
     const statuses: LlmStatus[] = [];
-    warmModel((s) => statuses.push(s));
+    warmModel(s => statuses.push(s));
     await settle();
-    expect(statuses.at(-1)).toEqual({ state: LlmState.ready });
+    expect(statuses.at(-1)).toEqual({state: LlmState.ready});
     expect(wllamaMock.downloads).toHaveLength(1);
   });
 
   it('leaves a finished download in the cache', async () => {
-    const { LLM_MODEL_URL } = await import('./strategist.ts');
+    const {LLM_MODEL_URL} = await import('./strategist.ts');
     leaveFinishedDownload(LLM_MODEL_URL);
     warmModel(() => {});
     await settle();
@@ -599,34 +647,37 @@ describe('warmModel', () => {
   });
 
   it('a failed download reports why', async () => {
-    wllamaMock.downloadGate = () => Promise.reject(new Error('403 from the weights CDN'));
+    wllamaMock.downloadGate = () =>
+      Promise.reject(new Error('403 from the weights CDN'));
     const statuses: LlmStatus[] = [];
-    warmModel((s) => statuses.push(s));
+    warmModel(s => statuses.push(s));
     await settle();
-    expect(statuses.at(-1)).toMatchObject({ state: LlmState.failed });
-    expect((statuses.at(-1) as { reason: string }).reason).toContain('403');
+    expect(statuses.at(-1)).toMatchObject({state: LlmState.failed});
+    expect((statuses.at(-1) as {reason: string}).reason).toContain('403');
   });
 
   it('disposed mid-download, it aborts the fetch and goes silent', async () => {
     let report: Progress | undefined;
-    wllamaMock.downloadGate = (opts) =>
+    wllamaMock.downloadGate = opts =>
       new Promise((_resolve, reject) => {
         report = opts?.progressCallback;
-        opts?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        opts?.signal?.addEventListener('abort', () =>
+          reject(new Error('aborted')),
+        );
       });
     const statuses: LlmStatus[] = [];
-    const handle = warmModel((s) => statuses.push(s));
+    const handle = warmModel(s => statuses.push(s));
     await settle();
     expect(wllamaMock.downloads).toHaveLength(1);
     handle.dispose();
     await settle();
     expect(wllamaMock.downloads[0]!.signal?.aborted).toBe(true);
     const seen = statuses.length;
-    report?.({ loaded: 3, total: 4 });
+    report?.({loaded: 3, total: 4});
     await settle();
     // The abort's rejection and the late progress both land after dispose:
     // neither reaches the menu.
     expect(statuses).toHaveLength(seen);
-    expect(statuses.every((s) => s.state !== LlmState.failed)).toBe(true);
+    expect(statuses.every(s => s.state !== LlmState.failed)).toBe(true);
   });
 });

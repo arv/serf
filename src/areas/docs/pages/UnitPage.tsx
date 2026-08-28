@@ -1,25 +1,29 @@
-import type { Enum } from '../../../shared/enum.ts';
-import { For, Show, createSignal, type JSX } from 'solid-js';
-import { HIRE_SERF_COST, HIRE_SERF_TICKS } from '../../../sim/defs/balance';
-import { BUILDING_DEFS } from '../../../sim/defs/buildings';
-import { COUNTER_TABLE, UNIT_DEFS, WEAPON_OF } from '../../../sim/defs/units';
-import { buildingName, techName, unitName } from '../../../ui/names';
-import { ALL_BUILDINGS, TRAINED_AT, UNIT_UNLOCKED_BY, fmtSecs } from '../data';
-import { UNIT_DESC } from '../descriptions';
-import { CostList, DocLink, GoodChip, Section, Stat, Stats } from '../components';
-import { ModelCard } from '../preview/ModelCard';
-import { Prose } from '../prose';
-import { buildingHref, techHref, unitHref } from '../routes';
-import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
-import * as UnitTypeId from '../../../sim/defs/unitTypeIdEnum.ts';
-import * as UnitClass from '../../../sim/defs/unitClassEnum.ts';
+import {For, Show, createSignal, type JSX} from 'solid-js';
 import * as AnimKey from '../../../render/animKeyEnum.ts';
+import type {Enum} from '../../../shared/enum.ts';
+import {HIRE_SERF_COST, HIRE_SERF_TICKS} from '../../../sim/defs/balance';
+import {BUILDING_DEFS} from '../../../sim/defs/buildings';
+import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
+import * as UnitClass from '../../../sim/defs/unitClassEnum.ts';
+import {COUNTER_TABLE, UNIT_DEFS, WEAPON_OF} from '../../../sim/defs/units';
+import * as UnitTypeId from '../../../sim/defs/unitTypeIdEnum.ts';
+import {buildingName, techName, unitName} from '../../../ui/names';
+import {CostList, DocLink, GoodChip, Section, Stat, Stats} from '../components';
+import {ALL_BUILDINGS, TRAINED_AT, UNIT_UNLOCKED_BY, fmtSecs} from '../data';
+import {UNIT_DESC} from '../descriptions';
+import {ModelCard} from '../preview/ModelCard';
+import {Prose} from '../prose';
+import {buildingHref, techHref, unitHref} from '../routes';
 
 type AnimKey = Enum<typeof AnimKey>;
 type UnitClass = Enum<typeof UnitClass>;
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
-const CLASSES: UnitClass[] = [UnitClass.heavy, UnitClass.light, UnitClass.ranged];
+const CLASSES: UnitClass[] = [
+  UnitClass.heavy,
+  UnitClass.light,
+  UnitClass.ranged,
+];
 
 /**
  * The clips worth watching, per kind of person. A soldier's third is the
@@ -27,30 +31,36 @@ const CLASSES: UnitClass[] = [UnitClass.heavy, UnitClass.light, UnitClass.ranged
  * civilians get the work they actually do instead of a swing they never
  * take.
  */
-function animOptions(unit: UnitTypeId): { key: AnimKey; label: string }[] {
+function animOptions(unit: UnitTypeId): {key: AnimKey; label: string}[] {
   const combat = UNIT_DEFS[unit].combat;
-  const walk: { key: AnimKey; label: string }[] = [
-    { key: AnimKey.idle, label: 'Idle' },
-    { key: AnimKey.walk, label: 'Walk' },
+  const walk: {key: AnimKey; label: string}[] = [
+    {key: AnimKey.idle, label: 'Idle'},
+    {key: AnimKey.walk, label: 'Walk'},
   ];
   if (!combat) {
-    return [...walk, { key: AnimKey.carry, label: 'Carry' }, { key: AnimKey.work, label: 'Work' }];
+    return [
+      ...walk,
+      {key: AnimKey.carry, label: 'Carry'},
+      {key: AnimKey.work, label: 'Work'},
+    ];
   }
   return [
     ...walk,
     combat.class === UnitClass.ranged
-      ? { key: AnimKey.shoot, label: 'Shoot' }
-      : { key: AnimKey.attack, label: 'Attack' },
-    { key: AnimKey.death, label: 'Fall' },
+      ? {key: AnimKey.shoot, label: 'Shoot'}
+      : {key: AnimKey.attack, label: 'Attack'},
+    {key: AnimKey.death, label: 'Fall'},
   ];
 }
 
-export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
+export function UnitPage(props: {id: UnitTypeId}): JSX.Element {
   const def = UNIT_DEFS[props.id];
   const training = TRAINED_AT.get(props.id);
   const weapon = WEAPON_OF[props.id];
   const gate = UNIT_UNLOCKED_BY.get(props.id);
-  const employers = ALL_BUILDINGS.filter((b) => BUILDING_DEFS[b].workerKind === props.id);
+  const employers = ALL_BUILDINGS.filter(
+    b => BUILDING_DEFS[b].workerKind === props.id,
+  );
   const anims = animOptions(props.id);
   const [anim, setAnim] = createSignal<AnimKey>(AnimKey.idle);
   return (
@@ -63,11 +73,17 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
         <Prose text={UNIT_DESC[props.id]} self={unitHref(props.id)} />
       </p>
       <div class="hero">
-        <ModelCard kind="unit" id={props.id} animated interactive anim={anim()} />
+        <ModelCard
+          kind="unit"
+          id={props.id}
+          animated
+          interactive
+          anim={anim()}
+        />
         <div class="hint">drag to turn</div>
         <div class="anim-bar">
           <For each={anims}>
-            {(option) => (
+            {option => (
               <button
                 type="button"
                 // The gold fill says which clip is playing; aria-pressed is
@@ -88,38 +104,44 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
           <Stat label="Speed">{def.speed} tiles/s</Stat>
           <Stat label="Sight">{def.sight} tiles</Stat>
           <Show when={def.combat}>
-            {(c) => (
+            {c => (
               <>
                 <Stat label="Class">{c().class}</Stat>
                 <Stat label="Damage">
                   {c().damage} every {fmtSecs(c().cooldownTicks)}
                 </Stat>
                 <Stat label="Range">{c().range} tiles</Stat>
-                <Stat label="Picks fights within">{c().acquireRadius} tiles</Stat>
+                <Stat label="Picks fights within">
+                  {c().acquireRadius} tiles
+                </Stat>
               </>
             )}
           </Show>
         </Stats>
       </Section>
       <Show when={def.combat}>
-        {(c) => (
+        {c => (
           <Section title="Counters">
             <div class="scroll-x">
               <table>
                 <thead>
                   <tr>
                     <th></th>
-                    <For each={CLASSES}>{(cls) => <th>vs {cls}</th>}</For>
+                    <For each={CLASSES}>{cls => <th>vs {cls}</th>}</For>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td>Deals</td>
-                    <For each={CLASSES}>{(cls) => <td>×{COUNTER_TABLE[c().class][cls]}</td>}</For>
+                    <For each={CLASSES}>
+                      {cls => <td>×{COUNTER_TABLE[c().class][cls]}</td>}
+                    </For>
                   </tr>
                   <tr>
                     <td>Takes</td>
-                    <For each={CLASSES}>{(cls) => <td>×{COUNTER_TABLE[cls][c().class]}</td>}</For>
+                    <For each={CLASSES}>
+                      {cls => <td>×{COUNTER_TABLE[cls][c().class]}</td>}
+                    </For>
                   </tr>
                 </tbody>
               </table>
@@ -128,23 +150,31 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
         )}
       </Show>
       <Show when={training}>
-        {(t) => (
+        {t => (
           <Section title="Training">
             <ul class="refs">
               <li>
                 Trained at the{' '}
-                <DocLink href={buildingHref(t().building)}>{buildingName(t().building)}</DocLink>{' '}
-                for <CostList amounts={t().cost} /> in {fmtSecs(t().durationTicks)}
+                <DocLink href={buildingHref(t().building)}>
+                  {buildingName(t().building)}
+                </DocLink>{' '}
+                for <CostList amounts={t().cost} /> in{' '}
+                {fmtSecs(t().durationTicks)}
               </li>
               <Show when={weapon !== undefined}>
                 <li>
-                  Marches with a <GoodChip good={weapon!} /> — no weapon in store, no recruit
+                  Marches with a <GoodChip good={weapon!} /> — no weapon in
+                  store, no recruit
                 </li>
               </Show>
               <Show when={gate}>
-                {(tech) => (
+                {tech => (
                   <li>
-                    Needs <DocLink href={techHref(tech())}>{techName(tech())}</DocLink> researched
+                    Needs{' '}
+                    <DocLink href={techHref(tech())}>
+                      {techName(tech())}
+                    </DocLink>{' '}
+                    researched
                   </li>
                 )}
               </Show>
@@ -170,7 +200,7 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
         <Section title="Posts">
           <ul class="refs">
             <For each={employers}>
-              {(b) => (
+              {b => (
                 <li>
                   <DocLink href={buildingHref(b)}>{buildingName(b)}</DocLink>
                 </li>
@@ -181,8 +211,9 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
       </Show>
       <Show when={props.id === UnitTypeId.worker}>
         <p class="lede">
-          A worker is a <DocLink href={unitHref(UnitTypeId.serf)}>serf</DocLink> who took one of the
-          posts above; dismiss the post and he is a serf again.
+          A worker is a <DocLink href={unitHref(UnitTypeId.serf)}>serf</DocLink>{' '}
+          who took one of the posts above; dismiss the post and he is a serf
+          again.
         </p>
       </Show>
     </>

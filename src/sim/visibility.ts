@@ -17,11 +17,11 @@
  * standing in lit ground who was never sent, which reads as a hole in the
  * world rather than as fog.
  */
-import { tileCount, tileIdx } from '../shared/grid.ts';
-import { UNIT_DEFS } from './defs/units.ts';
-import { buildingDef } from './defs/buildings.ts';
-import type { Owner } from './entities.ts';
-import type { World } from './world.ts';
+import {tileCount, tileIdx} from '../shared/grid.ts';
+import {buildingDef} from './defs/buildings.ts';
+import {UNIT_DEFS} from './defs/units.ts';
+import type {Owner} from './entities.ts';
+import type {World} from './world.ts';
 
 /** A building watches from its edges, not its middle, so its footprint
  * widens what it covers. Units are points and need no such adjustment. */
@@ -69,7 +69,11 @@ export class SeatVision {
     }
     for (const b of world.buildings.values()) {
       if (b.dead || b.owner !== owner) continue;
-      this.#stamp(b.x + b.w / 2, b.y + b.h / 2, buildingSight(b.type, b.w, b.h));
+      this.#stamp(
+        b.x + b.w / 2,
+        b.y + b.h / 2,
+        buildingSight(b.type, b.w, b.h),
+      );
     }
     this.revealed.length = 0;
     const tiles = tileCount(this.size);

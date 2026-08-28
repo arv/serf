@@ -1,16 +1,16 @@
-import { onCleanup, onMount } from 'solid-js';
-import type { BuildingSnap, MapSnapshot } from '../protocol/messages';
-import { ACTION, AUX_STRIDE, type SlotCopy } from '../protocol/sabLayout';
-import type { FogQuery } from '../render/fogOfWar';
-import { batteryFramePacer } from '../render/framePacer';
-import { playMin } from '../sim/map';
-import { clamp } from '../shared/math';
-import { play } from '../audio/audio';
-import { capturePointer } from '../input/mouseCapture';
-import { paintBase, ownerTint } from './minimapPaint';
-import { toasts } from './store';
-import type { Enum } from '../shared/enum.ts';
+import {onCleanup, onMount} from 'solid-js';
+import {play} from '../audio/audio';
+import {capturePointer} from '../input/mouseCapture';
+import type {BuildingSnap, MapSnapshot} from '../protocol/messages';
+import {ACTION, AUX_STRIDE, type SlotCopy} from '../protocol/sabLayout';
+import type {FogQuery} from '../render/fogOfWar';
+import {batteryFramePacer} from '../render/framePacer';
+import type {Enum} from '../shared/enum.ts';
+import {clamp} from '../shared/math';
+import {playMin} from '../sim/map';
 import * as MinimapModeNs from './minimapModeEnum.ts';
+import {paintBase, ownerTint} from './minimapPaint';
+import {toasts} from './store';
 export type MinimapMode = Enum<typeof MinimapModeNs>;
 
 /**
@@ -35,7 +35,8 @@ export interface MinimapSource {
   myPlayerId: number;
 }
 
-const css = (color: number): string => `#${color.toString(16).padStart(6, '0')}`;
+const css = (color: number): string =>
+  `#${color.toString(16).padStart(6, '0')}`;
 
 /** How often the ground and the dots repaint. The fog itself only moves at
  * 12 Hz and units publish at 20; the view rectangle and the alert ripples
@@ -78,7 +79,7 @@ export function Minimap(props: {
 }) {
   let canvas!: HTMLCanvasElement;
   const src = props.source;
-  const { play: playSide } = src.map;
+  const {play: playSide} = src.map;
   const p0 = playMin(src.map);
 
   // The ground layer, cached at one pixel per tile and scaled up crisp at
@@ -100,8 +101,8 @@ export function Minimap(props: {
   /** The alert toasts that know a place — each is a ripple on the chart.
    * Their eight-second lives bound the ripples' too: the chart warns
    * exactly as long as the toast does. */
-  const alerts = (): { x: number; y: number }[] =>
-    toasts().flatMap((t) => (t.focus ? [t.focus] : []));
+  const alerts = (): {x: number; y: number}[] =>
+    toasts().flatMap(t => (t.focus ? [t.focus] : []));
 
   const quad = new Float64Array(8);
   const prevQuad = new Float64Array(8).fill(NaN);
@@ -249,7 +250,8 @@ export function Minimap(props: {
       // as fast as the device draws anything so the frame tracks the drag
       // it is part of, and a standing alert redraws too so its ripple
       // actually travels.
-      if (!(moved || alerts().length > 0 || now - lastPaint >= REPAINT_MS)) return;
+      if (!(moved || alerts().length > 0 || now - lastPaint >= REPAINT_MS))
+        return;
       // Asked only once there is something to draw, so a chart that has
       // been idle repaints on the first frame that needs it rather than
       // waiting out an interval nothing was spending.
@@ -260,11 +262,19 @@ export function Minimap(props: {
   });
   onCleanup(() => cancelAnimationFrame(raf));
 
-  const toWorld = (e: PointerEvent): { x: number; z: number } => {
+  const toWorld = (e: PointerEvent): {x: number; z: number} => {
     const r = canvas.getBoundingClientRect();
     return {
-      x: clamp(p0 + ((e.clientX - r.left) / r.width) * playSide, p0, p0 + playSide),
-      z: clamp(p0 + ((e.clientY - r.top) / r.height) * playSide, p0, p0 + playSide),
+      x: clamp(
+        p0 + ((e.clientX - r.left) / r.width) * playSide,
+        p0,
+        p0 + playSide,
+      ),
+      z: clamp(
+        p0 + ((e.clientY - r.top) / r.height) * playSide,
+        p0,
+        p0 + playSide,
+      ),
     };
   };
   /** A press is live (either steering mode). */
@@ -282,8 +292,8 @@ export function Minimap(props: {
     <canvas
       ref={canvas}
       class="minimap-canvas"
-      classList={{ thumb: props.mode === MinimapModeNs.thumb }}
-      onPointerDown={(e) => {
+      classList={{thumb: props.mode === MinimapModeNs.thumb}}
+      onPointerDown={e => {
         if (props.mode === MinimapModeNs.thumb) return;
         e.preventDefault();
         capturePointer(canvas, e);
@@ -299,16 +309,19 @@ export function Minimap(props: {
           src.jumpTo(p.x, p.z);
         }
       }}
-      onPointerMove={(e) => {
+      onPointerMove={e => {
         if (!down) return;
-        if (!scrubbing && Math.hypot(e.clientX - downX, e.clientY - downY) > TAP_SLOP_PX) {
+        if (
+          !scrubbing &&
+          Math.hypot(e.clientX - downX, e.clientY - downY) > TAP_SLOP_PX
+        ) {
           scrubbing = true;
         }
         if (!scrubbing) return;
         const p = toWorld(e);
         src.jumpTo(p.x, p.z);
       }}
-      onPointerUp={(e) => {
+      onPointerUp={e => {
         if (!down) return;
         const wasScrub = scrubbing;
         reset();

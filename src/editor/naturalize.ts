@@ -1,8 +1,8 @@
-import { tileCount, tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { clamp, hash2 } from '../shared/math.ts';
-import type { EditorMapState } from './editorMap.ts';
-import { tileImages } from './symmetry.ts';
+import {tileCount, tileIdx, tileX, tileY} from '../shared/grid.ts';
+import {clamp, hash2} from '../shared/math.ts';
 import * as Terrain from '../sim/terrainEnum.ts';
+import type {EditorMapState} from './editorMap.ts';
+import {tileImages} from './symmetry.ts';
 
 /**
  * One-click "make it read like a generated map": re-derive the heightfield
@@ -27,7 +27,7 @@ import * as Terrain from '../sim/terrainEnum.ts';
  * would give every copy different hills. Returns the changed tiles.
  */
 export function naturalize(state: EditorMapState, folds: number): number[] {
-  const { map } = state;
+  const {map} = state;
   const size = map.size;
   const tiles = tileCount(size);
 
@@ -65,14 +65,19 @@ export function naturalize(state: EditorMapState, folds: number): number[] {
     }
     return dist;
   };
-  const waterDist = bfs((t) => t === Terrain.Water);
-  const landDist = bfs((t) => t !== Terrain.Water);
+  const waterDist = bfs(t => t === Terrain.Water);
+  const landDist = bfs(t => t !== Terrain.Water);
 
   const ease = (t: number): number => {
     const c = clamp(t, 0, 1);
     return c * c * (3 - 2 * c);
   };
-  const noiseAt = (x: number, y: number, seed: number, scale: number): number => {
+  const noiseAt = (
+    x: number,
+    y: number,
+    seed: number,
+    scale: number,
+  ): number => {
     const fx = x / scale;
     const fy = y / scale;
     const x0 = Math.floor(fx);
@@ -81,7 +86,8 @@ export function naturalize(state: EditorMapState, folds: number): number[] {
     const ty = fy - y0;
     const sx = tx * tx * (3 - 2 * tx);
     const sy = ty * ty * (3 - 2 * ty);
-    const h = (cx: number, cy: number): number => hash2(seed + cx * 131, seed * 7 + cy * 337);
+    const h = (cx: number, cy: number): number =>
+      hash2(seed + cx * 131, seed * 7 + cy * 337);
     const a = h(x0, y0);
     const b = h(x0 + 1, y0);
     const c = h(x0, y0 + 1);
@@ -94,10 +100,15 @@ export function naturalize(state: EditorMapState, folds: number): number[] {
     const x = tileX(i, size);
     const y = tileY(i, size);
     // Canonical fold image: every copy of a tile reads the same noise.
-    const canon = tileImages(x, y, size, folds).reduce((a, b) => Math.min(a, b), i);
+    const canon = tileImages(x, y, size, folds).reduce(
+      (a, b) => Math.min(a, b),
+      i,
+    );
     const cx = tileX(canon, size);
     const cy = tileY(canon, size);
-    const roll = (noiseAt(cx, cy, 61, 12) * 0.6 + noiseAt(cx, cy, 67, 5) * 0.4 - 0.5) * 0.55;
+    const roll =
+      (noiseAt(cx, cy, 61, 12) * 0.6 + noiseAt(cx, cy, 67, 5) * 0.4 - 0.5) *
+      0.55;
 
     const before = map.height[i]!;
     let after: number;

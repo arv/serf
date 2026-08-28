@@ -12,10 +12,15 @@
  * change slowly and ride JSON. Commands stay JSON too — they are
  * click-rate, and binary only pays on the 20 Hz frame.
  */
-import { gridFor, MAX_MAP_SIZE, MIN_MAP_SIZE, tileCount } from '../shared/grid.ts';
-import { AUX_STRIDE, type UnitSnapshot } from './sabLayout.ts';
-import type { SimCommand } from '../sim/commands.ts';
-import type { MapSnapshot } from './messages.ts';
+import {
+  gridFor,
+  MAX_MAP_SIZE,
+  MIN_MAP_SIZE,
+  tileCount,
+} from '../shared/grid.ts';
+import type {SimCommand} from '../sim/commands.ts';
+import type {MapSnapshot} from './messages.ts';
+import {AUX_STRIDE, type UnitSnapshot} from './sabLayout.ts';
 
 /** Clock probe, kept from the lockstep protocol that this replaces — it is
  * the one frame that was never about relaying inputs. */
@@ -147,20 +152,37 @@ function decodeInit(data: Uint8Array): InitFrame {
   rawBytes(height).set(data.subarray(off, off + tiles * 4));
   off += tiles * 4;
   const explored = u8();
-  const json = jsonLen > 0 ? JSON.parse(dec.decode(data.subarray(off, off + jsonLen))) : undefined;
+  const json =
+    jsonLen > 0
+      ? JSON.parse(dec.decode(data.subarray(off, off + jsonLen)))
+      : undefined;
   return {
     kind: 'init',
     tick,
     playerId,
-    map: { size, play, terrain, resource, blocked, pathLevel, buildingAt, height },
+    map: {
+      size,
+      play,
+      terrain,
+      resource,
+      blocked,
+      pathLevel,
+      buildingAt,
+      height,
+    },
     explored,
     json,
   };
 }
 
 /** The 20 Hz frame: every unit this client may see, packed. */
-export function encodeHot(tick: number, units: Iterable<UnitSnapshot>): Uint8Array<ArrayBuffer> {
-  const rows: readonly UnitSnapshot[] = Array.isArray(units) ? units : [...units];
+export function encodeHot(
+  tick: number,
+  units: Iterable<UnitSnapshot>,
+): Uint8Array<ArrayBuffer> {
+  const rows: readonly UnitSnapshot[] = Array.isArray(units)
+    ? units
+    : [...units];
   const out = new Uint8Array(7 + rows.length * UNIT_BYTES);
   const view = new DataView(out.buffer);
   out[0] = STATE_HOT;
@@ -210,17 +232,23 @@ function decodeHot(data: Uint8Array): HotFrame {
     };
     off += UNIT_BYTES;
   }
-  return { kind: 'hot', tick, units };
+  return {kind: 'hot', tick, units};
 }
 
 /** The slow frame: buildings, stock, tech, events, map deltas. */
-export function encodeStruct(tick: number, json: unknown): Uint8Array<ArrayBuffer> {
+export function encodeStruct(
+  tick: number,
+  json: unknown,
+): Uint8Array<ArrayBuffer> {
   return encodeStructBody(tick, JSON.stringify(json));
 }
 
 /** encodeStruct for a payload the caller already stringified — the server
  * compares the body against the last one sent before paying for a frame. */
-export function encodeStructBody(tick: number, body: string): Uint8Array<ArrayBuffer> {
+export function encodeStructBody(
+  tick: number,
+  body: string,
+): Uint8Array<ArrayBuffer> {
   const bytes = enc.encode(body);
   const out = new Uint8Array(5 + bytes.length);
   new DataView(out.buffer).setUint32(1, tick, true);
@@ -249,7 +277,10 @@ function decodeStruct(data: Uint8Array): StructFrame {
  * can drop duplicates on a reconnect; playerId is never on the wire — the
  * server stamps it from the authenticated seat.
  */
-export function encodeCmd(seq: number, commands: SimCommand[]): Uint8Array<ArrayBuffer> {
+export function encodeCmd(
+  seq: number,
+  commands: SimCommand[],
+): Uint8Array<ArrayBuffer> {
   const body = enc.encode(JSON.stringify(commands));
   const out = new Uint8Array(5 + body.length);
   new DataView(out.buffer).setUint32(1, seq, true);
@@ -280,7 +311,10 @@ export function encodePing(clientTimeMs: number): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-export function encodePong(clientTimeEcho: number, serverTimeMs: number): Uint8Array<ArrayBuffer> {
+export function encodePong(
+  clientTimeEcho: number,
+  serverTimeMs: number,
+): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(9);
   const view = new DataView(out.buffer);
   out[0] = PONG;
@@ -300,14 +334,20 @@ export interface PongFrame {
   serverTimeMs: number;
 }
 
-export type StateFrame = InitFrame | HotFrame | StructFrame | CmdFrame | PingFrame | PongFrame;
+export type StateFrame =
+  | InitFrame
+  | HotFrame
+  | StructFrame
+  | CmdFrame
+  | PingFrame
+  | PongFrame;
 
 /** Returns null for tags this protocol does not own. */
 export function decodeState(data: Uint8Array): StateFrame | null {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   switch (data[0]) {
     case PING:
-      return { kind: 'ping', clientTimeMs: view.getUint32(1, true) };
+      return {kind: 'ping', clientTimeMs: view.getUint32(1, true)};
     case PONG:
       return {
         kind: 'pong',

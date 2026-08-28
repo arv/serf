@@ -1,11 +1,11 @@
-import type { Enum } from '../../shared/enum.ts';
-import { BUILDING_DEFS } from '../../sim/defs/buildings';
-import type { BuildGroupLabel } from '../../ui/buildMenu';
-import { UNIT_DEFS } from '../../sim/defs/units';
+import type {Enum} from '../../shared/enum.ts';
+import {BUILDING_DEFS} from '../../sim/defs/buildings';
 import * as BuildingTypeId from '../../sim/defs/buildingTypeIdEnum.ts';
-import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
-import * as UnitTypeId from '../../sim/defs/unitTypeIdEnum.ts';
 import * as GoodId from '../../sim/defs/goodIdEnum.ts';
+import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
+import {UNIT_DEFS} from '../../sim/defs/units';
+import * as UnitTypeId from '../../sim/defs/unitTypeIdEnum.ts';
+import type {BuildGroupLabel} from '../../ui/buildMenu';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 type GoodId = Enum<typeof GoodId>;
@@ -30,13 +30,18 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
 /** What one turn of a building's fixed recipe yields. */
 function yieldOf(building: BuildingTypeId, good: GoodId): number {
   const recipe = BUILDING_DEFS[building].recipe;
-  return (recipe?.kind === RecipeKind.convert ? recipe.outputs[good] : undefined) ?? 0;
+  return (
+    (recipe?.kind === RecipeKind.convert ? recipe.outputs[good] : undefined) ??
+    0
+  );
 }
 
 /** What the Smith's recipe for `good` takes in `input`. */
 function forgeCost(good: GoodId, input: GoodId): number {
-  for (const option of BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions ?? []) {
-    if (option.recipe.outputs[good] !== undefined) return option.recipe.inputs[input] ?? 0;
+  for (const option of BUILDING_DEFS[BuildingTypeId.weaponsmith]
+    .recipeOptions ?? []) {
+    if (option.recipe.outputs[good] !== undefined)
+      return option.recipe.inputs[input] ?? 0;
   }
   return 0;
 }
@@ -115,15 +120,19 @@ export const UNIT_DESC: Record<UnitTypeId, string> = {
 };
 
 export const GOOD_DESC: Record<GoodId, string> = {
-  [GoodId.water]: 'Drawn at the well by whoever needs it. Bread, ale and the farm all start here.',
-  [GoodId.wheat]: 'The crop. Grinds into flour, brews into ale, and pays for the early researches.',
+  [GoodId.water]:
+    'Drawn at the well by whoever needs it. Bread, ale and the farm all start here.',
+  [GoodId.wheat]:
+    'The crop. Grinds into flour, brews into ale, and pays for the early researches.',
   [GoodId.wood]:
     'Timber from the woodcutter: the first cost of nearly every roof and the whole of a bow.',
   [GoodId.stone]: 'Quarried rock: walls, towers, millstones and roads.',
-  [GoodId.iron]: 'Ore from the iron mine. The Smith turns it into every serious weapon and tool.',
+  [GoodId.iron]:
+    'Ore from the iron mine. The Smith turns it into every serious weapon and tool.',
   [GoodId.silver]:
     'The coin: hires serfs and funds every research. The one good every plan runs short of.',
-  [GoodId.gold]: 'The deep metal. Exists to gild arms — the final warfare research is paid in it.',
+  [GoodId.gold]:
+    'The deep metal. Exists to gild arms — the final warfare research is paid in it.',
   [GoodId.sword]: `The knight’s weapon, forged from ${forgeCost(GoodId.sword, GoodId.iron)} iron. No sword, no knight.`,
   [GoodId.spear]:
     'The spearman’s arm: iron and wood, the cheapest way to put a soldier in the field.',
@@ -133,10 +142,12 @@ export const GOOD_DESC: Record<GoodId, string> = {
   [GoodId.flour]: 'Milled wheat, halfway to bread.',
   [GoodId.food]:
     'What soldiers train on and the village fights for: baked at the oven, or pulled from the shore.',
-  [GoodId.axe]: 'The woodcutter’s tool: no axe in store, no new woodcutter staffed.',
+  [GoodId.axe]:
+    'The woodcutter’s tool: no axe in store, no new woodcutter staffed.',
   [GoodId.pickaxe]:
     'The miner’s tool — and deliberately forged without iron, so losing every pick can never lock the mines shut for good.',
-  [GoodId.scythe]: 'The farmer’s tool. One per farm, handed back if the post is ever dismissed.',
+  [GoodId.scythe]:
+    'The farmer’s tool. One per farm, handed back if the post is ever dismissed.',
   [GoodId.hammer]:
     'The builder’s tool, loaned rather than owned: every construction site borrows one and returns it at the topping-out. Hammers cap how many roofs rise at once.',
   [GoodId.cauldron]: 'The tool of the bakery and the brewery both.',

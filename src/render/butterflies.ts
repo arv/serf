@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { tileCount, tileX, tileY } from '../shared/grid';
-import { hash2 } from '../shared/math';
-import { playEdgeDist, type MapView } from '../sim/map';
-import { makeButterflySprite } from './spriteTextures';
-import type { HeightField } from './heightField';
+import {tileCount, tileX, tileY} from '../shared/grid';
+import {hash2} from '../shared/math';
+import {playEdgeDist, type MapView} from '../sim/map';
 import * as Terrain from '../sim/terrainEnum.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
+import type {HeightField} from './heightField';
+import {makeButterflySprite} from './spriteTextures';
 
 /** How many at most — ambient life, not a swarm. */
 const MAX_COUNT = 36;
@@ -44,10 +44,14 @@ export class Butterflies {
       if (hash2(i, 481) < 0.9) continue; // decimate before sampling spreads
       candidates.push(i);
     }
-    const count = Math.min(MAX_COUNT, Math.floor((candidates.length * 10) / TILES_PER_BUTTERFLY));
+    const count = Math.min(
+      MAX_COUNT,
+      Math.floor((candidates.length * 10) / TILES_PER_BUTTERFLY),
+    );
     this.#anchors = new Float32Array(count * 3);
     for (let k = 0; k < count; k++) {
-      const i = candidates[Math.floor((k / Math.max(count, 1)) * candidates.length)]!;
+      const i =
+        candidates[Math.floor((k / Math.max(count, 1)) * candidates.length)]!;
       this.#anchors[k * 3] = tileX(i, size) + 0.5;
       this.#anchors[k * 3 + 1] = tileY(i, size) + 0.5;
       this.#anchors[k * 3 + 2] = hash2(i, 482) * 100;
@@ -84,15 +88,20 @@ export class Butterflies {
       const phase = this.#anchors[k * 3 + 2]!;
       const t = nowMs / 1000 + phase;
       // Two incommensurate loops so the path never quite repeats.
-      const x = ax + Math.sin(t * 0.31) * 1.7 + Math.sin(t * 0.83 + phase) * 0.5;
-      const z = az + Math.cos(t * 0.27 + phase) * 1.7 + Math.cos(t * 0.71) * 0.5;
+      const x =
+        ax + Math.sin(t * 0.31) * 1.7 + Math.sin(t * 0.83 + phase) * 0.5;
+      const z =
+        az + Math.cos(t * 0.27 + phase) * 1.7 + Math.cos(t * 0.71) * 0.5;
       const y = this.#heights.at(x, z) + 0.55 + Math.sin(t * 1.9) * 0.18;
       dummy.position.set(x, y, z);
       // Nose along the direction of travel (cheap: the loop's derivative
       // sign is close enough at this size), wings squeezing to flap.
       dummy.rotation.set(
         0,
-        Math.atan2(Math.cos(t * 0.31) * 0.53, -Math.sin(t * 0.27 + phase) * 0.46),
+        Math.atan2(
+          Math.cos(t * 0.31) * 0.53,
+          -Math.sin(t * 0.27 + phase) * 0.46,
+        ),
         0,
       );
       dummy.scale.set(0.55 + Math.abs(Math.sin(t * 9 + phase)) * 0.55, 1, 1);

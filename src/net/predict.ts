@@ -1,8 +1,8 @@
-import { TICKS_PER_SECOND } from '../sim/defs/balance';
-import { UNIT_DEFS } from '../sim/defs/units';
-import { findPath, tileSpeedMult, type PathMap } from '../sim/path';
-import { tileIdx, tileX, tileY } from '../shared/grid';
-import type { UnitSnapshot } from '../protocol/sabLayout';
+import type {UnitSnapshot} from '../protocol/sabLayout';
+import {tileIdx, tileX, tileY} from '../shared/grid';
+import {TICKS_PER_SECOND} from '../sim/defs/balance';
+import {UNIT_DEFS} from '../sim/defs/units';
+import {findPath, tileSpeedMult, type PathMap} from '../sim/path';
 
 /**
  * Client-side prediction for your own units' movement.
@@ -59,7 +59,7 @@ interface Prediction {
 }
 
 const SPEED_BY_KIND_CODE = new Map<number, number>(
-  Object.values(UNIT_DEFS).map((d) => [d.id, d.speed]),
+  Object.values(UNIT_DEFS).map(d => [d.id, d.speed]),
 );
 
 export class MovePredictor {
@@ -94,7 +94,13 @@ export class MovePredictor {
       if (!u) continue;
       const baseSpeed = SPEED_BY_KIND_CODE.get(u.kind);
       if (baseSpeed === undefined) continue;
-      const path = findPath(this.#map, Math.floor(u.x), Math.floor(u.y), tx, ty);
+      const path = findPath(
+        this.#map,
+        Math.floor(u.x),
+        Math.floor(u.y),
+        tx,
+        ty,
+      );
       if (!path || path.length === 0) continue;
       this.#preds.set(id, {
         path,

@@ -7,5 +7,10 @@
     "types": ["node", "vite/client"]
   },
   // The kit, the recipes, and the two CLIs that drive them from tools/.
-  "include": ["*.ts", "missions/*.ts", "../authorMissionMaps.ts", "../mapPreview.ts"]
+  "include": [
+    "*.ts",
+    "missions/*.ts",
+    "../authorMissionMaps.ts",
+    "../mapPreview.ts"
+  ]
 }

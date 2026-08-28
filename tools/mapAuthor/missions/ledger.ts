@@ -14,14 +14,14 @@
  * has learned about walking. The abbey has its own quiet shelf south of
  * the town, away from the hauling.
  */
-import { HILL, MEADOW, Valley, type Authored } from '../kit.ts';
-import { keepAnchor, keepCenter, seats } from '../layout.ts';
+import {HILL, MEADOW, Valley, type Authored} from '../kit.ts';
+import {keepAnchor, keepCenter, seats} from '../layout.ts';
 
 export function build(): Authored {
   const v = new Valley(96, 3037);
   const [start] = seats(1);
   const keep = keepCenter(start!);
-  const at = (dx: number, dy: number) => ({ x: keep.x + dx, y: keep.y + dy });
+  const at = (dx: number, dy: number) => ({x: keep.x + dx, y: keep.y + dy});
 
   v.meadow(MEADOW, 0.05)
     // The northern range the two hills come down from, the silver hill
@@ -36,7 +36,11 @@ export function build(): Authored {
     .level(at(8, 4), 7, 0.44, 5)
     .level(at(-2, 13), 6, 0.43, 5)
     // The beck that comes down between the hills and pools below the town.
-    .river([at(16, -27), at(14, -11), at(15, 2), at(11, 16), at(6, 30), at(2, 44)], 1.6, 0.1)
+    .river(
+      [at(16, -27), at(14, -11), at(15, 2), at(11, 16), at(6, 30), at(2, 44)],
+      1.6,
+      0.1,
+    )
     // The abbey road's ford. The beck runs the whole height of the valley
     // now that it reaches the hills at one end and the sea at the other,
     // and a border deep enough to meet both ends turns it into a wall:
@@ -44,7 +48,7 @@ export function build(): Authored {
     // crossing, and it is a beck again.
     .ford(at(14, -3), 4)
     .pond(at(9, 19), 3.5)
-    .borders({ n: 'ridge', e: 'ridge', s: 'sea', w: 'forest' });
+    .borders({n: 'ridge', e: 'ridge', s: 'sea', w: 'forest'});
 
   const drowned = v.settle(keepAnchor(start!));
 

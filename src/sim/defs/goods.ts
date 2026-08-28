@@ -1,4 +1,4 @@
-import type { Enum } from '../../shared/enum.ts';
+import type {Enum} from '../../shared/enum.ts';
 import * as GoodIdNs from './goodIdEnum.ts';
 
 export type GoodId = Enum<typeof GoodIdNs>;
@@ -59,7 +59,7 @@ export const GOOD_KEYS: Readonly<Record<GoodId, string>> = {
   [G.rod]: 'rod',
 };
 
-const GOOD_BY_KEY = new Map<string, GoodId>(GOODS.map((g) => [GOOD_KEYS[g], g]));
+const GOOD_BY_KEY = new Map<string, GoodId>(GOODS.map(g => [GOOD_KEYS[g], g]));
 
 /** The id a spelling names, or undefined — the read side of GOOD_KEYS. */
 export function goodFromKey(key: string): GoodId | undefined {

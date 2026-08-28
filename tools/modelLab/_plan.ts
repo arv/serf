@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { makeLights, makeRenderer } from './scene';
-import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
+import {loadGlbAssets, makeGlbBuilding} from '../../src/render/assets';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+import {makeLights, makeRenderer} from './scene';
 
 /** Top-down plan of the mine template, with a unit-square grid over it, so
  * decor coordinates can be read straight off the picture. */
@@ -30,12 +30,19 @@ for (let i = -5; i <= 5; i++) {
         : [new THREE.Vector3(-S / 2, 3, t), new THREE.Vector3(S / 2, 3, t)],
     );
     const c = i === 0 ? (axis === 0 ? 0xff0000 : 0x0000ff) : 0x222222;
-    grid.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: c })));
+    grid.add(new THREE.Line(g, new THREE.LineBasicMaterial({color: c})));
   }
 }
 scene.add(grid);
 
-const cam = new THREE.OrthographicCamera(-S * 0.75, S * 0.75, S * 0.75, -S * 0.75, 0.1, 40);
+const cam = new THREE.OrthographicCamera(
+  -S * 0.75,
+  S * 0.75,
+  S * 0.75,
+  -S * 0.75,
+  0.1,
+  40,
+);
 cam.position.set(0, 20, 0.001);
 cam.lookAt(0, 0, 0);
 cam.updateProjectionMatrix();

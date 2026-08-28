@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { tickWorld } from './tick.ts';
-import { killUnit, placeBuiltBuilding, type World } from './world.ts';
-import { checkInvariants } from './debug/invariants.ts';
+import {describe, expect, it} from 'vitest';
+import {tileIdx} from '../shared/grid.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import {checkInvariants} from './debug/invariants.ts';
+import {OUTPUT_CAP} from './defs/buildings.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as TechId from './defs/techIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import {bindWorker} from './systems/production.ts';
 import {
   cmds,
   addSerf,
@@ -11,15 +17,9 @@ import {
   bareWorld,
   staffBuilding,
 } from './testUtils.ts';
-import { tileIdx } from '../shared/grid.ts';
-import { OUTPUT_CAP } from './defs/buildings.ts';
-import { bindWorker } from './systems/production.ts';
-import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
-import * as GoodId from './defs/goodIdEnum.ts';
-import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import * as TechId from './defs/techIdEnum.ts';
+import {tickWorld} from './tick.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
-import * as CommandKind from './commandKindEnum.ts';
+import {killUnit, placeBuiltBuilding, type World} from './world.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -45,7 +45,7 @@ describe('releasing a worker', () => {
     addStorehouse(world, 30, 30, {});
     addResourceTile(world, 40, 41);
     const hut = addBuiltHut(world, 40, 40);
-    hut.stock = { [GoodId.wood]: OUTPUT_CAP };
+    hut.stock = {[GoodId.wood]: OUTPUT_CAP};
     const worker = world.units.get(hut.workerId!)!;
     worker.task = {
       t: UnitTaskKind.gatherWork,
@@ -55,7 +55,11 @@ describe('releasing a worker', () => {
 
     tickWorld(
       world,
-      cmds({ kind: CommandKind.setBuildingPaused, buildingId: hut.id, paused: true }),
+      cmds({
+        kind: CommandKind.setBuildingPaused,
+        buildingId: hut.id,
+        paused: true,
+      }),
     );
 
     expect(worker.kind).toBe(UnitTypeId.serf);
@@ -76,7 +80,10 @@ describe('releasing a worker', () => {
       until: 999_999,
     };
 
-    tickWorld(world, cmds({ kind: CommandKind.sellBuilding, buildingId: hut.id }));
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.sellBuilding, buildingId: hut.id}),
+    );
 
     expect(worker.dead).toBe(false);
     expect(worker.kind).toBe(UnitTypeId.serf);
@@ -124,34 +131,46 @@ describe('the population economy', () => {
 
   it('staffing competes with hauling: one serf cannot do both', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
+    addStorehouse(world, 30, 30, {[GoodId.wood]: 20});
     placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 22, 30);
     addSerf(world, 28, 34); // exactly one person
     run(world, 20 * 15);
 
     // The lone serf took the farm post — nobody is left to haul.
-    const kinds = [...world.units.values()].map((u) => u.kind);
+    const kinds = [...world.units.values()].map(u => u.kind);
     expect(kinds).toEqual([UnitTypeId.worker]);
   });
 
   it('training a soldier consumes a serf (people become the army)', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { [GoodId.food]: 6, [GoodId.spear]: 2 });
+    addStorehouse(world, 30, 30, {[GoodId.food]: 6, [GoodId.spear]: 2});
     world.players[0]!.techs.researched.push(TechId.soldiery);
-    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      30,
+    );
     addSerf(world, 34, 34);
     addSerf(world, 33, 34); // one hauls, one enlists
-    const peopleBefore = [...world.units.values()].filter((u) => !u.dead).length;
+    const peopleBefore = [...world.units.values()].filter(u => !u.dead).length;
     tickWorld(
       world,
-      cmds({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: UnitTypeId.spearman }),
+      cmds({
+        kind: CommandKind.trainUnit,
+        buildingId: barracks.id,
+        unit: UnitTypeId.spearman,
+      }),
     );
     run(world, 20 * 90);
 
-    const spearman = [...world.units.values()].filter((u) => u.kind === UnitTypeId.spearman);
+    const spearman = [...world.units.values()].filter(
+      u => u.kind === UnitTypeId.spearman,
+    );
     expect(spearman.length).toBe(1);
     // Net population unchanged: serf out, soldier in.
-    const peopleAfter = [...world.units.values()].filter((u) => !u.dead).length;
+    const peopleAfter = [...world.units.values()].filter(u => !u.dead).length;
     expect(peopleAfter).toBe(peopleBefore);
     expect(checkInvariants(world).violations).toEqual([]);
   });
@@ -168,7 +187,9 @@ describe('the population economy', () => {
 
     expect(serf.dead).toBe(false);
     expect(serf.kind).toBe(UnitTypeId.serf);
-    expect(serf.task.t === UnitTaskKind.idle || serf.task.t === UnitTaskKind.move).toBe(true);
+    expect(
+      serf.task.t === UnitTaskKind.idle || serf.task.t === UnitTaskKind.move,
+    ).toBe(true);
   });
 
   it('the well keeps no one, and still supplies the farm', () => {
@@ -219,13 +240,14 @@ describe('the population economy', () => {
     let carriedWhileDrawing = false;
     for (let t = 0; t < 20 * 60; t++) {
       tickWorld(world, []);
-      const job = [...world.jobs.values()].find((j) => j.from === well.id);
+      const job = [...world.jobs.values()].find(j => j.from === well.id);
       if (job?.drawUntil === undefined) continue;
       if (started < 0) {
         started = world.tick;
         ends = job.drawUntil;
       }
-      if (world.tick < job.drawUntil && serf.carrying !== undefined) carriedWhileDrawing = true;
+      if (world.tick < job.drawUntil && serf.carrying !== undefined)
+        carriedWhileDrawing = true;
     }
 
     expect(started).toBeGreaterThan(0);

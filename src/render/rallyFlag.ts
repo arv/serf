@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { paper, vermillion, woodLight } from './palette';
-import { glbYardProp } from './assets';
-import type { BuildingSnap } from '../protocol/messages';
-import type { HeightField } from './heightField';
+import type {BuildingSnap} from '../protocol/messages';
+import {glbYardProp} from './assets';
+import type {HeightField} from './heightField';
+import {paper, vermillion, woodLight} from './palette';
 
 /**
  * The barracks' rally flag: a standing gonfalon planted on the muster tile,
@@ -63,7 +63,8 @@ export class RallyFlag {
       this.#id = -1;
       return;
     }
-    if (this.#id === building.id && this.#x === rally.x && this.#y === rally.y) return;
+    if (this.#id === building.id && this.#x === rally.x && this.#y === rally.y)
+      return;
     this.#id = building.id;
     this.#x = rally.x;
     this.#y = rally.y;
@@ -116,24 +117,33 @@ export class RallyFlag {
    * mustered are standing on it. */
   #standard(stem: string): THREE.Group {
     const g = new THREE.Group();
-    const wood = new THREE.MeshLambertMaterial({ color: woodLight });
-    const part = (geo: THREE.BufferGeometry, mat: THREE.Material): THREE.Mesh => {
+    const wood = new THREE.MeshLambertMaterial({color: woodLight});
+    const part = (
+      geo: THREE.BufferGeometry,
+      mat: THREE.Material,
+    ): THREE.Mesh => {
       const m = new THREE.Mesh(geo, mat);
       m.castShadow = true;
       return m;
     };
 
     const POLE_H = 1.55;
-    const pole = part(new THREE.CylinderGeometry(0.032, 0.032, POLE_H, 6), wood);
+    const pole = part(
+      new THREE.CylinderGeometry(0.032, 0.032, POLE_H, 6),
+      wood,
+    );
     pole.position.y = POLE_H / 2;
     g.add(pole);
-    const crossbar = part(new THREE.CylinderGeometry(0.024, 0.024, 0.56, 6), wood);
+    const crossbar = part(
+      new THREE.CylinderGeometry(0.024, 0.024, 0.56, 6),
+      wood,
+    );
     crossbar.rotation.z = Math.PI / 2;
     crossbar.position.y = 1.44;
     g.add(crossbar);
     const finial = part(
       new THREE.SphereGeometry(0.05, 8, 6),
-      new THREE.MeshLambertMaterial({ color: paper }),
+      new THREE.MeshLambertMaterial({color: paper}),
     );
     finial.position.y = POLE_H + 0.04;
     g.add(finial);
@@ -145,8 +155,9 @@ export class RallyFlag {
     const CLOTH_H = 0.9;
     const cloth = glbYardProp(stem, CLOTH_H);
     if (cloth) {
-      cloth.traverse((o) => {
-        if (o instanceof THREE.Mesh) (o.material as THREE.Material).side = THREE.DoubleSide;
+      cloth.traverse(o => {
+        if (o instanceof THREE.Mesh)
+          (o.material as THREE.Material).side = THREE.DoubleSide;
       });
       // A war standard's cut, not a dungeon wall's: the pack cloth is a
       // slender 0.47 wide per unit of drop, and after the camera's 45°

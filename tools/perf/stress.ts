@@ -9,11 +9,31 @@
  * Usage:
  *   node --experimental-strip-types tools/perf/stress.ts [--ticks N] [--serfs N] [--size N]
  */
-import { Rng } from '../../src/shared/rng.ts';
-import { hashWorld } from '../../src/sim/hash.ts';
-import { tileIdx } from '../../src/shared/grid.ts';
-import { BUILDING_TYPES, buildingDef } from '../../src/sim/defs/buildings.ts';
-import { GOODS } from '../../src/sim/defs/goods.ts';
+
+import {tileIdx} from '../../src/shared/grid.ts';
+import {Rng} from '../../src/shared/rng.ts';
+import * as BuildingState from '../../src/sim/buildingStateEnum.ts';
+import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
+import {BUILDING_TYPES, buildingDef} from '../../src/sim/defs/buildings.ts';
+import {GOODS} from '../../src/sim/defs/goods.ts';
+import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
+import {hashWorld} from '../../src/sim/hash.ts';
+import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
+import {banditsSystem} from '../../src/sim/systems/bandits.ts';
+import {combatSystem} from '../../src/sim/systems/combat.ts';
+import {constructionSystem} from '../../src/sim/systems/construction.ts';
+import {
+  findStorehouse,
+  logisticsSystem,
+} from '../../src/sim/systems/logistics.ts';
+import {movementSystem} from '../../src/sim/systems/movement.ts';
+import {productionSystem} from '../../src/sim/systems/production.ts';
+import {researchSystem} from '../../src/sim/systems/research.ts';
+import {staffingSystem} from '../../src/sim/systems/staffing.ts';
+import {trailsSystem} from '../../src/sim/systems/trails.ts';
+import {trainingSystem, hiringSystem} from '../../src/sim/systems/training.ts';
+import {victorySystem} from '../../src/sim/systems/victory.ts';
+import {wanderSystem} from '../../src/sim/systems/wander.ts';
 import {
   canPlace,
   createWorld,
@@ -21,22 +41,6 @@ import {
   spawnUnitNearby,
   type World,
 } from '../../src/sim/world.ts';
-import { findStorehouse, logisticsSystem } from '../../src/sim/systems/logistics.ts';
-import { researchSystem } from '../../src/sim/systems/research.ts';
-import { productionSystem } from '../../src/sim/systems/production.ts';
-import { constructionSystem } from '../../src/sim/systems/construction.ts';
-import { staffingSystem } from '../../src/sim/systems/staffing.ts';
-import { trainingSystem, hiringSystem } from '../../src/sim/systems/training.ts';
-import { wanderSystem } from '../../src/sim/systems/wander.ts';
-import { movementSystem } from '../../src/sim/systems/movement.ts';
-import { combatSystem } from '../../src/sim/systems/combat.ts';
-import { banditsSystem } from '../../src/sim/systems/bandits.ts';
-import { trailsSystem } from '../../src/sim/systems/trails.ts';
-import { victorySystem } from '../../src/sim/systems/victory.ts';
-import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
-import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
-import * as BuildingState from '../../src/sim/buildingStateEnum.ts';
-import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
 
 function arg(name: string, dflt: number): number {
   const i = process.argv.indexOf(`--${name}`);
@@ -50,7 +54,10 @@ const SEED = arg('seed', 7);
 
 const world = createWorld({
   seed: SEED,
-  players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai, strategy: AiStrategyId.warlord }],
+  players: [
+    {kind: PlayerKind.human},
+    {kind: PlayerKind.ai, strategy: AiStrategyId.warlord},
+  ],
   banditsEnabled: true,
   mapSize: SIZE,
 });
@@ -61,7 +68,7 @@ for (const g of GOODS) sh.stock[g] = 9999;
 
 // A wide village: every non-system building type, sprinkled across the
 // player's half until the map stops taking them.
-const types = BUILDING_TYPES.filter((t) => {
+const types = BUILDING_TYPES.filter(t => {
   const d = buildingDef(t);
   return !d.systemOnly && !d.storage && !d.isRoad;
 });
@@ -81,24 +88,36 @@ for (let attempt = 0; attempt < 4000 && placed < 90; attempt++) {
 }
 
 for (let i = 0; i < SERFS; i++) {
-  spawnUnitNearby(world, UnitTypeId.serf, 0, sh.x + (i % 20) - 10, sh.y + Math.floor(i / 20) - 5);
+  spawnUnitNearby(
+    world,
+    UnitTypeId.serf,
+    0,
+    sh.x + (i % 20) - 10,
+    sh.y + Math.floor(i / 20) - 5,
+  );
 }
 for (let i = 0; i < 40; i++) {
-  spawnUnitNearby(world, UnitTypeId.knight, 0, sh.x + (i % 10) - 5, sh.y + 12 + Math.floor(i / 10));
+  spawnUnitNearby(
+    world,
+    UnitTypeId.knight,
+    0,
+    sh.x + (i % 10) - 5,
+    sh.y + 12 + Math.floor(i / 10),
+  );
 }
 
 const systems: [string, (w: World) => void][] = [
   ['research', researchSystem],
-  ['production', (w) => productionSystem(w, new Rng(w.rngState))],
+  ['production', w => productionSystem(w, new Rng(w.rngState))],
   ['logistics', logisticsSystem],
   ['construction', constructionSystem],
   ['staffing', staffingSystem],
   ['training', trainingSystem],
   ['hiring', hiringSystem],
-  ['wander', (w) => wanderSystem(w, new Rng(w.rngState))],
+  ['wander', w => wanderSystem(w, new Rng(w.rngState))],
   ['movement', movementSystem],
   ['combat', combatSystem],
-  ['bandits', (w) => banditsSystem(w, new Rng(w.rngState))],
+  ['bandits', w => banditsSystem(w, new Rng(w.rngState))],
   ['trails', trailsSystem],
   ['victory', victorySystem],
 ];
@@ -114,7 +133,8 @@ const t0 = process.hrtime.bigint();
 for (let i = 0; i < TICKS; i++) {
   if (HASH) {
     for (const [, fn] of systems) fn(world);
-    if (i % 100 === 0) console.log(`tick=${i} hash=${hashWorld(world).toString(16)}`);
+    if (i % 100 === 0)
+      console.log(`tick=${i} hash=${hashWorld(world).toString(16)}`);
   } else {
     for (const [name, fn] of systems) {
       const a = process.hrtime.bigint();

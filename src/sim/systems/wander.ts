@@ -1,10 +1,10 @@
-import { Rng } from '../../shared/rng.ts';
-import { inBounds, tileIdx, tileX, tileY } from '../../shared/grid.ts';
-import { findPath } from '../path.ts';
-import type { World } from '../world.ts';
-import * as PathLevel from '../pathLevelEnum.ts';
+import {inBounds, tileIdx, tileX, tileY} from '../../shared/grid.ts';
+import {Rng} from '../../shared/rng.ts';
 import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import {findPath} from '../path.ts';
+import * as PathLevel from '../pathLevelEnum.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import type {World} from '../world.ts';
 
 /** How far from itself an idle serf will look for somewhere to go. */
 const RANGE = 4;
@@ -45,7 +45,8 @@ function strollTarget(world: World, from: number, rng: Rng): number {
       if (level === PathLevel.Road) lanes.push(idx);
     }
   }
-  if (lanes.length > 0 && rng.next() < LANE_CHANCE) return lanes[rng.int(lanes.length)]!;
+  if (lanes.length > 0 && rng.next() < LANE_CHANCE)
+    return lanes[rng.int(lanes.length)]!;
 
   const tx = ox + rng.int(RANGE * 2 + 1) - RANGE;
   const ty = oy + rng.int(RANGE * 2 + 1) - RANGE;
@@ -63,12 +64,14 @@ export function wanderSystem(world: World, rng: Rng): void {
   for (const unit of world.units.values()) {
     // Only truly idle, jobless serfs stroll; workers are run by production
     // and anyone with a job is owned by logistics.
-    if (unit.dead || unit.kind !== UnitTypeId.serf || unit.jobId !== undefined) continue;
-    if (unit.task.t !== UnitTaskKind.idle || world.tick < unit.task.until) continue;
+    if (unit.dead || unit.kind !== UnitTypeId.serf || unit.jobId !== undefined)
+      continue;
+    if (unit.task.t !== UnitTaskKind.idle || world.tick < unit.task.until)
+      continue;
 
     // Mostly loiter; occasionally stroll. Keeps villages alive, not frantic.
     if (rng.next() < 0.65) {
-      unit.task = { t: UnitTaskKind.idle, until: world.tick + 40 + rng.int(80) };
+      unit.task = {t: UnitTaskKind.idle, until: world.tick + 40 + rng.int(80)};
       continue;
     }
 
@@ -76,18 +79,24 @@ export function wanderSystem(world: World, rng: Rng): void {
     const uy = Math.floor(unit.y);
     const target = strollTarget(world, tileIdx(ux, uy, size), rng);
     if (target < 0) {
-      unit.task = { t: UnitTaskKind.idle, until: world.tick + 20 + rng.int(40) };
+      unit.task = {t: UnitTaskKind.idle, until: world.tick + 20 + rng.int(40)};
       continue;
     }
     // A* already charges less for trails and roads, so a serf headed for a
     // lane joins it early and follows it in rather than cutting across.
-    const path = findPath(world.map, ux, uy, tileX(target, size), tileY(target, size));
+    const path = findPath(
+      world.map,
+      ux,
+      uy,
+      tileX(target, size),
+      tileY(target, size),
+    );
     if (path && path.length > 0) {
       unit.path = path;
       unit.pathIdx = 0;
-      unit.task = { t: UnitTaskKind.move };
+      unit.task = {t: UnitTaskKind.move};
     } else {
-      unit.task = { t: UnitTaskKind.idle, until: world.tick + 60 + rng.int(120) };
+      unit.task = {t: UnitTaskKind.idle, until: world.tick + 60 + rng.int(120)};
     }
   }
 }

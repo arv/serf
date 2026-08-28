@@ -1,7 +1,7 @@
-import type { Enum } from '../shared/enum.ts';
-import { COUNTER_TABLE, UNIT_DEFS } from './defs/units.ts';
-import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import type {Enum} from '../shared/enum.ts';
 import * as UnitClass from './defs/unitClassEnum.ts';
+import {COUNTER_TABLE, UNIT_DEFS} from './defs/units.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 
 type UnitClass = Enum<typeof UnitClass>;
 type UnitTypeId = Enum<typeof UnitTypeId>;
@@ -68,9 +68,13 @@ const CLASS_UNIT: Record<UnitClass, UnitTypeId> = {
   [UnitClass.ranged]: UnitTypeId.archer,
 };
 
-const CLASSES: readonly UnitClass[] = [UnitClass.heavy, UnitClass.light, UnitClass.ranged];
+const CLASSES: readonly UnitClass[] = [
+  UnitClass.heavy,
+  UnitClass.light,
+  UnitClass.ranged,
+];
 
-export const EMPTY_FORCE: Force = { heavy: 0, light: 0, ranged: 0, hp: 0 };
+export const EMPTY_FORCE: Force = {heavy: 0, light: 0, ranged: 0, hp: 0};
 
 /** Soldiers in a force, hit points aside. */
 export function headcount(force: Force): number {
@@ -95,7 +99,7 @@ function classDamage(cls: UnitClass): number {
  * name while it was a word; it is a number now, so the fan-out lives here
  * rather than at each of the four tallies that keep one. */
 export function tallyClass(
-  counts: { heavy: number; light: number; ranged: number },
+  counts: {heavy: number; light: number; ranged: number},
   cls: UnitClass,
 ): void {
   if (cls === UnitClass.heavy) counts.heavy++;
@@ -136,7 +140,9 @@ function reach(attacker: UnitClass, defender: UnitClass): number {
   const def = UNIT_DEFS[CLASS_UNIT[defender]];
   const atkIsMelee = atk.combat!.range <= 2;
   const defIsRanged = def.combat!.range > 2;
-  return atkIsMelee && defIsRanged && def.speed > atk.speed ? KITE_EFFICIENCY : 1;
+  return atkIsMelee && defIsRanged && def.speed > atk.speed
+    ? KITE_EFFICIENCY
+    : 1;
 }
 
 /**
@@ -163,7 +169,8 @@ export function damagePerTick(force: Force, enemy: Force): number {
   const share: number[] = [];
   for (const cls of CLASSES) nominal += countOf(enemy, cls) * classHp(cls);
   if (nominal <= 0) return 0;
-  for (const cls of CLASSES) share.push((countOf(enemy, cls) * classHp(cls)) / nominal);
+  for (const cls of CLASSES)
+    share.push((countOf(enemy, cls) * classHp(cls)) / nominal);
 
   let dps = 0;
   for (const attacker of CLASSES) {
@@ -172,7 +179,8 @@ export function damagePerTick(force: Force, enemy: Force): number {
     let mult = 0;
     for (let i = 0; i < CLASSES.length; i++) {
       const target = CLASSES[i]!;
-      mult += share[i]! * COUNTER_TABLE[attacker][target] * reach(attacker, target);
+      mult +=
+        share[i]! * COUNTER_TABLE[attacker][target] * reach(attacker, target);
     }
     dps += n * classDamage(attacker) * mult;
   }
@@ -226,7 +234,11 @@ export function addGarrison(
  * a headcount's clothes, so the rate is divided by what one soldier of that
  * class does before it can be counted as bodies.
  */
-export function damageEquivalent(cls: UnitClass, damage: number, cooldownTicks: number): number {
+export function damageEquivalent(
+  cls: UnitClass,
+  damage: number,
+  cooldownTicks: number,
+): number {
   return damage / cooldownTicks / classDamage(cls);
 }
 
@@ -277,7 +289,11 @@ export function survivorsAfter(force: Force, enemy: Force): number {
  * An enemy of nothing is always worth attacking — that is the undefended
  * castle, and refusing it would be absurd.
  */
-export function shouldCommit(force: Force, enemy: Force, marchConfidence: number): boolean {
+export function shouldCommit(
+  force: Force,
+  enemy: Force,
+  marchConfidence: number,
+): boolean {
   if (marchConfidence <= 0) return true;
   if (headcount(enemy) === 0 || enemy.hp <= 0) return true;
   return survivingFraction(force, enemy) * 100 >= marchConfidence;

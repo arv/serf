@@ -1,5 +1,5 @@
-import { galleryMarkup } from './cards';
-import { mountGallery } from './viewer';
+import {galleryMarkup} from './cards';
+import {mountGallery} from './viewer';
 
 /**
  * The lab as a dev page: `pnpm dev`, then /tools/modelLab/. Same cards and

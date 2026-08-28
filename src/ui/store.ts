@@ -1,4 +1,4 @@
-import { createSignal } from 'solid-js';
+import {createSignal} from 'solid-js';
 
 // Module-level signals cannot survive a hot swap: components keep reading
 // the old module's signals while new code writes the new ones, and buttons
@@ -7,8 +7,13 @@ import { createSignal } from 'solid-js';
 if (import.meta.hot) {
   import.meta.hot.accept(() => import.meta.hot?.invalidate());
 }
-import type { GoodAmounts } from '../sim/defs/goods';
-import type { BuildingTypeId } from '../sim/defs/buildings';
+import {play, setAudioMuted, setAudioVolume} from '../audio/audio';
+import {
+  audioFromUrl,
+  loadAudioPrefs,
+  saveAudioPrefs,
+  volumeToGain,
+} from '../audio/settings';
 import type {
   BuildingSnap,
   JobSnap,
@@ -16,13 +21,13 @@ import type {
   PlayerSnap,
   TechSnap,
 } from '../protocol/messages';
-import { play, setAudioMuted, setAudioVolume } from '../audio/audio';
-import { audioFromUrl, loadAudioPrefs, saveAudioPrefs, volumeToGain } from '../audio/settings';
-import type { Enum } from '../shared/enum.ts';
+import type {Enum} from '../shared/enum.ts';
+import type {BuildingTypeId} from '../sim/defs/buildings';
+import type {GoodAmounts} from '../sim/defs/goods';
 import * as OrderModeNs from './orderModeEnum.ts';
 export type OrderMode = Enum<typeof OrderModeNs>;
-import * as HudPanelNs from './hudPanelEnum.ts';
 import * as MatchState from '../sim/matchStateEnum.ts';
+import * as HudPanelNs from './hudPanelEnum.ts';
 export type HudPanel = Enum<typeof HudPanelNs>;
 
 /**
@@ -30,7 +35,9 @@ export type HudPanel = Enum<typeof HudPanelNs>;
  * components and the input layer read it reactively.
  */
 export const [speed, setSpeed] = createSignal(1);
-export const [selection, setSelection] = createSignal<ReadonlySet<number>>(new Set());
+export const [selection, setSelection] = createSignal<ReadonlySet<number>>(
+  new Set(),
+);
 
 /**
  * The control group the standing selection *is* — 1–9 or 0, or null when it
@@ -43,7 +50,9 @@ export const [selection, setSelection] = createSignal<ReadonlySet<number>>(new S
  * they are lists of unit ids, and something has to weed the dead out of
  * them every frame. This is the one derived crumb the HUD needs.
  */
-export const [selectionGroup, setSelectionGroup] = createSignal<number | null>(null);
+export const [selectionGroup, setSelectionGroup] = createSignal<number | null>(
+  null,
+);
 
 /** The seat this client plays (0 until lobbies land). Everything the HUD
  * shows — stock, techs, outcome copy, selection filters — is this player's
@@ -81,7 +90,10 @@ export const [toolWants, setToolWants] = createSignal<GoodAmounts>({});
  * person this seat owns (serfs, resident workers, soldiers alike); `cap` is
  * the castle's ten plus ten for every finished house.
  */
-export const [population, setPopulation] = createSignal<{ pop: number; cap: number }>({
+export const [population, setPopulation] = createSignal<{
+  pop: number;
+  cap: number;
+}>({
   pop: 0,
   cap: 0,
 });
@@ -106,9 +118,12 @@ export const [placing, setPlacing] = createSignal<BuildingTypeId | null>(null);
  * chorded the Mill again — under the default equality that second write is
  * the value already there and the ribbon never hears about it.
  */
-export const [buildAim, setBuildAim] = createSignal<BuildingTypeId | null>(null, {
-  equals: false,
-});
+export const [buildAim, setBuildAim] = createSignal<BuildingTypeId | null>(
+  null,
+  {
+    equals: false,
+  },
+);
 
 /**
  * The build chord is half-typed: B has been pressed and the next letter
@@ -151,7 +166,8 @@ export const techPanelOpen = (): boolean => openPanel() === HudPanelNs.tech;
 export const setTechPanelOpen = (open: boolean): void => {
   setOpenPanel(open ? HudPanelNs.tech : null);
 };
-export const economyPanelOpen = (): boolean => openPanel() === HudPanelNs.economy;
+export const economyPanelOpen = (): boolean =>
+  openPanel() === HudPanelNs.economy;
 export const setEconomyPanelOpen = (open: boolean): void => {
   setOpenPanel(open ? HudPanelNs.economy : null);
 };
@@ -183,12 +199,13 @@ export const [mission, setMission] = createSignal<{
 export const [briefingOpen, setBriefingOpen] = createSignal(false);
 
 /** Selected building (mutually exclusive with unit selection). */
-export const [selectedBuilding, setSelectedBuilding] = createSignal<BuildingSnap | null>(null);
+export const [selectedBuilding, setSelectedBuilding] =
+  createSignal<BuildingSnap | null>(null);
 
 /** Toast messages (raid warnings etc.), newest last. A toast with a focus
  * target is clickable and pans the camera there. */
 export const [toasts, setToasts] = createSignal<
-  { id: number; text: string; focus?: { x: number; y: number } }[]
+  {id: number; text: string; focus?: {x: number; y: number}}[]
 >([]);
 let toastId = 0;
 
@@ -201,22 +218,27 @@ let toastId = 0;
  * and a player who was mid-build when it landed is exactly the one who
  * needs to be taken there afterwards.
  */
-export const [lastAlert, setLastAlert] = createSignal<{ x: number; y: number } | null>(null);
+export const [lastAlert, setLastAlert] = createSignal<{
+  x: number;
+  y: number;
+} | null>(null);
 
-export function pushToast(text: string, focus?: { x: number; y: number }): void {
+export function pushToast(text: string, focus?: {x: number; y: number}): void {
   // Every notification passes through here, so this is where they rustle.
   play('uiToast');
   if (focus) setLastAlert(focus);
   const id = ++toastId;
-  setToasts([...toasts(), { id, text, focus }]);
-  setTimeout(() => setToasts(toasts().filter((t) => t.id !== id)), 8000);
+  setToasts([...toasts(), {id, text, focus}]);
+  setTimeout(() => setToasts(toasts().filter(t => t.id !== id)), 8000);
 }
 export function dismissToast(id: number): void {
-  setToasts(toasts().filter((t) => t.id !== id));
+  setToasts(toasts().filter(t => t.id !== id));
 }
 
 /** Match outcome (drives the end screen). */
-export const [outcome, setOutcome] = createSignal<OutcomeSnap>({ state: MatchState.playing });
+export const [outcome, setOutcome] = createSignal<OutcomeSnap>({
+  state: MatchState.playing,
+});
 
 /** Sandbox switches, mirrored from the sim (?admin panel). */
 export const [adminState, setAdminState] = createSignal({
@@ -262,9 +284,9 @@ export const [fogEnabled, setFogEnabled] = createSignal(
  * nothing to show. Failures surface as a toast instead — the seats keep
  * playing their playbooks either way.
  */
-export const [llmStatus, setLlmStatus] = createSignal<import('../ai/strategist').LlmStatus | null>(
-  null,
-);
+export const [llmStatus, setLlmStatus] = createSignal<
+  import('../ai/strategist').LlmStatus | null
+>(null);
 
 /**
  * Sound preferences — player-scoped like the campaign profile, so
@@ -275,10 +297,13 @@ export const [llmStatus, setLlmStatus] = createSignal<import('../ai/strategist')
  * visit, not a choice — though touching the controls afterwards persists
  * what the player then sees, which is what they'd expect it to mean.
  */
-const audioBoot = ((): { volume: number; muted: boolean } => {
+const audioBoot = ((): {volume: number; muted: boolean} => {
   const prefs = loadAudioPrefs();
   const url = audioFromUrl(location.search);
-  return { volume: url.volume ?? prefs.volume, muted: url.mute === true || prefs.muted };
+  return {
+    volume: url.volume ?? prefs.volume,
+    muted: url.mute === true || prefs.muted,
+  };
 })();
 export const [volume, setVolumeSignal] = createSignal(audioBoot.volume);
 export const [muted, setMutedSignal] = createSignal(audioBoot.muted);
@@ -295,7 +320,7 @@ let prefsTimer = 0;
 let flushHooked = false;
 
 function writeAudioPrefs(): void {
-  saveAudioPrefs({ v: 1, volume: volume(), muted: muted() });
+  saveAudioPrefs({v: 1, volume: volume(), muted: muted()});
 }
 
 function cancelPendingWrite(): void {
@@ -344,7 +369,9 @@ export function toggleMuted(): void {
 /** Debug overlay (backquote). */
 export const [debugOpen, setDebugOpen] = createSignal(false);
 export const [debugJobs, setDebugJobs] = createSignal<JobSnap[]>([]);
-export const [invariantViolations, setInvariantViolations] = createSignal<string[]>([]);
+export const [invariantViolations, setInvariantViolations] = createSignal<
+  string[]
+>([]);
 
 /**
  * The strategist's consultation ledger, newest first — what the model was
@@ -352,13 +379,15 @@ export const [invariantViolations, setInvariantViolations] = createSignal<string
  * (main.ts wires onTrace behind import.meta.env.DEV), read by the debug
  * overlay; production matches leave it empty and the overlay shows nothing.
  */
-export const [llmTraces, setLlmTraces] = createSignal<import('../ai/strategist').ConsultTrace[]>(
-  [],
-);
+export const [llmTraces, setLlmTraces] = createSignal<
+  import('../ai/strategist').ConsultTrace[]
+>([]);
 /** Enough history to see the model change its mind; the prompts inside are
  * ~1 KB each, so the cap keeps a long match from hoarding them. */
 const LLM_TRACE_CAP = 20;
-export function pushLlmTrace(trace: import('../ai/strategist').ConsultTrace): void {
+export function pushLlmTrace(
+  trace: import('../ai/strategist').ConsultTrace,
+): void {
   setLlmTraces([trace, ...llmTraces()].slice(0, LLM_TRACE_CAP));
 }
 
@@ -386,13 +415,18 @@ export function resetMatchState(): void {
   setReplayOver(false);
   setNetStatus(null);
   setStock({});
-  setPopulation({ pop: 0, cap: 0 });
+  setPopulation({pop: 0, cap: 0});
   setPlacing(null);
   setBuildAim(null);
   setBuildChord(false);
   setOrderMode(null);
   setBandArm(false);
-  setTechs({ researched: [], festivalTicksLeft: 0, pavingUnlocked: false, hasAbbey: false });
+  setTechs({
+    researched: [],
+    festivalTicksLeft: 0,
+    pavingUnlocked: false,
+    hasAbbey: false,
+  });
   setOpenPanel(null);
   setQuitConfirm(false);
   setMission(null);
@@ -400,8 +434,8 @@ export function resetMatchState(): void {
   setSelectedBuilding(null);
   setToasts([]);
   setLastAlert(null);
-  setOutcome({ state: MatchState.playing });
-  setAdminState({ enabled: true, raidsEnabled: true, instantBuild: false });
+  setOutcome({state: MatchState.playing});
+  setAdminState({enabled: true, raidsEnabled: true, instantBuild: false});
   setLlmStatus(null);
   setDebugOpen(false);
   setDebugJobs([]);
@@ -409,5 +443,7 @@ export function resetMatchState(): void {
   setLlmTraces([]);
   // Read afresh rather than restored: ?nofog belongs to the match being
   // started, and the URL has already become the next one by here.
-  setFogEnabled(!(cheatsAllowed() && new URLSearchParams(location.search).has('nofog')));
+  setFogEnabled(
+    !(cheatsAllowed() && new URLSearchParams(location.search).has('nofog')),
+  );
 }

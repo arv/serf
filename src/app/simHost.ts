@@ -1,4 +1,5 @@
-import { SabReader } from '../protocol/sabLayout';
+import type {AiWorldSummary} from '../ai/summary';
+import * as MainToWorkerKind from '../protocol/mainToWorkerKindEnum.ts';
 import type {
   BuildingSnap,
   MainToWorker,
@@ -7,14 +8,13 @@ import type {
   StructuralUpdate,
   WorkerToMain,
 } from '../protocol/messages';
-import type { AiWorldSummary } from '../ai/summary';
-import type { SimCommand } from '../sim/commands';
-import type { AiStrategy } from '../sim/defs/aiStrategies';
-import type { GameConfig } from './gameConfig';
-import type { NetInfo } from '../protocol/messages';
-import type { ReplayData } from './replay';
-import * as MainToWorkerKind from '../protocol/mainToWorkerKindEnum.ts';
+import type {NetInfo} from '../protocol/messages';
+import {SabReader} from '../protocol/sabLayout';
 import * as WorkerToMainKind from '../protocol/workerToMainKindEnum.ts';
+import type {SimCommand} from '../sim/commands';
+import type {AiStrategy} from '../sim/defs/aiStrategies';
+import type {GameConfig} from './gameConfig';
+import type {ReplayData} from './replay';
 
 export interface SimInit {
   reader: SabReader;
@@ -91,15 +91,20 @@ export class WorkerSimHost implements SimHost {
    * registers — and an unlatched signal left the HUD with no end card. */
   #replayEndedPending = false;
   #netStatusCb: ((status: NetStatus) => void) | null = null;
-  #aiSummaryCb: ((playerId: number, summary: AiWorldSummary) => void) | null = null;
+  #aiSummaryCb: ((playerId: number, summary: AiWorldSummary) => void) | null =
+    null;
   /** Seat the UI's commands are issued as. */
   playerId = 0;
 
   constructor(kind: 'sim' | 'net' = 'sim') {
     this.#worker =
       kind === 'net'
-        ? new Worker(new URL('./netWorker.ts', import.meta.url), { type: 'module' })
-        : new Worker(new URL('./simWorker.ts', import.meta.url), { type: 'module' });
+        ? new Worker(new URL('./netWorker.ts', import.meta.url), {
+            type: 'module',
+          })
+        : new Worker(new URL('./simWorker.ts', import.meta.url), {
+            type: 'module',
+          });
   }
 
   start(
@@ -112,7 +117,7 @@ export class WorkerSimHost implements SimHost {
     return new Promise((resolve, reject) => {
       // A worker that dies after start would otherwise fail silently: the
       // promise is already resolved, so surface the error loudly too.
-      this.#worker.onerror = (e) => {
+      this.#worker.onerror = e => {
         console.error(`[sim worker] ${e.message} (${e.filename}:${e.lineno})`);
         reject(new Error(`sim worker failed: ${e.message}`));
       };
@@ -179,16 +184,16 @@ export class WorkerSimHost implements SimHost {
   }
 
   requestSave(): Promise<string> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       this.#saveCb = resolve;
-      this.#post({ type: MainToWorkerKind.requestSave });
+      this.#post({type: MainToWorkerKind.requestSave});
     });
   }
 
   requestReplay(explored?: string): Promise<string> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       this.#replayCbs.push(resolve);
-      this.#post({ type: MainToWorkerKind.requestReplay, explored });
+      this.#post({type: MainToWorkerKind.requestReplay, explored});
     });
   }
 
@@ -216,28 +221,28 @@ export class WorkerSimHost implements SimHost {
   }
 
   sendAiAdvice(playerId: number, override: Partial<AiStrategy>): void {
-    this.#post({ type: MainToWorkerKind.aiAdvice, playerId, override });
+    this.#post({type: MainToWorkerKind.aiAdvice, playerId, override});
   }
 
   sendCommands(commands: SimCommand[]): void {
     if (commands.length > 0) {
       this.#post({
         type: MainToWorkerKind.commands,
-        commands: commands.map((cmd) => ({ playerId: this.playerId, cmd })),
+        commands: commands.map(cmd => ({playerId: this.playerId, cmd})),
       });
     }
   }
 
   setSpeed(speed: number): void {
-    this.#post({ type: MainToWorkerKind.setSpeed, speed });
+    this.#post({type: MainToWorkerKind.setSpeed, speed});
   }
 
   setDebug(enabled: boolean): void {
-    this.#post({ type: MainToWorkerKind.setDebug, enabled });
+    this.#post({type: MainToWorkerKind.setDebug, enabled});
   }
 
   setHidden(hidden: boolean): void {
-    this.#post({ type: MainToWorkerKind.setHidden, hidden });
+    this.#post({type: MainToWorkerKind.setHidden, hidden});
   }
 
   #post(msg: MainToWorker): void {

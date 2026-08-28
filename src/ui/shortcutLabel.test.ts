@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { shortcutLabel } from './shortcutLabel';
+import {describe, expect, it} from 'vitest';
+import {shortcutLabel} from './shortcutLabel';
 
 describe('a label with its shortcut in it', () => {
   it('bolds the letter where it stands', () => {
@@ -20,16 +20,19 @@ describe('a label with its shortcut in it', () => {
   it('keeps the label’s own casing, not the key’s', () => {
     // We**l**l is lowercase in the word and uppercase in the table; the
     // word is what the player is reading, so the word wins.
-    expect(shortcutLabel('Well', 'L')).toMatchObject({ letter: 'l' });
-    expect(shortcutLabel('Silver Mine', 'v')).toMatchObject({ letter: 'v' });
+    expect(shortcutLabel('Well', 'L')).toMatchObject({letter: 'l'});
+    expect(shortcutLabel('Silver Mine', 'v')).toMatchObject({letter: 'v'});
   });
 
   it('takes the first occurrence', () => {
-    expect(shortcutLabel('Barracks', 'A')).toMatchObject({ before: 'B', letter: 'a' });
+    expect(shortcutLabel('Barracks', 'A')).toMatchObject({
+      before: 'B',
+      letter: 'a',
+    });
   });
 
   it('falls back to a parenthesised key when the label has no such letter', () => {
-    expect(shortcutLabel('Muster', 'Q')).toEqual({ kind: 'appended', key: 'Q' });
+    expect(shortcutLabel('Muster', 'Q')).toEqual({kind: 'appended', key: 'Q'});
   });
 
   /**
@@ -40,7 +43,7 @@ describe('a label with its shortcut in it', () => {
    * unlettered building away from shipping.
    */
   it('shows nothing at all for an empty key', () => {
-    expect(shortcutLabel('House', '')).toEqual({ kind: 'none' });
-    expect(shortcutLabel('', '')).toEqual({ kind: 'none' });
+    expect(shortcutLabel('House', '')).toEqual({kind: 'none'});
+    expect(shortcutLabel('', '')).toEqual({kind: 'none'});
   });
 });

@@ -1,7 +1,7 @@
-import type { Enum } from '../shared/enum.ts';
-import { TextTip, tooltip } from './tooltip';
-import { adminState, fogEnabled, setFogEnabled, techs } from './store';
+import type {Enum} from '../shared/enum.ts';
 import * as AdminAction from '../sim/adminActionEnum.ts';
+import {adminState, fogEnabled, setFogEnabled, techs} from './store';
+import {TextTip, tooltip} from './tooltip';
 
 type AdminAction = Enum<typeof AdminAction>;
 
@@ -11,7 +11,7 @@ type AdminAction = Enum<typeof AdminAction>;
  * everything else; fog of war is the exception, being a view over the world
  * rather than part of it (see the store).
  */
-export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
+export function AdminPanel(props: {onAdmin: (action: AdminAction) => void}) {
   return (
     <div class="admin-panel panel">
       <style>{`
@@ -32,7 +32,10 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
       <h4>Admin</h4>
       <button
         {...tooltip(() => (
-          <TextTip title="Raids" body="Turn bandit waves on or off. Off = peaceful sandbox." />
+          <TextTip
+            title="Raids"
+            body="Turn bandit waves on or off. Off = peaceful sandbox."
+          />
         ))}
         onClick={() => props.onAdmin(AdminAction.toggleRaids)}
       >
@@ -54,7 +57,10 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
       </button>
       <button
         {...tooltip(() => (
-          <TextTip title="Grant goods" body="+25 of every good into the storehouse." />
+          <TextTip
+            title="Grant goods"
+            body="+25 of every good into the storehouse."
+          />
         ))}
         onClick={() => props.onAdmin(AdminAction.grantGoods)}
       >
@@ -62,7 +68,10 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
       </button>
       <button
         {...tooltip(() => (
-          <TextTip title="Instant build" body="Sites need no materials and finish immediately." />
+          <TextTip
+            title="Instant build"
+            body="Sites need no materials and finish immediately."
+          />
         ))}
         onClick={() => props.onAdmin(AdminAction.toggleInstantBuild)}
       >
@@ -80,11 +89,17 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
         ))}
         onClick={() => setFogEnabled(!fogEnabled())}
       >
-        Fog of war: <span class={fogEnabled() ? 'on' : 'off'}>{fogEnabled() ? 'on' : 'off'}</span>
+        Fog of war:{' '}
+        <span class={fogEnabled() ? 'on' : 'off'}>
+          {fogEnabled() ? 'on' : 'off'}
+        </span>
       </button>
       <button
         {...tooltip(() => (
-          <TextTip title="Finish research" body="Complete the tech currently being researched." />
+          <TextTip
+            title="Finish research"
+            body="Complete the tech currently being researched."
+          />
         ))}
         disabled={!techs().active}
         onClick={() => props.onAdmin(AdminAction.finishResearch)}

@@ -1,15 +1,15 @@
-import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
-import { HeightField } from './heightField';
-import { SelectedReach } from './reachOutline';
-import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings';
-import type { MapView, TileResourceKind } from '../sim/map';
-import { verdictBad, verdictGood } from './palette';
-import type { BuildingSnap } from '../protocol/messages';
-import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import * as TileResource from '../sim/tileResourceEnum.ts';
+import {describe, expect, it} from 'vitest';
+import type {BuildingSnap} from '../protocol/messages';
+import {DEFAULT_MAP_SIZE, tileCount, tileIdx} from '../shared/grid';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
+import {buildingDef, gatherOrigin, gatherRecipeOf} from '../sim/defs/buildings';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import type {MapView, TileResourceKind} from '../sim/map';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import {HeightField} from './heightField';
+import {verdictBad, verdictGood} from './palette';
+import {SelectedReach} from './reachOutline';
 
 const SIZE = DEFAULT_MAP_SIZE;
 
@@ -59,10 +59,13 @@ function snap(over: Partial<BuildingSnap>): BuildingSnap {
   };
 }
 
-function makeReach(): { reach: SelectedReach; scene: THREE.Scene; map: MapView } {
+function makeReach(): {reach: SelectedReach; scene: THREE.Scene; map: MapView} {
   const scene = new THREE.Scene();
   return {
-    reach: new SelectedReach(scene, new HeightField(new Float32Array(tileCount(SIZE)), SIZE)),
+    reach: new SelectedReach(
+      scene,
+      new HeightField(new Float32Array(tileCount(SIZE)), SIZE),
+    ),
     scene,
     map: emptyMap(),
   };
@@ -75,51 +78,51 @@ function outline(scene: THREE.Scene): THREE.Mesh | undefined {
 
 describe('the reach outline of a selected building', () => {
   it('appears for a gatherer and clears when the selection does', () => {
-    const { reach, scene, map } = makeReach();
-    reach.update(snap({ type: BuildingTypeId.woodcutter }), map);
+    const {reach, scene, map} = makeReach();
+    reach.update(snap({type: BuildingTypeId.woodcutter}), map);
     expect(outline(scene)?.visible).toBe(true);
     reach.update(null, map);
     expect(outline(scene)).toBeUndefined();
   });
 
   it('stays away for buildings that work no land', () => {
-    const { reach, scene, map } = makeReach();
-    reach.update(snap({ type: BuildingTypeId.brewery }), map);
+    const {reach, scene, map} = makeReach();
+    reach.update(snap({type: BuildingTypeId.brewery}), map);
     expect(outline(scene)).toBeUndefined();
   });
 
   it('clears when the selection moves on to a building that works none', () => {
-    const { reach, scene, map } = makeReach();
-    reach.update(snap({ id: 1, type: BuildingTypeId.woodcutter }), map);
-    reach.update(snap({ id: 2, type: BuildingTypeId.brewery }), map);
+    const {reach, scene, map} = makeReach();
+    reach.update(snap({id: 1, type: BuildingTypeId.woodcutter}), map);
+    reach.update(snap({id: 2, type: BuildingTypeId.brewery}), map);
     expect(outline(scene)).toBeUndefined();
   });
 
   it('reads green over ground that still holds something to work', () => {
-    const { reach, scene, map } = makeReach();
-    const hut = snap({ type: BuildingTypeId.woodcutter });
+    const {reach, scene, map} = makeReach();
+    const hut = snap({type: BuildingTypeId.woodcutter});
     seed(map, hut, TileResource.Wood);
     reach.update(hut, map);
     expect(color(scene)).toBe(verdictGood);
   });
 
   it('reads red when nothing in reach is left', () => {
-    const { reach, scene, map } = makeReach();
-    reach.update(snap({ type: BuildingTypeId.woodcutter }), map);
+    const {reach, scene, map} = makeReach();
+    reach.update(snap({type: BuildingTypeId.woodcutter}), map);
     expect(color(scene)).toBe(verdictBad);
   });
 
   it('ignores a resource the building does not work', () => {
-    const { reach, scene, map } = makeReach();
-    const mine = snap({ type: BuildingTypeId.ironMine });
+    const {reach, scene, map} = makeReach();
+    const mine = snap({type: BuildingTypeId.ironMine});
     seed(map, mine, TileResource.Wood);
     reach.update(mine, map);
     expect(color(scene)).toBe(verdictBad);
   });
 
   it('turns red under a standing selection as the last tile runs out', () => {
-    const { reach, scene, map } = makeReach();
-    const hut = snap({ type: BuildingTypeId.woodcutter });
+    const {reach, scene, map} = makeReach();
+    const hut = snap({type: BuildingTypeId.woodcutter});
     seed(map, hut, TileResource.Wood);
     reach.update(hut, map);
     expect(color(scene)).toBe(verdictGood);
@@ -132,17 +135,31 @@ describe('the reach outline of a selected building', () => {
   });
 
   it('follows the selection from one gatherer to the next', () => {
-    const { reach, scene, map } = makeReach();
-    reach.update(snap({ id: 1, type: BuildingTypeId.woodcutter, x: 10, y: 10 }), map);
-    const woodcutter = outline(scene)!.geometry.getAttribute('position').array.slice();
-    reach.update(snap({ id: 2, type: BuildingTypeId.ironMine, x: 40, y: 40, w: 2, h: 2 }), map);
+    const {reach, scene, map} = makeReach();
+    reach.update(
+      snap({id: 1, type: BuildingTypeId.woodcutter, x: 10, y: 10}),
+      map,
+    );
+    const woodcutter = outline(scene)!
+      .geometry.getAttribute('position')
+      .array.slice();
+    reach.update(
+      snap({id: 2, type: BuildingTypeId.ironMine, x: 40, y: 40, w: 2, h: 2}),
+      map,
+    );
     const mine = outline(scene)!.geometry.getAttribute('position').array;
     expect([...mine]).not.toEqual([...woodcutter]);
     // Different radii too, so the mine's square is the smaller one.
-    const woodRadius = gatherRecipeOf(buildingDef(BuildingTypeId.woodcutter))!.radius;
-    const mineRadius = gatherRecipeOf(buildingDef(BuildingTypeId.ironMine))!.radius;
+    const woodRadius = gatherRecipeOf(
+      buildingDef(BuildingTypeId.woodcutter),
+    )!.radius;
+    const mineRadius = gatherRecipeOf(
+      buildingDef(BuildingTypeId.ironMine),
+    )!.radius;
     expect(mineRadius).toBeLessThan(woodRadius);
-    expect(spanX(mine)).toBeCloseTo(spanX(woodcutter) - 2 * (woodRadius - mineRadius));
+    expect(spanX(mine)).toBeCloseTo(
+      spanX(woodcutter) - 2 * (woodRadius - mineRadius),
+    );
   });
 });
 

@@ -44,9 +44,23 @@
  * are frozen artifacts anyway: they are re-authored when someone means
  * to, not rebuilt on every worldgen tweak.
  */
-import type { Enum } from '../../src/shared/enum.ts';
-import { hash2 } from '../../src/shared/math.ts';
-import { gridFor, inBounds, marginFor, tileCount, tileIdx } from '../../src/shared/grid.ts';
+import type {Enum} from '../../src/shared/enum.ts';
+import {
+  gridFor,
+  inBounds,
+  marginFor,
+  tileCount,
+  tileIdx,
+} from '../../src/shared/grid.ts';
+import {hash2} from '../../src/shared/math.ts';
+import {WOOD_MAX_AMT} from '../../src/sim/defs/balance.ts';
+import {
+  buildingDef,
+  gatherOrigin,
+  gatherRecipeOf,
+  BUILDING_KEYS,
+} from '../../src/sim/defs/buildings.ts';
+import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 import {
   WATER_ACCESS_RADIUS,
   countResourceNear,
@@ -59,18 +73,10 @@ import {
   type StartSpot,
   type TileResourceKind,
 } from '../../src/sim/map.ts';
-import { WOOD_MAX_AMT } from '../../src/sim/defs/balance.ts';
-import { serializeMapFile } from '../../src/sim/mapFile.ts';
-import { canPlace } from '../../src/sim/world.ts';
-import {
-  buildingDef,
-  gatherOrigin,
-  gatherRecipeOf,
-  BUILDING_KEYS,
-} from '../../src/sim/defs/buildings.ts';
+import {serializeMapFile} from '../../src/sim/mapFile.ts';
 import * as Terrain from '../../src/sim/terrainEnum.ts';
 import * as TileResource from '../../src/sim/tileResourceEnum.ts';
-import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+import {canPlace} from '../../src/sim/world.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
@@ -120,7 +126,8 @@ function distToSegment(px: number, py: number, a: Pt, b: Pt): number {
   const vx = b.x - a.x;
   const vy = b.y - a.y;
   const len2 = vx * vx + vy * vy;
-  const t = len2 === 0 ? 0 : clamp(((px - a.x) * vx + (py - a.y) * vy) / len2, 0, 1);
+  const t =
+    len2 === 0 ? 0 : clamp(((px - a.x) * vx + (py - a.y) * vy) / len2, 0, 1);
   return Math.hypot(px - (a.x + vx * t), py - (a.y + vy * t));
 }
 
@@ -133,7 +140,8 @@ function valueNoise(seed: number, x: number, y: number, scale: number): number {
   const y0 = Math.floor(fy);
   const sx = ease01(fx - x0);
   const sy = ease01(fy - y0);
-  const h = (cx: number, cy: number): number => hash2(seed + cx * 131, seed * 7 + cy * 337);
+  const h = (cx: number, cy: number): number =>
+    hash2(seed + cx * 131, seed * 7 + cy * 337);
   const a = h(x0, y0);
   const b = h(x0 + 1, y0);
   const c = h(x0, y0 + 1);
@@ -171,7 +179,12 @@ export class Valley {
   private readonly rimRamp: Float32Array;
   /** Border-forest tiles: 1 = full belt, 2 = ragged inner treeline. */
   private readonly belt: Uint8Array;
-  private styles: BorderStyles = { n: 'forest', e: 'forest', s: 'forest', w: 'forest' };
+  private styles: BorderStyles = {
+    n: 'forest',
+    e: 'forest',
+    s: 'forest',
+    w: 'forest',
+  };
   /** Which style owns a perimeter position, set by `borders` — the far
    * field has to carry the same handover the band inside does, or the
    * horizon changes style at the boundary. */
@@ -190,9 +203,9 @@ export class Valley {
   private readonly mirror: boolean;
   private settled = false;
   /** Places the border must stop short of — see `keepClear`. */
-  private readonly reserved: { c: Pt; r: number }[] = [];
+  private readonly reserved: {c: Pt; r: number}[] = [];
 
-  constructor(play: number, grain: number, opts: { mirror?: boolean } = {}) {
+  constructor(play: number, grain: number, opts: {mirror?: boolean} = {}) {
     this.mirror = opts.mirror ?? false;
     this.play = play;
     this.size = gridFor(play);
@@ -219,7 +232,10 @@ export class Valley {
   }
 
   isGrass(x: number, y: number): boolean {
-    return inBounds(x, y, this.size) && this.terrain[this.idx(x, y)] === Terrain.Grass;
+    return (
+      inBounds(x, y, this.size) &&
+      this.terrain[this.idx(x, y)] === Terrain.Grass
+    );
   }
 
   /**
@@ -233,13 +249,19 @@ export class Valley {
    * is a mirror only until someone measures it.
    */
   rotated(p: Pt): Pt {
-    return { x: this.size - (Math.floor(p.x) + 0.5), y: this.size - (Math.floor(p.y) + 0.5) };
+    return {
+      x: this.size - (Math.floor(p.x) + 0.5),
+      y: this.size - (Math.floor(p.y) + 0.5),
+    };
   }
 
   /** A place and its half-turn twin, for the ops a mirrored map does
    * twice. `for (const p of v.pair(at(-11, -6))) v.silverSeam(180, p)`. */
   pair(p: Pt): [Pt, Pt] {
-    return [{ x: Math.floor(p.x) + 0.5, y: Math.floor(p.y) + 0.5 }, this.rotated(p)];
+    return [
+      {x: Math.floor(p.x) + 0.5, y: Math.floor(p.y) + 0.5},
+      this.rotated(p),
+    ];
   }
 
   /** A tile's own index, or the lower of it and its half-turn twin's on a
@@ -273,7 +295,9 @@ export class Valley {
     // Mirrored about the TILE, `size - 1 - x`: these are tile coordinates,
     // and averaging against `size - x` puts the two halves one tile out of
     // phase — a grove that frays differently on the far side of the board.
-    return (v + valueNoise(seed, this.size - 1 - x, this.size - 1 - y, scale)) / 2;
+    return (
+      (v + valueNoise(seed, this.size - 1 - x, this.size - 1 - y, scale)) / 2
+    );
   }
 
   /** Every tile of the grid, playable or scenery. */
@@ -330,7 +354,8 @@ export class Valley {
         if (d > r) continue;
         const i = this.idx(x, y);
         const t = ease01(1 - d / r);
-        const rough = crag > 0 ? (this.noise(3, x, y, 4.5) - 0.5) * crag * t : 0;
+        const rough =
+          crag > 0 ? (this.noise(3, x, y, 4.5) - 0.5) * crag * t : 0;
         this.field[i] = this.field[i]! + amp * t + rough;
       }
     }
@@ -382,10 +407,12 @@ export class Valley {
       const wander = (this.noise(10, x, y, 12) - 0.5) * halfWidth * 0.5;
       const t = ease01(1 - (d + wander) / halfWidth);
       if (t <= 0) return;
-      this.field[i] = this.field[i]! + (amp + (this.noise(11, x, y, 4) - 0.5) * 0.3) * t;
+      this.field[i] =
+        this.field[i]! + (amp + (this.noise(11, x, y, 4) - 0.5) * 0.3) * t;
       // The crest goes to stone, its edge frayed per tile so the cliff
       // line is not a drawn curve.
-      if (t > bare + (this.jitter(x, y, 23) - 0.5) * 0.16) this.terrain[i] = Terrain.Rock;
+      if (t > bare + (this.jitter(x, y, 23) - 0.5) * 0.16)
+        this.terrain[i] = Terrain.Rock;
     });
     return this;
   }
@@ -491,7 +518,10 @@ export class Valley {
         const rim = r * (0.72 + 0.58 * this.jitter(x, y, 11));
         const d = Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y);
         if (d > rim) continue;
-        this.field[i] = Math.min(this.field[i]!, WATER + ease01(d / rim) * (SHALLOW - WATER));
+        this.field[i] = Math.min(
+          this.field[i]!,
+          WATER + ease01(d / rim) * (SHALLOW - WATER),
+        );
       }
     }
     return this;
@@ -511,7 +541,7 @@ export class Valley {
    * Called before `borders`.
    */
   keepClear(c: Pt, r: number): this {
-    this.reserved.push({ c, r });
+    this.reserved.push({c, r});
     return this;
   }
 
@@ -528,7 +558,7 @@ export class Valley {
    */
   borders(styles: BorderStyles): this {
     this.styles = styles;
-    const { play, p0, p1, size } = this;
+    const {play, p0, p1, size} = this;
     const order: RimStyle[] = [styles.n, styles.e, styles.s, styles.w];
     const fringe = Math.max(1, Math.floor(play / 24));
     const perimeter = play * 4;
@@ -536,7 +566,8 @@ export class Valley {
     /** Value noise around the perimeter, in [0,1], wrapping seamlessly. */
     const meander = (salt: number, p: number, wavelength: number): number => {
       const cells = Math.max(4, Math.round(perimeter / wavelength));
-      const f = ((((p % perimeter) + perimeter) % perimeter) / perimeter) * cells;
+      const f =
+        ((((p % perimeter) + perimeter) % perimeter) / perimeter) * cells;
       const i0 = Math.floor(f);
       const t = ease01(f - i0);
       const a = hash2(this.grain + salt, i0 % cells);
@@ -546,7 +577,8 @@ export class Valley {
     // The finest scale: per-position jitter, smoothed once around the loop
     // so the very edge is bitten rather than sawn.
     const wobble = new Float32Array(perimeter);
-    for (let i = 0; i < perimeter; i++) wobble[i] = hash2(this.grain + 313, i) * fringe;
+    for (let i = 0; i < perimeter; i++)
+      wobble[i] = hash2(this.grain + 313, i) * fringe;
     for (let i = 0; i < perimeter; i++) {
       const prev = wobble[(i + perimeter - 1) % perimeter]!;
       const next = wobble[(i + 1) % perimeter]!;
@@ -561,7 +593,9 @@ export class Valley {
     // then interleaves across a dozen tiles rather than cutting — the last
     // trees stand among the first rocks, the way a treeline actually ends.
     const HANDOVER = Math.max(6, Math.round(play / 9));
-    const shift = [0, 1, 2, 3].map((c) => (hash2(this.grain + 601, c) - 0.5) * 0.34 * play);
+    const shift = [0, 1, 2, 3].map(
+      c => (hash2(this.grain + 601, c) - 0.5) * 0.34 * play,
+    );
     /** Side that owns perimeter position `p`, before interleaving. */
     const sideAt = (p: number): number => {
       const q = ((p % perimeter) + perimeter) % perimeter;
@@ -653,8 +687,12 @@ export class Valley {
       // The domain warp is what makes a coast curl rather than merely
       // wobble: the field is sampled at a point that has itself been
       // moved by another field, at two scales.
-      const wx = (this.noise(21, x, y, 47) - 0.5) * 30 + (this.noise(26, x, y, 15) - 0.5) * 11;
-      const wy = (this.noise(22, x, y, 47) - 0.5) * 30 + (this.noise(27, x, y, 15) - 0.5) * 11;
+      const wx =
+        (this.noise(21, x, y, 47) - 0.5) * 30 +
+        (this.noise(26, x, y, 15) - 0.5) * 11;
+      const wy =
+        (this.noise(22, x, y, 47) - 0.5) * 30 +
+        (this.noise(27, x, y, 15) - 0.5) * 11;
       // Five octaves, and the first one is nearly half the map across.
       // That octave is what stops the LANDMASS being a rounded square: the
       // finer scales only ever decorate an outline, while a wavelength
@@ -701,7 +739,10 @@ export class Valley {
         // is approached and never reached.
         const want = depth + Math.max(0, -coastWarp(x, y)) * 26;
         const ceiling = play * 0.24;
-        const cut = ceiling * (1 - Math.exp(-want / ceiling)) * this.reservedFalloff(x, y);
+        const cut =
+          ceiling *
+          (1 - Math.exp(-want / ceiling)) *
+          this.reservedFalloff(x, y);
         /** How far in from the border this tile sits, and how far the
          * border reaches here — the two numbers the rock ramp and the
          * treeline's thickness are both drawn from. */
@@ -720,8 +761,14 @@ export class Valley {
             break;
           case 'ridge': {
             this.terrain[i] = Terrain.Rock;
-            const crest = 0.62 + meander(9, p, play / 9) * 0.5 + (hash2(i, 251) - 0.5) * 0.24;
-            this.rimRamp[i] = Math.min(1, ((cut - d) / Math.max(cut, 1)) * crest);
+            const crest =
+              0.62 +
+              meander(9, p, play / 9) * 0.5 +
+              (hash2(i, 251) - 0.5) * 0.24;
+            this.rimRamp[i] = Math.min(
+              1,
+              ((cut - d) / Math.max(cut, 1)) * crest,
+            );
             break;
           }
           case 'forest':
@@ -741,7 +788,8 @@ export class Valley {
     for (let y = p0; y < p1; y++) {
       for (let x = p0; x < p1; x++) {
         const i = this.idx(x, y);
-        if (this.terrain[i] !== Terrain.Grass || hash2(i, 919) >= 0.05) continue;
+        if (this.terrain[i] !== Terrain.Grass || hash2(i, 919) >= 0.05)
+          continue;
         let touching = false;
         for (let dy = -1; dy <= 1 && !touching; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
@@ -789,7 +837,8 @@ export class Valley {
     // the mesh draws a slope up to it rather than a wall.
     for (let i = 0; i < tileCount(size); i++) {
       const t = this.rimRamp[i]!;
-      if (t > 0) this.field[i] = Math.max(this.field[i]!, 0.55 + 0.45 * ease01(t));
+      if (t > 0)
+        this.field[i] = Math.max(this.field[i]!, 0.55 + 0.45 * ease01(t));
     }
 
     // A mirrored map's border is mirrored too. The perimeter noise runs
@@ -816,7 +865,7 @@ export class Valley {
    * reserved ground, easing to 0 at it. */
   private reservedFalloff(x: number, y: number): number {
     let f = 1;
-    for (const { c, r } of this.reserved) {
+    for (const {c, r} of this.reserved) {
       const d = Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y);
       f = Math.min(f, ease01((d - r) / 8));
     }
@@ -829,19 +878,29 @@ export class Valley {
     return side * this.play + along;
   }
 
-  private marginMix(x: number, y: number): { side: number; w: number; u: number; d: number }[] {
+  private marginMix(
+    x: number,
+    y: number,
+  ): {side: number; w: number; u: number; d: number}[] {
     const ox = x < this.p0 ? this.p0 - x : x >= this.p1 ? x - (this.p1 - 1) : 0;
     const oy = y < this.p0 ? this.p0 - y : y >= this.p1 ? y - (this.p1 - 1) : 0;
-    const out: { side: number; w: number; u: number; d: number }[] = [];
+    const out: {side: number; w: number; u: number; d: number}[] = [];
     const w = ease01((ox / (ox + oy) - 0.3) / 0.4);
-    if (ox > 0) out.push({ side: x < this.p0 ? 3 : 1, w: oy > 0 ? w : 1, u: y, d: ox });
-    if (oy > 0) out.push({ side: y < this.p0 ? 0 : 2, w: ox > 0 ? 1 - w : 1, u: x, d: oy });
+    if (ox > 0)
+      out.push({side: x < this.p0 ? 3 : 1, w: oy > 0 ? w : 1, u: y, d: ox});
+    if (oy > 0)
+      out.push({side: y < this.p0 ? 0 : 2, w: ox > 0 ? 1 - w : 1, u: x, d: oy});
     return out;
   }
 
   /** One style's far-field ground height `d` tiles past the boundary —
    * the horizon the camera sees behind the border. */
-  private marginHeight(side: number, u: number, d: number, style: RimStyle): number {
+  private marginHeight(
+    side: number,
+    u: number,
+    d: number,
+    style: RimStyle,
+  ): number {
     const s7 = this.grain + side * 7;
     if (style === 'sea') return -1.5 - valueNoise(s7 + 71, u, d, 6) * 0.5;
     if (style === 'ridge') {
@@ -852,7 +911,10 @@ export class Valley {
         (valueNoise(s7 + 177, u * 1.7, d * 1.7, 2.7) - 0.5) * 0.5 +
         (hash2(u * 31 + side, d * 57) - 0.5) * 0.25;
       return (
-        0.45 + ridged * (1.8 + massif * 1.8) + (valueNoise(s7 + 174, u, d, 21) - 0.5) * 0.6 + rough
+        0.45 +
+        ridged * (1.8 + massif * 1.8) +
+        (valueNoise(s7 + 174, u, d, 21) - 0.5) * 0.6 +
+        rough
       );
     }
     const roll =
@@ -880,8 +942,8 @@ export class Valley {
    * up, which is a thing to hear about, so the audit reads the second
    * number rather than the total.
    */
-  settle(home: Pt): { total: number; inland: number } {
-    const { size } = this;
+  settle(home: Pt): {total: number; inland: number} {
+    const {size} = this;
     const tiles = tileCount(size);
 
     for (let i = 0; i < tiles; i++) {
@@ -961,8 +1023,8 @@ export class Valley {
       }
       return dist;
     };
-    const toWater = bfs((t) => t === Terrain.Water);
-    const toLand = bfs((t) => t !== Terrain.Water);
+    const toWater = bfs(t => t === Terrain.Water);
+    const toLand = bfs(t => t !== Terrain.Water);
 
     for (let i = 0; i < tiles; i++) {
       const x = i % size;
@@ -997,20 +1059,37 @@ export class Valley {
           d = Math.max(d, s.d);
         }
         const edgeH =
-          this.height[this.idx(clamp(x, this.p0, this.p1 - 1), clamp(y, this.p0, this.p1 - 1))]!;
-        this.height[i] = Math.max(edgeH + (h - edgeH) * ease01(d / 2.5), edgeH - d * 0.4);
+          this.height[
+            this.idx(
+              clamp(x, this.p0, this.p1 - 1),
+              clamp(y, this.p0, this.p1 - 1),
+            )
+          ]!;
+        this.height[i] = Math.max(
+          edgeH + (h - edgeH) * ease01(d / 2.5),
+          edgeH - d * 0.4,
+        );
       }
     }
     this.settled = true;
-    return { total: drowned, inland };
+    return {total: drowned, inland};
   }
 
   // --- 3. Dress ---------------------------------------------------------
 
-  private plant(x: number, y: number, res: TileResourceKind, amt: number): boolean {
+  private plant(
+    x: number,
+    y: number,
+    res: TileResourceKind,
+    amt: number,
+  ): boolean {
     if (!inBounds(x, y, this.size)) return false;
     const i = this.idx(x, y);
-    if (this.terrain[i] !== Terrain.Grass || this.resource[i] !== TileResource.None) return false;
+    if (
+      this.terrain[i] !== Terrain.Grass ||
+      this.resource[i] !== TileResource.None
+    )
+      return false;
     this.resource[i] = res;
     this.resourceAmt[i] = amt;
     return true;
@@ -1027,7 +1106,13 @@ export class Valley {
     return this.scatter(TileResource.Rock, amt, c, r, density);
   }
 
-  private scatter(res: TileResourceKind, amt: number, c: Pt, r: number, density: number): number {
+  private scatter(
+    res: TileResourceKind,
+    amt: number,
+    c: Pt,
+    r: number,
+    density: number,
+  ): number {
     let placed = 0;
     // Room for the outline to bulge past the nominal radius.
     const R = Math.ceil(r * 1.5) + 1;
@@ -1042,12 +1127,18 @@ export class Valley {
         // two thirds of it to about half again, on a noise whose
         // wavelength scales with the stand, so a big wood gets big lobes
         // and a copse gets a rounded one. A disc reads as a stamp.
-        const lobe = r * (0.7 + 0.72 * this.noise(res * 7 + 30, x, y, Math.max(3.5, r * 1.1)));
+        const lobe =
+          r *
+          (0.7 + 0.72 * this.noise(res * 7 + 30, x, y, Math.max(3.5, r * 1.1)));
         if (d > lobe) continue;
         // Full density through the heart, thinning over the outer third,
         // with the stand's own glades cut into it.
-        const glade = 0.64 + 0.5 * this.noise(res * 7 + 31, x, y, Math.max(2.6, r * 0.55));
-        const p = density * (1 - 0.85 * ease01((d - lobe * 0.6) / (lobe * 0.4))) * glade;
+        const glade =
+          0.64 + 0.5 * this.noise(res * 7 + 31, x, y, Math.max(2.6, r * 0.55));
+        const p =
+          density *
+          (1 - 0.85 * ease01((d - lobe * 0.6) / (lobe * 0.4))) *
+          glade;
         if (this.jitter(x, y, res * 31 + 5) > p) continue;
         if (this.plant(x, y, res, amt)) placed++;
       }
@@ -1060,13 +1151,23 @@ export class Valley {
    * the map's own grain. What a valley's edge of woods actually is — the
    * shape a player reads as "the forest starts here".
    */
-  treeline(course: Pt[], halfWidth: number, density = 0.85, amt = WOOD_MAX_AMT): number {
+  treeline(
+    course: Pt[],
+    halfWidth: number,
+    density = 0.85,
+    amt = WOOD_MAX_AMT,
+  ): number {
     let placed = 0;
     for (let y = this.p0; y < this.p1; y++) {
       for (let x = this.p0; x < this.p1; x++) {
         let d = Infinity;
         for (let s = 0; s + 1 < course.length; s++) {
-          const dd = distToSegment(x + 0.5, y + 0.5, course[s]!, course[s + 1]!);
+          const dd = distToSegment(
+            x + 0.5,
+            y + 0.5,
+            course[s]!,
+            course[s + 1]!,
+          );
           if (dd < d) d = dd;
         }
         // The line wanders, and its depth breathes: a treeline that holds
@@ -1076,7 +1177,10 @@ export class Valley {
         const w = d + wander;
         if (w > swell) continue;
         const glade = 0.58 + 0.6 * this.noise(19, x, y, 9);
-        const p = density * (1 - 0.8 * ease01((w - swell * 0.55) / (swell * 0.45))) * glade;
+        const p =
+          density *
+          (1 - 0.8 * ease01((w - swell * 0.55) / (swell * 0.45))) *
+          glade;
         if (this.jitter(x, y, 17) > p) continue;
         if (this.plant(x, y, TileResource.Wood, amt)) placed++;
       }
@@ -1086,7 +1190,11 @@ export class Valley {
 
   /** Timber across an arbitrary region — the belt of woods a recipe wants
    * to fence a valley with. */
-  woods(pred: (x: number, y: number) => boolean, density = 0.7, amt = WOOD_MAX_AMT): number {
+  woods(
+    pred: (x: number, y: number) => boolean,
+    density = 0.7,
+    amt = WOOD_MAX_AMT,
+  ): number {
     let placed = 0;
     for (let y = this.p0; y < this.p1; y++) {
       for (let x = this.p0; x < this.p1; x++) {
@@ -1106,7 +1214,9 @@ export class Valley {
    */
   seam(res: TileResourceKind, budget: number, c: Pt): number {
     if (!Number.isInteger(budget) || budget < 1 || budget > 255) {
-      throw new Error(`seam budget must be a whole number of 1..255 (got ${budget})`);
+      throw new Error(
+        `seam budget must be a whole number of 1..255 (got ${budget})`,
+      );
     }
     // The working yard: standing timber inside the seam's own reach comes
     // down first. A seam is walkable rocky ground by design — a miner
@@ -1125,7 +1235,7 @@ export class Valley {
         this.resourceAmt[i] = 0;
       }
     }
-    const open: { i: number; d2: number }[] = [];
+    const open: {i: number; d2: number}[] = [];
     for (let dy = -SEAM_REACH; dy <= SEAM_REACH; dy++) {
       for (let dx = -SEAM_REACH; dx <= SEAM_REACH; dx++) {
         const d2 = dx * dx + dy * dy;
@@ -1134,8 +1244,12 @@ export class Valley {
         const y = Math.floor(c.y) + dy;
         if (!this.inPlay(x, y)) continue;
         const i = this.idx(x, y);
-        if (this.terrain[i] !== Terrain.Grass || this.resource[i] !== TileResource.None) continue;
-        open.push({ i, d2 });
+        if (
+          this.terrain[i] !== Terrain.Grass ||
+          this.resource[i] !== TileResource.None
+        )
+          continue;
+        open.push({i, d2});
       }
     }
     // Nearest first; ties by the twin-invariant key rather than the raw
@@ -1147,7 +1261,7 @@ export class Valley {
     if (take.length === 0) return 0;
     const per = Math.floor(budget / take.length);
     let over = budget - per * take.length;
-    for (const { i } of take) {
+    for (const {i} of take) {
       this.resource[i] = res;
       this.resourceAmt[i] = per + (over-- > 0 ? 1 : 0);
     }
@@ -1178,11 +1292,16 @@ export class Valley {
     for (let i = 0; i < tileCount(this.size); i++) {
       const x = i % this.size;
       const y = (i / this.size) | 0;
-      if (this.terrain[i] !== Terrain.Grass || this.resource[i] !== TileResource.None) continue;
+      if (
+        this.terrain[i] !== Terrain.Grass ||
+        this.resource[i] !== TileResource.None
+      )
+        continue;
       // Glades: a low-frequency thinning that runs through the whole belt
       // and out into the horizon behind it, so the wood has depth to it
       // rather than being a hedge with a ragged inside face.
-      const glade = 0.45 + 0.55 * ease01((this.noise(12, x, y, 11) - 0.22) / 0.5);
+      const glade =
+        0.45 + 0.55 * ease01((this.noise(12, x, y, 11) - 0.22) / 0.5);
       if (this.inPlay(x, y)) {
         const deep = this.belt[i]!;
         if (!deep) continue;
@@ -1244,7 +1363,8 @@ export class Valley {
           for (let ny = y - 2; ny <= y + 2; ny++) {
             for (let nx = x - 2; nx <= x + 2; nx++) {
               if (!inBounds(nx, ny, this.size)) continue;
-              if (this.resource[this.idx(nx, ny)] === TileResource.Wood) neighbours++;
+              if (this.resource[this.idx(nx, ny)] === TileResource.Wood)
+                neighbours++;
             }
           }
           if (neighbours >= 9) continue; // a third of the block: a real stand
@@ -1314,7 +1434,11 @@ export class Valley {
               const y = cy + dy;
               if (!canPlace(map, BuildingTypeId.woodcutter, x, y)) continue;
               const o = gatherOrigin(def, x, y);
-              if (countResourceNear(this, o.x, o.y, TileResource.Wood, radius) >= want) continue;
+              if (
+                countResourceNear(this, o.x, o.y, TileResource.Wood, radius) >=
+                want
+              )
+                continue;
               for (let ty = o.y - radius; ty <= o.y + radius; ty++) {
                 for (let tx = o.x - radius; tx <= o.x + radius; tx++) {
                   if (!this.inPlay(tx, ty)) continue;
@@ -1377,7 +1501,12 @@ export class Valley {
 
   serialize(name: string, starts: StartSpot[]): string {
     if (!this.settled) throw new Error(`${name}: settle() was never called`);
-    return serializeMapFile({ map: this.toMap(), players: starts.length, starts, name });
+    return serializeMapFile({
+      map: this.toMap(),
+      players: starts.length,
+      starts,
+      name,
+    });
   }
 }
 
@@ -1393,13 +1522,13 @@ export interface Authored {
    * audit can prove the placement rules accept the ground under them —
    * a quarry wants stone in reach and flat-enough ground, and a mission
    * whose village half-lands is a mission that opens broken. */
-  prebuilt?: { type: BuildingTypeId; dx: number; dy: number }[];
+  prebuilt?: {type: BuildingTypeId; dx: number; dy: number}[];
   /** Free-form notes about what the ground is meant to teach — printed
    * with the audit so a rebuild reads its own intent back. */
   intent: string[];
   /** What `settle` had to drown, filled in by the recipe: the total, and
    * how much of it was out in the valley rather than down at the rim. */
-  drowned: { total: number; inland: number };
+  drowned: {total: number; inland: number};
   /** Set by a duel map authored as one half and mirrored: the audit then
    * holds the finished tiles to that claim, inside the rim (the border
    * band is scenery and draws its own wobble). */
@@ -1408,7 +1537,10 @@ export interface Authored {
 
 /** Walkable in the sim's terms: playable, dry, and nothing standing on it. */
 function walkable(v: Valley, i: number): boolean {
-  return v.inPlay(i % v.size, (i / v.size) | 0) && !tileBlocks(v.terrain[i]!, v.resource[i]!);
+  return (
+    v.inPlay(i % v.size, (i / v.size) | 0) &&
+    !tileBlocks(v.terrain[i]!, v.resource[i]!)
+  );
 }
 
 /** Everything reachable on foot from a tile. */
@@ -1449,7 +1581,7 @@ const RESOURCE_NAMES: Record<number, string> = {
 
 /** The castle's sight centre, as worldgen measures it. */
 function keep(s: StartSpot): Pt {
-  return { x: s.x + 1.5, y: s.y + 1.5 };
+  return {x: s.x + 1.5, y: s.y + 1.5};
 }
 
 /**
@@ -1463,14 +1595,15 @@ function nearestSite(
   type: BuildingTypeId,
   c: Pt,
   maxRing: number,
-): { x: number; y: number; r: number } | undefined {
+): {x: number; y: number; r: number} | undefined {
   const cx = Math.floor(c.x);
   const cy = Math.floor(c.y);
   for (let r = 0; r <= maxRing; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-        if (canPlace(map, type, cx + dx, cy + dy)) return { x: cx + dx, y: cy + dy, r };
+        if (canPlace(map, type, cx + dx, cy + dy))
+          return {x: cx + dx, y: cy + dy, r};
       }
     }
   }
@@ -1507,7 +1640,7 @@ export function audit(a: Authored): AuditReport {
     }
   }
 
-  const totals = new Map<number, { amt: number; tiles: number }>();
+  const totals = new Map<number, {amt: number; tiles: number}>();
   let wet = 0;
   for (let y = v.p0; y < v.p1; y++) {
     for (let x = v.p0; x < v.p1; x++) {
@@ -1515,16 +1648,20 @@ export function audit(a: Authored): AuditReport {
       if (v.terrain[i] === Terrain.Water) wet++;
       const r = v.resource[i]!;
       if (!r) continue;
-      const t = totals.get(r) ?? { amt: 0, tiles: 0 };
+      const t = totals.get(r) ?? {amt: 0, tiles: 0};
       t.amt += v.resourceAmt[i]!;
       t.tiles++;
       totals.set(r, t);
     }
   }
-  lines.push(`water ${((100 * wet) / (v.play * v.play)).toFixed(1)}% of the playfield`);
+  lines.push(
+    `water ${((100 * wet) / (v.play * v.play)).toFixed(1)}% of the playfield`,
+  );
   for (const [code, name] of Object.entries(RESOURCE_NAMES)) {
     const t = totals.get(Number(code));
-    lines.push(`  ${name.padEnd(6)} ${String(t?.amt ?? 0).padStart(5)} in ${t?.tiles ?? 0} tiles`);
+    lines.push(
+      `  ${name.padEnd(6)} ${String(t?.amt ?? 0).padStart(5)} in ${t?.tiles ?? 0} tiles`,
+    );
   }
   if (a.drowned.total > 0) {
     lines.push(
@@ -1539,7 +1676,7 @@ export function audit(a: Authored): AuditReport {
   }
 
   for (const [si, s] of a.starts.entries()) {
-    const c = { x: s.x + 1.5, y: s.y + 1.5 };
+    const c = {x: s.x + 1.5, y: s.y + 1.5};
     const who = a.starts.length > 1 ? `seat ${si}` : 'castle';
     // The town site: a 3x3 keep needs its ground, and the plateau around
     // it is where the first half-dozen roofs go.
@@ -1556,9 +1693,11 @@ export function audit(a: Authored): AuditReport {
       }
     }
     if (blockedNear > 20) {
-      problems.push(`${who}: ${blockedNear} of 169 tiles around the keep are unbuildable`);
+      problems.push(
+        `${who}: ${blockedNear} of 169 tiles around the keep are unbuildable`,
+      );
     }
-    const reach = reachable(v, { x: s.x + 2, y: s.y + 2 });
+    const reach = reachable(v, {x: s.x + 2, y: s.y + 2});
     const nearest = (code: number): number => {
       let best = Infinity;
       for (let i = 0; i < tiles; i++) {
@@ -1587,7 +1726,8 @@ export function audit(a: Authored): AuditReport {
         if (v.resource[v.idx(x, y)] === TileResource.Rock) stoneInSight++;
       }
     }
-    if (stoneInSight === 0) problems.push(`${who}: no stone inside the castle's opening sight`);
+    if (stoneInSight === 0)
+      problems.push(`${who}: no stone inside the castle's opening sight`);
     else lines.push(`  ${stoneInSight} stone tiles in the opening view`);
     // Fishable water within a short walk — the fishery's whole premise.
     let shore = Infinity;
@@ -1613,7 +1753,11 @@ export function audit(a: Authored): AuditReport {
 
     // Every deposit has to be walkable-to: a seam behind a lake is a seam
     // the mission cannot ask for.
-    for (const code of [TileResource.IronDep, TileResource.SilverDep, TileResource.GoldDep]) {
+    for (const code of [
+      TileResource.IronDep,
+      TileResource.SilverDep,
+      TileResource.GoldDep,
+    ]) {
       let live = 0;
       let reachableTiles = 0;
       for (let i = 0; i < tiles; i++) {
@@ -1639,9 +1783,11 @@ export function audit(a: Authored): AuditReport {
       }
     }
     if (si > 0) {
-      const home = reachable(v, { x: a.starts[0]!.x + 2, y: a.starts[0]!.y + 2 });
+      const home = reachable(v, {x: a.starts[0]!.x + 2, y: a.starts[0]!.y + 2});
       if (!home[v.idx(s.x + 2, s.y + 2)]) {
-        problems.push(`${who}: no walkable route from seat 0 — a war of elimination never ends`);
+        problems.push(
+          `${who}: no walkable route from seat 0 — a war of elimination never ends`,
+        );
       }
     }
   }
@@ -1670,17 +1816,19 @@ export function audit(a: Authored): AuditReport {
   }
 
   if (a.campSpot) {
-    const { x, y } = a.campSpot;
+    const {x, y} = a.campSpot;
     let clear = true;
     for (let dy = 0; dy < 3; dy++) {
       for (let dx = 0; dx < 3; dx++) {
         if (!v.inPlay(x + dx, y + dy)) clear = false;
-        else if (v.terrain[v.idx(x + dx, y + dy)] !== Terrain.Grass) clear = false;
-        else if (v.resource[v.idx(x + dx, y + dy)] !== TileResource.None) clear = false;
+        else if (v.terrain[v.idx(x + dx, y + dy)] !== Terrain.Grass)
+          clear = false;
+        else if (v.resource[v.idx(x + dx, y + dy)] !== TileResource.None)
+          clear = false;
       }
     }
     if (!clear) problems.push(`campSpot ${x},${y} is not a clear 3x3`);
-    const reach = reachable(v, { x: a.starts[0]!.x + 2, y: a.starts[0]!.y + 2 });
+    const reach = reachable(v, {x: a.starts[0]!.x + 2, y: a.starts[0]!.y + 2});
     let adjacent = false;
     for (let dy = -1; dy <= 3; dy++) {
       for (let dx = -1; dx <= 3; dx++) {
@@ -1699,13 +1847,15 @@ export function audit(a: Authored): AuditReport {
     // and the gatherer's reach are all in there.
     const ox = a.starts[0]!.x + b.dx;
     const oy = a.starts[0]!.y + b.dy;
-    const at = nearestSite(map, b.type, { x: ox, y: oy }, 6);
+    const at = nearestSite(map, b.type, {x: ox, y: oy}, 6);
     if (!at)
       problems.push(
         `prebuilt ${BUILDING_KEYS[b.type]} at ${b.dx},${b.dy}: no legal site within 5 tiles`,
       );
     else if (at.r > 3)
-      lines.push(`  prebuilt ${BUILDING_KEYS[b.type]} slides ${at.r} tiles to find ground`);
+      lines.push(
+        `  prebuilt ${BUILDING_KEYS[b.type]} slides ${at.r} tiles to find ground`,
+      );
   }
 
   // What a player can actually raise, how far they walk to do it, and —
@@ -1729,14 +1879,20 @@ export function audit(a: Authored): AuditReport {
       BuildingTypeId.fishery,
     ];
     const sites = siteTypes
-      .map((type) => {
+      .map(type => {
         const name = BUILDING_KEYS[type];
         const at = nearestSite(map, type, c, 40);
         if (!at) return `${name} --`;
         const gather = gatherRecipeOf(buildingDef(type));
         if (!gather) return `${name} ${at.r}`;
         const o = gatherOrigin(buildingDef(type), at.x, at.y);
-        const held = countResourceNear(v, o.x, o.y, gather.resource, gather.radius);
+        const held = countResourceNear(
+          v,
+          o.x,
+          o.y,
+          gather.resource,
+          gather.radius,
+        );
         return `${name} ${at.r} (${held})`;
       })
       .join('  ');
@@ -1750,7 +1906,13 @@ export function audit(a: Authored): AuditReport {
       if (!at) continue;
       const gather = gatherRecipeOf(buildingDef(type))!;
       const o = gatherOrigin(buildingDef(type), at.x, at.y);
-      const held = countResourceNear(v, o.x, o.y, gather.resource, gather.radius);
+      const held = countResourceNear(
+        v,
+        o.x,
+        o.y,
+        gather.resource,
+        gather.radius,
+      );
       // A trap, not a merely thin spot: below four tiles' worth is a hut
       // that fells what it can see and then stands idle.
       if (held < 24) {
@@ -1759,10 +1921,12 @@ export function audit(a: Authored): AuditReport {
             'grove tile is making a dead spot look legal',
         );
       } else if (held < want) {
-        lines.push(`  (the first ${BUILDING_KEYS[type]} site is a thin one at ${held})`);
+        lines.push(
+          `  (the first ${BUILDING_KEYS[type]} site is a thin one at ${held})`,
+        );
       }
     }
   }
 
-  return { name: a.name, lines, problems };
+  return {name: a.name, lines, problems};
 }

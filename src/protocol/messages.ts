@@ -1,19 +1,25 @@
-import type { AiWorldSummary } from '../ai/summary.ts';
-import type { EntityId, Owner, BuildingState } from '../sim/entities.ts';
-import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
-import type { UnitTypeId } from '../sim/defs/units.ts';
-import type { MatchOutcome, HaulPhase, GameEvent, MapDelta, WorldConfig } from '../sim/world.ts';
-import type { PlayerKind } from '../sim/player.ts';
-import type { BuildingTypeId } from '../sim/defs/buildings.ts';
-import type { GoodAmounts, GoodId } from '../sim/defs/goods.ts';
-import type { MissionId } from '../sim/defs/missions.ts';
-import type { TechId } from '../sim/defs/techs.ts';
-import type { PlayerCommand } from '../sim/tick.ts';
-import type { Enum } from '../shared/enum.ts';
+import type {AiWorldSummary} from '../ai/summary.ts';
+import type {Enum} from '../shared/enum.ts';
+import type {AiStrategy} from '../sim/defs/aiStrategies.ts';
+import type {BuildingTypeId} from '../sim/defs/buildings.ts';
+import type {GoodAmounts, GoodId} from '../sim/defs/goods.ts';
+import type {MissionId} from '../sim/defs/missions.ts';
+import type {TechId} from '../sim/defs/techs.ts';
+import type {UnitTypeId} from '../sim/defs/units.ts';
+import type {EntityId, Owner, BuildingState} from '../sim/entities.ts';
+import type {PlayerKind} from '../sim/player.ts';
+import type {PlayerCommand} from '../sim/tick.ts';
+import type {
+  MatchOutcome,
+  HaulPhase,
+  GameEvent,
+  MapDelta,
+  WorldConfig,
+} from '../sim/world.ts';
 import * as MainToWorkerKindNs from './mainToWorkerKindEnum.ts';
-import * as WorkerToMainKindNs from './workerToMainKindEnum.ts';
 import * as NetStateNs from './netStateEnum.ts';
 import * as StaffingStateNs from './staffingStateEnum.ts';
+import * as WorkerToMainKindNs from './workerToMainKindEnum.ts';
 
 export type MainToWorkerKind = Enum<typeof MainToWorkerKindNs>;
 export type WorkerToMainKind = Enum<typeof WorkerToMainKindNs>;
@@ -23,7 +29,7 @@ export type StaffingState = Enum<typeof StaffingStateNs>;
 /** Tech-tree state for the UI. */
 export interface TechSnap {
   researched: TechId[];
-  active?: { tech: TechId; ticksLeft: number; totalTicks: number };
+  active?: {tech: TechId; ticksLeft: number; totalTicks: number};
   festivalTicksLeft: number;
   pavingUnlocked: boolean;
   hasAbbey: boolean;
@@ -76,9 +82,9 @@ export interface BuildingSnap {
   reservedOut: GoodAmounts;
   maxHp: number;
   /** Barracks orders in queue order; the started one carries its progress 0..1. */
-  trainQueue?: { unit: UnitTypeId; started: boolean; progress01?: number }[];
+  trainQueue?: {unit: UnitTypeId; started: boolean; progress01?: number}[];
   /** The rally flag fresh soldiers march to (barracks); absent when none stands. */
-  rally?: { x: number; y: number };
+  rally?: {x: number; y: number};
   /** Serf hires paid for and still walking in, and the leader's progress 0..1. */
   hireQueue?: number;
   hireProgress01?: number;
@@ -97,7 +103,7 @@ export interface BuildingSnap {
   /** The option the batch on the fire was started with. */
   prodRecipeIndex?: number;
   /** Forge orders waiting (Smith), worked ahead of the standing order. */
-  forgeQueue?: { recipeIndex: number; started: boolean }[];
+  forgeQueue?: {recipeIndex: number; started: boolean}[];
   /** Men manning this building, and how many it holds. Present only for
    * buildings that are manned at all (the guard tower). */
   garrison?: number;
@@ -157,11 +163,11 @@ export interface NetInfo {
  * happen now that one machine simulates and the rest render what it sends.
  */
 export type NetStatus =
-  | { state: NetStateNs.ok; rttMs: number }
-  | { state: NetStateNs.disconnected }
+  | {state: NetStateNs.ok; rttMs: number}
+  | {state: NetStateNs.disconnected}
   /** The room no longer knows us (swept, or the relay restarted): the
    * match is unreachable for good — stop reconnecting, say so. */
-  | { state: NetStateNs.gone; message: string };
+  | {state: NetStateNs.gone; message: string};
 
 export type MainToWorker =
   | {
@@ -177,27 +183,31 @@ export type MainToWorker =
        * above are ignored — the replay carries its own. */
       replay?: import('../app/replay.ts').ReplayData;
     }
-  | { type: MainToWorkerKindNs.commands; commands: PlayerCommand[] }
+  | {type: MainToWorkerKindNs.commands; commands: PlayerCommand[]}
   /** Strategist advice for one AI seat: playbook knobs to lay over its
    * strategy. Validated and clamped on the main thread (src/ai/advice.ts)
    * before it is ever posted. */
-  | { type: MainToWorkerKindNs.aiAdvice; playerId: number; override: Partial<AiStrategy> }
-  | { type: MainToWorkerKindNs.setSpeed; speed: number }
+  | {
+      type: MainToWorkerKindNs.aiAdvice;
+      playerId: number;
+      override: Partial<AiStrategy>;
+    }
+  | {type: MainToWorkerKindNs.setSpeed; speed: number}
   /** Debug overlay visibility: the worker only serializes its jobs table
    * into structural updates while someone is actually watching. */
-  | { type: MainToWorkerKindNs.setDebug; enabled: boolean }
+  | {type: MainToWorkerKindNs.setDebug; enabled: boolean}
   /** Page visibility: hidden freezes the single-player sim (and its pump
    * timer) so a backgrounded phone stops burning battery on a valley
    * nobody is watching. Multiplayer ignores it — the server's world keeps
    * running either way, and the socket has to stay warm. */
-  | { type: MainToWorkerKindNs.setHidden; hidden: boolean }
-  | { type: MainToWorkerKindNs.requestSave }
+  | {type: MainToWorkerKindNs.setHidden; hidden: boolean}
+  | {type: MainToWorkerKindNs.requestSave}
   /** Solo only: serialize the recording so the main thread can write it to
    * OPFS. Answered with 'replayData'. `explored` is the packed fog memory
    * the match booted with (a loaded save's), which the worker cannot know
    * — fog is render-side — and carries into the file unread, so playback
    * from that save resumes with the ground the player had scouted. */
-  | { type: MainToWorkerKindNs.requestReplay; explored?: string };
+  | {type: MainToWorkerKindNs.requestReplay; explored?: string};
 
 /**
  * Low-frequency structural state (every 5 ticks / on change): building
@@ -226,13 +236,13 @@ export interface StructuralUpdate {
    * ships each roster only when it differs, so a frame carrying two tiles
    * of trail wear is a few dozen bytes, not the whole village. */
   players?: PlayerSnap[];
-  admin: { enabled: boolean; raidsEnabled: boolean; instantBuild: boolean };
+  admin: {enabled: boolean; raidsEnabled: boolean; instantBuild: boolean};
   events: GameEvent[];
   outcome: OutcomeSnap;
   /** Campaign mission riding this world, latch bits included. From the
    * worker rather than the URL on purpose: a loaded save reboots on
    * ?seed=…, but the world remembers which mission it is. */
-  mission?: { id: MissionId; done: boolean[] };
+  mission?: {id: MissionId; done: boolean[]};
   /** Debug-overlay rows; absent while nobody is watching. */
   jobs?: JobSnap[];
   invariantViolations: string[];
@@ -250,14 +260,18 @@ export type WorkerToMain =
       explored?: Uint8Array;
     }
   | StructuralUpdate
-  | { type: WorkerToMainKindNs.saved; data: string }
+  | {type: WorkerToMainKindNs.saved; data: string}
   /** The recording, serialized — the answer to 'requestReplay'. */
-  | { type: WorkerToMainKindNs.replayData; data: string }
+  | {type: WorkerToMainKindNs.replayData; data: string}
   /** Replay playback reached the log's end tick; the sim has paused itself. */
-  | { type: WorkerToMainKindNs.replayEnded }
-  | { type: WorkerToMainKindNs.netStatus; status: NetStatus }
+  | {type: WorkerToMainKindNs.replayEnded}
+  | {type: WorkerToMainKindNs.netStatus; status: NetStatus}
   /** One AI seat's folded-down view of the match, on the advice cadence
    * (~45 s) — the input the LLM strategist prompts from. Only sent when
    * init asked with `llm`. */
-  | { type: WorkerToMainKindNs.aiSummary; playerId: number; summary: AiWorldSummary }
-  | { type: WorkerToMainKindNs.log; message: string };
+  | {
+      type: WorkerToMainKindNs.aiSummary;
+      playerId: number;
+      summary: AiWorldSummary;
+    }
+  | {type: WorkerToMainKindNs.log; message: string};

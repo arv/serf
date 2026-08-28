@@ -1,9 +1,24 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { parseAdvice } from '../../src/ai/advice.ts';
-import { parseArgs, parseStrategies } from './bakeoff.ts';
+import {mkdtempSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {describe, expect, it} from 'vitest';
+import {parseAdvice} from '../../src/ai/advice.ts';
+import {POSTURE_ORDER} from '../../src/ai/posture.ts';
+import {Rng} from '../../src/shared/rng.ts';
+import {
+  AI_STRATEGIES,
+  AI_STRATEGY_ORDER,
+} from '../../src/sim/defs/aiStrategies.ts';
+import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
+import type {Owner} from '../../src/sim/entities.ts';
+import {parseArgs, parseStrategies} from './bakeoff.ts';
+import {
+  binomCdfHalf,
+  compare,
+  readRun,
+  renderComparison,
+  type ArmOutcomes,
+} from './compare.ts';
 import {
   buildEngine,
   describeSpec,
@@ -12,7 +27,6 @@ import {
   scriptEngine,
   type LabEngine,
 } from './engines.ts';
-import { POSTURE_ORDER } from '../../src/ai/posture.ts';
 import {
   queueAdvice,
   type PendingAdvice,
@@ -22,14 +36,26 @@ import {
   type MatchRecord,
   type SeatStrategies,
 } from './match.ts';
-import { binomCdfHalf, compare, readRun, renderComparison, type ArmOutcomes } from './compare.ts';
-import { renderMatchup, renderReport, verdict, type ReportHeader } from './report.ts';
-import { matchupOf, summarize, trialsForPrecision, wilson, type SeedRun } from './stats.ts';
-import { adviceOf, describeMutation, mutate, MUTABLE_KNOBS, MUTABLE_RANGES } from './mutate.ts';
-import { AI_STRATEGIES, AI_STRATEGY_ORDER } from '../../src/sim/defs/aiStrategies.ts';
-import { Rng } from '../../src/shared/rng.ts';
-import type { Owner } from '../../src/sim/entities.ts';
-import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
+import {
+  adviceOf,
+  describeMutation,
+  mutate,
+  MUTABLE_KNOBS,
+  MUTABLE_RANGES,
+} from './mutate.ts';
+import {
+  renderMatchup,
+  renderReport,
+  verdict,
+  type ReportHeader,
+} from './report.ts';
+import {
+  matchupOf,
+  summarize,
+  trialsForPrecision,
+  wilson,
+  type SeedRun,
+} from './stats.ts';
 
 /**
  * The harness measuring the harness.
@@ -56,7 +82,7 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
   };
 }
 
-const WARMONGER = { armyAttackSize: 4, attackCooldown: 300, prefersRivals: true };
+const WARMONGER = {armyAttackSize: 4, attackCooldown: 300, prefersRivals: true};
 /** The full-match fixture, and how deep it has to run. Seat 1 razes seat 0
  * at tick 15534 unadvised and at 12320 advised, so the bound sits above the
  * slower of the two with room to spare.
@@ -102,12 +128,12 @@ describe('wilson intervals', () => {
 
 describe('engine specs', () => {
   it('reads every accepted form', () => {
-    expect(parseEngineSpec('none')).toEqual({ kind: 'none' });
-    expect(parseEngineSpec('random')).toEqual({ kind: 'random', seed: 1 });
-    expect(parseEngineSpec('random:7')).toEqual({ kind: 'random', seed: 7 });
+    expect(parseEngineSpec('none')).toEqual({kind: 'none'});
+    expect(parseEngineSpec('random')).toEqual({kind: 'random', seed: 1});
+    expect(parseEngineSpec('random:7')).toEqual({kind: 'random', seed: 7});
     expect(parseEngineSpec('script:{"homeGuard":9}')).toEqual({
       kind: 'script',
-      reply: { homeGuard: 9 },
+      reply: {homeGuard: 9},
     });
     expect(parseEngineSpec('http://localhost:8080/v1/', 'qwen')).toEqual({
       kind: 'http',
@@ -121,14 +147,16 @@ describe('engine specs', () => {
     // was: plain posture never reads the opponent, posture-reads does,
     // and a run filed under the wrong text is indistinguishable from its
     // own null when re-read later.
-    expect(describeSpec({ kind: 'posture' })).toBe('posture (rule-based, no model)');
-    expect(describeSpec({ kind: 'postureReads' })).toContain('opponent');
-    expect(describeSpec({ kind: 'posture' })).not.toContain('opponent');
+    expect(describeSpec({kind: 'posture'})).toBe(
+      'posture (rule-based, no model)',
+    );
+    expect(describeSpec({kind: 'postureReads'})).toContain('opponent');
+    expect(describeSpec({kind: 'posture'})).not.toContain('opponent');
     // One archive names an arm twice — the report header via describeSpec,
     // each advised[] JSONL line via engine.label — and both spellings must
     // be the same word or the file disagrees with itself.
     for (const kind of ['posture', 'postureReads'] as const) {
-      expect(buildEngine({ kind }, 0)?.label).toBe(describeSpec({ kind }));
+      expect(buildEngine({kind}, 0)?.label).toBe(describeSpec({kind}));
     }
   });
 
@@ -148,14 +176,21 @@ describe('engine specs', () => {
     } catch (err) {
       message = err instanceof Error ? err.message : String(err);
     }
-    for (const name of ['none', 'random', 'posture', 'posture-reads', 'script', 'http']) {
+    for (const name of [
+      'none',
+      'random',
+      'posture',
+      'posture-reads',
+      'script',
+      'http',
+    ]) {
       expect(message, `refusal should mention ${name}`).toContain(name);
     }
     for (const id of POSTURE_ORDER) expect(message).toContain(id);
   });
 
   it('builds nothing for the unadvised control', () => {
-    expect(buildEngine({ kind: 'none' }, 1)).toBeNull();
+    expect(buildEngine({kind: 'none'}, 1)).toBeNull();
   });
 });
 
@@ -164,10 +199,11 @@ describe('the advice queue', () => {
   const entry = (dueTick: number, label: number): PendingAdvice => ({
     dueTick,
     playerId: 0,
-    override: { serfTarget: label },
-    consult: { playerId: 0, tick: 0, ms: 0, promptChars: 0, replyChars: 0 },
+    override: {serfTarget: label},
+    consult: {playerId: 0, tick: 0, ms: 0, promptChars: 0, replyChars: 0},
   });
-  const order = (q: PendingAdvice[]): number[] => q.map((e) => e.override.serfTarget!);
+  const order = (q: PendingAdvice[]): number[] =>
+    q.map(e => e.override.serfTarget!);
 
   it('keeps the queue ordered by when advice lands', () => {
     // The case --latency measured produces: a slow consultation lands after
@@ -176,7 +212,7 @@ describe('the advice queue', () => {
     const q: PendingAdvice[] = [];
     queueAdvice(q, entry(100, 1)); // slow: 5s of thinking
     queueAdvice(q, entry(54, 2)); // fast: asked later, due sooner
-    expect(q.map((e) => e.dueTick)).toEqual([54, 100]);
+    expect(q.map(e => e.dueTick)).toEqual([54, 100]);
     expect(order(q)).toEqual([2, 1]);
   });
 
@@ -198,7 +234,7 @@ describe('the advice queue', () => {
       [10, 5],
     ];
     for (const [due, label] of arrivals) queueAdvice(q, entry(due, label));
-    expect(q.map((e) => e.dueTick)).toEqual([10, 10, 20, 30, 30]);
+    expect(q.map(e => e.dueTick)).toEqual([10, 10, 20, 30, 30]);
     expect(order(q)).toEqual([2, 5, 4, 1, 3]);
   });
 });
@@ -237,9 +273,11 @@ describe('the random baseline', () => {
 describe('a headless match', () => {
   it('replays tick for tick, so a sweep measures the model and not itself', async () => {
     const engines = new Map<Owner, LabEngine>([[0, scriptEngine(WARMONGER)]]);
-    const first = await playMatch(config({ engines }));
+    const first = await playMatch(config({engines}));
     const second = await playMatch(
-      config({ engines: new Map<Owner, LabEngine>([[0, scriptEngine(WARMONGER)]]) }),
+      config({
+        engines: new Map<Owner, LabEngine>([[0, scriptEngine(WARMONGER)]]),
+      }),
     );
     expect(digestOf(second)).toBe(digestOf(first));
   });
@@ -249,7 +287,9 @@ describe('a headless match', () => {
     // dies before its army knobs ever gate a decision, so advising it is a
     // genuine no-op — which is itself the kind of truth the bake-off's
     // mirrored arms exist to average out.
-    const control = await playMatch(config({ seed: FULL_MATCH_SEED, maxTicks: FULL_MATCH_TICKS }));
+    const control = await playMatch(
+      config({seed: FULL_MATCH_SEED, maxTicks: FULL_MATCH_TICKS}),
+    );
     const advised = await playMatch(
       config({
         seed: FULL_MATCH_SEED,
@@ -269,7 +309,9 @@ describe('a headless match', () => {
       }),
     );
     expect(control.advised).toEqual([]);
-    expect(advised.advised).toEqual([{ playerId: 1, engine: expect.any(String) }]);
+    expect(advised.advised).toEqual([
+      {playerId: 1, engine: expect.any(String)},
+    ]);
     // Marching at four instead of seven ends the same war sooner.
     expect(advised.decided).toBe(true);
     expect(advised.ticks).toBeLessThan(control.ticks);
@@ -278,12 +320,15 @@ describe('a headless match', () => {
     // And the records say why: consultations ran, advice was sent, but
     // none of it ever reached the brain.
     expect(tooLate.adviceApplied['1']).toBe(1);
-    expect(tooLate.consults.every((c) => c.appliedTick === undefined)).toBe(true);
+    expect(tooLate.consults.every(c => c.appliedTick === undefined)).toBe(true);
   }, 60_000);
 
   it('runs the real prompt and the real validator over every reply', async () => {
     const record = await playMatch(
-      config({ engines: new Map<Owner, LabEngine>([[0, scriptEngine(WARMONGER)]]), trace: true }),
+      config({
+        engines: new Map<Owner, LabEngine>([[0, scriptEngine(WARMONGER)]]),
+        trace: true,
+      }),
     );
     expect(record.consults.length).toBeGreaterThan(3);
     const first = record.consults[0]!;
@@ -299,16 +344,21 @@ describe('a headless match', () => {
   it('makes advice wait out the inference it would really have cost', async () => {
     const latencyTicks = 700;
     const record = await playMatch(
-      config({ engines: new Map<Owner, LabEngine>([[0, scriptEngine(WARMONGER)]]), latencyTicks }),
+      config({
+        engines: new Map<Owner, LabEngine>([[0, scriptEngine(WARMONGER)]]),
+        latencyTicks,
+      }),
     );
-    const applied = record.consults.filter((c) => c.appliedTick !== undefined);
+    const applied = record.consults.filter(c => c.appliedTick !== undefined);
     expect(applied.length).toBe(1);
     expect(applied[0]!.appliedTick).toBe(applied[0]!.tick + latencyTicks);
 
     const instant = await playMatch(
-      config({ engines: new Map<Owner, LabEngine>([[0, scriptEngine(WARMONGER)]]) }),
+      config({
+        engines: new Map<Owner, LabEngine>([[0, scriptEngine(WARMONGER)]]),
+      }),
     );
-    const now = instant.consults.filter((c) => c.appliedTick !== undefined);
+    const now = instant.consults.filter(c => c.appliedTick !== undefined);
     expect(now[0]!.appliedTick).toBe(now[0]!.tick);
   });
 
@@ -319,29 +369,38 @@ describe('a headless match', () => {
       complete: () => Promise.resolve('Sure! Here is my advice: attack now.'),
     };
     const record = await playMatch(
-      config({ engines: new Map<Owner, LabEngine>([[0, broken]]), advicePeriod: 400 }),
+      config({
+        engines: new Map<Owner, LabEngine>([[0, broken]]),
+        advicePeriod: 400,
+      }),
     );
-    const replies = record.consults.filter((c) => !c.skipped);
+    const replies = record.consults.filter(c => !c.skipped);
     expect(replies.length).toBe(3); // three strikes, then inert
-    expect(replies.every((c) => c.parsed === false)).toBe(true);
+    expect(replies.every(c => c.parsed === false)).toBe(true);
     expect(record.failures[0]!.reason).toMatch(/giving up after 3/);
     // Once it has given up, later summaries are declined rather than sent.
-    expect(record.consults.some((c) => c.skipped)).toBe(true);
+    expect(record.consults.some(c => c.skipped)).toBe(true);
     expect(record.adviceApplied['0']).toBeUndefined();
   });
 
   it('seats a different playbook per side, and says which sat where', async () => {
     const straight = await playMatch(
-      config({ strategies: [AiStrategyId.steward, AiStrategyId.warlord] }),
+      config({strategies: [AiStrategyId.steward, AiStrategyId.warlord]}),
     );
     const swapped = await playMatch(
-      config({ strategies: [AiStrategyId.warlord, AiStrategyId.steward] }),
+      config({strategies: [AiStrategyId.warlord, AiStrategyId.steward]}),
     );
     const mirror = await playMatch(
-      config({ strategies: [AiStrategyId.steward, AiStrategyId.steward] }),
+      config({strategies: [AiStrategyId.steward, AiStrategyId.steward]}),
     );
-    expect(straight.strategies).toEqual([AiStrategyId.steward, AiStrategyId.warlord]);
-    expect(swapped.strategies).toEqual([AiStrategyId.warlord, AiStrategyId.steward]);
+    expect(straight.strategies).toEqual([
+      AiStrategyId.steward,
+      AiStrategyId.warlord,
+    ]);
+    expect(swapped.strategies).toEqual([
+      AiStrategyId.warlord,
+      AiStrategyId.steward,
+    ]);
     // Three genuinely different games on one seed — the swap is not a
     // relabelling of the same match, which is the whole reason the seating
     // mirror is worth playing.
@@ -350,7 +409,7 @@ describe('a headless match', () => {
   });
 
   it('leaves a standing worth reading', async () => {
-    const record = await playMatch(config({ maxTicks: 2_000 }));
+    const record = await playMatch(config({maxTicks: 2_000}));
     expect(record.decided).toBe(false);
     expect(record.winner).toBeNull();
     for (const seat of record.standings) {
@@ -387,7 +446,10 @@ function fake(
   };
 }
 
-function mirrored(results: [Owner | null, Owner | null][], control: (Owner | null)[]): SeedRun[] {
+function mirrored(
+  results: [Owner | null, Owner | null][],
+  control: (Owner | null)[],
+): SeedRun[] {
   return results.map(([a, b], i) => ({
     seed: i + 1,
     layouts: [
@@ -395,8 +457,8 @@ function mirrored(results: [Owner | null, Owner | null][], control: (Owner | nul
         layout: 0 as const,
         control: fake(i + 1, control[i] ?? null),
         arms: [
-          { advisedSeat: 0 as Owner, record: fake(i + 1, a) },
-          { advisedSeat: 1 as Owner, record: fake(i + 1, b) },
+          {advisedSeat: 0 as Owner, record: fake(i + 1, a)},
+          {advisedSeat: 1 as Owner, record: fake(i + 1, b)},
         ],
       },
     ],
@@ -417,8 +479,16 @@ function seated(
   return wins.map(([w0, w1], i) => ({
     seed: i + 1,
     layouts: [
-      { layout: 0 as const, control: fake(i + 1, w0, decided[i]?.[0] ?? true, A), arms: [] },
-      { layout: 1 as const, control: fake(i + 1, w1, decided[i]?.[1] ?? true, B), arms: [] },
+      {
+        layout: 0 as const,
+        control: fake(i + 1, w0, decided[i]?.[0] ?? true, A),
+        arms: [],
+      },
+      {
+        layout: 1 as const,
+        control: fake(i + 1, w1, decided[i]?.[1] ?? true, B),
+        arms: [],
+      },
     ],
   }));
 }
@@ -483,12 +553,41 @@ describe('aggregation', () => {
   it('separates a model that broke from a model with nothing to say', () => {
     const runs = mirrored([[0, 1]], [0]);
     runs[0]!.layouts[0]!.arms[0]!.record.consults = [
-      { playerId: 0, tick: 1, ms: 10, promptChars: 100, replyChars: 5, parsed: false },
-      { playerId: 0, tick: 2, ms: 20, promptChars: 100, replyChars: 2, parsed: true, knobs: 0 },
-      { playerId: 0, tick: 3, ms: 30, promptChars: 100, replyChars: 0, error: 'timeout' },
-      { playerId: 0, tick: 4, ms: 0, promptChars: 0, replyChars: 0, skipped: true },
+      {
+        playerId: 0,
+        tick: 1,
+        ms: 10,
+        promptChars: 100,
+        replyChars: 5,
+        parsed: false,
+      },
+      {
+        playerId: 0,
+        tick: 2,
+        ms: 20,
+        promptChars: 100,
+        replyChars: 2,
+        parsed: true,
+        knobs: 0,
+      },
+      {
+        playerId: 0,
+        tick: 3,
+        ms: 30,
+        promptChars: 100,
+        replyChars: 0,
+        error: 'timeout',
+      },
+      {
+        playerId: 0,
+        tick: 4,
+        ms: 0,
+        promptChars: 0,
+        replyChars: 0,
+        skipped: true,
+      },
     ];
-    const { health } = summarize(runs, 1);
+    const {health} = summarize(runs, 1);
     expect(health.consultations).toBe(4);
     expect(health.parseFailures).toBe(1);
     expect(health.emptyAdvice).toBe(1);
@@ -518,24 +617,28 @@ describe('the playbook matchup', () => {
     expect(m.a).toBe(AiStrategyId.steward);
     expect(m.rate.rate).toBe(0.5);
     expect(m.rate.trials).toBe(6);
-    expect(m.paired).toMatchObject({ bothA: 0, bothB: 0, split: 3, p: 1 });
+    expect(m.paired).toMatchObject({bothA: 0, bothB: 0, split: 3, p: 1});
     // And it prints the bias rather than hiding it: A won every seating it
     // played from seat 0 and none from seat 1.
     expect(m.bySeat).toEqual([
-      { seat: 0, wins: 3, trials: 3 },
-      { seat: 1, wins: 0, trials: 3 },
+      {seat: 0, wins: 3, trials: 3},
+      {seat: 1, wins: 0, trials: 3},
     ]);
   });
 
   it('scores a playbook that wins from either seat', () => {
     // A takes both seatings on every seed: seat 0 in seating 0, seat 1 in
     // seating 1. Ten seeds all one way is p ≈ 0.002.
-    const runs = seated(Array.from({ length: 10 }, () => [0, 1] as [Owner, Owner]));
+    const runs = seated(
+      Array.from({length: 10}, () => [0, 1] as [Owner, Owner]),
+    );
     const m = matchupOf(runs)!;
     expect(m.rate.rate).toBe(1);
     expect(m.paired.bothA).toBe(10);
     expect(m.paired.p).toBeLessThan(0.05);
-    expect(renderMatchup(m).join('\n')).toContain('steward is the better playbook');
+    expect(renderMatchup(m).join('\n')).toContain(
+      'steward is the better playbook',
+    );
   });
 
   it('holds back a seed whose seatings did not both decide', () => {
@@ -562,7 +665,7 @@ describe('the playbook matchup', () => {
     // to be named second.
     const m = matchupOf(seated([[null, null]]))!;
     expect(m.rate.trials).toBe(0);
-    expect(m.paired).toMatchObject({ bothA: 0, bothB: 0, unresolved: 1 });
+    expect(m.paired).toMatchObject({bothA: 0, bothB: 0, unresolved: 1});
   });
 
   it('counts one unadvised match per seating, however many were played', () => {
@@ -572,8 +675,8 @@ describe('the playbook matchup', () => {
     const runs = seated([[0, 1]]);
     for (const layout of runs[0]!.layouts) {
       layout.arms = [
-        { advisedSeat: 0 as Owner, record: layout.control! },
-        { advisedSeat: 1 as Owner, record: layout.control! },
+        {advisedSeat: 0 as Owner, record: layout.control!},
+        {advisedSeat: 1 as Owner, record: layout.control!},
       ];
     }
     expect(matchupOf(runs)!.rate.trials).toBe(2);
@@ -582,7 +685,7 @@ describe('the playbook matchup', () => {
   it('falls back to an unadvised arm when the control was skipped', () => {
     const runs = seated([[0, 1]]);
     for (const layout of runs[0]!.layouts) {
-      layout.arms = [{ advisedSeat: 0 as Owner, record: layout.control! }];
+      layout.arms = [{advisedSeat: 0 as Owner, record: layout.control!}];
       layout.control = null;
     }
     expect(matchupOf(runs)!.rate.trials).toBe(2);
@@ -594,7 +697,7 @@ describe('the playbook matchup', () => {
       layout.arms = [
         {
           advisedSeat: 0 as Owner,
-          record: { ...layout.control!, advised: [{ playerId: 0, engine: 'x' }] },
+          record: {...layout.control!, advised: [{playerId: 0, engine: 'x'}]},
         },
       ];
       layout.control = null;
@@ -638,14 +741,14 @@ describe('the verdict', () => {
   });
 
   it('says so when the whole interval clears the bar', () => {
-    const results: [Owner, Owner][] = Array.from({ length: 40 }, () => [0, 1]);
+    const results: [Owner, Owner][] = Array.from({length: 40}, () => [0, 1]);
     const report = summarize(mirrored(results, Array<Owner>(40).fill(0)), 1);
     expect(report.advised.trials).toBe(80);
     expect(verdict(report).join(' ')).toMatch(/HELPS/);
   });
 
   it('says so just as plainly when the advice is making things worse', () => {
-    const results: [Owner, Owner][] = Array.from({ length: 40 }, () => [1, 0]);
+    const results: [Owner, Owner][] = Array.from({length: 40}, () => [1, 0]);
     const report = summarize(mirrored(results, Array<Owner>(40).fill(0)), 1);
     expect(verdict(report).join(' ')).toMatch(/HURTS/);
   });
@@ -693,15 +796,38 @@ describe('paired comparison', () => {
     // Both seatings of a seed advise seat 0, so a bare seed:seat key would
     // have the second overwrite the first and halve the paired set.
     const lines = [
-      { kind: 'arm', seed: 1, advisedSeat: 0, layout: 0, decided: true, winner: 0 },
-      { kind: 'arm', seed: 1, advisedSeat: 0, layout: 1, decided: true, winner: 1 },
+      {
+        kind: 'arm',
+        seed: 1,
+        advisedSeat: 0,
+        layout: 0,
+        decided: true,
+        winner: 0,
+      },
+      {
+        kind: 'arm',
+        seed: 1,
+        advisedSeat: 0,
+        layout: 1,
+        decided: true,
+        winner: 1,
+      },
     ];
-    writeFileSync(`${tmp}/seatings.jsonl`, lines.map((l) => JSON.stringify(l)).join('\n'));
+    writeFileSync(
+      `${tmp}/seatings.jsonl`,
+      lines.map(l => JSON.stringify(l)).join('\n'),
+    );
     // No layout at all is what a run recorded before seatings looks like,
     // and it has to keep landing on the bare key.
     writeFileSync(
       `${tmp}/legacy.jsonl`,
-      JSON.stringify({ kind: 'arm', seed: 1, advisedSeat: 0, decided: true, winner: 0 }),
+      JSON.stringify({
+        kind: 'arm',
+        seed: 1,
+        advisedSeat: 0,
+        decided: true,
+        winner: 0,
+      }),
     );
     const seatings = readRun(`${tmp}/seatings.jsonl`);
     expect([...seatings.outcomes.keys()].sort()).toEqual(['1:0', '1:0:1']);
@@ -736,14 +862,14 @@ describe('paired comparison', () => {
 
   it('declares a winner only past the conventional bar', () => {
     // Nine discordant pairs, all falling A's way: p ≈ 0.004.
-    const entries = Array.from({ length: 9 }, (_, i) => `${i}:0`);
+    const entries = Array.from({length: 9}, (_, i) => `${i}:0`);
     const a = run(
       'a',
-      entries.map((k) => [k, true] as [string, boolean]),
+      entries.map(k => [k, true] as [string, boolean]),
     );
     const b = run(
       'b',
-      entries.map((k) => [k, false] as [string, boolean]),
+      entries.map(k => [k, false] as [string, boolean]),
     );
     const c = compare(a, b);
     expect(c.p).toBeLessThan(0.05);
@@ -752,12 +878,18 @@ describe('paired comparison', () => {
 });
 
 describe('the mutation space', () => {
-  const playbooks = AI_STRATEGY_ORDER.map((id) => AI_STRATEGIES[id]);
+  const playbooks = AI_STRATEGY_ORDER.map(id => AI_STRATEGIES[id]);
 
   it('replays exactly, so a generation can be re-run after the fact', () => {
-    const a = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(7), { knobs: 3 });
-    const b = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(7), { knobs: 3 });
-    const c = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(8), { knobs: 3 });
+    const a = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(7), {
+      knobs: 3,
+    });
+    const b = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(7), {
+      knobs: 3,
+    });
+    const c = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(8), {
+      knobs: 3,
+    });
     expect(b.changes).toEqual(a.changes);
     expect(b.strategy).toEqual(a.strategy);
     expect(c.changes).not.toEqual(a.changes);
@@ -771,9 +903,12 @@ describe('the mutation space', () => {
     for (const base of playbooks) {
       let current = base;
       for (let i = 0; i < 200; i++) {
-        current = mutate(current, rng, { knobs: 2 }).strategy;
+        current = mutate(current, rng, {knobs: 2}).strategy;
         const advice = adviceOf(current);
-        expect(parseAdvice(JSON.stringify(advice)), JSON.stringify(advice)).toEqual(advice);
+        expect(
+          parseAdvice(JSON.stringify(advice)),
+          JSON.stringify(advice),
+        ).toEqual(advice);
       }
     }
   });
@@ -782,7 +917,7 @@ describe('the mutation space', () => {
     const rng = new Rng(3);
     let current = AI_STRATEGIES[AiStrategyId.warlord];
     for (let i = 0; i < 500; i++) {
-      current = mutate(current, rng, { knobs: 4, step: 0.9 }).strategy;
+      current = mutate(current, rng, {knobs: 4, step: 0.9}).strategy;
       for (const [knob, [lo, hi]] of Object.entries(MUTABLE_RANGES)) {
         const v = current[knob as keyof typeof current] as number;
         expect(v, knob).toBeGreaterThanOrEqual(lo);
@@ -794,7 +929,9 @@ describe('the mutation space', () => {
       expect(current.trainPreference.length).toBeGreaterThan(0);
       expect(current.weaponMix.length).toBeGreaterThan(0);
       expect(current.weaponMix.length).toBeLessThanOrEqual(3);
-      expect(new Set(current.trainPreference).size).toBe(current.trainPreference.length);
+      expect(new Set(current.trainPreference).size).toBe(
+        current.trainPreference.length,
+      );
     }
   });
 
@@ -805,11 +942,18 @@ describe('the mutation space', () => {
     // editing them.
     const rng = new Rng(5);
     let current = AI_STRATEGIES[AiStrategyId.abbot];
-    for (let i = 0; i < 50; i++) current = mutate(current, rng, { knobs: 5 }).strategy;
+    for (let i = 0; i < 50; i++)
+      current = mutate(current, rng, {knobs: 5}).strategy;
     expect(current.build).toBe(AI_STRATEGIES[AiStrategyId.abbot].build);
-    expect(current.researchOrder).toBe(AI_STRATEGIES[AiStrategyId.abbot].researchOrder);
-    expect(current.survivalFloor).toBe(AI_STRATEGIES[AiStrategyId.abbot].survivalFloor);
-    expect(current.growthAfter).toBe(AI_STRATEGIES[AiStrategyId.abbot].growthAfter);
+    expect(current.researchOrder).toBe(
+      AI_STRATEGIES[AiStrategyId.abbot].researchOrder,
+    );
+    expect(current.survivalFloor).toBe(
+      AI_STRATEGIES[AiStrategyId.abbot].survivalFloor,
+    );
+    expect(current.growthAfter).toBe(
+      AI_STRATEGIES[AiStrategyId.abbot].growthAfter,
+    );
   });
 
   it('turns the number of knobs it was asked for, and always at least one', () => {
@@ -817,9 +961,9 @@ describe('the mutation space', () => {
     for (let i = 0; i < 100; i++) {
       const one = mutate(AI_STRATEGIES[AiStrategyId.fletcher], rng);
       expect(one.changes).toHaveLength(1);
-      expect(mutate(AI_STRATEGIES[AiStrategyId.fletcher], rng, { knobs: 3 }).changes).toHaveLength(
-        3,
-      );
+      expect(
+        mutate(AI_STRATEGIES[AiStrategyId.fletcher], rng, {knobs: 3}).changes,
+      ).toHaveLength(3);
     }
   });
 
@@ -831,7 +975,7 @@ describe('the mutation space', () => {
     let moved = 0;
     for (let i = 0; i < 60; i++) {
       const m = mutate(AI_STRATEGIES[AiStrategyId.steward], rng, {
-        frozen: MUTABLE_KNOBS.filter((k) => k !== 'marchConfidence'),
+        frozen: MUTABLE_KNOBS.filter(k => k !== 'marchConfidence'),
       });
       expect(m.changes).toHaveLength(1);
       expect(m.strategy.marchConfidence).toBeGreaterThan(0);
@@ -847,9 +991,13 @@ describe('the mutation space', () => {
         knobs: 4,
         frozen: ['armyAttackSize', 'prefersRivals'],
       });
-      expect(m.strategy.armyAttackSize).toBe(AI_STRATEGIES[AiStrategyId.steward].armyAttackSize);
-      expect(m.strategy.prefersRivals).toBe(AI_STRATEGIES[AiStrategyId.steward].prefersRivals);
-      expect(m.changes.some((c) => c.knob === 'armyAttackSize')).toBe(false);
+      expect(m.strategy.armyAttackSize).toBe(
+        AI_STRATEGIES[AiStrategyId.steward].armyAttackSize,
+      );
+      expect(m.strategy.prefersRivals).toBe(
+        AI_STRATEGIES[AiStrategyId.steward].prefersRivals,
+      );
+      expect(m.changes.some(c => c.knob === 'armyAttackSize')).toBe(false);
     }
   });
 
@@ -857,18 +1005,26 @@ describe('the mutation space', () => {
     // The end of the claim the whole space is designed around: a mutant is
     // advice, so the harness can play one today by handing its knobs to the
     // advice path — no new AiStrategyId, no change under src/sim.
-    const mutant = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(29), { knobs: 6 });
+    const mutant = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(29), {
+      knobs: 6,
+    });
     const record = await playMatch(
       config({
-        engines: new Map<Owner, LabEngine>([[1, scriptEngine(adviceOf(mutant.strategy))]]),
+        engines: new Map<Owner, LabEngine>([
+          [1, scriptEngine(adviceOf(mutant.strategy))],
+        ]),
       }),
     );
-    expect(record.consults.every((c) => c.skipped || c.parsed === true)).toBe(true);
+    expect(record.consults.every(c => c.skipped || c.parsed === true)).toBe(
+      true,
+    );
     expect(record.adviceApplied['1']).toBe(1);
   });
 
   it('says what it changed, in terms a run log can be read by', () => {
-    const m = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(23), { knobs: 2 });
+    const m = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(23), {
+      knobs: 2,
+    });
     const line = describeMutation(m);
     for (const c of m.changes) expect(line).toContain(c.knob);
     expect(line).toContain('→');
@@ -881,7 +1037,7 @@ describe('the command line', () => {
     expect(opts.mapSize).toBe(96);
     expect(opts.bandits).toBe(true);
     expect(opts.advicePeriod).toBe(1800); // simWorker's cadence, not the tests'
-    expect(opts.spec).toEqual({ kind: 'random', seed: 1 });
+    expect(opts.spec).toEqual({kind: 'random', seed: 1});
     expect(opts.control).toBe(true);
   });
 
@@ -900,7 +1056,9 @@ describe('the command line', () => {
 
   it('arms the match watchdog with a sane ceiling', () => {
     expect(parseArgs([]).matchTimeoutMs).toBe(600_000);
-    expect(parseArgs(['--match-timeout-ms', '30000']).matchTimeoutMs).toBe(30_000);
+    expect(parseArgs(['--match-timeout-ms', '30000']).matchTimeoutMs).toBe(
+      30_000,
+    );
     expect(() => parseArgs(['--match-timeout-ms', '0'])).toThrow(/positive/);
     expect(() => parseArgs(['--match-timeout-ms', '-5'])).toThrow(/positive/);
   });
@@ -912,8 +1070,14 @@ describe('the command line', () => {
   it('reads one playbook for both seats, or one per seat', () => {
     // The bare form is what every recorded run in the README used, so it
     // has to keep meaning what it meant.
-    expect(parseArgs([]).strategies).toEqual([AiStrategyId.steward, AiStrategyId.steward]);
-    expect(parseStrategies('warlord')).toEqual([AiStrategyId.warlord, AiStrategyId.warlord]);
+    expect(parseArgs([]).strategies).toEqual([
+      AiStrategyId.steward,
+      AiStrategyId.steward,
+    ]);
+    expect(parseStrategies('warlord')).toEqual([
+      AiStrategyId.warlord,
+      AiStrategyId.warlord,
+    ]);
     expect(parseStrategies('steward:warlord')).toEqual([
       AiStrategyId.steward,
       AiStrategyId.warlord,

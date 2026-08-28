@@ -1,18 +1,41 @@
-import type { Enum } from '../shared/enum.ts';
-import { Rng } from '../shared/rng.ts';
-import { inBounds, tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { UNIT_DEFS, UNIT_TYPES } from './defs/units.ts';
-import { BANDIT, type Owner } from './entities.ts';
-import { findPath, nearestWalkable } from './path.ts';
-import { movementSystem } from './systems/movement.ts';
-import { wanderSystem } from './systems/wander.ts';
-import { abortJob, logisticsSystem, findStorehouse } from './systems/logistics.ts';
-import { productionSystem, unbindWorker } from './systems/production.ts';
-import { cancelRepair, constructionSystem, orderRepair } from './systems/construction.ts';
-import { trailsSystem } from './systems/trails.ts';
-import { canPlace, destroyBuilding, killUnit, placeSite, spawnUnit, type World } from './world.ts';
-import { GOODS, goodEntries } from './defs/goods.ts';
-import { researchSystem } from './systems/research.ts';
+import type {Enum} from '../shared/enum.ts';
+import {inBounds, tileIdx, tileX, tileY} from '../shared/grid.ts';
+import {Rng} from '../shared/rng.ts';
+import * as AdminAction from './adminActionEnum.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import type {SimCommand} from './commands.ts';
+import {
+  CORPSE_TICKS,
+  FORGE_QUEUE_CAP,
+  HIRE_QUEUE_CAP,
+  HIRE_SERF_COST,
+} from './defs/balance.ts';
+import {AUTO_RECIPE, TOOL_OF, buildingDef} from './defs/buildings.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import {GOODS, goodEntries} from './defs/goods.ts';
+import {TECH_DEFS} from './defs/techs.ts';
+import {UNIT_DEFS, UNIT_TYPES} from './defs/units.ts';
+import {BANDIT, type Owner} from './entities.ts';
+import {findPath, nearestWalkable} from './path.ts';
+import {hasRoomToHire} from './population.ts';
+import {banditsSystem} from './systems/bandits.ts';
+import {combatSystem} from './systems/combat.ts';
+import {
+  cancelRepair,
+  constructionSystem,
+  orderRepair,
+} from './systems/construction.ts';
+import {
+  abortJob,
+  logisticsSystem,
+  findStorehouse,
+} from './systems/logistics.ts';
+import {movementSystem} from './systems/movement.ts';
+import {productionSystem, unbindWorker} from './systems/production.ts';
+import {researchSystem} from './systems/research.ts';
+import {staffingSystem} from './systems/staffing.ts';
+import {trailsSystem} from './systems/trails.ts';
 import {
   trainingSystem,
   hiringSystem,
@@ -20,26 +43,23 @@ import {
   cancelTraining,
   evictGarrison,
 } from './systems/training.ts';
-import { staffingSystem } from './systems/staffing.ts';
-import { combatSystem } from './systems/combat.ts';
-import { banditsSystem } from './systems/bandits.ts';
-import { victorySystem } from './systems/victory.ts';
-import { AUTO_RECIPE, TOOL_OF, buildingDef } from './defs/buildings.ts';
-import { CORPSE_TICKS, FORGE_QUEUE_CAP, HIRE_QUEUE_CAP, HIRE_SERF_COST } from './defs/balance.ts';
-import { TECH_DEFS } from './defs/techs.ts';
-import { canResearch, isBuildingUnlocked } from './techHelpers.ts';
-import { hasRoomToHire } from './population.ts';
-import type { SimCommand } from './commands.ts';
-import * as BuildingState from './buildingStateEnum.ts';
-import * as GoodId from './defs/goodIdEnum.ts';
-import * as CommandKind from './commandKindEnum.ts';
-import * as AdminAction from './adminActionEnum.ts';
+import {victorySystem} from './systems/victory.ts';
+import {wanderSystem} from './systems/wander.ts';
+import {canResearch, isBuildingUnlocked} from './techHelpers.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
+import {
+  canPlace,
+  destroyBuilding,
+  killUnit,
+  placeSite,
+  spawnUnit,
+  type World,
+} from './world.ts';
 
 type AdminAction = Enum<typeof AdminAction>;
 type GoodId = Enum<typeof GoodId>;
 
-export { TICKS_PER_SECOND, TICK_MS } from './defs/balance.ts';
+export {TICKS_PER_SECOND, TICK_MS} from './defs/balance.ts';
 
 /**
  * A command plus the seat that issued it. In multiplayer the netcode layer
@@ -57,7 +77,10 @@ export interface PlayerCommand {
  * commands -> production -> logistics -> construction -> behaviors ->
  * movement -> trails -> removeDead.
  */
-export function tickWorld(world: World, commands: readonly PlayerCommand[]): void {
+export function tickWorld(
+  world: World,
+  commands: readonly PlayerCommand[],
+): void {
   const rng = new Rng(world.rngState);
 
   for (const c of commands) {
@@ -70,7 +93,10 @@ export function tickWorld(world: World, commands: readonly PlayerCommand[]): voi
     try {
       applyCommand(world, c.playerId, c.cmd);
     } catch (err) {
-      console.error(`[sim] command ${c.cmd.kind} from player ${c.playerId} failed:`, err);
+      console.error(
+        `[sim] command ${c.cmd.kind} from player ${c.playerId} failed:`,
+        err,
+      );
     }
   }
 
@@ -97,7 +123,11 @@ export function tickWorld(world: World, commands: readonly PlayerCommand[]): voi
  * Apply one command as the given player. Exported: the AI system issues its
  * decisions through the exact same validation path as human commands.
  */
-export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): void {
+export function applyCommand(
+  world: World,
+  playerId: Owner,
+  cmd: SimCommand,
+): void {
   const player = world.players[playerId];
   if (!player || !player.alive) return; // eliminated players spectate
   switch (cmd.kind) {
@@ -122,7 +152,8 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
     }
     case CommandKind.cancelTraining: {
       const b = world.buildings.get(cmd.buildingId);
-      if (b && !b.dead && b.owner === playerId) cancelTraining(world, b, cmd.index, cmd.unit);
+      if (b && !b.dead && b.owner === playerId)
+        cancelTraining(world, b, cmd.index, cmd.unit);
       break;
     }
     case CommandKind.setRallyPoint: {
@@ -146,7 +177,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       }
       if (cmd.x === undefined || cmd.y === undefined) break;
       if (!inBounds(cmd.x, cmd.y, world.map.size)) break;
-      b.rally = { x: cmd.x, y: cmd.y };
+      b.rally = {x: cmd.x, y: cmd.y};
       break;
     }
     case CommandKind.admin:
@@ -157,13 +188,18 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       const sh = findStorehouse(world, playerId);
       const cost = TECH_DEFS[cmd.tech].cost;
       if (!sh) break;
-      const affordable = goodEntries(cost).every(([good, n]) => (sh.stock[good] ?? 0) >= n);
+      const affordable = goodEntries(cost).every(
+        ([good, n]) => (sh.stock[good] ?? 0) >= n,
+      );
       if (!affordable) break;
       for (const [good, n] of goodEntries(cost)) {
         sh.stock[good] = (sh.stock[good] ?? 0) - n;
         world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
       }
-      player.techs.active = { tech: cmd.tech, ticksLeft: TECH_DEFS[cmd.tech].durationTicks };
+      player.techs.active = {
+        tech: cmd.tech,
+        ticksLeft: TECH_DEFS[cmd.tech].durationTicks,
+      };
       break;
     }
     case CommandKind.setBuildingPaused: {
@@ -226,7 +262,11 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       if (!opt) break;
       if (
         opt.requiresTech !== undefined &&
-        !(world.players[playerId]?.techs.researched.includes(opt.requiresTech) ?? false)
+        !(
+          world.players[playerId]?.techs.researched.includes(
+            opt.requiresTech,
+          ) ?? false
+        )
       ) {
         break;
       }
@@ -239,18 +279,28 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       // Nothing is paid at enqueue — inputs are consumed at batch start,
       // exactly like every other convert batch.
       const b = world.buildings.get(cmd.buildingId);
-      if (!b || b.dead || b.owner !== playerId || b.state !== BuildingState.built) break;
+      if (
+        !b ||
+        b.dead ||
+        b.owner !== playerId ||
+        b.state !== BuildingState.built
+      )
+        break;
       const opt = buildingDef(b.type).recipeOptions?.[cmd.recipeIndex];
       if (!opt) break;
       if (
         opt.requiresTech !== undefined &&
-        !(world.players[playerId]?.techs.researched.includes(opt.requiresTech) ?? false)
+        !(
+          world.players[playerId]?.techs.researched.includes(
+            opt.requiresTech,
+          ) ?? false
+        )
       ) {
         break;
       }
       b.forgeQueue ??= [];
       if (b.forgeQueue.length >= FORGE_QUEUE_CAP) break;
-      b.forgeQueue.push({ recipeIndex: cmd.recipeIndex, started: false });
+      b.forgeQueue.push({recipeIndex: cmd.recipeIndex, started: false});
       break;
     }
     case CommandKind.cancelForge: {
@@ -294,13 +344,15 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       const sh = findStorehouse(world, playerId);
       if (sh) {
         for (const [good, n] of goodEntries(def.cost)) {
-          const delivered = b.state === BuildingState.site ? n - (b.siteNeeds?.[good] ?? 0) : n;
+          const delivered =
+            b.state === BuildingState.site ? n - (b.siteNeeds?.[good] ?? 0) : n;
           const refund = Math.floor(delivered / 2);
           if (refund <= 0) continue;
           sh.stock[good] = (sh.stock[good] ?? 0) + refund;
           // Ledgered as production so the conservation invariant stays
           // honest — the same bookkeeping grantGoods uses.
-          world.ledger.produced[good] = (world.ledger.produced[good] ?? 0) + refund;
+          world.ledger.produced[good] =
+            (world.ledger.produced[good] ?? 0) + refund;
         }
         // The kit walks away from the wreck: the post's own tool (left on
         // the shelf by the unbind above, or still waiting in the rack of a
@@ -338,7 +390,8 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         (sh.hireQueue ?? 0) < HIRE_QUEUE_CAP &&
         hasRoomToHire(world, playerId)
       ) {
-        sh.stock[GoodId.silver] = (sh.stock[GoodId.silver] ?? 0) - HIRE_SERF_COST;
+        sh.stock[GoodId.silver] =
+          (sh.stock[GoodId.silver] ?? 0) - HIRE_SERF_COST;
         world.ledger.consumed[GoodId.silver] =
           (world.ledger.consumed[GoodId.silver] ?? 0) + HIRE_SERF_COST;
         sh.hireQueue = (sh.hireQueue ?? 0) + 1;
@@ -401,7 +454,7 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
 function applyMoveUnits(
   world: World,
   playerId: Owner,
-  cmd: { unitIds: number[]; x: number; y: number; attack?: true | 'half' },
+  cmd: {unitIds: number[]; x: number; y: number; attack?: true | 'half'},
 ): void {
   const size = world.map.size;
   if (inBounds(cmd.x, cmd.y, size)) {
@@ -412,7 +465,7 @@ function applyMoveUnits(
         const unit = world.units.get(id);
         if (!unit || unit.dead || unit.owner !== playerId) continue;
         if (!UNIT_DEFS[unit.kind].combat) continue; // civilians don't storm camps
-        unit.task = { t: UnitTaskKind.raid, buildingId: target.id };
+        unit.task = {t: UnitTaskKind.raid, buildingId: target.id};
         unit.targetId = target.id;
         unit.targetIsBuilding = true;
         unit.path = null;
@@ -429,7 +482,13 @@ function applyMoveUnits(
     const goal = targets[Math.min(t++, targets.length - 1)]!;
     const goalX = tileX(goal, size);
     const goalY = tileY(goal, size);
-    const path = findPath(world.map, Math.floor(unit.x), Math.floor(unit.y), goalX, goalY);
+    const path = findPath(
+      world.map,
+      Math.floor(unit.x),
+      Math.floor(unit.y),
+      goalX,
+      goalY,
+    );
     // An order that cannot be walked changes nothing. Quitting first and
     // asking afterwards stranded a resident worker for good: unbindWorker
     // had already cleared homeId and turned him back into a serf, so
@@ -458,16 +517,21 @@ function applyMoveUnits(
     unit.task =
       cmd.attack && UNIT_DEFS[unit.kind].combat
         ? cmd.attack === 'half' && engageIdx > 0
-          ? { t: UnitTaskKind.attackMove, destX: goalX, destY: goalY, engageIdx }
-          : { t: UnitTaskKind.attackMove, destX: goalX, destY: goalY }
-        : { t: UnitTaskKind.move };
+          ? {t: UnitTaskKind.attackMove, destX: goalX, destY: goalY, engageIdx}
+          : {t: UnitTaskKind.attackMove, destX: goalX, destY: goalY}
+        : {t: UnitTaskKind.move};
     // Explicit orders disengage combat; an attack-move re-acquires freely.
     unit.targetId = undefined;
     unit.targetIsBuilding = undefined;
   }
 }
 
-function collectSpreadTargets(world: World, x: number, y: number, count: number): number[] {
+function collectSpreadTargets(
+  world: World,
+  x: number,
+  y: number,
+  count: number,
+): number[] {
   const out: number[] = [];
   const seen = new Set<number>();
   const first = nearestWalkable(world.map, x, y);
@@ -493,7 +557,10 @@ function removeDead(world: World): void {
   for (const [id, unit] of world.units) {
     if (!unit.dead) continue;
     // Combat corpses linger for the death animation; despawns go at once.
-    if (unit.deathTick === undefined || world.tick - unit.deathTick >= CORPSE_TICKS) {
+    if (
+      unit.deathTick === undefined ||
+      world.tick - unit.deathTick >= CORPSE_TICKS
+    ) {
       world.units.delete(id);
     }
   }

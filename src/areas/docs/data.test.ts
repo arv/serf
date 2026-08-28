@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { BUILDING_DEFS } from '../../sim/defs/buildings';
-import { TICKS_PER_SECOND } from '../../sim/defs/balance';
-import { GOODS, goodKeys } from '../../sim/defs/goods';
-import { TECH_DEFS } from '../../sim/defs/techs';
-import { BUILD_GROUPS } from '../../ui/buildMenu';
+import {describe, expect, it} from 'vitest';
+import {TICKS_PER_SECOND} from '../../sim/defs/balance';
+import {BUILDING_DEFS} from '../../sim/defs/buildings';
+import * as BuildingTypeId from '../../sim/defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../../sim/defs/goodIdEnum.ts';
+import {GOODS, goodKeys} from '../../sim/defs/goods';
+import * as TechEffectKind from '../../sim/defs/techEffectKindEnum.ts';
+import {TECH_DEFS} from '../../sim/defs/techs';
+import * as UnitTypeId from '../../sim/defs/unitTypeIdEnum.ts';
+import {BUILD_GROUPS} from '../../ui/buildMenu';
 import {
   ALL_BUILDINGS,
   ALL_TECHS,
@@ -15,12 +19,8 @@ import {
   startStockOf,
   worldBuildings,
 } from './data';
-import { parseDocsPath } from './routes';
-import { fmtSecs } from './data';
-import * as BuildingTypeId from '../../sim/defs/buildingTypeIdEnum.ts';
-import * as GoodId from '../../sim/defs/goodIdEnum.ts';
-import * as TechEffectKind from '../../sim/defs/techEffectKindEnum.ts';
-import * as UnitTypeId from '../../sim/defs/unitTypeIdEnum.ts';
+import {fmtSecs} from './data';
+import {parseDocsPath} from './routes';
 
 /**
  * The wiki derives its whole cross-reference graph from the defs, so what
@@ -32,13 +32,13 @@ import * as UnitTypeId from '../../sim/defs/unitTypeIdEnum.ts';
 describe('the docs cross-reference graph', () => {
   it('names a producer or a starting stock for every good', () => {
     const orphans = GOODS.filter(
-      (g) => (PRODUCED_BY.get(g) ?? []).length === 0 && startStockOf(g) === 0,
+      g => (PRODUCED_BY.get(g) ?? []).length === 0 && startStockOf(g) === 0,
     );
     expect(orphans).toEqual([]);
   });
 
   it('names a consumer for every good', () => {
-    const hoarded = GOODS.filter((g) => (CONSUMED_BY.get(g) ?? []).length === 0);
+    const hoarded = GOODS.filter(g => (CONSUMED_BY.get(g) ?? []).length === 0);
     expect(hoarded).toEqual([]);
   });
 
@@ -47,16 +47,20 @@ describe('the docs cross-reference graph', () => {
     // road was once filtered out of the catalogue and left with a page
     // nothing linked to, and a test that recomputed the same complement
     // would have stayed green through it.
-    const inMenu = BUILD_GROUPS.flatMap((g) => g.types);
-    expect([...inMenu, ...worldBuildings()].sort()).toEqual([...ALL_BUILDINGS].sort());
+    const inMenu = BUILD_GROUPS.flatMap(g => g.types);
+    expect([...inMenu, ...worldBuildings()].sort()).toEqual(
+      [...ALL_BUILDINGS].sort(),
+    );
   });
 
   it('counts a repair bill as a use of the good', () => {
     // The castle is raised for free and mended for real timber and stone;
     // without repairCost in the graph neither page reports that use.
-    for (const good of goodKeys(BUILDING_DEFS[BuildingTypeId.storehouse].repairCost ?? {})) {
+    for (const good of goodKeys(
+      BUILDING_DEFS[BuildingTypeId.storehouse].repairCost ?? {},
+    )) {
       const mends = (CONSUMED_BY.get(good) ?? []).filter(
-        (c) => c.kind === 'repair' && c.building === BuildingTypeId.storehouse,
+        c => c.kind === 'repair' && c.building === BuildingTypeId.storehouse,
       );
       expect(mends).toHaveLength(1);
     }
@@ -101,17 +105,23 @@ describe('duration formatting', () => {
 
 describe('the docs router', () => {
   it('parses every page kind', () => {
-    expect(parseDocsPath('/docs')).toEqual({ page: 'index' });
-    expect(parseDocsPath('/docs/buildings')).toEqual({ page: 'buildings' });
+    expect(parseDocsPath('/docs')).toEqual({page: 'index'});
+    expect(parseDocsPath('/docs/buildings')).toEqual({page: 'buildings'});
     expect(parseDocsPath('/docs/buildings/bakery')).toEqual({
       page: 'building',
       id: BuildingTypeId.bakery,
     });
-    expect(parseDocsPath('/docs/units/knight')).toEqual({ page: 'unit', id: UnitTypeId.knight });
-    expect(parseDocsPath('/docs/goods/wood')).toEqual({ page: 'good', id: GoodId.wood });
-    expect(parseDocsPath('/docs/techs')).toEqual({ page: 'techs' });
-    expect(parseDocsPath('/docs/commands')).toEqual({ page: 'commands' });
-    expect(parseDocsPath('/docs/basics')).toEqual({ page: 'basics' });
+    expect(parseDocsPath('/docs/units/knight')).toEqual({
+      page: 'unit',
+      id: UnitTypeId.knight,
+    });
+    expect(parseDocsPath('/docs/goods/wood')).toEqual({
+      page: 'good',
+      id: GoodId.wood,
+    });
+    expect(parseDocsPath('/docs/techs')).toEqual({page: 'techs'});
+    expect(parseDocsPath('/docs/commands')).toEqual({page: 'commands'});
+    expect(parseDocsPath('/docs/basics')).toEqual({page: 'basics'});
   });
 
   it('turns typos into the missing page, not a throw', () => {

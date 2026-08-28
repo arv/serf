@@ -1,32 +1,46 @@
-import { For, Index, Show, createSignal, onCleanup, onMount } from 'solid-js';
-import { createStore, reconcile } from 'solid-js/store';
-import { BUILD_LABEL } from '../app/buildInfo';
-import { REPLAY_VERSION } from '../shared/replayVersion';
-import { clearSeatStash, relayUrl, type CouncilRequest } from '../net/lobbyClient';
-import { releaseMenuBackdrop } from './menuBackdrop';
-import { defaultLobbyConfig } from '../protocol/lobby';
-import {
-  AI_STRATEGIES,
-  AI_STRATEGY_ORDER,
-  parseStrategyId,
-  type AiStrategyId,
-} from '../sim/defs/aiStrategies';
-import { MISSION_DEFS, MISSION_ORDER, type MissionId, parseMissionId } from '../sim/defs/missions';
-import { isMissionComplete, isMissionUnlocked } from './campaign';
-import { LockIcon } from './icons';
+import {For, Index, Show, createSignal, onCleanup, onMount} from 'solid-js';
+import {createStore, reconcile} from 'solid-js/store';
+import * as LlmState from '../ai/llmStateEnum.ts';
+import {BUILD_LABEL} from '../app/buildInfo';
+import type {ImportResult, StoredFileInfo} from '../app/fileStore';
 import {
   deleteReplayFile,
   importReplayFile,
   listReplayFiles,
   type ReplayFileInfo,
 } from '../app/replayStore';
-import { deleteSaveFile, importSaveFile, listSaveFiles, type SaveFileInfo } from '../app/saveStore';
-import type { ImportResult, StoredFileInfo } from '../app/fileStore';
-import { WORLD_SAVE_VERSION, canReadSave } from '../shared/saveVersion';
-import { fullscreen } from './fullscreen';
-import { goto } from '../app/router';
-import { muted, toggleMuted } from './store';
-import * as LlmState from '../ai/llmStateEnum.ts';
+import {goto} from '../app/router';
+import {
+  deleteSaveFile,
+  importSaveFile,
+  listSaveFiles,
+  type SaveFileInfo,
+} from '../app/saveStore';
+import {
+  clearSeatStash,
+  relayUrl,
+  type CouncilRequest,
+} from '../net/lobbyClient';
+import {defaultLobbyConfig} from '../protocol/lobby';
+import {REPLAY_VERSION} from '../shared/replayVersion';
+import {WORLD_SAVE_VERSION, canReadSave} from '../shared/saveVersion';
+import {
+  AI_STRATEGIES,
+  AI_STRATEGY_ORDER,
+  parseStrategyId,
+  type AiStrategyId,
+} from '../sim/defs/aiStrategies';
+import {
+  MISSION_DEFS,
+  MISSION_ORDER,
+  type MissionId,
+  parseMissionId,
+} from '../sim/defs/missions';
+import {isMissionComplete, isMissionUnlocked} from './campaign';
+import {fullscreen} from './fullscreen';
+import {LockIcon} from './icons';
+import {releaseMenuBackdrop} from './menuBackdrop';
+import {muted, toggleMuted} from './store';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -64,7 +78,7 @@ function rollSeed(): number {
   return Math.floor(Math.random() * 9e7) + 1e7;
 }
 
-const AI_SEATS = Array.from({ length: OPTIONS.maxOpponents + 1 }, (_, i) => i);
+const AI_SEATS = Array.from({length: OPTIONS.maxOpponents + 1}, (_, i) => i);
 
 /**
  * What to say under the opponent pickers. A single named opponent gets its
@@ -91,7 +105,8 @@ const POLL_MS = 3000;
  * this gates only the hints — and the shelf button's empty-handed state,
  * which exists so there is somewhere to drop a first replay. */
 const DRAG_OFFERED =
-  typeof window !== 'undefined' && (window.matchMedia?.('(any-pointer: fine)').matches ?? false);
+  typeof window !== 'undefined' &&
+  (window.matchMedia?.('(any-pointer: fine)').matches ?? false);
 
 /** Whether a row can be handed to the system share sheet: the Web Share
  * API, with files. This is the phone's half of what the drag above does
@@ -103,7 +118,9 @@ const DRAG_OFFERED =
 const SHARE_OFFERED =
   typeof navigator !== 'undefined' &&
   typeof navigator.canShare === 'function' &&
-  navigator.canShare({ files: [new File(['probe'], 'probe.txt', { type: 'text/plain' })] });
+  navigator.canShare({
+    files: [new File(['probe'], 'probe.txt', {type: 'text/plain'})],
+  });
 
 export type Mode = 'single' | 'campaign' | 'multi';
 export type MpMode = 'host' | 'join';
@@ -173,7 +190,7 @@ function ago(ms: number): string {
 
 /** Short-lived lobby socket: ask for the open-room list and hang up. */
 function listRooms(): Promise<OpenRoom[]> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     let settled = false;
     const done = (rooms: OpenRoom[]): void => {
       if (settled) return;
@@ -188,9 +205,9 @@ function listRooms(): Promise<OpenRoom[]> {
     const ws = new WebSocket(relayUrl(location.search));
     ws.onerror = () => done([]);
     ws.onclose = () => done([]);
-    ws.onopen = () => ws.send(JSON.stringify({ t: 'list' }));
+    ws.onopen = () => ws.send(JSON.stringify({t: 'list'}));
     ws.onmessage = (e: MessageEvent<string>) => {
-      const msg = JSON.parse(e.data) as { t: string; rooms?: OpenRoom[] };
+      const msg = JSON.parse(e.data) as {t: string; rooms?: OpenRoom[]};
       if (msg.t === 'rooms') done(msg.rooms ?? []);
     };
     setTimeout(() => done([]), 4000);
@@ -341,7 +358,7 @@ const SHELVES: Record<ShelfKind, ShelfSpec> = {
       ' Drag one out of the list to save it as a file, or drop a replay file here to add it.',
     import: importReplayFile,
     remove: deleteReplayFile,
-    url: (name) => '?replay=' + encodeURIComponent(name),
+    url: name => '?replay=' + encodeURIComponent(name),
   },
   saves: {
     title: 'Saved games',
@@ -360,7 +377,7 @@ const SHELVES: Record<ShelfKind, ShelfSpec> = {
       ' Drag one out of the list to keep it as a file, or drop a saved game here to add it.',
     import: importSaveFile,
     remove: deleteSaveFile,
-    url: (name) => '?load=' + encodeURIComponent(name),
+    url: name => '?load=' + encodeURIComponent(name),
   },
 };
 
@@ -385,7 +402,9 @@ export function StartMenu(props: StartMenuProps) {
   // below, taken at the moment the screen first appears; what the player
   // chose stays written down for the next launch that has a network.
   const [mode, setMode] = createSignal<Mode>(
-    props.start.mode === 'multi' && !navigator.onLine ? OFFLINE_PANE : props.start.mode,
+    props.start.mode === 'multi' && !navigator.onLine
+      ? OFFLINE_PANE
+      : props.start.mode,
   );
   /** Switch panes the way the tab bar does: the choice is remembered. */
   const pickMode = (next: Mode): void => {
@@ -425,24 +444,30 @@ export function StartMenu(props: StartMenuProps) {
   // time the match boots. The warm-up survives the launch reload —
   // wllama's ModelManager writes into cache storage, no engine involved
   // (see warmModel in strategist.ts) — and toggling off cancels it.
-  const [llmWarm, setLlmWarm] = createSignal<import('../ai/strategist').LlmStatus | null>(null);
-  let warmHandle: { dispose: () => void } | null = null;
+  const [llmWarm, setLlmWarm] = createSignal<
+    import('../ai/strategist').LlmStatus | null
+  >(null);
+  let warmHandle: {dispose: () => void} | null = null;
   // Set at cleanup: the dynamic import below may resolve after the menu
   // has handed over to a match, and a warm-up started then would download
   // with nobody left to dispose it.
   let menuGone = false;
   const beginWarm = (): void => {
     void import('../ai/strategist')
-      .then(({ warmModel }) => {
+      .then(({warmModel}) => {
         // The toggle may have flipped back — or the menu may be gone —
         // while the chunk loaded.
-        if (llm() && !warmHandle && !menuGone) warmHandle = warmModel(setLlmWarm);
+        if (llm() && !warmHandle && !menuGone)
+          warmHandle = warmModel(setLlmWarm);
       })
       .catch(() => {
         // The strategist chunk itself failed to fetch (offline, deploy in
         // flight): same story as a failed model download.
         if (!menuGone)
-          setLlmWarm({ state: LlmState.failed, reason: 'strategist code failed to load' });
+          setLlmWarm({
+            state: LlmState.failed,
+            reason: 'strategist code failed to load',
+          });
       });
   };
   const setLlmAndWarm = (on: boolean): void => {
@@ -465,7 +490,8 @@ export function StartMenu(props: StartMenuProps) {
   });
   const llmHint = (): string => {
     const s = llmWarm();
-    if (s?.state === LlmState.loading) return `Downloading the model — ${s.pct}%`;
+    if (s?.state === LlmState.loading)
+      return `Downloading the model — ${s.pct}%`;
     if (s?.state === LlmState.ready)
       return 'Model ready — opponents will consult it from the start';
     if (s?.state === LlmState.failed)
@@ -542,7 +568,8 @@ export function StartMenu(props: StartMenuProps) {
   /** A row that was armed and is no longer there (deleted, or listed away
    * by another tab) must not stay armed behind the CTA. */
   const dropStalePick = (found: StoredFileInfo[]): void => {
-    if (pickedFile() !== null && !found.some((f) => f.name === pickedFile())) setPickedFile(null);
+    if (pickedFile() !== null && !found.some(f => f.name === pickedFile()))
+      setPickedFile(null);
   };
   /** What the last drop came to — filed, refused, or a mix. Stands until
    * the next drop or the shelf closes; a timer would take it away
@@ -583,17 +610,18 @@ export function StartMenu(props: StartMenuProps) {
       // the free-name check where Web Locks is absent.
       const results: ImportResult[] = [];
       for (const f of files) results.push(await spec.import(f));
-      const filed = results.flatMap((r) => (r.ok ? [r.name] : []));
+      const filed = results.flatMap(r => (r.ok ? [r.name] : []));
       const bad = results.length - filed.length;
       await refreshShelf(kind);
       const last = filed.at(-1);
       // Arm the newcomer, so drop-then-open is one click — but only one
       // this build can open: an import from another build lands on a row
       // the shelf shows disabled, and the pick must not outrun the row.
-      if (last !== undefined && rows().find((r) => r.name === last)?.ok) setPickedFile(last);
+      if (last !== undefined && rows().find(r => r.name === last)?.ok)
+        setPickedFile(last);
       setImportNote(
         filed.length === 0
-          ? results.some((r) => !r.ok && r.reason === 'storage')
+          ? results.some(r => !r.ok && r.reason === 'storage')
             ? `Import failed — ${spec.noun} storage is unavailable here`
             : files.length === 1
               ? `That file is not ${spec.article}`
@@ -603,7 +631,9 @@ export function StartMenu(props: StartMenuProps) {
               ? `Filed as “${last}”`
               : `Filed ${filed.length} ${spec.plural}`
             : `Filed ${filed.length} — the other ` +
-              (bad === 1 ? `file is not ${spec.article}` : `${bad} are not ${spec.plural}`),
+              (bad === 1
+                ? `file is not ${spec.article}`
+                : `${bad} are not ${spec.plural}`),
       );
     })();
   };
@@ -612,8 +642,8 @@ export function StartMenu(props: StartMenuProps) {
    * lets through where application/json is refused — and both imports
    * strip that wrapper, so a shared file refiles under its own name. */
   const shareRow = (r: ShelfRow): void => {
-    const file = new File([r.file], `${r.name}.txt`, { type: 'text/plain' });
-    void navigator.share({ files: [file] }).catch(() => {
+    const file = new File([r.file], `${r.name}.txt`, {type: 'text/plain'});
+    void navigator.share({files: [file]}).catch(() => {
       // Dismissed, or this sheet refused the payload — either way the
       // sheet has already answered the click; nothing to add here.
     });
@@ -667,7 +697,8 @@ export function StartMenu(props: StartMenuProps) {
   const saveRow = (f: SaveFileInfo): ShelfRow => {
     const ok = f.world === undefined || canReadSave(f.world);
     const missionId = parseMissionId(f.meta?.mission);
-    const mission = missionId !== undefined ? MISSION_DEFS[missionId] : undefined;
+    const mission =
+      missionId !== undefined ? MISSION_DEFS[missionId] : undefined;
     const opponents = f.meta?.opponents ?? 0;
     const what =
       mission?.title ??
@@ -688,7 +719,7 @@ export function StartMenu(props: StartMenuProps) {
               `format ${WORLD_SAVE_VERSION} and cannot open that village`,
           }),
       meta: [what, fmtSize(f.size), ok ? undefined : 'from an older build']
-        .filter((part) => part !== undefined)
+        .filter(part => part !== undefined)
         .join(' · '),
     };
   };
@@ -704,19 +735,21 @@ export function StartMenu(props: StartMenuProps) {
     const kind = shelf();
     return kind === null ? null : SHELVES[kind];
   };
-  const shelfLoaded = (): boolean => (shelf() === 'saves' ? savesLoaded() : replaysLoaded());
+  const shelfLoaded = (): boolean =>
+    shelf() === 'saves' ? savesLoaded() : replaysLoaded();
 
   // The campaign pane opens on the frontier: the first commission not yet
   // fulfilled (everything done = the finale stays selected).
   const frontier = (): MissionId =>
-    MISSION_ORDER.find((id) => !isMissionComplete(id)) ?? MISSION_ORDER[MISSION_ORDER.length - 1]!;
+    MISSION_ORDER.find(id => !isMissionComplete(id)) ??
+    MISSION_ORDER[MISSION_ORDER.length - 1]!;
   const [pickedMission, setPickedMission] = createSignal<MissionId>(frontier());
 
   /** One entry per opponent seat: the playbook the player named for it, or
    * undefined for the ones left to the seed. What the seed will actually
    * deal those is not the menu's business — see opponentHint. */
   const picks = (): (AiStrategyId | undefined)[] =>
-    Array.from({ length: ai() }, (_, i) => bots()[i]);
+    Array.from({length: ai()}, (_, i) => bots()[i]);
   const setBot = (index: number, id: AiStrategyId | undefined): void => {
     const next = [...bots()];
     next[index] = id;
@@ -729,9 +762,9 @@ export function StartMenu(props: StartMenuProps) {
     inFlight = true;
     setLoadingRooms(true);
     const found = await listRooms();
-    setRooms(reconcile(found, { key: 'code' }));
+    setRooms(reconcile(found, {key: 'code'}));
     // A room that filled up or started while selected can no longer be joined.
-    const still = found.find((r) => r.code === picked());
+    const still = found.find(r => r.code === picked());
     if (picked() && (!still || still.filled >= still.total)) setPicked(null);
     setLoadingRooms(false);
     inFlight = false;
@@ -749,7 +782,9 @@ export function StartMenu(props: StartMenuProps) {
     if (!document.hidden && isJoin() && online()) void refresh();
   };
   document.addEventListener('visibilitychange', syncVisible);
-  onCleanup(() => document.removeEventListener('visibilitychange', syncVisible));
+  onCleanup(() =>
+    document.removeEventListener('visibilitychange', syncVisible),
+  );
 
   const syncOnline = (): void => {
     setOnline(navigator.onLine);
@@ -790,7 +825,7 @@ export function StartMenu(props: StartMenuProps) {
     // Only the named ones travel; a seat left on Random says nothing and
     // is dealt from the seed at the other end.
     const named = bots().slice(0, ai());
-    if (named.some(Boolean)) p.set('bots', named.map((b) => b ?? '').join(','));
+    if (named.some(Boolean)) p.set('bots', named.map(b => b ?? '').join(','));
     if (ai() > 0 && llm()) p.set('llm', '1');
     p.set('seed', String(seed));
     if (!bandits()) p.set('bandits', '0');
@@ -864,7 +899,9 @@ export function StartMenu(props: StartMenuProps) {
               <i class="r" />
             </div>
             <h1>SERF VALLEY</h1>
-            <p class="tagline">Settle the valley. Feed the levy. Hold the road.</p>
+            <p class="tagline">
+              Settle the valley. Feed the levy. Hold the road.
+            </p>
           </div>
 
           <div class="card">
@@ -876,7 +913,11 @@ export function StartMenu(props: StartMenuProps) {
               when={shelfSpec() === null}
               fallback={
                 <div class="pane-head">
-                  <button class="icon-btn" aria-label="Back to the menu" onClick={closeShelf}>
+                  <button
+                    class="icon-btn"
+                    aria-label="Back to the menu"
+                    onClick={closeShelf}
+                  >
                     {BackIcon}
                   </button>
                   <span class="title">{shelfSpec()?.title}</span>
@@ -885,7 +926,10 @@ export function StartMenu(props: StartMenuProps) {
               }
             >
               <div class="seg">
-                <button class={mode() === 'single' ? 'on' : ''} onClick={() => pickMode('single')}>
+                <button
+                  class={mode() === 'single' ? 'on' : ''}
+                  onClick={() => pickMode('single')}
+                >
                   {OneIcon}
                   Single player
                 </button>
@@ -899,7 +943,9 @@ export function StartMenu(props: StartMenuProps) {
                 <button
                   class={mode() === 'multi' ? 'on' : ''}
                   disabled={!online()}
-                  title={online() ? undefined : 'Needs a connection to the relay'}
+                  title={
+                    online() ? undefined : 'Needs a connection to the relay'
+                  }
                   onClick={() => {
                     pickMode('multi');
                     if (mp() === 'join') void refresh();
@@ -917,8 +963,8 @@ export function StartMenu(props: StartMenuProps) {
                   <div>
                     <div class="row-label">Offline</div>
                     <div class="row-hint">
-                      The valley runs on this device — skirmishes and saves are unaffected.
-                      Multiplayer comes back with the connection.
+                      The valley runs on this device — skirmishes and saves are
+                      unaffected. Multiplayer comes back with the connection.
                     </div>
                   </div>
                 </div>
@@ -985,13 +1031,16 @@ export function StartMenu(props: StartMenuProps) {
                   <Show when={rooms.length > 0}>
                     <div class="room-list">
                       <For each={rooms}>
-                        {(r) => {
+                        {r => {
                           const full = (): boolean => r.filled >= r.total;
                           // Index, not For: a pip is a seat, and a seat
                           // being taken should light the pip already there
                           // rather than rebuild the row's dots.
                           const pips = (): boolean[] =>
-                            Array.from({ length: r.total }, (_, i) => i < r.filled);
+                            Array.from(
+                              {length: r.total},
+                              (_, i) => i < r.filled,
+                            );
                           return (
                             <button
                               class={`room ${picked() === r.code ? 'on' : ''}`}
@@ -1016,13 +1065,15 @@ export function StartMenu(props: StartMenuProps) {
                                 <span class="code">{r.code}</span>
                                 <span class="meta">
                                   {r.filled}/{r.total} seats ·{' '}
-                                  {r.ai ? `${r.ai} AI seat${r.ai > 1 ? 's' : ''}` : 'no AI'} ·{' '}
-                                  {full() ? 'full' : ago(r.ageMs)}
+                                  {r.ai
+                                    ? `${r.ai} AI seat${r.ai > 1 ? 's' : ''}`
+                                    : 'no AI'}{' '}
+                                  · {full() ? 'full' : ago(r.ageMs)}
                                 </span>
                               </span>
                               <span class="pips">
                                 <Index each={pips()}>
-                                  {(on) => <span class={on() ? 'filled' : ''} />}
+                                  {on => <span class={on() ? 'filled' : ''} />}
                                 </Index>
                               </span>
                             </button>
@@ -1035,7 +1086,9 @@ export function StartMenu(props: StartMenuProps) {
                   <Show when={!loadingRooms() && rooms.length === 0}>
                     <div class="browser-none">
                       <div class="t">No open rooms right now</div>
-                      <div class="s">Host one, or join a private room with its code.</div>
+                      <div class="s">
+                        Host one, or join a private room with its code.
+                      </div>
                     </div>
                   </Show>
                 </div>
@@ -1048,7 +1101,7 @@ export function StartMenu(props: StartMenuProps) {
                     maxLength={6}
                     value={room()}
                     onKeyDown={onEnter}
-                    onInput={(e) => {
+                    onInput={e => {
                       setPicked(null);
                       setRoom(
                         e.currentTarget.value
@@ -1065,7 +1118,9 @@ export function StartMenu(props: StartMenuProps) {
                 <div class="row">
                   <div>
                     <div class="row-label">Room visibility</div>
-                    <div class="row-hint">Open rooms appear in everyone’s browser</div>
+                    <div class="row-hint">
+                      Open rooms appear in everyone’s browser
+                    </div>
                   </div>
                   <div class="vis">
                     <button
@@ -1088,8 +1143,8 @@ export function StartMenu(props: StartMenuProps) {
                   <div>
                     <div class="row-label">Match settings</div>
                     <div class="row-hint">
-                      Computer seats, map seed and bandit raids are chosen in the War Council, where
-                      everyone sees them.
+                      Computer seats, map seed and bandit raids are chosen in
+                      the War Council, where everyone sees them.
                     </div>
                   </div>
                 </div>
@@ -1101,8 +1156,11 @@ export function StartMenu(props: StartMenuProps) {
                     <div style="display:flex;align-items:baseline;gap:8px">
                       <span class="row-label">The reeve’s commissions</span>
                       <span class="count">
-                        {MISSION_ORDER.filter((id) => isMissionComplete(id)).length}/
-                        {MISSION_ORDER.length} fulfilled
+                        {
+                          MISSION_ORDER.filter(id => isMissionComplete(id))
+                            .length
+                        }
+                        /{MISSION_ORDER.length} fulfilled
                       </span>
                     </div>
                   </div>
@@ -1115,7 +1173,11 @@ export function StartMenu(props: StartMenuProps) {
                           <button
                             class={`room ${pickedMission() === id ? 'on' : ''}`}
                             disabled={locked()}
-                            title={locked() ? 'Fulfill the commission before it' : undefined}
+                            title={
+                              locked()
+                                ? 'Fulfill the commission before it'
+                                : undefined
+                            }
                             onClick={() => setPickedMission(id)}
                             onDblClick={launch}
                           >
@@ -1126,7 +1188,13 @@ export function StartMenu(props: StartMenuProps) {
                               <span class="meta">{def.tagline}</span>
                             </span>
                             <span style="flex:none;color:#e5c469">
-                              {isMissionComplete(id) ? '✓' : locked() ? <LockIcon size={13} /> : ''}
+                              {isMissionComplete(id) ? (
+                                '✓'
+                              ) : locked() ? (
+                                <LockIcon size={13} />
+                              ) : (
+                                ''
+                              )}
                             </span>
                           </button>
                         );
@@ -1134,8 +1202,8 @@ export function StartMenu(props: StartMenuProps) {
                     </For>
                   </div>
                   <div class="row-hint">
-                    A tutorial in seven commissions — hints can be hidden in the first minute.
-                    Finishing one unseals the next.
+                    A tutorial in seven commissions — hints can be hidden in the
+                    first minute. Finishing one unseals the next.
                   </div>
                 </div>
               </Show>
@@ -1143,14 +1211,14 @@ export function StartMenu(props: StartMenuProps) {
               <Show when={shelfSpec() !== null}>
                 <div
                   class="browser"
-                  classList={{ dropping: dropDepth() > 0 }}
-                  onDragEnter={(e) => {
+                  classList={{dropping: dropDepth() > 0}}
+                  onDragEnter={e => {
                     if (!fileDrag(e)) return;
                     e.preventDefault();
-                    setDropDepth((d) => d + 1);
+                    setDropDepth(d => d + 1);
                   }}
-                  onDragLeave={() => setDropDepth((d) => Math.max(0, d - 1))}
-                  onDragOver={(e) => {
+                  onDragLeave={() => setDropDepth(d => Math.max(0, d - 1))}
+                  onDragOver={e => {
                     // preventDefault is how a drop target says yes; the
                     // default answer is no.
                     if (!fileDrag(e) || !e.dataTransfer) return;
@@ -1162,7 +1230,7 @@ export function StartMenu(props: StartMenuProps) {
                   <Show when={rows().length > 0}>
                     <div class="room-list" style="max-height:236px">
                       <For each={rows()}>
-                        {(r) => {
+                        {r => {
                           // The file's blob URL, minted with the row and
                           // revoked with it. A drag must hand this over
                           // synchronously at dragstart, and dragend is too
@@ -1182,7 +1250,7 @@ export function StartMenu(props: StartMenuProps) {
                               onDragEnd={() => {
                                 dragOut = false;
                               }}
-                              onDragStart={(e) => {
+                              onDragStart={e => {
                                 // Flagged before anything else: the shelf
                                 // is a drop target now, and must not
                                 // catch its own row on the way out.
@@ -1212,7 +1280,9 @@ export function StartMenu(props: StartMenuProps) {
                                 disabled={!r.ok}
                                 title={r.why}
                                 onClick={() =>
-                                  setPickedFile(pickedFile() === r.name ? null : r.name)
+                                  setPickedFile(
+                                    pickedFile() === r.name ? null : r.name,
+                                  )
                                 }
                                 // This row's own name, not the selection:
                                 // the two clicks a double-click is made of
@@ -1221,7 +1291,10 @@ export function StartMenu(props: StartMenuProps) {
                                 onDblClick={() => launchFile(r.name)}
                               >
                                 <span style="min-width:0">
-                                  <span class="code" style="letter-spacing:0.02em">
+                                  <span
+                                    class="code"
+                                    style="letter-spacing:0.02em"
+                                  >
                                     {r.name}
                                   </span>
                                   <span class="meta">{r.meta}</span>
@@ -1247,7 +1320,9 @@ export function StartMenu(props: StartMenuProps) {
                                 onClick={() => {
                                   const kind = shelf();
                                   if (kind === null) return;
-                                  void SHELVES[kind].remove(r.name).then(() => refreshShelf(kind));
+                                  void SHELVES[kind]
+                                    .remove(r.name)
+                                    .then(() => refreshShelf(kind));
                                 }}
                               >
                                 ✕
@@ -1296,8 +1371,11 @@ export function StartMenu(props: StartMenuProps) {
                   </div>
                   <div class="pills">
                     <For each={AI_SEATS}>
-                      {(n) => (
-                        <button class={ai() === n ? 'on' : ''} onClick={() => setAi(n)}>
+                      {n => (
+                        <button
+                          class={ai() === n ? 'on' : ''}
+                          onClick={() => setAi(n)}
+                        >
                           {n}
                         </button>
                       )}
@@ -1320,11 +1398,17 @@ export function StartMenu(props: StartMenuProps) {
                         {(pick, i) => (
                           <select
                             value={pick() ?? ''}
-                            onChange={(e) => setBot(i, parseStrategyId(e.currentTarget.value))}
+                            onChange={e =>
+                              setBot(i, parseStrategyId(e.currentTarget.value))
+                            }
                           >
                             <option value="">Random</option>
                             <For each={AI_STRATEGY_ORDER}>
-                              {(id) => <option value={id}>{AI_STRATEGIES[id].name}</option>}
+                              {id => (
+                                <option value={id}>
+                                  {AI_STRATEGIES[id].name}
+                                </option>
+                              )}
                             </For>
                           </select>
                         )}
@@ -1356,7 +1440,9 @@ export function StartMenu(props: StartMenuProps) {
                 <div class="row">
                   <div>
                     <div class="row-label">Bandit raids</div>
-                    <div class="row-hint">Neutral hostiles harass the roads</div>
+                    <div class="row-hint">
+                      Neutral hostiles harass the roads
+                    </div>
                   </div>
                   <button
                     class={`toggle ${bandits() ? 'on' : ''}`}
@@ -1427,7 +1513,12 @@ export function StartMenu(props: StartMenuProps) {
                 class={`cta ${(isJoin() && !target()) || (shelfSpec() !== null && pickedFile() === null) ? 'dim' : ''}`}
                 onClick={launch}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
                   <path d="M8 5.5v13l11-6.5z" />
                 </svg>
                 {ctaLabel()}
@@ -1548,7 +1639,11 @@ export function StartMenu(props: StartMenuProps) {
         <div class="footer">
           <span>
             SERF VALLEY · build {BUILD_LABEL} ·{' '}
-            {isMulti() ? 'server lobby' : online() ? 'local sim' : 'local sim · offline'}
+            {isMulti()
+              ? 'server lobby'
+              : online()
+                ? 'local sim'
+                : 'local sim · offline'}
           </span>
         </div>
       </div>

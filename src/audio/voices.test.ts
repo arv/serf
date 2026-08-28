@@ -1,17 +1,17 @@
-import type { Enum } from '../shared/enum.ts';
-import { describe, expect, it } from 'vitest';
-import { CueScheduler, GLOBAL_CAP, type PlayRequest } from './voices';
+import {describe, expect, it} from 'vitest';
+import type {Enum} from '../shared/enum.ts';
 import * as BusId from './busIdEnum.ts';
+import {CueScheduler, GLOBAL_CAP, type PlayRequest} from './voices';
 
 type BusId = Enum<typeof BusId>;
 
 /** A tiny catalogue with the knobs the scheduler actually reads. */
 const DEFS = {
-  chop: { bus: BusId.work, cooldownMs: 90, priority: 2 },
-  step: { bus: BusId.work, cooldownMs: 45, priority: 1 },
-  click: { bus: BusId.ui, cooldownMs: 30, priority: 4 },
-  horn: { bus: BusId.world, cooldownMs: 2000, priority: 5 },
-  swing: { bus: BusId.combat, cooldownMs: 60, priority: 3, collapseCeiling: 1.5 },
+  chop: {bus: BusId.work, cooldownMs: 90, priority: 2},
+  step: {bus: BusId.work, cooldownMs: 45, priority: 1},
+  click: {bus: BusId.ui, cooldownMs: 30, priority: 4},
+  horn: {bus: BusId.world, cooldownMs: 2000, priority: 5},
+  swing: {bus: BusId.combat, cooldownMs: 60, priority: 3, collapseCeiling: 1.5},
 };
 
 const CAPS: Record<BusId, number> = {
@@ -23,7 +23,12 @@ const CAPS: Record<BusId, number> = {
   [BusId.music]: 1,
 };
 
-function flush(s: CueScheduler, now: number, active = 0, out: PlayRequest[] = []): PlayRequest[] {
+function flush(
+  s: CueScheduler,
+  now: number,
+  active = 0,
+  out: PlayRequest[] = [],
+): PlayRequest[] {
   const n = s.flush(now, active, out);
   return out.slice(0, n);
 }
@@ -96,7 +101,7 @@ describe('CueScheduler', () => {
     s.request('swing', 0.85, 0.6);
     const voices = flush(s, 1000);
     expect(voices).toHaveLength(2);
-    const pans = voices.map((v) => v.pan).sort((a, b) => a - b);
+    const pans = voices.map(v => v.pan).sort((a, b) => a - b);
     expect(pans[0]).toBeLessThan(-0.5);
     expect(pans[1]).toBeGreaterThan(0.5);
   });
@@ -115,7 +120,7 @@ describe('CueScheduler', () => {
     s.request('step', 0, 1.0); // score 1.0 — third work voice, evicted
     s.request('click', 0, 0.5); // different bus, untouched
     const voices = flush(s, 1000);
-    const cues = voices.map((v) => v.cue).sort();
+    const cues = voices.map(v => v.cue).sort();
     expect(cues).toEqual(['chop', 'chop', 'click']);
   });
 
@@ -124,10 +129,10 @@ describe('CueScheduler', () => {
     s.request('chop', -0.9, 0.9);
     s.request('chop', 0.9, 0.9);
     s.request('step', 0, 1.0); // evicted by the work cap this frame
-    expect(flush(s, 1000).filter((v) => v.cue === 'step')).toHaveLength(0);
+    expect(flush(s, 1000).filter(v => v.cue === 'step')).toHaveLength(0);
     s.request('step', 0, 1.0);
     const next = flush(s, 1016); // chop is cooling down; step is free
-    expect(next.map((v) => v.cue)).toEqual(['step']);
+    expect(next.map(v => v.cue)).toEqual(['step']);
   });
 
   it('honors the global cap minus voices still ringing in the engine', () => {
@@ -179,7 +184,7 @@ describe('CueScheduler', () => {
     s.request('chop', 0, 0.8, 2.09);
     const voices = flush(s, 1000);
     expect(voices).toHaveLength(2);
-    const delays = voices.map((v) => v.delay).sort((a, b) => a - b);
+    const delays = voices.map(v => v.delay).sort((a, b) => a - b);
     expect(delays[0]).toBeCloseTo(0.22, 5);
     expect(delays[1]).toBeCloseTo(2.09, 5);
   });
@@ -216,7 +221,7 @@ describe('CueScheduler', () => {
       const s = new CueScheduler(DEFS, CAPS);
       s.request('chop', 0, 0.8);
       s.request('click', 0, 0.8);
-      return flush(s, 1000).map((v) => v.seed);
+      return flush(s, 1000).map(v => v.seed);
     };
     expect(run()).toEqual(run());
     for (const seed of run()) {

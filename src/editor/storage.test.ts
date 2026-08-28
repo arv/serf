@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { MIN_MAP_SIZE } from '../shared/grid.ts';
-import { createBlankMap } from './editorMap.ts';
+import {beforeEach, describe, expect, it} from 'vitest';
+import {MIN_MAP_SIZE} from '../shared/grid.ts';
+import {createBlankMap} from './editorMap.ts';
 import {
   deleteMap,
   listMaps,
@@ -17,7 +17,7 @@ import {
  * to live in. Everything storage.ts touches is here — and `full` flips it
  * into the quota failure every one of those calls has to survive.
  */
-function stubStorage(): { full: () => void } {
+function stubStorage(): {full: () => void} {
   const data = new Map<string, string>();
   let full = false;
   const store = {
@@ -30,7 +30,10 @@ function stubStorage(): { full: () => void } {
       data.delete(k);
     },
   };
-  Object.defineProperty(globalThis, 'localStorage', { value: store, configurable: true });
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: store,
+    configurable: true,
+  });
   return {
     full: () => {
       full = true;
@@ -39,7 +42,7 @@ function stubStorage(): { full: () => void } {
 }
 
 const sample = (name: string) => ({
-  ...createBlankMap({ size: MIN_MAP_SIZE, players: 2 }),
+  ...createBlankMap({size: MIN_MAP_SIZE, players: 2}),
   name,
 });
 

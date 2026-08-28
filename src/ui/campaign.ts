@@ -1,4 +1,4 @@
-import { MISSION_ORDER, type MissionId } from '../sim/defs/missions';
+import {MISSION_ORDER, type MissionId} from '../sim/defs/missions';
 
 /**
  * Campaign progress — a profile, not a world. Deliberately separate from
@@ -27,7 +27,7 @@ function load(): CampaignProgress {
   } catch {
     // Corrupt or unavailable storage reads as a fresh campaign.
   }
-  return { v: 1, completed: [] };
+  return {v: 1, completed: []};
 }
 
 function store(progress: CampaignProgress): void {

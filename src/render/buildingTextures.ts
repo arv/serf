@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { canvasTexture } from './spriteTextures';
+import {canvasTexture} from './spriteTextures';
 
 /**
  * Painted architecture textures, generated once at boot. The look is
@@ -32,7 +32,7 @@ function shade(hex: string, f: number): string {
 /** Overlapping scalloped tile rows — the stylized roof signature. */
 export function roofTiles(base: string): THREE.Texture {
   return cached(`roof:${base}`, () =>
-    canvasTexture(128, (ctx) => {
+    canvasTexture(128, ctx => {
       ctx.fillStyle = base;
       ctx.fillRect(0, 0, 128, 128);
       const rows = 6;
@@ -65,7 +65,7 @@ export function roofTiles(base: string): THREE.Texture {
 /** Vertical wood planks with seams, grain, and nail dots. */
 export function planks(base: string): THREE.Texture {
   return cached(`planks:${base}`, () =>
-    canvasTexture(128, (ctx) => {
+    canvasTexture(128, ctx => {
       ctx.fillStyle = base;
       ctx.fillRect(0, 0, 128, 128);
       const plankW = 16;
@@ -101,7 +101,7 @@ export function planks(base: string): THREE.Texture {
 /** Mottled plaster with a faint horizontal timber shadow. */
 export function plaster(base: string): THREE.Texture {
   return cached(`plaster:${base}`, () =>
-    canvasTexture(128, (ctx) => {
+    canvasTexture(128, ctx => {
       ctx.fillStyle = base;
       ctx.fillRect(0, 0, 128, 128);
       for (let i = 0; i < 260; i++) {
@@ -129,7 +129,7 @@ export function plaster(base: string): THREE.Texture {
 /** Straw thatch: dense vertical strokes with binding bands. */
 export function thatch(base: string): THREE.Texture {
   return cached(`thatch:${base}`, () =>
-    canvasTexture(128, (ctx) => {
+    canvasTexture(128, ctx => {
       ctx.fillStyle = base;
       ctx.fillRect(0, 0, 128, 128);
       for (let i = 0; i < 900; i++) {
@@ -160,7 +160,7 @@ export function thatch(base: string): THREE.Texture {
 /** Irregular stone blocks for plinths and wells. */
 export function stoneBlocks(base: string): THREE.Texture {
   return cached(`stone:${base}`, () =>
-    canvasTexture(128, (ctx) => {
+    canvasTexture(128, ctx => {
       ctx.fillStyle = shade(base, 0.6);
       ctx.fillRect(0, 0, 128, 128);
       const rows = 4;
@@ -184,7 +184,11 @@ export function stoneBlocks(base: string): THREE.Texture {
 }
 
 /** Texture clone with its own repeat (textures share images, not settings). */
-export function repeated(texture: THREE.Texture, x: number, y: number): THREE.Texture {
+export function repeated(
+  texture: THREE.Texture,
+  x: number,
+  y: number,
+): THREE.Texture {
   const key = `${texture.uuid}:${x}:${y}`;
   let t = cache.get(key);
   if (!t) {

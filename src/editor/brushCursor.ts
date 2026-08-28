@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import type { HeightField } from '../render/heightField';
-import { foldBasis, rotatePoint } from './symmetry.ts';
+import type {HeightField} from '../render/heightField';
+import {foldBasis, rotatePoint} from './symmetry.ts';
 
 /** Ring cross-sections; band half-width and ground lift (ReachOutline's). */
 const SEGMENTS = 48;
@@ -22,7 +22,11 @@ const INVALID = new THREE.Color(0xd45252);
 export class BrushCursor {
   #scene: THREE.Scene;
   #heights: HeightField;
-  #rings: { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial; positions: Float32Array }[] = [];
+  #rings: {
+    mesh: THREE.Mesh;
+    material: THREE.MeshBasicMaterial;
+    positions: Float32Array;
+  }[] = [];
 
   constructor(scene: THREE.Scene, heights: HeightField) {
     this.#scene = scene;
@@ -30,7 +34,10 @@ export class BrushCursor {
     for (let k = 0; k < MAX_RINGS; k++) {
       const positions = new Float32Array((SEGMENTS + 1) * 2 * 3);
       const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(positions, 3),
+      );
       const indices: number[] = [];
       for (let i = 0; i < SEGMENTS; i++) {
         const v = i * 2;
@@ -48,7 +55,7 @@ export class BrushCursor {
       mesh.frustumCulled = false; // positions churn every hover; skip sphere upkeep
       mesh.renderOrder = 3;
       scene.add(mesh);
-      this.#rings.push({ mesh, material, positions });
+      this.#rings.push({mesh, material, positions});
     }
   }
 
@@ -73,7 +80,8 @@ export class BrushCursor {
       }
       const c = rotatePoint(x, y, size, step);
       this.#lay(ring.positions, c.x, c.y, radius);
-      const attr = ring.mesh.geometry.attributes.position as THREE.BufferAttribute;
+      const attr = ring.mesh.geometry.attributes
+        .position as THREE.BufferAttribute;
       attr.needsUpdate = true;
       ring.material.color.copy(validAt(c.x, c.y) ? NORMAL : INVALID);
       ring.mesh.visible = true;

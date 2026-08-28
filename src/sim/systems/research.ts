@@ -1,12 +1,12 @@
-import { FESTIVAL_DURATION } from '../defs/balance.ts';
-import { TECH_DEFS } from '../defs/techs.ts';
-import type { World } from '../world.ts';
-import type { Building, Owner } from '../entities.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
+import {FESTIVAL_DURATION} from '../defs/balance.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
 import * as TechEffectKind from '../defs/techEffectKindEnum.ts';
 import * as TechId from '../defs/techIdEnum.ts';
-import * as BuildingState from '../buildingStateEnum.ts';
-import * as GoodId from '../defs/goodIdEnum.ts';
-import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import {TECH_DEFS} from '../defs/techs.ts';
+import type {Building, Owner} from '../entities.ts';
+import type {World} from '../world.ts';
 
 /**
  * Ticks every player's active research and festival buff. Research is
@@ -45,7 +45,8 @@ export function researchSystem(world: World): void {
         const def = TECH_DEFS[t.active.tech];
         t.researched.push(def.id);
         for (const effect of def.effects) {
-          if (effect.kind === TechEffectKind.unlockPaving) p.pavingUnlocked = true;
+          if (effect.kind === TechEffectKind.unlockPaving)
+            p.pavingUnlocked = true;
         }
         t.active = undefined;
       }
@@ -61,7 +62,8 @@ export function researchSystem(world: World): void {
     const abbey = abbeyOf(p.id);
     if (abbey && (abbey.inputs[GoodId.ale] ?? 0) > 0) {
       abbey.inputs[GoodId.ale] = (abbey.inputs[GoodId.ale] ?? 0) - 1;
-      world.ledger.consumed[GoodId.ale] = (world.ledger.consumed[GoodId.ale] ?? 0) + 1;
+      world.ledger.consumed[GoodId.ale] =
+        (world.ledger.consumed[GoodId.ale] ?? 0) + 1;
       t.festivalTicksLeft = FESTIVAL_DURATION;
     }
   }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import {describe, expect, it} from 'vitest';
 
 /**
  * A JS enum module only pays for itself if the bundler can inline its
@@ -30,8 +30,11 @@ const SOURCES = import.meta.glob(['/src/**/*.ts', '/src/**/*.tsx'], {
 function reExports(): string[] {
   const out: string[] = [];
   for (const [path, raw] of Object.entries(SOURCES)) {
-    for (const m of (raw as string).matchAll(/^export \* as (\w+) from '([^']+)';$/gm)) {
-      if (/Enum(\.ts)?$/.test(m[2]!)) out.push(`${path}: export * as ${m[1]} from '${m[2]}'`);
+    for (const m of (raw as string).matchAll(
+      /^export \* as (\w+) from '([^']+)';$/gm,
+    )) {
+      if (/Enum(\.ts)?$/.test(m[2]!))
+        out.push(`${path}: export * as ${m[1]} from '${m[2]}'`);
     }
   }
   return out;
@@ -46,7 +49,7 @@ describe('JS enum modules', () => {
   });
 
   it('are imported directly, and there are plenty of them to get wrong', () => {
-    const direct = Object.values(SOURCES).filter((raw) =>
+    const direct = Object.values(SOURCES).filter(raw =>
       /^import \* as \w+ from '[^']*Enum\.ts';$/m.test(raw as string),
     );
     expect(direct.length).toBeGreaterThan(50);

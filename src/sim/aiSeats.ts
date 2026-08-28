@@ -13,12 +13,12 @@
  * one the worker version had, and it matters: deciding after the tick would
  * give the AI a frame of hindsight nobody else gets.
  */
-import { strategyOf, type AiStrategy } from './defs/aiStrategies.ts';
-import { AiBrain } from './systems/ai.ts';
-import type { Owner } from './entities.ts';
-import type { PlayerCommand } from './tick.ts';
-import type { World } from './world.ts';
+import {strategyOf, type AiStrategy} from './defs/aiStrategies.ts';
+import type {Owner} from './entities.ts';
 import * as PlayerKind from './playerKindEnum.ts';
+import {AiBrain} from './systems/ai.ts';
+import type {PlayerCommand} from './tick.ts';
+import type {World} from './world.ts';
 
 export class AiSeats {
   #brains: AiBrain[];
@@ -28,8 +28,8 @@ export class AiSeats {
     // was dealt them at creation and has carried them through every save
     // and restart since.
     this.#brains = world.players
-      .filter((p) => p.kind === PlayerKind.ai)
-      .map((p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
+      .filter(p => p.kind === PlayerKind.ai)
+      .map(p => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
   }
 
   get count(): number {
@@ -39,20 +39,20 @@ export class AiSeats {
   /** The seats with a brain, for anyone pacing per-seat work (the LLM
    * strategist's summary cadence). */
   seatIds(): Owner[] {
-    return this.#brains.map((b) => b.playerId);
+    return this.#brains.map(b => b.playerId);
   }
 
   /** Lay strategist advice over one seat's playbook. Values arrive already
    * validated (src/ai/advice.ts); an unknown seat is a no-op, since advice
    * can outlive the brain it was meant for. */
   applyAdvice(playerId: Owner, override: Partial<AiStrategy>): void {
-    this.#brains.find((b) => b.playerId === playerId)?.setOverride(override);
+    this.#brains.find(b => b.playerId === playerId)?.setOverride(override);
   }
 
   /** One seat's brain — how the LLM summary reads what the seat has
    * scouted (vision + intel) instead of the raw world. */
   brainFor(playerId: Owner): AiBrain | undefined {
-    return this.#brains.find((b) => b.playerId === playerId);
+    return this.#brains.find(b => b.playerId === playerId);
   }
 
   /** This tick's AI orders, ready to apply alongside the players'. */
@@ -60,7 +60,8 @@ export class AiSeats {
     const out: PlayerCommand[] = [];
     for (const brain of this.#brains) {
       if (!brain.shouldDecide(world.tick)) continue;
-      for (const cmd of brain.decide(world)) out.push({ playerId: brain.playerId, cmd });
+      for (const cmd of brain.decide(world))
+        out.push({playerId: brain.playerId, cmd});
     }
     return out;
   }

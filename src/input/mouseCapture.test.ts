@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import {describe, expect, it} from 'vitest';
 import {
   boundary,
   capturePointer,
@@ -41,7 +41,9 @@ describe('commonAncestor', () => {
   const chain = ['button', 'card', 'ui', 'body', 'html'];
 
   it('finds where two chains meet', () => {
-    expect(commonAncestor(chain, ['label', 'card', 'ui', 'body', 'html'])).toBe('card');
+    expect(commonAncestor(chain, ['label', 'card', 'ui', 'body', 'html'])).toBe(
+      'card',
+    );
   });
 
   it('answers with the element itself when one contains the other', () => {
@@ -60,7 +62,7 @@ describe('boundary', () => {
     // Moving from a button to its label is still inside the card and the
     // HUD; a leave event for either would take a tooltip down that the
     // pointer never left.
-    const { left, entered } = boundary(
+    const {left, entered} = boundary(
       ['button', 'card', 'ui', 'html'],
       ['label', 'button', 'card', 'ui', 'html'],
     );
@@ -69,7 +71,7 @@ describe('boundary', () => {
   });
 
   it('unwinds to the shared ancestor and back down the other side', () => {
-    const { left, entered } = boundary(
+    const {left, entered} = boundary(
       ['icon', 'buildBtn', 'card', 'ui', 'html'],
       ['text', 'speedBtn', 'card', 'ui', 'html'],
     );
@@ -83,7 +85,7 @@ describe('boundary', () => {
   it('treats a crossing onto nothing as leaving everything', () => {
     // What a released lock does: the cursor stops existing, and every
     // element it was standing in has to hear about it.
-    const { left, entered } = boundary(['button', 'card', 'ui', 'html'], []);
+    const {left, entered} = boundary(['button', 'card', 'ui', 'html'], []);
     expect(left).toEqual(['button', 'card', 'ui', 'html']);
     expect(entered).toEqual([]);
   });
@@ -95,14 +97,18 @@ describe('hoverAlias', () => {
   });
 
   it('moves the hover onto the class we control', () => {
-    expect(hoverAlias('#ui button:hover:not(:disabled)')).toBe('#ui button.vhover:not(:disabled)');
+    expect(hoverAlias('#ui button:hover:not(:disabled)')).toBe(
+      '#ui button.vhover:not(:disabled)',
+    );
   });
 
   it('inverts with the rest of the selector', () => {
     // The HUD's touch neutralizers are written as :not(:hover); mirrored
     // any other way they would switch the styling back on for a captured
     // pointer standing still.
-    expect(hoverAlias('#ui button:not(:hover)')).toBe('#ui button:not(.vhover)');
+    expect(hoverAlias('#ui button:not(:hover)')).toBe(
+      '#ui button:not(.vhover)',
+    );
   });
 
   it('rewrites every branch of a selector list', () => {
@@ -116,16 +122,18 @@ describe('hoverAlias', () => {
     // would restate `#ui button.active` at the very end of the document,
     // where it outranks the rules that were written to follow it — the
     // resting style would win over everything, hover or no hover.
-    expect(hoverAlias('#ui button.active, #ui button.active:hover:not(:disabled)')).toBe(
-      '#ui button.active.vhover:not(:disabled)',
-    );
+    expect(
+      hoverAlias('#ui button.active, #ui button.active:hover:not(:disabled)'),
+    ).toBe('#ui button.active.vhover:not(:disabled)');
   });
 
   it('keeps a comma that belongs to the selector', () => {
     // :is() and attribute values carry their own commas, and splitting on
     // those would produce two halves of a selector, neither of them valid.
     expect(hoverAlias(':is(.a, .b):hover')).toBe(':is(.a, .b).vhover');
-    expect(hoverAlias('[title="a,b"]:hover, .plain')).toBe('[title="a,b"].vhover');
+    expect(hoverAlias('[title="a,b"]:hover, .plain')).toBe(
+      '[title="a,b"].vhover',
+    );
   });
 });
 
@@ -163,11 +171,13 @@ describe('relayable', () => {
 });
 
 describe('capturePointer', () => {
-  const mouse = { pointerId: 7, pointerType: 'mouse' } as PointerEvent;
+  const mouse = {pointerId: 7, pointerType: 'mouse'} as PointerEvent;
 
   it('asks the platform while the pointer is still the platform’s', () => {
     const asked: number[] = [];
-    const el = { setPointerCapture: (id: number) => void asked.push(id) } as unknown as Element;
+    const el = {
+      setPointerCapture: (id: number) => void asked.push(id),
+    } as unknown as Element;
 
     capturePointer(el, mouse);
 

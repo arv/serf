@@ -21,12 +21,12 @@
  * would be worse than the silence it replaces.
  */
 
-import { type CueId, CUES } from './cues';
-import { MixerGraph } from './mixerGraph';
-import { MIN_AUDIBLE, type Spatial, type ViewFrame, spatialize } from './pan';
-import { loadSamples } from './samples';
-import { renderCue } from './synth';
-import { CueScheduler, type PlayRequest } from './voices';
+import {type CueId, CUES} from './cues';
+import {MixerGraph} from './mixerGraph';
+import {MIN_AUDIBLE, type Spatial, type ViewFrame, spatialize} from './pan';
+import {loadSamples} from './samples';
+import {renderCue} from './synth';
+import {CueScheduler, type PlayRequest} from './voices';
 
 let graph: MixerGraph | null = null;
 let scheduler: CueScheduler | null = null;
@@ -41,9 +41,9 @@ let muted = false;
 let paused = false;
 let hiddenNow = false;
 
-const view: ViewFrame = { cx: 0, cz: 0, rx: 0, rz: 0, ext: 0 };
+const view: ViewFrame = {cx: 0, cz: 0, rx: 0, rz: 0, ext: 0};
 let hasView = false;
-const spatialScratch: Spatial = { pan: 0, gain: 0, audible: false };
+const spatialScratch: Spatial = {pan: 0, gain: 0, audible: false};
 const playPool: PlayRequest[] = [];
 let fallbackFlush = 0;
 
@@ -66,12 +66,12 @@ function armFallbackFlush(): void {
  * those; this module only applies them) and lie in wait for the first
  * gesture. Idempotent, called once from boot().
  */
-export function initAudio(initial: { gain: number; muted: boolean }): void {
+export function initAudio(initial: {gain: number; muted: boolean}): void {
   volumeGain = initial.gain;
   muted = initial.muted;
   if (initialized) return;
   initialized = true;
-  const opts = { once: true, capture: true, passive: true } as const;
+  const opts = {once: true, capture: true, passive: true} as const;
   window.addEventListener('pointerdown', unlockAudio, opts);
   window.addEventListener('keydown', unlockAudio, opts);
   window.addEventListener('touchend', unlockAudio, opts);
@@ -95,7 +95,7 @@ export function unlockAudio(): void {
     // that beats blocking anything on audio.
     for (const id of Object.keys(CUES) as CueId[]) {
       void renderCue(CUES[id], ctx.sampleRate).then(
-        (buffer) => buffers.set(id, buffer),
+        buffer => buffers.set(id, buffer),
         () => undefined, // a failed render is just a cue that stays silent
       );
     }
@@ -132,7 +132,13 @@ export function play(cue: CueId): void {
  * request would undo that work. `delaySec` schedules the voice ahead
  * (loop-event percussion lands its impact mid-clip, not at the wrap).
  */
-export function playAt(cue: CueId, x: number, z: number, gainScale = 1, delaySec = 0): void {
+export function playAt(
+  cue: CueId,
+  x: number,
+  z: number,
+  gainScale = 1,
+  delaySec = 0,
+): void {
   if (!scheduler || muted || !hasView || !ready(cue)) return;
   const s = spatialize(x, z, view, spatialScratch);
   if (!s.audible) return;

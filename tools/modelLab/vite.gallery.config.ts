@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite';
-import { fileURLToPath } from 'node:url';
+import {fileURLToPath} from 'node:url';
+import {defineConfig} from 'vite';
 
 /**
  * Bundles the gallery into one classic script — three.js, the toolkit, the

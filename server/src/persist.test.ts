@@ -1,10 +1,16 @@
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_MAP_SIZE } from '../../src/shared/grid.ts';
-import { tickWorld } from '../../src/sim/tick.ts';
-import { serializeWorld } from '../../src/sim/save.ts';
+import {mkdtempSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {describe, expect, it} from 'vitest';
+import {DEFAULT_MAP_SIZE} from '../../src/shared/grid.ts';
+import {serializeWorld} from '../../src/sim/save.ts';
+import {tickWorld} from '../../src/sim/tick.ts';
+import {
+  persistRooms,
+  restorePersistedRooms,
+  roomFromRecord,
+  roomToRecord,
+} from './persist.ts';
 import {
   TICK_MS,
   addSeat,
@@ -16,8 +22,7 @@ import {
   startMatch,
   sweepRooms,
 } from './rooms.ts';
-import { recomputeVision } from './sync.ts';
-import { persistRooms, restorePersistedRooms, roomFromRecord, roomToRecord } from './persist.ts';
+import {recomputeVision} from './sync.ts';
 
 /** A running two-seat match (one human, one AI), a few hundred ticks in. */
 function runningRoom(seed: number) {
@@ -33,27 +38,32 @@ function runningRoom(seed: number) {
   for (let i = 0; i < 200; i++) tickWorld(room.world!, []);
   room.closedTick = room.world!.tick;
   recomputeVision(room);
-  return { room, seat };
+  return {room, seat};
 }
 
 describe('room persistence', () => {
   it('a running room survives the record round-trip', () => {
-    const { room, seat } = runningRoom(4242);
+    const {room, seat} = runningRoom(4242);
     const record = roomToRecord(room)!;
     // Through JSON, exactly as the disk holds it.
-    const revived = roomFromRecord(JSON.parse(JSON.stringify(record)), Date.now());
+    const revived = roomFromRecord(
+      JSON.parse(JSON.stringify(record)),
+      Date.now(),
+    );
 
     expect(serializeWorld(revived.world!)).toBe(serializeWorld(room.world!));
-    expect(revived.seats.map((s) => s.kind)).toEqual(['human', 'ai']);
+    expect(revived.seats.map(s => s.kind)).toEqual(['human', 'ai']);
     expect(revived.seats[0]!.token).toBe(seat.token);
-    expect(revived.seats.every((s) => !s.connected && s.ws === null)).toBe(true);
+    expect(revived.seats.every(s => !s.connected && s.ws === null)).toBe(true);
     expect(revived.config).toEqual(room.config);
     // Fog survives: the seat still knows everything it had explored.
-    expect([...revived.seats[0]!.view!.vision.explored]).toEqual([...seat.view!.vision.explored]);
+    expect([...revived.seats[0]!.view!.vision.explored]).toEqual([
+      ...seat.view!.vision.explored,
+    ]);
   });
 
   it('the clock resumes where it paused, not fast-forwarded', () => {
-    const { room } = runningRoom(9);
+    const {room} = runningRoom(9);
     const nowMs = Date.now();
     const revived = roomFromRecord(roomToRecord(room)!, nowMs);
     const tick = revived.world!.tick;
@@ -78,13 +88,13 @@ describe('room persistence', () => {
   });
 
   it('adoption refuses a code that is already live', () => {
-    const { room } = runningRoom(77);
+    const {room} = runningRoom(77);
     const revived = roomFromRecord(roomToRecord(room)!, Date.now());
     expect(adoptRoom(revived)).toBe(false);
   });
 
   it('a restored room nobody reclaims is swept like any other', () => {
-    const { room } = runningRoom(31);
+    const {room} = runningRoom(31);
     const record = roomToRecord(room)!;
     // The old process's copy goes away (all humans gone, five minutes pass).
     deleteRoomIfDead(room);
@@ -100,7 +110,7 @@ describe('room persistence', () => {
 
   it('rooms round-trip through the snapshot file', () => {
     process.env.SERF_STATE_DIR = mkdtempSync(join(tmpdir(), 'serf-persist-'));
-    const { room, seat } = runningRoom(1234);
+    const {room, seat} = runningRoom(1234);
     expect(persistRooms()).toBeGreaterThanOrEqual(1);
 
     // The old process dies; its room goes with it.

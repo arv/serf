@@ -1,5 +1,5 @@
-import { goto } from './router';
-import { stashSet } from './stash';
+import {goto} from './router';
+import {stashSet} from './stash';
 
 /**
  * The card the app puts up when a screen cannot be built: raw DOM over
@@ -30,7 +30,10 @@ const BUTTON_CSS =
   'color:#f7e9c0;background:rgba(229,196,105,0.13);border:1px solid rgba(229,196,105,0.5);' +
   'border-radius:11px;';
 
-export function showFatal(message: string, opts?: { retry?: boolean; menu?: boolean }): void {
+export function showFatal(
+  message: string,
+  opts?: {retry?: boolean; menu?: boolean},
+): void {
   if (fatalShown) return;
   fatalShown = true;
   const el = document.getElementById('fatal')!;
@@ -41,7 +44,9 @@ export function showFatal(message: string, opts?: { retry?: boolean; menu?: bool
   // screen that fails an hour into a session is a different sentence — and
   // the menu button is what says which this is: it is offered exactly when
   // the app is up and one screen could not be built.
-  title.textContent = opts?.menu ? 'That screen could not be opened' : 'Serf Valley cannot start';
+  title.textContent = opts?.menu
+    ? 'That screen could not be opened'
+    : 'Serf Valley cannot start';
   const body = document.createElement('p');
   // Text, never markup. Relay error messages land here (runLobby's fail
   // rejects with them and boot's catch brings them straight in), and the
@@ -90,7 +95,10 @@ export function clearFatal(): void {
 }
 
 /** The same screen, for the paths that must not carry on afterwards. */
-export function fatal(message: string, opts?: { retry?: boolean; menu?: boolean }): never {
+export function fatal(
+  message: string,
+  opts?: {retry?: boolean; menu?: boolean},
+): never {
   showFatal(message, opts);
   throw new Error(message);
 }

@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { MovePredictor } from './predict';
-import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
-import { UNIT_DEFS } from '../sim/defs/units';
-import { ACTION, type UnitSnapshot } from '../protocol/sabLayout';
+import {describe, expect, it} from 'vitest';
+import {ACTION, type UnitSnapshot} from '../protocol/sabLayout';
+import {DEFAULT_MAP_SIZE, tileCount, tileIdx} from '../shared/grid';
+import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {MovePredictor} from './predict';
 
 const openMap = () => ({
   size: DEFAULT_MAP_SIZE,
@@ -28,7 +28,7 @@ function unit(id: number, x: number, y: number, owner = 0): UnitSnapshot {
 }
 
 /** One server frame where nothing has moved — the dead window. */
-const stillFrame = (u: UnitSnapshot): UnitSnapshot[] => [{ ...u }];
+const stillFrame = (u: UnitSnapshot): UnitSnapshot[] => [{...u}];
 
 describe('move prediction', () => {
   it('starts the unit moving before the server has answered', () => {
@@ -68,7 +68,7 @@ describe('move prediction', () => {
     let last = 0;
     for (let i = 0; i < 40; i++) {
       serverX += UNIT_DEFS[UnitTypeId.serf].speed / 20;
-      const frame = [{ ...u, x: serverX }];
+      const frame = [{...u, x: serverX}];
       p.apply(frame, 0);
       last = frame[0]!.x;
     }
@@ -85,14 +85,14 @@ describe('move prediction', () => {
     // The server finally moves it one tick's worth: our prediction is well
     // ahead. Rendered position must not jump back to the server's.
     const serverX = 10.5 + UNIT_DEFS[UnitTypeId.serf].speed / 20;
-    const frame = [{ ...u, x: serverX }];
+    const frame = [{...u, x: serverX}];
     p.apply(frame, 0);
     expect(frame[0]!.x).toBeGreaterThan(serverX);
 
     // ...and it converges rather than lingering.
     let x = frame[0]!.x;
     for (let i = 0; i < 20; i++) {
-      const f = [{ ...u, x: serverX }];
+      const f = [{...u, x: serverX}];
       p.apply(f, 0);
       x = f[0]!.x;
     }
@@ -131,7 +131,7 @@ describe('move prediction', () => {
       ]),
     );
 
-    const frame = [{ ...mine }, { ...theirs }];
+    const frame = [{...mine}, {...theirs}];
     p.apply(frame, 0);
     expect(frame[1]!.x).toBe(40.5);
     expect(frame[1]!.y).toBe(40.5);

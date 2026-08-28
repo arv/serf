@@ -1,5 +1,24 @@
-import type { Enum } from '../shared/enum.ts';
 import * as THREE from 'three';
+import type {CueId} from '../audio/cues';
+import type {BuildingSnap} from '../protocol/messages';
+import * as StaffingState from '../protocol/staffingStateEnum.ts';
+import type {Enum} from '../shared/enum.ts';
+import {hash2} from '../shared/math';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
+import {buildingDef} from '../sim/defs/buildings';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import {GOODS} from '../sim/defs/goods';
+import {UNIT_DEFS} from '../sim/defs/units';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {WATER_LEVEL} from '../sim/map';
+import * as AnimKey from './animKeyEnum.ts';
+import {glbYardProp, glbYardRock, makeGlbBuilding} from './assets';
+import {CAMERA_YAW, type ViewBounds} from './cameraRig';
+import {makeCharacter, playAnimation, type CharacterVisual} from './characters';
+import type {FogQuery} from './fogOfWar';
+import type {HeightField} from './heightField';
+import {eachMaterial, mapMaterials} from './materials';
 import {
   makeGhostModel,
   makePileProp,
@@ -8,25 +27,6 @@ import {
   makeRoadPile,
   SITE_FRAME_H,
 } from './models';
-import { glbYardProp, glbYardRock, makeGlbBuilding } from './assets';
-import { makeCharacter, playAnimation, type CharacterVisual } from './characters';
-import { eachMaterial, mapMaterials } from './materials';
-import { buildingDef } from '../sim/defs/buildings';
-import { UNIT_DEFS } from '../sim/defs/units';
-import { WATER_LEVEL } from '../sim/map';
-import { CAMERA_YAW, type ViewBounds } from './cameraRig';
-import { GOODS } from '../sim/defs/goods';
-import { hash2 } from '../shared/math';
-import type { FogQuery } from './fogOfWar';
-import type { BuildingSnap } from '../protocol/messages';
-import type { HeightField } from './heightField';
-import type { CueId } from '../audio/cues';
-import * as AnimKey from './animKeyEnum.ts';
-import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
-import * as GoodId from '../sim/defs/goodIdEnum.ts';
-import * as StaffingState from '../protocol/staffingStateEnum.ts';
-import * as BuildingState from '../sim/buildingStateEnum.ts';
 
 type BuildingState = Enum<typeof BuildingState>;
 type GoodId = Enum<typeof GoodId>;
@@ -78,7 +78,7 @@ const SCRATCH_POS = new THREE.Vector3();
  * be touched.) The same rule sceneSync applies to its unit visuals.
  */
 function disposeTree(group: THREE.Object3D): void {
-  group.traverse((o) => {
+  group.traverse(o => {
     if (o instanceof THREE.SkinnedMesh) o.skeleton.dispose();
   });
 }
@@ -105,7 +105,7 @@ interface BuildingVisual {
   model: THREE.Group;
   /** Warcraft-style rise: a world-space clip plane reveals the model
    * bottom-up as materials arrive and progress ticks. */
-  clip?: { plane: THREE.Plane; height: number; baseY: number };
+  clip?: {plane: THREE.Plane; height: number; baseY: number};
   /** Model height above ground, for floating the hp bar. */
   topY: number;
   /**
@@ -151,7 +151,7 @@ interface BuildingVisual {
    * says is inside. Built here rather than fed from the unit stream:
    * a garrisoned soldier is not a unit any more (he was consumed into the
    * building), so there is nothing in the SAB to place. */
-  manned: { group: THREE.Group; char: CharacterVisual | null }[];
+  manned: {group: THREE.Group; char: CharacterVisual | null}[];
   /** Latest BuildingSnap.firing — the roof draws instead of idling. */
   firing: boolean;
   /** Latest BuildingSnap.levied: villagers on the roof, not archers. Kept
@@ -206,14 +206,14 @@ const HP_FG_GEO = new THREE.PlaneGeometry(HP_BAR_W - 0.06, 0.07);
 const HP_BG_MAT = new THREE.MeshBasicMaterial({
   color: 0x140f0a,
   depthTest: false,
-  userData: { noFog: true },
+  userData: {noFog: true},
 });
 
 /** White, so each bar's per-instance colour comes through unmultiplied. */
 const HP_FG_MAT = new THREE.MeshBasicMaterial({
   color: 0xffffff,
   depthTest: false,
-  userData: { noFog: true },
+  userData: {noFog: true},
 });
 
 /** Bar scratch: one instance matrix, composed per bar per rebuild. */
@@ -373,7 +373,9 @@ export class BuildingSync {
           // fresh sites read as more than an empty frame.
           v.clip.plane.constant = v.clip.baseY + 0.08 + v.clip.height * p;
         } else {
-          v.model.scale.setScalar(GHOST_SEED_SCALE + (1 - GHOST_SEED_SCALE) * p);
+          v.model.scale.setScalar(
+            GHOST_SEED_SCALE + (1 - GHOST_SEED_SCALE) * p,
+          );
         }
       }
 
@@ -474,20 +476,23 @@ export class BuildingSync {
         model = glb;
         // Per-site material clones so the clip plane never touches the
         // shared templates or finished buildings.
-        const plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), root.position.y);
+        const plane = new THREE.Plane(
+          new THREE.Vector3(0, -1, 0),
+          root.position.y,
+        );
         const clipped = (m: THREE.Material): THREE.Material => {
           const c = m.clone();
           c.clippingPlanes = [plane];
           c.clipShadows = true;
           return c;
         };
-        model.traverse((o) => {
+        model.traverse(o => {
           if (o instanceof THREE.Mesh) mapMaterials(o, clipped);
         });
         // Note: root isn't in the scene yet, so this bbox is root-local —
         // max.y IS the model height above its own base.
         const bbox = new THREE.Box3().setFromObject(model);
-        clip = { plane, height: bbox.max.y, baseY: root.position.y };
+        clip = {plane, height: bbox.max.y, baseY: root.position.y};
         plane.constant = root.position.y + 0.08;
         root.add(model);
         // No cosmetic builder here: the staffing system sends a real serf
@@ -516,9 +521,13 @@ export class BuildingSync {
     // waterline. Re-seat the group so they swim just under the surface: a
     // world-unit drop, folded back into the model's vertical scale.
     const shoal = model.getObjectByName('fisheryShoal') ?? undefined;
-    if (shoal) shoal.position.y = (WATER_LEVEL - SHOAL_DRAFT - root.position.y) / model.scale.y;
+    if (shoal)
+      shoal.position.y =
+        (WATER_LEVEL - SHOAL_DRAFT - root.position.y) / model.scale.y;
 
-    const topY = clip ? clip.height : new THREE.Box3().setFromObject(model).max.y;
+    const topY = clip
+      ? clip.height
+      : new THREE.Box3().setFromObject(model).max.y;
     // Where this building's roof will reach when it is finished, which is
     // what the pick walk wants as its ceiling: a site's finished height
     // (topY is already that for a clipped one, and the seed scale away from
@@ -529,7 +538,8 @@ export class BuildingSync {
       b.state === BuildingState.site
         ? Math.max(SITE_FRAME_H, clip ? topY : topY / GHOST_SEED_SCALE)
         : topY;
-    if (!road) this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
+    if (!road)
+      this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
     this.#scene.add(root);
     return {
       root,
@@ -552,7 +562,7 @@ export class BuildingSync {
       working: false,
       span: Math.max(b.w, b.h),
       posts: ['towerPost0', 'towerPost1']
-        .map((n) => model.getObjectByName(n))
+        .map(n => model.getObjectByName(n))
         .filter((o): o is THREE.Object3D => o !== undefined),
       manned: [],
       firing: false,
@@ -563,12 +573,28 @@ export class BuildingSync {
   /** Built wells' world centers, windlasses and grip handles — sceneSync
    * stands the drawing serf beside the crank, IK-glues their hand to the
    * grip, and turns the windlass under it. */
-  wellCranks(): { x: number; z: number; crank: THREE.Object3D; grip: THREE.Object3D }[] {
-    const out: { x: number; z: number; crank: THREE.Object3D; grip: THREE.Object3D }[] = [];
+  wellCranks(): {
+    x: number;
+    z: number;
+    crank: THREE.Object3D;
+    grip: THREE.Object3D;
+  }[] {
+    const out: {
+      x: number;
+      z: number;
+      crank: THREE.Object3D;
+      grip: THREE.Object3D;
+    }[] = [];
     for (const v of this.#visuals.values()) {
       if (v.state !== BuildingState.built || !v.crank) continue;
       const grip = v.crank.getObjectByName('wellGrip');
-      if (grip) out.push({ x: v.root.position.x, z: v.root.position.z, crank: v.crank, grip });
+      if (grip)
+        out.push({
+          x: v.root.position.x,
+          z: v.root.position.z,
+          crank: v.crank,
+          grip,
+        });
     }
     return out;
   }
@@ -607,7 +633,9 @@ export class BuildingSync {
     const cx = (box.min.x + box.max.x) / 2;
     const cz = (box.min.z + box.max.z) / 2;
     // Facing is a quarter turn, so the deck line lies along one axis.
-    const half = (Math.abs(dirX) > 0.5 ? box.max.x - box.min.x : box.max.z - box.min.z) / 2;
+    const half =
+      (Math.abs(dirX) > 0.5 ? box.max.x - box.min.x : box.max.z - box.min.z) /
+      2;
     const baseX = cx - dirX * half;
     const baseZ = cz - dirZ * half;
     let tipX = cx + dirX * half;
@@ -659,7 +687,12 @@ export class BuildingSync {
    * the vertical line through the deck's landward end. The parent chain is
    * Y-rotation plus uniform scale, so a world-space angle carries into the
    * local frame unchanged. */
-  #swingDecor(v: BuildingVisual, baseX: number, baseZ: number, theta: number): void {
+  #swingDecor(
+    v: BuildingVisual,
+    baseX: number,
+    baseZ: number,
+    theta: number,
+  ): void {
     const c = Math.cos(theta);
     const s = Math.sin(theta);
     const p = new THREE.Vector3();
@@ -715,7 +748,12 @@ export class BuildingSync {
       if (bounds !== undefined) {
         const bx = v.root.position.x;
         const bz = v.root.position.z;
-        if (bx < bounds.minX || bx > bounds.maxX || bz < bounds.minZ || bz > bounds.maxZ) {
+        if (
+          bx < bounds.minX ||
+          bx > bounds.maxX ||
+          bz < bounds.minZ ||
+          bz > bounds.maxZ
+        ) {
           continue;
         }
       }
@@ -726,7 +764,8 @@ export class BuildingSync {
         // target: heavy sails carry momentum, and the coast also bridges
         // the one-tick gap between back-to-back batches, which would
         // otherwise read as a stutter whenever a publish lands in it.
-        const target = v.working && v.state === BuildingState.built ? MILL_FAN_SPEED : 0;
+        const target =
+          v.working && v.state === BuildingState.built ? MILL_FAN_SPEED : 0;
         v.fanSpeed += (target - v.fanSpeed) * Math.min(1, dt * 1.6);
         if (v.fanSpeed > 0.01) v.fan.rotation.z += v.fanSpeed * dt;
       }
@@ -736,9 +775,18 @@ export class BuildingSync {
         // motion: at village zoom a rigid fish on a slow curve reads as
         // swimming, and the model has no rig to do better with.
         for (const pivot of v.shoal.children) {
-          const p = pivot.userData as { r: number; phase: number; speed: number; y: number };
+          const p = pivot.userData as {
+            r: number;
+            phase: number;
+            speed: number;
+            y: number;
+          };
           p.phase += dt * p.speed;
-          pivot.position.set(Math.cos(p.phase) * p.r, p.y, Math.sin(p.phase) * p.r);
+          pivot.position.set(
+            Math.cos(p.phase) * p.r,
+            p.y,
+            Math.sin(p.phase) * p.r,
+          );
           // The model's nose is -z: rotation.y = t points it at
           // (-sin t, -cos t), while the tangent of a counter-clockwise circle
           // at phase p is (-sin p, cos p). So the half turn belongs to the
@@ -767,7 +815,7 @@ export class BuildingSync {
       d.t = Math.min(d.t + dt / DURATION, 1);
       // Ease-in sink: slow shudder first, then the drop.
       const sink = d.t * d.t;
-      const { root } = d.visual;
+      const {root} = d.visual;
       root.position.y = d.baseY - sink * (d.visual.topY + 0.4);
       root.rotation.x = d.tiltX * d.t;
       root.rotation.z = d.tiltZ * d.t;
@@ -783,10 +831,13 @@ export class BuildingSync {
           0.12 + Math.sin(tau * Math.PI) * p.size * 2.2,
           Math.sin(p.angle) * r,
         );
-        p.mesh.scale.setScalar(p.size * (0.5 + tau * 1.1) * (1 - tau * tau * 0.6));
+        p.mesh.scale.setScalar(
+          p.size * (0.5 + tau * 1.1) * (1 - tau * tau * 0.6),
+        );
         p.mesh.rotation.x += p.spinX * dt;
         p.mesh.rotation.z += p.spinZ * dt;
-        (p.mesh.material as THREE.MeshBasicMaterial).opacity = 0.8 * (1 - tau) * (1 - tau);
+        (p.mesh.material as THREE.MeshBasicMaterial).opacity =
+          0.8 * (1 - tau) * (1 - tau);
       }
     }
     for (let i = this.#dying.length - 1; i >= 0; i--) {
@@ -898,7 +949,10 @@ export class BuildingSync {
    * back through the root to get there.
    */
   #syncGarrison(v: BuildingVisual, b: BuildingSnap): void {
-    const want = v.state === BuildingState.built ? Math.min(b.garrison ?? 0, v.posts.length) : 0;
+    const want =
+      v.state === BuildingState.built
+        ? Math.min(b.garrison ?? 0, v.posts.length)
+        : 0;
     // A relief swaps who is standing there without moving the count, so the
     // kind has to be able to condemn the figures the way the count does.
     const levied = b.levied === true;
@@ -916,7 +970,11 @@ export class BuildingSync {
       disposeTree(gone.group);
     }
     while (v.manned.length < want) {
-      const made = makeCharacter(b.levied ? LEVY_KIND : ARCHER_KIND, 0, b.owner);
+      const made = makeCharacter(
+        b.levied ? LEVY_KIND : ARCHER_KIND,
+        0,
+        b.owner,
+      );
       if (!made) break; // characters not loaded yet; try again next roster
       const post = v.posts[v.manned.length]!;
       post.getWorldPosition(SCRATCH_POS);
@@ -926,7 +984,7 @@ export class BuildingSync {
       // shoulder staring the same way read as a rank, not a watch.
       made.group.rotation.y = Math.atan2(SCRATCH_POS.x, SCRATCH_POS.z);
       v.root.add(made.group);
-      v.manned.push({ group: made.group, char: made.visual });
+      v.manned.push({group: made.group, char: made.visual});
     }
   }
 
@@ -940,7 +998,8 @@ export class BuildingSync {
         // Delivered materials wait by the frame, then drain into the
         // structure as the build progresses.
         const delivered =
-          ((def.cost as Partial<Record<GoodId, number>>)[g] ?? 0) - (b.siteNeeds?.[g] ?? 0);
+          ((def.cost as Partial<Record<GoodId, number>>)[g] ?? 0) -
+          (b.siteNeeds?.[g] ?? 0);
         n = Math.round(delivered * (1 - (b.progress01 ?? 0)));
       } else {
         n = (b.stock[g] ?? 0) + (b.inputs[g] ?? 0);
@@ -1062,7 +1121,11 @@ export class BuildingSync {
       // The bar group hung at topY + 0.45 above a root that carries no
       // rotation of its own (a building's facing turns its model, not its
       // root), square to the screen.
-      BAR_POS.set(v.root.position.x, v.root.position.y + v.topY + 0.45, v.root.position.z);
+      BAR_POS.set(
+        v.root.position.x,
+        v.root.position.y + v.topY + 0.45,
+        v.root.position.z,
+      );
       BAR_SCALE.set(1, 1, 1);
       BAR_MATRIX.compose(BAR_POS, camQuat, BAR_SCALE);
       this.#hpBg!.setMatrixAt(n, BAR_MATRIX);
@@ -1071,7 +1134,9 @@ export class BuildingSync {
       // screen plane because the bar is no longer parented to anything.
       const w = Math.max(v.pct, 0.02);
       BAR_SCALE.set(w, 1, 1);
-      BAR_OFFSET.set((-(HP_BAR_W - 0.06) * (1 - w)) / 2, 0, 0).applyQuaternion(camQuat);
+      BAR_OFFSET.set((-(HP_BAR_W - 0.06) * (1 - w)) / 2, 0, 0).applyQuaternion(
+        camQuat,
+      );
       BAR_POS.add(BAR_OFFSET);
       BAR_MATRIX.compose(BAR_POS, camQuat, BAR_SCALE);
       this.#hpFg!.setMatrixAt(n, BAR_MATRIX);
@@ -1084,7 +1149,8 @@ export class BuildingSync {
       if (n > 0) {
         this.#hpBg.instanceMatrix.needsUpdate = true;
         this.#hpFg.instanceMatrix.needsUpdate = true;
-        if (this.#hpFg.instanceColor) this.#hpFg.instanceColor.needsUpdate = true;
+        if (this.#hpFg.instanceColor)
+          this.#hpFg.instanceColor.needsUpdate = true;
       }
     }
   }
@@ -1153,7 +1219,7 @@ export class BuildingSync {
     for (const man of v.manned) disposeTree(man.group);
     v.manned.length = 0;
     if (v.clip) {
-      v.model.traverse((o) => {
+      v.model.traverse(o => {
         // eachMaterial, not `.dispose()` on the field: faction-colored
         // buildings carry material arrays, and the bare call threw here —
         // which didn't just leak, it aborted update() mid-frame. The
@@ -1161,7 +1227,7 @@ export class BuildingSync {
         // made), the broken visual stayed in the map, and every later
         // frame re-threw at the same building, freezing building sync,
         // stock, and the outcome banner for the rest of the match.
-        if (o instanceof THREE.Mesh) eachMaterial(o, (m) => m.dispose());
+        if (o instanceof THREE.Mesh) eachMaterial(o, m => m.dispose());
       });
     }
     // No bar material to free: bars are instances in a shared mesh now, and

@@ -17,7 +17,13 @@ export function makeGroundTexture(mapSize: number): THREE.Texture {
   ctx.fillRect(0, 0, size, size);
 
   // Soft large blotches (drawn wrapped so the tile seams disappear).
-  const blot = (x: number, y: number, r: number, light: boolean, a: number): void => {
+  const blot = (
+    x: number,
+    y: number,
+    r: number,
+    light: boolean,
+    a: number,
+  ): void => {
     const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
     const c = light ? '255, 255, 255' : '0, 0, 0';
     grad.addColorStop(0, `rgba(${c}, ${a})`);
@@ -41,7 +47,8 @@ export function makeGroundTexture(mapSize: number): THREE.Texture {
     const x = Math.random() * size;
     const y = Math.random() * size;
     const len = 1.5 + Math.random() * 3;
-    const ang = -0.5 + Math.random() * 1.0 + (Math.random() < 0.5 ? Math.PI : 0);
+    const ang =
+      -0.5 + Math.random() * 1.0 + (Math.random() < 0.5 ? Math.PI : 0);
     const light = Math.random() < 0.45;
     const a = 0.05 + Math.random() * 0.12;
     ctx.strokeStyle = light ? `rgba(255,255,255,${a})` : `rgba(10,14,6,${a})`;

@@ -16,7 +16,10 @@
  * try/catch). A denied read is an absent stash; a denied write is a
  * handoff that doesn't survive, which every caller already tolerates.
  */
-export function stashGet(kind: 'local' | 'session', key: string): string | null {
+export function stashGet(
+  kind: 'local' | 'session',
+  key: string,
+): string | null {
   try {
     return (kind === 'session' ? sessionStorage : localStorage).getItem(key);
   } catch {
@@ -27,7 +30,11 @@ export function stashGet(kind: 'local' | 'session', key: string): string | null 
 /** @returns whether the write actually landed — a caller whose next move
  * depends on the stash surviving a reload (the gl-fails counter) must not
  * take that move on a stash that went nowhere. */
-export function stashSet(kind: 'local' | 'session', key: string, value: string | null): boolean {
+export function stashSet(
+  kind: 'local' | 'session',
+  key: string,
+  value: string | null,
+): boolean {
   try {
     const store = kind === 'session' ? sessionStorage : localStorage;
     if (value === null) store.removeItem(key);

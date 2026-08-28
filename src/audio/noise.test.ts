@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { fillNoise } from './noise';
+import {describe, expect, it} from 'vitest';
+import {fillNoise} from './noise';
 
 describe('fillNoise', () => {
   it('is deterministic per seed', () => {

@@ -1,7 +1,9 @@
-import type { Enum } from '../../shared/enum.ts';
-import { tileX, tileY } from '../../shared/grid.ts';
-import { Rng } from '../../shared/rng.ts';
-import { WOOD_MAX_AMT, REGROW_INTERVAL } from '../defs/balance.ts';
+import type {Enum} from '../../shared/enum.ts';
+import {tileX, tileY} from '../../shared/grid.ts';
+import {Rng} from '../../shared/rng.ts';
+import {atBuilding, atTile, walkToBuilding, walkToTile} from '../arrival.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
+import {WOOD_MAX_AMT, REGROW_INTERVAL} from '../defs/balance.ts';
 import {
   OUTPUT_CAP,
   TOOL_GOODS,
@@ -12,22 +14,20 @@ import {
   type BuildingDef,
   type Recipe,
 } from '../defs/buildings.ts';
-import { findResourcesNear } from '../map.ts';
-import { atBuilding, atTile, walkToBuilding, walkToTile } from '../arrival.ts';
-import type { Building } from '../entities.ts';
-import { findPathToAdjacent } from '../path.ts';
-import { depleteResourceTile, type World } from '../world.ts';
-import { getModifier } from '../techHelpers.ts';
-import type { Unit } from '../units.ts';
-import { goodEntries } from '../defs/goods.ts';
-import * as TileResource from '../tileResourceEnum.ts';
-import * as BuildingState from '../buildingStateEnum.ts';
-import * as UnitTaskKind from '../unitTaskKindEnum.ts';
-import * as GoodId from '../defs/goodIdEnum.ts';
-import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
-import * as RecipeKind from '../defs/recipeKindEnum.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
+import {goodEntries} from '../defs/goods.ts';
 import * as ModifierKey from '../defs/modifierKeyEnum.ts';
+import * as RecipeKind from '../defs/recipeKindEnum.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import type {Building} from '../entities.ts';
+import {findResourcesNear} from '../map.ts';
+import {findPathToAdjacent} from '../path.ts';
+import {getModifier} from '../techHelpers.ts';
+import * as TileResource from '../tileResourceEnum.ts';
+import type {Unit} from '../units.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import {depleteResourceTile, type World} from '../world.ts';
 
 type GoodId = Enum<typeof GoodId>;
 
@@ -57,7 +57,8 @@ export function productionSystem(world: World, rng: Rng): void {
     // recipes are inherently worker-driven; converts pause too, mid-batch
     // included, until the staffing system delivers a replacement.)
     if (def.workerKind !== undefined) {
-      const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+      const worker =
+        b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
       if (!worker || worker.dead) continue;
     }
     if (recipe?.kind === RecipeKind.gather) gatherStep(world, b, recipe);
@@ -75,7 +76,7 @@ function convertStep(
   world: World,
   b: Building,
   def: BuildingDef,
-  recipe: (Recipe & { kind: RecipeKind.convert }) | undefined,
+  recipe: (Recipe & {kind: RecipeKind.convert}) | undefined,
 ): void {
   if (b.prodTicksLeft !== undefined) {
     b.prodTicksLeft--;
@@ -96,7 +97,7 @@ function convertStep(
       // The queue order this batch worked off comes off the board. First
       // started only — at most one is ever lit, and a cancelled order was
       // already struck (its batch still lands, via prodRecipeIndex).
-      const slot = b.forgeQueue?.findIndex((o) => o.started) ?? -1;
+      const slot = b.forgeQueue?.findIndex(o => o.started) ?? -1;
       if (slot >= 0) {
         b.forgeQueue!.splice(slot, 1);
         if (b.forgeQueue!.length === 0) b.forgeQueue = undefined;
@@ -147,7 +148,9 @@ function convertStep(
   }
   const speedup =
     getModifier(world, b.owner, ModifierKey.workSpeed) *
-    (b.type === BuildingTypeId.wheatFarm ? getModifier(world, b.owner, ModifierKey.farmSpeed) : 1) *
+    (b.type === BuildingTypeId.wheatFarm
+      ? getModifier(world, b.owner, ModifierKey.farmSpeed)
+      : 1) *
     (b.type === BuildingTypeId.mill || b.type === BuildingTypeId.bakery
       ? getModifier(world, b.owner, ModifierKey.foodSpeed)
       : 1) *
@@ -163,14 +166,24 @@ function convertStep(
 
 /** Whether this option is researched (an unlockable recipe never re-locks,
  * but a garbled save or a mod could hand us any index — check both). */
-function optionUnlocked(world: World, owner: number, def: BuildingDef, index: number): boolean {
+function optionUnlocked(
+  world: World,
+  owner: number,
+  def: BuildingDef,
+  index: number,
+): boolean {
   const opt = def.recipeOptions?.[index];
   if (!opt) return false;
   if (opt.requiresTech === undefined) return true;
-  return world.players[owner]?.techs.researched.includes(opt.requiresTech) ?? false;
+  return (
+    world.players[owner]?.techs.researched.includes(opt.requiresTech) ?? false
+  );
 }
 
-function inputsPresent(b: Building, recipe: Recipe & { kind: RecipeKind.convert }): boolean {
+function inputsPresent(
+  b: Building,
+  recipe: Recipe & {kind: RecipeKind.convert},
+): boolean {
   const inputs = recipeInputs(recipe);
   for (let i = 0; i < inputs.length; i++) {
     const [good, n] = inputs[i]!;
@@ -187,7 +200,9 @@ function inputsPresent(b: Building, recipe: Recipe & { kind: RecipeKind.convert 
  * every check.
  */
 const recipeEntriesCache = new WeakMap<object, [GoodId, number][]>();
-function recipeEntries(goods: Partial<Record<GoodId, number>>): [GoodId, number][] {
+function recipeEntries(
+  goods: Partial<Record<GoodId, number>>,
+): [GoodId, number][] {
   let entries = recipeEntriesCache.get(goods);
   if (!entries) {
     entries = goodEntries(goods);
@@ -196,7 +211,9 @@ function recipeEntries(goods: Partial<Record<GoodId, number>>): [GoodId, number]
   return entries;
 }
 
-function recipeInputs(recipe: Recipe & { kind: RecipeKind.convert }): [GoodId, number][] {
+function recipeInputs(
+  recipe: Recipe & {kind: RecipeKind.convert},
+): [GoodId, number][] {
   return recipeEntries(recipe.inputs);
 }
 
@@ -234,26 +251,26 @@ function pickForgeBatch(
   world: World,
   b: Building,
   def: BuildingDef,
-): { index: number; queueSlot: number } | undefined {
+): {index: number; queueSlot: number} | undefined {
   if (b.forgeQueue && b.forgeQueue.length > 0) {
     // Orders and standing selections were tech-checked when the command
     // landed (tick.ts), and a tech never un-researches — no re-check here,
     // matching how the standing order always ran.
     const slot = b.forgeQueue.findIndex(
-      (o) =>
+      o =>
         !o.started &&
         def.recipeOptions![o.recipeIndex] !== undefined &&
         inputsPresent(b, def.recipeOptions![o.recipeIndex]!.recipe),
     );
     if (slot < 0) return undefined;
-    return { index: b.forgeQueue[slot]!.recipeIndex, queueSlot: slot };
+    return {index: b.forgeQueue[slot]!.recipeIndex, queueSlot: slot};
   }
   if (b.recipeIndex !== undefined) {
     if (!def.recipeOptions?.[b.recipeIndex]) return undefined;
-    return { index: b.recipeIndex, queueSlot: -1 };
+    return {index: b.recipeIndex, queueSlot: -1};
   }
   const auto = autoForgeIndex(world, b, def);
-  return auto === undefined ? undefined : { index: auto, queueSlot: -1 };
+  return auto === undefined ? undefined : {index: auto, queueSlot: -1};
 }
 
 /**
@@ -266,7 +283,11 @@ function pickForgeBatch(
  * Integer counts over world state only — this runs inside the tick and
  * must resolve identically on every client.
  */
-export function autoForgeIndex(world: World, b: Building, def: BuildingDef): number | undefined {
+export function autoForgeIndex(
+  world: World,
+  b: Building,
+  def: BuildingDef,
+): number | undefined {
   // Scratch, reused across calls. An idle Smith asks this question twice a
   // tick forever (production for the fire, logistics for the demand), and
   // the two goods dictionaries it used to allocate — then hash-write once
@@ -302,7 +323,8 @@ export function autoForgeIndex(world: World, b: Building, def: BuildingDef): num
     }
     const tool = TOOL_OF[ob.type];
     if (!tool || ob.paused) continue;
-    const worker = ob.workerId !== undefined ? world.units.get(ob.workerId) : undefined;
+    const worker =
+      ob.workerId !== undefined ? world.units.get(ob.workerId) : undefined;
     if (worker && !worker.dead) continue; // post is filled
     if ((ob.inputs[tool] ?? 0) + (ob.inbound[tool] ?? 0) > 0) continue; // already served
     const slot = TOOL_SLOT[tool]!;
@@ -344,7 +366,9 @@ function forgeIndexByTool(def: BuildingDef): Int32Array {
   byTool = new Int32Array(TOOL_COUNT);
   for (let i = 0; i < TOOL_COUNT; i++) {
     const tool = TOOL_GOODS[i]!;
-    byTool[i] = def.recipeOptions?.findIndex((o) => (o.recipe.outputs[tool] ?? 0) > 0) ?? -1;
+    byTool[i] =
+      def.recipeOptions?.findIndex(o => (o.recipe.outputs[tool] ?? 0) > 0) ??
+      -1;
   }
   forgeIndexCache.set(def, byTool);
   return byTool;
@@ -360,18 +384,24 @@ export function forgeDemandRecipe(
   world: World,
   b: Building,
   def: BuildingDef,
-): (Recipe & { kind: RecipeKind.convert }) | undefined {
+): (Recipe & {kind: RecipeKind.convert}) | undefined {
   const queued = b.forgeQueue?.find(
-    (o) => !o.started && def.recipeOptions?.[o.recipeIndex] !== undefined,
+    o => !o.started && def.recipeOptions?.[o.recipeIndex] !== undefined,
   );
   if (queued) return def.recipeOptions![queued.recipeIndex]!.recipe;
-  if (b.recipeIndex !== undefined) return def.recipeOptions?.[b.recipeIndex]?.recipe;
+  if (b.recipeIndex !== undefined)
+    return def.recipeOptions?.[b.recipeIndex]?.recipe;
   const auto = autoForgeIndex(world, b, def);
   return auto === undefined ? undefined : def.recipeOptions![auto]!.recipe;
 }
 
-function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKind.gather }): void {
-  const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+function gatherStep(
+  world: World,
+  b: Building,
+  recipe: Recipe & {kind: RecipeKind.gather},
+): void {
+  const worker =
+    b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
   if (!worker || worker.dead) return;
 
   switch (worker.task.t) {
@@ -383,15 +413,15 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
       // conservation ledger would come up a good short.
       if (worker.carrying !== undefined) {
         if (!walkToBuilding(world.map, worker, b)) {
-          worker.task = { t: UnitTaskKind.idle, until: world.tick + 40 };
+          worker.task = {t: UnitTaskKind.idle, until: world.tick + 40};
           return;
         }
-        worker.task = { t: UnitTaskKind.gatherHome };
+        worker.task = {t: UnitTaskKind.gatherHome};
         return;
       }
       // Output full? Wait — full buffers stall production (Settlers rule).
       if ((b.stock[recipe.output] ?? 0) >= OUTPUT_CAP) {
-        worker.task = { t: UnitTaskKind.idle, until: world.tick + 20 };
+        worker.task = {t: UnitTaskKind.idle, until: world.tick + 20};
         return;
       }
       const c = gatherOrigin(buildingDef(b.type), b.x, b.y);
@@ -428,12 +458,12 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
         }
       }
       if (tile < 0 || !path) {
-        worker.task = { t: UnitTaskKind.idle, until: world.tick + 40 };
+        worker.task = {t: UnitTaskKind.idle, until: world.tick + 40};
         return;
       }
       worker.path = path;
       worker.pathIdx = 0;
-      worker.task = { t: UnitTaskKind.gatherOut, tile };
+      worker.task = {t: UnitTaskKind.gatherOut, tile};
       return;
     }
     case UnitTaskKind.gatherOut: {
@@ -443,17 +473,22 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
       // new construction would otherwise fell a tree from across the valley.
       if (!atTile(worker, tile, world.map.size)) {
         if (!walkToTile(world.map, worker, tile)) {
-          worker.task = { t: UnitTaskKind.idle, until: world.tick + 40 };
+          worker.task = {t: UnitTaskKind.idle, until: world.tick + 40};
         }
         return;
       }
-      if (world.map.resource[tile] !== recipe.resource || world.map.resourceAmt[tile]! <= 0) {
-        worker.task = { t: UnitTaskKind.idle, until: world.tick }; // someone else finished it
+      if (
+        world.map.resource[tile] !== recipe.resource ||
+        world.map.resourceAmt[tile]! <= 0
+      ) {
+        worker.task = {t: UnitTaskKind.idle, until: world.tick}; // someone else finished it
         return;
       }
       const speedup =
         getModifier(world, b.owner, ModifierKey.workSpeed) *
-        (buildingDef(b.type).mine ? getModifier(world, b.owner, ModifierKey.mineSpeed) : 1);
+        (buildingDef(b.type).mine
+          ? getModifier(world, b.owner, ModifierKey.mineSpeed)
+          : 1);
       worker.task = {
         t: UnitTaskKind.gatherWork,
         tile,
@@ -469,7 +504,8 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
         worker.carrying = recipe.output;
         // The good exists from the moment it's chopped (it's on the worker's
         // shoulders and countable) — ledger it here, not at deposit.
-        world.ledger.produced[recipe.output] = (world.ledger.produced[recipe.output] ?? 0) + 1;
+        world.ledger.produced[recipe.output] =
+          (world.ledger.produced[recipe.output] ?? 0) + 1;
       }
       const path = findPathToAdjacent(
         world.map,
@@ -482,7 +518,7 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
       );
       worker.path = path;
       worker.pathIdx = 0;
-      worker.task = { t: UnitTaskKind.gatherHome };
+      worker.task = {t: UnitTaskKind.gatherHome};
       return;
     }
     case UnitTaskKind.gatherHome: {
@@ -492,7 +528,7 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
       // rather than sending him out again on top of it.
       if (!atBuilding(worker, b)) {
         if (!walkToBuilding(world.map, worker, b)) {
-          worker.task = { t: UnitTaskKind.idle, until: world.tick + 40 };
+          worker.task = {t: UnitTaskKind.idle, until: world.tick + 40};
         }
         return;
       }
@@ -500,7 +536,7 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
         b.stock[worker.carrying] = (b.stock[worker.carrying] ?? 0) + 1;
         worker.carrying = undefined;
       }
-      worker.task = { t: UnitTaskKind.idle, until: world.tick + 10 };
+      worker.task = {t: UnitTaskKind.idle, until: world.tick + 10};
       return;
     }
     default:
@@ -512,7 +548,10 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
 function regrow(world: World, rng: Rng): void {
   const map = world.map;
   for (let i = 0; i < map.resource.length; i++) {
-    if (map.resource[i] === TileResource.Wood && map.resourceAmt[i]! < WOOD_MAX_AMT) {
+    if (
+      map.resource[i] === TileResource.Wood &&
+      map.resourceAmt[i]! < WOOD_MAX_AMT
+    ) {
       if (rng.next() < 0.1) map.resourceAmt[i] = map.resourceAmt[i]! + 1;
     }
   }
@@ -561,7 +600,10 @@ export function consumePostTool(world: World, b: Building): boolean {
  * still holding a good (rehomeCarriedGoods).
  */
 export function unbindWorker(world: World, worker: Unit): void {
-  const home = worker.homeId !== undefined ? world.buildings.get(worker.homeId) : undefined;
+  const home =
+    worker.homeId !== undefined
+      ? world.buildings.get(worker.homeId)
+      : undefined;
   if (home && home.workerId === worker.id) {
     home.workerId = undefined;
     // Every unbind is a voluntary departure (dismiss, sell, a move order,
@@ -579,5 +621,5 @@ export function unbindWorker(world: World, worker: Unit): void {
   }
   worker.homeId = undefined;
   worker.kind = UnitTypeId.serf;
-  worker.task = { t: UnitTaskKind.idle, until: world.tick };
+  worker.task = {t: UnitTaskKind.idle, until: world.tick};
 }

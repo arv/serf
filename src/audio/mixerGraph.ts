@@ -15,11 +15,11 @@
  * hat.
  */
 
-import type { Enum } from '../shared/enum.ts';
-import { type CueDef, BUS_IDS } from './cues';
-import type { PlayRequest } from './voices';
-import * as BusId from './busIdEnum.ts';
 import * as AnimKey from '../render/animKeyEnum.ts';
+import type {Enum} from '../shared/enum.ts';
+import * as BusId from './busIdEnum.ts';
+import {type CueDef, BUS_IDS} from './cues';
+import type {PlayRequest} from './voices';
 
 type BusId = Enum<typeof BusId>;
 

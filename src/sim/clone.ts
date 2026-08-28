@@ -1,8 +1,8 @@
-import type { World, HaulJob } from './world.ts';
-import type { Building } from './entities.ts';
-import type { Unit } from './units.ts';
-import type { GoodAmounts } from './defs/goods.ts';
-import type { PlayerState } from './player.ts';
+import type {GoodAmounts} from './defs/goods.ts';
+import type {Building} from './entities.ts';
+import type {PlayerState} from './player.ts';
+import type {Unit} from './units.ts';
+import type {World, HaulJob} from './world.ts';
 
 /**
  * Deep-copy a World. Written for rollback snapshots, which are gone; it
@@ -17,10 +17,10 @@ import type { PlayerState } from './player.ts';
  * written only by worldgen (see map.ts) and never change mid-match.
  */
 export function cloneWorld(world: World): World {
-  const goods = (g: GoodAmounts): GoodAmounts => ({ ...g });
+  const goods = (g: GoodAmounts): GoodAmounts => ({...g});
   const units = new Map<number, Unit>();
   for (const [id, u] of world.units) {
-    units.set(id, { ...u, path: u.path ? [...u.path] : null, task: { ...u.task } });
+    units.set(id, {...u, path: u.path ? [...u.path] : null, task: {...u.task}});
   }
   const buildings = new Map<number, Building>();
   for (const [id, b] of world.buildings) {
@@ -35,19 +35,19 @@ export function cloneWorld(world: World): World {
       siteNeeds: b.siteNeeds ? goods(b.siteNeeds) : undefined,
       repairNeeds: b.repairNeeds ? goods(b.repairNeeds) : undefined,
       garrisonHp: b.garrisonHp ? [...b.garrisonHp] : undefined,
-      trainQueue: b.trainQueue?.map((q) => ({ ...q })),
-      forgeQueue: b.forgeQueue?.map((q) => ({ ...q })),
-      rally: b.rally ? { ...b.rally } : undefined,
+      trainQueue: b.trainQueue?.map(q => ({...q})),
+      forgeQueue: b.forgeQueue?.map(q => ({...q})),
+      rally: b.rally ? {...b.rally} : undefined,
     });
   }
   const jobs = new Map<number, HaulJob>();
-  for (const [id, j] of world.jobs) jobs.set(id, { ...j });
+  for (const [id, j] of world.jobs) jobs.set(id, {...j});
 
-  const players: PlayerState[] = world.players.map((p) => ({
+  const players: PlayerState[] = world.players.map(p => ({
     ...p,
     techs: {
       researched: [...p.techs.researched],
-      active: p.techs.active ? { ...p.techs.active } : undefined,
+      active: p.techs.active ? {...p.techs.active} : undefined,
       festivalTicksLeft: p.techs.festivalTicksLeft,
     },
   }));
@@ -80,8 +80,8 @@ export function cloneWorld(world: World): World {
     pendingDeltas: [],
     pendingEvents: [],
     players,
-    raidState: { ...world.raidState },
-    admin: { ...world.admin },
-    outcome: { ...world.outcome },
+    raidState: {...world.raidState},
+    admin: {...world.admin},
+    outcome: {...world.outcome},
   };
 }

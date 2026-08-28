@@ -10,4 +10,4 @@ export {
   parseMapJson as parseEditorMap,
   serializeMapFile as serializeEditorMap,
 } from '../sim/mapFile.ts';
-export type { MapFile as EditorMapFile } from '../sim/mapFile.ts';
+export type {MapFile as EditorMapFile} from '../sim/mapFile.ts';

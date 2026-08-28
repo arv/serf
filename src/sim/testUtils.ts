@@ -1,19 +1,19 @@
-import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid.ts';
-import { placeBuiltBuilding, placeSite, spawnUnit, type World } from './world.ts';
-import { makePlayer } from './player.ts';
-import { bindWorker } from './systems/production.ts';
-import { resourceBlocks, type TileResourceKind, type GameMap } from './map.ts';
-import type { SimCommand } from './commands.ts';
-import type { PlayerCommand } from './tick.ts';
-import type { GoodAmounts } from './defs/goods.ts';
-import type { Building, Owner } from './entities.ts';
-import type { Unit } from './units.ts';
-import * as MatchState from './matchStateEnum.ts';
-import * as PlayerKind from './playerKindEnum.ts';
-import * as TileResource from './tileResourceEnum.ts';
-import * as GoodId from './defs/goodIdEnum.ts';
-import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import {DEFAULT_MAP_SIZE, tileCount, tileIdx} from '../shared/grid.ts';
+import type {SimCommand} from './commands.ts';
 import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import type {GoodAmounts} from './defs/goods.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import type {Building, Owner} from './entities.ts';
+import {resourceBlocks, type TileResourceKind, type GameMap} from './map.ts';
+import * as MatchState from './matchStateEnum.ts';
+import {makePlayer} from './player.ts';
+import * as PlayerKind from './playerKindEnum.ts';
+import {bindWorker} from './systems/production.ts';
+import type {PlayerCommand} from './tick.ts';
+import * as TileResource from './tileResourceEnum.ts';
+import type {Unit} from './units.ts';
+import {placeBuiltBuilding, placeSite, spawnUnit, type World} from './world.ts';
 
 /** An all-grass, empty 64x64 map for deterministic logistics tests. */
 export function bareMap(size = DEFAULT_MAP_SIZE): GameMap {
@@ -42,20 +42,22 @@ export function bareWorld(seed = 1, playerCount = 1): World {
     buildings: new Map(),
     jobs: new Map(),
     nextJobId: 1,
-    ledger: { produced: {}, consumed: {} },
+    ledger: {produced: {}, consumed: {}},
     pendingDeltas: [],
-    players: Array.from({ length: playerCount }, (_, i) => makePlayer(i, PlayerKind.human)),
-    raidState: { nextRaidTick: Number.MAX_SAFE_INTEGER, wave: 0 }, // raids opt in
-    admin: { enabled: true, raidsEnabled: true, instantBuild: false },
+    players: Array.from({length: playerCount}, (_, i) =>
+      makePlayer(i, PlayerKind.human),
+    ),
+    raidState: {nextRaidTick: Number.MAX_SAFE_INTEGER, wave: 0}, // raids opt in
+    admin: {enabled: true, raidsEnabled: true, instantBuild: false},
     pendingEvents: [],
-    outcome: { state: MatchState.playing },
+    outcome: {state: MatchState.playing},
     banditsEnabled: true,
   };
 }
 
 /** Wrap bare SimCommands as player-0 envelopes (the common test case). */
 export function cmds(...commands: SimCommand[]): PlayerCommand[] {
-  return commands.map((cmd) => ({ playerId: 0, cmd }));
+  return commands.map(cmd => ({playerId: 0, cmd}));
 }
 
 /**
@@ -82,7 +84,7 @@ export function addStorehouse(
   owner: Owner = 0,
 ): Building {
   const b = placeBuiltBuilding(world, BuildingTypeId.storehouse, owner, x, y);
-  b.stock = { ...FIXTURE_TOOLS, ...stock };
+  b.stock = {...FIXTURE_TOOLS, ...stock};
   return b;
 }
 
@@ -110,23 +112,45 @@ export function addBuiltHut(
 ): Building {
   const b = placeBuiltBuilding(world, BuildingTypeId.woodcutter, owner, x, y);
   if (withWorker) {
-    const worker = spawnUnit(world, UnitTypeId.worker, owner, x + 0.5, y + b.h + 0.5);
+    const worker = spawnUnit(
+      world,
+      UnitTypeId.worker,
+      owner,
+      x + 0.5,
+      y + b.h + 0.5,
+    );
     bindWorker(b, worker);
   }
   return b;
 }
 
-export function addSite(world: World, x: number, y: number, owner: Owner = 0): Building {
+export function addSite(
+  world: World,
+  x: number,
+  y: number,
+  owner: Owner = 0,
+): Building {
   return placeSite(world, BuildingTypeId.woodcutter, owner, x, y);
 }
 
-export function addSerf(world: World, x: number, y: number, owner: Owner = 0): Unit {
+export function addSerf(
+  world: World,
+  x: number,
+  y: number,
+  owner: Owner = 0,
+): Unit {
   return spawnUnit(world, UnitTypeId.serf, owner, x + 0.5, y + 0.5);
 }
 
 /** Staff a building directly (tests that don't exercise recruitment). */
 export function staffBuilding(world: World, b: Building): Unit {
-  const worker = spawnUnit(world, UnitTypeId.worker, b.owner, b.x + b.w / 2, b.y + b.h + 0.5);
+  const worker = spawnUnit(
+    world,
+    UnitTypeId.worker,
+    b.owner,
+    b.x + b.w / 2,
+    b.y + b.h + 0.5,
+  );
   bindWorker(b, worker);
   return worker;
 }

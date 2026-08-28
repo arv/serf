@@ -34,7 +34,7 @@
  * council names a room, and both pushState and replaceState arrive here as
  * navigations.
  */
-export type RouteHandler = (opts: { force: boolean }) => Promise<void>;
+export type RouteHandler = (opts: {force: boolean}) => Promise<void>;
 
 /** The slice of the Navigation API this uses, structurally — the DOM lib
  * cannot be relied on to describe it yet. */
@@ -44,18 +44,20 @@ interface NavigateEventLike extends Event {
   readonly downloadRequest: string | null;
   readonly formData: unknown;
   readonly navigationType: 'push' | 'replace' | 'reload' | 'traverse';
-  readonly destination: { readonly url: string };
-  intercept(opts: { handler: () => Promise<void> }): void;
+  readonly destination: {readonly url: string};
+  intercept(opts: {handler: () => Promise<void>}): void;
 }
 interface NavigationLike extends EventTarget {
   navigate(
     url: string,
-    opts?: { history?: 'auto' | 'push' | 'replace' },
-  ): { committed: Promise<unknown>; finished: Promise<unknown> };
+    opts?: {history?: 'auto' | 'push' | 'replace'},
+  ): {committed: Promise<unknown>; finished: Promise<unknown>};
 }
 
 function navigationApi(): NavigationLike | null {
-  return (window as unknown as { navigation?: NavigationLike }).navigation ?? null;
+  return (
+    (window as unknown as {navigation?: NavigationLike}).navigation ?? null
+  );
 }
 
 let handler: RouteHandler | null = null;
@@ -88,7 +90,7 @@ async function run(): Promise<void> {
   const force = forceNext;
   forceNext = false;
   try {
-    await handler?.({ force });
+    await handler?.({force});
   } catch (err) {
     console.error('[router] the screen failed to come up:', err);
   }
@@ -103,16 +105,22 @@ export function startRouter(onRoute: RouteHandler): void {
   handler = onRoute;
   const nav = navigationApi();
   if (nav) {
-    nav.addEventListener('navigate', (event) => {
+    nav.addEventListener('navigate', event => {
       const e = event as NavigateEventLike;
       // Anything that is not "same page, different screen" belongs to the
       // browser. A reload especially: it is the recovery path the GPU-loss
       // handler and the service worker swap both rely on, and intercepting
       // it would quietly turn a deliberate fresh start into a soft one.
-      if (!e.canIntercept || e.hashChange || e.downloadRequest !== null || e.formData) return;
+      if (
+        !e.canIntercept ||
+        e.hashChange ||
+        e.downloadRequest !== null ||
+        e.formData
+      )
+        return;
       if (e.navigationType === 'reload') return;
       if (new URL(e.destination.url).origin !== location.origin) return;
-      e.intercept({ handler: run });
+      e.intercept({handler: run});
     });
     return;
   }
@@ -125,7 +133,7 @@ export function startRouter(onRoute: RouteHandler): void {
  * Go to a screen, in this document. `url` is a query string or path — the
  * same string that used to be assigned to `location`.
  */
-export function goto(url: string, opts: { force?: boolean } = {}): void {
+export function goto(url: string, opts: {force?: boolean} = {}): void {
   const force = opts.force === true;
   forceNext = force;
   // "Again" replaces rather than pushes: the match being restarted is not a
@@ -137,7 +145,7 @@ export function goto(url: string, opts: { force?: boolean } = {}): void {
     // Both promises reject when a navigation is superseded or aborted —
     // a second click while the first screen is still building — and
     // neither is anyone's to await here.
-    const { committed, finished } = nav.navigate(url, { history: mode });
+    const {committed, finished} = nav.navigate(url, {history: mode});
     void committed.catch(() => undefined);
     void finished.catch(() => undefined);
     return;

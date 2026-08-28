@@ -68,7 +68,8 @@ export class HiddenSync {
   frame(now: number): void {
     if (this.#hidden) {
       this.#framesWhileHidden++;
-      const longGap = this.#lastFrame !== undefined && now - this.#lastFrame > WAKE_GAP_MS;
+      const longGap =
+        this.#lastFrame !== undefined && now - this.#lastFrame > WAKE_GAP_MS;
       if (longGap || this.#framesWhileHidden >= 2) this.set(false);
     }
     this.#lastFrame = now;

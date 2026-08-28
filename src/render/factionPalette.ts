@@ -1,4 +1,4 @@
-import { BANDIT, MAX_PLAYERS } from '../sim/entities';
+import {BANDIT, MAX_PLAYERS} from '../sim/entities';
 
 /**
  * Faction colors, drawn from the KayKit atlas's own palette so tinted
@@ -10,7 +10,9 @@ import { BANDIT, MAX_PLAYERS } from '../sim/entities';
  * by grey value) — we recolor that exact slot per owner instead, which is
  * what makes rival castles read at a glance. Bandits keep the stock grey.
  */
-const PLAYER_COLORS: readonly number[] = [0x008454, 0xd22227, 0x257ebc, 0xf9aa4e];
+const PLAYER_COLORS: readonly number[] = [
+  0x008454, 0xd22227, 0x257ebc, 0xf9aa4e,
+];
 
 /** Faction color for an owner, or undefined to keep the stock look. */
 export function factionTint(owner: number): number | undefined {
@@ -23,4 +25,4 @@ export function factionTint(owner: number): number | undefined {
  * the 8x4 swatch grid). Triangles whose UVs land here get the faction
  * material; measured from the pack by diffing its color variants.
  */
-export const TEAM_SWATCH_UV = { u0: 0.375, u1: 0.5, v0: 0.75, v1: 1.0 };
+export const TEAM_SWATCH_UV = {u0: 0.375, u1: 0.5, v0: 0.75, v1: 1.0};

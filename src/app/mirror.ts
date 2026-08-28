@@ -1,4 +1,8 @@
-import type { BuildingSnap, MapSnapshot, StructuralUpdate } from '../protocol/messages';
+import type {
+  BuildingSnap,
+  MapSnapshot,
+  StructuralUpdate,
+} from '../protocol/messages';
 
 export interface MirrorChanges {
   /** Tiles whose standing resource vanished (scatter must hide them). */
@@ -26,7 +30,11 @@ export class WorldMirror {
   }
 
   apply(msg: StructuralUpdate): MirrorChanges {
-    const changes: MirrorChanges = { resourceCleared: [], repaintTiles: [], refreshAll: false };
+    const changes: MirrorChanges = {
+      resourceCleared: [],
+      repaintTiles: [],
+      refreshAll: false,
+    };
 
     if (msg.fullMap) {
       // Rollback correction: deltas shipped for re-simulated ticks are void;

@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { audioFromUrl, DEFAULT_PREFS, parseAudioPrefs, volumeToGain } from './settings';
+import {describe, expect, it} from 'vitest';
+import {
+  audioFromUrl,
+  DEFAULT_PREFS,
+  parseAudioPrefs,
+  volumeToGain,
+} from './settings';
 
 describe('parseAudioPrefs', () => {
   it('reads a well-formed record', () => {
@@ -11,7 +16,14 @@ describe('parseAudioPrefs', () => {
   });
 
   it('garbage, absence and version drift all read as defaults', () => {
-    for (const raw of [null, '', 'not json', '{"v":2,"volume":0.5}', '{"volume":"loud"}', '[]']) {
+    for (const raw of [
+      null,
+      '',
+      'not json',
+      '{"v":2,"volume":0.5}',
+      '{"volume":"loud"}',
+      '[]',
+    ]) {
       expect(parseAudioPrefs(raw), String(raw)).toEqual(DEFAULT_PREFS);
     }
   });
@@ -53,9 +65,12 @@ describe('volumeToGain', () => {
 
 describe('audioFromUrl', () => {
   it('reads the two flags in the house ?param style', () => {
-    expect(audioFromUrl('?mute=1')).toEqual({ mute: true });
-    expect(audioFromUrl('?vol=0.4')).toEqual({ volume: 0.4 });
-    expect(audioFromUrl('?seed=3&mute=1&vol=0.4')).toEqual({ mute: true, volume: 0.4 });
+    expect(audioFromUrl('?mute=1')).toEqual({mute: true});
+    expect(audioFromUrl('?vol=0.4')).toEqual({volume: 0.4});
+    expect(audioFromUrl('?seed=3&mute=1&vol=0.4')).toEqual({
+      mute: true,
+      volume: 0.4,
+    });
   });
 
   it('ignores absence and nonsense', () => {
@@ -66,7 +81,7 @@ describe('audioFromUrl', () => {
   });
 
   it('clamps a volume from the address bar like any other', () => {
-    expect(audioFromUrl('?vol=9')).toEqual({ volume: 1 });
-    expect(audioFromUrl('?vol=-3')).toEqual({ volume: 0 });
+    expect(audioFromUrl('?vol=9')).toEqual({volume: 1});
+    expect(audioFromUrl('?vol=-3')).toEqual({volume: 0});
   });
 });

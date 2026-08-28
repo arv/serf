@@ -15,8 +15,8 @@
  * deterministic noise table), which are covered.
  */
 
-import type { CueDef, SynthLayer } from './cues';
-import { fillNoise } from './noise';
+import type {CueDef, SynthLayer} from './cues';
+import {fillNoise} from './noise';
 
 /** Post-decay tail so exponential ramps land at silence, not a click. */
 const TAIL = 0.05;
@@ -28,13 +28,15 @@ function layerEnd(l: SynthLayer): number {
 }
 
 /** Shared noise source material, rendered once per sample rate. */
-let noiseTable: { rate: number; data: Float32Array<ArrayBuffer> } | null = null;
+let noiseTable: {rate: number; data: Float32Array<ArrayBuffer>} | null = null;
 
 function noiseFor(rate: number): Float32Array<ArrayBuffer> {
   if (!noiseTable || noiseTable.rate !== rate) {
-    const data = new Float32Array(new ArrayBuffer(4 * Math.ceil(rate * NOISE_SECONDS)));
+    const data = new Float32Array(
+      new ArrayBuffer(4 * Math.ceil(rate * NOISE_SECONDS)),
+    );
     fillNoise(data, NOISE_SEED);
-    noiseTable = { rate, data };
+    noiseTable = {rate, data};
   }
   return noiseTable.data;
 }
@@ -61,7 +63,8 @@ function buildLayer(ctx: OfflineAudioContext, l: SynthLayer): void {
     const osc = ctx.createOscillator();
     osc.type = l.wave;
     osc.frequency.setValueAtTime(l.freq, at);
-    if (l.freqEnd !== undefined) osc.frequency.exponentialRampToValueAtTime(l.freqEnd, end);
+    if (l.freqEnd !== undefined)
+      osc.frequency.exponentialRampToValueAtTime(l.freqEnd, end);
     osc.connect(env);
     osc.start(at);
     osc.stop(end + TAIL);
@@ -77,7 +80,8 @@ function buildLayer(ctx: OfflineAudioContext, l: SynthLayer): void {
   const filter = ctx.createBiquadFilter();
   filter.type = l.filter;
   filter.frequency.setValueAtTime(l.freq, at);
-  if (l.freqEnd !== undefined) filter.frequency.exponentialRampToValueAtTime(l.freqEnd, end);
+  if (l.freqEnd !== undefined)
+    filter.frequency.exponentialRampToValueAtTime(l.freqEnd, end);
   filter.Q.value = l.q ?? 1;
   src.connect(filter);
   filter.connect(env);
@@ -86,11 +90,18 @@ function buildLayer(ctx: OfflineAudioContext, l: SynthLayer): void {
 }
 
 /** Render a recipe to a mono buffer at the live context's sample rate. */
-export async function renderCue(def: CueDef, sampleRate: number): Promise<AudioBuffer> {
+export async function renderCue(
+  def: CueDef,
+  sampleRate: number,
+): Promise<AudioBuffer> {
   let duration = 0;
   for (const l of def.layers) duration = Math.max(duration, layerEnd(l));
   duration += TAIL;
-  const ctx = new OfflineAudioContext(1, Math.ceil(duration * sampleRate), sampleRate);
+  const ctx = new OfflineAudioContext(
+    1,
+    Math.ceil(duration * sampleRate),
+    sampleRate,
+  );
   for (const l of def.layers) buildLayer(ctx, l);
   return ctx.startRendering();
 }

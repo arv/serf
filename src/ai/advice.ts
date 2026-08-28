@@ -1,8 +1,13 @@
-import type { Enum } from '../shared/enum.ts';
-import { isPostureId, postureAdvice, type PostureId, postureFromKey } from './posture.ts';
-import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
-import { asUnitTypeId } from '../sim/defs/units.ts';
+import type {Enum} from '../shared/enum.ts';
+import type {AiStrategy} from '../sim/defs/aiStrategies.ts';
+import {asUnitTypeId} from '../sim/defs/units.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {
+  isPostureId,
+  postureAdvice,
+  type PostureId,
+  postureFromKey,
+} from './posture.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -69,7 +74,9 @@ export const ADVICE_RANGES = {
   houseLimit: [2, 8],
   housingHeadroom: [1, 6],
   researchReserve: [0, 20],
-} as const satisfies Partial<Record<keyof StrategyAdvice, readonly [number, number]>>;
+} as const satisfies Partial<
+  Record<keyof StrategyAdvice, readonly [number, number]>
+>;
 
 /**
  * How much of his own army a captain must expect to still be standing after
@@ -103,33 +110,36 @@ const REASON_MAX = 200;
 export const ADVICE_JSON_SCHEMA = {
   type: 'object',
   properties: {
-    serfTarget: { type: 'integer', minimum: 6, maximum: 20 },
-    armyAttackSize: { type: 'integer', minimum: 3, maximum: 16 },
-    attackCooldown: { type: 'integer', minimum: 200, maximum: 2000 },
-    homeGuard: { type: 'integer', minimum: 0, maximum: 20 },
-    prefersRivals: { type: 'boolean' },
+    serfTarget: {type: 'integer', minimum: 6, maximum: 20},
+    armyAttackSize: {type: 'integer', minimum: 3, maximum: 16},
+    attackCooldown: {type: 'integer', minimum: 200, maximum: 2000},
+    homeGuard: {type: 'integer', minimum: 0, maximum: 20},
+    prefersRivals: {type: 'boolean'},
     trainPreference: {
       type: 'array',
-      items: { type: 'string', enum: [...ADVISABLE_UNITS] },
+      items: {type: 'string', enum: [...ADVISABLE_UNITS]},
       maxItems: 3,
     },
     weaponMix: {
       type: 'array',
-      items: { type: 'integer', minimum: 0, maximum: 2 },
+      items: {type: 'integer', minimum: 0, maximum: 2},
       minItems: 1,
       maxItems: 3,
     },
-    barracksQueueDepth: { type: 'integer', minimum: 1, maximum: 4 },
-    houseLimit: { type: 'integer', minimum: 2, maximum: 8 },
-    housingHeadroom: { type: 'integer', minimum: 1, maximum: 6 },
-    researchReserve: { type: 'integer', minimum: 0, maximum: 20 },
-    marchConfidence: { type: 'integer', minimum: 0, maximum: 90 },
-    reason: { type: 'string' },
+    barracksQueueDepth: {type: 'integer', minimum: 1, maximum: 4},
+    houseLimit: {type: 'integer', minimum: 2, maximum: 8},
+    housingHeadroom: {type: 'integer', minimum: 1, maximum: 6},
+    researchReserve: {type: 'integer', minimum: 0, maximum: 20},
+    marchConfidence: {type: 'integer', minimum: 0, maximum: 90},
+    reason: {type: 'string'},
   },
   additionalProperties: false,
 } as const;
 
-function clampedInt(raw: unknown, range: readonly [number, number]): number | undefined {
+function clampedInt(
+  raw: unknown,
+  range: readonly [number, number],
+): number | undefined {
   if (typeof raw !== 'number' || !Number.isFinite(raw)) return undefined;
   return Math.min(range[1], Math.max(range[0], Math.round(raw)));
 }
@@ -154,7 +164,8 @@ export function parseAdvice(raw: string): StrategyAdvice | null {
   } catch {
     return null;
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+    return null;
   // Read through a null-prototype copy is overkill; reading own properties
   // one key at a time is enough, since nothing here walks the prototype.
   const obj = parsed as Record<string, unknown>;
@@ -164,19 +175,25 @@ export function parseAdvice(raw: string): StrategyAdvice | null {
   // The model answers with the word it was shown; a posture reaching this
   // screen as an id (the lab, a replayed trace) is read too.
   const posture =
-    postureFromKey(obj['posture']) ?? (isPostureId(obj['posture']) ? obj['posture'] : undefined);
+    postureFromKey(obj['posture']) ??
+    (isPostureId(obj['posture']) ? obj['posture'] : undefined);
   if (posture !== undefined) {
     Object.assign(advice, postureAdvice(posture));
     advice.posture = posture;
   }
 
-  for (const key of Object.keys(ADVICE_RANGES) as (keyof typeof ADVICE_RANGES)[]) {
+  for (const key of Object.keys(
+    ADVICE_RANGES,
+  ) as (keyof typeof ADVICE_RANGES)[]) {
     if (!Object.hasOwn(obj, key)) continue;
     const v = clampedInt(obj[key], ADVICE_RANGES[key]);
     if (v !== undefined) advice[key] = v;
   }
 
-  if (Object.hasOwn(obj, 'prefersRivals') && typeof obj['prefersRivals'] === 'boolean') {
+  if (
+    Object.hasOwn(obj, 'prefersRivals') &&
+    typeof obj['prefersRivals'] === 'boolean'
+  ) {
     advice.prefersRivals = obj['prefersRivals'];
   }
 
@@ -185,7 +202,10 @@ export function parseAdvice(raw: string): StrategyAdvice | null {
     if (v !== undefined) advice.marchConfidence = v;
   }
 
-  if (Object.hasOwn(obj, 'trainPreference') && Array.isArray(obj['trainPreference'])) {
+  if (
+    Object.hasOwn(obj, 'trainPreference') &&
+    Array.isArray(obj['trainPreference'])
+  ) {
     const seen = new Set<UnitTypeId>();
     for (const entry of obj['trainPreference']) {
       const unit = asUnitTypeId(entry);
@@ -221,6 +241,6 @@ export function parseAdvice(raw: string): StrategyAdvice | null {
 /** Advice → the override AiBrain merges over its playbook. `reason` and
  * `posture` are for humans and the next prompt; they stay behind. */
 export function toOverride(advice: StrategyAdvice): Partial<AiStrategy> {
-  const { reason: _reason, posture: _posture, ...knobs } = advice;
+  const {reason: _reason, posture: _posture, ...knobs} = advice;
   return knobs;
 }

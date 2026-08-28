@@ -15,15 +15,15 @@
  * valley should not lie about what this country holds — but a mine is not
  * this commission's business and nothing near the town invites one.
  */
-import { HILL, MEADOW, Valley, type Authored } from '../kit.ts';
-import { keepAnchor, keepCenter, seats } from '../layout.ts';
+import {HILL, MEADOW, Valley, type Authored} from '../kit.ts';
+import {keepAnchor, keepCenter, seats} from '../layout.ts';
 
 export function build(): Authored {
   const v = new Valley(96, 1061);
   const [start] = seats(1);
   const keep = keepCenter(start!);
   /** Everything in this recipe is said as an offset from the keep. */
-  const at = (dx: number, dy: number) => ({ x: keep.x + dx, y: keep.y + dy });
+  const at = (dx: number, dy: number) => ({x: keep.x + dx, y: keep.y + dy});
 
   v.meadow(MEADOW, 0.055)
     // Wooded shoulders west and north, hill country east: the valley's
@@ -40,9 +40,13 @@ export function build(): Authored {
     // The brook off those eastern hills, running south-west to the sea,
     // with a pool at the clearing's foot: the water every valley owes its
     // fishery, a walk south of the keep and out of the town's way.
-    .river([at(19, 6), at(9, 14), at(-2, 18), at(-12, 30), at(-18, 42)], 1.4, 0.09)
+    .river(
+      [at(19, 6), at(9, 14), at(-2, 18), at(-12, 30), at(-18, 42)],
+      1.4,
+      0.09,
+    )
     .pond(at(-3, 13), 3)
-    .borders({ n: 'forest', e: 'ridge', s: 'sea', w: 'forest' });
+    .borders({n: 'forest', e: 'ridge', s: 'sea', w: 'forest'});
 
   const drowned = v.settle(keepAnchor(start!));
 

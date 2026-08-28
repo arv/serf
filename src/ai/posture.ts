@@ -1,9 +1,9 @@
-import { readOpponent } from './archetype.ts';
-import type { StrategyAdvice } from './advice.ts';
-import type { AiWorldSummary } from './summary.ts';
-import type { Enum } from '../shared/enum.ts';
-import * as PostureIdNs from './postureIdEnum.ts';
+import type {Enum} from '../shared/enum.ts';
+import type {StrategyAdvice} from './advice.ts';
+import {readOpponent} from './archetype.ts';
 import * as Archetype from './archetypeEnum.ts';
+import * as PostureIdNs from './postureIdEnum.ts';
+import type {AiWorldSummary} from './summary.ts';
 export type PostureId = Enum<typeof PostureIdNs>;
 
 /**
@@ -67,7 +67,7 @@ export const POSTURE_KEYS: Readonly<Record<PostureId, string>> = {
 };
 
 const POSTURE_BY_KEY = new Map<string, PostureId>(
-  POSTURE_ORDER.map((id) => [POSTURE_KEYS[id], id]),
+  POSTURE_ORDER.map(id => [POSTURE_KEYS[id], id]),
 );
 
 /** The stance a word names, or undefined — the read side of POSTURE_KEYS. */
@@ -88,7 +88,11 @@ export interface Posture {
     Required<
       Omit<
         StrategyAdvice,
-        'trainPreference' | 'weaponMix' | 'reason' | 'posture' | 'marchConfidence'
+        | 'trainPreference'
+        | 'weaponMix'
+        | 'reason'
+        | 'posture'
+        | 'marchConfidence'
       >
     >
   >;
@@ -224,8 +228,8 @@ export const POSTURES: Record<PostureId, Posture> = {
 export const POSTURE_JSON_SCHEMA = {
   type: 'object',
   properties: {
-    posture: { type: 'string', enum: POSTURE_ORDER.map((id) => POSTURE_KEYS[id]) },
-    reason: { type: 'string' },
+    posture: {type: 'string', enum: POSTURE_ORDER.map(id => POSTURE_KEYS[id])},
+    reason: {type: 'string'},
   },
   required: ['posture'],
   additionalProperties: false,
@@ -238,7 +242,7 @@ export function isPostureId(raw: unknown): raw is PostureId {
 /** A posture's knobs as advice. Copied, because the caller merges into it
  * and the table is shared across every seat in the process. */
 export function postureAdvice(id: PostureId): StrategyAdvice {
-  return { ...POSTURES[id].knobs };
+  return {...POSTURES[id].knobs};
 }
 
 /**
@@ -291,7 +295,7 @@ export function choosePosture(summary: AiWorldSummary): PostureId {
   // Nothing located yet. `siege` sets prefersRivals, which parks the army
   // until a castle is found — so until one is, mass instead, which leaves
   // the captain free to clear the camps he can reach.
-  const found = summary.rivals.some((r) => r.alive && r.found);
+  const found = summary.rivals.some(r => r.alive && r.found);
   if (!found) return PostureIdNs.muster;
 
   // A castle is on the map. Go and take it — including when the army is
@@ -341,14 +345,20 @@ export function choosePosture(summary: AiWorldSummary): PostureId {
  * do in their blurbs, and a classifier cannot separate what scouting never
  * showed it.
  */
-export function choosePostureReadingOpponent(summary: AiWorldSummary): PostureId {
+export function choosePostureReadingOpponent(
+  summary: AiWorldSummary,
+): PostureId {
   const opponent = readOpponent(summary);
 
-  if (summary.me.underAttack && opponent !== Archetype.booming && opponent !== Archetype.turtling) {
+  if (
+    summary.me.underAttack &&
+    opponent !== Archetype.booming &&
+    opponent !== Archetype.turtling
+  ) {
     return PostureIdNs.fortify;
   }
 
-  const found = summary.rivals.some((r) => r.alive && r.found);
+  const found = summary.rivals.some(r => r.alive && r.found);
   if (!found) return PostureIdNs.muster;
 
   if (opponent === Archetype.booming) return PostureIdNs.pounce;

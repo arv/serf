@@ -48,7 +48,7 @@ function blade(
 
 /** A clump of grass blades fanning out from the bottom center. */
 export function makeGrassSprite(): THREE.Texture {
-  return canvasTexture(128, (ctx) => {
+  return canvasTexture(128, ctx => {
     const baseY = 126;
     for (let i = 0; i < 11; i++) {
       const t = i / 10;
@@ -72,11 +72,14 @@ export function makeGrassSprite(): THREE.Texture {
 
 /** A spray of slender drooping leaves around a node point. */
 export function makeLeafSprite(): THREE.Texture {
-  return canvasTexture(128, (ctx) => {
+  return canvasTexture(128, ctx => {
     const cx = 64;
     const cy = 78;
     for (let i = 0; i < 9; i++) {
-      const ang = -Math.PI * 0.95 + (i / 8) * Math.PI * 0.9 + (Math.random() - 0.5) * 0.25;
+      const ang =
+        -Math.PI * 0.95 +
+        (i / 8) * Math.PI * 0.9 +
+        (Math.random() - 0.5) * 0.25;
       const len = 42 + Math.random() * 24;
       const droop = 14 + Math.random() * 16;
       const tipX = cx + Math.cos(ang) * len;
@@ -100,7 +103,7 @@ export function makeLeafSprite(): THREE.Texture {
 
 /** Vertical stalk strip: jade gradient with darker node rings and streaks. */
 export function makeStalkTexture(): THREE.Texture {
-  return canvasTexture(64, (ctx) => {
+  return canvasTexture(64, ctx => {
     const grad = ctx.createLinearGradient(0, 0, 64, 0);
     grad.addColorStop(0, '#5f8a3e');
     grad.addColorStop(0.35, '#9cc45c');
@@ -118,7 +121,8 @@ export function makeStalkTexture(): THREE.Texture {
     // Faint vertical streaks.
     for (let i = 0; i < 26; i++) {
       const x = Math.random() * 64;
-      ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(20,40,12,0.08)';
+      ctx.fillStyle =
+        Math.random() < 0.5 ? 'rgba(255,255,255,0.06)' : 'rgba(20,40,12,0.08)';
       ctx.fillRect(x, 0, 1 + Math.random(), 64);
     }
   });
@@ -133,7 +137,7 @@ export function makeStalkTexture(): THREE.Texture {
  * and the result reads as a stepped-on tree; a bush has no trunk to show.
  */
 export function makeBushSprite(): THREE.Texture {
-  return canvasTexture(128, (ctx) => {
+  return canvasTexture(128, ctx => {
     const baseY = 122;
     const lobe = (x: number, y: number, r: number, fill: string): void => {
       ctx.fillStyle = fill;
@@ -153,7 +157,8 @@ export function makeBushSprite(): THREE.Texture {
     for (const [x, y, r] of mound) lobe(x, y, r + 1.5, '#2f5320'); // depth pass
     for (const [x, y, r] of mound) lobe(x, y - 2, r, '#3f6b28');
     // Sunlit crown, offset toward the light the scene's sun comes from.
-    for (const [x, y, r] of mound.slice(3)) lobe(x - 3, y - 6, r * 0.78, '#5d8f36');
+    for (const [x, y, r] of mound.slice(3))
+      lobe(x - 3, y - 6, r * 0.78, '#5d8f36');
     lobe(60, baseY - 52, 11, '#78ab45');
     // Frayed edge: little leaves poking out of the silhouette.
     for (let i = 0; i < 26; i++) {
@@ -161,7 +166,12 @@ export function makeBushSprite(): THREE.Texture {
       const rx = 34 + Math.random() * 6;
       const x = 64 + Math.cos(a) * rx;
       const y = baseY - 26 + Math.sin(a) * 26;
-      lobe(x, y, 4 + Math.random() * 3.5, Math.random() < 0.45 ? '#6f9f3e' : '#3f6b28');
+      lobe(
+        x,
+        y,
+        4 + Math.random() * 3.5,
+        Math.random() < 0.45 ? '#6f9f3e' : '#3f6b28',
+      );
     }
     // A few stems showing through at the very bottom.
     ctx.strokeStyle = '#4a3a22';
@@ -178,7 +188,7 @@ export function makeBushSprite(): THREE.Texture {
 /** A little cluster of wildflowers: thin stems topped with chunky painted
  * blossoms — meadow doodads, drawn in the same hand as the grass. */
 export function makeFlowerSprite(): THREE.Texture {
-  return canvasTexture(128, (ctx) => {
+  return canvasTexture(128, ctx => {
     const baseY = 126;
     const blooms: [string, string][] = [
       ['#f5f0dc', '#e8ddb0'], // oxeye white
@@ -220,7 +230,7 @@ export function makeFlowerSprite(): THREE.Texture {
 
 /** A butterfly seen from above: two wing pairs around a dark body. */
 export function makeButterflySprite(): THREE.Texture {
-  return canvasTexture(64, (ctx) => {
+  return canvasTexture(64, ctx => {
     const wing = (sx: number): void => {
       ctx.save();
       ctx.translate(32, 32);
@@ -276,7 +286,7 @@ export const FOOTPRINT_TEX_FILL = 0.78;
  * quad maps to its march heading.
  */
 export function makeFootprintSprite(): THREE.Texture {
-  return canvasTexture(64, (ctx) => {
+  return canvasTexture(64, ctx => {
     // Soft oval pad: a radial gradient drawn through a scaled context.
     const pad = (x: number, y: number, rx: number, ry: number): void => {
       ctx.save();

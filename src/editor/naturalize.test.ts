@@ -1,16 +1,22 @@
-import { describe, expect, it } from 'vitest';
-import { tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { WATER_LEVEL, inPlayArea } from '../sim/map.ts';
-import { applyBrush } from './brush.ts';
-import { createBlankMap } from './editorMap.ts';
-import { naturalize } from './naturalize.ts';
+import {describe, expect, it} from 'vitest';
+import {tileIdx, tileX, tileY} from '../shared/grid.ts';
+import {WATER_LEVEL, inPlayArea} from '../sim/map.ts';
 import * as Terrain from '../sim/terrainEnum.ts';
+import {applyBrush} from './brush.ts';
+import {createBlankMap} from './editorMap.ts';
+import {naturalize} from './naturalize.ts';
 
 function paintedState() {
   // play 64 -> grid 112; a symmetric lake and range, 4-fold.
-  const state = createBlankMap({ size: 64, players: 4 });
-  applyBrush(state, { kind: 'terrain', terrain: Terrain.Water }, 52, 46, { radius: 5, folds: 4 });
-  applyBrush(state, { kind: 'terrain', terrain: Terrain.Rock }, 76, 76, { radius: 3, folds: 4 });
+  const state = createBlankMap({size: 64, players: 4});
+  applyBrush(state, {kind: 'terrain', terrain: Terrain.Water}, 52, 46, {
+    radius: 5,
+    folds: 4,
+  });
+  applyBrush(state, {kind: 'terrain', terrain: Terrain.Rock}, 76, 76, {
+    radius: 3,
+    folds: 4,
+  });
   return state;
 }
 
@@ -52,7 +58,9 @@ describe('naturalize', () => {
       const x = tileX(i, size);
       const y = tileY(i, size);
       const j = tileIdx(size - 1 - y, x, size);
-      expect(Math.abs(state.map.height[j]! - state.map.height[i]!)).toBeLessThan(1e-6);
+      expect(
+        Math.abs(state.map.height[j]! - state.map.height[i]!),
+      ).toBeLessThan(1e-6);
     }
   });
 

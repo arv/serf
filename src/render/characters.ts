@@ -1,18 +1,18 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
-import { clamp } from '../shared/math';
-import { UNIT_DEFS } from '../sim/defs/units';
-import { lathe } from './models';
-import { loadGltfRetry } from './assets';
-import { goodColors } from './palette';
-import { factionTint } from './factionPalette';
-import type { Enum } from '../shared/enum.ts';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {clone as skeletonClone} from 'three/addons/utils/SkeletonUtils.js';
+import type {Enum} from '../shared/enum.ts';
+import {clamp} from '../shared/math';
+import {UNIT_DEFS} from '../sim/defs/units';
 import * as AnimKeyNs from './animKeyEnum.ts';
+import {loadGltfRetry} from './assets';
+import {factionTint} from './factionPalette';
+import {lathe} from './models';
+import {goodColors} from './palette';
 export type AnimKey = Enum<typeof AnimKeyNs>;
-import * as GaitNs from './gaitEnum.ts';
-import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as GaitNs from './gaitEnum.ts';
 export type Gait = Enum<typeof GaitNs>;
 
 /**
@@ -25,8 +25,21 @@ export type Gait = Enum<typeof GaitNs>;
  */
 
 const KK_DIR = '/models/kaykit/';
-const KK_CHARACTER_FILES = ['Knight', 'Barbarian', 'Rogue', 'Rogue_Hooded', 'Mage', 'Ranger'];
-const KK_ANIMATION_FILES = ['MovementBasic', 'General', 'CombatMelee', 'CombatRanged', 'Tools'];
+const KK_CHARACTER_FILES = [
+  'Knight',
+  'Barbarian',
+  'Rogue',
+  'Rogue_Hooded',
+  'Mage',
+  'Ranger',
+];
+const KK_ANIMATION_FILES = [
+  'MovementBasic',
+  'General',
+  'CombatMelee',
+  'CombatRanged',
+  'Tools',
+];
 const KK_PROP_FILES = [
   'sword_1handed',
   'shield_badge',
@@ -98,7 +111,7 @@ interface KKSpec {
 }
 
 const KK_SPECS = new Map<number, KKSpec>([
-  [1, { file: 'Rogue', hide: ['Rogue_Cape'] }],
+  [1, {file: 'Rogue', hide: ['Rogue_Cape']}],
   [
     2,
     {
@@ -116,7 +129,10 @@ const KK_SPECS = new Map<number, KKSpec>([
       rightWorkKind: 1, // WORK.chop
     },
   ],
-  [3, { file: 'Knight', right: 'sword_1handed', left: 'shield_badge', jog: true }],
+  [
+    3,
+    {file: 'Knight', right: 'sword_1handed', left: 'shield_badge', jog: true},
+  ],
   [
     4,
     {
@@ -129,8 +145,8 @@ const KK_SPECS = new Map<number, KKSpec>([
       attackClip: 'Melee_1H_Attack_Stab',
     },
   ],
-  [5, { file: 'Ranger', right: 'bow_withString', jog: true, ranged: true }],
-  [6, { file: 'Rogue', tint: 0x7c8290, right: 'dagger', jog: true }],
+  [5, {file: 'Ranger', right: 'bow_withString', jog: true, ranged: true}],
+  [6, {file: 'Rogue', tint: 0x7c8290, right: 'dagger', jog: true}],
   [
     7,
     {
@@ -156,7 +172,9 @@ const KK_SPECS = new Map<number, KKSpec>([
 ]);
 
 /** Sim ground speed by kind byte, for matching gait playback to it. */
-const KIND_SPEED = new Map<number, number>(Object.values(UNIT_DEFS).map((d) => [d.id, d.speed]));
+const KIND_SPEED = new Map<number, number>(
+  Object.values(UNIT_DEFS).map(d => [d.id, d.speed]),
+);
 
 interface KKCharacter {
   scene: THREE.Group;
@@ -170,7 +188,7 @@ interface KKAssets {
   props: Map<string, THREE.Group>;
   /** Ground speed each gait clip is authored for, rig units/sec (0 =
    * unmeasured; gaits then play at their authored rate). */
-  gaitSpeeds: { walk: number; jog: number };
+  gaitSpeeds: {walk: number; jog: number};
 }
 
 let kkAssets: KKAssets | null = null;
@@ -205,7 +223,7 @@ export interface CharacterVisual {
   gait: Gait;
   /** Natural ground speed of each gait clip for this body, world units/sec
    * (0 = unmeasured: that gait plays at its authored rate). */
-  gaitNat: { walk: number; jog: number };
+  gaitNat: {walk: number; jog: number};
   /** Ground speed the gait timeScales currently assume — setGaitSpeed's
    * deadband memory. */
   gaitSpeed: number;
@@ -251,7 +269,7 @@ function peasantHat(bandColor?: number): THREE.Group {
   // itself joins the heraldry.
   const band = new THREE.Mesh(
     new THREE.CylinderGeometry(0.117, 0.12, 0.022, 16),
-    new THREE.MeshLambertMaterial({ color: bandColor ?? 0x7a5636 }),
+    new THREE.MeshLambertMaterial({color: bandColor ?? 0x7a5636}),
   );
   band.position.y = 0.045;
   g.add(hat, band);
@@ -260,7 +278,7 @@ function peasantHat(bandColor?: number): THREE.Group {
 
 /** Matte, shadow-casting setup shared by every loaded KayKit scene. */
 function prepKayKitScene(scene: THREE.Group): void {
-  scene.traverse((o) => {
+  scene.traverse(o => {
     if (o instanceof THREE.Mesh || o instanceof THREE.SkinnedMesh) {
       o.castShadow = true;
       const m = o.material as THREE.MeshStandardMaterial;
@@ -280,7 +298,10 @@ function prepKayKitScene(scene: THREE.Group): void {
  * (the stance phase), and divide its horizontal travel by the time. Runs
  * once per gait at load, on a throwaway rig clone.
  */
-function measureGaitSpeed(scene: THREE.Group, clip: THREE.AnimationClip | undefined): number {
+function measureGaitSpeed(
+  scene: THREE.Group,
+  clip: THREE.AnimationClip | undefined,
+): number {
   if (!clip) return 0;
   const root = skeletonClone(scene);
   // GLTFLoader sanitizes bone names ('foot.l' loads as 'footl').
@@ -301,7 +322,7 @@ function measureGaitSpeed(scene: THREE.Group, clip: THREE.AnimationClip | undefi
     minY = Math.min(minY, p.y);
     maxY = Math.max(maxY, p.y);
   }
-  const grounded = pts.map((p) => p.y < minY + (maxY - minY) * 0.2);
+  const grounded = pts.map(p => p.y < minY + (maxY - minY) * 0.2);
   let bestStart = 0;
   let bestLen = 0;
   for (let s = 0; s < N; s++) {
@@ -327,7 +348,7 @@ async function loadKayKitCharacters(): Promise<boolean> {
     const clips = new Map<string, THREE.AnimationClip>();
     const props = new Map<string, THREE.Group>();
     await Promise.all([
-      ...KK_CHARACTER_FILES.map(async (f) => {
+      ...KK_CHARACTER_FILES.map(async f => {
         const gltf = await loadGltfRetry(loader, `${KK_DIR}${f}.glb`);
         prepKayKitScene(gltf.scene);
         const bbox = new THREE.Box3().setFromObject(gltf.scene);
@@ -338,11 +359,14 @@ async function loadKayKitCharacters(): Promise<boolean> {
           footY: -bbox.min.y,
         });
       }),
-      ...KK_ANIMATION_FILES.map(async (f) => {
-        const gltf = await loadGltfRetry(loader, `${KK_DIR}Rig_Medium_${f}.glb`);
+      ...KK_ANIMATION_FILES.map(async f => {
+        const gltf = await loadGltfRetry(
+          loader,
+          `${KK_DIR}Rig_Medium_${f}.glb`,
+        );
         for (const clip of gltf.animations) clips.set(clip.name, clip);
       }),
-      ...KK_PROP_FILES.map(async (f) => {
+      ...KK_PROP_FILES.map(async f => {
         const gltf = await loadGltfRetry(loader, `${KK_DIR}${f}.gltf`);
         prepKayKitScene(gltf.scene);
         props.set(f, gltf.scene);
@@ -360,10 +384,10 @@ async function loadKayKitCharacters(): Promise<boolean> {
       const base = clips.get(baseName);
       const hold = clips.get(holdName);
       if (!base || !hold) return null;
-      const legTracks = base.tracks.filter((t) => !ARM_BONES.test(t.name));
+      const legTracks = base.tracks.filter(t => !ARM_BONES.test(t.name));
       const armTracks = hold.tracks
-        .filter((t) => ARM_BONES.test(t.name))
-        .map((t) => {
+        .filter(t => ARM_BONES.test(t.name))
+        .map(t => {
           // A single static key: the pose's first frame, held.
           const size = t.getValueSize();
           const Track = t.constructor as new (
@@ -373,7 +397,10 @@ async function loadKayKitCharacters(): Promise<boolean> {
           ) => THREE.KeyframeTrack;
           return new Track(t.name, [0], t.values.slice(0, size));
         });
-      const clip = new THREE.AnimationClip(name, base.duration, [...legTracks, ...armTracks]);
+      const clip = new THREE.AnimationClip(name, base.duration, [
+        ...legTracks,
+        ...armTracks,
+      ]);
       clips.set(name, clip);
       return clip;
     };
@@ -385,11 +412,15 @@ async function loadKayKitCharacters(): Promise<boolean> {
     // for all of them under the tape measure.
     const rig = chars.values().next().value;
     const gaitSpeeds = {
-      walk: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES[AnimKeyNs.walk])) : 0,
-      jog: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES[AnimKeyNs.jog])) : 0,
+      walk: rig
+        ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES[AnimKeyNs.walk]))
+        : 0,
+      jog: rig
+        ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES[AnimKeyNs.jog]))
+        : 0,
     };
 
-    kkAssets = { chars, clips, props, gaitSpeeds };
+    kkAssets = {chars, clips, props, gaitSpeeds};
     return true;
   }
 }
@@ -404,7 +435,7 @@ const kkTintMaterials = new Map<string, THREE.MeshStandardMaterial>();
 // as the farmer's own tool.
 
 const toolMesh = (geo: THREE.BufferGeometry, color: number): THREE.Mesh => {
-  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
+  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({color}));
   m.castShadow = true;
   return m;
 };
@@ -414,12 +445,21 @@ const toolMesh = (geo: THREE.BufferGeometry, color: number): THREE.Mesh => {
 // these (0.3-unit twigs) disappeared in hand next to it.
 function malletProp(): THREE.Group {
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.022, 0.028, 0.44, 6), 0x8a6a42);
+  const handle = toolMesh(
+    new THREE.CylinderGeometry(0.022, 0.028, 0.44, 6),
+    0x8a6a42,
+  );
   handle.position.y = 0.18;
-  const head = toolMesh(new THREE.CylinderGeometry(0.085, 0.085, 0.22, 8), 0x6b4e2e);
+  const head = toolMesh(
+    new THREE.CylinderGeometry(0.085, 0.085, 0.22, 8),
+    0x6b4e2e,
+  );
   head.rotation.z = Math.PI / 2;
   head.position.y = 0.4;
-  const band = toolMesh(new THREE.CylinderGeometry(0.088, 0.088, 0.03, 8), 0x77848e);
+  const band = toolMesh(
+    new THREE.CylinderGeometry(0.088, 0.088, 0.03, 8),
+    0x77848e,
+  );
   band.rotation.z = Math.PI / 2;
   band.position.y = 0.4;
   g.add(handle, head, band);
@@ -428,7 +468,10 @@ function malletProp(): THREE.Group {
 
 function pickaxeProp(): THREE.Group {
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.022, 0.028, 0.48, 6), 0x8a6a42);
+  const handle = toolMesh(
+    new THREE.CylinderGeometry(0.022, 0.028, 0.48, 6),
+    0x8a6a42,
+  );
   handle.position.y = 0.2;
   const collar = toolMesh(new THREE.BoxGeometry(0.08, 0.06, 0.06), 0x5c666e);
   collar.position.y = 0.44;
@@ -451,7 +494,10 @@ function spadeProp(): THREE.Group {
   // rounded taper to the point. The box-plus-pyramid attempt read as a
   // sideways spearhead the moment the camera saw it edge-on.
   const g = new THREE.Group();
-  const handle = toolMesh(new THREE.CylinderGeometry(0.024, 0.03, 0.42, 6), 0x8a6a42);
+  const handle = toolMesh(
+    new THREE.CylinderGeometry(0.024, 0.03, 0.42, 6),
+    0x8a6a42,
+  );
   handle.position.y = 0.21;
   const profile = new THREE.Shape();
   profile.moveTo(-0.085, 0);
@@ -461,11 +507,14 @@ function spadeProp(): THREE.Group {
   profile.lineTo(0.085, 0);
   profile.closePath();
   const blade = toolMesh(
-    new THREE.ExtrudeGeometry(profile, { depth: 0.028, bevelEnabled: false }),
+    new THREE.ExtrudeGeometry(profile, {depth: 0.028, bevelEnabled: false}),
     0x8b95a0,
   );
   blade.position.set(0, 0.41, -0.014);
-  const grip = toolMesh(new THREE.CylinderGeometry(0.022, 0.022, 0.13, 6), 0x6b4e2e);
+  const grip = toolMesh(
+    new THREE.CylinderGeometry(0.022, 0.022, 0.13, 6),
+    0x6b4e2e,
+  );
   grip.rotation.z = Math.PI / 2;
   grip.position.y = -0.02;
   g.add(handle, blade, grip);
@@ -528,7 +577,11 @@ function gripPose<T extends THREE.Object3D>(tool: T): T {
  * and nothing else. Falls back to the procedural build until the pack is
  * in (or if a file ever goes missing).
  */
-function packToolProp(prop: string, height: number, fallback: () => THREE.Group): THREE.Group {
+function packToolProp(
+  prop: string,
+  height: number,
+  fallback: () => THREE.Group,
+): THREE.Group {
   const src = kkAssets?.props.get(prop);
   if (!src) return fallback();
   const tool = src.clone();
@@ -614,7 +667,10 @@ function spearProp(): THREE.Group {
   const g = new THREE.Group();
   g.name = 'spear';
   // Ash haft, thickening toward the butt, gripped a third of the way up.
-  const shaft = toolMesh(new THREE.CylinderGeometry(0.062, 0.07, 2.3, 6), goodColors[GoodId.spear]);
+  const shaft = toolMesh(
+    new THREE.CylinderGeometry(0.062, 0.07, 2.3, 6),
+    goodColors[GoodId.spear],
+  );
   shaft.position.y = 0.3;
   // Leaf head, turned rather than extruded: a flat blade is what the spade
   // has, and it vanishes edge-on — a spear is seen from every side at once
@@ -638,7 +694,10 @@ function spearProp(): THREE.Group {
   blade.position.y = 1.35;
   // Socket binding where the head is lashed on, and a butt cap that keeps
   // the shaft from ending in nothing when it is seen against the grass.
-  const collar = toolMesh(new THREE.CylinderGeometry(0.088, 0.088, 0.12, 6), 0x6b4e2e);
+  const collar = toolMesh(
+    new THREE.CylinderGeometry(0.088, 0.088, 0.12, 6),
+    0x6b4e2e,
+  );
   collar.position.y = 1.36;
   const butt = toolMesh(
     new THREE.CylinderGeometry(0.078, 0.078, 0.15, 6),
@@ -664,7 +723,7 @@ const PROF_LOOKS = new Map<number, ProfLook>([
   [
     1,
     {
-      spec: { file: 'Rogue', hide: ['Rogue_Cape'], tint: 0xc9a86a },
+      spec: {file: 'Rogue', hide: ['Rogue_Cape'], tint: 0xc9a86a},
       tool: spadeProp,
       toolWorkKind: 4, // WORK.dig
       strawHat: true,
@@ -674,7 +733,7 @@ const PROF_LOOKS = new Map<number, ProfLook>([
   [
     2,
     {
-      spec: { file: 'Barbarian', hide: ['Barbarian_BearHat'], tint: 0x9b9084 },
+      spec: {file: 'Barbarian', hide: ['Barbarian_BearHat'], tint: 0x9b9084},
       tool: () => packToolProp('tools/pickaxe', 0.58, pickaxeProp),
       toolWorkKind: 2, // WORK.pickaxe
     },
@@ -685,7 +744,7 @@ function makeKayKitCharacter(
   kind: number,
   profession = 0,
   owner = 0,
-): { group: THREE.Group; visual: CharacterVisual } | null {
+): {group: THREE.Group; visual: CharacterVisual} | null {
   if (!kkAssets) return null;
   const look = kind === 2 ? PROF_LOOKS.get(profession) : undefined;
   const spec = look?.spec ?? KK_SPECS.get(kind) ?? KK_SPECS.get(1)!;
@@ -701,7 +760,7 @@ function makeKayKitCharacter(
   // Bandits keep their grim stock look.
   const faction = factionTint(owner);
   const CLOTH = /_(Body|Cape)$/;
-  root.traverse((o) => {
+  root.traverse(o => {
     if (!(o instanceof THREE.Mesh) && !(o instanceof THREE.SkinnedMesh)) return;
     if (spec.hide?.includes(o.name)) o.visible = false;
     const clothFaction = CLOTH.test(o.name) ? faction : undefined;
@@ -734,7 +793,8 @@ function makeKayKitCharacter(
   // GLTFLoader sanitizes node names ('handslot.r' loads as 'handslotr'),
   // so look up both spellings.
   const boneOf = (bone: string): THREE.Object3D | undefined =>
-    root.getObjectByName(bone) ?? root.getObjectByName(bone.replace(/[^\w-]/g, ''));
+    root.getObjectByName(bone) ??
+    root.getObjectByName(bone.replace(/[^\w-]/g, ''));
 
   // Pack props are authored for the rig's handslot bones — identity drop-in.
   const slot = (
@@ -747,14 +807,16 @@ function makeKayKitCharacter(
     const prop = kkAssets!.props.get(file);
     const anchor = boneOf(bone);
     if (!prop || !anchor) {
-      console.warn(`[characters] slot miss: prop=${file}:${!!prop} bone=${bone}:${!!anchor}`);
+      console.warn(
+        `[characters] slot miss: prop=${file}:${!!prop} bone=${bone}:${!!anchor}`,
+      );
       return;
     }
     const inst = prop.clone();
     if (offset) inst.position.set(...offset);
     if (rot) inst.rotation.set(...rot);
     anchor.add(inst);
-    return { inst, anchor };
+    return {inst, anchor};
   };
   const rightHand = slot('handslot.r', spec.right, undefined, spec.rightRot);
   if (rightHand && spec.rightWorkKind !== undefined) {
@@ -858,9 +920,16 @@ function makeKayKitCharacter(
   const mixer = new THREE.AnimationMixer(root);
   const actions = new Map<AnimKey, THREE.AnimationAction>();
   for (const key of ANIM_KEYS) {
-    let name = key === AnimKeyNs.attack && spec.attackClip ? spec.attackClip : KK_CLIP_NAMES[key];
+    let name =
+      key === AnimKeyNs.attack && spec.attackClip
+        ? spec.attackClip
+        : KK_CLIP_NAMES[key];
     // A jogging carrier gets the run-legged carry composite.
-    if (key === AnimKeyNs.carry && gait === GaitNs.jog && kkAssets.clips.has('Carry_Jog'))
+    if (
+      key === AnimKeyNs.carry &&
+      gait === GaitNs.jog &&
+      kkAssets.clips.has('Carry_Jog')
+    )
       name = 'Carry_Jog';
     const clip = kkAssets.clips.get(name);
     if (!clip) continue;
@@ -877,7 +946,7 @@ function makeKayKitCharacter(
     actions,
     current: null,
     gait,
-    gaitNat: { walk: walkNat, jog: jogNat },
+    gaitNat: {walk: walkNat, jog: jogNat},
     gaitSpeed: 0,
     ranged: spec.ranged ?? false,
     carryAnchor,
@@ -887,7 +956,7 @@ function makeKayKitCharacter(
     toolKind: 0,
   };
   setGaitSpeed(visual, simSpeed);
-  return { group, visual };
+  return {group, visual};
 }
 
 /**
@@ -899,9 +968,9 @@ function makeKayKitCharacter(
  * band is wide enough that soldiers track their true speed — 1.2x to 1.8x
  * across kinds — before a leg-blur cap.
  */
-const GAIT_RATE: Record<Gait, { lo: number; hi: number }> = {
-  [GaitNs.walk]: { lo: 0.85, hi: 1.3 },
-  [GaitNs.jog]: { lo: 0.8, hi: 1.8 },
+const GAIT_RATE: Record<Gait, {lo: number; hi: number}> = {
+  [GaitNs.walk]: {lo: 0.85, hi: 1.3},
+  [GaitNs.jog]: {lo: 0.8, hi: 1.8},
 };
 
 /**
@@ -945,7 +1014,7 @@ let charLoading: Promise<boolean> | null = null;
  */
 export function loadCharacterAssets(): Promise<boolean> {
   charLoading ??= loadKayKitCharacters().then(
-    (ok) => {
+    ok => {
       if (!ok) charLoading = null;
       return ok;
     },
@@ -984,7 +1053,7 @@ export function serfSole(): Sole | null {
   // Boot vertices: dominant skin weight on the left foot or toe bones.
   // (GLTFLoader may sanitize 'foot.l' to 'footl'; match both.)
   const pts: [number, number, number][] = [];
-  char.scene.traverse((o) => {
+  char.scene.traverse(o => {
     if (!(o instanceof THREE.SkinnedMesh)) return;
     const geo = o.geometry;
     const pos = geo.getAttribute('position');
@@ -1044,12 +1113,16 @@ export function makeCharacter(
   kind: number,
   profession = 0,
   owner = 0,
-): { group: THREE.Group; visual: CharacterVisual } | null {
+): {group: THREE.Group; visual: CharacterVisual} | null {
   return makeKayKitCharacter(kind, profession, owner);
 }
 
 /** Crossfade to the clip for this key; no-op when already playing it. */
-export function playAnimation(visual: CharacterVisual, key: AnimKey, offset: number): void {
+export function playAnimation(
+  visual: CharacterVisual,
+  key: AnimKey,
+  offset: number,
+): void {
   if (visual.current === key) return;
   const next = visual.actions.get(key) ?? visual.actions.get(AnimKeyNs.idle);
   if (!next) return;

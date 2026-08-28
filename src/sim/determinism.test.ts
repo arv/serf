@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { cmds } from './testUtils.ts';
-import { createWorld, type World } from './world.ts';
-import { tickWorld } from './tick.ts';
-import type { SimCommand } from './commands.ts';
+import {describe, expect, it} from 'vitest';
 import * as CommandKind from './commandKindEnum.ts';
+import type {SimCommand} from './commands.ts';
+import {cmds} from './testUtils.ts';
+import {tickWorld} from './tick.ts';
+import {createWorld, type World} from './world.ts';
 
 /** Deep-comparable digest of sim state (Maps flattened, floats exact). */
 function digest(world: World) {
@@ -11,7 +11,10 @@ function digest(world: World) {
     tick: world.tick,
     rngState: world.rngState,
     nextId: world.nextId,
-    units: [...world.units.values()].map((u) => ({ ...u, path: u.path ? [...u.path] : null })),
+    units: [...world.units.values()].map(u => ({
+      ...u,
+      path: u.path ? [...u.path] : null,
+    })),
     buildings: [...world.buildings.values()],
     blocked: [...world.map.blocked],
     wear: [...world.map.wear],
@@ -20,10 +23,14 @@ function digest(world: World) {
 
 function commandScript(tick: number): SimCommand[] {
   // A deterministic, moderately adversarial command stream.
-  if (tick === 100) return [{ kind: CommandKind.moveUnits, unitIds: [7, 8], x: 10, y: 10 }];
-  if (tick === 300) return [{ kind: CommandKind.moveUnits, unitIds: [7, 8, 9], x: 50, y: 50 }];
-  if (tick === 301) return [{ kind: CommandKind.moveUnits, unitIds: [7], x: 5, y: 60 }];
-  if (tick === 900) return [{ kind: CommandKind.moveUnits, unitIds: [999], x: 1, y: 1 }]; // unknown id
+  if (tick === 100)
+    return [{kind: CommandKind.moveUnits, unitIds: [7, 8], x: 10, y: 10}];
+  if (tick === 300)
+    return [{kind: CommandKind.moveUnits, unitIds: [7, 8, 9], x: 50, y: 50}];
+  if (tick === 301)
+    return [{kind: CommandKind.moveUnits, unitIds: [7], x: 5, y: 60}];
+  if (tick === 900)
+    return [{kind: CommandKind.moveUnits, unitIds: [999], x: 1, y: 1}]; // unknown id
   return [];
 }
 
@@ -48,9 +55,9 @@ describe('determinism', () => {
 
   it('units actually move (wander is alive)', () => {
     const world = createWorld(42);
-    const before = [...world.units.values()].map((u) => [u.x, u.y]);
+    const before = [...world.units.values()].map(u => [u.x, u.y]);
     for (let t = 0; t < 400; t++) tickWorld(world, []);
-    const after = [...world.units.values()].map((u) => [u.x, u.y]);
+    const after = [...world.units.values()].map(u => [u.x, u.y]);
     expect(after).not.toEqual(before);
   });
 });

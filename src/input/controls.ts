@@ -1,10 +1,36 @@
-import type { Enum } from '../shared/enum.ts';
 import type * as THREE from 'three';
-import { inBounds, tileIdx } from '../shared/grid';
-import { buildingDef } from '../sim/defs/buildings';
-import { canPlace } from '../sim/world';
-import { UNIT_DEFS } from '../sim/defs/units';
-import { HIRE_SERF_COST } from '../sim/defs/balance';
+import type {WorldMirror} from '../app/mirror';
+import type {SimHost} from '../app/simHost';
+import {play} from '../audio/audio';
+import type {BuildingSnap} from '../protocol/messages';
+import type {FogQuery} from '../render/fogOfWar';
+import type {GhostPlacement} from '../render/ghost';
+import type {HeightField} from '../render/heightField';
+import type {SceneSync} from '../render/sceneSync';
+import type {Enum} from '../shared/enum.ts';
+import {inBounds, tileIdx} from '../shared/grid';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
+import * as CommandKind from '../sim/commandKindEnum.ts';
+import {HIRE_SERF_COST} from '../sim/defs/balance';
+import {buildingDef} from '../sim/defs/buildings';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import {UNIT_DEFS} from '../sim/defs/units';
+import {canPlace} from '../sim/world';
+import {buildAffordable, buildUnlocked, buildingForKey} from '../ui/buildMenu';
+import {
+  HIRE_KEY,
+  RALLY_KEY,
+  RESEARCH_KEY,
+  canHire,
+  canRally,
+  canTrain,
+  trainingForKey,
+  unitTechGate,
+} from '../ui/commands';
+import {fullscreen, guardEsc} from '../ui/fullscreen';
+import {techName, unitName} from '../ui/names';
+import * as OrderMode from '../ui/orderModeEnum.ts';
 import {
   bandArm,
   buildChord,
@@ -39,20 +65,9 @@ import {
   techs,
   toggleMuted,
 } from '../ui/store';
-import { buildAffordable, buildUnlocked, buildingForKey } from '../ui/buildMenu';
-import {
-  HIRE_KEY,
-  RALLY_KEY,
-  RESEARCH_KEY,
-  canHire,
-  canRally,
-  canTrain,
-  trainingForKey,
-  unitTechGate,
-} from '../ui/commands';
-import { techName, unitName } from '../ui/names';
-import { fullscreen, guardEsc } from '../ui/fullscreen';
-import { play } from '../audio/audio';
+import * as ControlGroupKind from './controlGroupKindEnum.ts';
+import {groupEmpty, keyDigit, matchingGroup, type ControlGroup} from './groups';
+import {capturePointer} from './mouseCapture';
 import {
   screenToBuilding,
   screenToGround,
@@ -60,22 +75,7 @@ import {
   type BuildingHeights,
   type BuildingProbe,
 } from './picking';
-import { groupEmpty, keyDigit, matchingGroup, type ControlGroup } from './groups';
-import { foreignChord, typingInto } from './typing';
-import { capturePointer } from './mouseCapture';
-import type { SceneSync } from '../render/sceneSync';
-import type { GhostPlacement } from '../render/ghost';
-import type { FogQuery } from '../render/fogOfWar';
-import type { HeightField } from '../render/heightField';
-import type { WorldMirror } from '../app/mirror';
-import type { SimHost } from '../app/simHost';
-import type { BuildingSnap } from '../protocol/messages';
-import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import * as OrderMode from '../ui/orderModeEnum.ts';
-import * as ControlGroupKind from './controlGroupKindEnum.ts';
-import * as GoodId from '../sim/defs/goodIdEnum.ts';
-import * as BuildingState from '../sim/buildingStateEnum.ts';
-import * as CommandKind from '../sim/commandKindEnum.ts';
+import {foreignChord, typingInto} from './typing';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 type OrderMode = Enum<typeof OrderMode>;
@@ -126,8 +126,8 @@ function keyLetter(e: KeyboardEvent): string {
 /** Kind codes that count as army for the select-army shortcut. */
 const MILITARY_CODES = new Set<number>(
   Object.values(UNIT_DEFS)
-    .filter((d) => d.combat !== undefined)
-    .map((d) => d.id),
+    .filter(d => d.combat !== undefined)
+    .map(d => d.id),
 );
 
 /**
@@ -201,7 +201,7 @@ export class Controls {
   #groups = new Map<number, ControlGroup>();
   /** The last group number called back, for the second press that rides
    * the camera out to it instead of re-selecting what is already selected. */
-  #lastRecall: { digit: number; time: number } | null = null;
+  #lastRecall: {digit: number; time: number} | null = null;
   /**
    * The last press that landed on one of your units — click or tap alike.
    * A second one on the same unit inside the window widens the selection to
@@ -209,8 +209,9 @@ export class Controls {
    * input styles can share the record and differ only in how forgiving
    * their window and radius are.
    */
-  #lastUnitPress: { id: number; px: number; py: number; time: number } | null = null;
-  #dragStart: { x: number; y: number } | null = null;
+  #lastUnitPress: {id: number; px: number; py: number; time: number} | null =
+    null;
+  #dragStart: {x: number; y: number} | null = null;
   #dragging = false;
   #bandEl: HTMLDivElement;
   /**
@@ -233,15 +234,20 @@ export class Controls {
   #hoverDirty = false;
   #hoverIsTouch = false;
   // Scratch objects for the per-unit screen-space scans.
-  #scratchPos = { x: 0, y: 0 };
-  #scratchScreen = { x: 0, y: 0 };
-  #touchOrigin: { x: number; y: number } | null = null;
+  #scratchPos = {x: 0, y: 0};
+  #scratchScreen = {x: 0, y: 0};
+  #touchOrigin: {x: number; y: number} | null = null;
   /** The last ground move a tap ordered — a repeat tap on the spot inside
    * the double-tap window escalates it to a full attack-move. Screen point
    * for the "same spot" test, ordered tile so the escalation re-aims at
    * exactly what the first tap ordered even if the finger drifted. */
-  #lastMoveTap: { px: number; py: number; tileX: number; tileY: number; time: number } | null =
-    null;
+  #lastMoveTap: {
+    px: number;
+    py: number;
+    tileX: number;
+    tileY: number;
+    time: number;
+  } | null = null;
   /** A marquee drag in flight (armed by the HUD's band button). */
   #bandTouch = false;
   /** A finger past the slop, dragging the valley rather than pointing at
@@ -253,7 +259,10 @@ export class Controls {
    * jump keys ride. Structural rather than the CameraRig type so a test can
    * hand in the two members instead of a renderer.
    */
-  #rig: { touchPanEnabled: boolean; glideTo: (x: number, z: number) => void } | null;
+  #rig: {
+    touchPanEnabled: boolean;
+    glideTo: (x: number, z: number) => void;
+  } | null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -263,7 +272,7 @@ export class Controls {
     mirror: WorldMirror,
     ghost: GhostPlacement,
     heights: HeightField,
-    rig?: { touchPanEnabled: boolean; glideTo: (x: number, z: number) => void },
+    rig?: {touchPanEnabled: boolean; glideTo: (x: number, z: number) => void},
   ) {
     this.#canvas = canvas;
     this.#camera = camera;
@@ -278,11 +287,14 @@ export class Controls {
         const tx = Math.floor(x);
         const ty = Math.floor(z);
         if (!inBounds(tx, ty, this.#mirror.map.size)) return -1;
-        return this.#mirror.map.buildingAt[tileIdx(tx, ty, this.#mirror.map.size)]!;
+        return this.#mirror.map.buildingAt[
+          tileIdx(tx, ty, this.#mirror.map.size)
+        ]!;
       },
-      heightOf: (id) => this.#buildingHeights?.heightOf(id) ?? 0,
-      baseOf: (id) => this.#buildingHeights?.baseOf(id) ?? 0,
-      ceiling: () => this.#buildingHeights?.ceiling() ?? Number.NEGATIVE_INFINITY,
+      heightOf: id => this.#buildingHeights?.heightOf(id) ?? 0,
+      baseOf: id => this.#buildingHeights?.baseOf(id) ?? 0,
+      ceiling: () =>
+        this.#buildingHeights?.ceiling() ?? Number.NEGATIVE_INFINITY,
     };
 
     this.#bandEl = document.createElement('div');
@@ -291,21 +303,21 @@ export class Controls {
     document.body.appendChild(this.#bandEl);
 
     const signal = this.#off.signal;
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault(), { signal });
-    canvas.addEventListener('pointerdown', this.#onDown, { signal });
-    canvas.addEventListener('pointermove', this.#onMove, { signal });
-    canvas.addEventListener('pointerup', this.#onUp, { signal });
+    canvas.addEventListener('contextmenu', e => e.preventDefault(), {signal});
+    canvas.addEventListener('pointerdown', this.#onDown, {signal});
+    canvas.addEventListener('pointermove', this.#onMove, {signal});
+    canvas.addEventListener('pointerup', this.#onUp, {signal});
     // The gesture can also end without a pointerup: the system takes it (a
     // notification shade, a browser back-swipe) or the capture is lost.
     // Nothing it was building up should land afterwards.
-    canvas.addEventListener('pointercancel', this.#onCancel, { signal });
-    canvas.addEventListener('lostpointercapture', this.#onCancel, { signal });
-    window.addEventListener('keydown', this.#onKey, { signal });
+    canvas.addEventListener('pointercancel', this.#onCancel, {signal});
+    canvas.addEventListener('lostpointercapture', this.#onCancel, {signal});
+    window.addEventListener('keydown', this.#onKey, {signal});
     // Esc is this game's most-worn key, and inside fullscreen the browser
     // answers it too, with an exit no preventDefault can stop. Borrow the
     // key for the match (where the engine lends it at all); the menu keeps
     // the plain arrangement, having no modes for Esc to unwind.
-    signal.addEventListener('abort', guardEsc(), { once: true });
+    signal.addEventListener('abort', guardEsc(), {once: true});
   }
 
   /**
@@ -425,7 +437,8 @@ export class Controls {
       // the selection under it. The tech tree had only its ✕ until now,
       // which is the one exit a player never looks for.
       else if (openPanel() !== null) setOpenPanel(null);
-      else if (this.#selection.size > 0 || selectedBuilding() !== null) this.deselectAll();
+      else if (this.#selection.size > 0 || selectedBuilding() !== null)
+        this.deselectAll();
       // Nothing left to unwind. The guard held the short press inside
       // fullscreen so the branches above could run at all; this rung keeps
       // Esc's outermost meaning — and going through our own switch, the
@@ -443,7 +456,10 @@ export class Controls {
     // focused button is left alone: that is how it is pressed.
     if (quitConfirm()) {
       if (e.key === 'Backspace' || e.code === 'Backspace') e.preventDefault();
-      if ((e.key === ' ' || e.code === 'Space') && !(t instanceof HTMLButtonElement)) {
+      if (
+        (e.key === ' ' || e.code === 'Space') &&
+        !(t instanceof HTMLButtonElement)
+      ) {
         e.preventDefault();
       }
       return;
@@ -464,7 +480,8 @@ export class Controls {
     // attack-move's A), and the overlap is only safe because a building
     // selection is never a unit selection.
     const b = selectedBuilding();
-    if (b && b.owner === myPlayerId() && this.#buildingCommand(b, letter)) return;
+    if (b && b.owner === myPlayerId() && this.#buildingCommand(b, letter))
+      return;
 
     // Control groups. They sit behind the chord, which swallows the next
     // key whole whether or not it is a letter, and behind the building
@@ -568,7 +585,7 @@ export class Controls {
         play('uiRefused');
         return true;
       }
-      this.#host.sendCommands([{ kind: CommandKind.hireSerf }]);
+      this.#host.sendCommands([{kind: CommandKind.hireSerf}]);
       play('uiCoin');
       return true;
     }
@@ -593,7 +610,9 @@ export class Controls {
         play('uiRefused');
         return true;
       }
-      this.#host.sendCommands([{ kind: CommandKind.trainUnit, buildingId: b.id, unit }]);
+      this.#host.sendCommands([
+        {kind: CommandKind.trainUnit, buildingId: b.id, unit},
+      ]);
       play('uiClick');
       return true;
     }
@@ -639,10 +658,16 @@ export class Controls {
   }
 
   /** Footprint origin tile for a ghost centered under the cursor. */
-  #placementOrigin(px: number, py: number): { x: number; y: number } | null {
+  #placementOrigin(px: number, py: number): {x: number; y: number} | null {
     const type = placing();
     if (!type) return null;
-    const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
+    const ground = screenToGround(
+      this.#camera,
+      this.#canvas,
+      px,
+      py,
+      this.#heights,
+    );
     if (!ground) return null;
     const def = buildingDef(type);
     return {
@@ -713,7 +738,8 @@ export class Controls {
     // A selection that grew is a player picking people up — worth a click.
     // Shrinking is not: prune() feeds deaths through here every frame, and
     // a death knell per battle casualty belongs to combat, not selection.
-    if (sel !== this.#selection && sel.size > this.#selection.size) play('uiSelect');
+    if (sel !== this.#selection && sel.size > this.#selection.size)
+      play('uiSelect');
     // An armed rally belongs to a selected building, and people being
     // selected is that building's card leaving the screen (the two
     // selections are mutually exclusive) — so the mode goes with it.
@@ -777,7 +803,7 @@ export class Controls {
         if (e.pointerType === 'touch') {
           // Same deal as placement: the finger may be starting a map drag,
           // so the order commits on release and only if it stayed put.
-          this.#touchOrigin = { x: e.clientX, y: e.clientY };
+          this.#touchOrigin = {x: e.clientX, y: e.clientY};
           return;
         }
         if (order === OrderMode.rally) this.#issueRally(e.clientX, e.clientY);
@@ -797,11 +823,15 @@ export class Controls {
           // Meanwhile the ghost appears under the finger at once: touch
           // has no hover, so the press itself is the only chance to show
           // the footprint and its valid/invalid tint before it commits.
-          this.#touchOrigin = { x: e.clientX, y: e.clientY };
+          this.#touchOrigin = {x: e.clientX, y: e.clientY};
           const origin = this.#placementOrigin(e.clientX, e.clientY);
           if (origin) {
             this.#ghost.show(type);
-            this.#ghost.moveTo(origin.x, origin.y, this.#canPlaceHere(type, origin.x, origin.y));
+            this.#ghost.moveTo(
+              origin.x,
+              origin.y,
+              this.#canPlaceHere(type, origin.x, origin.y),
+            );
           }
           return;
         }
@@ -812,10 +842,10 @@ export class Controls {
       return;
     }
     if (e.button === 0) {
-      this.#dragStart = { x: e.clientX, y: e.clientY };
+      this.#dragStart = {x: e.clientX, y: e.clientY};
       this.#dragging = false;
       if (e.pointerType === 'touch') {
-        this.#touchOrigin = { x: e.clientX, y: e.clientY };
+        this.#touchOrigin = {x: e.clientX, y: e.clientY};
         if (bandArm()) {
           // The marquee button armed this drag: it draws the selection
           // band, and the camera holds still until the finger lifts.
@@ -866,7 +896,10 @@ export class Controls {
 
   #canPlaceHere(type: BuildingTypeId, x: number, y: number): boolean {
     const def = buildingDef(type);
-    return this.#explored(x, y, def.w, def.h) && canPlace(this.#mirror.map, type, x, y);
+    return (
+      this.#explored(x, y, def.w, def.h) &&
+      canPlace(this.#mirror.map, type, x, y)
+    );
   }
 
   /** Commit the armed building at this screen point, if it fits. */
@@ -876,7 +909,12 @@ export class Controls {
     const origin = this.#placementOrigin(px, py);
     if (origin && this.#canPlaceHere(type, origin.x, origin.y)) {
       this.#host.sendCommands([
-        { kind: CommandKind.placeBuilding, building: type, x: origin.x, y: origin.y },
+        {
+          kind: CommandKind.placeBuilding,
+          building: type,
+          x: origin.x,
+          y: origin.y,
+        },
       ]);
       play('uiPlace');
       if (!keepArmed) this.setPlacement(null);
@@ -969,7 +1007,10 @@ export class Controls {
     }
     const dx = e.clientX - this.#dragStart.x;
     const dy = e.clientY - this.#dragStart.y;
-    if (!this.#dragging && dx * dx + dy * dy > DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) {
+    if (
+      !this.#dragging &&
+      dx * dx + dy * dy > DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX
+    ) {
       this.#dragging = true;
       capturePointer(this.#canvas, e);
       this.#bandEl.style.display = 'block';
@@ -1028,7 +1069,8 @@ export class Controls {
         // this, the tap that armed nothing and the tap that drew the band
         // pair up and widen to a whole kind.
         this.#lastUnitPress = null;
-        if (dragged) this.#selectInRect(start.x, start.y, e.clientX, e.clientY, false);
+        if (dragged)
+          this.#selectInRect(start.x, start.y, e.clientX, e.clientY, false);
         else this.#selectAtPoint(e.clientX, e.clientY, false);
         return;
       }
@@ -1058,7 +1100,9 @@ export class Controls {
    */
   #clickSelect(px: number, py: number, additive: boolean): void {
     const id = this.#unitAt(px, py);
-    if (this.#repeatUnitPress(id, px, py, DOUBLE_CLICK_MS, DOUBLE_CLICK_RADIUS_PX)) {
+    if (
+      this.#repeatUnitPress(id, px, py, DOUBLE_CLICK_MS, DOUBLE_CLICK_RADIUS_PX)
+    ) {
       // A third and fourth click land here again and re-widen to the same
       // set, so a shaky hand cannot toggle its own selection back off.
       this.#selectSameKind(id, additive);
@@ -1073,7 +1117,13 @@ export class Controls {
    * missed every unit (id < 0) breaks the chain rather than starting one:
    * two clicks on empty grass are two clicks on empty grass.
    */
-  #repeatUnitPress(id: number, px: number, py: number, ms: number, radius: number): boolean {
+  #repeatUnitPress(
+    id: number,
+    px: number,
+    py: number,
+    ms: number,
+    radius: number,
+  ): boolean {
     const prev = this.#lastUnitPress;
     if (id < 0) {
       this.#lastUnitPress = null;
@@ -1087,7 +1137,7 @@ export class Controls {
       prev.id === id &&
       now - prev.time <= ms &&
       dx * dx + dy * dy <= radius * radius;
-    this.#lastUnitPress = { id, px, py, time: now };
+    this.#lastUnitPress = {id, px, py, time: now};
     return repeat;
   }
 
@@ -1112,7 +1162,8 @@ export class Controls {
     for (const id of this.#sync.latestIds.keys()) {
       if (this.#sync.kindOf(id) !== kind) continue;
       if (!this.#playerUnitScreenPosInto(id, now, screen)) continue;
-      if (screen.x < 0 || screen.x > w || screen.y < 0 || screen.y > h) continue;
+      if (screen.x < 0 || screen.x > w || screen.y < 0 || screen.y > h)
+        continue;
       sel.add(id);
     }
     // The one under the cursor is the subject of the gesture. It can fall a
@@ -1143,7 +1194,13 @@ export class Controls {
    */
   #touchTap(px: number, py: number): void {
     const unitId = this.#unitAt(px, py);
-    const repeatUnit = this.#repeatUnitPress(unitId, px, py, DOUBLE_TAP_MS, DOUBLE_TAP_RADIUS_PX);
+    const repeatUnit = this.#repeatUnitPress(
+      unitId,
+      px,
+      py,
+      DOUBLE_TAP_MS,
+      DOUBLE_TAP_RADIUS_PX,
+    );
     if (unitId >= 0) {
       this.#lastMoveTap = null;
       // The mouse's double-click, given to the finger: tap a soldier, tap
@@ -1193,7 +1250,9 @@ export class Controls {
       // escapes it; live for the back half, so a tapped army still fights
       // what it finds where it was sent.
       const tile = this.#issueMove(px, py, 'half');
-      this.#lastMoveTap = tile ? { px, py, tileX: tile.x, tileY: tile.y, time: now } : null;
+      this.#lastMoveTap = tile
+        ? {px, py, tileX: tile.x, tileY: tile.y, time: now}
+        : null;
       return;
     }
     this.deselectAll();
@@ -1230,7 +1289,11 @@ export class Controls {
     const origin = this.#placementOrigin(px, py);
     if (!origin) return;
     this.#ghost.show(type);
-    this.#ghost.moveTo(origin.x, origin.y, this.#canPlaceHere(type, origin.x, origin.y));
+    this.#ghost.moveTo(
+      origin.x,
+      origin.y,
+      this.#canPlaceHere(type, origin.x, origin.y),
+    );
   }
 
   /** Track what's under the cursor — any owner; hp is interesting on foes. */
@@ -1266,7 +1329,11 @@ export class Controls {
   }
 
   /** Screen position of an own unit, written into `out`; false otherwise. */
-  #playerUnitScreenPosInto(id: number, now: number, out: { x: number; y: number }): boolean {
+  #playerUnitScreenPosInto(
+    id: number,
+    now: number,
+    out: {x: number; y: number},
+  ): boolean {
     if (this.#sync.ownerOf(id) !== myPlayerId()) return false;
     const pos = this.#scratchPos;
     if (!this.#sync.positionOfInto(id, now, pos)) return false;
@@ -1300,7 +1367,14 @@ export class Controls {
    * this camera, and a click on its towers means the castle.
    */
   #buildingAt(px: number, py: number): number {
-    return screenToBuilding(this.#camera, this.#canvas, px, py, this.#heights, this.#probe);
+    return screenToBuilding(
+      this.#camera,
+      this.#canvas,
+      px,
+      py,
+      this.#heights,
+      this.#probe,
+    );
   }
 
   /**
@@ -1317,13 +1391,19 @@ export class Controls {
    * crossed over: a building is one target, and aiming at the middle of it
    * puts the pathing on the same footing wherever on the walls you clicked.
    */
-  #orderTarget(px: number, py: number): { x: number; y: number } | null {
+  #orderTarget(px: number, py: number): {x: number; y: number} | null {
     const id = this.#buildingAt(px, py);
     const b = id >= 0 ? this.#mirror.buildings.get(id) : undefined;
-    if (b) return { x: Math.floor(b.x + b.w / 2), y: Math.floor(b.y + b.h / 2) };
-    const ground = screenToGround(this.#camera, this.#canvas, px, py, this.#heights);
+    if (b) return {x: Math.floor(b.x + b.w / 2), y: Math.floor(b.y + b.h / 2)};
+    const ground = screenToGround(
+      this.#camera,
+      this.#canvas,
+      px,
+      py,
+      this.#heights,
+    );
     if (!ground) return null;
-    return { x: Math.floor(ground.x), y: Math.floor(ground.z) };
+    return {x: Math.floor(ground.x), y: Math.floor(ground.z)};
   }
 
   /** The building of yours under a screen point, or null. */
@@ -1364,7 +1444,13 @@ export class Controls {
    * and all, while the HUD went on showing the keep: the whole gesture
    * read as having done nothing.
    */
-  #selectInRect(x0: number, y0: number, x1: number, y1: number, additive: boolean): void {
+  #selectInRect(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    additive: boolean,
+  ): void {
     const now = performance.now();
     const minX = Math.min(x0, x1);
     const maxX = Math.max(x0, x1);
@@ -1374,7 +1460,12 @@ export class Controls {
     const screen = this.#scratchScreen;
     for (const id of this.#sync.latestIds.keys()) {
       if (!this.#playerUnitScreenPosInto(id, now, screen)) continue;
-      if (screen.x >= minX && screen.x <= maxX && screen.y >= minY && screen.y <= maxY) {
+      if (
+        screen.x >= minX &&
+        screen.x <= maxX &&
+        screen.y >= minY &&
+        screen.y <= maxY
+      ) {
         sel.add(id);
       }
     }
@@ -1427,12 +1518,16 @@ export class Controls {
     // here as anywhere. A group emptied by casualties counts as free.
     const building = selectedBuilding();
     if (building) {
-      const already = held?.kind === ControlGroupKind.building && held.id === building.id;
+      const already =
+        held?.kind === ControlGroupKind.building && held.id === building.id;
       if (!assign && !already && !groupEmpty(held)) {
         play('uiRefused');
         return;
       }
-      this.#groups.set(digit, { kind: ControlGroupKind.building, id: building.id });
+      this.#groups.set(digit, {
+        kind: ControlGroupKind.building,
+        id: building.id,
+      });
       play('uiClick');
       // The badge on the card is the only thing on screen that says the
       // stamp took, so it has to be republished here: neither spelling of
@@ -1452,9 +1547,12 @@ export class Controls {
       play('uiRefused');
       return;
     }
-    const ids = assign || held?.kind !== ControlGroupKind.units ? new Set<number>() : held.ids;
+    const ids =
+      assign || held?.kind !== ControlGroupKind.units
+        ? new Set<number>()
+        : held.ids;
     for (const id of this.#selection) ids.add(id);
-    this.#groups.set(digit, { kind: ControlGroupKind.units, ids });
+    this.#groups.set(digit, {kind: ControlGroupKind.units, ids});
     play('uiClick');
     this.#publishGroup();
   }
@@ -1472,7 +1570,9 @@ export class Controls {
     // a first press, and recording it would hand the *next* press of this
     // number to the camera when that press is someone's first real recall.
     const snap =
-      group.kind === ControlGroupKind.building ? this.#mirror.buildings.get(group.id) : null;
+      group.kind === ControlGroupKind.building
+        ? this.#mirror.buildings.get(group.id)
+        : null;
     if (group.kind === ControlGroupKind.building && !snap) {
       this.#groups.delete(digit);
       play('uiRefused');
@@ -1481,7 +1581,7 @@ export class Controls {
     }
     const now = performance.now();
     const prev = this.#lastRecall;
-    this.#lastRecall = { digit, time: now };
+    this.#lastRecall = {digit, time: now};
     this.#lastMoveTap = null;
     // Every press recalls. The camera is what the second press *adds*, not
     // something it does instead: a player who let go of what the number
@@ -1502,9 +1602,14 @@ export class Controls {
     // The second press is the camera's. Further presses land here again
     // and simply re-centre, which is what a player leaning on the key
     // means by it.
-    if (prev !== null && prev.digit === digit && now - prev.time <= GROUP_RECALL_MS) {
+    if (
+      prev !== null &&
+      prev.digit === digit &&
+      now - prev.time <= GROUP_RECALL_MS
+    ) {
       if (snap) this.#rig?.glideTo(snap.x + snap.w / 2, snap.y + snap.h / 2);
-      else if (group.kind === ControlGroupKind.units) this.#glideToGroup(group.ids);
+      else if (group.kind === ControlGroupKind.units)
+        this.#glideToGroup(group.ids);
     }
   }
 
@@ -1534,7 +1639,9 @@ export class Controls {
   /** Push the card's group badge — see matchingGroup for what it means. */
   #publishGroup(): void {
     const b = selectedBuilding();
-    setSelectionGroup(matchingGroup(this.#groups, this.#selection, b?.id ?? null));
+    setSelectionGroup(
+      matchingGroup(this.#groups, this.#selection, b?.id ?? null),
+    );
   }
 
   /**
@@ -1563,7 +1670,11 @@ export class Controls {
    * escalation at exactly what the first tap ordered; null if the point
    * missed the ground.
    */
-  #issueMove(px: number, py: number, attack: boolean | 'half'): { x: number; y: number } | null {
+  #issueMove(
+    px: number,
+    py: number,
+    attack: boolean | 'half',
+  ): {x: number; y: number} | null {
     if (this.#selection.size === 0) return null;
     const target = this.#orderTarget(px, py);
     if (!target) return null;
@@ -1616,11 +1727,11 @@ export class Controls {
     const onSelf = this.#buildingAt(px, py) === b.id;
     const target = this.#orderTarget(px, py);
     if (!target) return;
-    const { x, y } = target;
+    const {x, y} = target;
     this.#host.sendCommands([
       onSelf
-        ? { kind: CommandKind.setRallyPoint, buildingId: b.id }
-        : { kind: CommandKind.setRallyPoint, buildingId: b.id, x, y },
+        ? {kind: CommandKind.setRallyPoint, buildingId: b.id}
+        : {kind: CommandKind.setRallyPoint, buildingId: b.id, x, y},
     ]);
     // Solid gold: an order taken, but nobody moves for it yet — the pulse
     // shape family the move orders wear, in the flag's own color.
@@ -1636,7 +1747,7 @@ export class Controls {
         unitIds: [...this.#selection],
         x,
         y,
-        ...(attack ? { attack } : {}),
+        ...(attack ? {attack} : {}),
       },
     ]);
   }
@@ -1650,7 +1761,11 @@ export class Controls {
     this.#pulse(
       px,
       py,
-      attack === true ? 'solid #bf4342' : attack === 'half' ? 'dotted #bf4342' : 'dashed #e5c469',
+      attack === true
+        ? 'solid #bf4342'
+        : attack === 'half'
+          ? 'dotted #bf4342'
+          : 'dashed #e5c469',
     );
   }
 

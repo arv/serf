@@ -1,13 +1,13 @@
-import type { Enum } from '../../shared/enum.ts';
-import { RAID_CAP, raidIntervalFor } from '../defs/balance.ts';
-import { BANDIT, isPlayerOwner, type Building } from '../entities.ts';
-import { spawnUnitNearby, type World } from '../world.ts';
-import { Rng } from '../../shared/rng.ts';
+import type {Enum} from '../../shared/enum.ts';
+import {Rng} from '../../shared/rng.ts';
+import {RAID_CAP, raidIntervalFor} from '../defs/balance.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import {BANDIT, isPlayerOwner, type Building} from '../entities.ts';
 import * as GameEventKind from '../gameEventKindEnum.ts';
 import * as MatchState from '../matchStateEnum.ts';
-import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
-import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import {spawnUnitNearby, type World} from '../world.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -17,7 +17,8 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
  * — has to answer. The wave preview event lets the UI warn with composition.
  */
 export function banditsSystem(world: World, rng: Rng): void {
-  if (world.outcome.state !== MatchState.playing || !world.admin.raidsEnabled) return;
+  if (world.outcome.state !== MatchState.playing || !world.admin.raidsEnabled)
+    return;
   if (world.tick < world.raidState.nextRaidTick) return;
 
   const camp = findCamp(world);
@@ -50,7 +51,7 @@ export function banditsSystem(world: World, rng: Rng): void {
       camp.x + 1.5 + (i % 4) - 1.5,
       camp.y + camp.h + 1.5 + Math.floor(i / 4),
     );
-    unit.task = { t: UnitTaskKind.raid, buildingId: target.id };
+    unit.task = {t: UnitTaskKind.raid, buildingId: target.id};
   }
 
   const counts = new Map<UnitTypeId, number>();
@@ -60,7 +61,9 @@ export function banditsSystem(world: World, rng: Rng): void {
     [UnitTypeId.banditArcher]: 'bandit archers',
     [UnitTypeId.marauder]: 'marauders',
   };
-  const text = [...counts.entries()].map(([k, n]) => `${n} ${names[k] ?? k}`).join(', ');
+  const text = [...counts.entries()]
+    .map(([k, n]) => `${n} ${names[k] ?? k}`)
+    .join(', ');
   world.pendingEvents.push({
     kind: GameEventKind.raidIncoming,
     text: `${text} approaching!`,
@@ -88,7 +91,9 @@ function pickTarget(world: World, rng: Rng): Building | undefined {
   if (storehouses.length > 0 && rng.next() < 0.6) {
     // Single storehouse (solo) draws nothing extra — keeps the solo RNG
     // stream byte-identical to the pre-multiplayer game.
-    return storehouses.length === 1 ? storehouses[0] : storehouses[rng.int(storehouses.length)];
+    return storehouses.length === 1
+      ? storehouses[0]
+      : storehouses[rng.int(storehouses.length)];
   }
   return targets[rng.int(targets.length)];
 }

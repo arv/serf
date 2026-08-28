@@ -1,5 +1,9 @@
-import type { Enum } from '../../shared/enum.ts';
-import { HIRE_SERF_COST, START_STOCK, TICKS_PER_SECOND } from '../../sim/defs/balance';
+import type {Enum} from '../../shared/enum.ts';
+import {
+  HIRE_SERF_COST,
+  START_STOCK,
+  TICKS_PER_SECOND,
+} from '../../sim/defs/balance';
 import {
   BUILDING_DEFS,
   TOOL_OF,
@@ -7,15 +11,20 @@ import {
   type Recipe,
   BUILDING_TYPES,
 } from '../../sim/defs/buildings';
-import { GOODS, type GoodAmounts, goodEntries, goodKeys } from '../../sim/defs/goods';
-import { TECH_DEFS, type TechId, TECH_IDS } from '../../sim/defs/techs';
-import { UNIT_DEFS, WEAPON_OF, UNIT_TYPES } from '../../sim/defs/units';
-import { BUILD_GROUPS } from '../../ui/buildMenu';
 import * as BuildingTypeId from '../../sim/defs/buildingTypeIdEnum.ts';
-import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
 import * as GoodId from '../../sim/defs/goodIdEnum.ts';
+import {
+  GOODS,
+  type GoodAmounts,
+  goodEntries,
+  goodKeys,
+} from '../../sim/defs/goods';
+import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
 import * as TechEffectKind from '../../sim/defs/techEffectKindEnum.ts';
+import {TECH_DEFS, type TechId, TECH_IDS} from '../../sim/defs/techs';
+import {UNIT_DEFS, WEAPON_OF, UNIT_TYPES} from '../../sim/defs/units';
 import * as UnitTypeId from '../../sim/defs/unitTypeIdEnum.ts';
+import {BUILD_GROUPS} from '../../ui/buildMenu';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 type GoodId = Enum<typeof GoodId>;
@@ -56,8 +65,8 @@ export const RAIDER_BUILDINGS: BuildingTypeId[] = [BuildingTypeId.banditCamp];
  * invariant can be tested without standing up a DOM.
  */
 export function worldBuildings(): BuildingTypeId[] {
-  const inMenu = new Set(BUILD_GROUPS.flatMap((g) => g.types));
-  return ALL_BUILDINGS.filter((id) => !inMenu.has(id));
+  const inMenu = new Set(BUILD_GROUPS.flatMap(g => g.types));
+  return ALL_BUILDINGS.filter(id => !inMenu.has(id));
 }
 
 export function secs(ticks: number): number {
@@ -102,17 +111,17 @@ export interface ProducerRef {
 }
 
 export type ConsumerRef =
-  | { kind: 'recipe'; building: BuildingTypeId; requiresTech?: TechId }
-  | { kind: 'construction'; building: BuildingTypeId }
-  | { kind: 'repair'; building: BuildingTypeId }
-  | { kind: 'training'; building: BuildingTypeId; unit: UnitTypeId }
-  | { kind: 'tech'; tech: TechId }
-  | { kind: 'tool'; building: BuildingTypeId }
-  | { kind: 'weapon'; unit: UnitTypeId }
-  | { kind: 'hire' }
-  | { kind: 'siteLoan' }
-  | { kind: 'festival' }
-  | { kind: 'ration' };
+  | {kind: 'recipe'; building: BuildingTypeId; requiresTech?: TechId}
+  | {kind: 'construction'; building: BuildingTypeId}
+  | {kind: 'repair'; building: BuildingTypeId}
+  | {kind: 'training'; building: BuildingTypeId; unit: UnitTypeId}
+  | {kind: 'tech'; tech: TechId}
+  | {kind: 'tool'; building: BuildingTypeId}
+  | {kind: 'weapon'; unit: UnitTypeId}
+  | {kind: 'hire'}
+  | {kind: 'siteLoan'}
+  | {kind: 'festival'}
+  | {kind: 'ration'};
 
 function goodsOf(amounts: GoodAmounts): GoodId[] {
   return goodKeys(amounts);
@@ -137,7 +146,7 @@ function producersFrom(
       via,
       amount: 1,
       durationTicks: recipe.workTicks,
-      ...(requiresTech !== undefined ? { requiresTech } : {}),
+      ...(requiresTech !== undefined ? {requiresTech} : {}),
     });
     return;
   }
@@ -147,7 +156,7 @@ function producersFrom(
       via,
       amount,
       durationTicks: recipe.durationTicks,
-      ...(requiresTech !== undefined ? { requiresTech } : {}),
+      ...(requiresTech !== undefined ? {requiresTech} : {}),
     });
   }
 }
@@ -176,17 +185,18 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
   const map = new Map<GoodId, ConsumerRef[]>();
   for (const id of ALL_BUILDINGS) {
     const def = BUILDING_DEFS[id];
-    for (const good of goodsOf(def.cost)) push(map, good, { kind: 'construction', building: id });
+    for (const good of goodsOf(def.cost))
+      push(map, good, {kind: 'construction', building: id});
     // A mend bills against the build cost, so for most buildings the line
     // above already names the goods. `repairCost` is the exception — the
     // castle costs nothing to raise and real timber and stone to patch, so
     // without this neither good's page reports that use at all.
     for (const good of goodsOf(def.repairCost ?? {})) {
-      push(map, good, { kind: 'repair', building: id });
+      push(map, good, {kind: 'repair', building: id});
     }
     if (def.recipe?.kind === RecipeKind.convert) {
       for (const good of goodsOf(def.recipe.inputs))
-        push(map, good, { kind: 'recipe', building: id });
+        push(map, good, {kind: 'recipe', building: id});
     }
     // One entry per good per building, not per forge option: nine Smith
     // recipes eating iron is one line on the iron page, not five.
@@ -204,49 +214,54 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
       push(map, good, {
         kind: 'recipe',
         building: id,
-        ...(requiresTech !== undefined ? { requiresTech } : {}),
+        ...(requiresTech !== undefined ? {requiresTech} : {}),
       });
     }
     for (const t of def.trains ?? []) {
       for (const good of goodsOf(t.cost)) {
-        push(map, good, { kind: 'training', building: id, unit: t.unit });
+        push(map, good, {kind: 'training', building: id, unit: t.unit});
       }
     }
   }
   for (const id of ALL_TECHS) {
-    for (const good of goodsOf(TECH_DEFS[id].cost)) push(map, good, { kind: 'tech', tech: id });
+    for (const good of goodsOf(TECH_DEFS[id].cost))
+      push(map, good, {kind: 'tech', tech: id});
   }
   for (const building of BUILDING_TYPES) {
     const tool = TOOL_OF[building];
-    if (tool !== undefined) push(map, tool, { kind: 'tool', building });
+    if (tool !== undefined) push(map, tool, {kind: 'tool', building});
   }
   for (const unit of UNIT_TYPES) {
     const weapon = WEAPON_OF[unit];
-    if (weapon !== undefined) push(map, weapon, { kind: 'weapon', unit });
+    if (weapon !== undefined) push(map, weapon, {kind: 'weapon', unit});
   }
   // The consumers no def table names, because they are mechanics rather
   // than recipe rows: hiring is priced in balance.ts, every construction
   // site borrows a hammer (see TOOL_OF), and ale is drunk in two places —
   // the abbey's festivals and the barracks' cask. Without these the ale
   // page would list what research costs and nothing about what ale is for.
-  push(map, GoodId.silver, { kind: 'hire' });
-  push(map, GoodId.hammer, { kind: 'siteLoan' });
-  push(map, GoodId.ale, { kind: 'festival' });
-  push(map, GoodId.ale, { kind: 'ration' });
+  push(map, GoodId.silver, {kind: 'hire'});
+  push(map, GoodId.hammer, {kind: 'siteLoan'});
+  push(map, GoodId.ale, {kind: 'festival'});
+  push(map, GoodId.ale, {kind: 'ration'});
   return map;
 }
 
 function buildTrainedAt(): Map<
   UnitTypeId,
-  { building: BuildingTypeId; cost: GoodAmounts; durationTicks: number }
+  {building: BuildingTypeId; cost: GoodAmounts; durationTicks: number}
 > {
   const map = new Map<
     UnitTypeId,
-    { building: BuildingTypeId; cost: GoodAmounts; durationTicks: number }
+    {building: BuildingTypeId; cost: GoodAmounts; durationTicks: number}
   >();
   for (const id of ALL_BUILDINGS) {
     for (const t of BUILDING_DEFS[id].trains ?? []) {
-      map.set(t.unit, { building: id, cost: t.cost, durationTicks: t.durationTicks });
+      map.set(t.unit, {
+        building: id,
+        cost: t.cost,
+        durationTicks: t.durationTicks,
+      });
     }
   }
   return map;
@@ -295,4 +310,4 @@ export function startStockOf(good: GoodId): number {
   return START_STOCK[good] ?? 0;
 }
 
-export { GOODS, HIRE_SERF_COST };
+export {GOODS, HIRE_SERF_COST};

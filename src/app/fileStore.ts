@@ -29,8 +29,8 @@ export interface StoredFileInfo {
 
 /** What became of one file offered to a store's import. */
 export type ImportResult =
-  | { ok: true; name: string }
-  | { ok: false; reason: 'unrecognized' | 'storage' };
+  | {ok: true; name: string}
+  | {ok: false; reason: 'unrecognized' | 'storage'};
 
 export interface FileStore {
   /**
@@ -78,11 +78,14 @@ function fileNameFor(name: string): string | null {
  * scopes the write lock, so replays and saves never wait on each other.
  */
 export function createFileStore(dir: string): FileStore {
-  const open = async (create: boolean): Promise<FileSystemDirectoryHandle | null> => {
-    if (typeof navigator === 'undefined' || !navigator.storage?.getDirectory) return null;
+  const open = async (
+    create: boolean,
+  ): Promise<FileSystemDirectoryHandle | null> => {
+    if (typeof navigator === 'undefined' || !navigator.storage?.getDirectory)
+      return null;
     try {
       const root = await navigator.storage.getDirectory();
-      return await root.getDirectoryHandle(dir, { create });
+      return await root.getDirectoryHandle(dir, {create});
     } catch {
       // Without `create`, a missing directory lands here too: nothing
       // written yet.
@@ -101,7 +104,7 @@ export function createFileStore(dir: string): FileStore {
   const lock = `serf-${dir}-write`;
 
   return {
-    validName: (name) => fileNameFor(name) !== null,
+    validName: name => fileNameFor(name) !== null,
 
     async write(name, data) {
       const handle = await open(true);
@@ -118,7 +121,7 @@ export function createFileStore(dir: string): FileStore {
             // Not there: this name is free.
           }
           try {
-            const entry = await handle.getFileHandle(fileName, { create: true });
+            const entry = await handle.getFileHandle(fileName, {create: true});
             const writable = await entry.createWritable();
             await writable.write(data);
             await writable.close();
@@ -132,7 +135,9 @@ export function createFileStore(dir: string): FileStore {
       // Without Web Locks (older browsers), the check-then-write above is
       // still the best available: unserialized, it is exactly the behavior
       // this lock exists to improve on, not a reason to refuse the write.
-      return navigator.locks ? navigator.locks.request(lock, attempt) : attempt();
+      return navigator.locks
+        ? navigator.locks.request(lock, attempt)
+        : attempt();
     },
 
     async list() {
@@ -155,7 +160,10 @@ export function createFileStore(dir: string): FileStore {
       }
       // The names are datetimes, so this is also chronological — but the
       // file clock is the tiebreak for any hand-copied file that isn't one.
-      out.sort((a, b) => b.name.localeCompare(a.name) || b.lastModified - a.lastModified);
+      out.sort(
+        (a, b) =>
+          b.name.localeCompare(a.name) || b.lastModified - a.lastModified,
+      );
       return out;
     },
 

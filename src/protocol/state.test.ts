@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
+import {describe, expect, it} from 'vitest';
+import {DEFAULT_MAP_SIZE, tileCount} from '../shared/grid';
+import * as CommandKind from '../sim/commandKindEnum.ts';
+import type {MapSnapshot} from './messages';
+import type {UnitSnapshot} from './sabLayout';
 import {
   decodeState,
   encodeCmd,
@@ -9,9 +12,6 @@ import {
   encodePong,
   encodeStruct,
 } from './state';
-import type { UnitSnapshot } from './sabLayout';
-import type { MapSnapshot } from './messages';
-import * as CommandKind from '../sim/commandKindEnum.ts';
 
 const TILES = tileCount(DEFAULT_MAP_SIZE);
 
@@ -42,12 +42,14 @@ describe('state frames', () => {
   it('round-trips the init frame, map arrays and all', () => {
     const map = fakeMap();
     const explored = new Uint8Array(TILES).map((_, i) => (i % 4 === 0 ? 1 : 0));
-    const frame = decodeState(encodeInit(42, 3, map, explored, { buildings: [{ id: 1 }] }));
+    const frame = decodeState(
+      encodeInit(42, 3, map, explored, {buildings: [{id: 1}]}),
+    );
     expect(frame?.kind).toBe('init');
     if (frame?.kind !== 'init') return;
     expect(frame.tick).toBe(42);
     expect(frame.playerId).toBe(3);
-    expect(frame.json).toEqual({ buildings: [{ id: 1 }] });
+    expect(frame.json).toEqual({buildings: [{id: 1}]});
     expect(frame.map.terrain).toEqual(map.terrain);
     expect(frame.map.resource).toEqual(map.resource);
     expect(frame.map.blocked).toEqual(map.blocked);
@@ -113,15 +115,26 @@ describe('state frames', () => {
   });
 
   it('round-trips struct and cmd frames', () => {
-    const struct = decodeState(encodeStruct(11, { buildings: [], jobs: [] }));
-    expect(struct).toEqual({ kind: 'struct', tick: 11, json: { buildings: [], jobs: [] } });
+    const struct = decodeState(encodeStruct(11, {buildings: [], jobs: []}));
+    expect(struct).toEqual({
+      kind: 'struct',
+      tick: 11,
+      json: {buildings: [], jobs: []},
+    });
 
-    const cmd = decodeState(encodeCmd(5, [{ kind: CommandKind.hireSerf }]));
-    expect(cmd).toEqual({ kind: 'cmd', seq: 5, commands: [{ kind: CommandKind.hireSerf }] });
+    const cmd = decodeState(encodeCmd(5, [{kind: CommandKind.hireSerf}]));
+    expect(cmd).toEqual({
+      kind: 'cmd',
+      seq: 5,
+      commands: [{kind: CommandKind.hireSerf}],
+    });
   });
 
   it('round-trips the clock probe', () => {
-    expect(decodeState(encodePing(123456))).toEqual({ kind: 'ping', clientTimeMs: 123456 });
+    expect(decodeState(encodePing(123456))).toEqual({
+      kind: 'ping',
+      clientTimeMs: 123456,
+    });
     expect(decodeState(encodePong(123456, 999))).toEqual({
       kind: 'pong',
       clientTimeEcho: 123456,

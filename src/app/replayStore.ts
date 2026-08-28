@@ -14,7 +14,7 @@ import {
   type ImportResult,
   type StoredFileInfo,
 } from './fileStore';
-import { parseReplay, readReplayVersion } from './replay';
+import {parseReplay, readReplayVersion} from './replay';
 
 const store = createFileStore('replays');
 
@@ -30,7 +30,10 @@ export interface ReplayFileInfo extends StoredFileInfo {
  * name is taken. Returns the name actually used, or null when OPFS is
  * unavailable.
  */
-export function saveReplayFile(name: string, data: string): Promise<string | null> {
+export function saveReplayFile(
+  name: string,
+  data: string,
+): Promise<string | null> {
   return store.write(name, data);
 }
 
@@ -50,9 +53,9 @@ export async function importReplayFile(file: File): Promise<ImportResult> {
   try {
     raw = await file.text();
   } catch {
-    return { ok: false, reason: 'storage' };
+    return {ok: false, reason: 'storage'};
   }
-  if (parseReplay(raw) === null) return { ok: false, reason: 'unrecognized' };
+  if (parseReplay(raw) === null) return {ok: false, reason: 'unrecognized'};
   // Filed under the dropped file's own name where that fits the shelf's
   // charset, today's datetime where it does not — an import is a save, so
   // the fallback is honest. A collision gets the store's " (2)" suffix
@@ -62,17 +65,21 @@ export async function importReplayFile(file: File): Promise<ImportResult> {
   const base = file.name.replace(/\.(json|txt)$/i, '').trim();
   const name = store.validName(base) ? base : stampName(new Date());
   const saved = await saveReplayFile(name, raw);
-  return saved !== null ? { ok: true, name: saved } : { ok: false, reason: 'storage' };
+  return saved !== null
+    ? {ok: true, name: saved}
+    : {ok: false, reason: 'storage'};
 }
 
 /** Every saved replay, newest first. */
 export async function listReplayFiles(): Promise<ReplayFileInfo[]> {
   const files = await store.list();
   return Promise.all(
-    files.map(async (info) => {
+    files.map(async info => {
       // The version stamp sits in the file's head by construction.
-      const replayVersion = readReplayVersion(await info.file.slice(0, HEAD_BYTES).text());
-      return replayVersion !== undefined ? { ...info, replayVersion } : info;
+      const replayVersion = readReplayVersion(
+        await info.file.slice(0, HEAD_BYTES).text(),
+      );
+      return replayVersion !== undefined ? {...info, replayVersion} : info;
     }),
   );
 }

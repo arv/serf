@@ -1,16 +1,22 @@
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_MAP_SIZE, gridFor, tileCount, tileX, tileY } from '../shared/grid.ts';
-import { createWorld, type World } from './world.ts';
+import {describe, expect, it} from 'vitest';
+import {
+  DEFAULT_MAP_SIZE,
+  gridFor,
+  tileCount,
+  tileX,
+  tileY,
+} from '../shared/grid.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import {
   CASTLE_OPENING_SIGHT,
   WATER_ACCESS_RADIUS,
   playEdgeDist,
   type TileResourceKind,
 } from './map.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 import * as Terrain from './terrainEnum.ts';
 import * as TileResource from './tileResourceEnum.ts';
-import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
-import * as PlayerKind from './playerKindEnum.ts';
+import {createWorld, type World} from './world.ts';
 
 /**
  * The fairness contract for generated maps: every faction has its own wood,
@@ -34,14 +40,21 @@ function tilesOf(world: World, code: TileResourceKind): [number, number][] {
   const out: [number, number][] = [];
   const tiles = tileCount(size);
   for (let i = 0; i < tiles; i++) {
-    if (world.map.resource[i] === code) out.push([tileX(i, size), tileY(i, size)]);
+    if (world.map.resource[i] === code)
+      out.push([tileX(i, size), tileY(i, size)]);
   }
   return out;
 }
 
 /** Tile centers against a world point, the way the sight stamp measures. */
-function countNear(tiles: [number, number][], x: number, y: number, r: number): number {
-  return tiles.filter(([tx, ty]) => Math.hypot(tx + 0.5 - x, ty + 0.5 - y) <= r).length;
+function countNear(
+  tiles: [number, number][],
+  x: number,
+  y: number,
+  r: number,
+): number {
+  return tiles.filter(([tx, ty]) => Math.hypot(tx + 0.5 - x, ty + 0.5 - y) <= r)
+    .length;
 }
 
 /** What a resource is WORTH within `r` of a point, not how many tiles it
@@ -49,7 +62,13 @@ function countNear(tiles: [number, number][], x: number, y: number, r: number): 
  * amount per tile — and that is exactly how the unfairness hid: a start
  * whose seam had room for one tile passed the "has silver" check below on
  * a twentieth of the metal its neighbour drew. */
-function amountNear(world: World, code: TileResourceKind, x: number, y: number, r: number): number {
+function amountNear(
+  world: World,
+  code: TileResourceKind,
+  x: number,
+  y: number,
+  r: number,
+): number {
   const size = world.map.size;
   let total = 0;
   for (let i = 0; i < tileCount(size); i++) {
@@ -65,14 +84,14 @@ function amountNear(world: World, code: TileResourceKind, x: number, y: number, 
 function makeWorld(seed: number, players: number): World {
   return createWorld({
     seed,
-    players: Array.from({ length: players }, () => ({ kind: PlayerKind.human })),
+    players: Array.from({length: players}, () => ({kind: PlayerKind.human})),
   });
 }
 
-function anchors(world: World): { x: number; y: number }[] {
+function anchors(world: World): {x: number; y: number}[] {
   return [...world.buildings.values()]
-    .filter((b) => b.type === BuildingTypeId.storehouse)
-    .map((b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 }));
+    .filter(b => b.type === BuildingTypeId.storehouse)
+    .map(b => ({x: b.x + b.w / 2, y: b.y + b.h / 2}));
 }
 
 describe('map fairness', () => {
@@ -94,10 +113,22 @@ describe('map fairness', () => {
         const silver = tilesOf(world, TileResource.SilverDep);
         for (const h of homes) {
           const label = `seed ${seed}, ${players}p, start ${h.x},${h.y}`;
-          expect(countNear(wood, h.x, h.y, 17), `${label}: wood`).toBeGreaterThanOrEqual(3);
-          expect(countNear(rock, h.x, h.y, 17), `${label}: rock`).toBeGreaterThanOrEqual(2);
-          expect(countNear(iron, h.x, h.y, 17), `${label}: iron`).toBeGreaterThanOrEqual(1);
-          expect(countNear(silver, h.x, h.y, 17), `${label}: silver`).toBeGreaterThanOrEqual(1);
+          expect(
+            countNear(wood, h.x, h.y, 17),
+            `${label}: wood`,
+          ).toBeGreaterThanOrEqual(3);
+          expect(
+            countNear(rock, h.x, h.y, 17),
+            `${label}: rock`,
+          ).toBeGreaterThanOrEqual(2);
+          expect(
+            countNear(iron, h.x, h.y, 17),
+            `${label}: iron`,
+          ).toBeGreaterThanOrEqual(1);
+          expect(
+            countNear(silver, h.x, h.y, 17),
+            `${label}: silver`,
+          ).toBeGreaterThanOrEqual(1);
         }
       }
     });
@@ -117,12 +148,21 @@ describe('map fairness', () => {
       for (const seed of SEEDS) {
         const world = makeWorld(seed, players);
         const homes = anchors(world);
-        for (const code of [TileResource.IronDep, TileResource.SilverDep] as const) {
-          const worth = homes.map((h) => amountNear(world, code, h.x, h.y, 17));
+        for (const code of [
+          TileResource.IronDep,
+          TileResource.SilverDep,
+        ] as const) {
+          const worth = homes.map(h => amountNear(world, code, h.x, h.y, 17));
           for (const [i, w] of worth.entries()) {
-            expect(w, `seed ${seed}, ${players}p, start ${i}: ${code} worth`).toBe(worth[0]);
+            expect(
+              w,
+              `seed ${seed}, ${players}p, start ${i}: ${code} worth`,
+            ).toBe(worth[0]);
           }
-          expect(worth[0], `seed ${seed}, ${players}p: ${code} placed`).toBeGreaterThan(0);
+          expect(
+            worth[0],
+            `seed ${seed}, ${players}p: ${code} placed`,
+          ).toBeGreaterThan(0);
         }
       }
     });
@@ -134,13 +174,19 @@ describe('map fairness', () => {
         expect(gold.length, `seed ${seed}: gold exists`).toBeGreaterThan(0);
         const gx = gold.reduce((s, [x]) => s + x, 0) / gold.length;
         const gy = gold.reduce((s, [, y]) => s + y, 0) / gold.length;
-        expect(Math.hypot(gx - MID, gy - MID), `seed ${seed}: gold central`).toBeLessThan(10);
+        expect(
+          Math.hypot(gx - MID, gy - MID),
+          `seed ${seed}: gold central`,
+        ).toBeLessThan(10);
 
         const camp = [...world.buildings.values()].find(
-          (b) => b.type === BuildingTypeId.banditCamp,
+          b => b.type === BuildingTypeId.banditCamp,
         );
         expect(camp, `seed ${seed}: camp exists`).toBeDefined();
-        const cd = Math.max(Math.abs(camp!.x + 1 - MID), Math.abs(camp!.y + 1 - MID));
+        const cd = Math.max(
+          Math.abs(camp!.x + 1 - MID),
+          Math.abs(camp!.y + 1 - MID),
+        );
         expect(cd, `seed ${seed}: camp central`).toBeLessThanOrEqual(12);
       }
     });
@@ -194,7 +240,8 @@ describe('map fairness', () => {
             [x, y + 1],
           ] as const) {
             if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
-            if (world.map.terrain[ny * size + nx] === Terrain.Grass) return true;
+            if (world.map.terrain[ny * size + nx] === Terrain.Grass)
+              return true;
           }
           return false;
         };
@@ -204,10 +251,14 @@ describe('map fairness', () => {
             if (world.map.terrain[i] !== Terrain.Water) continue;
             const x = tileX(i, size);
             const y = tileY(i, size);
-            if (Math.hypot(x + 0.5 - h.x, y + 0.5 - h.y) > WATER_ACCESS_RADIUS) continue;
+            if (Math.hypot(x + 0.5 - h.x, y + 0.5 - h.y) > WATER_ACCESS_RADIUS)
+              continue;
             found = grassBank(x, y);
           }
-          expect(found, `seed ${seed}, ${players}p, start ${h.x},${h.y}: water access`).toBe(true);
+          expect(
+            found,
+            `seed ${seed}, ${players}p, start ${h.x},${h.y}: water access`,
+          ).toBe(true);
         }
       }
     }
@@ -220,11 +271,19 @@ describe('map fairness', () => {
       const silver = tilesOf(world, TileResource.SilverDep);
       const gold = tilesOf(world, TileResource.GoldDep);
       // Ring band 13-17 from center, plus cluster radius.
-      expect(countNear(iron, MID, MID, 20), `seed ${seed}: iron`).toBeGreaterThanOrEqual(1);
-      expect(countNear(silver, MID, MID, 20), `seed ${seed}: silver`).toBeGreaterThanOrEqual(1);
+      expect(
+        countNear(iron, MID, MID, 20),
+        `seed ${seed}: iron`,
+      ).toBeGreaterThanOrEqual(1);
+      expect(
+        countNear(silver, MID, MID, 20),
+        `seed ${seed}: silver`,
+      ).toBeGreaterThanOrEqual(1);
       expect(gold.length, `seed ${seed}: gold exists`).toBeGreaterThan(0);
       // Not at the doorstep (the middle is home in solo), not out of reach.
-      const gd = Math.min(...gold.map(([x, y]) => Math.hypot(x - MID, y - MID)));
+      const gd = Math.min(
+        ...gold.map(([x, y]) => Math.hypot(x - MID, y - MID)),
+      );
       expect(gd, `seed ${seed}: gold off the plateau`).toBeGreaterThan(9);
       expect(gd, `seed ${seed}: gold reachable`).toBeLessThan(21);
     }

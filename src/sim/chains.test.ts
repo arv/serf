@@ -1,16 +1,18 @@
-import { describe, expect, it } from 'vitest';
-import { tileIdx } from '../shared/grid.ts';
-import { tickWorld } from './tick.ts';
+import {describe, expect, it} from 'vitest';
+import {tileIdx} from '../shared/grid.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import {checkInvariants, checkLedger, countGoods} from './debug/invariants.ts';
 import {
-  canPlace,
-  depleteResourceTile,
-  placeBuiltBuilding,
-  spawnUnit,
-  type World,
-} from './world.ts';
-import { HIRE_SERF_COST, HIRE_SERF_TICKS, PAVE_WEAR_THRESHOLD } from './defs/balance.ts';
-import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
-import { bindWorker } from './systems/production.ts';
+  HIRE_SERF_COST,
+  HIRE_SERF_TICKS,
+  PAVE_WEAR_THRESHOLD,
+} from './defs/balance.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as PathLevel from './pathLevelEnum.ts';
+import {bindWorker} from './systems/production.ts';
+import * as Terrain from './terrainEnum.ts';
 import {
   addResourceTile,
   addSerf,
@@ -19,13 +21,15 @@ import {
   cmds,
   staffBuilding,
 } from './testUtils.ts';
-import * as PathLevel from './pathLevelEnum.ts';
-import * as Terrain from './terrainEnum.ts';
+import {tickWorld} from './tick.ts';
 import * as TileResource from './tileResourceEnum.ts';
-import * as GoodId from './defs/goodIdEnum.ts';
-import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
-import * as CommandKind from './commandKindEnum.ts';
+import {
+  canPlace,
+  depleteResourceTile,
+  placeBuiltBuilding,
+  spawnUnit,
+  type World,
+} from './world.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -42,9 +46,18 @@ describe('convert chains', () => {
 
   it('mill and bakery turn wheat into the food a soldier costs', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { [GoodId.wheat]: 6, [GoodId.water]: 6 });
-    staffBuilding(world, placeBuiltBuilding(world, BuildingTypeId.mill, 0, 26, 30));
-    staffBuilding(world, placeBuiltBuilding(world, BuildingTypeId.bakery, 0, 34, 30));
+    const sh = addStorehouse(world, 30, 30, {
+      [GoodId.wheat]: 6,
+      [GoodId.water]: 6,
+    });
+    staffBuilding(
+      world,
+      placeBuiltBuilding(world, BuildingTypeId.mill, 0, 26, 30),
+    );
+    staffBuilding(
+      world,
+      placeBuiltBuilding(world, BuildingTypeId.bakery, 0, 34, 30),
+    );
     addSerf(world, 29, 33);
     addSerf(world, 33, 33);
     run(world, 20 * 90);
@@ -105,7 +118,13 @@ describe('convert chains', () => {
     }
     expect(canPlace(world.map, BuildingTypeId.fishery, 30, 30)).toBe(true);
 
-    const fishery = placeBuiltBuilding(world, BuildingTypeId.fishery, 0, 30, 30);
+    const fishery = placeBuiltBuilding(
+      world,
+      BuildingTypeId.fishery,
+      0,
+      30,
+      30,
+    );
     // Water lies at -z, so the pier turns half a circle to reach it.
     expect(fishery.facing).toBe(2);
 
@@ -123,14 +142,22 @@ describe('convert chains', () => {
       world.map.blocked[i] = 1;
     }
     expect(canPlace(world.map, BuildingTypeId.fishery, 30, 30)).toBe(true);
-    expect(placeBuiltBuilding(world, BuildingTypeId.fishery, 0, 30, 30).facing).toBe(1);
+    expect(
+      placeBuiltBuilding(world, BuildingTypeId.fishery, 0, 30, 30).facing,
+    ).toBe(1);
   });
 
   it('farm consumes hauled water and yields wheat (well -> farm -> storehouse)', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});
-    staffBuilding(world, placeBuiltBuilding(world, BuildingTypeId.well, 0, 26, 30));
-    staffBuilding(world, placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 34, 29));
+    staffBuilding(
+      world,
+      placeBuiltBuilding(world, BuildingTypeId.well, 0, 26, 30),
+    );
+    staffBuilding(
+      world,
+      placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 34, 29),
+    );
     addSerf(world, 29, 34);
     addSerf(world, 33, 34);
     const initial = countGoods(world);
@@ -143,7 +170,13 @@ describe('convert chains', () => {
 
   it('two-input recipe waits for both ingredients (brewery)', () => {
     const world = bareWorld();
-    const brewery = placeBuiltBuilding(world, BuildingTypeId.brewery, 0, 30, 30);
+    const brewery = placeBuiltBuilding(
+      world,
+      BuildingTypeId.brewery,
+      0,
+      30,
+      30,
+    );
     staffBuilding(world, brewery);
     brewery.inputs[GoodId.wheat] = 1; // no water yet
     run(world, 100);
@@ -159,7 +192,13 @@ describe('convert chains', () => {
 
   it('weapon chain: the weaponsmith on swords turns iron+wood into sword', () => {
     const world = bareWorld();
-    const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 30, 30);
+    const smith = placeBuiltBuilding(
+      world,
+      BuildingTypeId.weaponsmith,
+      0,
+      30,
+      30,
+    );
     smith.recipeIndex = 1; // recipeOptions: [spear, sword, bow]
     staffBuilding(world, smith);
     smith.inputs[GoodId.iron] = 2;
@@ -252,7 +291,7 @@ describe('stone-road paving', () => {
   it('paves sustained high-wear trails via stone hauls', () => {
     const world = bareWorld();
     world.players[0]!.pavingUnlocked = true;
-    addStorehouse(world, 30, 30, { [GoodId.stone]: 10 });
+    addStorehouse(world, 30, 30, {[GoodId.stone]: 10});
     addSerf(world, 29, 34);
 
     // A hot trail tile: keep wear topped up like real traffic would.
@@ -266,9 +305,11 @@ describe('stone-road paving', () => {
 
     expect(world.map.pathLevel[idx]).toBe(PathLevel.Road);
     // The road site consumed a stone and removed itself.
-    expect([...world.buildings.values()].filter((b) => b.type === BuildingTypeId.roadSite)).toEqual(
-      [],
-    );
+    expect(
+      [...world.buildings.values()].filter(
+        b => b.type === BuildingTypeId.roadSite,
+      ),
+    ).toEqual([]);
     expect(world.map.buildingAt[idx]).toBe(-1);
     expect(world.map.blocked[idx]).toBe(0);
     expect(checkInvariants(world).violations).toEqual([]);
@@ -277,7 +318,7 @@ describe('stone-road paving', () => {
   it('does nothing while locked', () => {
     const world = bareWorld();
     world.players[0]!.pavingUnlocked = false;
-    addStorehouse(world, 30, 30, { [GoodId.stone]: 10 });
+    addStorehouse(world, 30, 30, {[GoodId.stone]: 10});
     const idx = tileIdx(30, 36, world.map.size);
     world.map.pathLevel[idx] = PathLevel.Trail;
     for (let t = 0; t < 300; t++) {
@@ -290,12 +331,13 @@ describe('stone-road paving', () => {
 
 describe('hiring a serf', () => {
   const serfCount = (world: World): number =>
-    [...world.units.values()].filter((u) => !u.dead && u.kind === UnitTypeId.serf).length;
+    [...world.units.values()].filter(u => !u.dead && u.kind === UnitTypeId.serf)
+      .length;
 
   it('charges up front and delivers the recruit after the wait', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { [GoodId.silver]: 10 });
-    tickWorld(world, cmds({ kind: CommandKind.hireSerf }));
+    const sh = addStorehouse(world, 30, 30, {[GoodId.silver]: 10});
+    tickWorld(world, cmds({kind: CommandKind.hireSerf}));
 
     // Paid immediately, but nobody has walked in yet.
     expect(sh.stock[GoodId.silver]).toBe(10 - HIRE_SERF_COST);
@@ -312,8 +354,11 @@ describe('hiring a serf', () => {
 
   it('queues repeat orders and staggers their arrivals', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { [GoodId.silver]: 20 });
-    tickWorld(world, cmds({ kind: CommandKind.hireSerf }, { kind: CommandKind.hireSerf }));
+    const sh = addStorehouse(world, 30, 30, {[GoodId.silver]: 20});
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.hireSerf}, {kind: CommandKind.hireSerf}),
+    );
     expect(sh.hireQueue).toBe(2);
     expect(sh.stock[GoodId.silver]).toBe(20 - HIRE_SERF_COST * 2);
 
@@ -327,8 +372,10 @@ describe('hiring a serf', () => {
 
   it('refuses orders it cannot afford, and never charges for them', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { [GoodId.silver]: HIRE_SERF_COST - 1 });
-    tickWorld(world, cmds({ kind: CommandKind.hireSerf }));
+    const sh = addStorehouse(world, 30, 30, {
+      [GoodId.silver]: HIRE_SERF_COST - 1,
+    });
+    tickWorld(world, cmds({kind: CommandKind.hireSerf}));
     expect(sh.hireQueue).toBeUndefined();
     expect(sh.stock[GoodId.silver]).toBe(HIRE_SERF_COST - 1);
   });

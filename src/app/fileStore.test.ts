@@ -1,12 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createFileStore, stampName } from './fileStore';
-import { installOpfs } from './opfsMock';
+import {afterEach, describe, expect, it, vi} from 'vitest';
+import {createFileStore, stampName} from './fileStore';
+import {installOpfs} from './opfsMock';
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('stored file names', () => {
   it('names a document by datetime, filename-safe', () => {
-    expect(stampName(new Date(2026, 7, 12, 14, 3, 5))).toBe('2026-08-12 14.03.05');
+    expect(stampName(new Date(2026, 7, 12, 14, 3, 5))).toBe(
+      '2026-08-12 14.03.05',
+    );
   });
 
   it('refuses names a filename (or a drag triple) could not carry', () => {
@@ -25,7 +27,7 @@ describe('a file store', () => {
     const opfs = installOpfs();
     const store = createFileStore('things');
     expect(await store.write('one', 'first')).toBe('one');
-    expect(opfs.dump('things')).toEqual({ 'one.json': 'first' });
+    expect(opfs.dump('things')).toEqual({'one.json': 'first'});
     expect(await store.read('one')).toBe('first');
     await store.remove('one');
     expect(await store.read('one')).toBeNull();
@@ -56,7 +58,10 @@ describe('a file store', () => {
     await store.write('2026-06-01 00.00.00', 'new');
     opfs.put('things', 'notes.txt', 'not a document of ours');
     const found = await store.list();
-    expect(found.map((f) => f.name)).toEqual(['2026-06-01 00.00.00', '2026-01-01 00.00.00']);
+    expect(found.map(f => f.name)).toEqual([
+      '2026-06-01 00.00.00',
+      '2026-01-01 00.00.00',
+    ]);
     expect(await found[0]!.file.text()).toBe('new');
     expect(found[0]!.size).toBeGreaterThan(0);
   });
@@ -81,7 +86,7 @@ describe('a file store', () => {
     const opfs = installOpfs();
     await createFileStore('replays').write('name', 'a log');
     await createFileStore('saves').write('name', 'a village');
-    expect(opfs.dump('replays')).toEqual({ 'name.json': 'a log' });
-    expect(opfs.dump('saves')).toEqual({ 'name.json': 'a village' });
+    expect(opfs.dump('replays')).toEqual({'name.json': 'a log'});
+    expect(opfs.dump('saves')).toEqual({'name.json': 'a village'});
   });
 });

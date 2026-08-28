@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join, posix, relative, sep } from 'node:path';
-import type { Plugin, ResolvedConfig } from 'vite';
+import {createHash} from 'node:crypto';
+import {readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs';
+import {join, posix, relative, sep} from 'node:path';
+import type {Plugin, ResolvedConfig} from 'vite';
 
 /**
  * Emits dist/sw.js: src/app/sw.js with its placeholders filled in.
@@ -27,7 +27,8 @@ const SW_SOURCE = 'src/app/sw.js';
  * synthesis — so neither belongs in the all-or-nothing shell install,
  * where one failed fetch would cost every visitor offline support. */
 const ASSET_PREFIXES = ['/models/', '/audio/'];
-const isAsset = (f: string): boolean => ASSET_PREFIXES.some((p) => f.startsWith(p));
+const isAsset = (f: string): boolean =>
+  ASSET_PREFIXES.some(p => f.startsWith(p));
 
 /** Never worth a place in the cache: licence texts and sourcemaps are
  * developer-facing, and nothing offline reads them. */
@@ -58,7 +59,8 @@ function version(dist: string, files: string[]): string {
   // By content, not by build time: an unchanged deploy must not evict a
   // cache the player already has. Bundle chunks are named by their hash,
   // but index.html and the public files are not, so their bytes go in too.
-  for (const file of files) digest.update(readFileSync(join(dist, file.slice(1))));
+  for (const file of files)
+    digest.update(readFileSync(join(dist, file.slice(1))));
   return digest.digest('hex').slice(0, 12);
 }
 
@@ -79,12 +81,14 @@ export function serviceWorkerPlugin(): Plugin {
     closeBundle() {
       const dist = join(config.root, config.build.outDir);
       const files = walk(dist, dist, [])
-        .filter((f) => f !== '/sw.js' && !SKIP.test(f) && !LLM_CHUNK.test(f))
+        .filter(f => f !== '/sw.js' && !SKIP.test(f) && !LLM_CHUNK.test(f))
         .sort();
       const assets = files.filter(isAsset);
-      const shell = files.filter((f) => !isAsset(f));
+      const shell = files.filter(f => !isAsset(f));
       if (!shell.includes('/index.html')) {
-        this.error('no index.html in the build output — the worker would cache no document');
+        this.error(
+          'no index.html in the build output — the worker would cache no document',
+        );
       }
 
       const source = readFileSync(SW_SOURCE, 'utf8')

@@ -21,25 +21,25 @@
  * Plain node (>= 22 with --experimental-strip-types, >= 23 native), like
  * the other node-side scripts here.
  */
-import { writeFileSync } from 'node:fs';
-import { audit, type Authored } from './mapAuthor/kit.ts';
+import {writeFileSync} from 'node:fs';
+import type {Enum} from '../src/shared/enum.ts';
+import * as MissionId from '../src/sim/defs/missionIdEnum.ts';
 import {
   MISSION_ORDER,
   MISSION_DEFS,
   parseMissionId,
   MISSION_KEYS,
 } from '../src/sim/defs/missions.ts';
-import * as MissionId from '../src/sim/defs/missionIdEnum.ts';
-import type { Enum } from '../src/shared/enum.ts';
+import {audit, type Authored} from './mapAuthor/kit.ts';
 
 type MissionId = Enum<typeof MissionId>;
-import { build as clearing } from './mapAuthor/missions/clearing.ts';
-import { build as breadAndWater } from './mapAuthor/missions/breadAndWater.ts';
-import { build as ledger } from './mapAuthor/missions/ledger.ts';
-import { build as hammerAndHaft } from './mapAuthor/missions/hammerAndHaft.ts';
-import { build as levy } from './mapAuthor/missions/levy.ts';
-import { build as holdTheValley } from './mapAuthor/missions/holdTheValley.ts';
-import { build as rivalBanner } from './mapAuthor/missions/rivalBanner.ts';
+import {build as breadAndWater} from './mapAuthor/missions/breadAndWater.ts';
+import {build as clearing} from './mapAuthor/missions/clearing.ts';
+import {build as hammerAndHaft} from './mapAuthor/missions/hammerAndHaft.ts';
+import {build as holdTheValley} from './mapAuthor/missions/holdTheValley.ts';
+import {build as ledger} from './mapAuthor/missions/ledger.ts';
+import {build as levy} from './mapAuthor/missions/levy.ts';
+import {build as rivalBanner} from './mapAuthor/missions/rivalBanner.ts';
 
 const RECIPES: Record<MissionId, () => Authored> = {
   [MissionId.clearing]: clearing,
@@ -54,11 +54,11 @@ const RECIPES: Record<MissionId, () => Authored> = {
 const args = process.argv.slice(2);
 const dry = args.includes('--dry');
 const ids: MissionId[] = [];
-for (const arg of args.filter((a) => !a.startsWith('--'))) {
+for (const arg of args.filter(a => !a.startsWith('--'))) {
   const id = parseMissionId(arg);
   if (id === undefined) {
     console.error(
-      `unknown mission: ${arg} (${MISSION_ORDER.map((m) => MISSION_KEYS[m]).join(', ')})`,
+      `unknown mission: ${arg} (${MISSION_ORDER.map(m => MISSION_KEYS[m]).join(', ')})`,
     );
     process.exit(1);
   }
@@ -77,7 +77,9 @@ for (const id of ids.length > 0 ? ids : MISSION_ORDER) {
   const out = `src/sim/defs/maps/${id}.json`;
   if (!dry) writeFileSync(out, json);
   const report = audit(authored);
-  console.log(`\n=== ${id} — ${authored.name} (${json.length} bytes)${dry ? ' [dry]' : ''}`);
+  console.log(
+    `\n=== ${id} — ${authored.name} (${json.length} bytes)${dry ? ' [dry]' : ''}`,
+  );
   for (const line of authored.intent) console.log(`  · ${line}`);
   for (const line of report.lines) console.log(`  ${line}`);
   for (const problem of report.problems) {

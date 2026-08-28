@@ -1,9 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { foldBasis, rotateStart, tileImages } from './symmetry.ts';
+import {describe, expect, it} from 'vitest';
+import {tileIdx, tileX, tileY} from '../shared/grid.ts';
+import {foldBasis, rotateStart, tileImages} from './symmetry.ts';
 
 /** The k=1 image of a tile under `folds`, as x/y (assumes it's in bounds). */
-function image(x: number, y: number, size: number, folds: number, k: number): [number, number] {
+function image(
+  x: number,
+  y: number,
+  size: number,
+  folds: number,
+  k: number,
+): [number, number] {
   const imgs = tileImages(x, y, size, folds);
   // tileImages dedupes but preserves fold order starting at the identity.
   const idx = imgs[k]!;
@@ -70,7 +76,9 @@ describe('tileImages', () => {
       let x: number = x0;
       let y: number = y0;
       for (let k = 0; k < 3; k++) [x, y] = image(x, y, size, 3, 1);
-      expect(Math.max(Math.abs(x - x0), Math.abs(y - y0))).toBeLessThanOrEqual(1);
+      expect(Math.max(Math.abs(x - x0), Math.abs(y - y0))).toBeLessThanOrEqual(
+        1,
+      );
     }
   });
 
@@ -95,25 +103,33 @@ describe('tileImages', () => {
 describe('rotateStart', () => {
   it('is exact for folds 2 and 4', () => {
     const size = 96;
-    const s = { x: 46, y: 19 };
-    expect(rotateStart(s, size, 1, 4)).toEqual({ x: size - s.y - 3, y: s.x });
-    expect(rotateStart(s, size, 2, 4)).toEqual({ x: size - s.x - 3, y: size - s.y - 3 });
-    expect(rotateStart(s, size, 1, 2)).toEqual({ x: size - s.x - 3, y: size - s.y - 3 });
+    const s = {x: 46, y: 19};
+    expect(rotateStart(s, size, 1, 4)).toEqual({x: size - s.y - 3, y: s.x});
+    expect(rotateStart(s, size, 2, 4)).toEqual({
+      x: size - s.x - 3,
+      y: size - s.y - 3,
+    });
+    expect(rotateStart(s, size, 1, 2)).toEqual({
+      x: size - s.x - 3,
+      y: size - s.y - 3,
+    });
   });
 
   it('round-trips: rotating k then folds-k lands home', () => {
     const size = 128;
-    const s = { x: 30, y: 22 };
+    const s = {x: 30, y: 22};
     for (const folds of [2, 4] as const) {
       for (let k = 1; k < folds; k++) {
-        expect(rotateStart(rotateStart(s, size, k, folds), size, folds - k, folds)).toEqual(s);
+        expect(
+          rotateStart(rotateStart(s, size, k, folds), size, folds - k, folds),
+        ).toEqual(s);
       }
     }
   });
 
   it('keeps fold-3 images of an interior spot in bounds', () => {
     const size = 96;
-    const s = { x: 46, y: 20 };
+    const s = {x: 46, y: 20};
     for (let k = 0; k < 3; k++) {
       const r = rotateStart(s, size, k, 3);
       expect(r.x).toBeGreaterThanOrEqual(0);
@@ -127,12 +143,12 @@ describe('rotateStart', () => {
 describe('foldBasis', () => {
   it('has exact entries for 2 and 4 and unit-length steps for 3', () => {
     expect(foldBasis(4)).toEqual([
-      { cos: 1, sin: 0 },
-      { cos: 0, sin: 1 },
-      { cos: -1, sin: 0 },
-      { cos: 0, sin: -1 },
+      {cos: 1, sin: 0},
+      {cos: 0, sin: 1},
+      {cos: -1, sin: 0},
+      {cos: 0, sin: -1},
     ]);
-    for (const { cos, sin } of foldBasis(3)) {
+    for (const {cos, sin} of foldBasis(3)) {
       expect(cos * cos + sin * sin).toBeCloseTo(1, 12);
     }
   });

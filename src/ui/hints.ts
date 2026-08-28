@@ -1,4 +1,4 @@
-import type { Enum } from '../shared/enum.ts';
+import type {Enum} from '../shared/enum.ts';
 import * as MissionId from '../sim/defs/missionIdEnum.ts';
 
 type MissionId = Enum<typeof MissionId>;
@@ -72,12 +72,18 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
       text: 'Raise a Well. Drawing water is a chore serfs run, not a post anyone holds.',
       objective: 0,
     },
-    { text: 'A Wheat Farm next — flat grass near the castle serves fine.', objective: 1 },
+    {
+      text: 'A Wheat Farm next — flat grass near the castle serves fine.',
+      objective: 1,
+    },
     {
       text: 'Now the Mill. One mill serves two farms: it grinds faster than they grow.',
       objective: 2,
     },
-    { text: 'The Bakery closes the chain: flour and water in, bread out.', objective: 3 },
+    {
+      text: 'The Bakery closes the chain: flour and water in, bread out.',
+      objective: 3,
+    },
     {
       text:
         'Waiting on an oven is what fast forward is for — the speed buttons ' +
@@ -106,7 +112,7 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
         'branch, and the door to every iron recipe at the Smith.',
       objective: 2,
     },
-    { text: 'Iron next: another mine, another seam.', objective: 3 },
+    {text: 'Iron next: another mine, another seam.', objective: 3},
     {
       text:
         'The Smith turns wood and iron into arms and tools alike. Left to ' +
@@ -114,7 +120,10 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
         'to queue an order ahead of that. Spears are one iron, swords two.',
       objective: 4,
     },
-    { text: 'Let the forge run: four spears in the castle settles the ledger.', objective: 5 },
+    {
+      text: 'Let the forge run: four spears in the castle settles the ledger.',
+      objective: 5,
+    },
   ],
 
   [MissionId.hammerAndHaft]: [

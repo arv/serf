@@ -1,6 +1,6 @@
-import type { AiWorldSummary, RivalSummary } from './summary.ts';
-import type { Enum } from '../shared/enum.ts';
+import type {Enum} from '../shared/enum.ts';
 import * as ArchetypeNs from './archetypeEnum.ts';
+import type {AiWorldSummary, RivalSummary} from './summary.ts';
 export type Archetype = Enum<typeof ArchetypeNs>;
 
 /**
@@ -86,8 +86,10 @@ export function classifyRival(rival: RivalSummary, minutes: number): Archetype {
   // idleness as an opponent playing quietly.
   if (!rival.found) return ArchetypeNs.unmet;
 
-  if (army >= ARCHETYPE.force && rival.buildings < ARCHETYPE.village) return ArchetypeNs.rusher;
-  if (army <= ARCHETYPE.quiet && rival.buildings >= ARCHETYPE.village) return ArchetypeNs.booming;
+  if (army >= ARCHETYPE.force && rival.buildings < ARCHETYPE.village)
+    return ArchetypeNs.rusher;
+  if (army <= ARCHETYPE.quiet && rival.buildings >= ARCHETYPE.village)
+    return ArchetypeNs.booming;
   if (army >= ARCHETYPE.force) return ArchetypeNs.turtling;
   return ArchetypeNs.unmet;
 }

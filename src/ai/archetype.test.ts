@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { ARCHETYPE, classifyRival, readOpponent } from './archetype.ts';
-import type { AiWorldSummary, RivalSummary } from './summary.ts';
+import {describe, expect, it} from 'vitest';
+import {ARCHETYPE, classifyRival, readOpponent} from './archetype.ts';
 import * as Archetype from './archetypeEnum.ts';
+import type {AiWorldSummary, RivalSummary} from './summary.ts';
 
 /**
  * The classifier is a pure function of one rival's line in the summary, and
@@ -22,31 +22,37 @@ function rival(over: Partial<RivalSummary> = {}): RivalSummary {
     buildings: 12,
     distance: 40,
     intel: null,
-    contact: { firstSoldierMin: -1, firstAttackMin: -1, buildingsAtFive: -1 },
+    contact: {firstSoldierMin: -1, firstAttackMin: -1, buildingsAtFive: -1},
     ...over,
   };
 }
 
 function intel(total: number, peak = total): RivalSummary['intel'] {
-  return { ageTicks: 200, heavy: total, light: 0, ranged: 0, total, peak };
+  return {ageTicks: 200, heavy: total, light: 0, ranged: 0, total, peak};
 }
 
 describe('classifyRival', () => {
   it('has no opinion before the seat has had time to look', () => {
-    const seen = rival({ intel: intel(6) });
-    expect(classifyRival(seen, ARCHETYPE.readableFrom - 1)).toBe(Archetype.unmet);
-    expect(classifyRival(seen, ARCHETYPE.readableFrom)).not.toBe(Archetype.unmet);
+    const seen = rival({intel: intel(6)});
+    expect(classifyRival(seen, ARCHETYPE.readableFrom - 1)).toBe(
+      Archetype.unmet,
+    );
+    expect(classifyRival(seen, ARCHETYPE.readableFrom)).not.toBe(
+      Archetype.unmet,
+    );
   });
 
   it('has no opinion about a rival that is already dead', () => {
-    expect(classifyRival(rival({ alive: false, intel: intel(9) }), 10)).toBe(Archetype.unmet);
+    expect(classifyRival(rival({alive: false, intel: intel(9)}), 10)).toBe(
+      Archetype.unmet,
+    );
   });
 
   it('calls a force at the gates a rush, whatever else they were doing', () => {
     const raided = rival({
       buildings: 20,
       intel: intel(0),
-      contact: { firstSoldierMin: 3, firstAttackMin: 6, buildingsAtFive: 14 },
+      contact: {firstSoldierMin: 3, firstAttackMin: 6, buildingsAtFive: 14},
     });
     expect(classifyRival(raided, 8)).toBe(Archetype.rusher);
   });
@@ -64,34 +70,46 @@ describe('classifyRival', () => {
   });
 
   it('reads soldiers without a village behind them as a rush', () => {
-    const lean = rival({ buildings: ARCHETYPE.village - 1, intel: intel(ARCHETYPE.force) });
+    const lean = rival({
+      buildings: ARCHETYPE.village - 1,
+      intel: intel(ARCHETYPE.force),
+    });
     expect(classifyRival(lean, 8)).toBe(Archetype.rusher);
   });
 
   it('reads a village with no army as booming', () => {
-    const fat = rival({ buildings: ARCHETYPE.village, intel: intel(ARCHETYPE.quiet) });
+    const fat = rival({
+      buildings: ARCHETYPE.village,
+      intel: intel(ARCHETYPE.quiet),
+    });
     expect(classifyRival(fat, 8)).toBe(Archetype.booming);
   });
 
   it('reads an army that has never come at us as turtling', () => {
-    const armed = rival({ buildings: ARCHETYPE.village + 4, intel: intel(ARCHETYPE.force + 2) });
+    const armed = rival({
+      buildings: ARCHETYPE.village + 4,
+      intel: intel(ARCHETYPE.force + 2),
+    });
     expect(classifyRival(armed, 8)).toBe(Archetype.turtling);
   });
 
   it('refuses to call an unscouted rival peaceful — that is our ignorance, not their choice', () => {
-    const hidden = rival({ found: false, buildings: 0, intel: null });
+    const hidden = rival({found: false, buildings: 0, intel: null});
     expect(classifyRival(hidden, 12)).toBe(Archetype.unmet);
   });
 
   it('reads a stale picture as no army rather than as no evidence', () => {
     // intel goes null once the last look outlives its trust window; with
     // their village on the map that is a quiet neighbour, not a mystery.
-    const stale = rival({ intel: null, buildings: ARCHETYPE.village + 2 });
+    const stale = rival({intel: null, buildings: ARCHETYPE.village + 2});
     expect(classifyRival(stale, 12)).toBe(Archetype.booming);
   });
 
   it('uses the peak, not the fading roster — the peak is the accurate one', () => {
-    const emptying = rival({ buildings: ARCHETYPE.village + 2, intel: intel(0, ARCHETYPE.force) });
+    const emptying = rival({
+      buildings: ARCHETYPE.village + 2,
+      intel: intel(0, ARCHETYPE.force),
+    });
     expect(classifyRival(emptying, 8)).toBe(Archetype.turtling);
   });
 });
@@ -102,20 +120,24 @@ describe('readOpponent', () => {
       tick: minutes * 60 * 20,
       minutes,
       explored: 0.4,
-      seat: { id: 0, strategyId: 'steward', knobs: {} as AiWorldSummary['seat']['knobs'] },
+      seat: {
+        id: 0,
+        strategyId: 'steward',
+        knobs: {} as AiWorldSummary['seat']['knobs'],
+      },
       me: {
         stock: {},
         serfs: 12,
         pop: 20,
         popCap: 30,
         buildings: {},
-        army: { knight: 4, spearman: 0, archer: 0 },
+        army: {knight: 4, spearman: 0, archer: 0},
         researched: [],
         researching: null,
         underAttack: false,
       },
       rivals,
-      bandits: { camps: 0, nearestCamp: -1 },
+      bandits: {camps: 0, nearestCamp: -1},
     };
   }
 
@@ -124,21 +146,23 @@ describe('readOpponent', () => {
   });
 
   it('takes the loudest rival, not the first', () => {
-    const quiet = rival({ id: 1, buildings: 14, intel: intel(0) });
-    const armed = rival({ id: 2, buildings: 14, intel: intel(5) });
+    const quiet = rival({id: 1, buildings: 14, intel: intel(0)});
+    const armed = rival({id: 2, buildings: 14, intel: intel(5)});
     expect(readOpponent(summary([quiet, armed]))).toBe(Archetype.turtling);
     const rushing = rival({
       id: 3,
-      contact: { firstSoldierMin: 2, firstAttackMin: 5, buildingsAtFive: 4 },
+      contact: {firstSoldierMin: 2, firstAttackMin: 5, buildingsAtFive: 4},
     });
-    expect(readOpponent(summary([quiet, armed, rushing]))).toBe(Archetype.rusher);
+    expect(readOpponent(summary([quiet, armed, rushing]))).toBe(
+      Archetype.rusher,
+    );
   });
 
   it('ignores the dead, however they played', () => {
     const corpse = rival({
       id: 1,
       alive: false,
-      contact: { firstSoldierMin: 2, firstAttackMin: 4, buildingsAtFive: 2 },
+      contact: {firstSoldierMin: 2, firstAttackMin: 4, buildingsAtFive: 2},
     });
     expect(readOpponent(summary([corpse]))).toBe(Archetype.unmet);
   });

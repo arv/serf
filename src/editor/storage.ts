@@ -1,5 +1,5 @@
-import type { EditorMapState } from './editorMap.ts';
-import { parseEditorMap, serializeEditorMap } from './format.ts';
+import type {EditorMapState} from './editorMap.ts';
+import {parseEditorMap, serializeEditorMap} from './format.ts';
 
 /**
  * Editor persistence: one auto-saved draft (survives Play round-trips and
@@ -66,11 +66,15 @@ function readSlots(): Record<string, string> {
   // into a plain object would let the perfectly legal map name
   // "__proto__" hit the prototype setter — reporting a save that
   // JSON.stringify then silently drops.
-  const slots: Record<string, string> = Object.create(null) as Record<string, string>;
+  const slots: Record<string, string> = Object.create(null) as Record<
+    string,
+    string
+  >;
   try {
     const raw = localStorage.getItem(SLOTS_KEY);
     const parsed: unknown = raw === null ? {} : JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return slots;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+      return slots;
     for (const [k, v] of Object.entries(parsed)) {
       if (typeof v === 'string') slots[k] = v;
     }
@@ -95,7 +99,7 @@ export function hasMap(name: string): boolean {
 
 export function saveMapAs(name: string, state: EditorMapState): boolean {
   const slots = readSlots();
-  slots[name] = serializeEditorMap({ ...state, name });
+  slots[name] = serializeEditorMap({...state, name});
   try {
     localStorage.setItem(SLOTS_KEY, JSON.stringify(slots));
     return true;

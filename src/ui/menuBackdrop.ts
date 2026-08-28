@@ -1,6 +1,6 @@
-import type { Backdrop } from './backdropScene';
+import type {Backdrop} from './backdropScene';
 
-export type { Backdrop };
+export type {Backdrop};
 
 /**
  * The menu's live backdrop, on demand.
@@ -36,7 +36,7 @@ let scene: typeof import('./backdropScene') | null = null;
 let generation = 0;
 
 /** Nothing was built, so there is nothing to stop. */
-const DEAD: Backdrop = { stop() {} };
+const DEAD: Backdrop = {stop() {}};
 
 /**
  * Give the backdrop's WebGL context back, now. Safe to call at any time,
@@ -48,7 +48,9 @@ export function releaseMenuBackdrop(): void {
   scene?.releaseMenuBackdrop();
 }
 
-export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Backdrop> {
+export async function startMenuBackdrop(
+  canvas: HTMLCanvasElement,
+): Promise<Backdrop> {
   const mine = ++generation;
   loading ??= import('./backdropScene').catch((err: unknown) => {
     // A chunk that did not arrive must not be remembered as the answer, or

@@ -4,7 +4,12 @@ import {
   int16FromBase64,
   int16ToBase64,
 } from '../shared/base64.ts';
-import { MAX_MAP_SIZE, MIN_MAP_SIZE, gridFor, tileCount } from '../shared/grid.ts';
+import {
+  MAX_MAP_SIZE,
+  MIN_MAP_SIZE,
+  gridFor,
+  tileCount,
+} from '../shared/grid.ts';
 import {
   inPlayArea,
   recomputeBlocked,
@@ -47,7 +52,7 @@ export interface MapFile {
   /** Playable side, centered in the grid. */
   play: number;
   players: number;
-  starts: { x: number; y: number }[];
+  starts: {x: number; y: number}[];
   /** One byte per tile, base64 — a Terrain value each. */
   terrain: string;
   /** One byte per tile, base64 — a TileResource value each. */
@@ -66,7 +71,10 @@ export interface MapFile {
 /** Version 1: the same fields carrying plain number arrays instead, with
  * heights as decimals. Read but never written — an editor slot lives in a
  * browser's localStorage, and those outlive a format change. */
-interface MapFileV1 extends Omit<MapFile, 'terrain' | 'resource' | 'resourceAmt' | 'height'> {
+interface MapFileV1 extends Omit<
+  MapFile,
+  'terrain' | 'resource' | 'resourceAmt' | 'height'
+> {
   terrain: number[];
   resource: number[];
   resourceAmt: number[];
@@ -91,11 +99,13 @@ export function serializeMapFile(state: AuthoredMap): string {
     size: state.map.size,
     play: state.map.play,
     players: state.players,
-    starts: state.starts.map((s) => ({ x: s.x, y: s.y })),
+    starts: state.starts.map(s => ({x: s.x, y: s.y})),
     terrain: bytesToBase64(state.map.terrain),
     resource: bytesToBase64(state.map.resource),
     resourceAmt: bytesToBase64(state.map.resourceAmt),
-    height: int16ToBase64(Int16Array.from(state.map.height, (h) => Math.round(h * 1000))),
+    height: int16ToBase64(
+      Int16Array.from(state.map.height, h => Math.round(h * 1000)),
+    ),
   };
   return JSON.stringify(file);
 }
@@ -129,8 +139,10 @@ function readBytes(
     if (bytes.length !== tiles) bad(`${key} is not ${tiles} tiles`);
     return bytes;
   }
-  if (!Array.isArray(raw) || raw.length !== tiles) bad(`${key} is not ${tiles} tiles`);
-  if (!raw.every((v) => Number.isInteger(v) && v >= 0 && v <= 255)) bad(`${key} out of range`);
+  if (!Array.isArray(raw) || raw.length !== tiles)
+    bad(`${key} is not ${tiles} tiles`);
+  if (!raw.every(v => Number.isInteger(v) && v >= 0 && v <= 255))
+    bad(`${key} out of range`);
   return Uint8Array.from(raw);
 }
 
@@ -151,17 +163,19 @@ function readHeights(file: MapFile | MapFileV1): Float32Array {
     if (millimetres.length !== tiles) bad(`height is not ${tiles} tiles`);
     for (let i = 0; i < tiles; i++) height[i] = millimetres[i]! / 1000;
   } else {
-    if (!Array.isArray(raw) || raw.length !== tiles) bad(`height is not ${tiles} tiles`);
+    if (!Array.isArray(raw) || raw.length !== tiles)
+      bad(`height is not ${tiles} tiles`);
     // Finite before it lands in the array: JSON writes Infinity as null,
     // and null would arrive as a perfectly plausible 0.
-    if (!raw.every((h) => typeof h === 'number' && Number.isFinite(h))) bad('height out of range');
+    if (!raw.every(h => typeof h === 'number' && Number.isFinite(h)))
+      bad('height out of range');
     height.set(raw);
   }
   // Sanity bounds, not sculpting bounds: the editor's brushes stay within
   // [-1.6, 2.55], but a map exported from worldgen carries its border
   // ranges — margin scenery peaks near 4.7 — and the file format must
   // accept any world the generator itself can roll.
-  if (!height.every((h) => h >= -2 && h <= 5)) bad('height out of range');
+  if (!height.every(h => h >= -2 && h <= 5)) bad('height out of range');
   return height;
 }
 
@@ -183,20 +197,28 @@ export function parseMapJson(json: string): AuthoredMap {
 export function parseMapData(data: unknown): AuthoredMap {
   const file = data as MapFile | MapFileV1;
   if (file?.format !== 'serf-map') bad('wrong format tag');
-  if (file.version !== 1 && file.version !== 2) bad(`unsupported version ${String(file.version)}`);
+  if (file.version !== 1 && file.version !== 2)
+    bad(`unsupported version ${String(file.version)}`);
   const play = file.play;
-  if (!Number.isInteger(play) || play < MIN_MAP_SIZE || play > MAX_MAP_SIZE || play % 2 !== 0) {
+  if (
+    !Number.isInteger(play) ||
+    play < MIN_MAP_SIZE ||
+    play > MAX_MAP_SIZE ||
+    play % 2 !== 0
+  ) {
     bad(`bad playable size ${String(play)}`);
   }
   const size = file.size;
-  if (size !== gridFor(play)) bad(`bad grid size ${String(size)} for playable ${String(play)}`);
+  if (size !== gridFor(play))
+    bad(`bad grid size ${String(size)} for playable ${String(play)}`);
   const tiles = tileCount(size);
   const terrain = readBytes(file, 'terrain');
   const resource = readBytes(file, 'resource');
   const resourceAmt = readBytes(file, 'resourceAmt');
   const height = readHeights(file);
-  if (!terrain.every((t) => TERRAIN_VALUES.has(t))) bad('unknown terrain value');
-  if (!resource.every((r) => RESOURCE_VALUES.has(r))) bad('unknown resource value');
+  if (!terrain.every(t => TERRAIN_VALUES.has(t))) bad('unknown terrain value');
+  if (!resource.every(r => RESOURCE_VALUES.has(r)))
+    bad('unknown resource value');
   // Cross-field invariants the editor itself always keeps: resources
   // stand on grass only, and a resource code means a live amount (the
   // sim clears the code when a tile is worked dry).
@@ -216,9 +238,10 @@ export function parseMapData(data: unknown): AuthoredMap {
   if (!Array.isArray(file.starts) || file.starts.length !== players) {
     bad('starts do not match player count');
   }
-  const area = { size, play };
+  const area = {size, play};
   for (const s of file.starts) {
-    if (!Number.isInteger(s?.x) || !Number.isInteger(s?.y)) bad('bad start spot');
+    if (!Number.isInteger(s?.x) || !Number.isInteger(s?.y))
+      bad('bad start spot');
     if (!inPlayArea(area, s.x, s.y) || !inPlayArea(area, s.x + 2, s.y + 2)) {
       bad('start out of bounds');
     }
@@ -240,7 +263,10 @@ export function parseMapData(data: unknown): AuthoredMap {
   return {
     map,
     players,
-    starts: file.starts.map((s) => ({ x: s.x, y: s.y })),
-    name: typeof file.name === 'string' && file.name.trim() !== '' ? file.name : 'Untitled',
+    starts: file.starts.map(s => ({x: s.x, y: s.y})),
+    name:
+      typeof file.name === 'string' && file.name.trim() !== ''
+        ? file.name
+        : 'Untitled',
   };
 }

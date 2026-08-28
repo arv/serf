@@ -1,6 +1,6 @@
-import { tileIdx } from '../shared/grid';
-import { vnoise } from './noise';
+import {tileIdx} from '../shared/grid';
 import * as PathLevel from '../sim/pathLevelEnum.ts';
+import {vnoise} from './noise';
 
 /**
  * Paths as ribbons rather than painted squares.
@@ -38,7 +38,7 @@ export interface RibbonDist {
 }
 
 export function newRibbonDist(): RibbonDist {
-  return { trail: Infinity, road: Infinity };
+  return {trail: Infinity, road: Infinity};
 }
 
 let sideForLen = -1;
@@ -60,7 +60,12 @@ function gridSideOf(len: number): number {
  * stays inside its own tile, so anything two tiles away is at least a full
  * tile off and can never be the nearest.
  */
-export function ribbonDistances(path: Uint8Array, px: number, pz: number, out: RibbonDist): void {
+export function ribbonDistances(
+  path: Uint8Array,
+  px: number,
+  pz: number,
+  out: RibbonDist,
+): void {
   out.trail = Infinity;
   out.road = Infinity;
   // The path grid is square (size² tiles), so the grid size rides along in
@@ -89,7 +94,10 @@ export function ribbonDistances(path: Uint8Array, px: number, pz: number, out: R
         // Center -> shared edge (or corner); the neighbor draws the other half.
         const vx = DX[k]! * 0.5;
         const vz = DY[k]! * 0.5;
-        const t = Math.min(Math.max((wx * vx + wz * vz) / (vx * vx + vz * vz), 0), 1);
+        const t = Math.min(
+          Math.max((wx * vx + wz * vz) / (vx * vx + vz * vz), 0),
+          1,
+        );
         const ex = wx - vx * t;
         const ez = wz - vz * t;
         const seg = Math.sqrt(ex * ex + ez * ez);
@@ -121,11 +129,15 @@ export function ribbonStrength(d: number, half: number): number {
 
 /** Sideways drift of the sample point, in tiles. */
 export function ribbonWarpX(x: number, z: number): number {
-  return (vnoise(61, x, z, 3.3) - 0.5) * 0.34 + (vnoise(71, x, z, 0.7) - 0.5) * 0.1;
+  return (
+    (vnoise(61, x, z, 3.3) - 0.5) * 0.34 + (vnoise(71, x, z, 0.7) - 0.5) * 0.1
+  );
 }
 
 export function ribbonWarpZ(x: number, z: number): number {
-  return (vnoise(63, x, z, 3.3) - 0.5) * 0.34 + (vnoise(73, x, z, 0.7) - 0.5) * 0.1;
+  return (
+    (vnoise(63, x, z, 3.3) - 0.5) * 0.34 + (vnoise(73, x, z, 0.7) - 0.5) * 0.1
+  );
 }
 
 /** Multiplier on the half-width where the ribbon passes through here. */
@@ -140,8 +152,18 @@ export interface RibbonCover {
 }
 
 /** `RibbonDist` plus the wobble — the whole ribbon test at a world point. */
-export function ribbonCover(path: Uint8Array, x: number, z: number, out: RibbonCover): void {
-  ribbonDistances(path, x + ribbonWarpX(x, z), z + ribbonWarpZ(x, z), COVER_DIST);
+export function ribbonCover(
+  path: Uint8Array,
+  x: number,
+  z: number,
+  out: RibbonCover,
+): void {
+  ribbonDistances(
+    path,
+    x + ribbonWarpX(x, z),
+    z + ribbonWarpZ(x, z),
+    COVER_DIST,
+  );
   const w = ribbonWidth(x, z);
   out.trail = ribbonStrength(COVER_DIST.trail, TRAIL_HALF * w);
   out.road = ribbonStrength(COVER_DIST.road, ROAD_HALF * w);

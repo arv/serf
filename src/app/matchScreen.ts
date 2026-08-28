@@ -1,29 +1,45 @@
-import { GameRenderer } from '../render/renderer';
-import { TerrainMesh, spoilOf } from '../render/terrainMesh';
-import { ScatterMesh } from '../render/scatterMesh';
-import { HeightField } from '../render/heightField';
-import { GrassField } from '../render/grassField';
-import { RoadDecal } from '../render/roadDecal';
-import { WaterMesh } from '../render/waterMesh';
-import { MarginMesh } from '../render/marginMesh';
-import { Mist } from '../render/mist';
-import { Butterflies } from '../render/butterflies';
-import { Footprints } from '../render/footprints';
-import { SceneSync } from '../render/sceneSync';
-import { SelectionFx } from '../render/selectionFx';
-import { BuildingSync } from '../render/buildingSync';
-import { GhostPlacement } from '../render/ghost';
-import { SelectedReach } from '../render/reachOutline';
-import { RallyFlag } from '../render/rallyFlag';
-import { FogOfWar } from '../render/fogOfWar';
-import { batteryFramePacer } from '../render/framePacer';
-import { HiddenSync } from './hiddenSync';
-import { loadCharacterAssets, serfSole } from '../render/characters';
-import { loadGlbAssets } from '../render/assets';
-import { Controls } from '../input/controls';
-import { installMouseCapture } from '../input/mouseCapture';
-import { DamageAlerts } from './damageAlerts';
-import { mountHud } from '../ui/mount';
+import * as LlmState from '../ai/llmStateEnum.ts';
+import {
+  audioFrame,
+  play,
+  playAt,
+  setAudioHidden,
+  setAudioPaused,
+  setAudioView,
+} from '../audio/audio';
+import {Controls} from '../input/controls';
+import {installMouseCapture} from '../input/mouseCapture';
+import type {NetInfo} from '../protocol/messages';
+import {loadGlbAssets} from '../render/assets';
+import {BuildingSync} from '../render/buildingSync';
+import {Butterflies} from '../render/butterflies';
+import {loadCharacterAssets, serfSole} from '../render/characters';
+import {FogOfWar} from '../render/fogOfWar';
+import {Footprints} from '../render/footprints';
+import {batteryFramePacer} from '../render/framePacer';
+import {GhostPlacement} from '../render/ghost';
+import {GrassField} from '../render/grassField';
+import {HeightField} from '../render/heightField';
+import {MarginMesh} from '../render/marginMesh';
+import {Mist} from '../render/mist';
+import {RallyFlag} from '../render/rallyFlag';
+import {SelectedReach} from '../render/reachOutline';
+import {GameRenderer} from '../render/renderer';
+import {RoadDecal} from '../render/roadDecal';
+import {ScatterMesh} from '../render/scatterMesh';
+import {SceneSync} from '../render/sceneSync';
+import {SelectionFx} from '../render/selectionFx';
+import {TerrainMesh, spoilOf} from '../render/terrainMesh';
+import {WaterMesh} from '../render/waterMesh';
+import {inBounds, tileCount, tileIdx} from '../shared/grid';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import {MISSION_DEFS, MISSION_KEYS} from '../sim/defs/missions';
+import * as GameEventKind from '../sim/gameEventKindEnum.ts';
+import * as MatchState from '../sim/matchStateEnum.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import {markMissionComplete} from '../ui/campaign';
+import {mountHud} from '../ui/mount';
 import {
   myPlayerId,
   playersMeta,
@@ -55,36 +71,20 @@ import {
   briefingOpen,
   setBriefingOpen,
 } from '../ui/store';
-import {
-  audioFrame,
-  play,
-  playAt,
-  setAudioHidden,
-  setAudioPaused,
-  setAudioView,
-} from '../audio/audio';
-import { markMissionComplete } from '../ui/campaign';
-import { MISSION_DEFS, MISSION_KEYS } from '../sim/defs/missions';
-import { inBounds, tileCount, tileIdx } from '../shared/grid';
-import { WorldMirror } from './mirror';
-import { envelopeSave, unpackExplored } from './saveEnvelope';
-import type { ReplayData } from './replay';
-import { saveReplayFile } from './replayStore';
-import { stampName } from './fileStore';
-import { saveGameNow } from './saveStore';
-import { WorkerSimHost } from './simHost';
-import { holdServiceWorkerUpdates } from './serviceWorker';
-import type { GameConfig } from './gameConfig';
-import type { NetInfo } from '../protocol/messages';
-import type { Screen } from './screen';
-import { fatal } from './fatalScreen';
-import { stashGet, stashSet } from './stash';
-import * as Terrain from '../sim/terrainEnum.ts';
-import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import * as GameEventKind from '../sim/gameEventKindEnum.ts';
-import * as MatchState from '../sim/matchStateEnum.ts';
-import * as PlayerKind from '../sim/playerKindEnum.ts';
-import * as LlmState from '../ai/llmStateEnum.ts';
+import {DamageAlerts} from './damageAlerts';
+import {fatal} from './fatalScreen';
+import {stampName} from './fileStore';
+import type {GameConfig} from './gameConfig';
+import {HiddenSync} from './hiddenSync';
+import {WorldMirror} from './mirror';
+import type {ReplayData} from './replay';
+import {saveReplayFile} from './replayStore';
+import {envelopeSave, unpackExplored} from './saveEnvelope';
+import {saveGameNow} from './saveStore';
+import type {Screen} from './screen';
+import {holdServiceWorkerUpdates} from './serviceWorker';
+import {WorkerSimHost} from './simHost';
+import {stashGet, stashSet} from './stash';
 
 /**
  * The playing screen, and everything only it needs: three.js, the render
@@ -110,29 +110,32 @@ async function bootLlmStrategist(
   hidden: HiddenSync,
   // Filled in as soon as the chunk resolves, so a match that ends while the
   // import is still in flight still gets to stop the download.
-  handle: { dispose?: () => void },
+  handle: {dispose?: () => void},
 ): Promise<void> {
-  const { LlmStrategist } = await import('../ai/strategist');
+  const {LlmStrategist} = await import('../ai/strategist');
   const strategist = new LlmStrategist({
     sendAdvice: (playerId, override) => host.sendAiAdvice(playerId, override),
-    onStatus: (status) => {
+    onStatus: status => {
       if (status.state === LlmState.failed) {
         // The badge would just be a standing shrug; say it once and move on.
         console.warn(`[strategist] ${status.reason}`);
-        pushToast('The LLM strategist is unavailable — opponents use standard tactics');
+        pushToast(
+          'The LLM strategist is unavailable — opponents use standard tactics',
+        );
         setLlmStatus(null);
         return;
       }
       setLlmStatus(status);
       // "On" has nothing more to report; linger long enough to be seen.
-      if (status.state === LlmState.ready) setTimeout(() => setLlmStatus(null), 10_000);
+      if (status.state === LlmState.ready)
+        setTimeout(() => setLlmStatus(null), 10_000);
     },
     // Dev builds watch the model work: every consultation lands in the
     // backquote overlay's ledger and prints one console line (the trace
     // object attached, prompt and reply included). Production wires
     // nothing, so no ledger accumulates.
     onTrace: import.meta.env.DEV
-      ? (trace) => {
+      ? trace => {
           console.log(
             `[strategist] seat ${trace.playerId} ${trace.outcome} ` +
               `after ${(trace.ms / 1000).toFixed(1)}s` +
@@ -144,11 +147,13 @@ async function bootLlmStrategist(
       : undefined,
   });
   handle.dispose = () => strategist.dispose();
-  host.onAiSummary((playerId, summary) => strategist.onSummary(playerId, summary));
+  host.onAiSummary((playerId, summary) =>
+    strategist.onSummary(playerId, summary),
+  );
   // The frozen sim stops new summaries when the page hides; this stops the
   // consultation already chewing — a minute of wasm inference is exactly
   // the CPU a backgrounded phone cannot afford.
-  hidden.add((h) => strategist.setHidden(h));
+  hidden.add(h => strategist.setHidden(h));
   await strategist.start();
 }
 
@@ -166,10 +171,15 @@ async function bootLlmStrategist(
  */
 export async function runMatch(
   config: GameConfig,
-  opts: { loadData?: string; fogSeed?: string; net?: NetInfo; replay?: ReplayData },
+  opts: {
+    loadData?: string;
+    fogSeed?: string;
+    net?: NetInfo;
+    replay?: ReplayData;
+  },
   key: string,
 ): Promise<Screen> {
-  const { loadData, fogSeed, net, replay } = opts;
+  const {loadData, fogSeed, net, replay} = opts;
   // Run in reverse at teardown, so each entry can assume everything pushed
   // before it is still standing.
   const teardown: (() => void)[] = [];
@@ -215,8 +225,9 @@ export async function runMatch(
   // boot requirement, so there is no capability to probe. The worker is
   // told only when a strategist will actually listen, so it never builds
   // summaries for nobody.
-  const llm = config.llmOpponent === true && net === undefined && replay === undefined;
-  config = { ...config, llmOpponent: llm };
+  const llm =
+    config.llmOpponent === true && net === undefined && replay === undefined;
+  config = {...config, llmOpponent: llm};
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   /**
@@ -260,11 +271,12 @@ export async function runMatch(
     // denied every attempt reads as the first, and the page would bounce
     // forever instead of settling on the card below.
     const counted = stashSet('session', 'serf-gl-fails', String(fails));
-    if (counted && fails <= 2) setTimeout(() => location.reload(), fails * 1500);
+    if (counted && fails <= 2)
+      setTimeout(() => location.reload(), fails * 1500);
     fatal(
       'The browser refused a WebGL context — this usually passes in a moment. ' +
         `(${err instanceof Error ? err.message : String(err)})`,
-      { retry: true },
+      {retry: true},
     );
   }
 
@@ -305,18 +317,22 @@ export async function runMatch(
         // that fails leaves nothing stashed and the reload is the whole
         // recovery, exactly as it is for multiplayer.
         void rescue()
-          .then((data) => saveGameNow(data))
-          .then((name) => {
+          .then(data => saveGameNow(data))
+          .then(name => {
             if (name !== null) stashSet('session', 'serf-load-pending', name);
           })
           .finally(() => location.reload());
       }, 4000);
     },
-    { signal: off.signal },
+    {signal: off.signal},
   );
-  canvas.addEventListener('webglcontextrestored', () => clearTimeout(restoreTimer), {
-    signal: off.signal,
-  });
+  canvas.addEventListener(
+    'webglcontextrestored',
+    () => clearTimeout(restoreTimer),
+    {
+      signal: off.signal,
+    },
+  );
   // A match ending on its own terms must not leave a reload armed behind it.
   teardown.push(() => clearTimeout(restoreTimer));
 
@@ -338,19 +354,23 @@ export async function runMatch(
   // below reports its rAF ticks to the sync, whose gap watchdog wakes the
   // workers even when the event never arrives.
   const hidden = new HiddenSync(document.hidden);
-  hidden.add((h) => host.setHidden(h));
+  hidden.add(h => host.setHidden(h));
   // Audio holds its breath with the sim: a suspended AudioContext is what
   // lets the device's audio hardware sleep — the same battery argument as
   // the worker freeze above, one line down. Inherits the gap watchdog too.
-  hidden.add((h) => setAudioHidden(h));
-  document.addEventListener('visibilitychange', () => hidden.set(document.hidden), {
-    signal: off.signal,
-  });
+  hidden.add(h => setAudioHidden(h));
+  document.addEventListener(
+    'visibilitychange',
+    () => hidden.set(document.hidden),
+    {
+      signal: off.signal,
+    },
+  );
   // Fire-and-forget beside the match: the model downloads while the game
   // already runs on plain playbooks, and the first advice lands whenever it
   // lands. Dynamic import, so no strategist means none of its code either.
   if (llm) {
-    const strategist: { dispose?: () => void } = {};
+    const strategist: {dispose?: () => void} = {};
     teardown.push(() => strategist.dispose?.());
     void bootLlmStrategist(host, hidden, strategist);
   }
@@ -372,7 +392,9 @@ export async function runMatch(
 
   const mirror = new WorldMirror(init.map, init.buildings);
   if (import.meta.env.DEV) {
-    Object.assign(window as unknown as Record<string, unknown>, { __mirror: mirror });
+    Object.assign(window as unknown as Record<string, unknown>, {
+      __mirror: mirror,
+    });
   }
   // The init frame is where this side learns the world's actual size: fog
   // band, shadow box and camera bounds all resize to it before any content
@@ -381,7 +403,7 @@ export async function runMatch(
   const heights = new HeightField(init.map.height, init.map.size);
   // The terrain paints spoil around the quarry and the mines, and only the
   // mirror knows which building an id in map.buildingAt is.
-  const terrain = new TerrainMesh(init.map, heights, (id) =>
+  const terrain = new TerrainMesh(init.map, heights, id =>
     spoilOf(mirror.buildings.get(id)?.type),
   );
   renderer.scene.add(terrain.mesh);
@@ -427,7 +449,11 @@ export async function runMatch(
   );
   renderer.scene.add(footprints.mesh);
 
-  const buildingSync = new BuildingSync(renderer.scene, heights, config.myPlayerId);
+  const buildingSync = new BuildingSync(
+    renderer.scene,
+    heights,
+    config.myPlayerId,
+  );
   // Terrain feed for the pier measurement: on a corner-only shore the
   // fishery's deck swings 45 degrees toward the wet diagonal.
   buildingSync.setWater(
@@ -440,7 +466,12 @@ export async function runMatch(
   buildingSync.onCue = (cue, x, z) => playAt(cue, x, z);
   buildingSync.update(init.buildings);
 
-  const sync = new SceneSync(renderer.scene, init.reader, heights, config.myPlayerId);
+  const sync = new SceneSync(
+    renderer.scene,
+    init.reader,
+    heights,
+    config.myPlayerId,
+  );
   sync.onCue = (cue, x, z, delaySec) => playAt(cue, x, z, 1, delaySec);
   // Where the well cranks are (drawing serfs stand beside them, hand
   // IK-glued to the grip) and where the fishery piers run (fishermen walk
@@ -472,15 +503,17 @@ export async function runMatch(
   // from the config so a save written before the first frame lands still
   // says so.
   let missionNow = config.mission;
-  let opponentsNow = config.players.filter((p) => p.kind === PlayerKind.ai).length;
+  let opponentsNow = config.players.filter(
+    p => p.kind === PlayerKind.ai,
+  ).length;
   // One save string for every writer — the menu button and the GPU-crash
   // handoff alike: the world from the worker, the fog's memory from here,
   // and the head of metadata above so the shelf can tell one village from
   // another without opening any of them.
   const saveGame = async (): Promise<string> =>
     envelopeSave(await host.requestSave(), fog.exportExplored(), {
-      ...(missionNow !== undefined ? { mission: MISSION_KEYS[missionNow] } : {}),
-      ...(opponentsNow > 0 ? { opponents: opponentsNow } : {}),
+      ...(missionNow !== undefined ? {mission: MISSION_KEYS[missionNow]} : {}),
+      ...(opponentsNow > 0 ? {opponents: opponentsNow} : {}),
     });
   // Not while watching a replay: a GPU-loss reload comes back on the same
   // ?replay= URL and restarts playback — there is no world of ours to keep.
@@ -516,7 +549,7 @@ export async function runMatch(
   // multiplayer start sits on a ring — the first thing a player sees must
   // be their storehouse, not the bandits' hill.
   const home = init.buildings.find(
-    (b) => b.type === BuildingTypeId.storehouse && b.owner === config.myPlayerId,
+    b => b.type === BuildingTypeId.storehouse && b.owner === config.myPlayerId,
   );
   if (home) renderer.rig.focusOn(home.x + home.w / 2, home.y + home.h / 2);
 
@@ -574,8 +607,8 @@ export async function runMatch(
     setReplayOver(true);
   });
 
-  host.onNetStatus((status) => setNetStatus(status));
-  host.onStructural((msg) => {
+  host.onNetStatus(status => setNetStatus(status));
+  host.onStructural(msg => {
     // A reconnect resync carries the seat's ever-seen grid afresh.
     if (msg.explored) fog.seedExplored(msg.explored);
     // HUD state first, scene sync second. These signal writes cannot
@@ -590,11 +623,11 @@ export async function runMatch(
       setStock(mine.stock);
       setToolWants(mine.toolWants);
       setTechs(mine.techs);
-      setPopulation({ pop: mine.pop, cap: mine.popCap });
+      setPopulation({pop: mine.pop, cap: mine.popCap});
     }
     if (msg.players) {
       setPlayersMeta(msg.players);
-      opponentsNow = msg.players.filter((p) => p.kind === PlayerKind.ai).length;
+      opponentsNow = msg.players.filter(p => p.kind === PlayerKind.ai).length;
     }
     if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
@@ -610,22 +643,34 @@ export async function runMatch(
     if (msg.mission) {
       // Finishing writes the profile. Idempotent, so every structural frame
       // after the win may say it again.
-      if (msg.outcome.state === MatchState.over && msg.outcome.winner === myPlayerId()) {
+      if (
+        msg.outcome.state === MatchState.over &&
+        msg.outcome.winner === myPlayerId()
+      ) {
         markMissionComplete(msg.mission.id);
       }
     } else if (briefingOpen()) {
       setBriefingOpen(false);
     }
     for (const event of msg.events) {
-      if (event.kind === GameEventKind.raidIncoming && event.player === myPlayerId()) {
+      if (
+        event.kind === GameEventKind.raidIncoming &&
+        event.player === myPlayerId()
+      ) {
         // Non-positional on purpose: a warning must be heard wherever the
         // camera happens to be looking.
         play('raidHorn');
         pushToast(event.text);
-      } else if (event.kind === GameEventKind.playerEliminated && event.player !== myPlayerId()) {
+      } else if (
+        event.kind === GameEventKind.playerEliminated &&
+        event.player !== myPlayerId()
+      ) {
         play('distantBell');
         pushToast('A rival banner has fallen!');
-      } else if (event.kind === GameEventKind.damage && event.player === myPlayerId()) {
+      } else if (
+        event.kind === GameEventKind.damage &&
+        event.player === myPlayerId()
+      ) {
         // The solo worker delivers every seat's events; filter like raids.
         // Only struck *buildings* sound from here — this event exists for
         // player-owned damage alone (combat.ts filters at the source), so
@@ -633,12 +678,17 @@ export async function runMatch(
         // sounds come from the animation layer, which sees every side.
         if (event.building) playAt('buildingHit', event.x, event.y);
         damageAlerts.report(event);
-      } else if (event.kind === GameEventKind.objectiveComplete && event.player === myPlayerId()) {
+      } else if (
+        event.kind === GameEventKind.objectiveComplete &&
+        event.player === myPlayerId()
+      ) {
         play('objectiveDone');
         const label = msg.mission
           ? MISSION_DEFS[msg.mission.id].objectives[event.index]?.label
           : undefined;
-        pushToast(label ? `Objective complete: ${label}` : 'Objective complete');
+        pushToast(
+          label ? `Objective complete: ${label}` : 'Objective complete',
+        );
       } else if (event.kind === GameEventKind.gameOver) {
         play(event.winner === myPlayerId() ? 'victory' : 'defeat');
       }
@@ -646,7 +696,7 @@ export async function runMatch(
     // Keep the selected building's panel fresh (or clear it if destroyed).
     const sel = selectedBuilding();
     if (sel && msg.buildings) {
-      const fresh = msg.buildings.find((b) => b.id === sel.id);
+      const fresh = msg.buildings.find(b => b.id === sel.id);
       setSelectedBuilding(fresh ?? null);
     }
 
@@ -658,9 +708,11 @@ export async function runMatch(
         scatter.removeTile(d.idx);
       }
     }
-    const wornTiles = msg.mapDeltas.filter((d) => d.pathLevel !== 0).map((d) => d.idx);
+    const wornTiles = msg.mapDeltas
+      .filter(d => d.pathLevel !== 0)
+      .map(d => d.idx);
     const paved = msg.mapDeltas.some(
-      (d) => (d.pathLevel === 2) !== (mirror.map.pathLevel[d.idx] === 2),
+      d => (d.pathLevel === 2) !== (mirror.map.pathLevel[d.idx] === 2),
     );
     const changes = mirror.apply(msg);
     // Trails thread between tiles, so which clumps they trample is only
@@ -676,7 +728,8 @@ export async function runMatch(
     for (const tile of changes.resourceCleared) scatter.removeTile(tile);
     if (changes.refreshAll) scatter.resyncAll(mirror.map);
     if (changes.refreshAll) terrain.repaintAll();
-    else if (changes.repaintTiles.length > 0) terrain.repaintTiles(changes.repaintTiles);
+    else if (changes.repaintTiles.length > 0)
+      terrain.repaintTiles(changes.repaintTiles);
     if (msg.buildings) {
       buildingSync.update(msg.buildings);
       roster = msg.buildings;
@@ -687,8 +740,8 @@ export async function runMatch(
   const unmountHud = mountHud(host, {
     selectArmy: () => controls.selectArmy(),
     deselect: () => controls.deselectAll(),
-    place: (type) => controls.setPlacement(type),
-    armOrder: (mode) => controls.armOrder(mode),
+    place: type => controls.setPlacement(type),
+    armOrder: mode => controls.armOrder(mode),
     save: saveGame,
     saveReplay: async () => {
       // Empty means there is nothing to save: the server declines while
@@ -714,7 +767,7 @@ export async function runMatch(
       fog,
       buildings: () => mirror.buildings.values(),
       units: () => init.reader.latest,
-      viewQuad: (out) => renderer.rig.viewQuad(out),
+      viewQuad: out => renderer.rig.viewQuad(out),
       jumpTo: (x, z) => renderer.rig.focusOn(x, z),
       glideTo: (x, z) => renderer.rig.glideTo(x, z),
       myPlayerId: config.myPlayerId,
@@ -729,8 +782,8 @@ export async function runMatch(
 
   let fogLast = performance.now();
   // Reused every frame — viewBounds writes into it instead of allocating.
-  const boundsScratch = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
-  const frameScratch = { cx: 0, cz: 0, rx: 0, rz: 0, ext: 0 };
+  const boundsScratch = {minX: 0, maxX: 0, minZ: 0, maxZ: 0};
+  const frameScratch = {cx: 0, cz: 0, rx: 0, rz: 0, ext: 0};
   // Phones cap the loop at 30 fps: a 90 Hz panel otherwise renders the
   // whole valley 90 times a second, and the GPU is where the battery goes.
   // A skipped frame does nothing at all — every update below is time-based,
@@ -772,7 +825,12 @@ export async function runMatch(
     // server has already stopped filtering what it sends us.
     const fallen = playersMeta()[myPlayerId()]?.alive === false;
     fog.setEnabled(fogEnabled() && !fallen);
-    fog.update(Math.min((now - fogLast) / 1000, 0.25), init.reader, roster, renderer.scene);
+    fog.update(
+      Math.min((now - fogLast) / 1000, 0.25),
+      init.reader,
+      roster,
+      renderer.scene,
+    );
     fogLast = now;
     // The camera moves before anything asks where it is looking. Picking,
     // culling, the stereo basis and every billboard read it below, and the
@@ -793,8 +851,17 @@ export async function runMatch(
     const bounds = renderer.rig.viewBounds(3, boundsScratch);
     setAudioView(renderer.rig.viewFrame(3, frameScratch));
     setAudioPaused(speed() === 0);
-    sync.update(now, controls.hoverUnit, controls.selected, speed() === 0, bounds);
-    buildingSync.highlight(controls.hoverBuilding, selectedBuilding()?.id ?? -1);
+    sync.update(
+      now,
+      controls.hoverUnit,
+      controls.selected,
+      speed() === 0,
+      bounds,
+    );
+    buildingSync.highlight(
+      controls.hoverBuilding,
+      selectedBuilding()?.id ?? -1,
+    );
     // While a new hut is being aimed, the ghost's own outline is the one
     // that answers the question — two squares over the same ground, in two
     // colors, would only be read as a conflict.

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import type { Kit } from './kit';
-import type { Variant } from './variants';
+import type {Kit} from './kit';
+import type {Variant} from './variants';
 
 /**
  * One diorama per variant: the composed model on a plate of ground, lit and
@@ -59,7 +59,7 @@ function plate(v: Variant, r: number): THREE.Group {
   const g = new THREE.Group();
   const disc = new THREE.Mesh(
     new THREE.CircleGeometry(r, 48),
-    new THREE.MeshStandardMaterial({ color: GRASS, roughness: 1, metalness: 0 }),
+    new THREE.MeshStandardMaterial({color: GRASS, roughness: 1, metalness: 0}),
   );
   disc.rotation.x = -Math.PI / 2;
   disc.receiveShadow = true;
@@ -68,7 +68,11 @@ function plate(v: Variant, r: number): THREE.Group {
   // A slim skirt so the plate reads as a slab of turf, not a decal.
   const skirt = new THREE.Mesh(
     new THREE.CylinderGeometry(r, r * 0.985, 0.14, 48, 1, true),
-    new THREE.MeshStandardMaterial({ color: GRASS_EDGE, roughness: 1, side: THREE.DoubleSide }),
+    new THREE.MeshStandardMaterial({
+      color: GRASS_EDGE,
+      roughness: 1,
+      side: THREE.DoubleSide,
+    }),
   );
   skirt.position.y = -0.07;
   g.add(skirt);
@@ -76,7 +80,7 @@ function plate(v: Variant, r: number): THREE.Group {
   if (!v.closeUp) {
     const apron = new THREE.Mesh(
       new THREE.CircleGeometry(Math.min(v.w, v.h) * 0.62, 28),
-      new THREE.MeshStandardMaterial({ color: EARTH, roughness: 1 }),
+      new THREE.MeshStandardMaterial({color: EARTH, roughness: 1}),
     );
     apron.rotation.x = -Math.PI / 2;
     apron.position.y = 0.004;
@@ -100,7 +104,11 @@ function plate(v: Variant, r: number): THREE.Group {
     shape.lineTo(r, -z0);
     const water = new THREE.Mesh(
       new THREE.ShapeGeometry(shape),
-      new THREE.MeshStandardMaterial({ color: WATER, roughness: 0.35, metalness: 0.1 }),
+      new THREE.MeshStandardMaterial({
+        color: WATER,
+        roughness: 0.35,
+        metalness: 0.1,
+      }),
     );
     water.rotation.x = -Math.PI / 2;
     water.position.y = 0.03;
@@ -110,7 +118,7 @@ function plate(v: Variant, r: number): THREE.Group {
     const chord = 2 * Math.sqrt(Math.max(0, r * r - z0 * z0));
     const bank = new THREE.Mesh(
       new THREE.PlaneGeometry(chord, 0.34),
-      new THREE.MeshStandardMaterial({ color: 0xc8b184, roughness: 1 }),
+      new THREE.MeshStandardMaterial({color: 0xc8b184, roughness: 1}),
     );
     bank.rotation.x = -Math.PI / 2;
     bank.position.set(0, 0.006, z0 - 0.1);
@@ -134,7 +142,9 @@ export function makeDiorama(K: Kit, v: Variant): Diorama {
   mb.getSize(ms);
   // Buildings stand on a plate the size of their footprint; the goods are
   // hand props, so their turf is cut to whatever they actually cover.
-  const plateR = v.closeUp ? Math.max(ms.x, ms.z) * 0.62 + 0.22 : Math.max(v.w, v.h) * 0.95 + 0.5;
+  const plateR = v.closeUp
+    ? Math.max(ms.x, ms.z) * 0.62 + 0.22
+    : Math.max(v.w, v.h) * 0.95 + 0.5;
   group.add(plate(v, plateR));
   group.add(model);
   const bb = new THREE.Box3().setFromObject(model);
@@ -147,9 +157,10 @@ export function makeDiorama(K: Kit, v: Variant): Diorama {
   // by the same rule as flat ones (a fishery's quay). The plate is a
   // floor on the framing so the turf never crops mid-card.
   const span = Math.max(size.x, size.z);
-  const view = Math.max(span * 1.45, span * 0.95 + size.y * 1.05, plateR * 1.92) + 0.35;
+  const view =
+    Math.max(span * 1.45, span * 0.95 + size.y * 1.05, plateR * 1.92) + 0.35;
   center.y = size.y * 0.42;
-  return { group, radius: view / 2, center };
+  return {group, radius: view / 2, center};
 }
 
 /** Place an orthographic camera on the game's rig angles, framing `d`. */

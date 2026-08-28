@@ -1,8 +1,15 @@
-import { Show, createEffect, createSignal, onCleanup, onMount, type JSX } from 'solid-js';
-import type { AnimKey } from '../../../render/characters';
-import { type BuildingTypeId, BUILDING_KEYS } from '../../../sim/defs/buildings';
-import { type UnitTypeId, UNIT_KEYS } from '../../../sim/defs/units';
-import { registerCard, type CardHandle } from './hub';
+import {
+  Show,
+  createEffect,
+  createSignal,
+  onCleanup,
+  onMount,
+  type JSX,
+} from 'solid-js';
+import type {AnimKey} from '../../../render/characters';
+import {type BuildingTypeId, BUILDING_KEYS} from '../../../sim/defs/buildings';
+import {type UnitTypeId, UNIT_KEYS} from '../../../sim/defs/units';
+import {registerCard, type CardHandle} from './hub';
 
 /**
  * A live 3D preview of a building or unit, rendered from the game's own
@@ -18,11 +25,11 @@ interface CommonProps {
 }
 
 type ModelCardProps =
-  | (CommonProps & { kind: 'building'; id: BuildingTypeId })
-  | (CommonProps & { kind: 'unit'; id: UnitTypeId; anim?: AnimKey });
+  | (CommonProps & {kind: 'building'; id: BuildingTypeId})
+  | (CommonProps & {kind: 'unit'; id: UnitTypeId; anim?: AnimKey});
 
 /** Hand-drawn monochrome stand-ins (never emoji — house rule). */
-function SilhouetteIcon(props: { kind: 'building' | 'unit' }): JSX.Element {
+function SilhouetteIcon(props: {kind: 'building' | 'unit'}): JSX.Element {
   return (
     <svg
       width="42"
@@ -56,7 +63,9 @@ function seedFrom(id: string): number {
 }
 
 export function ModelCard(props: ModelCardProps): JSX.Element {
-  const [state, setState] = createSignal<'loading' | 'ready' | 'fallback'>('loading');
+  const [state, setState] = createSignal<'loading' | 'ready' | 'fallback'>(
+    'loading',
+  );
   let stage!: HTMLDivElement;
   let canvas!: HTMLCanvasElement;
   let handle: CardHandle | undefined;
@@ -69,7 +78,9 @@ export function ModelCard(props: ModelCardProps): JSX.Element {
       id: props.kind === 'unit' ? UNIT_KEYS[props.id] : BUILDING_KEYS[props.id],
       animated: props.animated === true,
       interactive: props.interactive === true,
-      seed: seedFrom(props.kind === 'unit' ? UNIT_KEYS[props.id] : BUILDING_KEYS[props.id]),
+      seed: seedFrom(
+        props.kind === 'unit' ? UNIT_KEYS[props.id] : BUILDING_KEYS[props.id],
+      ),
       onState: setState,
     });
   });

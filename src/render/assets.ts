@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BUILDING_DEFS, BUILDING_TYPES } from '../sim/defs/buildings';
-import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
-import { makeBakehouse } from './procBuildings';
-import { makeFishSign, makeShoal } from './procParts';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import type {Enum} from '../shared/enum.ts';
+import {BUILDING_DEFS, BUILDING_TYPES} from '../sim/defs/buildings';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import {factionTint, TEAM_SWATCH_UV} from './factionPalette';
+import {makeBakehouse} from './procBuildings';
 import {
   makeAshlar,
   makeHeadframe,
@@ -13,9 +14,8 @@ import {
   makeSluice,
   makeWindlassHouse,
 } from './procMines';
-import type { Enum } from '../shared/enum.ts';
+import {makeFishSign, makeShoal} from './procParts';
 import * as ScatterPackNs from './scatterPackEnum.ts';
-import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 export type ScatterPack = Enum<typeof ScatterPackNs>;
@@ -83,7 +83,10 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
  * from the air.
  */
 const BUILT_BUILDINGS: Partial<
-  Record<BuildingTypeId, (piece: PieceFactory, packMaterial: THREE.Material | null) => THREE.Group>
+  Record<
+    BuildingTypeId,
+    (piece: PieceFactory, packMaterial: THREE.Material | null) => THREE.Group
+  >
 > = {
   [BuildingTypeId.bakery]: makeBakehouse,
 };
@@ -103,7 +106,10 @@ export type PropFactory = (name: string, span: number) => THREE.Object3D | null;
  * the name is unknown or its source model failed to load — every caller has
  * to survive that, the same way decor does.
  */
-export type PieceFactory = (name: string, height: number) => THREE.Object3D | null;
+export type PieceFactory = (
+  name: string,
+  height: number,
+) => THREE.Object3D | null;
 
 /** Prop dressing placed around a building, in its unit-square space. */
 interface Decor {
@@ -198,7 +204,9 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // No bakery entry: it dresses its own yard from procBuildings — hearth
   // apron, arch, loaves — and a sack, a bucket and a log pile round its
   // feet on top of that were clutter, not story.
-  [BuildingTypeId.mill]: [{ prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5 }],
+  [BuildingTypeId.mill]: [
+    {prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5},
+  ],
   [BuildingTypeId.fishery]: [
     // The pier runs out of the front face, so the building's facing carries
     // it toward the water (see Building.facing). Long enough to overhang the
@@ -222,14 +230,14 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // it stands near broadside to the default camera yaw. Along either axis
     // the fish would be read end-on and vanish.
     {
-      make: (prop) => makeFishSign(0.19, prop),
+      make: prop => makeFishSign(0.19, prop),
       at: [0.06, -0.02],
       y: 0.34,
       size: 1,
       rot: Math.PI / 4,
     },
-    { prop: 'extra/anchor', at: [-0.38, 0.26], size: 0.16, rot: 0.4 },
-    { prop: 'extra/boatrack', at: [0.4, 0.3], size: 0.1, rot: -0.3 },
+    {prop: 'extra/anchor', at: [-0.38, 0.26], size: 0.16, rot: 0.4},
+    {prop: 'extra/boatrack', at: [0.4, 0.3], size: 0.1, rot: -0.3},
     // A shoal working the water off the pier. buildingSync swims it while
     // the fishery is staffed — an idle fishery's water is still. (It used to
     // say "the same way it turns a staffed well's windlass"; the well keeps
@@ -237,7 +245,7 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // from it.) The y here is template-space only: the waterline is a world
     // plane below the shore, so buildingSync re-seats the group under it
     // once the building stands on real terrain.
-    { make: (prop) => makeShoal(prop), at: [0, 1.02], y: 0.02, size: 1 },
+    {make: prop => makeShoal(prop), at: [0, 1.02], y: 0.02, size: 1},
   ],
   // Two marks on the tower's roof deck, and nothing to see: buildingSync
   // finds them by name and stands a live archer on each one for every man
@@ -287,26 +295,26 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // different thing from the stock stacks buildingSync piles on the spots
   // in MINE_SPOTS, and it stands clear of them, out on the mouth's left.
   [BuildingTypeId.quarry]: [
-    { make: () => makeSheerlegs(), at: [0.34, 0.44], size: 1, rot: -0.5 },
-    { make: () => makeAshlar(), at: [-0.38, 0.45], size: 1, rot: 0.35 },
-    { prop: 'wheelbarrow', at: [0.06, 0.62], size: 0.15, rot: 0.85 },
+    {make: () => makeSheerlegs(), at: [0.34, 0.44], size: 1, rot: -0.5},
+    {make: () => makeAshlar(), at: [-0.38, 0.45], size: 1, rot: 0.35},
+    {prop: 'wheelbarrow', at: [0.06, 0.62], size: 0.15, rot: 0.85},
   ],
   [BuildingTypeId.ironMine]: [
-    { make: () => makeOreChute(), at: [0.36, 0.42], size: 1, rot: -0.3 },
-    { rock: 0x8a5238, at: [-0.42, 0.44], size: 0.17 },
-    { rock: 0x6b4132, at: [-0.28, 0.55], size: 0.11 },
-    { prop: 'wheelbarrow', at: [0.06, 0.62], size: 0.15, rot: 0.85 },
+    {make: () => makeOreChute(), at: [0.36, 0.42], size: 1, rot: -0.3},
+    {rock: 0x8a5238, at: [-0.42, 0.44], size: 0.17},
+    {rock: 0x6b4132, at: [-0.28, 0.55], size: 0.11},
+    {prop: 'wheelbarrow', at: [0.06, 0.62], size: 0.15, rot: 0.85},
   ],
   [BuildingTypeId.silverMine]: [
-    { make: () => makeWindlassHouse(), at: [0.35, 0.43], size: 1, rot: -0.45 },
-    { rock: 0xdde3ea, at: [-0.42, 0.44], size: 0.17 },
-    { rock: 0xb2bcc6, at: [-0.28, 0.55], size: 0.11 },
-    { prop: 'sack', at: [-0.04, 0.61], size: 0.12, rot: 0.7 },
+    {make: () => makeWindlassHouse(), at: [0.35, 0.43], size: 1, rot: -0.45},
+    {rock: 0xdde3ea, at: [-0.42, 0.44], size: 0.17},
+    {rock: 0xb2bcc6, at: [-0.28, 0.55], size: 0.11},
+    {prop: 'sack', at: [-0.04, 0.61], size: 0.12, rot: 0.7},
   ],
   [BuildingTypeId.goldMine]: [
-    { make: () => makeHeadframe(), at: [0.34, 0.43], size: 1, rot: -0.55 },
-    { make: () => makeSluice(), at: [-0.34, 0.5], size: 1, rot: 0.3 },
-    { rock: 0xe8c257, at: [-0.52, 0.3], size: 0.13 },
+    {make: () => makeHeadframe(), at: [0.34, 0.43], size: 1, rot: -0.55},
+    {make: () => makeSluice(), at: [-0.34, 0.5], size: 1, rot: 0.3},
+    {rock: 0xe8c257, at: [-0.52, 0.3], size: 0.13},
   ],
 };
 
@@ -343,17 +351,18 @@ function bakeToGeometry(scene: THREE.Group): {
   scene.updateMatrixWorld(true);
   const parts: THREE.BufferGeometry[] = [];
   let map: THREE.Texture | null = null;
-  scene.traverse((o) => {
+  scene.traverse(o => {
     if (!(o instanceof THREE.Mesh)) return;
     const geo = (o.geometry as THREE.BufferGeometry).clone().toNonIndexed();
     geo.applyMatrix4(o.matrixWorld);
     for (const name of Object.keys(geo.attributes)) {
-      if (name !== 'position' && name !== 'normal' && name !== 'uv') geo.deleteAttribute(name);
+      if (name !== 'position' && name !== 'normal' && name !== 'uv')
+        geo.deleteAttribute(name);
     }
     map ??= (o.material as THREE.MeshStandardMaterial).map ?? null;
     parts.push(geo);
   });
-  return { geometry: mergeGeometries(parts), map };
+  return {geometry: mergeGeometries(parts), map};
 }
 
 /**
@@ -361,7 +370,10 @@ function bakeToGeometry(scene: THREE.Group): {
  * inside `box` (model space) — the scalpel for parts baked into a merged
  * mesh that we want to replace with animated ones.
  */
-function stripTrianglesInBox(geo: THREE.BufferGeometry, box: THREE.Box3): THREE.BufferGeometry {
+function stripTrianglesInBox(
+  geo: THREE.BufferGeometry,
+  box: THREE.Box3,
+): THREE.BufferGeometry {
   const index = geo.getIndex();
   if (!index) return geo;
   const out = geo.clone();
@@ -398,7 +410,11 @@ function stripTrianglesInBox(geo: THREE.BufferGeometry, box: THREE.Box3): THREE.
  */
 const PACK_PIECES: Record<
   string,
-  { file: string; box: [number, number, number, number, number, number]; cells: string[] }
+  {
+    file: string;
+    box: [number, number, number, number, number, number];
+    cells: string[];
+  }
 > = {
   // The house's front door: an arched plank leaf in a timber frame, with a
   // knob. The box stops just under the wall rail above it, and the cells
@@ -431,12 +447,18 @@ function atlasCell(u: number, v: number): string {
  * the piece is centered in x, stands on y=0, and presents its front face on
  * z=0 — which is how a wall-mounted piece wants to arrive.
  */
-function cutPackPiece(scene: THREE.Group, spec: (typeof PACK_PIECES)[string]): THREE.Mesh | null {
+function cutPackPiece(
+  scene: THREE.Group,
+  spec: (typeof PACK_PIECES)[string],
+): THREE.Mesh | null {
   const [x0, y0, z0, x1, y1, z1] = spec.box;
-  const box = new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1));
+  const box = new THREE.Box3(
+    new THREE.Vector3(x0, y0, z0),
+    new THREE.Vector3(x1, y1, z1),
+  );
   const cells = new Set(spec.cells);
   let out: THREE.Mesh | null = null;
-  scene.traverse((o) => {
+  scene.traverse(o => {
     if (out || !(o instanceof THREE.Mesh)) return;
     const geo = o.geometry as THREE.BufferGeometry;
     const index = geo.getIndex();
@@ -463,7 +485,7 @@ function cutPackPiece(scene: THREE.Group, spec: (typeof PACK_PIECES)[string]): T
         (pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3,
       );
       if (!box.containsPoint(v)) continue;
-      const inWhole = [a, b, c].every((i2) =>
+      const inWhole = [a, b, c].every(i2 =>
         whole.containsPoint(v.set(pos.getX(i2), pos.getY(i2), pos.getZ(i2))),
       );
       if (!inWhole) continue;
@@ -472,7 +494,9 @@ function cutPackPiece(scene: THREE.Group, spec: (typeof PACK_PIECES)[string]): T
       if (!cells.has(atlasCell(cu, cv))) continue;
       kept.push(a, b, c);
       for (const i2 of [a, b, c]) {
-        bounds.expandByPoint(new THREE.Vector3(pos.getX(i2), pos.getY(i2), pos.getZ(i2)));
+        bounds.expandByPoint(
+          new THREE.Vector3(pos.getX(i2), pos.getY(i2), pos.getZ(i2)),
+        );
       }
     }
     if (kept.length === 0) return;
@@ -500,10 +524,15 @@ function cutPackPiece(scene: THREE.Group, spec: (typeof PACK_PIECES)[string]): T
     }
     const cut = new THREE.BufferGeometry();
     cut.setAttribute('position', new THREE.Float32BufferAttribute(px, 3));
-    if (nor) cut.setAttribute('normal', new THREE.Float32BufferAttribute(nx, 3));
+    if (nor)
+      cut.setAttribute('normal', new THREE.Float32BufferAttribute(nx, 3));
     cut.setAttribute('uv', new THREE.Float32BufferAttribute(tx, 2));
     cut.setIndex(idx);
-    cut.translate(-(bounds.min.x + bounds.max.x) / 2, -bounds.min.y, -bounds.max.z);
+    cut.translate(
+      -(bounds.min.x + bounds.max.x) / 2,
+      -bounds.min.y,
+      -bounds.max.z,
+    );
     const m = new THREE.Mesh(cut, o.material);
     m.castShadow = true;
     m.receiveShadow = true;
@@ -524,7 +553,11 @@ function normalize(scene: THREE.Group): THREE.Group {
   const spanZ = bbox.max.z - bbox.min.z;
   const s = 1 / Math.max(spanX, spanZ);
   const wrapper = new THREE.Group();
-  scene.position.set(-(bbox.min.x + bbox.max.x) / 2, -bbox.min.y, -(bbox.min.z + bbox.max.z) / 2);
+  scene.position.set(
+    -(bbox.min.x + bbox.max.x) / 2,
+    -bbox.min.y,
+    -(bbox.min.z + bbox.max.z) / 2,
+  );
   wrapper.scale.setScalar(s);
   wrapper.add(scene);
   const out = new THREE.Group();
@@ -552,10 +585,13 @@ export async function loadGltfRetry(
       return await loader.loadAsync(url);
     } catch (err) {
       lastErr = err;
-      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 350 * (i + 1)));
+      if (i < attempts - 1)
+        await new Promise(r => setTimeout(r, 350 * (i + 1)));
     }
   }
-  throw new Error(`asset failed after ${attempts} attempts: ${url} (${String(lastErr)})`);
+  throw new Error(
+    `asset failed after ${attempts} attempts: ${url} (${String(lastErr)})`,
+  );
 }
 
 let glbLoading: Promise<boolean> | null = null;
@@ -573,7 +609,7 @@ let glbLoading: Promise<boolean> | null = null;
  */
 export function loadGlbAssets(): Promise<boolean> {
   glbLoading ??= loadGlbAssetsOnce().then(
-    (ok) => {
+    ok => {
       if (!ok) glbLoading = null;
       return ok;
     },
@@ -594,7 +630,11 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
     // happens to be using.
     for (const p of Object.values(PACK_PIECES)) files.add(p.file);
     const TREE_FILES = ['tree_single_A.gltf', 'tree_single_B.gltf'];
-    const ROCK_FILES = ['rock_single_A.gltf', 'rock_single_B.gltf', 'rock_single_C.gltf'];
+    const ROCK_FILES = [
+      'rock_single_A.gltf',
+      'rock_single_B.gltf',
+      'rock_single_C.gltf',
+    ];
     // Natural dressing the scatter system strews on its own: lily pads on
     // still shallows, reed clumps against the banks.
     const DOODAD_FILES = ['waterlily_A.gltf', 'waterplant_A.gltf'];
@@ -625,11 +665,11 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
         ...DOODAD_FILES,
         ...FOREST_BUSH_FILES,
         ...FOREST_DEAD_FILES,
-        ...DECOR_PROP_FILES.map((p) => `${p}.gltf`),
+        ...DECOR_PROP_FILES.map(p => `${p}.gltf`),
         ...GLB_PROP_FILES,
-      ].map(async (f) => {
+      ].map(async f => {
         const gltf = await loadGltfRetry(loader, `${DIR}${f}`);
-        gltf.scene.traverse((o) => {
+        gltf.scene.traverse(o => {
           if (o instanceof THREE.Mesh) {
             o.castShadow = true;
             o.receiveShadow = true;
@@ -656,12 +696,16 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       bySpan = false,
       pack: ScatterPack = ScatterPackNs.nature,
     ): THREE.BufferGeometry => {
-      const { geometry: geo, map } = bakeToGeometry(loaded.get(f)!);
+      const {geometry: geo, map} = bakeToGeometry(loaded.get(f)!);
       if (pack === ScatterPackNs.forest) forestMap ??= map;
       else natureMap ??= map;
       geo.computeBoundingBox();
       const tb = geo.boundingBox!;
-      geo.translate(-(tb.min.x + tb.max.x) / 2, -tb.min.y, -(tb.min.z + tb.max.z) / 2);
+      geo.translate(
+        -(tb.min.x + tb.max.x) / 2,
+        -tb.min.y,
+        -(tb.min.z + tb.max.z) / 2,
+      );
       const span = bySpan
         ? Math.max(tb.max.x - tb.min.x, tb.max.z - tb.min.z)
         : tb.max.y - tb.min.y;
@@ -669,17 +713,21 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       geo.scale(s, s, s);
       return geo;
     };
-    const trees = TREE_FILES.map((f) => bakeNormalized(f));
-    const rocks = ROCK_FILES.map((f) => bakeNormalized(f, true));
+    const trees = TREE_FILES.map(f => bakeNormalized(f));
+    const rocks = ROCK_FILES.map(f => bakeNormalized(f, true));
     // Lily pads lie flat (span-normalized like rocks); reeds stand (height).
     const lily = bakeNormalized('waterlily_A.gltf', true);
     const reed = bakeNormalized('waterplant_A.gltf');
     // Shrubs are wider than tall — span-normalized, like the boulders.
     // Bare trunks are tall things, sized by height like the live trees.
-    const bushes = FOREST_BUSH_FILES.map((f) => bakeNormalized(f, true, ScatterPackNs.forest));
-    const deadTrees = FOREST_DEAD_FILES.map((f) => bakeNormalized(f, false, ScatterPackNs.forest));
-    const natureMaterial = new THREE.MeshLambertMaterial({ map: natureMap });
-    const forestMaterial = new THREE.MeshLambertMaterial({ map: forestMap });
+    const bushes = FOREST_BUSH_FILES.map(f =>
+      bakeNormalized(f, true, ScatterPackNs.forest),
+    );
+    const deadTrees = FOREST_DEAD_FILES.map(f =>
+      bakeNormalized(f, false, ScatterPackNs.forest),
+    );
+    const natureMaterial = new THREE.MeshLambertMaterial({map: natureMap});
+    const forestMaterial = new THREE.MeshLambertMaterial({map: forestMap});
 
     /** A prop clone scaled by footprint span, keeping its own y origin —
      * for props that are meant to sit into the ground rather than on it. */
@@ -699,7 +747,11 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       const c = src.clone();
       const bb = new THREE.Box3().setFromObject(c);
       const h = Math.max(bb.max.y - bb.min.y, 1e-6);
-      c.position.set(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+      c.position.set(
+        -(bb.min.x + bb.max.x) / 2,
+        -bb.min.y,
+        -(bb.min.z + bb.max.z) / 2,
+      );
       const g = new THREE.Group();
       g.scale.setScalar(size / h);
       g.add(c);
@@ -722,7 +774,11 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
           });
         } else if (d.prop !== undefined) {
           const src = loaded.get(`${d.prop}.gltf`);
-          if (src) obj = d.span !== undefined ? propOfSpan(src, d.span) : propOfSize(src, d.size);
+          if (src)
+            obj =
+              d.span !== undefined
+                ? propOfSpan(src, d.span)
+                : propOfSize(src, d.size);
         } else if (d.rock !== undefined && rocks[0]) {
           const mat = natureMaterial.clone();
           mat.color.set(d.rock);
@@ -763,12 +819,18 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
           [-0.36, 0.06, -0.465, -0.19, 0.18, -0.425], // billets, south wall
           [0.036, 0.06, -0.465, 0.145, 0.18, -0.425], // lone billet, south wall
         ];
-        scene.traverse((o) => {
-          if (o instanceof THREE.Mesh && o.name === 'building_lumbermill_green') {
+        scene.traverse(o => {
+          if (
+            o instanceof THREE.Mesh &&
+            o.name === 'building_lumbermill_green'
+          ) {
             for (const [x0, y0, z0, x1, y1, z1] of CUT) {
               o.geometry = stripTrianglesInBox(
                 o.geometry as THREE.BufferGeometry,
-                new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)),
+                new THREE.Box3(
+                  new THREE.Vector3(x0, y0, z0),
+                  new THREE.Vector3(x1, y1, z1),
+                ),
               );
             }
           }
@@ -791,12 +853,15 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
           [0.24, 0.01, 0.5, 0.42, 0.13, 0.68], // small boulder, east
           [-0.73, 0.01, 0.37, -0.55, 0.16, 0.56], // small boulder, west
         ];
-        scene.traverse((o) => {
+        scene.traverse(o => {
           if (o instanceof THREE.Mesh && o.name === 'building_mine_green') {
             for (const [x0, y0, z0, x1, y1, z1] of CUT) {
               o.geometry = stripTrianglesInBox(
                 o.geometry as THREE.BufferGeometry,
-                new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)),
+                new THREE.Box3(
+                  new THREE.Vector3(x0, y0, z0),
+                  new THREE.Vector3(x1, y1, z1),
+                ),
               );
             }
           }
@@ -812,12 +877,15 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
         const CUT: [number, number, number, number, number, number][] = [
           [0.02, 0.72, -0.36, 0.46, 1.3, 0.46],
         ];
-        scene.traverse((o) => {
+        scene.traverse(o => {
           if (o instanceof THREE.Mesh) {
             for (const [x0, y0, z0, x1, y1, z1] of CUT) {
               o.geometry = stripTrianglesInBox(
                 o.geometry as THREE.BufferGeometry,
-                new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)),
+                new THREE.Box3(
+                  new THREE.Vector3(x0, y0, z0),
+                  new THREE.Vector3(x1, y1, z1),
+                ),
               );
             }
           }
@@ -840,17 +908,20 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
           [0.25, 0.2, -0.03, 0.35, 0.335, 0.03], // crank handle
           [-0.02, 0.1, -0.02, 0.02, 0.32, 0.02], // rope down the shaft
         ];
-        scene.traverse((o) => {
+        scene.traverse(o => {
           if (o instanceof THREE.Mesh) {
             for (const [x0, y0, z0, x1, y1, z1] of CUT) {
               o.geometry = stripTrianglesInBox(
                 o.geometry as THREE.BufferGeometry,
-                new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)),
+                new THREE.Box3(
+                  new THREE.Vector3(x0, y0, z0),
+                  new THREE.Vector3(x1, y1, z1),
+                ),
               );
             }
           }
         });
-        const wood = new THREE.MeshLambertMaterial({ color: 0x7a5a38 });
+        const wood = new THREE.MeshLambertMaterial({color: 0x7a5a38});
         const part = (geo: THREE.BufferGeometry): THREE.Mesh => {
           const m = new THREE.Mesh(geo, wood);
           m.castShadow = true;
@@ -888,7 +959,7 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
       }
       const tint = TINTS[type];
       if (tint !== undefined) {
-        scene.traverse((o) => {
+        scene.traverse(o => {
           if (o instanceof THREE.Mesh) {
             const m = (o.material as THREE.MeshStandardMaterial).clone();
             m.color.lerp(new THREE.Color(tint), 0.45);
@@ -923,8 +994,9 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
     // by every model in it. A built building draws from the same one, so
     // there is no second material in the scene pretending to match it.
     let packMaterial: THREE.Material | null = null;
-    loaded.get('building_home_A_green.gltf')?.traverse((o) => {
-      if (!packMaterial && o instanceof THREE.Mesh) packMaterial = o.material as THREE.Material;
+    loaded.get('building_home_A_green.gltf')?.traverse(o => {
+      if (!packMaterial && o instanceof THREE.Mesh)
+        packMaterial = o.material as THREE.Material;
     });
     for (const type of BUILDING_TYPES) {
       const build = BUILT_BUILDINGS[type];
@@ -969,8 +1041,8 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
  * their owner's color.
  */
 function splitTeamColorGroups(root: THREE.Object3D): void {
-  const { u0, u1, v0, v1 } = TEAM_SWATCH_UV;
-  root.traverse((o) => {
+  const {u0, u1, v0, v1} = TEAM_SWATCH_UV;
+  root.traverse(o => {
     if (!(o instanceof THREE.Mesh)) return;
     const geo = (o.geometry as THREE.BufferGeometry).clone();
     const index = geo.getIndex();
@@ -1007,13 +1079,16 @@ const teamMaterials = new Map<number, THREE.MeshLambertMaterial>();
 function teamMaterial(color: number): THREE.MeshLambertMaterial {
   let m = teamMaterials.get(color);
   if (!m) {
-    m = new THREE.MeshLambertMaterial({ color });
+    m = new THREE.MeshLambertMaterial({color});
     teamMaterials.set(color, m);
   }
   return m;
 }
 
-export function makeGlbBuilding(type: BuildingTypeId, owner = 0): THREE.Group | null {
+export function makeGlbBuilding(
+  type: BuildingTypeId,
+  owner = 0,
+): THREE.Group | null {
   const template = assets?.buildings.get(type);
   if (!template) return null;
   const def = BUILDING_DEFS[type];
@@ -1024,7 +1099,7 @@ export function makeGlbBuilding(type: BuildingTypeId, owner = 0): THREE.Group | 
   const faction = factionTint(owner);
   if (faction !== undefined) {
     const team = teamMaterial(faction);
-    group.traverse((o) => {
+    group.traverse(o => {
       if (o instanceof THREE.Mesh && Array.isArray(o.material)) {
         o.material = [o.material[0]!, team];
       }
@@ -1044,7 +1119,7 @@ export function glbTrees(): {
   material: THREE.Material;
 } | null {
   if (!assets) return null;
-  return { geometries: assets.trees, material: assets.natureMaterial };
+  return {geometries: assets.trees, material: assets.natureMaterial};
 }
 
 /** Palette-textured rock variants for the scatter system, or null. */
@@ -1053,7 +1128,7 @@ export function glbRocks(): {
   material: THREE.Material;
 } | null {
   if (!assets) return null;
-  return { geometries: assets.rocks, material: assets.natureMaterial };
+  return {geometries: assets.rocks, material: assets.natureMaterial};
 }
 
 /**
@@ -1069,7 +1144,11 @@ export function glbDoodads(): {
   material: THREE.Material;
 } | null {
   if (!assets) return null;
-  return { lily: assets.lily, reed: assets.reed, material: assets.natureMaterial };
+  return {
+    lily: assets.lily,
+    reed: assets.reed,
+    material: assets.natureMaterial,
+  };
 }
 
 /**
@@ -1082,7 +1161,11 @@ export function glbForest(): {
   material: THREE.Material;
 } | null {
   if (!assets) return null;
-  return { bushes: assets.bushes, deadTrees: assets.deadTrees, material: assets.forestMaterial };
+  return {
+    bushes: assets.bushes,
+    deadTrees: assets.deadTrees,
+    material: assets.forestMaterial,
+  };
 }
 
 /** Tinted nature materials for yard rocks, cached per color. */
@@ -1119,7 +1202,11 @@ export function glbYardProp(prop: string, height: number): THREE.Group | null {
   const c = src.clone();
   const bb = new THREE.Box3().setFromObject(c);
   const h = Math.max(bb.max.y - bb.min.y, 1e-6);
-  c.position.set(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+  c.position.set(
+    -(bb.min.x + bb.max.x) / 2,
+    -bb.min.y,
+    -(bb.min.z + bb.max.z) / 2,
+  );
   const g = new THREE.Group();
   g.scale.setScalar(height / h);
   g.add(c);

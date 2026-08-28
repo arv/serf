@@ -1,14 +1,19 @@
-import { describe, expect, it } from 'vitest';
-import { createWorld } from '../sim/world.ts';
-import { AiBrain } from '../sim/systems/ai.ts';
-import { strategyOf } from '../sim/defs/aiStrategies.ts';
-import { buildMessages, extractSummary, CHAT_ROLE_KEYS } from './prompt.ts';
-import { POSTURES, POSTURE_ORDER, postureAdvice, POSTURE_KEYS } from './posture.ts';
-import { toOverride } from './advice.ts';
-import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
-import * as ChatRole from './chatRoleEnum.ts';
-import * as PostureId from './postureIdEnum.ts';
+import {describe, expect, it} from 'vitest';
+import {strategyOf} from '../sim/defs/aiStrategies.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
+import {AiBrain} from '../sim/systems/ai.ts';
+import {createWorld} from '../sim/world.ts';
+import {toOverride} from './advice.ts';
+import * as ChatRole from './chatRoleEnum.ts';
+import {
+  POSTURES,
+  POSTURE_ORDER,
+  postureAdvice,
+  POSTURE_KEYS,
+} from './posture.ts';
+import * as PostureId from './postureIdEnum.ts';
+import {buildMessages, extractSummary, CHAT_ROLE_KEYS} from './prompt.ts';
+import {summarizeForSeat, type AiWorldSummary} from './summary.ts';
 
 /**
  * The prompt is judged on the two things that matter to a small model:
@@ -16,12 +21,16 @@ import * as PlayerKind from '../sim/playerKindEnum.ts';
  * Wording is free to change; these tests pin the contract, not the prose.
  */
 
-function summaries(): { first: AiWorldSummary; later: AiWorldSummary } {
+function summaries(): {first: AiWorldSummary; later: AiWorldSummary} {
   const world = createWorld({
     seed: 5,
-    players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
+    players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
   });
-  const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
+  const brain = new AiBrain(
+    1,
+    strategyOf(world.players[1]!.strategy),
+    world.map.size,
+  );
   brain.decide(world); // one beat, so vision exists
   const first = summarizeForSeat(world, brain);
   // Two minutes on, the scout has found the rival and taken a first look.
@@ -34,18 +43,25 @@ function summaries(): { first: AiWorldSummary; later: AiWorldSummary } {
         ...first.rivals[0]!,
         found: true,
         distance: 30,
-        intel: { ageTicks: 200, heavy: 2, light: 1, ranged: 0, total: 3, peak: 4 },
+        intel: {
+          ageTicks: 200,
+          heavy: 2,
+          light: 1,
+          ranged: 0,
+          total: 3,
+          peak: 4,
+        },
       },
     ],
   };
-  return { first, later };
+  return {first, later};
 }
 
 describe('buildMessages', () => {
   it('is one system briefing and one user report', () => {
-    const { first } = summaries();
+    const {first} = summaries();
     const messages = buildMessages(first, null, null);
-    expect(messages.map((m) => m.role)).toEqual([ChatRole.system, ChatRole.user]);
+    expect(messages.map(m => m.role)).toEqual([ChatRole.system, ChatRole.user]);
     // The menu names every stance the parser will accept, and each one
     // comes with the situation to pick it under — the model is matching a
     // valley to a label, so a bare list of names would not be the ask.
@@ -71,15 +87,15 @@ describe('buildMessages', () => {
     // the model's chat template off those words. Nothing else covers the
     // hand-off — the lab and the tests hand fake engines a ChatMessage[]
     // straight — so a slip there would reach only a real model, silently.
-    const wire = buildMessages(summaries().first, null, null).map((m) => ({
+    const wire = buildMessages(summaries().first, null, null).map(m => ({
       role: CHAT_ROLE_KEYS[m.role],
       content: m.content,
     }));
-    expect(wire.map((m) => m.role)).toEqual(['system', 'user']);
+    expect(wire.map(m => m.role)).toEqual(['system', 'user']);
   });
 
   it('names the standing posture without quoting the numbers under it', () => {
-    const { first, later } = summaries();
+    const {first, later} = summaries();
     const advice = {
       ...postureAdvice(PostureId.siege),
       posture: PostureId.siege,
@@ -92,20 +108,24 @@ describe('buildMessages', () => {
     // serialized override rather than any single value, because the
     // summary legitimately reports the seat's own playbook knobs and those
     // numbers can coincide with a posture's.
-    expect(withAdvice[1]!.content).not.toContain(JSON.stringify(toOverride(advice)));
+    expect(withAdvice[1]!.content).not.toContain(
+      JSON.stringify(toOverride(advice)),
+    );
     const without = buildMessages(later, null, first);
     expect(without[1]!.content).toContain('printed values');
   });
 
   it('hands the summary back to engines that reason over state', () => {
-    const { first, later } = summaries();
+    const {first, later} = summaries();
     expect(extractSummary(buildMessages(later, null, first))).toEqual(later);
-    expect(extractSummary([{ role: ChatRole.user, content: 'no json here' }])).toBeNull();
+    expect(
+      extractSummary([{role: ChatRole.user, content: 'no json here'}]),
+    ).toBeNull();
     expect(extractSummary([])).toBeNull();
   });
 
   it('calls out what scouting turned up since the previous consultation', () => {
-    const { first, later } = summaries();
+    const {first, later} = summaries();
     const content = buildMessages(later, null, first)[1]!.content;
     expect(content).toContain('Since last consultation (2 min ago)');
     expect(content).toContain('FOUND, 30 tiles away');
@@ -114,13 +134,13 @@ describe('buildMessages', () => {
   });
 
   it('holds the token budget: the whole prompt stays small', () => {
-    const { first, later } = summaries();
+    const {first, later} = summaries();
     const total = buildMessages(
       later,
-      { ...postureAdvice(PostureId.siege), posture: PostureId.siege },
+      {...postureAdvice(PostureId.siege), posture: PostureId.siege},
       first,
     )
-      .map((m) => m.content)
+      .map(m => m.content)
       .join('').length;
     // ~4 chars per token: 4500 chars keeps the prompt near the 900-token
     // budget the module header promises.

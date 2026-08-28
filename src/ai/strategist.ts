@@ -1,11 +1,11 @@
-import { parseAdvice, toOverride, type StrategyAdvice } from './advice.ts';
-import { POSTURE_JSON_SCHEMA } from './posture.ts';
-import { ensureModelCached, withModelDownloadLock } from './modelDownload.ts';
-import { buildMessages, type ChatMessage, CHAT_ROLE_KEYS } from './prompt.ts';
-import type { AiWorldSummary, SeatKnobs } from './summary.ts';
-import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
-import type { Enum } from '../shared/enum.ts';
+import type {Enum} from '../shared/enum.ts';
+import type {AiStrategy} from '../sim/defs/aiStrategies.ts';
+import {parseAdvice, toOverride, type StrategyAdvice} from './advice.ts';
 import * as LlmStateNs from './llmStateEnum.ts';
+import {ensureModelCached, withModelDownloadLock} from './modelDownload.ts';
+import {POSTURE_JSON_SCHEMA} from './posture.ts';
+import {buildMessages, type ChatMessage, CHAT_ROLE_KEYS} from './prompt.ts';
+import type {AiWorldSummary, SeatKnobs} from './summary.ts';
 export type LlmState = Enum<typeof LlmStateNs>;
 import * as ConsultOutcomeNs from './consultOutcomeEnum.ts';
 export type ConsultOutcome = Enum<typeof ConsultOutcomeNs>;
@@ -91,13 +91,17 @@ export function llmSupported(): boolean {
 /** The one seam the engine is used through — tests inject a fake and the
  * whole strategist runs without wllama or a model. */
 export interface ChatEngine {
-  complete(messages: ChatMessage[], schemaJson: string, signal?: AbortSignal): Promise<string>;
+  complete(
+    messages: ChatMessage[],
+    schemaJson: string,
+    signal?: AbortSignal,
+  ): Promise<string>;
 }
 
 export type LlmStatus =
-  | { state: LlmStateNs.loading; pct: number; text: string }
-  | { state: LlmStateNs.ready }
-  | { state: LlmStateNs.failed; reason: string };
+  | {state: LlmStateNs.loading; pct: number; text: string}
+  | {state: LlmStateNs.ready}
+  | {state: LlmStateNs.failed; reason: string};
 
 /**
  * One consultation, recorded whole for whoever is watching the model work:
@@ -160,7 +164,7 @@ export class LlmStrategist {
   #opts: LlmStrategistOpts;
   #engine: ChatEngine | null = null;
   /** The live wllama instance, for freeing its worker and model memory. */
-  #wllama: { exit(): Promise<void> } | null = null;
+  #wllama: {exit(): Promise<void>} | null = null;
   #seats = new Map<number, SeatMemory>();
   #failures = 0;
   /** One consultation at a time across every seat — the load-shedding. */
@@ -191,12 +195,16 @@ export class LlmStrategist {
    * fails leaves the strategist inert and the status saying why. */
   async start(): Promise<void> {
     try {
-      const engine = await (this.#opts.engineFactory ?? (() => this.#buildEngine()))();
+      const engine = await (
+        this.#opts.engineFactory ?? (() => this.#buildEngine())
+      )();
       if (this.#disposed) return;
       this.#engine = engine;
-      this.#opts.onStatus({ state: LlmStateNs.ready });
+      this.#opts.onStatus({state: LlmStateNs.ready});
     } catch (err) {
-      this.#fail(`model failed to load: ${err instanceof Error ? err.message : String(err)}`);
+      this.#fail(
+        `model failed to load: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -205,10 +213,17 @@ export class LlmStrategist {
    * seat's or anyone's — the summary is simply dropped; another comes
    * along on the next cadence. */
   onSummary(playerId: number, summary: AiWorldSummary): void {
-    if (!this.#engine || this.#dead || this.#disposed || this.#thinking || this.#hidden) return;
+    if (
+      !this.#engine ||
+      this.#dead ||
+      this.#disposed ||
+      this.#thinking ||
+      this.#hidden
+    )
+      return;
     let seat = this.#seats.get(playerId);
     if (!seat) {
-      seat = { busy: false, advice: null, sentKey: null, prevSummary: null };
+      seat = {busy: false, advice: null, sentKey: null, prevSummary: null};
       this.#seats.set(playerId, seat);
     }
     if (seat.busy) return;
@@ -236,14 +251,21 @@ export class LlmStrategist {
     }
   }
 
-  async #consult(playerId: number, seat: SeatMemory, summary: AiWorldSummary): Promise<void> {
+  async #consult(
+    playerId: number,
+    seat: SeatMemory,
+    summary: AiWorldSummary,
+  ): Promise<void> {
     // Hoisted past the try so the failure trace still carries the prompt
     // and (for a reply that parsed to nothing) the reply itself.
     const startedAt = performance.now();
     const messages = buildMessages(summary, seat.advice, seat.prevSummary);
     let raw = '';
     const trace = (
-      t: Omit<ConsultTrace, 'playerId' | 'minutes' | 'knobs' | 'ms' | 'messages' | 'raw'>,
+      t: Omit<
+        ConsultTrace,
+        'playerId' | 'minutes' | 'knobs' | 'ms' | 'messages' | 'raw'
+      >,
     ) => {
       this.#opts.onTrace?.({
         playerId,
@@ -256,25 +278,35 @@ export class LlmStrategist {
       });
     };
     try {
-      raw = await this.#withTimeout((signal) =>
-        this.#engine!.complete(messages, JSON.stringify(POSTURE_JSON_SCHEMA), signal),
+      raw = await this.#withTimeout(signal =>
+        this.#engine!.complete(
+          messages,
+          JSON.stringify(POSTURE_JSON_SCHEMA),
+          signal,
+        ),
       );
       const advice = parseAdvice(raw);
-      if (advice === null) throw new Error(`unparseable advice: ${raw.slice(0, 120)}`);
+      if (advice === null)
+        throw new Error(`unparseable advice: ${raw.slice(0, 120)}`);
       this.#failures = 0;
       if (this.#disposed) return;
       // Only a reply that actually moved a dial goes downstairs: "keep
       // everything as it is" is a valid answer, and so is repeating the
       // standing advice word for word — neither costs a message.
-      seat.advice = { ...seat.advice, ...advice };
+      seat.advice = {...seat.advice, ...advice};
       const override = toOverride(seat.advice);
       const key = JSON.stringify(override);
       if (Object.keys(override).length > 0 && key !== seat.sentKey) {
         seat.sentKey = key;
         this.#opts.sendAdvice(playerId, override);
-        trace({ outcome: ConsultOutcomeNs.sent, advice, standing: seat.advice, override });
+        trace({
+          outcome: ConsultOutcomeNs.sent,
+          advice,
+          standing: seat.advice,
+          override,
+        });
       } else {
-        trace({ outcome: ConsultOutcomeNs.kept, advice, standing: seat.advice });
+        trace({outcome: ConsultOutcomeNs.kept, advice, standing: seat.advice});
       }
     } catch (err) {
       // A hide aborts the consultation on purpose; only genuine failures
@@ -285,7 +317,11 @@ export class LlmStrategist {
           error: err instanceof Error ? err.message : String(err),
         });
       }
-      if (!this.#currentPaused && ++this.#failures >= MAX_CONSECUTIVE_FAILURES && !this.#dead) {
+      if (
+        !this.#currentPaused &&
+        ++this.#failures >= MAX_CONSECUTIVE_FAILURES &&
+        !this.#dead
+      ) {
         this.#fail(
           `giving up after ${MAX_CONSECUTIVE_FAILURES} failed consultations ` +
             `(${err instanceof Error ? err.message : String(err)})`,
@@ -303,7 +339,9 @@ export class LlmStrategist {
   /** Run one consultation under the clock. The signal reaches the engine
    * so a timeout actually stops the model chewing — an abandoned CPU
    * inference would otherwise keep burning cores for nobody. */
-  #withTimeout(work: (signal: AbortSignal) => Promise<string>): Promise<string> {
+  #withTimeout(
+    work: (signal: AbortSignal) => Promise<string>,
+  ): Promise<string> {
     const ms = this.#opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const controller = new AbortController();
     this.#current = controller;
@@ -313,7 +351,7 @@ export class LlmStrategist {
         reject(new Error(`inference timed out (${ms}ms)`));
       }, ms);
       work(controller.signal).then(
-        (v) => {
+        v => {
           clearTimeout(timer);
           resolve(v);
         },
@@ -331,7 +369,8 @@ export class LlmStrategist {
     // Inert is inert: a strategist that gave up must not keep the model —
     // and its memory and worker — alive for the rest of the match.
     this.#releaseWllama();
-    if (!this.#disposed) this.#opts.onStatus({ state: LlmStateNs.failed, reason });
+    if (!this.#disposed)
+      this.#opts.onStatus({state: LlmStateNs.failed, reason});
   }
 
   #releaseWllama(): void {
@@ -348,16 +387,22 @@ export class LlmStrategist {
     // The built entry, not the package root: the package also ships its
     // .ts sources, which the root specifier resolves to — dragging their
     // code into this project's (stricter) typecheck.
-    const [{ Wllama, LoggerWithoutDebug }, wasm] = await Promise.all([
+    const [{Wllama, LoggerWithoutDebug}, wasm] = await Promise.all([
       import('@wllama/wllama/esm/index.js'),
       import('@wllama/wllama/esm/wasm/wllama.wasm?url'),
     ]);
     const wllama = new Wllama(
-      { default: wasm.default },
-      { logger: LoggerWithoutDebug, allowOffline: true },
+      {default: wasm.default},
+      {logger: LoggerWithoutDebug, allowOffline: true},
     );
     this.#wllama = wllama;
-    const loading = ({ loaded, total }: { loaded: number; total: number }): void => {
+    const loading = ({
+      loaded,
+      total,
+    }: {
+      loaded: number;
+      total: number;
+    }): void => {
       if (!this.#disposed && total > 0) {
         this.#opts.onStatus({
           state: LlmStateNs.loading,
@@ -382,7 +427,8 @@ export class LlmStrategist {
     // model into a worker that is gone. (.aborted, not throwIfAborted():
     // the latter is missing from browsers old enough to still reach the
     // native fallback below.)
-    if (this.#loadAbort.signal.aborted) throw new Error('match ended during the model load');
+    if (this.#loadAbort.signal.aborted)
+      throw new Error('match ended during the model load');
     // Under the download lock: on the 'unsupported' path this call is
     // also the download, and a download belongs in the same critical
     // section as every other (modelDownload.ts). On a cache hit the lock
@@ -407,16 +453,22 @@ export class LlmStrategist {
             // The words, not the ids: llama.cpp keys the model's chat
             // template on 'system' and 'user'. This is the only place the
             // spelling is needed, and the only place it is spelled.
-            messages: messages.map((m) => ({ role: CHAT_ROLE_KEYS[m.role], content: m.content })),
+            messages: messages.map(m => ({
+              role: CHAT_ROLE_KEYS[m.role],
+              content: m.content,
+            })),
             temperature: 0.6,
             max_tokens: MAX_TOKENS,
             abortSignal: signal,
             response_format: withSchema
               ? {
                   type: 'json_schema',
-                  json_schema: { name: 'advice', schema: JSON.parse(schemaJson) as unknown },
+                  json_schema: {
+                    name: 'advice',
+                    schema: JSON.parse(schemaJson) as unknown,
+                  },
                 }
-              : { type: 'json_object' },
+              : {type: 'json_object'},
           });
         let reply;
         if (schemaBroken) {
@@ -425,7 +477,8 @@ export class LlmStrategist {
           try {
             reply = await ask(true);
           } catch (err) {
-            if (signal?.aborted) throw err instanceof Error ? err : new Error(String(err));
+            if (signal?.aborted)
+              throw err instanceof Error ? err : new Error(String(err));
             schemaBroken = true;
             console.warn(
               `[strategist] schema-constrained generation failed, ` +
@@ -453,13 +506,15 @@ export class LlmStrategist {
  * without resumable storage still restarts from zero, through wllama's
  * own downloader, the way every load once did.
  */
-export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () => void } {
+export function warmModel(onStatus: (status: LlmStatus) => void): {
+  dispose: () => void;
+} {
   const controller = new AbortController();
   let disposed = false;
   const report = (status: LlmStatus): void => {
     if (!disposed) onStatus(status);
   };
-  const progress = ({ loaded, total }: { loaded: number; total: number }): void => {
+  const progress = ({loaded, total}: {loaded: number; total: number}): void => {
     if (total > 0) {
       report({
         state: LlmStateNs.loading,
@@ -470,7 +525,8 @@ export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () 
   };
   void (async () => {
     try {
-      const { CacheManager, ModelManager } = await import('@wllama/wllama/esm/index.js');
+      const {CacheManager, ModelManager} =
+        await import('@wllama/wllama/esm/index.js');
       const cache = new CacheManager();
       const ensured = await ensureModelCached(cache, LLM_MODEL_URL, {
         signal: controller.signal,
@@ -484,14 +540,17 @@ export function warmModel(onStatus: (status: LlmStatus) => void): { dispose: () 
         // one's half-written file in turn.
         await withModelDownloadLock(
           () =>
-            new ModelManager({ cacheManager: cache }).downloadModel(LLM_MODEL_URL, {
-              signal: controller.signal,
-              progressCallback: progress,
-            }),
+            new ModelManager({cacheManager: cache}).downloadModel(
+              LLM_MODEL_URL,
+              {
+                signal: controller.signal,
+                progressCallback: progress,
+              },
+            ),
           controller.signal,
         );
       }
-      report({ state: LlmStateNs.ready });
+      report({state: LlmStateNs.ready});
     } catch (err) {
       report({
         state: LlmStateNs.failed,

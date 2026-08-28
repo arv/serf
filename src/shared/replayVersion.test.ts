@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { REPLAY_VERSION } from './replayVersion';
+import {describe, expect, it} from 'vitest';
+import {REPLAY_VERSION} from './replayVersion';
 
 /**
  * The guard that keeps REPLAY_VERSION honest. A replay only plays back
@@ -43,12 +43,14 @@ import { REPLAY_VERSION } from './replayVersion';
 // kind in a word the screen no longer reads, and a shelf keyed by number
 // enumerates in id order rather than in the order it was written. Both
 // are in replayVersion.ts at length.
-// Still 33 after oxfmt formatted the tree: the formatter rewrapped a few
-// lines in sim/arrival.ts and sim/visibility.ts and touched nothing else.
-// Whitespace, so every tick runs exactly as it did — the hash is over raw
-// bytes, which is the one thing that moved.
+// Still 33 after oxfmt formatted the tree (.oxfmtrc.json): 80-column
+// wrapping, no space inside braces, and sorted import lists. Whitespace
+// and import order — same constants, same tables, same statements, so
+// every tick runs as it did. Side-effect imports are left unsorted by
+// config, so nothing's evaluation order moved either. The hash is over
+// raw bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 33;
-const EXPECTED_HASH = 'ee61e2bf9a26476b8e33e83fe0179bd9';
+const EXPECTED_HASH = '470252161bbb1ab0f8dad72d36078a4f';
 
 /**
  * Everything a replay's playback depends on, as raw source:
@@ -62,7 +64,12 @@ const EXPECTED_HASH = 'ee61e2bf9a26476b8e33e83fe0179bd9';
  * - the replay format itself: shape, screening, serialization.
  */
 const SOURCES = import.meta.glob(
-  ['/src/sim/**/*.ts', '/src/sim/defs/maps/*.json', '/src/shared/*.ts', '/src/app/replay.ts'],
+  [
+    '/src/sim/**/*.ts',
+    '/src/sim/defs/maps/*.json',
+    '/src/shared/*.ts',
+    '/src/app/replay.ts',
+  ],
   {
     query: '?raw',
     import: 'default',
@@ -73,7 +80,10 @@ const SOURCES = import.meta.glob(
 /** Repo-relative and sorted, so the hash is stable across machines. */
 function surface(): [string, string][] {
   return Object.entries(SOURCES)
-    .map(([path, raw]) => [path.replace(/^\/src\//, ''), raw as string] as [string, string])
+    .map(
+      ([path, raw]) =>
+        [path.replace(/^\/src\//, ''), raw as string] as [string, string],
+    )
     .filter(([path]) => !path.endsWith('.test.ts'))
     .filter(([path]) => path !== 'sim/testUtils.ts') // test scaffolding, never ticks
     .filter(([path]) => !path.startsWith('sim/debug/')) // DEV-only observers of the world
@@ -88,22 +98,25 @@ async function surfaceHash(): Promise<string> {
     // "this checkout's line endings differ".
     joined += path + '\0' + raw.replaceAll('\r\n', '\n') + '\0';
   }
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(joined));
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(joined),
+  );
   return [...new Uint8Array(digest)]
-    .map((b) => b.toString(16).padStart(2, '0'))
+    .map(b => b.toString(16).padStart(2, '0'))
     .join('')
     .slice(0, 32);
 }
 
 describe('replay version', () => {
   it('is bumped when the compatibility surface changes', async () => {
-    const actual = { version: REPLAY_VERSION, surfaceHash: await surfaceHash() };
+    const actual = {version: REPLAY_VERSION, surfaceHash: await surfaceHash()};
     expect(
       actual,
       'The replay compatibility surface changed. If sim behavior or the replay format ' +
         'moved, bump REPLAY_VERSION in src/shared/replayVersion.ts; either way, pin the ' +
         `new hash in this test. Current surface hash: ${actual.surfaceHash}`,
-    ).toEqual({ version: EXPECTED_VERSION, surfaceHash: EXPECTED_HASH });
+    ).toEqual({version: EXPECTED_VERSION, surfaceHash: EXPECTED_HASH});
   });
 
   it('covers the files that exist (a moved surface must not silently vanish)', () => {

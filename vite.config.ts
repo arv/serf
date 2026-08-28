@@ -1,12 +1,12 @@
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { defineConfig } from 'vitest/config';
+import {execFileSync} from 'node:child_process';
+import {readFileSync} from 'node:fs';
 import solid from 'vite-plugin-solid';
-import { serviceWorkerPlugin } from './build/swPlugin';
+import {defineConfig} from 'vitest/config';
+import {serviceWorkerPlugin} from './build/swPlugin';
 
-const { version } = JSON.parse(
+const {version} = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
-) as { version: string };
+) as {version: string};
 
 // The start menu shows which build you are on, and the browser can read
 // neither package.json nor the checkout — both halves have to be baked in
@@ -84,7 +84,7 @@ export default defineConfig({
   // runner both. It mattered most when the maps were tile *arrays* —
   // literal evaluation made the mission tests ~10x slower; they are base64
   // strings now, and this still costs nothing.
-  json: { stringify: true },
+  json: {stringify: true},
   define: {
     __APP_VERSION__: JSON.stringify(version),
     __GIT_COMMIT__: JSON.stringify(gitCommit()),
@@ -98,13 +98,13 @@ export default defineConfig({
   },
   // Prebundling the engine in dev drags a multi-MB dependency through
   // esbuild on every cold start for a feature most sessions never touch.
-  optimizeDeps: { exclude: ['@wllama/wllama'] },
+  optimizeDeps: {exclude: ['@wllama/wllama']},
   // ES-format workers, because the sim worker code-splits: the campaign's
   // mission maps (sim/defs/missionMaps.ts) arrive as dynamic chunks when a
   // mission boots, and the default iife worker build cannot split at all.
-  worker: { format: 'es' },
-  server: { headers: crossOriginIsolation, port },
-  preview: { headers: crossOriginIsolation, port },
+  worker: {format: 'es'},
+  server: {headers: crossOriginIsolation, port},
+  preview: {headers: crossOriginIsolation, port},
   test: {
     // Sim tests are headless node — no DOM environment needed or wanted.
     environment: 'node',

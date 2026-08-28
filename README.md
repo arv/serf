@@ -281,12 +281,19 @@ pnpm format      # oxfmt, in place (CI runs `pnpm format:check`)
 pnpm bakeoff     # LLM strategist bake-off (tools/aiLab)
 ```
 
-Formatting is [oxfmt](https://oxc.rs/docs/guide/usage/formatter) with its
-defaults but single quotes (`.oxfmtrc.json`), and CI fails on an unformatted
-file. Left alone: the prose in `README.md` and `docs/`, the vendored models
-under `public/models/`, and the one-line generated data
+Formatting is [oxfmt](https://oxc.rs/docs/guide/usage/formatter)
+(`.oxfmtrc.json`: 80 columns, single quotes, no space inside braces, bare
+single arrow params, sorted imports), and CI fails on an unformatted file.
+Left alone: the prose in `README.md` and `docs/`, the vendored models under
+`public/models/`, and the one-line generated data
 (`src/sim/defs/maps/*.json`, `tools/modelLab/baked.json`) a formatter would
 explode into thousands of lines.
+
+One thing to know about the import sorting: a comment directly above the
+first import travels with it, so a file header or a `/// <reference lib>`
+lands mid-block unless a **blank line** separates it from the imports. The
+two workers (`src/app/simWorker.ts`, `src/app/netWorker.ts`) need theirs —
+a `<reference>` TypeScript no longer reads is a silent one.
 
 ## Credits
 

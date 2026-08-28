@@ -7,7 +7,7 @@ import {
   tileX,
   tileY,
 } from '../shared/grid.ts';
-import type { GameMap } from './map.ts';
+import type {GameMap} from './map.ts';
 import * as PathLevel from './pathLevelEnum.ts';
 
 /**
@@ -37,7 +37,11 @@ export function tileStepCost(map: PathMap, idx: number): number {
 /** Movement speed multiplier for a tile (inverse of its cost advantage). */
 export function tileSpeedMult(map: PathMap, idx: number): number {
   const level = map.pathLevel[idx]!;
-  return level === PathLevel.Road ? 1.35 : level === PathLevel.Trail ? 1.15 : 1.0;
+  return level === PathLevel.Road
+    ? 1.35
+    : level === PathLevel.Trail
+      ? 1.15
+      : 1.0;
 }
 
 /**
@@ -227,7 +231,10 @@ function search(
         if (map.blocked[n]) continue;
         // No corner cutting: a diagonal needs both orthogonal neighbors open.
         if (dx !== 0 && dy !== 0) {
-          if (map.blocked[tileIdx(cx + dx, cy, size)] || map.blocked[tileIdx(cx, cy + dy, size)])
+          if (
+            map.blocked[tileIdx(cx + dx, cy, size)] ||
+            map.blocked[tileIdx(cx, cy + dy, size)]
+          )
             continue;
         }
         const stepLen = dx !== 0 && dy !== 0 ? SQRT2 : 1;
@@ -255,9 +262,10 @@ export function findPath(
   ty: number,
 ): number[] | null {
   const size = map.size;
-  if (!inBounds(tx, ty, size) || map.blocked[tileIdx(tx, ty, size)]) return null;
+  if (!inBounds(tx, ty, size) || map.blocked[tileIdx(tx, ty, size)])
+    return null;
   const goal = tileIdx(tx, ty, size);
-  return search(map, sx, sy, (i) => i === goal, tx, ty, tx, ty);
+  return search(map, sx, sy, i => i === goal, tx, ty, tx, ty);
 }
 
 function reconstruct(start: number, goal: number): number[] {
@@ -275,7 +283,12 @@ function reconstruct(start: number, goal: number): number[] {
  * Nearest walkable tile to (tx,ty), spiralling outward. Returns tile index or
  * -1. Useful for right-click targets on blocked tiles.
  */
-export function nearestWalkable(map: PathMap, tx: number, ty: number, maxR = 8): number {
+export function nearestWalkable(
+  map: PathMap,
+  tx: number,
+  ty: number,
+  maxR = 8,
+): number {
   const size = map.size;
   for (let r = 0; r <= maxR; r++) {
     for (let dy = -r; dy <= r; dy++) {
@@ -283,7 +296,8 @@ export function nearestWalkable(map: PathMap, tx: number, ty: number, maxR = 8):
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const x = tx + dx;
         const y = ty + dy;
-        if (inBounds(x, y, size) && !map.blocked[tileIdx(x, y, size)]) return tileIdx(x, y, size);
+        if (inBounds(x, y, size) && !map.blocked[tileIdx(x, y, size)])
+          return tileIdx(x, y, size);
       }
     }
   }

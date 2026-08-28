@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { CAMERA_YAW } from '../render/cameraRig';
-import { MIN_AUDIBLE, PAN_CEIL, type Spatial, type ViewFrame, spatialize } from './pan';
+import {describe, expect, it} from 'vitest';
+import {CAMERA_YAW} from '../render/cameraRig';
+import {
+  MIN_AUDIBLE,
+  PAN_CEIL,
+  type Spatial,
+  type ViewFrame,
+  spatialize,
+} from './pan';
 
 /** The full diamond: the yaw the stereo field was tuned on, where world
  * +x -z is screen-right and dx === dz is straight up the screen. */
@@ -18,7 +24,7 @@ const rect = (cx: number, cz: number, ext: number, yaw = ISO): ViewFrame => ({
 });
 
 const at = (x: number, z: number, b: ViewFrame): Spatial =>
-  spatialize(x, z, b, { pan: 0, gain: 0, audible: false });
+  spatialize(x, z, b, {pan: 0, gain: 0, audible: false});
 
 describe('spatialize', () => {
   it('pans in the basis it is handed, not a hard-coded 45°', () => {
@@ -31,14 +37,20 @@ describe('spatialize', () => {
     expect(at(40, 50, square).pan).toBeLessThan(0);
     expect(at(50, 60, square).pan).toBe(0);
     const right = at(60, 50, square).pan;
-    expect(at(60, 50, rect(50, 50, 20)).pan).toBeCloseTo(right * Math.SQRT1_2, 10);
+    expect(at(60, 50, rect(50, 50, 20)).pan).toBeCloseTo(
+      right * Math.SQRT1_2,
+      10,
+    );
     expect(at(60, 50, rect(50, 50, 20, CAMERA_YAW)).pan).toBeCloseTo(
       right * Math.cos(CAMERA_YAW),
       10,
     );
     // A quarter turn on from the diamond is its mirror: world +x -z, the
     // diamond's screen-right, is now straight up the screen.
-    expect(at(55, 45, rect(50, 50, 20, ISO + Math.PI / 2)).pan).toBeCloseTo(0, 10);
+    expect(at(55, 45, rect(50, 50, 20, ISO + Math.PI / 2)).pan).toBeCloseTo(
+      0,
+      10,
+    );
   });
 
   it('gain hears the same valley whichever way the camera faces', () => {
@@ -48,7 +60,10 @@ describe('spatialize', () => {
       const b = rect(0, 0, 20, yaw);
       const sx = 9 * Math.cos(yaw);
       const sz = -9 * Math.sin(yaw);
-      expect(at(sx, sz, b).gain).toBeCloseTo(at(9, 0, rect(0, 0, 20, 0)).gain, 10);
+      expect(at(sx, sz, b).gain).toBeCloseTo(
+        at(9, 0, rect(0, 0, 20, 0)).gain,
+        10,
+      );
       expect(at(0, 0, b).gain).toBeCloseTo(1, 5);
     }
   });
@@ -125,7 +140,9 @@ describe('spatialize', () => {
     const near = at(1.2, 0, rect(0, 0, 6));
     const far = at(5.2, 0, rect(0, 0, 26));
     expect(far.gain).toBeLessThan(near.gain);
-    expect(at(0, 0, rect(0, 0, 26)).gain).toBeLessThan(at(0, 0, rect(0, 0, 6)).gain);
+    expect(at(0, 0, rect(0, 0, 26)).gain).toBeLessThan(
+      at(0, 0, rect(0, 0, 6)).gain,
+    );
   });
 
   it('a degenerate frame is silent, not NaN', () => {

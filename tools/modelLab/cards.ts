@@ -1,4 +1,4 @@
-import { VARIANTS, type Variant } from './variants';
+import {VARIANTS, type Variant} from './variants';
 
 /**
  * Card markup for the gallery, generated from the variant list so the
@@ -61,14 +61,14 @@ const SLOTS: Slot[] = [
 function esc(s: string): string {
   return s.replace(
     /[&<>"]/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!,
+    c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]!,
   );
 }
 
 function card(v: Variant): string {
-  const pack = v.pack.map((p) => `<code>${esc(p)}</code>`).join(' ');
+  const pack = v.pack.map(p => `<code>${esc(p)}</code>`).join(' ');
   const made = v.handmade.length
-    ? v.handmade.map((p) => `<span>${esc(p)}</span>`).join(' ')
+    ? v.handmade.map(p => `<span>${esc(p)}</span>`).join(' ')
     : '<span class="none">nothing — pack only</span>';
   return `
     <article class="card" data-variant="${v.id}">
@@ -87,8 +87,8 @@ function card(v: Variant): string {
 }
 
 export function galleryMarkup(): string {
-  return SLOTS.map((s) => {
-    const items = VARIANTS.filter((v) => v.slot === s.slot)
+  return SLOTS.map(s => {
+    const items = VARIANTS.filter(v => v.slot === s.slot)
       .map(card)
       .join('');
     return `

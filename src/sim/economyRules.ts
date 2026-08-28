@@ -1,3 +1,7 @@
+import type {Enum} from '../shared/enum.ts';
+import type {SimCommand} from './commands.ts';
+import type {AiStrategy} from './defs/aiStrategies.ts';
+import {FORGE_QUEUE_CAP} from './defs/balance.ts';
 import {
   BUILDING_DEFS,
   TOOL_GOODS,
@@ -7,25 +11,21 @@ import {
   gatherRecipeOf,
   OUTPUT_CAP,
 } from './defs/buildings.ts';
-import { FORGE_QUEUE_CAP } from './defs/balance.ts';
-import { findResourcesNear, nearestResource } from './map.ts';
-import { WEAPON_OF, type UnitTypeId } from './defs/units.ts';
-import { isUnitUnlocked } from './techHelpers.ts';
-import type { AiStrategy } from './defs/aiStrategies.ts';
-import type { TechId } from './defs/techs.ts';
-import type { Building, EntityId, Owner } from './entities.ts';
-import type { SimCommand } from './commands.ts';
-import type { World } from './world.ts';
-import { goodKeys, type GoodAmounts, goodEntries } from './defs/goods.ts';
-import type { Enum } from '../shared/enum.ts';
+import {goodKeys, type GoodAmounts, goodEntries} from './defs/goods.ts';
+import type {TechId} from './defs/techs.ts';
+import {WEAPON_OF, type UnitTypeId} from './defs/units.ts';
 import * as EconomyRuleIdNs from './economyRuleIdEnum.ts';
+import type {Building, EntityId, Owner} from './entities.ts';
+import {findResourcesNear, nearestResource} from './map.ts';
+import {isUnitUnlocked} from './techHelpers.ts';
+import type {World} from './world.ts';
 
 export type EconomyRuleId = Enum<typeof EconomyRuleIdNs>;
-import * as RulePhaseNs from './rulePhaseEnum.ts';
-import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as BuildingState from './buildingStateEnum.ts';
 import * as CommandKind from './commandKindEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
+import * as RulePhaseNs from './rulePhaseEnum.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -107,7 +107,7 @@ export interface RuleContext {
    * in force. Handed in rather than derived, so this module stays free of
    * the brain's intel bookkeeping.
    */
-  counter: { unit: UnitTypeId; recipe: number } | null;
+  counter: {unit: UnitTypeId; recipe: number} | null;
 }
 
 export interface RuleFiring {
@@ -171,14 +171,21 @@ const resiteExtractor: EconomyRule = {
       if (!recipe) continue;
       const code = recipe.resource;
       const c = gatherOrigin(def, b.x, b.y);
-      if (findResourcesNear(ctx.world.map, c.x, c.y, code, recipe.radius, 1).length > 0) continue;
+      if (
+        findResourcesNear(ctx.world.map, c.x, c.y, code, recipe.radius, 1)
+          .length > 0
+      )
+        continue;
       if (nearestResource(ctx.world.map, code, b.x, b.y) < 0) continue; // nowhere to go
       const cost = def.cost;
       const canRebuild = goodEntries(cost).every(
         ([good, n]) => (ctx.stock[good] ?? 0) + Math.floor(n / 2) >= n,
       );
       if (!canRebuild) continue;
-      return { commands: [{ kind: CommandKind.sellBuilding, buildingId: b.id }], claims: [b.id] };
+      return {
+        commands: [{kind: CommandKind.sellBuilding, buildingId: b.id}],
+        claims: [b.id],
+      };
     }
     return null;
   },
@@ -279,13 +286,23 @@ const freeCappedHauler: EconomyRule = {
   fire(ctx) {
     if (ctx.serfCount >= ctx.strategy.survivalFloor) return null;
     for (const b of ctx.mine) {
-      if (b.state !== BuildingState.built || b.paused || b.workerId === undefined) continue;
-      const out = gatherRecipeOf(BUILDING_DEFS[b.type as BuildingTypeId])?.output;
+      if (
+        b.state !== BuildingState.built ||
+        b.paused ||
+        b.workerId === undefined
+      )
+        continue;
+      const out = gatherRecipeOf(
+        BUILDING_DEFS[b.type as BuildingTypeId],
+      )?.output;
       if (out === undefined || (b.stock[out] ?? 0) < OUTPUT_CAP) continue;
       const worker = ctx.world.units.get(b.workerId);
-      if (!worker || worker.dead || worker.task.t !== UnitTaskKind.idle) continue;
+      if (!worker || worker.dead || worker.task.t !== UnitTaskKind.idle)
+        continue;
       return {
-        commands: [{ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: true }],
+        commands: [
+          {kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: true},
+        ],
         claims: [b.id],
       };
     }
@@ -321,7 +338,9 @@ const keepTheToolsComing: EconomyRule = {
     // replace a lost axe has no woodcutter. A halted Smith is one order
     // away from working, so it counts.
     const smiths = ctx.mine.filter(
-      (b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built,
+      b =>
+        b.type === BuildingTypeId.weaponsmith &&
+        b.state === BuildingState.built,
     );
     if (smiths.length === 0) return null;
 
@@ -342,7 +361,8 @@ const keepTheToolsComing: EconomyRule = {
       if (b.state !== BuildingState.built || b.paused) continue;
       const tool = TOOL_OF[b.type];
       if (tool === undefined) continue;
-      const worker = b.workerId !== undefined ? ctx.world.units.get(b.workerId) : undefined;
+      const worker =
+        b.workerId !== undefined ? ctx.world.units.get(b.workerId) : undefined;
       if (worker && !worker.dead) continue;
       if ((b.inputs[tool] ?? 0) + (b.inbound[tool] ?? 0) > 0) continue;
       wanted.add(tool);
@@ -354,29 +374,40 @@ const keepTheToolsComing: EconomyRule = {
     for (const tool of TOOL_GOODS) {
       if (!wanted.has(tool)) continue;
       if ((ctx.stock[tool] ?? 0) > 0) continue; // one on the shelf is already coming
-      const index = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!.findIndex(
-        (o) => (o.recipe.outputs[tool] ?? 0) > 0,
-      );
+      const index = BUILDING_DEFS[
+        BuildingTypeId.weaponsmith
+      ].recipeOptions!.findIndex(o => (o.recipe.outputs[tool] ?? 0) > 0);
       if (index < 0) return null;
-      const opt = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions![index]!;
-      if (opt.requiresTech !== undefined && !ctx.researched(opt.requiresTech)) continue;
+      const opt =
+        BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions![index]!;
+      if (opt.requiresTech !== undefined && !ctx.researched(opt.requiresTech))
+        continue;
       // Already ordered anywhere? An order stands until its batch lands, so
       // re-adding one every beat would fill five slots with the same axe.
       // A batch in a HALTED forge is the one case where the order standing
       // is not the same as the tool coming — nothing is being made there —
       // so that anvil is started rather than ordered from again.
-      const holder = smiths.find((b) => b.forgeQueue?.some((o) => o.recipeIndex === index));
+      const holder = smiths.find(b =>
+        b.forgeQueue?.some(o => o.recipeIndex === index),
+      );
       if (holder) {
         if (holder.paused !== true) continue;
         return {
-          commands: [{ kind: CommandKind.setBuildingPaused, buildingId: holder.id, paused: false }],
+          commands: [
+            {
+              kind: CommandKind.setBuildingPaused,
+              buildingId: holder.id,
+              paused: false,
+            },
+          ],
           claims: [holder.id],
         };
       }
       // A working anvil first; a halted one only when there is no other.
       const smith =
-        smiths.find((b) => !b.paused && (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP) ??
-        smiths.find((b) => (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP);
+        smiths.find(
+          b => !b.paused && (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP,
+        ) ?? smiths.find(b => (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP);
       if (!smith) return null;
       const commands: SimCommand[] = [];
       // Claimed only on the waking path. A plain order claims nothing on
@@ -386,11 +417,19 @@ const keepTheToolsComing: EconomyRule = {
       // open in one beat is the exact collision claims exist to settle.
       const claims: EntityId[] = [];
       if (smith.paused === true) {
-        commands.push({ kind: CommandKind.setBuildingPaused, buildingId: smith.id, paused: false });
+        commands.push({
+          kind: CommandKind.setBuildingPaused,
+          buildingId: smith.id,
+          paused: false,
+        });
         claims.push(smith.id);
       }
-      commands.push({ kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: index });
-      return { commands, claims };
+      commands.push({
+        kind: CommandKind.enqueueForge,
+        buildingId: smith.id,
+        recipeIndex: index,
+      });
+      return {commands, claims};
     }
     return null;
   },
@@ -423,12 +462,18 @@ const resumeDrainedPost: EconomyRule = {
     const claims: EntityId[] = [];
     for (const b of ctx.mine) {
       if (b.state !== BuildingState.built || !b.paused) continue;
-      const out = gatherRecipeOf(BUILDING_DEFS[b.type as BuildingTypeId])?.output;
+      const out = gatherRecipeOf(
+        BUILDING_DEFS[b.type as BuildingTypeId],
+      )?.output;
       if (out === undefined || (b.stock[out] ?? 0) > 0) continue;
-      commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
+      commands.push({
+        kind: CommandKind.setBuildingPaused,
+        buildingId: b.id,
+        paused: false,
+      });
       claims.push(b.id);
     }
-    return commands.length > 0 ? { commands, claims } : null;
+    return commands.length > 0 ? {commands, claims} : null;
   },
 };
 
@@ -452,25 +497,43 @@ const forgeTheCounter: EconomyRule = {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
     const smiths = ctx.mine.filter(
-      (b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built,
+      b =>
+        b.type === BuildingTypeId.weaponsmith &&
+        b.state === BuildingState.built,
     );
     smiths.forEach((smith, i) => {
-      let want = ctx.strategy.weaponMix[Math.min(i, ctx.strategy.weaponMix.length - 1)]!;
+      let want =
+        ctx.strategy.weaponMix[Math.min(i, ctx.strategy.weaponMix.length - 1)]!;
       if (ctx.counter && i > 0) {
-        const opt = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions?.[ctx.counter.recipe];
-        if (opt && (opt.requiresTech === undefined || ctx.researched(opt.requiresTech))) {
+        const opt =
+          BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions?.[
+            ctx.counter.recipe
+          ];
+        if (
+          opt &&
+          (opt.requiresTech === undefined || ctx.researched(opt.requiresTech))
+        ) {
           want = ctx.counter.recipe;
         }
       }
-      const option = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions?.[want];
+      const option =
+        BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions?.[want];
       if (!option) return;
-      if (option.requiresTech !== undefined && !ctx.researched(option.requiresTech)) return;
+      if (
+        option.requiresTech !== undefined &&
+        !ctx.researched(option.requiresTech)
+      )
+        return;
       if (smith.recipeIndex !== want) {
-        commands.push({ kind: CommandKind.setBuildingRecipe, buildingId: smith.id, index: want });
+        commands.push({
+          kind: CommandKind.setBuildingRecipe,
+          buildingId: smith.id,
+          index: want,
+        });
         claims.push(smith.id);
       }
     });
-    return commands.length > 0 ? { commands, claims } : null;
+    return commands.length > 0 ? {commands, claims} : null;
   },
 };
 
@@ -587,27 +650,41 @@ const holdTheGlutForge: EconomyRule = {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
     const smiths = ctx.mine.filter(
-      (b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built,
+      b =>
+        b.type === BuildingTypeId.weaponsmith &&
+        b.state === BuildingState.built,
     );
     for (const b of smiths) {
-      const recipe = convertRecipeOf(BUILDING_DEFS[BuildingTypeId.weaponsmith], b);
+      const recipe = convertRecipeOf(
+        BUILDING_DEFS[BuildingTypeId.weaponsmith],
+        b,
+      );
       if (!recipe) continue;
       // One output per forge recipe today; summing is what the shape means
       // rather than what it happens to hold.
       let shelf = 0;
-      for (const good of goodKeys(recipe.outputs)) shelf += ctx.stock[good] ?? 0;
+      for (const good of goodKeys(recipe.outputs))
+        shelf += ctx.stock[good] ?? 0;
       if (b.paused === true) {
         if (shelf > FORGE_GLUT_CLEAR) continue;
-        commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
+        commands.push({
+          kind: CommandKind.setBuildingPaused,
+          buildingId: b.id,
+          paused: false,
+        });
         claims.push(b.id);
         continue;
       }
       if (shelf <= FORGE_GLUT) continue;
       if ((b.forgeQueue?.length ?? 0) > 0) continue;
-      commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: true });
+      commands.push({
+        kind: CommandKind.setBuildingPaused,
+        buildingId: b.id,
+        paused: true,
+      });
       claims.push(b.id);
     }
-    return commands.length > 0 ? { commands, claims } : null;
+    return commands.length > 0 ? {commands, claims} : null;
   },
 };
 
@@ -698,14 +775,18 @@ const handsBeforeSoldiers: EconomyRule = {
       // for the whole match.
       if (!want && !halted) continue;
       if (want !== halted) {
-        commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: want });
+        commands.push({
+          kind: CommandKind.setBuildingPaused,
+          buildingId: b.id,
+          paused: want,
+        });
       }
       // Claimed on every beat the hold stands, order or no order: the pause
       // is sent once and the claim is what keeps the queue from being
       // refilled behind it on all the beats after.
       claims.push(b.id);
     }
-    return commands.length > 0 || claims.length > 0 ? { commands, claims } : null;
+    return commands.length > 0 || claims.length > 0 ? {commands, claims} : null;
   },
 };
 
@@ -731,11 +812,15 @@ const keepTheQueueWarm: EconomyRule = {
   phase: RulePhaseNs.production,
   fire(ctx) {
     const barracks = ctx.mine.find(
-      (b) => b.type === BuildingTypeId.barracks && b.state === BuildingState.built,
+      b =>
+        b.type === BuildingTypeId.barracks && b.state === BuildingState.built,
     );
     if (!barracks) return null;
     const around = (good: GoodId): boolean =>
-      (ctx.stock[good] ?? 0) + (barracks.inputs[good] ?? 0) + (barracks.inbound[good] ?? 0) > 0;
+      (ctx.stock[good] ?? 0) +
+        (barracks.inputs[good] ?? 0) +
+        (barracks.inbound[good] ?? 0) >
+      0;
     const prefs: readonly UnitTypeId[] = ctx.counter
       ? [ctx.counter.unit, ...ctx.strategy.trainPreference]
       : ctx.strategy.trainPreference;
@@ -750,8 +835,9 @@ const keepTheQueueWarm: EconomyRule = {
     // an empty queue. And an empty queue is not merely idle: unstarted
     // orders are what summon their own ingredients (trainingDemand), so
     // nothing hauls bread or a weapon there either.
-    const trainable = (unit: UnitTypeId): boolean => isUnitUnlocked(ctx.world, ctx.owner, unit);
-    const ready = prefs.find((unit) => {
+    const trainable = (unit: UnitTypeId): boolean =>
+      isUnitUnlocked(ctx.world, ctx.owner, unit);
+    const ready = prefs.find(unit => {
       const weapon = WEAPON_OF[unit];
       return weapon !== undefined && around(weapon) && trainable(unit);
     });
@@ -766,7 +852,7 @@ const keepTheQueueWarm: EconomyRule = {
     const commands: SimCommand[] = [];
     let cancelled = 0;
     if (ready !== undefined) {
-      const staleIdx = (barracks.trainQueue ?? []).findIndex((item) => {
+      const staleIdx = (barracks.trainQueue ?? []).findIndex(item => {
         if (item.started) return false;
         const weapon = WEAPON_OF[item.unit];
         return weapon !== undefined && !around(weapon);
@@ -784,11 +870,16 @@ const keepTheQueueWarm: EconomyRule = {
     const order = ready ?? warm;
     if (
       order !== undefined &&
-      (barracks.trainQueue?.length ?? 0) - cancelled < ctx.strategy.barracksQueueDepth
+      (barracks.trainQueue?.length ?? 0) - cancelled <
+        ctx.strategy.barracksQueueDepth
     ) {
-      commands.push({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: order });
+      commands.push({
+        kind: CommandKind.trainUnit,
+        buildingId: barracks.id,
+        unit: order,
+      });
     }
-    return commands.length > 0 ? { commands, claims: [barracks.id] } : null;
+    return commands.length > 0 ? {commands, claims: [barracks.id]} : null;
   },
 };
 
@@ -809,7 +900,9 @@ export const ECONOMY_RULES: readonly EconomyRule[] = [
   keepTheQueueWarm,
 ];
 
-export const ALL_ECONOMY_RULES: readonly EconomyRuleId[] = ECONOMY_RULES.map((r) => r.id);
+export const ALL_ECONOMY_RULES: readonly EconomyRuleId[] = ECONOMY_RULES.map(
+  r => r.id,
+);
 
 /**
  * Every applicable rule fires, subject to claims and groups. Commands come
@@ -826,7 +919,7 @@ export function runEconomyRules(
    * stand-ins so the runner itself is exercised rather than re-implemented
    * beside it. */
   table: readonly EconomyRule[] = ECONOMY_RULES,
-): { commands: SimCommand[]; fired: EconomyRuleId[] } {
+): {commands: SimCommand[]; fired: EconomyRuleId[]} {
   const commands: SimCommand[] = [];
   const fired: EconomyRuleId[] = [];
   const claimed = new Set<EntityId>();
@@ -838,13 +931,13 @@ export function runEconomyRules(
     if (rule.group !== undefined && groupsFired.has(rule.group)) continue;
     const firing = rule.fire(ctx);
     if (!firing) continue;
-    if (firing.claims.some((id) => claimed.has(id))) continue;
+    if (firing.claims.some(id => claimed.has(id))) continue;
     for (const id of firing.claims) claimed.add(id);
     if (rule.group !== undefined) groupsFired.add(rule.group);
     commands.push(...firing.commands);
     fired.push(rule.id);
   }
-  return { commands, fired };
+  return {commands, fired};
 }
 
 /** The spelling of each rule id, for the lab's --rules flag and its traces. */
@@ -860,7 +953,7 @@ export const ECONOMY_RULE_KEYS: Readonly<Record<EconomyRuleId, string>> = {
 };
 
 const ECONOMY_RULE_BY_KEY = new Map<string, EconomyRuleId>(
-  ALL_ECONOMY_RULES.map((id) => [ECONOMY_RULE_KEYS[id], id]),
+  ALL_ECONOMY_RULES.map(id => [ECONOMY_RULE_KEYS[id], id]),
 );
 
 export function economyRuleFromKey(key: string): EconomyRuleId | undefined {

@@ -1,15 +1,21 @@
-import { Rng } from '../shared/rng.ts';
-import { gridFor, inBounds, marginFor, tileCount, tileIdx } from '../shared/grid.ts';
-import { hash2 } from '../shared/math.ts';
-import { WOOD_MAX_AMT } from './defs/balance.ts';
-import { buildingDef } from './defs/buildings.ts';
-import { buildingSight } from './visibility.ts';
+import {
+  gridFor,
+  inBounds,
+  marginFor,
+  tileCount,
+  tileIdx,
+} from '../shared/grid.ts';
+import {hash2} from '../shared/math.ts';
+import {Rng} from '../shared/rng.ts';
+import {WOOD_MAX_AMT} from './defs/balance.ts';
+import {buildingDef} from './defs/buildings.ts';
+import {buildingSight} from './visibility.ts';
 
-import type { Enum } from '../shared/enum.ts';
+import type {Enum} from '../shared/enum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as PathLevelNs from './pathLevelEnum.ts';
 import * as TerrainNs from './terrainEnum.ts';
 import * as TileResourceNs from './tileResourceEnum.ts';
-import * as PathLevelNs from './pathLevelEnum.ts';
-import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 
 export type TerrainKind = Enum<typeof TerrainNs>;
 export type TileResourceKind = Enum<typeof TileResourceNs>;
@@ -84,7 +90,14 @@ export const WATER_LEVEL = -0.3;
  */
 export type MapView = Pick<
   GameMap,
-  'size' | 'play' | 'terrain' | 'resource' | 'blocked' | 'buildingAt' | 'pathLevel' | 'height'
+  | 'size'
+  | 'play'
+  | 'terrain'
+  | 'resource'
+  | 'blocked'
+  | 'buildingAt'
+  | 'pathLevel'
+  | 'height'
 >;
 
 /** The play square's bounds and membership — one definition for sim and
@@ -149,7 +162,7 @@ export function tileBlocks(terrain: number, res: number): boolean {
  * answers the question on the render side.
  */
 export function findResourceNear(
-  map: MapView & { resourceAmt?: ArrayLike<number> },
+  map: MapView & {resourceAmt?: ArrayLike<number>},
   cx: number,
   cy: number,
   code: TileResourceKind,
@@ -188,7 +201,7 @@ export function findResourceNear(
  * (see gatherStep in systems/production.ts).
  */
 export function findResourcesNear(
-  map: MapView & { resourceAmt?: ArrayLike<number> },
+  map: MapView & {resourceAmt?: ArrayLike<number>},
   cx: number,
   cy: number,
   code: TileResourceKind,
@@ -226,7 +239,7 @@ export function findResourcesNear(
  * and holds nothing; the searches skip it by starting at r = 1.)
  */
 export function countResourceNear(
-  map: PlayArea & { resource: ArrayLike<number>; resourceAmt: ArrayLike<number> },
+  map: PlayArea & {resource: ArrayLike<number>; resourceAmt: ArrayLike<number>},
   cx: number,
   cy: number,
   code: TileResourceKind,
@@ -257,8 +270,8 @@ export interface StartSpot {
  * bands that use it — anything measured against what the player can *see*
  * wants `castleCenter` instead.
  */
-function anchorOf(s: StartSpot): { x: number; y: number } {
-  return { x: s.x + 2, y: s.y + 2 };
+function anchorOf(s: StartSpot): {x: number; y: number} {
+  return {x: s.x + 2, y: s.y + 2};
 }
 
 /**
@@ -266,9 +279,9 @@ function anchorOf(s: StartSpot): { x: number; y: number } {
  * `b.x + b.w / 2` that visibility and the renderer's fog both use, so a
  * radius measured from here means what it means on screen.
  */
-function castleCenter(s: StartSpot): { x: number; y: number } {
+function castleCenter(s: StartSpot): {x: number; y: number} {
   const def = buildingDef(BuildingTypeId.storehouse);
-  return { x: s.x + def.w / 2, y: s.y + def.h / 2 };
+  return {x: s.x + def.w / 2, y: s.y + def.h / 2};
 }
 
 /**
@@ -305,7 +318,11 @@ function ease01(t: number): number {
  * everything outside the centered play square is generated as scenery:
  * each border's style continued outward as real tiles.
  */
-export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number): GameMap {
+export function generateMap(
+  rng: Rng,
+  starts: readonly StartSpot[],
+  play: number,
+): GameMap {
   const size = gridFor(play);
   const margin = marginFor(play);
   const tiles = tileCount(size);
@@ -332,7 +349,12 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
   // fishery step wants honest coast to anchor on. Five draws, always, so
   // the rng stream stays aligned whatever the styles come out as.
   const seaSide = rng.int(4);
-  const rimStyles = [rng.int(3), rng.int(3), rng.int(3), rng.int(3)] as RimStyle[];
+  const rimStyles = [
+    rng.int(3),
+    rng.int(3),
+    rng.int(3),
+    rng.int(3),
+  ] as RimStyle[];
   rimStyles[seaSide] = RIM_SEA;
 
   // Irregular rim depth: two scales of wander. Per-edge-position jitter
@@ -401,7 +423,10 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
       const tooth = hash2(i, 211);
       const depth =
         fringe +
-        Math.min(wobble[p]! + meander(1, p, play / 5) * fringe * 1.2, 2 * fringe) +
+        Math.min(
+          wobble[p]! + meander(1, p, play / 5) * fringe * 1.2,
+          2 * fringe,
+        ) +
         (tooth < 0.2 ? 2 : tooth < 0.5 ? 1 : 0);
       const d = dists[side]!;
       if (d >= depth) continue;
@@ -418,7 +443,8 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
           // at d=0 in every column put one constant crest along the whole
           // border, a ruler-straight snowy wall.
           map.terrain[i] = TerrainNs.Rock;
-          const crest = 0.62 + meander(9, p, play / 9) * 0.5 + (hash2(i, 251) - 0.5) * 0.24;
+          const crest =
+            0.62 + meander(9, p, play / 9) * 0.5 + (hash2(i, 251) - 0.5) * 0.24;
           rimRamp[i] = Math.min(1, ((depth - d) / depth) * crest);
           break;
         }
@@ -438,19 +464,25 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
   // `u` runs along the owning edge and `d` outward from it — the ridge
   // height field is anisotropic in those axes (ranges parallel the border,
   // like every real border range in the game).
-  const marginMix = (x: number, y: number): { side: number; w: number; u: number; d: number }[] => {
+  const marginMix = (
+    x: number,
+    y: number,
+  ): {side: number; w: number; u: number; d: number}[] => {
     const ox = x < p0 ? p0 - x : x >= p1 ? x - (p1 - 1) : 0;
     const oy = y < p0 ? p0 - y : y >= p1 ? y - (p1 - 1) : 0;
-    const out: { side: number; w: number; u: number; d: number }[] = [];
+    const out: {side: number; w: number; u: number; d: number}[] = [];
     const w = ease01((ox / (ox + oy) - 0.3) / 0.4);
-    if (ox > 0) out.push({ side: x < p0 ? 3 : 1, w: oy > 0 ? w : 1, u: y, d: ox });
-    if (oy > 0) out.push({ side: y < p0 ? 0 : 2, w: ox > 0 ? 1 - w : 1, u: x, d: oy });
+    if (ox > 0)
+      out.push({side: x < p0 ? 3 : 1, w: oy > 0 ? w : 1, u: y, d: ox});
+    if (oy > 0)
+      out.push({side: y < p0 ? 0 : 2, w: ox > 0 ? 1 - w : 1, u: x, d: oy});
     return out;
   };
   /** One style's far-field ground height, `d` tiles past the boundary. */
   const marginHeight = (side: number, u: number, d: number): number => {
     const style = rimStyles[side]!;
-    if (style === RIM_SEA) return -1.5 - valueNoise(heightSeed + 71 + side, u, d, 6) * 0.5;
+    if (style === RIM_SEA)
+      return -1.5 - valueNoise(heightSeed + 71 + side, u, d, 6) * 0.5;
     if (style === RIM_RIDGE) {
       // Crest features stretch ~12 tiles along the edge but only ~5 across
       // it; the massif mask keeps whole stretches below the snow line so
@@ -464,7 +496,10 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
         (valueNoise(s7 + 177, u * 1.7, d * 1.7, 2.7) - 0.5) * 0.5 +
         (hash2(u * 31 + side, d * 57) - 0.5) * 0.25;
       return (
-        0.45 + ridged * (1.8 + massif * 1.8) + (valueNoise(s7 + 174, u, d, 21) - 0.5) * 0.6 + rough
+        0.45 +
+        ridged * (1.8 + massif * 1.8) +
+        (valueNoise(s7 + 174, u, d, 21) - 0.5) * 0.6 +
+        rough
       );
     }
     // Forest: rolling wooded hills straight from the belt's last row.
@@ -516,7 +551,11 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
       }
       const edgeH =
         map.height[
-          tileIdx(Math.min(Math.max(x, p0), p1 - 1), Math.min(Math.max(y, p0), p1 - 1), size)
+          tileIdx(
+            Math.min(Math.max(x, p0), p1 - 1),
+            Math.min(Math.max(y, p0), p1 - 1),
+            size,
+          )
         ]!;
       let hh = edgeH + (h - edgeH) * ease01(d / 2.5);
       // Land behind a border may descend, but only gradually — a profile
@@ -534,7 +573,11 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
     for (let x = 0; x < size; x++) {
       if (inPlayArea(map, x, y)) continue;
       const i = tileIdx(x, y, size);
-      if (map.terrain[i] !== TerrainNs.Grass || map.resource[i] !== TileResourceNs.None) continue;
+      if (
+        map.terrain[i] !== TerrainNs.Grass ||
+        map.resource[i] !== TileResourceNs.None
+      )
+        continue;
       map.resource[i] = TileResourceNs.Wood;
       map.resourceAmt[i] = WOOD_MAX_AMT;
     }
@@ -575,7 +618,11 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
         if (!inPlayArea(map, x, y)) continue;
         if (dx * dx + dy * dy > radius * radius) continue;
         const i = tileIdx(x, y, size);
-        if (map.terrain[i] !== TerrainNs.Grass || map.resource[i] !== TileResourceNs.None) continue;
+        if (
+          map.terrain[i] !== TerrainNs.Grass ||
+          map.resource[i] !== TileResourceNs.None
+        )
+          continue;
         if (rng.next() > density) continue;
         map.resource[i] = res;
         map.resourceAmt[i] = amt;
@@ -626,11 +673,18 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
    * Returns how many tiles were written, so a caller that must place a seam
    * knows to try another center.
    */
-  const placeSeam = (res: TileResourceKind, budget: number, cx: number, cy: number): number => {
+  const placeSeam = (
+    res: TileResourceKind,
+    budget: number,
+    cx: number,
+    cy: number,
+  ): number => {
     if (!Number.isInteger(budget) || budget < 1 || budget > 255) {
-      throw new Error(`seam budget must be a whole number of 1..255 (got ${budget})`);
+      throw new Error(
+        `seam budget must be a whole number of 1..255 (got ${budget})`,
+      );
     }
-    const open: { i: number; d2: number }[] = [];
+    const open: {i: number; d2: number}[] = [];
     for (let dy = -SEAM_REACH; dy <= SEAM_REACH; dy++) {
       for (let dx = -SEAM_REACH; dx <= SEAM_REACH; dx++) {
         const d2 = dx * dx + dy * dy;
@@ -639,8 +693,12 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
         const y = cy + dy;
         if (!inPlayArea(map, x, y)) continue;
         const i = tileIdx(x, y, size);
-        if (map.terrain[i] !== TerrainNs.Grass || map.resource[i] !== TileResourceNs.None) continue;
-        open.push({ i, d2 });
+        if (
+          map.terrain[i] !== TerrainNs.Grass ||
+          map.resource[i] !== TileResourceNs.None
+        )
+          continue;
+        open.push({i, d2});
       }
     }
     // Nearest first, ties by index: a seam short of room grows as a blob
@@ -657,7 +715,7 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
     // seams priced the same are worth exactly the same.
     const per = Math.floor(budget / take.length);
     let over = budget - per * take.length;
-    for (const { i } of take) {
+    for (const {i} of take) {
       map.resource[i] = res;
       map.resourceAmt[i] = per + (over-- > 0 ? 1 : 0);
     }
@@ -676,8 +734,10 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
       }
     }
   };
-  const heightAt = (x: number, y: number): number => map.height[tileIdx(x, y, size)]!;
-  const centerDist = (x: number, y: number): number => Math.hypot(x - size / 2, y - size / 2);
+  const heightAt = (x: number, y: number): number =>
+    map.height[tileIdx(x, y, size)]!;
+  const centerDist = (x: number, y: number): number =>
+    Math.hypot(x - size / 2, y - size / 2);
   // Distance to the nearest faction start — the multiplayer generalization
   // of "distance from the (center) home plateau". Solo start anchors at the
   // map center, so this IS centerDist there, keeping the classic seeds
@@ -728,7 +788,10 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
         const dc = rng.range(10.5, 13);
         const x = Math.round(a.x + Math.cos(ang) * dc);
         const y = Math.round(a.y + Math.sin(ang) * dc);
-        if (inPlayArea(map, x, y) && map.terrain[tileIdx(x, y, size)] === TerrainNs.Grass) {
+        if (
+          inPlayArea(map, x, y) &&
+          map.terrain[tileIdx(x, y, size)] === TerrainNs.Grass
+        ) {
           placeCluster(res, amt, x, y, radius, 0.8);
           break;
         }
@@ -742,7 +805,8 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
   // earns proportionally more of both (exact integer math, the classic
   // counts at 64). A fixed count spread over 2.25x the land starved the
   // mid-game — woodcutters walked half the valley for the next grove.
-  const clusterCount = (classic: number): number => Math.floor((classic * play * play) / 4096);
+  const clusterCount = (classic: number): number =>
+    Math.floor((classic * play * play) / 4096);
 
   // Tree groves in the valleys — but off the immediate shoreline, so a
   // hut's commute never dead-ends against the water.
@@ -769,7 +833,11 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
       const a = anchorOf(s);
       return Math.hypot(x - a.x, y - a.y) <= startDist(x, y) + 1e-6;
     };
-    const seamFor = (start: StartSpot, res: TileResourceKind, budget: number): void => {
+    const seamFor = (
+      start: StartSpot,
+      res: TileResourceKind,
+      budget: number,
+    ): void => {
       const a = anchorOf(start);
       const tiers: ((x: number, y: number) => boolean)[] = [
         (x, y) => isOwnGround(start, x, y) && heightAt(x, y) > 0.8,
@@ -814,7 +882,8 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
       if (
         inPlayArea(map, x, y) &&
         map.terrain[tileIdx(x, y, size)] === TerrainNs.Grass &&
-        placeCluster(TileResourceNs.GoldDep, 12, x, y, rng.range(1.4, 1.9), 1) > 0
+        placeCluster(TileResourceNs.GoldDep, 12, x, y, rng.range(1.4, 1.9), 1) >
+          0
       ) {
         break;
       }
@@ -867,7 +936,7 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
   // exactly the kind of measurement that slop turns into stone the fog
   // never uncovers. Tile centers, for the same reason: it is the distance
   // the visibility stamp itself computes.
-  const rockWithin = (c: { x: number; y: number }, radius: number): number => {
+  const rockWithin = (c: {x: number; y: number}, radius: number): number => {
     let n = 0;
     const r = Math.ceil(radius) + 1;
     for (let dy = -r; dy <= r; dy++) {
@@ -883,7 +952,7 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
   };
   // In sight, so the player knows stone exists at all; and enough of it
   // within a short walk to be worth siting a quarry on.
-  const stoneEnough = (c: { x: number; y: number }): boolean =>
+  const stoneEnough = (c: {x: number; y: number}): boolean =>
     rockWithin(c, CASTLE_OPENING_SIGHT) > 0 && rockWithin(c, 13) >= 5;
   for (const start of starts) {
     const c = castleCenter(start);
@@ -893,7 +962,11 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
       const dc = rng.range(7, 9);
       const x = Math.round(c.x + Math.cos(ang) * dc);
       const y = Math.round(c.y + Math.sin(ang) * dc);
-      if (!inPlayArea(map, x, y) || map.terrain[tileIdx(x, y, size)] !== TerrainNs.Grass) continue;
+      if (
+        !inPlayArea(map, x, y) ||
+        map.terrain[tileIdx(x, y, size)] !== TerrainNs.Grass
+      )
+        continue;
       placeCluster(TileResourceNs.Rock, 10, x, y, 2, 0.85);
     }
   }
@@ -910,7 +983,8 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
   // walkable ground already).
   if (starts.length > 1) {
     const walkable = (i: number): boolean =>
-      inPlayArea(map, i % size, (i / size) | 0) && !tileBlocks(map.terrain[i]!, map.resource[i]!);
+      inPlayArea(map, i % size, (i / size) | 0) &&
+      !tileBlocks(map.terrain[i]!, map.resource[i]!);
     const reach = (from: number): Uint8Array => {
       const seen = new Uint8Array(tiles);
       const queue = [from];
@@ -1006,7 +1080,8 @@ function valueNoise(seed: number, x: number, y: number, scale: number): number {
   const ty = fy - y0;
   const sx = tx * tx * (3 - 2 * tx);
   const sy = ty * ty * (3 - 2 * ty);
-  const h = (cx: number, cy: number): number => hash2(seed + cx * 131, seed * 7 + cy * 337);
+  const h = (cx: number, cy: number): number =>
+    hash2(seed + cx * 131, seed * 7 + cy * 337);
   const a = h(x0, y0);
   const b = h(x0 + 1, y0);
   const c = h(x0, y0 + 1);
@@ -1020,7 +1095,11 @@ const LAKE_LEVEL_T = 0.26;
 /** Are two tiles on the same 4-connected grass component? */
 function connected(map: GameMap, from: number, to: number): boolean {
   const size = map.size;
-  if (map.terrain[from] !== TerrainNs.Grass || map.terrain[to] !== TerrainNs.Grass) return false;
+  if (
+    map.terrain[from] !== TerrainNs.Grass ||
+    map.terrain[to] !== TerrainNs.Grass
+  )
+    return false;
   const seen = new Uint8Array(tileCount(size));
   const queue: number[] = [from];
   seen[from] = 1;
@@ -1068,11 +1147,12 @@ function computeTerrain(
   const raw = new Float32Array(tiles);
   // Plateau centers sit at each start's storehouse middle (solo: the map
   // center, exactly the classic constant).
-  const centers = starts.map((s) => ({ x: s.x + 1.5, y: s.y + 1.5 }));
+  const centers = starts.map(s => ({x: s.x + 1.5, y: s.y + 1.5}));
   for (let i = 0; i < tiles; i++) {
     const x = i % size;
     const y = (i / size) | 0;
-    const rolling = valueNoise(seed, x, y, 12) * 0.55 + valueNoise(seed + 1, x, y, 5) * 0.2;
+    const rolling =
+      valueNoise(seed, x, y, 12) * 0.55 + valueNoise(seed + 1, x, y, 5) * 0.2;
     const ridge = 1 - Math.abs(2 * valueNoise(seed + 3, x, y, 9) - 1);
     let r = rolling + ridge * ridge * 0.25;
     // Home plateaus: keep every faction's starting area gentle and dry.
@@ -1115,10 +1195,12 @@ function computeTerrain(
   const anchorTile = (s: StartSpot): number => tileIdx(s.x + 2, s.y + 2, size);
   if (starts.length > 1) {
     for (let si = 1; si < starts.length; si++) {
-      if (connected(map, anchorTile(starts[0]!), anchorTile(starts[si]!))) continue;
+      if (connected(map, anchorTile(starts[0]!), anchorTile(starts[si]!)))
+        continue;
       const a = centers[0]!;
       const b = centers[si]!;
-      const steps = Math.ceil(Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y))) * 2;
+      const steps =
+        Math.ceil(Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y))) * 2;
       for (let t = 0; t <= steps; t++) {
         const px = Math.round(a.x + ((b.x - a.x) * t) / steps);
         const py = Math.round(a.y + ((b.y - a.y) * t) / steps);
@@ -1164,7 +1246,8 @@ function computeTerrain(
   }
   for (let i = 0; i < tiles; i++) {
     if (!inPlayArea(map, i % size, (i / size) | 0)) continue; // margin: scenery, not a pocket
-    if (map.terrain[i] === TerrainNs.Grass && !reached[i]) map.terrain[i] = TerrainNs.Water;
+    if (map.terrain[i] === TerrainNs.Grass && !reached[i])
+      map.terrain[i] = TerrainNs.Water;
   }
 
   // Every start keeps fishable water within a short walk: a pond, a lake,
@@ -1182,7 +1265,7 @@ function computeTerrain(
   // forest wall is real water no fishery could ever stand beside (the same
   // refusal the AI's nearestWater makes), and it must not satisfy the
   // audit either.
-  const hasShore = (c: { x: number; y: number }): boolean => {
+  const hasShore = (c: {x: number; y: number}): boolean => {
     const r = WATER_ACCESS_RADIUS;
     const x0 = Math.max(0, Math.floor(c.x - r));
     const x1 = Math.min(size - 1, Math.ceil(c.x + r));
@@ -1200,7 +1283,8 @@ function computeTerrain(
         ] as const) {
           if (!inPlayArea(map, nx, ny)) continue;
           const n = tileIdx(nx, ny, size);
-          if (map.terrain[n] === TerrainNs.Grass && reached[n] && !beltMask[n]) return true;
+          if (map.terrain[n] === TerrainNs.Grass && reached[n] && !beltMask[n])
+            return true;
         }
       }
     }
@@ -1307,10 +1391,10 @@ function computeTerrain(
     }
     return dist;
   };
-  const dist = bfs((t) => t === TerrainNs.Water);
+  const dist = bfs(t => t === TerrainNs.Water);
   // Land = anything that isn't water: rim rock counts, so the sea strip's
   // bed shelves off a cliff foot the same way it shelves off a beach.
-  const landDist = bfs((t) => t !== TerrainNs.Water);
+  const landDist = bfs(t => t !== TerrainNs.Water);
 
   for (let i = 0; i < tiles; i++) {
     const x = i % size;
@@ -1321,7 +1405,8 @@ function computeTerrain(
       // to grade, and every lake reads as one solid slab of color.
       const shelf = Math.min(landDist[i]! / 2.2, 1);
       const ease = shelf * shelf * (3 - 2 * shelf);
-      map.height[i] = -0.34 - ease * 0.95 - valueNoise(seed + 2, x, y, 5) * 0.22;
+      map.height[i] =
+        -0.34 - ease * 0.95 - valueNoise(seed + 2, x, y, 5) * 0.22;
     } else {
       // Power curve exaggerates the extremes: lowlands stay gentle,
       // ridges climb steeply into peaks.
@@ -1360,7 +1445,13 @@ export function recomputeBlocked(map: GameMap): void {
 }
 
 /** Clear standing resources in a rect (used to make room for pre-placed buildings). */
-export function clearResources(map: GameMap, x0: number, y0: number, w: number, h: number): void {
+export function clearResources(
+  map: GameMap,
+  x0: number,
+  y0: number,
+  w: number,
+  h: number,
+): void {
   for (let y = y0; y < y0 + h; y++) {
     for (let x = x0; x < x0 + w; x++) {
       if (!inBounds(x, y, map.size)) continue;
@@ -1372,7 +1463,13 @@ export function clearResources(map: GameMap, x0: number, y0: number, w: number, 
 }
 
 /** Is every tile of the rect grass, resource-free, and building-free? */
-export function rectClear(map: MapView, x0: number, y0: number, w: number, h: number): boolean {
+export function rectClear(
+  map: MapView,
+  x0: number,
+  y0: number,
+  w: number,
+  h: number,
+): boolean {
   for (let y = y0; y < y0 + h; y++) {
     for (let x = x0; x < x0 + w; x++) {
       if (!inPlayArea(map, x, y)) return false;
@@ -1394,7 +1491,12 @@ export function rectClear(map: MapView, x0: number, y0: number, w: number, h: nu
  * and two callers need it — the build order picking where to anchor a hut,
  * and the economy rules deciding whether a worked-out one is worth selling.
  */
-export function nearestResource(map: GameMap, code: number, cx: number, cy: number): number {
+export function nearestResource(
+  map: GameMap,
+  code: number,
+  cx: number,
+  cy: number,
+): number {
   const size = map.size;
   const lo = playMin(map);
   const hi = playMax(map);

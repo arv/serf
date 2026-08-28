@@ -1,6 +1,20 @@
-import type { WebSocket } from 'ws';
-import { tileCount } from '../../src/shared/grid.ts';
-import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
+import type {WebSocket} from 'ws';
+import {
+  REPLAY_FORMAT,
+  serializeReplay,
+  type ReplayData,
+} from '../../src/app/replay.ts';
+import {MAX_SEATS, type LobbyConfig} from '../../src/protocol/lobby.ts';
+import {tileCount} from '../../src/shared/grid.ts';
+import {REPLAY_VERSION} from '../../src/shared/replayVersion.ts';
+import {AiSeats} from '../../src/sim/aiSeats.ts';
+import type {SimCommand} from '../../src/sim/commands.ts';
+import {parseStrategyId} from '../../src/sim/defs/aiStrategies.ts';
+import {TICK_MS} from '../../src/sim/defs/balance.ts';
+import * as MatchState from '../../src/sim/matchStateEnum.ts';
+import {playerKindFromKey} from '../../src/sim/player.ts';
+import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
+import {tickWorld, type PlayerCommand} from '../../src/sim/tick.ts';
 import {
   createWorld,
   type World,
@@ -8,19 +22,9 @@ import {
   type GameEvent,
   type MapDelta,
 } from '../../src/sim/world.ts';
-import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
-import { AiSeats } from '../../src/sim/aiSeats.ts';
-import { parseStrategyId } from '../../src/sim/defs/aiStrategies.ts';
-import { TICK_MS } from '../../src/sim/defs/balance.ts';
-import { REPLAY_FORMAT, serializeReplay, type ReplayData } from '../../src/app/replay.ts';
-import { MAX_SEATS, type LobbyConfig } from '../../src/protocol/lobby.ts';
-import type { SimCommand } from '../../src/sim/commands.ts';
-import { SeatView, recomputeVision, sendHot, sendStruct } from './sync.ts';
-import { playerKindFromKey } from '../../src/sim/player.ts';
-import * as MatchState from '../../src/sim/matchStateEnum.ts';
-import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
+import {SeatView, recomputeVision, sendHot, sendStruct} from './sync.ts';
 
-export { TICK_MS };
+export {TICK_MS};
 
 /**
  * A pump that woke up very late (GC, a suspended container) must not try to
@@ -72,7 +76,7 @@ export const MAX_COMMANDS_PER_FRAME = 32;
 
 /** Re-exported for index.ts; the number itself lives with the lobby wire
  * contract, which the client shares. */
-export { MAX_SEATS };
+export {MAX_SEATS};
 
 export interface Room {
   code: string;
@@ -155,7 +159,7 @@ const rooms = new Map<string, Room>();
  * busiest (every client reconnect-loops through a deploy), and the token is
  * client-controlled — a scan over rooms × seats per attempt was both the
  * slow path and the cheap way to make the server walk it. */
-const seatsByToken = new Map<string, { room: Room; seat: Seat }>();
+const seatsByToken = new Map<string, {room: Room; seat: Seat}>();
 
 /** The one door out of the room map, so the token index can never leak a
  * deleted room's seats. */
@@ -174,7 +178,10 @@ function makeCode(): string {
   return rooms.has(code) ? makeCode() : code;
 }
 
-export function createRoom(visibility: 'open' | 'closed', config: LobbyConfig): Room {
+export function createRoom(
+  visibility: 'open' | 'closed',
+  config: LobbyConfig,
+): Room {
   const room: Room = {
     code: makeCode(),
     state: 'lobby',
@@ -205,15 +212,21 @@ export function getRoom(code: string): Room | undefined {
 export function adoptRoom(room: Room): boolean {
   if (rooms.has(room.code)) return false;
   rooms.set(room.code, room);
-  for (const seat of room.seats) seatsByToken.set(seat.token, { room, seat });
+  for (const seat of room.seats) seatsByToken.set(seat.token, {room, seat});
   return true;
 }
 
-export function findSeatByToken(token: string): { room: Room; seat: Seat } | undefined {
+export function findSeatByToken(
+  token: string,
+): {room: Room; seat: Seat} | undefined {
   return seatsByToken.get(token);
 }
 
-export function addSeat(room: Room, kind: 'human' | 'ai', ws: WebSocket | null): Seat {
+export function addSeat(
+  room: Room,
+  kind: 'human' | 'ai',
+  ws: WebSocket | null,
+): Seat {
   const seat: Seat = {
     playerId: room.seats.length,
     kind,
@@ -223,7 +236,7 @@ export function addSeat(room: Room, kind: 'human' | 'ai', ws: WebSocket | null):
     connected: ws !== null,
   };
   room.seats.push(seat);
-  seatsByToken.set(seat.token, { room, seat });
+  seatsByToken.set(seat.token, {room, seat});
   return seat;
 }
 
@@ -259,7 +272,7 @@ export function matchWorldConfig(room: Room): WorldConfig {
     // A running (or restored) world already knows its size; before the
     // match starts, the sanitized lobby setting is the promise.
     mapSize: room.world?.map.size ?? room.config.size,
-    players: room.seats.map((s) => ({
+    players: room.seats.map(s => ({
       // The lobby speaks in words on the wire (a room message is meant to
       // be readable in a log); the sim takes the number.
       kind: playerKindFromKey(s.kind) ?? PlayerKind.human,
@@ -277,7 +290,10 @@ export function matchWorldConfig(room: Room): WorldConfig {
 export function startMatch(room: Room): void {
   // The computer seats the host asked for, minus the chairs humans took —
   // AI fills in, it never holds a seat against a person.
-  const aiFill = Math.max(0, Math.min(room.config.ai, MAX_SEATS - room.seats.length));
+  const aiFill = Math.max(
+    0,
+    Math.min(room.config.ai, MAX_SEATS - room.seats.length),
+  );
   for (let i = 0; i < aiFill; i++) addSeat(room, 'ai', null);
   const config = matchWorldConfig(room);
   room.world = createWorld(config);
@@ -285,8 +301,10 @@ export function startMatch(room: Room): void {
   // room was created, and the host may have changed the lobby's map size
   // since — a stale, smaller array would silently drop the change stamps
   // for every high-index tile.
-  room.tileChangedTick = new Uint32Array(tileCount(room.world.map.size)).fill(1);
-  room.replay = { replayVersion: REPLAY_VERSION, config, commands: [] };
+  room.tileChangedTick = new Uint32Array(tileCount(room.world.map.size)).fill(
+    1,
+  );
+  room.replay = {replayVersion: REPLAY_VERSION, config, commands: []};
   room.ai = new AiSeats(room.world);
   room.state = 'running';
   room.closedTick = 0;
@@ -308,7 +326,12 @@ export function startMatch(room: Room): void {
  * playerId is stamped here from the authenticated seat, never trusted from
  * the wire.
  */
-export function queueCommands(room: Room, seat: Seat, seq: number, commands: SimCommand[]): void {
+export function queueCommands(
+  room: Room,
+  seat: Seat,
+  seq: number,
+  commands: SimCommand[],
+): void {
   if (seq <= seat.lastSeq) return; // already applied (reconnect replay)
   seat.lastSeq = seq;
   for (const cmd of commands) {
@@ -316,7 +339,7 @@ export function queueCommands(room: Room, seat: Seat, seq: number, commands: Sim
     // room ticks on. A backlog this deep is nobody playing, so the overflow
     // is dropped rather than allowed to stall the process.
     if (room.queued.length >= MAX_QUEUED) break;
-    room.queued.push({ playerId: seat.playerId, cmd });
+    room.queued.push({playerId: seat.playerId, cmd});
   }
 }
 
@@ -338,7 +361,8 @@ const SLOW_PUMP_MS = 8;
 /** Advance the world to wall-clock time and broadcast what changed. */
 export function pumpRoom(room: Room, nowMs: number): void {
   const world = room.world;
-  if (room.state !== 'running' || !world || room.matchStartMs === undefined) return;
+  if (room.state !== 'running' || !world || room.matchStartMs === undefined)
+    return;
   const target = Math.floor((nowMs - room.matchStartMs) / TICK_MS);
   if (target <= world.tick) return;
   const startedAt = performance.now();
@@ -356,7 +380,7 @@ export function pumpRoom(room: Room, nowMs: number): void {
     // the tick it applies on — playback replays the log verbatim rather
     // than re-running the brains.
     if (room.replay && commands.length > 0) {
-      room.replay.commands.push({ tick: world.tick, commands: commands.slice() });
+      room.replay.commands.push({tick: world.tick, commands: commands.slice()});
     }
     tickWorld(world, commands);
     // Drain every tick of the burst: these are outboxes, and the next tick
@@ -384,7 +408,8 @@ export function pumpRoom(room: Room, nowMs: number): void {
   const took = performance.now() - startedAt;
   // Exponential average: one slow pump is a GC pause, a sustained one is a
   // capacity problem, and only the second is worth acting on.
-  room.pumpMsAvg = room.pumpMsAvg === 0 ? took : room.pumpMsAvg * 0.9 + took * 0.1;
+  room.pumpMsAvg =
+    room.pumpMsAvg === 0 ? took : room.pumpMsAvg * 0.9 + took * 0.1;
   if (took > room.pumpMsPeak) room.pumpMsPeak = took;
   if (room.pumpMsAvg > SLOW_PUMP_MS) {
     console.warn(
@@ -406,17 +431,20 @@ export function pumpRoom(room: Room, nowMs: number): void {
  */
 export function replayFor(room: Room, seat: Seat): string | null {
   const world = room.world;
-  if (!world || !room.replay || world.outcome.state !== MatchState.over) return null;
+  if (!world || !room.replay || world.outcome.state !== MatchState.over)
+    return null;
   // replayVersion right after format — readReplayVersion scans only the
   // head of the file for it.
   return serializeReplay({
     format: REPLAY_FORMAT,
     replayVersion: room.replay.replayVersion,
     savedAt: new Date().toISOString(),
-    config: { ...room.replay.config, myPlayerId: seat.playerId },
-    ...(room.replay.loadData !== undefined ? { loadData: room.replay.loadData } : {}),
+    config: {...room.replay.config, myPlayerId: seat.playerId},
+    ...(room.replay.loadData !== undefined
+      ? {loadData: room.replay.loadData}
+      : {}),
     ...(room.replay.exploredBySeat?.[seat.playerId]
-      ? { explored: room.replay.exploredBySeat[seat.playerId] }
+      ? {explored: room.replay.exploredBySeat[seat.playerId]}
       : {}),
     commands: room.replay.commands,
     endTick: world.tick,
@@ -452,7 +480,9 @@ export function serverStats(): {
 }
 
 export function deleteRoomIfDead(room: Room): void {
-  const allGone = room.seats.filter((s) => s.kind === 'human').every((s) => !s.connected);
+  const allGone = room.seats
+    .filter(s => s.kind === 'human')
+    .every(s => !s.connected);
   if (!allGone) {
     room.emptySinceMs = undefined;
     return;
@@ -467,7 +497,10 @@ export function deleteRoomIfDead(room: Room): void {
 /** Sweep long-abandoned running rooms. */
 export function sweepRooms(nowMs: number): void {
   for (const room of rooms.values()) {
-    if (room.emptySinceMs !== undefined && nowMs - room.emptySinceMs > 5 * 60_000) {
+    if (
+      room.emptySinceMs !== undefined &&
+      nowMs - room.emptySinceMs > 5 * 60_000
+    ) {
       dropRoom(room);
     }
   }

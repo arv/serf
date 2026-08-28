@@ -1,12 +1,12 @@
 // Explicit .ts extensions: the server compiles this file too (it records
 // multiplayer replays), and node/nodenext resolution insists on them the
 // way the rest of the shared sim tree already does.
-import { sanitizeCommand } from '../sim/commands.ts';
-import { parseStrategyId } from '../sim/defs/aiStrategies.ts';
-import { parseMissionId } from '../sim/defs/missions.ts';
-import type { PlayerCommand } from '../sim/tick.ts';
-import type { WorldConfig } from '../sim/world.ts';
-import { playerKindFromKey } from '../sim/player.ts';
+import {sanitizeCommand} from '../sim/commands.ts';
+import {parseStrategyId} from '../sim/defs/aiStrategies.ts';
+import {parseMissionId} from '../sim/defs/missions.ts';
+import {playerKindFromKey} from '../sim/player.ts';
+import type {PlayerCommand} from '../sim/tick.ts';
+import type {WorldConfig} from '../sim/world.ts';
 
 /**
  * A replay is the sim's whole diet, written down: the world recipe (and the
@@ -50,7 +50,7 @@ export interface ReplayData {
   savedAt?: string;
   /** The config the worker booted with. Carries myPlayerId when the match
    * was launched from a GameConfig, so playback watches the same seat. */
-  config: WorldConfig & { myPlayerId?: number };
+  config: WorldConfig & {myPlayerId?: number};
   /** The serialized world the match booted from, when it was a loaded save. */
   loadData?: string;
   /**
@@ -101,32 +101,37 @@ function sanitizeConfig(raw: unknown): ReplayData['config'] | null {
   const c = raw as Record<string, unknown>;
   if (typeof c.seed !== 'number' || !Number.isFinite(c.seed)) return null;
   // 1..4 seats — the world has no start layout past four.
-  if (!Array.isArray(c.players) || c.players.length < 1 || c.players.length > 4) return null;
+  if (!Array.isArray(c.players) || c.players.length < 1 || c.players.length > 4)
+    return null;
   const players: WorldConfig['players'] = [];
   for (const entry of c.players as unknown[]) {
     if (typeof entry !== 'object' || entry === null) return null;
-    const kind = (entry as { kind?: unknown }).kind;
+    const kind = (entry as {kind?: unknown}).kind;
     const seat = playerKindFromKey(kind);
     if (seat === undefined) return null;
     // Strategy is decorative on playback (the brains never run — their
     // moves are in the log), so an unknown one degrades to "dealt" rather
     // than sinking the file.
-    const strategy = parseStrategyId((entry as { strategy?: unknown }).strategy);
-    players.push({ kind: seat, ...(strategy ? { strategy } : {}) });
+    const strategy = parseStrategyId((entry as {strategy?: unknown}).strategy);
+    players.push({kind: seat, ...(strategy ? {strategy} : {})});
   }
   const mission = parseMissionId(c.mission);
   const myPlayerId = c.myPlayerId;
   return {
     seed: c.seed,
     players,
-    ...(typeof c.adminEnabled === 'boolean' ? { adminEnabled: c.adminEnabled } : {}),
-    ...(typeof c.banditsEnabled === 'boolean' ? { banditsEnabled: c.banditsEnabled } : {}),
-    ...(mission ? { mission } : {}),
+    ...(typeof c.adminEnabled === 'boolean'
+      ? {adminEnabled: c.adminEnabled}
+      : {}),
+    ...(typeof c.banditsEnabled === 'boolean'
+      ? {banditsEnabled: c.banditsEnabled}
+      : {}),
+    ...(mission ? {mission} : {}),
     ...(typeof myPlayerId === 'number' &&
     Number.isInteger(myPlayerId) &&
     myPlayerId >= 0 &&
     myPlayerId < players.length
-      ? { myPlayerId }
+      ? {myPlayerId}
       : {}),
   };
 }
@@ -148,7 +153,8 @@ export function parseReplay(raw: string): ReplayData | null {
   if (typeof doc !== 'object' || doc === null) return null;
   const d = doc as Record<string, unknown>;
   if (d.format !== REPLAY_FORMAT) return null;
-  if (typeof d.replayVersion !== 'number' || !Number.isInteger(d.replayVersion)) return null;
+  if (typeof d.replayVersion !== 'number' || !Number.isInteger(d.replayVersion))
+    return null;
   const config = sanitizeConfig(d.config);
   if (!config) return null;
   if (!isTick(d.endTick)) return null;
@@ -157,17 +163,19 @@ export function parseReplay(raw: string): ReplayData | null {
   if (Array.isArray(d.commands)) {
     for (const entry of d.commands as unknown[]) {
       if (typeof entry !== 'object' || entry === null) continue;
-      const e = entry as { tick?: unknown; commands?: unknown };
+      const e = entry as {tick?: unknown; commands?: unknown};
       if (!isTick(e.tick) || !Array.isArray(e.commands)) continue;
       const screened: PlayerCommand[] = [];
       for (const pc of e.commands as unknown[]) {
         if (typeof pc !== 'object' || pc === null) continue;
-        const { playerId, cmd } = pc as { playerId?: unknown; cmd?: unknown };
-        if (typeof playerId !== 'number' || !Number.isInteger(playerId)) continue;
+        const {playerId, cmd} = pc as {playerId?: unknown; cmd?: unknown};
+        if (typeof playerId !== 'number' || !Number.isInteger(playerId))
+          continue;
         const clean = sanitizeCommand(cmd);
-        if (clean) screened.push({ playerId, cmd: clean });
+        if (clean) screened.push({playerId, cmd: clean});
       }
-      if (screened.length > 0) commands.push({ tick: e.tick, commands: screened });
+      if (screened.length > 0)
+        commands.push({tick: e.tick, commands: screened});
     }
   }
 
@@ -178,12 +186,12 @@ export function parseReplay(raw: string): ReplayData | null {
   return {
     format: REPLAY_FORMAT,
     replayVersion: d.replayVersion,
-    ...(typeof d.savedAt === 'string' ? { savedAt: d.savedAt } : {}),
+    ...(typeof d.savedAt === 'string' ? {savedAt: d.savedAt} : {}),
     config,
-    ...(typeof d.loadData === 'string' ? { loadData: d.loadData } : {}),
+    ...(typeof d.loadData === 'string' ? {loadData: d.loadData} : {}),
     // Opaque here: unpacking is the fog's business, and a corrupt grid
     // costs the replay its memory of scouted ground, never its world.
-    ...(typeof d.explored === 'string' ? { explored: d.explored } : {}),
+    ...(typeof d.explored === 'string' ? {explored: d.explored} : {}),
     commands,
     endTick: d.endTick,
   };

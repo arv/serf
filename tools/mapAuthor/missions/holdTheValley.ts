@@ -19,14 +19,14 @@
  * the balance the whole game is tuned against — the intent here is
  * legibility, not generosity.
  */
-import { HILL, MEADOW, RISE, Valley, type Authored } from '../kit.ts';
-import { keepAnchor, keepCenter, seats } from '../layout.ts';
+import {HILL, MEADOW, RISE, Valley, type Authored} from '../kit.ts';
+import {keepAnchor, keepCenter, seats} from '../layout.ts';
 
 export function build(): Authored {
   const v = new Valley(96, 6067);
   const [start] = seats(1);
   const keep = keepCenter(start!);
-  const at = (dx: number, dy: number) => ({ x: keep.x + dx, y: keep.y + dy });
+  const at = (dx: number, dy: number) => ({x: keep.x + dx, y: keep.y + dy});
 
   v.meadow(MEADOW, 0.06)
     // The country: wooded hills north, a long hill wall east, downs
@@ -58,8 +58,8 @@ export function build(): Authored {
     .ford(at(28, 10), 3)
     .ford(at(13, 32), 3)
     // The camp's ground, which the southern range would otherwise take.
-    .keepClear({ x: 107.5, y: 107.5 }, 8)
-    .borders({ n: 'forest', e: 'ridge', s: 'ridge', w: 'sea' });
+    .keepClear({x: 107.5, y: 107.5}, 8)
+    .borders({n: 'forest', e: 'ridge', s: 'ridge', w: 'sea'});
 
   const drowned = v.settle(keepAnchor(start!));
 

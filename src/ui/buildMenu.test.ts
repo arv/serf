@@ -1,5 +1,7 @@
-import type { Enum } from '../shared/enum.ts';
-import { describe, expect, it } from 'vitest';
+import {describe, expect, it} from 'vitest';
+import type {Enum} from '../shared/enum.ts';
+import {BUILDING_DEFS, BUILDING_TYPES} from '../sim/defs/buildings';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {
   BUILD_GROUPS,
   BUILD_KEYS,
@@ -8,13 +10,11 @@ import {
   buildingForKey,
   playerBuildable,
 } from './buildMenu';
-import { BUILDING_DEFS, BUILDING_TYPES } from '../sim/defs/buildings';
-import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 const TYPES = BUILDING_TYPES;
-const inMenu = BUILD_GROUPS.flatMap((g) => g.types);
+const inMenu = BUILD_GROUPS.flatMap(g => g.types);
 
 /**
  * The menu and the sim have to agree on what a player may build. Nothing
@@ -33,18 +33,20 @@ const inMenu = BUILD_GROUPS.flatMap((g) => g.types);
  */
 describe('the build ribbon', () => {
   it('offers every building a player is allowed to place', () => {
-    const missing = TYPES.filter((t) => playerBuildable(t) && !inMenu.includes(t));
+    const missing = TYPES.filter(
+      t => playerBuildable(t) && !inMenu.includes(t),
+    );
     expect(missing).toEqual([]);
   });
 
   it('offers nothing the sim would refuse', () => {
-    const refused = inMenu.filter((t) => !playerBuildable(t));
+    const refused = inMenu.filter(t => !playerBuildable(t));
     expect(refused).toEqual([]);
   });
 
   it('lists each building once', () => {
     const seen = new Set<BuildingTypeId>();
-    const dupes = inMenu.filter((t) => {
+    const dupes = inMenu.filter(t => {
       if (seen.has(t)) return true;
       seen.add(t);
       return false;
@@ -63,22 +65,24 @@ describe('the build ribbon', () => {
  */
 describe('the build chord', () => {
   it('gives every building in the ribbon a letter', () => {
-    expect(inMenu.filter((t) => buildKey(t) === '')).toEqual([]);
+    expect(inMenu.filter(t => buildKey(t) === '')).toEqual([]);
   });
 
   it('gives no letter to anything the ribbon does not offer', () => {
-    const stray = TYPES.filter((t) => BUILD_KEYS[t] !== undefined && !inMenu.includes(t));
+    const stray = TYPES.filter(
+      t => BUILD_KEYS[t] !== undefined && !inMenu.includes(t),
+    );
     expect(stray).toEqual([]);
   });
 
   it('never spends one letter twice', () => {
-    const keys = inMenu.map((t) => buildKey(t));
+    const keys = inMenu.map(t => buildKey(t));
     expect(keys.length).toBe(new Set(keys).size);
   });
 
   it('picks letters the building name can bold', () => {
     const unbolded = inMenu.filter(
-      (t) => !BUILDING_DEFS[t].name.toUpperCase().includes(buildKey(t)),
+      t => !BUILDING_DEFS[t].name.toUpperCase().includes(buildKey(t)),
     );
     expect(unbolded).toEqual([]);
   });

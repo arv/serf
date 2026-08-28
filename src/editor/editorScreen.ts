@@ -1,32 +1,35 @@
-import { GameRenderer } from '../render/renderer';
-import { TerrainMesh } from '../render/terrainMesh';
-import { ScatterMesh } from '../render/scatterMesh';
-import { GrassField } from '../render/grassField';
-import { WaterMesh } from '../render/waterMesh';
-import { MarginMesh } from '../render/marginMesh';
-import { Butterflies } from '../render/butterflies';
-import { HeightField } from '../render/heightField';
-import { loadGlbAssets } from '../render/assets';
-import { disposeOwnedSubtree } from '../render/disposal';
-import { goto } from '../app/router';
-import { serializeWorld } from '../sim/save.ts';
-import { DEFAULT_MAP_SIZE, tileX, tileY } from '../shared/grid.ts';
-import { playEdgeDist, type StartSpot } from '../sim/map.ts';
-import { HEIGHT_STEP, applyStroke, type Tool } from './brush.ts';
-import { BrushCursor } from './brushCursor.ts';
-import { EditorControls, type EditorSurface } from './editorControls.ts';
+import {goto} from '../app/router';
+import {loadGlbAssets} from '../render/assets';
+import {Butterflies} from '../render/butterflies';
+import {disposeOwnedSubtree} from '../render/disposal';
+import {GrassField} from '../render/grassField';
+import {HeightField} from '../render/heightField';
+import {MarginMesh} from '../render/marginMesh';
+import {GameRenderer} from '../render/renderer';
+import {ScatterMesh} from '../render/scatterMesh';
+import {TerrainMesh} from '../render/terrainMesh';
+import * as ViewMode from '../render/viewModeEnum.ts';
+import {WaterMesh} from '../render/waterMesh';
+import {DEFAULT_MAP_SIZE, tileX, tileY} from '../shared/grid.ts';
+import {playEdgeDist, type StartSpot} from '../sim/map.ts';
+import {serializeWorld} from '../sim/save.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import {HEIGHT_STEP, applyStroke, type Tool} from './brush.ts';
+import {BrushCursor} from './brushCursor.ts';
+import {EditorControls, type EditorSurface} from './editorControls.ts';
 import {
   createBlankMap,
   startSpotLegal,
   validateForPlay,
   type EditorMapState,
 } from './editorMap.ts';
-import { serializeEditorMap } from './format.ts';
-import { EditorHistory } from './history.ts';
-import { StartMarkers } from './markers.ts';
-import { naturalize } from './naturalize.ts';
-import { PlayAreaOverlay } from './playAreaOverlay.ts';
-import { worldFromEditor, type EditorPlayConfig } from './playWorld.ts';
+import {serializeEditorMap} from './format.ts';
+import {EditorHistory} from './history.ts';
+import {StartMarkers} from './markers.ts';
+import {naturalize} from './naturalize.ts';
+import {PlayAreaOverlay} from './playAreaOverlay.ts';
+import {worldFromEditor, type EditorPlayConfig} from './playWorld.ts';
 import {
   hasMap,
   loadBoundName,
@@ -35,7 +38,7 @@ import {
   saveDraft,
   saveMapAs,
 } from './storage.ts';
-import { rotateStart } from './symmetry.ts';
+import {rotateStart} from './symmetry.ts';
 import {
   activeFolds,
   brushRadius,
@@ -55,9 +58,6 @@ import {
   showNotice,
   viewMode,
 } from './uiState.ts';
-import * as Terrain from '../sim/terrainEnum.ts';
-import * as TileResource from '../sim/tileResourceEnum.ts';
-import * as ViewMode from '../render/viewModeEnum.ts';
 
 /** Everything the Solid panel can ask the screen to do. */
 export interface EditorActions {
@@ -124,7 +124,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   // A restored draft keeps the slot it was being saved into; a session
   // that starts from a blank map is unbound however stale BOUND_KEY is.
   const draft = loadDraft();
-  let state = draft ?? createBlankMap({ size: DEFAULT_MAP_SIZE, players: 2 });
+  let state = draft ?? createBlankMap({size: DEFAULT_MAP_SIZE, players: 2});
   resetEditorUiState(state, draft === null ? null : loadBoundName());
 
   const off = new AbortController();
@@ -164,16 +164,21 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       saveDraft(currentState());
       restoreTimer = setTimeout(() => location.reload(), 3000);
     },
-    { signal: off.signal },
+    {signal: off.signal},
   );
-  canvas.addEventListener('webglcontextrestored', () => clearTimeout(restoreTimer), {
-    signal: off.signal,
-  });
+  canvas.addEventListener(
+    'webglcontextrestored',
+    () => clearTimeout(restoreTimer),
+    {
+      signal: off.signal,
+    },
+  );
   teardown.push(() => clearTimeout(restoreTimer));
 
   // Floating DOM labels (seat names) ride above the canvas, wardrobe-style.
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:absolute;inset:0;overflow:hidden;pointer-events:none';
+  overlay.style.cssText =
+    'position:absolute;inset:0;overflow:hidden;pointer-events:none';
   document.body.appendChild(overlay);
   teardown.push(() => overlay.remove());
 
@@ -264,12 +269,20 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   };
 
   /** Re-sync every render layer after history rewrote the map in place. */
-  const applyHistoryResult = (result: { tiles: number[]; starts: boolean } | null): void => {
+  const applyHistoryResult = (
+    result: {tiles: number[]; starts: boolean} | null,
+  ): void => {
     if (!result) return;
     if (sc) {
       if (result.tiles.length > 0) {
         for (const i of result.tiles) {
-          if (playEdgeDist(state.map, tileX(i, state.map.size), tileY(i, state.map.size)) < 3) {
+          if (
+            playEdgeDist(
+              state.map,
+              tileX(i, state.map.size),
+              tileY(i, state.map.size),
+            ) < 3
+          ) {
             marginTouched = true;
           }
         }
@@ -288,7 +301,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   };
 
   /** Where the live stroke began (jitter anchor for fray/scatter). */
-  let strokeAnchor = { x: 0, y: 0 };
+  let strokeAnchor = {x: 0, y: 0};
 
   /** Push the accumulated dirty tiles into the meshes right now. */
   const flushPending = (): void => {
@@ -307,7 +320,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   const surface: EditorSurface = {
     state: () => state,
     strokeBegin(x, y): void {
-      strokeAnchor = { x, y };
+      strokeAnchor = {x, y};
       history.record(state);
       syncHistorySignals();
     },
@@ -331,12 +344,19 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
         (wantsReheight ? pendingReheight : pendingRepaint).add(i);
         // A stroke in the scenery ring — or near enough that the margin
         // mesh's boundary tuck reads it — re-bakes the coarse mesh.
-        if (playEdgeDist(state.map, tileX(i, state.map.size), tileY(i, state.map.size)) < 3) {
+        if (
+          playEdgeDist(
+            state.map,
+            tileX(i, state.map.size),
+            tileY(i, state.map.size),
+          ) < 3
+        ) {
           marginTouched = true;
         }
         // Standing props react immediately where something vanished; what
         // GREW waits for the debounced rebuild.
-        if (state.map.resource[i] === TileResource.None) sc.scatter.removeTile(i);
+        if (state.map.resource[i] === TileResource.None)
+          sc.scatter.removeTile(i);
         if (state.map.terrain[i] !== Terrain.Grass) sc.grass.removeTile(i);
       }
       scheduleFoliage();
@@ -362,7 +382,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
           sc.markers.moveSeat(target, s, startSpotLegal(state.map, s));
         }
       } else {
-        state.starts[seat] = { ...spot };
+        state.starts[seat] = {...spot};
         sc.markers.moveSeat(seat, spot, startSpotLegal(state.map, spot));
       }
       markDirty();
@@ -373,7 +393,8 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       refreshProblems();
     },
     toggleView(): void {
-      const next = viewMode() === ViewMode.topDown ? ViewMode.game : ViewMode.topDown;
+      const next =
+        viewMode() === ViewMode.topDown ? ViewMode.game : ViewMode.topDown;
       setViewMode(next);
       renderer.rig.setViewMode(next);
     },
@@ -410,7 +431,14 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     const bounds = new PlayAreaOverlay(renderer.scene, heights, map);
     bounds.setVisible(showBounds());
     const cursor = new BrushCursor(renderer.scene, heights);
-    const controls = new EditorControls(canvas, renderer.rig, heights, cursor, markers, surface);
+    const controls = new EditorControls(
+      canvas,
+      renderer.rig,
+      heights,
+      cursor,
+      markers,
+      surface,
+    );
     sc = {
       heights,
       terrain,
@@ -425,7 +453,11 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       controls,
     };
     // Open framing the play square plus a strip of scenery.
-    renderer.rig.focusOn(map.size / 2, map.size / 2, Math.round(map.play * 1.1));
+    renderer.rig.focusOn(
+      map.size / 2,
+      map.size / 2,
+      Math.round(map.play * 1.1),
+    );
     refreshProblems();
   }
 
@@ -451,7 +483,10 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     return state;
   }
 
-  function replaceState(next: EditorMapState, boundName: string | null = null): void {
+  function replaceState(
+    next: EditorMapState,
+    boundName: string | null = null,
+  ): void {
     clearTimeout(foliageTimer);
     clearTimeout(draftTimer);
     pendingRepaint.clear();
@@ -511,7 +546,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
 
   const actions: EditorActions = {
     newMap(size, players): void {
-      replaceState(createBlankMap({ size, players }));
+      replaceState(createBlankMap({size, players}));
       showNotice(
         `New map: ${String(state.map.play)}×${String(state.map.play)} playable for ${String(state.players)} player(s)`,
       );
@@ -523,7 +558,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       // One undoable action, resynced exactly like an undo restore.
       history.record(state);
       const tiles = naturalize(state, activeFolds());
-      applyHistoryResult({ tiles, starts: false });
+      applyHistoryResult({tiles, starts: false});
       showNotice(
         tiles.length > 0
           ? 'Naturalized: shores shelve, meadows roll — undo to compare'
@@ -534,7 +569,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
     saveToSlot,
     exportMap(): void {
       const json = serializeEditorMap(currentState());
-      const blob = new Blob([json], { type: 'application/json' });
+      const blob = new Blob([json], {type: 'application/json'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -569,7 +604,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
   };
 
   // Solid panel into #ui (dynamic import keeps solid's editor chunk lazy).
-  const { mountEditorUi } = await import('../ui/editor/EditorPanel');
+  const {mountEditorUi} = await import('../ui/editor/EditorPanel');
   const unmountUi = mountEditorUi(actions);
   teardown.push(unmountUi);
 

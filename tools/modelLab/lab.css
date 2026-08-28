@@ -91,7 +91,12 @@
 body {
   margin: 0;
   background:
-    radial-gradient(ellipse 90% 60% at 50% -10%, var(--ground-2), transparent 70%), var(--ground);
+    radial-gradient(
+      ellipse 90% 60% at 50% -10%,
+      var(--ground-2),
+      transparent 70%
+    ),
+    var(--ground);
   color: var(--ink);
   font-family:
     'Space Grotesk',
@@ -195,7 +200,11 @@ main,
 .stage {
   position: relative;
   aspect-ratio: 4 / 3;
-  background: radial-gradient(125% 105% at 50% 12%, var(--meadow-a), var(--meadow-b));
+  background: radial-gradient(
+    125% 105% at 50% 12%,
+    var(--meadow-a),
+    var(--meadow-b)
+  );
   touch-action: pan-y;
   cursor: grab;
 }

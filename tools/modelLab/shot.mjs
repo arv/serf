@@ -9,18 +9,21 @@
  * Used to check the lab's compositions and the published gallery without a
  * browser in the loop.
  */
-import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import {spawn} from 'node:child_process';
+import {mkdtempSync, writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 
-const [url, out, w = '1100', h = '900', waitMs = '6000'] = process.argv.slice(2);
+const [url, out, w = '1100', h = '900', waitMs = '6000'] =
+  process.argv.slice(2);
 if (!url || !out) {
   console.error('usage: shot.mjs <url> <out.png> [w] [h] [waitMs]');
   process.exit(2);
 }
 
-const CHROME = process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const CHROME =
+  process.env.CHROME_PATH ??
+  '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
 const port = 9222 + Math.floor(process.pid % 500);
 const profile = mkdtempSync(join(tmpdir(), 'labshot-'));
@@ -38,18 +41,18 @@ const chrome = spawn(
     `--window-size=${w},${h}`,
     'about:blank',
   ],
-  { stdio: ['ignore', 'ignore', 'pipe'] },
+  {stdio: ['ignore', 'ignore', 'pipe']},
 );
 chrome.stderr.on('data', () => {});
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function target() {
   for (let i = 0; i < 60; i++) {
     try {
       const res = await fetch(`http://127.0.0.1:${port}/json/list`);
       const list = await res.json();
-      const page = list.find((t) => t.type === 'page');
+      const page = list.find(t => t.type === 'page');
       if (page?.webSocketDebuggerUrl) return page.webSocketDebuggerUrl;
     } catch {
       /* not up yet */
@@ -69,7 +72,7 @@ await new Promise((res, rej) => {
 let nextId = 1;
 const pending = new Map();
 const logs = [];
-ws.onmessage = (ev) => {
+ws.onmessage = ev => {
   const msg = JSON.parse(ev.data);
   if (msg.id && pending.has(msg.id)) {
     pending.get(msg.id)(msg.result ?? msg.error);
@@ -79,7 +82,7 @@ ws.onmessage = (ev) => {
   if (msg.method === 'Runtime.consoleAPICalled') {
     logs.push(
       `[${msg.params.type}] ` +
-        msg.params.args.map((a) => a.value ?? a.description ?? a.type).join(' '),
+        msg.params.args.map(a => a.value ?? a.description ?? a.type).join(' '),
     );
   }
   if (msg.method === 'Runtime.exceptionThrown') {
@@ -92,10 +95,10 @@ ws.onmessage = (ev) => {
 };
 
 const send = (method, params = {}) =>
-  new Promise((res) => {
+  new Promise(res => {
     const id = nextId++;
     pending.set(id, res);
-    ws.send(JSON.stringify({ id, method, params }));
+    ws.send(JSON.stringify({id, method, params}));
   });
 
 await send('Runtime.enable');
@@ -105,10 +108,10 @@ await send('Page.enable');
 // way an Artifact's own theme toggle does, so both paths get checked.
 if (process.env.DARK === '1') {
   await send('Emulation.setEmulatedMedia', {
-    features: [{ name: 'prefers-color-scheme', value: 'dark' }],
+    features: [{name: 'prefers-color-scheme', value: 'dark'}],
   });
 }
-await send('Page.navigate', { url });
+await send('Page.navigate', {url});
 await sleep(Number(waitMs));
 if (process.env.THEME) {
   await send('Runtime.evaluate', {

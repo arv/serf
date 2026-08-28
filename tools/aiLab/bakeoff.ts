@@ -1,8 +1,19 @@
-import { spawn } from 'node:child_process';
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
-import { availableParallelism } from 'node:os';
-import { dirname } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import {spawn} from 'node:child_process';
+import {appendFileSync, mkdirSync, writeFileSync} from 'node:fs';
+import {availableParallelism} from 'node:os';
+import {dirname} from 'node:path';
+import {fileURLToPath, pathToFileURL} from 'node:url';
+import {
+  parseStrategyId,
+  AI_STRATEGY_ORDER,
+} from '../../src/sim/defs/aiStrategies.ts';
+import {
+  ALL_ECONOMY_RULES,
+  type EconomyRuleId,
+  economyRuleFromKey,
+  ECONOMY_RULE_KEYS,
+} from '../../src/sim/economyRules.ts';
+import type {Owner} from '../../src/sim/entities.ts';
 import {
   buildEngine,
   describeSpec,
@@ -10,18 +21,15 @@ import {
   type EngineSpec,
   type LabEngine,
 } from './engines.ts';
-import { playMatch, type MatchConfig, type MatchRecord, type SeatStrategies } from './match.ts';
 import {
-  ALL_ECONOMY_RULES,
-  type EconomyRuleId,
-  economyRuleFromKey,
-  ECONOMY_RULE_KEYS,
-} from '../../src/sim/economyRules.ts';
-import { renderReport, type ReportHeader } from './report.ts';
-import { summarize, type LayoutRun, type SeedRun } from './stats.ts';
-import { parseStrategyId, AI_STRATEGY_ORDER } from '../../src/sim/defs/aiStrategies.ts';
-import type { Owner } from '../../src/sim/entities.ts';
-import type { WorkerTask } from './matchWorker.ts';
+  playMatch,
+  type MatchConfig,
+  type MatchRecord,
+  type SeatStrategies,
+} from './match.ts';
+import type {WorkerTask} from './matchWorker.ts';
+import {renderReport, type ReportHeader} from './report.ts';
+import {summarize, type LayoutRun, type SeedRun} from './stats.ts';
 
 /**
  * The bake-off: does putting a model in the strategist's seat beat not
@@ -170,11 +178,14 @@ serf-valley LLM strategist bake-off
  */
 export function parseStrategies(spec: string): SeatStrategies {
   const parts = spec.split(':');
-  if (parts.length > 2) throw new Error(`--strategy wants "id" or "id:id", got "${spec}"`);
-  const ids = parts.map((raw) => {
+  if (parts.length > 2)
+    throw new Error(`--strategy wants "id" or "id:id", got "${spec}"`);
+  const ids = parts.map(raw => {
     const id = parseStrategyId(raw.trim());
     if (!id) {
-      throw new Error(`--strategy does not know "${raw}" (have: ${AI_STRATEGY_ORDER.join(', ')})`);
+      throw new Error(
+        `--strategy does not know "${raw}" (have: ${AI_STRATEGY_ORDER.join(', ')})`,
+      );
     }
     return id;
   });
@@ -193,7 +204,8 @@ function parseSeeds(spec: string): number[] {
       continue;
     }
     const one = Number(part.trim());
-    if (!Number.isInteger(one)) throw new Error(`--seeds wants integers, got "${part}"`);
+    if (!Number.isInteger(one))
+      throw new Error(`--seeds wants integers, got "${part}"`);
     seeds.push(one);
   }
   if (seeds.length === 0) throw new Error('--seeds selected nothing');
@@ -205,26 +217,35 @@ export function parseArgs(argv: string[]): Options {
     const i = argv.indexOf(flag);
     if (i < 0) return undefined;
     const value = argv[i + 1];
-    if (value === undefined || value.startsWith('--')) throw new Error(`${flag} wants a value`);
+    if (value === undefined || value.startsWith('--'))
+      throw new Error(`${flag} wants a value`);
     return value;
   };
   const num = (flag: string, fallback: number): number => {
     const raw = get(flag);
     if (raw === undefined) return fallback;
     const n = Number(raw);
-    if (!Number.isFinite(n)) throw new Error(`${flag} wants a number, got "${raw}"`);
+    if (!Number.isFinite(n))
+      throw new Error(`${flag} wants a number, got "${raw}"`);
     return n;
   };
 
   const seedLabel = get('--seeds') ?? '1-24';
   const jobsRaw = get('--jobs') ?? '1';
-  const jobs = jobsRaw === 'max' ? Math.max(1, availableParallelism() - 1) : Number(jobsRaw);
+  const jobs =
+    jobsRaw === 'max'
+      ? Math.max(1, availableParallelism() - 1)
+      : Number(jobsRaw);
   if (!Number.isInteger(jobs) || jobs < 1) {
-    throw new Error(`--jobs wants a positive integer or "max", got "${jobsRaw}"`);
+    throw new Error(
+      `--jobs wants a positive integer or "max", got "${jobsRaw}"`,
+    );
   }
   const latencyRaw = get('--latency') ?? '0';
   if (latencyRaw !== 'measured' && !Number.isFinite(Number(latencyRaw))) {
-    throw new Error(`--latency wants a number of ticks or "measured", got "${latencyRaw}"`);
+    throw new Error(
+      `--latency wants a number of ticks or "measured", got "${latencyRaw}"`,
+    );
   }
   const rulesRaw = get('--rules');
   const economyRules =
@@ -232,13 +253,13 @@ export function parseArgs(argv: string[]): Options {
       ? undefined
       : rulesRaw === 'none'
         ? []
-        : rulesRaw.split(',').map((id) => {
+        : rulesRaw.split(',').map(id => {
             const trimmed = id.trim();
             const rule = economyRuleFromKey(trimmed);
             if (rule === undefined) {
               throw new Error(
                 `--rules does not know "${trimmed}" (have: ${ALL_ECONOMY_RULES.map(
-                  (r) => ECONOMY_RULE_KEYS[r],
+                  r => ECONOMY_RULE_KEYS[r],
                 ).join(', ')})`,
               );
             }
@@ -250,8 +271,13 @@ export function parseArgs(argv: string[]): Options {
   // --timeout-ms reaches LlmStrategist as NaN, where every comparison against
   // it is false, so the deadline silently never fires.
   const timeoutMs = timeoutRaw === undefined ? undefined : Number(timeoutRaw);
-  if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
-    throw new Error(`--timeout-ms wants a positive number of milliseconds, got "${timeoutRaw}"`);
+  if (
+    timeoutMs !== undefined &&
+    (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
+  ) {
+    throw new Error(
+      `--timeout-ms wants a positive number of milliseconds, got "${timeoutRaw}"`,
+    );
   }
 
   const matchTimeoutMs = num('--match-timeout-ms', 600_000);
@@ -262,7 +288,10 @@ export function parseArgs(argv: string[]): Options {
   }
 
   return {
-    spec: parseEngineSpec(get('--engine') ?? 'random', get('--model') ?? 'local-model'),
+    spec: parseEngineSpec(
+      get('--engine') ?? 'random',
+      get('--model') ?? 'local-model',
+    ),
     seeds: parseSeeds(seedLabel),
     seedLabel,
     mapSize: num('--map', 96),
@@ -276,7 +305,7 @@ export function parseArgs(argv: string[]): Options {
     control: !argv.includes('--no-control'),
     trace: argv.includes('--trace'),
     checkInvariantsEvery: num('--check', 0),
-    ...(economyRules !== undefined ? { economyRules } : {}),
+    ...(economyRules !== undefined ? {economyRules} : {}),
     out: get('--out'),
     jobs,
     matchTimeoutMs,
@@ -317,7 +346,11 @@ const seatingOf = (opts: Options, layout: 0 | 1): SeatStrategies =>
 type MatchBase = Omit<MatchConfig, 'engines' | 'seed' | 'strategies'>;
 
 /** Play one trial in this process — the --jobs 1 path, and the tests'. */
-async function playHere(t: Trial, opts: Options, base: MatchBase): Promise<MatchRecord> {
+async function playHere(
+  t: Trial,
+  opts: Options,
+  base: MatchBase,
+): Promise<MatchRecord> {
   const engines = new Map<Owner, LabEngine>();
   if (t.advisedSeat !== null) {
     // `--engine none` builds nothing: the arm is then the control played
@@ -325,24 +358,39 @@ async function playHere(t: Trial, opts: Options, base: MatchBase): Promise<Match
     const engine = buildEngine(opts.spec, saltOf(t));
     if (engine) engines.set(t.advisedSeat, engine);
   }
-  return playMatch({ ...base, seed: t.seed, strategies: seatingOf(opts, t.layout), engines });
+  return playMatch({
+    ...base,
+    seed: t.seed,
+    strategies: seatingOf(opts, t.layout),
+    engines,
+  });
 }
 
 /** Play one trial in a child process — the --jobs N path. The child gets
  * the same salt the serial path would use, so N and 1 agree byte for byte
  * (http engines aside, which sample). */
-function playInWorker(t: Trial, opts: Options, base: MatchBase): Promise<MatchRecord> {
+function playInWorker(
+  t: Trial,
+  opts: Options,
+  base: MatchBase,
+): Promise<MatchRecord> {
   const task: WorkerTask = {
-    config: { ...base, seed: t.seed, strategies: seatingOf(opts, t.layout) },
+    config: {...base, seed: t.seed, strategies: seatingOf(opts, t.layout)},
     advisedSeat: t.advisedSeat,
     spec: opts.spec,
     salt: saltOf(t),
   };
-  const workerPath = fileURLToPath(new URL('./matchWorker.ts', import.meta.url));
+  const workerPath = fileURLToPath(
+    new URL('./matchWorker.ts', import.meta.url),
+  );
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--experimental-strip-types', workerPath], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    const child = spawn(
+      process.execPath,
+      ['--experimental-strip-types', workerPath],
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
     // One settle, whoever gets there first: the watchdog must not wait for
     // a close that a truly stuck process might never emit, and a close (or
     // spawn error) arriving after the watchdog already scored the trial
@@ -381,19 +429,26 @@ function playInWorker(t: Trial, opts: Options, base: MatchBase): Promise<MatchRe
     const errText: Buffer[] = [];
     child.stdout.on('data', (chunk: Buffer) => out.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => errText.push(chunk));
-    child.on('error', (err) => settle(() => reject(err)));
+    child.on('error', err => settle(() => reject(err)));
     child.on('close', (code, signal) => {
       settle(() => {
         if (code !== 0) {
           // A signal death arrives as code null + the signal's name — the
           // OOM killer, a stray kill — and 'worker exited null' would bury
           // that.
-          const why = signal !== null ? `worker killed by ${signal}` : `worker exited ${code}`;
-          reject(new Error(Buffer.concat(errText).toString('utf8').trim() || why));
+          const why =
+            signal !== null
+              ? `worker killed by ${signal}`
+              : `worker exited ${code}`;
+          reject(
+            new Error(Buffer.concat(errText).toString('utf8').trim() || why),
+          );
           return;
         }
         try {
-          resolve(JSON.parse(Buffer.concat(out).toString('utf8')) as MatchRecord);
+          resolve(
+            JSON.parse(Buffer.concat(out).toString('utf8')) as MatchRecord,
+          );
         } catch {
           reject(new Error('worker produced unparseable output'));
         }
@@ -417,22 +472,25 @@ async function pool<T, R>(
       const i = cursor++;
       if (i >= items.length) return;
       try {
-        results[i] = { status: 'fulfilled', value: await work(items[i]!) };
+        results[i] = {status: 'fulfilled', value: await work(items[i]!)};
       } catch (err) {
-        results[i] = { status: 'rejected', reason: err };
+        results[i] = {status: 'rejected', reason: err};
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(width, items.length) }, lane));
+  await Promise.all(Array.from({length: Math.min(width, items.length)}, lane));
   return results;
 }
 
-export async function runBakeoff(opts: Options, log: (line: string) => void): Promise<string> {
+export async function runBakeoff(
+  opts: Options,
+  log: (line: string) => void,
+): Promise<string> {
   const startedAt = Date.now();
   const crashes: string[] = [];
 
   if (opts.out) {
-    mkdirSync(dirname(opts.out), { recursive: true });
+    mkdirSync(dirname(opts.out), {recursive: true});
     writeFileSync(opts.out, '');
   }
   const emit = (kind: string, t: Trial, record: MatchRecord): void => {
@@ -442,7 +500,7 @@ export async function runBakeoff(opts: Options, log: (line: string) => void): Pr
     // compare.ts reads runs recorded before seatings existed unchanged.
     appendFileSync(
       opts.out,
-      `${JSON.stringify({ kind, advisedSeat: t.advisedSeat, layout: t.layout, ...record })}\n`,
+      `${JSON.stringify({kind, advisedSeat: t.advisedSeat, layout: t.layout, ...record})}\n`,
     );
   };
 
@@ -454,32 +512,39 @@ export async function runBakeoff(opts: Options, log: (line: string) => void): Pr
     adviceStagger: opts.adviceStagger,
     latencyTicks: opts.latency,
     checkInvariantsEvery: opts.checkInvariantsEvery,
-    ...(opts.economyRules !== undefined ? { economyRules: opts.economyRules } : {}),
+    ...(opts.economyRules !== undefined
+      ? {economyRules: opts.economyRules}
+      : {}),
     trace: opts.trace,
-    ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+    ...(opts.timeoutMs !== undefined ? {timeoutMs: opts.timeoutMs} : {}),
   };
 
   // Two seatings only when the playbooks differ. Identical ones make the
   // swap the same match twice, which would double the sweep to buy nothing.
-  const layouts: (0 | 1)[] = opts.strategies[0] === opts.strategies[1] ? [0] : [0, 1];
+  const layouts: (0 | 1)[] =
+    opts.strategies[0] === opts.strategies[1] ? [0] : [0, 1];
   const trials: Trial[] = opts.seeds.flatMap((seed, seedIndex) =>
-    layouts.flatMap((layout) => [
-      ...(opts.control ? [{ seed, seedIndex, layout, advisedSeat: null }] : []),
-      ...ARM_SEATS.map((advisedSeat) => ({ seed, seedIndex, layout, advisedSeat })),
+    layouts.flatMap(layout => [
+      ...(opts.control ? [{seed, seedIndex, layout, advisedSeat: null}] : []),
+      ...ARM_SEATS.map(advisedSeat => ({seed, seedIndex, layout, advisedSeat})),
     ]),
   );
 
   let played = 0;
   const playOne = async (t: Trial): Promise<MatchRecord> => {
-    const record = await (opts.jobs > 1 ? playInWorker(t, opts, base) : playHere(t, opts, base));
+    const record = await (opts.jobs > 1
+      ? playInWorker(t, opts, base)
+      : playHere(t, opts, base));
     played++;
     // Emitted as it lands, not when the sweep ends: a three-hour run
     // killed at match 400 must leave 399 lines behind, not zero. Line
     // order therefore varies with --jobs; every line is self-describing
     // and compare.ts joins on fields, so order is presentation only.
     emit(t.advisedSeat === null ? 'control' : 'arm', t, record);
-    const who = t.advisedSeat === null ? 'control' : `seat ${t.advisedSeat} advised`;
-    const seating = layouts.length > 1 ? `[${record.strategies.join(' v ')}] ` : '';
+    const who =
+      t.advisedSeat === null ? 'control' : `seat ${t.advisedSeat} advised`;
+    const seating =
+      layouts.length > 1 ? `[${record.strategies.join(' v ')}] ` : '';
     log(
       `seed ${t.seed} ${seating}${who} → ` +
         `${record.decided ? `winner ${record.winner ?? 'nobody'}` : 'undecided'} ` +
@@ -492,23 +557,30 @@ export async function runBakeoff(opts: Options, log: (line: string) => void): Pr
 
   // Reassemble in seed order whatever order the pool finished in, so the
   // JSONL and the report read the same for every --jobs.
-  const runs: SeedRun[] = opts.seeds.map((seed) => ({
+  const runs: SeedRun[] = opts.seeds.map(seed => ({
     seed,
-    layouts: layouts.map((layout): LayoutRun => ({ layout, control: null, arms: [] })),
+    layouts: layouts.map((layout): LayoutRun => ({
+      layout,
+      control: null,
+      arms: [],
+    })),
   }));
   for (const [i, t] of trials.entries()) {
     const result = settled[i]!;
     const run = runs[t.seedIndex]!;
-    const layout = run.layouts.find((l) => l.layout === t.layout)!;
+    const layout = run.layouts.find(l => l.layout === t.layout)!;
     if (result.status === 'rejected') {
-      const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+      const reason =
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason);
       const who = t.advisedSeat === null ? 'control' : `seat ${t.advisedSeat}`;
       const seating = layouts.length > 1 ? ` seating ${t.layout}` : '';
       crashes.push(`seed ${t.seed}${seating} ${who}: ${reason}`);
       continue;
     }
     if (t.advisedSeat === null) layout.control = result.value;
-    else layout.arms.push({ advisedSeat: t.advisedSeat, record: result.value });
+    else layout.arms.push({advisedSeat: t.advisedSeat, record: result.value});
   }
 
   const report = summarize(runs, (Date.now() - startedAt) / 1000);
@@ -529,10 +601,13 @@ export async function runBakeoff(opts: Options, log: (line: string) => void): Pr
     // Never quietly: a dropped trial skews the rate, so it is printed
     // where the rate is read.
     text += `\n\nCRASHED TRIALS (${crashes.length}, excluded from every number above)\n`;
-    text += crashes.map((c) => `  ${c}`).join('\n');
+    text += crashes.map(c => `  ${c}`).join('\n');
   }
   if (opts.out) {
-    appendFileSync(opts.out, `${JSON.stringify({ kind: 'report', header, report })}\n`);
+    appendFileSync(
+      opts.out,
+      `${JSON.stringify({kind: 'report', header, report})}\n`,
+    );
   }
   return text;
 }
@@ -544,7 +619,9 @@ if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
     console.log(USAGE.trim());
   } else {
     const opts = parseArgs(process.argv.slice(2));
-    const text = await runBakeoff(opts, (line) => process.stderr.write(`${line}\n`));
+    const text = await runBakeoff(opts, line =>
+      process.stderr.write(`${line}\n`),
+    );
     console.log(`\n${text}`);
   }
 }
