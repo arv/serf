@@ -7,8 +7,8 @@ export function IndexPage(): JSX.Element {
     <>
       <h1>Field Guide</h1>
       <p class="lede">
-        Every building, unit, good and research in Serf Valley: what it costs, what it makes,
-        and what it needs first.
+        Every building, unit, good and research in Serf Valley: what it costs, what it makes, and
+        what it needs first.
       </p>
       <div class="tiles">
         <DocLink href="/docs/buildings" class="tile">

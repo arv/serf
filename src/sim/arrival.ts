@@ -31,13 +31,7 @@ import type { Unit } from './units.ts';
 const ARRIVAL_REACH = 1.5;
 
 /** Distance from a unit to the nearest point of a footprint. */
-export function distToFootprint(
-  unit: Unit,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-): number {
+export function distToFootprint(unit: Unit, x: number, y: number, w: number, h: number): number {
   const cx = Math.max(x, Math.min(unit.x, x + w));
   const cy = Math.max(y, Math.min(unit.y, y + h));
   return exactDist(unit.x - cx, unit.y - cy);

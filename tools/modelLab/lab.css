@@ -91,10 +91,13 @@
 body {
   margin: 0;
   background:
-    radial-gradient(ellipse 90% 60% at 50% -10%, var(--ground-2), transparent 70%),
-    var(--ground);
+    radial-gradient(ellipse 90% 60% at 50% -10%, var(--ground-2), transparent 70%), var(--ground);
   color: var(--ink);
-  font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Space Grotesk',
+    system-ui,
+    -apple-system,
+    sans-serif;
   font-size: 16px;
   line-height: 1.55;
   -webkit-text-size-adjust: 100%;

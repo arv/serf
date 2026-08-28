@@ -274,7 +274,14 @@ export const MENU_STYLE = `
  * node, and a node can only have one parent. */
 export function DiceIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+    >
       <rect x="3" y="3" width="18" height="18" rx="3" />
       <circle cx="8.5" cy="8.5" r="1.1" fill="currentColor" />
       <circle cx="15.5" cy="15.5" r="1.1" fill="currentColor" />

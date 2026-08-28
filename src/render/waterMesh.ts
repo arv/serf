@@ -33,13 +33,7 @@ export class WaterMesh {
     // Bed elevations as a single-channel float texture. Nearest sampling on
     // purpose: the shader does its own bilinear so it matches HeightField
     // (samples at tile centers) and never depends on float-filtering support.
-    const bed = new THREE.DataTexture(
-      map.height,
-      size,
-      size,
-      THREE.RedFormat,
-      THREE.FloatType,
-    );
+    const bed = new THREE.DataTexture(map.height, size, size, THREE.RedFormat, THREE.FloatType);
     bed.magFilter = THREE.NearestFilter;
     bed.minFilter = THREE.NearestFilter;
     bed.wrapS = THREE.ClampToEdgeWrapping;

@@ -32,7 +32,11 @@ for (let i = 0; i < 4; i++) {
 const cam = new THREE.OrthographicCamera(-10, 10, 3, -3, 0.1, 100);
 const yaw = Math.PI / 4;
 const pitch = (35 * Math.PI) / 180;
-cam.position.set(Math.sin(yaw) * Math.cos(pitch) * 30, Math.sin(pitch) * 30, Math.cos(yaw) * Math.cos(pitch) * 30);
+cam.position.set(
+  Math.sin(yaw) * Math.cos(pitch) * 30,
+  Math.sin(pitch) * 30,
+  Math.cos(yaw) * Math.cos(pitch) * 30,
+);
 cam.lookAt(0, 1.0, 0);
 renderer.render(scene, cam);
 console.log('rendered');

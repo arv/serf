@@ -176,10 +176,7 @@ export function commonAncestor<T>(a: readonly T[], b: readonly T[]): T | null {
  * ancestor, on each side. `left` is innermost first and `entered`
  * outermost first, which is the order the two events want dispatching in.
  */
-export function boundary<T>(
-  prev: readonly T[],
-  next: readonly T[],
-): { left: T[]; entered: T[] } {
+export function boundary<T>(prev: readonly T[], next: readonly T[]): { left: T[]; entered: T[] } {
   const pivot = commonAncestor(prev, next);
   const upto = (chain: readonly T[]): T[] => {
     const end = pivot === null ? chain.length : chain.indexOf(pivot);
@@ -443,21 +440,29 @@ class MouseCapture {
     // owns it; only the timing comes from the events, and prefixed engines
     // announce it under the older name.
     for (const type of ['fullscreenchange', 'webkitfullscreenchange']) {
-      doc.addEventListener(type, () => {
-        // Leaving full screen ends the argument: whatever the player did
-        // to the lock last time is forgotten, and re-entering offers it
-        // again from scratch.
-        if (!fullscreen().active()) this.#declined = false;
-        this.sync();
-      }, { signal });
+      doc.addEventListener(
+        type,
+        () => {
+          // Leaving full screen ends the argument: whatever the player did
+          // to the lock last time is forgotten, and re-entering offers it
+          // again from scratch.
+          if (!fullscreen().active()) this.#declined = false;
+          this.sync();
+        },
+        { signal },
+      );
     }
     // A tooltip going up (or any popover) enters the top layer above
     // everything already in it, the drawn cursor included. Toggles do not
     // bubble, so this listens where every event passes: the capture phase
     // at the document.
-    doc.addEventListener('toggle', (e) => {
-      if (this.#on && e.target !== this.#cursor) this.#promote();
-    }, { capture: true, signal });
+    doc.addEventListener(
+      'toggle',
+      (e) => {
+        if (this.#on && e.target !== this.#cursor) this.#promote();
+      },
+      { capture: true, signal },
+    );
   }
 
   /** Live: is the pointer ours this instant? */

@@ -78,7 +78,9 @@ async function activate() {
   const keep = new Set([SHELL_CACHE, ASSET_CACHE]);
   const names = await caches.keys();
   await Promise.all(
-    names.filter((name) => name.startsWith('serf-') && !keep.has(name)).map((n) => caches.delete(n)),
+    names
+      .filter((name) => name.startsWith('serf-') && !keep.has(name))
+      .map((n) => caches.delete(n)),
   );
   await self.clients.claim();
 }

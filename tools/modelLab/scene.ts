@@ -134,9 +134,7 @@ export function makeDiorama(K: Kit, v: Variant): Diorama {
   mb.getSize(ms);
   // Buildings stand on a plate the size of their footprint; the goods are
   // hand props, so their turf is cut to whatever they actually cover.
-  const plateR = v.closeUp
-    ? Math.max(ms.x, ms.z) * 0.62 + 0.22
-    : Math.max(v.w, v.h) * 0.95 + 0.5;
+  const plateR = v.closeUp ? Math.max(ms.x, ms.z) * 0.62 + 0.22 : Math.max(v.w, v.h) * 0.95 + 0.5;
   group.add(plate(v, plateR));
   group.add(model);
   const bb = new THREE.Box3().setFromObject(model);

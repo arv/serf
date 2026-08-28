@@ -25,7 +25,11 @@ import type { World } from './world.ts';
 
 /** A building watches from its edges, not its middle, so its footprint
  * widens what it covers. Units are points and need no such adjustment. */
-export function buildingSight(type: Parameters<typeof buildingDef>[0], w: number, h: number): number {
+export function buildingSight(
+  type: Parameters<typeof buildingDef>[0],
+  w: number,
+  h: number,
+): number {
   return buildingDef(type).sight + Math.max(w, h) / 2;
 }
 

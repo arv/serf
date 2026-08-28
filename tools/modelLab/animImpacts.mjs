@@ -29,10 +29,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const KK_DIR = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../public/models/kaykit/',
-);
+const KK_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../public/models/kaykit/');
 
 // --- GLB + accessor plumbing ----------------------------------------------
 
@@ -71,16 +68,36 @@ function accessorArray(gltf, bin, idx) {
 
 function composeTRS(t, q, s) {
   const [x, y, z, w] = q;
-  const x2 = x + x, y2 = y + y, z2 = z + z;
-  const xx = x * x2, xy = x * y2, xz = x * z2;
-  const yy = y * y2, yz = y * z2, zz = z * z2;
-  const wx = w * x2, wy = w * y2, wz = w * z2;
+  const x2 = x + x,
+    y2 = y + y,
+    z2 = z + z;
+  const xx = x * x2,
+    xy = x * y2,
+    xz = x * z2;
+  const yy = y * y2,
+    yz = y * z2,
+    zz = z * z2;
+  const wx = w * x2,
+    wy = w * y2,
+    wz = w * z2;
   // Column-major 4x4.
   return [
-    (1 - (yy + zz)) * s[0], (xy + wz) * s[0], (xz - wy) * s[0], 0,
-    (xy - wz) * s[1], (1 - (xx + zz)) * s[1], (yz + wx) * s[1], 0,
-    (xz + wy) * s[2], (yz - wx) * s[2], (1 - (xx + yy)) * s[2], 0,
-    t[0], t[1], t[2], 1,
+    (1 - (yy + zz)) * s[0],
+    (xy + wz) * s[0],
+    (xz - wy) * s[0],
+    0,
+    (xy - wz) * s[1],
+    (1 - (xx + zz)) * s[1],
+    (yz + wx) * s[1],
+    0,
+    (xz + wy) * s[2],
+    (yz - wx) * s[2],
+    (1 - (xx + yy)) * s[2],
+    0,
+    t[0],
+    t[1],
+    t[2],
+    1,
   ];
 }
 
@@ -143,9 +160,9 @@ class ClipEvaluator {
     const node = this.nodes[nodeIdx];
     const tr = this.tracks.get(nodeIdx) ?? {};
     return composeTRS(
-      tr.translation ? this.#sample(tr.translation, t) : node.translation ?? [0, 0, 0],
-      tr.rotation ? this.#sample(tr.rotation, t) : node.rotation ?? [0, 0, 0, 1],
-      tr.scale ? this.#sample(tr.scale, t) : node.scale ?? [1, 1, 1],
+      tr.translation ? this.#sample(tr.translation, t) : (node.translation ?? [0, 0, 0]),
+      tr.rotation ? this.#sample(tr.rotation, t) : (node.rotation ?? [0, 0, 0, 1]),
+      tr.scale ? this.#sample(tr.scale, t) : (node.scale ?? [1, 1, 1]),
     );
   }
 

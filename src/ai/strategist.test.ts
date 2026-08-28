@@ -52,7 +52,8 @@ const wllamaMock = vi.hoisted(() => {
     downloads: [] as { url: string; signal: AbortSignal | undefined }[],
     /** Override the download itself; null = instant success with progress. */
     downloadGate: null as
-      null | ((opts?: { signal?: AbortSignal; progressCallback?: Progress }) => Promise<unknown>),
+      | null
+      | ((opts?: { signal?: AbortSignal; progressCallback?: Progress }) => Promise<unknown>),
     cacheEntries,
     cacheDeletes,
     /** The one cache both stand-ins hand out — the same OPFS directory

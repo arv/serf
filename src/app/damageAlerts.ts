@@ -137,7 +137,10 @@ export class DamageAlerts {
       const ground = this.#heights.at(h.x, h.y);
       const p = worldToScreen(this.#camera, this.#canvas, h.x, ground, h.y, this.#screen);
       const onScreen =
-        p.x >= SCREEN_INSET && p.x <= w - SCREEN_INSET && p.y >= SCREEN_INSET && p.y <= hgt - SCREEN_INSET;
+        p.x >= SCREEN_INSET &&
+        p.x <= w - SCREEN_INSET &&
+        p.y >= SCREEN_INSET &&
+        p.y <= hgt - SCREEN_INSET;
       if (onScreen) this.#ring(ringsUsed++, h, ground, now, alpha);
       else this.#blob(blobsUsed++, p, w, hgt, now, alpha);
     }

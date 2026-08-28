@@ -89,7 +89,12 @@ function memoryStore(): PartialStore & {
     listParts: async (): Promise<PartialPart[]> =>
       [...parts.entries()].map(([key, bytes]) => {
         const [attempt, offset] = key.split(':') as [string, string];
-        return { attempt, offset: Number(offset), size: bytes.length, blob: new Blob([bytes as BlobPart]) };
+        return {
+          attempt,
+          offset: Number(offset),
+          size: bytes.length,
+          blob: new Blob([bytes as BlobPart]),
+        };
       }),
     writePart: async (attempt, offset, bytes) => {
       maxPart = Math.max(maxPart, bytes.length);
@@ -252,7 +257,9 @@ function fakeOpfs(): {
       const chunks: BlobPart[] = [];
       return {
         write: async (data: Uint8Array | string) => {
-          chunks.push(typeof data === 'string' ? new TextEncoder().encode(data) : (data as BlobPart));
+          chunks.push(
+            typeof data === 'string' ? new TextEncoder().encode(data) : (data as BlobPart),
+          );
         },
         close: async () => {
           files.set(name, new Uint8Array(await new Blob(chunks).arrayBuffer()));
@@ -680,7 +687,12 @@ describe('ensureModelCached', () => {
       // grant serializes nothing but proves the probe.
       locks: { request: (_name: string, _opts: unknown, work: () => Promise<unknown>) => work() },
     });
-    vi.stubGlobal('FileSystemFileHandle', class { createWritable(): void {} });
+    vi.stubGlobal(
+      'FileSystemFileHandle',
+      class {
+        createWritable(): void {}
+      },
+    );
     const backend = memoryBackend();
     const cache = new CacheManager([backend]);
     const host = weightsHost();

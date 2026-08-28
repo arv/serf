@@ -21,7 +21,13 @@ import { persistRooms, restorePersistedRooms, roomFromRecord, roomToRecord } fro
 
 /** A running two-seat match (one human, one AI), a few hundred ticks in. */
 function runningRoom(seed: number) {
-  const room = createRoom('closed', { ai: 1, bandits: false, seed, size: DEFAULT_MAP_SIZE, bots: [] });
+  const room = createRoom('closed', {
+    ai: 1,
+    bandits: false,
+    seed,
+    size: DEFAULT_MAP_SIZE,
+    bots: [],
+  });
   const seat = addSeat(room, 'human', null);
   startMatch(room);
   for (let i = 0; i < 200; i++) tickWorld(room.world!, []);
@@ -43,9 +49,7 @@ describe('room persistence', () => {
     expect(revived.seats.every((s) => !s.connected && s.ws === null)).toBe(true);
     expect(revived.config).toEqual(room.config);
     // Fog survives: the seat still knows everything it had explored.
-    expect([...revived.seats[0]!.view!.vision.explored]).toEqual([
-      ...seat.view!.vision.explored,
-    ]);
+    expect([...revived.seats[0]!.view!.vision.explored]).toEqual([...seat.view!.vision.explored]);
   });
 
   it('the clock resumes where it paused, not fast-forwarded', () => {
@@ -62,7 +66,13 @@ describe('room persistence', () => {
   });
 
   it('lobby rooms have no record — their tokens were never dealt', () => {
-    const lobby = createRoom('open', { ai: 0, bandits: true, seed: 1, size: DEFAULT_MAP_SIZE, bots: [] });
+    const lobby = createRoom('open', {
+      ai: 0,
+      bandits: true,
+      seed: 1,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
     addSeat(lobby, 'human', null);
     expect(roomToRecord(lobby)).toBeUndefined();
   });

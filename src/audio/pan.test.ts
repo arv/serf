@@ -32,7 +32,10 @@ describe('spatialize', () => {
     expect(at(50, 60, square).pan).toBe(0);
     const right = at(60, 50, square).pan;
     expect(at(60, 50, rect(50, 50, 20)).pan).toBeCloseTo(right * Math.SQRT1_2, 10);
-    expect(at(60, 50, rect(50, 50, 20, CAMERA_YAW)).pan).toBeCloseTo(right * Math.cos(CAMERA_YAW), 10);
+    expect(at(60, 50, rect(50, 50, 20, CAMERA_YAW)).pan).toBeCloseTo(
+      right * Math.cos(CAMERA_YAW),
+      10,
+    );
     // A quarter turn on from the diamond is its mirror: world +x -z, the
     // diamond's screen-right, is now straight up the screen.
     expect(at(55, 45, rect(50, 50, 20, ISO + Math.PI / 2)).pan).toBeCloseTo(0, 10);

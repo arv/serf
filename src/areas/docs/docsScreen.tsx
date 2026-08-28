@@ -110,19 +110,37 @@ function DocsApp(props: { route: Accessor<DocsRoute> }): JSX.Element {
             </Match>
             {/* keyed: a building->building link swaps defs, and the hero
                 preview must rebuild for the new model rather than reconcile. */}
-            <Match when={(() => { const r = props.route(); return r.page === 'building' ? r : null; })()} keyed>
+            <Match
+              when={(() => {
+                const r = props.route();
+                return r.page === 'building' ? r : null;
+              })()}
+              keyed
+            >
               {(r) => <BuildingPage id={r.id} />}
             </Match>
             <Match when={props.route().page === 'units'}>
               <UnitsPage />
             </Match>
-            <Match when={(() => { const r = props.route(); return r.page === 'unit' ? r : null; })()} keyed>
+            <Match
+              when={(() => {
+                const r = props.route();
+                return r.page === 'unit' ? r : null;
+              })()}
+              keyed
+            >
               {(r) => <UnitPage id={r.id} />}
             </Match>
             <Match when={props.route().page === 'goods'}>
               <GoodsPage />
             </Match>
-            <Match when={(() => { const r = props.route(); return r.page === 'good' ? r : null; })()} keyed>
+            <Match
+              when={(() => {
+                const r = props.route();
+                return r.page === 'good' ? r : null;
+              })()}
+              keyed
+            >
               {(r) => <GoodPage id={r.id} />}
             </Match>
             <Match when={props.route().page === 'techs'}>
@@ -134,7 +152,13 @@ function DocsApp(props: { route: Accessor<DocsRoute> }): JSX.Element {
             <Match when={props.route().page === 'basics'}>
               <BasicsPage />
             </Match>
-            <Match when={(() => { const r = props.route(); return r.page === 'missing' ? r : null; })()} keyed>
+            <Match
+              when={(() => {
+                const r = props.route();
+                return r.page === 'missing' ? r : null;
+              })()}
+              keyed
+            >
               {(r) => <MissingPage path={r.path} />}
             </Match>
           </Switch>

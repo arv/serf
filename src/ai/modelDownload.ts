@@ -142,10 +142,7 @@ const PART_BYTES = 8 * 1024 * 1024;
  * later and start one of its own. */
 const DOWNLOAD_LOCK = 'serf-llm-download';
 let lockQueue: Promise<unknown> = Promise.resolve();
-export function withModelDownloadLock<T>(
-  work: () => Promise<T>,
-  signal?: AbortSignal,
-): Promise<T> {
+export function withModelDownloadLock<T>(work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
   if (locks) {
     return locks.request(DOWNLOAD_LOCK, signal ? { signal } : {}, work) as Promise<T>;

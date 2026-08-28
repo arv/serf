@@ -140,10 +140,15 @@ export function renderComparison(c: Comparison): string {
   side('A', c.a);
   side('B', c.b);
   p();
-  p(`PAIRED on (seed, advised seat): ${c.paired} trials` + (c.unpaired > 0 ? ` (${c.unpaired} unpaired, dropped)` : ''));
+  p(
+    `PAIRED on (seed, advised seat): ${c.paired} trials` +
+      (c.unpaired > 0 ? ` (${c.unpaired} unpaired, dropped)` : ''),
+  );
   p(`  A won, B lost   ${String(c.aOnly).padStart(4)}`);
   p(`  B won, A lost   ${String(c.bOnly).padStart(4)}`);
-  p(`  same outcome    ${String(c.paired - c.aOnly - c.bOnly).padStart(4)}   (carry no evidence either way)`);
+  p(
+    `  same outcome    ${String(c.paired - c.aOnly - c.bOnly).padStart(4)}   (carry no evidence either way)`,
+  );
   p();
   p(`  exact McNemar p = ${c.p.toPrecision(3)}`);
   if (c.aOnly + c.bOnly === 0) {
@@ -162,7 +167,9 @@ const entry = process.argv[1];
 if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
   const files = process.argv.slice(2).filter((a) => !a.startsWith('--'));
   if (files.length !== 2) {
-    console.error('usage: node --experimental-strip-types tools/aiLab/compare.ts <a.jsonl> <b.jsonl>');
+    console.error(
+      'usage: node --experimental-strip-types tools/aiLab/compare.ts <a.jsonl> <b.jsonl>',
+    );
     process.exit(2);
   }
   console.log(renderComparison(compare(readRun(files[0]!), readRun(files[1]!))));

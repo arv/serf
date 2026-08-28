@@ -20,12 +20,7 @@ import {
   type ImportResult,
   type StoredFileInfo,
 } from './fileStore';
-import {
-  looksLikeSave,
-  readSaveMeta,
-  readSaveWorldVersion,
-  type SaveMeta,
-} from './saveEnvelope';
+import { looksLikeSave, readSaveMeta, readSaveWorldVersion, type SaveMeta } from './saveEnvelope';
 
 const store = createFileStore('saves');
 

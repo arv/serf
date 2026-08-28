@@ -22,7 +22,12 @@ const out = process.argv[2] ?? join(root, '.gallery-build', 'gallery.html');
 console.log('bundling…');
 execFileSync(
   process.execPath,
-  [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'build', '--config', join(here, 'vite.gallery.config.ts')],
+  [
+    join(root, 'node_modules', 'vite', 'bin', 'vite.js'),
+    'build',
+    '--config',
+    join(here, 'vite.gallery.config.ts'),
+  ],
   { cwd: root, stdio: 'inherit' },
 );
 const bundle = readFileSync(join(root, '.gallery-build', 'gallery.js'), 'utf8');
@@ -37,7 +42,9 @@ if (!existsSync(bakedPath)) {
   throw new Error('no baked.json — run `node tools/modelLab/bake.mjs` first');
 }
 const modelJson = readFileSync(bakedPath, 'utf8');
-console.log(`models ${(Buffer.byteLength(modelJson) / 1024) | 0} kB, script ${(Buffer.byteLength(bundle) / 1024) | 0} kB`);
+console.log(
+  `models ${(Buffer.byteLength(modelJson) / 1024) | 0} kB, script ${(Buffer.byteLength(bundle) / 1024) | 0} kB`,
+);
 
 // --- 3. stitch ------------------------------------------------------------
 const shell = readFileSync(join(here, 'gallery.shell.html'), 'utf8');

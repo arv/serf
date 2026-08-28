@@ -113,7 +113,10 @@ export function makeAshlar(s = 1): THREE.Group {
     [0.075, 0.225, 0.03, -0.2],
   ];
   for (const [x, y, z, rot] of blocks) {
-    const b = part(new THREE.BoxGeometry(0.15 * s, 0.09 * s, 0.13 * s), y > 0.1 ? STONE_PALE : STONE);
+    const b = part(
+      new THREE.BoxGeometry(0.15 * s, 0.09 * s, 0.13 * s),
+      y > 0.1 ? STONE_PALE : STONE,
+    );
     b.position.set(x * s, y * s, z * s);
     b.rotation.y = rot;
     g.add(b);
@@ -166,7 +169,7 @@ export function makeOreChute(s = 1): THREE.Group {
     [-0.087, 0, 0.016, 0.15],
     [0.087, 0, 0.016, 0.15],
   ] as [number, number, number, number][]) {
-    const wall = part(new THREE.BoxGeometry(w * s, 0.10 * s, d * s), TIMBER);
+    const wall = part(new THREE.BoxGeometry(w * s, 0.1 * s, d * s), TIMBER);
     wall.position.set(dx * s, 0.05 * s, dz * s);
     bin.add(wall);
   }
@@ -258,12 +261,12 @@ export function makeWindlassHouse(s = 1): THREE.Group {
  */
 export function makeHeadframe(s = 1): THREE.Group {
   const g = new THREE.Group();
-  const APEX = 0.60 * s;
+  const APEX = 0.6 * s;
   const apex: [number, number, number] = [0, APEX, 0];
   strut(g, [-0.135 * s, 0, 0.07 * s], apex, 0.03 * s);
   strut(g, [0.135 * s, 0, 0.07 * s], apex, 0.03 * s);
-  strut(g, [0, 0, -0.20 * s], [0, APEX * 0.94, -0.01 * s], 0.026 * s, TIMBER_DARK);
-  for (const y of [0.20, 0.38] as number[]) {
+  strut(g, [0, 0, -0.2 * s], [0, APEX * 0.94, -0.01 * s], 0.026 * s, TIMBER_DARK);
+  for (const y of [0.2, 0.38] as number[]) {
     const t = y / (APEX / s);
     const halfw = 0.135 * s * (1 - t);
     const rail = part(new THREE.BoxGeometry(halfw * 2, 0.018 * s, 0.018 * s), TIMBER_DARK);
@@ -305,8 +308,8 @@ export function makeHeadframe(s = 1): THREE.Group {
   for (const [dx, dz, w, d] of [
     [0, -0.085, 0.21, 0.03],
     [0, 0.145, 0.21, 0.03],
-    [-0.105, 0.03, 0.03, 0.20],
-    [0.105, 0.03, 0.03, 0.20],
+    [-0.105, 0.03, 0.03, 0.2],
+    [0.105, 0.03, 0.03, 0.2],
   ] as [number, number, number, number][]) {
     const plank = part(new THREE.BoxGeometry(w * s, 0.03 * s, d * s), TIMBER);
     plank.position.set(dx * s, 0.016 * s, dz * s);

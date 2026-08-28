@@ -95,9 +95,7 @@ describe('hoverAlias', () => {
   });
 
   it('moves the hover onto the class we control', () => {
-    expect(hoverAlias('#ui button:hover:not(:disabled)')).toBe(
-      '#ui button.vhover:not(:disabled)',
-    );
+    expect(hoverAlias('#ui button:hover:not(:disabled)')).toBe('#ui button.vhover:not(:disabled)');
   });
 
   it('inverts with the rest of the selector', () => {

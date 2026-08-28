@@ -14,7 +14,5 @@ export function eachMaterial(mesh: THREE.Mesh, fn: (m: THREE.Material) => void):
 
 /** Replace every material on a mesh, preserving the array/single shape. */
 export function mapMaterials(mesh: THREE.Mesh, fn: (m: THREE.Material) => THREE.Material): void {
-  mesh.material = Array.isArray(mesh.material)
-    ? mesh.material.map(fn)
-    : fn(mesh.material);
+  mesh.material = Array.isArray(mesh.material) ? mesh.material.map(fn) : fn(mesh.material);
 }

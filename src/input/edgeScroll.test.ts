@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  EdgeScroll,
-  edgePush,
-  EDGE_BAND_PX,
-  EDGE_FULL_PX,
-  EDGE_LATCH_S,
-} from './edgeScroll';
+import { EdgeScroll, edgePush, EDGE_BAND_PX, EDGE_FULL_PX, EDGE_LATCH_S } from './edgeScroll';
 
 /** A comfortable desktop window: both axes wide enough to have edges. */
 const W = 1600;

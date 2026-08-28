@@ -15,10 +15,7 @@
 
 import { type CueDef, type CueId, CUES } from './cues';
 
-export async function loadSamples(
-  ctx: AudioContext,
-  out: Map<CueId, AudioBuffer>,
-): Promise<void> {
+export async function loadSamples(ctx: AudioContext, out: Map<CueId, AudioBuffer>): Promise<void> {
   const jobs: Promise<void>[] = [];
   for (const id of Object.keys(CUES) as CueId[]) {
     // Through the interface, not the literal: not every entry names a

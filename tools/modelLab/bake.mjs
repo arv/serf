@@ -29,7 +29,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // --- dev server -----------------------------------------------------------
 const vite = spawn(
   process.execPath,
-  [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), '--host', '127.0.0.1', '--port', String(PORT)],
+  [
+    join(root, 'node_modules', 'vite', 'bin', 'vite.js'),
+    '--host',
+    '127.0.0.1',
+    '--port',
+    String(PORT),
+  ],
   { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PORT: String(PORT) } },
 );
 const bye = () => {

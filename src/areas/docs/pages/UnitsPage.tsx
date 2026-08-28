@@ -27,8 +27,8 @@ export function UnitsPage(): JSX.Element {
     <>
       <h1>Units</h1>
       <p class="lede">
-        Your people and the raiders’. Soldiers follow the triangle: heavy beats light, light
-        catches ranged, ranged kites heavy.
+        Your people and the raiders’. Soldiers follow the triangle: heavy beats light, light catches
+        ranged, ranged kites heavy.
       </p>
       <section>
         <h2>Your People</h2>

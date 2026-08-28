@@ -142,10 +142,7 @@ const http = createServer((req, res) => {
   // the stale model rendered forever. no-cache still stores; it only
   // insists on the conditional request, which a 304 answers for free.
   const immutable = file.startsWith(join(DIST_DIR, 'assets') + sep);
-  res.setHeader(
-    'cache-control',
-    immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
-  );
+  res.setHeader('cache-control', immutable ? 'public, max-age=31536000, immutable' : 'no-cache');
   // The conditional half of no-cache: exact-match If-Modified-Since (the
   // tree is frozen at boot, so the stamp a client echoes back is the stamp
   // it was given). A miss just serves the bytes — never a false 304.
@@ -263,7 +260,8 @@ wss.on('connection', (ws) => {
     seat.connected = false;
     seat.ws = null;
     for (const s of room.seats) {
-      if (s.connected && s.ws) sendJson(s.ws, { t: 'peer', playerId: seat.playerId, connected: false });
+      if (s.connected && s.ws)
+        sendJson(s.ws, { t: 'peer', playerId: seat.playerId, connected: false });
     }
     deleteRoomIfDead(room);
   });

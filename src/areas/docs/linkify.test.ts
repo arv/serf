@@ -72,18 +72,14 @@ describe('prose linking', () => {
     // Either a capital of its own...
     expect(hrefFor('Water is drawn at the Well.', 'Well')).toBe('/docs/buildings/well');
     // ...or an article, which no adverb ever takes.
-    expect(hrefFor('Drawn at the well by whoever needs it.', 'well')).toBe(
-      '/docs/buildings/well',
-    );
+    expect(hrefFor('Drawn at the well by whoever needs it.', 'well')).toBe('/docs/buildings/well');
     expect(hrefFor('one mill is meant to serve two', 'mill')).toBe('/docs/buildings/mill');
     expect(hrefFor('the whole of a bow', 'bow')).toBe('/docs/goods/bow');
   });
 
   it('follows the short name a sentence gives a building', () => {
     expect(hrefFor('the farm all start here', 'farm')).toBe('/docs/buildings/wheatFarm');
-    expect(hrefFor('slower than the farm that feeds it', 'farm')).toBe(
-      '/docs/buildings/wheatFarm',
-    );
+    expect(hrefFor('slower than the farm that feeds it', 'farm')).toBe('/docs/buildings/wheatFarm');
   });
 
   it('does not read a leading capital as a proper noun', () => {

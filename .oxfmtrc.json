@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "singleQuote": true,
+  "ignorePatterns": [
+    "**/*.md",
+    "public/models/**",
+    "src/sim/defs/maps/*.json",
+    "tools/modelLab/baked.json"
+  ]
+}

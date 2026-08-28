@@ -254,11 +254,7 @@ export class Kit {
     const inner = this.#mesh(file);
     if (!inner) return null;
     const bb = new THREE.Box3().setFromObject(inner);
-    inner.position.set(
-      -(bb.min.x + bb.max.x) / 2,
-      -bb.min.y,
-      -(bb.min.z + bb.max.z) / 2,
-    );
+    inner.position.set(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
     const holder = new THREE.Group();
     holder.add(inner);
     const size = new THREE.Vector3();
@@ -289,11 +285,7 @@ export class Kit {
     const bb = new THREE.Box3().setFromObject(inner);
     const spanX = bb.max.x - bb.min.x;
     const spanZ = bb.max.z - bb.min.z;
-    inner.position.set(
-      -(bb.min.x + bb.max.x) / 2,
-      -bb.min.y,
-      -(bb.min.z + bb.max.z) / 2,
-    );
+    inner.position.set(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
     const unit = new THREE.Group();
     unit.scale.setScalar(1 / Math.max(spanX, spanZ));
     unit.add(inner);

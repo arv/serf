@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  MAX_MAP_SIZE,
-  MIN_MAP_SIZE,
-  gridFor,
-  marginFor,
-  marginTargetFor,
-} from './grid.ts';
+import { MAX_MAP_SIZE, MIN_MAP_SIZE, gridFor, marginFor, marginTargetFor } from './grid.ts';
 
 /** Every playable side a world can be built at (resolveMapSize forces even). */
 function legalPlaySizes(): number[] {

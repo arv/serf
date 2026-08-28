@@ -201,7 +201,13 @@ export function makeFlowerSprite(): THREE.Texture {
         const a = (p / 5) * Math.PI * 2 + Math.random() * 0.4;
         ctx.fillStyle = p % 2 === 0 ? petal : shade;
         ctx.beginPath();
-        ctx.arc(tipX + Math.cos(a) * r * 0.8, tipY + Math.sin(a) * r * 0.7, r * 0.55, 0, Math.PI * 2);
+        ctx.arc(
+          tipX + Math.cos(a) * r * 0.8,
+          tipY + Math.sin(a) * r * 0.7,
+          r * 0.55,
+          0,
+          Math.PI * 2,
+        );
         ctx.fill();
       }
       ctx.fillStyle = '#8a5a20';

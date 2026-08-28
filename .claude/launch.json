@@ -4,69 +4,43 @@
     {
       "name": "serf-dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "dev"
-      ],
+      "runtimeArgs": ["dev"],
       "autoPort": true
     },
     {
       "name": "serf-mp",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "--dir",
-        "/Users/arv/src/arv/serf/.claude/worktrees/multiplayer",
-        "dev"
-      ],
+      "runtimeArgs": ["--dir", "/Users/arv/src/arv/serf/.claude/worktrees/multiplayer", "dev"],
       "autoPort": true
     },
     {
       "name": "serf-mobile",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "--dir",
-        "/Users/arv/src/arv/serf/.claude/worktrees/mobile-hud",
-        "dev"
-      ],
+      "runtimeArgs": ["--dir", "/Users/arv/src/arv/serf/.claude/worktrees/mobile-hud", "dev"],
       "autoPort": true
     },
     {
       "name": "serf-lobby",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "--dir",
-        "/Users/arv/src/arv/serf/.claude/worktrees/lobby",
-        "dev"
-      ],
+      "runtimeArgs": ["--dir", "/Users/arv/src/arv/serf/.claude/worktrees/lobby", "dev"],
       "autoPort": true
     },
     {
       "name": "serf-fair",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "--dir",
-        "/Users/arv/src/arv/serf/.claude/worktrees/fair-maps",
-        "dev"
-      ],
+      "runtimeArgs": ["--dir", "/Users/arv/src/arv/serf/.claude/worktrees/fair-maps", "dev"],
       "autoPort": true
     },
     {
       "name": "serf-vanish",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "--dir",
-        "/Users/arv/src/arv/serf/.claude/worktrees/building-vanish",
-        "dev"
-      ],
+      "runtimeArgs": ["--dir", "/Users/arv/src/arv/serf/.claude/worktrees/building-vanish", "dev"],
       "autoPort": true
     },
     {
       "name": "serf-assets",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "--dir",
-        "/Users/arv/src/arv/serf/.claude/worktrees/asset-fallback",
-        "dev"
-      ],
+      "runtimeArgs": ["--dir", "/Users/arv/src/arv/serf/.claude/worktrees/asset-fallback", "dev"],
       "autoPort": true
     }
   ]

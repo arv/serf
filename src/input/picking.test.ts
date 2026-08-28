@@ -36,7 +36,14 @@ function slope(fall: number): HeightField {
 function camera(): THREE.OrthographicCamera {
   const halfH = 15;
   const aspect = CANVAS.clientWidth / CANVAS.clientHeight;
-  const cam = new THREE.OrthographicCamera(-halfH * aspect, halfH * aspect, halfH, -halfH, 0.1, 400);
+  const cam = new THREE.OrthographicCamera(
+    -halfH * aspect,
+    halfH * aspect,
+    halfH,
+    -halfH,
+    0.1,
+    400,
+  );
   const pitch = (35 * Math.PI) / 180;
   const yaw = Math.PI / 6;
   const dir = new THREE.Vector3(

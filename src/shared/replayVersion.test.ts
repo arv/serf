@@ -43,8 +43,12 @@ import { REPLAY_VERSION } from './replayVersion';
 // kind in a word the screen no longer reads, and a shelf keyed by number
 // enumerates in id order rather than in the order it was written. Both
 // are in replayVersion.ts at length.
+// Still 33 after oxfmt formatted the tree: the formatter rewrapped a few
+// lines in sim/arrival.ts and sim/visibility.ts and touched nothing else.
+// Whitespace, so every tick runs exactly as it did — the hash is over raw
+// bytes, which is the one thing that moved.
 const EXPECTED_VERSION = 33;
-const EXPECTED_HASH = '8a4145298819097cf262cf59d52fe647';
+const EXPECTED_HASH = 'ee61e2bf9a26476b8e33e83fe0179bd9';
 
 /**
  * Everything a replay's playback depends on, as raw source:

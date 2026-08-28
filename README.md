@@ -277,8 +277,16 @@ instrument: a seed-sweeping, seat-mirrored bake-off with error bars
 pnpm test        # headless suite: sim, editor, server, aiLab (800+ tests)
 pnpm typecheck   # TS 7, strict + erasableSyntaxOnly
 pnpm build       # typecheck + production bundle
+pnpm format      # oxfmt, in place (CI runs `pnpm format:check`)
 pnpm bakeoff     # LLM strategist bake-off (tools/aiLab)
 ```
+
+Formatting is [oxfmt](https://oxc.rs/docs/guide/usage/formatter) with its
+defaults but single quotes (`.oxfmtrc.json`), and CI fails on an unformatted
+file. Left alone: the prose in `README.md` and `docs/`, the vendored models
+under `public/models/`, and the one-line generated data
+(`src/sim/defs/maps/*.json`, `tools/modelLab/baked.json`) a formatter would
+explode into thousands of lines.
 
 ## Credits
 

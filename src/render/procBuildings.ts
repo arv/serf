@@ -205,12 +205,24 @@ function applyRamps(root: THREE.Object3D): void {
  * way at any zoom. Eight corners and twelve triangles, which is cheaper
  * than the box it replaces was going to be anyway.
  */
-function frustumGeo(wb: number, db: number, wt: number, dt: number, h: number): THREE.BufferGeometry {
+function frustumGeo(
+  wb: number,
+  db: number,
+  wt: number,
+  dt: number,
+  h: number,
+): THREE.BufferGeometry {
   const b = [wb / 2, db / 2];
   const t = [wt / 2, dt / 2];
   const v = [
-    [-b[0]!, 0, b[1]!], [b[0]!, 0, b[1]!], [b[0]!, 0, -b[1]!], [-b[0]!, 0, -b[1]!],
-    [-t[0]!, h, t[1]!], [t[0]!, h, t[1]!], [t[0]!, h, -t[1]!], [-t[0]!, h, -t[1]!],
+    [-b[0]!, 0, b[1]!],
+    [b[0]!, 0, b[1]!],
+    [b[0]!, 0, -b[1]!],
+    [-b[0]!, 0, -b[1]!],
+    [-t[0]!, h, t[1]!],
+    [t[0]!, h, t[1]!],
+    [t[0]!, h, -t[1]!],
+    [-t[0]!, h, -t[1]!],
   ];
   const faces = [
     [0, 1, 5, 4], // +z
@@ -250,7 +262,12 @@ function archPath(w: number, legH: number): THREE.Shape {
  * it stands proud of the wall. One piece, so the arch stays a true
  * half-round instead of a stack of little blocks pretending to be one.
  */
-function surroundGeo(open: number, legH: number, band: number, depth: number): THREE.BufferGeometry {
+function surroundGeo(
+  open: number,
+  legH: number,
+  band: number,
+  depth: number,
+): THREE.BufferGeometry {
   const ring = archPath(open + band * 2, legH);
   ring.holes.push(new THREE.Path(archPath(open, legH).getPoints(8)));
   return new THREE.ExtrudeGeometry(ring, { depth, bevelEnabled: false, curveSegments: 5 });
@@ -338,7 +355,10 @@ const OZ = 0.22;
  * mass, and the only saturated color on the building is the loaves sitting
  * in it.
  */
-export function makeBakehouse(piece: PieceFactory, packMaterial: THREE.Material | null): THREE.Group {
+export function makeBakehouse(
+  piece: PieceFactory,
+  packMaterial: THREE.Material | null,
+): THREE.Group {
   atlas = packMaterial;
   const g = new THREE.Group();
   house(g, piece);
@@ -362,7 +382,16 @@ function house(g: THREE.Group, piece: PieceFactory): void {
   // against the corner rather than as the stone the corner stands on.
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
-      box(g, 0.15, 0.09, 0.15, KAY.stone, HX + sx * (HW / 2 - 0.06), 0.045, HZ + sz * (HD / 2 - 0.06));
+      box(
+        g,
+        0.15,
+        0.09,
+        0.15,
+        KAY.stone,
+        HX + sx * (HW / 2 - 0.06),
+        0.045,
+        HZ + sz * (HD / 2 - 0.06),
+      );
     }
   }
 
@@ -385,7 +414,16 @@ function house(g: THREE.Group, piece: PieceFactory): void {
   const midY = (EAVE + COURSE) / 2;
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
-      box(g, 0.13, EAVE - COURSE, 0.13, KAY.timber, HX + sx * (HW / 2 - 0.065), midY, HZ + sz * (HD / 2 - 0.065));
+      box(
+        g,
+        0.13,
+        EAVE - COURSE,
+        0.13,
+        KAY.timber,
+        HX + sx * (HW / 2 - 0.065),
+        midY,
+        HZ + sz * (HD / 2 - 0.065),
+      );
     }
   }
   // An intermediate post in each face that has room for one. A pack wall is
@@ -547,7 +585,11 @@ function window(g: THREE.Group, x: number, y: number, z: number, turn: number): 
   holder.rotation.y = turn;
   g.add(holder);
   const win = mesh(
-    new THREE.ExtrudeGeometry(archPath(0.14, 0.09), { depth: 0.06, bevelEnabled: false, curveSegments: 5 }),
+    new THREE.ExtrudeGeometry(archPath(0.14, 0.09), {
+      depth: 0.06,
+      bevelEnabled: false,
+      curveSegments: 5,
+    }),
     KAY.shadow,
   );
   win.position.set(0, 0, -0.055);
@@ -638,5 +680,4 @@ function oven(g: THREE.Group): void {
   box(g, 0.22, 0.09, 0.04, KAY.slate, OX, 0.07, zf + 0.035);
   box(g, 0.26, 0.03, 0.05, KAY.ovenDark, OX, 0.135, zf + 0.04);
   box(g, 0.44, 0.03, 0.15, KAY.stone, OX, 0.015, zf + 0.1);
-
 }

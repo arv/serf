@@ -131,7 +131,10 @@ export class RallyFlag {
     crossbar.rotation.z = Math.PI / 2;
     crossbar.position.y = 1.44;
     g.add(crossbar);
-    const finial = part(new THREE.SphereGeometry(0.05, 8, 6), new THREE.MeshLambertMaterial({ color: paper }));
+    const finial = part(
+      new THREE.SphereGeometry(0.05, 8, 6),
+      new THREE.MeshLambertMaterial({ color: paper }),
+    );
     finial.position.y = POLE_H + 0.04;
     g.add(finial);
 

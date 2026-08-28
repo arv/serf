@@ -97,7 +97,9 @@ export function installOpfs(extra: Record<string, unknown> = {}): OpfsMock {
 
   return {
     dump: (name) =>
-      Object.fromEntries([...(dirs.get(name) ?? new Map<string, Entry>())].map(([k, v]) => [k, v.text])),
+      Object.fromEntries(
+        [...(dirs.get(name) ?? new Map<string, Entry>())].map(([k, v]) => [k, v.text]),
+      ),
     put: (dirName, name, text, lastModified) => {
       let dir = dirs.get(dirName);
       if (!dir) dirs.set(dirName, (dir = new Map()));

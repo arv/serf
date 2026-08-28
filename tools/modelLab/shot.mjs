@@ -20,9 +20,7 @@ if (!url || !out) {
   process.exit(2);
 }
 
-const CHROME =
-  process.env.CHROME_PATH ??
-  '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const CHROME = process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
 const port = 9222 + Math.floor(process.pid % 500);
 const profile = mkdtempSync(join(tmpdir(), 'labshot-'));

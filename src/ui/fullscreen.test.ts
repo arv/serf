@@ -8,7 +8,11 @@ import { createFullscreen, guardEsc, type FullscreenPort, type PrefStore } from 
  * and is not what these check; what they check is the part that survives a
  * navigation, which is the part that was hard.
  */
-function fakePort(opts?: { supported?: boolean; refuse?: boolean; display?: boolean }): FullscreenPort & {
+function fakePort(opts?: {
+  supported?: boolean;
+  refuse?: boolean;
+  display?: boolean;
+}): FullscreenPort & {
   /** Leave fullscreen the way Esc does: no button of ours involved. */
   leave(): void;
   /** The window starts or stops filling the screen for reasons of its own —
@@ -61,7 +65,11 @@ function fakeStore(initial = false): PrefStore & { value: boolean } {
 }
 
 /** A gesture source the test fires by hand, counting its subscriptions. */
-function fakeGestures(): { fire(): void; live(): boolean; source: (fire: () => void) => () => void } {
+function fakeGestures(): {
+  fire(): void;
+  live(): boolean;
+  source: (fire: () => void) => () => void;
+} {
   let armed: (() => void) | null = null;
   return {
     fire: () => armed?.(),
