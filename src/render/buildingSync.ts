@@ -25,6 +25,7 @@ import { UnitTypeId } from '../sim/defs/units';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
 import { StaffingState } from '../protocol/messages';
+import { AnimKey } from './characters';
 
 /** A built fishery's pier, in world space: the deck line from its landward
  * end to the fishing spot near the tip, plank height, and the yaw that
@@ -746,8 +747,8 @@ export class BuildingSync {
         if (!char) continue;
         // The levy has no bow to draw, so it lobs: the villager throws and
         // the archer keeps his own loose.
-        const shooting = v.levied ? 'throw' : 'shoot';
-        playAnimation(char, v.firing ? shooting : 'idle', i * 0.37);
+        const shooting = v.levied ? AnimKey.throwing : AnimKey.shoot;
+        playAnimation(char, v.firing ? shooting : AnimKey.idle, i * 0.37);
         char.mixer.update(dt);
       }
     }

@@ -1,14 +1,6 @@
 import * as THREE from 'three';
 import { GameRenderer } from '../render/renderer';
-import {
-  loadCharacterAssets,
-  makeCharacter,
-  playAnimation,
-  setWorkTool,
-  TOOL_STOWED,
-  type AnimKey,
-  type CharacterVisual,
-} from '../render/characters';
+import { loadCharacterAssets, makeCharacter, playAnimation, setWorkTool, TOOL_STOWED, type CharacterVisual } from '../render/characters';
 import { worldToScreen } from '../input/picking';
 import { grass } from '../render/palette';
 import { UNIT_DEFS } from '../sim/defs/units';
@@ -17,6 +9,7 @@ import { unitName } from './names';
 import { BANDIT } from '../sim/entities';
 import { DEFAULT_MAP_SIZE as MAP_SIZE } from '../shared/grid';
 import { UnitTypeId } from '../sim/defs/units';
+import { AnimKey } from '../render/characters';
 
 /**
  * ?wardrobe — the costume fitting room. Every unit kind of every faction
@@ -66,17 +59,27 @@ function columns(): Column[] {
 
 /** WORK.* byte -> tool loop, mirroring the game's own mapping (sceneSync). */
 const WORK_ANIM: Record<number, AnimKey> = {
-  [WORK.chop]: 'work',
-  [WORK.pickaxe]: 'pickaxe',
-  [WORK.hammer]: 'hammer',
-  [WORK.dig]: 'dig',
-  [WORK.tend]: 'tend',
-  [WORK.draw]: 'draw',
-  [WORK.fish]: 'fish',
+  [WORK.chop]: AnimKey.work,
+  [WORK.pickaxe]: AnimKey.pickaxe,
+  [WORK.hammer]: AnimKey.hammer,
+  [WORK.dig]: AnimKey.dig,
+  [WORK.tend]: AnimKey.tend,
+  [WORK.draw]: AnimKey.draw,
+  [WORK.fish]: AnimKey.fish,
 };
 
+/** The overlay's mode buttons. A label rather than an id because that is
+ * what it is — the word goes on the button; MODE_CLIP says what each one
+ * plays when the column has nothing more specific to do. */
 type Mode = 'idle' | 'walk' | 'carry' | 'work' | 'death';
 const MODES: Mode[] = ['idle', 'walk', 'carry', 'work', 'death'];
+const MODE_CLIP: Record<Mode, AnimKey> = {
+  idle: AnimKey.idle,
+  walk: AnimKey.walk,
+  carry: AnimKey.carry,
+  work: AnimKey.work,
+  death: AnimKey.death,
+};
 
 /** What this column performs in a given mode: villagers work their trade,
  * soldiers fight, serfs haul. */
@@ -85,11 +88,11 @@ function clipFor(mode: Mode, col: Column, v: CharacterVisual): AnimKey {
     case 'walk':
       return v.gait;
     case 'work':
-      if (col.workKind !== undefined) return WORK_ANIM[col.workKind] ?? 'work';
-      if (col.code === 1) return 'carry'; // a serf's work is hauling
-      return v.ranged ? 'shoot' : 'attack';
+      if (col.workKind !== undefined) return WORK_ANIM[col.workKind] ?? AnimKey.work;
+      if (col.code === 1) return AnimKey.carry; // a serf's work is hauling
+      return v.ranged ? AnimKey.shoot : AnimKey.attack;
     default:
-      return mode;
+      return MODE_CLIP[mode];
   }
 }
 
@@ -168,7 +171,7 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispos
       made.group.position.set(x, 0, z);
       renderer.scene.add(made.group);
       const offset = r * 1.7 + c * 0.6;
-      playAnimation(made.visual, 'idle', offset);
+      playAnimation(made.visual, AnimKey.idle, offset);
       cast.push({ visual: made.visual, col, offset });
       if (r === 0) {
         labels.push({ el: makeLabel(overlay, col.label), x, y: 0, z: z - 1.1 });

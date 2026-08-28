@@ -1,5 +1,4 @@
 import { For, Show, createSignal, type JSX } from 'solid-js';
-import type { AnimKey } from '../../../render/characters';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS } from '../../../sim/defs/balance';
 import { BUILDING_DEFS } from '../../../sim/defs/buildings';
 import { COUNTER_TABLE, UNIT_DEFS, WEAPON_OF } from '../../../sim/defs/units';
@@ -13,6 +12,7 @@ import { buildingHref, techHref, unitHref } from '../routes';
 import { UnitTypeId } from '../../../sim/defs/units';
 import { BuildingTypeId } from '../../../sim/defs/buildings';
 import { UnitClass } from '../../../sim/defs/units';
+import { AnimKey } from '../../../render/characters';
 
 const CLASSES: UnitClass[] = [UnitClass.heavy, UnitClass.light, UnitClass.ranged];
 
@@ -25,16 +25,16 @@ const CLASSES: UnitClass[] = [UnitClass.heavy, UnitClass.light, UnitClass.ranged
 function animOptions(unit: UnitTypeId): { key: AnimKey; label: string }[] {
   const combat = UNIT_DEFS[unit].combat;
   const walk: { key: AnimKey; label: string }[] = [
-    { key: 'idle', label: 'Idle' },
-    { key: 'walk', label: 'Walk' },
+    { key: AnimKey.idle, label: 'Idle' },
+    { key: AnimKey.walk, label: 'Walk' },
   ];
   if (!combat) {
-    return [...walk, { key: 'carry', label: 'Carry' }, { key: 'work', label: 'Work' }];
+    return [...walk, { key: AnimKey.carry, label: 'Carry' }, { key: AnimKey.work, label: 'Work' }];
   }
   return [
     ...walk,
-    combat.class === UnitClass.ranged ? { key: 'shoot', label: 'Shoot' } : { key: 'attack', label: 'Attack' },
-    { key: 'death', label: 'Fall' },
+    combat.class === UnitClass.ranged ? { key: AnimKey.shoot, label: 'Shoot' } : { key: AnimKey.attack, label: 'Attack' },
+    { key: AnimKey.death, label: 'Fall' },
   ];
 }
 
@@ -45,7 +45,7 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
   const gate = UNIT_UNLOCKED_BY.get(props.id);
   const employers = ALL_BUILDINGS.filter((b) => BUILDING_DEFS[b].workerKind === props.id);
   const anims = animOptions(props.id);
-  const [anim, setAnim] = createSignal<AnimKey>('idle');
+  const [anim, setAnim] = createSignal<AnimKey>(AnimKey.idle);
   return (
     <>
       <p class="crumb">

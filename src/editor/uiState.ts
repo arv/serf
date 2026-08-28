@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js';
-import type { ViewMode } from '../render/cameraRig';
 import type { Tool } from './brush.ts';
 import { Terrain, TileResource } from '../sim/map.ts';
+import { ViewMode } from '../render/cameraRig.ts';
 
 /**
  * The editor's UI state as module-level signals — the store.ts pattern:
@@ -46,7 +46,7 @@ export const BRUSH_MAX = 12;
 export const [kaleido, setKaleido] = createSignal(true);
 /** Fold count 1..4; New re-defaults it to the map's player count. */
 export const [folds, setFolds] = createSignal(2);
-export const [viewMode, setViewMode] = createSignal<ViewMode>('topDown');
+export const [viewMode, setViewMode] = createSignal<ViewMode>(ViewMode.topDown);
 /** The play-area boundary band + margin veil (B toggles it). */
 export const [showBounds, setShowBounds] = createSignal(true);
 /** History depth flags, kept fresh by the screen after every action. */

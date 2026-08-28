@@ -15,25 +15,28 @@
  * hat.
  */
 
-import type { BusId, CueDef } from './cues';
+import type { CueDef } from './cues';
 import type { PlayRequest } from './voices';
+import { AnimKey } from '../render/characters';
+import { BusId } from './cues';
+import { BUS_IDS } from './cues';
 
 /** Fixed design mix per bus; only master is player-facing for now. */
 const BUS_GAINS: Record<BusId, number> = {
-  ui: 1,
-  combat: 0.9,
-  work: 0.8,
-  world: 1,
-  ambient: 0.7,
-  music: 0.8,
+  [BusId.ui]: 1,
+  [BusId.combat]: 0.9,
+  [BusId.work]: 0.8,
+  [BusId.world]: 1,
+  [BusId.ambient]: 0.7,
+  [BusId.music]: 0.8,
 };
 
 /** While paused the world holds its breath but the UI stays crisp — the
  * pause menu's own clicks must not be caught in the duck. */
 const PAUSE_DUCK: Partial<Record<BusId, number>> = {
-  combat: 0.15,
-  work: 0.15,
-  ambient: 0.15,
+  [BusId.combat]: 0.15,
+  [BusId.work]: 0.15,
+  [BusId.ambient]: 0.15,
 };
 
 const RAMP = 0.03;
@@ -65,12 +68,12 @@ export class MixerGraph {
       return g;
     };
     this.#buses = {
-      ui: bus('ui'),
-      combat: bus('combat'),
-      work: bus('work'),
-      world: bus('world'),
-      ambient: bus('ambient'),
-      music: bus('music'),
+      [BusId.ui]: bus(BusId.ui),
+      [BusId.combat]: bus(BusId.combat),
+      [BusId.work]: bus(BusId.work),
+      [BusId.world]: bus(BusId.world),
+      [BusId.ambient]: bus(BusId.ambient),
+      [BusId.music]: bus(BusId.music),
     };
   }
 
@@ -94,7 +97,7 @@ export class MixerGraph {
     if (this.#paused === paused) return;
     this.#paused = paused;
     const t = this.ctx.currentTime;
-    for (const id of Object.keys(this.#buses) as BusId[]) {
+    for (const id of BUS_IDS) {
       const duck = PAUSE_DUCK[id];
       if (duck === undefined) continue;
       const g = this.#buses[id].gain;

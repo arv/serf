@@ -15,6 +15,10 @@ import {
 } from './procMines';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { BUILDING_TYPES } from '../sim/defs/buildings';
+import type { Enum } from '../shared/enum.ts';
+import * as ScatterPackNs from './scatterPackEnum.ts';
+export * as ScatterPack from './scatterPackEnum.ts';
+export type ScatterPack = Enum<typeof ScatterPackNs>;
 
 /**
  * GLB asset pipeline: building, tree, rock and prop models loaded from the
@@ -636,10 +640,10 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
     const bakeNormalized = (
       f: string,
       bySpan = false,
-      pack: 'nature' | 'forest' = 'nature',
+      pack: ScatterPack = ScatterPackNs.nature,
     ): THREE.BufferGeometry => {
       const { geometry: geo, map } = bakeToGeometry(loaded.get(f)!);
-      if (pack === 'forest') forestMap ??= map;
+      if (pack === ScatterPackNs.forest) forestMap ??= map;
       else natureMap ??= map;
       geo.computeBoundingBox();
       const tb = geo.boundingBox!;
@@ -658,8 +662,8 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
     const reed = bakeNormalized('waterplant_A.gltf');
     // Shrubs are wider than tall — span-normalized, like the boulders.
     // Bare trunks are tall things, sized by height like the live trees.
-    const bushes = FOREST_BUSH_FILES.map((f) => bakeNormalized(f, true, 'forest'));
-    const deadTrees = FOREST_DEAD_FILES.map((f) => bakeNormalized(f, false, 'forest'));
+    const bushes = FOREST_BUSH_FILES.map((f) => bakeNormalized(f, true, ScatterPackNs.forest));
+    const deadTrees = FOREST_DEAD_FILES.map((f) => bakeNormalized(f, false, ScatterPackNs.forest));
     const natureMaterial = new THREE.MeshLambertMaterial({ map: natureMap });
     const forestMaterial = new THREE.MeshLambertMaterial({ map: forestMap });
 

@@ -4,6 +4,10 @@ import { clamp } from '../shared/math';
 import { EdgeScroll, edgeScrollEnabled } from '../input/edgeScroll';
 import { foreignChord, typingInto } from '../input/typing';
 import { capturePointer } from '../input/mouseCapture';
+import type { Enum } from '../shared/enum.ts';
+import * as ViewModeNs from './viewModeEnum.ts';
+export * as ViewMode from './viewModeEnum.ts';
+export type ViewMode = Enum<typeof ViewModeNs>;
 
 /**
  * The line the game looks down at boot: 30° to the grid. The full 45°
@@ -259,7 +263,6 @@ export interface ViewFrame {
  * which is what authoring a symmetric map wants. Same target, same zoom,
  * same input handling; only the viewing line changes.
  */
-export type ViewMode = 'game' | 'topDown';
 /** A quarter turn: straight down. The lookAt up-vector is swapped to -Z in
  * this mode, so the parallel-vectors degeneracy never arises. */
 const TOP_PITCH = Math.PI / 2;
@@ -670,15 +673,15 @@ export class CameraRig {
 
   /** Swap between the game's isometric line and the editor's plan view. */
   setViewMode(mode: ViewMode): void {
-    this.#pitch = mode === 'topDown' ? TOP_PITCH : PITCH;
-    this.#yaw = mode === 'topDown' ? 0 : YAW;
+    this.#pitch = mode === ViewModeNs.topDown ? TOP_PITCH : PITCH;
+    this.#yaw = mode === ViewModeNs.topDown ? 0 : YAW;
     this.#turns = 0;
     this.#wheelAcc = 0;
     this.#keyTurn = 0;
     this.#unseen.clear();
     // Looking straight down, +Y up is parallel to the view line; -Z as up
     // puts north at the top of the screen instead.
-    this.camera.up.set(0, mode === 'topDown' ? 0 : 1, mode === 'topDown' ? -1 : 0);
+    this.camera.up.set(0, mode === ViewModeNs.topDown ? 0 : 1, mode === ViewModeNs.topDown ? -1 : 0);
     this.#apply();
   }
 

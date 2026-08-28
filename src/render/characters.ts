@@ -9,6 +9,13 @@ import { goodColors } from './palette';
 import { factionTint } from './factionPalette';
 import { GoodId } from '../sim/defs/goods';
 import { UnitTypeId } from '../sim/defs/units';
+import type { Enum } from '../shared/enum.ts';
+import * as AnimKeyNs from './animKeyEnum.ts';
+export * as AnimKey from './animKeyEnum.ts';
+export type AnimKey = Enum<typeof AnimKeyNs>;
+import * as GaitNs from './gaitEnum.ts';
+export * as Gait from './gaitEnum.ts';
+export type Gait = Enum<typeof GaitNs>;
 
 /**
  * Skinned-character pipeline: KayKit Adventurers 2.0 characters animated by
@@ -19,23 +26,6 @@ import { UnitTypeId } from '../sim/defs/units';
  * models.ts.
  */
 
-export type AnimKey =
-  | 'idle'
-  | 'walk'
-  | 'jog'
-  | 'attack'
-  | 'shoot'
-  | 'throw'
-  | 'work'
-  | 'pickaxe'
-  | 'hammer'
-  | 'dig'
-  | 'tend'
-  | 'draw'
-  | 'fish'
-  | 'carry'
-  | 'carryIdle'
-  | 'death';
 
 const KK_DIR = '/models/kaykit/';
 const KK_CHARACTER_FILES = ['Knight', 'Barbarian', 'Rogue', 'Rogue_Hooded', 'Mage', 'Ranger'];
@@ -60,29 +50,29 @@ const KK_PROP_FILES = [
 ];
 
 const KK_CLIP_NAMES: Record<AnimKey, string> = {
-  idle: 'Idle_A',
-  walk: 'Walking_A',
-  jog: 'Running_A',
-  attack: 'Melee_1H_Attack_Chop',
-  shoot: 'Ranged_Bow_Draw',
+  [AnimKeyNs.idle]: 'Idle_A',
+  [AnimKeyNs.walk]: 'Walking_A',
+  [AnimKeyNs.jog]: 'Running_A',
+  [AnimKeyNs.attack]: 'Melee_1H_Attack_Chop',
+  [AnimKeyNs.shoot]: 'Ranged_Bow_Draw',
   // The levy on a tower roof: an overhand lob, empty-handed. The pack's
   // one throw, and it reads as a stone going over the parapet where the
   // bow draw read as a man miming an archer he is not.
-  throw: 'Throw',
+  [AnimKeyNs.throwing]: 'Throw',
   // Real tool loops per work site.
-  work: 'Chopping',
-  pickaxe: 'Pickaxing',
-  hammer: 'Hammering',
-  dig: 'Digging',
-  tend: 'Working_A',
+  [AnimKeyNs.work]: 'Chopping',
+  [AnimKeyNs.pickaxe]: 'Pickaxing',
+  [AnimKeyNs.hammer]: 'Hammering',
+  [AnimKeyNs.dig]: 'Digging',
+  [AnimKeyNs.tend]: 'Working_A',
   // Hand-over-hand reeling doubles as cranking the well bucket up.
-  draw: 'Fishing_Reeling',
+  [AnimKeyNs.draw]: 'Fishing_Reeling',
   // The patient hold, rod out over the water — the actual fisherman.
-  fish: 'Fishing_Idle',
+  [AnimKeyNs.fish]: 'Fishing_Idle',
   // Composited at load: gait legs + holding-pose arms.
-  carry: 'Carry_Walk',
-  carryIdle: 'Carry_Idle',
-  death: 'Death_A',
+  [AnimKeyNs.carry]: 'Carry_Walk',
+  [AnimKeyNs.carryIdle]: 'Carry_Idle',
+  [AnimKeyNs.death]: 'Death_A',
 };
 
 interface KKSpec {
@@ -205,7 +195,7 @@ export interface CharacterVisual {
   current: AnimKey | null;
   /** Locomotion clip for this unit, picked at build time to suit its sim
    * speed (see the gait matching in makeKayKitCharacter). */
-  gait: 'walk' | 'jog';
+  gait: Gait;
   /** Natural ground speed of each gait clip for this body, world units/sec
    * (0 = unmeasured: that gait plays at its authored rate). */
   gaitNat: { walk: number; jog: number };
@@ -388,8 +378,8 @@ async function loadKayKitCharacters(): Promise<boolean> {
     // for all of them under the tape measure.
     const rig = chars.values().next().value;
     const gaitSpeeds = {
-      walk: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES.walk)) : 0,
-      jog: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES.jog)) : 0,
+      walk: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES[AnimKeyNs.walk])) : 0,
+      jog: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES[AnimKeyNs.jog])) : 0,
     };
 
     kkAssets = { chars, clips, props, gaitSpeeds };
@@ -792,7 +782,7 @@ function makeKayKitCharacter(
   const simSpeed = KIND_SPEED.get(kind) ?? UNIT_DEFS[UnitTypeId.worker].speed;
   const walkNat = kkAssets.gaitSpeeds.walk * s;
   const jogNat = kkAssets.gaitSpeeds.jog * s;
-  const gait: 'walk' | 'jog' = spec.jog ? 'jog' : 'walk';
+  const gait: Gait = spec.jog ? GaitNs.jog : GaitNs.walk;
 
   // Carried goods anchor: on the chest bone (so loads bob and sway with
   // the gait), counter-scaled back to world units, held out in front at
@@ -855,14 +845,14 @@ function makeKayKitCharacter(
 
   const mixer = new THREE.AnimationMixer(root);
   const actions = new Map<AnimKey, THREE.AnimationAction>();
-  for (const key of Object.keys(KK_CLIP_NAMES) as AnimKey[]) {
-    let name = key === 'attack' && spec.attackClip ? spec.attackClip : KK_CLIP_NAMES[key];
+  for (const key of ANIM_KEYS) {
+    let name = key === AnimKeyNs.attack && spec.attackClip ? spec.attackClip : KK_CLIP_NAMES[key];
     // A jogging carrier gets the run-legged carry composite.
-    if (key === 'carry' && gait === 'jog' && kkAssets.clips.has('Carry_Jog')) name = 'Carry_Jog';
+    if (key === AnimKeyNs.carry && gait === GaitNs.jog && kkAssets.clips.has('Carry_Jog')) name = 'Carry_Jog';
     const clip = kkAssets.clips.get(name);
     if (!clip) continue;
     const action = mixer.clipAction(clip);
-    if (key === 'death') {
+    if (key === AnimKeyNs.death) {
       action.setLoop(THREE.LoopOnce, 1);
       action.clampWhenFinished = true; // hold the final crumpled pose
     }
@@ -896,9 +886,9 @@ function makeKayKitCharacter(
  * band is wide enough that soldiers track their true speed — 1.2x to 1.8x
  * across kinds — before a leg-blur cap.
  */
-const GAIT_RATE = {
-  walk: { lo: 0.85, hi: 1.3 },
-  jog: { lo: 0.8, hi: 1.8 },
+const GAIT_RATE: Record<Gait, { lo: number; hi: number }> = {
+  [GaitNs.walk]: { lo: 0.85, hi: 1.3 },
+  [GaitNs.jog]: { lo: 0.8, hi: 1.8 },
 };
 
 /**
@@ -913,15 +903,19 @@ const GAIT_RATE = {
 export function setGaitSpeed(visual: CharacterVisual, speed: number): void {
   if (Math.abs(speed - visual.gaitSpeed) < visual.gaitSpeed * 0.02) return;
   visual.gaitSpeed = speed;
-  const set = (key: AnimKey, g: 'walk' | 'jog', nat: number): void => {
+  const set = (key: AnimKey, g: Gait, nat: number): void => {
     const action = visual.actions.get(key);
     if (!action) return;
     const band = GAIT_RATE[g];
     action.timeScale = nat > 0 ? clamp(speed / nat, band.lo, band.hi) : 1;
   };
-  set('walk', 'walk', visual.gaitNat.walk);
-  set('jog', 'jog', visual.gaitNat.jog);
-  set('carry', visual.gait, visual.gait === 'jog' ? visual.gaitNat.jog : visual.gaitNat.walk);
+  set(AnimKeyNs.walk, GaitNs.walk, visual.gaitNat.walk);
+  set(AnimKeyNs.jog, GaitNs.jog, visual.gaitNat.jog);
+  set(
+    AnimKeyNs.carry,
+    visual.gait,
+    visual.gait === GaitNs.jog ? visual.gaitNat.jog : visual.gaitNat.walk,
+  );
 }
 
 /**
@@ -1044,7 +1038,7 @@ export function makeCharacter(
 /** Crossfade to the clip for this key; no-op when already playing it. */
 export function playAnimation(visual: CharacterVisual, key: AnimKey, offset: number): void {
   if (visual.current === key) return;
-  const next = visual.actions.get(key) ?? visual.actions.get('idle');
+  const next = visual.actions.get(key) ?? visual.actions.get(AnimKeyNs.idle);
   if (!next) return;
   const prev = visual.current ? visual.actions.get(visual.current) : undefined;
   next.reset();
@@ -1054,3 +1048,23 @@ export function playAnimation(visual: CharacterVisual, key: AnimKey, offset: num
   if (prev && prev !== next) prev.crossFadeTo(next, 0.16, false);
   visual.current = key;
 }
+
+/** Every animation key, in id order — what the clip loader walks. */
+export const ANIM_KEYS: readonly AnimKey[] = [
+  AnimKeyNs.idle,
+  AnimKeyNs.walk,
+  AnimKeyNs.jog,
+  AnimKeyNs.attack,
+  AnimKeyNs.shoot,
+  AnimKeyNs.throwing,
+  AnimKeyNs.work,
+  AnimKeyNs.pickaxe,
+  AnimKeyNs.hammer,
+  AnimKeyNs.dig,
+  AnimKeyNs.tend,
+  AnimKeyNs.draw,
+  AnimKeyNs.fish,
+  AnimKeyNs.carry,
+  AnimKeyNs.carryIdle,
+  AnimKeyNs.death,
+];

@@ -75,6 +75,7 @@ import { GoodId } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
 import { CommandKind } from '../sim/commands';
+import { ControlGroupKind } from './groups';
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
@@ -676,7 +677,7 @@ export class Controls {
     // is aimed at wherever they last stood.
     let groupsChanged = false;
     for (const [digit, group] of this.#groups) {
-      if (group.kind === 'building') {
+      if (group.kind === ControlGroupKind.building) {
         // A razed (or sold) building is the same problem one entry wide,
         // and the number goes with it: an empty unit group can still be
         // grown by a Shift press, but a building group has nothing left to
@@ -1419,12 +1420,12 @@ export class Controls {
     // here as anywhere. A group emptied by casualties counts as free.
     const building = selectedBuilding();
     if (building) {
-      const already = held?.kind === 'building' && held.id === building.id;
+      const already = held?.kind === ControlGroupKind.building && held.id === building.id;
       if (!assign && !already && !groupEmpty(held)) {
         play('uiRefused');
         return;
       }
-      this.#groups.set(digit, { kind: 'building', id: building.id });
+      this.#groups.set(digit, { kind: ControlGroupKind.building, id: building.id });
       play('uiClick');
       // The badge on the card is the only thing on screen that says the
       // stamp took, so it has to be republished here: neither spelling of
@@ -1440,13 +1441,13 @@ export class Controls {
       play('uiRefused');
       return;
     }
-    if (!assign && held?.kind === 'building') {
+    if (!assign && held?.kind === ControlGroupKind.building) {
       play('uiRefused');
       return;
     }
-    const ids = assign || held?.kind !== 'units' ? new Set<number>() : held.ids;
+    const ids = assign || held?.kind !== ControlGroupKind.units ? new Set<number>() : held.ids;
     for (const id of this.#selection) ids.add(id);
-    this.#groups.set(digit, { kind: 'units', ids });
+    this.#groups.set(digit, { kind: ControlGroupKind.units, ids });
     play('uiClick');
     this.#publishGroup();
   }
@@ -1463,8 +1464,8 @@ export class Controls {
     // stale snapshot. The press is not remembered either — a refusal is not
     // a first press, and recording it would hand the *next* press of this
     // number to the camera when that press is someone's first real recall.
-    const snap = group.kind === 'building' ? this.#mirror.buildings.get(group.id) : null;
-    if (group.kind === 'building' && !snap) {
+    const snap = group.kind === ControlGroupKind.building ? this.#mirror.buildings.get(group.id) : null;
+    if (group.kind === ControlGroupKind.building && !snap) {
       this.#groups.delete(digit);
       play('uiRefused');
       this.#publishGroup();
@@ -1486,7 +1487,7 @@ export class Controls {
       // #setSel republishes the badge, which reads the open card.
       this.#setSel(new Set());
       this.#setBuilding(snap);
-    } else if (group.kind === 'units') {
+    } else if (group.kind === ControlGroupKind.units) {
       this.#setBuilding(null);
       this.#setSel(new Set(group.ids));
     }
@@ -1495,7 +1496,7 @@ export class Controls {
     // means by it.
     if (prev !== null && prev.digit === digit && now - prev.time <= GROUP_RECALL_MS) {
       if (snap) this.#rig?.glideTo(snap.x + snap.w / 2, snap.y + snap.h / 2);
-      else if (group.kind === 'units') this.#glideToGroup(group.ids);
+      else if (group.kind === ControlGroupKind.units) this.#glideToGroup(group.ids);
     }
   }
 

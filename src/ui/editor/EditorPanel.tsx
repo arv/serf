@@ -35,6 +35,7 @@ import {
 } from '../../editor/uiState.ts';
 import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE, marginFor } from '../../shared/grid.ts';
 import { PlayerKind } from '../../sim/player.ts';
+import { ViewMode } from '../../render/cameraRig.ts';
 
 /**
  * The editor's whole DOM overlay: tool palette on the left, the session
@@ -176,7 +177,7 @@ function EditorUi(props: { actions: EditorActions }) {
           title="Toggle perspective (V): straight-down plan view or the game's own camera"
           onClick={() => props.actions.toggleView()}
         >
-          {viewMode() === 'topDown' ? 'View: top-down' : 'View: game'}
+          {viewMode() === ViewMode.topDown ? 'View: top-down' : 'View: game'}
         </button>
         <button
           classList={{ active: showBounds() }}

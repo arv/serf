@@ -16,6 +16,7 @@ import { UNIT_DEFS } from '../../src/sim/defs/units';
 import { makeLights, makeRenderer, YAW, PITCH } from './scene';
 import { UnitTypeId } from '../../src/sim/defs/units';
 import { BuildingTypeId } from '../../src/sim/defs/buildings';
+import { AnimKey } from '../../src/render/characters';
 
 const params = new URLSearchParams(location.search);
 const t = Number(params.get('t') ?? '0');
@@ -44,7 +45,7 @@ const SCRATCH = new THREE.Vector3();
 const mixers: THREE.AnimationMixer[] = [];
 
 /** One tower, manned by `kind`, at world offset x. Mirrors #syncGarrison. */
-function tower(kindCode: number, clip: 'throw' | 'shoot', x: number): void {
+function tower(kindCode: number, clip: AnimKey.throwing | AnimKey.shoot, x: number): void {
   const root = new THREE.Group();
   root.position.x = x;
   scene.add(root);
@@ -79,7 +80,7 @@ function tower(kindCode: number, clip: 'throw' | 'shoot', x: number): void {
 }
 
 /** One figure, turned to face the camera, scrubbed to phase `phase`. */
-function figure(kindCode: number, clip: 'throw' | 'shoot', x: number, phase: number): void {
+function figure(kindCode: number, clip: AnimKey.throwing | AnimKey.shoot, x: number, phase: number): void {
   const made = makeCharacter(kindCode, 0, 0);
   if (!made) throw new Error('characters not loaded');
   // Along the camera's screen-horizontal, not world X: under a 45-degree
@@ -99,13 +100,16 @@ function figure(kindCode: number, clip: 'throw' | 'shoot', x: number, phase: num
 const strip = params.get('strip');
 if (strip) {
   // The clip laid out left to right, one figure per phase.
-  const clip = strip === 'shoot' ? 'shoot' : 'throw';
-  const kind = clip === 'shoot' ? UnitTypeId.archer : UnitTypeId.serf;
+  // ?strip=shoot lays out the archer, anything else the levy. The URL is
+  // still words — it is typed by hand.
+  const shooting = strip === 'shoot';
+  const clip = shooting ? AnimKey.shoot : AnimKey.throwing;
+  const kind = shooting ? UnitTypeId.archer : UnitTypeId.serf;
   const N = 6;
   for (let i = 0; i < N; i++) figure(kind, clip, (i - (N - 1) / 2) * 0.92, i / N);
 } else {
-  tower(UnitTypeId.serf, 'throw', -1.5);
-  tower(UnitTypeId.archer, 'shoot', 1.5);
+  tower(UnitTypeId.serf, AnimKey.throwing, -1.5);
+  tower(UnitTypeId.archer, AnimKey.shoot, 1.5);
 }
 
 // Framed on the two roofs rather than the towers: the stonework is not

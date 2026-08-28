@@ -1,3 +1,10 @@
+import type { Enum } from '../shared/enum.ts';
+import * as BusIdNs from './busIdEnum.ts';
+import { AnimKey } from '../render/characters.ts';
+
+export * as BusId from './busIdEnum.ts';
+export type BusId = Enum<typeof BusIdNs>;
+
 /**
  * The cue catalogue: every sound the game can make, as data.
  *
@@ -15,7 +22,6 @@
  * (isolation.lint.test.ts makes the import ban executable).
  */
 
-export type BusId = 'ui' | 'combat' | 'work' | 'world' | 'ambient' | 'music';
 
 /** Oscillator shapes, named locally so this module needs no DOM types. */
 export type Wave = 'sine' | 'square' | 'sawtooth' | 'triangle';
@@ -87,7 +93,7 @@ const noise = (l: Omit<NoiseLayer, 'kind'>): NoiseLayer => ({ kind: 'noise', ...
 export const CUES = {
   // ---- ui ---------------------------------------------------------------
   uiClick: {
-    bus: 'ui',
+    bus: BusIdNs.ui,
     gain: 0.35,
     cooldownMs: 30,
     priority: 4,
@@ -95,7 +101,7 @@ export const CUES = {
     sample: '/audio/uiClick.m4a',
   },
   uiOpen: {
-    bus: 'ui',
+    bus: BusIdNs.ui,
     gain: 0.3,
     cooldownMs: 60,
     priority: 4,
@@ -106,7 +112,7 @@ export const CUES = {
     sample: '/audio/uiOpen.m4a',
   },
   uiClose: {
-    bus: 'ui',
+    bus: BusIdNs.ui,
     gain: 0.3,
     cooldownMs: 60,
     priority: 4,
@@ -117,7 +123,7 @@ export const CUES = {
     sample: '/audio/uiClose.m4a',
   },
   uiSelect: {
-    bus: 'ui',
+    bus: BusIdNs.ui,
     gain: 0.3,
     cooldownMs: 50,
     priority: 4,
@@ -125,7 +131,7 @@ export const CUES = {
     sample: '/audio/uiSelect.m4a',
   },
   uiOrder: {
-    bus: 'ui',
+    bus: BusIdNs.ui,
     gain: 0.35,
     cooldownMs: 60,
     priority: 4,
@@ -136,7 +142,7 @@ export const CUES = {
     sample: '/audio/uiOrder.m4a',
   },
   uiPlace: {
-    bus: 'ui',
+    bus: BusIdNs.ui,
     gain: 0.5,
     cooldownMs: 80,
     priority: 4,
@@ -147,7 +153,7 @@ export const CUES = {
     sample: '/audio/uiPlace.m4a',
   },
   uiRefused: {
-    bus: 'ui',
+    bus: BusIdNs.ui,
     gain: 0.4,
     cooldownMs: 150,
     priority: 4,
@@ -158,7 +164,7 @@ export const CUES = {
     sample: '/audio/uiRefused.m4a',
   },
   uiToast: {
-    bus: 'ui',
+    bus: BusIdNs.ui,
     gain: 0.25,
     cooldownMs: 200,
     priority: 3,
@@ -166,7 +172,7 @@ export const CUES = {
     sample: '/audio/uiToast.m4a',
   },
   uiCoin: {
-    bus: 'ui',
+    bus: BusIdNs.ui,
     gain: 0.35,
     cooldownMs: 90,
     priority: 4,
@@ -180,7 +186,7 @@ export const CUES = {
 
   // ---- work -------------------------------------------------------------
   chop: {
-    bus: 'work',
+    bus: BusIdNs.work,
     gain: 0.5,
     cooldownMs: 90,
     priority: 2,
@@ -192,7 +198,7 @@ export const CUES = {
     sample: '/audio/chop.m4a',
   },
   pickaxe: {
-    bus: 'work',
+    bus: BusIdNs.work,
     gain: 0.5,
     cooldownMs: 90,
     priority: 2,
@@ -204,7 +210,7 @@ export const CUES = {
     sample: '/audio/pickaxe.m4a',
   },
   hammer: {
-    bus: 'work',
+    bus: BusIdNs.work,
     gain: 0.5,
     cooldownMs: 90,
     priority: 2,
@@ -216,7 +222,7 @@ export const CUES = {
     sample: '/audio/hammer.m4a',
   },
   footstep: {
-    bus: 'work',
+    bus: BusIdNs.work,
     // Quieter than its siblings on purpose: this is the only cue every
     // walking unit fires twice a stride, so it is heard as a crowd, not
     // as one sound. The recording is trimmed to a single footfall — the
@@ -232,7 +238,7 @@ export const CUES = {
 
   // ---- combat -----------------------------------------------------------
   swordSwing: {
-    bus: 'combat',
+    bus: BusIdNs.combat,
     gain: 0.45,
     cooldownMs: 60,
     priority: 3,
@@ -243,7 +249,7 @@ export const CUES = {
     sample: '/audio/swordSwing.m4a',
   },
   bowRelease: {
-    bus: 'combat',
+    bus: BusIdNs.combat,
     gain: 0.4,
     cooldownMs: 60,
     priority: 3,
@@ -254,7 +260,7 @@ export const CUES = {
     ],
   },
   unitDeath: {
-    bus: 'combat',
+    bus: BusIdNs.combat,
     gain: 0.5,
     cooldownMs: 120,
     priority: 4,
@@ -272,7 +278,7 @@ export const CUES = {
     sample: '/audio/unitDeath.m4a',
   },
   buildingHit: {
-    bus: 'combat',
+    bus: BusIdNs.combat,
     gain: 0.55,
     cooldownMs: 150,
     priority: 4,
@@ -285,7 +291,7 @@ export const CUES = {
 
   // ---- world ------------------------------------------------------------
   raidHorn: {
-    bus: 'world',
+    bus: BusIdNs.world,
     gain: 0.6,
     cooldownMs: 2000,
     priority: 5,
@@ -296,7 +302,7 @@ export const CUES = {
     ],
   },
   buildingComplete: {
-    bus: 'world',
+    bus: BusIdNs.world,
     gain: 0.45,
     cooldownMs: 250,
     priority: 4,
@@ -309,7 +315,7 @@ export const CUES = {
     sample: '/audio/buildingComplete.m4a',
   },
   buildingCollapse: {
-    bus: 'world',
+    bus: BusIdNs.world,
     gain: 0.6,
     cooldownMs: 300,
     priority: 5,
@@ -320,7 +326,7 @@ export const CUES = {
     sample: '/audio/buildingCollapse.m4a',
   },
   objectiveDone: {
-    bus: 'world',
+    bus: BusIdNs.world,
     gain: 0.45,
     cooldownMs: 400,
     priority: 5,
@@ -333,7 +339,7 @@ export const CUES = {
     sample: '/audio/objectiveDone.m4a',
   },
   distantBell: {
-    bus: 'world',
+    bus: BusIdNs.world,
     gain: 0.35,
     cooldownMs: 1000,
     priority: 4,
@@ -345,7 +351,7 @@ export const CUES = {
     sample: '/audio/distantBell.m4a',
   },
   victory: {
-    bus: 'music',
+    bus: BusIdNs.music,
     gain: 0.55,
     cooldownMs: 5000,
     priority: 6,
@@ -359,7 +365,7 @@ export const CUES = {
     sample: '/audio/victory.m4a',
   },
   defeat: {
-    bus: 'music',
+    bus: BusIdNs.music,
     gain: 0.5,
     cooldownMs: 5000,
     priority: 6,
@@ -374,3 +380,13 @@ export const CUES = {
 } as const satisfies Record<string, CueDef>;
 
 export type CueId = keyof typeof CUES;
+
+/** Every bus, in id order — what the mixer walks when it ducks or mutes. */
+export const BUS_IDS: readonly BusId[] = [
+  BusIdNs.ui,
+  BusIdNs.combat,
+  BusIdNs.work,
+  BusIdNs.world,
+  BusIdNs.ambient,
+  BusIdNs.music,
+];

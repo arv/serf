@@ -38,9 +38,10 @@
 
 import { hash2 } from '../shared/math';
 import { MIN_AUDIBLE } from './pan';
+import { BusId } from './cues';
 
 export interface SchedulerCueDef {
-  bus: string;
+  bus: BusId;
   cooldownMs: number;
   priority: number;
   collapseCeiling?: number;
@@ -61,13 +62,13 @@ export interface PlayRequest {
   seed: number;
 }
 
-export const BUS_CAPS: Record<string, number> = {
-  ui: 4,
-  combat: 12,
-  work: 10,
-  world: 6,
-  ambient: 8,
-  music: 1,
+export const BUS_CAPS: Record<BusId, number> = {
+  [BusId.ui]: 4,
+  [BusId.combat]: 12,
+  [BusId.work]: 10,
+  [BusId.world]: 6,
+  [BusId.ambient]: 8,
+  [BusId.music]: 1,
 };
 
 export const GLOBAL_CAP = 28;
@@ -100,7 +101,7 @@ interface Group {
 
 interface Candidate {
   cue: string;
-  bus: string;
+  bus: BusId;
   pan: number;
   gain: number;
   delay: number;
@@ -117,7 +118,7 @@ const resetSide = (s: Side): void => {
 
 export class CueScheduler {
   #defs: Record<string, SchedulerCueDef>;
-  #caps: Record<string, number>;
+  #caps: Record<BusId, number>;
   #globalCap: number;
 
   // The frame's requests, as parallel pooled arrays (no per-request objects).
@@ -142,12 +143,12 @@ export class CueScheduler {
   #cands: Candidate[] = [];
   /** Indices into #cands, sorted in place — see the sort in flush(). */
   #order: number[] = [];
-  #busUsed = new Map<string, number>();
+  #busUsed = new Map<BusId, number>();
   #flushSeq = 0;
 
   constructor(
     defs: Record<string, SchedulerCueDef>,
-    caps: Record<string, number> = BUS_CAPS,
+    caps: Record<BusId, number> = BUS_CAPS,
     globalCap: number = GLOBAL_CAP,
   ) {
     this.#defs = defs;
@@ -289,7 +290,7 @@ export class CueScheduler {
         const gain = Math.min(maxGain * (1 + COLLAPSE_SLOPE * Math.log2(n)), ceiling);
         const ci = candLen++;
         let c = this.#cands[ci];
-        if (!c) c = this.#cands[ci] = { cue: '', bus: '', pan: 0, gain: 0, delay: 0, score: 0 };
+        if (!c) c = this.#cands[ci] = { cue: '', bus: BusId.ui, pan: 0, gain: 0, delay: 0, score: 0 };
         c.cue = g.cue;
         c.bus = def.bus;
         c.pan = gainSum > 0 ? panGainSum / gainSum : 0;

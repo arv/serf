@@ -1,12 +1,6 @@
 import * as THREE from 'three';
 import { loadGlbAssets, makeGlbBuilding } from '../../../render/assets';
-import {
-  loadCharacterAssets,
-  makeCharacter,
-  playAnimation,
-  type AnimKey,
-  type CharacterVisual,
-} from '../../../render/characters';
+import { loadCharacterAssets, makeCharacter, playAnimation, type CharacterVisual } from '../../../render/characters';
 import { makeRoadPile } from '../../../render/models';
 import { BUILDING_DEFS, type BuildingTypeId } from '../../../sim/defs/buildings';
 import { BANDIT } from '../../../sim/entities';
@@ -15,6 +9,7 @@ import { RAIDER_BUILDINGS, RAIDER_UNITS } from '../data';
 import { YAW, frame, frameFor, makeLights, makePlate, makeRenderer, type Framing } from './scene';
 import { unitFromKey } from '../../../sim/defs/units';
 import { buildingFromKey } from '../../../sim/defs/buildings';
+import { AnimKey } from '../../../render/characters';
 
 /**
  * One WebGL context for every preview on every wiki page.
@@ -373,7 +368,7 @@ function buildContent(card: Card): CardContent | null {
   const group = new THREE.Group();
   const plate = makePlate(plateR, Math.floor(card.seed * 997));
   group.add(plate, made.group);
-  playAnimation(made.visual, 'idle', card.seed % 1);
+  playAnimation(made.visual, AnimKey.idle, card.seed % 1);
   // Sampled here so the very first paint shows an idle pose rather than
   // the bind pose — the animation loop may never run at all.
   sampleOnce(made.visual);
@@ -542,7 +537,7 @@ export function registerCard(spec: CardSpec): CardHandle {
       // The seed desyncs looping clips, but death plays once (LoopOnce in
       // characters.ts) — started part-way through, a card would show the
       // last third of a fall. sceneSync makes the same exception.
-      playAnimation(visual, key, key === 'death' ? 0 : card.seed);
+      playAnimation(visual, key, key === AnimKey.death ? 0 : card.seed);
       // Put the new clip on the skeleton before painting: under reduced
       // motion no loop will do it, so the picker would change nothing.
       sampleOnce(visual);

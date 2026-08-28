@@ -8,6 +8,7 @@ import {
   gridFor,
   marginFor,
 } from '../shared/grid';
+import { ViewMode } from './cameraRig';
 
 /**
  * The rig's turn: Shift+wheel and Insert/Delete, stepped so the view lands
@@ -523,7 +524,7 @@ describe('CameraRig turn', () => {
   });
 
   it("the plan view is north-up by definition and doesn't turn", () => {
-    rig.setViewMode('topDown');
+    rig.setViewMode(ViewMode.topDown);
     wheel(canvas, 100);
     hold(rig, 'Delete', 0.5);
     keyDown('Insert');
@@ -532,13 +533,13 @@ describe('CameraRig turn', () => {
     expectYaw(rig, 0, 10);
     // Back in the game, on the game's own line, with nothing banked — a
     // press the plan view swallowed must not turn the match's camera.
-    rig.setViewMode('game');
+    rig.setViewMode(ViewMode.game);
     settle(rig);
     expectYaw(rig, CAMERA_YAW, 10);
     keyDown('Delete');
-    rig.setViewMode('topDown');
+    rig.setViewMode(ViewMode.topDown);
     keyUp('Delete');
-    rig.setViewMode('game');
+    rig.setViewMode(ViewMode.game);
     settle(rig);
     expectYaw(rig, CAMERA_YAW, 10);
   });

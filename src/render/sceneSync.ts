@@ -15,18 +15,10 @@ import type { PierInfo } from './buildingSync';
 import type { ViewBounds } from './cameraRig';
 import type { FogQuery } from './fogOfWar';
 import { makeCarryProp } from './models';
-import {
-  TARGET_HEIGHT,
-  makeCharacter,
-  playAnimation,
-  setGaitSpeed,
-  setWorkTool,
-  TOOL_STOWED,
-  type AnimKey,
-  type CharacterVisual,
-} from './characters';
+import { TARGET_HEIGHT, makeCharacter, playAnimation, setGaitSpeed, setWorkTool, TOOL_STOWED, type CharacterVisual } from './characters';
 import type { HeightField } from './heightField';
 import { UnitTypeId } from '../sim/defs/units';
+import { AnimKey } from './characters';
 
 interface UnitVisual {
   group: THREE.Group;
@@ -135,19 +127,19 @@ function ikReach(arm: ArmChain, target: THREE.Vector3): void {
 function workAnimKey(workKind: number): AnimKey {
   switch (workKind) {
     case WORK.pickaxe:
-      return 'pickaxe';
+      return AnimKey.pickaxe;
     case WORK.hammer:
-      return 'hammer';
+      return AnimKey.hammer;
     case WORK.dig:
-      return 'dig';
+      return AnimKey.dig;
     case WORK.tend:
-      return 'tend';
+      return AnimKey.tend;
     case WORK.draw:
-      return 'draw';
+      return AnimKey.draw;
     case WORK.fish:
-      return 'fish';
+      return AnimKey.fish;
     default:
-      return 'work';
+      return AnimKey.work;
   }
 }
 
@@ -717,12 +709,12 @@ export class SceneSync {
       } else if (visual.char) {
         const heldCarry = carrying > 0;
         let key: AnimKey;
-        if (dead) key = 'death';
-        else if (moving) key = heldCarry ? 'carry' : visual.char.gait;
-        else if (pier) key = fishing ? 'fish' : visual.char.gait;
-        else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
-        else if (action === ACTION.work) key = crankWell ? 'idle' : workAnimKey(workKind);
-        else key = heldCarry ? 'carryIdle' : 'idle';
+        if (dead) key = AnimKey.death;
+        else if (moving) key = heldCarry ? AnimKey.carry : visual.char.gait;
+        else if (pier) key = fishing ? AnimKey.fish : visual.char.gait;
+        else if (action === ACTION.fight) key = visual.char.ranged ? AnimKey.shoot : AnimKey.attack;
+        else if (action === ACTION.work) key = crankWell ? AnimKey.idle : workAnimKey(workKind);
+        else key = heldCarry ? AnimKey.carryIdle : AnimKey.idle;
         // Right tool for the job: mallet on sites, pickaxe at rock faces,
         // carried on the walk out too — a woodcutter heads to the trees
         // axe in fist. Only full hands stow it: cargo owns the grip.
@@ -731,12 +723,12 @@ export class SceneSync {
         // state change, or the first frame back from a cull (which nulled
         // `current`). Read before the call — it sets `current` to key.
         const restarted = visual.char.current !== key;
-        if (dead && !visual.char.actions.has('death')) {
+        if (dead && !visual.char.actions.has(AnimKey.death)) {
           // No death clip in this library: tip the body over instead.
           tipOver(visual.group, dt);
-          playAnimation(visual.char, 'idle', hash2(id, 3));
+          playAnimation(visual.char, AnimKey.idle, hash2(id, 3));
         } else {
-          playAnimation(visual.char, key, key === 'death' ? 0 : hash2(id, 3));
+          playAnimation(visual.char, key, key === AnimKey.death ? 0 : hash2(id, 3));
         }
         const fn = this.onCue;
         // State-entry sound, from audio's own memory — char.current is
