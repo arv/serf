@@ -7,7 +7,6 @@ import { marginFor,
   tileIdx,
 } from '../shared/grid.ts';
 import { inPlayArea,
-  RESOURCE_CODE,
   Terrain,
   TileResource,
   clearResources,
@@ -749,7 +748,7 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
   const gather = gatherRecipeOf(def);
   if (gather) {
     const c = gatherOrigin(def, x, y);
-    if (findResourceNear(map, c.x, c.y, RESOURCE_CODE[gather.resource]!, gather.radius) < 0) {
+    if (findResourceNear(map, c.x, c.y, gather.resource, gather.radius) < 0) {
       return false;
     }
   }

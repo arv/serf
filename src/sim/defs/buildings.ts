@@ -14,6 +14,13 @@ import { UnitTypeId } from './units.ts';
 import { TechId } from './techs.ts';
 import * as RecipeKindNs from './recipeKindEnum.ts';
 import { UnitClass } from './units.ts';
+import type { TileResourceKind } from '../map.ts';
+// Straight from the enum module rather than through map.ts: map.ts imports
+// buildingDef from here, and a namespace that arrives over a cycle is
+// undefined at module-init time — which is exactly when these defs are
+// built. An enum module imports nothing, so it can never be the far side
+// of a cycle.
+import * as TileResource from '../tileResourceEnum.ts';
 
 export * as RecipeKind from './recipeKindEnum.ts';
 export type RecipeKind = Enum<typeof RecipeKindNs>;
@@ -25,12 +32,10 @@ export type RecipeKind = Enum<typeof RecipeKindNs>;
  * - convert: inputs from the building's input buffer become outputs over time
  *   (no worker commute; empty inputs = a pure timer, e.g. the well).
  */
-export type TileResourceName = 'wood' | 'rock' | 'ironDep' | 'silverDep' | 'goldDep';
-
 export type Recipe =
   | {
       kind: RecipeKindNs.gather;
-      resource: TileResourceName;
+      resource: TileResourceKind;
       output: GoodId;
       /** Search radius (tiles from building center) for resource tiles. This
        * is also the placement rule: a gatherer may only be sited where the
@@ -238,7 +243,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 150,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
-    recipe: { kind: RecipeKindNs.gather, resource: 'wood', output: GoodId.wood, radius: 8, workTicks: 2.5 * S },
+    recipe: { kind: RecipeKindNs.gather, resource: TileResource.Wood, output: GoodId.wood, radius: 8, workTicks: 2.5 * S },
   },
   [B.quarry]: {
     id: B.quarry,
@@ -251,7 +256,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     modelScale: 1.2,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
-    recipe: { kind: RecipeKindNs.gather, resource: 'rock', output: GoodId.stone, radius: 8, workTicks: 3 * S },
+    recipe: { kind: RecipeKindNs.gather, resource: TileResource.Rock, output: GoodId.stone, radius: 8, workTicks: 3 * S },
   },
   [B.house]: {
     id: B.house,
@@ -414,7 +419,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     modelScale: 1.2,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
-    recipe: { kind: RecipeKindNs.gather, resource: 'ironDep', output: GoodId.iron, radius: 4, workTicks: 4 * S },
+    recipe: { kind: RecipeKindNs.gather, resource: TileResource.IronDep, output: GoodId.iron, radius: 4, workTicks: 4 * S },
     mine: true,
   },
   [B.silverMine]: {
@@ -428,7 +433,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     modelScale: 1.2,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
-    recipe: { kind: RecipeKindNs.gather, resource: 'silverDep', output: GoodId.silver, radius: 4, workTicks: 4 * S },
+    recipe: { kind: RecipeKindNs.gather, resource: TileResource.SilverDep, output: GoodId.silver, radius: 4, workTicks: 4 * S },
     mine: true,
   },
   [B.goldMine]: {
@@ -443,7 +448,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     modelScale: 1.2,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
-    recipe: { kind: RecipeKindNs.gather, resource: 'goldDep', output: GoodId.gold, radius: 4, workTicks: 5 * S },
+    recipe: { kind: RecipeKindNs.gather, resource: TileResource.GoldDep, output: GoodId.gold, radius: 4, workTicks: 5 * S },
     mine: true,
   },
   [B.weaponsmith]: {

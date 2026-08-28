@@ -1,5 +1,5 @@
 import { For, Index, Show } from 'solid-js';
-import { BUILDING_DEFS, gatherRecipeOf, repairBill, type TileResourceName } from '../sim/defs/buildings';
+import { BUILDING_DEFS, gatherRecipeOf, repairBill } from '../sim/defs/buildings';
 import { FORGE_QUEUE_CAP, HIRE_SERF_COST, HIRE_SERF_TICKS, TICKS_PER_SECOND, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
 import type { BuildingSnap } from '../protocol/messages';
 import type { GoodAmounts } from '../sim/defs/goods';
@@ -37,6 +37,8 @@ import { GoodId } from '../sim/defs/goods';
 import { goodKeys } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
+import { TileResource } from '../sim/map';
+import type { TileResourceKind } from '../sim/map';
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
   const entries = () =>
@@ -80,8 +82,8 @@ function forgeSlots(
  * the player does about it: a spent seam is a mine to tear down, a thin
  * grove is a woodcutter that will pick up again on its own.
  */
-function reachTip(type: BuildingTypeId, resource: TileResourceName, left: number): string {
-  const renews = resource === 'wood';
+function reachTip(type: BuildingTypeId, resource: TileResourceKind, left: number): string {
+  const renews = resource === TileResource.Wood;
   if (left <= 0) {
     return renews
       ? 'Every tree inside the search square is down. Stumps grow back in time, slowly — this hut will start again on its own, but a forest is where it belongs.'

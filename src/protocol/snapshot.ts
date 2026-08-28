@@ -15,7 +15,7 @@ import { GOODS, type GoodAmounts } from '../sim/defs/goods.ts';
 import { UNIT_DEFS, carryingCode } from '../sim/defs/units.ts';
 import { ACTION, PROFESSION, WORK, type UnitSnapshot } from './sabLayout.ts';
 import { centerOf } from '../sim/entities.ts';
-import { RESOURCE_CODE, countResourceNear } from '../sim/map.ts';
+import { countResourceNear } from '../sim/map.ts';
 import { exactDist } from '../shared/math.ts';
 import { distToFootprint } from '../sim/arrival.ts';
 import type { World } from '../sim/world.ts';
@@ -29,6 +29,7 @@ import { BuildingState } from '../sim/entities.ts';
 import { UnitTaskKind } from '../sim/units.ts';
 import { HaulPhase } from '../sim/world.ts';
 import { RecipeKind } from '../sim/defs/buildings.ts';
+import { TileResource } from '../sim/map.ts';
 
 export function snapBuilding(world: World, b: Building): BuildingSnap {
   const def = buildingDef(b.type);
@@ -112,7 +113,7 @@ function reachableResource(world: World, b: Building): number | undefined {
     world.map,
     origin.x,
     origin.y,
-    RESOURCE_CODE[gather.resource],
+    gather.resource,
     gather.radius,
   );
 }
@@ -323,7 +324,7 @@ function workKindOf(w: World, u: Unit): number {
   if (home.state === BuildingState.site) return WORK.hammer; // builder at the frame
   const def = buildingDef(home.type);
   if (def.recipe?.kind === RecipeKind.gather) {
-    return def.recipe.resource === 'wood' ? WORK.chop : WORK.pickaxe;
+    return def.recipe.resource === TileResource.Wood ? WORK.chop : WORK.pickaxe;
   }
   if (home.type === BuildingTypeId.weaponsmith) return WORK.hammer;
   if (home.type === BuildingTypeId.wheatFarm) return WORK.dig;

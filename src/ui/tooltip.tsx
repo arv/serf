@@ -28,6 +28,8 @@ import { BuildingTypeId } from '../sim/defs/buildings';
 import { TechEffectKind } from '../sim/defs/techs';
 import { RecipeKind } from '../sim/defs/buildings';
 import { UnitClass } from '../sim/defs/units';
+import { TileResource } from '../sim/map';
+import type { TileResourceKind } from '../sim/map';
 
 /**
  * One floating tooltip layer for the whole HUD. Spread `{...tooltip(...)}`
@@ -326,12 +328,12 @@ export function GoodTip(props: { good: GoodId }) {
   );
 }
 
-const RESOURCE_NAMES: Record<string, string> = {
-  wood: 'woods',
-  rock: 'rock outcrops',
-  ironDep: 'iron seams',
-  silverDep: 'silver seams',
-  goldDep: 'gold seams',
+const RESOURCE_NAMES: Partial<Record<TileResourceKind, string>> = {
+  [TileResource.Wood]: 'woods',
+  [TileResource.Rock]: 'rock outcrops',
+  [TileResource.IronDep]: 'iron seams',
+  [TileResource.SilverDep]: 'silver seams',
+  [TileResource.GoldDep]: 'gold seams',
 };
 
 function goodsList(amounts: GoodAmounts): string {
@@ -344,7 +346,7 @@ function goodsList(amounts: GoodAmounts): string {
 function recipeText(recipe: Recipe): string {
   if (recipe.kind === RecipeKind.gather) {
     return `Its worker gathers ${goodName(recipe.output).toLowerCase()} from nearby ${
-      RESOURCE_NAMES[recipe.resource] ?? recipe.resource
+      RESOURCE_NAMES[recipe.resource] ?? 'ground'
     }.`;
   }
   const secs = Math.round(recipe.durationTicks / TICKS_PER_SECOND);

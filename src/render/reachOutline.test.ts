@@ -4,11 +4,13 @@ import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
 import { HeightField } from './heightField';
 import { SelectedReach } from './reachOutline';
 import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings';
-import { RESOURCE_CODE, type MapView } from '../sim/map';
+import { type MapView } from '../sim/map';
 import { verdictBad, verdictGood } from './palette';
 import type { BuildingSnap } from '../protocol/messages';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
+import type { TileResourceKind } from '../sim/map';
+import { TileResource } from '../sim/map';
 
 const SIZE = DEFAULT_MAP_SIZE;
 
@@ -28,9 +30,9 @@ function emptyMap(): MapView {
 }
 
 /** Put one workable tile just outside the building's footprint. */
-function seed(map: MapView, b: BuildingSnap, resource: 'wood' | 'ironDep'): void {
+function seed(map: MapView, b: BuildingSnap, resource: TileResourceKind): void {
   const origin = gatherOrigin(buildingDef(b.type), b.x, b.y);
-  map.resource[tileIdx(origin.x + 2, origin.y + 2, SIZE)] = RESOURCE_CODE[resource];
+  map.resource[tileIdx(origin.x + 2, origin.y + 2, SIZE)] = resource;
 }
 
 /** The band's current color, as a hex. */
@@ -97,7 +99,7 @@ describe('the reach outline of a selected building', () => {
   it('reads green over ground that still holds something to work', () => {
     const { reach, scene, map } = makeReach();
     const hut = snap({ type: BuildingTypeId.woodcutter });
-    seed(map, hut, 'wood');
+    seed(map, hut, TileResource.Wood);
     reach.update(hut, map);
     expect(color(scene)).toBe(verdictGood);
   });
@@ -111,7 +113,7 @@ describe('the reach outline of a selected building', () => {
   it('ignores a resource the building does not work', () => {
     const { reach, scene, map } = makeReach();
     const mine = snap({ type: BuildingTypeId.ironMine });
-    seed(map, mine, 'wood');
+    seed(map, mine, TileResource.Wood);
     reach.update(mine, map);
     expect(color(scene)).toBe(verdictBad);
   });
@@ -119,7 +121,7 @@ describe('the reach outline of a selected building', () => {
   it('turns red under a standing selection as the last tile runs out', () => {
     const { reach, scene, map } = makeReach();
     const hut = snap({ type: BuildingTypeId.woodcutter });
-    seed(map, hut, 'wood');
+    seed(map, hut, TileResource.Wood);
     reach.update(hut, map);
     expect(color(scene)).toBe(verdictGood);
     // The worker fells the last tree in reach: the sim clears the tile's

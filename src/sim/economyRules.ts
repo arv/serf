@@ -1,6 +1,6 @@
 import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF, convertRecipeOf, gatherOrigin, gatherRecipeOf, OUTPUT_CAP } from './defs/buildings.ts';
 import { FORGE_QUEUE_CAP } from './defs/balance.ts';
-import { findResourcesNear, nearestResource, RESOURCE_CODE } from './map.ts';
+import { findResourcesNear, nearestResource } from './map.ts';
 import { WEAPON_OF } from './defs/units.ts';
 import { isUnitUnlocked } from './techHelpers.ts';
 import type { AiStrategy } from './defs/aiStrategies.ts';
@@ -165,7 +165,7 @@ const resiteExtractor: EconomyRule = {
       const def = BUILDING_DEFS[b.type as BuildingTypeId];
       const recipe = gatherRecipeOf(def);
       if (!recipe) continue;
-      const code = RESOURCE_CODE[recipe.resource]!;
+      const code = recipe.resource;
       const c = gatherOrigin(def, b.x, b.y);
       if (findResourcesNear(ctx.world.map, c.x, c.y, code, recipe.radius, 1).length > 0) continue;
       if (nearestResource(ctx.world.map, code, b.x, b.y) < 0) continue; // nowhere to go

@@ -50,7 +50,6 @@ import {
   Terrain,
   TileResource,
   WATER_ACCESS_RADIUS,
-  RESOURCE_CODE,
   countResourceNear,
   inPlayArea,
   playEdgeDist,
@@ -1737,7 +1736,7 @@ export function audit(a: Authored): AuditReport {
         const gather = gatherRecipeOf(buildingDef(type));
         if (!gather) return `${name} ${at.r}`;
         const o = gatherOrigin(buildingDef(type), at.x, at.y);
-        const held = countResourceNear(v, o.x, o.y, RESOURCE_CODE[gather.resource]!, gather.radius);
+        const held = countResourceNear(v, o.x, o.y, gather.resource, gather.radius);
         return `${name} ${at.r} (${held})`;
       })
       .join('  ');
@@ -1751,7 +1750,7 @@ export function audit(a: Authored): AuditReport {
       if (!at) continue;
       const gather = gatherRecipeOf(buildingDef(type))!;
       const o = gatherOrigin(buildingDef(type), at.x, at.y);
-      const held = countResourceNear(v, o.x, o.y, RESOURCE_CODE[gather.resource]!, gather.radius);
+      const held = countResourceNear(v, o.x, o.y, gather.resource, gather.radius);
       // A trap, not a merely thin spot: below four tiles' worth is a hut
       // that fells what it can see and then stands idle.
       if (held < 24) {

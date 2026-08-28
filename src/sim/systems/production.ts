@@ -11,7 +11,7 @@ import {
   type BuildingDef,
   type Recipe,
 } from '../defs/buildings.ts';
-import { RESOURCE_CODE, TileResource, findResourcesNear } from '../map.ts';
+import { TileResource, findResourcesNear } from '../map.ts';
 import { atBuilding, atTile, walkToBuilding, walkToTile } from '../arrival.ts';
 import type { Building } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
@@ -394,7 +394,7 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
         world.map,
         c.x,
         c.y,
-        RESOURCE_CODE[recipe.resource]!,
+        recipe.resource,
         recipe.radius,
         GATHER_REACH_TRIES,
       );
@@ -436,7 +436,7 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
         return;
       }
       if (
-        world.map.resource[tile] !== RESOURCE_CODE[recipe.resource] ||
+        world.map.resource[tile] !== recipe.resource ||
         world.map.resourceAmt[tile]! <= 0
       ) {
         worker.task = { t: UnitTaskKind.idle, until: world.tick }; // someone else finished it
@@ -455,7 +455,7 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
     case UnitTaskKind.gatherWork: {
       if (world.tick < worker.task.until) return;
       const tile = worker.task.tile;
-      if (world.map.resource[tile] === RESOURCE_CODE[recipe.resource]) {
+      if (world.map.resource[tile] === recipe.resource) {
         depleteResourceTile(world, tile);
         worker.carrying = recipe.output;
         // The good exists from the moment it's chopped (it's on the worker's
