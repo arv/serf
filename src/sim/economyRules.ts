@@ -2,6 +2,7 @@ import {
   BUILDING_DEFS,
   TOOL_GOODS,
   TOOL_OF,
+  convertRecipeOf,
   gatherOrigin,
   gatherRecipeOf,
   OUTPUT_CAP,
@@ -64,6 +65,7 @@ export type EconomyRuleId =
   | 'resumeDrainedPost'
   | 'keepTheToolsComing'
   | 'forgeTheCounter'
+  | 'holdTheGlutForge'
   | 'handsBeforeSoldiers'
   | 'keepTheQueueWarm';
 
@@ -312,9 +314,12 @@ const keepTheToolsComing: EconomyRule = {
   when: 'a post stands open for a tool nobody has made and nobody has ordered',
   phase: 'production',
   fire(ctx) {
-    const smiths = ctx.mine.filter(
-      (b) => b.type === 'weaponsmith' && b.state === 'built' && !b.paused,
-    );
+    // Halted anvils included, and that is what makes this rule the tool
+    // line's guarantee rather than a best effort: `holdTheGlutForge` below
+    // may stand every forge in the village down, and a village that cannot
+    // replace a lost axe has no woodcutter. A halted Smith is one order
+    // away from working, so it counts.
+    const smiths = ctx.mine.filter((b) => b.type === 'weaponsmith' && b.state === 'built');
     if (smiths.length === 0) return null;
 
     // What the village is short of: a post open for it with nothing on the
@@ -350,13 +355,35 @@ const keepTheToolsComing: EconomyRule = {
       if (opt.requiresTech !== undefined && !ctx.researched(opt.requiresTech)) continue;
       // Already ordered anywhere? An order stands until its batch lands, so
       // re-adding one every beat would fill five slots with the same axe.
-      if (smiths.some((b) => b.forgeQueue?.some((o) => o.recipeIndex === index))) continue;
-      const smith = smiths.find((b) => (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP);
+      // A batch in a HALTED forge is the one case where the order standing
+      // is not the same as the tool coming — nothing is being made there —
+      // so that anvil is started rather than ordered from again.
+      const holder = smiths.find((b) => b.forgeQueue?.some((o) => o.recipeIndex === index));
+      if (holder) {
+        if (holder.paused !== true) continue;
+        return {
+          commands: [{ kind: 'setBuildingPaused', buildingId: holder.id, paused: false }],
+          claims: [holder.id],
+        };
+      }
+      // A working anvil first; a halted one only when there is no other.
+      const smith =
+        smiths.find((b) => !b.paused && (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP) ??
+        smiths.find((b) => (b.forgeQueue?.length ?? 0) < FORGE_QUEUE_CAP);
       if (!smith) return null;
-      return {
-        commands: [{ kind: 'enqueueForge', buildingId: smith.id, recipeIndex: index }],
-        claims: [],
-      };
+      const commands: SimCommand[] = [];
+      // Claimed only on the waking path. A plain order claims nothing on
+      // purpose (see above), but a halted anvil is one `holdTheGlutForge`
+      // may also be about to start — its pile can be under the clear line
+      // while a post stands open — and two rules ordering the same forge
+      // open in one beat is the exact collision claims exist to settle.
+      const claims: EntityId[] = [];
+      if (smith.paused === true) {
+        commands.push({ kind: 'setBuildingPaused', buildingId: smith.id, paused: false });
+        claims.push(smith.id);
+      }
+      commands.push({ kind: 'enqueueForge', buildingId: smith.id, recipeIndex: index });
+      return { commands, claims };
     }
     return null;
   },
@@ -434,6 +461,141 @@ const forgeTheCounter: EconomyRule = {
         claims.push(smith.id);
       }
     });
+    return commands.length > 0 ? { commands, claims } : null;
+  },
+};
+
+/**
+ * The shelf lines the glut rule works between. A Schmitt trigger for the
+ * same reason `handsBeforeSoldiers` is one: halting empties the post and
+ * starting it again calls a hand back across the village, so a forge that
+ * flapped on a single arrowhead would spend its worker walking. Halt above
+ * the high line, start again at or below the low one, and between them the
+ * forge keeps doing whatever it is already doing.
+ *
+ * The campaign sweep cannot pick these numbers, and it is worth knowing
+ * that before trying. Every pair pays about the same, 32 seeds x 4
+ * playbooks per range:
+ *
+ * | halt above | start at or below | tuned ranges (off 304/384) | fresh ranges (off 200/256) |
+ * | --- | --- | --- | --- |
+ * | 3 | 1 | — | 208 (+8) |
+ * | 5 | 2 | 320 (+16) | 210 (+10) |
+ * | 6 | 3 | — | 211 (+11) |
+ * | 8 | 4 | 314 (+10) | 208 (+8) |
+ * | 12 | 6 | 311 (+7) | — |
+ * | 16 | 8 | 312 (+8) | — |
+ *
+ * Read the columns together. On the ranges the pairs were first compared
+ * over, 5/2 looks six wins better than 8/4; on two ranges never used to
+ * pick a threshold the whole field lands inside three wins of itself and
+ * the gap is gone. The sweep's honest answer is that the rule pays and the
+ * line is invisible to it anywhere from 3 to 16.
+ *
+ * What DOES pick them is the four-seat standoff in aiStrategies.test.ts —
+ * seed 42, no bandits, four playbooks that must reach an ending inside
+ * ninety thousand ticks. It fails at 6/3 and at 5/2, and passes at 7/3 and
+ * 8/4. Below seven, seats stop forging early enough and often enough that
+ * four exhausted villages never muster anyone to finish each other off,
+ * and a match that was decided runs to the horizon undecided. A solo
+ * campaign cannot see this: there is nobody on the other side of it.
+ *
+ * So eight and four, one step clear of a cliff rather than sitting on its
+ * edge. And specifically NOT `OUTPUT_CAP`, which is the tempting number
+ * here — a producer stalls when its own buffer fills at five, so five
+ * reads like the same rule applied to the shelf. It is the wrong five: a
+ * hut's buffer is one hauler's backlog, while the shelf is the village's
+ * war chest, and the standoff test is where the difference shows up. Any
+ * retune should expect the sweep to say nothing and should run that test
+ * before believing a smaller line is free.
+ */
+const FORGE_GLUT = 8;
+const FORGE_GLUT_CLEAR = 4;
+
+/**
+ * Halt a forge whose weapon is piling up unclaimed.
+ *
+ * A Smith is the one building in the village with no natural brake. Every
+ * gatherer stops at `OUTPUT_CAP` — a full buffer is a hut that has stopped
+ * working — but a forge's output is evacuated to the storehouse, and the
+ * storehouse is bottomless, so the buffer never fills and the recipe never
+ * stops. What the recipe spends is not bottomless: a bowstave is three
+ * wood, and two woodcutters against a standing order for bows is a losing
+ * trade the moment the barracks stops taking them.
+ *
+ * Which is exactly where every playbook in the deck ends up. Driven alone
+ * on a peaceful map (`banditsEnabled: false`, seed 101, 60k ticks) the
+ * Abbot finishes with nineteen bows on the shelf and its wood at zero from
+ * tick twenty thousand on; the Steward finishes with thirty-nine swords,
+ * the Warlord sixty-four, the Fletcher sixteen bows beside ninety-nine
+ * unclaimed iron. Stone climbs all match on all four. Only the wood runs
+ * out, because only the wood is being spent on something nobody wants —
+ * and a village whose shelf reads zero wood cannot place anything costing
+ * ten of it, which is most of the buildings a plan has left by then. The
+ * Abbot's brewery, last in its build order and gated behind Brewing, is
+ * never raised at all in sixty thousand ticks of peace.
+ *
+ * Halting is the lever the sim already documents for this — `tick.ts` calls
+ * `setBuildingPaused` "the lever for 'the bowyer is eating all my wood'".
+ * It stops the recipe, stops the input hauls (`systems/logistics.ts` raises
+ * no demand for a halted post), and hands the resident back to the pool,
+ * while the finished weapons on the shelf stay exactly where they are for
+ * the barracks to draw on. Nothing is destroyed and nothing is decided
+ * permanently: the pile is the only thing the rule reads, so training the
+ * archers it bought starts the forge again by itself.
+ *
+ * It will stand down every anvil in the village if every weapon is piled
+ * up, and that is deliberate rather than reckless. Nine of the ten posts
+ * are gated on a tool and the Smith is the only source of one, so a seat
+ * that could not forge would be a seat that never replaces a lost axe —
+ * but the tool line is `keepTheToolsComing`'s job, and it now starts a
+ * halted anvil to serve an order rather than skipping past it. Holding a
+ * forge open against a shortage that has not happened yet is paying for
+ * that guarantee twice, in the one good the shortage is about.
+ *
+ * The one anvil it will not touch is one with a batch in its queue. A
+ * queued order jumps the standing recipe (`forgeDemandRecipe`), and
+ * `keepTheToolsComing` is what puts tools there — so a forge with a queue
+ * is a forge making something the village asked for by name, and the queue
+ * emptying is the signal that it is done.
+ *
+ * Reads the standing recipe rather than the queue head for the same reason:
+ * the standing order is what the forge goes back to and keeps doing
+ * forever, and it is the forever that starves the wood. A Smith on auto
+ * (no `recipeIndex`) names no recipe from the def alone and is left alone.
+ *
+ * Claims what it orders, so nothing re-tunes an anvil this rule is standing
+ * down in the same beat — and it sits after `forgeTheCounter` in the table,
+ * so a forge the scouts have just re-aimed keeps its new orders and is
+ * judged on the next beat, against the pile its new recipe is actually
+ * making.
+ */
+const holdTheGlutForge: EconomyRule = {
+  id: 'holdTheGlutForge',
+  when: 'a forge is spending the village\'s wood on a weapon nobody is claiming',
+  phase: 'production',
+  fire(ctx) {
+    const commands: SimCommand[] = [];
+    const claims: EntityId[] = [];
+    const smiths = ctx.mine.filter((b) => b.type === 'weaponsmith' && b.state === 'built');
+    for (const b of smiths) {
+      const recipe = convertRecipeOf(BUILDING_DEFS.weaponsmith, b);
+      if (!recipe) continue;
+      // One output per forge recipe today; summing is what the shape means
+      // rather than what it happens to hold.
+      let shelf = 0;
+      for (const good of Object.keys(recipe.outputs) as GoodId[]) shelf += ctx.stock[good] ?? 0;
+      if (b.paused === true) {
+        if (shelf > FORGE_GLUT_CLEAR) continue;
+        commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
+        claims.push(b.id);
+        continue;
+      }
+      if (shelf <= FORGE_GLUT) continue;
+      if ((b.forgeQueue?.length ?? 0) > 0) continue;
+      commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: true });
+      claims.push(b.id);
+    }
     return commands.length > 0 ? { commands, claims } : null;
   },
 };
@@ -627,6 +789,7 @@ export const ECONOMY_RULES: readonly EconomyRule[] = [
   resumeDrainedPost,
   keepTheToolsComing,
   forgeTheCounter,
+  holdTheGlutForge,
   handsBeforeSoldiers,
   keepTheQueueWarm,
 ];

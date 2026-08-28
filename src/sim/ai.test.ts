@@ -841,3 +841,134 @@ describe('a village that lost its hands', () => {
     expect(hut.stock.wood ?? 0).toBeLessThan(OUTPUT_CAP);
   });
 });
+
+describe('a forge nobody is buying from', () => {
+  /**
+   * The Abbot's two-line armory, standing and idle: swords at the first
+   * anvil, bowstaves at the second, which is the playbook's own weaponMix
+   * — so `forgeTheCounter` has nothing to re-tune and the glut rule is the
+   * only thing in the beat with an opinion about a Smith.
+   */
+  function armory(stock: Record<string, number>): {
+    world: World;
+    brain: AiBrain;
+    swords: Building;
+    bows: Building;
+  } {
+    const world = bareWorld();
+    addStorehouse(world, 30, 30, stock);
+    const swords = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 36);
+    const bows = placeBuiltBuilding(world, 'weaponsmith', 0, 40, 36);
+    swords.recipeIndex = AI_STRATEGIES.abbot.weaponMix[0]!;
+    bows.recipeIndex = AI_STRATEGIES.abbot.weaponMix[1]!;
+    return {
+      world,
+      brain: new AiBrain(0, AI_STRATEGIES.abbot, world.map.size),
+      swords,
+      bows,
+    };
+  }
+
+  function beat(brain: AiBrain, world: World): SimCommand[] {
+    world.tick += AI_PACING.decisionInterval;
+    return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+  }
+
+  const halt = (b: Building): SimCommand => ({
+    kind: 'setBuildingPaused',
+    buildingId: b.id,
+    paused: true,
+  });
+  const start = (b: Building): SimCommand => ({
+    kind: 'setBuildingPaused',
+    buildingId: b.id,
+    paused: false,
+  });
+
+  it('halts the anvil whose weapon is piling up, and only that one', () => {
+    // The bug this rule is for: a bowstave is three wood, the storehouse is
+    // bottomless so the forge's own buffer never fills, and the standing
+    // order runs forever. The sword line is untouched in the same beat —
+    // the rule reads each anvil's own recipe against its own pile.
+    const { world, brain, swords, bows } = armory({ bow: 12, sword: 1 });
+    const orders = beat(brain, world);
+    expect(orders).toContainEqual(halt(bows));
+    expect(orders).not.toContainEqual(halt(swords));
+  });
+
+  it('holds its fire between the lines, so an anvil is not flapped', () => {
+    // Halting empties the post and starting it calls a hand back across the
+    // village, so a forge that stopped and started over a single arrowhead
+    // would spend its worker walking. Between the two lines, whatever each
+    // anvil is doing it keeps doing.
+    const running = armory({ bow: 6 });
+    expect(beat(running.brain, running.world)).not.toContainEqual(halt(running.bows));
+
+    const held = armory({ bow: 6 });
+    held.bows.paused = true;
+    expect(beat(held.brain, held.world)).not.toContainEqual(start(held.bows));
+  });
+
+  it('starts it again once the barracks has drawn the pile down', () => {
+    // Nothing here is decided permanently: the pile is the only thing the
+    // rule reads, so training the archers the forge already paid for is
+    // what puts it back to work.
+    const { world, brain, bows } = armory({ bow: 2 });
+    bows.paused = true;
+    expect(beat(brain, world)).toContainEqual(start(bows));
+  });
+
+  it('leaves an anvil with a batch in its queue alone', () => {
+    // A queued order jumps the standing recipe, and `keepTheToolsComing` is
+    // what puts tools there — so a forge with a queue is a forge making
+    // something the village asked for by name.
+    const { world, brain, bows } = armory({ bow: 12 });
+    bows.forgeQueue = [{ recipeIndex: 4, started: false }];
+    expect(beat(brain, world)).not.toContainEqual(halt(bows));
+  });
+
+  it('starts a halted anvil rather than leave a post without its tool', () => {
+    // The guarantee that lets the rule above stand every forge in the
+    // village down. Nine of the ten posts are gated on a tool and the Smith
+    // is the only source of one, so the tool line may never be halted out
+    // of existence — it is bought back here instead of paid for by holding
+    // a forge open against a shortage that has not happened.
+    const { world, brain, swords, bows } = armory({ bow: 12, sword: 12, axe: 0 });
+    world.players[0]!.techs.researched.push('ironworking');
+    swords.paused = true;
+    bows.paused = true;
+    // A woodcutter standing open with no axe on the shelf and none coming.
+    addResourceTile(world, 20, 21);
+    addBuiltHut(world, 20, 20, false);
+
+    const orders = beat(brain, world);
+    const woken = orders.find((c) => c.kind === 'setBuildingPaused' && c.paused === false);
+    expect(woken).toBeDefined();
+    const axe = BUILDING_DEFS.weaponsmith.recipeOptions!.findIndex(
+      (o) => (o.recipe.outputs.axe ?? 0) > 0,
+    );
+    expect(orders).toContainEqual({
+      kind: 'enqueueForge',
+      buildingId: (woken as { buildingId: number }).buildingId,
+      recipeIndex: axe,
+    });
+  });
+
+  it('gives a woken anvil one order, not two rules\' worth', () => {
+    // The overlap the wake path has to claim against: a pile under the
+    // clear line is one `holdTheGlutForge` wants started too, and a post
+    // standing open for a tool is one `keepTheToolsComing` wants started
+    // for its own reason. Both are right; the anvil takes one order.
+    const { world, brain, swords, bows } = armory({ bow: 2, sword: 2, axe: 0 });
+    world.players[0]!.techs.researched.push('ironworking');
+    swords.paused = true;
+    bows.paused = true;
+    addResourceTile(world, 20, 21);
+    addBuiltHut(world, 20, 20, false);
+
+    const opened = beat(brain, world)
+      .filter((c) => c.kind === 'setBuildingPaused' && c.paused === false)
+      .map((c) => (c as { buildingId: number }).buildingId);
+    expect(opened).toEqual([...new Set(opened)]);
+  });
+});

@@ -28,7 +28,12 @@ import { REPLAY_VERSION } from './replayVersion';
 // tile of every mission map moved, so a mission log re-run on an older
 // build is a log played on different ground (see replayVersion.ts).
 const EXPECTED_VERSION = 32;
-const EXPECTED_HASH = '05de10f5d59b7fe138b4f54bb8e1c0f7';
+// Still 32 across the glut-forge rule (sim/economyRules.ts): the brain is
+// inside the hashed surface but outside playback, which replays the AI's
+// recorded commands and never runs a brain at all (see app/replay.ts). A
+// seat that halts a forge it used to leave running emits orders whose tick
+// semantics are untouched, so yesterday's logs still play back exactly.
+const EXPECTED_HASH = '2a9fa7ff8cff1b785372f88b28d4aed7';
 
 /**
  * Everything a replay's playback depends on, as raw source:
