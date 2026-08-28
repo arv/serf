@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Node for the CLIs' process/perf_hooks, vite/client because the sim
+    // modules these import (world.ts and its neighbours) read
+    // import.meta.env.
+    "types": ["node", "vite/client"]
+  },
+  "include": ["*.ts", "../exportMissionMap.ts"]
+}

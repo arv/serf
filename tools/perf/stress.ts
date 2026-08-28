@@ -12,7 +12,7 @@
 import { Rng } from '../../src/shared/rng.ts';
 import { hashWorld } from '../../src/sim/hash.ts';
 import { tileIdx } from '../../src/shared/grid.ts';
-import { BUILDING_DEFS, buildingDef, type BuildingType } from '../../src/sim/defs/buildings.ts';
+import { BUILDING_TYPES, buildingDef } from '../../src/sim/defs/buildings.ts';
 import { GOODS } from '../../src/sim/defs/goods.ts';
 import {
   canPlace,
@@ -35,6 +35,8 @@ import { trailsSystem } from '../../src/sim/systems/trails.ts';
 import { victorySystem } from '../../src/sim/systems/victory.ts';
 import { UnitTypeId } from '../../src/sim/defs/units.ts';
 import { PlayerKind } from '../../src/sim/player.ts';
+import { BuildingState } from '../../src/sim/entities.ts';
+import { AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
 
 function arg(name: string, dflt: number): number {
   const i = process.argv.indexOf(`--${name}`);
@@ -48,7 +50,7 @@ const SEED = arg('seed', 7);
 
 const world = createWorld({
   seed: SEED,
-  players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai, strategy: 'warlord' }],
+  players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai, strategy: AiStrategyId.warlord }],
   banditsEnabled: true,
   mapSize: SIZE,
 });
@@ -59,7 +61,7 @@ for (const g of GOODS) sh.stock[g] = 9999;
 
 // A wide village: every non-system building type, sprinkled across the
 // player's half until the map stops taking them.
-const types = (Object.keys(BUILDING_DEFS) as BuildingType[]).filter((t) => {
+const types = BUILDING_TYPES.filter((t) => {
   const d = buildingDef(t);
   return !d.systemOnly && !d.storage && !d.isRoad;
 });
@@ -73,7 +75,7 @@ for (let attempt = 0; attempt < 4000 && placed < 90; attempt++) {
   const b = placeSite(world, t, 0, x, y);
   if (!b) continue;
   // Finish it outright: we are measuring the running village, not a site.
-  b.state = 'built';
+  b.state = BuildingState.built;
   b.siteNeeds = undefined;
   placed++;
 }
