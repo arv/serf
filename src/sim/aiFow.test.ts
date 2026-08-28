@@ -10,6 +10,7 @@ import type { SimCommand } from './commands.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { TechId } from './defs/techs.ts';
 
 /**
  * The brain plays under the fog. These are the two rules the server holds
@@ -139,7 +140,7 @@ describe('the AI under fog of war', () => {
     // stands the barracks down, and a queue rule cannot be read through a
     // hold that is doing its job.
     hands(world);
-    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.ironworking);
     placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
     placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 34);
     placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 26);
@@ -160,7 +161,7 @@ describe('the AI under fog of war', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, { [GoodId.bow]: 2 });
     hands(world);
-    world.players[0]!.techs.researched.push('soldiery', 'archery');
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.archery);
     placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
     placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 34);
     placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 26);
@@ -184,7 +185,7 @@ describe('the AI under fog of war', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, {}); // no weapon anywhere: the fallback path
     hands(world);
-    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.ironworking);
     placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
     world.tick = 1000;
     const brain = new AiBrain(0, AI_STRATEGIES.abbot, world.map.size);
@@ -200,7 +201,7 @@ describe('the AI under fog of war', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, { [GoodId.bow]: 4 });
     hands(world);
-    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.ironworking);
     placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
     world.tick = 1000;
     const brain = new AiBrain(0, AI_STRATEGIES.abbot, world.map.size);
@@ -209,7 +210,7 @@ describe('the AI under fog of war', () => {
 
     // Once the research lands the archer is the playbook's own answer to a
     // shelf of bows, and the rule goes back to giving it.
-    world.players[0]!.techs.researched.push('archery');
+    world.players[0]!.techs.researched.push(TechId.archery);
     world.tick += 20;
     expect(brain.decide(world).find((c) => c.kind === 'trainUnit')).toMatchObject({
       unit: UnitTypeId.archer,
@@ -225,7 +226,7 @@ describe('the AI under fog of war', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, { [GoodId.sword]: 1, [GoodId.spear]: 1 });
     addStorehouse(world, 44, 44, {}, 1);
-    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.ironworking);
     placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 34);
     placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 26);
     const foes = Array.from({ length: 4 }, (_, i) => spawnUnit(world, UnitTypeId.spearman, 1, 35.5, 30.5 + i));

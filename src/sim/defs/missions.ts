@@ -1,8 +1,8 @@
 import type { GoodAmounts } from './goods.ts';
-import type { TechId } from './techs.ts';
 import type { AiStrategyId } from './aiStrategies.ts';
 import { GoodId } from './goods.ts';
 import { BuildingTypeId } from './buildings.ts';
+import { TechId } from './techs.ts';
 
 /**
  * The campaign: seven commissions that double as the tutorial. Each mission is
@@ -200,7 +200,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       { spec: { kind: 'building', type: BuildingTypeId.abbey, count: 1 }, label: 'Raise an Abbey' },
       { spec: { kind: 'building', type: BuildingTypeId.silverMine, count: 1 }, label: 'Dig a Silver Mine' },
       // Forces Cobbled Boots first — the tree's prereq line teaches itself.
-      { spec: { kind: 'research', tech: 'ironworking' }, label: 'Research Ironworking' },
+      { spec: { kind: 'research', tech: TechId.ironworking }, label: 'Research Ironworking' },
       { spec: { kind: 'building', type: BuildingTypeId.ironMine, count: 1 }, label: 'Dig an Iron Mine' },
       { spec: { kind: 'building', type: BuildingTypeId.weaponsmith, count: 1 }, label: 'Raise a Smith' },
       { spec: { kind: 'stock', good: GoodId.spear, amount: 4 }, label: 'Forge 4 spears' },
@@ -238,7 +238,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     startStock: { [GoodId.wood]: 30, [GoodId.stone]: 15, [GoodId.iron]: 4, [GoodId.silver]: 6, [GoodId.hammer]: 1 },
     // Research was mission 3's lesson; the forge recipes it opened are
     // granted here so the tools themselves are the only puzzle.
-    startTechs: ['cobbledBoots', 'ironworking'],
+    startTechs: [TechId.cobbledBoots, TechId.ironworking],
     // The predecessor's village, standing and idle. No Smith among them:
     // that is the one roof this mission is about.
     prebuilt: [
@@ -310,7 +310,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       [GoodId.hammer]: 2,
     },
     // Research was mission 3's lesson; here it is already done.
-    startTechs: ['soldiery', 'cobbledBoots', 'ironworking'],
+    startTechs: [TechId.soldiery, TechId.cobbledBoots, TechId.ironworking],
     prebuilt: [
       { type: BuildingTypeId.woodcutter, dx: -6, dy: -2 },
       { type: BuildingTypeId.quarry, dx: 6, dy: -3 },

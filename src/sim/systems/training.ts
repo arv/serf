@@ -11,6 +11,7 @@ import type { Building } from '../entities.ts';
 import type { Unit } from '../units.ts';
 import { goodEntries } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
+import { ModifierKey } from '../defs/techs.ts';
 
 /**
  * Barracks training. A queue item starts when its ingredients are in the input
@@ -37,7 +38,7 @@ export function trainingSystem(world: World): void {
       b.trainQueue.shift();
       const door = doorOf(world, b);
       const unit = spawnUnit(world, head.unit, b.owner, door.x, door.y);
-      unit.hp = Math.round(UNIT_DEFS[head.unit].hp * getModifier(world, b.owner, 'militaryHp'));
+      unit.hp = Math.round(UNIT_DEFS[head.unit].hp * getModifier(world, b.owner, ModifierKey.militaryHp));
       marchToRally(world, b, unit);
     }
   }
@@ -129,7 +130,7 @@ export function evictGarrison(world: World, b: Building, n: number): void {
       // Armour research is a soldier's; a serf goes back to work as he was.
       // Only for a garrison that never recorded a man (a save from before
       // garrisonHp) — otherwise what he walked in with stands.
-      unit.hp = Math.round(UNIT_DEFS[kind].hp * getModifier(world, b.owner, 'militaryHp'));
+      unit.hp = Math.round(UNIT_DEFS[kind].hp * getModifier(world, b.owner, ModifierKey.militaryHp));
     }
     // The bow does not reload for free either: a man leaving a tower that has
     // just loosed carries what is left of its clock, or standing down between

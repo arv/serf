@@ -20,14 +20,23 @@
  *
  * ```
  * // eEnum.ts
- * export const A = 1;
- * export const B = 2;
- * export const D = 4;
+ * export const A = 1 as const;
+ * export const B = 2 as const;
+ * export const D = 4 as const;
  *
  * export type A = typeof A;
  * export type B = typeof B;
  * export type D = typeof D;
  * ```
+ *
+ * The `as const` is load-bearing, and the one part of this that is easy to
+ * get wrong. A plain `export const A = 1` is typed `1` but as a *widening*
+ * literal, and anything that infers through it hands back `number`: an
+ * array literal of members, a destructuring swap, and — the one that
+ * actually bit — Solid's `<Show>`, whose `Accessor<NonNullable<T>>` gave
+ * every callback a plain number. The member reads the same either way at
+ * the definition and only the far end of an inference tells you, so pin it
+ * here.
  *
  * Then in the importer do:
  *

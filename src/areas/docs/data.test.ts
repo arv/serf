@@ -20,6 +20,7 @@ import { fmtSecs } from './data';
 import { goodKeys } from '../../sim/defs/goods';
 import { UnitTypeId } from '../../sim/defs/units';
 import { BuildingTypeId } from '../../sim/defs/buildings';
+import { TechEffectKind } from '../../sim/defs/techs';
 
 /**
  * The wiki derives its whole cross-reference graph from the defs, so what
@@ -81,7 +82,7 @@ describe('the docs cross-reference graph', () => {
   it('knows where every trainable soldier is trained', () => {
     for (const id of ALL_TECHS) {
       for (const effect of TECH_DEFS[id].effects) {
-        if (effect.kind === 'unlockUnit') expect(TRAINED_AT.get(effect.unit)).toBeDefined();
+        if (effect.kind === TechEffectKind.unlockUnit) expect(TRAINED_AT.get(effect.unit)).toBeDefined();
       }
     }
   });

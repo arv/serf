@@ -25,6 +25,7 @@ import { GoodId } from '../sim/defs/goods';
 import { goodEntries } from '../sim/defs/goods';
 import { UnitTypeId } from '../sim/defs/units';
 import { BuildingTypeId } from '../sim/defs/buildings';
+import { TechEffectKind } from '../sim/defs/techs';
 
 /**
  * One floating tooltip layer for the whole HUD. Spread `{...tooltip(...)}`
@@ -459,9 +460,9 @@ export function TechTip(props: { tech: TechId }) {
   const unlockNames = () =>
     def()
       .effects.flatMap((e) =>
-        e.kind === 'unlockBuilding'
+        e.kind === TechEffectKind.unlockBuilding
           ? [buildingName(e.building)]
-          : e.kind === 'unlockUnit'
+          : e.kind === TechEffectKind.unlockUnit
             ? [unitName(e.unit)]
             : [],
       )

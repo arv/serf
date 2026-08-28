@@ -21,6 +21,7 @@ import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF } from './defs/buildings.ts';
 import type { SimCommand } from './commands.ts';
 import { GoodId } from './defs/goods.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { TechId } from './defs/techs.ts';
 
 /**
  * The campaign missions hold the same line winnable.test.ts holds for the
@@ -144,7 +145,7 @@ describe('the campaign missions', () => {
     const world = await createWorldAsync(missionWorldConfig('ledger'));
     const keep = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
     const castle = { x: keep.x + 1, y: keep.y + 1 };
-    const researched = (tech: 'cobbledBoots' | 'ironworking'): boolean =>
+    const researched = (tech: TechId): boolean =>
       world.players[0]!.techs.researched.includes(tech);
     const place = (type: BuildingTypeId): SimCommand => {
       const spot = findSpot(world, type, castle.x, castle.y);
@@ -160,15 +161,15 @@ describe('the campaign missions', () => {
       // A player clicks when the button lights up; every 50 ticks is fine.
       if (world.tick % 50 === 0) {
         const active = world.players[0]!.techs.active;
-        if (!active && countBuilt(world, BuildingTypeId.abbey) >= 1 && !researched('cobbledBoots')) {
-          tickWorld(world, cmds({ kind: 'research', tech: 'cobbledBoots' }));
+        if (!active && countBuilt(world, BuildingTypeId.abbey) >= 1 && !researched(TechId.cobbledBoots)) {
+          tickWorld(world, cmds({ kind: 'research', tech: TechId.cobbledBoots }));
           continue;
         }
-        if (!active && researched('cobbledBoots') && !researched('ironworking')) {
-          tickWorld(world, cmds({ kind: 'research', tech: 'ironworking' }));
+        if (!active && researched(TechId.cobbledBoots) && !researched(TechId.ironworking)) {
+          tickWorld(world, cmds({ kind: 'research', tech: TechId.ironworking }));
           continue;
         }
-        if (!ironPlaced && researched('ironworking')) {
+        if (!ironPlaced && researched(TechId.ironworking)) {
           tickWorld(world, cmds(place(BuildingTypeId.ironMine)));
           tickWorld(world, cmds(place(BuildingTypeId.weaponsmith)));
           ironPlaced = true;
@@ -307,7 +308,7 @@ describe('the campaign missions', () => {
         def.prebuilt!.filter((s) => s.type === spec.type).length,
       );
     }
-    expect(world.players[0]!.techs.researched).toEqual(['soldiery', 'cobbledBoots', 'ironworking']);
+    expect(world.players[0]!.techs.researched).toEqual([TechId.soldiery, TechId.cobbledBoots, TechId.ironworking]);
     expect(world.raidState.nextRaidTick).toBe(def.firstRaidTick);
     expect(stockOf(world, GoodId.silver)).toBe(def.startStock![GoodId.silver]);
     // And a mission with no clock override keeps the default — the

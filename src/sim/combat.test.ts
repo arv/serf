@@ -23,6 +23,7 @@ import type { Unit } from './units.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { TechId } from './defs/techs.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -89,7 +90,7 @@ describe('barracks training', () => {
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.archer }));
     expect(barracks.trainQueue ?? []).toEqual([]);
 
-    world.players[0]!.techs.researched.push('soldiery', 'archery');
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.archery);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.archer }));
     expect(barracks.trainQueue?.length).toBe(1);
   });
@@ -97,7 +98,7 @@ describe('barracks training', () => {
   it('a stuck head does not block trainable units behind it (skip-ahead)', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.spear]: 2 }); // spear, but no sword
-    world.players[0]!.techs.researched.push('soldiery');
+    world.players[0]!.techs.researched.push(TechId.soldiery);
     const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.knight }));
@@ -157,7 +158,7 @@ describe('barracks training', () => {
   it('applies militaryHp modifiers at spawn', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.spear]: 2 });
-    world.players[0]!.techs.researched.push('soldiery', 'mailArmor');
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.mailArmor);
     const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.spearman }));

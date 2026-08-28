@@ -4,6 +4,7 @@ import { placeBuiltBuilding, type World } from './world.ts';
 import { addStorehouse, bareWorld, cmds, staffBuilding } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { TechId } from './defs/techs.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -18,7 +19,7 @@ describe('the weaponsmith', () => {
   it('forges what the menu says, and a switch waits for the batch', () => {
     const world = bareWorld();
     addStorehouse(world, 24, 24, {}); // the elimination token: stay alive
-    world.players[0]!.techs.researched.push('ironworking', 'archery');
+    world.players[0]!.techs.researched.push(TechId.ironworking, TechId.archery);
     const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 30, 30);
     staffBuilding(world, smith);
     smith.inputs[GoodId.iron] = 1;
@@ -46,7 +47,7 @@ describe('the weaponsmith', () => {
   it('refuses a recipe whose tech is missing', () => {
     const world = bareWorld();
     addStorehouse(world, 24, 24, {}); // stay alive across ticks
-    world.players[0]!.techs.researched.push('ironworking'); // no archery
+    world.players[0]!.techs.researched.push(TechId.ironworking); // no archery
     const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 30, 30);
     tickWorld(world, cmds({ kind: 'setBuildingRecipe', buildingId: smith.id, index: 2 }));
     expect(smith.recipeIndex).toBeUndefined();
@@ -58,8 +59,8 @@ describe('the weaponsmith', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 24, 24, {});
     addStorehouse(world, 40, 40, {}, 1);
-    world.players[0]!.techs.researched.push('ironworking');
-    world.players[1]!.techs.researched.push('ironworking');
+    world.players[0]!.techs.researched.push(TechId.ironworking);
+    world.players[1]!.techs.researched.push(TechId.ironworking);
     const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 30, 30);
     tickWorld(world, [
       { playerId: 1, cmd: { kind: 'setBuildingRecipe', buildingId: smith.id, index: 1 } },
@@ -78,7 +79,7 @@ describe('the forge queue', () => {
     // Zero the fixture tool kit: these tests measure the tool economy
     // itself, and a shelf of spare axes covers every gap auto would see.
     addStorehouse(world, 24, 24, { [GoodId.axe]: 0, [GoodId.pickaxe]: 0, [GoodId.scythe]: 0, [GoodId.hammer]: 0, [GoodId.cauldron]: 0, [GoodId.rod]: 0 });
-    world.players[0]!.techs.researched.push('ironworking', 'archery');
+    world.players[0]!.techs.researched.push(TechId.ironworking, TechId.archery);
     const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 30, 30);
     staffBuilding(world, smith);
     return { world, smith };
@@ -149,7 +150,7 @@ describe('the forge queue', () => {
   it('a tech-locked recipe cannot be enqueued', () => {
     const world = bareWorld();
     addStorehouse(world, 24, 24, {});
-    world.players[0]!.techs.researched.push('ironworking'); // no archery
+    world.players[0]!.techs.researched.push(TechId.ironworking); // no archery
     const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 30, 30);
     tickWorld(world, cmds({ kind: 'enqueueForge', buildingId: smith.id, recipeIndex: 2 }));
     expect(smith.forgeQueue).toBeUndefined();

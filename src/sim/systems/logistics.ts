@@ -26,6 +26,7 @@ import { goodEntries } from '../defs/goods.ts';
 import { goodKeys } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
+import { TechId } from '../defs/techs.ts';
 
 /**
  * The heart of the game: goods physically live in building buffers and on
@@ -245,7 +246,7 @@ function match(world: World): void {
     }
 
     // Festivals: the abbey sips ale.
-    if (b.type === BuildingTypeId.abbey && !b.paused && world.players[b.owner]?.techs.researched.includes('festivals')) {
+    if (b.type === BuildingTypeId.abbey && !b.paused && world.players[b.owner]?.techs.researched.includes(TechId.festivals)) {
       const want = ABBEY_ALE_CAP - (b.inputs[GoodId.ale] ?? 0) - (b.inbound[GoodId.ale] ?? 0);
       if (want > 0) demands.push(demandOf(world, b, GoodId.ale, want, 2));
       else clearDemandAge(b, GoodId.ale);
@@ -258,7 +259,7 @@ function match(world: World): void {
     if (
       def.trains &&
       !b.paused &&
-      world.players[b.owner]?.techs.researched.includes('aleRations')
+      world.players[b.owner]?.techs.researched.includes(TechId.aleRations)
     ) {
       const want = BARRACKS_ALE_CAP - (b.inputs[GoodId.ale] ?? 0) - (b.inbound[GoodId.ale] ?? 0);
       if (want > 0) demands.push(demandOf(world, b, GoodId.ale, want, 2));

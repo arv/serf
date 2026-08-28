@@ -25,6 +25,7 @@ import { GoodId } from './defs/goods.ts';
 import type { GoodAmounts } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { TechId } from './defs/techs.ts';
 
 function digest(world: World): unknown {
   return {
@@ -792,7 +793,7 @@ describe('a village that lost its hands', () => {
     // the shelf has to be able to AFFORD it or the guard is not what the
     // assertion is reading — an unaffordable tech is refused a line earlier
     // and the test would pass with the guard deleted.
-    const soldiery = TECH_DEFS.soldiery.cost[GoodId.silver]!;
+    const soldiery = TECH_DEFS[TechId.soldiery].cost[GoodId.silver]!;
     const world = bareWorld();
     const shelf = addStorehouse(world, 30, 30, { [GoodId.silver]: soldiery + 1, [GoodId.wheat]: 20 });
     placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 36, 36);
@@ -938,7 +939,7 @@ describe('a forge nobody is buying from', () => {
     // of existence — it is bought back here instead of paid for by holding
     // a forge open against a shortage that has not happened.
     const { world, brain, swords, bows } = armory({ [GoodId.bow]: 12, [GoodId.sword]: 12, [GoodId.axe]: 0 });
-    world.players[0]!.techs.researched.push('ironworking');
+    world.players[0]!.techs.researched.push(TechId.ironworking);
     swords.paused = true;
     bows.paused = true;
     // A woodcutter standing open with no axe on the shelf and none coming.
@@ -964,7 +965,7 @@ describe('a forge nobody is buying from', () => {
     // standing open for a tool is one `keepTheToolsComing` wants started
     // for its own reason. Both are right; the anvil takes one order.
     const { world, brain, swords, bows } = armory({ [GoodId.bow]: 2, [GoodId.sword]: 2, [GoodId.axe]: 0 });
-    world.players[0]!.techs.researched.push('ironworking');
+    world.players[0]!.techs.researched.push(TechId.ironworking);
     swords.paused = true;
     bows.paused = true;
     addResourceTile(world, 20, 21);

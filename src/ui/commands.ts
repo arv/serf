@@ -6,6 +6,7 @@ import { HIRE_QUEUE_CAP, HIRE_SERF_COST, TRAIN_QUEUE_CAP } from '../sim/defs/bal
 import { GoodId } from '../sim/defs/goods';
 import { UnitTypeId } from '../sim/defs/units';
 import { BuildingTypeId } from '../sim/defs/buildings';
+import { TechEffectKind } from '../sim/defs/techs';
 
 /**
  * The commands a selected building offers: who may run them, and which
@@ -29,7 +30,7 @@ import { BuildingTypeId } from '../sim/defs/buildings';
 export function unitTechGate(unit: UnitTypeId): TechId | undefined {
   for (const def of Object.values(TECH_DEFS)) {
     for (const e of def.effects) {
-      if (e.kind === 'unlockUnit' && e.unit === unit) return def.id;
+      if (e.kind === TechEffectKind.unlockUnit && e.unit === unit) return def.id;
     }
   }
   return undefined;

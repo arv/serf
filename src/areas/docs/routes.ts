@@ -7,6 +7,8 @@ import { UNIT_KEYS } from '../../sim/defs/units';
 import { unitFromKey } from '../../sim/defs/units';
 import { buildingFromKey } from '../../sim/defs/buildings';
 import { BUILDING_KEYS } from '../../sim/defs/buildings';
+import { TECH_KEYS } from '../../sim/defs/techs';
+import { TechId } from '../../sim/defs/techs';
 
 /**
  * What a /docs URL names. Pure — the screen feeds it location.pathname and
@@ -86,6 +88,6 @@ export function goodHref(id: GoodId): string {
   return `/docs/goods/${GOOD_KEYS[id]}`;
 }
 /** Techs share one page; a tech link is an anchor on it. */
-export function techHref(id: string): string {
-  return `/docs/techs#tech-${id}`;
+export function techHref(id: TechId): string {
+  return `/docs/techs#tech-${TECH_KEYS[id]}`;
 }

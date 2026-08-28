@@ -11,6 +11,7 @@ import type { World } from '../world.ts';
 import { GoodId } from '../defs/goods.ts';
 import { goodEntries } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
+import { TechId } from '../defs/techs.ts';
 
 const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
 const UNREACHABLE_BACKOFF = REQUEST_INTERVAL; // hold before re-pathing to a walled-off post
@@ -207,7 +208,7 @@ function handleArrivals(world: World): void {
       // a cancelled order doesn't refund a drink already drunk.
       if (
         (b.inputs[GoodId.ale] ?? 0) > 0 &&
-        world.players[b.owner]?.techs.researched.includes('aleRations')
+        world.players[b.owner]?.techs.researched.includes(TechId.aleRations)
       ) {
         b.inputs[GoodId.ale] = (b.inputs[GoodId.ale] ?? 0) - 1;
         world.ledger.consumed[GoodId.ale] = (world.ledger.consumed[GoodId.ale] ?? 0) + 1;

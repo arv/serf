@@ -1,7 +1,7 @@
 import { Rng } from '../../shared/rng.ts';
-import type { TechId } from './techs.ts';
 import { UnitTypeId } from './units.ts';
 import { BuildingTypeId } from './buildings.ts';
+import { TechId } from './techs.ts';
 
 /**
  * The playbooks the AI seats run.
@@ -127,20 +127,20 @@ const STEWARD_BUILD: BuildStep[] = [
     count: 1,
     anchor: 'wood',
     radius: 6,
-    more: { after: 'ironworking', count: 2 },
+    more: { after: TechId.ironworking, count: 2 },
   },
   { type: BuildingTypeId.quarry, count: 1, anchor: 'rock', radius: 6 },
   // Beds, third. The castle sleeps ten and the village starts with eight,
   // so the opening's hiring is throttled to two hands until a roof goes
   // up — but the axe and the pick have to come first or there is nothing
   // to build it with.
-  { type: BuildingTypeId.house, count: 1, anchor: 'base', more: { after: 'ironworking', count: 2 } },
+  { type: BuildingTypeId.house, count: 1, anchor: 'base', more: { after: TechId.ironworking, count: 2 } },
   { type: BuildingTypeId.abbey, count: 1, anchor: 'base' },
   // Silver before the barracks: the pool starts lean, so replacement hands
   // are bought — and research, weapons and hiring all drain the same purse.
   // Income first is what makes the rest of the plan affordable.
   { type: BuildingTypeId.silverMine, count: 1, anchor: 'silver', radius: 4 },
-  { type: BuildingTypeId.barracks, count: 1, anchor: 'base', after: 'soldiery' },
+  { type: BuildingTypeId.barracks, count: 1, anchor: 'base', after: TechId.soldiery },
   { type: BuildingTypeId.well, count: 1, anchor: 'base' },
   { type: BuildingTypeId.wheatFarm, count: 1, anchor: 'base' },
   // Grain is no longer a war material on its own: without the mill and the
@@ -152,16 +152,16 @@ const STEWARD_BUILD: BuildStep[] = [
   // mill standing and nothing left to raise a barracks with.)
   { type: BuildingTypeId.mill, count: 1, anchor: 'base', needs: BuildingTypeId.barracks },
   { type: BuildingTypeId.bakery, count: 1, anchor: 'base', needs: BuildingTypeId.barracks },
-  { type: BuildingTypeId.ironMine, count: 1, anchor: 'iron', radius: 4, after: 'ironworking' },
+  { type: BuildingTypeId.ironMine, count: 1, anchor: 'iron', radius: 4, after: TechId.ironworking },
   // Weapons need somewhere to train their bearers: the smiths wait for the
   // barracks, or their wood hunger keeps it unaffordable forever (the
   // army-less death the winnable test caught).
-  { type: BuildingTypeId.weaponsmith, count: 2, anchor: 'base', after: 'ironworking', needs: BuildingTypeId.barracks },
+  { type: BuildingTypeId.weaponsmith, count: 2, anchor: 'base', after: TechId.ironworking, needs: BuildingTypeId.barracks },
   // Last in the plan, and on purpose. A shore is free food, but the brain
   // cannot tell whether it needs any: its list is unconditional, so a
   // fishery bought before the smiths is a hand and twelve wood spent on
   // food the bakery was already making. Behind everything, it is surplus.
-  { type: BuildingTypeId.fishery, count: 1, anchor: 'water', radius: 8, after: 'ironworking', needs: BuildingTypeId.barracks },
+  { type: BuildingTypeId.fishery, count: 1, anchor: 'water', radius: 8, after: TechId.ironworking, needs: BuildingTypeId.barracks },
 ];
 
 export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
@@ -170,11 +170,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     name: 'The Steward',
     blurb: 'Silver first, then soldiery. Builds what it needs, marches at seven.',
     build: STEWARD_BUILD,
-    researchOrder: ['soldiery', 'cobbledBoots', 'ironworking'],
+    researchOrder: [TechId.soldiery, TechId.cobbledBoots, TechId.ironworking],
     researchReserve: 10,
     serfTarget: 10,
     survivalFloor: 3,
-    growthAfter: 'soldiery',
+    growthAfter: TechId.soldiery,
     housingHeadroom: 3,
     houseLimit: 4,
     weaponMix: [1, 0], // first smith on swords, the rest on spears
@@ -199,15 +199,15 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         count: 1,
         anchor: 'wood',
         radius: 6,
-        more: { after: 'ironworking', count: 2 },
+        more: { after: TechId.ironworking, count: 2 },
       },
       { type: BuildingTypeId.quarry, count: 1, anchor: 'rock', radius: 6 },
       // Beds third, as the campaign line has them: the axe and the pick
       // first, then the roof that lets the village grow past ten.
-      { type: BuildingTypeId.house, count: 1, anchor: 'base', more: { after: 'ironworking', count: 2 } },
+      { type: BuildingTypeId.house, count: 1, anchor: 'base', more: { after: TechId.ironworking, count: 2 } },
       { type: BuildingTypeId.abbey, count: 1, anchor: 'base' },
       { type: BuildingTypeId.silverMine, count: 1, anchor: 'silver', radius: 4 },
-      { type: BuildingTypeId.barracks, count: 1, anchor: 'base', after: 'soldiery' },
+      { type: BuildingTypeId.barracks, count: 1, anchor: 'base', after: TechId.soldiery },
       { type: BuildingTypeId.well, count: 1, anchor: 'base' },
       { type: BuildingTypeId.wheatFarm, count: 1, anchor: 'base' },
       { type: BuildingTypeId.mill, count: 1, anchor: 'base', needs: BuildingTypeId.barracks },
@@ -215,8 +215,8 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // Two mines for two forges. A sword is two iron to a spear's one, so
       // an all-knight army on one seam starves the smiths and fields four
       // men instead of an army — a second mine is what makes the plan real.
-      { type: BuildingTypeId.ironMine, count: 2, anchor: 'iron', radius: 4, after: 'ironworking' },
-      { type: BuildingTypeId.weaponsmith, count: 2, anchor: 'base', after: 'ironworking', needs: BuildingTypeId.barracks },
+      { type: BuildingTypeId.ironMine, count: 2, anchor: 'iron', radius: 4, after: TechId.ironworking },
+      { type: BuildingTypeId.weaponsmith, count: 2, anchor: 'base', after: TechId.ironworking, needs: BuildingTypeId.barracks },
       // The gold, and only on this seat. Gold has exactly one sink in the
       // whole game — Gilded Arms, 4 of it for another 20% on every soldier's
       // health — and Gilded Arms sits behind Mail Armor, which no other
@@ -226,9 +226,9 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // Behind the forges on purpose: the seam is out in the middle of the
       // map (see BuildAnchor), so this is the plan's outpost, and an outpost
       // laid before the swords are being made is a rush that stopped to mine.
-      { type: BuildingTypeId.goldMine, count: 1, anchor: 'gold', radius: 4, after: 'deepMining' },
+      { type: BuildingTypeId.goldMine, count: 1, anchor: 'gold', radius: 4, after: TechId.deepMining },
       // Last, and only once the forges stand — see the campaign line's note.
-      { type: BuildingTypeId.fishery, count: 1, anchor: 'water', radius: 8, after: 'ironworking', needs: BuildingTypeId.barracks },
+      { type: BuildingTypeId.fishery, count: 1, anchor: 'water', radius: 8, after: TechId.ironworking, needs: BuildingTypeId.barracks },
     ],
     // Deep Mining before the armor, which is not where the war techs would
     // put it: it is the seat's economy tech first and the gold's gate second.
@@ -246,12 +246,12 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // world it lays the mine itself around tick 25_000. That is the case the
     // line is written for. (tools/aiLab/balance.ts)
     researchOrder: [
-      'soldiery',
-      'cobbledBoots',
-      'ironworking',
-      'deepMining',
-      'mailArmor',
-      'gildedArms',
+      TechId.soldiery,
+      TechId.cobbledBoots,
+      TechId.ironworking,
+      TechId.deepMining,
+      TechId.mailArmor,
+      TechId.gildedArms,
     ],
     researchReserve: 6,
     serfTarget: 11,
@@ -281,21 +281,21 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         count: 1,
         anchor: 'wood',
         radius: 6,
-        more: { after: 'ironworking', count: 2 },
+        more: { after: TechId.ironworking, count: 2 },
       },
       { type: BuildingTypeId.quarry, count: 1, anchor: 'rock', radius: 6 },
       // Beds third, as the campaign line has them: the axe and the pick
       // first, then the roof that lets the village grow past ten.
-      { type: BuildingTypeId.house, count: 1, anchor: 'base', more: { after: 'ironworking', count: 2 } },
+      { type: BuildingTypeId.house, count: 1, anchor: 'base', more: { after: TechId.ironworking, count: 2 } },
       { type: BuildingTypeId.abbey, count: 1, anchor: 'base' },
       { type: BuildingTypeId.silverMine, count: 1, anchor: 'silver', radius: 4 },
-      { type: BuildingTypeId.barracks, count: 1, anchor: 'base', after: 'soldiery' },
+      { type: BuildingTypeId.barracks, count: 1, anchor: 'base', after: TechId.soldiery },
       { type: BuildingTypeId.well, count: 1, anchor: 'base' },
       { type: BuildingTypeId.wheatFarm, count: 1, anchor: 'base' },
       { type: BuildingTypeId.mill, count: 1, anchor: 'base', needs: BuildingTypeId.barracks },
       { type: BuildingTypeId.bakery, count: 1, anchor: 'base', needs: BuildingTypeId.barracks },
-      { type: BuildingTypeId.ironMine, count: 1, anchor: 'iron', radius: 4, after: 'ironworking' },
-      { type: BuildingTypeId.weaponsmith, count: 2, anchor: 'base', after: 'ironworking', needs: BuildingTypeId.barracks },
+      { type: BuildingTypeId.ironMine, count: 1, anchor: 'iron', radius: 4, after: TechId.ironworking },
+      { type: BuildingTypeId.weaponsmith, count: 2, anchor: 'base', after: TechId.ironworking, needs: BuildingTypeId.barracks },
       // The towers this plan is now built around, and the reason it learns
       // archery at all. Two of them, still gated on the bow now that the
       // levy means a tower is never merely wasted stone — because moving
@@ -309,12 +309,12 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // the halt lever took the soldiers with it; the gate they picked is
       // unchanged, the margins want re-measuring.)
       // (tools/aiLab/balance.ts)
-      { type: BuildingTypeId.guardTower, count: 2, anchor: 'base', after: 'archery', needs: BuildingTypeId.barracks },
+      { type: BuildingTypeId.guardTower, count: 2, anchor: 'base', after: TechId.archery, needs: BuildingTypeId.barracks },
       // The wide half of the plan waits for the iron chain to stand: hired
       // hands eat, and a second field is only worth its worker once there
       // are hands to spare.
-      { type: BuildingTypeId.wheatFarm, count: 2, anchor: 'base', after: 'ironworking' },
-      { type: BuildingTypeId.well, count: 2, anchor: 'base', after: 'ironworking' },
+      { type: BuildingTypeId.wheatFarm, count: 2, anchor: 'base', after: TechId.ironworking },
+      { type: BuildingTypeId.well, count: 2, anchor: 'base', after: TechId.ironworking },
       // The second field is where this plan's spare hand goes, which is why
       // no fishery follows it — see the Fletcher's note.
       //
@@ -323,17 +323,17 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // farm and well stand before Brewing lands, so the brewery drinks
       // surplus rather than the bread chain's inputs. Festivals then turns
       // that surplus into +25% work speed across the whole village.
-      { type: BuildingTypeId.brewery, count: 1, anchor: 'base', after: 'brewing' },
+      { type: BuildingTypeId.brewery, count: 1, anchor: 'base', after: TechId.brewing },
     ],
     researchOrder: [
-      'soldiery',
-      'cobbledBoots',
-      'ironworking',
+      TechId.soldiery,
+      TechId.cobbledBoots,
+      TechId.ironworking,
       // The bow, for the towers — after the iron chain, which still arms
       // this plan's knights, and before the wide half it can take its time
       // over. Nothing else in the deck researches both lines.
-      'archery',
-      'irrigation',
+      TechId.archery,
+      TechId.irrigation,
       // Brewing and Festivals ahead of Masonry, where they used to sit
       // behind it. The old order was a safety rule — put the ale last so a
       // dry brewery (Festivals costs 2 ale) can never hold up a tech the war
@@ -360,9 +360,9 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // left alone in a peaceful world out to 60_000 ticks, Brewing long
       // since in, this seat still laid no brewery on any of four seeds. The
       // forge is where that wants fixing. (tools/aiLab/balance.ts)
-      'brewing',
-      'festivals',
-      'masonry',
+      TechId.brewing,
+      TechId.festivals,
+      TechId.masonry,
     ],
     // The smallest purse in the deck, on the longest research order. This is
     // the widest plan and the one that runs closest to the edge: it staffs
@@ -409,7 +409,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
         count: 1,
         anchor: 'wood',
         radius: 6,
-        more: { after: 'archery', count: 2 },
+        more: { after: TechId.archery, count: 2 },
       },
       { type: BuildingTypeId.quarry, count: 1, anchor: 'rock', radius: 6 },
       // Beds third, as the campaign line has them: the axe and the pick
@@ -423,21 +423,21 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // standoff that follows. Whatever fixes this seat has to leave that
       // alone. (tools/aiLab/balance.ts, and aiStrategies.test.ts's
       // four-playbook ending.)
-      { type: BuildingTypeId.house, count: 1, anchor: 'base', more: { after: 'archery', count: 2 } },
+      { type: BuildingTypeId.house, count: 1, anchor: 'base', more: { after: TechId.archery, count: 2 } },
       { type: BuildingTypeId.abbey, count: 1, anchor: 'base' },
       { type: BuildingTypeId.silverMine, count: 1, anchor: 'silver', radius: 4 },
-      { type: BuildingTypeId.barracks, count: 1, anchor: 'base', after: 'soldiery' },
+      { type: BuildingTypeId.barracks, count: 1, anchor: 'base', after: TechId.soldiery },
       { type: BuildingTypeId.well, count: 1, anchor: 'base' },
       { type: BuildingTypeId.wheatFarm, count: 1, anchor: 'base' },
       { type: BuildingTypeId.mill, count: 1, anchor: 'base', needs: BuildingTypeId.barracks },
       { type: BuildingTypeId.bakery, count: 1, anchor: 'base', needs: BuildingTypeId.barracks },
       // Two forges and no mine to feed them: bowstaves are three wood
       // apiece, which is why the second woodcutter comes with the archery.
-      { type: BuildingTypeId.weaponsmith, count: 2, anchor: 'base', after: 'archery', needs: BuildingTypeId.barracks },
+      { type: BuildingTypeId.weaponsmith, count: 2, anchor: 'base', after: TechId.archery, needs: BuildingTypeId.barracks },
       // One seam, late, and not for weapons: the bows stay pure wood, but
       // axes, picks and scythes are ironwork, and a seat that cannot forge
       // them stops staffing the moment the starter kit runs dry.
-      { type: BuildingTypeId.ironMine, count: 1, anchor: 'iron', radius: 4, after: 'ironworking' },
+      { type: BuildingTypeId.ironMine, count: 1, anchor: 'iron', radius: 4, after: TechId.ironworking },
       // A tower, once there are bowmen to put in it. Gated on archery
       // rather than on soldiery, which for this seat is nearly the same
       // instant anyway: the bow is second in its research order, so the two
@@ -449,7 +449,7 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       // wall first — tens of ticks of villagers across a whole campaign,
       // and none at all on this seat. They are a human's answer to being
       // rushed, not the AI's.
-      { type: BuildingTypeId.guardTower, count: 1, anchor: 'base', after: 'archery', needs: BuildingTypeId.barracks },
+      { type: BuildingTypeId.guardTower, count: 1, anchor: 'base', after: TechId.archery, needs: BuildingTypeId.barracks },
       // No fishery here, and none in the Abbot's plan either. Both run their
       // last step on a purse the iron seats never touch — the Fletcher pays
       // for bowstaves out of the same wood the shore hut wants, and the Abbot
@@ -461,11 +461,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
     // tool but the fishing rod is ironwork now, and a seat that never
     // researches it can staff nothing past the starter kit. Last, because
     // the opening kit carries the first posts and the bows cannot wait.
-    researchOrder: ['soldiery', 'archery', 'cobbledBoots', 'ironworking'],
+    researchOrder: [TechId.soldiery, TechId.archery, TechId.cobbledBoots, TechId.ironworking],
     researchReserve: 8,
     serfTarget: 11,
     survivalFloor: 3,
-    growthAfter: 'soldiery',
+    growthAfter: TechId.soldiery,
     housingHeadroom: 3,
     houseLimit: 4,
     weaponMix: [2], // every forge on bowstaves

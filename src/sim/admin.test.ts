@@ -7,6 +7,7 @@ import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts'
 import { cmds, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { TechId } from './defs/techs.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -87,11 +88,11 @@ describe('admin sandbox', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.wheat]: 20, [GoodId.silver]: 20 });
     placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
-    tickWorld(world, cmds({ kind: 'research', tech: 'cobbledBoots' }));
-    expect(world.players[0]!.techs.active?.tech).toBe('cobbledBoots');
+    tickWorld(world, cmds({ kind: 'research', tech: TechId.cobbledBoots }));
+    expect(world.players[0]!.techs.active?.tech).toBe(TechId.cobbledBoots);
 
     tickWorld(world, cmds({ kind: 'admin', action: 'finishResearch' }));
     run(world, 2);
-    expect(world.players[0]!.techs.researched).toContain('cobbledBoots');
+    expect(world.players[0]!.techs.researched).toContain(TechId.cobbledBoots);
   });
 });

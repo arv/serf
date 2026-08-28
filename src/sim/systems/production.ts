@@ -22,6 +22,7 @@ import { GoodId } from '../defs/goods.ts';
 import { goodEntries } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
+import { ModifierKey } from '../defs/techs.ts';
 
 /**
  * How many nearby resource tiles one trip-start will try to path to before
@@ -138,10 +139,10 @@ function convertStep(
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
   }
   const speedup =
-    getModifier(world, b.owner, 'workSpeed') *
-    (b.type === BuildingTypeId.wheatFarm ? getModifier(world, b.owner, 'farmSpeed') : 1) *
-    (b.type === BuildingTypeId.mill || b.type === BuildingTypeId.bakery ? getModifier(world, b.owner, 'foodSpeed') : 1) *
-    (b.type === BuildingTypeId.weaponsmith ? getModifier(world, b.owner, 'forgeSpeed') : 1);
+    getModifier(world, b.owner, ModifierKey.workSpeed) *
+    (b.type === BuildingTypeId.wheatFarm ? getModifier(world, b.owner, ModifierKey.farmSpeed) : 1) *
+    (b.type === BuildingTypeId.mill || b.type === BuildingTypeId.bakery ? getModifier(world, b.owner, ModifierKey.foodSpeed) : 1) *
+    (b.type === BuildingTypeId.weaponsmith ? getModifier(world, b.owner, ModifierKey.forgeSpeed) : 1);
   b.prodTicksLeft = Math.max(1, Math.round(active.durationTicks / speedup));
   if (def.recipeOptions) {
     b.prodRecipeIndex = activeIndex;
@@ -439,8 +440,8 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
         return;
       }
       const speedup =
-        getModifier(world, b.owner, 'workSpeed') *
-        (buildingDef(b.type).mine ? getModifier(world, b.owner, 'mineSpeed') : 1);
+        getModifier(world, b.owner, ModifierKey.workSpeed) *
+        (buildingDef(b.type).mine ? getModifier(world, b.owner, ModifierKey.mineSpeed) : 1);
       worker.task = {
         t: 'gatherWork',
         tile,

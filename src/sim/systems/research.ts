@@ -4,6 +4,8 @@ import { type World } from '../world.ts';
 import type { Building, Owner } from '../entities.ts';
 import { GoodId } from '../defs/goods.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
+import { TechEffectKind } from '../defs/techs.ts';
+import { TechId } from '../defs/techs.ts';
 
 /**
  * Ticks every player's active research and festival buff. Research is
@@ -37,7 +39,7 @@ export function researchSystem(world: World): void {
         const def = TECH_DEFS[t.active.tech];
         t.researched.push(def.id);
         for (const effect of def.effects) {
-          if (effect.kind === 'unlockPaving') p.pavingUnlocked = true;
+          if (effect.kind === TechEffectKind.unlockPaving) p.pavingUnlocked = true;
         }
         t.active = undefined;
       }
@@ -49,7 +51,7 @@ export function researchSystem(world: World): void {
     }
 
     // Festivals: this player's built abbey burns 1 ale for a buff.
-    if (!t.researched.includes('festivals')) continue;
+    if (!t.researched.includes(TechId.festivals)) continue;
     const abbey = abbeyOf(p.id);
     if (abbey && (abbey.inputs[GoodId.ale] ?? 0) > 0) {
       abbey.inputs[GoodId.ale] = (abbey.inputs[GoodId.ale] ?? 0) - 1;

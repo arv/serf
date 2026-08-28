@@ -11,6 +11,8 @@ import { UnitTypeId } from '../../sim/defs/units';
 import { UNIT_TYPES } from '../../sim/defs/units';
 import { BuildingTypeId } from '../../sim/defs/buildings';
 import { BUILDING_TYPES } from '../../sim/defs/buildings';
+import { TechEffectKind } from '../../sim/defs/techs';
+import { TECH_IDS } from '../../sim/defs/techs';
 
 /**
  * The cross-reference graph the wiki walks: every "produced by / used by /
@@ -21,7 +23,7 @@ import { BUILDING_TYPES } from '../../sim/defs/buildings';
 
 export const ALL_BUILDINGS: readonly BuildingTypeId[] = BUILDING_TYPES;
 export const ALL_UNITS: readonly UnitTypeId[] = UNIT_TYPES;
-export const ALL_TECHS = Object.keys(TECH_DEFS) as TechId[];
+export const ALL_TECHS: readonly TechId[] = TECH_IDS;
 
 /**
  * The kinds the raids are made of, and the camp they muster from.
@@ -232,7 +234,7 @@ function buildBuildingUnlocks(): Map<BuildingTypeId, TechId> {
   const map = new Map<BuildingTypeId, TechId>();
   for (const id of ALL_TECHS) {
     for (const e of TECH_DEFS[id].effects) {
-      if (e.kind === 'unlockBuilding') map.set(e.building, id);
+      if (e.kind === TechEffectKind.unlockBuilding) map.set(e.building, id);
     }
   }
   return map;
@@ -244,7 +246,7 @@ function buildUnitUnlocks(): Map<UnitTypeId, TechId> {
   const map = new Map<UnitTypeId, TechId>();
   for (const id of ALL_TECHS) {
     for (const e of TECH_DEFS[id].effects) {
-      if (e.kind === 'unlockUnit') map.set(e.unit, id);
+      if (e.kind === TechEffectKind.unlockUnit) map.set(e.unit, id);
     }
   }
   return map;

@@ -15,6 +15,7 @@ import {
   type AiStrategyId,
 } from './defs/aiStrategies.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { TechId } from './defs/techs.ts';
 
 /**
  * Every AI seat used to run one hard-coded playbook, so beating one
@@ -224,8 +225,8 @@ describe('the AI playbooks', () => {
     // takes the bow line first — ironworking comes last and only for the
     // axes (its forges stay on bowstaves) — while the warlord digs a
     // second seam to keep two sword forges fed.
-    expect(world.players[3]!.techs.researched).toContain('archery');
-    expect(world.players[3]!.techs.researched[0]).toBe('soldiery');
+    expect(world.players[3]!.techs.researched).toContain(TechId.archery);
+    expect(world.players[3]!.techs.researched[0]).toBe(TechId.soldiery);
     const ironMines = (owner: number): number =>
       [...world.buildings.values()].filter(
         (b) => !b.dead && b.owner === owner && b.type === BuildingTypeId.ironMine,

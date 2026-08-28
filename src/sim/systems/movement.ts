@@ -6,6 +6,7 @@ import { getModifier } from '../techHelpers.ts';
 import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
 import { UnitTypeId } from '../defs/units.ts';
+import { ModifierKey } from '../defs/techs.ts';
 
 /**
  * Advance every unit along its path. Waypoints are tile centers; speed is the
@@ -19,7 +20,7 @@ export function movementSystem(world: World): void {
   // without a player entry (BANDIT) fall back to the same baseline of 1.
   const serfSpeedMod: number[] = [];
   for (let owner = 0; owner < world.players.length; owner++) {
-    serfSpeedMod[owner] = getModifier(world, owner, 'serfSpeed');
+    serfSpeedMod[owner] = getModifier(world, owner, ModifierKey.serfSpeed);
   }
 
   for (const unit of world.units.values()) {

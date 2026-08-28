@@ -9,6 +9,7 @@ import { GOOD_KEYS } from '../../sim/defs/goods';
 import { UNIT_TYPES } from '../../sim/defs/units';
 import { BuildingTypeId } from '../../sim/defs/buildings';
 import { BUILDING_TYPES } from '../../sim/defs/buildings';
+import { TECH_IDS } from '../../sim/defs/techs';
 
 /**
  * Which words in a sentence name something with a page of its own.
@@ -95,7 +96,7 @@ function collectTerms(): Term[] {
     const key = GOOD_KEYS[id];
     if (goodName(id).toLowerCase() !== key) terms.push({ text: key, href });
   }
-  for (const id of Object.keys(TECH_DEFS) as TechId[]) {
+  for (const id of TECH_IDS) {
     terms.push({ text: techName(id), href: techHref(id) });
   }
   terms.push(...SYNONYMS);

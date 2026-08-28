@@ -12,6 +12,7 @@ import { goodEntries } from '../sim/defs/goods.ts';
 import { UnitTypeId } from '../sim/defs/units.ts';
 import { BuildingTypeId } from '../sim/defs/buildings.ts';
 import { BUILDING_KEYS } from '../sim/defs/buildings.ts';
+import { TECH_KEYS } from '../sim/defs/techs.ts';
 
 /**
  * One AI seat's view of the match, folded down for a language model. The
@@ -280,8 +281,8 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
       popCap: popCapOf(world, playerId),
       buildings,
       army,
-      researched: techs ? [...techs.researched] : [],
-      researching: techs?.active?.tech ?? null,
+      researched: techs ? techs.researched.map((t) => TECH_KEYS[t]) : [],
+      researching: techs?.active === undefined ? null : TECH_KEYS[techs.active.tech],
       underAttack: castle ? hostileNear(world, vision, playerId, bx, by, UNDER_ATTACK_RADIUS) : false,
     },
     rivals,

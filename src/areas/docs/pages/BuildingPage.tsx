@@ -131,10 +131,10 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
                             <RecipeView recipe={opt.recipe} />
                           </td>
                           <td>
-                            <Show when={opt.requiresTech} fallback="—">
-                              {(tech) => (
-                                <DocLink href={techHref(tech())}>{techName(tech())}</DocLink>
-                              )}
+                            <Show when={opt.requiresTech !== undefined} fallback="—">
+                              <DocLink href={techHref(opt.requiresTech!)}>
+                                {techName(opt.requiresTech!)}
+                              </DocLink>
                             </Show>
                           </td>
                         </tr>

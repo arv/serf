@@ -17,6 +17,7 @@ import { bindWorker } from './systems/production.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { TechId } from './defs/techs.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -123,7 +124,7 @@ describe('the population economy', () => {
   it('training a soldier consumes a serf (people become the army)', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 6, [GoodId.spear]: 2 });
-    world.players[0]!.techs.researched.push('soldiery');
+    world.players[0]!.techs.researched.push(TechId.soldiery);
     const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     addSerf(world, 33, 34); // one hauls, one enlists

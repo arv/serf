@@ -8,11 +8,11 @@ export type BuildingTypeId = Enum<typeof BuildingTypeIdNs>;
 const B = BuildingTypeIdNs;
 import type { GoodAmounts } from './goods.ts';
 import type { UnitClass } from './units.ts';
-import type { TechId } from './techs.ts';
 import { GoodId } from './goods.ts';
 import { goodEntries } from './goods.ts';
 import { goodKeys } from './goods.ts';
 import { UnitTypeId } from './units.ts';
+import { TechId } from './techs.ts';
 
 /**
  * Two recipe kinds cover every producer in the game:
@@ -376,7 +376,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
   [B.brewery]: {
     id: B.brewery,
     name: 'Brewery',
-    requiresTech: 'brewing' as const,
+    requiresTech: TechId.brewing,
     w: 2,
     h: 2,
     cost: { [GoodId.wood]: 10, [GoodId.stone]: 4 },
@@ -401,7 +401,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
   [B.ironMine]: {
     id: B.ironMine,
     name: 'Iron Mine',
-    requiresTech: 'ironworking' as const,
+    requiresTech: TechId.ironworking,
     w: 2,
     h: 2,
     cost: { [GoodId.wood]: 8, [GoodId.stone]: 4 },
@@ -430,7 +430,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
   [B.goldMine]: {
     id: B.goldMine,
     name: 'Gold Mine',
-    requiresTech: 'deepMining' as const,
+    requiresTech: TechId.deepMining,
     w: 2,
     h: 2,
     cost: { [GoodId.wood]: 10, [GoodId.stone]: 6 },
@@ -467,7 +467,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           outputs: { [GoodId.spear]: 1 },
           durationTicks: 10 * S,
         },
-        requiresTech: 'ironworking' as const,
+        requiresTech: TechId.ironworking,
       },
       {
         recipe: {
@@ -476,7 +476,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           outputs: { [GoodId.sword]: 1 },
           durationTicks: 14 * S,
         },
-        requiresTech: 'ironworking' as const,
+        requiresTech: TechId.ironworking,
       },
       {
         recipe: {
@@ -485,7 +485,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           outputs: { [GoodId.bow]: 1 },
           durationTicks: 8 * S,
         },
-        requiresTech: 'archery' as const,
+        requiresTech: TechId.archery,
       },
       // The tools, appended after the weapons: indices 0/1/2 are quoted by
       // weaponMix, WEAPON_NAMES, COUNTER_PICK and forgeTheCounter, so the
@@ -499,7 +499,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           outputs: { [GoodId.axe]: 1 },
           durationTicks: 8 * S,
         },
-        requiresTech: 'ironworking' as const,
+        requiresTech: TechId.ironworking,
       },
       {
         // The one tool that must not cost iron: every mine is staffed by a
@@ -513,7 +513,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           outputs: { [GoodId.pickaxe]: 1 },
           durationTicks: 8 * S,
         },
-        requiresTech: 'ironworking' as const,
+        requiresTech: TechId.ironworking,
       },
       {
         recipe: {
@@ -522,7 +522,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           outputs: { [GoodId.scythe]: 1 },
           durationTicks: 8 * S,
         },
-        requiresTech: 'ironworking' as const,
+        requiresTech: TechId.ironworking,
       },
       {
         recipe: {
@@ -531,7 +531,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           outputs: { [GoodId.hammer]: 1 },
           durationTicks: 6 * S,
         },
-        requiresTech: 'ironworking' as const,
+        requiresTech: TechId.ironworking,
       },
       {
         recipe: {
@@ -540,7 +540,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
           outputs: { [GoodId.cauldron]: 1 },
           durationTicks: 8 * S,
         },
-        requiresTech: 'ironworking' as const,
+        requiresTech: TechId.ironworking,
       },
       {
         recipe: {
@@ -571,7 +571,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     buildTicks: 25 * S,
     hp: 220,
     sight: 5.5,
-    requiresTech: 'soldiery',
+    requiresTech: TechId.soldiery,
     trains: [
       // Soldiers march on bread, not on raw grain: the barracks is the far
       // end of mill -> bakery, and wheat is a crop again.
@@ -596,7 +596,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // Gated with the barracks rather than with the bow: raising the tower
     // is the decision to defend a line, and it can stand empty and waiting
     // while the archers who will man it are still a research away.
-    requiresTech: 'soldiery',
+    requiresTech: TechId.soldiery,
     // Half again the damage and two tiles further than the same archer
     // standing in the field. Deliberately short of doubling either: two men
     // in a tower already beat two men on the grass by being unkillable

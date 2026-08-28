@@ -8,6 +8,7 @@ import type { SimCommand } from './commands.ts';
 import type { PlayerCommand } from './tick.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { TechId } from './defs/techs.ts';
 
 describe('command screening', () => {
   it('accepts what the client actually sends', () => {
@@ -20,7 +21,7 @@ describe('command screening', () => {
       { kind: 'sellBuilding', buildingId: 3 },
       { kind: 'setBuildingPaused', buildingId: 3, paused: true },
       { kind: 'setBuildingRepair', buildingId: 3, repair: true },
-      { kind: 'research', tech: 'irrigation' },
+      { kind: 'research', tech: TechId.irrigation },
       { kind: 'trainUnit', buildingId: 7, unit: UnitTypeId.spearman },
       { kind: 'cancelTraining', buildingId: 7, index: 2, unit: UnitTypeId.spearman },
       { kind: 'setRallyPoint', buildingId: 7, x: 10, y: 12 },
