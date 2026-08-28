@@ -12,6 +12,7 @@ import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
 import { createWorld } from '../../src/sim/world.ts';
 import { PlayerKind } from '../../src/sim/player.ts';
+import { AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
 
 function arg(name: string, dflt: number): number {
   const i = process.argv.indexOf(`--${name}`);
@@ -25,8 +26,8 @@ const SIZE = arg('size', 96);
 const world = createWorld({
   seed: SEED,
   players: [
-    { kind: PlayerKind.ai, strategy: 'steward' },
-    { kind: PlayerKind.ai, strategy: 'warlord' },
+    { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
+    { kind: PlayerKind.ai, strategy: AiStrategyId.warlord },
   ],
   banditsEnabled: true,
   mapSize: SIZE,
@@ -39,7 +40,7 @@ for (let i = 0; i < TICKS; i++) {
   const cmds = seats.decide(world);
   tickWorld(world, cmds);
   ticked++;
-  if (!world.players.some((p) => p.kind === 'ai' && p.alive)) break;
+  if (!world.players.some((p) => p.kind === PlayerKind.ai && p.alive)) break;
 }
 const t1 = process.hrtime.bigint();
 
