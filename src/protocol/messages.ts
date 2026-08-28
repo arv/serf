@@ -2,7 +2,7 @@ import type { AiWorldSummary } from '../ai/summary.ts';
 import type { EntityId, Owner } from '../sim/entities.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 import type { BuildingTypeId } from '../sim/defs/buildings.ts';
-import type { GoodAmounts } from '../sim/defs/goods.ts';
+import type { GoodAmounts, GoodId } from '../sim/defs/goods.ts';
 import type { MissionId } from '../sim/defs/missions.ts';
 import type { TechId } from '../sim/defs/techs.ts';
 import type { PlayerCommand } from '../sim/tick.ts';
@@ -107,7 +107,7 @@ export interface BuildingSnap {
 /** Debug-overlay row for a haul job. */
 export interface JobSnap {
   id: number;
-  good: string;
+  good: GoodId;
   from: EntityId;
   to: EntityId;
   priority: number;

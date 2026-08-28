@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
 import { addStorehouse, bareWorld, cmds, staffBuilding } from './testUtils.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -19,8 +20,8 @@ describe('the weaponsmith', () => {
     world.players[0]!.techs.researched.push('ironworking', 'archery');
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 30, 30);
     staffBuilding(world, smith);
-    smith.inputs.iron = 1;
-    smith.inputs.wood = 5;
+    smith.inputs[GoodId.iron] = 1;
+    smith.inputs[GoodId.wood] = 5;
     // A fresh Smith idles on auto; pin the standing order on spears.
     tickWorld(world, cmds({ kind: 'setBuildingRecipe', buildingId: smith.id, index: 0 }));
 
@@ -31,14 +32,14 @@ describe('the weaponsmith', () => {
     // ...switch to bows mid-batch: the spear still comes out first.
     tickWorld(world, cmds({ kind: 'setBuildingRecipe', buildingId: smith.id, index: 2 }));
     guard = 0;
-    while ((smith.stock.spear ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
-    expect(smith.stock.spear).toBe(1);
-    expect(smith.stock.bow ?? 0).toBe(0);
+    while ((smith.stock[GoodId.spear] ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
+    expect(smith.stock[GoodId.spear]).toBe(1);
+    expect(smith.stock[GoodId.bow] ?? 0).toBe(0);
 
     // The next batch is the new selection.
     guard = 0;
-    while ((smith.stock.bow ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
-    expect(smith.stock.bow).toBe(1);
+    while ((smith.stock[GoodId.bow] ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
+    expect(smith.stock[GoodId.bow]).toBe(1);
   });
 
   it('refuses a recipe whose tech is missing', () => {
@@ -75,7 +76,7 @@ describe('the forge queue', () => {
     const world = bareWorld();
     // Zero the fixture tool kit: these tests measure the tool economy
     // itself, and a shelf of spare axes covers every gap auto would see.
-    addStorehouse(world, 24, 24, { axe: 0, pickaxe: 0, scythe: 0, hammer: 0, cauldron: 0, rod: 0 });
+    addStorehouse(world, 24, 24, { [GoodId.axe]: 0, [GoodId.pickaxe]: 0, [GoodId.scythe]: 0, [GoodId.hammer]: 0, [GoodId.cauldron]: 0, [GoodId.rod]: 0 });
     world.players[0]!.techs.researched.push('ironworking', 'archery');
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 30, 30);
     staffBuilding(world, smith);
@@ -84,8 +85,8 @@ describe('the forge queue', () => {
 
   it('works orders ahead of the standing order, then falls back', () => {
     const { world, smith } = forgeWorld();
-    smith.inputs.iron = 4;
-    smith.inputs.wood = 8;
+    smith.inputs[GoodId.iron] = 4;
+    smith.inputs[GoodId.wood] = 8;
     // One beat: standing order on spears, one bow ordered ahead of it.
     // (Two beats would let a spear batch take the fire between them, and a
     // batch on the fire finishes as what it started as.)
@@ -98,20 +99,20 @@ describe('the forge queue', () => {
     );
 
     let guard = 0;
-    while ((smith.stock.bow ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
-    expect(smith.stock.bow).toBe(1);
-    expect(smith.stock.spear ?? 0).toBe(0); // the order jumped the line
+    while ((smith.stock[GoodId.bow] ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
+    expect(smith.stock[GoodId.bow]).toBe(1);
+    expect(smith.stock[GoodId.spear] ?? 0).toBe(0); // the order jumped the line
     expect(smith.forgeQueue).toBeUndefined(); // worked off and struck
 
     guard = 0;
-    while ((smith.stock.spear ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
-    expect(smith.stock.spear).toBe(1); // then back to the standing order
+    while ((smith.stock[GoodId.spear] ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
+    expect(smith.stock[GoodId.spear]).toBe(1); // then back to the standing order
   });
 
   it('cancelling a started order keeps the batch on the fire', () => {
     const { world, smith } = forgeWorld();
-    smith.inputs.iron = 4;
-    smith.inputs.wood = 8;
+    smith.inputs[GoodId.iron] = 4;
+    smith.inputs[GoodId.wood] = 8;
     tickWorld(world, cmds({ kind: 'enqueueForge', buildingId: smith.id, recipeIndex: 2 }));
     let guard = 0;
     while (smith.prodTicksLeft === undefined && guard++ < 100) tickWorld(world, []);
@@ -123,10 +124,10 @@ describe('the forge queue', () => {
     );
     expect(smith.forgeQueue).toBeUndefined();
     guard = 0;
-    while ((smith.stock.bow ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
-    expect(smith.stock.bow).toBe(1); // the batch still lands, exactly once
+    while ((smith.stock[GoodId.bow] ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
+    expect(smith.stock[GoodId.bow]).toBe(1); // the batch still lands, exactly once
     tickWorld(world, []);
-    expect(smith.stock.bow).toBe(1);
+    expect(smith.stock[GoodId.bow]).toBe(1);
   });
 
   it('a stale cancel misses instead of striking a neighbour', () => {
@@ -155,29 +156,29 @@ describe('the forge queue', () => {
 
   it('auto forges the tool the village most lacks, then goes cold', () => {
     const { world, smith } = forgeWorld();
-    smith.inputs.iron = 4;
-    smith.inputs.wood = 8;
+    smith.inputs[GoodId.iron] = 4;
+    smith.inputs[GoodId.wood] = 8;
     // recipeIndex stays undefined: auto. An open post that wants an axe...
     const hut = placeBuiltBuilding(world, 'woodcutter', 0, 36, 36);
     expect(hut.workerId).toBeUndefined();
 
     let guard = 0;
-    while ((smith.stock.axe ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
-    expect(smith.stock.axe).toBe(1);
+    while ((smith.stock[GoodId.axe] ?? 0) === 0 && guard++ < 5000) tickWorld(world, []);
+    expect(smith.stock[GoodId.axe]).toBe(1);
 
     // ...and once the gap is covered (one axe free, one post open), the
     // fire goes cold rather than burning iron on surplus.
-    const iron = smith.inputs.iron ?? 0;
+    const iron = smith.inputs[GoodId.iron] ?? 0;
     for (let i = 0; i < 400; i++) tickWorld(world, []);
-    expect(smith.inputs.iron).toBe(iron);
+    expect(smith.inputs[GoodId.iron]).toBe(iron);
   });
 
   it('auto with every rack served forges nothing at all', () => {
     const { world, smith } = forgeWorld();
-    smith.inputs.iron = 4;
-    smith.inputs.wood = 8;
+    smith.inputs[GoodId.iron] = 4;
+    smith.inputs[GoodId.wood] = 8;
     for (let i = 0; i < 400; i++) tickWorld(world, []);
     expect(smith.prodTicksLeft).toBeUndefined();
-    expect(smith.inputs.iron).toBe(4);
+    expect(smith.inputs[GoodId.iron]).toBe(4);
   });
 });

@@ -7,6 +7,7 @@ import { BANDIT } from './entities.ts';
 import { placeBuiltBuilding, spawnUnit } from './world.ts';
 import { addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 import type { SimCommand } from './commands.ts';
+import { GoodId } from './defs/goods.ts';
 
 /**
  * The brain plays under the fog. These are the two rules the server holds
@@ -130,7 +131,7 @@ describe('the AI under fog of war', () => {
     // turn to swords (the second one against its playbook line of spears)
     // and the barracks trains the knight the sword in stock can arm.
     const world = bareWorld(1, 2);
-    addStorehouse(world, 30, 30, { sword: 1, spear: 1 });
+    addStorehouse(world, 30, 30, { [GoodId.sword]: 1, [GoodId.spear]: 1 });
     // Hands in the village, because that is what these fixtures mean by a
     // seat with a barracks: below the survival floor `handsBeforeSoldiers`
     // stands the barracks down, and a queue rule cannot be read through a
@@ -155,7 +156,7 @@ describe('the AI under fog of war', () => {
     // behind ironworking the fletcher never researches — the forges stay
     // on bows and the barracks trains the archer it can actually arm.
     const world = bareWorld(1, 2);
-    addStorehouse(world, 30, 30, { bow: 2 });
+    addStorehouse(world, 30, 30, { [GoodId.bow]: 2 });
     hands(world);
     world.players[0]!.techs.researched.push('soldiery', 'archery');
     placeBuiltBuilding(world, 'barracks', 0, 34, 34);
@@ -195,7 +196,7 @@ describe('the AI under fog of war', () => {
     // preference list must be read through the same gate the fallback is:
     // an armed order the sim refuses fills no queue either.
     const world = bareWorld(1, 2);
-    addStorehouse(world, 30, 30, { bow: 4 });
+    addStorehouse(world, 30, 30, { [GoodId.bow]: 4 });
     hands(world);
     world.players[0]!.techs.researched.push('soldiery', 'ironworking');
     placeBuiltBuilding(world, 'barracks', 0, 34, 34);
@@ -220,7 +221,7 @@ describe('the AI under fog of war', () => {
     // sighting is still inside its trust window, and the forges keep
     // answering it with swords.
     const world = bareWorld(1, 2);
-    addStorehouse(world, 30, 30, { sword: 1, spear: 1 });
+    addStorehouse(world, 30, 30, { [GoodId.sword]: 1, [GoodId.spear]: 1 });
     addStorehouse(world, 44, 44, {}, 1);
     world.players[0]!.techs.researched.push('soldiery', 'ironworking');
     placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);

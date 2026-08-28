@@ -21,6 +21,8 @@ import {
   cmds,
 } from './testUtils.ts';
 import type { SimCommand } from './commands.ts';
+import { GoodId } from './defs/goods.ts';
+import type { GoodAmounts } from './defs/goods.ts';
 
 function digest(world: World): unknown {
   return {
@@ -320,7 +322,7 @@ describe('the stall watchdog', () => {
     addStorehouse(world, 30, 30, {});
     addResourceTile(world, 40, 41);
     const hut = addBuiltHut(world, 40, 40);
-    hut.stock = { wood: OUTPUT_CAP };
+    hut.stock = { [GoodId.wood]: OUTPUT_CAP };
     return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size), hut };
   }
 
@@ -412,7 +414,7 @@ describe('the stall watchdog', () => {
     addStorehouse(world, 30, 30, {});
     addResourceTile(world, 40, 41);
     const hut = addBuiltHut(world, 40, 40);
-    hut.stock = { wood: OUTPUT_CAP };
+    hut.stock = { [GoodId.wood]: OUTPUT_CAP };
     const worker = world.units.get(hut.workerId!)!;
     worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: true }));
@@ -428,7 +430,7 @@ describe('the stall watchdog', () => {
     // sale hands back, and the rule refuses to sell what it could not
     // rebuild. Not a plank more: a seat with enough to place anything at
     // all is a seat that is going somewhere, and would not read as stalled.
-    addStorehouse(world, 30, 30, { wood: 3 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 3 });
     const dead = addBuiltHut(world, 40, 40); // no resource tile in reach
     addResourceTile(world, 12, 12); // ...but a live grove clear across the map
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
@@ -757,10 +759,10 @@ describe('a village that lost its hands', () => {
     // seat that will not train while it sits AT its floor never fields an
     // army, and sitting at the floor is what a raided village does.
     const world = bareWorld(1, 2);
-    addStorehouse(world, 30, 30, { food: 40, sword: 40 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 40, [GoodId.sword]: 40 });
     addStorehouse(world, 60, 60, {}, 1); // a rival, so the match does not end at tick 1
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 36);
-    barracks.inputs = { food: 30, sword: 30 };
+    barracks.inputs = { [GoodId.food]: 30, [GoodId.sword]: 30 };
     barracks.paused = true;
     const floor = AI_STRATEGIES.steward.survivalFloor;
     for (let i = 0; i < floor + 1; i++) addSerf(world, 31 + i, 31);
@@ -788,9 +790,9 @@ describe('a village that lost its hands', () => {
     // the shelf has to be able to AFFORD it or the guard is not what the
     // assertion is reading — an unaffordable tech is refused a line earlier
     // and the test would pass with the guard deleted.
-    const soldiery = TECH_DEFS.soldiery.cost.silver!;
+    const soldiery = TECH_DEFS.soldiery.cost[GoodId.silver]!;
     const world = bareWorld();
-    const shelf = addStorehouse(world, 30, 30, { silver: soldiery + 1, wheat: 20 });
+    const shelf = addStorehouse(world, 30, 30, { [GoodId.silver]: soldiery + 1, [GoodId.wheat]: 20 });
     placeBuiltBuilding(world, 'abbey', 0, 36, 36);
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     expect(beat(brain, world).filter((c) => c.kind === 'research')).toEqual([]);
@@ -800,20 +802,20 @@ describe('a village that lost its hands', () => {
     // panic branch just spent is gone before research is charged. Ten
     // silver looks like enough for a 6-silver tech with a hire left over
     // and is not — it is 10 - 4 - 6 = 0.
-    shelf.stock.silver = HIRE_SERF_COST + soldiery;
+    shelf.stock[GoodId.silver] = HIRE_SERF_COST + soldiery;
     const beat10 = beat(brain, world);
     expect(beat10.filter((c) => c.kind === 'hireSerf')).not.toEqual([]);
     expect(beat10.filter((c) => c.kind === 'research')).toEqual([]);
 
     // Not a blanket ban: with the hand, the tech and the NEXT hand all paid
     // for, the queue runs even below the floor.
-    shelf.stock.silver = HIRE_SERF_COST * 2 + soldiery;
+    shelf.stock[GoodId.silver] = HIRE_SERF_COST * 2 + soldiery;
     expect(beat(brain, world).filter((c) => c.kind === 'research')).not.toEqual([]);
 
     // And with the pool back over the floor the guard is silent entirely —
     // the playbook's own research reserve takes over from here.
     for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor; i++) addSerf(world, 31 + i, 31);
-    shelf.stock.silver = soldiery;
+    shelf.stock[GoodId.silver] = soldiery;
     expect(beat(brain, world).filter((c) => c.kind === 'research')).not.toEqual([]);
   });
 
@@ -826,7 +828,7 @@ describe('a village that lost its hands', () => {
     addStorehouse(world, 30, 30, {});
     addResourceTile(world, 40, 41);
     const hut = addBuiltHut(world, 40, 40);
-    hut.stock = { wood: OUTPUT_CAP };
+    hut.stock = { [GoodId.wood]: OUTPUT_CAP };
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     let sawSerf = false;
     for (let t = 0; t < 3000; t++) {
@@ -838,7 +840,7 @@ describe('a village that lost its hands', () => {
       sawSerf ||= [...world.units.values()].some((u) => !u.dead && u.kind === 'serf');
     }
     expect(sawSerf).toBe(true);
-    expect(hut.stock.wood ?? 0).toBeLessThan(OUTPUT_CAP);
+    expect(hut.stock[GoodId.wood] ?? 0).toBeLessThan(OUTPUT_CAP);
   });
 });
 
@@ -849,7 +851,7 @@ describe('a forge nobody is buying from', () => {
    * — so `forgeTheCounter` has nothing to re-tune and the glut rule is the
    * only thing in the beat with an opinion about a Smith.
    */
-  function armory(stock: Record<string, number>): {
+  function armory(stock: GoodAmounts): {
     world: World;
     brain: AiBrain;
     swords: Building;
@@ -890,7 +892,7 @@ describe('a forge nobody is buying from', () => {
     // bottomless so the forge's own buffer never fills, and the standing
     // order runs forever. The sword line is untouched in the same beat —
     // the rule reads each anvil's own recipe against its own pile.
-    const { world, brain, swords, bows } = armory({ bow: 12, sword: 1 });
+    const { world, brain, swords, bows } = armory({ [GoodId.bow]: 12, [GoodId.sword]: 1 });
     const orders = beat(brain, world);
     expect(orders).toContainEqual(halt(bows));
     expect(orders).not.toContainEqual(halt(swords));
@@ -901,10 +903,10 @@ describe('a forge nobody is buying from', () => {
     // village, so a forge that stopped and started over a single arrowhead
     // would spend its worker walking. Between the two lines, whatever each
     // anvil is doing it keeps doing.
-    const running = armory({ bow: 6 });
+    const running = armory({ [GoodId.bow]: 6 });
     expect(beat(running.brain, running.world)).not.toContainEqual(halt(running.bows));
 
-    const held = armory({ bow: 6 });
+    const held = armory({ [GoodId.bow]: 6 });
     held.bows.paused = true;
     expect(beat(held.brain, held.world)).not.toContainEqual(start(held.bows));
   });
@@ -913,7 +915,7 @@ describe('a forge nobody is buying from', () => {
     // Nothing here is decided permanently: the pile is the only thing the
     // rule reads, so training the archers the forge already paid for is
     // what puts it back to work.
-    const { world, brain, bows } = armory({ bow: 2 });
+    const { world, brain, bows } = armory({ [GoodId.bow]: 2 });
     bows.paused = true;
     expect(beat(brain, world)).toContainEqual(start(bows));
   });
@@ -922,7 +924,7 @@ describe('a forge nobody is buying from', () => {
     // A queued order jumps the standing recipe, and `keepTheToolsComing` is
     // what puts tools there — so a forge with a queue is a forge making
     // something the village asked for by name.
-    const { world, brain, bows } = armory({ bow: 12 });
+    const { world, brain, bows } = armory({ [GoodId.bow]: 12 });
     bows.forgeQueue = [{ recipeIndex: 4, started: false }];
     expect(beat(brain, world)).not.toContainEqual(halt(bows));
   });
@@ -933,7 +935,7 @@ describe('a forge nobody is buying from', () => {
     // is the only source of one, so the tool line may never be halted out
     // of existence — it is bought back here instead of paid for by holding
     // a forge open against a shortage that has not happened.
-    const { world, brain, swords, bows } = armory({ bow: 12, sword: 12, axe: 0 });
+    const { world, brain, swords, bows } = armory({ [GoodId.bow]: 12, [GoodId.sword]: 12, [GoodId.axe]: 0 });
     world.players[0]!.techs.researched.push('ironworking');
     swords.paused = true;
     bows.paused = true;
@@ -945,7 +947,7 @@ describe('a forge nobody is buying from', () => {
     const woken = orders.find((c) => c.kind === 'setBuildingPaused' && c.paused === false);
     expect(woken).toBeDefined();
     const axe = BUILDING_DEFS.weaponsmith.recipeOptions!.findIndex(
-      (o) => (o.recipe.outputs.axe ?? 0) > 0,
+      (o) => (o.recipe.outputs[GoodId.axe] ?? 0) > 0,
     );
     expect(orders).toContainEqual({
       kind: 'enqueueForge',
@@ -959,7 +961,7 @@ describe('a forge nobody is buying from', () => {
     // clear line is one `holdTheGlutForge` wants started too, and a post
     // standing open for a tool is one `keepTheToolsComing` wants started
     // for its own reason. Both are right; the anvil takes one order.
-    const { world, brain, swords, bows } = armory({ bow: 2, sword: 2, axe: 0 });
+    const { world, brain, swords, bows } = armory({ [GoodId.bow]: 2, [GoodId.sword]: 2, [GoodId.axe]: 0 });
     world.players[0]!.techs.researched.push('ironworking');
     swords.paused = true;
     bows.paused = true;

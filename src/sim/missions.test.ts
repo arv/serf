@@ -18,8 +18,8 @@ import { rectClear } from './map.ts';
 import { deserializeWorld, serializeWorld } from './save.ts';
 import { firstRaidTickFor } from './defs/balance.ts';
 import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF, type BuildingTypeId } from './defs/buildings.ts';
-import type { GoodId } from './defs/goods.ts';
 import type { SimCommand } from './commands.ts';
+import { GoodId } from './defs/goods.ts';
 
 /**
  * The campaign missions hold the same line winnable.test.ts holds for the
@@ -133,7 +133,7 @@ describe('the campaign missions', () => {
   it('mission 2 (Bread and Water) is winnable', async () => {
     const world = await playMission('breadAndWater', 'steward', 45_000);
     expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: 'over', winner: 0 });
-    expect(stockOf(world, 'wood')).toBeGreaterThanOrEqual(0);
+    expect(stockOf(world, GoodId.wood)).toBeGreaterThanOrEqual(0);
   }, 240_000);
 
   it('mission 3 (The Abbey’s Ledger) is won by the taught line: dig, study, forge', async () => {
@@ -214,7 +214,7 @@ describe('the campaign missions', () => {
       expect(b.workerId, `${b.type} staffed with no tool`).toBeUndefined();
     }
     for (const tool of TOOL_GOODS) {
-      expect(stockOf(world, tool), `${tool} in the rack`).toBe(tool === 'hammer' ? 1 : 0);
+      expect(stockOf(world, tool), `${tool} in the rack`).toBe(tool === GoodId.hammer ? 1 : 0);
     }
 
     const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
@@ -225,7 +225,7 @@ describe('the campaign missions', () => {
     tickWorld(world, cmds({ kind: 'placeBuilding', building: 'weaponsmith', x: spot.x, y: spot.y }));
 
     const HAMMER_RECIPE = BUILDING_DEFS.weaponsmith.recipeOptions!.findIndex(
-      (o) => (o.recipe.outputs.hammer ?? 0) > 0,
+      (o) => (o.recipe.outputs[GoodId.hammer] ?? 0) > 0,
     );
     const staffed = (): boolean =>
       [...world.buildings.values()].every((b) => {
@@ -267,7 +267,7 @@ describe('the campaign missions', () => {
     expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: 'over', winner: 0 });
     expect(world.objectivesDone).toEqual([true, true, true, true, true]);
     // The loan came home rather than being forged twice over.
-    expect(stockOf(world, 'hammer')).toBe(3);
+    expect(stockOf(world, GoodId.hammer)).toBe(3);
   }, 240_000);
 
   it('mission 5 (The Levy) is winnable, early raid and all', async () => {
@@ -308,7 +308,7 @@ describe('the campaign missions', () => {
     }
     expect(world.players[0]!.techs.researched).toEqual(['soldiery', 'cobbledBoots', 'ironworking']);
     expect(world.raidState.nextRaidTick).toBe(def.firstRaidTick);
-    expect(stockOf(world, 'silver')).toBe(def.startStock!.silver);
+    expect(stockOf(world, GoodId.silver)).toBe(def.startStock![GoodId.silver]);
     // And a mission with no clock override keeps the default — the
     // size-scaled peace period, since raid pacing follows the commutes.
     const finale = await createWorldAsync(missionWorldConfig('holdTheValley'));

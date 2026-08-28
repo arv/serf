@@ -14,6 +14,7 @@ import {
   cmds,
   staffBuilding,
 } from './testUtils.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -43,7 +44,7 @@ function runRepair(world: World, id: number, limit = 2000): number {
 describe('repairing a building', () => {
   it('hauls in materials and mends as they are worked in', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 20 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
     // No grove in reach: the woodcutter's own axe must not add planks to the
     // pile this test is counting.
     const hut = addBuiltHut(world, 36, 30);
@@ -54,33 +55,33 @@ describe('repairing a building', () => {
 
     tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: hut.id, repair: true }));
     // Half the build price, scaled by the four fifths that is broken.
-    expect(hut.repairNeeds).toEqual({ wood: Math.ceil(6 * 0.8 * 0.5) });
+    expect(hut.repairNeeds).toEqual({ [GoodId.wood]: Math.ceil(6 * 0.8 * 0.5) });
 
     runRepair(world, hut.id);
     expect(hut.hp).toBe(max);
-    expect(sh.stock.wood).toBe(20 - 3);
+    expect(sh.stock[GoodId.wood]).toBe(20 - 3);
     expect(checkInvariants(world).violations).toEqual([]);
     expect(checkLedger(world, initial)).toEqual([]);
   });
 
   it('bills the castle against its notional price', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 40, stone: 40 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 40, [GoodId.stone]: 40 });
     const max = buildingDef('storehouse').hp;
     sh.hp = max / 2;
     for (let i = 0; i < 4; i++) addSerf(world, 34, 34 + i);
 
     // The keep costs nothing to raise, so `cost` cannot price its repair.
     expect(buildingDef('storehouse').cost).toEqual({});
-    expect(repairBill('storehouse', max / 2)).toEqual({ wood: 5, stone: 3 });
+    expect(repairBill('storehouse', max / 2)).toEqual({ [GoodId.wood]: 5, [GoodId.stone]: 3 });
 
     // ...and it is repaired out of the pile inside it: nobody carries a plank
     // out of the castle door to hand it back in through the same door, and
     // no haul could, since a job's source is never its destination.
     tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: sh.id, repair: true }));
     expect(sh.repairNeeds).toBeUndefined(); // the whole bill was settled at once
-    expect(sh.stock.wood).toBe(35);
-    expect(sh.stock.stone).toBe(37);
+    expect(sh.stock[GoodId.wood]).toBe(35);
+    expect(sh.stock[GoodId.stone]).toBe(37);
     expect(world.jobs.size).toBe(0);
 
     // The goods are spent, but the wall is not back yet: the masons have
@@ -95,7 +96,7 @@ describe('repairing a building', () => {
 
   it('takes time even when every material is already on site', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 40, stone: 40 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 40, [GoodId.stone]: 40 });
     const max = buildingDef('storehouse').hp;
     sh.hp = max - 40;
 
@@ -116,32 +117,32 @@ describe('repairing a building', () => {
 
   it('re-ordering mid-mend bills only the damage nobody has paid for', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 40, stone: 40 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 40, [GoodId.stone]: 40 });
     const max = buildingDef('storehouse').hp;
     sh.hp = max / 2;
 
     tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: sh.id, repair: true }));
-    const spent = { wood: sh.stock.wood, stone: sh.stock.stone };
+    const spent = { [GoodId.wood]: sh.stock[GoodId.wood], [GoodId.stone]: sh.stock[GoodId.stone] };
 
     // The masons are still at work and the building still reads as damaged,
     // but every point of that damage is bought: a second order takes nothing.
     run(world, 20);
     tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: sh.id, repair: true }));
     expect(sh.repairNeeds).toBeUndefined();
-    expect(sh.stock.wood).toBe(spent.wood);
-    expect(sh.stock.stone).toBe(spent.stone);
+    expect(sh.stock[GoodId.wood]).toBe(spent[GoodId.wood]);
+    expect(sh.stock[GoodId.stone]).toBe(spent[GoodId.stone]);
 
     // Fresh damage on top of a running mend is a fresh bill, though.
     sh.hp -= 100;
     tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: sh.id, repair: true }));
-    expect(sh.stock.wood).toBeLessThan(spent.wood!);
+    expect(sh.stock[GoodId.wood]).toBeLessThan(spent[GoodId.wood]!);
     runRepair(world, sh.id);
     expect(sh.hp).toBe(max);
   });
 
   it('mends only the damage the order was given for', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 20 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
     const hut = addBuiltHut(world, 36, 30);
     for (let i = 0; i < 3; i++) addSerf(world, 33, 33 + i);
     const max = buildingDef('woodcutter').hp;
@@ -162,7 +163,7 @@ describe('repairing a building', () => {
 
   it('calling it off stands the hauls down without burning the goods', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 20 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
     const hut = addBuiltHut(world, 36, 30);
     addSerf(world, 33, 33);
     hut.hp = 20;
@@ -174,13 +175,13 @@ describe('repairing a building', () => {
 
     tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: hut.id, repair: false }));
     expect(hut.repairNeeds).toBeUndefined();
-    expect(hut.inbound.wood ?? 0).toBe(0);
+    expect(hut.inbound[GoodId.wood] ?? 0).toBe(0);
 
     // Whatever was in hand walks home rather than evaporating. Any plank
     // that had already been worked in stays worked in, so the hut is no
     // worse off than when the order was given.
     run(world, 300);
-    expect(sh.stock.wood).toBe(20);
+    expect(sh.stock[GoodId.wood]).toBe(20);
     expect(hut.hp).toBe(20);
     expect(hut.repairPending).toBeUndefined();
     expect(checkInvariants(world).violations).toEqual([]);
@@ -189,7 +190,7 @@ describe('repairing a building', () => {
 
   it('re-ordering re-strikes the bill instead of stacking one', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 20 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
     const hut = addBuiltHut(world, 36, 30);
     hut.hp = 30;
 
@@ -200,13 +201,13 @@ describe('repairing a building', () => {
 
     expect(hut.repairNeeds).toEqual(first);
     // The old order's reservations went with it — no double booking.
-    expect(hut.inbound.wood ?? 0).toBeLessThanOrEqual(hut.repairNeeds!.wood!);
+    expect(hut.inbound[GoodId.wood] ?? 0).toBeLessThanOrEqual(hut.repairNeeds![GoodId.wood]!);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it("calling it off leaves the building's other deliveries walking", () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 20, stone: 10, iron: 6 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 20, [GoodId.stone]: 10, [GoodId.iron]: 6 });
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto)
     staffBuilding(world, smith);
@@ -216,8 +217,8 @@ describe('repairing a building', () => {
     // hauls of the same good to the same door.
     tickWorld(world, cmds({ kind: 'setBuildingRepair', buildingId: smith.id, repair: true }));
     run(world, 5); // the matcher books them
-    const woodJobs = () => [...world.jobs.values()].filter((j) => j.to === smith.id && j.good === 'wood');
-    expect(woodJobs().filter((j) => j.repair).length).toBe(smith.repairNeeds!.wood);
+    const woodJobs = () => [...world.jobs.values()].filter((j) => j.to === smith.id && j.good === GoodId.wood);
+    expect(woodJobs().filter((j) => j.repair).length).toBe(smith.repairNeeds![GoodId.wood]);
     const forging = woodJobs().filter((j) => !j.repair).length;
     expect(forging).toBeGreaterThan(0);
 
@@ -229,7 +230,7 @@ describe('repairing a building', () => {
 
   it('refuses what has nothing to mend: whole buildings, sites, rivals', () => {
     const world = bareWorld(1, 2);
-    addStorehouse(world, 30, 30, { wood: 20 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
     addResourceTile(world, 40, 30);
     const hut = addBuiltHut(world, 36, 30);
     const site = addSite(world, 44, 30);
@@ -250,7 +251,7 @@ describe('repairing a building', () => {
 
   it('a repaired workshop keeps working, and its inputs keep flowing', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 30, stone: 10, iron: 8 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 30, [GoodId.stone]: 10, [GoodId.iron]: 8 });
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto)
     staffBuilding(world, smith);
@@ -265,9 +266,9 @@ describe('repairing a building', () => {
     expect(smith.hp).toBe(buildingDef('weaponsmith').hp);
 
     let guard = 0;
-    while ((smith.stock.spear ?? 0) === 0 && guard++ < 4000) tickWorld(world, []);
-    expect(smith.stock.spear ?? 0).toBeGreaterThan(0);
-    expect(sh.stock.wood ?? 0).toBeLessThan(30);
+    while ((smith.stock[GoodId.spear] ?? 0) === 0 && guard++ < 4000) tickWorld(world, []);
+    expect(smith.stock[GoodId.spear] ?? 0).toBeGreaterThan(0);
+    expect(sh.stock[GoodId.wood] ?? 0).toBeLessThan(30);
     expect(checkInvariants(world).violations).toEqual([]);
     expect(checkLedger(world, initial)).toEqual([]);
   });
@@ -276,10 +277,10 @@ describe('repairing a building', () => {
 describe('the repair bill', () => {
   it('scales with the damage and is never free', () => {
     const max = buildingDef('barracks').hp;
-    expect(repairBill('barracks', max)).toEqual({ wood: 6, stone: 4 }); // half of 12/8
-    expect(repairBill('barracks', max / 2)).toEqual({ wood: 3, stone: 2 });
+    expect(repairBill('barracks', max)).toEqual({ [GoodId.wood]: 6, [GoodId.stone]: 4 }); // half of 12/8
+    expect(repairBill('barracks', max / 2)).toEqual({ [GoodId.wood]: 3, [GoodId.stone]: 2 });
     // A scratch still costs a plank: the mason does not work for nothing.
-    expect(repairBill('barracks', 1)).toEqual({ wood: 1, stone: 1 });
+    expect(repairBill('barracks', 1)).toEqual({ [GoodId.wood]: 1, [GoodId.stone]: 1 });
     expect(repairBill('barracks', 0)).toEqual({});
   });
 });

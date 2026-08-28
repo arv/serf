@@ -2,6 +2,7 @@ import { FESTIVAL_DURATION } from '../defs/balance.ts';
 import { TECH_DEFS } from '../defs/techs.ts';
 import { type World } from '../world.ts';
 import type { Building, Owner } from '../entities.ts';
+import { GoodId } from '../defs/goods.ts';
 
 /**
  * Ticks every player's active research and festival buff. Research is
@@ -49,9 +50,9 @@ export function researchSystem(world: World): void {
     // Festivals: this player's built abbey burns 1 ale for a buff.
     if (!t.researched.includes('festivals')) continue;
     const abbey = abbeyOf(p.id);
-    if (abbey && (abbey.inputs.ale ?? 0) > 0) {
-      abbey.inputs.ale = (abbey.inputs.ale ?? 0) - 1;
-      world.ledger.consumed.ale = (world.ledger.consumed.ale ?? 0) + 1;
+    if (abbey && (abbey.inputs[GoodId.ale] ?? 0) > 0) {
+      abbey.inputs[GoodId.ale] = (abbey.inputs[GoodId.ale] ?? 0) - 1;
+      world.ledger.consumed[GoodId.ale] = (world.ledger.consumed[GoodId.ale] ?? 0) + 1;
       t.festivalTicksLeft = FESTIVAL_DURATION;
     }
   }

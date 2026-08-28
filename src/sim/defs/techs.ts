@@ -1,6 +1,7 @@
 import type { GoodAmounts } from './goods.ts';
 import type { BuildingTypeId } from './buildings.ts';
 import type { UnitTypeId } from './units.ts';
+import { GoodId } from './goods.ts';
 
 /**
  * The tech tree: three short branches researched at the Abbey for goods +
@@ -61,7 +62,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Irrigation',
     branch: 'agriculture',
     prereqs: [],
-    cost: { wheat: 5, silver: 3 },
+    cost: { [GoodId.wheat]: 5, [GoodId.silver]: 3 },
     durationTicks: 25 * S,
     effects: [{ kind: 'modifier', key: 'farmSpeed', multiplier: 1.3 }],
     desc: 'Field channels: farms grow wheat 30% faster.',
@@ -72,7 +73,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     branch: 'agriculture',
     prereqs: ['irrigation'],
     // Stone for the stones: the one agriculture tech the quarry pays for.
-    cost: { stone: 6, silver: 5 },
+    cost: { [GoodId.stone]: 6, [GoodId.silver]: 5 },
     durationTicks: 30 * S,
     // The chain's designed bottleneck is the mill (one mill serves two
     // farms), so this is the lever on bread itself. Deliberately not the
@@ -86,7 +87,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Brewing',
     branch: 'agriculture',
     prereqs: ['irrigation'],
-    cost: { wheat: 8, silver: 4 },
+    cost: { [GoodId.wheat]: 8, [GoodId.silver]: 4 },
     durationTicks: 30 * S,
     effects: [{ kind: 'unlockBuilding', building: 'brewery' }],
     desc: 'Unlocks the Brewery.',
@@ -96,7 +97,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Festivals',
     branch: 'agriculture',
     prereqs: ['brewing'],
-    cost: { ale: 2, silver: 6 },
+    cost: { [GoodId.ale]: 2, [GoodId.silver]: 6 },
     durationTicks: 30 * S,
     effects: [], // enables the abbey's ale-fed festival buff
     desc: 'Ale delivered to the Abbey holds festivals: everyone works 25% faster for a while.',
@@ -108,7 +109,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     prereqs: ['festivals'],
     // Paying the unlock in ale means the brewery is already employed
     // before the effect ever lands.
-    cost: { ale: 4, silver: 6 },
+    cost: { [GoodId.ale]: 4, [GoodId.silver]: 6 },
     durationTicks: 30 * S,
     // Like festivals, a mechanic rather than a modifier: the barracks
     // stocks ale, and each soldier drinks one at training start for a
@@ -124,7 +125,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Cobbled Boots',
     branch: 'craft',
     prereqs: [],
-    cost: { wheat: 4, silver: 2 },
+    cost: { [GoodId.wheat]: 4, [GoodId.silver]: 2 },
     durationTicks: 20 * S,
     effects: [{ kind: 'modifier', key: 'serfSpeed', multiplier: 1.15 }],
     desc: 'Serfs and workers walk 15% faster.',
@@ -138,7 +139,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     // cannot sit behind boots the way it did when only the army cared.
     // Cheaper and quicker for the same reason.
     prereqs: [],
-    cost: { stone: 4, silver: 5 },
+    cost: { [GoodId.stone]: 4, [GoodId.silver]: 5 },
     durationTicks: 30 * S,
     // The Smith itself is ungated (the village's only tool source must be
     // reachable from a standing start) — this opens the ore and the iron
@@ -151,7 +152,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Deep Mining',
     branch: 'craft',
     prereqs: ['ironworking'],
-    cost: { iron: 4, silver: 8 },
+    cost: { [GoodId.iron]: 4, [GoodId.silver]: 8 },
     durationTicks: 35 * S,
     effects: [
       { kind: 'modifier', key: 'mineSpeed', multiplier: 1.3 },
@@ -164,7 +165,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Bellows',
     branch: 'craft',
     prereqs: ['ironworking'],
-    cost: { iron: 3, silver: 6 },
+    cost: { [GoodId.iron]: 3, [GoodId.silver]: 6 },
     durationTicks: 30 * S,
     // Deep Mining's rival for the post-ironworking slot: faster ore or
     // faster weapons out of the same forge. One roof, one bellows — the
@@ -177,7 +178,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Masonry',
     branch: 'craft',
     prereqs: ['cobbledBoots'],
-    cost: { stone: 8, silver: 4 },
+    cost: { [GoodId.stone]: 8, [GoodId.silver]: 4 },
     durationTicks: 30 * S,
     effects: [{ kind: 'unlockPaving' }],
     desc: 'Heavily-trodden trails are paved into stone roads (+35% speed, permanent).',
@@ -189,7 +190,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Soldiery',
     branch: 'warfare',
     prereqs: [],
-    cost: { wheat: 6, silver: 6 },
+    cost: { [GoodId.wheat]: 6, [GoodId.silver]: 6 },
     durationTicks: 30 * S,
     effects: [
       { kind: 'unlockBuilding', building: 'barracks' },
@@ -202,7 +203,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Archery',
     branch: 'warfare',
     prereqs: ['soldiery'],
-    cost: { wood: 8, silver: 6 },
+    cost: { [GoodId.wood]: 8, [GoodId.silver]: 6 },
     durationTicks: 30 * S,
     effects: [{ kind: 'unlockUnit', unit: 'archer' }],
     desc: 'Unlocks bowmaking at the Smith, and Archers.',
@@ -212,7 +213,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Mail Armor',
     branch: 'warfare',
     prereqs: ['soldiery'],
-    cost: { iron: 4, silver: 8 },
+    cost: { [GoodId.iron]: 4, [GoodId.silver]: 8 },
     durationTicks: 35 * S,
     effects: [{ kind: 'modifier', key: 'militaryHp', multiplier: 1.25 }],
     desc: 'Military units train with 25% more health.',
@@ -222,7 +223,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     name: 'Gilded Arms',
     branch: 'warfare',
     prereqs: ['mailArmor'],
-    cost: { gold: 4, silver: 10 },
+    cost: { [GoodId.gold]: 4, [GoodId.silver]: 10 },
     durationTicks: 40 * S,
     effects: [{ kind: 'modifier', key: 'militaryHp', multiplier: 1.2 }],
     desc: 'Gilded arms: military units train with a further 20% more health.',

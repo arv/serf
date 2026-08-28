@@ -15,6 +15,7 @@ import {
 } from './testUtils.ts';
 import { TileResource } from './map.ts';
 import type { GoodAmounts } from './defs/goods.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -29,28 +30,28 @@ function expectClean(world: World, initial?: GoodAmounts): void {
 describe('logistics matcher', () => {
   it('creates jobs with reservations booked immediately', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 10 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 10 });
     const site = addSite(world, 24, 30); // needs 6 wood + the hammer loan
     run(world, 1); // matcher fires at tick 0
 
     // Six wood, the borrowed hammer, and the axe pre-ordered for the post
     // the site will become.
     expect(world.jobs.size).toBe(8);
-    expect(sh.reservedOut.wood).toBe(6);
-    expect(site.inbound.wood).toBe(6);
-    expect(site.inbound.hammer).toBe(1);
-    expect(site.inbound.axe).toBe(1);
+    expect(sh.reservedOut[GoodId.wood]).toBe(6);
+    expect(site.inbound[GoodId.wood]).toBe(6);
+    expect(site.inbound[GoodId.hammer]).toBe(1);
+    expect(site.inbound[GoodId.axe]).toBe(1);
     expectClean(world);
   });
 
   it('never reserves more than stock', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 3 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 3 });
     addSite(world, 24, 30); // needs 6
     run(world, 1);
 
     expect(world.jobs.size).toBe(5); // 3 wood + hammer + the post's axe
-    expect(sh.reservedOut.wood).toBe(3);
+    expect(sh.reservedOut[GoodId.wood]).toBe(3);
     expectClean(world);
   });
 
@@ -58,7 +59,7 @@ describe('logistics matcher', () => {
     const world = bareWorld();
     addStorehouse(world, 40, 40, {});
     const hut = addBuiltHut(world, 30, 30, false);
-    hut.stock.wood = 2;
+    hut.stock[GoodId.wood] = 2;
     const site = addSite(world, 34, 30);
     addSerf(world, 32, 33);
     run(world, 2);
@@ -76,19 +77,19 @@ describe('logistics matcher', () => {
     const siteA = addSite(world, 22, 30);
     run(world, 6); // A's demand ages
     const siteB = addSite(world, 38, 30);
-    sh.stock.wood = 1; // exactly one good appears
+    sh.stock[GoodId.wood] = 1; // exactly one good appears
     run(world, 5); // next matcher pass
 
-    const job = [...world.jobs.values()].find((j) => j.good === 'wood' && j.from === sh.id);
+    const job = [...world.jobs.values()].find((j) => j.good === GoodId.wood && j.from === sh.id);
     expect(job).toBeDefined();
     expect(job!.to).toBe(siteA.id);
-    expect(siteB.inbound.wood ?? 0).toBe(0);
+    expect(siteB.inbound[GoodId.wood] ?? 0).toBe(0);
     expectClean(world);
   });
 
   it('full haul: site gets built, jobs drain, serf ends idle and empty-handed', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 10 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 10 });
     const site = addSite(world, 24, 30);
     addSerf(world, 29, 34);
     addSerf(world, 35, 34);
@@ -108,7 +109,7 @@ describe('logistics matcher', () => {
 describe('cancellation table', () => {
   function setupHaul(): { world: World; initial: GoodAmounts } {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 10 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 10 });
     addSite(world, 22, 30);
     addSerf(world, 29, 34);
     return { world, initial: countGoods(world) };
@@ -141,12 +142,12 @@ describe('cancellation table', () => {
     }
     const job = [...world.jobs.values()].find((j) => j.phase === 'toDropoff')!;
     const serf = world.units.get(job.serfId!)!;
-    expect(serf.carrying).toBe('wood');
+    expect(serf.carrying).toBe(GoodId.wood);
     killUnit(world, serf);
     run(world, 10);
 
     expect(world.jobs.get(job.id)).toBeUndefined();
-    expect(world.ledger.consumed.wood ?? 0).toBeGreaterThan(0);
+    expect(world.ledger.consumed[GoodId.wood] ?? 0).toBeGreaterThan(0);
     expectClean(world, initial);
   });
 
@@ -180,7 +181,7 @@ describe('cancellation table', () => {
 
   it('walled-off source: job stays open with backoff, serf stays free', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 5 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 5 });
     // Wall the storehouse ring completely.
     for (let x = sh.x - 1; x <= sh.x + sh.w; x++) {
       for (let y = sh.y - 1; y <= sh.y + sh.h; y++) {
@@ -204,7 +205,7 @@ describe('fuzz: 10k ticks of random destruction never corrupts the economy', () 
   it('survives with invariants and ledger intact', () => {
     const world = bareWorld(99);
     const rng = new Rng(4242);
-    addStorehouse(world, 30, 30, { wood: 60, stone: 20 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 60, [GoodId.stone]: 20 });
     // Real wood for the huts to gather.
     for (let i = 0; i < 40; i++) {
       const idx = tileIdx(20 + rng.int(8), 20 + rng.int(8), world.map.size);
@@ -261,7 +262,7 @@ describe('fuzz: 10k ticks of random destruction never corrupts the economy', () 
 describe('move orders outrank employment', () => {
   it('pulls a hauling serf off its job, releasing the reservations', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 5 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 5 });
     addSite(world, 36, 30);
     const serf = addSerf(world, 32, 32);
     run(world, 40);
@@ -279,7 +280,7 @@ describe('move orders outrank employment', () => {
 
   it('never destroys the good in a reassigned serf\'s hands', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 5 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 5 });
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto): wants wood
     const serf = addSerf(world, 32, 32);
@@ -287,14 +288,14 @@ describe('move orders outrank employment', () => {
     // Run until he is actually holding something, then yank him away.
     let guard = 0;
     while (serf.carrying === undefined && guard++ < 600) tickWorld(world, []);
-    expect(serf.carrying).toBe('wood');
+    expect(serf.carrying).toBe(GoodId.wood);
 
     // The abort must not write the good off — compare the ledger across the
     // interrupt itself, since production legitimately consumes wood later.
-    const consumed = world.ledger.consumed.wood ?? 0;
+    const consumed = world.ledger.consumed[GoodId.wood] ?? 0;
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 20, y: 20 }));
-    expect(serf.carrying).toBe('wood'); // still in his hands
-    expect(world.ledger.consumed.wood ?? 0).toBe(consumed);
+    expect(serf.carrying).toBe(GoodId.wood); // still in his hands
+    expect(world.ledger.consumed[GoodId.wood] ?? 0).toBe(consumed);
     expect(serf.task.t).toBe('move');
     // Walking an errand while laden is the intended state, not a violation:
     // the invariant used to call it orphaned cargo on every dev sweep.
@@ -309,7 +310,7 @@ describe('move orders outrank employment', () => {
 
   it('never hands a fresh pickup to a serf who is already carrying', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 5 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 5 });
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto): wants wood
     const serf = addSerf(world, 32, 32);
@@ -318,7 +319,7 @@ describe('move orders outrank employment', () => {
     let guard = 0;
     while (serf.carrying === undefined && guard++ < 600) tickWorld(world, []);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 20, y: 20 }));
-    expect(serf.carrying).toBe('wood');
+    expect(serf.carrying).toBe(GoodId.wood);
 
     // dispatch runs every tick and used to claim him the moment he arrived,
     // while rehomeCarriedGoods only gets a turn every MATCHER_INTERVAL. The

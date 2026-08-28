@@ -1,3 +1,4 @@
+import { GoodId } from '../sim/defs/goods.ts';
 /**
  * The game palette — the Warcraft/Settlers key: bright saturated meadow,
  * clear water, high warm sun, gentle blue haze. Every color in the game
@@ -9,7 +10,6 @@
  * the shorter read at the point of use and an honest list of what a file
  * puts on the screen.
  */
-import type { GoodId } from '../sim/defs/goods';
 
 // ——— World ———
 
@@ -93,23 +93,23 @@ export const verdictBad = 0xd45252;
 
 /** Color of a good when carried on a serf's shoulders (and in UI accents). */
 export const goodColors: Record<GoodId, number> = {
-  water: 0x5a8ab0,
-  wheat: 0xe8d9a0,
-  wood: 0x8fae4f,
-  stone: 0x8d8577,
-  iron: 0x6e6259,
-  silver: 0xb9c0c8,
-  gold: 0xd4a93c,
-  sword: 0xd8dde3,
-  spear: 0xb08d57,
-  bow: 0x9a7b4f,
-  ale: 0xefe8f0,
-  flour: 0xe9e2d4,
-  food: 0xd9a860,
-  axe: 0xb87f4a,
-  pickaxe: 0x84796e,
-  scythe: 0xc2b089,
-  hammer: 0x9a8d80,
-  cauldron: 0xb0763f,
-  rod: 0xa08a5f,
+  [GoodId.water]: 0x5a8ab0,
+  [GoodId.wheat]: 0xe8d9a0,
+  [GoodId.wood]: 0x8fae4f,
+  [GoodId.stone]: 0x8d8577,
+  [GoodId.iron]: 0x6e6259,
+  [GoodId.silver]: 0xb9c0c8,
+  [GoodId.gold]: 0xd4a93c,
+  [GoodId.sword]: 0xd8dde3,
+  [GoodId.spear]: 0xb08d57,
+  [GoodId.bow]: 0x9a7b4f,
+  [GoodId.ale]: 0xefe8f0,
+  [GoodId.flour]: 0xe9e2d4,
+  [GoodId.food]: 0xd9a860,
+  [GoodId.axe]: 0xb87f4a,
+  [GoodId.pickaxe]: 0x84796e,
+  [GoodId.scythe]: 0xc2b089,
+  [GoodId.hammer]: 0x9a8d80,
+  [GoodId.cauldron]: 0xb0763f,
+  [GoodId.rod]: 0xa08a5f,
 };

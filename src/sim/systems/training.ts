@@ -9,6 +9,7 @@ import { tileX, tileY } from '../../shared/grid.ts';
 import type { GoodId } from '../defs/goods.ts';
 import type { Building } from '../entities.ts';
 import type { Unit } from '../units.ts';
+import { goodEntries } from '../defs/goods.ts';
 
 /**
  * Barracks training. A queue item starts when its ingredients are in the input
@@ -158,7 +159,7 @@ export function trainingDemand(b: Building): Partial<Record<GoodId, number>> {
     if (item.started) continue;
     const option = def.trains.find((o) => o.unit === item.unit);
     if (!option) continue;
-    for (const [good, n] of Object.entries(option.cost) as [GoodId, number][]) {
+    for (const [good, n] of goodEntries(option.cost)) {
       need[good] = (need[good] ?? 0) + n;
     }
   }
@@ -195,7 +196,7 @@ export function cancelTraining(world: World, b: Building, index: number, unit: s
   if (!item.started) return;
   const option = buildingDef(b.type).trains?.find((o) => o.unit === item.unit);
   if (option) {
-    for (const [good, n] of Object.entries(option.cost) as [GoodId, number][]) {
+    for (const [good, n] of goodEntries(option.cost)) {
       b.inputs[good] = (b.inputs[good] ?? 0) + n;
       world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) - n;
     }

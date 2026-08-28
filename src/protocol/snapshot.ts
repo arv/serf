@@ -11,7 +11,7 @@
 import { TOOL_OF, buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings.ts';
 import { HIRE_SERF_TICKS } from '../sim/defs/balance.ts';
 import { TECH_DEFS } from '../sim/defs/techs.ts';
-import { GOODS, type GoodAmounts, type GoodId } from '../sim/defs/goods.ts';
+import { GOODS, type GoodAmounts } from '../sim/defs/goods.ts';
 import { UNIT_DEFS, carryingCode } from '../sim/defs/units.ts';
 import { ACTION, PROFESSION, WORK, type UnitSnapshot } from './sabLayout.ts';
 import { centerOf } from '../sim/entities.ts';
@@ -22,6 +22,7 @@ import type { World } from '../sim/world.ts';
 import type { Building, Owner } from '../sim/entities.ts';
 import type { Unit } from '../sim/units.ts';
 import type { BuildingSnap, JobSnap, PlayerSnap } from './messages.ts';
+import { GoodId } from '../sim/defs/goods.ts';
 
 export function snapBuilding(world: World, b: Building): BuildingSnap {
   const def = buildingDef(b.type);
@@ -136,8 +137,8 @@ export function snapPlayers(world: World): PlayerSnap[] {
     if (b.dead) continue;
     if (b.state === 'site') {
       // A site still owed its borrowed hammer counts as a hammer want.
-      if (!b.paused && (b.siteNeeds?.hammer ?? 0) > 0 && (b.inbound.hammer ?? 0) === 0) {
-        wantTool(b.owner, 'hammer');
+      if (!b.paused && (b.siteNeeds?.[GoodId.hammer] ?? 0) > 0 && (b.inbound[GoodId.hammer] ?? 0) === 0) {
+        wantTool(b.owner, GoodId.hammer);
       }
       continue;
     }

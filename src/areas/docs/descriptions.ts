@@ -1,7 +1,7 @@
 import { BUILDING_DEFS, type BuildingTypeId } from '../../sim/defs/buildings';
 import type { BuildGroupLabel } from '../../ui/buildMenu';
-import type { GoodId } from '../../sim/defs/goods';
 import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
+import { GoodId } from '../../sim/defs/goods';
 
 /**
  * The one authored layer of the wiki: a sentence or two of flavor and
@@ -33,7 +33,7 @@ function forgeCost(good: GoodId, input: GoodId): number {
   return 0;
 }
 
-const BAKED = yieldOf('bakery', 'food');
+const BAKED = yieldOf('bakery', GoodId.food);
 
 /**
  * What each tab of the build ribbon is for, one sentence apiece.
@@ -107,25 +107,25 @@ export const UNIT_DESC: Record<UnitTypeId, string> = {
 };
 
 export const GOOD_DESC: Record<GoodId, string> = {
-  water: 'Drawn at the well by whoever needs it. Bread, ale and the farm all start here.',
-  wheat: 'The crop. Grinds into flour, brews into ale, and pays for the early researches.',
-  wood: 'Timber from the woodcutter: the first cost of nearly every roof and the whole of a bow.',
-  stone: 'Quarried rock: walls, towers, millstones and roads.',
-  iron: 'Ore from the iron mine. The Smith turns it into every serious weapon and tool.',
-  silver: 'The coin: hires serfs and funds every research. The one good every plan runs short of.',
-  gold: 'The deep metal. Exists to gild arms — the final warfare research is paid in it.',
-  sword: `The knight’s weapon, forged from ${forgeCost('sword', 'iron')} iron. No sword, no knight.`,
-  spear: 'The spearman’s arm: iron and wood, the cheapest way to put a soldier in the field.',
-  bow: `${forgeCost('bow', 'wood')} wood and no iron — the weapon a poor village can still field, once Archery is read.`,
-  ale: 'Brewed from wheat and water. The Abbey drinks it as festivals; the barracks as faster training.',
-  flour: 'Milled wheat, halfway to bread.',
-  food: 'What soldiers train on and the village fights for: baked at the oven, or pulled from the shore.',
-  axe: 'The woodcutter’s tool: no axe in store, no new woodcutter staffed.',
-  pickaxe:
+  [GoodId.water]: 'Drawn at the well by whoever needs it. Bread, ale and the farm all start here.',
+  [GoodId.wheat]: 'The crop. Grinds into flour, brews into ale, and pays for the early researches.',
+  [GoodId.wood]: 'Timber from the woodcutter: the first cost of nearly every roof and the whole of a bow.',
+  [GoodId.stone]: 'Quarried rock: walls, towers, millstones and roads.',
+  [GoodId.iron]: 'Ore from the iron mine. The Smith turns it into every serious weapon and tool.',
+  [GoodId.silver]: 'The coin: hires serfs and funds every research. The one good every plan runs short of.',
+  [GoodId.gold]: 'The deep metal. Exists to gild arms — the final warfare research is paid in it.',
+  [GoodId.sword]: `The knight’s weapon, forged from ${forgeCost(GoodId.sword, GoodId.iron)} iron. No sword, no knight.`,
+  [GoodId.spear]: 'The spearman’s arm: iron and wood, the cheapest way to put a soldier in the field.',
+  [GoodId.bow]: `${forgeCost(GoodId.bow, GoodId.wood)} wood and no iron — the weapon a poor village can still field, once Archery is read.`,
+  [GoodId.ale]: 'Brewed from wheat and water. The Abbey drinks it as festivals; the barracks as faster training.',
+  [GoodId.flour]: 'Milled wheat, halfway to bread.',
+  [GoodId.food]: 'What soldiers train on and the village fights for: baked at the oven, or pulled from the shore.',
+  [GoodId.axe]: 'The woodcutter’s tool: no axe in store, no new woodcutter staffed.',
+  [GoodId.pickaxe]:
     'The miner’s tool — and deliberately forged without iron, so losing every pick can never lock the mines shut for good.',
-  scythe: 'The farmer’s tool. One per farm, handed back if the post is ever dismissed.',
-  hammer:
+  [GoodId.scythe]: 'The farmer’s tool. One per farm, handed back if the post is ever dismissed.',
+  [GoodId.hammer]:
     'The builder’s tool, loaned rather than owned: every construction site borrows one and returns it at the topping-out. Hammers cap how many roofs rise at once.',
-  cauldron: 'The tool of the bakery and the brewery both.',
-  rod: 'The fisher’s rod: wood only, so the shore stays reachable for a village with no ore.',
+  [GoodId.cauldron]: 'The tool of the bakery and the brewery both.',
+  [GoodId.rod]: 'The fisher’s rod: wood only, so the shore stays reachable for a village with no ore.',
 };

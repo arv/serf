@@ -9,6 +9,7 @@ import type { GameMap } from './map.ts';
 import type { GoodAmounts } from './defs/goods.ts';
 import type { Building, Owner } from './entities.ts';
 import type { Unit } from './units.ts';
+import { GoodId } from './defs/goods.ts';
 
 /** An all-grass, empty 64x64 map for deterministic logistics tests. */
 export function bareMap(size = DEFAULT_MAP_SIZE): GameMap {
@@ -61,12 +62,12 @@ export function cmds(...commands: SimCommand[]): PlayerCommand[] {
  * the tool economy itself overrides these per good ({ hammer: 0 }).
  */
 export const FIXTURE_TOOLS: GoodAmounts = {
-  axe: 4,
-  pickaxe: 4,
-  scythe: 4,
-  hammer: 4,
-  cauldron: 4,
-  rod: 4,
+  [GoodId.axe]: 4,
+  [GoodId.pickaxe]: 4,
+  [GoodId.scythe]: 4,
+  [GoodId.hammer]: 4,
+  [GoodId.cauldron]: 4,
+  [GoodId.rod]: 4,
 };
 
 export function addStorehouse(

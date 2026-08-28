@@ -3,6 +3,7 @@ import { tickWorld } from './tick.ts';
 import { killUnit, spawnUnit, type World } from './world.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld, cmds } from './testUtils.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -16,7 +17,7 @@ function run(world: World, ticks: number): void {
 describe("a builder's death never orphans the site", () => {
   it('a dead builder is replaced and the site still completes', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 20 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
     const site = addSite(world, 36, 30);
     for (let i = 0; i < 4; i++) addSerf(world, 32, 33 + i);
     let guard = 0;
@@ -32,7 +33,7 @@ describe("a builder's death never orphans the site", () => {
 
   it('a recruit killed on the walk over is also replaced', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 20 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
     const site = addSite(world, 36, 30);
     for (let i = 0; i < 4; i++) addSerf(world, 32, 33 + i);
     // Run until someone is en route to staff the site, then kill them.
@@ -48,7 +49,7 @@ describe("a builder's death never orphans the site", () => {
 
   it('with nobody free, the site waits and takes the next serf who appears', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 20 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
     const site = addSite(world, 36, 30);
     for (let i = 0; i < 2; i++) addSerf(world, 32, 33 + i);
     let guard = 0;
@@ -80,12 +81,12 @@ describe('the pause escape hatch', () => {
     const world = bareWorld();
     // Silver is gone, and every last serf holds a post: nobody to haul,
     // nobody to build — the deadlock from the field report.
-    addStorehouse(world, 30, 30, { wood: 20, silver: 0 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 20, [GoodId.silver]: 0 });
     const huts = [addBuiltHut(world, 25, 30), addBuiltHut(world, 25, 34)];
     const site = addSite(world, 36, 30);
     run(world, 300);
     expect(site.buildProgress ?? 0).toBe(0); // truly stuck
-    expect((site.siteNeeds?.wood ?? 0)).toBeGreaterThan(0);
+    expect((site.siteNeeds?.[GoodId.wood] ?? 0)).toBeGreaterThan(0);
 
     // The player halts one hut, which hands its worker back.
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: huts[0]!.id, paused: true }));
@@ -122,7 +123,7 @@ describe('the pause escape hatch', () => {
     const world = bareWorld();
     // Stocked, so the site actually gets far enough to call for a builder —
     // one is only summoned once the materials are in or in assigned hands.
-    addStorehouse(world, 30, 30, { wood: 20 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
     const site = addSite(world, 36, 30);
     for (let i = 0; i < 4; i++) addSerf(world, 32, 33 + i);
     let guard = 0;

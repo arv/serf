@@ -1,10 +1,12 @@
 import { For, Show } from 'solid-js';
-import { GOODS, type GoodId } from '../sim/defs/goods';
+import { GOODS } from '../sim/defs/goods';
 import { GoodIcon } from './icons';
 import { GoodTip, tooltip } from './tooltip';
 import { goodName } from './names';
 import { setEconomyPanelOpen, stock, toolWants } from './store';
 import { COMPACT } from './breakpoints';
+import { GoodId } from '../sim/defs/goods';
+import { GOOD_KEYS } from '../sim/defs/goods';
 
 /**
  * The ledger: every good the village owns, grouped by what it is for.
@@ -21,11 +23,11 @@ import { COMPACT } from './breakpoints';
  * end regardless of what they are. Here they sit with their kin.
  */
 const GROUPS: { label: string; goods: GoodId[] }[] = [
-  { label: 'Raw', goods: ['wood', 'stone', 'water'] },
-  { label: 'Food', goods: ['wheat', 'flour', 'food', 'ale'] },
-  { label: 'Metal', goods: ['iron', 'silver', 'gold'] },
-  { label: 'Arms', goods: ['spear', 'sword', 'bow'] },
-  { label: 'Tools', goods: ['axe', 'pickaxe', 'scythe', 'hammer', 'cauldron', 'rod'] },
+  { label: 'Raw', goods: [GoodId.wood, GoodId.stone, GoodId.water] },
+  { label: 'Food', goods: [GoodId.wheat, GoodId.flour, GoodId.food, GoodId.ale] },
+  { label: 'Metal', goods: [GoodId.iron, GoodId.silver, GoodId.gold] },
+  { label: 'Arms', goods: [GoodId.spear, GoodId.sword, GoodId.bow] },
+  { label: 'Tools', goods: [GoodId.axe, GoodId.pickaxe, GoodId.scythe, GoodId.hammer, GoodId.cauldron, GoodId.rod] },
 ];
 
 // The panel must account for every good — a new one someone forgets to
@@ -33,7 +35,7 @@ const GROUPS: { label: string; goods: GoodId[] }[] = [
 if (import.meta.env.DEV) {
   const seated = new Set(GROUPS.flatMap((g) => g.goods));
   for (const g of GOODS) {
-    if (!seated.has(g)) throw new Error(`EconomyPanel: good '${g}' is in no group`);
+    if (!seated.has(g)) throw new Error(`EconomyPanel: good '${GOOD_KEYS[g]}' is in no group`);
   }
 }
 

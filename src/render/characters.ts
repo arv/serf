@@ -7,6 +7,7 @@ import { lathe } from './models';
 import { loadGltfRetry } from './assets';
 import { goodColors } from './palette';
 import { factionTint } from './factionPalette';
+import { GoodId } from '../sim/defs/goods';
 
 /**
  * Skinned-character pipeline: KayKit Adventurers 2.0 characters animated by
@@ -615,7 +616,7 @@ function spearProp(): THREE.Group {
   const g = new THREE.Group();
   g.name = 'spear';
   // Ash haft, thickening toward the butt, gripped a third of the way up.
-  const shaft = toolMesh(new THREE.CylinderGeometry(0.062, 0.07, 2.3, 6), goodColors.spear);
+  const shaft = toolMesh(new THREE.CylinderGeometry(0.062, 0.07, 2.3, 6), goodColors[GoodId.spear]);
   shaft.position.y = 0.3;
   // Leaf head, turned rather than extruded: a flat blade is what the spade
   // has, and it vanishes edge-on — a spear is seen from every side at once
@@ -630,7 +631,7 @@ function spearProp(): THREE.Group {
       [0.052, 0.51],
       [0, 0.62],
     ],
-    goodColors.sword,
+    goodColors[GoodId.sword],
     8,
   );
   // Flattened across the swing, the way a blade is: a full body of
@@ -641,7 +642,7 @@ function spearProp(): THREE.Group {
   // the shaft from ending in nothing when it is seen against the grass.
   const collar = toolMesh(new THREE.CylinderGeometry(0.088, 0.088, 0.12, 6), 0x6b4e2e);
   collar.position.y = 1.36;
-  const butt = toolMesh(new THREE.CylinderGeometry(0.078, 0.078, 0.15, 6), goodColors.sword);
+  const butt = toolMesh(new THREE.CylinderGeometry(0.078, 0.078, 0.15, 6), goodColors[GoodId.sword]);
   butt.position.y = -0.79;
   g.add(shaft, blade, collar, butt);
   spearTemplate = g;

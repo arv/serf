@@ -20,6 +20,7 @@ import {
   cmds,
   staffBuilding,
 } from './testUtils.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -31,12 +32,12 @@ describe('convert chains', () => {
     const well = placeBuiltBuilding(world, 'well', 0, 30, 30);
     staffBuilding(world, well);
     run(world, 20 * 13); // durationTicks = 120
-    expect(well.stock.water ?? 0).toBeGreaterThan(0);
+    expect(well.stock[GoodId.water] ?? 0).toBeGreaterThan(0);
   });
 
   it('mill and bakery turn wheat into the food a soldier costs', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wheat: 6, water: 6 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wheat]: 6, [GoodId.water]: 6 });
     staffBuilding(world, placeBuiltBuilding(world, 'mill', 0, 26, 30));
     staffBuilding(world, placeBuiltBuilding(world, 'bakery', 0, 34, 30));
     addSerf(world, 29, 33);
@@ -44,18 +45,18 @@ describe('convert chains', () => {
     run(world, 20 * 90);
 
     // Grain went up the chain and bread came back down it.
-    expect(sh.stock.food ?? 0).toBeGreaterThan(0);
-    expect(sh.stock.wheat ?? 0).toBeLessThan(6);
+    expect(sh.stock[GoodId.food] ?? 0).toBeGreaterThan(0);
+    expect(sh.stock[GoodId.wheat] ?? 0).toBeLessThan(6);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('the mill grinds without a resident (the wind does the work)', () => {
     const world = bareWorld();
     const mill = placeBuiltBuilding(world, 'mill', 0, 30, 30);
-    mill.inputs.wheat = 2;
+    mill.inputs[GoodId.wheat] = 2;
     expect(mill.workerId).toBeUndefined();
     run(world, 20 * 20);
-    expect(mill.stock.flour ?? 0).toBeGreaterThan(0);
+    expect(mill.stock[GoodId.flour] ?? 0).toBeGreaterThan(0);
   });
 
   it('the fishery needs a shore, and turns to face it', () => {
@@ -106,7 +107,7 @@ describe('convert chains', () => {
     staffBuilding(world, fishery);
     run(world, 20 * 26);
     // No inputs at all — a coastline is the only thing it consumes.
-    expect(fishery.stock.food ?? 0).toBeGreaterThan(0);
+    expect(fishery.stock[GoodId.food] ?? 0).toBeGreaterThan(0);
   });
 
   it('the fishery faces east when the water is east', () => {
@@ -130,7 +131,7 @@ describe('convert chains', () => {
     const initial = countGoods(world);
     run(world, 20 * 120);
 
-    expect(sh.stock.wheat ?? 0).toBeGreaterThan(0);
+    expect(sh.stock[GoodId.wheat] ?? 0).toBeGreaterThan(0);
     expect(checkInvariants(world).violations).toEqual([]);
     expect(checkLedger(world, initial)).toEqual([]);
   });
@@ -139,16 +140,16 @@ describe('convert chains', () => {
     const world = bareWorld();
     const brewery = placeBuiltBuilding(world, 'brewery', 0, 30, 30);
     staffBuilding(world, brewery);
-    brewery.inputs.wheat = 1; // no water yet
+    brewery.inputs[GoodId.wheat] = 1; // no water yet
     run(world, 100);
-    expect(brewery.stock.ale ?? 0).toBe(0);
-    expect(brewery.inputs.wheat).toBe(1); // nothing consumed
+    expect(brewery.stock[GoodId.ale] ?? 0).toBe(0);
+    expect(brewery.inputs[GoodId.wheat]).toBe(1); // nothing consumed
 
-    brewery.inputs.water = 1;
+    brewery.inputs[GoodId.water] = 1;
     run(world, 20 * 21);
-    expect(brewery.stock.ale).toBe(1);
-    expect(brewery.inputs.wheat ?? 0).toBe(0);
-    expect(brewery.inputs.water ?? 0).toBe(0);
+    expect(brewery.stock[GoodId.ale]).toBe(1);
+    expect(brewery.inputs[GoodId.wheat] ?? 0).toBe(0);
+    expect(brewery.inputs[GoodId.water] ?? 0).toBe(0);
   });
 
   it('weapon chain: the weaponsmith on swords turns iron+wood into sword', () => {
@@ -156,10 +157,10 @@ describe('convert chains', () => {
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 30, 30);
     smith.recipeIndex = 1; // recipeOptions: [spear, sword, bow]
     staffBuilding(world, smith);
-    smith.inputs.iron = 2;
-    smith.inputs.wood = 1;
+    smith.inputs[GoodId.iron] = 2;
+    smith.inputs[GoodId.wood] = 1;
     run(world, 20 * 15);
-    expect(smith.stock.sword).toBe(1);
+    expect(smith.stock[GoodId.sword]).toBe(1);
   });
 });
 
@@ -224,7 +225,7 @@ describe('gatherer placement', () => {
     const hut = placeBuiltBuilding(world, 'woodcutter', 0, 30, 30);
     bindWorker(hut, spawnUnit(world, 'worker', 0, 30.5, 32.5));
     run(world, 20 * 60);
-    expect(hut.stock.wood ?? 0).toBeGreaterThan(0);
+    expect(hut.stock[GoodId.wood] ?? 0).toBeGreaterThan(0);
   });
 
   it('miner works the seam like any gather building', () => {
@@ -237,7 +238,7 @@ describe('gatherer placement', () => {
     bindWorker(mine, miner);
     run(world, 20 * 60);
 
-    expect(mine.stock.iron ?? 0).toBeGreaterThan(0);
+    expect(mine.stock[GoodId.iron] ?? 0).toBeGreaterThan(0);
     expect(world.map.resourceAmt[dep]).toBeLessThan(10);
   });
 });
@@ -246,7 +247,7 @@ describe('stone-road paving', () => {
   it('paves sustained high-wear trails via stone hauls', () => {
     const world = bareWorld();
     world.players[0]!.pavingUnlocked = true;
-    addStorehouse(world, 30, 30, { stone: 10 });
+    addStorehouse(world, 30, 30, { [GoodId.stone]: 10 });
     addSerf(world, 29, 34);
 
     // A hot trail tile: keep wear topped up like real traffic would.
@@ -269,7 +270,7 @@ describe('stone-road paving', () => {
   it('does nothing while locked', () => {
     const world = bareWorld();
     world.players[0]!.pavingUnlocked = false;
-    addStorehouse(world, 30, 30, { stone: 10 });
+    addStorehouse(world, 30, 30, { [GoodId.stone]: 10 });
     const idx = tileIdx(30, 36, world.map.size);
     world.map.pathLevel[idx] = PathLevel.Trail;
     for (let t = 0; t < 300; t++) {
@@ -286,11 +287,11 @@ describe('hiring a serf', () => {
 
   it('charges up front and delivers the recruit after the wait', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { silver: 10 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.silver]: 10 });
     tickWorld(world, cmds({ kind: 'hireSerf' }));
 
     // Paid immediately, but nobody has walked in yet.
-    expect(sh.stock.silver).toBe(10 - HIRE_SERF_COST);
+    expect(sh.stock[GoodId.silver]).toBe(10 - HIRE_SERF_COST);
     expect(sh.hireQueue).toBe(1);
     expect(serfCount(world)).toBe(0);
 
@@ -304,10 +305,10 @@ describe('hiring a serf', () => {
 
   it('queues repeat orders and staggers their arrivals', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { silver: 20 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.silver]: 20 });
     tickWorld(world, cmds({ kind: 'hireSerf' }, { kind: 'hireSerf' }));
     expect(sh.hireQueue).toBe(2);
-    expect(sh.stock.silver).toBe(20 - HIRE_SERF_COST * 2);
+    expect(sh.stock[GoodId.silver]).toBe(20 - HIRE_SERF_COST * 2);
 
     for (let t = 0; t < HIRE_SERF_TICKS + 1; t++) tickWorld(world, []);
     expect(serfCount(world)).toBe(1); // the second is still on the road
@@ -319,9 +320,9 @@ describe('hiring a serf', () => {
 
   it('refuses orders it cannot afford, and never charges for them', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { silver: HIRE_SERF_COST - 1 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.silver]: HIRE_SERF_COST - 1 });
     tickWorld(world, cmds({ kind: 'hireSerf' }));
     expect(sh.hireQueue).toBeUndefined();
-    expect(sh.stock.silver).toBe(HIRE_SERF_COST - 1);
+    expect(sh.stock[GoodId.silver]).toBe(HIRE_SERF_COST - 1);
   });
 });

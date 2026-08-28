@@ -1,9 +1,11 @@
 import { BUILDING_DEFS, type BuildingTypeId } from '../../sim/defs/buildings';
-import { GOODS, type GoodId } from '../../sim/defs/goods';
+import { GOODS } from '../../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../../sim/defs/techs';
 import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
 import { goodName, techName, unitName } from '../../ui/names';
 import { buildingHref, goodHref, techHref, unitHref } from './routes';
+import { GoodId } from '../../sim/defs/goods';
+import { GOOD_KEYS } from '../../sim/defs/goods';
 
 /**
  * Which words in a sentence name something with a page of its own.
@@ -59,12 +61,12 @@ const ARTICLES = new Set(['a', 'an', 'the', 'every', 'each', 'one', 'its', 'thei
  * the reader still gets the link.
  */
 const SYNONYMS: { text: string; href: string }[] = [
-  { text: 'bread', href: goodHref('food') },
-  { text: 'loaf', href: goodHref('food') },
-  { text: 'loaves', href: goodHref('food') },
-  { text: 'timber', href: goodHref('wood') },
-  { text: 'grain', href: goodHref('wheat') },
-  { text: 'coin', href: goodHref('silver') },
+  { text: 'bread', href: goodHref(GoodId.food) },
+  { text: 'loaf', href: goodHref(GoodId.food) },
+  { text: 'loaves', href: goodHref(GoodId.food) },
+  { text: 'timber', href: goodHref(GoodId.wood) },
+  { text: 'grain', href: goodHref(GoodId.wheat) },
+  { text: 'coin', href: goodHref(GoodId.silver) },
   { text: 'farm', href: buildingHref('wheatFarm') },
   // No 'keep' for the Castle: the plural rule below would make a link of
   // the verb, and "the barracks keeps a cask" is live text.
@@ -87,7 +89,8 @@ function collectTerms(): Term[] {
     const href = goodHref(id);
     terms.push({ text: goodName(id), href });
     // 'rod' is what a sentence says; 'Fishing Rod' is the display name.
-    if (goodName(id).toLowerCase() !== id) terms.push({ text: id, href });
+    const key = GOOD_KEYS[id];
+    if (goodName(id).toLowerCase() !== key) terms.push({ text: key, href });
   }
   for (const id of Object.keys(TECH_DEFS) as TechId[]) {
     terms.push({ text: techName(id), href: techHref(id) });

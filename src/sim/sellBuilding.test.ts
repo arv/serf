@@ -11,6 +11,7 @@ import {
   bareWorld,
   cmds,
 } from './testUtils.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -24,7 +25,7 @@ function run(world: World, ticks: number): void {
 describe('selling a building', () => {
   it('refunds half the cost, frees the worker and the ground', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 0 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 0 });
     addResourceTile(world, 40, 30); // a grove in reach, or the hut is illegal ground
     const hut = addBuiltHut(world, 36, 30);
     const workerId = hut.workerId!;
@@ -33,8 +34,8 @@ describe('selling a building', () => {
     tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: hut.id }));
     run(world, 2);
 
-    const cost = buildingDef('woodcutter').cost.wood!;
-    expect(sh.stock.wood).toBe(Math.floor(cost / 2));
+    const cost = buildingDef('woodcutter').cost[GoodId.wood]!;
+    expect(sh.stock[GoodId.wood]).toBe(Math.floor(cost / 2));
     const worker = world.units.get(workerId)!;
     expect(worker.dead).toBe(false);
     expect(worker.kind).toBe('serf');
@@ -47,12 +48,12 @@ describe('selling a building', () => {
 
   it('a site refunds half of what was delivered, not half the price', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 0 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 0 });
     const site = addSite(world, 36, 30);
     // Two of six planks delivered so far.
-    site.siteNeeds = { wood: (buildingDef('woodcutter').cost.wood ?? 0) - 2 };
+    site.siteNeeds = { [GoodId.wood]: (buildingDef('woodcutter').cost[GoodId.wood] ?? 0) - 2 };
     tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: site.id }));
-    expect(sh.stock.wood).toBe(1); // floor(2 / 2)
+    expect(sh.stock[GoodId.wood]).toBe(1); // floor(2 / 2)
     expect(world.buildings.get(site.id)).toBeUndefined();
   });
 
@@ -62,27 +63,27 @@ describe('selling a building', () => {
     // STOCK — an unconditional hammer rescue walked them out of the sale
     // while the axes on the same shelf were lost.
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 0, hammer: 0, axe: 0 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 0, [GoodId.hammer]: 0, [GoodId.axe]: 0 });
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
-    smith.stock = { hammer: 3, axe: 2 };
+    smith.stock = { [GoodId.hammer]: 3, [GoodId.axe]: 2 };
     tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: smith.id }));
-    expect(sh.stock.hammer ?? 0).toBe(0); // lost with the rest of the shelf
-    expect(sh.stock.axe ?? 0).toBe(0);
+    expect(sh.stock[GoodId.hammer] ?? 0).toBe(0); // lost with the rest of the shelf
+    expect(sh.stock[GoodId.axe] ?? 0).toBe(0);
   });
 
   it("a sold site's borrowed hammer walks back to the stores", () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { wood: 0, hammer: 0 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 0, [GoodId.hammer]: 0 });
     const site = addSite(world, 36, 30);
-    site.siteNeeds = { wood: buildingDef('woodcutter').cost.wood ?? 0 };
-    site.inputs = { hammer: 1 }; // the loan, delivered and waiting
+    site.siteNeeds = { [GoodId.wood]: buildingDef('woodcutter').cost[GoodId.wood] ?? 0 };
+    site.inputs = { [GoodId.hammer]: 1 }; // the loan, delivered and waiting
     tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: site.id }));
-    expect(sh.stock.hammer).toBe(1); // a move, not a refund
+    expect(sh.stock[GoodId.hammer]).toBe(1); // a move, not a refund
   });
 
   it("a rival cannot sell your buildings, and nobody sells a storehouse", () => {
     const world = bareWorld(1, 2);
-    const sh = addStorehouse(world, 30, 30, { wood: 0 });
+    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 0 });
     const hut = addBuiltHut(world, 36, 30);
     tickWorld(world, [{ playerId: 1, cmd: { kind: 'sellBuilding', buildingId: hut.id } }]);
     expect(world.buildings.get(hut.id)).toBeDefined();

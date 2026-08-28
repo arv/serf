@@ -6,6 +6,7 @@ import { GoodIcon } from '../../ui/icons';
 import { goodName } from '../../ui/names';
 import { fmtPerMinute, fmtSecs } from './data';
 import { goodHref } from './routes';
+import { goodEntries } from '../../sim/defs/goods';
 
 /**
  * An internal wiki link: a real <a>, so middle-click and copy-link work,
@@ -57,7 +58,7 @@ export function GoodChip(props: { good: GoodId; amount?: number }): JSX.Element 
 
 /** A GoodAmounts as a row of chips — build costs, recipe sides, tech bills. */
 export function CostList(props: { amounts: GoodAmounts; freeLabel?: string }): JSX.Element {
-  const entries = () => Object.entries(props.amounts) as [GoodId, number][];
+  const entries = () => goodEntries(props.amounts);
   return (
     <span class="costs">
       <Show
@@ -109,7 +110,7 @@ export function RecipeView(props: { recipe: Recipe }): JSX.Element {
       </span>
     );
   }
-  const outputs = Object.entries(r.outputs) as [GoodId, number][];
+  const outputs = goodEntries(r.outputs);
   return (
     <span>
       <CostList amounts={r.inputs} freeLabel="nothing" /> → <CostList amounts={r.outputs} /> ·{' '}

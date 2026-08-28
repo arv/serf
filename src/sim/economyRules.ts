@@ -16,9 +16,12 @@ import type { AiStrategy } from './defs/aiStrategies.ts';
 import type { TechId } from './defs/techs.ts';
 import type { UnitTypeId } from './defs/units.ts';
 import type { Building, EntityId, Owner } from './entities.ts';
-import type { GoodId } from './defs/goods.ts';
 import type { SimCommand } from './commands.ts';
 import type { World } from './world.ts';
+import { GoodId } from './defs/goods.ts';
+import { goodKeys } from './defs/goods.ts';
+import type { GoodAmounts } from './defs/goods.ts';
+import { goodEntries } from './defs/goods.ts';
 
 /**
  * The seat's economy as a set of named rules instead of a cascade.
@@ -89,7 +92,7 @@ export interface RuleContext {
    * must use, since the sim's own tie-breaks are by id. */
   mine: Building[];
   /** The storehouse shelf. */
-  stock: Record<string, number>;
+  stock: GoodAmounts;
   /** Loose hands: nothing in the village moves without one. */
   serfCount: number;
   /** The stall watchdog's reading for this beat. */
@@ -172,8 +175,8 @@ const resiteExtractor: EconomyRule = {
       const c = gatherOrigin(def, b.x, b.y);
       if (findResourcesNear(ctx.world.map, c.x, c.y, code, recipe.radius, 1).length > 0) continue;
       if (nearestResource(ctx.world.map, code, b.x, b.y) < 0) continue; // nowhere to go
-      const cost = def.cost as Record<string, number>;
-      const canRebuild = Object.entries(cost).every(
+      const cost = def.cost;
+      const canRebuild = goodEntries(cost).every(
         ([good, n]) => (ctx.stock[good] ?? 0) + Math.floor(n / 2) >= n,
       );
       if (!canRebuild) continue;
@@ -327,8 +330,8 @@ const keepTheToolsComing: EconomyRule = {
     const wanted = new Set<GoodId>();
     for (const b of ctx.mine) {
       if (b.state === 'site') {
-        if (!b.paused && (b.siteNeeds?.hammer ?? 0) > 0 && (b.inbound.hammer ?? 0) === 0) {
-          wanted.add('hammer');
+        if (!b.paused && (b.siteNeeds?.[GoodId.hammer] ?? 0) > 0 && (b.inbound[GoodId.hammer] ?? 0) === 0) {
+          wanted.add(GoodId.hammer);
         }
         continue;
       }
@@ -584,7 +587,7 @@ const holdTheGlutForge: EconomyRule = {
       // One output per forge recipe today; summing is what the shape means
       // rather than what it happens to hold.
       let shelf = 0;
-      for (const good of Object.keys(recipe.outputs) as GoodId[]) shelf += ctx.stock[good] ?? 0;
+      for (const good of goodKeys(recipe.outputs)) shelf += ctx.stock[good] ?? 0;
       if (b.paused === true) {
         if (shelf > FORGE_GLUT_CLEAR) continue;
         commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });

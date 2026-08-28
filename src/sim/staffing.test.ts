@@ -14,6 +14,7 @@ import {
 import { tileIdx } from '../shared/grid.ts';
 import { OUTPUT_CAP } from './defs/buildings.ts';
 import { bindWorker } from './systems/production.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -39,7 +40,7 @@ describe('releasing a worker', () => {
     addStorehouse(world, 30, 30, {});
     addResourceTile(world, 40, 41);
     const hut = addBuiltHut(world, 40, 40);
-    hut.stock = { wood: OUTPUT_CAP };
+    hut.stock = { [GoodId.wood]: OUTPUT_CAP };
     const worker = world.units.get(hut.workerId!)!;
     worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
 
@@ -71,30 +72,30 @@ describe('the population economy', () => {
   it('an idle serf walks over and becomes the worker', () => {
     const world = bareWorld();
     const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
-    farm.inputs.water = 3;
-    farm.inputs.scythe = 1; // the post's tool, already on the rack
+    farm.inputs[GoodId.water] = 3;
+    farm.inputs[GoodId.scythe] = 1; // the post's tool, already on the rack
     const serf = addSerf(world, 36, 34);
     run(world, 20 * 15);
 
     expect(serf.kind).toBe('worker');
     expect(farm.workerId).toBe(serf.id);
-    expect(farm.stock.wheat ?? 0).toBeGreaterThan(0); // staffed => producing
+    expect(farm.stock[GoodId.wheat] ?? 0).toBeGreaterThan(0); // staffed => producing
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('unstaffed buildings produce nothing', () => {
     const world = bareWorld();
     const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
-    farm.inputs.water = 3;
+    farm.inputs[GoodId.water] = 3;
     run(world, 20 * 20); // no serfs anywhere
-    expect(farm.stock.wheat ?? 0).toBe(0);
+    expect(farm.stock[GoodId.wheat] ?? 0).toBe(0);
   });
 
   it('a dead worker is replaced from the serf pool', () => {
     const world = bareWorld();
     const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
     // The replacement's scythe: the first worker's died with him.
-    farm.inputs.scythe = 1;
+    farm.inputs[GoodId.scythe] = 1;
     const worker = staffBuilding(world, farm);
     const spare = addSerf(world, 35, 35);
     run(world, 5);
@@ -107,7 +108,7 @@ describe('the population economy', () => {
 
   it('staffing competes with hauling: one serf cannot do both', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 20 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
     placeBuiltBuilding(world, 'wheatFarm', 0, 22, 30);
     addSerf(world, 28, 34); // exactly one person
     run(world, 20 * 15);
@@ -119,7 +120,7 @@ describe('the population economy', () => {
 
   it('training a soldier consumes a serf (people become the army)', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 6, spear: 2 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 6, [GoodId.spear]: 2 });
     world.players[0]!.techs.researched.push('soldiery');
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
@@ -139,7 +140,7 @@ describe('the population economy', () => {
   it('a destroyed building frees its en-route recruit', () => {
     const world = bareWorld();
     const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
-    farm.inputs.scythe = 1; // recruitment waits on the post's tool
+    farm.inputs[GoodId.scythe] = 1; // recruitment waits on the post's tool
     const serf = addSerf(world, 44, 44); // long walk
     run(world, 30); // recruitment fires, serf is en route
     expect(serf.task.t).toBe('staff');
@@ -163,7 +164,7 @@ describe('the population economy', () => {
     expect(well.workerId).toBeUndefined();
     expect(hauler.homeId).toBeUndefined();
     // The water reached the farm and came out the other side as grain.
-    expect(farm.stock.wheat ?? 0).toBeGreaterThan(0);
+    expect(farm.stock[GoodId.wheat] ?? 0).toBeGreaterThan(0);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
@@ -214,6 +215,6 @@ describe('the population economy', () => {
     // Nothing in its hands until the windlass is done.
     expect(carriedWhileDrawing).toBe(false);
     // And then the water arrives.
-    expect(store.stock.water ?? 0).toBeGreaterThan(0);
+    expect(store.stock[GoodId.water] ?? 0).toBeGreaterThan(0);
   });
 });

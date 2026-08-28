@@ -1,6 +1,6 @@
 import { REPAIR_MEND_TICKS } from '../defs/balance.ts';
 import { buildingDef, repairBill } from '../defs/buildings.ts';
-import { GOODS, type GoodId } from '../defs/goods.ts';
+import { GOODS } from '../defs/goods.ts';
 import { PathLevel } from '../map.ts';
 import { abortJob, availableOut } from './logistics.ts';
 import { consumePostTool } from './production.ts';
@@ -12,6 +12,8 @@ import {
 } from '../world.ts';
 import { tileIdx } from '../../shared/grid.ts';
 import type { Building } from '../entities.ts';
+import { GoodId } from '../defs/goods.ts';
+import { goodKeys } from '../defs/goods.ts';
 
 /**
  * Sites whose materials are fully delivered tick a build timer, then become
@@ -75,9 +77,9 @@ export function constructionSystem(world: World): void {
     // shelf, where evacuation hauls it home for the next site. This is
     // what makes hammers a cap on concurrent construction rather than a
     // cost — the only way to lose one is to lose the site itself.
-    if ((b.inputs.hammer ?? 0) > 0) {
-      b.stock.hammer = (b.stock.hammer ?? 0) + (b.inputs.hammer ?? 0);
-      b.inputs.hammer = 0;
+    if ((b.inputs[GoodId.hammer] ?? 0) > 0) {
+      b.stock[GoodId.hammer] = (b.stock[GoodId.hammer] ?? 0) + (b.inputs[GoodId.hammer] ?? 0);
+      b.inputs[GoodId.hammer] = 0;
     }
     // The builder stays on as the building's worker — if the post's tool
     // is here to hand him (sites pre-order it, so it usually arrived with
@@ -211,7 +213,7 @@ export function orderRepair(world: World, b: Building): void {
 export function cancelRepair(world: World, b: Building): void {
   const needs = b.repairNeeds;
   if (!needs) return;
-  clearRepairOrder(b, Object.keys(needs) as GoodId[]);
+  clearRepairOrder(b, goodKeys(needs));
   for (const job of world.jobs.values()) {
     if (job.repair && job.to === b.id) abortJob(world, job, 'repair called off', true);
   }

@@ -1,6 +1,6 @@
 import { ALE_TRAIN_SPEEDUP, TICKS_PER_SECOND } from '../defs/balance.ts';
 import { TOOL_OF, buildingDef, garrisonRoom } from '../defs/buildings.ts';
-import { GOODS, type GoodId } from '../defs/goods.ts';
+import { GOODS } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { atBuilding, walkToBuilding } from '../arrival.ts';
 import { bindWorker, consumePostTool, unbindWorker } from './production.ts';
@@ -9,6 +9,8 @@ import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
 import type { UnitTypeId } from '../defs/units.ts';
 import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
+import { GoodId } from '../defs/goods.ts';
+import { goodEntries } from '../defs/goods.ts';
 
 const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
 const UNREACHABLE_BACKOFF = REQUEST_INTERVAL; // hold before re-pathing to a walled-off post
@@ -106,7 +108,7 @@ export function firstReadyTraining(b: Building): number {
     if (item.started) return false;
     const opt = def.trains!.find((o) => o.unit === item.unit);
     if (!opt) return false;
-    return (Object.entries(opt.cost) as [GoodId, number][]).every(
+    return goodEntries(opt.cost).every(
       ([good, n]) => (b.inputs[good] ?? 0) >= n,
     );
   });
@@ -194,7 +196,7 @@ function handleArrivals(world: World): void {
       }
       const head = b.trainQueue![0]!;
       const option = def.trains.find((o) => o.unit === head.unit)!;
-      for (const [good, n] of Object.entries(option.cost) as [GoodId, number][]) {
+      for (const [good, n] of goodEntries(option.cost)) {
         b.inputs[good] = (b.inputs[good] ?? 0) - n;
         world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
       }
@@ -204,11 +206,11 @@ function handleArrivals(world: World): void {
       // Checked here and not in cost — no ale never blocks the course, and
       // a cancelled order doesn't refund a drink already drunk.
       if (
-        (b.inputs.ale ?? 0) > 0 &&
+        (b.inputs[GoodId.ale] ?? 0) > 0 &&
         world.players[b.owner]?.techs.researched.includes('aleRations')
       ) {
-        b.inputs.ale = (b.inputs.ale ?? 0) - 1;
-        world.ledger.consumed.ale = (world.ledger.consumed.ale ?? 0) + 1;
+        b.inputs[GoodId.ale] = (b.inputs[GoodId.ale] ?? 0) - 1;
+        world.ledger.consumed[GoodId.ale] = (world.ledger.consumed[GoodId.ale] ?? 0) + 1;
         head.ticksLeft = Math.max(1, Math.round(option.durationTicks / ALE_TRAIN_SPEEDUP));
       }
       unit.dead = true; // the person is now inside, training

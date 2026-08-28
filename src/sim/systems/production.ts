@@ -17,8 +17,9 @@ import type { Building } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { depleteResourceTile, type World } from '../world.ts';
 import { getModifier } from '../techHelpers.ts';
-import type { GoodId } from '../defs/goods.ts';
 import type { Unit } from '../units.ts';
+import { GoodId } from '../defs/goods.ts';
+import { goodEntries } from '../defs/goods.ts';
 
 /**
  * How many nearby resource tiles one trip-start will try to path to before
@@ -77,7 +78,7 @@ function convertStep(
           ? (def.recipeOptions?.[b.prodRecipeIndex]?.recipe ?? recipe)
           : recipe;
       if (started) {
-        for (const [good, n] of Object.entries(started.outputs) as [GoodId, number][]) {
+        for (const [good, n] of goodEntries(started.outputs)) {
           b.stock[good] = (b.stock[good] ?? 0) + n;
           world.ledger.produced[good] = (world.ledger.produced[good] ?? 0) + n;
         }
@@ -175,7 +176,7 @@ const recipeEntriesCache = new WeakMap<object, [GoodId, number][]>();
 function recipeEntries(goods: Partial<Record<GoodId, number>>): [GoodId, number][] {
   let entries = recipeEntriesCache.get(goods);
   if (!entries) {
-    entries = Object.entries(goods) as [GoodId, number][];
+    entries = goodEntries(goods);
     recipeEntriesCache.set(goods, entries);
   }
   return entries;
@@ -266,7 +267,7 @@ export function autoForgeIndex(world: World, b: Building, def: BuildingDef): num
     if (ob.dead || ob.owner !== owner) continue;
     if (ob.state === 'site') {
       // A site still owed its hammer is a hammer the village lacks.
-      if (!ob.paused && (ob.siteNeeds?.hammer ?? 0) > 0 && (ob.inbound.hammer ?? 0) === 0) {
+      if (!ob.paused && (ob.siteNeeds?.[GoodId.hammer] ?? 0) > 0 && (ob.inbound[GoodId.hammer] ?? 0) === 0) {
         want[HAMMER_SLOT] = want[HAMMER_SLOT]! + 1;
       }
       continue;
@@ -308,7 +309,7 @@ const TOOL_COUNT = TOOL_GOODS.length;
 /** Slot of each tool in TOOL_GOODS, so a GoodId can index the count arrays. */
 const TOOL_SLOT: Partial<Record<GoodId, number>> = {};
 for (let i = 0; i < TOOL_COUNT; i++) TOOL_SLOT[TOOL_GOODS[i]!] = i;
-const HAMMER_SLOT = TOOL_SLOT.hammer!;
+const HAMMER_SLOT = TOOL_SLOT[GoodId.hammer]!;
 /** Counts, not sums of measurements: whole tools, so exact as doubles. */
 const want = new Float64Array(TOOL_COUNT);
 const free = new Float64Array(TOOL_COUNT);

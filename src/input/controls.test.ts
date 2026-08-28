@@ -35,6 +35,7 @@ import {
   setStock,
   setTechs,
 } from '../ui/store';
+import { GoodId } from '../sim/defs/goods';
 
 const CANVAS_W = 800;
 const CANVAS_H = 600;
@@ -861,7 +862,7 @@ describe('build chord', () => {
   it('arms the building the letter names, and aims the ribbon at it', () => {
     const h = harness();
     controls = h.controls;
-    setStock({ wood: 20, stone: 20 });
+    setStock({ [GoodId.wood]: 20, [GoodId.stone]: 20 });
 
     h.type('B');
     h.type('M');
@@ -877,7 +878,7 @@ describe('build chord', () => {
     // holds — but the ribbon has been pointed at the answer.
     const h = harness();
     controls = h.controls;
-    setStock({ wood: 1 });
+    setStock({ [GoodId.wood]: 1 });
 
     h.type('B');
     h.type('M');
@@ -889,7 +890,7 @@ describe('build chord', () => {
   it('aims the ribbon at a building that is not researched yet', () => {
     const h = harness();
     controls = h.controls;
-    setStock({ wood: 99, stone: 99 });
+    setStock({ [GoodId.wood]: 99, [GoodId.stone]: 99 });
 
     h.type('B');
     h.type('I'); // the Iron Mine, behind ironworking
@@ -923,7 +924,7 @@ describe('build chord', () => {
   it('leaves a stray letter alone', () => {
     const h = harness();
     controls = h.controls;
-    setStock({ wood: 99, stone: 99 });
+    setStock({ [GoodId.wood]: 99, [GoodId.stone]: 99 });
 
     h.type('B');
     h.type('Z');

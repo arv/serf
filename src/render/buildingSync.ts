@@ -14,12 +14,13 @@ import { buildingDef } from '../sim/defs/buildings';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { WATER_LEVEL } from '../sim/map';
 import { CAMERA_YAW, type ViewBounds } from './cameraRig';
-import { GOODS, type GoodId } from '../sim/defs/goods';
+import { GOODS } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
 import type { FogQuery } from './fogOfWar';
 import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
 import type { CueId } from '../audio/cues';
+import { GoodId } from '../sim/defs/goods';
 
 /** A built fishery's pier, in world space: the deck line from its landward
  * end to the fishing spot near the tip, plank height, and the yaw that
@@ -798,7 +799,7 @@ export class BuildingSync {
    * biggest-first; `per` goods fill one stack/boulder. */
   static #YARDS: Partial<Record<BuildingSnap['type'], YardStyle>> = {
     woodcutter: {
-      good: 'wood',
+      good: GoodId.wood,
       prop: 'resource_lumber',
       spots: [
         [0.36, 0.28, 0.3, 1],
@@ -808,10 +809,10 @@ export class BuildingSync {
       size: 0.12,
       per: 3,
     },
-    quarry: { good: 'stone', prop: 'resource_stone', spots: MINE_SPOTS, size: 0.12, per: 3 },
-    ironMine: { good: 'iron', rock: 0x9a5f42, spots: MINE_SPOTS, size: 0.153, per: 2 },
-    silverMine: { good: 'silver', rock: 0xdbe4ee, spots: MINE_SPOTS, size: 0.153, per: 2 },
-    goldMine: { good: 'gold', rock: 0xf0bc42, spots: MINE_SPOTS, size: 0.153, per: 2 },
+    quarry: { good: GoodId.stone, prop: 'resource_stone', spots: MINE_SPOTS, size: 0.12, per: 3 },
+    ironMine: { good: GoodId.iron, rock: 0x9a5f42, spots: MINE_SPOTS, size: 0.153, per: 2 },
+    silverMine: { good: GoodId.silver, rock: 0xdbe4ee, spots: MINE_SPOTS, size: 0.153, per: 2 },
+    goldMine: { good: GoodId.gold, rock: 0xf0bc42, spots: MINE_SPOTS, size: 0.153, per: 2 },
   };
 
   #syncYard(v: BuildingVisual, b: BuildingSnap): boolean {
@@ -908,7 +909,7 @@ export class BuildingSync {
       }
       if (n > 0) shown.push([g, Math.min(n, 8)]);
     }
-    const key = shown.map(([g, n]) => `${g}${n}`).join('.');
+    const key = shown.map(([g, n]) => `${g}:${n}`).join('.');
     if (key === v.pileKey) return;
     v.pileKey = key;
     // Lanes are sticky. Laying the stacks out by their index in `shown`

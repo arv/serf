@@ -1,4 +1,5 @@
-import { GOODS, type GoodId } from './goods.ts';
+import { GOODS } from './goods.ts';
+import { GoodId } from './goods.ts';
 
 /**
  * Unit definitions. `kindCode`/`ownerCode` are the compact byte encodings
@@ -99,18 +100,25 @@ export const COUNTER_TABLE: Record<UnitClass, Record<UnitClass, number>> = {
   ranged: { heavy: 1.5, light: 0.67, ranged: 1.0 },
 };
 
-/** SAB byte for a carried good: 0 = nothing, else GOODS index + 1. */
+/**
+ * SAB byte for a carried good: the good's own id, and 0 for empty hands.
+ *
+ * The two were a table lookup apart while a good was a word; now that a
+ * good is a number chosen to be its own carry code (goodIdEnum.ts is
+ * one-based for exactly this), the encoding is the identity and these
+ * exist only to say so at the boundary.
+ */
 export function carryingCode(good: GoodId | undefined): number {
-  return good === undefined ? 0 : GOODS.indexOf(good) + 1;
+  return good ?? 0;
 }
 
 export function goodFromCarryingCode(code: number): GoodId | undefined {
-  return code === 0 ? undefined : GOODS[code - 1];
+  return code === 0 ? undefined : (code as GoodId);
 }
 
 /** What a soldier needs forged before the barracks can start on them. */
 export const WEAPON_OF: Partial<Record<UnitTypeId, GoodId>> = {
-  knight: 'sword',
-  spearman: 'spear',
-  archer: 'bow',
+  knight: GoodId.sword,
+  spearman: GoodId.spear,
+  archer: GoodId.bow,
 };

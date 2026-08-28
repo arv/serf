@@ -71,6 +71,7 @@ import type { HeightField } from '../render/heightField';
 import type { WorldMirror } from '../app/mirror';
 import type { SimHost } from '../app/simHost';
 import type { BuildingSnap } from '../protocol/messages';
+import { GoodId } from '../sim/defs/goods';
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
@@ -547,7 +548,7 @@ export class Controls {
       if (!canHire(b, stock(), population())) {
         const queued = b.hireQueue ?? 0;
         pushToast(
-          (stock().silver ?? 0) < HIRE_SERF_COST
+          (stock()[GoodId.silver] ?? 0) < HIRE_SERF_COST
             ? `Not enough silver to hire — a serf costs ${HIRE_SERF_COST}.`
             : population().pop + queued >= population().cap
               ? 'Every bed is taken — build a house before you hire again.'

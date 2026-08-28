@@ -6,6 +6,7 @@ import { popCapOf, populationOf, hasRoomToHire, pendingHiresOf } from './populat
 import { HIRE_SERF_COST, HIRE_SERF_TICKS, START_SERFS } from './defs/balance.ts';
 import { BUILDING_DEFS } from './defs/buildings.ts';
 import { addSerf, addStorehouse, bareWorld, cmds } from './testUtils.ts';
+import { GoodId } from './defs/goods.ts';
 
 /**
  * The population cap. Beds, not bodies, are the ceiling: the castle sleeps
@@ -16,7 +17,7 @@ describe('the population cap', () => {
   /** A one-seat world with a castle full of silver and `serfs` people. */
   function village(serfs: number, silver = 100) {
     const world = bareWorld();
-    const sh = addStorehouse(world, 10, 10, { silver });
+    const sh = addStorehouse(world, 10, 10, { [GoodId.silver]: silver });
     for (let i = 0; i < serfs; i++) addSerf(world, 20 + i, 20);
     return { world, sh };
   }
@@ -50,7 +51,7 @@ describe('the population cap', () => {
     expect(hasRoomToHire(world, 0)).toBe(false);
     tickWorld(world, cmds({ kind: 'hireSerf' }));
     expect(sh.hireQueue ?? 0).toBe(0);
-    expect(sh.stock.silver).toBe(100); // not spent on a hire that never happened
+    expect(sh.stock[GoodId.silver]).toBe(100); // not spent on a hire that never happened
   });
 
   it('counts recruits already on the road against the beds', () => {
@@ -59,7 +60,7 @@ describe('the population cap', () => {
     // Five orders, two beds: three are refused rather than overshooting.
     expect(sh.hireQueue).toBe(2);
     expect(pendingHiresOf(world, 0)).toBe(2);
-    expect(sh.stock.silver).toBe(100 - 2 * HIRE_SERF_COST);
+    expect(sh.stock[GoodId.silver]).toBe(100 - 2 * HIRE_SERF_COST);
   });
 
   it('lets a finished house pay for ten more, but not a site', () => {

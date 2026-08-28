@@ -4,6 +4,7 @@ import { TileResource } from './map.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
 import { addBuiltHut, addResourceTile, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
 import type { Unit } from './units.ts';
+import { GoodId } from './defs/goods.ts';
 
 /** Put a unit where its walk would have left it had the route died: far from
  * where it was going, with nothing left to walk. */
@@ -30,35 +31,35 @@ function runUntil(world: World, ready: () => boolean, ticks = 600): void {
 describe('work only happens where the worker is standing', () => {
   it('a hauler cut off from the source draws nothing out of it', () => {
     const world = bareWorld();
-    const from = addStorehouse(world, 30, 30, { wood: 5 });
+    const from = addStorehouse(world, 30, 30, { [GoodId.wood]: 5 });
     addSite(world, 40, 40); // a site wanting wood puts a job on the board
     const serf = addSerf(world, 31, 33);
     runUntil(world, () => serf.task.t === 'haul' && serf.jobId !== undefined);
     expect(world.jobs.get(serf.jobId!)?.phase).toBe('toPickup');
 
-    const stock = from.stock.wood;
+    const stock = from.stock[GoodId.wood];
     strandFarAway(serf);
     tickWorld(world, []);
 
-    expect(from.stock.wood).toBe(stock); // the wood stayed in the storehouse
+    expect(from.stock[GoodId.wood]).toBe(stock); // the wood stayed in the storehouse
     expect(serf.carrying).toBeUndefined(); // and never appeared on his back
     expect(serf.path).not.toBeNull(); // he is walking there instead
   });
 
   it('a hauler cut off from the destination delivers nothing into it', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 5 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 5 });
     const site = addSite(world, 40, 40);
     const serf = addSerf(world, 31, 33);
     runUntil(world, () => serf.carrying !== undefined);
     expect(world.jobs.get(serf.jobId!)?.phase).toBe('toDropoff');
 
-    const needed = site.siteNeeds!.wood;
+    const needed = site.siteNeeds![GoodId.wood];
     strandFarAway(serf);
     tickWorld(world, []);
 
-    expect(site.siteNeeds!.wood).toBe(needed); // nothing landed on the site
-    expect(serf.carrying).toBe('wood'); // still on his shoulders
+    expect(site.siteNeeds![GoodId.wood]).toBe(needed); // nothing landed on the site
+    expect(serf.carrying).toBe(GoodId.wood); // still on his shoulders
     expect(serf.path).not.toBeNull();
   });
 
@@ -88,12 +89,12 @@ describe('work only happens where the worker is standing', () => {
     const worker = world.units.get(hut.workerId!)!;
     runUntil(world, () => worker.task.t === 'gatherHome' && worker.carrying !== undefined);
 
-    const held = hut.stock.wood ?? 0;
+    const held = hut.stock[GoodId.wood] ?? 0;
     strandFarAway(worker);
     tickWorld(world, []);
 
-    expect(hut.stock.wood ?? 0).toBe(held); // nothing went through the wall
-    expect(worker.carrying).toBe('wood'); // the log is not lost either
+    expect(hut.stock[GoodId.wood] ?? 0).toBe(held); // nothing went through the wall
+    expect(worker.carrying).toBe(GoodId.wood); // the log is not lost either
   });
 
   it('a recruit cut off from his post is not bound to it', () => {
@@ -113,10 +114,10 @@ describe('work only happens where the worker is standing', () => {
 
   it('a recruit cut off from a barracks is not enlisted by it', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 10, sword: 2 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     barracks.trainQueue = [{ unit: 'knight', started: false, ticksLeft: 0 }];
-    barracks.inputs = { food: 3, sword: 1 };
+    barracks.inputs = { [GoodId.food]: 3, [GoodId.sword]: 1 };
     const serf = addSerf(world, 34, 30);
     serf.task = { t: 'staff', buildingId: barracks.id };
     strandFarAway(serf);
@@ -126,6 +127,6 @@ describe('work only happens where the worker is standing', () => {
     // map that is a serf who walked into a building he never reached.
     expect(serf.dead).toBe(false);
     expect(barracks.trainQueue![0]!.started).toBe(false);
-    expect(barracks.inputs.sword).toBe(1); // no ingredients spent either
+    expect(barracks.inputs[GoodId.sword]).toBe(1); // no ingredients spent either
   });
 });

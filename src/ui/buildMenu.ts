@@ -1,6 +1,7 @@
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { TechId } from '../sim/defs/techs';
+import { goodEntries } from '../sim/defs/goods';
 
 /**
  * The build ribbon's tabs, in the order they are shown.
@@ -179,6 +180,6 @@ export function buildUnlocked(type: BuildingTypeId, researched: readonly TechId[
 }
 
 export function buildAffordable(type: BuildingTypeId, stock: GoodAmounts): boolean {
-  const cost = Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
+  const cost = goodEntries(BUILDING_DEFS[type].cost);
   return cost.every(([good, n]) => (stock[good] ?? 0) >= n);
 }

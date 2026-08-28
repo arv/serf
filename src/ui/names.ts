@@ -1,7 +1,7 @@
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
-import type { GoodId } from '../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../sim/defs/techs';
 import type { UnitTypeId } from '../sim/defs/units';
+import { GoodId } from '../sim/defs/goods';
 
 /**
  * Display-name helpers. Buildings and techs carry their names and
@@ -37,25 +37,25 @@ export function unitName(unit: UnitTypeId): string {
 }
 
 const GOOD_NAMES: Record<GoodId, string> = {
-  water: 'Water',
-  wheat: 'Wheat',
-  wood: 'Wood',
-  stone: 'Stone',
-  iron: 'Iron',
-  silver: 'Silver',
-  gold: 'Gold',
-  sword: 'Sword',
-  spear: 'Spear',
-  bow: 'Bow',
-  ale: 'Ale',
-  flour: 'Flour',
-  food: 'Food',
-  axe: 'Axe',
-  pickaxe: 'Pickaxe',
-  scythe: 'Scythe',
-  hammer: 'Hammer',
-  cauldron: 'Cauldron',
-  rod: 'Fishing Rod',
+  [GoodId.water]: 'Water',
+  [GoodId.wheat]: 'Wheat',
+  [GoodId.wood]: 'Wood',
+  [GoodId.stone]: 'Stone',
+  [GoodId.iron]: 'Iron',
+  [GoodId.silver]: 'Silver',
+  [GoodId.gold]: 'Gold',
+  [GoodId.sword]: 'Sword',
+  [GoodId.spear]: 'Spear',
+  [GoodId.bow]: 'Bow',
+  [GoodId.ale]: 'Ale',
+  [GoodId.flour]: 'Flour',
+  [GoodId.food]: 'Food',
+  [GoodId.axe]: 'Axe',
+  [GoodId.pickaxe]: 'Pickaxe',
+  [GoodId.scythe]: 'Scythe',
+  [GoodId.hammer]: 'Hammer',
+  [GoodId.cauldron]: 'Cauldron',
+  [GoodId.rod]: 'Fishing Rod',
 };
 
 export function goodName(good: GoodId): string {

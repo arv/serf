@@ -7,6 +7,8 @@ import { popCapOf, populationOf } from '../sim/population.ts';
 import { playMin, playMax } from '../sim/map.ts';
 import { tileIdx } from '../shared/grid.ts';
 import type { World } from '../sim/world.ts';
+import { GOOD_KEYS } from '../sim/defs/goods.ts';
+import { goodEntries } from '../sim/defs/goods.ts';
 
 /**
  * One AI seat's view of the match, folded down for a language model. The
@@ -150,8 +152,8 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
 
   const stock: Record<string, number> = {};
   if (castle) {
-    for (const [good, n] of Object.entries(castle.stock as Record<string, number>)) {
-      if (n > 0) stock[good] = n;
+    for (const [good, n] of goodEntries(castle.stock)) {
+      if (n > 0) stock[GOOD_KEYS[good]] = n;
     }
   }
 

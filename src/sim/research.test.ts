@@ -5,20 +5,21 @@ import { TECH_DEFS } from './defs/techs.ts';
 import { BARRACKS_ALE_CAP, FESTIVAL_DURATION } from './defs/balance.ts';
 import { getModifier, isBuildingUnlocked } from './techHelpers.ts';
 import { cmds, addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
 }
 
 function setupSchool(world: World): void {
-  addStorehouse(world, 30, 30, { wheat: 50, silver: 50, stone: 20, wood: 20, ale: 10, iron: 10 });
+  addStorehouse(world, 30, 30, { [GoodId.wheat]: 50, [GoodId.silver]: 50, [GoodId.stone]: 20, [GoodId.wood]: 20, [GoodId.ale]: 10, [GoodId.iron]: 10 });
   placeBuiltBuilding(world, 'abbey', 0, 24, 30);
 }
 
 describe('research', () => {
   it('requires a abbey', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wheat: 50, silver: 50 });
+    addStorehouse(world, 30, 30, { [GoodId.wheat]: 50, [GoodId.silver]: 50 });
     tickWorld(world, cmds({ kind: 'research', tech: 'irrigation' }));
     expect(world.players[0]!.techs.active).toBeUndefined();
   });
@@ -31,7 +32,7 @@ describe('research', () => {
 
     expect(world.players[0]!.techs.active?.tech).toBe('cobbledBoots');
     const sh = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
-    expect(sh.stock.silver).toBe(silverBefore - (TECH_DEFS.cobbledBoots.cost.silver ?? 0));
+    expect(sh.stock[GoodId.silver]).toBe(silverBefore - (TECH_DEFS.cobbledBoots.cost[GoodId.silver] ?? 0));
     expect(getModifier(world, 0, 'serfSpeed')).toBe(1);
 
     run(world, TECH_DEFS.cobbledBoots.durationTicks + 2);
@@ -85,11 +86,11 @@ describe('research', () => {
     setupSchool(world);
     world.players[0]!.techs.researched.push('irrigation', 'brewing', 'festivals');
     const tera = [...world.buildings.values()].find((b) => b.type === 'abbey')!;
-    tera.inputs.ale = 1;
+    tera.inputs[GoodId.ale] = 1;
 
     tickWorld(world, []);
     expect(world.players[0]!.techs.festivalTicksLeft).toBeGreaterThan(0);
-    expect(tera.inputs.ale ?? 0).toBe(0);
+    expect(tera.inputs[GoodId.ale] ?? 0).toBe(0);
     expect(getModifier(world, 0, 'workSpeed')).toBeCloseTo(1.25);
 
     run(world, FESTIVAL_DURATION + 2);
@@ -100,7 +101,7 @@ describe('research', () => {
     const world = bareWorld();
     const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
     staffBuilding(world, farm);
-    farm.inputs.water = 2;
+    farm.inputs[GoodId.water] = 2;
     world.players[0]!.techs.researched.push('irrigation');
     run(world, 2); // batch starts with the modifier applied
     expect(farm.prodTicksLeft).toBeLessThan(200); // 200 base / 1.3 ≈ 154
@@ -109,11 +110,11 @@ describe('research', () => {
   it('millstones speeds the mill and the bakery', () => {
     const world = bareWorld();
     const mill = placeBuiltBuilding(world, 'mill', 0, 30, 30);
-    mill.inputs.wheat = 1;
+    mill.inputs[GoodId.wheat] = 1;
     const bakery = placeBuiltBuilding(world, 'bakery', 0, 40, 30);
     staffBuilding(world, bakery);
-    bakery.inputs.flour = 1;
-    bakery.inputs.water = 1;
+    bakery.inputs[GoodId.flour] = 1;
+    bakery.inputs[GoodId.water] = 1;
     world.players[0]!.techs.researched.push('irrigation', 'millstones');
     expect(getModifier(world, 0, 'foodSpeed')).toBeCloseTo(1.3);
     run(world, 2);
@@ -126,8 +127,8 @@ describe('research', () => {
     const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 30, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto)
     staffBuilding(world, smith);
-    smith.inputs.iron = 1;
-    smith.inputs.wood = 2;
+    smith.inputs[GoodId.iron] = 1;
+    smith.inputs[GoodId.wood] = 2;
     world.players[0]!.techs.researched.push('cobbledBoots', 'ironworking', 'bellows');
     run(world, 2);
     expect(smith.prodTicksLeft).toBeLessThan(200); // spear: 200 base / 1.3 ≈ 154
@@ -135,7 +136,7 @@ describe('research', () => {
 
   it('ale rations: the barracks cask is kept topped up', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { ale: 10 });
+    addStorehouse(world, 30, 30, { [GoodId.ale]: 10 });
     world.players[0]!.techs.researched.push(
       'irrigation',
       'brewing',
@@ -145,12 +146,12 @@ describe('research', () => {
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
     run(world, 20 * 60);
-    expect(barracks.inputs.ale).toBe(BARRACKS_ALE_CAP);
+    expect(barracks.inputs[GoodId.ale]).toBe(BARRACKS_ALE_CAP);
   });
 
   it('ale rations: the recruit drinks from the cask and trains faster', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 10, spear: 1 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.spear]: 1 });
     world.players[0]!.techs.researched.push(
       'irrigation',
       'brewing',
@@ -159,7 +160,7 @@ describe('research', () => {
       'soldiery',
     );
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
-    barracks.inputs.ale = 1;
+    barracks.inputs[GoodId.ale] = 1;
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'spearman' }));
 
@@ -171,6 +172,6 @@ describe('research', () => {
     // range absorbs the decrements of the tick that flipped `started`).
     expect(head!.ticksLeft).toBeGreaterThan(150);
     expect(head!.ticksLeft).toBeLessThanOrEqual(160);
-    expect(barracks.inputs.ale ?? 0).toBe(0); // the drink was drunk
+    expect(barracks.inputs[GoodId.ale] ?? 0).toBe(0); // the drink was drunk
   });
 });

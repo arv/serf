@@ -1,5 +1,6 @@
 import { GOODS, type GoodAmounts } from '../defs/goods.ts';
 import type { World } from '../world.ts';
+import { GOOD_KEYS } from '../defs/goods.ts';
 
 /**
  * Dev-only consistency checks over the logistics bookkeeping. Violations mean
@@ -59,21 +60,21 @@ export function checkInvariants(world: World): InvariantReport {
       const rOut = b.reservedOut[good] ?? 0;
       const inb = b.inbound[good] ?? 0;
       if (rOut < 0 || inb < 0 || stock < 0) {
-        violations.push(`building ${b.id} ${b.type}: negative ${good} bookkeeping`);
+        violations.push(`building ${b.id} ${b.type}: negative ${GOOD_KEYS[good]} bookkeeping`);
       }
       if (rOut > stock) {
-        violations.push(`building ${b.id} ${b.type}: reservedOut[${good}]=${rOut} > stock=${stock}`);
+        violations.push(`building ${b.id} ${b.type}: reservedOut[${GOOD_KEYS[good]}]=${rOut} > stock=${stock}`);
       }
       const expOut = expectOut.get(b.id)?.[good] ?? 0;
       if (rOut !== expOut) {
         violations.push(
-          `building ${b.id} ${b.type}: reservedOut[${good}]=${rOut}, jobs expect ${expOut}`,
+          `building ${b.id} ${b.type}: reservedOut[${GOOD_KEYS[good]}]=${rOut}, jobs expect ${expOut}`,
         );
       }
       const expIn = expectIn.get(b.id)?.[good] ?? 0;
       if (inb !== expIn) {
         violations.push(
-          `building ${b.id} ${b.type}: inbound[${good}]=${inb}, jobs expect ${expIn}`,
+          `building ${b.id} ${b.type}: inbound[${GOOD_KEYS[good]}]=${inb}, jobs expect ${expIn}`,
         );
       }
     }
@@ -157,7 +158,7 @@ export function checkLedger(world: World, initial: GoodAmounts): string[] {
       (world.ledger.produced[good] ?? 0) -
       (world.ledger.consumed[good] ?? 0);
     if ((now[good] ?? 0) !== expected) {
-      violations.push(`ledger: ${good} count=${now[good] ?? 0}, expected ${expected}`);
+      violations.push(`ledger: ${GOOD_KEYS[good]} count=${now[good] ?? 0}, expected ${expected}`);
     }
   }
   return violations;

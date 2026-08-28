@@ -8,6 +8,7 @@ import { tileX, tileY } from '../shared/grid.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { cmds, addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 import type { Unit } from './units.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -73,7 +74,7 @@ describe('the barracks rally flag', () => {
 
   it('marches a fresh soldier from the door to the flag', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 10, sword: 2 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id, x: 45, y: 40 }));
@@ -98,7 +99,7 @@ describe('the barracks rally flag', () => {
 
   it('without a flag the recruit stands at the door, as ever', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 10, sword: 2 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'knight' }));
@@ -110,7 +111,7 @@ describe('the barracks rally flag', () => {
 
   it('a cancelled order still returns its serf to the door, not the flag', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 10, sword: 1 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 1 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id, x: 45, y: 40 }));

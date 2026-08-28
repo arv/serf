@@ -8,7 +8,7 @@ import {
 } from '../sim/defs/buildings';
 import { FORGE_QUEUE_CAP, HIRE_SERF_COST, HIRE_SERF_TICKS, TICKS_PER_SECOND, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
 import type { BuildingSnap } from '../protocol/messages';
-import type { GoodAmounts, GoodId } from '../sim/defs/goods';
+import type { GoodAmounts } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
 import { TextTip, TipWrap, UnitTip } from './tooltip';
@@ -38,10 +38,13 @@ import {
 } from './commands';
 import { SHORT } from './breakpoints';
 import { levyOrder } from './levy';
+import { goodEntries } from '../sim/defs/goods';
+import { GoodId } from '../sim/defs/goods';
+import { goodKeys } from '../sim/defs/goods';
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
   const entries = () =>
-    (Object.entries(props.amounts) as [GoodId, number][]).filter(([, n]) => n > 0);
+    goodEntries(props.amounts).filter(([, n]) => n > 0);
   return (
     <Show when={entries().length > 0} fallback={<span style={{ opacity: 0.6 }}>none</span>}>
       <For each={entries()}>
@@ -481,7 +484,7 @@ export function SelectionPanel(props: {
                   <span class="sel-label">forge</span>
                   <For each={def().recipeOptions!}>
                     {(opt, i) => {
-                      const output = () => Object.keys(opt.recipe.outputs)[0] as GoodId;
+                      const output = () => goodKeys(opt.recipe.outputs)[0]!;
                       const locked = () =>
                         opt.requiresTech !== undefined &&
                         !techs().researched.includes(opt.requiresTech);
@@ -530,9 +533,7 @@ export function SelectionPanel(props: {
                       >
                         {(item) => {
                           const output = () =>
-                            Object.keys(
-                              def().recipeOptions![item().recipeIndex]!.recipe.outputs,
-                            )[0] as GoodId;
+                            goodKeys(def().recipeOptions![item().recipeIndex]!.recipe.outputs)[0]!;
                           return (
                             <TipWrap
                               tip={() => (
@@ -577,9 +578,7 @@ export function SelectionPanel(props: {
                     <span>
                       between orders: forges{' '}
                       {goodName(
-                        Object.keys(
-                          def().recipeOptions![b().recipeIndex!]!.recipe.outputs,
-                        )[0] as GoodId,
+                        goodKeys(def().recipeOptions![b().recipeIndex!]!.recipe.outputs)[0]!,
                       ).toLowerCase()}
                       s{' '}
                       <button
@@ -629,7 +628,7 @@ export function SelectionPanel(props: {
                         </span>
                       </span>
                       <span class="cost">
-                        <GoodIcon good="silver" size={12} />
+                        <GoodIcon good={GoodId.silver} size={12} />
                         {HIRE_SERF_COST}
                       </span>
                     </button>

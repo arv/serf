@@ -3,6 +3,7 @@ import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -17,7 +18,7 @@ function run(world: World, ticks: number): void {
 describe('builder recruitment under sustained haul pressure', () => {
   it('a fully supplied site still gets a builder while hauls queue', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 40, wheat: 500 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 40, [GoodId.wheat]: 500 });
     // Mills need no resident; each books up to 4 inbound wheat and keeps
     // consuming, so open jobs exist essentially every tick.
     placeBuiltBuilding(world, 'mill', 0, 4, 4);

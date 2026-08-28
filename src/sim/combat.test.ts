@@ -20,6 +20,7 @@ import { ACTION, type UnitSnapshot } from '../protocol/sabLayout.ts';
 import { unitSnapshots } from '../protocol/snapshot.ts';
 import type { Building } from './entities.ts';
 import type { Unit } from './units.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -66,7 +67,7 @@ describe('the counter triangle', () => {
 describe('barracks training', () => {
   it('trains a knight from hauled food + sword', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 10, sword: 2 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'knight' }));
@@ -81,7 +82,7 @@ describe('barracks training', () => {
 
   it('gates gated units until their tech lands', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 10, bow: 2 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.bow]: 2 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'archer' }));
     expect(barracks.trainQueue ?? []).toEqual([]);
@@ -93,7 +94,7 @@ describe('barracks training', () => {
 
   it('a stuck head does not block trainable units behind it (skip-ahead)', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 10, spear: 2 }); // spear, but no sword
+    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.spear]: 2 }); // spear, but no sword
     world.players[0]!.techs.researched.push('soldiery');
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
@@ -109,7 +110,7 @@ describe('barracks training', () => {
 
   it('cancels an unstarted order outright — nothing was spent yet', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 10, sword: 2 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'knight' }));
     expect(barracks.trainQueue?.length).toBe(1);
@@ -128,7 +129,7 @@ describe('barracks training', () => {
 
   it('cancelling a started order returns the ingredients and the recruit', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 10, sword: 1 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 1 });
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'knight' }));
@@ -142,8 +143,8 @@ describe('barracks training', () => {
     tickWorld(world, cmds({ kind: 'cancelTraining', buildingId: barracks.id, index: 0, unit: 'knight' }));
     expect(barracks.trainQueue ?? []).toEqual([]);
     // The meal and the sword are back in the input buffer for the next order…
-    expect(barracks.inputs.food).toBe(3);
-    expect(barracks.inputs.sword).toBe(1);
+    expect(barracks.inputs[GoodId.food]).toBe(3);
+    expect(barracks.inputs[GoodId.sword]).toBe(1);
     // …and the person walked back out a serf instead of becoming a knight.
     expect([...world.units.values()].filter((u) => u.kind === 'serf' && !u.dead)).toHaveLength(1);
     run(world, 20 * 30);
@@ -153,7 +154,7 @@ describe('barracks training', () => {
 
   it('applies militaryHp modifiers at spawn', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 10, spear: 2 });
+    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.spear]: 2 });
     world.players[0]!.techs.researched.push('soldiery', 'mailArmor');
     const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
     addSerf(world, 34, 34);

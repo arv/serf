@@ -1,7 +1,8 @@
 import type { BuildingTypeId } from './buildings.ts';
-import type { GoodAmounts, GoodId } from './goods.ts';
+import type { GoodAmounts } from './goods.ts';
 import type { TechId } from './techs.ts';
 import type { AiStrategyId } from './aiStrategies.ts';
+import { GoodId } from './goods.ts';
 
 /**
  * The campaign: seven commissions that double as the tutorial. Each mission is
@@ -120,7 +121,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // balance floor doesn't apply.
     // Tools for the two posts this mission teaches, and hammers for its
     // sites — the tool economy itself is mission 4's lesson, not this one's.
-    startStock: { wood: 20, stone: 6, silver: 24, axe: 1, pickaxe: 1, hammer: 2 },
+    startStock: { [GoodId.wood]: 20, [GoodId.stone]: 6, [GoodId.silver]: 24, [GoodId.axe]: 1, [GoodId.pickaxe]: 1, [GoodId.hammer]: 2 },
     objectives: [
       { spec: { kind: 'building', type: 'woodcutter', count: 1 }, label: 'Raise a Woodcutter' },
       { spec: { kind: 'building', type: 'quarry', count: 1 }, label: 'Raise a Quarry' },
@@ -129,7 +130,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       // load-bearing (population is beds), not a checkbox. Five hires at
       // 4 silver each out of the 24 the mission opens with.
       { spec: { kind: 'population', count: 11 }, label: 'Grow the village to 11' },
-      { spec: { kind: 'stock', good: 'wood', amount: 30 }, label: 'Lay in 30 wood at the Castle' },
+      { spec: { kind: 'stock', good: GoodId.wood, amount: 30 }, label: 'Lay in 30 wood at the Castle' },
     ],
   },
 
@@ -145,21 +146,21 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     players: [{ kind: 'human' }],
     bandits: false,
     startStock: {
-      wood: 40,
-      stone: 12,
-      silver: 12,
-      axe: 1,
-      pickaxe: 1,
-      scythe: 1,
-      cauldron: 1,
-      hammer: 2,
+      [GoodId.wood]: 40,
+      [GoodId.stone]: 12,
+      [GoodId.silver]: 12,
+      [GoodId.axe]: 1,
+      [GoodId.pickaxe]: 1,
+      [GoodId.scythe]: 1,
+      [GoodId.cauldron]: 1,
+      [GoodId.hammer]: 2,
     },
     objectives: [
       { spec: { kind: 'building', type: 'well', count: 1 }, label: 'Raise a Well' },
       { spec: { kind: 'building', type: 'wheatFarm', count: 1 }, label: 'Raise a Wheat Farm' },
       { spec: { kind: 'building', type: 'mill', count: 1 }, label: 'Raise a Mill' },
       { spec: { kind: 'building', type: 'bakery', count: 1 }, label: 'Raise a Bakery' },
-      { spec: { kind: 'stock', good: 'food', amount: 12 }, label: 'Lay in 12 food at the Castle' },
+      { spec: { kind: 'stock', good: GoodId.food, amount: 12 }, label: 'Lay in 12 food at the Castle' },
     ],
   },
 
@@ -177,14 +178,14 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     startSerfs: 10,
     // Picks for both taught mines on top of the prebuilt camp's own kit.
     startStock: {
-      wood: 50,
-      stone: 20,
-      wheat: 12,
-      silver: 10,
-      axe: 1,
-      pickaxe: 3,
-      scythe: 1,
-      hammer: 3,
+      [GoodId.wood]: 50,
+      [GoodId.stone]: 20,
+      [GoodId.wheat]: 12,
+      [GoodId.silver]: 10,
+      [GoodId.axe]: 1,
+      [GoodId.pickaxe]: 3,
+      [GoodId.scythe]: 1,
+      [GoodId.hammer]: 3,
     },
     // The player should not re-play missions 1-2: the camp they taught is
     // already standing.
@@ -202,7 +203,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       { spec: { kind: 'research', tech: 'ironworking' }, label: 'Research Ironworking' },
       { spec: { kind: 'building', type: 'ironMine', count: 1 }, label: 'Dig an Iron Mine' },
       { spec: { kind: 'building', type: 'weaponsmith', count: 1 }, label: 'Raise a Smith' },
-      { spec: { kind: 'stock', good: 'spear', amount: 4 }, label: 'Forge 4 spears' },
+      { spec: { kind: 'stock', good: GoodId.spear, amount: 4 }, label: 'Forge 4 spears' },
     ],
   },
 
@@ -234,7 +235,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // until the mine is manned. The pickaxe costs no iron on purpose
     // (buildings.ts says why), so the way out of a bare rack is always to
     // forge the pick first and let the hill pay for the rest.
-    startStock: { wood: 30, stone: 15, iron: 4, silver: 6, hammer: 1 },
+    startStock: { [GoodId.wood]: 30, [GoodId.stone]: 15, [GoodId.iron]: 4, [GoodId.silver]: 6, [GoodId.hammer]: 1 },
     // Research was mission 3's lesson; the forge recipes it opened are
     // granted here so the tools themselves are the only puzzle.
     startTechs: ['cobbledBoots', 'ironworking'],
@@ -258,16 +259,16 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // — it reaches the castle shelf only once nothing is waiting on it.
     objectives: [
       { spec: { kind: 'building', type: 'weaponsmith', count: 1 }, label: 'Raise a Smith' },
-      { spec: { kind: 'stock', good: 'iron', amount: 12 }, label: 'Lay in 12 iron at the Castle' },
-      { spec: { kind: 'stock', good: 'wood', amount: 45 }, label: 'Lay in 45 wood at the Castle' },
-      { spec: { kind: 'stock', good: 'food', amount: 12 }, label: 'Lay in 12 food at the Castle' },
+      { spec: { kind: 'stock', good: GoodId.iron, amount: 12 }, label: 'Lay in 12 iron at the Castle' },
+      { spec: { kind: 'stock', good: GoodId.wood, amount: 45 }, label: 'Lay in 45 wood at the Castle' },
+      { spec: { kind: 'stock', good: GoodId.food, amount: 12 }, label: 'Lay in 12 food at the Castle' },
       // The one the auto-forge will never do for you: a hammer is wanted
       // by a site, so a village with nothing rising wants none, and the
       // fire goes cold. Three is a batch queued by hand at the forge menu
       // — two of them, since the hammer the mission opens with comes back
       // off the Smith's own site when the roof goes on. Three on the shelf
       // is three sites that can rise at once.
-      { spec: { kind: 'stock', good: 'hammer', amount: 3 }, label: 'Lay in 3 hammers at the Castle' },
+      { spec: { kind: 'stock', good: GoodId.hammer, amount: 3 }, label: 'Lay in 3 hammers at the Castle' },
     ],
   },
 
@@ -293,20 +294,20 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     firstRaidTick: 6000,
     startSerfs: 12,
     startStock: {
-      wood: 30,
-      stone: 15,
-      food: 10,
-      iron: 6,
-      silver: 25,
-      spear: 2,
-      sword: 1,
+      [GoodId.wood]: 30,
+      [GoodId.stone]: 15,
+      [GoodId.food]: 10,
+      [GoodId.iron]: 6,
+      [GoodId.silver]: 25,
+      [GoodId.spear]: 2,
+      [GoodId.sword]: 1,
       // The standing camp's kit: every prebuilt post staffs itself while
       // the player worries about the raid, not about racks.
-      axe: 1,
-      pickaxe: 2,
-      scythe: 1,
-      cauldron: 1,
-      hammer: 2,
+      [GoodId.axe]: 1,
+      [GoodId.pickaxe]: 2,
+      [GoodId.scythe]: 1,
+      [GoodId.cauldron]: 1,
+      [GoodId.hammer]: 2,
     },
     // Research was mission 3's lesson; here it is already done.
     startTechs: ['soldiery', 'cobbledBoots', 'ironworking'],

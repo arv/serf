@@ -6,6 +6,7 @@ import { TechTip, tooltip } from './tooltip';
 import { buildingName, techDesc, techName } from './names';
 import { setTechPanelOpen, stock, techs } from './store';
 import { COMPACT, SHORT } from './breakpoints';
+import { goodEntries } from '../sim/defs/goods';
 
 const BRANCH_LABELS: Record<string, string> = {
   agriculture: 'Agriculture',
@@ -248,7 +249,7 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
                       {techName(id)}
                     </b>
                     <span class="cost">
-                      <For each={Object.entries(TECH_DEFS[id].cost) as [GoodId, number][]}>
+                      <For each={goodEntries(TECH_DEFS[id].cost)}>
                         {([good, n]) => (
                           <>
                             {' '}

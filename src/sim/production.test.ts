@@ -6,6 +6,7 @@ import { OUTPUT_CAP } from './defs/buildings.ts';
 import { TRAILS_INTERVAL } from './defs/balance.ts';
 import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
 import type { World } from './world.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -26,10 +27,10 @@ describe('gather production', () => {
     const idx = plantGrove(world, 34, 31, 2);
     run(world, 3000);
 
-    expect(hut.stock.wood ?? 0).toBeGreaterThan(0);
+    expect(hut.stock[GoodId.wood] ?? 0).toBeGreaterThan(0);
     expect(world.map.resource[idx]).toBe(TileResource.None);
     expect(world.map.blocked[idx]).toBe(0);
-    expect(world.ledger.produced.wood).toBeGreaterThan(0);
+    expect(world.ledger.produced[GoodId.wood]).toBeGreaterThan(0);
   });
 
   it('an unreachable nearest tile does not starve the hut (walled-in tree)', () => {
@@ -53,7 +54,7 @@ describe('gather production', () => {
     const open = plantGrove(world, 37, 31, 6);
     run(world, 3000);
 
-    expect(hut.stock.wood ?? 0).toBeGreaterThan(0);
+    expect(hut.stock[GoodId.wood] ?? 0).toBeGreaterThan(0);
     // The yield came from the reachable grove; the sealed one stands.
     expect(world.map.resourceAmt[walled]).toBe(6);
     expect(world.map.resourceAmt[open]!).toBeLessThan(6);
@@ -62,13 +63,13 @@ describe('gather production', () => {
   it('full output buffer stalls production (Settlers rule)', () => {
     const world = bareWorld();
     const hut = addBuiltHut(world, 30, 30);
-    hut.stock.wood = OUTPUT_CAP;
+    hut.stock[GoodId.wood] = OUTPUT_CAP;
     const idx = plantGrove(world, 34, 31);
     const before = world.map.resourceAmt[idx];
     run(world, 600);
 
     // No storehouse => no evacuation => buffer stays full, no chopping.
-    expect(hut.stock.wood).toBe(OUTPUT_CAP);
+    expect(hut.stock[GoodId.wood]).toBe(OUTPUT_CAP);
     expect(world.map.resourceAmt[idx]).toBe(before);
   });
 
@@ -80,7 +81,7 @@ describe('gather production', () => {
     addSerf(world, 29, 34);
     run(world, 4000);
 
-    expect(sh.stock.wood ?? 0).toBeGreaterThan(0);
+    expect(sh.stock[GoodId.wood] ?? 0).toBeGreaterThan(0);
   });
 
   it('a recruited builder raises the site, then stays on as its worker', () => {
@@ -88,7 +89,7 @@ describe('gather production', () => {
     addSerf(world, 26, 34); // the future builder-then-worker
     const site = addSite(world, 24, 30);
     site.siteNeeds = {}; // materials "already delivered" (hammer loan included)
-    site.inputs.axe = 1; // the post's pre-ordered tool, waiting on the rack
+    site.inputs[GoodId.axe] = 1; // the post's pre-ordered tool, waiting on the rack
 
     // Nothing happens until the recruited builder arrives...
     let arrivedAt = -1;
@@ -142,7 +143,7 @@ describe('trails', () => {
 
   it('foot traffic accumulates wear along a haul lane', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 10 });
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 10 });
     addSite(world, 22, 30);
     addSerf(world, 29, 34);
     run(world, 2000);

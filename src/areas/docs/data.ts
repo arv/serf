@@ -6,10 +6,13 @@ import {
   type BuildingTypeId,
   type Recipe,
 } from '../../sim/defs/buildings';
-import { GOODS, type GoodAmounts, type GoodId } from '../../sim/defs/goods';
+import { GOODS, type GoodAmounts } from '../../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../../sim/defs/techs';
 import { UNIT_DEFS, WEAPON_OF, type UnitTypeId } from '../../sim/defs/units';
 import { BUILD_GROUPS } from '../../ui/buildMenu';
+import { GoodId } from '../../sim/defs/goods';
+import { goodEntries } from '../../sim/defs/goods';
+import { goodKeys } from '../../sim/defs/goods';
 
 /**
  * The cross-reference graph the wiki walks: every "produced by / used by /
@@ -101,7 +104,7 @@ export type ConsumerRef =
   | { kind: 'ration' };
 
 function goodsOf(amounts: GoodAmounts): GoodId[] {
-  return Object.keys(amounts) as GoodId[];
+  return goodKeys(amounts);
 }
 
 function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
@@ -127,7 +130,7 @@ function producersFrom(
     });
     return;
   }
-  for (const [good, amount] of Object.entries(recipe.outputs) as [GoodId, number][]) {
+  for (const [good, amount] of goodEntries(recipe.outputs)) {
     push(into, good, {
       building,
       via,
@@ -206,10 +209,10 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
   // site borrows a hammer (see TOOL_OF), and ale is drunk in two places —
   // the abbey's festivals and the barracks' cask. Without these the ale
   // page would list what research costs and nothing about what ale is for.
-  push(map, 'silver', { kind: 'hire' });
-  push(map, 'hammer', { kind: 'siteLoan' });
-  push(map, 'ale', { kind: 'festival' });
-  push(map, 'ale', { kind: 'ration' });
+  push(map, GoodId.silver, { kind: 'hire' });
+  push(map, GoodId.hammer, { kind: 'siteLoan' });
+  push(map, GoodId.ale, { kind: 'festival' });
+  push(map, GoodId.ale, { kind: 'ration' });
   return map;
 }
 

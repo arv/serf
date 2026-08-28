@@ -36,9 +36,11 @@ import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
 import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
 import { canPlace, type World } from '../world.ts';
 import { isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
-import type { GoodId } from '../defs/goods.ts';
+import { GoodId } from '../defs/goods.ts';
 import type { Unit } from '../units.ts';
 import type { SimCommand } from '../commands.ts';
+import { goodEntries } from '../defs/goods.ts';
+import type { GoodAmounts } from '../defs/goods.ts';
 
 /**
  * The AI opponent's brain: a pure strategic layer that reads a World and
@@ -573,7 +575,7 @@ export class AiBrain {
     if (!sh) return commands; // one tick from elimination; nothing to do
     const baseX = sh.x + 1;
     const baseY = sh.y + 1;
-    const stock = sh.stock as Record<string, number>;
+    const stock = sh.stock;
     const techs = p.techs;
     const researched = (id: TechId): boolean => techs.researched.includes(id);
     // Standing OR planned: the build order reads this to decide whether a
@@ -628,7 +630,7 @@ export class AiBrain {
       // over the play area (and, anchored, a resource or shore scan before
       // that), and a broke seat used to pay it for every unmet step on the
       // list, every beat, only to throw the answer away.
-      if (!affordable(BUILDING_DEFS[step.type].cost as Record<string, number>, stock)) continue;
+      if (!affordable(BUILDING_DEFS[step.type].cost, stock)) continue;
       const spot = spotFor(world, step, baseX, baseY);
       if (!spot) continue;
       commands.push({ kind: 'placeBuilding', building: step.type, x: spot.x, y: spot.y });
@@ -649,7 +651,7 @@ export class AiBrain {
       countOf('house') < s.houseLimit &&
       plannedPopCapOf(world, this.playerId) - populationOf(world, this.playerId) <
         s.housingHeadroom &&
-      affordable(BUILDING_DEFS.house.cost as Record<string, number>, stock)
+      affordable(BUILDING_DEFS.house.cost, stock)
     ) {
       const spot = findSpot(world, 'house', baseX, baseY);
       if (spot) commands.push({ kind: 'placeBuilding', building: 'house', x: spot.x, y: spot.y });
@@ -670,7 +672,7 @@ export class AiBrain {
     }
     if (worst) {
       const bill = repairBill(worst.type, BUILDING_DEFS[worst.type].hp - worst.hp);
-      if (affordable(bill as Record<string, number>, stock)) {
+      if (affordable(bill, stock)) {
         commands.push({ kind: 'setBuildingRepair', buildingId: worst.id, repair: true });
       }
     }
@@ -708,14 +710,14 @@ export class AiBrain {
     // order they are pushed and a hire pushed here is money the shelf still
     // shows but no longer has.
     let hiring = false;
-    if (room && serfCount < s.survivalFloor && (stock.silver ?? 0) >= HIRE_SERF_COST) {
+    if (room && serfCount < s.survivalFloor && (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST) {
       commands.push({ kind: 'hireSerf' });
       hiring = true;
     } else if (
       room &&
       growing &&
       serfCount < s.serfTarget &&
-      (stock.silver ?? 0) >= HIRE_SERF_COST + (researchPending ? reserve : 0)
+      (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST + (researchPending ? reserve : 0)
     ) {
       commands.push({ kind: 'hireSerf' });
       hiring = true;
@@ -760,8 +762,8 @@ export class AiBrain {
           TECH_DEFS[id].prereqs.every((pre) => techs.researched.includes(pre)),
       );
       if (next && hasBuilt('abbey')) {
-        const cost = TECH_DEFS[next].cost as Record<string, number>;
-        const ok = Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
+        const cost = TECH_DEFS[next].cost;
+        const ok = goodEntries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
         // Hands first, when there are barely any. Every tech is priced in
         // silver and so is a hire, and the panic branch above only fires on
         // the beat the shelf already holds the four — so a seat rebuilding
@@ -780,7 +782,7 @@ export class AiBrain {
         const leavesHireMoney =
           serfCount >= s.survivalFloor ||
           !room ||
-          (stock.silver ?? 0) - (hiring ? HIRE_SERF_COST : 0) - (cost.silver ?? 0) >=
+          (stock[GoodId.silver] ?? 0) - (hiring ? HIRE_SERF_COST : 0) - (cost[GoodId.silver] ?? 0) >=
             HIRE_SERF_COST;
         if (ok && leavesHireMoney) commands.push({ kind: 'research', tech: next });
       }
@@ -1086,7 +1088,7 @@ export class AiBrain {
    * the scalars are cheap but the point of a slow clock is that a village
    * gets time to look different.
    */
-  #sampleProgress(world: World, mine: Building[], stock: Record<string, number>): void {
+  #sampleProgress(world: World, mine: Building[], stock: GoodAmounts): void {
     if (world.tick < this.#sampleDue) return;
     this.#sampleDue = world.tick + AI_STALL.samplePeriod;
     let built = 0;
@@ -1096,7 +1098,7 @@ export class AiBrain {
       else if (b.state === 'site') sites++;
     }
     let total = 0;
-    for (const n of Object.values(stock)) total += n;
+    for (const [, n] of goodEntries(stock)) total += n;
     this.#progress.push({
       pop: populationOf(world, this.playerId),
       built,
@@ -1589,8 +1591,8 @@ export function mustersNeeded(armyAttackSize: number, idleFor: number): number {
 }
 
 /** Is every line of this cost sitting in the storehouse? */
-function affordable(cost: Record<string, number>, stock: Record<string, number>): boolean {
-  return Object.entries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
+function affordable(cost: GoodAmounts, stock: GoodAmounts): boolean {
+  return goodEntries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
 }
 
 function ownedBuildings(world: World, owner: Owner): Building[] {

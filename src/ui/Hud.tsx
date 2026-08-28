@@ -1,6 +1,5 @@
 import { For, Show, createEffect, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { GoodId } from '../sim/defs/goods';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { TechId } from '../sim/defs/techs';
 import type { UnitTypeId } from '../sim/defs/units';
@@ -85,6 +84,8 @@ import {
   type OrderMode,
 } from './store';
 import { play } from '../audio/audio';
+import { GoodId } from '../sim/defs/goods';
+import { goodEntries } from '../sim/defs/goods';
 
 const SPEEDS = [
   { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },
@@ -110,7 +111,7 @@ const REPLAY_SPEED = {
  * ~1174px of budget at 1440), and a strip that wraps pushes the whole
  * rail stack down the map.
  */
-const HUD_GOODS: GoodId[] = ['wood', 'stone', 'food', 'iron', 'silver'];
+const HUD_GOODS: GoodId[] = [GoodId.wood, GoodId.stone, GoodId.food, GoodId.iron, GoodId.silver];
 
 export function Hud(props: {
   onSpeed: (speed: number) => void;
@@ -405,7 +406,7 @@ export function Hud(props: {
       </For>
     </div>
   );
-  const cost = (type: BuildingTypeId) => Object.entries(BUILDING_DEFS[type].cost) as [GoodId, number][];
+  const cost = (type: BuildingTypeId) => goodEntries(BUILDING_DEFS[type].cost);
   const affordable = (type: BuildingTypeId): boolean => buildAffordable(type, stock());
   const unlocked = (type: BuildingTypeId): boolean => buildUnlocked(type, techs().researched);
 
@@ -1825,7 +1826,7 @@ export function Hud(props: {
               onClick={() => setEconomyPanelOpen(true)}
             >
               wants{' '}
-              <For each={Object.entries(toolWants()) as [GoodId, number][]}>
+              <For each={goodEntries(toolWants())}>
                 {([good, n]) => (
                   <span class="tw">
                     <GoodIcon good={good} size={12} /> {n}

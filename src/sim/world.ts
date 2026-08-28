@@ -34,10 +34,13 @@ import { dealStrategies, type AiStrategyId } from './defs/aiStrategies.ts';
 import { MISSION_DEFS, type MissionId } from './defs/missions.ts';
 import { makeUnit, type Unit } from './units.ts';
 import { nearestWalkable } from './path.ts';
-import type { GoodAmounts, GoodId } from './defs/goods.ts';
+import type { GoodAmounts } from './defs/goods.ts';
 import type { TechId } from './defs/techs.ts';
 import { BANDIT, type Building, type EntityId, type Owner } from './entities.ts';
 import { makePlayer, type PlayerState } from './player.ts';
+import { GoodId } from './defs/goods.ts';
+import { goodKeys } from './defs/goods.ts';
+import { goodEntries } from './defs/goods.ts';
 
 export interface HaulJob {
   id: number;
@@ -665,7 +668,7 @@ export function placeSite(
   // it at completion (constructionSystem) — the loan that caps how many
   // buildings can rise at once. Roads pave themselves and pay no loan.
   if (!def.isRoad && !def.systemOnly) {
-    b.siteNeeds.hammer = (b.siteNeeds.hammer ?? 0) + 1;
+    b.siteNeeds[GoodId.hammer] = (b.siteNeeds[GoodId.hammer] ?? 0) + 1;
   }
   b.buildProgress = 0;
   world.buildings.set(b.id, b);
@@ -802,9 +805,9 @@ export function destroyBuilding(world: World, b: Building): void {
     }
   }
   for (const goods of [b.stock, b.inputs]) {
-    for (const [good, n] of Object.entries(goods)) {
+    for (const [good, n] of goodEntries(goods)) {
       if (n) {
-        world.ledger.consumed[good as GoodId] = (world.ledger.consumed[good as GoodId] ?? 0) + n;
+        world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
       }
     }
   }
@@ -839,7 +842,7 @@ export function applyRepairMaterial(world: World, b: Building, good: GoodId): vo
   // mended wall. constructionSystem's masons work the bank down.
   b.repairPending = (b.repairPending ?? 0) + (b.repairHpPerGood ?? 0);
   world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + 1;
-  const bill = Object.keys(b.repairNeeds!) as GoodId[];
+  const bill = goodKeys(b.repairNeeds!);
   for (const g of bill) {
     if ((b.repairNeeds![g] ?? 0) > 0) return;
   }

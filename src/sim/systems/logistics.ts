@@ -13,7 +13,7 @@ import {
   outputGoodsOf,
 } from '../defs/buildings.ts';
 import { forgeDemandRecipe } from './production.ts';
-import { GOODS, type GoodId } from '../defs/goods.ts';
+import { GOODS } from '../defs/goods.ts';
 import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { atBuilding, walkToBuilding } from '../arrival.ts';
@@ -21,6 +21,9 @@ import { trainingDemand } from './training.ts';
 import { applyRepairMaterial } from '../world.ts';
 import type { Unit } from '../units.ts';
 import type { HaulJob, World } from '../world.ts';
+import { GoodId } from '../defs/goods.ts';
+import { goodEntries } from '../defs/goods.ts';
+import { goodKeys } from '../defs/goods.ts';
 
 /**
  * The heart of the game: goods physically live in building buffers and on
@@ -214,7 +217,7 @@ function match(world: World): void {
         ? forgeDemandRecipe(world, b, def)
         : convertRecipeOf(def, b);
     if (convert && !b.paused) {
-      for (const good of Object.keys(convert.inputs) as GoodId[]) {
+      for (const good of goodKeys(convert.inputs)) {
         const want = INPUT_CAP - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0 && !suspended(world, b, good)) {
           demands.push(demandOf(world, b, good, want, 2));
@@ -241,9 +244,9 @@ function match(world: World): void {
 
     // Festivals: the abbey sips ale.
     if (b.type === 'abbey' && !b.paused && world.players[b.owner]?.techs.researched.includes('festivals')) {
-      const want = ABBEY_ALE_CAP - (b.inputs.ale ?? 0) - (b.inbound.ale ?? 0);
-      if (want > 0) demands.push(demandOf(world, b, 'ale', want, 2));
-      else clearDemandAge(b, 'ale');
+      const want = ABBEY_ALE_CAP - (b.inputs[GoodId.ale] ?? 0) - (b.inbound[GoodId.ale] ?? 0);
+      if (want > 0) demands.push(demandOf(world, b, GoodId.ale, want, 2));
+      else clearDemandAge(b, GoodId.ale);
     }
 
     // Ale Rations: the barracks keeps its cask topped up. Standing demand
@@ -255,15 +258,15 @@ function match(world: World): void {
       !b.paused &&
       world.players[b.owner]?.techs.researched.includes('aleRations')
     ) {
-      const want = BARRACKS_ALE_CAP - (b.inputs.ale ?? 0) - (b.inbound.ale ?? 0);
-      if (want > 0) demands.push(demandOf(world, b, 'ale', want, 2));
-      else clearDemandAge(b, 'ale');
+      const want = BARRACKS_ALE_CAP - (b.inputs[GoodId.ale] ?? 0) - (b.inbound[GoodId.ale] ?? 0);
+      if (want > 0) demands.push(demandOf(world, b, GoodId.ale, want, 2));
+      else clearDemandAge(b, GoodId.ale);
     }
 
     // Training queues demand their wheat + weapons (priority 2).
     if (def.trains && !b.paused && b.trainQueue && b.trainQueue.length > 0) {
       const need = trainingDemand(b);
-      for (const [good, n] of Object.entries(need) as [GoodId, number][]) {
+      for (const [good, n] of goodEntries(need)) {
         const want = n - (b.inputs[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0) demands.push(demandOf(world, b, good, want, 2));
         else clearDemandAge(b, good);
@@ -470,7 +473,7 @@ function deliveryTargetFor(world: World, owner: Owner, good: GoodId): Building |
     const convert = convertRecipeOf(def, b);
     const wantsInput =
       !b.paused &&
-      (((convert?.inputs[good] ?? 0) > 0) || (b.type === 'abbey' && good === 'ale'));
+      (((convert?.inputs[good] ?? 0) > 0) || (b.type === 'abbey' && good === GoodId.ale));
     if (wantsInput && (b.inputs[good] ?? 0) + (b.inbound[good] ?? 0) < INPUT_CAP) return b;
   }
   return home;
@@ -676,11 +679,11 @@ function deliver(world: World, to: Building, good: GoodId): void {
       return;
     }
     to.siteNeeds[good] = Math.max(0, (to.siteNeeds[good] ?? 0) - 1);
-    if (good === 'hammer') {
+    if (good === GoodId.hammer) {
       // Borrowed, not consumed: the hammer survives in the site's hands
       // and goes back on the shelf at completion. Losing the site is the
       // only way to lose it.
-      to.inputs.hammer = (to.inputs.hammer ?? 0) + 1;
+      to.inputs[GoodId.hammer] = (to.inputs[GoodId.hammer] ?? 0) + 1;
       return;
     }
     world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + 1;
@@ -705,8 +708,8 @@ function deliver(world: World, to: Building, good: GoodId): void {
     // arrives after the queue switched to bows stays in the buffer for
     // the next iron batch instead of bouncing home off the output shelf.
     to.inputs[good] = (to.inputs[good] ?? 0) + 1;
-  } else if (to.type === 'abbey' && good === 'ale') {
-    to.inputs.ale = (to.inputs.ale ?? 0) + 1;
+  } else if (to.type === 'abbey' && good === GoodId.ale) {
+    to.inputs[GoodId.ale] = (to.inputs[GoodId.ale] ?? 0) + 1;
   } else if (def.trains) {
     // Training ingredients live in the input buffer too.
     to.inputs[good] = (to.inputs[good] ?? 0) + 1;

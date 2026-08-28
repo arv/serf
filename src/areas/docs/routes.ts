@@ -1,6 +1,8 @@
 import { BUILDING_DEFS, type BuildingTypeId } from '../../sim/defs/buildings';
 import { GOODS, type GoodId } from '../../sim/defs/goods';
 import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
+import { goodFromKey } from '../../sim/defs/goods';
+import { GOOD_KEYS } from '../../sim/defs/goods';
 
 /**
  * What a /docs URL names. Pure — the screen feeds it location.pathname and
@@ -47,7 +49,8 @@ export function parseDocsPath(pathname: string): DocsRoute {
       return { page: 'missing', path: pathname };
     case 'goods':
       if (id === undefined) return { page: 'goods' };
-      if ((GOODS as readonly string[]).includes(id)) return { page: 'good', id: id as GoodId };
+      const good = goodFromKey(id);
+      if (good !== undefined) return { page: 'good', id: good };
       return { page: 'missing', path: pathname };
     case 'techs':
       if (id === undefined) return { page: 'techs' };
@@ -70,7 +73,7 @@ export function unitHref(id: UnitTypeId): string {
   return `/docs/units/${id}`;
 }
 export function goodHref(id: GoodId): string {
-  return `/docs/goods/${id}`;
+  return `/docs/goods/${GOOD_KEYS[id]}`;
 }
 /** Techs share one page; a tech link is an anchor on it. */
 export function techHref(id: string): string {

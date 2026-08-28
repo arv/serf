@@ -20,12 +20,14 @@ import {
   type BuildingTypeId,
   type Recipe,
 } from '../sim/defs/buildings';
-import { type GoodAmounts, type GoodId } from '../sim/defs/goods';
+import { type GoodAmounts } from '../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../sim/defs/techs';
 import { COUNTER_TABLE, UNIT_DEFS, type UnitClass, type UnitTypeId } from '../sim/defs/units';
 import { GoodIcon } from './icons';
 import { buildingName, goodName, techDesc, techName, unitName } from './names';
 import { stock, techs } from './store';
+import { GoodId } from '../sim/defs/goods';
+import { goodEntries } from '../sim/defs/goods';
 
 /**
  * One floating tooltip layer for the whole HUD. Spread `{...tooltip(...)}`
@@ -258,7 +260,7 @@ export function TipWrap(props: ParentProps<{ tip: () => JSX.Element }>) {
 // --- Shared fragments -------------------------------------------------------
 
 export function CostLine(props: { label: string; cost: GoodAmounts; extra?: string }) {
-  const entries = () => (Object.entries(props.cost) as [GoodId, number][]).filter(([, n]) => n > 0);
+  const entries = () => goodEntries(props.cost).filter(([, n]) => n > 0);
   const short = () => {
     const s = stock();
     return entries().some(([good, n]) => (s[good] ?? 0) < n);
@@ -291,25 +293,25 @@ export function CostLine(props: { label: string; cost: GoodAmounts; extra?: stri
 /** Names live in names.ts (the icon layer needs them too); the flavor text
  * lives here. */
 const GOOD_DESC: Record<GoodId, string> = {
-  water: 'Drawn at wells. Soaks the fields and thins the ale.',
-  wheat: 'The crop. Milled into flour, brewed into ale, and it funds research.',
-  wood: 'Felled in the forest. The village is built from it.',
-  stone: 'Quarried from outcrops. Heavy building and road paving.',
-  iron: 'Hauled from mountain seams. Becomes blades and spearheads.',
-  silver: 'Minted currency. Pays for serfs and scholarship.',
-  gold: 'Rare and bright. Buys the finest arms and gilding.',
-  sword: 'Forged by the swordsmith. Arms one knight.',
-  spear: 'Shafted by the spearmaker. Arms one spearman.',
-  bow: 'Strung by the bowyer. Arms one archer.',
-  ale: 'Brewed from wheat and water. Fuels festivals at the Abbey.',
-  flour: 'Ground at the mill. On its own it feeds nobody.',
-  food: 'Baked from flour and water. What a soldier costs.',
-  axe: 'Ground keen at the Smith. A woodcutter works with one or not at all.',
-  pickaxe: 'Wood and stone \u2014 never iron, so the mines can always restart. Staffs the quarry and every mine.',
-  scythe: 'A long blade from the Smith. No farmer takes a field without one.',
-  hammer: 'The builder\u2019s loan: every site borrows one and returns it at topping-out.',
-  cauldron: 'Smithed copperwork. The bakery and the brewery cook out of it.',
-  rod: 'Cut and strung at the Smith \u2014 no iron in it. Staffs the fishery.',
+  [GoodId.water]: 'Drawn at wells. Soaks the fields and thins the ale.',
+  [GoodId.wheat]: 'The crop. Milled into flour, brewed into ale, and it funds research.',
+  [GoodId.wood]: 'Felled in the forest. The village is built from it.',
+  [GoodId.stone]: 'Quarried from outcrops. Heavy building and road paving.',
+  [GoodId.iron]: 'Hauled from mountain seams. Becomes blades and spearheads.',
+  [GoodId.silver]: 'Minted currency. Pays for serfs and scholarship.',
+  [GoodId.gold]: 'Rare and bright. Buys the finest arms and gilding.',
+  [GoodId.sword]: 'Forged by the swordsmith. Arms one knight.',
+  [GoodId.spear]: 'Shafted by the spearmaker. Arms one spearman.',
+  [GoodId.bow]: 'Strung by the bowyer. Arms one archer.',
+  [GoodId.ale]: 'Brewed from wheat and water. Fuels festivals at the Abbey.',
+  [GoodId.flour]: 'Ground at the mill. On its own it feeds nobody.',
+  [GoodId.food]: 'Baked from flour and water. What a soldier costs.',
+  [GoodId.axe]: 'Ground keen at the Smith. A woodcutter works with one or not at all.',
+  [GoodId.pickaxe]: 'Wood and stone \u2014 never iron, so the mines can always restart. Staffs the quarry and every mine.',
+  [GoodId.scythe]: 'A long blade from the Smith. No farmer takes a field without one.',
+  [GoodId.hammer]: 'The builder\u2019s loan: every site borrows one and returns it at topping-out.',
+  [GoodId.cauldron]: 'Smithed copperwork. The bakery and the brewery cook out of it.',
+  [GoodId.rod]: 'Cut and strung at the Smith \u2014 no iron in it. Staffs the fishery.',
 };
 
 export function GoodTip(props: { good: GoodId }) {
@@ -333,7 +335,7 @@ const RESOURCE_NAMES: Record<string, string> = {
 };
 
 function goodsList(amounts: GoodAmounts): string {
-  return (Object.entries(amounts) as [GoodId, number][])
+  return goodEntries(amounts)
     .filter(([, n]) => n > 0)
     .map(([g, n]) => `${n} ${goodName(g).toLowerCase()}`)
     .join(' + ');

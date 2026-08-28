@@ -5,6 +5,7 @@ import { deserializeWorld, serializeWorld } from './save.ts';
 import { createWorld, type World } from './world.ts';
 import { tickWorld } from './tick.ts';
 import type { Unit } from './units.ts';
+import { GoodId } from './defs/goods.ts';
 
 function run(world: World, ticks: number): void {
   for (let t = 0; t < ticks; t++) tickWorld(world, []);
@@ -54,10 +55,10 @@ describe('cloneWorld — the rollback snapshot primitive', () => {
     const world = createWorld({ seed: 5, players: [{ kind: 'ai' }] });
     run(world, 200);
     const b = [...world.buildings.values()].find((x) => x.state === 'built')!;
-    b.repairNeeds = { wood: 3 };
+    b.repairNeeds = { [GoodId.wood]: 3 };
     const snap = cloneWorld(world);
-    b.repairNeeds.wood = 2; // the original works a plank in
-    expect(snap.buildings.get(b.id)!.repairNeeds).toEqual({ wood: 3 });
+    b.repairNeeds[GoodId.wood] = 2; // the original works a plank in
+    expect(snap.buildings.get(b.id)!.repairNeeds).toEqual({ [GoodId.wood]: 3 });
   });
 
   it('stays cheap enough to snapshot a live world', () => {

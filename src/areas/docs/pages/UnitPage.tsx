@@ -132,12 +132,10 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
                 <DocLink href={buildingHref(t().building)}>{buildingName(t().building)}</DocLink>{' '}
                 for <CostList amounts={t().cost} /> in {fmtSecs(t().durationTicks)}
               </li>
-              <Show when={weapon}>
-                {(w) => (
-                  <li>
-                    Marches with a <GoodChip good={w()} /> — no weapon in store, no recruit
-                  </li>
-                )}
+              <Show when={weapon !== undefined}>
+                <li>
+                  Marches with a <GoodChip good={weapon!} /> — no weapon in store, no recruit
+                </li>
               </Show>
               <Show when={gate}>
                 {(tech) => (

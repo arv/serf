@@ -4,6 +4,7 @@
  */
 import type { GoodAmounts } from './goods.ts';
 import type { UnitClass } from './units.ts';
+import { GoodId } from './goods.ts';
 
 export const TICKS_PER_SECOND = 20;
 export const TICK_MS = 1000 / TICKS_PER_SECOND;
@@ -19,17 +20,17 @@ export const START_SERFS = 8;
 // The village armory holds a few old weapons so a Soldiery rush can field
 // defenders before the first raid without the full iron chain.
 export const START_STOCK: GoodAmounts = {
-  wood: 36,
-  stone: 15,
+  [GoodId.wood]: 36,
+  [GoodId.stone]: 15,
   // Wheat is for the scholars and the brewer now; the bread the opening's
   // defenders eat is already baked, the same way their spears are already
   // forged. Without it a Soldiery rush would have to stand up the whole
   // mill-and-bakery chain before it could field anyone at all.
-  wheat: 12,
-  food: 8,
-  silver: 20,
-  spear: 2,
-  sword: 1,
+  [GoodId.wheat]: 12,
+  [GoodId.food]: 8,
+  [GoodId.silver]: 20,
+  [GoodId.spear]: 2,
+  [GoodId.sword]: 1,
   // The tool shed: one of each post's tool plus spares for the two the
   // opening leans on hardest, so the first village staffs itself exactly
   // as it did before tools existed — the squeeze is meant to arrive with
@@ -37,12 +38,12 @@ export const START_STOCK: GoodAmounts = {
   // is a loan against a construction site (see TOOL_OF in buildings.ts):
   // three sites can rise at once, the fourth waits for a roof to top out.
   // Numbers are bakeoff-tuned like everything else in this block.
-  axe: 2,
-  pickaxe: 2,
-  scythe: 1,
-  hammer: 3,
-  cauldron: 1,
-  rod: 1,
+  [GoodId.axe]: 2,
+  [GoodId.pickaxe]: 2,
+  [GoodId.scythe]: 1,
+  [GoodId.hammer]: 3,
+  [GoodId.cauldron]: 1,
+  [GoodId.rod]: 1,
 };
 
 // Logistics

@@ -5,6 +5,8 @@ import { WATER_LEVEL } from '../sim/map';
 import { HeightField } from './heightField';
 import { SITE_FRAME_H } from './models';
 import type { BuildingSnap } from '../protocol/messages';
+import type { GoodAmounts } from '../sim/defs/goods';
+import { GoodId } from '../sim/defs/goods';
 
 // The KayKit buildings carry material *arrays* on their meshes (the textured
 // group plus the team-color group). The real loader needs GLB files, so mock
@@ -393,27 +395,27 @@ describe('the stock piles at a building door', () => {
     return xs.some((x) => Math.abs(x - was) < 0.05);
   }
 
-  function castle(stock: Record<string, number>): BuildingSnap {
+  function castle(stock: GoodAmounts): BuildingSnap {
     return snap({ type: 'storehouse', w: 3, h: 3, stock });
   }
 
   it('leaves the stacks already standing where they are when a new good arrives', () => {
     const { sync, scene } = makeSync();
     // A castle, so the goods are free to be anything: wood first...
-    sync.update([castle({ wood: 4 })]);
+    sync.update([castle({ [GoodId.wood]: 4 })]);
     const first = stackXs(scene);
     expect(first.length).toBe(1);
 
     // ...then stone lands beside it. Before lanes, the row was centred on
     // however many kinds it held, so this second kind shoved the wood half
     // a lane sideways — piles sliding for goods nobody had touched.
-    sync.update([castle({ wood: 4, stone: 2 })]);
+    sync.update([castle({ [GoodId.wood]: 4, [GoodId.stone]: 2 })]);
     const second = stackXs(scene);
     expect(second.length).toBe(2);
     expect(stands(second, first[0]!)).toBe(true);
 
     // A third kind flanks the other way, and still nothing moves.
-    sync.update([castle({ wood: 4, stone: 2, iron: 1 })]);
+    sync.update([castle({ [GoodId.wood]: 4, [GoodId.stone]: 2, [GoodId.iron]: 1 })]);
     const third = stackXs(scene);
     expect(third.length).toBe(3);
     for (const x of second) expect(stands(third, x)).toBe(true);
@@ -421,11 +423,11 @@ describe('the stock piles at a building door', () => {
 
   it('holds a stack still while its own count moves', () => {
     const { sync, scene } = makeSync();
-    sync.update([castle({ wood: 2, stone: 3 })]);
+    sync.update([castle({ [GoodId.wood]: 2, [GoodId.stone]: 3 })]);
     const before = stackXs(scene);
     // A carrier takes a plank off the stack: the goods that remain keep
     // their ground.
-    sync.update([castle({ wood: 1, stone: 3 })]);
+    sync.update([castle({ [GoodId.wood]: 1, [GoodId.stone]: 3 })]);
     const after = stackXs(scene);
     expect(after.length).toBe(2);
     for (const x of before) expect(stands(after, x)).toBe(true);
@@ -433,23 +435,23 @@ describe('the stock piles at a building door', () => {
 
   it('hands a drained good its lane back for the next arrival', () => {
     const { sync, scene } = makeSync();
-    sync.update([castle({ wood: 2, stone: 2 })]);
+    sync.update([castle({ [GoodId.wood]: 2, [GoodId.stone]: 2 })]);
     const both = stackXs(scene);
     // The wood goes out the door entirely, and its lane empties.
-    sync.update([castle({ stone: 2 })]);
+    sync.update([castle({ [GoodId.stone]: 2 })]);
     const alone = stackXs(scene);
     expect(alone.length).toBe(1);
     expect(stands(both, alone[0]!)).toBe(true);
     // Iron arrives: it takes the freed lane rather than opening a third one
     // past the stone, and the stone still has not moved.
-    const refilled = (sync.update([castle({ stone: 2, iron: 3 })]), stackXs(scene));
+    const refilled = (sync.update([castle({ [GoodId.stone]: 2, [GoodId.iron]: 3 })]), stackXs(scene));
     expect(refilled.length).toBe(2);
     for (const x of both) expect(stands(refilled, x)).toBe(true);
   });
 
   it('stands a lone good squarely at the door', () => {
     const { sync, scene } = makeSync();
-    sync.update([castle({ wood: 3 })]);
+    sync.update([castle({ [GoodId.wood]: 3 })]);
     // Lane 0, jitter aside.
     expect(Math.abs(stackXs(scene)[0]!)).toBeLessThan(0.05);
   });

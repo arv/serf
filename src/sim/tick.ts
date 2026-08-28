@@ -29,8 +29,9 @@ import { CORPSE_TICKS, FORGE_QUEUE_CAP, HIRE_QUEUE_CAP, HIRE_SERF_COST } from '.
 import { TECH_DEFS } from './defs/techs.ts';
 import { canResearch, isBuildingUnlocked } from './techHelpers.ts';
 import { hasRoomToHire } from './population.ts';
-import type { GoodId } from './defs/goods.ts';
 import type { AdminAction, SimCommand } from './commands.ts';
+import { GoodId } from './defs/goods.ts';
+import { goodEntries } from './defs/goods.ts';
 
 export { TICKS_PER_SECOND, TICK_MS } from './defs/balance.ts';
 
@@ -150,11 +151,11 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       const sh = findStorehouse(world, playerId);
       const cost = TECH_DEFS[cmd.tech].cost;
       if (!sh) break;
-      const affordable = (Object.entries(cost) as [GoodId, number][]).every(
+      const affordable = goodEntries(cost).every(
         ([good, n]) => (sh.stock[good] ?? 0) >= n,
       );
       if (!affordable) break;
-      for (const [good, n] of Object.entries(cost) as [GoodId, number][]) {
+      for (const [good, n] of goodEntries(cost)) {
         sh.stock[good] = (sh.stock[good] ?? 0) - n;
         world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
       }
@@ -288,7 +289,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       evictGarrison(world, b, b.garrison ?? 0);
       const sh = findStorehouse(world, playerId);
       if (sh) {
-        for (const [good, n] of Object.entries(def.cost) as [GoodId, number][]) {
+        for (const [good, n] of goodEntries(def.cost)) {
           const delivered = b.state === 'site' ? n - (b.siteNeeds?.[good] ?? 0) : n;
           const refund = Math.floor(delivered / 2);
           if (refund <= 0) continue;
@@ -307,7 +308,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         // is the rule: a sold Smith loses its forged stock the way a sold
         // bakery loses its bread. A move, not a mint, so no ledger entry.
         const rescue = new Set<GoodId>();
-        if (b.state === 'site') rescue.add('hammer');
+        if (b.state === 'site') rescue.add(GoodId.hammer);
         const postTool = TOOL_OF[b.type];
         if (postTool) rescue.add(postTool);
         for (const good of rescue) {
@@ -329,12 +330,12 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       const sh = findStorehouse(world, playerId);
       if (
         sh &&
-        (sh.stock.silver ?? 0) >= HIRE_SERF_COST &&
+        (sh.stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST &&
         (sh.hireQueue ?? 0) < HIRE_QUEUE_CAP &&
         hasRoomToHire(world, playerId)
       ) {
-        sh.stock.silver = (sh.stock.silver ?? 0) - HIRE_SERF_COST;
-        world.ledger.consumed.silver = (world.ledger.consumed.silver ?? 0) + HIRE_SERF_COST;
+        sh.stock[GoodId.silver] = (sh.stock[GoodId.silver] ?? 0) - HIRE_SERF_COST;
+        world.ledger.consumed[GoodId.silver] = (world.ledger.consumed[GoodId.silver] ?? 0) + HIRE_SERF_COST;
         sh.hireQueue = (sh.hireQueue ?? 0) + 1;
       }
       break;
