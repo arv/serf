@@ -960,6 +960,17 @@ function makeKayKitCharacter(
 }
 
 /**
+ * The clip a gait plays. Gait and AnimKey are separate enums whose numbers
+ * collide (GaitNs.walk === AnimKeyNs.idle, GaitNs.jog === AnimKeyNs.walk),
+ * so a gait must never be handed to playAnimation raw — when the members
+ * were strings the two unions overlapped and 'walk' was both, which is
+ * exactly how every walking serf came to play the idle clip.
+ */
+export function gaitAnimKey(gait: Gait): AnimKey {
+  return gait === GaitNs.jog ? AnimKeyNs.jog : AnimKeyNs.walk;
+}
+
+/**
  * Playback-rate band per gait. The walk's cap is the one knob for how much
  * hustle a villager shows: a serf's true speed ratio is ~6x, so his walk
  * rides this cap flat-out and everything above it is the accepted glide.
@@ -1126,12 +1137,28 @@ export function playAnimation(
   if (visual.current === key) return;
   const next = visual.actions.get(key) ?? visual.actions.get(AnimKeyNs.idle);
   if (!next) return;
-  const prev = visual.current ? visual.actions.get(visual.current) : undefined;
+  const prev =
+    visual.current !== null ? visual.actions.get(visual.current) : undefined;
   next.reset();
   // Desync the crowd: start loops at a per-unit offset.
   next.time = offset * next.getClip().duration;
   next.play();
-  if (prev && prev !== next) prev.crossFadeTo(next, 0.16, false);
+  if (prev && prev !== next) {
+    prev.crossFadeTo(next, 0.16, false);
+  } else if (!prev) {
+    // No known predecessor: `current` was nulled by the off-screen cull,
+    // and the unit's state may have changed while nobody was sampling its
+    // mixer. Whatever was playing at the cull is still enabled at full
+    // weight — a fade only ever reaches the clip recorded in `current` —
+    // so without this sweep a soldier whose fight ended off-screen came
+    // back blending the attack loop into idle, hacking at thin air for
+    // the rest of his life. Stopping (not fading) is safe: the pop this
+    // hides happens on the unit's first frame back on screen, where a
+    // restart already reads as intended (see the cull note in sceneSync).
+    for (const action of visual.actions.values()) {
+      if (action !== next) action.stop();
+    }
+  }
   visual.current = key;
 }
 

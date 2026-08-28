@@ -3,6 +3,7 @@ import {worldToScreen} from '../input/picking';
 import {WORK} from '../protocol/sabLayout';
 import * as AnimKey from '../render/animKeyEnum.ts';
 import {
+  gaitAnimKey,
   loadCharacterAssets,
   makeCharacter,
   playAnimation,
@@ -121,7 +122,7 @@ const MODE_CLIP: Record<Mode, AnimKey> = {
 function clipFor(mode: Mode, col: Column, v: CharacterVisual): AnimKey {
   switch (mode) {
     case 'walk':
-      return v.gait;
+      return gaitAnimKey(v.gait);
     case 'work':
       if (col.workKind !== undefined)
         return WORK_ANIM[col.workKind] ?? AnimKey.work;
