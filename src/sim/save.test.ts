@@ -9,11 +9,12 @@ import { UNIT_DEFS } from './defs/units.ts';
 import { BUILDING_DEFS } from './defs/buildings.ts';
 import type { SimCommand } from './commands.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 function commandScript(tick: number): SimCommand[] {
-  if (tick === 50) return [{ kind: 'placeBuilding', building: 'woodcutter', x: 26, y: 36 }];
-  if (tick === 60) return [{ kind: 'placeBuilding', building: 'well', x: 38, y: 36 }];
-  if (tick === 800) return [{ kind: 'placeBuilding', building: 'wheatFarm', x: 40, y: 30 }];
+  if (tick === 50) return [{ kind: 'placeBuilding', building: BuildingTypeId.woodcutter, x: 26, y: 36 }];
+  if (tick === 60) return [{ kind: 'placeBuilding', building: BuildingTypeId.well, x: 38, y: 36 }];
+  if (tick === 800) return [{ kind: 'placeBuilding', building: BuildingTypeId.wheatFarm, x: 40, y: 30 }];
   return [];
 }
 
@@ -92,7 +93,7 @@ describe('save/load', () => {
     // the reading: an old garrison is archers, because archers were the
     // only thing that could ever be up there.
     const world = createWorld({ seed: 5, players: [{ kind: 'human' }] });
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     tower.garrison = 2;
     tower.garrisonKind = undefined; // as an older build wrote it
     const saved = serializeWorld(world);
@@ -108,7 +109,7 @@ describe('save/load', () => {
     const before = raider.hp;
     tickWorld(back, []);
     const combat = UNIT_DEFS[UnitTypeId.archer].combat!;
-    const rule = BUILDING_DEFS.guardTower.garrison!;
+    const rule = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!;
     expect(before - raider.hp).toBeCloseTo(combat.damage * rule.damageMult * 2, 5);
 
     // And hands archers back, not serfs, when it is emptied.

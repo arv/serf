@@ -22,6 +22,7 @@ import type { Building } from './entities.ts';
 import type { Unit } from './units.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -69,7 +70,7 @@ describe('barracks training', () => {
   it('trains a knight from hauled food + sword', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.knight }));
 
@@ -84,7 +85,7 @@ describe('barracks training', () => {
   it('gates gated units until their tech lands', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.bow]: 2 });
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.archer }));
     expect(barracks.trainQueue ?? []).toEqual([]);
 
@@ -97,7 +98,7 @@ describe('barracks training', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.spear]: 2 }); // spear, but no sword
     world.players[0]!.techs.researched.push('soldiery');
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.knight }));
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.spearman }));
@@ -112,7 +113,7 @@ describe('barracks training', () => {
   it('cancels an unstarted order outright — nothing was spent yet', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.knight }));
     expect(barracks.trainQueue?.length).toBe(1);
 
@@ -131,7 +132,7 @@ describe('barracks training', () => {
   it('cancelling a started order returns the ingredients and the recruit', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 1 });
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.knight }));
 
@@ -157,7 +158,7 @@ describe('barracks training', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.spear]: 2 });
     world.players[0]!.techs.researched.push('soldiery', 'mailArmor');
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.spearman }));
     run(world, 20 * 60);
@@ -171,13 +172,13 @@ describe('raids and victory', () => {
   it('spawns escalating waves that attack the storehouse', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});
-    placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
+    placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 44, 30);
     world.raidState = { nextRaidTick: 10, wave: 0 };
     run(world, 20 * 60);
 
     expect(world.raidState.wave).toBeGreaterThan(0);
     expect(world.pendingEvents.some((e) => e.kind === 'raidIncoming')).toBe(true);
-    expect(sh.hp).toBeLessThan(BUILDING_DEFS.storehouse.hp); // they reached it and did damage
+    expect(sh.hp).toBeLessThan(BUILDING_DEFS[BuildingTypeId.storehouse].hp); // they reached it and did damage
   });
 
   it('schedules the next wave off the playable span, not the full grid', () => {
@@ -188,7 +189,7 @@ describe('raids and victory', () => {
     const world = bareWorld();
     world.map.play = world.map.size / 2;
     addStorehouse(world, 30, 30, {});
-    placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
+    placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 44, 30);
     world.raidState = { nextRaidTick: 10, wave: 0 };
     run(world, 12);
     expect(world.raidState.wave).toBe(1);
@@ -198,7 +199,7 @@ describe('raids and victory', () => {
   it('losing the storehouse loses the game', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});
-    placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
+    placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 44, 30);
     sh.hp = 1;
     world.raidState = { nextRaidTick: 10, wave: 3 };
     run(world, 20 * 90);
@@ -216,7 +217,7 @@ describe('raids and victory', () => {
         world.map.blocked[i] = 1;
       }
     }
-    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 30, 30);
+    const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 30, 30);
     const raider = spawnUnitNearby(world, UnitTypeId.bandit, BANDIT, camp.x + 1.5, camp.y + camp.h + 1.5);
     const tile = Math.floor(raider.y) * size + Math.floor(raider.x);
     expect(world.map.blocked[tile]).toBe(0);
@@ -225,7 +226,7 @@ describe('raids and victory', () => {
   it('idle soldiers auto-besiege an enemy building in acquire range', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 38, 30);
+    const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 38, 30);
     camp.hp = 60;
     // No orders given: standing near the camp is enough to start the siege.
     spawnUnit(world, UnitTypeId.knight, 0, 36.5, 30.5);
@@ -236,7 +237,7 @@ describe('raids and victory', () => {
   it('idle soldiers ignore enemy buildings beyond acquire range', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 50, 30);
+    const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 50, 30);
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 32.5, 30.5);
     run(world, 20 * 10);
     expect(camp.dead).toBe(false);
@@ -246,7 +247,7 @@ describe('raids and victory', () => {
   it('attack-ordered knight raze the camp and win the game', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 40, 30);
+    const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 40, 30);
     camp.hp = 60;
     const ids: number[] = [];
     for (let i = 0; i < 3; i++) ids.push(spawnUnit(world, UnitTypeId.knight, 0, 36.5, 29.5 + i).id);
@@ -289,7 +290,7 @@ describe('the three move orders', () => {
   it('an attack-move besieges an enemy building on the way, not after a round trip', () => {
     const world = bareWorld();
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
-    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 36, 33);
+    const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 36, 33);
     camp.hp = 60;
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 44, y: 30, attack: true }));
 
@@ -372,7 +373,7 @@ describe('the three move orders', () => {
     // The camp sits in acquire range of the start tile: a full attack-move
     // from here besieges at once. The half order is past its midpoint before
     // it goes live, and by then the camp is out of reach behind it.
-    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 27, 32);
+    const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 27, 32);
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 46, y: 30, attack: 'half' }));
     run(world, 20 * 30);
@@ -420,7 +421,7 @@ describe('damage events', () => {
   it('bandit victims are silent — no events for razing their camp', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 38, 30);
+    const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 38, 30);
     camp.hp = 60;
     spawnUnit(world, UnitTypeId.knight, 0, 36.5, 30.5);
     run(world, 20 * 60);
@@ -448,7 +449,7 @@ describe('the fight the renderer is shown', () => {
   it('a unit ordered onto a far building only swings once it is at the wall', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
+    const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 44, 30);
     camp.hp = 60;
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
     // Right-click on the camp: the target is set on the spot and held for the
@@ -519,14 +520,14 @@ describe('the guard tower', () => {
    * staffing.ts arrives at, reached directly so the fire tests are not
    * also testing the walk. */
   function manned(world: World, n: number, x = 30, y = 30): Building {
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, x, y);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, x, y);
     tower.garrison = n;
     return tower;
   }
 
   it('calls an idle archer in off the field and swallows him', () => {
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 36.5, 31.5);
     run(world, 20 * 20);
     expect(tower.garrison).toBe(1);
@@ -538,7 +539,7 @@ describe('the guard tower', () => {
 
   it('takes two and then stops asking', () => {
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     for (let i = 0; i < 4; i++) spawnUnit(world, UnitTypeId.archer, 0, 36.5 + i, 31.5);
     run(world, 20 * 40);
     expect(tower.garrison).toBe(2);
@@ -550,9 +551,9 @@ describe('the guard tower', () => {
     // so one that started running would put two villagers on the wall the
     // day the masons left and hold them through every quiet hour after.
     const world = bareWorld();
-    const site = placeSite(world, 'guardTower', 0, 30, 30);
+    const site = placeSite(world, BuildingTypeId.guardTower, 0, 30, 30);
     site.siteNeeds = {};
-    site.buildProgress = BUILDING_DEFS.guardTower.buildTicks;
+    site.buildProgress = BUILDING_DEFS[BuildingTypeId.guardTower].buildTicks;
     const serf = addSerf(world, 36, 31);
     run(world, 20 * 20);
     expect(site.state).toBe('built');
@@ -569,7 +570,7 @@ describe('the guard tower', () => {
     // One volley: the cooldown starts at zero, so the first tick fires.
     tickWorld(world, []);
     const combat = UNIT_DEFS[UnitTypeId.archer].combat!;
-    const rule = BUILDING_DEFS.guardTower.garrison!;
+    const rule = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!;
     // No counter multiplier: a bandit is light and these are archers, which
     // in the field would be docked to 0.67 — see the next test.
     const expected = combat.damage * rule.damageMult * 2;
@@ -615,7 +616,7 @@ describe('the guard tower', () => {
       return before - raider.hp;
     };
     const combat = UNIT_DEFS[UnitTypeId.archer].combat!;
-    const rule = BUILDING_DEFS.guardTower.garrison!;
+    const rule = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!;
     const base = combat.damage * rule.damageMult * 2;
     expect(COUNTER_TABLE.ranged.light).toBeLessThan(1); // the penalty declined
     expect(volley(UnitTypeId.bandit)).toBeCloseTo(base, 5);
@@ -625,7 +626,7 @@ describe('the guard tower', () => {
 
   it('reaches further than the archer who mans it, but not forever', () => {
     const combat = UNIT_DEFS[UnitTypeId.archer].combat!;
-    const rule = BUILDING_DEFS.guardTower.garrison!;
+    const rule = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!;
     // A man standing where a field archer could not be shot at, but the
     // tower can reach: measured from the footprint, which is where the
     // wall the arrow leaves actually is.
@@ -645,7 +646,7 @@ describe('the guard tower', () => {
 
   it('takes a villager while it is running, and shoots with stones for it', () => {
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     const serf = addSerf(world, 36, 31);
     run(world, 20 * 20);
     expect(tower.garrison).toBe(1);
@@ -656,7 +657,7 @@ describe('the guard tower', () => {
     const before = raider.hp;
     tower.attackCooldown = 0;
     tickWorld(world, []);
-    const levy = BUILDING_DEFS.guardTower.garrison!.levy;
+    const levy = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.levy;
     // The rock, not the bow: no damageMult, and light against light so no
     // counter either way.
     expect(before - raider.hp).toBeCloseTo(levy.damage, 5);
@@ -664,11 +665,11 @@ describe('the guard tower', () => {
   });
 
   it('reaches less far with stones than with bows', () => {
-    const rule = BUILDING_DEFS.guardTower.garrison!;
+    const rule = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!;
     const combat = UNIT_DEFS[UnitTypeId.archer].combat!;
     const hits = (levied: boolean, dist: number): boolean => {
       const world = bareWorld();
-      const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+      const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
       tower.garrison = 2;
       tower.garrisonKind = levied ? UnitTypeId.serf : UnitTypeId.archer;
       const raider = spawnUnit(world, UnitTypeId.bandit, BANDIT, 32 + dist, 31);
@@ -685,7 +686,7 @@ describe('the guard tower', () => {
 
   it('sends the whole levy home when an archer arrives to relieve it', () => {
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     tower.garrison = 2;
     tower.garrisonKind = UnitTypeId.serf;
     spawnUnit(world, UnitTypeId.archer, 0, 36.5, 31.5);
@@ -700,7 +701,7 @@ describe('the guard tower', () => {
 
   it('stops calling villagers up once it is halted', () => {
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     tower.paused = true;
     const serf = addSerf(world, 36, 31);
     run(world, 20 * 20);
@@ -710,7 +711,7 @@ describe('the guard tower', () => {
 
   it('sends the villagers back to work when it is halted, and calls none up again', () => {
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     tower.garrison = 2;
     tower.garrisonKind = UnitTypeId.serf;
     const before = populationOf(world, 0);
@@ -727,7 +728,7 @@ describe('the guard tower', () => {
 
   it('marches its archers back out when it is halted — the lever is the roof', () => {
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     tower.garrison = 2;
     tower.garrisonKind = UnitTypeId.archer;
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
@@ -744,8 +745,8 @@ describe('the guard tower', () => {
     // capacity in villagers still asks for soldiers, and the first idle one
     // is walked over and swapped in.
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
-    tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
+    tower.garrison = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity;
     tower.garrisonKind = UnitTypeId.serf;
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 36.5, 31.5);
     run(world, 20 * 20);
@@ -763,7 +764,7 @@ describe('the guard tower', () => {
     // does, and it is the exact contradiction the lever was fixed to stop
     // showing. The sweep stands them down.
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     tower.paused = true;
     tower.garrison = 2;
     tower.garrisonKind = UnitTypeId.archer;
@@ -782,7 +783,7 @@ describe('the guard tower', () => {
     // A storehouse because this one gives orders: a player without one is
     // eliminated, and an eliminated player's commands are dropped.
     addStorehouse(world, 20, 20, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 36.5, 31.5);
 
     // Claimed and walking, not yet arrived.
@@ -815,7 +816,7 @@ describe('the guard tower', () => {
     // reloaded, and they loose again in the same fight.
     const world = bareWorld();
     addStorehouse(world, 20, 20, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     tower.garrison = 1;
     tower.garrisonKind = UnitTypeId.archer;
     tower.attackCooldown = 17; // mid-reload, as if it had just loosed
@@ -831,8 +832,8 @@ describe('the guard tower', () => {
     // behind, that second wall would fire with bows that had not reloaded.
     const world = bareWorld();
     addStorehouse(world, 20, 20, {});
-    const a = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
-    const b = placeBuiltBuilding(world, 'guardTower', 0, 34, 30);
+    const a = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
+    const b = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 34, 30);
     a.garrison = 1;
     a.garrisonKind = UnitTypeId.archer;
     a.attackCooldown = 200; // long enough to survive the walk next door
@@ -855,7 +856,7 @@ describe('the guard tower', () => {
     // between two volleys for a full heal.
     const world = bareWorld();
     addStorehouse(world, 20, 20, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 36.5, 31.5);
     const hurt = Math.round(UNIT_DEFS[UnitTypeId.archer].hp / 3);
     archer.hp = hurt;
@@ -874,7 +875,7 @@ describe('the guard tower', () => {
 
   it('does not call villagers up to a tower the archers already hold', () => {
     const world = bareWorld();
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     tower.garrison = 1;
     tower.garrisonKind = UnitTypeId.archer;
     const serf = addSerf(world, 36, 31);
@@ -907,7 +908,7 @@ describe('the guard tower', () => {
   it('counts its garrison as people, so manning a tower frees no bed', () => {
     const world = bareWorld();
     addStorehouse(world, 40, 40, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     spawnUnit(world, UnitTypeId.archer, 0, 36.5, 31.5);
     const before = populationOf(world, 0);
     run(world, 20 * 20);

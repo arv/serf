@@ -4,6 +4,7 @@ import { HeightField } from './heightField';
 import { Spoil, TerrainMesh, spoilOf, type SpoilKind } from './terrainMesh';
 import { tileIdx } from '../shared/grid';
 import { Terrain, type MapView } from '../sim/map';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 // The speckle detail sheet is drawn on a 2D canvas, which node has none of.
 // It multiplies over the vertex colours at draw time and never touches the
@@ -118,12 +119,12 @@ describe('terrain spoil', () => {
   });
 
   it('names the four posts that spoil their ground, and only those', () => {
-    expect(spoilOf('quarry')).toBe(Spoil.Stone);
-    expect(spoilOf('ironMine')).toBe(Spoil.Iron);
-    expect(spoilOf('silverMine')).toBe(Spoil.Silver);
-    expect(spoilOf('goldMine')).toBe(Spoil.Gold);
-    expect(spoilOf('house')).toBe(Spoil.None);
-    expect(spoilOf('woodcutter')).toBe(Spoil.None);
+    expect(spoilOf(BuildingTypeId.quarry)).toBe(Spoil.Stone);
+    expect(spoilOf(BuildingTypeId.ironMine)).toBe(Spoil.Iron);
+    expect(spoilOf(BuildingTypeId.silverMine)).toBe(Spoil.Silver);
+    expect(spoilOf(BuildingTypeId.goldMine)).toBe(Spoil.Gold);
+    expect(spoilOf(BuildingTypeId.house)).toBe(Spoil.None);
+    expect(spoilOf(BuildingTypeId.woodcutter)).toBe(Spoil.None);
     expect(spoilOf(undefined)).toBe(Spoil.None);
   });
 });

@@ -17,9 +17,10 @@ import { parseMapData } from './mapFile.ts';
 import { rectClear } from './map.ts';
 import { deserializeWorld, serializeWorld } from './save.ts';
 import { firstRaidTickFor } from './defs/balance.ts';
-import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF, type BuildingTypeId } from './defs/buildings.ts';
+import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF } from './defs/buildings.ts';
 import type { SimCommand } from './commands.ts';
 import { GoodId } from './defs/goods.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 /**
  * The campaign missions hold the same line winnable.test.ts holds for the
@@ -45,7 +46,7 @@ function countBuilt(world: World, type: BuildingTypeId, owner = 0): number {
 function stockOf(world: World, good: GoodId): number {
   let n = 0;
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.owner === 0 && b.type === 'storehouse') n += b.stock[good] ?? 0;
+    if (!b.dead && b.owner === 0 && b.type === BuildingTypeId.storehouse) n += b.stock[good] ?? 0;
   }
   return n;
 }
@@ -92,20 +93,20 @@ describe('the campaign missions', () => {
     // teaches — canPlace refuses a hut out of range of its resource. The
     // castle is wherever worldgen put the solo start (the map's middle,
     // whatever the size), not a pinned coordinate.
-    const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const keep = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
     const castle = { x: keep.x + 1, y: keep.y + 1 };
     const place = (type: BuildingTypeId): SimCommand => {
       const spot = findSpot(world, type, castle.x, castle.y);
       return { kind: 'placeBuilding', building: type, x: spot.x, y: spot.y };
     };
-    tickWorld(world, cmds(place('woodcutter')));
-    tickWorld(world, cmds(place('quarry')));
-    tickWorld(world, cmds(place('house')));
+    tickWorld(world, cmds(place(BuildingTypeId.woodcutter)));
+    tickWorld(world, cmds(place(BuildingTypeId.quarry)));
+    tickWorld(world, cmds(place(BuildingTypeId.house)));
 
     let hired = false;
     const MAX = 36_000; // 30 minutes of game time, far past the expected 5-8
     for (let t = 0; t < MAX && world.outcome.state === 'playing'; t++) {
-      if (!hired && countBuilt(world, 'house') >= 1) {
+      if (!hired && countBuilt(world, BuildingTypeId.house) >= 1) {
         // Five hires at 4 silver: 6 souls to the checklist's 11.
         tickWorld(
           world,
@@ -141,7 +142,7 @@ describe('the campaign missions', () => {
     // it can and eats every spear the checklist wants stockpiled. A player
     // in a bandit-free mission has no barracks and no such leak.
     const world = await createWorldAsync(missionWorldConfig('ledger'));
-    const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const keep = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
     const castle = { x: keep.x + 1, y: keep.y + 1 };
     const researched = (tech: 'cobbledBoots' | 'ironworking'): boolean =>
       world.players[0]!.techs.researched.includes(tech);
@@ -150,8 +151,8 @@ describe('the campaign missions', () => {
       return { kind: 'placeBuilding', building: type, x: spot.x, y: spot.y };
     };
 
-    tickWorld(world, cmds(place('abbey')));
-    tickWorld(world, cmds(place('silverMine')));
+    tickWorld(world, cmds(place(BuildingTypeId.abbey)));
+    tickWorld(world, cmds(place(BuildingTypeId.silverMine)));
 
     let ironPlaced = false;
     const MAX = 45_000;
@@ -159,7 +160,7 @@ describe('the campaign missions', () => {
       // A player clicks when the button lights up; every 50 ticks is fine.
       if (world.tick % 50 === 0) {
         const active = world.players[0]!.techs.active;
-        if (!active && countBuilt(world, 'abbey') >= 1 && !researched('cobbledBoots')) {
+        if (!active && countBuilt(world, BuildingTypeId.abbey) >= 1 && !researched('cobbledBoots')) {
           tickWorld(world, cmds({ kind: 'research', tech: 'cobbledBoots' }));
           continue;
         }
@@ -168,15 +169,15 @@ describe('the campaign missions', () => {
           continue;
         }
         if (!ironPlaced && researched('ironworking')) {
-          tickWorld(world, cmds(place('ironMine')));
-          tickWorld(world, cmds(place('weaponsmith')));
+          tickWorld(world, cmds(place(BuildingTypeId.ironMine)));
+          tickWorld(world, cmds(place(BuildingTypeId.weaponsmith)));
           ironPlaced = true;
           continue;
         }
         // A fresh Smith idles on auto; the crown wants spears — the player
         // clicks the forge menu once the roof is up.
         const smith = [...world.buildings.values()].find(
-          (b) => b.type === 'weaponsmith' && !b.dead && b.state === 'built',
+          (b) => b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === 'built',
         );
         if (smith && smith.recipeIndex === undefined) {
           tickWorld(
@@ -217,14 +218,14 @@ describe('the campaign missions', () => {
       expect(stockOf(world, tool), `${tool} in the rack`).toBe(tool === GoodId.hammer ? 1 : 0);
     }
 
-    const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const keep = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
     const castle = { x: keep.x + 1, y: keep.y + 1 };
-    const spot = findSpot(world, 'weaponsmith', castle.x, castle.y);
+    const spot = findSpot(world, BuildingTypeId.weaponsmith, castle.x, castle.y);
     // The one roof the mission is about — and the reeve's one hammer is
     // what raises it, on loan until the roof goes on.
-    tickWorld(world, cmds({ kind: 'placeBuilding', building: 'weaponsmith', x: spot.x, y: spot.y }));
+    tickWorld(world, cmds({ kind: 'placeBuilding', building: BuildingTypeId.weaponsmith, x: spot.x, y: spot.y }));
 
-    const HAMMER_RECIPE = BUILDING_DEFS.weaponsmith.recipeOptions!.findIndex(
+    const HAMMER_RECIPE = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!.findIndex(
       (o) => (o.recipe.outputs[GoodId.hammer] ?? 0) > 0,
     );
     const staffed = (): boolean =>
@@ -240,7 +241,7 @@ describe('the campaign missions', () => {
       // A player clicks when the button lights up; every 50 ticks is fine.
       if (!ordered && world.tick % 50 === 0) {
         const smith = [...world.buildings.values()].find(
-          (b) => b.type === 'weaponsmith' && !b.dead && b.state === 'built',
+          (b) => b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === 'built',
         );
         // Left alone the Smith tools the open posts and then lets the fire
         // go cold. Once every peg is filled the player queues the batch the

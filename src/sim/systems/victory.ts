@@ -2,6 +2,7 @@ import { buildingDef } from '../defs/buildings.ts';
 import { latchObjectives } from './objectives.ts';
 import type { Owner } from '../entities.ts';
 import type { World } from '../world.ts';
+import { BuildingTypeId } from '../defs/buildings.ts';
 
 /**
  * Elimination and match end. A player whose storehouse falls is out; the
@@ -51,7 +52,7 @@ export function victorySystem(world: World): void {
     // outright (razing the camp is then just one line on the list).
     let campStands = false;
     for (const b of world.buildings.values()) {
-      if (!b.dead && b.type === 'banditCamp') {
+      if (!b.dead && b.type === BuildingTypeId.banditCamp) {
         campStands = true;
         break;
       }

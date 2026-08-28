@@ -3,6 +3,7 @@ import { TECH_DEFS } from '../defs/techs.ts';
 import { type World } from '../world.ts';
 import type { Building, Owner } from '../entities.ts';
 import { GoodId } from '../defs/goods.ts';
+import { BuildingTypeId } from '../defs/buildings.ts';
 
 /**
  * Ticks every player's active research and festival buff. Research is
@@ -19,7 +20,7 @@ export function researchSystem(world: World): void {
     if (!abbeys) {
       abbeys = new Map();
       for (const b of world.buildings.values()) {
-        if (!b.dead && b.type === 'abbey' && b.state === 'built' && !abbeys.has(b.owner)) {
+        if (!b.dead && b.type === BuildingTypeId.abbey && b.state === 'built' && !abbeys.has(b.owner)) {
           abbeys.set(b.owner, b);
         }
       }

@@ -1,5 +1,5 @@
 import { For, Show, type JSX } from 'solid-js';
-import { BUILDING_DEFS, TOOL_OF, type BuildingTypeId } from '../../../sim/defs/buildings';
+import { BUILDING_DEFS, TOOL_OF } from '../../../sim/defs/buildings';
 import type { GoodId } from '../../../sim/defs/goods';
 import { buildKey } from '../../../ui/buildMenu';
 import { buildingName, goodName, techName, unitName } from '../../../ui/names';
@@ -10,6 +10,7 @@ import { ModelCard } from '../preview/ModelCard';
 import { Prose } from '../prose';
 import { buildingHref, goodHref, techHref, unitHref } from '../routes';
 import { goodKeys } from '../../../sim/defs/goods';
+import { BuildingTypeId } from '../../../sim/defs/buildings';
 
 export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
   const def = BUILDING_DEFS[props.id];
@@ -79,8 +80,8 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
             <Show when={tool !== undefined}>
               <li>
                 The post needs a <GoodChip good={tool!} /> from the{' '}
-                <DocLink href={buildingHref('weaponsmith')}>
-                  {buildingName('weaponsmith')}
+                <DocLink href={buildingHref(BuildingTypeId.weaponsmith)}>
+                  {buildingName(BuildingTypeId.weaponsmith)}
                 </DocLink>
               </li>
             </Show>

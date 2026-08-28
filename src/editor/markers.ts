@@ -4,6 +4,7 @@ import { makeGhostModel } from '../render/models';
 import { eachMaterial } from '../render/materials';
 import type { HeightField } from '../render/heightField';
 import type { StartSpot } from '../sim/map.ts';
+import { BuildingTypeId } from '../sim/defs/buildings.ts';
 
 const VALID = new THREE.Color(0x7fbf6a);
 const INVALID = new THREE.Color(0xd45252);
@@ -38,7 +39,7 @@ export class StartMarkers {
     this.clear();
     this.#starts = starts.map((s) => ({ ...s }));
     this.#starts.forEach((s, p) => {
-      const ghost = makeGhostModel('storehouse', 0.6, p);
+      const ghost = makeGhostModel(BuildingTypeId.storehouse, 0.6, p);
       this.#ghosts.push(ghost);
       ghost.traverse((obj) => {
         if (obj instanceof THREE.Mesh) {

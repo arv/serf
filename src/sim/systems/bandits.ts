@@ -3,6 +3,7 @@ import { BANDIT, isPlayerOwner, type Building } from '../entities.ts';
 import { spawnUnitNearby, type World } from '../world.ts';
 import { Rng } from '../../shared/rng.ts';
 import { UnitTypeId } from '../defs/units.ts';
+import { BuildingTypeId } from '../defs/buildings.ts';
 
 /**
  * Escalating raids: waves grow and diversify (light -> +ranged -> +heavy) so
@@ -63,7 +64,7 @@ export function banditsSystem(world: World, rng: Rng): void {
 
 function findCamp(world: World): Building | undefined {
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.type === 'banditCamp') return b;
+    if (!b.dead && b.type === BuildingTypeId.banditCamp) return b;
   }
   return undefined;
 }
@@ -75,7 +76,7 @@ function pickTarget(world: World, rng: Rng): Building | undefined {
   for (const b of world.buildings.values()) {
     if (b.dead || !isPlayerOwner(b.owner)) continue;
     targets.push(b);
-    if (b.type === 'storehouse') storehouses.push(b);
+    if (b.type === BuildingTypeId.storehouse) storehouses.push(b);
   }
   if (targets.length === 0) return undefined;
   if (storehouses.length > 0 && rng.next() < 0.6) {

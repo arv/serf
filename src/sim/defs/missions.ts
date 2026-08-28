@@ -1,8 +1,8 @@
-import type { BuildingTypeId } from './buildings.ts';
 import type { GoodAmounts } from './goods.ts';
 import type { TechId } from './techs.ts';
 import type { AiStrategyId } from './aiStrategies.ts';
 import { GoodId } from './goods.ts';
+import { BuildingTypeId } from './buildings.ts';
 
 /**
  * The campaign: seven commissions that double as the tutorial. Each mission is
@@ -123,9 +123,9 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // sites — the tool economy itself is mission 4's lesson, not this one's.
     startStock: { [GoodId.wood]: 20, [GoodId.stone]: 6, [GoodId.silver]: 24, [GoodId.axe]: 1, [GoodId.pickaxe]: 1, [GoodId.hammer]: 2 },
     objectives: [
-      { spec: { kind: 'building', type: 'woodcutter', count: 1 }, label: 'Raise a Woodcutter' },
-      { spec: { kind: 'building', type: 'quarry', count: 1 }, label: 'Raise a Quarry' },
-      { spec: { kind: 'building', type: 'house', count: 1 }, label: 'Raise a House' },
+      { spec: { kind: 'building', type: BuildingTypeId.woodcutter, count: 1 }, label: 'Raise a Woodcutter' },
+      { spec: { kind: 'building', type: BuildingTypeId.quarry, count: 1 }, label: 'Raise a Quarry' },
+      { spec: { kind: 'building', type: BuildingTypeId.house, count: 1 }, label: 'Raise a House' },
       // Eleven, one past the castle's ten beds: the house objective is
       // load-bearing (population is beds), not a checkbox. Five hires at
       // 4 silver each out of the 24 the mission opens with.
@@ -156,10 +156,10 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       [GoodId.hammer]: 2,
     },
     objectives: [
-      { spec: { kind: 'building', type: 'well', count: 1 }, label: 'Raise a Well' },
-      { spec: { kind: 'building', type: 'wheatFarm', count: 1 }, label: 'Raise a Wheat Farm' },
-      { spec: { kind: 'building', type: 'mill', count: 1 }, label: 'Raise a Mill' },
-      { spec: { kind: 'building', type: 'bakery', count: 1 }, label: 'Raise a Bakery' },
+      { spec: { kind: 'building', type: BuildingTypeId.well, count: 1 }, label: 'Raise a Well' },
+      { spec: { kind: 'building', type: BuildingTypeId.wheatFarm, count: 1 }, label: 'Raise a Wheat Farm' },
+      { spec: { kind: 'building', type: BuildingTypeId.mill, count: 1 }, label: 'Raise a Mill' },
+      { spec: { kind: 'building', type: BuildingTypeId.bakery, count: 1 }, label: 'Raise a Bakery' },
       { spec: { kind: 'stock', good: GoodId.food, amount: 12 }, label: 'Lay in 12 food at the Castle' },
     ],
   },
@@ -190,19 +190,19 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // The player should not re-play missions 1-2: the camp they taught is
     // already standing.
     prebuilt: [
-      { type: 'woodcutter', dx: -6, dy: -2 },
-      { type: 'quarry', dx: 6, dy: -3 },
-      { type: 'house', dx: -5, dy: 4 },
-      { type: 'well', dx: 5, dy: 4 },
-      { type: 'wheatFarm', dx: 8, dy: 2 },
+      { type: BuildingTypeId.woodcutter, dx: -6, dy: -2 },
+      { type: BuildingTypeId.quarry, dx: 6, dy: -3 },
+      { type: BuildingTypeId.house, dx: -5, dy: 4 },
+      { type: BuildingTypeId.well, dx: 5, dy: 4 },
+      { type: BuildingTypeId.wheatFarm, dx: 8, dy: 2 },
     ],
     objectives: [
-      { spec: { kind: 'building', type: 'abbey', count: 1 }, label: 'Raise an Abbey' },
-      { spec: { kind: 'building', type: 'silverMine', count: 1 }, label: 'Dig a Silver Mine' },
+      { spec: { kind: 'building', type: BuildingTypeId.abbey, count: 1 }, label: 'Raise an Abbey' },
+      { spec: { kind: 'building', type: BuildingTypeId.silverMine, count: 1 }, label: 'Dig a Silver Mine' },
       // Forces Cobbled Boots first — the tree's prereq line teaches itself.
       { spec: { kind: 'research', tech: 'ironworking' }, label: 'Research Ironworking' },
-      { spec: { kind: 'building', type: 'ironMine', count: 1 }, label: 'Dig an Iron Mine' },
-      { spec: { kind: 'building', type: 'weaponsmith', count: 1 }, label: 'Raise a Smith' },
+      { spec: { kind: 'building', type: BuildingTypeId.ironMine, count: 1 }, label: 'Dig an Iron Mine' },
+      { spec: { kind: 'building', type: BuildingTypeId.weaponsmith, count: 1 }, label: 'Raise a Smith' },
       { spec: { kind: 'stock', good: GoodId.spear, amount: 4 }, label: 'Forge 4 spears' },
     ],
   },
@@ -242,14 +242,14 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // The predecessor's village, standing and idle. No Smith among them:
     // that is the one roof this mission is about.
     prebuilt: [
-      { type: 'woodcutter', dx: -6, dy: -2 },
-      { type: 'quarry', dx: 5, dy: -6 },
-      { type: 'house', dx: -5, dy: 4 },
-      { type: 'well', dx: 4, dy: 4 },
-      { type: 'wheatFarm', dx: 8, dy: 3 },
-      { type: 'mill', dx: -3, dy: 7 },
-      { type: 'bakery', dx: 2, dy: 7 },
-      { type: 'ironMine', dx: 12, dy: -3 },
+      { type: BuildingTypeId.woodcutter, dx: -6, dy: -2 },
+      { type: BuildingTypeId.quarry, dx: 5, dy: -6 },
+      { type: BuildingTypeId.house, dx: -5, dy: 4 },
+      { type: BuildingTypeId.well, dx: 4, dy: 4 },
+      { type: BuildingTypeId.wheatFarm, dx: 8, dy: 3 },
+      { type: BuildingTypeId.mill, dx: -3, dy: 7 },
+      { type: BuildingTypeId.bakery, dx: 2, dy: 7 },
+      { type: BuildingTypeId.ironMine, dx: 12, dy: -3 },
     ],
     // Every line past the first is a post that cannot produce until its
     // tool hangs on the peg: the mine wants a pickaxe, the woodcutter an
@@ -258,7 +258,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // because a forged tool is hauled to whichever post is calling for it
     // — it reaches the castle shelf only once nothing is waiting on it.
     objectives: [
-      { spec: { kind: 'building', type: 'weaponsmith', count: 1 }, label: 'Raise a Smith' },
+      { spec: { kind: 'building', type: BuildingTypeId.weaponsmith, count: 1 }, label: 'Raise a Smith' },
       { spec: { kind: 'stock', good: GoodId.iron, amount: 12 }, label: 'Lay in 12 iron at the Castle' },
       { spec: { kind: 'stock', good: GoodId.wood, amount: 45 }, label: 'Lay in 45 wood at the Castle' },
       { spec: { kind: 'stock', good: GoodId.food, amount: 12 }, label: 'Lay in 12 food at the Castle' },
@@ -312,19 +312,19 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // Research was mission 3's lesson; here it is already done.
     startTechs: ['soldiery', 'cobbledBoots', 'ironworking'],
     prebuilt: [
-      { type: 'woodcutter', dx: -6, dy: -2 },
-      { type: 'quarry', dx: 6, dy: -3 },
-      { type: 'house', dx: -5, dy: 4 },
-      { type: 'house', dx: -8, dy: 0 },
-      { type: 'well', dx: 5, dy: 4 },
-      { type: 'wheatFarm', dx: 8, dy: 2 },
-      { type: 'mill', dx: -3, dy: 7 },
-      { type: 'bakery', dx: 2, dy: 7 },
-      { type: 'silverMine', dx: 0, dy: -8 },
-      { type: 'abbey', dx: 8, dy: -1 },
+      { type: BuildingTypeId.woodcutter, dx: -6, dy: -2 },
+      { type: BuildingTypeId.quarry, dx: 6, dy: -3 },
+      { type: BuildingTypeId.house, dx: -5, dy: 4 },
+      { type: BuildingTypeId.house, dx: -8, dy: 0 },
+      { type: BuildingTypeId.well, dx: 5, dy: 4 },
+      { type: BuildingTypeId.wheatFarm, dx: 8, dy: 2 },
+      { type: BuildingTypeId.mill, dx: -3, dy: 7 },
+      { type: BuildingTypeId.bakery, dx: 2, dy: 7 },
+      { type: BuildingTypeId.silverMine, dx: 0, dy: -8 },
+      { type: BuildingTypeId.abbey, dx: 8, dy: -1 },
     ],
     objectives: [
-      { spec: { kind: 'building', type: 'barracks', count: 1 }, label: 'Raise a Barracks' },
+      { spec: { kind: 'building', type: BuildingTypeId.barracks, count: 1 }, label: 'Raise a Barracks' },
       { spec: { kind: 'soldiers', count: 6 }, label: 'Field 6 soldiers at once' },
       { spec: { kind: 'razeCamp' }, label: 'Raze the bandit camp' },
     ],

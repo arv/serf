@@ -7,6 +7,7 @@ import { buildingName, techDesc, techName } from './names';
 import { setTechPanelOpen, stock, techs } from './store';
 import { COMPACT, SHORT } from './breakpoints';
 import { goodEntries } from '../sim/defs/goods';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 const BRANCH_LABELS: Record<string, string> = {
   agriculture: 'Agriculture',
@@ -215,7 +216,7 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
               defs care to call it. */}
           <div class="tech-note">
             <Show when={!techs().hasAbbey}>
-              The {buildingName('abbey')} opens this tree — build one to begin.
+              The {buildingName(BuildingTypeId.abbey)} opens this tree — build one to begin.
             </Show>
           </div>
           <button class="tech-close" onClick={() => setTechPanelOpen(false)}>

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
+import { BUILDING_DEFS } from '../sim/defs/buildings';
 import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
 import { makeBakehouse } from './procBuildings';
 import { makeFishSign, makeShoal } from './procParts';
@@ -13,6 +13,8 @@ import {
   makeSluice,
   makeWindlassHouse,
 } from './procMines';
+import { BuildingTypeId } from '../sim/defs/buildings';
+import { BUILDING_TYPES } from '../sim/defs/buildings';
 
 /**
  * GLB asset pipeline: building, tree, rock and prop models loaded from the
@@ -29,37 +31,37 @@ const DIR = '/models/kaykit/';
  * splitTeamColorGroups).
  */
 const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
-  storehouse: 'building_castle_green.gltf',
-  house: 'building_home_A_green.gltf',
-  woodcutter: 'building_lumbermill_green.gltf',
+  [BuildingTypeId.storehouse]: 'building_castle_green.gltf',
+  [BuildingTypeId.house]: 'building_home_A_green.gltf',
+  [BuildingTypeId.woodcutter]: 'building_lumbermill_green.gltf',
   // The quarry plays the mine too — see the note on ironMine below.
-  quarry: 'building_mine_green.gltf',
-  well: 'building_well_green.gltf',
-  wheatFarm: 'farm_plot.glb',
-  mill: 'building_windmill_green.gltf',
+  [BuildingTypeId.quarry]: 'building_mine_green.gltf',
+  [BuildingTypeId.well]: 'building_well_green.gltf',
+  [BuildingTypeId.wheatFarm]: 'farm_plot.glb',
+  [BuildingTypeId.mill]: 'building_windmill_green.gltf',
   // (No bakery: it is the one building we model ourselves — BUILT_BUILDINGS.)
   // The EXTRA shipyard: a hull on the slipway, an anchor, barrels on the
   // quay. The one food building that needed nothing built by hand.
-  fishery: 'extra/building_shipyard_green.gltf',
-  brewery: 'building_tavern_green.gltf',
+  [BuildingTypeId.fishery]: 'extra/building_shipyard_green.gltf',
+  [BuildingTypeId.brewery]: 'building_tavern_green.gltf',
   // The quarry and the three mines all play this one model — the pack's
   // color variants only vary the team-color slot, which belongs to the
   // owning faction now. What separates the four is the headworks standing
   // in each one's yard; see BUILDING_DECOR below.
-  ironMine: 'building_mine_green.gltf',
-  silverMine: 'building_mine_green.gltf',
-  goldMine: 'building_mine_green.gltf',
-  weaponsmith: 'building_blacksmith_green.gltf',
-  barracks: 'building_barracks_green.gltf',
-  abbey: 'building_church_green.gltf',
-  banditCamp: 'building_tower_B_red.gltf',
+  [BuildingTypeId.ironMine]: 'building_mine_green.gltf',
+  [BuildingTypeId.silverMine]: 'building_mine_green.gltf',
+  [BuildingTypeId.goldMine]: 'building_mine_green.gltf',
+  [BuildingTypeId.weaponsmith]: 'building_blacksmith_green.gltf',
+  [BuildingTypeId.barracks]: 'building_barracks_green.gltf',
+  [BuildingTypeId.abbey]: 'building_church_green.gltf',
+  [BuildingTypeId.banditCamp]: 'building_tower_B_red.gltf',
   // The pack ships four towers and only this one is a watchtower: a plain
   // stone shaft with a crenellated parapet around an open plank deck. The
   // other three all put something where a man should stand — B a coned
   // roof under a finial (which is the bandits'), A a roofed gallery on
   // posts, and the fourth a catapult. Being roofless is the whole point
   // here, and it reads apart from the camp at a glance besides.
-  guardTower: 'building_tower_base_green.gltf',
+  [BuildingTypeId.guardTower]: 'building_tower_base_green.gltf',
 };
 
 /**
@@ -79,7 +81,7 @@ const BUILDING_FILES: Partial<Record<BuildingTypeId, string>> = {
 const BUILT_BUILDINGS: Partial<
   Record<BuildingTypeId, (piece: PieceFactory, packMaterial: THREE.Material | null) => THREE.Group>
 > = {
-  bakery: makeBakehouse,
+  [BuildingTypeId.bakery]: makeBakehouse,
 };
 
 /** Tints so buildings sharing a model read apart. Empty since the smiths
@@ -192,8 +194,8 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // No bakery entry: it dresses its own yard from procBuildings — hearth
   // apron, arch, loaves — and a sack, a bucket and a log pile round its
   // feet on top of that were clutter, not story.
-  mill: [{ prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5 }],
-  fishery: [
+  [BuildingTypeId.mill]: [{ prop: 'sack', at: [-0.34, 0.34], size: 0.1, rot: 0.5 }],
+  [BuildingTypeId.fishery]: [
     // The pier runs out of the front face, so the building's facing carries
     // it toward the water (see Building.facing). Long enough to overhang the
     // footprint on purpose. It reaches *toward* the nearest water rather than
@@ -238,7 +240,7 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // the diagonal POST_R splits evenly between the two axes. Nothing stands
   // in the middle of this deck, so unlike the roofed towers there is no
   // reason to push them out to the rim.
-  guardTower: [
+  [BuildingTypeId.guardTower]: [
     { make: () => new THREE.Group(), at: [-POST_D, POST_D], y: ROOF_Y, size: 1, name: 'towerPost0' },
     { make: () => new THREE.Group(), at: [POST_D, -POST_D], y: ROOF_Y, size: 1, name: 'towerPost1' },
   ],
@@ -262,24 +264,24 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // post with nothing in its yard still says which ore it is. That is a
   // different thing from the stock stacks buildingSync piles on the spots
   // in MINE_SPOTS, and it stands clear of them, out on the mouth's left.
-  quarry: [
+  [BuildingTypeId.quarry]: [
     { make: () => makeSheerlegs(), at: [0.34, 0.44], size: 1, rot: -0.5 },
     { make: () => makeAshlar(), at: [-0.38, 0.45], size: 1, rot: 0.35 },
     { prop: 'wheelbarrow', at: [0.06, 0.62], size: 0.15, rot: 0.85 },
   ],
-  ironMine: [
+  [BuildingTypeId.ironMine]: [
     { make: () => makeOreChute(), at: [0.36, 0.42], size: 1, rot: -0.3 },
     { rock: 0x8a5238, at: [-0.42, 0.44], size: 0.17 },
     { rock: 0x6b4132, at: [-0.28, 0.55], size: 0.11 },
     { prop: 'wheelbarrow', at: [0.06, 0.62], size: 0.15, rot: 0.85 },
   ],
-  silverMine: [
+  [BuildingTypeId.silverMine]: [
     { make: () => makeWindlassHouse(), at: [0.35, 0.43], size: 1, rot: -0.45 },
     { rock: 0xdde3ea, at: [-0.42, 0.44], size: 0.17 },
     { rock: 0xb2bcc6, at: [-0.28, 0.55], size: 0.11 },
     { prop: 'sack', at: [-0.04, 0.61], size: 0.12, rot: 0.7 },
   ],
-  goldMine: [
+  [BuildingTypeId.goldMine]: [
     { make: () => makeHeadframe(), at: [0.34, 0.43], size: 1, rot: -0.55 },
     { make: () => makeSluice(), at: [-0.34, 0.5], size: 1, rot: 0.3 },
     { rock: 0xe8c257, at: [-0.52, 0.3], size: 0.13 },
@@ -722,9 +724,11 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
     };
 
     const buildings = new Map<BuildingTypeId, THREE.Group>();
-    for (const [type, file] of Object.entries(BUILDING_FILES) as [BuildingTypeId, string][]) {
+    for (const type of BUILDING_TYPES) {
+      const file = BUILDING_FILES[type];
+      if (file === undefined) continue;
       const scene = loaded.get(file)!.clone();
-      if (type === 'woodcutter') {
+      if (type === BuildingTypeId.woodcutter) {
         // The pack bakes stock into the lumbermill: a two-layer log pile
         // along the west wall, three stacked planks and two loose boards
         // out front, and little billet stacks against the east and south
@@ -752,7 +756,7 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
           }
         });
       }
-      if (type === 'quarry' || type === 'ironMine' || type === 'silverMine' || type === 'goldMine') {
+      if (type === BuildingTypeId.quarry || type === BuildingTypeId.ironMine || type === BuildingTypeId.silverMine || type === BuildingTypeId.goldMine) {
         // The mine model bakes three spoil boulders at its mouth — stock
         // that was never mined. Cut them (validated component-by-component
         // like the lumbermill; the rocky mounds and frame lose at most a
@@ -775,7 +779,7 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
           }
         });
       }
-      if (type === 'fishery') {
+      if (type === BuildingTypeId.fishery) {
         // The pack perches a finished sailing ship on the shipyard's ridge —
         // a whole vessel, masts and sails, sitting on the roof. It reads as
         // a toy on a shelf at village zoom, and the hull already under
@@ -796,7 +800,7 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
           }
         });
       }
-      if (type === 'well') {
+      if (type === BuildingTypeId.well) {
         // The pack bakes a static windlass into the well's single mesh: an
         // axle along x resting on the side frames, a crank handle hanging
         // off its +x end, and a rope + hook over the shaft. Cut exactly
@@ -851,7 +855,7 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
         crank.position.set(0, 0.336, 0);
         scene.add(crank);
       }
-      if (type === 'mill') {
+      if (type === BuildingTypeId.mill) {
         // No surgery needed here: the pack ships the sails as their own
         // node, hub-centered with the blades in its local x/y plane — made
         // to be spun. Name it so buildingSync can find it and turn it
@@ -899,10 +903,9 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
     loaded.get('building_home_A_green.gltf')?.traverse((o) => {
       if (!packMaterial && o instanceof THREE.Mesh) packMaterial = o.material as THREE.Material;
     });
-    for (const [type, build] of Object.entries(BUILT_BUILDINGS) as [
-      BuildingTypeId,
-      (piece: PieceFactory, packMaterial: THREE.Material | null) => THREE.Group,
-    ][]) {
+    for (const type of BUILDING_TYPES) {
+      const build = BUILT_BUILDINGS[type];
+      if (build === undefined) continue;
       const group = normalize(build(piece, packMaterial));
       dress(type, group);
       // Its roof is UV-mapped into the same atlas cell a pack roof uses, so

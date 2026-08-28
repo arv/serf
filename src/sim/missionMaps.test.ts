@@ -15,7 +15,8 @@ import { parseMapData, type AuthoredMap } from './mapFile.ts';
 import { loadMissionMap } from './defs/missionMaps.ts';
 import { MISSION_DEFS, MISSION_ORDER, type MissionId } from './defs/missions.ts';
 import { canPlace } from './world.ts';
-import { BUILDING_DEFS, type BuildingTypeId } from './defs/buildings.ts';
+import { BUILDING_DEFS } from './defs/buildings.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 /**
  * The campaign's ground is authored (tools/mapAuthor/), and this is what
@@ -120,12 +121,12 @@ describe('the campaign’s authored ground', () => {
       expect(countWithin(map, c, TileResource.Rock, 13), `${where}: stone worth quarrying`)
         .toBeGreaterThanOrEqual(5);
       // Timber, and a hut that can legally stand at it.
-      expect(siteRing(map, 'woodcutter', c, 14), `${where}: a woodcutter within reach`)
+      expect(siteRing(map, BuildingTypeId.woodcutter, c, 14), `${where}: a woodcutter within reach`)
         .toBeLessThanOrEqual(14);
-      expect(siteRing(map, 'quarry', c, 14), `${where}: a quarry within reach`).toBeLessThanOrEqual(14);
+      expect(siteRing(map, BuildingTypeId.quarry, c, 14), `${where}: a quarry within reach`).toBeLessThanOrEqual(14);
       // Fishable water within a fishery's walk, on the village's own
       // landmass — worldgen's WATER_ACCESS_RADIUS promise.
-      expect(siteRing(map, 'fishery', c, WATER_ACCESS_RADIUS), `${where}: a shore to fish`)
+      expect(siteRing(map, BuildingTypeId.fishery, c, WATER_ACCESS_RADIUS), `${where}: a shore to fish`)
         .toBeLessThanOrEqual(WATER_ACCESS_RADIUS);
     }
   });

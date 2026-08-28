@@ -25,6 +25,7 @@ import { GoodId } from '../defs/goods.ts';
 import { goodEntries } from '../defs/goods.ts';
 import { goodKeys } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
+import { BuildingTypeId } from '../defs/buildings.ts';
 
 /**
  * The heart of the game: goods physically live in building buffers and on
@@ -244,7 +245,7 @@ function match(world: World): void {
     }
 
     // Festivals: the abbey sips ale.
-    if (b.type === 'abbey' && !b.paused && world.players[b.owner]?.techs.researched.includes('festivals')) {
+    if (b.type === BuildingTypeId.abbey && !b.paused && world.players[b.owner]?.techs.researched.includes('festivals')) {
       const want = ABBEY_ALE_CAP - (b.inputs[GoodId.ale] ?? 0) - (b.inbound[GoodId.ale] ?? 0);
       if (want > 0) demands.push(demandOf(world, b, GoodId.ale, want, 2));
       else clearDemandAge(b, GoodId.ale);
@@ -474,7 +475,7 @@ function deliveryTargetFor(world: World, owner: Owner, good: GoodId): Building |
     const convert = convertRecipeOf(def, b);
     const wantsInput =
       !b.paused &&
-      (((convert?.inputs[good] ?? 0) > 0) || (b.type === 'abbey' && good === GoodId.ale));
+      (((convert?.inputs[good] ?? 0) > 0) || (b.type === BuildingTypeId.abbey && good === GoodId.ale));
     if (wantsInput && (b.inputs[good] ?? 0) + (b.inbound[good] ?? 0) < INPUT_CAP) return b;
   }
   return home;
@@ -709,7 +710,7 @@ function deliver(world: World, to: Building, good: GoodId): void {
     // arrives after the queue switched to bows stays in the buffer for
     // the next iron batch instead of bouncing home off the output shelf.
     to.inputs[good] = (to.inputs[good] ?? 0) + 1;
-  } else if (to.type === 'abbey' && good === GoodId.ale) {
+  } else if (to.type === BuildingTypeId.abbey && good === GoodId.ale) {
     to.inputs[GoodId.ale] = (to.inputs[GoodId.ale] ?? 0) + 1;
   } else if (def.trains) {
     // Training ingredients live in the input buffer too.

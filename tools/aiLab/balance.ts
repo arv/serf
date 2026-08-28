@@ -21,6 +21,7 @@ import { tickWorld } from '../../src/sim/tick.ts';
 import { AiBrain } from '../../src/sim/systems/ai.ts';
 import { AI_STRATEGIES, type AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
 import { UnitTypeId } from '../../src/sim/defs/units.ts';
+import { BuildingTypeId } from '../../src/sim/defs/buildings.ts';
 
 /** Long enough that a seat which is going to win has, and a stalled one is
  * visibly stalled rather than merely slow. */
@@ -66,7 +67,7 @@ function playCampaign(id: AiStrategyId, seed: number): Run {
     }
   }
   const towers = [...world.buildings.values()].filter(
-    (b) => !b.dead && b.owner === 0 && b.type === 'guardTower',
+    (b) => !b.dead && b.owner === 0 && b.type === BuildingTypeId.guardTower,
   );
   const mine = [...world.units.values()].filter((u) => !u.dead && u.owner === 0);
   const state = world.outcome.state;

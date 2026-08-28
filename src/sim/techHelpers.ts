@@ -1,8 +1,9 @@
 import { TECH_DEFS, type ModifierKey, type TechId } from './defs/techs.ts';
-import { buildingDef, type BuildingTypeId } from './defs/buildings.ts';
+import { buildingDef } from './defs/buildings.ts';
 import type { UnitTypeId } from './defs/units.ts';
 import type { Owner } from './entities.ts';
 import type { World } from './world.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 /**
  * All tech effects are read through these functions, so sim systems never
@@ -61,7 +62,7 @@ export function canResearch(
   }
   let hasAbbey = false;
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.type === 'abbey' && b.state === 'built' && b.owner === owner) {
+    if (!b.dead && b.type === BuildingTypeId.abbey && b.state === 'built' && b.owner === owner) {
       hasAbbey = true;
       break;
     }

@@ -10,6 +10,7 @@ import { cmds, addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 import type { Unit } from './units.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -31,7 +32,7 @@ describe('the barracks rally flag', () => {
   it('plants, moves and strikes the flag — on a building that trains only', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
 
     tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id, x: 45, y: 40 }));
     expect(barracks.rally).toEqual({ x: 45, y: 40 });
@@ -58,7 +59,7 @@ describe('the barracks rally flag', () => {
 
     // A storehouse trains nobody, so a flag on it would be an order nothing
     // ever reads — refused at the door.
-    const sh = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const sh = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
     tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: sh.id, x: 45, y: 40 }));
     expect(sh.rally).toBeUndefined();
   });
@@ -66,7 +67,7 @@ describe('the barracks rally flag', () => {
   it("refuses a flag on someone else's barracks", () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, {});
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     tickWorld(world, [
       { playerId: 1, cmd: { kind: 'setRallyPoint', buildingId: barracks.id, x: 45, y: 40 } },
     ]);
@@ -76,7 +77,7 @@ describe('the barracks rally flag', () => {
   it('marches a fresh soldier from the door to the flag', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id, x: 45, y: 40 }));
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.knight }));
@@ -101,7 +102,7 @@ describe('the barracks rally flag', () => {
   it('without a flag the recruit stands at the door, as ever', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.knight }));
 
@@ -113,7 +114,7 @@ describe('the barracks rally flag', () => {
   it('a cancelled order still returns its serf to the door, not the flag', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 1 });
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id, x: 45, y: 40 }));
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.knight }));
@@ -135,7 +136,7 @@ describe('the barracks rally flag', () => {
   it('survives clone and save round-trips, and the hash sees it', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     tickWorld(world, cmds({ kind: 'setRallyPoint', buildingId: barracks.id, x: 45, y: 40 }));
 
     const viaClone = cloneWorld(world);

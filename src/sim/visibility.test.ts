@@ -6,6 +6,7 @@ import { buildingDef } from './defs/buildings';
 import { spawnUnit } from './world';
 import { addStorehouse, bareWorld } from './testUtils';
 import { UnitTypeId } from './defs/units';
+import { BuildingTypeId } from './defs/buildings';
 
 describe('seat vision', () => {
   it('lights ground around your own units and not around anyone else', () => {
@@ -78,7 +79,7 @@ describe('seat vision', () => {
     // The radii live on the defs so the server filter and the renderer's
     // fog read one source; a per-kind change needs no code change here.
     expect(UNIT_DEFS[UnitTypeId.serf].sight).toBeGreaterThan(0);
-    expect(buildingDef('storehouse').sight).toBeGreaterThan(buildingDef('quarry').sight);
+    expect(buildingDef(BuildingTypeId.storehouse).sight).toBeGreaterThan(buildingDef(BuildingTypeId.quarry).sight);
   });
 
   it('gives a storehouse a wider view than a unit', () => {

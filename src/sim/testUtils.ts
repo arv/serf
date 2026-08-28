@@ -11,6 +11,7 @@ import type { Building, Owner } from './entities.ts';
 import type { Unit } from './units.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 /** An all-grass, empty 64x64 map for deterministic logistics tests. */
 export function bareMap(size = DEFAULT_MAP_SIZE): GameMap {
@@ -78,7 +79,7 @@ export function addStorehouse(
   stock: GoodAmounts,
   owner: Owner = 0,
 ): Building {
-  const b = placeBuiltBuilding(world, 'storehouse', owner, x, y);
+  const b = placeBuiltBuilding(world, BuildingTypeId.storehouse, owner, x, y);
   b.stock = { ...FIXTURE_TOOLS, ...stock };
   return b;
 }
@@ -105,7 +106,7 @@ export function addBuiltHut(
   withWorker = true,
   owner: Owner = 0,
 ): Building {
-  const b = placeBuiltBuilding(world, 'woodcutter', owner, x, y);
+  const b = placeBuiltBuilding(world, BuildingTypeId.woodcutter, owner, x, y);
   if (withWorker) {
     const worker = spawnUnit(world, UnitTypeId.worker, owner, x + 0.5, y + b.h + 0.5);
     bindWorker(b, worker);
@@ -114,7 +115,7 @@ export function addBuiltHut(
 }
 
 export function addSite(world: World, x: number, y: number, owner: Owner = 0): Building {
-  return placeSite(world, 'woodcutter', owner, x, y);
+  return placeSite(world, BuildingTypeId.woodcutter, owner, x, y);
 }
 
 export function addSerf(world: World, x: number, y: number, owner: Owner = 0): Unit {

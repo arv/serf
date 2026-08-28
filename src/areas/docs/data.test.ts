@@ -19,6 +19,7 @@ import { parseDocsPath } from './routes';
 import { fmtSecs } from './data';
 import { goodKeys } from '../../sim/defs/goods';
 import { UnitTypeId } from '../../sim/defs/units';
+import { BuildingTypeId } from '../../sim/defs/buildings';
 
 /**
  * The wiki derives its whole cross-reference graph from the defs, so what
@@ -52,9 +53,9 @@ describe('the docs cross-reference graph', () => {
   it('counts a repair bill as a use of the good', () => {
     // The castle is raised for free and mended for real timber and stone;
     // without repairCost in the graph neither page reports that use.
-    for (const good of goodKeys(BUILDING_DEFS.storehouse.repairCost ?? {})) {
+    for (const good of goodKeys(BUILDING_DEFS[BuildingTypeId.storehouse].repairCost ?? {})) {
       const mends = (CONSUMED_BY.get(good) ?? []).filter(
-        (c) => c.kind === 'repair' && c.building === 'storehouse',
+        (c) => c.kind === 'repair' && c.building === BuildingTypeId.storehouse,
       );
       expect(mends).toHaveLength(1);
     }
@@ -100,7 +101,7 @@ describe('the docs router', () => {
   it('parses every page kind', () => {
     expect(parseDocsPath('/docs')).toEqual({ page: 'index' });
     expect(parseDocsPath('/docs/buildings')).toEqual({ page: 'buildings' });
-    expect(parseDocsPath('/docs/buildings/bakery')).toEqual({ page: 'building', id: 'bakery' });
+    expect(parseDocsPath('/docs/buildings/bakery')).toEqual({ page: 'building', id: BuildingTypeId.bakery });
     expect(parseDocsPath('/docs/units/knight')).toEqual({ page: 'unit', id: UnitTypeId.knight });
     expect(parseDocsPath('/docs/goods/wood')).toEqual({ page: 'good', id: GoodId.wood });
     expect(parseDocsPath('/docs/techs')).toEqual({ page: 'techs' });

@@ -7,6 +7,7 @@ import { getModifier, isBuildingUnlocked } from './techHelpers.ts';
 import { cmds, addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -14,7 +15,7 @@ function run(world: World, ticks: number): void {
 
 function setupSchool(world: World): void {
   addStorehouse(world, 30, 30, { [GoodId.wheat]: 50, [GoodId.silver]: 50, [GoodId.stone]: 20, [GoodId.wood]: 20, [GoodId.ale]: 10, [GoodId.iron]: 10 });
-  placeBuiltBuilding(world, 'abbey', 0, 24, 30);
+  placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
 }
 
 describe('research', () => {
@@ -32,7 +33,7 @@ describe('research', () => {
     tickWorld(world, cmds({ kind: 'research', tech: 'cobbledBoots' }));
 
     expect(world.players[0]!.techs.active?.tech).toBe('cobbledBoots');
-    const sh = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const sh = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
     expect(sh.stock[GoodId.silver]).toBe(silverBefore - (TECH_DEFS.cobbledBoots.cost[GoodId.silver] ?? 0));
     expect(getModifier(world, 0, 'serfSpeed')).toBe(1);
 
@@ -62,14 +63,14 @@ describe('research', () => {
     setupSchool(world);
     // The Smith itself is ungated (the village's only tool source), so the
     // iron mine carries this test now.
-    expect(isBuildingUnlocked(world, 0, 'weaponsmith')).toBe(true);
-    expect(isBuildingUnlocked(world, 0, 'ironMine')).toBe(false);
+    expect(isBuildingUnlocked(world, 0, BuildingTypeId.weaponsmith)).toBe(true);
+    expect(isBuildingUnlocked(world, 0, BuildingTypeId.ironMine)).toBe(false);
 
-    tickWorld(world, cmds({ kind: 'placeBuilding', building: 'ironMine', x: 40, y: 40 }));
-    expect([...world.buildings.values()].some((b) => b.type === 'ironMine')).toBe(false);
+    tickWorld(world, cmds({ kind: 'placeBuilding', building: BuildingTypeId.ironMine, x: 40, y: 40 }));
+    expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.ironMine)).toBe(false);
 
     world.players[0]!.techs.researched.push('ironworking');
-    expect(isBuildingUnlocked(world, 0, 'ironMine')).toBe(true);
+    expect(isBuildingUnlocked(world, 0, BuildingTypeId.ironMine)).toBe(true);
   });
 
   it('masonry unlocks paving', () => {
@@ -86,7 +87,7 @@ describe('research', () => {
     const world = bareWorld();
     setupSchool(world);
     world.players[0]!.techs.researched.push('irrigation', 'brewing', 'festivals');
-    const tera = [...world.buildings.values()].find((b) => b.type === 'abbey')!;
+    const tera = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.abbey)!;
     tera.inputs[GoodId.ale] = 1;
 
     tickWorld(world, []);
@@ -100,7 +101,7 @@ describe('research', () => {
 
   it('modifiers speed up production batches', () => {
     const world = bareWorld();
-    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 30, 30);
     staffBuilding(world, farm);
     farm.inputs[GoodId.water] = 2;
     world.players[0]!.techs.researched.push('irrigation');
@@ -110,9 +111,9 @@ describe('research', () => {
 
   it('millstones speeds the mill and the bakery', () => {
     const world = bareWorld();
-    const mill = placeBuiltBuilding(world, 'mill', 0, 30, 30);
+    const mill = placeBuiltBuilding(world, BuildingTypeId.mill, 0, 30, 30);
     mill.inputs[GoodId.wheat] = 1;
-    const bakery = placeBuiltBuilding(world, 'bakery', 0, 40, 30);
+    const bakery = placeBuiltBuilding(world, BuildingTypeId.bakery, 0, 40, 30);
     staffBuilding(world, bakery);
     bakery.inputs[GoodId.flour] = 1;
     bakery.inputs[GoodId.water] = 1;
@@ -125,7 +126,7 @@ describe('research', () => {
 
   it('bellows speeds the weaponsmith', () => {
     const world = bareWorld();
-    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 30, 30);
+    const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 30, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto)
     staffBuilding(world, smith);
     smith.inputs[GoodId.iron] = 1;
@@ -144,7 +145,7 @@ describe('research', () => {
       'festivals',
       'aleRations',
     );
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     run(world, 20 * 60);
     expect(barracks.inputs[GoodId.ale]).toBe(BARRACKS_ALE_CAP);
@@ -160,7 +161,7 @@ describe('research', () => {
       'aleRations',
       'soldiery',
     );
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     barracks.inputs[GoodId.ale] = 1;
     addSerf(world, 34, 34);
     tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.spearman }));

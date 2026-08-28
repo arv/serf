@@ -1,4 +1,11 @@
 import { REPAIR_COST_SHARE } from './balance.ts';
+import type { Enum } from '../../shared/enum.ts';
+import * as BuildingTypeIdNs from './buildingTypeIdEnum.ts';
+
+export * as BuildingTypeId from './buildingTypeIdEnum.ts';
+export type BuildingTypeId = Enum<typeof BuildingTypeIdNs>;
+
+const B = BuildingTypeIdNs;
 import type { GoodAmounts } from './goods.ts';
 import type { UnitClass } from './units.ts';
 import type { TechId } from './techs.ts';
@@ -175,32 +182,12 @@ export interface BuildingDef {
 export const OUTPUT_CAP = 5;
 export const INPUT_CAP = 5;
 
-export type BuildingTypeId =
-  | 'storehouse'
-  | 'banditCamp'
-  | 'woodcutter'
-  | 'quarry'
-  | 'house'
-  | 'well'
-  | 'wheatFarm'
-  | 'mill'
-  | 'bakery'
-  | 'fishery'
-  | 'brewery'
-  | 'ironMine'
-  | 'silverMine'
-  | 'goldMine'
-  | 'weaponsmith'
-  | 'abbey'
-  | 'barracks'
-  | 'guardTower'
-  | 'roadSite';
 
 const S = 20; // ticks per second, inlined to keep defs readable
 
 export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
-  storehouse: {
-    id: 'storehouse',
+  [B.storehouse]: {
+    id: B.storehouse,
     name: 'Castle',
     w: 3,
     h: 3,
@@ -221,8 +208,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // grow on. Everything past that is a house you chose to build.
     housing: 10,
   },
-  banditCamp: {
-    id: 'banditCamp',
+  [B.banditCamp]: {
+    id: B.banditCamp,
     name: 'Bandit Camp',
     w: 3,
     h: 3,
@@ -237,8 +224,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // hand-edited command in a networked match is not bound by the UI.
     systemOnly: true,
   },
-  woodcutter: {
-    id: 'woodcutter',
+  [B.woodcutter]: {
+    id: B.woodcutter,
     name: 'Woodcutter',
     w: 2,
     h: 2,
@@ -249,8 +236,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     workerKind: UnitTypeId.worker,
     recipe: { kind: 'gather', resource: 'wood', output: GoodId.wood, radius: 8, workTicks: 2.5 * S },
   },
-  quarry: {
-    id: 'quarry',
+  [B.quarry]: {
+    id: B.quarry,
     name: 'Quarry',
     w: 2,
     h: 2,
@@ -262,8 +249,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     workerKind: UnitTypeId.worker,
     recipe: { kind: 'gather', resource: 'rock', output: GoodId.stone, radius: 8, workTicks: 3 * S },
   },
-  house: {
-    id: 'house',
+  [B.house]: {
+    id: B.house,
     name: 'House',
     w: 2,
     h: 2,
@@ -279,8 +266,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // No resident and no recipe: like the abbey, the serf who raises it
     // walks away a serf again when the roof goes on.
   },
-  well: {
-    id: 'well',
+  [B.well]: {
+    id: B.well,
     name: 'Well',
     w: 1,
     h: 1,
@@ -302,8 +289,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     recipe: { kind: 'convert', inputs: {}, outputs: { [GoodId.water]: 1 }, durationTicks: 6 * S },
     drawTicks: 6 * S,
   },
-  wheatFarm: {
-    id: 'wheatFarm',
+  [B.wheatFarm]: {
+    id: B.wheatFarm,
     name: 'Wheat Farm',
     w: 3,
     h: 3,
@@ -314,8 +301,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     workerKind: UnitTypeId.worker,
     recipe: { kind: 'convert', inputs: { [GoodId.water]: 1 }, outputs: { [GoodId.wheat]: 1 }, durationTicks: 10 * S },
   },
-  mill: {
-    id: 'mill',
+  [B.mill]: {
+    id: B.mill,
     name: 'Mill',
     w: 2,
     h: 2,
@@ -333,8 +320,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // a stack of one-to-ones.
     recipe: { kind: 'convert', inputs: { [GoodId.wheat]: 1 }, outputs: { [GoodId.flour]: 1 }, durationTicks: 8 * S },
   },
-  bakery: {
-    id: 'bakery',
+  [B.bakery]: {
+    id: B.bakery,
     name: 'Bakery',
     w: 2,
     h: 2,
@@ -352,8 +339,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       durationTicks: 12 * S,
     },
   },
-  fishery: {
-    id: 'fishery',
+  [B.fishery]: {
+    id: B.fishery,
     name: 'Fishery',
     w: 3,
     h: 3,
@@ -386,8 +373,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // pier that stops three tiles short of the water is worse than none.
     nearWater: { radius: 1 },
   },
-  brewery: {
-    id: 'brewery',
+  [B.brewery]: {
+    id: B.brewery,
     name: 'Brewery',
     requiresTech: 'brewing' as const,
     w: 2,
@@ -411,8 +398,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       durationTicks: 20 * S,
     },
   },
-  ironMine: {
-    id: 'ironMine',
+  [B.ironMine]: {
+    id: B.ironMine,
     name: 'Iron Mine',
     requiresTech: 'ironworking' as const,
     w: 2,
@@ -426,8 +413,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     recipe: { kind: 'gather', resource: 'ironDep', output: GoodId.iron, radius: 4, workTicks: 4 * S },
     mine: true,
   },
-  silverMine: {
-    id: 'silverMine',
+  [B.silverMine]: {
+    id: B.silverMine,
     name: 'Silver Mine',
     w: 2,
     h: 2,
@@ -440,8 +427,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     recipe: { kind: 'gather', resource: 'silverDep', output: GoodId.silver, radius: 4, workTicks: 4 * S },
     mine: true,
   },
-  goldMine: {
-    id: 'goldMine',
+  [B.goldMine]: {
+    id: B.goldMine,
     name: 'Gold Mine',
     requiresTech: 'deepMining' as const,
     w: 2,
@@ -455,11 +442,11 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     recipe: { kind: 'gather', resource: 'goldDep', output: GoodId.gold, radius: 4, workTicks: 5 * S },
     mine: true,
   },
-  weaponsmith: {
+  [B.weaponsmith]: {
     // The type id keeps its old name on purpose: renaming it would churn
     // saves, every AI playbook, economyRules and the model table for the
     // sake of a display string. The building the player sees is the Smith.
-    id: 'weaponsmith',
+    id: B.weaponsmith,
     name: 'Smith',
     // No tech gate on the roof itself — the Smith is the village's only
     // source of tools, and nine of the ten posts need one (TOOL_OF), so
@@ -565,8 +552,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       },
     ],
   },
-  abbey: {
-    id: 'abbey',
+  [B.abbey]: {
+    id: B.abbey,
     name: 'Abbey',
     w: 2,
     h: 2,
@@ -575,8 +562,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 160,
     sight: 5.5,
   },
-  barracks: {
-    id: 'barracks',
+  [B.barracks]: {
+    id: B.barracks,
     name: 'Barracks',
     w: 3,
     h: 3,
@@ -593,8 +580,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       { unit: UnitTypeId.archer, cost: { [GoodId.food]: 2, [GoodId.bow]: 1 }, durationTicks: 12 * S },
     ],
   },
-  guardTower: {
-    id: 'guardTower',
+  [B.guardTower]: {
+    id: B.guardTower,
     name: 'Guard Tower',
     // Stone where the barracks is timber, and dearer in it: a tower is the
     // one building whose whole substance is the wall itself.
@@ -631,8 +618,8 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       levy: { unit: UnitTypeId.serf, class: 'light', damage: 4, cooldownTicks: 30, range: 4 },
     },
   },
-  roadSite: {
-    id: 'roadSite',
+  [B.roadSite]: {
+    id: B.roadSite,
     name: 'Road',
     w: 1,
     h: 1,
@@ -664,15 +651,15 @@ export function buildingDef(id: BuildingTypeId): BuildingDef {
  * so hammers cap how many buildings rise at once. See placeSite/deliver.
  */
 export const TOOL_OF: Partial<Record<BuildingTypeId, GoodId>> = {
-  woodcutter: GoodId.axe,
-  quarry: GoodId.pickaxe,
-  ironMine: GoodId.pickaxe,
-  silverMine: GoodId.pickaxe,
-  goldMine: GoodId.pickaxe,
-  wheatFarm: GoodId.scythe,
-  bakery: GoodId.cauldron,
-  brewery: GoodId.cauldron,
-  fishery: GoodId.rod,
+  [B.woodcutter]: GoodId.axe,
+  [B.quarry]: GoodId.pickaxe,
+  [B.ironMine]: GoodId.pickaxe,
+  [B.silverMine]: GoodId.pickaxe,
+  [B.goldMine]: GoodId.pickaxe,
+  [B.wheatFarm]: GoodId.scythe,
+  [B.bakery]: GoodId.cauldron,
+  [B.brewery]: GoodId.cauldron,
+  [B.fishery]: GoodId.rod,
 };
 
 /** Every good that is a tool — the strip of GOODS the Smith serves the
@@ -755,4 +742,59 @@ export function outputGoodsOf(def: BuildingDef): GoodId[] {
     for (const g of goodKeys(opt.recipe.outputs)) out.add(g);
   }
   return [...out];
+}
+
+/** Every building, in id order — BUILDING_DEFS' own enumeration order. */
+export const BUILDING_TYPES: readonly BuildingTypeId[] = [
+  B.storehouse,
+  B.banditCamp,
+  B.woodcutter,
+  B.quarry,
+  B.house,
+  B.well,
+  B.wheatFarm,
+  B.mill,
+  B.bakery,
+  B.fishery,
+  B.brewery,
+  B.ironMine,
+  B.silverMine,
+  B.goldMine,
+  B.weaponsmith,
+  B.abbey,
+  B.barracks,
+  B.guardTower,
+  B.roadSite,
+];
+
+/** The spelling of each id, for docs URLs and the strategist's prompt. */
+export const BUILDING_KEYS: Readonly<Record<BuildingTypeId, string>> = {
+  [B.storehouse]: 'storehouse',
+  [B.banditCamp]: 'banditCamp',
+  [B.woodcutter]: 'woodcutter',
+  [B.quarry]: 'quarry',
+  [B.house]: 'house',
+  [B.well]: 'well',
+  [B.wheatFarm]: 'wheatFarm',
+  [B.mill]: 'mill',
+  [B.bakery]: 'bakery',
+  [B.fishery]: 'fishery',
+  [B.brewery]: 'brewery',
+  [B.ironMine]: 'ironMine',
+  [B.silverMine]: 'silverMine',
+  [B.goldMine]: 'goldMine',
+  [B.weaponsmith]: 'weaponsmith',
+  [B.abbey]: 'abbey',
+  [B.barracks]: 'barracks',
+  [B.guardTower]: 'guardTower',
+  [B.roadSite]: 'roadSite',
+};
+
+const BUILDING_BY_KEY = new Map<string, BuildingTypeId>(
+  BUILDING_TYPES.map((b) => [BUILDING_KEYS[b], b]),
+);
+
+/** The id a spelling names, or undefined — the read side of BUILDING_KEYS. */
+export function buildingFromKey(key: string): BuildingTypeId | undefined {
+  return BUILDING_BY_KEY.get(key);
 }

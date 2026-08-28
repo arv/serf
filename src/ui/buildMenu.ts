@@ -1,7 +1,9 @@
-import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
+import { BUILDING_DEFS } from '../sim/defs/buildings';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { TechId } from '../sim/defs/techs';
 import { goodEntries } from '../sim/defs/goods';
+import { BuildingTypeId } from '../sim/defs/buildings';
+import { BUILDING_TYPES } from '../sim/defs/buildings';
 
 /**
  * The build ribbon's tabs, in the order they are shown.
@@ -74,7 +76,7 @@ export type BuildGroupLabel = 'Village' | 'Food' | 'Arms';
 export const BUILD_GROUPS: { label: BuildGroupLabel; types: BuildingTypeId[] }[] = [
   // Top row the three you raise without thinking; under them the Abbey and
   // the coin that pays for what it researches.
-  { label: 'Village', types: ['house', 'woodcutter', 'quarry', 'abbey', 'silverMine'] },
+  { label: 'Village', types: [BuildingTypeId.house, BuildingTypeId.woodcutter, BuildingTypeId.quarry, BuildingTypeId.abbey, BuildingTypeId.silverMine] },
   // The well leads: water is an input to the farm, the bakery and the
   // brewery and to nothing else, so the player building the chain finds it
   // at the head of the chain. Bread's four along the top and round the
@@ -82,11 +84,11 @@ export const BUILD_GROUPS: { label: BuildGroupLabel; types: BuildingTypeId[] }[]
   // no chain at all, and the brewery, which bids against the mill for the
   // same wheat. Fish or bake, bread or beer — both decisions sit inside
   // this one tab, which is the whole of why it is grouped this way.
-  { label: 'Food', types: ['well', 'wheatFarm', 'mill', 'bakery', 'fishery', 'brewery'] },
+  { label: 'Food', types: [BuildingTypeId.well, BuildingTypeId.wheatFarm, BuildingTypeId.mill, BuildingTypeId.bakery, BuildingTypeId.fishery, BuildingTypeId.brewery] },
   // Ore, forge, army along the top, in that order and in that direction.
   // Under them the two that come later: the wall raised when the raids
   // start, and the gilding affordable once the army already stands.
-  { label: 'Arms', types: ['ironMine', 'weaponsmith', 'barracks', 'guardTower', 'goldMine'] },
+  { label: 'Arms', types: [BuildingTypeId.ironMine, BuildingTypeId.weaponsmith, BuildingTypeId.barracks, BuildingTypeId.guardTower, BuildingTypeId.goldMine] },
 ];
 
 /**
@@ -132,22 +134,22 @@ export function playerBuildable(type: BuildingTypeId): boolean {
  * holds the two rules that matter — one key per building, no key used twice.
  */
 export const BUILD_KEYS: Partial<Record<BuildingTypeId, string>> = {
-  house: 'H',
-  woodcutter: 'W',
-  quarry: 'Q',
-  abbey: 'A',
-  well: 'L',
-  wheatFarm: 'F',
-  mill: 'M',
-  bakery: 'B',
-  fishery: 'E',
-  brewery: 'R',
-  ironMine: 'I',
-  silverMine: 'V',
-  goldMine: 'G',
-  weaponsmith: 'S',
-  barracks: 'K',
-  guardTower: 'T',
+  [BuildingTypeId.house]: 'H',
+  [BuildingTypeId.woodcutter]: 'W',
+  [BuildingTypeId.quarry]: 'Q',
+  [BuildingTypeId.abbey]: 'A',
+  [BuildingTypeId.well]: 'L',
+  [BuildingTypeId.wheatFarm]: 'F',
+  [BuildingTypeId.mill]: 'M',
+  [BuildingTypeId.bakery]: 'B',
+  [BuildingTypeId.fishery]: 'E',
+  [BuildingTypeId.brewery]: 'R',
+  [BuildingTypeId.ironMine]: 'I',
+  [BuildingTypeId.silverMine]: 'V',
+  [BuildingTypeId.goldMine]: 'G',
+  [BuildingTypeId.weaponsmith]: 'S',
+  [BuildingTypeId.barracks]: 'K',
+  [BuildingTypeId.guardTower]: 'T',
 };
 
 /** The letter that arms this building, or '' for one the ribbon never offers. */
@@ -158,8 +160,8 @@ export function buildKey(type: BuildingTypeId): string {
 /** The building a letter arms during a build chord, or null for a stray key. */
 export function buildingForKey(letter: string): BuildingTypeId | null {
   const want = letter.toUpperCase();
-  for (const [type, key] of Object.entries(BUILD_KEYS) as [BuildingTypeId, string][]) {
-    if (key === want) return type;
+  for (const type of BUILDING_TYPES) {
+    if (BUILD_KEYS[type] === want) return type;
   }
   return null;
 }

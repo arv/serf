@@ -1,11 +1,5 @@
 import { For, Index, Show } from 'solid-js';
-import {
-  BUILDING_DEFS,
-  gatherRecipeOf,
-  repairBill,
-  type BuildingTypeId,
-  type TileResourceName,
-} from '../sim/defs/buildings';
+import { BUILDING_DEFS, gatherRecipeOf, repairBill, type TileResourceName } from '../sim/defs/buildings';
 import { FORGE_QUEUE_CAP, HIRE_SERF_COST, HIRE_SERF_TICKS, TICKS_PER_SECOND, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
 import type { BuildingSnap } from '../protocol/messages';
 import type { GoodAmounts } from '../sim/defs/goods';
@@ -41,6 +35,7 @@ import { levyOrder } from './levy';
 import { goodEntries } from '../sim/defs/goods';
 import { GoodId } from '../sim/defs/goods';
 import { goodKeys } from '../sim/defs/goods';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
   const entries = () =>
@@ -592,7 +587,7 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={b().type === 'storehouse' && b().state === 'built'}>
+              <Show when={b().type === BuildingTypeId.storehouse && b().state === 'built'}>
                 <div class="sel-row">
                   <TipWrap
                     tip={() => (
@@ -636,7 +631,7 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={b().type === 'abbey' && b().state === 'built'}>
+              <Show when={b().type === BuildingTypeId.abbey && b().state === 'built'}>
                 <div class="sel-row">
                   <button onClick={() => setTechPanelOpen(true)}>
                     <Key label="Research…" k={RESEARCH_KEY} />

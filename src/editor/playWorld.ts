@@ -7,6 +7,7 @@ import { campCorners, placeBuiltBuilding, spawnUnitNearby, type World } from '..
 import { clearResources, rectClear, recomputeBlocked, type GameMap } from '../sim/map.ts';
 import type { EditorMapState } from './editorMap.ts';
 import { UnitTypeId } from '../sim/defs/units.ts';
+import { BuildingTypeId } from '../sim/defs/buildings.ts';
 
 export interface EditorPlayConfig {
   /** Deals the AI seats their playbooks (and the solo camp its corner). */
@@ -77,7 +78,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
   for (let p = 0; p < starts.length; p++) {
     const { x: shX, y: shY } = starts[p]!;
     clearResources(map, shX - 1, shY - 1, 5, 5);
-    const storehouse = placeBuiltBuilding(world, 'storehouse', p, shX, shY);
+    const storehouse = placeBuiltBuilding(world, BuildingTypeId.storehouse, p, shX, shY);
     storehouse.stock = { ...START_STOCK };
   }
 
@@ -110,7 +111,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           if (rectClear(map, cx + dx, cy + dy, 3, 3)) {
-            const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, cx + dx, cy + dy);
+            const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, cx + dx, cy + dy);
             for (let g = 0; g < 3; g++) {
               spawnUnitNearby(world, UnitTypeId.bandit, BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
             }

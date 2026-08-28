@@ -1,4 +1,4 @@
-import { BUILDING_DEFS, type BuildingTypeId } from '../../sim/defs/buildings';
+import { BUILDING_DEFS } from '../../sim/defs/buildings';
 import { GOODS } from '../../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../../sim/defs/techs';
 import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
@@ -7,6 +7,8 @@ import { buildingHref, goodHref, techHref, unitHref } from './routes';
 import { GoodId } from '../../sim/defs/goods';
 import { GOOD_KEYS } from '../../sim/defs/goods';
 import { UNIT_TYPES } from '../../sim/defs/units';
+import { BuildingTypeId } from '../../sim/defs/buildings';
+import { BUILDING_TYPES } from '../../sim/defs/buildings';
 
 /**
  * Which words in a sentence name something with a page of its own.
@@ -68,14 +70,14 @@ const SYNONYMS: { text: string; href: string }[] = [
   { text: 'timber', href: goodHref(GoodId.wood) },
   { text: 'grain', href: goodHref(GoodId.wheat) },
   { text: 'coin', href: goodHref(GoodId.silver) },
-  { text: 'farm', href: buildingHref('wheatFarm') },
+  { text: 'farm', href: buildingHref(BuildingTypeId.wheatFarm) },
   // No 'keep' for the Castle: the plural rule below would make a link of
   // the verb, and "the barracks keeps a cask" is live text.
 ];
 
 function collectTerms(): Term[] {
   const terms: Term[] = [];
-  for (const id of Object.keys(BUILDING_DEFS) as BuildingTypeId[]) {
+  for (const id of BUILDING_TYPES) {
     terms.push({ text: BUILDING_DEFS[id].name, href: buildingHref(id) });
   }
   for (const id of UNIT_TYPES) {

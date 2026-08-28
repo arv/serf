@@ -5,6 +5,7 @@ import type { BuildingSnap } from '../protocol/messages';
 import { HIRE_QUEUE_CAP, HIRE_SERF_COST, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
 import { GoodId } from '../sim/defs/goods';
 import { UnitTypeId } from '../sim/defs/units';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 /**
  * The commands a selected building offers: who may run them, and which
@@ -44,7 +45,7 @@ export function canHire(
   stock: GoodAmounts,
   pop: { pop: number; cap: number },
 ): boolean {
-  if (b.type !== 'storehouse' || b.state !== 'built') return false;
+  if (b.type !== BuildingTypeId.storehouse || b.state !== 'built') return false;
   const queued = b.hireQueue ?? 0;
   return (
     (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST && queued < HIRE_QUEUE_CAP && pop.pop + queued < pop.cap

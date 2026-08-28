@@ -6,6 +6,7 @@ import { addBuiltHut, addResourceTile, addSerf, addSite, addStorehouse, bareWorl
 import type { Unit } from './units.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 /** Put a unit where its walk would have left it had the route died: far from
  * where it was going, with nothing left to walk. */
@@ -101,7 +102,7 @@ describe('work only happens where the worker is standing', () => {
   it('a recruit cut off from his post is not bound to it', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const hut = placeBuiltBuilding(world, 'woodcutter', 0, 36, 30);
+    const hut = placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 36, 30);
     const serf = addSerf(world, 34, 30);
     serf.task = { t: 'staff', buildingId: hut.id };
     strandFarAway(serf);
@@ -116,7 +117,7 @@ describe('work only happens where the worker is standing', () => {
   it('a recruit cut off from a barracks is not enlisted by it', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     barracks.trainQueue = [{ unit: UnitTypeId.knight, started: false, ticksLeft: 0 }];
     barracks.inputs = { [GoodId.food]: 3, [GoodId.sword]: 1 };
     const serf = addSerf(world, 34, 30);

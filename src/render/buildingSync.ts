@@ -22,6 +22,7 @@ import type { HeightField } from './heightField';
 import type { CueId } from '../audio/cues';
 import { GoodId } from '../sim/defs/goods';
 import { UnitTypeId } from '../sim/defs/units';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 /** A built fishery's pier, in world space: the deck line from its landward
  * end to the fishing spot near the tip, plank height, and the yaw that
@@ -799,7 +800,7 @@ export class BuildingSync {
    * shipped with, except a carrier can walk off with them. Spots are
    * biggest-first; `per` goods fill one stack/boulder. */
   static #YARDS: Partial<Record<BuildingSnap['type'], YardStyle>> = {
-    woodcutter: {
+    [BuildingTypeId.woodcutter]: {
       good: GoodId.wood,
       prop: 'resource_lumber',
       spots: [
@@ -810,10 +811,10 @@ export class BuildingSync {
       size: 0.12,
       per: 3,
     },
-    quarry: { good: GoodId.stone, prop: 'resource_stone', spots: MINE_SPOTS, size: 0.12, per: 3 },
-    ironMine: { good: GoodId.iron, rock: 0x9a5f42, spots: MINE_SPOTS, size: 0.153, per: 2 },
-    silverMine: { good: GoodId.silver, rock: 0xdbe4ee, spots: MINE_SPOTS, size: 0.153, per: 2 },
-    goldMine: { good: GoodId.gold, rock: 0xf0bc42, spots: MINE_SPOTS, size: 0.153, per: 2 },
+    [BuildingTypeId.quarry]: { good: GoodId.stone, prop: 'resource_stone', spots: MINE_SPOTS, size: 0.12, per: 3 },
+    [BuildingTypeId.ironMine]: { good: GoodId.iron, rock: 0x9a5f42, spots: MINE_SPOTS, size: 0.153, per: 2 },
+    [BuildingTypeId.silverMine]: { good: GoodId.silver, rock: 0xdbe4ee, spots: MINE_SPOTS, size: 0.153, per: 2 },
+    [BuildingTypeId.goldMine]: { good: GoodId.gold, rock: 0xf0bc42, spots: MINE_SPOTS, size: 0.153, per: 2 },
   };
 
   #syncYard(v: BuildingVisual, b: BuildingSnap): boolean {

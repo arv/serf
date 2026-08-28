@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { makeLights, makeRenderer } from './scene';
 import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
+import { BuildingTypeId } from '../../src/sim/defs/buildings';
 
 /** Top-down plan of the mine template, with a unit-square grid over it, so
  * decor coordinates can be read straight off the picture. */
@@ -14,7 +15,7 @@ r.setSize(900, 900, false);
 const scene = new THREE.Scene();
 makeLights(scene);
 
-const b = makeGlbBuilding('ironMine', 1)!;
+const b = makeGlbBuilding(BuildingTypeId.ironMine, 1)!;
 scene.add(b);
 
 // The unit square is scaled by min(w,h)*1.06*modelScale = 2*1.06*1.2 = 2.544

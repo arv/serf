@@ -24,6 +24,7 @@ import type { Unit } from '../sim/units.ts';
 import type { BuildingSnap, JobSnap, PlayerSnap } from './messages.ts';
 import { GoodId } from '../sim/defs/goods.ts';
 import { UnitTypeId } from '../sim/defs/units.ts';
+import { BuildingTypeId } from '../sim/defs/buildings.ts';
 
 export function snapBuilding(world: World, b: Building): BuildingSnap {
   const def = buildingDef(b.type);
@@ -144,7 +145,7 @@ export function snapPlayers(world: World): PlayerSnap[] {
       continue;
     }
     if (b.state !== 'built') continue;
-    if (b.type === 'abbey') abbeyOwners.add(b.owner);
+    if (b.type === BuildingTypeId.abbey) abbeyOwners.add(b.owner);
     if (!storehouses.has(b.owner) && buildingDef(b.type).storage) storehouses.set(b.owner, b);
     const housing = buildingDef(b.type).housing;
     if (housing) beds.set(b.owner, (beds.get(b.owner) ?? 0) + housing);
@@ -296,12 +297,12 @@ function professionOf(w: World, u: Unit): number {
   // own future farm stays a plain laborer until the roof is on — the
   // straw hat goes on when farming starts.
   if (home.state !== 'built') return PROFESSION.none;
-  if (home.type === 'wheatFarm') return PROFESSION.farmer;
+  if (home.type === BuildingTypeId.wheatFarm) return PROFESSION.farmer;
   if (
-    home.type === 'quarry' ||
-    home.type === 'ironMine' ||
-    home.type === 'silverMine' ||
-    home.type === 'goldMine'
+    home.type === BuildingTypeId.quarry ||
+    home.type === BuildingTypeId.ironMine ||
+    home.type === BuildingTypeId.silverMine ||
+    home.type === BuildingTypeId.goldMine
   ) {
     return PROFESSION.miner;
   }
@@ -312,7 +313,7 @@ function professionOf(w: World, u: Unit): number {
 function workKindOf(w: World, u: Unit): number {
   // A hauler mid-draw has no post; the building it is standing at is what
   // says which animation to play.
-  if (drawingAt(w, u)?.type === 'well') return WORK.draw;
+  if (drawingAt(w, u)?.type === BuildingTypeId.well) return WORK.draw;
   const home = u.homeId !== undefined ? w.buildings.get(u.homeId) : undefined;
   if (!home) return WORK.tend;
   if (home.state === 'site') return WORK.hammer; // builder at the frame
@@ -320,10 +321,10 @@ function workKindOf(w: World, u: Unit): number {
   if (def.recipe?.kind === 'gather') {
     return def.recipe.resource === 'wood' ? WORK.chop : WORK.pickaxe;
   }
-  if (home.type === 'weaponsmith') return WORK.hammer;
-  if (home.type === 'wheatFarm') return WORK.dig;
-  if (home.type === 'well') return WORK.draw; // cranking the bucket up
-  if (home.type === 'fishery') return WORK.fish; // pole out on the pier
+  if (home.type === BuildingTypeId.weaponsmith) return WORK.hammer;
+  if (home.type === BuildingTypeId.wheatFarm) return WORK.dig;
+  if (home.type === BuildingTypeId.well) return WORK.draw; // cranking the bucket up
+  if (home.type === BuildingTypeId.fishery) return WORK.fish; // pole out on the pier
   return WORK.tend;
 }
 

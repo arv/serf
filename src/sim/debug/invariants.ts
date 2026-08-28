@@ -2,6 +2,7 @@ import { GOODS, type GoodAmounts } from '../defs/goods.ts';
 import type { World } from '../world.ts';
 import { GOOD_KEYS } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
+import { BUILDING_KEYS } from '../defs/buildings.ts';
 
 /**
  * Dev-only consistency checks over the logistics bookkeeping. Violations mean
@@ -61,21 +62,21 @@ export function checkInvariants(world: World): InvariantReport {
       const rOut = b.reservedOut[good] ?? 0;
       const inb = b.inbound[good] ?? 0;
       if (rOut < 0 || inb < 0 || stock < 0) {
-        violations.push(`building ${b.id} ${b.type}: negative ${GOOD_KEYS[good]} bookkeeping`);
+        violations.push(`building ${b.id} ${BUILDING_KEYS[b.type]}: negative ${GOOD_KEYS[good]} bookkeeping`);
       }
       if (rOut > stock) {
-        violations.push(`building ${b.id} ${b.type}: reservedOut[${GOOD_KEYS[good]}]=${rOut} > stock=${stock}`);
+        violations.push(`building ${b.id} ${BUILDING_KEYS[b.type]}: reservedOut[${GOOD_KEYS[good]}]=${rOut} > stock=${stock}`);
       }
       const expOut = expectOut.get(b.id)?.[good] ?? 0;
       if (rOut !== expOut) {
         violations.push(
-          `building ${b.id} ${b.type}: reservedOut[${GOOD_KEYS[good]}]=${rOut}, jobs expect ${expOut}`,
+          `building ${b.id} ${BUILDING_KEYS[b.type]}: reservedOut[${GOOD_KEYS[good]}]=${rOut}, jobs expect ${expOut}`,
         );
       }
       const expIn = expectIn.get(b.id)?.[good] ?? 0;
       if (inb !== expIn) {
         violations.push(
-          `building ${b.id} ${b.type}: inbound[${GOOD_KEYS[good]}]=${inb}, jobs expect ${expIn}`,
+          `building ${b.id} ${BUILDING_KEYS[b.type]}: inbound[${GOOD_KEYS[good]}]=${inb}, jobs expect ${expIn}`,
         );
       }
     }

@@ -4,6 +4,7 @@ import { placeBuiltBuilding, type World } from './world.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -21,12 +22,12 @@ describe('builder recruitment under sustained haul pressure', () => {
     addStorehouse(world, 30, 30, { [GoodId.wood]: 40, [GoodId.wheat]: 500 });
     // Mills need no resident; each books up to 4 inbound wheat and keeps
     // consuming, so open jobs exist essentially every tick.
-    placeBuiltBuilding(world, 'mill', 0, 4, 4);
-    placeBuiltBuilding(world, 'mill', 0, 4, 56);
-    placeBuiltBuilding(world, 'mill', 0, 56, 4);
-    placeBuiltBuilding(world, 'mill', 0, 56, 56);
-    placeBuiltBuilding(world, 'mill', 0, 4, 30);
-    placeBuiltBuilding(world, 'mill', 0, 56, 30);
+    placeBuiltBuilding(world, BuildingTypeId.mill, 0, 4, 4);
+    placeBuiltBuilding(world, BuildingTypeId.mill, 0, 4, 56);
+    placeBuiltBuilding(world, BuildingTypeId.mill, 0, 56, 4);
+    placeBuiltBuilding(world, BuildingTypeId.mill, 0, 56, 56);
+    placeBuiltBuilding(world, BuildingTypeId.mill, 0, 4, 30);
+    placeBuiltBuilding(world, BuildingTypeId.mill, 0, 56, 30);
     const site = addSite(world, 36, 30);
     addSerf(world, 32, 34);
     addSerf(world, 33, 34);

@@ -18,16 +18,7 @@ import {
 } from '../map.ts';
 import { SeatVision } from '../visibility.ts';
 import { campCorners, startLayout } from '../world.ts';
-import {
-  BUILDING_DEFS,
-  buildingDef,
-  gatherOrigin,
-  garrisonRoom,
-  gatherRecipeOf,
-  OUTPUT_CAP,
-  repairBill,
-  type BuildingTypeId,
-} from '../defs/buildings.ts';
+import { BUILDING_DEFS, buildingDef, gatherOrigin, garrisonRoom, gatherRecipeOf, OUTPUT_CAP, repairBill } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
 import { UNIT_DEFS, WEAPON_OF, type UnitClass } from '../defs/units.ts';
 import { addGarrison, classHp, damageEquivalent, shouldCommit, type Force } from '../combatOdds.ts';
@@ -42,6 +33,7 @@ import type { SimCommand } from '../commands.ts';
 import { goodEntries } from '../defs/goods.ts';
 import type { GoodAmounts } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
+import { BuildingTypeId } from '../defs/buildings.ts';
 
 /**
  * The AI opponent's brain: a pure strategic layer that reads a World and
@@ -568,7 +560,7 @@ export class AiBrain {
     this.#vision.recompute(world, this.playerId);
     const commands: SimCommand[] = [];
     const mine = ownedBuildings(world, this.playerId);
-    const sh = mine.find((b) => b.type === 'storehouse' && b.state === 'built');
+    const sh = mine.find((b) => b.type === BuildingTypeId.storehouse && b.state === 'built');
     // Watching comes before the castle check, and before every decision
     // below reads the picture: a seat about to lose its last storehouse has
     // no orders left to give, but what it can see is still worth filing.
@@ -649,13 +641,13 @@ export class AiBrain {
     // at a time rather than four on the beat the last bed fills.
     if (
       !placed &&
-      countOf('house') < s.houseLimit &&
+      countOf(BuildingTypeId.house) < s.houseLimit &&
       plannedPopCapOf(world, this.playerId) - populationOf(world, this.playerId) <
         s.housingHeadroom &&
-      affordable(BUILDING_DEFS.house.cost, stock)
+      affordable(BUILDING_DEFS[BuildingTypeId.house].cost, stock)
     ) {
-      const spot = findSpot(world, 'house', baseX, baseY);
-      if (spot) commands.push({ kind: 'placeBuilding', building: 'house', x: spot.x, y: spot.y });
+      const spot = findSpot(world, BuildingTypeId.house, baseX, baseY);
+      if (spot) commands.push({ kind: 'placeBuilding', building: BuildingTypeId.house, x: spot.x, y: spot.y });
     }
 
     // --- Repairs: patch what the raiders left standing -----------------------
@@ -762,7 +754,7 @@ export class AiBrain {
           !techs.researched.includes(id) &&
           TECH_DEFS[id].prereqs.every((pre) => techs.researched.includes(pre)),
       );
-      if (next && hasBuilt('abbey')) {
+      if (next && hasBuilt(BuildingTypeId.abbey)) {
         const cost = TECH_DEFS[next].cost;
         const ok = goodEntries(cost).every(([good, n]) => (stock[good] ?? 0) >= n);
         // Hands first, when there are barely any. Every tech is priced in
@@ -1170,7 +1162,7 @@ export class AiBrain {
     if (target === undefined) return null;
     if (marchConfidence <= 0) return null;
     this.#oddsAsked++;
-    if (target.type === 'banditCamp') {
+    if (target.type === BuildingTypeId.banditCamp) {
       this.#oddsCamps++;
       return null;
     }
@@ -1767,7 +1759,7 @@ export function pickAttackTarget(
   let bestRank = Infinity;
   for (const b of world.buildings.values()) {
     if (b.dead || b.owner === owner) continue;
-    const isCamp = b.type === 'banditCamp';
+    const isCamp = b.type === BuildingTypeId.banditCamp;
     const isRivalStore = isPlayerOwner(b.owner) && buildingDef(b.type).storage;
     if (!isCamp && !isRivalStore) continue;
     if (!vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
@@ -1785,7 +1777,7 @@ export function pickAttackTarget(
       best = b;
     }
   }
-  if (best && prefersRivals && best.type === 'banditCamp') {
+  if (best && prefersRivals && best.type === BuildingTypeId.banditCamp) {
     const rivalStands = world.players.some((p) => p.id !== owner && p.alive);
     if (rivalStands) return undefined;
   }

@@ -14,6 +14,7 @@ import {
   strategyOf,
   type AiStrategyId,
 } from './defs/aiStrategies.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 /**
  * Every AI seat used to run one hard-coded playbook, so beating one
@@ -73,13 +74,13 @@ describe('the AI playbooks', () => {
     for (const id of IDS) {
       const world = playCampaign(id, 12_000);
       const houses = [...world.buildings.values()].filter(
-        (b) => !b.dead && b.owner === 0 && b.type === 'house',
+        (b) => !b.dead && b.owner === 0 && b.type === BuildingTypeId.house,
       );
       expect(houses.length, `${id} built no house`).toBeGreaterThan(0);
       // A plan that only ever builds beds is no better than one that builds
       // none: what the housing is for is a village bigger than ten.
       expect(populationOf(world, 0), `${id} never outgrew the castle`).toBeGreaterThan(
-        BUILDING_DEFS.storehouse.housing!,
+        BUILDING_DEFS[BuildingTypeId.storehouse].housing!,
       );
       // And it never sneaks past its own ceiling.
       expect(populationOf(world, 0)).toBeLessThanOrEqual(popCapOf(world, 0));
@@ -92,7 +93,7 @@ describe('the AI playbooks', () => {
     // towers AND fill them, and the iron ones should raise none at all.
     const garrisonOf = (world: World): { towers: number; men: number } => {
       const towers = [...world.buildings.values()].filter(
-        (b) => !b.dead && b.owner === 0 && b.type === 'guardTower',
+        (b) => !b.dead && b.owner === 0 && b.type === BuildingTypeId.guardTower,
       );
       return { towers: towers.length, men: towers.reduce((n, b) => n + (b.garrison ?? 0), 0) };
     };
@@ -227,7 +228,7 @@ describe('the AI playbooks', () => {
     expect(world.players[3]!.techs.researched[0]).toBe('soldiery');
     const ironMines = (owner: number): number =>
       [...world.buildings.values()].filter(
-        (b) => !b.dead && b.owner === owner && b.type === 'ironMine',
+        (b) => !b.dead && b.owner === owner && b.type === BuildingTypeId.ironMine,
       ).length;
     expect(ironMines(1)).toBeGreaterThan(ironMines(0));
   }, 120_000);

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Kit } from './kit';
-import type { BuildingTypeId } from '../../src/sim/defs/buildings';
+import { BuildingTypeId } from '../../src/sim/defs/buildings';
 
 /**
  * Candidate looks for the food chain: mill, bakery, fishery, and the goods
@@ -326,9 +326,9 @@ export function sacks(K: Kit, n: number, swatch: 'cream' | 'straw' | 'white' | n
 /** The food buildings as the game builds them, baked straight out of
  * src/render/assets.ts by the bake page. */
 export const GAME_BUILDINGS: { type: BuildingTypeId; id: string }[] = [
-  { type: 'mill', id: 'mill' },
-  { type: 'bakery', id: 'bakery' },
-  { type: 'fishery', id: 'fishery' },
+  { type: BuildingTypeId.mill, id: 'mill' },
+  { type: BuildingTypeId.bakery, id: 'bakery' },
+  { type: BuildingTypeId.fishery, id: 'fishery' },
 ];
 
 export const VARIANTS: Variant[] = [

@@ -6,6 +6,8 @@ import { tickWorld, type PlayerCommand } from '../sim/tick.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
 import { strategyOf } from '../sim/defs/aiStrategies.ts';
 import { summarizeForSeat } from './summary.ts';
+import { BuildingTypeId } from '../sim/defs/buildings.ts';
+import { BUILDING_KEYS } from '../sim/defs/buildings.ts';
 
 /**
  * The summary is the strategist's only eyes, and the brain it serves plays
@@ -52,7 +54,7 @@ describe('summarizeForSeat', () => {
     const myBuildings = [...world.buildings.values()].filter((b) => !b.dead && b.owner === 0);
     const counted = Object.values(summary.me.buildings).reduce((a, n) => a + n, 0);
     expect(counted).toBe(myBuildings.length);
-    expect(summary.me.buildings.storehouse).toBe(1);
+    expect(summary.me.buildings[BUILDING_KEYS[BuildingTypeId.storehouse]]).toBe(1);
     expect(summary.me.pop).toBeGreaterThan(0);
     expect(summary.me.pop).toBeLessThanOrEqual(summary.me.popCap);
     expect(summary.me.serfs).toBeGreaterThan(0);
@@ -140,7 +142,7 @@ describe('summarizeForSeat', () => {
   it('does not crash on a seat whose castle has fallen', () => {
     const { world, brains } = playedWorld(500);
     for (const b of world.buildings.values()) {
-      if (b.owner === 0 && b.type === 'storehouse') b.dead = true;
+      if (b.owner === 0 && b.type === BuildingTypeId.storehouse) b.dead = true;
     }
     const summary = summarizeForSeat(world, brains[0]!);
     expect(summary.me.stock).toEqual({});

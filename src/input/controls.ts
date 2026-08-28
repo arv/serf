@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import { inBounds, tileIdx } from '../shared/grid';
-import { buildingDef, type BuildingTypeId } from '../sim/defs/buildings';
+import { buildingDef } from '../sim/defs/buildings';
 import { canPlace } from '../sim/world';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { HIRE_SERF_COST } from '../sim/defs/balance';
@@ -72,6 +72,7 @@ import type { WorldMirror } from '../app/mirror';
 import type { SimHost } from '../app/simHost';
 import type { BuildingSnap } from '../protocol/messages';
 import { GoodId } from '../sim/defs/goods';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
@@ -544,7 +545,7 @@ export class Controls {
   #buildingCommand(b: BuildingSnap, letter: string): boolean {
     if (!letter || replayMode()) return false;
 
-    if (letter === HIRE_KEY && b.type === 'storehouse' && b.state === 'built') {
+    if (letter === HIRE_KEY && b.type === BuildingTypeId.storehouse && b.state === 'built') {
       if (!canHire(b, stock(), population())) {
         const queued = b.hireQueue ?? 0;
         pushToast(
@@ -593,7 +594,7 @@ export class Controls {
   /** Backspace: back to your own keep, the way both games spend that key. */
   #jumpHome(): void {
     for (const b of this.#mirror.buildings.values()) {
-      if (b.type === 'storehouse' && b.owner === myPlayerId()) {
+      if (b.type === BuildingTypeId.storehouse && b.owner === myPlayerId()) {
         this.#rig?.glideTo(b.x + b.w / 2, b.y + b.h / 2);
         return;
       }

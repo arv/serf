@@ -11,6 +11,7 @@ import { ModelCard } from '../preview/ModelCard';
 import { Prose } from '../prose';
 import { buildingHref, techHref, unitHref } from '../routes';
 import { UnitTypeId } from '../../../sim/defs/units';
+import { BuildingTypeId } from '../../../sim/defs/buildings';
 
 const CLASSES: UnitClass[] = ['heavy', 'light', 'ranged'];
 
@@ -150,7 +151,7 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
               text={
                 `Hired at the castle for ${HIRE_SERF_COST} silver; the recruit walks in ` +
                 `after ${fmtSecs(HIRE_SERF_TICKS)}. Every serf needs a bed — the castle ` +
-                `sleeps ${BUILDING_DEFS.storehouse.housing}, houses add the rest.`
+                `sleeps ${BUILDING_DEFS[BuildingTypeId.storehouse].housing}, houses add the rest.`
               }
               self={unitHref(props.id)}
             />

@@ -14,12 +14,7 @@ if (import.meta.hot) {
   import.meta.hot.accept(() => import.meta.hot?.invalidate());
 }
 import { TICKS_PER_SECOND } from '../sim/defs/balance';
-import {
-  BUILDING_DEFS,
-  gatherRecipeOf,
-  type BuildingTypeId,
-  type Recipe,
-} from '../sim/defs/buildings';
+import { BUILDING_DEFS, gatherRecipeOf, type Recipe } from '../sim/defs/buildings';
 import { type GoodAmounts } from '../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../sim/defs/techs';
 import { COUNTER_TABLE, UNIT_DEFS, type UnitClass } from '../sim/defs/units';
@@ -29,6 +24,7 @@ import { stock, techs } from './store';
 import { GoodId } from '../sim/defs/goods';
 import { goodEntries } from '../sim/defs/goods';
 import { UnitTypeId } from '../sim/defs/units';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 /**
  * One floating tooltip layer for the whole HUD. Spread `{...tooltip(...)}`
@@ -357,12 +353,12 @@ function recipeText(recipe: Recipe): string {
 }
 
 const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
-  abbey: 'Monks research the tech tree here; delivered ale throws work-speed festivals.',
-  barracks: 'Trains knights, spearmen, and archers from wheat and forged weapons.',
-  guardTower:
+  [BuildingTypeId.abbey]: 'Monks research the tech tree here; delivered ale throws work-speed festivals.',
+  [BuildingTypeId.barracks]: 'Trains knights, spearmen, and archers from wheat and forged weapons.',
+  [BuildingTypeId.guardTower]:
     'Two archers man the roof, shooting half again as hard and two tiles further than they would on the ground. Man it and any archer with nothing else to do walks in from the field on his own; while none is free — none trained yet, or every one of them marching — villagers answer instead and hold it with stones, far weaker but today rather than three techs from now. Standing it down empties the roof again and gives the men back. Nobody manning it can be shot at while the tower stands.',
-  house: 'Sleeps ten more villagers. Nobody lives here yet — beds are what let you hire.',
-  storehouse: 'The heart of the village. All goods flow here — lose it and all is lost.',
+  [BuildingTypeId.house]: 'Sleeps ten more villagers. Nobody lives here yet — beds are what let you hire.',
+  [BuildingTypeId.storehouse]: 'The heart of the village. All goods flow here — lose it and all is lost.',
 };
 
 export function BuildingTip(props: { type: BuildingTypeId }) {
@@ -404,7 +400,7 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
       />
       <Show when={lockedBy()}>
         <div class="tip-warn">
-          Requires {lockedBy()} (research at the {buildingName('abbey')})
+          Requires {lockedBy()} (research at the {buildingName(BuildingTypeId.abbey)})
         </div>
       </Show>
     </>
@@ -451,7 +447,7 @@ export function UnitTip(props: { unit: UnitTypeId; cost?: GoodAmounts; lockedBy?
       </Show>
       <Show when={props.lockedBy}>
         <div class="tip-warn">
-          Requires {props.lockedBy} (research at the {buildingName('abbey')})
+          Requires {props.lockedBy} (research at the {buildingName(BuildingTypeId.abbey)})
         </div>
       </Show>
     </>

@@ -1,7 +1,7 @@
 import type { GoodAmounts } from './goods.ts';
-import type { BuildingTypeId } from './buildings.ts';
 import { GoodId } from './goods.ts';
 import { UnitTypeId } from './units.ts';
+import { BuildingTypeId } from './buildings.ts';
 
 /**
  * The tech tree: three short branches researched at the Abbey for goods +
@@ -89,7 +89,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     prereqs: ['irrigation'],
     cost: { [GoodId.wheat]: 8, [GoodId.silver]: 4 },
     durationTicks: 30 * S,
-    effects: [{ kind: 'unlockBuilding', building: 'brewery' }],
+    effects: [{ kind: 'unlockBuilding', building: BuildingTypeId.brewery }],
     desc: 'Unlocks the Brewery.',
   },
   festivals: {
@@ -144,7 +144,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     // The Smith itself is ungated (the village's only tool source must be
     // reachable from a standing start) — this opens the ore and the iron
     // recipes on its menu.
-    effects: [{ kind: 'unlockBuilding', building: 'ironMine' }],
+    effects: [{ kind: 'unlockBuilding', building: BuildingTypeId.ironMine }],
     desc: 'Unlocks the Iron Mine, and ironwork at the Smith: weapons and tools.',
   },
   deepMining: {
@@ -156,7 +156,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     durationTicks: 35 * S,
     effects: [
       { kind: 'modifier', key: 'mineSpeed', multiplier: 1.3 },
-      { kind: 'unlockBuilding', building: 'goldMine' },
+      { kind: 'unlockBuilding', building: BuildingTypeId.goldMine },
     ],
     desc: 'Mines work 30% faster; unlocks the Gold Mine.',
   },
@@ -193,7 +193,7 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
     cost: { [GoodId.wheat]: 6, [GoodId.silver]: 6 },
     durationTicks: 30 * S,
     effects: [
-      { kind: 'unlockBuilding', building: 'barracks' },
+      { kind: 'unlockBuilding', building: BuildingTypeId.barracks },
       { kind: 'unlockUnit', unit: UnitTypeId.spearman },
     ],
     desc: 'Unlocks the Barracks and Spearmen.',

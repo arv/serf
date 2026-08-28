@@ -9,6 +9,7 @@ import {
   playEdgeDist,
   type TileResourceKind,
 } from './map.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 /**
  * The fairness contract for generated maps: every faction has its own wood,
@@ -75,7 +76,7 @@ function makeWorld(seed: number, players: number): World {
 
 function anchors(world: World): { x: number; y: number }[] {
   return [...world.buildings.values()]
-    .filter((b) => b.type === 'storehouse')
+    .filter((b) => b.type === BuildingTypeId.storehouse)
     .map((b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 }));
 }
 
@@ -140,7 +141,7 @@ describe('map fairness', () => {
         const gy = gold.reduce((s, [, y]) => s + y, 0) / gold.length;
         expect(Math.hypot(gx - MID, gy - MID), `seed ${seed}: gold central`).toBeLessThan(10);
 
-        const camp = [...world.buildings.values()].find((b) => b.type === 'banditCamp');
+        const camp = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.banditCamp);
         expect(camp, `seed ${seed}: camp exists`).toBeDefined();
         const cd = Math.max(Math.abs(camp!.x + 1 - MID), Math.abs(camp!.y + 1 - MID));
         expect(cd, `seed ${seed}: camp central`).toBeLessThanOrEqual(12);

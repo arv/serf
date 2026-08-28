@@ -8,6 +8,7 @@ import { distToFootprint } from '../arrival.ts';
 import { findPath, findPathToAdjacent, nearestWalkable } from '../path.ts';
 import { destroyBuilding, killUnit, type World } from '../world.ts';
 import type { Unit } from '../units.ts';
+import { BuildingTypeId } from '../defs/buildings.ts';
 
 /**
  * Thin, quarantined combat: reads positions, writes hp and movement intents.
@@ -39,7 +40,7 @@ export function combatSystem(world: World): void {
       campValid = true;
       camp = undefined;
       for (const b of liveBuildings) {
-        if (!b.dead && b.type === 'banditCamp') {
+        if (!b.dead && b.type === BuildingTypeId.banditCamp) {
           camp = b;
           break;
         }

@@ -6,6 +6,7 @@ import { placeBuiltBuilding, type World } from './world.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
 import { cmds, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -15,7 +16,7 @@ describe('admin sandbox', () => {
   it('toggleRaids off silences the bandit camp', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
+    placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 44, 30);
     world.raidState = { nextRaidTick: 10, wave: 0 };
     tickWorld(world, cmds({ kind: 'admin', action: 'toggleRaids' }));
     run(world, 200);
@@ -32,7 +33,7 @@ describe('admin sandbox', () => {
   it('clearBandits kills every bandit on the map', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    placeBuiltBuilding(world, 'banditCamp', BANDIT, 44, 30);
+    placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 44, 30);
     world.raidState = { nextRaidTick: 10, wave: 0 };
     run(world, 40); // a wave spawns and marches
     expect([...world.units.values()].some((u) => u.owner === BANDIT)).toBe(true);
@@ -85,7 +86,7 @@ describe('admin sandbox', () => {
   it('finishResearch completes the active tech immediately', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.wheat]: 20, [GoodId.silver]: 20 });
-    placeBuiltBuilding(world, 'abbey', 0, 24, 30);
+    placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
     tickWorld(world, cmds({ kind: 'research', tech: 'cobbledBoots' }));
     expect(world.players[0]!.techs.active?.tech).toBe('cobbledBoots');
 

@@ -5,6 +5,7 @@ import { populationOf } from '../population.ts';
 import type { ObjectiveSpec } from '../defs/missions.ts';
 import type { Owner } from '../entities.ts';
 import type { World } from '../world.ts';
+import { BuildingTypeId } from '../defs/buildings.ts';
 
 /**
  * Mission objectives: stateless predicates over the world, latched into
@@ -46,7 +47,7 @@ export function objectiveMet(world: World, spec: ObjectiveSpec, player: Owner): 
     case 'razeCamp': {
       if (!world.banditsEnabled) return false; // a campless sandbox never auto-wins
       for (const b of world.buildings.values()) {
-        if (!b.dead && b.type === 'banditCamp') return false;
+        if (!b.dead && b.type === BuildingTypeId.banditCamp) return false;
       }
       return true;
     }

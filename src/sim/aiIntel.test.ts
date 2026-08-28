@@ -5,6 +5,7 @@ import { placeBuiltBuilding, spawnUnit } from './world.ts';
 import { addStorehouse, bareWorld } from './testUtils.ts';
 import type { World } from './world.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 /**
  * The intelligence picture: what a seat knows about a rival, and how it
@@ -114,8 +115,8 @@ describe('the intelligence picture', () => {
 
   it('counts the village it has found at minute five, and only what it has found', () => {
     const { world, brain } = watchWorld();
-    placeBuiltBuilding(world, 'barracks', 1, 42, 33); // in our scout's light
-    placeBuiltBuilding(world, 'barracks', 1, 80, 80); // over the horizon
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 1, 42, 33); // in our scout's light
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 1, 80, 80); // over the horizon
     world.tick = AI_INTEL.earlyMark;
     brain.decide(world);
     // The castle and the near barracks; never the one nobody has seen.

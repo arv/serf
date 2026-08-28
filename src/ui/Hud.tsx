@@ -277,7 +277,9 @@ export function Hud(props: {
       {/* Hidden by the CSS everywhere the strip's twin can appear, so the
           two never come out different widths — and the placing bar is
           standing beside it there saying the same name in full. */}
-      <Show when={placing()}>{(t) => <span class="cost">{buildingName(t())}…</span>}</Show>
+      <Show when={placing() !== null}>
+        <span class="cost">{buildingName(placing()!)}…</span>
+      </Show>
     </button>
   );
   /**

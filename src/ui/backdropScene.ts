@@ -13,6 +13,7 @@ import { loadGlbAssets } from '../render/assets';
 import { snapBuildings } from '../protocol/snapshot';
 import { createWorld } from '../sim/world';
 import { batteryFramePacer } from '../render/framePacer';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 /**
  * The pre-boot background, shared by every menu screen: the actual game,
@@ -178,7 +179,7 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
   buildings.update(snapBuildings(world));
 
   // Frame the player's keep — the castle at the map's heart.
-  const keep = [...world.buildings.values()].find((b) => b.type === 'storehouse');
+  const keep = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse);
   const half = world.map.size / 2;
   const cx = keep ? keep.x + keep.w / 2 : half;
   const cz = keep ? keep.y + keep.h / 2 : half;

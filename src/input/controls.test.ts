@@ -36,6 +36,7 @@ import {
   setTechs,
 } from '../ui/store';
 import { GoodId } from '../sim/defs/goods';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 const CANVAS_W = 800;
 const CANVAS_H = 600;
@@ -143,7 +144,7 @@ function rightPtr(x: number, y: number): Record<string, unknown> {
 function building(id: number): BuildingSnap {
   return {
     id,
-    type: 'storehouse',
+    type: BuildingTypeId.storehouse,
     owner: ME,
     x: 10,
     y: 10,
@@ -867,8 +868,8 @@ describe('build chord', () => {
     h.type('B');
     h.type('M');
 
-    expect(placing()).toBe('mill');
-    expect(buildAim()).toBe('mill');
+    expect(placing()).toBe(BuildingTypeId.mill);
+    expect(buildAim()).toBe(BuildingTypeId.mill);
   });
 
   it('aims the ribbon at a building the stores cannot pay for', () => {
@@ -884,7 +885,7 @@ describe('build chord', () => {
     h.type('M');
 
     expect(placing()).toBeNull();
-    expect(buildAim()).toBe('mill');
+    expect(buildAim()).toBe(BuildingTypeId.mill);
   });
 
   it('aims the ribbon at a building that is not researched yet', () => {
@@ -896,7 +897,7 @@ describe('build chord', () => {
     h.type('I'); // the Iron Mine, behind ironworking
 
     expect(placing()).toBeNull();
-    expect(buildAim()).toBe('ironMine');
+    expect(buildAim()).toBe(BuildingTypeId.ironMine);
   });
 
   it('aims again when the same refused building is chorded twice', () => {
@@ -906,7 +907,7 @@ describe('build chord', () => {
     const h = harness();
     controls = h.controls;
     setStock({});
-    const aims: (string | null)[] = [];
+    const aims: (BuildingTypeId | null)[] = [];
 
     const stop = createRoot((dispose) => {
       createComputed(() => void aims.push(buildAim()));
@@ -918,7 +919,7 @@ describe('build chord', () => {
     h.type('M');
     stop();
 
-    expect(aims).toEqual([null, 'mill', 'mill']);
+    expect(aims).toEqual([null, BuildingTypeId.mill, BuildingTypeId.mill]);
   });
 
   it('leaves a stray letter alone', () => {

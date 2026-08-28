@@ -6,8 +6,9 @@ import { placeBuiltBuilding, placeSite, spawnUnit } from '../sim/world.ts';
 import { BUILDING_DEFS } from '../sim/defs/buildings.ts';
 import { addSerf, addStorehouse, bareWorld, cmds } from '../sim/testUtils.ts';
 import { UnitTypeId } from '../sim/defs/units.ts';
+import { BuildingTypeId } from '../sim/defs/buildings.ts';
 
-const CAP = BUILDING_DEFS.guardTower.garrison!.capacity;
+const CAP = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity;
 
 /**
  * The card's halt lever on a tower is the manning of it, and the words on it
@@ -20,8 +21,8 @@ describe('the tower manning order', () => {
   it('is not the halt lever for anything else, nor for a tower on the scaffold', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
-    const site = placeSite(world, 'guardTower', 0, 40, 30);
+    const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 36, 30);
+    const site = placeSite(world, BuildingTypeId.guardTower, 0, 40, 30);
     expect(levyOrder(snapBuilding(world, smith))).toBeUndefined();
     expect(levyOrder(snapBuilding(world, site))).toBeUndefined();
   });
@@ -29,7 +30,7 @@ describe('the tower manning order', () => {
   it('calls villagers up and stands them down again', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 30);
     tower.paused = true; // as one comes off the scaffold
     for (let i = 0; i < CAP; i++) addSerf(world, 33, 33 + i);
     expect(levyOrder(snapBuilding(world, tower))).toEqual({ label: 'Man the tower' });
@@ -48,7 +49,7 @@ describe('the tower manning order', () => {
   it('gives the archers back too — the state that started this is now unreachable', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 30);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 30);
     for (let i = 0; i < CAP; i++) spawnUnit(world, UnitTypeId.archer, 0, 33.5, 33.5 + i);
     let guard = 0;
     while ((tower.garrison ?? 0) < CAP && guard++ < 4000) tickWorld(world, []);

@@ -12,6 +12,7 @@ import { buildingDef } from '../defs/buildings.ts';
 import { PathLevel, Terrain } from '../map.ts';
 import { isPlayerOwner, type Owner } from '../entities.ts';
 import { placeSite, pushDelta, type World } from '../world.ts';
+import { BuildingTypeId } from '../defs/buildings.ts';
 
 /**
  * Emergent trails, the Settlers homage: foot traffic wears tiles (movement
@@ -62,7 +63,7 @@ function paveStep(world: World): void {
 
   let active = 0;
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.type === 'roadSite') active++;
+    if (!b.dead && b.type === BuildingTypeId.roadSite) active++;
   }
   if (active >= MAX_CONCURRENT_PAVING) return;
 
@@ -83,7 +84,7 @@ function paveStep(world: World): void {
     // owner has actually researched Masonry.
     const owner = nearestStorageOwner(world, tileX(idx, size), tileY(idx, size));
     if (owner === undefined || !world.players[owner]?.pavingUnlocked) continue;
-    placeSite(world, 'roadSite', owner, tileX(idx, size), tileY(idx, size));
+    placeSite(world, BuildingTypeId.roadSite, owner, tileX(idx, size), tileY(idx, size));
   }
 }
 

@@ -11,6 +11,7 @@ import { REPLAY_VERSION } from '../shared/replayVersion';
 import { createWorld, type World, type WorldConfig } from '../sim/world';
 import { tickWorld, type PlayerCommand } from '../sim/tick';
 import type { SimCommand } from '../sim/commands';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 function sample(): ReplayData {
   return {
@@ -23,7 +24,7 @@ function sample(): ReplayData {
       {
         tick: 25,
         commands: [
-          { playerId: 0, cmd: { kind: 'placeBuilding', building: 'well', x: 3, y: 4 } },
+          { playerId: 0, cmd: { kind: 'placeBuilding', building: BuildingTypeId.well, x: 3, y: 4 } },
           // An AI seat's move rides the same log — playback never runs brains.
           { playerId: 1, cmd: { kind: 'hireSerf' } },
         ],

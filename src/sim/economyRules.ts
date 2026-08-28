@@ -1,13 +1,4 @@
-import {
-  BUILDING_DEFS,
-  TOOL_GOODS,
-  TOOL_OF,
-  convertRecipeOf,
-  gatherOrigin,
-  gatherRecipeOf,
-  OUTPUT_CAP,
-  type BuildingTypeId,
-} from './defs/buildings.ts';
+import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF, convertRecipeOf, gatherOrigin, gatherRecipeOf, OUTPUT_CAP } from './defs/buildings.ts';
 import { FORGE_QUEUE_CAP } from './defs/balance.ts';
 import { findResourcesNear, nearestResource, RESOURCE_CODE } from './map.ts';
 import { WEAPON_OF } from './defs/units.ts';
@@ -22,6 +13,7 @@ import { GoodId } from './defs/goods.ts';
 import { goodKeys } from './defs/goods.ts';
 import type { GoodAmounts } from './defs/goods.ts';
 import { goodEntries } from './defs/goods.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 /**
  * The seat's economy as a set of named rules instead of a cascade.
@@ -322,7 +314,7 @@ const keepTheToolsComing: EconomyRule = {
     // may stand every forge in the village down, and a village that cannot
     // replace a lost axe has no woodcutter. A halted Smith is one order
     // away from working, so it counts.
-    const smiths = ctx.mine.filter((b) => b.type === 'weaponsmith' && b.state === 'built');
+    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === 'built');
     if (smiths.length === 0) return null;
 
     // What the village is short of: a post open for it with nothing on the
@@ -350,11 +342,11 @@ const keepTheToolsComing: EconomyRule = {
     for (const tool of TOOL_GOODS) {
       if (!wanted.has(tool)) continue;
       if ((ctx.stock[tool] ?? 0) > 0) continue; // one on the shelf is already coming
-      const index = BUILDING_DEFS.weaponsmith.recipeOptions!.findIndex(
+      const index = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!.findIndex(
         (o) => (o.recipe.outputs[tool] ?? 0) > 0,
       );
       if (index < 0) return null;
-      const opt = BUILDING_DEFS.weaponsmith.recipeOptions![index]!;
+      const opt = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions![index]!;
       if (opt.requiresTech !== undefined && !ctx.researched(opt.requiresTech)) continue;
       // Already ordered anywhere? An order stands until its batch lands, so
       // re-adding one every beat would fill five slots with the same axe.
@@ -447,16 +439,16 @@ const forgeTheCounter: EconomyRule = {
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
-    const smiths = ctx.mine.filter((b) => b.type === 'weaponsmith' && b.state === 'built');
+    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === 'built');
     smiths.forEach((smith, i) => {
       let want = ctx.strategy.weaponMix[Math.min(i, ctx.strategy.weaponMix.length - 1)]!;
       if (ctx.counter && i > 0) {
-        const opt = BUILDING_DEFS.weaponsmith.recipeOptions?.[ctx.counter.recipe];
+        const opt = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions?.[ctx.counter.recipe];
         if (opt && (opt.requiresTech === undefined || ctx.researched(opt.requiresTech))) {
           want = ctx.counter.recipe;
         }
       }
-      const option = BUILDING_DEFS.weaponsmith.recipeOptions?.[want];
+      const option = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions?.[want];
       if (!option) return;
       if (option.requiresTech !== undefined && !ctx.researched(option.requiresTech)) return;
       if (smith.recipeIndex !== want) {
@@ -580,9 +572,9 @@ const holdTheGlutForge: EconomyRule = {
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
-    const smiths = ctx.mine.filter((b) => b.type === 'weaponsmith' && b.state === 'built');
+    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === 'built');
     for (const b of smiths) {
-      const recipe = convertRecipeOf(BUILDING_DEFS.weaponsmith, b);
+      const recipe = convertRecipeOf(BUILDING_DEFS[BuildingTypeId.weaponsmith], b);
       if (!recipe) continue;
       // One output per forge recipe today; summing is what the shape means
       // rather than what it happens to hold.
@@ -719,7 +711,7 @@ const keepTheQueueWarm: EconomyRule = {
   when: 'the barracks queue is short, or stuck behind a weapon nobody can make',
   phase: 'production',
   fire(ctx) {
-    const barracks = ctx.mine.find((b) => b.type === 'barracks' && b.state === 'built');
+    const barracks = ctx.mine.find((b) => b.type === BuildingTypeId.barracks && b.state === 'built');
     if (!barracks) return null;
     const around = (good: GoodId): boolean =>
       (ctx.stock[good] ?? 0) + (barracks.inputs[good] ?? 0) + (barracks.inbound[good] ?? 0) > 0;

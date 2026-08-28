@@ -17,6 +17,7 @@ import { TileResource } from './map.ts';
 import type { GoodAmounts } from './defs/goods.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -155,7 +156,7 @@ describe('cancellation table', () => {
   it('source destroyed before pickup: jobs abort, serfs freed', () => {
     const { world, initial } = setupHaul();
     run(world, 3);
-    const sh = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const sh = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
     destroyBuilding(world, sh);
     run(world, 10);
 
@@ -232,13 +233,13 @@ describe('fuzz: 10k ticks of random destruction never corrupts the economy', () 
           if (serfs.length > 2) killUnit(world, serfs[rng.int(serfs.length)]!);
         } else if (roll < 0.65) {
           const targets = [...world.buildings.values()].filter(
-            (b) => !b.dead && b.type !== 'storehouse',
+            (b) => !b.dead && b.type !== BuildingTypeId.storehouse,
           );
           if (targets.length > 1) destroyBuilding(world, targets[rng.int(targets.length)]!);
         } else if (roll < 0.85) {
           const x = 18 + rng.int(24);
           const y = 18 + rng.int(24);
-          tickWorld(world, cmds({ kind: 'placeBuilding', building: 'woodcutter', x, y }));
+          tickWorld(world, cmds({ kind: 'placeBuilding', building: BuildingTypeId.woodcutter, x, y }));
         } else {
           const serfs = [...world.units.values()].filter((u) => u.kind === UnitTypeId.serf);
           if (serfs.length < 8) addSerf(world, 30 + rng.int(4), 35);
@@ -282,7 +283,7 @@ describe('move orders outrank employment', () => {
   it('never destroys the good in a reassigned serf\'s hands', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.wood]: 5 });
-    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 36, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto): wants wood
     const serf = addSerf(world, 32, 32);
 
@@ -312,7 +313,7 @@ describe('move orders outrank employment', () => {
   it('never hands a fresh pickup to a serf who is already carrying', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.wood]: 5 });
-    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 36, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto): wants wood
     const serf = addSerf(world, 32, 32);
     const initial = countGoods(world);

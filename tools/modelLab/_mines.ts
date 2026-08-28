@@ -6,7 +6,7 @@ import {
   glbYardProp,
   glbYardRock,
 } from '../../src/render/assets';
-import type { BuildingTypeId } from '../../src/sim/defs/buildings';
+import { BuildingTypeId } from '../../src/sim/defs/buildings';
 
 /**
  * A scratch page for the one question the cards cannot answer: do the four
@@ -21,7 +21,7 @@ import type { BuildingTypeId } from '../../src/sim/defs/buildings';
 
 const q = new URLSearchParams(location.search);
 
-const TYPES: BuildingTypeId[] = ['quarry', 'ironMine', 'silverMine', 'goldMine'];
+const TYPES: BuildingTypeId[] = [BuildingTypeId.quarry, BuildingTypeId.ironMine, BuildingTypeId.silverMine, BuildingTypeId.goldMine];
 const NAMES = ['Quarry', 'Iron Mine', 'Silver Mine', 'Gold Mine'];
 
 /** buildingSync's MINE_SPOTS and YARDS, copied so the page needs no

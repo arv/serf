@@ -4,6 +4,7 @@ import { hash2 } from '../shared/math.ts';
 import { WOOD_MAX_AMT } from './defs/balance.ts';
 import { buildingDef, type TileResourceName } from './defs/buildings.ts';
 import { buildingSight } from './visibility.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 export const Terrain = { Grass: 0, Water: 1, Rock: 2 } as const;
 export type TerrainKind = (typeof Terrain)[keyof typeof Terrain];
@@ -262,7 +263,7 @@ function anchorOf(s: StartSpot): { x: number; y: number } {
  * radius measured from here means what it means on screen.
  */
 function castleCenter(s: StartSpot): { x: number; y: number } {
-  const def = buildingDef('storehouse');
+  const def = buildingDef(BuildingTypeId.storehouse);
   return { x: s.x + def.w / 2, y: s.y + def.h / 2 };
 }
 
@@ -274,7 +275,7 @@ function castleCenter(s: StartSpot): { x: number; y: number } {
  * than promising stone that arrives as fog.
  */
 export const CASTLE_OPENING_SIGHT =
-  buildingSight('storehouse', buildingDef('storehouse').w, buildingDef('storehouse').h) - 1;
+  buildingSight(BuildingTypeId.storehouse, buildingDef(BuildingTypeId.storehouse).w, buildingDef(BuildingTypeId.storehouse).h) - 1;
 
 /**
  * How far from home (castle center, tile-center metric) worldgen promises

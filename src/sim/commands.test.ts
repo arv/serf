@@ -7,6 +7,7 @@ import { addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 import type { SimCommand } from './commands.ts';
 import type { PlayerCommand } from './tick.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 describe('command screening', () => {
   it('accepts what the client actually sends', () => {
@@ -14,7 +15,7 @@ describe('command screening', () => {
       { kind: 'moveUnits', unitIds: [1, 2, 3], x: 10, y: 12 },
       { kind: 'moveUnits', unitIds: [1, 2, 3], x: 10, y: 12, attack: true },
       { kind: 'moveUnits', unitIds: [1, 2, 3], x: 10, y: 12, attack: 'half' },
-      { kind: 'placeBuilding', building: 'woodcutter', x: 4, y: 5 },
+      { kind: 'placeBuilding', building: BuildingTypeId.woodcutter, x: 4, y: 5 },
       { kind: 'hireSerf' },
       { kind: 'sellBuilding', buildingId: 3 },
       { kind: 'setBuildingPaused', buildingId: 3, paused: true },
@@ -63,7 +64,7 @@ describe('command screening', () => {
       x: 1,
       y: 1,
     });
-    expect(sanitizeCommand({ kind: 'placeBuilding', building: 'woodcutter' })).toBeNull();
+    expect(sanitizeCommand({ kind: 'placeBuilding', building: BuildingTypeId.woodcutter })).toBeNull();
     expect(sanitizeCommand({ kind: 'setBuildingRepair', buildingId: 'x', repair: true })).toBeNull();
     // A half-given rally pair is garbage, not a guess at what was meant;
     // only the fully absent pair reads as "take the flag down".
@@ -98,7 +99,7 @@ describe('command screening', () => {
   });
 
   it('bounds a recipe index by the longest forge menu, and lets auto through', () => {
-    const menu = BUILDING_DEFS.weaponsmith.recipeOptions!.length;
+    const menu = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!.length;
     const enqueue = (recipeIndex: number) =>
       sanitizeCommand({ kind: 'enqueueForge', buildingId: 1, recipeIndex });
     expect(enqueue(menu - 1)).not.toBeNull();

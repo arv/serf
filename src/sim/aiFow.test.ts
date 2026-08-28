@@ -9,6 +9,7 @@ import { addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 import type { SimCommand } from './commands.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 /**
  * The brain plays under the fog. These are the two rules the server holds
@@ -30,7 +31,7 @@ function musterWorld(): ReturnType<typeof bareWorld> {
   const world = bareWorld();
   addStorehouse(world, 30, 30, {});
   for (let i = 0; i < 7; i++) spawnUnit(world, UnitTypeId.knight, 0, 33.5, 27.5 + i);
-  placeBuiltBuilding(world, 'banditCamp', BANDIT, 5, 5);
+  placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 5, 5);
   // Past the steward's attack cooldown, so the army logic is live.
   world.tick = 1000;
   return world;
@@ -53,7 +54,7 @@ describe('the AI under fog of war', () => {
     spawnUnit(world, UnitTypeId.knight, 0, 8.5, 8.5); // a scout within sight of the camp
     const vision = new SeatVision(world.map.size);
     vision.recompute(world, 0);
-    expect(pickAttackTarget(world, vision, 0, 31, 31, false)?.type).toBe('banditCamp');
+    expect(pickAttackTarget(world, vision, 0, 31, 31, false)?.type).toBe(BuildingTypeId.banditCamp);
   });
 
   it('counts a hostile at the gates only when it stands in lit ground', () => {
@@ -139,9 +140,9 @@ describe('the AI under fog of war', () => {
     // hold that is doing its job.
     hands(world);
     world.players[0]!.techs.researched.push('soldiery', 'ironworking');
-    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 34);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 26);
     for (let i = 0; i < 4; i++) spawnUnit(world, UnitTypeId.spearman, 1, 35.5, 30.5 + i);
     world.tick = 1000;
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
@@ -160,9 +161,9 @@ describe('the AI under fog of war', () => {
     addStorehouse(world, 30, 30, { [GoodId.bow]: 2 });
     hands(world);
     world.players[0]!.techs.researched.push('soldiery', 'archery');
-    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 34);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 26);
     for (let i = 0; i < 4; i++) spawnUnit(world, UnitTypeId.archer, 1, 35.5, 30.5 + i);
     world.tick = 1000;
     const brain = new AiBrain(0, AI_STRATEGIES.fletcher, world.map.size);
@@ -184,7 +185,7 @@ describe('the AI under fog of war', () => {
     addStorehouse(world, 30, 30, {}); // no weapon anywhere: the fallback path
     hands(world);
     world.players[0]!.techs.researched.push('soldiery', 'ironworking');
-    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
     world.tick = 1000;
     const brain = new AiBrain(0, AI_STRATEGIES.abbot, world.map.size);
     expect(brain.decide(world).find((c) => c.kind === 'trainUnit')).toMatchObject({
@@ -200,7 +201,7 @@ describe('the AI under fog of war', () => {
     addStorehouse(world, 30, 30, { [GoodId.bow]: 4 });
     hands(world);
     world.players[0]!.techs.researched.push('soldiery', 'ironworking');
-    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
     world.tick = 1000;
     const brain = new AiBrain(0, AI_STRATEGIES.abbot, world.map.size);
     const order = brain.decide(world).find((c) => c.kind === 'trainUnit');
@@ -225,8 +226,8 @@ describe('the AI under fog of war', () => {
     addStorehouse(world, 30, 30, { [GoodId.sword]: 1, [GoodId.spear]: 1 });
     addStorehouse(world, 44, 44, {}, 1);
     world.players[0]!.techs.researched.push('soldiery', 'ironworking');
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 34);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 26);
     const foes = Array.from({ length: 4 }, (_, i) => spawnUnit(world, UnitTypeId.spearman, 1, 35.5, 30.5 + i));
     world.tick = 1000;
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);

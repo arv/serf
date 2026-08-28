@@ -16,6 +16,7 @@ import { OUTPUT_CAP } from './defs/buildings.ts';
 import { bindWorker } from './systems/production.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -72,7 +73,7 @@ describe('releasing a worker', () => {
 describe('the population economy', () => {
   it('an idle serf walks over and becomes the worker', () => {
     const world = bareWorld();
-    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 30, 30);
     farm.inputs[GoodId.water] = 3;
     farm.inputs[GoodId.scythe] = 1; // the post's tool, already on the rack
     const serf = addSerf(world, 36, 34);
@@ -86,7 +87,7 @@ describe('the population economy', () => {
 
   it('unstaffed buildings produce nothing', () => {
     const world = bareWorld();
-    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 30, 30);
     farm.inputs[GoodId.water] = 3;
     run(world, 20 * 20); // no serfs anywhere
     expect(farm.stock[GoodId.wheat] ?? 0).toBe(0);
@@ -94,7 +95,7 @@ describe('the population economy', () => {
 
   it('a dead worker is replaced from the serf pool', () => {
     const world = bareWorld();
-    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 30, 30);
     // The replacement's scythe: the first worker's died with him.
     farm.inputs[GoodId.scythe] = 1;
     const worker = staffBuilding(world, farm);
@@ -110,7 +111,7 @@ describe('the population economy', () => {
   it('staffing competes with hauling: one serf cannot do both', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
-    placeBuiltBuilding(world, 'wheatFarm', 0, 22, 30);
+    placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 22, 30);
     addSerf(world, 28, 34); // exactly one person
     run(world, 20 * 15);
 
@@ -123,7 +124,7 @@ describe('the population economy', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.food]: 6, [GoodId.spear]: 2 });
     world.players[0]!.techs.researched.push('soldiery');
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     addSerf(world, 33, 34); // one hauls, one enlists
     const peopleBefore = [...world.units.values()].filter((u) => !u.dead).length;
@@ -140,7 +141,7 @@ describe('the population economy', () => {
 
   it('a destroyed building frees its en-route recruit', () => {
     const world = bareWorld();
-    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 30, 30);
     farm.inputs[GoodId.scythe] = 1; // recruitment waits on the post's tool
     const serf = addSerf(world, 44, 44); // long walk
     run(world, 30); // recruitment fires, serf is en route
@@ -155,8 +156,8 @@ describe('the population economy', () => {
 
   it('the well keeps no one, and still supplies the farm', () => {
     const world = bareWorld();
-    const well = placeBuiltBuilding(world, 'well', 0, 30, 30);
-    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 34, 29);
+    const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 30, 30);
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 34, 29);
     const hauler = addSerf(world, 32, 32);
     staffBuilding(world, farm);
     run(world, 20 * 60);
@@ -171,7 +172,7 @@ describe('the population economy', () => {
 
   it('a save from before the well lost its keeper gives the hand back', () => {
     const world = bareWorld();
-    const well = placeBuiltBuilding(world, 'well', 0, 30, 30);
+    const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 30, 30);
     // Exactly what an older save deserializes into: a standing well with a
     // resident bound to it, from the days when its def asked for one.
     const keeper = addSerf(world, 30, 31);
@@ -190,7 +191,7 @@ describe('the population economy', () => {
 
   it('drawing costs the hauler its six seconds at the windlass', () => {
     const world = bareWorld();
-    const well = placeBuiltBuilding(world, 'well', 0, 30, 30);
+    const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 30, 30);
     const store = addStorehouse(world, 34, 30, {});
     const serf = addSerf(world, 31, 31);
 

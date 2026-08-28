@@ -6,7 +6,7 @@ import { TerrainMesh, Spoil, type SpoilKind } from '../../src/render/terrainMesh
 import { ScatterMesh } from '../../src/render/scatterMesh';
 import { TileResource, Terrain, type MapView } from '../../src/sim/map';
 import { tileIdx } from '../../src/shared/grid';
-import type { BuildingTypeId } from '../../src/sim/defs/buildings';
+import { BuildingTypeId } from '../../src/sim/defs/buildings';
 
 /**
  * The spoil pass, on the real terrain mesh.
@@ -33,10 +33,10 @@ const YAW = (Number(q.get('yaw') ?? 30) * Math.PI) / 180;
  * whatever the yaw, the way _mines.html does it. */
 const SPACING = 7.5;
 const KINDS: { type: BuildingTypeId; res: number }[] = [
-  { type: 'quarry', res: TileResource.Rock },
-  { type: 'ironMine', res: TileResource.IronDep },
-  { type: 'silverMine', res: TileResource.SilverDep },
-  { type: 'goldMine', res: TileResource.GoldDep },
+  { type: BuildingTypeId.quarry, res: TileResource.Rock },
+  { type: BuildingTypeId.ironMine, res: TileResource.IronDep },
+  { type: BuildingTypeId.silverMine, res: TileResource.SilverDep },
+  { type: BuildingTypeId.goldMine, res: TileResource.GoldDep },
 ];
 const MID = 16;
 const POSTS = KINDS.map((k, i) => {
@@ -105,13 +105,13 @@ const heights = new HeightField(map.height as Float32Array, SIZE);
 const terrain = new TerrainMesh(map, heights, (id): SpoilKind => {
   if (!SPOIL_ON) return Spoil.None;
   const t = typeOf.get(id);
-  return t === 'quarry'
+  return t === BuildingTypeId.quarry
     ? Spoil.Stone
-    : t === 'ironMine'
+    : t === BuildingTypeId.ironMine
       ? Spoil.Iron
-      : t === 'silverMine'
+      : t === BuildingTypeId.silverMine
         ? Spoil.Silver
-        : t === 'goldMine'
+        : t === BuildingTypeId.goldMine
           ? Spoil.Gold
           : Spoil.None;
 });

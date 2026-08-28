@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
 import { Terrain, TileResource, playMin, playMax, type MapView } from '../sim/map';
-import type { BuildingTypeId } from '../sim/defs/buildings';
 import {
   bankMoss,
   earthTrail,
@@ -33,6 +32,7 @@ import {
   ribbonWidth,
 } from './pathRibbon';
 import type { HeightField } from './heightField';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 /**
  * Sub-tile vertices per tile edge: painting resolution beneath the grid. Set
@@ -67,10 +67,10 @@ export type SpoilKind = (typeof Spoil)[keyof typeof Spoil];
 /** Which posts spoil their ground, and in what. Everything absent from
  * here throws nothing. */
 const SPOIL_OF: Partial<Record<BuildingTypeId, SpoilKind>> = {
-  quarry: Spoil.Stone,
-  ironMine: Spoil.Iron,
-  silverMine: Spoil.Silver,
-  goldMine: Spoil.Gold,
+  [BuildingTypeId.quarry]: Spoil.Stone,
+  [BuildingTypeId.ironMine]: Spoil.Iron,
+  [BuildingTypeId.silverMine]: Spoil.Silver,
+  [BuildingTypeId.goldMine]: Spoil.Gold,
 };
 
 /**

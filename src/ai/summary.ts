@@ -1,6 +1,6 @@
 import { TICK_MS } from '../sim/defs/balance.ts';
 import { UNIT_DEFS } from '../sim/defs/units.ts';
-import { buildingDef, type BuildingTypeId } from '../sim/defs/buildings.ts';
+import { buildingDef } from '../sim/defs/buildings.ts';
 import { AI_INTEL, hostileNear, type AiBrain } from '../sim/systems/ai.ts';
 import type { Building, Owner } from '../sim/entities.ts';
 import { popCapOf, populationOf } from '../sim/population.ts';
@@ -10,6 +10,8 @@ import type { World } from '../sim/world.ts';
 import { GOOD_KEYS } from '../sim/defs/goods.ts';
 import { goodEntries } from '../sim/defs/goods.ts';
 import { UnitTypeId } from '../sim/defs/units.ts';
+import { BuildingTypeId } from '../sim/defs/buildings.ts';
+import { BUILDING_KEYS } from '../sim/defs/buildings.ts';
 
 /**
  * One AI seat's view of the match, folded down for a language model. The
@@ -111,8 +113,11 @@ export interface AiWorldSummary {
     serfs: number;
     pop: number;
     popCap: number;
-    /** Standing counts by type, construction sites included. */
-    buildings: Partial<Record<BuildingTypeId, number>>;
+    /** Standing counts by type, construction sites included. Keyed by the
+     * building's spelling rather than its id: this whole summary is
+     * JSON.stringify'd into the model's prompt, and a 1B model shown
+     * `{"5":2}` has been told nothing. */
+    buildings: Record<string, number>;
     army: { knight: number; spearman: number; archer: number };
     researched: string[];
     researching: string | null;
@@ -158,7 +163,7 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
     }
   }
 
-  const buildings: Partial<Record<BuildingTypeId, number>> = {};
+  const buildings: Record<string, number> = {};
   let serfs = 0;
   const army = { knight: 0, spearman: 0, archer: 0 };
   /** Rival buildings on explored ground, and camps likewise. */
@@ -168,11 +173,12 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
   for (const b of world.buildings.values()) {
     if (b.dead) continue;
     if (b.owner === playerId) {
-      buildings[b.type] = (buildings[b.type] ?? 0) + 1;
+      const key = BUILDING_KEYS[b.type];
+      buildings[key] = (buildings[key] ?? 0) + 1;
       continue;
     }
     if (!vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
-    if (b.type === 'banditCamp') {
+    if (b.type === BuildingTypeId.banditCamp) {
       camps++;
       if (castle) {
         const d = Math.abs(b.x + 1 - bx) + Math.abs(b.y + 1 - by);

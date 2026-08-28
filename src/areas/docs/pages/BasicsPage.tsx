@@ -25,6 +25,7 @@ import type { UnitClass } from '../../../sim/defs/units';
 import { fmtSecs } from '../data';
 import { CostList, Section, Stat, Stats } from '../components';
 import { Prose } from '../prose';
+import { BuildingTypeId } from '../../../sim/defs/buildings';
 
 /** The map the raid clock is quoted against — the size every other number
  * in balance.ts was tuned on, and what firstRaidTickFor scales from. */
@@ -43,7 +44,7 @@ export function BasicsPage(): JSX.Element {
       <Section title="Opening">
         <Stats>
           <Stat label="Serfs">{START_SERFS}</Stat>
-          <Stat label="Beds">{BUILDING_DEFS.storehouse.housing}, in the castle</Stat>
+          <Stat label="Beds">{BUILDING_DEFS[BuildingTypeId.storehouse].housing}, in the castle</Stat>
           <Stat label="Stock">
             <CostList amounts={START_STOCK} />
           </Stat>

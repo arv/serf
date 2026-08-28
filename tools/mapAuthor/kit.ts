@@ -64,12 +64,9 @@ import {
 import { WOOD_MAX_AMT } from '../../src/sim/defs/balance.ts';
 import { serializeMapFile } from '../../src/sim/mapFile.ts';
 import { canPlace } from '../../src/sim/world.ts';
-import {
-  buildingDef,
-  gatherOrigin,
-  gatherRecipeOf,
-  type BuildingTypeId,
-} from '../../src/sim/defs/buildings.ts';
+import { buildingDef, gatherOrigin, gatherRecipeOf } from '../../src/sim/defs/buildings.ts';
+import { BuildingTypeId } from '../../src/sim/defs/buildings.ts';
+import { BUILDING_KEYS } from '../../src/sim/defs/buildings.ts';
 
 
 /** Below this field value a tile floods (worldgen's LAKE_LEVEL_T). */
@@ -1296,7 +1293,7 @@ export class Valley {
    * deep and stops.
    */
   noDeadWoodSites(starts: readonly StartSpot[], rings = 6, want = 24): number {
-    const def = buildingDef('woodcutter');
+    const def = buildingDef(BuildingTypeId.woodcutter);
     const radius = gatherRecipeOf(def)!.radius;
     let felled = 0;
     for (let pass = 0; pass < 3; pass++) {
@@ -1320,7 +1317,7 @@ export class Valley {
               if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
               const x = cx + dx;
               const y = cy + dy;
-              if (!canPlace(map, 'woodcutter', x, y)) continue;
+              if (!canPlace(map, BuildingTypeId.woodcutter, x, y)) continue;
               const o = gatherOrigin(def, x, y);
               if (countResourceNear(this, o.x, o.y, TileResource.Wood, radius) >= want) continue;
               for (let ty = o.y - radius; ty <= o.y + radius; ty++) {
@@ -1708,8 +1705,8 @@ export function audit(a: Authored): AuditReport {
     const ox = a.starts[0]!.x + b.dx;
     const oy = a.starts[0]!.y + b.dy;
     const at = nearestSite(map, b.type, { x: ox, y: oy }, 6);
-    if (!at) problems.push(`prebuilt ${b.type} at ${b.dx},${b.dy}: no legal site within 5 tiles`);
-    else if (at.r > 3) lines.push(`  prebuilt ${b.type} slides ${at.r} tiles to find ground`);
+    if (!at) problems.push(`prebuilt ${BUILDING_KEYS[b.type]} at ${b.dx},${b.dy}: no legal site within 5 tiles`);
+    else if (at.r > 3) lines.push(`  prebuilt ${BUILDING_KEYS[b.type]} slides ${at.r} tiles to find ground`);
   }
 
   // What a player can actually raise, how far they walk to do it, and —
@@ -1724,22 +1721,31 @@ export function audit(a: Authored): AuditReport {
   // first legal tile) fails on a map that reads fine.
   for (const s0 of a.starts) {
     const c = keep(s0);
-    const sites = (['woodcutter', 'quarry', 'ironMine', 'silverMine', 'goldMine', 'fishery'] as const)
+    const siteTypes: readonly BuildingTypeId[] = [
+      BuildingTypeId.woodcutter,
+      BuildingTypeId.quarry,
+      BuildingTypeId.ironMine,
+      BuildingTypeId.silverMine,
+      BuildingTypeId.goldMine,
+      BuildingTypeId.fishery,
+    ];
+    const sites = siteTypes
       .map((type) => {
+        const name = BUILDING_KEYS[type];
         const at = nearestSite(map, type, c, 40);
-        if (!at) return `${type} --`;
+        if (!at) return `${name} --`;
         const gather = gatherRecipeOf(buildingDef(type));
-        if (!gather) return `${type} ${at.r}`;
+        if (!gather) return `${name} ${at.r}`;
         const o = gatherOrigin(buildingDef(type), at.x, at.y);
         const held = countResourceNear(v, o.x, o.y, RESOURCE_CODE[gather.resource]!, gather.radius);
-        return `${type} ${at.r} (${held})`;
+        return `${name} ${at.r} (${held})`;
       })
       .join('  ');
     lines.push(`  nearest legal site (and what it can work): ${sites}`);
     // A hut on the first legal tile has to find a real day's work there.
     for (const [type, want] of [
-      ['woodcutter', 40],
-      ['quarry', 40],
+      [BuildingTypeId.woodcutter, 40],
+      [BuildingTypeId.quarry, 40],
     ] as const) {
       const at = nearestSite(map, type, c, 40);
       if (!at) continue;
@@ -1750,11 +1756,11 @@ export function audit(a: Authored): AuditReport {
       // that fells what it can see and then stands idle.
       if (held < 24) {
         problems.push(
-          `the first legal ${type} site out of the keep can only work ${held} — a stray ` +
+          `the first legal ${BUILDING_KEYS[type]} site out of the keep can only work ${held} — a stray ` +
             'grove tile is making a dead spot look legal',
         );
       } else if (held < want) {
-        lines.push(`  (the first ${type} site is a thin one at ${held})`);
+        lines.push(`  (the first ${BUILDING_KEYS[type]} site is a thin one at ${held})`);
       }
     }
   }

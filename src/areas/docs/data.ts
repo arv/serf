@@ -1,11 +1,5 @@
 import { HIRE_SERF_COST, START_STOCK, TICKS_PER_SECOND } from '../../sim/defs/balance';
-import {
-  BUILDING_DEFS,
-  TOOL_OF,
-  outputGoodsOf,
-  type BuildingTypeId,
-  type Recipe,
-} from '../../sim/defs/buildings';
+import { BUILDING_DEFS, TOOL_OF, outputGoodsOf, type Recipe } from '../../sim/defs/buildings';
 import { GOODS, type GoodAmounts } from '../../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../../sim/defs/techs';
 import { UNIT_DEFS, WEAPON_OF } from '../../sim/defs/units';
@@ -15,6 +9,8 @@ import { goodEntries } from '../../sim/defs/goods';
 import { goodKeys } from '../../sim/defs/goods';
 import { UnitTypeId } from '../../sim/defs/units';
 import { UNIT_TYPES } from '../../sim/defs/units';
+import { BuildingTypeId } from '../../sim/defs/buildings';
+import { BUILDING_TYPES } from '../../sim/defs/buildings';
 
 /**
  * The cross-reference graph the wiki walks: every "produced by / used by /
@@ -23,7 +19,7 @@ import { UNIT_TYPES } from '../../sim/defs/units';
  * these pages the moment its def exists, with every def field it carries.
  */
 
-export const ALL_BUILDINGS = Object.keys(BUILDING_DEFS) as BuildingTypeId[];
+export const ALL_BUILDINGS: readonly BuildingTypeId[] = BUILDING_TYPES;
 export const ALL_UNITS: readonly UnitTypeId[] = UNIT_TYPES;
 export const ALL_TECHS = Object.keys(TECH_DEFS) as TechId[];
 
@@ -37,7 +33,7 @@ export const ALL_TECHS = Object.keys(TECH_DEFS) as TechId[];
  * factionTint(BANDIT) deliberately leaves the pack's own grim look alone.
  */
 export const RAIDER_UNITS: UnitTypeId[] = [UnitTypeId.bandit, UnitTypeId.banditArcher, UnitTypeId.marauder];
-export const RAIDER_BUILDINGS: BuildingTypeId[] = ['banditCamp'];
+export const RAIDER_BUILDINGS: BuildingTypeId[] = [BuildingTypeId.banditCamp];
 
 /**
  * The roofs no ribbon tab offers: worldgen's and the road pass's. Derived
@@ -200,8 +196,9 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
   for (const id of ALL_TECHS) {
     for (const good of goodsOf(TECH_DEFS[id].cost)) push(map, good, { kind: 'tech', tech: id });
   }
-  for (const [building, tool] of Object.entries(TOOL_OF) as [BuildingTypeId, GoodId][]) {
-    push(map, tool, { kind: 'tool', building });
+  for (const building of BUILDING_TYPES) {
+    const tool = TOOL_OF[building];
+    if (tool !== undefined) push(map, tool, { kind: 'tool', building });
   }
   for (const unit of UNIT_TYPES) {
     const weapon = WEAPON_OF[unit];

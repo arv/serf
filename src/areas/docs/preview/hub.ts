@@ -14,6 +14,7 @@ import { UNIT_DEFS, type UnitTypeId } from '../../../sim/defs/units';
 import { RAIDER_BUILDINGS, RAIDER_UNITS } from '../data';
 import { YAW, frame, frameFor, makeLights, makePlate, makeRenderer, type Framing } from './scene';
 import { unitFromKey } from '../../../sim/defs/units';
+import { buildingFromKey } from '../../../sim/defs/buildings';
 
 /**
  * One WebGL context for every preview on every wiki page.
@@ -343,7 +344,8 @@ function animTick(t: number): void {
 
 function buildContent(card: Card): CardContent | null {
   if (card.kind === 'building') {
-    const id = card.id as BuildingTypeId;
+    const id = buildingFromKey(card.id);
+    if (id === undefined) return null;
     // Owner picks the team-colour slot; the camp belongs to the raiders,
     // and BANDIT is the one owner factionTint leaves untinted.
     const owner = RAIDER_BUILDINGS.includes(id) ? BANDIT : 0;

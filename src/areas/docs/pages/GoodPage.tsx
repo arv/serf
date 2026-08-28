@@ -14,6 +14,7 @@ import { GOOD_DESC } from '../descriptions';
 import { DocLink, Section } from '../components';
 import { Prose } from '../prose';
 import { buildingHref, goodHref, techHref, unitHref } from '../routes';
+import { BuildingTypeId } from '../../../sim/defs/buildings';
 
 // `entry`, not `ref`: ref is a reserved prop in Solid (element forwarding),
 // and a component that borrows the name never receives the value.
@@ -80,7 +81,7 @@ function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
       return (
         <li>
           Drunk at the{' '}
-          <DocLink href={buildingHref('abbey')}>{buildingName('abbey')}</DocLink> to hold a
+          <DocLink href={buildingHref(BuildingTypeId.abbey)}>{buildingName(BuildingTypeId.abbey)}</DocLink> to hold a
           festival, once <DocLink href={techHref('festivals')}>{techName('festivals')}</DocLink>{' '}
           is researched
         </li>
@@ -89,7 +90,7 @@ function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
       return (
         <li>
           Kept in the{' '}
-          <DocLink href={buildingHref('barracks')}>{buildingName('barracks')}</DocLink> cask —
+          <DocLink href={buildingHref(BuildingTypeId.barracks)}>{buildingName(BuildingTypeId.barracks)}</DocLink> cask —
           with <DocLink href={techHref('aleRations')}>{techName('aleRations')}</DocLink> each
           recruit drinks one and trains faster
         </li>

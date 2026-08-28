@@ -9,9 +9,12 @@ import { DocLink, Section } from '../components';
 import { Prose } from '../prose';
 import { buildingHref, unitHref } from '../routes';
 import { UNIT_TYPES } from '../../../sim/defs/units';
+import { BUILDING_TYPES } from '../../../sim/defs/buildings';
 
 export function CommandsPage(): JSX.Element {
-  const buildKeys = Object.entries(BUILD_KEYS) as [BuildingTypeId, string][];
+  const buildKeys = BUILDING_TYPES.flatMap((b): [BuildingTypeId, string][] =>
+    BUILD_KEYS[b] === undefined ? [] : [[b, BUILD_KEYS[b]]],
+  );
   const trainKeys = UNIT_TYPES.flatMap((u): [UnitTypeId, string][] =>
     TRAIN_KEYS[u] === undefined ? [] : [[u, TRAIN_KEYS[u]]],
   );

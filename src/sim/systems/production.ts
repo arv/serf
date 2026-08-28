@@ -21,6 +21,7 @@ import type { Unit } from '../units.ts';
 import { GoodId } from '../defs/goods.ts';
 import { goodEntries } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
+import { BuildingTypeId } from '../defs/buildings.ts';
 
 /**
  * How many nearby resource tiles one trip-start will try to path to before
@@ -138,9 +139,9 @@ function convertStep(
   }
   const speedup =
     getModifier(world, b.owner, 'workSpeed') *
-    (b.type === 'wheatFarm' ? getModifier(world, b.owner, 'farmSpeed') : 1) *
-    (b.type === 'mill' || b.type === 'bakery' ? getModifier(world, b.owner, 'foodSpeed') : 1) *
-    (b.type === 'weaponsmith' ? getModifier(world, b.owner, 'forgeSpeed') : 1);
+    (b.type === BuildingTypeId.wheatFarm ? getModifier(world, b.owner, 'farmSpeed') : 1) *
+    (b.type === BuildingTypeId.mill || b.type === BuildingTypeId.bakery ? getModifier(world, b.owner, 'foodSpeed') : 1) *
+    (b.type === BuildingTypeId.weaponsmith ? getModifier(world, b.owner, 'forgeSpeed') : 1);
   b.prodTicksLeft = Math.max(1, Math.round(active.durationTicks / speedup));
   if (def.recipeOptions) {
     b.prodRecipeIndex = activeIndex;

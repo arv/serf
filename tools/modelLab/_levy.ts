@@ -15,6 +15,7 @@ import { loadCharacterAssets, makeCharacter, playAnimation } from '../../src/ren
 import { UNIT_DEFS } from '../../src/sim/defs/units';
 import { makeLights, makeRenderer, YAW, PITCH } from './scene';
 import { UnitTypeId } from '../../src/sim/defs/units';
+import { BuildingTypeId } from '../../src/sim/defs/buildings';
 
 const params = new URLSearchParams(location.search);
 const t = Number(params.get('t') ?? '0');
@@ -47,7 +48,7 @@ function tower(kindCode: number, clip: 'throw' | 'shoot', x: number): void {
   const root = new THREE.Group();
   root.position.x = x;
   scene.add(root);
-  const model = makeGlbBuilding('guardTower', 0);
+  const model = makeGlbBuilding(BuildingTypeId.guardTower, 0);
   if (!model) throw new Error('no guardTower model');
   root.add(model);
 

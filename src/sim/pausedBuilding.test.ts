@@ -5,6 +5,7 @@ import { checkInvariants } from './debug/invariants.ts';
 import { addSerf, addSite, addStorehouse, bareWorld, cmds, staffBuilding } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -20,7 +21,7 @@ describe('pausing a building', () => {
   it('a paused weaponsmith stops converting, stops demanding wood, and sends its worker home', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 12, [GoodId.iron]: 6 });
-    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 36, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto)
     staffBuilding(world, smith);
     const worker = world.units.get(smith.workerId!)!;
@@ -75,7 +76,7 @@ describe('pausing a building', () => {
     // advanced — one hand stood bound doing nothing.
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.wood]: 20, [GoodId.stone]: 20 });
-    const site = placeSite(world, 'guardTower', 0, 36, 30);
+    const site = placeSite(world, BuildingTypeId.guardTower, 0, 36, 30);
     for (let i = 0; i < 3; i++) addSerf(world, 32, 33 + i);
 
     // Let the village supply the scaffold and put a builder on it — the
@@ -103,7 +104,7 @@ describe('pausing a building', () => {
   it('a rival cannot pause your buildings', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, { [GoodId.wood]: 0 });
-    const smith = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 30);
+    const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 36, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto)
     tickWorld(world, [
       { playerId: 1, cmd: { kind: 'setBuildingPaused', buildingId: smith.id, paused: true } },

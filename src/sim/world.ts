@@ -24,12 +24,7 @@ import { parseMapData, type MapFile } from './mapFile.ts';
 import { loadMissionMap } from './defs/missionMaps.ts';
 import { START_SERFS, START_STOCK, firstRaidTickFor } from './defs/balance.ts';
 import { UNIT_DEFS } from './defs/units.ts';
-import {
-  buildingDef,
-  gatherOrigin,
-  gatherRecipeOf,
-  type BuildingTypeId,
-} from './defs/buildings.ts';
+import { buildingDef, gatherOrigin, gatherRecipeOf } from './defs/buildings.ts';
 import { dealStrategies, type AiStrategyId } from './defs/aiStrategies.ts';
 import { MISSION_DEFS, type MissionId } from './defs/missions.ts';
 import { makeUnit, type Unit } from './units.ts';
@@ -42,6 +37,7 @@ import { GoodId } from './defs/goods.ts';
 import { goodKeys } from './defs/goods.ts';
 import { goodEntries } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 export interface HaulJob {
   id: number;
@@ -369,7 +365,7 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
   for (let p = 0; p < starts.length; p++) {
     const { x: shX, y: shY } = starts[p]!;
     clearResources(map, shX - 1, shY - 1, 5, 5);
-    const storehouse = placeBuiltBuilding(world, 'storehouse', p, shX, shY);
+    const storehouse = placeBuiltBuilding(world, BuildingTypeId.storehouse, p, shX, shY);
     // Mission overrides apply to the human's seat only (seat 0); a mission
     // rival opens with the standard larder.
     storehouse.stock = { ...(p === 0 && mission?.startStock ? mission.startStock : START_STOCK) };
@@ -412,7 +408,7 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           if (rectClear(map, cx + dx, cy + dy, 3, 3)) {
-            const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, cx + dx, cy + dy);
+            const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, cx + dx, cy + dy);
             // Standing guards defend the camp (auto-acquire handles the rest).
             for (let g = 0; g < 3; g++) {
               spawnUnitNearby(world, UnitTypeId.bandit, BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);

@@ -19,6 +19,7 @@ import {
   type Seat,
 } from './rooms.ts';
 import { roomFromRecord, roomToRecord } from './persist.ts';
+import { BuildingTypeId } from '../../src/sim/defs/buildings.ts';
 
 /** Pump exactly `ticks` ticks, one per call, on the room's own clock. */
 function advance(room: Room, ticks: number): void {
@@ -91,7 +92,7 @@ describe('server replay recording', () => {
     order(room, seat, { kind: 'hireSerf' });
     advance(room, 100);
     order(room, seat, { kind: 'moveUnits', unitIds: [7, 8], x: 20, y: 20 });
-    order(room, seat, { kind: 'placeBuilding', building: 'well', x: 30, y: 30 });
+    order(room, seat, { kind: 'placeBuilding', building: BuildingTypeId.well, x: 30, y: 30 });
     advance(room, 250);
 
     const expected = serializeWorld(room.world!);

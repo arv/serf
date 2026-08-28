@@ -80,6 +80,7 @@ import type { NetInfo } from '../protocol/messages';
 import type { Screen } from './screen';
 import { fatal } from './fatalScreen';
 import { stashGet, stashSet } from './stash';
+import { BuildingTypeId } from '../sim/defs/buildings';
 
 /**
  * The playing screen, and everything only it needs: three.js, the render
@@ -511,7 +512,7 @@ export async function runMatch(
   // multiplayer start sits on a ring — the first thing a player sees must
   // be their storehouse, not the bandits' hill.
   const home = init.buildings.find(
-    (b) => b.type === 'storehouse' && b.owner === config.myPlayerId,
+    (b) => b.type === BuildingTypeId.storehouse && b.owner === config.myPlayerId,
   );
   if (home) renderer.rig.focusOn(home.x + home.w / 2, home.y + home.h / 2);
 

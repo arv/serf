@@ -24,6 +24,7 @@ import type { SimCommand } from './commands.ts';
 import { GoodId } from './defs/goods.ts';
 import type { GoodAmounts } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 function digest(world: World): unknown {
   return {
@@ -147,7 +148,7 @@ describe('strategist overrides', () => {
     const world = createWorld({ seed: 17, players: [{ kind: 'ai', strategy: 'steward' }] });
     const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy), world.map.size);
     if (override) brain.setOverride(override);
-    const castle = [...world.buildings.values()].find((b) => b.type === 'storehouse')!;
+    const castle = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
     const home = { x: castle.x + 1, y: castle.y + 1 + 4 };
     for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
       const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
@@ -460,7 +461,7 @@ describe('the stall watchdog', () => {
   it('starts a threatened tower, and halts it again once the ground is quiet', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
     tower.paused = true; // as one comes off the scaffold
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     const beat = (): SimCommand[] => {
@@ -504,10 +505,10 @@ describe('the stall watchdog', () => {
     // the raid with stones and kept the archer for the field.
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
     // Running, and the villagers are already up — the raid caught it as the
     // levy branch always used to leave it.
-    tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
+    tower.garrison = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity;
     tower.garrisonKind = UnitTypeId.serf;
     spawnUnit(world, UnitTypeId.bandit, BANDIT, 37.5, 38.5);
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 34.5, 34.5);
@@ -533,7 +534,7 @@ describe('the stall watchdog', () => {
     // running for the villagers to climb rather than emptied.
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
     tower.paused = true; // as one comes off the scaffold
     spawnUnit(world, UnitTypeId.bandit, BANDIT, 37.5, 38.5);
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
@@ -553,7 +554,7 @@ describe('the stall watchdog', () => {
     // loose again, and is walked over again, forever.
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 40.5, 40.5);
     archer.task = { t: 'staff', buildingId: tower.id };
     tower.recruitId = archer.id;
@@ -569,8 +570,8 @@ describe('the stall watchdog', () => {
     // levy down on quiet ground with an archer standing idle beside it.
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
-    tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
+    tower.garrison = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity;
     tower.garrisonKind = UnitTypeId.serf;
     spawnUnit(world, UnitTypeId.archer, 0, 34.5, 34.5);
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
@@ -585,7 +586,7 @@ describe('the stall watchdog', () => {
     // opened for nobody — and an empty running tower calls villagers up.
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
     tower.paused = true;
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 34.5, 34.5);
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
@@ -606,7 +607,7 @@ describe('the stall watchdog', () => {
     // for as long as it stood there.
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
     tower.paused = true;
     tower.staffBackoffUntil = world.tick + 10_000; // walled off, for now
     spawnUnit(world, UnitTypeId.archer, 0, 34.5, 34.5);
@@ -621,8 +622,8 @@ describe('the stall watchdog', () => {
   it('never stands a tower its archers hold down, or up', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 36, 36);
-    tower.garrison = BUILDING_DEFS.guardTower.garrison!.capacity;
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
+    tower.garrison = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity;
     tower.garrisonKind = UnitTypeId.archer;
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     world.tick += AI_PACING.decisionInterval;
@@ -632,7 +633,7 @@ describe('the stall watchdog', () => {
     // them down would trade a wall that cannot be shot back at for two men
     // in the open, and start them climbing back up at the next sighting.
     expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
-    expect(tower.garrison).toBe(BUILDING_DEFS.guardTower.garrison!.capacity);
+    expect(tower.garrison).toBe(BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity);
   });
 
   it('leaves a seat that is going somewhere byte-identical', () => {
@@ -661,7 +662,7 @@ describe('a village that lost its hands', () => {
   function raidedVillage(): { world: World; brain: AiBrain; barracks: Building } {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 36);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 36);
     return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size), barracks };
   }
 
@@ -762,7 +763,7 @@ describe('a village that lost its hands', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, { [GoodId.food]: 40, [GoodId.sword]: 40 });
     addStorehouse(world, 60, 60, {}, 1); // a rival, so the match does not end at tick 1
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 36);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 36);
     barracks.inputs = { [GoodId.food]: 30, [GoodId.sword]: 30 };
     barracks.paused = true;
     const floor = AI_STRATEGIES.steward.survivalFloor;
@@ -794,7 +795,7 @@ describe('a village that lost its hands', () => {
     const soldiery = TECH_DEFS.soldiery.cost[GoodId.silver]!;
     const world = bareWorld();
     const shelf = addStorehouse(world, 30, 30, { [GoodId.silver]: soldiery + 1, [GoodId.wheat]: 20 });
-    placeBuiltBuilding(world, 'abbey', 0, 36, 36);
+    placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 36, 36);
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     expect(beat(brain, world).filter((c) => c.kind === 'research')).toEqual([]);
 
@@ -860,8 +861,8 @@ describe('a forge nobody is buying from', () => {
   } {
     const world = bareWorld();
     addStorehouse(world, 30, 30, stock);
-    const swords = placeBuiltBuilding(world, 'weaponsmith', 0, 36, 36);
-    const bows = placeBuiltBuilding(world, 'weaponsmith', 0, 40, 36);
+    const swords = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 36, 36);
+    const bows = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 40, 36);
     swords.recipeIndex = AI_STRATEGIES.abbot.weaponMix[0]!;
     bows.recipeIndex = AI_STRATEGIES.abbot.weaponMix[1]!;
     return {
@@ -947,7 +948,7 @@ describe('a forge nobody is buying from', () => {
     const orders = beat(brain, world);
     const woken = orders.find((c) => c.kind === 'setBuildingPaused' && c.paused === false);
     expect(woken).toBeDefined();
-    const axe = BUILDING_DEFS.weaponsmith.recipeOptions!.findIndex(
+    const axe = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!.findIndex(
       (o) => (o.recipe.outputs[GoodId.axe] ?? 0) > 0,
     );
     expect(orders).toContainEqual({

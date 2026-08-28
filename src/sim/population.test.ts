@@ -8,6 +8,7 @@ import { BUILDING_DEFS } from './defs/buildings.ts';
 import { addSerf, addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
 
 /**
  * The population cap. Beds, not bodies, are the ceiling: the castle sleeps
@@ -25,7 +26,7 @@ describe('the population cap', () => {
 
   it('starts every village at ten beds under the castle', () => {
     const world = createWorld({ seed: 20260724, players: [{ kind: 'human' }] });
-    expect(popCapOf(world, 0)).toBe(BUILDING_DEFS.storehouse.housing);
+    expect(popCapOf(world, 0)).toBe(BUILDING_DEFS[BuildingTypeId.storehouse].housing);
     expect(popCapOf(world, 0)).toBe(10);
     // Eight serfs under ten roofs: room to replace a loss, not to grow on.
     expect(populationOf(world, 0)).toBe(START_SERFS);
@@ -66,7 +67,7 @@ describe('the population cap', () => {
 
   it('lets a finished house pay for ten more, but not a site', () => {
     const { world } = village(10);
-    const site = placeSite(world, 'house', 0, 30, 30);
+    const site = placeSite(world, BuildingTypeId.house, 0, 30, 30);
     expect(popCapOf(world, 0)).toBe(10); // a roof under construction sleeps nobody
     expect(hasRoomToHire(world, 0)).toBe(false);
 
@@ -77,8 +78,8 @@ describe('the population cap', () => {
 
   it('adds ten per house, and takes them back when one falls', () => {
     const { world } = village(0);
-    const a = placeBuiltBuilding(world, 'house', 0, 30, 30);
-    placeBuiltBuilding(world, 'house', 0, 34, 30);
+    const a = placeBuiltBuilding(world, BuildingTypeId.house, 0, 30, 30);
+    placeBuiltBuilding(world, BuildingTypeId.house, 0, 34, 30);
     expect(popCapOf(world, 0)).toBe(30);
     a.dead = true;
     expect(popCapOf(world, 0)).toBe(20);
@@ -96,7 +97,7 @@ describe('the population cap', () => {
     expect(populationOf(world, 0)).toBe(10);
 
     // A house goes up and the recruit walks straight in.
-    placeBuiltBuilding(world, 'house', 0, 30, 30);
+    placeBuiltBuilding(world, BuildingTypeId.house, 0, 30, 30);
     hiringSystem(world);
     expect(sh.hireQueue).toBe(0);
     expect(populationOf(world, 0)).toBe(11);
