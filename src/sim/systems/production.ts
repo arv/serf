@@ -23,6 +23,9 @@ import { goodEntries } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
 import { ModifierKey } from '../defs/techs.ts';
+import { BuildingState } from '../entities.ts';
+import { UnitTaskKind } from '../units.ts';
+import { RecipeKind } from '../defs/buildings.ts';
 
 /**
  * How many nearby resource tiles one trip-start will try to path to before
@@ -39,7 +42,7 @@ const GATHER_REACH_TRIES = 8;
  */
 export function productionSystem(world: World, rng: Rng): void {
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built' || b.paused) continue;
+    if (b.dead || b.state !== BuildingState.built || b.paused) continue;
     const def = buildingDef(b.type);
     const recipe = def.recipe ?? convertRecipeOf(def, b);
     // A Smith on auto (or holding only queue orders) has no standing
@@ -53,7 +56,7 @@ export function productionSystem(world: World, rng: Rng): void {
       const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
       if (!worker || worker.dead) continue;
     }
-    if (recipe?.kind === 'gather') gatherStep(world, b, recipe);
+    if (recipe?.kind === RecipeKind.gather) gatherStep(world, b, recipe);
     else convertStep(world, b, def, recipe);
   }
 
@@ -68,7 +71,7 @@ function convertStep(
   world: World,
   b: Building,
   def: BuildingDef,
-  recipe: (Recipe & { kind: 'convert' }) | undefined,
+  recipe: (Recipe & { kind: RecipeKind.convert }) | undefined,
 ): void {
   if (b.prodTicksLeft !== undefined) {
     b.prodTicksLeft--;
@@ -159,7 +162,7 @@ function optionUnlocked(world: World, owner: number, def: BuildingDef, index: nu
   return world.players[owner]?.techs.researched.includes(opt.requiresTech) ?? false;
 }
 
-function inputsPresent(b: Building, recipe: Recipe & { kind: 'convert' }): boolean {
+function inputsPresent(b: Building, recipe: Recipe & { kind: RecipeKind.convert }): boolean {
   const inputs = recipeInputs(recipe);
   for (let i = 0; i < inputs.length; i++) {
     const [good, n] = inputs[i]!;
@@ -185,7 +188,7 @@ function recipeEntries(goods: Partial<Record<GoodId, number>>): [GoodId, number]
   return entries;
 }
 
-function recipeInputs(recipe: Recipe & { kind: 'convert' }): [GoodId, number][] {
+function recipeInputs(recipe: Recipe & { kind: RecipeKind.convert }): [GoodId, number][] {
   return recipeEntries(recipe.inputs);
 }
 
@@ -268,14 +271,14 @@ export function autoForgeIndex(world: World, b: Building, def: BuildingDef): num
   const owner = b.owner;
   for (const ob of world.buildings.values()) {
     if (ob.dead || ob.owner !== owner) continue;
-    if (ob.state === 'site') {
+    if (ob.state === BuildingState.site) {
       // A site still owed its hammer is a hammer the village lacks.
       if (!ob.paused && (ob.siteNeeds?.[GoodId.hammer] ?? 0) > 0 && (ob.inbound[GoodId.hammer] ?? 0) === 0) {
         want[HAMMER_SLOT] = want[HAMMER_SLOT]! + 1;
       }
       continue;
     }
-    if (ob.state !== 'built') continue;
+    if (ob.state !== BuildingState.built) continue;
     const stock = ob.stock;
     const reservedOut = ob.reservedOut;
     for (let i = 0; i < TOOL_COUNT; i++) {
@@ -345,7 +348,7 @@ export function forgeDemandRecipe(
   world: World,
   b: Building,
   def: BuildingDef,
-): (Recipe & { kind: 'convert' }) | undefined {
+): (Recipe & { kind: RecipeKind.convert }) | undefined {
   const queued = b.forgeQueue?.find(
     (o) => !o.started && def.recipeOptions?.[o.recipeIndex] !== undefined,
   );
@@ -355,12 +358,12 @@ export function forgeDemandRecipe(
   return auto === undefined ? undefined : def.recipeOptions![auto]!.recipe;
 }
 
-function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather' }): void {
+function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKind.gather }): void {
   const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
   if (!worker || worker.dead) return;
 
   switch (worker.task.t) {
-    case 'idle': {
+    case UnitTaskKind.idle: {
       if (world.tick < worker.task.until) return;
       // Still holding the last trip's output — the walk home gave up short.
       // Get it in before starting another trip: gatherWork writes `carrying`
@@ -368,15 +371,15 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
       // conservation ledger would come up a good short.
       if (worker.carrying !== undefined) {
         if (!walkToBuilding(world.map, worker, b)) {
-          worker.task = { t: 'idle', until: world.tick + 40 };
+          worker.task = { t: UnitTaskKind.idle, until: world.tick + 40 };
           return;
         }
-        worker.task = { t: 'gatherHome' };
+        worker.task = { t: UnitTaskKind.gatherHome };
         return;
       }
       // Output full? Wait — full buffers stall production (Settlers rule).
       if ((b.stock[recipe.output] ?? 0) >= OUTPUT_CAP) {
-        worker.task = { t: 'idle', until: world.tick + 20 };
+        worker.task = { t: UnitTaskKind.idle, until: world.tick + 20 };
         return;
       }
       const c = gatherOrigin(buildingDef(b.type), b.x, b.y);
@@ -413,22 +416,22 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
         }
       }
       if (tile < 0 || !path) {
-        worker.task = { t: 'idle', until: world.tick + 40 };
+        worker.task = { t: UnitTaskKind.idle, until: world.tick + 40 };
         return;
       }
       worker.path = path;
       worker.pathIdx = 0;
-      worker.task = { t: 'gatherOut', tile };
+      worker.task = { t: UnitTaskKind.gatherOut, tile };
       return;
     }
-    case 'gatherOut': {
+    case UnitTaskKind.gatherOut: {
       if (worker.path !== null) return; // walking
       const tile = worker.task.tile;
       // Only a worker standing at the tile may work it — a walk cut short by
       // new construction would otherwise fell a tree from across the valley.
       if (!atTile(worker, tile, world.map.size)) {
         if (!walkToTile(world.map, worker, tile)) {
-          worker.task = { t: 'idle', until: world.tick + 40 };
+          worker.task = { t: UnitTaskKind.idle, until: world.tick + 40 };
         }
         return;
       }
@@ -436,20 +439,20 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
         world.map.resource[tile] !== RESOURCE_CODE[recipe.resource] ||
         world.map.resourceAmt[tile]! <= 0
       ) {
-        worker.task = { t: 'idle', until: world.tick }; // someone else finished it
+        worker.task = { t: UnitTaskKind.idle, until: world.tick }; // someone else finished it
         return;
       }
       const speedup =
         getModifier(world, b.owner, ModifierKey.workSpeed) *
         (buildingDef(b.type).mine ? getModifier(world, b.owner, ModifierKey.mineSpeed) : 1);
       worker.task = {
-        t: 'gatherWork',
+        t: UnitTaskKind.gatherWork,
         tile,
         until: world.tick + Math.max(1, Math.round(recipe.workTicks / speedup)),
       };
       return;
     }
-    case 'gatherWork': {
+    case UnitTaskKind.gatherWork: {
       if (world.tick < worker.task.until) return;
       const tile = worker.task.tile;
       if (world.map.resource[tile] === RESOURCE_CODE[recipe.resource]) {
@@ -471,17 +474,17 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
       );
       worker.path = path;
       worker.pathIdx = 0;
-      worker.task = { t: 'gatherHome' };
+      worker.task = { t: UnitTaskKind.gatherHome };
       return;
     }
-    case 'gatherHome': {
+    case UnitTaskKind.gatherHome: {
       if (worker.path !== null) return; // walking
       // Not home yet: the load goes in the hut's stock, not through its wall.
       // Idling with it in hand is safe — the idle case above walks him back
       // rather than sending him out again on top of it.
       if (!atBuilding(worker, b)) {
         if (!walkToBuilding(world.map, worker, b)) {
-          worker.task = { t: 'idle', until: world.tick + 40 };
+          worker.task = { t: UnitTaskKind.idle, until: world.tick + 40 };
         }
         return;
       }
@@ -489,7 +492,7 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: 'gather'
         b.stock[worker.carrying] = (b.stock[worker.carrying] ?? 0) + 1;
         worker.carrying = undefined;
       }
-      worker.task = { t: 'idle', until: world.tick + 10 };
+      worker.task = { t: UnitTaskKind.idle, until: world.tick + 10 };
       return;
     }
     default:
@@ -561,12 +564,12 @@ export function unbindWorker(world: World, worker: Unit): void {
     // never comes through here: a killed worker takes the tool with him,
     // which is the raid's second bite of damage.
     const tool = TOOL_OF[home.type];
-    if (tool && !home.dead && home.state === 'built') {
+    if (tool && !home.dead && home.state === BuildingState.built) {
       home.stock[tool] = (home.stock[tool] ?? 0) + 1;
       world.ledger.produced[tool] = (world.ledger.produced[tool] ?? 0) + 1;
     }
   }
   worker.homeId = undefined;
   worker.kind = UnitTypeId.serf;
-  worker.task = { t: 'idle', until: world.tick };
+  worker.task = { t: UnitTaskKind.idle, until: world.tick };
 }

@@ -1,4 +1,5 @@
 import type { BuildingSnap } from '../protocol/messages';
+import { BuildingState } from '../sim/entities';
 
 /**
  * A built tower's halt lever is the roof: starting it mans the tower —
@@ -21,6 +22,6 @@ export interface LevyOrder {
  * lever is the ordinary build halt and reads as one.
  */
 export function levyOrder(b: BuildingSnap): LevyOrder | undefined {
-  if (b.garrisonCap === undefined || b.state !== 'built') return undefined;
+  if (b.garrisonCap === undefined || b.state !== BuildingState.built) return undefined;
   return { label: b.paused ? 'Man the tower' : 'Stand down' };
 }

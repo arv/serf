@@ -8,6 +8,7 @@ import { RESOURCE_CODE, type MapView } from '../sim/map';
 import { verdictBad, verdictGood } from './palette';
 import type { BuildingSnap } from '../protocol/messages';
 import { BuildingTypeId } from '../sim/defs/buildings';
+import { BuildingState } from '../sim/entities';
 
 const SIZE = DEFAULT_MAP_SIZE;
 
@@ -48,7 +49,7 @@ function snap(over: Partial<BuildingSnap>): BuildingSnap {
     h: 2,
     hp: 150,
     maxHp: 150,
-    state: 'built',
+    state: BuildingState.built,
     stock: {},
     inputs: {},
     inbound: {},

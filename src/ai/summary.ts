@@ -13,6 +13,7 @@ import { UnitTypeId } from '../sim/defs/units.ts';
 import { BuildingTypeId } from '../sim/defs/buildings.ts';
 import { BUILDING_KEYS } from '../sim/defs/buildings.ts';
 import { TECH_KEYS } from '../sim/defs/techs.ts';
+import { BuildingState } from '../sim/entities.ts';
 
 /**
  * One AI seat's view of the match, folded down for a language model. The
@@ -141,7 +142,7 @@ function inMinutes(tick: number): number {
 
 function castleOf(world: World, owner: Owner): Building | undefined {
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.owner === owner && buildingDef(b.type).storage && b.state === 'built') {
+    if (!b.dead && b.owner === owner && buildingDef(b.type).storage && b.state === BuildingState.built) {
       return b;
     }
   }

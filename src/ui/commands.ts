@@ -7,6 +7,7 @@ import { GoodId } from '../sim/defs/goods';
 import { UnitTypeId } from '../sim/defs/units';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { TechEffectKind } from '../sim/defs/techs';
+import { BuildingState } from '../sim/entities';
 
 /**
  * The commands a selected building offers: who may run them, and which
@@ -46,7 +47,7 @@ export function canHire(
   stock: GoodAmounts,
   pop: { pop: number; cap: number },
 ): boolean {
-  if (b.type !== BuildingTypeId.storehouse || b.state !== 'built') return false;
+  if (b.type !== BuildingTypeId.storehouse || b.state !== BuildingState.built) return false;
   const queued = b.hireQueue ?? 0;
   return (
     (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST && queued < HIRE_QUEUE_CAP && pop.pop + queued < pop.cap
@@ -64,7 +65,7 @@ export function canTrain(
   unit: UnitTypeId,
   researched: readonly TechId[],
 ): boolean {
-  if (b.state !== 'built') return false;
+  if (b.state !== BuildingState.built) return false;
   const gate = unitTechGate(unit);
   if (gate !== undefined && !researched.includes(gate)) return false;
   return (b.trainQueue?.length ?? 0) < TRAIN_QUEUE_CAP;
@@ -108,7 +109,7 @@ export const RALLY_KEY = 'Y';
 /** May this building fly a rally flag at all? A type-level question — the
  * same one the sim asks (only buildings that train take one). */
 export function canRally(b: BuildingSnap): boolean {
-  return b.state === 'built' && BUILDING_DEFS[b.type].trains !== undefined;
+  return b.state === BuildingState.built && BUILDING_DEFS[b.type].trains !== undefined;
 }
 
 /**

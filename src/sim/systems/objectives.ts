@@ -6,6 +6,7 @@ import type { ObjectiveSpec } from '../defs/missions.ts';
 import type { Owner } from '../entities.ts';
 import type { World } from '../world.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
+import { BuildingState } from '../entities.ts';
 
 /**
  * Mission objectives: stateless predicates over the world, latched into
@@ -18,7 +19,7 @@ export function objectiveMet(world: World, spec: ObjectiveSpec, player: Owner): 
     case 'building': {
       let n = 0;
       for (const b of world.buildings.values()) {
-        if (!b.dead && b.state === 'built' && b.owner === player && b.type === spec.type) n++;
+        if (!b.dead && b.state === BuildingState.built && b.owner === player && b.type === spec.type) n++;
       }
       return n >= spec.count;
     }
@@ -27,7 +28,7 @@ export function objectiveMet(world: World, spec: ObjectiveSpec, player: Owner): 
       // buffers or serfs' hands don't count until they come home.
       let n = 0;
       for (const b of world.buildings.values()) {
-        if (!b.dead && b.state === 'built' && b.owner === player && buildingDef(b.type).storage) {
+        if (!b.dead && b.state === BuildingState.built && b.owner === player && buildingDef(b.type).storage) {
           n += b.stock[spec.good] ?? 0;
         }
       }

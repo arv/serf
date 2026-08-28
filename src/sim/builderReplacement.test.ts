@@ -5,6 +5,7 @@ import { checkInvariants } from './debug/invariants.ts';
 import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingState } from './entities.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -26,8 +27,8 @@ describe("a builder's death never orphans the site", () => {
     const firstBuilder = site.workerId!;
     killUnit(world, world.units.get(firstBuilder)!);
     guard = 0;
-    while (site.state !== 'built' && guard++ < 4000) tickWorld(world, []);
-    expect(site.state).toBe('built');
+    while (site.state !== BuildingState.built && guard++ < 4000) tickWorld(world, []);
+    expect(site.state).toBe(BuildingState.built);
     expect(site.workerId).not.toBe(firstBuilder);
     expect(checkInvariants(world).violations).toEqual([]);
   });
@@ -43,8 +44,8 @@ describe("a builder's death never orphans the site", () => {
     expect(site.recruitId).toBeDefined();
     killUnit(world, world.units.get(site.recruitId!)!);
     guard = 0;
-    while (site.state !== 'built' && guard++ < 4000) tickWorld(world, []);
-    expect(site.state).toBe('built');
+    while (site.state !== BuildingState.built && guard++ < 4000) tickWorld(world, []);
+    expect(site.state).toBe(BuildingState.built);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
@@ -62,12 +63,12 @@ describe("a builder's death never orphans the site", () => {
       if (!u.dead && u.kind === UnitTypeId.serf) killUnit(world, u);
     }
     run(world, 300);
-    expect(site.state).toBe('site'); // stalled, correctly — nobody to send
+    expect(site.state).toBe(BuildingState.site); // stalled, correctly — nobody to send
     // A new serf arrives (hire); the site should claim him.
     spawnUnit(world, UnitTypeId.serf, 0, 30.5, 34.5);
     guard = 0;
-    while (site.state !== 'built' && guard++ < 4000) tickWorld(world, []);
-    expect(site.state).toBe('built');
+    while (site.state !== BuildingState.built && guard++ < 4000) tickWorld(world, []);
+    expect(site.state).toBe(BuildingState.built);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 });
@@ -96,8 +97,8 @@ describe('the pause escape hatch', () => {
     // With no further orders he hauls the materials, then — because sites
     // outrank his old post in the recruit sweep — raises the building.
     let guard = 0;
-    while (site.state !== 'built' && guard++ < 6000) tickWorld(world, []);
-    expect(site.state).toBe('built');
+    while (site.state !== BuildingState.built && guard++ < 6000) tickWorld(world, []);
+    expect(site.state).toBe(BuildingState.built);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 

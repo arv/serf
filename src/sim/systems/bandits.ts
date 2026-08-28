@@ -4,6 +4,7 @@ import { spawnUnitNearby, type World } from '../world.ts';
 import { Rng } from '../../shared/rng.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
+import { UnitTaskKind } from '../units.ts';
 
 /**
  * Escalating raids: waves grow and diversify (light -> +ranged -> +heavy) so
@@ -44,7 +45,7 @@ export function banditsSystem(world: World, rng: Rng): void {
       camp.x + 1.5 + (i % 4) - 1.5,
       camp.y + camp.h + 1.5 + Math.floor(i / 4),
     );
-    unit.task = { t: 'raid', buildingId: target.id };
+    unit.task = { t: UnitTaskKind.raid, buildingId: target.id };
   }
 
   const counts = new Map<UnitTypeId, number>();

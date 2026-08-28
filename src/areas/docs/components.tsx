@@ -7,6 +7,7 @@ import { goodName } from '../../ui/names';
 import { fmtPerMinute, fmtSecs } from './data';
 import { goodHref } from './routes';
 import { goodEntries } from '../../sim/defs/goods';
+import { RecipeKind } from '../../sim/defs/buildings';
 
 /**
  * An internal wiki link: a real <a>, so middle-click and copy-link work,
@@ -102,7 +103,7 @@ export function Stat(props: { label: string; children: JSX.Element }): JSX.Eleme
  */
 export function RecipeView(props: { recipe: Recipe }): JSX.Element {
   const r = props.recipe;
-  if (r.kind === 'gather') {
+  if (r.kind === RecipeKind.gather) {
     return (
       <span>
         works <b>{r.resource}</b> tiles within {r.radius} → <GoodChip good={r.output} amount={1} />{' '}

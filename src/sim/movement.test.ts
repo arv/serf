@@ -5,6 +5,7 @@ import { checkInvariants } from './debug/invariants.ts';
 import { addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import { spawnUnit, type World } from './world.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { UnitTaskKind } from './units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -27,7 +28,7 @@ describe('a route obstructed mid-walk', () => {
     addStorehouse(world, 50, 50, {});
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 40, y: 30 }));
-    expect(knight.task.t).toBe('move');
+    expect(knight.task.t).toBe(UnitTaskKind.move);
     run(world, 10); // under way, well short of the goal
 
     world.map.blocked[knight.path![knight.pathIdx]!] = 1;
@@ -41,7 +42,7 @@ describe('a route obstructed mid-walk', () => {
     run(world, 20 * 30);
     expect(Math.floor(knight.x)).toBe(40);
     expect(Math.floor(knight.y)).toBe(30);
-    expect(knight.task.t).toBe('idle');
+    expect(knight.task.t).toBe(UnitTaskKind.idle);
   });
 
   it('re-aims beside a destination that was built over, not back where it stands', () => {
@@ -63,7 +64,7 @@ describe('a route obstructed mid-walk', () => {
     expect(knight.x).toBeLessThan(35);
 
     run(world, 20 * 30);
-    expect(knight.task.t).toBe('idle');
+    expect(knight.task.t).toBe(UnitTaskKind.idle);
     const gx = tileX(goal, world.map.size) + 0.5;
     const gy = tileY(goal, world.map.size) + 0.5;
     expect(Math.hypot(knight.x - gx, knight.y - gy)).toBeLessThanOrEqual(4);
@@ -96,7 +97,7 @@ describe('a route obstructed mid-walk', () => {
 
     // Idle is the state every other system recruits from — wander, the job
     // dispatcher, staffing. Left on 'move' he was invisible to all of them.
-    expect(knight.task.t).toBe('idle');
+    expect(knight.task.t).toBe(UnitTaskKind.idle);
     expect(knight.path).toBeNull();
     expect(checkInvariants(world).violations).toEqual([]);
 
@@ -124,7 +125,7 @@ describe('a route obstructed mid-walk', () => {
     // one straggler left on 'move' used to hang the whole sweep.
     for (const id of ids) {
       const u = world.units.get(id)!;
-      expect(u.task.t).toBe('idle');
+      expect(u.task.t).toBe(UnitTaskKind.idle);
       expect(u.x).toBeGreaterThan(35);
     }
     expect(checkInvariants(world).violations).toEqual([]);

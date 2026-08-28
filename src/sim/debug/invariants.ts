@@ -3,6 +3,8 @@ import type { World } from '../world.ts';
 import { GOOD_KEYS } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { BUILDING_KEYS } from '../defs/buildings.ts';
+import { UnitTaskKind } from '../units.ts';
+import { HaulPhase } from '../world.ts';
 
 /**
  * Dev-only consistency checks over the logistics bookkeeping. Violations mean
@@ -30,7 +32,7 @@ export function checkInvariants(world: World): InvariantReport {
         `job ${job.id}: owner ${job.owner} but from=${from.owner} to=${to.owner} (cross-owner)`,
       );
     }
-    if (job.phase !== 'toDropoff') {
+    if (job.phase !== HaulPhase.toDropoff) {
       const m = expectOut.get(job.from) ?? {};
       m[job.good] = (m[job.good] ?? 0) + 1;
       expectOut.set(job.from, m);
@@ -39,12 +41,12 @@ export function checkInvariants(world: World): InvariantReport {
     m[job.good] = (m[job.good] ?? 0) + 1;
     expectIn.set(job.to, m);
 
-    if (job.phase !== 'open') {
+    if (job.phase !== HaulPhase.open) {
       const serf = job.serfId !== undefined ? world.units.get(job.serfId) : undefined;
       if (!serf) violations.push(`job ${job.id}: assigned serf ${job.serfId} missing`);
       else if (serf.jobId !== job.id) {
         violations.push(`job ${job.id}: serf ${serf.id} jobId=${serf.jobId} (link broken)`);
-      } else if (job.phase === 'toDropoff' && !serf.dead && serf.carrying !== job.good) {
+      } else if (job.phase === HaulPhase.toDropoff && !serf.dead && serf.carrying !== job.good) {
         // A carrier killed mid-haul is not a violation yet: killUnit ledgers
         // the cargo away immediately, and the job waits (at most
         // MATCHER_INTERVAL ticks, well inside the corpse's linger) for the
@@ -89,7 +91,7 @@ export function checkInvariants(world: World): InvariantReport {
       const job = world.jobs.get(u.jobId);
       if (!job) violations.push(`serf ${u.id}: jobId=${u.jobId} but job missing`);
       else if (job.serfId !== u.id) violations.push(`serf ${u.id}: job ${job.id} names serf ${job.serfId}`);
-      if (u.kind === UnitTypeId.serf && u.carrying !== undefined && job && job.phase !== 'toDropoff') {
+      if (u.kind === UnitTypeId.serf && u.carrying !== undefined && job && job.phase !== HaulPhase.toDropoff) {
         violations.push(`serf ${u.id}: carrying ${u.carrying} in phase ${job.phase}`);
       }
     } else if (u.kind === UnitTypeId.serf && u.carrying !== undefined) {
@@ -100,7 +102,7 @@ export function checkInvariants(world: World): InvariantReport {
       // still wrong is a carrier in a task nothing drives — the shape an
       // ex-worker takes when he is unbound while a gather task is still on
       // him, which no system will ever pick up again.
-      if (u.task.t !== 'idle' && u.task.t !== 'move') {
+      if (u.task.t !== UnitTaskKind.idle && u.task.t !== UnitTaskKind.move) {
         violations.push(`serf ${u.id}: carrying ${u.carrying} in task ${u.task.t} with no job`);
       }
     }
@@ -114,7 +116,7 @@ export function checkInvariants(world: World): InvariantReport {
     if (u.targetId === undefined && u.targetIsBuilding !== undefined) {
       violations.push(`unit ${u.id}: targetIsBuilding=${u.targetIsBuilding} with no targetId`);
     }
-    if (u.task.t === 'move' && u.targetId !== undefined) {
+    if (u.task.t === UnitTaskKind.move && u.targetId !== undefined) {
       violations.push(`unit ${u.id}: holds target ${u.targetId} under a plain move order`);
     }
 
@@ -122,7 +124,7 @@ export function checkInvariants(world: World): InvariantReport {
     // is the only thing that drives it, and it skips units with no route.
     // Every other system filters for idle units, so a move that has lost its
     // path is a unit that will stand there for the rest of the match.
-    if (u.task.t === 'move' && u.path === null) {
+    if (u.task.t === UnitTaskKind.move && u.path === null) {
       violations.push(`unit ${u.id}: plain move with no route — nothing will move it again`);
     }
   }

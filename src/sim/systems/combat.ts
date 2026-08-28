@@ -9,6 +9,8 @@ import { findPath, findPathToAdjacent, nearestWalkable } from '../path.ts';
 import { destroyBuilding, killUnit, type World } from '../world.ts';
 import type { Unit } from '../units.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
+import { BuildingState } from '../entities.ts';
+import { UnitTaskKind } from '../units.ts';
 
 /**
  * Thin, quarantined combat: reads positions, writes hp and movement intents.
@@ -64,7 +66,7 @@ export function combatSystem(world: World): void {
     // can hang one on a unit that is walking away, and nothing below this
     // point would ever act on it or clear it, so the unit would keep
     // reporting itself as fighting an enemy it has left behind.
-    if (unit.task.t === 'move') {
+    if (unit.task.t === UnitTaskKind.move) {
       disengage(unit);
       continue;
     }
@@ -76,12 +78,12 @@ export function combatSystem(world: World): void {
     // A path lost to new construction goes live early rather than quiet:
     // resumeAttackMove re-plans, but the original midpoint is meaningless
     // on a route that no longer exists.
-    if (unit.task.t === 'attackMove' && unit.task.engageIdx !== undefined) {
+    if (unit.task.t === UnitTaskKind.attackMove && unit.task.engageIdx !== undefined) {
       if (isDisengaging(unit)) {
         disengage(unit);
         continue;
       }
-      unit.task = { t: 'attackMove', destX: unit.task.destX, destY: unit.task.destY };
+      unit.task = { t: UnitTaskKind.attackMove, destX: unit.task.destX, destY: unit.task.destY };
       disengage(unit);
     }
 
@@ -103,7 +105,7 @@ export function combatSystem(world: World): void {
 
     // Camp guards hold their post. Without a leash a wandering serf tows
     // one into the village, and the pack follows it home.
-    const guard = unit.owner === BANDIT && unit.task.t !== 'raid' ? campOf() : undefined;
+    const guard = unit.owner === BANDIT && unit.task.t !== UnitTaskKind.raid ? campOf() : undefined;
     if (guard && distToBuilding(unit, guard) > GUARD_LEASH) {
       disengage(unit);
       if (unit.path === null && !(unit.repathAt !== undefined && world.tick < unit.repathAt)) {
@@ -127,7 +129,7 @@ export function combatSystem(world: World): void {
       if (targetUnit) {
         unit.targetId = targetUnit.id;
         unit.targetIsBuilding = false;
-      } else if (unit.task.t === 'raid') {
+      } else if (unit.task.t === UnitTaskKind.raid) {
         // An objective that just proved unreachable stays on the books, but
         // the unit holds instead of burning a worst-case path search at it
         // every tick (see Unit.repathAt).
@@ -141,13 +143,13 @@ export function combatSystem(world: World): void {
         }
         if (!targetBuilding && unit.owner === BANDIT) {
           targetBuilding = nearestEnemyBuilding(liveBuildings, unit);
-          if (targetBuilding) unit.task = { t: 'raid', buildingId: targetBuilding.id };
+          if (targetBuilding) unit.task = { t: UnitTaskKind.raid, buildingId: targetBuilding.id };
         }
         if (targetBuilding) {
           unit.targetId = targetBuilding.id;
           unit.targetIsBuilding = true;
         } else {
-          unit.task = { t: 'idle', until: world.tick };
+          unit.task = { t: UnitTaskKind.idle, until: world.tick };
         }
       } else if (isPlayerOwner(unit.owner)) {
         // No enemy units around: idle soldiers besiege enemy buildings in
@@ -170,7 +172,7 @@ export function combatSystem(world: World): void {
     }
 
     if (unit.targetId === undefined) {
-      if (unit.task.t === 'attackMove') resumeAttackMove(world, unit);
+      if (unit.task.t === UnitTaskKind.attackMove) resumeAttackMove(world, unit);
       continue;
     }
 
@@ -261,7 +263,7 @@ export function combatSystem(world: World): void {
  */
 function towerFire(world: World, buildings: readonly Building[], units: readonly Unit[]): void {
   for (const b of buildings) {
-    if (b.dead || b.state !== 'built') continue;
+    if (b.dead || b.state !== BuildingState.built) continue;
     const rule = buildingDef(b.type).garrison;
     if (!rule || !b.garrison) continue;
     const volley = volleyOf(rule, b.garrisonKind, b.garrison);
@@ -400,9 +402,9 @@ function disengage(unit: Unit): void {
  * be chased, struck or cleared.
  */
 function isDisengaging(unit: Unit): boolean {
-  if (unit.task.t === 'move') return true;
+  if (unit.task.t === UnitTaskKind.move) return true;
   return (
-    unit.task.t === 'attackMove' &&
+    unit.task.t === UnitTaskKind.attackMove &&
     unit.task.engageIdx !== undefined &&
     unit.path !== null &&
     unit.pathIdx < unit.task.engageIdx
@@ -416,12 +418,12 @@ function isDisengaging(unit: Unit): boolean {
  * no way to it) ends the order the way a plain move ends — going idle.
  */
 function resumeAttackMove(world: World, unit: Unit): void {
-  if (unit.task.t !== 'attackMove' || unit.path !== null) return;
+  if (unit.task.t !== UnitTaskKind.attackMove || unit.path !== null) return;
   const { destX, destY } = unit.task;
   const ux = Math.floor(unit.x);
   const uy = Math.floor(unit.y);
   if (ux === destX && uy === destY) {
-    unit.task = { t: 'idle', until: world.tick };
+    unit.task = { t: UnitTaskKind.idle, until: world.tick };
     return;
   }
   const path = findPath(world.map, ux, uy, destX, destY);
@@ -429,7 +431,7 @@ function resumeAttackMove(world: World, unit: Unit): void {
     unit.path = path;
     unit.pathIdx = 0;
   } else {
-    unit.task = { t: 'idle', until: world.tick };
+    unit.task = { t: UnitTaskKind.idle, until: world.tick };
   }
 }
 

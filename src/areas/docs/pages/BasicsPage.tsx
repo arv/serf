@@ -21,17 +21,17 @@ import {
   raidIntervalFor,
 } from '../../../sim/defs/balance';
 import { BUILDING_DEFS } from '../../../sim/defs/buildings';
-import type { UnitClass } from '../../../sim/defs/units';
 import { fmtSecs } from '../data';
 import { CostList, Section, Stat, Stats } from '../components';
 import { Prose } from '../prose';
 import { BuildingTypeId } from '../../../sim/defs/buildings';
+import { UnitClass } from '../../../sim/defs/units';
 
 /** The map the raid clock is quoted against — the size every other number
  * in balance.ts was tuned on, and what firstRaidTickFor scales from. */
 const CLASSIC_MAP = 64;
 
-const CLASSES: UnitClass[] = ['heavy', 'light', 'ranged'];
+const CLASSES: UnitClass[] = [UnitClass.heavy, UnitClass.light, UnitClass.ranged];
 
 export function BasicsPage(): JSX.Element {
   return (

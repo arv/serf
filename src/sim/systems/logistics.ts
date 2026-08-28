@@ -27,6 +27,9 @@ import { goodKeys } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
 import { TechId } from '../defs/techs.ts';
+import { BuildingState } from '../entities.ts';
+import { UnitTaskKind } from '../units.ts';
+import { HaulPhase } from '../world.ts';
 
 /**
  * The heart of the game: goods physically live in building buffers and on
@@ -77,7 +80,7 @@ export function abortJob(
   reason: string,
   keepCargo = false,
 ): void {
-  if (job.phase !== 'toDropoff') releaseSource(world, job);
+  if (job.phase !== HaulPhase.toDropoff) releaseSource(world, job);
   releaseDest(world, job);
   const serf = job.serfId !== undefined ? world.units.get(job.serfId) : undefined;
   if (serf && !serf.dead) {
@@ -90,7 +93,7 @@ export function abortJob(
     }
     serf.jobId = undefined;
     serf.path = null;
-    serf.task = { t: 'idle', until: world.tick };
+    serf.task = { t: UnitTaskKind.idle, until: world.tick };
   }
   world.jobs.delete(job.id);
   // The sim compiles for two hosts: Vite (where import.meta.env exists) and
@@ -103,12 +106,12 @@ export function abortJob(
 
 /** A serf died or was reassigned: put its job back on the board. */
 export function unassignJob(world: World, job: HaulJob): void {
-  if (job.phase === 'toDropoff') {
+  if (job.phase === HaulPhase.toDropoff) {
     // The good left the source already; without a carrier it is lost.
     abortJob(world, job, 'carrier lost while hauling');
     return;
   }
-  job.phase = 'open';
+  job.phase = HaulPhase.open;
   job.serfId = undefined;
   // Half-wound is not wound: the next serf to take this job starts the draw
   // from the top rather than inheriting a dead one's progress.
@@ -165,7 +168,7 @@ function match(world: World): void {
     if (b.dead || !isPlayerOwner(b.owner)) continue;
     const def = buildingDef(b.type);
 
-    if (b.state === 'site' && b.siteNeeds && !b.paused) {
+    if (b.state === BuildingState.site && b.siteNeeds && !b.paused) {
       for (const good of GOODS) {
         const want = (b.siteNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0 && !suspended(world, b, good)) {
@@ -191,7 +194,7 @@ function match(world: World): void {
       continue;
     }
 
-    if (b.state !== 'built') continue;
+    if (b.state !== BuildingState.built) continue;
 
     // An ordered repair calls for its materials at construction priority:
     // a wall being patched under fire is not a lesser errand than the mill's
@@ -357,7 +360,7 @@ function demandOf(
 
 function findStorehouse(world: World, owner: Owner): Building | undefined {
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.state === 'built' && buildingDef(b.type).storage && b.owner === owner) {
+    if (!b.dead && b.state === BuildingState.built && buildingDef(b.type).storage && b.owner === owner) {
       return b;
     }
   }
@@ -369,7 +372,7 @@ function nearestSupply(world: World, sink: Building, good: GoodId): Building | u
   let best: Building | undefined;
   let bestDist = Infinity;
   for (const b of world.buildings.values()) {
-    if (b.dead || b.id === sink.id || b.state !== 'built' || b.owner !== sink.owner) continue;
+    if (b.dead || b.id === sink.id || b.state !== BuildingState.built || b.owner !== sink.owner) continue;
     if (availableOut(b, good) <= 0) continue;
     const bc = centerOf(b);
     const dist = Math.abs(bc.x - c.x) + Math.abs(bc.y - c.y);
@@ -403,7 +406,7 @@ function createJob(
     owner: dest.owner,
     priority,
     createdTick: world.tick,
-    phase: 'open',
+    phase: HaulPhase.open,
     ...(repair ? { repair } : {}),
   });
   world.nextJobId++;
@@ -423,7 +426,7 @@ function rehomeCarriedGoods(world: World): void {
   for (const serf of world.units.values()) {
     if (serf.dead || serf.jobId !== undefined || serf.carrying === undefined) continue;
     if (serf.kind !== UnitTypeId.serf || !isPlayerOwner(serf.owner)) continue;
-    if (serf.task.t !== 'idle') continue; // let him finish the walk he was sent on
+    if (serf.task.t !== UnitTaskKind.idle) continue; // let him finish the walk he was sent on
 
     const good = serf.carrying;
     const to = deliveryTargetFor(world, serf.owner, good);
@@ -450,7 +453,7 @@ function rehomeCarriedGoods(world: World): void {
       owner: serf.owner,
       priority: 2,
       createdTick: world.tick,
-      phase: 'toDropoff',
+      phase: HaulPhase.toDropoff,
       serfId: serf.id,
     };
     world.jobs.set(job.id, job);
@@ -458,7 +461,7 @@ function rehomeCarriedGoods(world: World): void {
     serf.jobId = job.id;
     serf.path = path;
     serf.pathIdx = 0;
-    serf.task = { t: 'haul' };
+    serf.task = { t: UnitTaskKind.haul };
   }
 }
 
@@ -467,7 +470,7 @@ function deliveryTargetFor(world: World, owner: Owner, good: GoodId): Building |
   const home = findStorehouse(world, owner);
   for (const b of world.buildings.values()) {
     if (b.dead || b.owner !== owner || b === home) continue;
-    if (b.state === 'site') {
+    if (b.state === BuildingState.site) {
       if ((b.siteNeeds?.[good] ?? 0) > (b.inbound[good] ?? 0)) return b;
       continue;
     }
@@ -488,7 +491,7 @@ function dispatch(world: World): void {
   // Collect open, unblocked jobs in claim order.
   const open: HaulJob[] = [];
   for (const job of world.jobs.values()) {
-    if (job.phase === 'open' && (job.blockedUntil === undefined || world.tick >= job.blockedUntil)) {
+    if (job.phase === HaulPhase.open && (job.blockedUntil === undefined || world.tick >= job.blockedUntil)) {
       open.push(job);
     }
   }
@@ -505,7 +508,7 @@ function dispatch(world: World): void {
     // overwrites what he carries, which would destroy a real good with no
     // ledger entry to show for it. He owes that delivery first, and
     // rehomeCarriedGoods is what hands it to him.
-    if (u.task.t === 'idle' && u.carrying === undefined) {
+    if (u.task.t === UnitTaskKind.idle && u.carrying === undefined) {
       let bucket = idleByOwner.get(u.owner);
       if (!bucket) idleByOwner.set(u.owner, (bucket = []));
       bucket.push(u);
@@ -565,12 +568,12 @@ function dispatch(world: World): void {
     job.blockedCount = 0;
 
     idle.splice(bestIdx, 1);
-    job.phase = 'toPickup';
+    job.phase = HaulPhase.toPickup;
     job.serfId = serf.id;
     serf.jobId = job.id;
     serf.path = path;
     serf.pathIdx = 0;
-    serf.task = { t: 'haul' };
+    serf.task = { t: UnitTaskKind.haul };
   }
 }
 
@@ -578,17 +581,17 @@ function dispatch(world: World): void {
 
 function progress(world: World): void {
   for (const unit of world.units.values()) {
-    if (unit.dead || unit.jobId === undefined || unit.task.t !== 'haul') continue;
+    if (unit.dead || unit.jobId === undefined || unit.task.t !== UnitTaskKind.haul) continue;
     if (unit.path !== null) continue; // still walking
 
     const job = world.jobs.get(unit.jobId);
     if (!job) {
       unit.jobId = undefined;
-      unit.task = { t: 'idle', until: world.tick };
+      unit.task = { t: UnitTaskKind.idle, until: world.tick };
       continue;
     }
 
-    if (job.phase === 'toPickup') {
+    if (job.phase === HaulPhase.toPickup) {
       const from = world.buildings.get(job.from);
       if (!from || from.dead) {
         abortJob(world, job, 'source vanished before pickup');
@@ -625,7 +628,7 @@ function progress(world: World): void {
       from.stock[job.good] = (from.stock[job.good] ?? 0) - 1;
       releaseSource(world, job);
       unit.carrying = job.good;
-      job.phase = 'toDropoff';
+      job.phase = HaulPhase.toDropoff;
 
       const to = world.buildings.get(job.to);
       if (!to || to.dead) {
@@ -647,7 +650,7 @@ function progress(world: World): void {
       }
       unit.path = path;
       unit.pathIdx = 0;
-    } else if (job.phase === 'toDropoff') {
+    } else if (job.phase === HaulPhase.toDropoff) {
       const to = world.buildings.get(job.to);
       if (!to || to.dead) {
         abortJob(world, job, 'destination vanished before dropoff');
@@ -666,14 +669,14 @@ function progress(world: World): void {
       releaseDest(world, job);
       unit.carrying = undefined;
       unit.jobId = undefined;
-      unit.task = { t: 'idle', until: world.tick };
+      unit.task = { t: UnitTaskKind.idle, until: world.tick };
       world.jobs.delete(job.id);
     }
   }
 }
 
 function deliver(world: World, to: Building, good: GoodId): void {
-  if (to.state === 'site' && to.siteNeeds) {
+  if (to.state === BuildingState.site && to.siteNeeds) {
     if ((to.siteNeeds[good] ?? 0) === 0 && TOOL_OF[to.type] === good) {
       // The post's pre-ordered tool: not a construction material — it
       // waits in the rack for the builder-turned-worker (construction
@@ -733,11 +736,11 @@ function reconcile(world: World): void {
       abortJob(world, job, 'reconcile: destination gone');
       continue;
     }
-    if (job.phase !== 'toDropoff' && (!from || from.dead)) {
+    if (job.phase !== HaulPhase.toDropoff && (!from || from.dead)) {
       abortJob(world, job, 'reconcile: source gone');
       continue;
     }
-    if (job.phase !== 'open') {
+    if (job.phase !== HaulPhase.open) {
       const serf = job.serfId !== undefined ? world.units.get(job.serfId) : undefined;
       if (!serf || serf.dead) {
         unassignJob(world, job);
@@ -747,7 +750,7 @@ function reconcile(world: World): void {
         abortJob(world, job, 'reconcile: serf link broken');
         continue;
       }
-      if (job.phase === 'toDropoff' && serf.carrying !== job.good) {
+      if (job.phase === HaulPhase.toDropoff && serf.carrying !== job.good) {
         abortJob(world, job, 'reconcile: carried good mismatch');
         continue;
       }
@@ -764,7 +767,7 @@ function reconcile(world: World): void {
     // pre-ordered tool is exempt — it was never in siteNeeds to begin
     // with, and the post wants it however far along the walls are.
     if (
-      to.state === 'site' &&
+      to.state === BuildingState.site &&
       to.siteNeeds &&
       (to.siteNeeds[job.good] ?? 0) === 0 &&
       TOOL_OF[to.type] !== job.good
@@ -774,7 +777,7 @@ function reconcile(world: World): void {
     }
     // Producers whose output evaporated (shouldn't happen — reservations).
     if (
-      job.phase === 'open' &&
+      job.phase === HaulPhase.open &&
       from &&
       (from.stock[job.good] ?? 0) < (from.reservedOut[job.good] ?? 0)
     ) {

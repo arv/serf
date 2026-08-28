@@ -18,6 +18,9 @@ import type { GoodAmounts } from './defs/goods.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { BuildingState } from './entities.ts';
+import { HaulPhase } from './world.ts';
+import { UnitTaskKind } from './units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -98,7 +101,7 @@ describe('logistics matcher', () => {
     const initial = countGoods(world);
     run(world, 3000);
 
-    expect(site.state).toBe('built');
+    expect(site.state).toBe(BuildingState.built);
     expect(site.workerId).toBeDefined(); // wood hut spawns its worker
     expect(world.jobs.size).toBe(0);
     for (const u of world.units.values()) {
@@ -121,17 +124,17 @@ describe('cancellation table', () => {
     const { world, initial } = setupHaul();
     // Run until a job is claimed but nothing picked up yet.
     let guard = 0;
-    while (![...world.jobs.values()].some((j) => j.phase === 'toPickup') && guard++ < 200) {
+    while (![...world.jobs.values()].some((j) => j.phase === HaulPhase.toPickup) && guard++ < 200) {
       tickWorld(world, []);
     }
-    const job = [...world.jobs.values()].find((j) => j.phase === 'toPickup')!;
+    const job = [...world.jobs.values()].find((j) => j.phase === HaulPhase.toPickup)!;
     const serf = world.units.get(job.serfId!)!;
     killUnit(world, serf);
     run(world, 10); // reconcile pass
 
     const revived = world.jobs.get(job.id);
     expect(revived).toBeDefined();
-    expect(revived!.phase).toBe('open');
+    expect(revived!.phase).toBe(HaulPhase.open);
     expect(revived!.serfId).toBeUndefined();
     expectClean(world, initial);
   });
@@ -139,10 +142,10 @@ describe('cancellation table', () => {
   it('serf dies mid-dropoff: job aborts, carried good ledgered as lost', () => {
     const { world, initial } = setupHaul();
     let guard = 0;
-    while (![...world.jobs.values()].some((j) => j.phase === 'toDropoff') && guard++ < 500) {
+    while (![...world.jobs.values()].some((j) => j.phase === HaulPhase.toDropoff) && guard++ < 500) {
       tickWorld(world, []);
     }
-    const job = [...world.jobs.values()].find((j) => j.phase === 'toDropoff')!;
+    const job = [...world.jobs.values()].find((j) => j.phase === HaulPhase.toDropoff)!;
     const serf = world.units.get(job.serfId!)!;
     expect(serf.carrying).toBe(GoodId.wood);
     killUnit(world, serf);
@@ -170,10 +173,10 @@ describe('cancellation table', () => {
   it('destination destroyed mid-haul: jobs abort cleanly', () => {
     const { world, initial } = setupHaul();
     let guard = 0;
-    while (![...world.jobs.values()].some((j) => j.phase === 'toDropoff') && guard++ < 500) {
+    while (![...world.jobs.values()].some((j) => j.phase === HaulPhase.toDropoff) && guard++ < 500) {
       tickWorld(world, []);
     }
-    const site = [...world.buildings.values()].find((b) => b.state === 'site')!;
+    const site = [...world.buildings.values()].find((b) => b.state === BuildingState.site)!;
     destroyBuilding(world, site);
     run(world, 10);
 
@@ -195,7 +198,7 @@ describe('cancellation table', () => {
     run(world, 30);
 
     for (const job of world.jobs.values()) {
-      expect(job.phase).toBe('open');
+      expect(job.phase).toBe(HaulPhase.open);
       expect(job.blockedUntil).toBeDefined();
     }
     expect(serf.jobId).toBeUndefined();
@@ -272,7 +275,7 @@ describe('move orders outrank employment', () => {
 
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 20, y: 20 }));
     expect(serf.jobId).toBeUndefined();
-    expect(serf.task.t).toBe('move');
+    expect(serf.task.t).toBe(UnitTaskKind.move);
     expect(checkInvariants(world).violations).toEqual([]);
 
     // And the freed demand can be served again rather than staying reserved.
@@ -298,7 +301,7 @@ describe('move orders outrank employment', () => {
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 20, y: 20 }));
     expect(serf.carrying).toBe(GoodId.wood); // still in his hands
     expect(world.ledger.consumed[GoodId.wood] ?? 0).toBe(consumed);
-    expect(serf.task.t).toBe('move');
+    expect(serf.task.t).toBe(UnitTaskKind.move);
     // Walking an errand while laden is the intended state, not a violation:
     // the invariant used to call it orphaned cargo on every dev sweep.
     expect(checkInvariants(world).violations).toEqual([]);
@@ -331,7 +334,7 @@ describe('move orders outrank employment', () => {
     while (serf.carrying !== undefined && guard++ < 900) {
       tickWorld(world, []);
       const job = serf.jobId !== undefined ? world.jobs.get(serf.jobId) : undefined;
-      if (job) expect(job.phase).toBe('toDropoff');
+      if (job) expect(job.phase).toBe(HaulPhase.toDropoff);
     }
     expect(serf.carrying).toBeUndefined();
     expect(checkLedger(world, initial)).toEqual([]);
@@ -349,7 +352,7 @@ describe('move orders outrank employment', () => {
     expect(worker.homeId).toBeUndefined();
     expect(worker.kind).toBe(UnitTypeId.serf);
     expect(hut.workerId).toBeUndefined();
-    expect(worker.task.t).toBe('move');
+    expect(worker.task.t).toBe(UnitTaskKind.move);
     expect(checkInvariants(world).violations).toEqual([]);
 
     // Staffing notices the empty post and sends somebody (him, once idle).
@@ -379,7 +382,7 @@ describe('move orders outrank employment', () => {
     expect(worker.kind).toBe(UnitTypeId.worker);
     expect(worker.homeId).toBe(hut.id);
     expect(hut.workerId).toBe(worker.id);
-    expect(worker.task.t).not.toBe('move');
+    expect(worker.task.t).not.toBe(UnitTaskKind.move);
     run(world, 200);
     expect(worker.homeId).toBe(hut.id);
     expect(checkInvariants(world).violations).toEqual([]);

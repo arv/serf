@@ -26,6 +26,7 @@ import type { GoodAmounts } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { TechId } from './defs/techs.ts';
+import { UnitTaskKind } from './units.ts';
 
 function digest(world: World): unknown {
   return {
@@ -419,12 +420,12 @@ describe('the stall watchdog', () => {
     const hut = addBuiltHut(world, 40, 40);
     hut.stock = { [GoodId.wood]: OUTPUT_CAP };
     const worker = world.units.get(hut.workerId!)!;
-    worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
+    worker.task = { t: UnitTaskKind.gatherWork, tile: tileIdx(40, 41, world.map.size), until: 999_999 };
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: true }));
     expect(worker.kind).toBe(UnitTypeId.serf);
     // Idle, or already claimed for a haul — either is in the pool. What is
     // fatal is a leftover gather task.
-    expect(['idle', 'haul']).toContain(worker.task.t);
+    expect([UnitTaskKind.idle, UnitTaskKind.haul]).toContain(worker.task.t);
   });
 
   it('sells a worked-out extractor so the build order can re-site it', () => {
@@ -557,7 +558,7 @@ describe('the stall watchdog', () => {
     addStorehouse(world, 30, 30, {});
     const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 40.5, 40.5);
-    archer.task = { t: 'staff', buildingId: tower.id };
+    archer.task = { t: UnitTaskKind.staff, buildingId: tower.id };
     tower.recruitId = archer.id;
     const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
     world.tick += AI_PACING.decisionInterval;

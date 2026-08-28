@@ -13,6 +13,7 @@ import { BuildingTypeId } from '../../sim/defs/buildings';
 import { BUILDING_TYPES } from '../../sim/defs/buildings';
 import { TechEffectKind } from '../../sim/defs/techs';
 import { TECH_IDS } from '../../sim/defs/techs';
+import { RecipeKind } from '../../sim/defs/buildings';
 
 /**
  * The cross-reference graph the wiki walks: every "produced by / used by /
@@ -120,7 +121,7 @@ function producersFrom(
   requiresTech: TechId | undefined,
   into: Map<GoodId, ProducerRef[]>,
 ): void {
-  if (recipe.kind === 'gather') {
+  if (recipe.kind === RecipeKind.gather) {
     push(into, recipe.output, {
       building,
       via,
@@ -146,7 +147,7 @@ function buildProducedBy(): Map<GoodId, ProducerRef[]> {
   for (const id of ALL_BUILDINGS) {
     const def = BUILDING_DEFS[id];
     if (def.recipe) {
-      producersFrom(id, def.recipe, def.recipe.kind === 'gather' ? 'gather' : 'convert', undefined, map);
+      producersFrom(id, def.recipe, def.recipe.kind === RecipeKind.gather ? 'gather' : 'convert', undefined, map);
     }
     for (const opt of def.recipeOptions ?? []) {
       producersFrom(id, opt.recipe, 'forge', opt.requiresTech, map);
@@ -167,7 +168,7 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
     for (const good of goodsOf(def.repairCost ?? {})) {
       push(map, good, { kind: 'repair', building: id });
     }
-    if (def.recipe?.kind === 'convert') {
+    if (def.recipe?.kind === RecipeKind.convert) {
       for (const good of goodsOf(def.recipe.inputs)) push(map, good, { kind: 'recipe', building: id });
     }
     // One entry per good per building, not per forge option: nine Smith

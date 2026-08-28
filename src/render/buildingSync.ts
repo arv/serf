@@ -23,6 +23,7 @@ import type { CueId } from '../audio/cues';
 import { GoodId } from '../sim/defs/goods';
 import { UnitTypeId } from '../sim/defs/units';
 import { BuildingTypeId } from '../sim/defs/buildings';
+import { BuildingState } from '../sim/entities';
 
 /** A built fishery's pier, in world space: the deck line from its landward
  * end to the fishing spot near the tip, plank height, and the yaw that
@@ -93,7 +94,7 @@ function freeLane(taken: Set<number>): number {
 
 interface BuildingVisual {
   root: THREE.Group;
-  state: 'site' | 'built';
+  state: BuildingState;
   frame?: THREE.Group;
   model: THREE.Group;
   /** Warcraft-style rise: a world-space clip plane reveals the model
@@ -308,7 +309,7 @@ export class BuildingSync {
     // ground people order units down — a pick box on each would hang a
     // wall of them over the route. Nobody means to click a road anyway.
     if (v.road) return 0;
-    if (v.state !== 'site') return v.topY;
+    if (v.state !== BuildingState.site) return v.topY;
     const raised = v.clip
       ? Math.max(0, v.clip.plane.constant - v.clip.baseY)
       : // The ghost site grows by scale rather than by clip, and topY was
@@ -344,7 +345,7 @@ export class BuildingSync {
         // a swap the player can see (fog guard — see onCue), and only on
         // a real transition: a boot or a resync builds every visual
         // fresh and must not arrive as a fanfare salvo.
-        if (this.onCue && v.state === 'site' && b.state === 'built' && v.root.visible) {
+        if (this.onCue && v.state === BuildingState.site && b.state === BuildingState.built && v.root.visible) {
           this.onCue('buildingComplete', b.x + b.w / 2, b.y + b.h / 2);
         }
         this.#dispose(b.id);
@@ -354,7 +355,7 @@ export class BuildingSync {
         v = this.#create(b);
         this.#visuals.set(b.id, v);
       }
-      if (b.state === 'site') {
+      if (b.state === BuildingState.site) {
         const p = b.progress01 ?? 0;
         if (v.clip) {
           // Reveal the build bottom-up; a sliver shows from the start so
@@ -454,7 +455,7 @@ export class BuildingSync {
     let frame: THREE.Group | undefined;
     let model: THREE.Group;
     let clip: BuildingVisual['clip'];
-    if (b.state === 'site') {
+    if (b.state === BuildingState.site) {
       frame = makeSiteFrame(b.w, b.h);
       root.add(frame);
       const glb = makeGlbBuilding(b.type, b.owner);
@@ -514,7 +515,7 @@ export class BuildingSync {
     // there, and all of it over the ground this one stands on.
     const road = buildingDef(b.type).isRoad === true;
     const finished =
-      b.state === 'site'
+      b.state === BuildingState.site
         ? Math.max(SITE_FRAME_H, clip ? topY : topY / GHOST_SEED_SCALE)
         : topY;
     if (!road) this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
@@ -554,7 +555,7 @@ export class BuildingSync {
   wellCranks(): { x: number; z: number; crank: THREE.Object3D; grip: THREE.Object3D }[] {
     const out: { x: number; z: number; crank: THREE.Object3D; grip: THREE.Object3D }[] = [];
     for (const v of this.#visuals.values()) {
-      if (v.state !== 'built' || !v.crank) continue;
+      if (v.state !== BuildingState.built || !v.crank) continue;
       const grip = v.crank.getObjectByName('wellGrip');
       if (grip) out.push({ x: v.root.position.x, z: v.root.position.z, crank: v.crank, grip });
     }
@@ -578,7 +579,7 @@ export class BuildingSync {
   fisheryPiers(): PierInfo[] {
     const out: PierInfo[] = [];
     for (const v of this.#visuals.values()) {
-      if (v.state !== 'built' || !v.pier) continue;
+      if (v.state !== BuildingState.built || !v.pier) continue;
       out.push((v.pierLine ??= this.#measurePier(v)));
     }
     return out;
@@ -714,11 +715,11 @@ export class BuildingSync {
         // target: heavy sails carry momentum, and the coast also bridges
         // the one-tick gap between back-to-back batches, which would
         // otherwise read as a stutter whenever a publish lands in it.
-        const target = v.working && v.state === 'built' ? MILL_FAN_SPEED : 0;
+        const target = v.working && v.state === BuildingState.built ? MILL_FAN_SPEED : 0;
         v.fanSpeed += (target - v.fanSpeed) * Math.min(1, dt * 1.6);
         if (v.fanSpeed > 0.01) v.fan.rotation.z += v.fanSpeed * dt;
       }
-      if (v.shoal && v.staffed && v.state === 'built') {
+      if (v.shoal && v.staffed && v.state === BuildingState.built) {
         // Each fish carries its own circle, direction and depth. Advancing
         // the phase and pointing the nose down the tangent is the whole
         // motion: at village zoom a rigid fish on a slow curve reads as
@@ -819,7 +820,7 @@ export class BuildingSync {
 
   #syncYard(v: BuildingVisual, b: BuildingSnap): boolean {
     const yard = BuildingSync.#YARDS[b.type];
-    if (!yard || b.state !== 'built') return false;
+    if (!yard || b.state !== BuildingState.built) return false;
     const n = (b.stock[yard.good] ?? 0) + (b.inputs[yard.good] ?? 0);
     const stacks = Math.min(Math.ceil(n / yard.per), yard.spots.length);
     const key = `yard${stacks}`;
@@ -862,7 +863,7 @@ export class BuildingSync {
    * back through the root to get there.
    */
   #syncGarrison(v: BuildingVisual, b: BuildingSnap): void {
-    const want = v.state === 'built' ? Math.min(b.garrison ?? 0, v.posts.length) : 0;
+    const want = v.state === BuildingState.built ? Math.min(b.garrison ?? 0, v.posts.length) : 0;
     // A relief swaps who is standing there without moving the count, so the
     // kind has to be able to condemn the figures the way the count does.
     const levied = b.levied === true;
@@ -900,7 +901,7 @@ export class BuildingSync {
     const shown: [GoodId, number][] = [];
     for (const g of GOODS) {
       let n: number;
-      if (b.state === 'site') {
+      if (b.state === BuildingState.site) {
         // Delivered materials wait by the frame, then drain into the
         // structure as the build progresses.
         const delivered =

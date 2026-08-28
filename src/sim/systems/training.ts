@@ -12,6 +12,8 @@ import type { Unit } from '../units.ts';
 import { goodEntries } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { ModifierKey } from '../defs/techs.ts';
+import { BuildingState } from '../entities.ts';
+import { UnitTaskKind } from '../units.ts';
 
 /**
  * Barracks training. A queue item starts when its ingredients are in the input
@@ -21,7 +23,7 @@ import { ModifierKey } from '../defs/techs.ts';
  */
 export function trainingSystem(world: World): void {
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built') continue;
+    if (b.dead || b.state !== BuildingState.built) continue;
     const def = buildingDef(b.type);
     if (!def.trains || !b.trainQueue || b.trainQueue.length === 0) continue;
 
@@ -72,7 +74,7 @@ function marchToRally(world: World, b: Building, unit: Unit): void {
   if (!path) return;
   unit.path = path;
   unit.pathIdx = 0;
-  unit.task = { t: 'move' };
+  unit.task = { t: UnitTaskKind.move };
 }
 
 /**
@@ -87,7 +89,7 @@ function marchToRally(world: World, b: Building, unit: Unit): void {
  */
 export function hiringSystem(world: World): void {
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built' || !b.hireQueue) continue;
+    if (b.dead || b.state !== BuildingState.built || !b.hireQueue) continue;
     b.hireTicksLeft = Math.max(0, (b.hireTicksLeft ?? HIRE_SERF_TICKS) - 1);
     if (b.hireTicksLeft > 0) continue;
     if (populationOf(world, b.owner) >= popCapOf(world, b.owner)) continue; // no bed yet
@@ -171,7 +173,7 @@ export function trainingDemand(b: Building): Partial<Record<GoodId, number>> {
 export function enqueueTraining(world: World, b: Building, unit: UnitTypeId): void {
   const def = buildingDef(b.type);
   const option = def.trains?.find((o) => o.unit === unit);
-  if (!option || b.state !== 'built' || b.dead) return;
+  if (!option || b.state !== BuildingState.built || b.dead) return;
   if (!isUnitUnlocked(world, b.owner, option.unit)) return;
   b.trainQueue ??= [];
   if (b.trainQueue.length >= TRAIN_QUEUE_CAP) return;

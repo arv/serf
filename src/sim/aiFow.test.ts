@@ -11,6 +11,7 @@ import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { TechId } from './defs/techs.ts';
+import { UnitTaskKind } from './units.ts';
 
 /**
  * The brain plays under the fog. These are the two rules the server holds
@@ -104,7 +105,7 @@ describe('the AI under fog of war', () => {
     const first = moveOrders(brain.decide(world))[0]!;
     // Mid-march (units busy, goal still dark) the brain leaves the army be.
     for (const u of world.units.values()) {
-      if (u.kind === UnitTypeId.knight) u.task = { t: 'move' };
+      if (u.kind === UnitTypeId.knight) u.task = { t: UnitTaskKind.move };
     }
     world.tick += 20;
     expect(moveOrders(brain.decide(world))).toHaveLength(0);

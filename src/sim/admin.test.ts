@@ -8,6 +8,7 @@ import { cmds, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts
 import { GoodId } from './defs/goods.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { TechId } from './defs/techs.ts';
+import { BuildingState } from './entities.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -67,7 +68,7 @@ describe('admin sandbox', () => {
     const site = addSite(world, 24, 30);
     run(world, 5);
 
-    expect(site.state).toBe('built');
+    expect(site.state).toBe(BuildingState.built);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 

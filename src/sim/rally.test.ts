@@ -11,6 +11,7 @@ import type { Unit } from './units.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { UnitTaskKind } from './units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -87,7 +88,7 @@ describe('the barracks rally flag', () => {
     // He steps out already under way: a plain move — not an attack-move, so
     // a flag near a fight cannot trickle recruits into it one at a time —
     // whose path ends on the flag's tile.
-    expect(knight!.task.t).toBe('move');
+    expect(knight!.task.t).toBe(UnitTaskKind.move);
     const last = knight!.path![knight!.path!.length - 1]!;
     expect(tileX(last, world.map.size)).toBe(45);
     expect(tileY(last, world.map.size)).toBe(40);

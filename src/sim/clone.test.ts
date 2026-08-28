@@ -6,6 +6,7 @@ import { createWorld, type World } from './world.ts';
 import { tickWorld } from './tick.ts';
 import type { Unit } from './units.ts';
 import { GoodId } from './defs/goods.ts';
+import { BuildingState } from './entities.ts';
 
 function run(world: World, ticks: number): void {
   for (let t = 0; t < ticks; t++) tickWorld(world, []);
@@ -54,7 +55,7 @@ describe('cloneWorld — the rollback snapshot primitive', () => {
     // fast, and the save round-trip reference this file exists for lies.
     const world = createWorld({ seed: 5, players: [{ kind: 'ai' }] });
     run(world, 200);
-    const b = [...world.buildings.values()].find((x) => x.state === 'built')!;
+    const b = [...world.buildings.values()].find((x) => x.state === BuildingState.built)!;
     b.repairNeeds = { [GoodId.wood]: 3 };
     const snap = cloneWorld(world);
     b.repairNeeds[GoodId.wood] = 2; // the original works a plank in

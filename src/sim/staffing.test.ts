@@ -18,6 +18,7 @@ import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { TechId } from './defs/techs.ts';
+import { UnitTaskKind } from './units.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -45,14 +46,14 @@ describe('releasing a worker', () => {
     const hut = addBuiltHut(world, 40, 40);
     hut.stock = { [GoodId.wood]: OUTPUT_CAP };
     const worker = world.units.get(hut.workerId!)!;
-    worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
+    worker.task = { t: UnitTaskKind.gatherWork, tile: tileIdx(40, 41, world.map.size), until: 999_999 };
 
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: true }));
 
     expect(worker.kind).toBe(UnitTypeId.serf);
     // Idle, or already claimed for a haul — either is in the pool. What is
     // fatal is a leftover gather task.
-    expect(['idle', 'haul']).toContain(worker.task.t);
+    expect([UnitTaskKind.idle, UnitTaskKind.haul]).toContain(worker.task.t);
   });
 
   it('does the same when the whole building is sold out from under him', () => {
@@ -61,13 +62,13 @@ describe('releasing a worker', () => {
     addResourceTile(world, 40, 41);
     const hut = addBuiltHut(world, 40, 40);
     const worker = world.units.get(hut.workerId!)!;
-    worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
+    worker.task = { t: UnitTaskKind.gatherWork, tile: tileIdx(40, 41, world.map.size), until: 999_999 };
 
     tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: hut.id }));
 
     expect(worker.dead).toBe(false);
     expect(worker.kind).toBe(UnitTypeId.serf);
-    expect(['idle', 'haul']).toContain(worker.task.t);
+    expect([UnitTaskKind.idle, UnitTaskKind.haul]).toContain(worker.task.t);
   });
 });
 
@@ -146,13 +147,13 @@ describe('the population economy', () => {
     farm.inputs[GoodId.scythe] = 1; // recruitment waits on the post's tool
     const serf = addSerf(world, 44, 44); // long walk
     run(world, 30); // recruitment fires, serf is en route
-    expect(serf.task.t).toBe('staff');
+    expect(serf.task.t).toBe(UnitTaskKind.staff);
     farm.dead = true;
     run(world, 20 * 10);
 
     expect(serf.dead).toBe(false);
     expect(serf.kind).toBe(UnitTypeId.serf);
-    expect(serf.task.t === 'idle' || serf.task.t === 'move').toBe(true);
+    expect(serf.task.t === UnitTaskKind.idle || serf.task.t === UnitTaskKind.move).toBe(true);
   });
 
   it('the well keeps no one, and still supplies the farm', () => {
@@ -186,7 +187,7 @@ describe('the population economy', () => {
     expect(well.workerId).toBeUndefined();
     expect(keeper.kind).toBe(UnitTypeId.serf);
     expect(keeper.homeId).toBeUndefined();
-    expect(keeper.task.t).toBe('idle');
+    expect(keeper.task.t).toBe(UnitTaskKind.idle);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 

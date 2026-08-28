@@ -22,6 +22,7 @@ import type { SimCommand } from './commands.ts';
 import { GoodId } from './defs/goods.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { TechId } from './defs/techs.ts';
+import { BuildingState } from './entities.ts';
 
 /**
  * The campaign missions hold the same line winnable.test.ts holds for the
@@ -38,7 +39,7 @@ import { TechId } from './defs/techs.ts';
 function countBuilt(world: World, type: BuildingTypeId, owner = 0): number {
   let n = 0;
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.state === 'built' && b.owner === owner && b.type === type) n++;
+    if (!b.dead && b.state === BuildingState.built && b.owner === owner && b.type === type) n++;
   }
   return n;
 }
@@ -178,7 +179,7 @@ describe('the campaign missions', () => {
         // A fresh Smith idles on auto; the crown wants spears — the player
         // clicks the forge menu once the roof is up.
         const smith = [...world.buildings.values()].find(
-          (b) => b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === 'built',
+          (b) => b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === BuildingState.built,
         );
         if (smith && smith.recipeIndex === undefined) {
           tickWorld(
@@ -212,7 +213,7 @@ describe('the campaign missions', () => {
       );
     }
     for (const b of world.buildings.values()) {
-      if (b.owner !== 0 || b.state !== 'built' || !TOOL_OF[b.type]) continue;
+      if (b.owner !== 0 || b.state !== BuildingState.built || !TOOL_OF[b.type]) continue;
       expect(b.workerId, `${b.type} staffed with no tool`).toBeUndefined();
     }
     for (const tool of TOOL_GOODS) {
@@ -231,7 +232,7 @@ describe('the campaign missions', () => {
     );
     const staffed = (): boolean =>
       [...world.buildings.values()].every((b) => {
-        if (b.dead || b.owner !== 0 || b.state !== 'built' || !TOOL_OF[b.type]) return true;
+        if (b.dead || b.owner !== 0 || b.state !== BuildingState.built || !TOOL_OF[b.type]) return true;
         const w = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
         return w !== undefined && !w.dead;
       });
@@ -242,7 +243,7 @@ describe('the campaign missions', () => {
       // A player clicks when the button lights up; every 50 ticks is fine.
       if (!ordered && world.tick % 50 === 0) {
         const smith = [...world.buildings.values()].find(
-          (b) => b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === 'built',
+          (b) => b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === BuildingState.built,
         );
         // Left alone the Smith tools the open posts and then lets the fire
         // go cold. Once every peg is filled the player queues the batch the

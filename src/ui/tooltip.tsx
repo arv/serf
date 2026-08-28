@@ -17,7 +17,7 @@ import { TICKS_PER_SECOND } from '../sim/defs/balance';
 import { BUILDING_DEFS, gatherRecipeOf, type Recipe } from '../sim/defs/buildings';
 import { type GoodAmounts } from '../sim/defs/goods';
 import { TECH_DEFS, type TechId } from '../sim/defs/techs';
-import { COUNTER_TABLE, UNIT_DEFS, type UnitClass } from '../sim/defs/units';
+import { COUNTER_TABLE, UNIT_DEFS } from '../sim/defs/units';
 import { GoodIcon } from './icons';
 import { buildingName, goodName, techDesc, techName, unitName } from './names';
 import { stock, techs } from './store';
@@ -26,6 +26,8 @@ import { goodEntries } from '../sim/defs/goods';
 import { UnitTypeId } from '../sim/defs/units';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { TechEffectKind } from '../sim/defs/techs';
+import { RecipeKind } from '../sim/defs/buildings';
+import { UnitClass } from '../sim/defs/units';
 
 /**
  * One floating tooltip layer for the whole HUD. Spread `{...tooltip(...)}`
@@ -340,7 +342,7 @@ function goodsList(amounts: GoodAmounts): string {
 }
 
 function recipeText(recipe: Recipe): string {
-  if (recipe.kind === 'gather') {
+  if (recipe.kind === RecipeKind.gather) {
     return `Its worker gathers ${goodName(recipe.output).toLowerCase()} from nearby ${
       RESOURCE_NAMES[recipe.resource] ?? recipe.resource
     }.`;
@@ -409,9 +411,9 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
 }
 
 const CLASS_INFO: Record<UnitClass, { name: string; beats: UnitClass; losesTo: UnitClass }> = {
-  heavy: { name: 'Heavy', beats: 'light', losesTo: 'ranged' },
-  light: { name: 'Light', beats: 'ranged', losesTo: 'heavy' },
-  ranged: { name: 'Ranged', beats: 'heavy', losesTo: 'light' },
+  [UnitClass.heavy]: { name: 'Heavy', beats: UnitClass.light, losesTo: UnitClass.ranged },
+  [UnitClass.light]: { name: 'Light', beats: UnitClass.ranged, losesTo: UnitClass.heavy },
+  [UnitClass.ranged]: { name: 'Ranged', beats: UnitClass.heavy, losesTo: UnitClass.light },
 };
 
 const UNIT_FLAVOR: Partial<Record<UnitTypeId, string>> = {

@@ -7,6 +7,7 @@ import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { ModifierKey } from '../defs/techs.ts';
+import { UnitTaskKind } from '../units.ts';
 
 /**
  * Advance every unit along its path. Waypoints are tile centers; speed is the
@@ -67,7 +68,7 @@ export function movementSystem(world: World): void {
 
     if (unit.path && unit.pathIdx >= path.length) {
       unit.path = null;
-      if (unit.task.t === 'move') unit.task = { t: 'idle', until: world.tick };
+      if (unit.task.t === UnitTaskKind.move) unit.task = { t: UnitTaskKind.idle, until: world.tick };
     }
   }
 }
@@ -109,8 +110,8 @@ function routeAround(world: World, unit: Unit, goal: number): void {
   }
   unit.path = p && p.length > 0 ? p : null;
   unit.pathIdx = 0;
-  if (unit.path === null && unit.task.t === 'move') {
-    unit.task = { t: 'idle', until: world.tick };
+  if (unit.path === null && unit.task.t === UnitTaskKind.move) {
+    unit.task = { t: UnitTaskKind.idle, until: world.tick };
   }
 }
 

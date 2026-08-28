@@ -6,6 +6,7 @@ import { addSerf, addSite, addStorehouse, bareWorld, cmds, staffBuilding } from 
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { BuildingState } from './entities.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -58,14 +59,14 @@ describe('pausing a building', () => {
     for (let i = 0; i < 3; i++) addSerf(world, 32, 33 + i);
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: true }));
     run(world, 800);
-    expect(site.state).toBe('site');
+    expect(site.state).toBe(BuildingState.site);
     expect(site.buildProgress ?? 0).toBe(0);
     expect(site.workerId).toBeUndefined();
 
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: false }));
     let guard = 0;
-    while (site.state !== 'built' && guard++ < 6000) tickWorld(world, []);
-    expect(site.state).toBe('built');
+    while (site.state !== BuildingState.built && guard++ < 6000) tickWorld(world, []);
+    expect(site.state).toBe(BuildingState.built);
   });
 
   it('a paused guard-tower site stays paused — the garrison exemption is for built towers', () => {
@@ -89,7 +90,7 @@ describe('pausing a building', () => {
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: true }));
     expect(site.workerId).toBeUndefined(); // the order released the hand
     run(world, 800);
-    expect(site.state).toBe('site');
+    expect(site.state).toBe(BuildingState.site);
     // ...and nobody was quietly summoned and walked back onto the scaffold.
     expect(site.workerId).toBeUndefined();
     expect(site.recruitId).toBeUndefined();
@@ -97,8 +98,8 @@ describe('pausing a building', () => {
 
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: false }));
     guard = 0;
-    while (site.state !== 'built' && guard++ < 8000) tickWorld(world, []);
-    expect(site.state).toBe('built');
+    while (site.state !== BuildingState.built && guard++ < 8000) tickWorld(world, []);
+    expect(site.state).toBe(BuildingState.built);
   });
 
   it('a rival cannot pause your buildings', () => {

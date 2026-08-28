@@ -1,6 +1,8 @@
 import { UNIT_DEFS } from './defs/units.ts';
 import { GOODS } from './defs/goods.ts';
 import type { World } from './world.ts';
+import { BuildingState } from './entities.ts';
+import { UnitTaskKind } from './units.ts';
 
 /**
  * 32-bit FNV-1a digest of the outcome-relevant world state. It was the
@@ -62,8 +64,8 @@ export function hashWorld(world: World): number {
     mixU32(u.repathAt ?? 0);
     mixU32(u.targetId ?? 0); // 0 is a safe sentinel: entity ids start at 1
     mix(u.targetIsBuilding ? 1 : 0);
-    for (let i = 0; i < u.task.t.length; i++) mix(u.task.t.charCodeAt(i)); // task tag
-    if (u.task.t === 'attackMove') {
+    mix(u.task.t); // task tag
+    if (u.task.t === UnitTaskKind.attackMove) {
       // The stored destination steers behavior for many ticks — a clone or
       // save that garbled it must not hash as "the same world".
       mixU32(u.task.destX);
@@ -79,7 +81,7 @@ export function hashWorld(world: World): number {
     // two walls the same until one falls a tick earlier.
     mixF64(b.hp);
     mixU32(b.owner);
-    mix(b.state === 'built' ? 1 : 0);
+    mix(b.state === BuildingState.built ? 1 : 0);
     mix(b.dead ? 1 : 0);
     for (const good of GOODS) {
       mix(b.stock[good] ?? 0);

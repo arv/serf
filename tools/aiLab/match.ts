@@ -13,6 +13,7 @@ import type { Owner } from '../../src/sim/entities.ts';
 import type { EconomyRuleId } from '../../src/sim/economyRules.ts';
 import type { LabEngine } from './engines.ts';
 import { UnitTypeId } from '../../src/sim/defs/units.ts';
+import { BuildingState } from '../../src/sim/entities.ts';
 
 /**
  * One headless match, played the way the game plays it.
@@ -403,7 +404,7 @@ export function standingOf(world: World, playerId: Owner): SeatStanding {
     buildings++;
     // The castle is the storehouse building — summary.ts finds it the same
     // way, by the storage flag rather than by an id that does not exist.
-    if (buildingDef(b.type).storage && b.state === 'built') castleStanding = true;
+    if (buildingDef(b.type).storage && b.state === BuildingState.built) castleStanding = true;
   }
   let pop = 0;
   let armyHp = 0;

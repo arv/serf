@@ -6,6 +6,7 @@ import type { World } from './world.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { ModifierKey } from './defs/techs.ts';
 import { TechEffectKind } from './defs/techs.ts';
+import { BuildingState } from './entities.ts';
 
 /**
  * All tech effects are read through these functions, so sim systems never
@@ -64,7 +65,7 @@ export function canResearch(
   }
   let hasAbbey = false;
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.type === BuildingTypeId.abbey && b.state === 'built' && b.owner === owner) {
+    if (!b.dead && b.type === BuildingTypeId.abbey && b.state === BuildingState.built && b.owner === owner) {
       hasAbbey = true;
       break;
     }

@@ -73,6 +73,7 @@ import type { SimHost } from '../app/simHost';
 import type { BuildingSnap } from '../protocol/messages';
 import { GoodId } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
+import { BuildingState } from '../sim/entities';
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
@@ -545,7 +546,7 @@ export class Controls {
   #buildingCommand(b: BuildingSnap, letter: string): boolean {
     if (!letter || replayMode()) return false;
 
-    if (letter === HIRE_KEY && b.type === BuildingTypeId.storehouse && b.state === 'built') {
+    if (letter === HIRE_KEY && b.type === BuildingTypeId.storehouse && b.state === BuildingState.built) {
       if (!canHire(b, stock(), population())) {
         const queued = b.hireQueue ?? 0;
         pushToast(
@@ -572,7 +573,7 @@ export class Controls {
 
     const unit = trainingForKey(b, letter);
     if (unit !== null) {
-      if (b.state !== 'built') return true;
+      if (b.state !== BuildingState.built) return true;
       const gate = unitTechGate(unit);
       if (!canTrain(b, unit, techs().researched)) {
         pushToast(

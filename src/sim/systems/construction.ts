@@ -15,6 +15,7 @@ import type { Building } from '../entities.ts';
 import { GoodId } from '../defs/goods.ts';
 import { goodKeys } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
+import { BuildingState } from '../entities.ts';
 
 /**
  * Sites whose materials are fully delivered tick a build timer, then become
@@ -30,7 +31,7 @@ export function constructionSystem(world: World): void {
       if (b.repairNeeds) spendOwnStores(world, b);
       if (b.repairPending !== undefined) mendRepair(world, b);
     }
-    if (b.dead || b.state !== 'site' || !b.siteNeeds || b.paused) continue;
+    if (b.dead || b.state !== BuildingState.site || !b.siteNeeds || b.paused) continue;
 
     // Sandbox: sites need nothing and finish now (reconcile cancels any
     // in-flight material hauls via the "site no longer needs good" rule).
@@ -62,7 +63,7 @@ export function constructionSystem(world: World): void {
       continue;
     }
 
-    b.state = 'built';
+    b.state = BuildingState.built;
     b.hp = def.hp;
     // A tower comes up stood down — an empty roof, waiting to be manned.
     // Villagers are the whole village's hands, and a running tower would put
@@ -169,7 +170,7 @@ function unpaidDamage(b: Building): number {
 /** Can this building be told to mend itself right now? */
 export function canRepair(b: Building): boolean {
   const def = buildingDef(b.type);
-  if (b.dead || b.state !== 'built' || def.isRoad || def.systemOnly) return false;
+  if (b.dead || b.state !== BuildingState.built || def.isRoad || def.systemOnly) return false;
   // A site heals as it rises (constructionSystem), a building nobody has
   // scratched has nothing to pay for, and damage a running repair has
   // already bought is waiting on the masons, not on a second order.

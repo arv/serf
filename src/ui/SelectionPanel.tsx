@@ -36,6 +36,7 @@ import { goodEntries } from '../sim/defs/goods';
 import { GoodId } from '../sim/defs/goods';
 import { goodKeys } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
+import { BuildingState } from '../sim/entities';
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
   const entries = () =>
@@ -398,7 +399,7 @@ export function SelectionPanel(props: {
                       <TextTip
                         title={b().repairNeeds ? 'Call off the repair' : 'Repair building'}
                         body={
-                          b().state !== 'built'
+                          b().state !== BuildingState.built
                             ? 'A site heals as it rises — the builders are already putting every delivery on the walls, so there is nothing separate to mend.'
                             : b().repairNeeds
                               ? 'Stops the order. Materials already worked into the walls stay there; the ones still walking over turn around and go back into the stores.'
@@ -412,7 +413,7 @@ export function SelectionPanel(props: {
                     )}
                   >
                     <button
-                      disabled={b().state !== 'built' || (!b().repairNeeds && unpaid() <= 0)}
+                      disabled={b().state !== BuildingState.built || (!b().repairNeeds && unpaid() <= 0)}
                       onClick={() => props.onRepair(b().id, b().repairNeeds === undefined)}
                     >
                       {b().repairNeeds ? 'Cancel repair' : 'Repair'}
@@ -420,7 +421,7 @@ export function SelectionPanel(props: {
                           damage is bought and only waiting on the masons:
                           repairBill of nothing is nothing, and "Repair none"
                           is worse than saying only "Repair". */}
-                      <Show when={b().state === 'built' && !b().repairNeeds && unpaid() > 0}>
+                      <Show when={b().state === BuildingState.built && !b().repairNeeds && unpaid() > 0}>
                         <span class="cost">
                           <GoodsLine amounts={repairBill(b().type, unpaid())} />
                         </span>
@@ -433,7 +434,7 @@ export function SelectionPanel(props: {
                         <TextTip
                           title={pauseLabel()}
                           body={
-                            b().state !== 'built'
+                            b().state !== BuildingState.built
                               ? b().paused
                                 ? 'Resumes the build: materials flow again and a builder is called back to the frame.'
                                 : 'Halts the site where it stands — no new deliveries are called for (a load already on the road still lands), no progress — and the builder rejoins the serf pool. Nothing already delivered is lost.'
@@ -468,7 +469,7 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={def().recipeOptions && b().state === 'built'}>
+              <Show when={def().recipeOptions && b().state === BuildingState.built}>
                 {/* The forge menu: one declared grid, three to a row —
                     nine recipes today and the frame would hold a tenth.
                     A click ORDERS one batch (the barracks' verb), it does
@@ -587,7 +588,7 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={b().type === BuildingTypeId.storehouse && b().state === 'built'}>
+              <Show when={b().type === BuildingTypeId.storehouse && b().state === BuildingState.built}>
                 <div class="sel-row">
                   <TipWrap
                     tip={() => (
@@ -631,7 +632,7 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={b().type === BuildingTypeId.abbey && b().state === 'built'}>
+              <Show when={b().type === BuildingTypeId.abbey && b().state === BuildingState.built}>
                 <div class="sel-row">
                   <button onClick={() => setTechPanelOpen(true)}>
                     <Key label="Research…" k={RESEARCH_KEY} />
@@ -650,7 +651,7 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={def().trains && b().state === 'built'}>
+              <Show when={def().trains && b().state === BuildingState.built}>
                 {/* Wraps: three priced train buttons outgrow the card's
                     width cap on a narrow screen, and are better stacked
                     than sliced. Safe to wrap where the queue below is
@@ -816,7 +817,7 @@ export function SelectionPanel(props: {
                     two is up there, and a stood-down one says plainly that
                     it is empty, because a tower nobody has manned defends
                     nothing at all. */}
-                <Show when={manned() && b().state === 'built'}>
+                <Show when={manned() && b().state === BuildingState.built}>
                   <span classList={{ good: garrison() > 0, bad: garrison() === 0 }}>
                     {garrison() === 0
                       ? b().paused
@@ -827,7 +828,7 @@ export function SelectionPanel(props: {
                 </Show>
                 <Show when={b().staffing}>
                   <span classList={{ good: b().staffing === 'staffed', bad: b().staffing !== 'staffed' }}>
-                    {b().state === 'site'
+                    {b().state === BuildingState.site
                       ? b().staffing === 'staffed'
                         ? 'builder at work'
                         : b().staffing === 'recruiting'
@@ -896,12 +897,12 @@ export function SelectionPanel(props: {
               </Show>
 
               <div class="sel-line">
-                <Show when={b().state === 'site'}>
+                <Show when={b().state === BuildingState.site}>
                   <span>
                     needs <GoodsLine amounts={b().siteNeeds ?? {}} />
                   </span>
                 </Show>
-                <Show when={b().state === 'built'}>
+                <Show when={b().state === BuildingState.built}>
                   <span>
                     stock <GoodsLine amounts={b().stock} /> <span style={{ 'margin-left': '8px' }}>
                       in <GoodsLine amounts={b().inputs} />

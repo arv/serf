@@ -1,5 +1,6 @@
-import { COUNTER_TABLE, UNIT_DEFS, type UnitClass } from './defs/units.ts';
+import { COUNTER_TABLE, UNIT_DEFS } from './defs/units.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { UnitClass } from './defs/units.ts';
 
 /**
  * Will this fight be won? — the question the brain never asked.
@@ -58,12 +59,12 @@ export interface Force {
  * against (their camps are exempt from the gate), so their slightly cheaper
  * stats never come up. */
 const CLASS_UNIT: Record<UnitClass, UnitTypeId> = {
-  heavy: UnitTypeId.knight,
-  light: UnitTypeId.spearman,
-  ranged: UnitTypeId.archer,
+  [UnitClass.heavy]: UnitTypeId.knight,
+  [UnitClass.light]: UnitTypeId.spearman,
+  [UnitClass.ranged]: UnitTypeId.archer,
 };
 
-const CLASSES: readonly UnitClass[] = ['heavy', 'light', 'ranged'];
+const CLASSES: readonly UnitClass[] = [UnitClass.heavy, UnitClass.light, UnitClass.ranged];
 
 export const EMPTY_FORCE: Force = { heavy: 0, light: 0, ranged: 0, hp: 0 };
 
@@ -86,8 +87,17 @@ function classDamage(cls: UnitClass): number {
   return combat.damage / combat.cooldownTicks;
 }
 
+/** Add one soldier of `cls` to a per-class tally. A class was a property
+ * name while it was a word; it is a number now, so the fan-out lives here
+ * rather than at each of the four tallies that keep one. */
+export function tallyClass(counts: { heavy: number; light: number; ranged: number }, cls: UnitClass): void {
+  if (cls === UnitClass.heavy) counts.heavy++;
+  else if (cls === UnitClass.light) counts.light++;
+  else counts.ranged++;
+}
+
 function countOf(force: Force, cls: UnitClass): number {
-  return cls === 'heavy' ? force.heavy : cls === 'light' ? force.light : force.ranged;
+  return cls === UnitClass.heavy ? force.heavy : cls === UnitClass.light ? force.light : force.ranged;
 }
 
 /**
@@ -188,8 +198,8 @@ export function addGarrison(
 ): void {
   if (men <= 0 || wallHp <= 0) return;
   const equivalent = men * damageMult;
-  if (cls === 'heavy') force.heavy += equivalent;
-  else if (cls === 'light') force.light += equivalent;
+  if (cls === UnitClass.heavy) force.heavy += equivalent;
+  else if (cls === UnitClass.light) force.light += equivalent;
   else force.ranged += equivalent;
   force.hp += wallHp;
 }

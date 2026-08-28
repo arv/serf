@@ -8,6 +8,7 @@ import type { BuildingSnap } from '../protocol/messages';
 import type { GoodAmounts } from '../sim/defs/goods';
 import { GoodId } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
+import { BuildingState } from '../sim/entities';
 
 // The KayKit buildings carry material *arrays* on their meshes (the textured
 // group plus the team-color group). The real loader needs GLB files, so mock
@@ -67,7 +68,7 @@ function snap(over: Partial<BuildingSnap>): BuildingSnap {
     h: 2,
     hp: 150,
     maxHp: 150,
-    state: 'built',
+    state: BuildingState.built,
     stock: {},
     inputs: {},
     inbound: {},
@@ -89,7 +90,7 @@ function makeSync(): { sync: InstanceType<typeof BuildingSync>; scene: THREE.Sce
 describe('a construction site with multi-material meshes', () => {
   it('survives finishing: the site visual swaps for the built model', () => {
     const { sync, scene } = makeSync();
-    sync.update([snap({ state: 'site', progress01: 0.5, siteNeeds: {} })]);
+    sync.update([snap({ state: BuildingState.site, progress01: 0.5, siteNeeds: {} })]);
     const siteRoots = scene.children.length;
     expect(siteRoots).toBeGreaterThan(0);
 
@@ -97,7 +98,7 @@ describe('a construction site with multi-material meshes', () => {
     // fix this threw mid-update ("material.dispose is not a function"),
     // leaving the building invisible and poisoning every later update —
     // from that frame on no visual was ever created or removed again.
-    sync.update([snap({ state: 'built' })]);
+    sync.update([snap({ state: BuildingState.built })]);
     expect(scene.children.length).toBe(siteRoots);
 
     // The next roster still syncs: a razed building's visual goes down
@@ -112,12 +113,12 @@ describe('a construction site with multi-material meshes', () => {
 
   it('a poisoned frame does not orphan later buildings', () => {
     const { sync, scene } = makeSync();
-    sync.update([snap({ state: 'site', progress01: 0.5, siteNeeds: {} })]);
+    sync.update([snap({ state: BuildingState.site, progress01: 0.5, siteNeeds: {} })]);
     // Completion and a brand-new site arrive in the same structural frame;
     // both must come out standing.
     sync.update([
-      snap({ state: 'built' }),
-      snap({ id: 8, x: 20, y: 20, state: 'site', progress01: 0, siteNeeds: {} }),
+      snap({ state: BuildingState.built }),
+      snap({ id: 8, x: 20, y: 20, state: BuildingState.site, progress01: 0, siteNeeds: {} }),
     ]);
     expect(scene.children.length).toBe(2);
   });
@@ -167,7 +168,7 @@ describe("the fishery's pier", () => {
 
   it('is absent while the fishery is still a site', () => {
     const { sync } = makeSync();
-    sync.update([snap({ type: BuildingTypeId.fishery, w: 3, h: 3, facing: 1, state: 'site', siteNeeds: {} })]);
+    sync.update([snap({ type: BuildingTypeId.fishery, w: 3, h: 3, facing: 1, state: BuildingState.site, siteNeeds: {} })]);
     expect(sync.fisheryPiers().length).toBe(0);
   });
 });
@@ -334,7 +335,7 @@ describe('the measurements the pointer picks against', () => {
     const scene = new THREE.Scene();
     const ground = new Float32Array(tileCount(DEFAULT_MAP_SIZE)).fill(1.5);
     const sync = new BuildingSync(scene, new HeightField(ground, DEFAULT_MAP_SIZE), 0);
-    sync.update([snap({ state: 'built' })]);
+    sync.update([snap({ state: BuildingState.built })]);
     expect(sync.heightOf(7)).toBeCloseTo(MODEL_TOP);
     // Height is over the building's own base, and the base is where the
     // hillside put it — the two are read together or not at all.
@@ -345,7 +346,7 @@ describe('the measurements the pointer picks against', () => {
 
   it('gives a fresh site its scaffolding, which is all there is to click', () => {
     const { sync } = makeSync();
-    sync.update([snap({ state: 'site', progress01: 0, siteNeeds: {} })]);
+    sync.update([snap({ state: BuildingState.site, progress01: 0, siteNeeds: {} })]);
     // The building itself is a sliver at this point; the frame is not.
     expect(sync.heightOf(7)).toBeCloseTo(SITE_FRAME_H);
     // The ceiling counts the site by what it will be, frame included.
@@ -354,7 +355,7 @@ describe('the measurements the pointer picks against', () => {
 
   it('leaves a road flat: its scaffolding is not a pick box', () => {
     const { sync } = makeSync();
-    sync.update([snap({ type: BuildingTypeId.roadSite, w: 1, h: 1, state: 'site', progress01: 0, siteNeeds: {} })]);
+    sync.update([snap({ type: BuildingTypeId.roadSite, w: 1, h: 1, state: BuildingState.site, progress01: 0, siteNeeds: {} })]);
     // The frame stands 0.7 up while the road is laid, but a road is ground:
     // picking it by its scaffolding would shadow the route it is part of.
     expect(sync.heightOf(7)).toBe(0);

@@ -2,6 +2,8 @@ import type { AiWorldSummary } from '../ai/summary.ts';
 import type { EntityId, Owner } from '../sim/entities.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 import type { UnitTypeId } from '../sim/defs/units.ts';
+import type { BuildingState } from '../sim/entities.ts';
+import type { HaulPhase } from '../sim/world.ts';
 import type { BuildingTypeId } from '../sim/defs/buildings.ts';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods.ts';
 import type { MissionId } from '../sim/defs/missions.ts';
@@ -47,7 +49,7 @@ export interface BuildingSnap {
   w: number;
   h: number;
   hp: number;
-  state: 'site' | 'built';
+  state: BuildingState;
   /** Remaining materials, present for sites. */
   siteNeeds?: GoodAmounts;
   /** Remaining materials of an ordered repair; absent when none is running. */
@@ -112,7 +114,7 @@ export interface JobSnap {
   from: EntityId;
   to: EntityId;
   priority: number;
-  phase: string;
+  phase: HaulPhase;
   serfId?: EntityId;
   age: number;
 }

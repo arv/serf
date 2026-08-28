@@ -25,6 +25,10 @@ import type { BuildingSnap, JobSnap, PlayerSnap } from './messages.ts';
 import { GoodId } from '../sim/defs/goods.ts';
 import { UnitTypeId } from '../sim/defs/units.ts';
 import { BuildingTypeId } from '../sim/defs/buildings.ts';
+import { BuildingState } from '../sim/entities.ts';
+import { UnitTaskKind } from '../sim/units.ts';
+import { HaulPhase } from '../sim/world.ts';
+import { RecipeKind } from '../sim/defs/buildings.ts';
 
 export function snapBuilding(world: World, b: Building): BuildingSnap {
   const def = buildingDef(b.type);
@@ -33,7 +37,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
   // so it reports no staffing state rather than a false "needed" alarm.
   const wantsStaff =
     !b.paused &&
-    (b.state === 'built' ? def.workerKind !== undefined : b.state === 'site' && !def.isRoad);
+    (b.state === BuildingState.built ? def.workerKind !== undefined : b.state === BuildingState.site && !def.isRoad);
   if (wantsStaff) {
     const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
     staffing =
@@ -56,7 +60,7 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     repairNeeds: b.repairNeeds ? { ...b.repairNeeds } : undefined,
     repairPending: b.repairPending,
     progress01:
-      b.state === 'site' && def.buildTicks > 0 ? (b.buildProgress ?? 0) / def.buildTicks : undefined,
+      b.state === BuildingState.site && def.buildTicks > 0 ? (b.buildProgress ?? 0) / def.buildTicks : undefined,
     stock: { ...b.stock },
     inputs: { ...b.inputs },
     inbound: { ...b.inbound },
@@ -137,14 +141,14 @@ export function snapPlayers(world: World): PlayerSnap[] {
   };
   for (const b of world.buildings.values()) {
     if (b.dead) continue;
-    if (b.state === 'site') {
+    if (b.state === BuildingState.site) {
       // A site still owed its borrowed hammer counts as a hammer want.
       if (!b.paused && (b.siteNeeds?.[GoodId.hammer] ?? 0) > 0 && (b.inbound[GoodId.hammer] ?? 0) === 0) {
         wantTool(b.owner, GoodId.hammer);
       }
       continue;
     }
-    if (b.state !== 'built') continue;
+    if (b.state !== BuildingState.built) continue;
     if (b.type === BuildingTypeId.abbey) abbeyOwners.add(b.owner);
     if (!storehouses.has(b.owner) && buildingDef(b.type).storage) storehouses.set(b.owner, b);
     const housing = buildingDef(b.type).housing;
@@ -215,9 +219,9 @@ export function snapJobs(world: World, owner?: number): JobSnap[] {
  * whole population bar one or two serfs at any moment.
  */
 function drawingAt(w: World, u: Unit): Building | undefined {
-  if (u.task.t !== 'haul' || u.jobId === undefined) return undefined;
+  if (u.task.t !== UnitTaskKind.haul || u.jobId === undefined) return undefined;
   const job = w.jobs.get(u.jobId);
-  if (!job || job.phase !== 'toPickup' || job.drawUntil === undefined) return undefined;
+  if (!job || job.phase !== HaulPhase.toPickup || job.drawUntil === undefined) return undefined;
   if (w.tick >= job.drawUntil) return undefined;
   return w.buildings.get(job.from);
 }
@@ -269,16 +273,16 @@ function actionOf(w: World, u: Unit, engaged: boolean): number {
   // Engaged fighters swing (the renderer overrides with a walk while moving).
   if (engaged) return ACTION.fight;
   // Gather workers swinging at a resource tile.
-  if (u.task.t === 'gatherWork') return ACTION.work;
+  if (u.task.t === UnitTaskKind.gatherWork) return ACTION.work;
   // A hauler on the well's windlass. The well keeps no resident, so this is
   // the only way anyone is ever seen drawing.
   if (drawingAt(w, u) !== undefined) return ACTION.work;
   // Resident workers: builders hammering up their site once materials are
   // in, or convert-building staff mid-batch (hoeing, hammering...).
-  if (u.homeId !== undefined && u.task.t === 'idle') {
+  if (u.homeId !== undefined && u.task.t === UnitTaskKind.idle) {
     const home = w.buildings.get(u.homeId);
     if (home && !home.dead) {
-      if (home.state === 'site') {
+      if (home.state === BuildingState.site) {
         const waiting = GOODS.some((g) => ((home.siteNeeds ?? {})[g] ?? 0) > 0);
         return waiting ? ACTION.idle : ACTION.work;
       }
@@ -296,7 +300,7 @@ function professionOf(w: World, u: Unit): number {
   // The look comes with the job, not the job offer: a builder raising his
   // own future farm stays a plain laborer until the roof is on — the
   // straw hat goes on when farming starts.
-  if (home.state !== 'built') return PROFESSION.none;
+  if (home.state !== BuildingState.built) return PROFESSION.none;
   if (home.type === BuildingTypeId.wheatFarm) return PROFESSION.farmer;
   if (
     home.type === BuildingTypeId.quarry ||
@@ -316,9 +320,9 @@ function workKindOf(w: World, u: Unit): number {
   if (drawingAt(w, u)?.type === BuildingTypeId.well) return WORK.draw;
   const home = u.homeId !== undefined ? w.buildings.get(u.homeId) : undefined;
   if (!home) return WORK.tend;
-  if (home.state === 'site') return WORK.hammer; // builder at the frame
+  if (home.state === BuildingState.site) return WORK.hammer; // builder at the frame
   const def = buildingDef(home.type);
-  if (def.recipe?.kind === 'gather') {
+  if (def.recipe?.kind === RecipeKind.gather) {
     return def.recipe.resource === 'wood' ? WORK.chop : WORK.pickaxe;
   }
   if (home.type === BuildingTypeId.weaponsmith) return WORK.hammer;

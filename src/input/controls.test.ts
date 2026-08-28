@@ -37,6 +37,7 @@ import {
 } from '../ui/store';
 import { GoodId } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
+import { BuildingState } from '../sim/entities';
 
 const CANVAS_W = 800;
 const CANVAS_H = 600;
@@ -152,7 +153,7 @@ function building(id: number): BuildingSnap {
     h: 3,
     hp: 100,
     maxHp: 100,
-    state: 'built',
+    state: BuildingState.built,
     stock: {},
     inputs: {},
     inbound: {},

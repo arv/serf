@@ -3,8 +3,8 @@
  * this file holds cross-cutting knobs so a balance pass is one screen.
  */
 import type { GoodAmounts } from './goods.ts';
-import type { UnitClass } from './units.ts';
 import { GoodId } from './goods.ts';
+import { UnitClass } from './units.ts';
 
 export const TICKS_PER_SECOND = 20;
 export const TICK_MS = 1000 / TICKS_PER_SECOND;
@@ -120,9 +120,9 @@ export const ALE_TRAIN_SPEEDUP = 1.25;
  * walls down fast brings men who can put their backs into it.
  */
 export const BUILDING_DAMAGE_MULT: Record<UnitClass, number> = {
-  heavy: 0.75,
-  light: 0.75,
-  ranged: 0.5,
+  [UnitClass.heavy]: 0.75,
+  [UnitClass.light]: 0.75,
+  [UnitClass.ranged]: 0.5,
 };
 
 // Raids — paced for the population economy's slower ramp (staffing every

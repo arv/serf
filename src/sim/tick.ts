@@ -33,6 +33,8 @@ import type { AdminAction, SimCommand } from './commands.ts';
 import { GoodId } from './defs/goods.ts';
 import { goodEntries } from './defs/goods.ts';
 import { UNIT_TYPES } from './defs/units.ts';
+import { BuildingState } from './entities.ts';
+import { UnitTaskKind } from './units.ts';
 
 export { TICKS_PER_SECOND, TICK_MS } from './defs/balance.ts';
 
@@ -236,7 +238,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       // Nothing is paid at enqueue — inputs are consumed at batch start,
       // exactly like every other convert batch.
       const b = world.buildings.get(cmd.buildingId);
-      if (!b || b.dead || b.owner !== playerId || b.state !== 'built') break;
+      if (!b || b.dead || b.owner !== playerId || b.state !== BuildingState.built) break;
       const opt = buildingDef(b.type).recipeOptions?.[cmd.recipeIndex];
       if (!opt) break;
       if (
@@ -291,7 +293,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       const sh = findStorehouse(world, playerId);
       if (sh) {
         for (const [good, n] of goodEntries(def.cost)) {
-          const delivered = b.state === 'site' ? n - (b.siteNeeds?.[good] ?? 0) : n;
+          const delivered = b.state === BuildingState.site ? n - (b.siteNeeds?.[good] ?? 0) : n;
           const refund = Math.floor(delivered / 2);
           if (refund <= 0) continue;
           sh.stock[good] = (sh.stock[good] ?? 0) + refund;
@@ -309,7 +311,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         // is the rule: a sold Smith loses its forged stock the way a sold
         // bakery loses its bread. A move, not a mint, so no ledger entry.
         const rescue = new Set<GoodId>();
-        if (b.state === 'site') rescue.add(GoodId.hammer);
+        if (b.state === BuildingState.site) rescue.add(GoodId.hammer);
         const postTool = TOOL_OF[b.type];
         if (postTool) rescue.add(postTool);
         for (const good of rescue) {
@@ -408,7 +410,7 @@ function applyMoveUnits(
         const unit = world.units.get(id);
         if (!unit || unit.dead || unit.owner !== playerId) continue;
         if (!UNIT_DEFS[unit.kind].combat) continue; // civilians don't storm camps
-        unit.task = { t: 'raid', buildingId: target.id };
+        unit.task = { t: UnitTaskKind.raid, buildingId: target.id };
         unit.targetId = target.id;
         unit.targetIsBuilding = true;
         unit.path = null;
@@ -454,9 +456,9 @@ function applyMoveUnits(
     unit.task =
       cmd.attack && UNIT_DEFS[unit.kind].combat
         ? cmd.attack === 'half' && engageIdx > 0
-          ? { t: 'attackMove', destX: goalX, destY: goalY, engageIdx }
-          : { t: 'attackMove', destX: goalX, destY: goalY }
-        : { t: 'move' };
+          ? { t: UnitTaskKind.attackMove, destX: goalX, destY: goalY, engageIdx }
+          : { t: UnitTaskKind.attackMove, destX: goalX, destY: goalY }
+        : { t: UnitTaskKind.move };
     // Explicit orders disengage combat; an attack-move re-acquires freely.
     unit.targetId = undefined;
     unit.targetIsBuilding = undefined;

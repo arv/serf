@@ -1,6 +1,11 @@
 import type { GoodAmounts } from './defs/goods.ts';
 import type { BuildingTypeId } from './defs/buildings.ts';
 import type { UnitTypeId } from './defs/units.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as BuildingStateNs from './buildingStateEnum.ts';
+
+export * as BuildingState from './buildingStateEnum.ts';
+export type BuildingState = Enum<typeof BuildingStateNs>;
 
 /**
  * Entity records are plain serializable data. Cross-entity references are IDs
@@ -33,7 +38,7 @@ export interface Building {
   w: number;
   h: number;
   hp: number;
-  state: 'site' | 'built';
+  state: BuildingState;
   /** Remaining construction materials (site only). */
   siteNeeds?: GoodAmounts;
   /** Build timer ticks accumulated once materials are complete (site only). */

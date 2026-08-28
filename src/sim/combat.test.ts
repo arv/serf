@@ -24,6 +24,9 @@ import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { TechId } from './defs/techs.ts';
+import { UnitTaskKind } from './units.ts';
+import { UnitClass } from './defs/units.ts';
+import { BuildingState } from './entities.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -31,12 +34,12 @@ function run(world: World, ticks: number): void {
 
 describe('the counter triangle', () => {
   it('is a strict rock-paper-scissors table', () => {
-    expect(COUNTER_TABLE.heavy.light).toBeGreaterThan(1);
-    expect(COUNTER_TABLE.light.ranged).toBeGreaterThan(1);
-    expect(COUNTER_TABLE.ranged.heavy).toBeGreaterThan(1);
-    expect(COUNTER_TABLE.light.heavy).toBeLessThan(1);
-    expect(COUNTER_TABLE.ranged.light).toBeLessThan(1);
-    expect(COUNTER_TABLE.heavy.ranged).toBeLessThan(1);
+    expect(COUNTER_TABLE[UnitClass.heavy][UnitClass.light]).toBeGreaterThan(1);
+    expect(COUNTER_TABLE[UnitClass.light][UnitClass.ranged]).toBeGreaterThan(1);
+    expect(COUNTER_TABLE[UnitClass.ranged][UnitClass.heavy]).toBeGreaterThan(1);
+    expect(COUNTER_TABLE[UnitClass.light][UnitClass.heavy]).toBeLessThan(1);
+    expect(COUNTER_TABLE[UnitClass.ranged][UnitClass.light]).toBeLessThan(1);
+    expect(COUNTER_TABLE[UnitClass.heavy][UnitClass.ranged]).toBeLessThan(1);
   });
 
   it('knight (heavy) beats spearman (light) in a straight duel', () => {
@@ -271,7 +274,7 @@ describe('the three move orders', () => {
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
     const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 36.5, 32.5);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 42, y: 30, attack: true }));
-    expect(knight.task.t).toBe('attackMove');
+    expect(knight.task.t).toBe(UnitTaskKind.attackMove);
 
     // Where the knight stood when the bandit fell: en route, not at the goal.
     let deathX = -1;
@@ -285,7 +288,7 @@ describe('the three move orders', () => {
     // The order then resumes: the knight stands on the goal tile, order done.
     expect(Math.floor(knight.x)).toBe(42);
     expect(Math.floor(knight.y)).toBe(30);
-    expect(knight.task.t).toBe('idle');
+    expect(knight.task.t).toBe(UnitTaskKind.idle);
   });
 
   it('an attack-move besieges an enemy building on the way, not after a round trip', () => {
@@ -307,7 +310,7 @@ describe('the three move orders', () => {
     expect(maxXBeforeRazed).toBeLessThan(42);
     expect(Math.floor(knight.x)).toBe(44);
     expect(Math.floor(knight.y)).toBe(30);
-    expect(knight.task.t).toBe('idle');
+    expect(knight.task.t).toBe(UnitTaskKind.idle);
   });
 
   it('a plain move walks past enemies without raising a hand', () => {
@@ -315,7 +318,7 @@ describe('the three move orders', () => {
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
     const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 36.5, 32.5);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 42, y: 30 }));
-    expect(knight.task.t).toBe('move');
+    expect(knight.task.t).toBe(UnitTaskKind.move);
 
     // The bandit charges and gnaws at the knight the whole way; the knight
     // never strikes back until the walk is over. (Arrival flips the task to
@@ -323,9 +326,9 @@ describe('the three move orders', () => {
     // only ticks that END still on 'move' prove restraint.)
     let struckWhileMoving = false;
     let guard = 20 * 30;
-    while (knight.task.t === 'move' && guard-- > 0) {
+    while (knight.task.t === UnitTaskKind.move && guard-- > 0) {
       tickWorld(world, []);
-      if (knight.task.t === 'move' && bandit.hp < UNIT_DEFS[UnitTypeId.bandit].hp) struckWhileMoving = true;
+      if (knight.task.t === UnitTaskKind.move && bandit.hp < UNIT_DEFS[UnitTypeId.bandit].hp) struckWhileMoving = true;
     }
     expect(struckWhileMoving).toBe(false);
     expect(knight.dead).toBe(false);
@@ -338,9 +341,9 @@ describe('the three move orders', () => {
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
     const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 31.5, 31.5);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 44, y: 30, attack: 'half' }));
-    expect(knight.task.t).toBe('attackMove');
+    expect(knight.task.t).toBe(UnitTaskKind.attackMove);
     const quiet = (): boolean =>
-      knight.task.t === 'attackMove' && knight.task.engageIdx !== undefined;
+      knight.task.t === UnitTaskKind.attackMove && knight.task.engageIdx !== undefined;
     expect(quiet()).toBe(true);
 
     // The bandit gives chase and gnaws at the knight the whole front leg;
@@ -366,7 +369,7 @@ describe('the three move orders', () => {
     expect(deathX).toBeGreaterThan(35);
     expect(Math.floor(knight.x)).toBe(44);
     expect(Math.floor(knight.y)).toBe(30);
-    expect(knight.task.t).toBe('idle');
+    expect(knight.task.t).toBe(UnitTaskKind.idle);
   });
 
   it('a half order walks clear of the camp beside its start instead of besieging it', () => {
@@ -382,16 +385,16 @@ describe('the three move orders', () => {
     expect(camp.hp).toBe(600);
     expect(Math.floor(knight.x)).toBe(46);
     expect(Math.floor(knight.y)).toBe(30);
-    expect(knight.task.t).toBe('idle');
+    expect(knight.task.t).toBe(UnitTaskKind.idle);
   });
 
   it('civilians in an attack-move selection just walk — there is nothing to fight with', () => {
     const world = bareWorld();
     const serf = addSerf(world, 30, 31);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 34, y: 31, attack: true }));
-    expect(serf.task.t).toBe('move');
+    expect(serf.task.t).toBe(UnitTaskKind.move);
     tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 30, y: 31, attack: 'half' }));
-    expect(serf.task.t).toBe('move');
+    expect(serf.task.t).toBe(UnitTaskKind.move);
   });
 });
 
@@ -411,7 +414,7 @@ describe('damage events', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, {});
     const bandit = spawnUnit(world, UnitTypeId.bandit, BANDIT, 29.5, 30.5);
-    bandit.task = { t: 'raid', buildingId: sh.id };
+    bandit.task = { t: UnitTaskKind.raid, buildingId: sh.id };
     run(world, 20 * 10);
     const hits = world.pendingEvents.filter((e) => e.kind === 'damage').filter((e) => e.building);
     expect(hits.length).toBeGreaterThan(0);
@@ -483,9 +486,9 @@ describe('the fight the renderer is shown', () => {
     // fleeing knight his attacker as a target — one no system would act on,
     // so he walked off swinging at a pursuer he had left behind.
     let guard = 20 * 30;
-    while (knight.task.t === 'move' && guard-- > 0) {
+    while (knight.task.t === UnitTaskKind.move && guard-- > 0) {
       tickWorld(world, []);
-      if (knight.task.t !== 'move') break; // arrival re-engages, legitimately
+      if (knight.task.t !== UnitTaskKind.move) break; // arrival re-engages, legitimately
       expect(knight.targetId).toBeUndefined();
       expect(snapOf(world, knight.id).action).not.toBe(ACTION.fight);
     }
@@ -557,7 +560,7 @@ describe('the guard tower', () => {
     site.buildProgress = BUILDING_DEFS[BuildingTypeId.guardTower].buildTicks;
     const serf = addSerf(world, 36, 31);
     run(world, 20 * 20);
-    expect(site.state).toBe('built');
+    expect(site.state).toBe(BuildingState.built);
     expect(site.paused).toBe(true);
     expect(site.garrison ?? 0).toBe(0);
     expect(serf.dead).toBe(false);
@@ -619,10 +622,10 @@ describe('the guard tower', () => {
     const combat = UNIT_DEFS[UnitTypeId.archer].combat!;
     const rule = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!;
     const base = combat.damage * rule.damageMult * 2;
-    expect(COUNTER_TABLE.ranged.light).toBeLessThan(1); // the penalty declined
+    expect(COUNTER_TABLE[UnitClass.ranged][UnitClass.light]).toBeLessThan(1); // the penalty declined
     expect(volley(UnitTypeId.bandit)).toBeCloseTo(base, 5);
-    expect(COUNTER_TABLE.ranged.heavy).toBeGreaterThan(1); // the bonus kept
-    expect(volley(UnitTypeId.marauder)).toBeCloseTo(base * COUNTER_TABLE.ranged.heavy, 5);
+    expect(COUNTER_TABLE[UnitClass.ranged][UnitClass.heavy]).toBeGreaterThan(1); // the bonus kept
+    expect(volley(UnitTypeId.marauder)).toBeCloseTo(base * COUNTER_TABLE[UnitClass.ranged][UnitClass.heavy], 5);
   });
 
   it('reaches further than the archer who mans it, but not forever', () => {
@@ -791,7 +794,7 @@ describe('the guard tower', () => {
     let guard = 0;
     while (tower.recruitId === undefined && guard++ < 400) tickWorld(world, []);
     expect(tower.recruitId).toBe(archer.id);
-    expect(archer.task.t).toBe('staff');
+    expect(archer.task.t).toBe(UnitTaskKind.staff);
     expect(tower.garrison ?? 0).toBe(0);
 
     // Halted mid-walk: he reaches the door and is turned away, and nothing
@@ -801,7 +804,7 @@ describe('the guard tower', () => {
     expect(tower.garrison ?? 0).toBe(0);
     expect(tower.recruitId).toBeUndefined();
     expect(archer.dead).toBe(false);
-    expect(archer.task.t).toBe('idle');
+    expect(archer.task.t).toBe(UnitTaskKind.idle);
 
     // Manned again, he climbs up as he always did.
     tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: false }));

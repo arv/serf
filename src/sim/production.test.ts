@@ -8,6 +8,7 @@ import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testU
 import type { World } from './world.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
+import { BuildingState } from './entities.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -106,7 +107,7 @@ describe('gather production', () => {
     let builtAt = -1;
     for (let i = 0; i < 500 && builtAt < 0; i++) {
       tickWorld(world, []);
-      if (site.state === 'built') builtAt = world.tick;
+      if (site.state === BuildingState.built) builtAt = world.tick;
     }
     expect(builtAt - arrivedAt).toBeGreaterThanOrEqual(300);
     expect(builtAt - arrivedAt).toBeLessThanOrEqual(301);

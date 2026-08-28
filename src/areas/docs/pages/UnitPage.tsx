@@ -2,7 +2,7 @@ import { For, Show, createSignal, type JSX } from 'solid-js';
 import type { AnimKey } from '../../../render/characters';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS } from '../../../sim/defs/balance';
 import { BUILDING_DEFS } from '../../../sim/defs/buildings';
-import { COUNTER_TABLE, UNIT_DEFS, WEAPON_OF, type UnitClass } from '../../../sim/defs/units';
+import { COUNTER_TABLE, UNIT_DEFS, WEAPON_OF } from '../../../sim/defs/units';
 import { buildingName, techName, unitName } from '../../../ui/names';
 import { ALL_BUILDINGS, TRAINED_AT, UNIT_UNLOCKED_BY, fmtSecs } from '../data';
 import { UNIT_DESC } from '../descriptions';
@@ -12,8 +12,9 @@ import { Prose } from '../prose';
 import { buildingHref, techHref, unitHref } from '../routes';
 import { UnitTypeId } from '../../../sim/defs/units';
 import { BuildingTypeId } from '../../../sim/defs/buildings';
+import { UnitClass } from '../../../sim/defs/units';
 
-const CLASSES: UnitClass[] = ['heavy', 'light', 'ranged'];
+const CLASSES: UnitClass[] = [UnitClass.heavy, UnitClass.light, UnitClass.ranged];
 
 /**
  * The clips worth watching, per kind of person. A soldier's third is the
@@ -32,7 +33,7 @@ function animOptions(unit: UnitTypeId): { key: AnimKey; label: string }[] {
   }
   return [
     ...walk,
-    combat.class === 'ranged' ? { key: 'shoot', label: 'Shoot' } : { key: 'attack', label: 'Attack' },
+    combat.class === UnitClass.ranged ? { key: 'shoot', label: 'Shoot' } : { key: 'attack', label: 'Attack' },
     { key: 'death', label: 'Fall' },
   ];
 }

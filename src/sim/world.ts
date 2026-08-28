@@ -38,6 +38,12 @@ import { goodKeys } from './defs/goods.ts';
 import { goodEntries } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as HaulPhaseNs from './haulPhaseEnum.ts';
+import { BuildingState } from './entities.ts';
+
+export * as HaulPhase from './haulPhaseEnum.ts';
+export type HaulPhase = Enum<typeof HaulPhaseNs>;
 
 export interface HaulJob {
   id: number;
@@ -48,7 +54,7 @@ export interface HaulJob {
   owner: Owner;
   priority: 1 | 2 | 3;
   createdTick: number;
-  phase: 'open' | 'toPickup' | 'toDropoff';
+  phase: HaulPhase;
   serfId?: EntityId;
   /**
    * This haul was booked by an ordered repair. Cancelling the repair stands
@@ -608,7 +614,7 @@ function makeBuildingRecord(
     w: def.w,
     h: def.h,
     hp: def.hp,
-    state: 'built',
+    state: BuildingState.built,
     stock: {},
     inputs: {},
     inbound: {},
@@ -657,7 +663,7 @@ export function placeSite(
 ): Building {
   const def = buildingDef(type);
   const b = makeBuildingRecord(world, type, owner, x, y);
-  b.state = 'site';
+  b.state = BuildingState.site;
   // A bare frame is fragile; hp climbs to full as construction advances.
   b.hp = Math.max(1, Math.round(def.hp * 0.2));
   b.siteNeeds = { ...def.cost };

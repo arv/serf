@@ -14,6 +14,8 @@ import { goodKeys } from './defs/goods.ts';
 import type { GoodAmounts } from './defs/goods.ts';
 import { goodEntries } from './defs/goods.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { BuildingState } from './entities.ts';
+import { UnitTaskKind } from './units.ts';
 
 /**
  * The seat's economy as a set of named rules instead of a cascade.
@@ -159,7 +161,7 @@ const resiteExtractor: EconomyRule = {
   fire(ctx) {
     if (!ctx.stalled) return null;
     for (const b of ctx.mine) {
-      if (b.state !== 'built') continue;
+      if (b.state !== BuildingState.built) continue;
       const def = BUILDING_DEFS[b.type as BuildingTypeId];
       const recipe = gatherRecipeOf(def);
       if (!recipe) continue;
@@ -273,11 +275,11 @@ const freeCappedHauler: EconomyRule = {
   fire(ctx) {
     if (ctx.serfCount >= ctx.strategy.survivalFloor) return null;
     for (const b of ctx.mine) {
-      if (b.state !== 'built' || b.paused || b.workerId === undefined) continue;
+      if (b.state !== BuildingState.built || b.paused || b.workerId === undefined) continue;
       const out = gatherRecipeOf(BUILDING_DEFS[b.type as BuildingTypeId])?.output;
       if (out === undefined || (b.stock[out] ?? 0) < OUTPUT_CAP) continue;
       const worker = ctx.world.units.get(b.workerId);
-      if (!worker || worker.dead || worker.task.t !== 'idle') continue;
+      if (!worker || worker.dead || worker.task.t !== UnitTaskKind.idle) continue;
       return {
         commands: [{ kind: 'setBuildingPaused', buildingId: b.id, paused: true }],
         claims: [b.id],
@@ -314,20 +316,20 @@ const keepTheToolsComing: EconomyRule = {
     // may stand every forge in the village down, and a village that cannot
     // replace a lost axe has no woodcutter. A halted Smith is one order
     // away from working, so it counts.
-    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === 'built');
+    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built);
     if (smiths.length === 0) return null;
 
     // What the village is short of: a post open for it with nothing on the
     // way, or a site still owed the hammer it borrows.
     const wanted = new Set<GoodId>();
     for (const b of ctx.mine) {
-      if (b.state === 'site') {
+      if (b.state === BuildingState.site) {
         if (!b.paused && (b.siteNeeds?.[GoodId.hammer] ?? 0) > 0 && (b.inbound[GoodId.hammer] ?? 0) === 0) {
           wanted.add(GoodId.hammer);
         }
         continue;
       }
-      if (b.state !== 'built' || b.paused) continue;
+      if (b.state !== BuildingState.built || b.paused) continue;
       const tool = TOOL_OF[b.type];
       if (tool === undefined) continue;
       const worker = b.workerId !== undefined ? ctx.world.units.get(b.workerId) : undefined;
@@ -410,7 +412,7 @@ const resumeDrainedPost: EconomyRule = {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
     for (const b of ctx.mine) {
-      if (b.state !== 'built' || !b.paused) continue;
+      if (b.state !== BuildingState.built || !b.paused) continue;
       const out = gatherRecipeOf(BUILDING_DEFS[b.type as BuildingTypeId])?.output;
       if (out === undefined || (b.stock[out] ?? 0) > 0) continue;
       commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
@@ -439,7 +441,7 @@ const forgeTheCounter: EconomyRule = {
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
-    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === 'built');
+    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built);
     smiths.forEach((smith, i) => {
       let want = ctx.strategy.weaponMix[Math.min(i, ctx.strategy.weaponMix.length - 1)]!;
       if (ctx.counter && i > 0) {
@@ -572,7 +574,7 @@ const holdTheGlutForge: EconomyRule = {
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
-    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === 'built');
+    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built);
     for (const b of smiths) {
       const recipe = convertRecipeOf(BUILDING_DEFS[BuildingTypeId.weaponsmith], b);
       if (!recipe) continue;
@@ -668,7 +670,7 @@ const handsBeforeSoldiers: EconomyRule = {
     const short = ctx.serfCount < ctx.strategy.survivalFloor;
     const clear = ctx.serfCount > ctx.strategy.survivalFloor;
     for (const b of ctx.mine) {
-      if (b.state !== 'built' || BUILDING_DEFS[b.type as BuildingTypeId].trains === undefined) {
+      if (b.state !== BuildingState.built || BUILDING_DEFS[b.type as BuildingTypeId].trains === undefined) {
         continue;
       }
       const halted = b.paused === true;
@@ -711,7 +713,7 @@ const keepTheQueueWarm: EconomyRule = {
   when: 'the barracks queue is short, or stuck behind a weapon nobody can make',
   phase: 'production',
   fire(ctx) {
-    const barracks = ctx.mine.find((b) => b.type === BuildingTypeId.barracks && b.state === 'built');
+    const barracks = ctx.mine.find((b) => b.type === BuildingTypeId.barracks && b.state === BuildingState.built);
     if (!barracks) return null;
     const around = (good: GoodId): boolean =>
       (ctx.stock[good] ?? 0) + (barracks.inputs[good] ?? 0) + (barracks.inbound[good] ?? 0) > 0;

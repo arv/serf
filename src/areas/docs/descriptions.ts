@@ -4,6 +4,7 @@ import { UNIT_DEFS } from '../../sim/defs/units';
 import { GoodId } from '../../sim/defs/goods';
 import { UnitTypeId } from '../../sim/defs/units';
 import { BuildingTypeId } from '../../sim/defs/buildings';
+import { RecipeKind } from '../../sim/defs/buildings';
 
 /**
  * The one authored layer of the wiki: a sentence or two of flavor and
@@ -24,7 +25,7 @@ import { BuildingTypeId } from '../../sim/defs/buildings';
 /** What one turn of a building's fixed recipe yields. */
 function yieldOf(building: BuildingTypeId, good: GoodId): number {
   const recipe = BUILDING_DEFS[building].recipe;
-  return (recipe?.kind === 'convert' ? recipe.outputs[good] : undefined) ?? 0;
+  return (recipe?.kind === RecipeKind.convert ? recipe.outputs[good] : undefined) ?? 0;
 }
 
 /** What the Smith's recipe for `good` takes in `input`. */

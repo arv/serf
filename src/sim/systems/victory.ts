@@ -3,6 +3,7 @@ import { latchObjectives } from './objectives.ts';
 import type { Owner } from '../entities.ts';
 import type { World } from '../world.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
+import { BuildingState } from '../entities.ts';
 
 /**
  * Elimination and match end. A player whose storehouse falls is out; the
@@ -23,7 +24,7 @@ export function victorySystem(world: World): void {
   // One pass over the buildings replaces a full scan per player per tick.
   const hasStorehouse = new Set<Owner>();
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.state === 'built' && buildingDef(b.type).storage) {
+    if (!b.dead && b.state === BuildingState.built && buildingDef(b.type).storage) {
       hasStorehouse.add(b.owner);
     }
   }

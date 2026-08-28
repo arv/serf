@@ -7,12 +7,16 @@ export type BuildingTypeId = Enum<typeof BuildingTypeIdNs>;
 
 const B = BuildingTypeIdNs;
 import type { GoodAmounts } from './goods.ts';
-import type { UnitClass } from './units.ts';
 import { GoodId } from './goods.ts';
 import { goodEntries } from './goods.ts';
 import { goodKeys } from './goods.ts';
 import { UnitTypeId } from './units.ts';
 import { TechId } from './techs.ts';
+import * as RecipeKindNs from './recipeKindEnum.ts';
+import { UnitClass } from './units.ts';
+
+export * as RecipeKind from './recipeKindEnum.ts';
+export type RecipeKind = Enum<typeof RecipeKindNs>;
 
 /**
  * Two recipe kinds cover every producer in the game:
@@ -25,7 +29,7 @@ export type TileResourceName = 'wood' | 'rock' | 'ironDep' | 'silverDep' | 'gold
 
 export type Recipe =
   | {
-      kind: 'gather';
+      kind: RecipeKindNs.gather;
       resource: TileResourceName;
       output: GoodId;
       /** Search radius (tiles from building center) for resource tiles. This
@@ -36,7 +40,7 @@ export type Recipe =
       workTicks: number;
     }
   | {
-      kind: 'convert';
+      kind: RecipeKindNs.convert;
       inputs: GoodAmounts;
       outputs: GoodAmounts;
       durationTicks: number;
@@ -70,7 +74,7 @@ export interface BuildingDef {
   /** Player-selectable convert recipes (the weaponsmith's forge menu).
    * The building's recipeIndex picks the active one; options may be
    * individually tech-gated on top of the building's own unlock. */
-  recipeOptions?: { recipe: Recipe & { kind: 'convert' }; requiresTech?: TechId }[];
+  recipeOptions?: { recipe: Recipe & { kind: RecipeKindNs.convert }; requiresTech?: TechId }[];
   /** Resident worker spawned when construction completes (gather recipes). */
   workerKind?: UnitTypeId;
   /**
@@ -234,7 +238,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 150,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
-    recipe: { kind: 'gather', resource: 'wood', output: GoodId.wood, radius: 8, workTicks: 2.5 * S },
+    recipe: { kind: RecipeKindNs.gather, resource: 'wood', output: GoodId.wood, radius: 8, workTicks: 2.5 * S },
   },
   [B.quarry]: {
     id: B.quarry,
@@ -247,7 +251,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     modelScale: 1.2,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
-    recipe: { kind: 'gather', resource: 'rock', output: GoodId.stone, radius: 8, workTicks: 3 * S },
+    recipe: { kind: RecipeKindNs.gather, resource: 'rock', output: GoodId.stone, radius: 8, workTicks: 3 * S },
   },
   [B.house]: {
     id: B.house,
@@ -286,7 +290,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // water a minute costs the same hand's worth of haulage. The bill is
     // identical and the population slot is free. Below demand it costs
     // nothing at all, which the keeper never managed.
-    recipe: { kind: 'convert', inputs: {}, outputs: { [GoodId.water]: 1 }, durationTicks: 6 * S },
+    recipe: { kind: RecipeKindNs.convert, inputs: {}, outputs: { [GoodId.water]: 1 }, durationTicks: 6 * S },
     drawTicks: 6 * S,
   },
   [B.wheatFarm]: {
@@ -299,7 +303,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     hp: 100,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
-    recipe: { kind: 'convert', inputs: { [GoodId.water]: 1 }, outputs: { [GoodId.wheat]: 1 }, durationTicks: 10 * S },
+    recipe: { kind: RecipeKindNs.convert, inputs: { [GoodId.water]: 1 }, outputs: { [GoodId.wheat]: 1 }, durationTicks: 10 * S },
   },
   [B.mill]: {
     id: B.mill,
@@ -318,7 +322,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // Grain in, flour out. Slower than the farm that feeds it on purpose:
     // one mill should serve two farms, so the chain is a shape rather than
     // a stack of one-to-ones.
-    recipe: { kind: 'convert', inputs: { [GoodId.wheat]: 1 }, outputs: { [GoodId.flour]: 1 }, durationTicks: 8 * S },
+    recipe: { kind: RecipeKindNs.convert, inputs: { [GoodId.wheat]: 1 }, outputs: { [GoodId.flour]: 1 }, durationTicks: 8 * S },
   },
   [B.bakery]: {
     id: B.bakery,
@@ -333,7 +337,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // The well is already on every build order; making bread want water
     // ties the food chain to it rather than adding a parallel one.
     recipe: {
-      kind: 'convert',
+      kind: RecipeKindNs.convert,
       inputs: { [GoodId.flour]: 1, [GoodId.water]: 1 },
       outputs: { [GoodId.food]: 2 },
       durationTicks: 12 * S,
@@ -368,7 +372,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // (A hen yard stood beside these two for a while, wheat straight to
     // food. Cut: two food sources are a choice, three were a menu, and the
     // hens lost to the bakery on every number that mattered.)
-    recipe: { kind: 'convert', inputs: {}, outputs: { [GoodId.food]: 1 }, durationTicks: 20 * S },
+    recipe: { kind: RecipeKindNs.convert, inputs: {}, outputs: { [GoodId.food]: 1 }, durationTicks: 20 * S },
     // Touching, not merely near: the pier is part of the building, and a
     // pier that stops three tiles short of the water is worse than none.
     nearWater: { radius: 1 },
@@ -392,7 +396,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     // on a market the festival alone capped at 1/min. Wheat stays sane
     // too: 3/min is half a farm, alongside the mill's draw.
     recipe: {
-      kind: 'convert',
+      kind: RecipeKindNs.convert,
       inputs: { [GoodId.wheat]: 1, [GoodId.water]: 1 },
       outputs: { [GoodId.ale]: 1 },
       durationTicks: 20 * S,
@@ -410,7 +414,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     modelScale: 1.2,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
-    recipe: { kind: 'gather', resource: 'ironDep', output: GoodId.iron, radius: 4, workTicks: 4 * S },
+    recipe: { kind: RecipeKindNs.gather, resource: 'ironDep', output: GoodId.iron, radius: 4, workTicks: 4 * S },
     mine: true,
   },
   [B.silverMine]: {
@@ -424,7 +428,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     modelScale: 1.2,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
-    recipe: { kind: 'gather', resource: 'silverDep', output: GoodId.silver, radius: 4, workTicks: 4 * S },
+    recipe: { kind: RecipeKindNs.gather, resource: 'silverDep', output: GoodId.silver, radius: 4, workTicks: 4 * S },
     mine: true,
   },
   [B.goldMine]: {
@@ -439,7 +443,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     modelScale: 1.2,
     sight: 5.5,
     workerKind: UnitTypeId.worker,
-    recipe: { kind: 'gather', resource: 'goldDep', output: GoodId.gold, radius: 4, workTicks: 5 * S },
+    recipe: { kind: RecipeKindNs.gather, resource: 'goldDep', output: GoodId.gold, radius: 4, workTicks: 5 * S },
     mine: true,
   },
   [B.weaponsmith]: {
@@ -462,7 +466,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
     recipeOptions: [
       {
         recipe: {
-          kind: 'convert',
+          kind: RecipeKindNs.convert,
           inputs: { [GoodId.iron]: 1, [GoodId.wood]: 2 },
           outputs: { [GoodId.spear]: 1 },
           durationTicks: 10 * S,
@@ -471,7 +475,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       },
       {
         recipe: {
-          kind: 'convert',
+          kind: RecipeKindNs.convert,
           inputs: { [GoodId.iron]: 2, [GoodId.wood]: 1 },
           outputs: { [GoodId.sword]: 1 },
           durationTicks: 14 * S,
@@ -480,7 +484,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       },
       {
         recipe: {
-          kind: 'convert',
+          kind: RecipeKindNs.convert,
           inputs: { [GoodId.wood]: 3 },
           outputs: { [GoodId.bow]: 1 },
           durationTicks: 8 * S,
@@ -494,7 +498,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       // a village with no ore, the way the bow is the wood-only weapon.
       {
         recipe: {
-          kind: 'convert',
+          kind: RecipeKindNs.convert,
           inputs: { [GoodId.iron]: 1, [GoodId.wood]: 2 },
           outputs: { [GoodId.axe]: 1 },
           durationTicks: 8 * S,
@@ -508,7 +512,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
         // deadlocked exactly there). Wood and stone, like the buildings
         // the mines themselves are raised from.
         recipe: {
-          kind: 'convert',
+          kind: RecipeKindNs.convert,
           inputs: { [GoodId.wood]: 2, [GoodId.stone]: 1 },
           outputs: { [GoodId.pickaxe]: 1 },
           durationTicks: 8 * S,
@@ -517,7 +521,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       },
       {
         recipe: {
-          kind: 'convert',
+          kind: RecipeKindNs.convert,
           inputs: { [GoodId.iron]: 1, [GoodId.wood]: 2 },
           outputs: { [GoodId.scythe]: 1 },
           durationTicks: 8 * S,
@@ -526,7 +530,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       },
       {
         recipe: {
-          kind: 'convert',
+          kind: RecipeKindNs.convert,
           inputs: { [GoodId.iron]: 1, [GoodId.wood]: 1 },
           outputs: { [GoodId.hammer]: 1 },
           durationTicks: 6 * S,
@@ -535,7 +539,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       },
       {
         recipe: {
-          kind: 'convert',
+          kind: RecipeKindNs.convert,
           inputs: { [GoodId.iron]: 1, [GoodId.wood]: 1 },
           outputs: { [GoodId.cauldron]: 1 },
           durationTicks: 8 * S,
@@ -544,7 +548,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       },
       {
         recipe: {
-          kind: 'convert',
+          kind: RecipeKindNs.convert,
           inputs: { [GoodId.wood]: 3 },
           outputs: { [GoodId.rod]: 1 },
           durationTicks: 6 * S,
@@ -615,7 +619,7 @@ export const BUILDING_DEFS: Record<BuildingTypeId, BuildingDef> = {
       // `light` rather than `ranged`: it is a rock and not a bow, and the
       // light column is the one that does not flinch at the bandits every
       // early wave is made of.
-      levy: { unit: UnitTypeId.serf, class: 'light', damage: 4, cooldownTicks: 30, range: 4 },
+      levy: { unit: UnitTypeId.serf, class: UnitClass.light, damage: 4, cooldownTicks: 30, range: 4 },
     },
   },
   [B.roadSite]: {
@@ -680,8 +684,8 @@ export function garrisonRoom(def: BuildingDef, b: { garrison?: number; recruitId
 
 /** The gather recipe, if this building works the land. Undefined for
  * converters and for buildings with no recipe at all. */
-export function gatherRecipeOf(def: BuildingDef): (Recipe & { kind: 'gather' }) | undefined {
-  return def.recipe?.kind === 'gather' ? def.recipe : undefined;
+export function gatherRecipeOf(def: BuildingDef): (Recipe & { kind: RecipeKindNs.gather }) | undefined {
+  return def.recipe?.kind === RecipeKindNs.gather ? def.recipe : undefined;
 }
 
 /** The tile a gatherer searches outward from: its footprint center, floored.
@@ -702,8 +706,8 @@ export function gatherOrigin(
 export function convertRecipeOf(
   def: BuildingDef,
   b?: { recipeIndex?: number },
-): (Recipe & { kind: 'convert' }) | undefined {
-  if (def.recipe?.kind === 'convert') return def.recipe;
+): (Recipe & { kind: RecipeKindNs.convert }) | undefined {
+  if (def.recipe?.kind === RecipeKindNs.convert) return def.recipe;
   if (b?.recipeIndex === undefined) return undefined;
   return def.recipeOptions?.[b.recipeIndex]?.recipe;
 }
@@ -733,7 +737,7 @@ export function repairBill(id: BuildingTypeId, missingHp: number): GoodAmounts {
  * a weapon the smith no longer forges. */
 export function outputGoodsOf(def: BuildingDef): GoodId[] {
   if (def.recipe) {
-    return def.recipe.kind === 'gather'
+    return def.recipe.kind === RecipeKindNs.gather
       ? [def.recipe.output]
       : goodKeys(def.recipe.outputs);
   }

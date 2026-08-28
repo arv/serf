@@ -13,6 +13,7 @@ import { PathLevel, Terrain } from '../map.ts';
 import { isPlayerOwner, type Owner } from '../entities.ts';
 import { placeSite, pushDelta, type World } from '../world.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
+import { BuildingState } from '../entities.ts';
 
 /**
  * Emergent trails, the Settlers homage: foot traffic wears tiles (movement
@@ -94,7 +95,7 @@ function nearestStorageOwner(world: World, x: number, y: number): Owner | undefi
   let best: Owner | undefined;
   let bestDist = Infinity;
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built' || !buildingDef(b.type).storage) continue;
+    if (b.dead || b.state !== BuildingState.built || !buildingDef(b.type).storage) continue;
     if (!isPlayerOwner(b.owner)) continue;
     const dist = Math.max(Math.abs(b.x + b.w / 2 - x), Math.abs(b.y + b.h / 2 - y));
     if (dist < bestDist) {

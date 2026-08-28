@@ -9,6 +9,7 @@ import { addSerf, addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { BuildingState } from './entities.ts';
 
 /**
  * The population cap. Beds, not bodies, are the ceiling: the castle sleeps
@@ -71,7 +72,7 @@ describe('the population cap', () => {
     expect(popCapOf(world, 0)).toBe(10); // a roof under construction sleeps nobody
     expect(hasRoomToHire(world, 0)).toBe(false);
 
-    site.state = 'built';
+    site.state = BuildingState.built;
     expect(popCapOf(world, 0)).toBe(20);
     expect(hasRoomToHire(world, 0)).toBe(true);
   });
