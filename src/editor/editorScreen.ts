@@ -11,7 +11,7 @@ import { disposeOwnedSubtree } from '../render/disposal';
 import { goto } from '../app/router';
 import { serializeWorld } from '../sim/save.ts';
 import { DEFAULT_MAP_SIZE, tileX, tileY } from '../shared/grid.ts';
-import { Terrain, TileResource, playEdgeDist, type StartSpot } from '../sim/map.ts';
+import { playEdgeDist, type StartSpot } from '../sim/map.ts';
 import { HEIGHT_STEP, applyStroke, type Tool } from './brush.ts';
 import { BrushCursor } from './brushCursor.ts';
 import { EditorControls, type EditorSurface } from './editorControls.ts';
@@ -55,7 +55,9 @@ import {
   showNotice,
   viewMode,
 } from './uiState.ts';
-import { ViewMode } from '../render/cameraRig.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import * as ViewMode from '../render/viewModeEnum.ts';
 
 /** Everything the Solid panel can ask the screen to do. */
 export interface EditorActions {

@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld, type World, MatchState } from '../sim/world.ts';
+import { createWorld, type World } from '../sim/world.ts';
 import { tickWorld } from '../sim/tick.ts';
 import { AiSeats } from '../sim/aiSeats.ts';
 import { checkInvariants } from '../sim/debug/invariants.ts';
 import { LlmStrategist, type ChatEngine } from './strategist.ts';
 import { summarizeForSeat } from './summary.ts';
 import type { ChatMessage } from './prompt.ts';
-import { AiStrategyId } from '../sim/defs/aiStrategies.ts';
-import { PlayerKind } from '../sim/player.ts';
+import * as MatchState from '../sim/matchStateEnum.ts';
+import * as AiStrategyId from '../sim/defs/aiStrategyIdEnum.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
 
 /**
  * Two LLM-advised seats against each other: the whole strategist pipeline —

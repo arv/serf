@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MAP_SIZE, tileCount, tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { PathLevel, type GameMap } from './map.ts';
+import type { GameMap } from './map.ts';
 import { findPath, findPathToAdjacent, nearestWalkable } from './path.ts';
+import * as PathLevel from './pathLevelEnum.ts';
 
 const MAP_SIZE = DEFAULT_MAP_SIZE;
 const TILE_COUNT = tileCount(MAP_SIZE);
@@ -143,7 +144,10 @@ describe('A* pathfinding', () => {
     const found = nearestWalkable(map, 30, 30);
     expect(found).not.toBe(-1);
     expect(map.blocked[found]).toBe(0);
-    const dist = Math.max(Math.abs(tileX(found, map.size) - 30), Math.abs(tileY(found, map.size) - 30));
+    const dist = Math.max(
+      Math.abs(tileX(found, map.size) - 30),
+      Math.abs(tileY(found, map.size) - 30),
+    );
     expect(dist).toBe(1);
   });
 

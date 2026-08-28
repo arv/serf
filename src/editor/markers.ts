@@ -4,7 +4,7 @@ import { makeGhostModel } from '../render/models';
 import { eachMaterial } from '../render/materials';
 import type { HeightField } from '../render/heightField';
 import type { StartSpot } from '../sim/map.ts';
-import { BuildingTypeId } from '../sim/defs/buildings.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 
 const VALID = new THREE.Color(0x7fbf6a);
 const INVALID = new THREE.Color(0xd45252);

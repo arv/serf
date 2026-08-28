@@ -9,8 +9,6 @@ import {
 } from '../shared/grid.ts';
 import {
   inPlayArea,
-  Terrain,
-  TileResource,
   clearResources,
   findResourceNear,
   generateMap,
@@ -24,28 +22,36 @@ import {
 import { parseMapData, type MapFile } from './mapFile.ts';
 import { loadMissionMap } from './defs/missionMaps.ts';
 import { START_SERFS, START_STOCK, firstRaidTickFor } from './defs/balance.ts';
-import { UNIT_DEFS, UnitTypeId } from './defs/units.ts';
-import { buildingDef, gatherOrigin, gatherRecipeOf, BuildingTypeId } from './defs/buildings.ts';
+import { UNIT_DEFS } from './defs/units.ts';
+import { buildingDef, gatherOrigin, gatherRecipeOf } from './defs/buildings.ts';
 import { dealStrategies, type AiStrategyId } from './defs/aiStrategies.ts';
 import { MISSION_DEFS, type MissionId } from './defs/missions.ts';
 import { makeUnit, type Unit } from './units.ts';
 import { nearestWalkable } from './path.ts';
-import { type GoodAmounts, GoodId, goodKeys, goodEntries } from './defs/goods.ts';
+import { type GoodAmounts, goodKeys, goodEntries } from './defs/goods.ts';
 import type { TechId } from './defs/techs.ts';
-import { BANDIT, type Building, type EntityId, type Owner, BuildingState } from './entities.ts';
-import { makePlayer, type PlayerState, PlayerKind } from './player.ts';
+import { BANDIT, type Building, type EntityId, type Owner } from './entities.ts';
+import { makePlayer, type PlayerState } from './player.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as HaulPhaseNs from './haulPhaseEnum.ts';
 import * as GameEventKindNs from './gameEventKindEnum.ts';
 
-export * as GameEventKind from './gameEventKindEnum.ts';
 export type GameEventKind = Enum<typeof GameEventKindNs>;
 import * as MatchStateNs from './matchStateEnum.ts';
+import * as Terrain from './terrainEnum.ts';
+import * as TileResource from './tileResourceEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 
-export * as MatchState from './matchStateEnum.ts';
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type GoodId = Enum<typeof GoodId>;
+type PlayerKind = Enum<typeof PlayerKind>;
+
 export type MatchState = Enum<typeof MatchStateNs>;
 
-export * as HaulPhase from './haulPhaseEnum.ts';
 export type HaulPhase = Enum<typeof HaulPhaseNs>;
 
 export interface HaulJob {

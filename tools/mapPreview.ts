@@ -13,7 +13,9 @@
  */
 import { readFileSync } from 'node:fs';
 import { parseMapJson } from '../src/sim/mapFile.ts';
-import { Terrain, TileResource, playMin } from '../src/sim/map.ts';
+import { playMin } from '../src/sim/map.ts';
+import * as Terrain from '../src/sim/terrainEnum.ts';
+import * as TileResource from '../src/sim/tileResourceEnum.ts';
 import { tileIdx } from '../src/shared/grid.ts';
 
 const args = process.argv.slice(2);

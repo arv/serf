@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { Terrain, TileResource, WATER_LEVEL, inPlayArea } from '../sim/map.ts';
+import { WATER_LEVEL, inPlayArea } from '../sim/map.ts';
 import { HEIGHT_STEP, RESOURCE_AMOUNTS, applyBrush, applyStroke } from './brush.ts';
 import { createBlankMap } from './editorMap.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 
 /** Rotate a full tile array a quarter turn about the center (fold-4 map). */
 function rot90<T extends Uint8Array | Float32Array>(arr: T, size: number): T {
@@ -159,7 +161,9 @@ describe('resource brush', () => {
     for (let i = 0; i < state.map.resource.length; i++) {
       expect(state.map.resource[i]).toBe(TileResource.None);
       expect(state.map.resourceAmt[i]).toBe(0);
-      expect(state.map.blocked[i]).toBe(inPlayArea(state.map, tileX(i, size), tileY(i, size)) ? 0 : 1);
+      expect(state.map.blocked[i]).toBe(
+        inPlayArea(state.map, tileX(i, size), tileY(i, size)) ? 0 : 1,
+      );
     }
   });
 });

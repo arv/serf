@@ -1,3 +1,4 @@
+import type { Enum } from '../shared/enum.ts';
 import * as THREE from 'three';
 import {
   makeGhostModel,
@@ -8,19 +9,27 @@ import {
   SITE_FRAME_H,
 } from './models';
 import { glbYardProp, glbYardRock, makeGlbBuilding } from './assets';
-import { makeCharacter, playAnimation, type CharacterVisual, AnimKey } from './characters';
+import { makeCharacter, playAnimation, type CharacterVisual } from './characters';
 import { eachMaterial, mapMaterials } from './materials';
-import { buildingDef, BuildingTypeId } from '../sim/defs/buildings';
-import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
+import { buildingDef } from '../sim/defs/buildings';
+import { UNIT_DEFS } from '../sim/defs/units';
 import { WATER_LEVEL } from '../sim/map';
 import { CAMERA_YAW, type ViewBounds } from './cameraRig';
-import { GOODS, GoodId } from '../sim/defs/goods';
+import { GOODS } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
 import type { FogQuery } from './fogOfWar';
-import { type BuildingSnap, StaffingState } from '../protocol/messages';
+import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
 import type { CueId } from '../audio/cues';
-import { BuildingState } from '../sim/entities';
+import * as AnimKey from './animKeyEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as StaffingState from '../protocol/staffingStateEnum.ts';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
+
+type BuildingState = Enum<typeof BuildingState>;
+type GoodId = Enum<typeof GoodId>;
 
 /** A built fishery's pier, in world space: the deck line from its landward
  * end to the fishing spot near the tip, plank height, and the yaw that

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
-import { TileResource } from './map.ts';
-import { placeBuiltBuilding, type World, HaulPhase } from './world.ts';
+import { placeBuiltBuilding, type World } from './world.ts';
 import {
   addBuiltHut,
   addResourceTile,
@@ -10,10 +9,13 @@ import {
   addStorehouse,
   bareWorld,
 } from './testUtils.ts';
-import { type Unit, UnitTaskKind } from './units.ts';
-import { GoodId } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
+import type { Unit } from './units.ts';
+import * as TileResource from './tileResourceEnum.ts';
+import * as HaulPhase from './haulPhaseEnum.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 
 /** Put a unit where its walk would have left it had the route died: far from
  * where it was going, with nothing left to walk. */

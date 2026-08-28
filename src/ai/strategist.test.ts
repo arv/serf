@@ -10,9 +10,10 @@ import {
   type LlmStatus,
 } from './strategist.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
-import { PlayerKind } from '../sim/player.ts';
-import { LlmState, ConsultOutcome } from './strategist.ts';
-import { ChatRole } from './prompt.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
+import * as LlmState from './llmStateEnum.ts';
+import * as ConsultOutcome from './consultOutcomeEnum.ts';
+import * as ChatRole from './chatRoleEnum.ts';
 
 /**
  * The engine-adapter and warmModel tests go through the strategist's real

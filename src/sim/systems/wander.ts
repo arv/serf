@@ -1,10 +1,10 @@
 import { Rng } from '../../shared/rng.ts';
 import { inBounds, tileIdx, tileX, tileY } from '../../shared/grid.ts';
-import { PathLevel } from '../map.ts';
 import { findPath } from '../path.ts';
 import type { World } from '../world.ts';
-import { UnitTypeId } from '../defs/units.ts';
-import { UnitTaskKind } from '../units.ts';
+import * as PathLevel from '../pathLevelEnum.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 
 /** How far from itself an idle serf will look for somewhere to go. */
 const RANGE = 4;

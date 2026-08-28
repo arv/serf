@@ -1,3 +1,4 @@
+import type { Enum } from '../../../shared/enum.ts';
 import { For, type JSX } from 'solid-js';
 import {
   ABBEY_ALE_CAP,
@@ -20,11 +21,14 @@ import {
   firstRaidTickFor,
   raidIntervalFor,
 } from '../../../sim/defs/balance';
-import { BUILDING_DEFS, BuildingTypeId } from '../../../sim/defs/buildings';
+import { BUILDING_DEFS } from '../../../sim/defs/buildings';
 import { fmtSecs } from '../data';
 import { CostList, Section, Stat, Stats } from '../components';
 import { Prose } from '../prose';
-import { UnitClass } from '../../../sim/defs/units';
+import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
+import * as UnitClass from '../../../sim/defs/unitClassEnum.ts';
+
+type UnitClass = Enum<typeof UnitClass>;
 
 /** The map the raid clock is quoted against — the size every other number
  * in balance.ts was tuned on, and what firstRaidTickFor scales from. */

@@ -1,7 +1,10 @@
+import type { Enum } from '../../src/shared/enum.ts';
 import * as THREE from 'three';
 import { makeLights, makeRenderer, PITCH } from './scene';
 import { loadGlbAssets, makeGlbBuilding, glbYardProp, glbYardRock } from '../../src/render/assets';
-import { BuildingTypeId } from '../../src/sim/defs/buildings';
+import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 /**
  * A scratch page for the one question the cards cannot answer: do the four

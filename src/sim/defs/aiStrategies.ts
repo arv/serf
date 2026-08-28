@@ -1,16 +1,19 @@
 import { Rng } from '../../shared/rng.ts';
-import { UnitTypeId } from './units.ts';
-import { BuildingTypeId } from './buildings.ts';
-import { TechId } from './techs.ts';
 import type { Enum } from '../../shared/enum.ts';
 import * as AiStrategyIdNs from './aiStrategyIdEnum.ts';
 
-export * as AiStrategyId from './aiStrategyIdEnum.ts';
 export type AiStrategyId = Enum<typeof AiStrategyIdNs>;
 import * as BuildAnchorNs from './buildAnchorEnum.ts';
-import { PlayerKind } from '../player.ts';
+import * as UnitTypeId from './unitTypeIdEnum.ts';
+import * as BuildingTypeId from './buildingTypeIdEnum.ts';
+import * as TechId from './techIdEnum.ts';
+import * as PlayerKind from '../playerKindEnum.ts';
 
-export * as BuildAnchor from './buildAnchorEnum.ts';
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type PlayerKind = Enum<typeof PlayerKind>;
+type TechId = Enum<typeof TechId>;
+type UnitTypeId = Enum<typeof UnitTypeId>;
+
 export type BuildAnchor = Enum<typeof BuildAnchorNs>;
 
 /**

@@ -8,26 +8,31 @@
  * Per-player filtering happens above, on the server, so the two concerns
  * stay separable.
  */
-import {
-  TOOL_OF,
-  buildingDef,
-  gatherOrigin,
-  gatherRecipeOf,
-  BuildingTypeId,
-  RecipeKind,
-} from '../sim/defs/buildings.ts';
+import type { Enum } from '../shared/enum.ts';
+import { TOOL_OF, buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings.ts';
 import { HIRE_SERF_TICKS } from '../sim/defs/balance.ts';
 import { TECH_DEFS } from '../sim/defs/techs.ts';
-import { GOODS, type GoodAmounts, GoodId } from '../sim/defs/goods.ts';
-import { UNIT_DEFS, carryingCode, UnitTypeId } from '../sim/defs/units.ts';
+import { GOODS, type GoodAmounts } from '../sim/defs/goods.ts';
+import { UNIT_DEFS, carryingCode } from '../sim/defs/units.ts';
 import { ACTION, PROFESSION, WORK, type UnitSnapshot } from './sabLayout.ts';
-import { centerOf, type Building, type Owner, BuildingState } from '../sim/entities.ts';
-import { countResourceNear, TileResource } from '../sim/map.ts';
+import { centerOf, type Building, type Owner } from '../sim/entities.ts';
+import { countResourceNear } from '../sim/map.ts';
 import { exactDist } from '../shared/math.ts';
 import { distToFootprint } from '../sim/arrival.ts';
-import { type World, HaulPhase } from '../sim/world.ts';
-import { type Unit, UnitTaskKind } from '../sim/units.ts';
-import { type BuildingSnap, type JobSnap, type PlayerSnap, StaffingState } from './messages.ts';
+import type { World } from '../sim/world.ts';
+import type { Unit } from '../sim/units.ts';
+import type { BuildingSnap, JobSnap, PlayerSnap } from './messages.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as RecipeKind from '../sim/defs/recipeKindEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import * as HaulPhase from '../sim/haulPhaseEnum.ts';
+import * as UnitTaskKind from '../sim/unitTaskKindEnum.ts';
+import * as StaffingState from './staffingStateEnum.ts';
+
+type GoodId = Enum<typeof GoodId>;
 
 export function snapBuilding(world: World, b: Building): BuildingSnap {
   const def = buildingDef(b.type);

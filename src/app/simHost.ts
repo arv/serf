@@ -11,8 +11,10 @@ import type { AiWorldSummary } from '../ai/summary';
 import type { SimCommand } from '../sim/commands';
 import type { AiStrategy } from '../sim/defs/aiStrategies';
 import type { GameConfig } from './gameConfig';
-import { type NetInfo, MainToWorkerKind, WorkerToMainKind } from '../protocol/messages';
+import type { NetInfo } from '../protocol/messages';
 import type { ReplayData } from './replay';
+import * as MainToWorkerKind from '../protocol/mainToWorkerKindEnum.ts';
+import * as WorkerToMainKind from '../protocol/workerToMainKindEnum.ts';
 
 export interface SimInit {
   reader: SabReader;

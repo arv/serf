@@ -1,13 +1,17 @@
 import { COUNTER_TABLE, UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
 import { BUILDING_DAMAGE_MULT } from '../defs/balance.ts';
-import { buildingDef, type BuildingDef, BuildingTypeId } from '../defs/buildings.ts';
-import { BANDIT, centerOf, isPlayerOwner, type Building, BuildingState } from '../entities.ts';
+import { buildingDef, type BuildingDef } from '../defs/buildings.ts';
+import { BANDIT, centerOf, isPlayerOwner, type Building } from '../entities.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
 import { exactDist } from '../../shared/math.ts';
 import { distToFootprint } from '../arrival.ts';
 import { findPath, findPathToAdjacent, nearestWalkable } from '../path.ts';
-import { destroyBuilding, killUnit, type World, GameEventKind } from '../world.ts';
-import { type Unit, UnitTaskKind } from '../units.ts';
+import { destroyBuilding, killUnit, type World } from '../world.ts';
+import type { Unit } from '../units.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
+import * as GameEventKind from '../gameEventKindEnum.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 
 /**
  * Thin, quarantined combat: reads positions, writes hp and movement intents.

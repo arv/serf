@@ -1,7 +1,10 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
 import { CUES } from './cues';
 import { animCue, LOOP_CUES } from './animCues';
-import { AnimKey } from '../render/characters';
+import * as AnimKey from '../render/animKeyEnum.ts';
+
+type AnimKey = Enum<typeof AnimKey>;
 
 const KEYS: AnimKey[] = [
   AnimKey.idle,

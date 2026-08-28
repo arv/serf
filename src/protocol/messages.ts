@@ -15,13 +15,9 @@ import * as WorkerToMainKindNs from './workerToMainKindEnum.ts';
 import * as NetStateNs from './netStateEnum.ts';
 import * as StaffingStateNs from './staffingStateEnum.ts';
 
-export * as MainToWorkerKind from './mainToWorkerKindEnum.ts';
 export type MainToWorkerKind = Enum<typeof MainToWorkerKindNs>;
-export * as WorkerToMainKind from './workerToMainKindEnum.ts';
 export type WorkerToMainKind = Enum<typeof WorkerToMainKindNs>;
-export * as NetState from './netStateEnum.ts';
 export type NetState = Enum<typeof NetStateNs>;
-export * as StaffingState from './staffingStateEnum.ts';
 export type StaffingState = Enum<typeof StaffingStateNs>;
 
 /** Tech-tree state for the UI. */

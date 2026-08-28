@@ -20,7 +20,7 @@ import { hashWorld } from '../../src/sim/hash.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
 import { createWorld } from '../../src/sim/world.ts';
 import { AI_STRATEGY_ORDER } from '../../src/sim/defs/aiStrategies.ts';
-import { PlayerKind } from '../../src/sim/player.ts';
+import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
 
 const DIGEST_EVERY = 500;
 const TICKS = Number(process.env.DIGEST_TICKS ?? 6000);

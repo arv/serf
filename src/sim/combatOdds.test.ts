@@ -1,3 +1,4 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
 import {
   classHp,
@@ -9,8 +10,10 @@ import {
   survivorsAfter,
   type Force,
 } from './combatOdds.ts';
-import { UnitClass } from './defs/units.ts';
 import { tallyClass } from './combatOdds.ts';
+import * as UnitClass from './defs/unitClassEnum.ts';
+
+type UnitClass = Enum<typeof UnitClass>;
 
 /**
  * The predictor is judged against the game's own military triangle: the three

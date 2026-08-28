@@ -4,15 +4,16 @@ import {
   sanitizeCommand,
   sanitizeCommands,
   type SimCommand,
-  CommandKind,
-  AdminAction,
 } from './commands.ts';
 import { FORGE_QUEUE_CAP, TRAIN_QUEUE_CAP } from './defs/balance.ts';
-import { AUTO_RECIPE, BUILDING_DEFS, BuildingTypeId } from './defs/buildings.ts';
+import { AUTO_RECIPE, BUILDING_DEFS } from './defs/buildings.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
 import { addSerf, addStorehouse, bareWorld } from './testUtils.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { TechId } from './defs/techs.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import * as AdminAction from './adminActionEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as TechId from './defs/techIdEnum.ts';
 
 describe('command screening', () => {
   it('accepts what the client actually sends', () => {

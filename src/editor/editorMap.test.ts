@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { gridFor, tileCount, tileIdx } from '../shared/grid.ts';
-import { Terrain, inPlayArea } from '../sim/map.ts';
+import { inPlayArea } from '../sim/map.ts';
 import { createBlankMap, defaultStarts, validateForPlay } from './editorMap.ts';
 import { rotateStart } from './symmetry.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
 
 describe('createBlankMap', () => {
   it('builds a flat all-grass grid with the canonical scenery margin', () => {

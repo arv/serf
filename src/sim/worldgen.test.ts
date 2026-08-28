@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { tileCount, tileIdx } from '../shared/grid.ts';
-import { Terrain } from './map.ts';
 import { createWorld } from './world.ts';
 import { BANDIT, isPlayerOwner } from './entities.ts';
 import { START_SERFS } from './defs/balance.ts';
 import { tickWorld } from './tick.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
-import { PlayerKind } from './player.ts';
+import * as Terrain from './terrainEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 
 /** 4-connected grass reachability between two tiles. */
 function reachable(map: { size: number; terrain: Uint8Array }, from: number, to: number): boolean {

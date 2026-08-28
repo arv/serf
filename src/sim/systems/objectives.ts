@@ -1,10 +1,14 @@
 import { UNIT_DEFS } from '../defs/units.ts';
-import { MISSION_DEFS, type ObjectiveSpec, ObjectiveKind } from '../defs/missions.ts';
-import { buildingDef, BuildingTypeId } from '../defs/buildings.ts';
+import { MISSION_DEFS, type ObjectiveSpec } from '../defs/missions.ts';
+import { buildingDef } from '../defs/buildings.ts';
 import { populationOf } from '../population.ts';
-import { type Owner, BuildingState } from '../entities.ts';
-import { type World, GameEventKind } from '../world.ts';
-import { CommandKind } from '../commands.ts';
+import type { Owner } from '../entities.ts';
+import type { World } from '../world.ts';
+import * as ObjectiveKind from '../defs/objectiveKindEnum.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
+import * as GameEventKind from '../gameEventKindEnum.ts';
+import * as CommandKind from '../commandKindEnum.ts';
 
 /**
  * Mission objectives: stateless predicates over the world, latched into

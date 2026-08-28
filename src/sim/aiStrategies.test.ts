@@ -1,10 +1,11 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
-import { createWorld, type World, type WorldConfig, MatchState } from './world.ts';
+import { createWorld, type World, type WorldConfig } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
 import { serializeWorld, deserializeWorld } from './save.ts';
 import { AiBrain, mustersNeeded } from './systems/ai.ts';
 import { popCapOf, populationOf } from './population.ts';
-import { BUILDING_DEFS, BuildingTypeId } from './defs/buildings.ts';
+import { BUILDING_DEFS } from './defs/buildings.ts';
 import {
   AI_STRATEGIES,
   AI_STRATEGY_ORDER,
@@ -12,11 +13,15 @@ import {
   parseStrategyId,
   shuffledStrategies,
   strategyOf,
-  AiStrategyId,
   AI_STRATEGY_KEYS,
 } from './defs/aiStrategies.ts';
-import { TechId } from './defs/techs.ts';
-import { PlayerKind } from './player.ts';
+import * as MatchState from './matchStateEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
+import * as TechId from './defs/techIdEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
+
+type AiStrategyId = Enum<typeof AiStrategyId>;
 
 /**
  * Every AI seat used to run one hard-coded playbook, so beating one

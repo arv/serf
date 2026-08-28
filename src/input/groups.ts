@@ -1,7 +1,6 @@
 import type { Enum } from '../shared/enum.ts';
 import * as ControlGroupKindNs from './controlGroupKindEnum.ts';
 
-export * as ControlGroupKind from './controlGroupKindEnum.ts';
 export type ControlGroupKind = Enum<typeof ControlGroupKindNs>;
 
 /**

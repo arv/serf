@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CAMERA_YAW, CameraRig, ViewMode } from './cameraRig';
+import { CAMERA_YAW, CameraRig } from './cameraRig';
 import { screenToGround, worldToScreen } from '../input/picking';
 import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE, gridFor, marginFor } from '../shared/grid';
+import * as ViewMode from './viewModeEnum.ts';
 
 /**
  * The rig's turn: Shift+wheel and Insert/Delete, stepped so the view lands

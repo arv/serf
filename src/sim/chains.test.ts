@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid.ts';
 import { tickWorld } from './tick.ts';
-import { PathLevel, Terrain, TileResource } from './map.ts';
 import {
   canPlace,
   depleteResourceTile,
@@ -20,10 +19,13 @@ import {
   cmds,
   staffBuilding,
 } from './testUtils.ts';
-import { GoodId } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
-import { CommandKind } from './commands.ts';
+import * as PathLevel from './pathLevelEnum.ts';
+import * as Terrain from './terrainEnum.ts';
+import * as TileResource from './tileResourceEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

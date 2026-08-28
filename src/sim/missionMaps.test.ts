@@ -1,9 +1,8 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
 import { inBounds, tileCount, tileIdx, tileX, tileY } from '../shared/grid.ts';
 import {
   CASTLE_OPENING_SIGHT,
-  Terrain,
-  TileResource,
   WATER_ACCESS_RADIUS,
   inPlayArea,
   tileBlocks,
@@ -13,15 +12,17 @@ import {
 } from './map.ts';
 import { parseMapData, type AuthoredMap } from './mapFile.ts';
 import { loadMissionMap } from './defs/missionMaps.ts';
-import {
-  MISSION_DEFS,
-  MISSION_ORDER,
-  MissionId,
-  ObjectiveKind,
-  MISSION_KEYS,
-} from './defs/missions.ts';
+import { MISSION_DEFS, MISSION_ORDER, MISSION_KEYS } from './defs/missions.ts';
 import { canPlace } from './world.ts';
-import { BUILDING_DEFS, BuildingTypeId } from './defs/buildings.ts';
+import { BUILDING_DEFS } from './defs/buildings.ts';
+import * as Terrain from './terrainEnum.ts';
+import * as TileResource from './tileResourceEnum.ts';
+import * as MissionId from './defs/missionIdEnum.ts';
+import * as ObjectiveKind from './defs/objectiveKindEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type MissionId = Enum<typeof MissionId>;
 
 /**
  * The campaign's ground is authored (tools/mapAuthor/), and this is what

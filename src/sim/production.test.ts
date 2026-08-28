@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid.ts';
 import { tickWorld } from './tick.ts';
-import { PathLevel, TileResource } from './map.ts';
 import { OUTPUT_CAP } from './defs/buildings.ts';
 import { TRAILS_INTERVAL } from './defs/balance.ts';
 import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
 import type { World } from './world.ts';
-import { GoodId } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingState } from './entities.ts';
+import * as PathLevel from './pathLevelEnum.ts';
+import * as TileResource from './tileResourceEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingState from './buildingStateEnum.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

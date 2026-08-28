@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { playMax, playMin } from '../sim/map.ts';
 import { tileIdx } from '../shared/grid.ts';
-import { createWorld, type World, MatchState } from '../sim/world.ts';
+import { createWorld, type World } from '../sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../sim/tick.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
-import { strategyOf, AiStrategyId } from '../sim/defs/aiStrategies.ts';
+import { strategyOf } from '../sim/defs/aiStrategies.ts';
 import { summarizeForSeat } from './summary.ts';
-import { BuildingTypeId, BUILDING_KEYS } from '../sim/defs/buildings.ts';
-import { PlayerKind } from '../sim/player.ts';
+import { BUILDING_KEYS } from '../sim/defs/buildings.ts';
+import * as MatchState from '../sim/matchStateEnum.ts';
+import * as AiStrategyId from '../sim/defs/aiStrategyIdEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
 
 /**
  * The summary is the strategist's only eyes, and the brain it serves plays

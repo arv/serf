@@ -1,4 +1,9 @@
-import { MAX_UNITS_PER_ORDER, type SimCommand, CommandKind, AdminAction } from '../../sim/commands';
+import type { Enum } from '../../shared/enum.ts';
+import { MAX_UNITS_PER_ORDER, type SimCommand } from '../../sim/commands';
+import * as CommandKind from '../../sim/commandKindEnum.ts';
+import * as AdminAction from '../../sim/adminActionEnum.ts';
+
+type AdminAction = Enum<typeof AdminAction>;
 
 /**
  * The command reference. SimCommand is a type — erased at runtime — so the

@@ -3,8 +3,8 @@ import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
-import { GoodId } from './defs/goods.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

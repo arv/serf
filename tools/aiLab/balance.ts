@@ -16,7 +16,8 @@
  * there, having looked like gains on the range they were tuned against.
  * Tune on one range, believe it only after another.
  */
-import { createWorld, MatchState } from '../../src/sim/world.ts';
+import type { Enum } from '../../src/shared/enum.ts';
+import { createWorld } from '../../src/sim/world.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
 import { AiBrain } from '../../src/sim/systems/ai.ts';
 import {
@@ -25,9 +26,12 @@ import {
   AI_STRATEGY_KEYS,
   AI_STRATEGY_ORDER,
 } from '../../src/sim/defs/aiStrategies.ts';
-import { UnitTypeId } from '../../src/sim/defs/units.ts';
-import { BuildingTypeId } from '../../src/sim/defs/buildings.ts';
-import { PlayerKind } from '../../src/sim/player.ts';
+import * as MatchState from '../../src/sim/matchStateEnum.ts';
+import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
+
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /** Long enough that a seat which is going to win has, and a stalled one is
  * visibly stalled rather than merely slow. */

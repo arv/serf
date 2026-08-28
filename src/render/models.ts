@@ -1,10 +1,14 @@
+import type { Enum } from '../shared/enum.ts';
 import * as THREE from 'three';
 import type { BuildingTypeId } from '../sim/entities';
-import { GOODS, GoodId } from '../sim/defs/goods';
+import { GOODS } from '../sim/defs/goods';
 import { makeGlbBuilding, glbCarryProp } from './assets';
 import { mapMaterials } from './materials';
 import { goodColors as goodColorsLocal, rock, stalk, stoneRoad, wood, woodLight } from './palette';
 import { planks, plaster, roofTiles, stoneBlocks, thatch } from './buildingTextures';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+
+type GoodId = Enum<typeof GoodId>;
 
 export { goodColors } from './palette';
 

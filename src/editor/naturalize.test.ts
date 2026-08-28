@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { Terrain, WATER_LEVEL, inPlayArea } from '../sim/map.ts';
+import { WATER_LEVEL, inPlayArea } from '../sim/map.ts';
 import { applyBrush } from './brush.ts';
 import { createBlankMap } from './editorMap.ts';
 import { naturalize } from './naturalize.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
 
 function paintedState() {
   // play 64 -> grid 112; a symmetric lake and range, 4-fold.

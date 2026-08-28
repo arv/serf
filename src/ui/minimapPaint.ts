@@ -1,4 +1,4 @@
-import { PathLevel, Terrain, TileResource, playMin, type PlayArea } from '../sim/map';
+import { playMin, type PlayArea } from '../sim/map';
 import { factionTint } from '../render/factionPalette';
 import {
   background,
@@ -12,6 +12,9 @@ import {
   stoneRoad,
   water,
 } from '../render/palette';
+import * as PathLevel from '../sim/pathLevelEnum.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 
 /**
  * The minimap's ground painting, kept apart from the canvas so it is a

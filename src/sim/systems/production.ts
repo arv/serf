@@ -1,3 +1,4 @@
+import type { Enum } from '../../shared/enum.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
 import { Rng } from '../../shared/rng.ts';
 import { WOOD_MAX_AMT, REGROW_INTERVAL } from '../defs/balance.ts';
@@ -11,17 +12,24 @@ import {
   type BuildingDef,
   type Recipe,
 } from '../defs/buildings.ts';
-import { TileResource, findResourcesNear } from '../map.ts';
+import { findResourcesNear } from '../map.ts';
 import { atBuilding, atTile, walkToBuilding, walkToTile } from '../arrival.ts';
-import { type Building, BuildingState } from '../entities.ts';
+import type { Building } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { depleteResourceTile, type World } from '../world.ts';
 import { getModifier } from '../techHelpers.ts';
-import { type Unit, UnitTaskKind } from '../units.ts';
-import { GoodId, goodEntries } from '../defs/goods.ts';
-import { UnitTypeId } from '../defs/units.ts';
-import { BuildingTypeId, RecipeKind } from '../defs/buildings.ts';
-import { ModifierKey } from '../defs/techs.ts';
+import type { Unit } from '../units.ts';
+import { goodEntries } from '../defs/goods.ts';
+import * as TileResource from '../tileResourceEnum.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as RecipeKind from '../defs/recipeKindEnum.ts';
+import * as ModifierKey from '../defs/modifierKeyEnum.ts';
+
+type GoodId = Enum<typeof GoodId>;
 
 /**
  * How many nearby resource tiles one trip-start will try to path to before

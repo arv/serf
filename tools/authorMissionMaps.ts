@@ -23,7 +23,16 @@
  */
 import { writeFileSync } from 'node:fs';
 import { audit, type Authored } from './mapAuthor/kit.ts';
-import { MISSION_ORDER, MISSION_DEFS, MissionId, parseMissionId, MISSION_KEYS } from '../src/sim/defs/missions.ts';
+import {
+  MISSION_ORDER,
+  MISSION_DEFS,
+  parseMissionId,
+  MISSION_KEYS,
+} from '../src/sim/defs/missions.ts';
+import * as MissionId from '../src/sim/defs/missionIdEnum.ts';
+import type { Enum } from '../src/shared/enum.ts';
+
+type MissionId = Enum<typeof MissionId>;
 import { build as clearing } from './mapAuthor/missions/clearing.ts';
 import { build as breadAndWater } from './mapAuthor/missions/breadAndWater.ts';
 import { build as ledger } from './mapAuthor/missions/ledger.ts';

@@ -6,13 +6,15 @@ import {
 } from '../shared/base64.ts';
 import { MAX_MAP_SIZE, MIN_MAP_SIZE, gridFor, tileCount } from '../shared/grid.ts';
 import {
-  Terrain,
-  TileResource,
   inPlayArea,
   recomputeBlocked,
   type GameMap,
   type StartSpot,
+  TERRAIN_KINDS,
+  TILE_RESOURCE_KINDS,
 } from './map.ts';
+import * as Terrain from './terrainEnum.ts';
+import * as TileResource from './tileResourceEnum.ts';
 
 /**
  * The serf-map file: authored ground only. Derived state (`blocked`) and
@@ -98,8 +100,8 @@ export function serializeMapFile(state: AuthoredMap): string {
   return JSON.stringify(file);
 }
 
-const TERRAIN_VALUES = new Set<number>(Object.values(Terrain));
-const RESOURCE_VALUES = new Set<number>(Object.values(TileResource));
+const TERRAIN_VALUES = new Set<number>(TERRAIN_KINDS);
+const RESOURCE_VALUES = new Set<number>(TILE_RESOURCE_KINDS);
 
 function bad(reason: string): never {
   throw new Error(`not a valid map file: ${reason}`);

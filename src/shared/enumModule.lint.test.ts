@@ -1,19 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
 /**
- * The one mistake a JS enum module lets you make that the type checker does
- * not catch.
+ * A JS enum module only pays for itself if the bundler can inline its
+ * members, and exactly one thing stops it: re-exporting the module as a
+ * namespace.
  *
- * A home module publishes its enum with `export * as X from './xEnum.ts'`.
- * That is an export and nothing else: it puts no binding named `X` in the
- * module's own scope. TypeScript resolves `X.member` inside that file
- * anyway — it reads the export map — so the file compiles clean and then
- * throws `ReferenceError: X is not defined` the moment it is loaded. It
- * cost a full test suite once; this is the guard, since tsc will not be.
+ * `export * as GoodId from './goodIdEnum.ts'` forces esbuild to
+ * materialise a real namespace object — every member name kept as a
+ * string, every value behind a getter — and every `GoodId.wood` in the
+ * codebase becomes a property load on it rather than the literal 3.
+ * Importing the enum module directly instead:
  *
- * The rule: inside the home module, reach the members through the local
- * `import * as XNs` (or a short alias of it), never through the exported
- * name.
+ *     import * as GoodId from '../defs/goodIdEnum.ts';
+ *     import type { Enum } from '../../shared/enum.ts';
+ *     type GoodId = Enum<typeof GoodId>;
+ *
+ * ...leaves nothing at runtime at all. The difference measured 11 KB of
+ * minified sim, and it is invisible in review, so it is a test.
+ *
+ * The home module still exports the *type* — that is erased and costs
+ * nothing. It is only the value re-export that is banned.
  */
 const SOURCES = import.meta.glob(['/src/**/*.ts', '/src/**/*.tsx'], {
   query: '?raw',
@@ -21,45 +27,28 @@ const SOURCES = import.meta.glob(['/src/**/*.ts', '/src/**/*.tsx'], {
   eager: true,
 });
 
-interface Offence {
-  file: string;
-  name: string;
-  line: number;
-  text: string;
-}
-
-function offences(): Offence[] {
-  const out: Offence[] = [];
+function reExports(): string[] {
+  const out: string[] = [];
   for (const [path, raw] of Object.entries(SOURCES)) {
-    const src = raw as string;
-    const exported = [...src.matchAll(/^export \* as (\w+) from /gm)].map((m) => m[1]!);
-    if (exported.length === 0) continue;
-    const lines = src.split('\n');
-    for (const name of exported) {
-      // A local binding of the same name would make it legal again.
-      if (new RegExp(`^import \\* as ${name} from `, 'm').test(src)) continue;
-      const use = new RegExp(`(^|[^\\w.'"\`])${name}\\.\\w`);
-      lines.forEach((line, i) => {
-        if (line.startsWith('export * as ') || line.startsWith('import ')) return;
-        if (use.test(line)) out.push({ file: path, name, line: i + 1, text: line.trim() });
-      });
+    for (const m of (raw as string).matchAll(/^export \* as (\w+) from '([^']+)';$/gm)) {
+      if (/Enum(\.ts)?$/.test(m[2]!)) out.push(`${path}: export * as ${m[1]} from '${m[2]}'`);
     }
   }
   return out;
 }
 
 describe('JS enum modules', () => {
-  it('never reach their own members through the name they export', () => {
+  it('are never re-exported as a namespace — that defeats inlining', () => {
     expect(
-      offences().map((o) => `${o.file}:${o.line} (${o.name}) ${o.text}`),
-      'An `export * as X` binds nothing locally — use the `import * as XNs` alias inside the file',
+      reExports(),
+      'Import the enum module directly and declare `type X = Enum<typeof X>` locally',
     ).toEqual([]);
   });
 
-  it('is watching real enum modules (the glob still finds them)', () => {
-    const homes = Object.entries(SOURCES).filter(([, raw]) =>
-      /^export \* as \w+ from '\.\/\w+Enum\.ts';$/m.test(raw as string),
+  it('are imported directly, and there are plenty of them to get wrong', () => {
+    const direct = Object.values(SOURCES).filter((raw) =>
+      /^import \* as \w+ from '[^']*Enum\.ts';$/m.test(raw as string),
     );
-    expect(homes.length).toBeGreaterThan(2);
+    expect(direct.length).toBeGreaterThan(50);
   });
 });

@@ -3,14 +3,14 @@ import { DEFAULT_MAP_SIZE, gridFor, tileCount, tileX, tileY } from '../shared/gr
 import { createWorld, type World } from './world.ts';
 import {
   CASTLE_OPENING_SIGHT,
-  Terrain,
-  TileResource,
   WATER_ACCESS_RADIUS,
   playEdgeDist,
   type TileResourceKind,
 } from './map.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
-import { PlayerKind } from './player.ts';
+import * as Terrain from './terrainEnum.ts';
+import * as TileResource from './tileResourceEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 
 /**
  * The fairness contract for generated maps: every faction has its own wood,

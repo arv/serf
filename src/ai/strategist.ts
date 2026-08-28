@@ -6,10 +6,8 @@ import type { AiWorldSummary, SeatKnobs } from './summary.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as LlmStateNs from './llmStateEnum.ts';
-export * as LlmState from './llmStateEnum.ts';
 export type LlmState = Enum<typeof LlmStateNs>;
 import * as ConsultOutcomeNs from './consultOutcomeEnum.ts';
-export * as ConsultOutcome from './consultOutcomeEnum.ts';
 export type ConsultOutcome = Enum<typeof ConsultOutcomeNs>;
 
 /**

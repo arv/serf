@@ -11,8 +11,11 @@ import type {
   StructuralUpdate,
   WorkerToMain,
 } from '../protocol/messages';
-import { type SimCommand, CommandKind } from '../sim/commands';
-import { MainToWorkerKind, WorkerToMainKind, NetState } from '../protocol/messages';
+import type { SimCommand } from '../sim/commands';
+import * as CommandKind from '../sim/commandKindEnum.ts';
+import * as MainToWorkerKind from '../protocol/mainToWorkerKindEnum.ts';
+import * as WorkerToMainKind from '../protocol/workerToMainKindEnum.ts';
+import * as NetState from '../protocol/netStateEnum.ts';
 
 /**
  * The multiplayer client's end of the wire. It holds the socket, decodes the

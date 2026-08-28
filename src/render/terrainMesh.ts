@@ -1,7 +1,8 @@
+import type { Enum } from '../shared/enum.ts';
 import * as THREE from 'three';
 import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
-import { Terrain, TileResource, playMin, playMax, type MapView } from '../sim/map';
+import { playMin, playMax, type MapView } from '../sim/map';
 import {
   bankMoss,
   earthTrail,
@@ -32,7 +33,11 @@ import {
   ribbonWidth,
 } from './pathRibbon';
 import type { HeightField } from './heightField';
-import { BuildingTypeId } from '../sim/defs/buildings';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 /**
  * Sub-tile vertices per tile edge: painting resolution beneath the grid. Set

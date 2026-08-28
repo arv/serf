@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
-import { Terrain, inPlayArea, type MapView } from '../sim/map';
+import { inPlayArea, type MapView } from '../sim/map';
 import { crossedQuads } from './scatterMesh';
 import { ribbonCover, type RibbonCover } from './pathRibbon';
 import { foliageMaterial, makeGrassSprite } from './spriteTextures';
 import type { HeightField } from './heightField';
+import * as Terrain from '../sim/terrainEnum.ts';
 
 const dummy = new THREE.Object3D();
 const tmpColor = new THREE.Color();

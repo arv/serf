@@ -1,16 +1,11 @@
 import { inBounds, tileIdx, tileX, tileY } from '../shared/grid.ts';
 import { clamp, hash2 } from '../shared/math.ts';
 import { WOOD_MAX_AMT } from '../sim/defs/balance.ts';
-import {
-  Terrain,
-  TileResource,
-  inPlayArea,
-  tileBlocks,
-  type TerrainKind,
-  type TileResourceKind,
-} from '../sim/map.ts';
+import { inPlayArea, tileBlocks, type TerrainKind, type TileResourceKind } from '../sim/map.ts';
 import type { EditorMapState } from './editorMap.ts';
 import { foldBasis, rotatePoint } from './symmetry.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 
 /** What a click paints. The start-move tool lives in the controls, not here. */
 export type Tool =
@@ -142,7 +137,8 @@ export function applyBrush(
 
   // The eraser stays a clean, predictable disc; sculpting has its own
   // smooth falloff. Everything painted frays.
-  const frayed = tool.kind === 'terrain' || (tool.kind === 'resource' && tool.res !== TileResource.None);
+  const frayed =
+    tool.kind === 'terrain' || (tool.kind === 'resource' && tool.res !== TileResource.None);
   const density = tool.kind === 'resource' ? (PAINT_DENSITY[tool.res] ?? 1) : 1;
   const needsLocal = frayed || density < 1 || tool.kind === 'noise';
   const reach = frayed ? r * (FRAY_MIN + FRAY_SPAN) : r;
@@ -206,7 +202,8 @@ export function applyBrush(
   // recomputeBlocked enforces on load.
   for (const i of dirty) {
     map.blocked[i] =
-      tileBlocks(map.terrain[i]!, map.resource[i]!) || !inPlayArea(map, tileX(i, size), tileY(i, size))
+      tileBlocks(map.terrain[i]!, map.resource[i]!) ||
+      !inPlayArea(map, tileX(i, size), tileY(i, size))
         ? 1
         : 0;
   }

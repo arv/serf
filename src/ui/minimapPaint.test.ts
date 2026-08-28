@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ownerTint, paintBase, tileRgb, type MinimapTiles } from './minimapPaint';
-import { PathLevel, Terrain, TileResource, playMin } from '../sim/map';
+import { playMin } from '../sim/map';
 import { background, grass, leafDark, rock, water } from '../render/palette';
 import { factionTint } from '../render/factionPalette';
 import { BANDIT } from '../sim/entities';
+import * as PathLevel from '../sim/pathLevelEnum.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 
 const rgb = (c: number): [number, number, number] => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
 

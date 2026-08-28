@@ -6,7 +6,6 @@ import { foreignChord, typingInto } from '../input/typing';
 import { capturePointer } from '../input/mouseCapture';
 import type { Enum } from '../shared/enum.ts';
 import * as ViewModeNs from './viewModeEnum.ts';
-export * as ViewMode from './viewModeEnum.ts';
 export type ViewMode = Enum<typeof ViewModeNs>;
 
 /**

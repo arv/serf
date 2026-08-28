@@ -5,9 +5,9 @@ import { deserializeWorld, serializeWorld } from './save.ts';
 import { createWorld, type World } from './world.ts';
 import { tickWorld } from './tick.ts';
 import type { Unit } from './units.ts';
-import { GoodId } from './defs/goods.ts';
-import { BuildingState } from './entities.ts';
-import { PlayerKind } from './player.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 
 function run(world: World, ticks: number): void {
   for (let t = 0; t < ticks; t++) tickWorld(world, []);

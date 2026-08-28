@@ -1,5 +1,14 @@
-import { MAX_MAP_SIZE, gridFor, inBounds, tileCount, tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { PathLevel, type GameMap } from './map.ts';
+import {
+  MAX_MAP_SIZE,
+  gridFor,
+  inBounds,
+  tileCount,
+  tileIdx,
+  tileX,
+  tileY,
+} from '../shared/grid.ts';
+import type { GameMap } from './map.ts';
+import * as PathLevel from './pathLevelEnum.ts';
 
 /**
  * All the pathfinder actually reads: where it cannot go, what a step
@@ -218,7 +227,8 @@ function search(
         if (map.blocked[n]) continue;
         // No corner cutting: a diagonal needs both orthogonal neighbors open.
         if (dx !== 0 && dy !== 0) {
-          if (map.blocked[tileIdx(cx + dx, cy, size)] || map.blocked[tileIdx(cx, cy + dy, size)]) continue;
+          if (map.blocked[tileIdx(cx + dx, cy, size)] || map.blocked[tileIdx(cx, cy + dy, size)])
+            continue;
         }
         const stepLen = dx !== 0 && dy !== 0 ? SQRT2 : 1;
         const g = gScore[current]! + stepLen * tileStepCost(map, n);

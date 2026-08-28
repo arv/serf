@@ -1,3 +1,4 @@
+import type { Enum } from '../shared/enum.ts';
 import * as THREE from 'three';
 import { GameRenderer } from '../render/renderer';
 import {
@@ -7,15 +8,18 @@ import {
   setWorkTool,
   TOOL_STOWED,
   type CharacterVisual,
-  AnimKey,
 } from '../render/characters';
 import { worldToScreen } from '../input/picking';
 import { grass } from '../render/palette';
-import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
+import { UNIT_DEFS } from '../sim/defs/units';
 import { WORK } from '../protocol/sabLayout';
 import { unitName } from './names';
 import { BANDIT } from '../sim/entities';
 import { DEFAULT_MAP_SIZE as MAP_SIZE } from '../shared/grid';
+import * as AnimKey from '../render/animKeyEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+
+type AnimKey = Enum<typeof AnimKey>;
 
 /**
  * ?wardrobe — the costume fitting room. Every unit kind of every faction

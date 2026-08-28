@@ -4,7 +4,6 @@ import type { AiWorldSummary } from './summary.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as ChatRoleNs from './chatRoleEnum.ts';
 
-export * as ChatRole from './chatRoleEnum.ts';
 export type ChatRole = Enum<typeof ChatRoleNs>;
 
 /**

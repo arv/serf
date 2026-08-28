@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../sim/defs/buildings';
+import { BUILDING_DEFS, BUILDING_TYPES } from '../sim/defs/buildings';
 import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
 import { makeBakehouse } from './procBuildings';
 import { makeFishSign, makeShoal } from './procParts';
@@ -15,7 +15,9 @@ import {
 } from './procMines';
 import type { Enum } from '../shared/enum.ts';
 import * as ScatterPackNs from './scatterPackEnum.ts';
-export * as ScatterPack from './scatterPackEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 export type ScatterPack = Enum<typeof ScatterPackNs>;
 
 /**

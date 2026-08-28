@@ -1,6 +1,10 @@
-import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../sim/defs/buildings';
+import type { Enum } from '../shared/enum.ts';
+import { BUILDING_DEFS, BUILDING_TYPES } from '../sim/defs/buildings';
 import { type GoodAmounts, type GoodId, goodEntries } from '../sim/defs/goods';
 import type { TechId } from '../sim/defs/techs';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 /**
  * The build ribbon's tabs, in the order they are shown.

@@ -11,7 +11,6 @@ import { paintBase, ownerTint } from './minimapPaint';
 import { toasts } from './store';
 import type { Enum } from '../shared/enum.ts';
 import * as MinimapModeNs from './minimapModeEnum.ts';
-export * as MinimapMode from './minimapModeEnum.ts';
 export type MinimapMode = Enum<typeof MinimapModeNs>;
 
 /**

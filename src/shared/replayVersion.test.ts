@@ -36,12 +36,15 @@ import { REPLAY_VERSION } from './replayVersion';
 // rule layer that reads it, which is equally outside playback. A seat that
 // now halts a forge it used to leave running emits orders whose tick
 // semantics are untouched, so yesterday's logs still play back exactly.
+// Still 33 after the enums moved to direct imports: every sim file's
+// import list changed, and nothing else did — same constants, same
+// tables, same order. The hash is over raw bytes, so it moved anyway.
 // 33 for the ids themselves becoming numbers: a logged command names its
 // kind in a word the screen no longer reads, and a shelf keyed by number
 // enumerates in id order rather than in the order it was written. Both
 // are in replayVersion.ts at length.
 const EXPECTED_VERSION = 33;
-const EXPECTED_HASH = '52679646fc61455567a88129d1dbe082';
+const EXPECTED_HASH = '8a4145298819097cf262cf59d52fe647';
 
 /**
  * Everything a replay's playback depends on, as raw source:

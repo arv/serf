@@ -15,9 +15,13 @@
  * hat.
  */
 
-import { type CueDef, BusId, BUS_IDS } from './cues';
+import type { Enum } from '../shared/enum.ts';
+import { type CueDef, BUS_IDS } from './cues';
 import type { PlayRequest } from './voices';
-import { AnimKey } from '../render/characters';
+import * as BusId from './busIdEnum.ts';
+import * as AnimKey from '../render/animKeyEnum.ts';
+
+type BusId = Enum<typeof BusId>;
 
 /** Fixed design mix per bus; only master is player-facing for now. */
 const BUS_GAINS: Record<BusId, number> = {

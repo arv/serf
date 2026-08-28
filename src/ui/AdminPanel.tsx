@@ -1,6 +1,9 @@
+import type { Enum } from '../shared/enum.ts';
 import { TextTip, tooltip } from './tooltip';
 import { adminState, fogEnabled, setFogEnabled, techs } from './store';
-import { AdminAction } from '../sim/commands';
+import * as AdminAction from '../sim/adminActionEnum.ts';
+
+type AdminAction = Enum<typeof AdminAction>;
 
 /**
  * Sandbox controls for tweaking the game, shown only with ?admin in the URL.

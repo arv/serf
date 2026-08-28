@@ -1,15 +1,21 @@
+import type { Enum } from '../../shared/enum.ts';
 import { ALE_TRAIN_SPEEDUP, TICKS_PER_SECOND } from '../defs/balance.ts';
 import { TOOL_OF, buildingDef, garrisonRoom } from '../defs/buildings.ts';
-import { GOODS, GoodId, goodEntries } from '../defs/goods.ts';
+import { GOODS, goodEntries } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { atBuilding, walkToBuilding } from '../arrival.ts';
 import { bindWorker, consumePostTool, unbindWorker } from './production.ts';
 import { evictGarrison } from './training.ts';
-import { isPlayerOwner, type Building, type Owner, BuildingState } from '../entities.ts';
-import { type Unit, UnitTaskKind } from '../units.ts';
+import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
+import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
-import { UnitTypeId } from '../defs/units.ts';
-import { TechId } from '../defs/techs.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import * as TechId from '../defs/techIdEnum.ts';
+
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
 const UNREACHABLE_BACKOFF = REQUEST_INTERVAL; // hold before re-pathing to a walled-off post

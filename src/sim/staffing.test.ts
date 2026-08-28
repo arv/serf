@@ -12,13 +12,14 @@ import {
   staffBuilding,
 } from './testUtils.ts';
 import { tileIdx } from '../shared/grid.ts';
-import { OUTPUT_CAP, BuildingTypeId } from './defs/buildings.ts';
+import { OUTPUT_CAP } from './defs/buildings.ts';
 import { bindWorker } from './systems/production.ts';
-import { GoodId } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { TechId } from './defs/techs.ts';
-import { UnitTaskKind } from './units.ts';
-import { CommandKind } from './commands.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as TechId from './defs/techIdEnum.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

@@ -1,15 +1,19 @@
 import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid.ts';
-import { placeBuiltBuilding, placeSite, spawnUnit, type World, MatchState } from './world.ts';
-import { makePlayer, PlayerKind } from './player.ts';
+import { placeBuiltBuilding, placeSite, spawnUnit, type World } from './world.ts';
+import { makePlayer } from './player.ts';
 import { bindWorker } from './systems/production.ts';
-import { TileResource, resourceBlocks, type TileResourceKind, type GameMap } from './map.ts';
+import { resourceBlocks, type TileResourceKind, type GameMap } from './map.ts';
 import type { SimCommand } from './commands.ts';
 import type { PlayerCommand } from './tick.ts';
-import { type GoodAmounts, GoodId } from './defs/goods.ts';
+import type { GoodAmounts } from './defs/goods.ts';
 import type { Building, Owner } from './entities.ts';
 import type { Unit } from './units.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
+import * as MatchState from './matchStateEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
+import * as TileResource from './tileResourceEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 
 /** An all-grass, empty 64x64 map for deterministic logistics tests. */
 export function bareMap(size = DEFAULT_MAP_SIZE): GameMap {

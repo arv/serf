@@ -1,5 +1,6 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
-import { BANDIT, centerOf, type Building, BuildingState } from './entities.ts';
+import { BANDIT, centerOf, type Building } from './entities.ts';
 import { tickWorld } from './tick.ts';
 import {
   destroyBuilding,
@@ -9,20 +10,28 @@ import {
   spawnUnitNearby,
   type World,
 } from './world.ts';
-import { Terrain } from './map.ts';
-import { COUNTER_TABLE, UNIT_DEFS, UnitTypeId, UnitClass } from './defs/units.ts';
+import { COUNTER_TABLE, UNIT_DEFS } from './defs/units.ts';
 import { raidIntervalFor } from './defs/balance.ts';
-import { BUILDING_DEFS, BuildingTypeId } from './defs/buildings.ts';
+import { BUILDING_DEFS } from './defs/buildings.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { populationOf } from './population.ts';
 import { cmds, addSerf, addStorehouse, bareWorld } from './testUtils.ts';
 import { ACTION, type UnitSnapshot } from '../protocol/sabLayout.ts';
 import { unitSnapshots } from '../protocol/snapshot.ts';
-import { type Unit, UnitTaskKind } from './units.ts';
-import { GoodId } from './defs/goods.ts';
-import { TechId } from './defs/techs.ts';
-import { CommandKind } from './commands.ts';
-import { GameEventKind, MatchState } from './world.ts';
+import type { Unit } from './units.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+import * as Terrain from './terrainEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as UnitClass from './defs/unitClassEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as TechId from './defs/techIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import * as GameEventKind from './gameEventKindEnum.ts';
+import * as MatchState from './matchStateEnum.ts';
+
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

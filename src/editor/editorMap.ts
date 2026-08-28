@@ -1,6 +1,5 @@
 import { gridFor, tileCount, tileIdx } from '../shared/grid.ts';
 import {
-  Terrain,
   inPlayArea,
   recomputeBlocked,
   type GameMap,
@@ -9,6 +8,7 @@ import {
 } from '../sim/map.ts';
 import { resolveMapSize } from '../sim/world.ts';
 import { rotateStart } from './symmetry.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
 
 /**
  * The editor's working state: a real GameMap (so every render class and the
@@ -83,10 +83,7 @@ const START_W = 3;
  * agree by construction — this is the one rule.
  */
 export function startSpotLegal(map: GameMap, s: StartSpot): boolean {
-  if (
-    !inPlayArea(map, s.x - 1, s.y - 1) ||
-    !inPlayArea(map, s.x + START_W, s.y + START_W)
-  ) {
+  if (!inPlayArea(map, s.x - 1, s.y - 1) || !inPlayArea(map, s.x + START_W, s.y + START_W)) {
     return false;
   }
   for (let dy = 0; dy < START_W; dy++) {

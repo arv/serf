@@ -1,11 +1,12 @@
 import { For, Show, type JSX } from 'solid-js';
 import { goto } from '../../app/router';
 import { type GoodAmounts, type GoodId, goodEntries } from '../../sim/defs/goods';
-import { type Recipe, RecipeKind } from '../../sim/defs/buildings';
+import type { Recipe } from '../../sim/defs/buildings';
 import { GoodIcon } from '../../ui/icons';
 import { goodName } from '../../ui/names';
 import { fmtPerMinute, fmtSecs } from './data';
 import { goodHref } from './routes';
+import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
 
 /**
  * An internal wiki link: a real <a>, so middle-click and copy-link work,

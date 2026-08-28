@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { bytesFromBase64, bytesToBase64 } from '../shared/base64.ts';
-import { Terrain, TileResource } from '../sim/map.ts';
 import { applyBrush } from './brush.ts';
 import { createBlankMap } from './editorMap.ts';
 import { parseEditorMap, serializeEditorMap, type EditorMapFile } from './format.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 
 function sampleState() {
   // play 64 -> grid 112, play region [24, 88).

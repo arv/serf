@@ -1,6 +1,9 @@
+import type { Enum } from '../../src/shared/enum.ts';
 import * as THREE from 'three';
 import type { Kit } from './kit';
-import { BuildingTypeId } from '../../src/sim/defs/buildings';
+import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 /**
  * Candidate looks for the food chain: mill, bakery, fishery, and the goods

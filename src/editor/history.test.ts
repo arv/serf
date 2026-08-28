@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid.ts';
-import { Terrain, TileResource } from '../sim/map.ts';
 import { applyBrush } from './brush.ts';
 import { createBlankMap } from './editorMap.ts';
 import { EditorHistory } from './history.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 
 function paintSomething(state: ReturnType<typeof createBlankMap>, x: number, y: number) {
   return applyBrush(state, { kind: 'terrain', terrain: Terrain.Water }, x, y, {

@@ -13,8 +13,8 @@ import { loadGlbAssets } from '../render/assets';
 import { snapBuildings } from '../protocol/snapshot';
 import { createWorld } from '../sim/world';
 import { batteryFramePacer } from '../render/framePacer';
-import { BuildingTypeId } from '../sim/defs/buildings';
-import { PlayerKind } from '../sim/player';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
 
 /**
  * The pre-boot background, shared by every menu screen: the actual game,

@@ -1,13 +1,8 @@
+import type { Enum } from '../../../shared/enum.ts';
 import { For, Show, createSignal, type JSX } from 'solid-js';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS } from '../../../sim/defs/balance';
-import { BUILDING_DEFS, BuildingTypeId } from '../../../sim/defs/buildings';
-import {
-  COUNTER_TABLE,
-  UNIT_DEFS,
-  WEAPON_OF,
-  UnitTypeId,
-  UnitClass,
-} from '../../../sim/defs/units';
+import { BUILDING_DEFS } from '../../../sim/defs/buildings';
+import { COUNTER_TABLE, UNIT_DEFS, WEAPON_OF } from '../../../sim/defs/units';
 import { buildingName, techName, unitName } from '../../../ui/names';
 import { ALL_BUILDINGS, TRAINED_AT, UNIT_UNLOCKED_BY, fmtSecs } from '../data';
 import { UNIT_DESC } from '../descriptions';
@@ -15,7 +10,14 @@ import { CostList, DocLink, GoodChip, Section, Stat, Stats } from '../components
 import { ModelCard } from '../preview/ModelCard';
 import { Prose } from '../prose';
 import { buildingHref, techHref, unitHref } from '../routes';
-import { AnimKey } from '../../../render/characters';
+import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
+import * as UnitTypeId from '../../../sim/defs/unitTypeIdEnum.ts';
+import * as UnitClass from '../../../sim/defs/unitClassEnum.ts';
+import * as AnimKey from '../../../render/animKeyEnum.ts';
+
+type AnimKey = Enum<typeof AnimKey>;
+type UnitClass = Enum<typeof UnitClass>;
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 const CLASSES: UnitClass[] = [UnitClass.heavy, UnitClass.light, UnitClass.ranged];
 

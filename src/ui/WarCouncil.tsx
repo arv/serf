@@ -7,10 +7,9 @@ import {
   type AiStrategyId,
 } from '../sim/defs/aiStrategies';
 import { DiceIcon } from './menuChrome';
-import { PlayerKind } from '../sim/player';
 import type { Enum } from '../shared/enum.ts';
 import * as CouncilPhaseNs from './councilPhaseEnum.ts';
-export * as CouncilPhase from './councilPhaseEnum.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
 export type CouncilPhase = Enum<typeof CouncilPhaseNs>;
 
 /**

@@ -1,5 +1,5 @@
 import type { BuildingSnap } from '../protocol/messages';
-import { BuildingState } from '../sim/entities';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
 
 /**
  * A built tower's halt lever is the roof: starting it mans the tower —

@@ -1,3 +1,4 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
 import {
   BUILD_GROUPS,
@@ -7,7 +8,10 @@ import {
   buildingForKey,
   playerBuildable,
 } from './buildMenu';
-import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../sim/defs/buildings';
+import { BUILDING_DEFS, BUILDING_TYPES } from '../sim/defs/buildings';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 const TYPES = BUILDING_TYPES;
 const inMenu = BUILD_GROUPS.flatMap((g) => g.types);

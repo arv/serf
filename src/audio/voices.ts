@@ -36,9 +36,12 @@
  * under vitest's node environment.
  */
 
+import type { Enum } from '../shared/enum.ts';
 import { hash2 } from '../shared/math';
 import { MIN_AUDIBLE } from './pan';
-import { BusId } from './cues';
+import * as BusId from './busIdEnum.ts';
+
+type BusId = Enum<typeof BusId>;
 
 export interface SchedulerCueDef {
   bus: BusId;

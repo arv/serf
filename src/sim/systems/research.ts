@@ -1,9 +1,12 @@
 import { FESTIVAL_DURATION } from '../defs/balance.ts';
-import { TECH_DEFS, TechEffectKind, TechId } from '../defs/techs.ts';
+import { TECH_DEFS } from '../defs/techs.ts';
 import type { World } from '../world.ts';
-import { type Building, type Owner, BuildingState } from '../entities.ts';
-import { GoodId } from '../defs/goods.ts';
-import { BuildingTypeId } from '../defs/buildings.ts';
+import type { Building, Owner } from '../entities.ts';
+import * as TechEffectKind from '../defs/techEffectKindEnum.ts';
+import * as TechId from '../defs/techIdEnum.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 
 /**
  * Ticks every player's active research and festival buff. Research is

@@ -6,10 +6,9 @@ import { TechTip, tooltip } from './tooltip';
 import { buildingName, techDesc, techName } from './names';
 import { setTechPanelOpen, stock, techs } from './store';
 import { COMPACT, SHORT } from './breakpoints';
-import { BuildingTypeId } from '../sim/defs/buildings';
 import type { Enum } from '../shared/enum.ts';
 import * as TechNodeStateNs from './techNodeStateEnum.ts';
-export * as TechNodeState from './techNodeStateEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 export type TechNodeState = Enum<typeof TechNodeStateNs>;
 
 const BRANCH_LABELS: Record<string, string> = {

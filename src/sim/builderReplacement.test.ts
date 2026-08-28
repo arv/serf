@@ -3,10 +3,10 @@ import { tickWorld } from './tick.ts';
 import { killUnit, spawnUnit, type World } from './world.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld, cmds } from './testUtils.ts';
-import { GoodId } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingState } from './entities.ts';
-import { CommandKind } from './commands.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

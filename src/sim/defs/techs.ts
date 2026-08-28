@@ -1,22 +1,22 @@
-import { type GoodAmounts, GoodId } from './goods.ts';
+import type { GoodAmounts } from './goods.ts';
 import type { Enum } from '../../shared/enum.ts';
 import * as TechIdNs from './techIdEnum.ts';
 
-export * as TechId from './techIdEnum.ts';
 export type TechId = Enum<typeof TechIdNs>;
 import * as ModifierKeyNs from './modifierKeyEnum.ts';
-export * as ModifierKey from './modifierKeyEnum.ts';
 export type ModifierKey = Enum<typeof ModifierKeyNs>;
 import * as TechBranchNs from './techBranchEnum.ts';
-export * as TechBranch from './techBranchEnum.ts';
 export type TechBranch = Enum<typeof TechBranchNs>;
 import * as TechEffectKindNs from './techEffectKindEnum.ts';
-export * as TechEffectKind from './techEffectKindEnum.ts';
+import * as GoodId from './goodIdEnum.ts';
+import * as UnitTypeId from './unitTypeIdEnum.ts';
+import * as BuildingTypeId from './buildingTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type UnitTypeId = Enum<typeof UnitTypeId>;
 export type TechEffectKind = Enum<typeof TechEffectKindNs>;
 
 const T = TechIdNs;
-import { UnitTypeId } from './units.ts';
-import { BuildingTypeId } from './buildings.ts';
 
 /**
  * The tech tree: three short branches researched at the Abbey for goods +

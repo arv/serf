@@ -6,11 +6,9 @@ import type { EntityId } from './entities.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as CommandKindNs from './commandKindEnum.ts';
 
-export * as CommandKind from './commandKindEnum.ts';
 export type CommandKind = Enum<typeof CommandKindNs>;
 import * as AdminActionNs from './adminActionEnum.ts';
 
-export * as AdminAction from './adminActionEnum.ts';
 export type AdminAction = Enum<typeof AdminActionNs>;
 
 /**

@@ -13,7 +13,7 @@
 import { createWorld } from '../../src/sim/world.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
 import { checkInvariants, checkLedger, countGoods } from '../../src/sim/debug/invariants.ts';
-import { PlayerKind } from '../../src/sim/player.ts';
+import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
 
 const TICKS = 1000;
 

@@ -6,7 +6,7 @@ import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { SimHost } from '../app/simHost';
 import { saveGameNow } from '../app/saveStore';
 import type { MinimapSource } from './Minimap';
-import { CommandKind } from '../sim/commands';
+import * as CommandKind from '../sim/commandKindEnum.ts';
 
 /** What the HUD needs from the app: selection actions from Controls (touch
  * has no shift/drag), and the save assembled where world and fog meet. */

@@ -5,10 +5,13 @@ import { deserializeWorld, serializeWorld } from './save.ts';
 import { tickWorld } from './tick.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { BANDIT } from './entities.ts';
-import { UNIT_DEFS, UnitTypeId } from './defs/units.ts';
-import { BUILDING_DEFS, BuildingTypeId } from './defs/buildings.ts';
-import { type SimCommand, CommandKind } from './commands.ts';
-import { PlayerKind } from './player.ts';
+import { UNIT_DEFS } from './defs/units.ts';
+import { BUILDING_DEFS } from './defs/buildings.ts';
+import type { SimCommand } from './commands.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 
 function commandScript(tick: number): SimCommand[] {
   if (tick === 50)

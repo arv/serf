@@ -1,5 +1,6 @@
+import type { Enum } from '../shared/enum.ts';
 import { For, Index, Show } from 'solid-js';
-import { BUILDING_DEFS, gatherRecipeOf, repairBill, BuildingTypeId } from '../sim/defs/buildings';
+import { BUILDING_DEFS, gatherRecipeOf, repairBill } from '../sim/defs/buildings';
 import {
   FORGE_QUEUE_CAP,
   HIRE_SERF_COST,
@@ -7,8 +8,8 @@ import {
   TICKS_PER_SECOND,
   TRAIN_QUEUE_CAP,
 } from '../sim/defs/balance';
-import { type BuildingSnap, StaffingState } from '../protocol/messages';
-import { type GoodAmounts, goodEntries, GoodId, goodKeys } from '../sim/defs/goods';
+import type { BuildingSnap } from '../protocol/messages';
+import { type GoodAmounts, goodEntries, goodKeys } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
 import { TextTip, TipWrap, UnitTip } from './tooltip';
@@ -23,7 +24,6 @@ import {
   setTechPanelOpen,
   stock,
   techs,
-  OrderMode,
 } from './store';
 
 import { buildingName, goodName, techName, unitName } from './names';
@@ -38,8 +38,16 @@ import {
 } from './commands';
 import { SHORT } from './breakpoints';
 import { levyOrder } from './levy';
-import { BuildingState } from '../sim/entities';
-import { TileResource, type TileResourceKind } from '../sim/map';
+import type { TileResourceKind } from '../sim/map';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as StaffingState from '../protocol/staffingStateEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as OrderMode from './orderModeEnum.ts';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type OrderMode = Enum<typeof OrderMode>;
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
   const entries = () => goodEntries(props.amounts).filter(([, n]) => n > 0);

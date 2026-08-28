@@ -2,18 +2,17 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { clamp } from '../shared/math';
-import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
+import { UNIT_DEFS } from '../sim/defs/units';
 import { lathe } from './models';
 import { loadGltfRetry } from './assets';
 import { goodColors } from './palette';
 import { factionTint } from './factionPalette';
-import { GoodId } from '../sim/defs/goods';
 import type { Enum } from '../shared/enum.ts';
 import * as AnimKeyNs from './animKeyEnum.ts';
-export * as AnimKey from './animKeyEnum.ts';
 export type AnimKey = Enum<typeof AnimKeyNs>;
 import * as GaitNs from './gaitEnum.ts';
-export * as Gait from './gaitEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
 export type Gait = Enum<typeof GaitNs>;
 
 /**

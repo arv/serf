@@ -1,13 +1,18 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
 import { WATER_LEVEL } from '../sim/map';
 import { HeightField } from './heightField';
 import { SITE_FRAME_H } from './models';
-import { type BuildingSnap, StaffingState } from '../protocol/messages';
-import { type GoodAmounts, GoodId } from '../sim/defs/goods';
-import { BuildingTypeId } from '../sim/defs/buildings';
-import { BuildingState } from '../sim/entities';
+import type { BuildingSnap } from '../protocol/messages';
+import type { GoodAmounts } from '../sim/defs/goods';
+import * as StaffingState from '../protocol/staffingStateEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 // The KayKit buildings carry material *arrays* on their meshes (the textured
 // group plus the team-color group). The real loader needs GLB files, so mock

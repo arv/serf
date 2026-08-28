@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
-import { PathLevel, type MapView } from '../sim/map';
+import type { MapView } from '../sim/map';
 import { ribbonCover, type RibbonCover } from './pathRibbon';
 import { makeCobbleTexture } from './roadTexture';
 import type { HeightField } from './heightField';
+import * as PathLevel from '../sim/pathLevelEnum.ts';
 
 /** Sub-quads per tile edge: how finely the paving follows the road's edge. */
 const SUB = 6;

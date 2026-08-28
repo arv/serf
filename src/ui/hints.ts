@@ -1,4 +1,7 @@
-import { MissionId } from '../sim/defs/missions.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as MissionId from '../sim/defs/missionIdEnum.ts';
+
+type MissionId = Enum<typeof MissionId>;
 
 /**
  * Tutorial hint scripts, one per teaching mission. UI-side on purpose: a

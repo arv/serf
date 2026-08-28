@@ -1,8 +1,9 @@
+import type { Enum } from '../shared/enum.ts';
 import { TICK_MS } from '../sim/defs/balance.ts';
-import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units.ts';
-import { buildingDef, BuildingTypeId, BUILDING_KEYS } from '../sim/defs/buildings.ts';
+import { UNIT_DEFS } from '../sim/defs/units.ts';
+import { buildingDef, BUILDING_KEYS } from '../sim/defs/buildings.ts';
 import { AI_INTEL, hostileNear, type AiBrain } from '../sim/systems/ai.ts';
-import { type Building, type Owner, BuildingState } from '../sim/entities.ts';
+import type { Building, Owner } from '../sim/entities.ts';
 import { popCapOf, populationOf } from '../sim/population.ts';
 import { playMin, playMax } from '../sim/map.ts';
 import { tileIdx } from '../shared/grid.ts';
@@ -10,6 +11,11 @@ import type { World } from '../sim/world.ts';
 import { GOOD_KEYS, goodEntries } from '../sim/defs/goods.ts';
 import { TECH_KEYS } from '../sim/defs/techs.ts';
 import { AI_STRATEGY_KEYS } from '../sim/defs/aiStrategies.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
+
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * One AI seat's view of the match, folded down for a language model. The

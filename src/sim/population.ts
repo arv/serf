@@ -1,6 +1,7 @@
 import { buildingDef } from './defs/buildings.ts';
-import { type Owner, BuildingState } from './entities.ts';
+import type { Owner } from './entities.ts';
 import type { World } from './world.ts';
+import * as BuildingState from './buildingStateEnum.ts';
 
 /**
  * Population and its ceiling.

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Rng } from '../shared/rng.ts';
 import { tileIdx } from '../shared/grid.ts';
 import { tickWorld } from './tick.ts';
-import { destroyBuilding, killUnit, placeBuiltBuilding, type World, HaulPhase } from './world.ts';
+import { destroyBuilding, killUnit, placeBuiltBuilding, type World } from './world.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
 import {
   cmds,
@@ -13,13 +13,15 @@ import {
   bareWorld,
   staffBuilding,
 } from './testUtils.ts';
-import { TileResource } from './map.ts';
-import { type GoodAmounts, GoodId } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
-import { BuildingState } from './entities.ts';
-import { UnitTaskKind } from './units.ts';
-import { CommandKind } from './commands.ts';
+import type { GoodAmounts } from './defs/goods.ts';
+import * as HaulPhase from './haulPhaseEnum.ts';
+import * as TileResource from './tileResourceEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

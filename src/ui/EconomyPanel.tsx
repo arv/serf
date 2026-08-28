@@ -1,10 +1,14 @@
+import type { Enum } from '../shared/enum.ts';
 import { For, Show } from 'solid-js';
-import { GOODS, GoodId, GOOD_KEYS } from '../sim/defs/goods';
+import { GOODS, GOOD_KEYS } from '../sim/defs/goods';
 import { GoodIcon } from './icons';
 import { GoodTip, tooltip } from './tooltip';
 import { goodName } from './names';
 import { setEconomyPanelOpen, stock, toolWants } from './store';
 import { COMPACT } from './breakpoints';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+
+type GoodId = Enum<typeof GoodId>;
 
 /**
  * The ledger: every good the village owns, grouped by what it is for.

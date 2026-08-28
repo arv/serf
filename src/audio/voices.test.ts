@@ -1,6 +1,9 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
 import { CueScheduler, GLOBAL_CAP, type PlayRequest } from './voices';
-import { BusId } from './cues';
+import * as BusId from './busIdEnum.ts';
+
+type BusId = Enum<typeof BusId>;
 
 /** A tiny catalogue with the knobs the scheduler actually reads. */
 const DEFS = {

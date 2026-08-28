@@ -1,3 +1,4 @@
+import type { Enum } from '../../../shared/enum.ts';
 import * as THREE from 'three';
 import { loadGlbAssets, makeGlbBuilding } from '../../../render/assets';
 import {
@@ -5,7 +6,6 @@ import {
   makeCharacter,
   playAnimation,
   type CharacterVisual,
-  AnimKey,
 } from '../../../render/characters';
 import { makeRoadPile } from '../../../render/models';
 import { BUILDING_DEFS, type BuildingTypeId, buildingFromKey } from '../../../sim/defs/buildings';
@@ -13,6 +13,9 @@ import { BANDIT } from '../../../sim/entities';
 import { UNIT_DEFS, type UnitTypeId, unitFromKey } from '../../../sim/defs/units';
 import { RAIDER_BUILDINGS, RAIDER_UNITS } from '../data';
 import { YAW, frame, frameFor, makeLights, makePlate, makeRenderer, type Framing } from './scene';
+import * as AnimKey from '../../../render/animKeyEnum.ts';
+
+type AnimKey = Enum<typeof AnimKey>;
 
 /**
  * One WebGL context for every preview on every wiki page.
