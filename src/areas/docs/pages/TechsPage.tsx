@@ -1,17 +1,17 @@
+import type { Enum } from '../../../shared/enum.ts';
 import { For, Show, type JSX } from 'solid-js';
-import {
-  TECH_BRANCHES,
-  TECH_DEFS,
-  type TechEffect,
-  ModifierKey,
-  TechBranch,
-  TechEffectKind,
-} from '../../../sim/defs/techs';
+import { TECH_BRANCHES, TECH_DEFS, type TechEffect } from '../../../sim/defs/techs';
 import { buildingName, unitName } from '../../../ui/names';
 import { ALL_TECHS, fmtSecs } from '../data';
 import { CostList, DocLink } from '../components';
 import { Prose } from '../prose';
 import { buildingHref, techHref, unitHref } from '../routes';
+import * as ModifierKey from '../../../sim/defs/modifierKeyEnum.ts';
+import * as TechBranch from '../../../sim/defs/techBranchEnum.ts';
+import * as TechEffectKind from '../../../sim/defs/techEffectKindEnum.ts';
+
+type ModifierKey = Enum<typeof ModifierKey>;
+type TechBranch = Enum<typeof TechBranch>;
 
 const BRANCH_LABEL: Record<TechBranch, string> = {
   [TechBranch.agriculture]: 'Agriculture',

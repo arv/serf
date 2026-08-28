@@ -1,7 +1,8 @@
+import type { Enum } from '../shared/enum.ts';
 import { Rng } from '../shared/rng.ts';
 import { inBounds, tileIdx, tileX, tileY } from '../shared/grid.ts';
 import { UNIT_DEFS, UNIT_TYPES } from './defs/units.ts';
-import { BANDIT, type Owner, BuildingState } from './entities.ts';
+import { BANDIT, type Owner } from './entities.ts';
 import { findPath, nearestWalkable } from './path.ts';
 import { movementSystem } from './systems/movement.ts';
 import { wanderSystem } from './systems/wander.ts';
@@ -10,7 +11,7 @@ import { productionSystem, unbindWorker } from './systems/production.ts';
 import { cancelRepair, constructionSystem, orderRepair } from './systems/construction.ts';
 import { trailsSystem } from './systems/trails.ts';
 import { canPlace, destroyBuilding, killUnit, placeSite, spawnUnit, type World } from './world.ts';
-import { GOODS, GoodId, goodEntries } from './defs/goods.ts';
+import { GOODS, goodEntries } from './defs/goods.ts';
 import { researchSystem } from './systems/research.ts';
 import {
   trainingSystem,
@@ -28,8 +29,15 @@ import { CORPSE_TICKS, FORGE_QUEUE_CAP, HIRE_QUEUE_CAP, HIRE_SERF_COST } from '.
 import { TECH_DEFS } from './defs/techs.ts';
 import { canResearch, isBuildingUnlocked } from './techHelpers.ts';
 import { hasRoomToHire } from './population.ts';
-import { type SimCommand, CommandKind, AdminAction } from './commands.ts';
-import { UnitTaskKind } from './units.ts';
+import type { SimCommand } from './commands.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import * as AdminAction from './adminActionEnum.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
+
+type AdminAction = Enum<typeof AdminAction>;
+type GoodId = Enum<typeof GoodId>;
 
 export { TICKS_PER_SECOND, TICK_MS } from './defs/balance.ts';
 

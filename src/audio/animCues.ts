@@ -15,8 +15,11 @@
  * player actually watched happen.
  */
 
+import type { Enum } from '../shared/enum.ts';
 import type { CueId } from './cues';
-import { AnimKey } from '../render/characters';
+import * as AnimKey from '../render/animKeyEnum.ts';
+
+type AnimKey = Enum<typeof AnimKey>;
 
 /** State-entry cues: fired once when a visible unit switches clips. */
 const ENTRY_CUES: Partial<Record<AnimKey, CueId>> = {

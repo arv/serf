@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
-import { buildingDef, repairBill, BuildingTypeId } from './defs/buildings.ts';
+import { buildingDef, repairBill } from './defs/buildings.ts';
 import { REPAIR_MEND_TICKS } from './defs/balance.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
 import {
@@ -14,8 +14,9 @@ import {
   cmds,
   staffBuilding,
 } from './testUtils.ts';
-import { GoodId } from './defs/goods.ts';
-import { CommandKind } from './commands.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

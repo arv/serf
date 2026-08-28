@@ -49,6 +49,31 @@
  *
  * Then you can use E and E.A as both a type and a value.
  *
+ * Import the enum module itself, every time — never a namespace
+ * re-exported from somewhere more convenient. It is tempting to publish
+ * the enum from the module that owns its defs, so one import gives you the
+ * value and the type together:
+ *
+ * ```
+ * export * as GoodId from './goodIdEnum.ts';   // don't
+ * ```
+ *
+ * That one line is the difference between `t === 1` and a materialised
+ * namespace object — member names kept as strings, values behind getters,
+ * and a property load at every use. It cost 11 KB of minified sim before
+ * anyone noticed, and it is invisible in review, so enumModule.lint.test.ts
+ * checks for it. Exporting the *type* from the defs module is fine: types
+ * are erased.
+ *
+ * A home module that needs the members for its own tables imports the enum
+ * module directly too, conventionally as `XNs`, and exports the type off
+ * that:
+ *
+ * ```
+ * import * as GoodIdNs from './goodIdEnum.ts';
+ * export type GoodId = Enum<typeof GoodIdNs>;
+ * ```
+ *
  * An enum module holds nothing but its members: `Enum` reads every export,
  * so a helper or a name table living alongside them would widen the union
  * into nonsense. Tables that key off an enum belong with the code that

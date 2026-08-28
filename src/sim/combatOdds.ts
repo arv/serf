@@ -1,4 +1,10 @@
-import { COUNTER_TABLE, UNIT_DEFS, UnitTypeId, UnitClass } from './defs/units.ts';
+import type { Enum } from '../shared/enum.ts';
+import { COUNTER_TABLE, UNIT_DEFS } from './defs/units.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as UnitClass from './defs/unitClassEnum.ts';
+
+type UnitClass = Enum<typeof UnitClass>;
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * Will this fight be won? — the question the brain never asked.

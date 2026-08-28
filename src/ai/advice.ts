@@ -1,6 +1,10 @@
+import type { Enum } from '../shared/enum.ts';
 import { isPostureId, postureAdvice, type PostureId, postureFromKey } from './posture.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
-import { UnitTypeId, asUnitTypeId } from '../sim/defs/units.ts';
+import { asUnitTypeId } from '../sim/defs/units.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * The contract between the LLM strategist and the AI brain: which playbook

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AiSeats } from './aiSeats';
 import { createWorld } from './world';
 import { tickWorld } from './tick';
-import { PlayerKind } from './player';
+import * as PlayerKind from './playerKindEnum.ts';
 
 /**
  * The brains themselves are covered by ai.test.ts and winnable.test.ts.

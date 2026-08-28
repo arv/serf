@@ -1,13 +1,15 @@
 import { REPAIR_MEND_TICKS } from '../defs/balance.ts';
 import { buildingDef, repairBill } from '../defs/buildings.ts';
-import { GOODS, GoodId, goodKeys } from '../defs/goods.ts';
-import { PathLevel } from '../map.ts';
+import { GOODS, goodKeys } from '../defs/goods.ts';
 import { abortJob, availableOut } from './logistics.ts';
 import { consumePostTool } from './production.ts';
 import { applyRepairMaterial, clearRepairOrder, destroyBuilding, type World } from '../world.ts';
 import { tileIdx } from '../../shared/grid.ts';
-import { type Building, BuildingState } from '../entities.ts';
-import { UnitTypeId } from '../defs/units.ts';
+import type { Building } from '../entities.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
+import * as PathLevel from '../pathLevelEnum.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 
 /**
  * Sites whose materials are fully delivered tick a build timer, then become

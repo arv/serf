@@ -1,3 +1,4 @@
+import type { Enum } from '../../shared/enum.ts';
 import {
   JOB_BLOCKED_BACKOFF,
   MATCHER_INTERVAL,
@@ -13,23 +14,22 @@ import {
   outputGoodsOf,
 } from '../defs/buildings.ts';
 import { forgeDemandRecipe } from './production.ts';
-import { GOODS, GoodId, goodEntries, goodKeys } from '../defs/goods.ts';
-import {
-  centerOf,
-  isPlayerOwner,
-  type Building,
-  type EntityId,
-  type Owner,
-  BuildingState,
-} from '../entities.ts';
+import { GOODS, goodEntries, goodKeys } from '../defs/goods.ts';
+import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { atBuilding, walkToBuilding } from '../arrival.ts';
 import { trainingDemand } from './training.ts';
-import { applyRepairMaterial, type HaulJob, type World, HaulPhase } from '../world.ts';
-import { type Unit, UnitTaskKind } from '../units.ts';
-import { UnitTypeId } from '../defs/units.ts';
-import { BuildingTypeId } from '../defs/buildings.ts';
-import { TechId } from '../defs/techs.ts';
+import { applyRepairMaterial, type HaulJob, type World } from '../world.ts';
+import type { Unit } from '../units.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
+import * as HaulPhase from '../haulPhaseEnum.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as TechId from '../defs/techIdEnum.ts';
+
+type GoodId = Enum<typeof GoodId>;
 
 /**
  * The heart of the game: goods physically live in building buffers and on

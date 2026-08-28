@@ -1,7 +1,6 @@
 import type { AiWorldSummary, RivalSummary } from './summary.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as ArchetypeNs from './archetypeEnum.ts';
-export * as Archetype from './archetypeEnum.ts';
 export type Archetype = Enum<typeof ArchetypeNs>;
 
 /**

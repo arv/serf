@@ -4,7 +4,6 @@ import type { UnitTypeId } from './defs/units.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as BuildingStateNs from './buildingStateEnum.ts';
 
-export * as BuildingState from './buildingStateEnum.ts';
 export type BuildingState = Enum<typeof BuildingStateNs>;
 
 /**

@@ -1,6 +1,6 @@
 import { tileIdx } from '../shared/grid';
-import { PathLevel } from '../sim/map';
 import { vnoise } from './noise';
+import * as PathLevel from '../sim/pathLevelEnum.ts';
 
 /**
  * Paths as ribbons rather than painted squares.
@@ -60,12 +60,7 @@ function gridSideOf(len: number): number {
  * stays inside its own tile, so anything two tiles away is at least a full
  * tile off and can never be the nearest.
  */
-export function ribbonDistances(
-  path: Uint8Array,
-  px: number,
-  pz: number,
-  out: RibbonDist,
-): void {
+export function ribbonDistances(path: Uint8Array, px: number, pz: number, out: RibbonDist): void {
   out.trail = Infinity;
   out.road = Infinity;
   // The path grid is square (size² tiles), so the grid size rides along in

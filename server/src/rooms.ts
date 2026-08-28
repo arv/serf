@@ -1,7 +1,13 @@
 import type { WebSocket } from 'ws';
 import { tileCount } from '../../src/shared/grid.ts';
 import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
-import { createWorld, type World, type WorldConfig, type GameEvent, type MapDelta, MatchState } from '../../src/sim/world.ts';
+import {
+  createWorld,
+  type World,
+  type WorldConfig,
+  type GameEvent,
+  type MapDelta,
+} from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
 import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { parseStrategyId } from '../../src/sim/defs/aiStrategies.ts';
@@ -10,7 +16,9 @@ import { REPLAY_FORMAT, serializeReplay, type ReplayData } from '../../src/app/r
 import { MAX_SEATS, type LobbyConfig } from '../../src/protocol/lobby.ts';
 import type { SimCommand } from '../../src/sim/commands.ts';
 import { SeatView, recomputeVision, sendHot, sendStruct } from './sync.ts';
-import { playerKindFromKey, PlayerKind } from '../../src/sim/player.ts';
+import { playerKindFromKey } from '../../src/sim/player.ts';
+import * as MatchState from '../../src/sim/matchStateEnum.ts';
+import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
 
 export { TICK_MS };
 

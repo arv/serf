@@ -2,13 +2,10 @@ import { REPAIR_COST_SHARE } from './balance.ts';
 import type { Enum } from '../../shared/enum.ts';
 import * as BuildingTypeIdNs from './buildingTypeIdEnum.ts';
 
-export * as BuildingTypeId from './buildingTypeIdEnum.ts';
 export type BuildingTypeId = Enum<typeof BuildingTypeIdNs>;
 
 const B = BuildingTypeIdNs;
-import { type GoodAmounts, GoodId, goodEntries, goodKeys } from './goods.ts';
-import { UnitTypeId, UnitClass } from './units.ts';
-import { TechId } from './techs.ts';
+import { type GoodAmounts, goodEntries, goodKeys } from './goods.ts';
 import * as RecipeKindNs from './recipeKindEnum.ts';
 import type { TileResourceKind } from '../map.ts';
 // Straight from the enum module rather than through map.ts: map.ts imports
@@ -17,8 +14,16 @@ import type { TileResourceKind } from '../map.ts';
 // built. An enum module imports nothing, so it can never be the far side
 // of a cycle.
 import * as TileResource from '../tileResourceEnum.ts';
+import * as GoodId from './goodIdEnum.ts';
+import * as UnitTypeId from './unitTypeIdEnum.ts';
+import * as UnitClass from './unitClassEnum.ts';
+import * as TechId from './techIdEnum.ts';
 
-export * as RecipeKind from './recipeKindEnum.ts';
+type GoodId = Enum<typeof GoodId>;
+type TechId = Enum<typeof TechId>;
+type UnitClass = Enum<typeof UnitClass>;
+type UnitTypeId = Enum<typeof UnitTypeId>;
+
 export type RecipeKind = Enum<typeof RecipeKindNs>;
 
 /**

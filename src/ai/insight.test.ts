@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { describeAdvice } from './insight.ts';
 import type { SeatKnobs } from './summary.ts';
-import { UnitTypeId } from '../sim/defs/units.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 
 /**
  * The humanizer is judged the way the prompt is: a reader who knows

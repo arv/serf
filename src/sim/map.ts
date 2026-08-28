@@ -2,19 +2,35 @@ import { Rng } from '../shared/rng.ts';
 import { gridFor, inBounds, marginFor, tileCount, tileIdx } from '../shared/grid.ts';
 import { hash2 } from '../shared/math.ts';
 import { WOOD_MAX_AMT } from './defs/balance.ts';
-import { buildingDef, BuildingTypeId } from './defs/buildings.ts';
+import { buildingDef } from './defs/buildings.ts';
 import { buildingSight } from './visibility.ts';
 
 import type { Enum } from '../shared/enum.ts';
 import * as TerrainNs from './terrainEnum.ts';
 import * as TileResourceNs from './tileResourceEnum.ts';
 import * as PathLevelNs from './pathLevelEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 
-export * as Terrain from './terrainEnum.ts';
 export type TerrainKind = Enum<typeof TerrainNs>;
-export * as TileResource from './tileResourceEnum.ts';
 export type TileResourceKind = Enum<typeof TileResourceNs>;
-export * as PathLevel from './pathLevelEnum.ts';
+
+/** Every terrain and tile-resource byte a map file may legally carry.
+ * Listed rather than read off the namespace with Object.values: that use
+ * makes the namespace object escape, and a namespace that escapes is one
+ * the bundler has to build for real instead of inlining (shared/enum.ts). */
+export const TERRAIN_KINDS: readonly TerrainKind[] = [
+  TerrainNs.Grass,
+  TerrainNs.Water,
+  TerrainNs.Rock,
+];
+export const TILE_RESOURCE_KINDS: readonly TileResourceKind[] = [
+  TileResourceNs.None,
+  TileResourceNs.Wood,
+  TileResourceNs.Rock,
+  TileResourceNs.IronDep,
+  TileResourceNs.SilverDep,
+  TileResourceNs.GoldDep,
+];
 export type PathLevelKind = Enum<typeof PathLevelNs>;
 
 /** Border styles an edge can draw (see the rim pass in generateMap). */

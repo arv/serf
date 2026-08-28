@@ -2,16 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid.ts';
 import { SeatVision } from './visibility.ts';
 import { AiBrain, AI_INTEL, hostileNear, pickAttackTarget } from './systems/ai.ts';
-import { AI_STRATEGIES, AiStrategyId } from './defs/aiStrategies.ts';
+import { AI_STRATEGIES } from './defs/aiStrategies.ts';
 import { BANDIT } from './entities.ts';
 import { placeBuiltBuilding, spawnUnit } from './world.ts';
 import { addSerf, addStorehouse, bareWorld } from './testUtils.ts';
-import { type SimCommand, CommandKind } from './commands.ts';
-import { GoodId } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
-import { TechId } from './defs/techs.ts';
-import { UnitTaskKind } from './units.ts';
+import type { SimCommand } from './commands.ts';
+import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as TechId from './defs/techIdEnum.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
 
 /**
  * The brain plays under the fog. These are the two rules the server holds

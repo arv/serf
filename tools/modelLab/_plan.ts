@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { makeLights, makeRenderer } from './scene';
 import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
-import { BuildingTypeId } from '../../src/sim/defs/buildings';
+import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 
 /** Top-down plan of the mine template, with a unit-square grid over it, so
  * decor coordinates can be read straight off the picture. */

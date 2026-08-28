@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
 import { canPlace, placeBuiltBuilding, type World } from './world.ts';
-import { buildingDef, BuildingTypeId } from './defs/buildings.ts';
+import { buildingDef } from './defs/buildings.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
 import {
   addBuiltHut,
@@ -11,9 +11,10 @@ import {
   bareWorld,
   cmds,
 } from './testUtils.ts';
-import { GoodId } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { CommandKind } from './commands.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

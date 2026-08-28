@@ -11,8 +11,8 @@
 import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
 import { createWorld } from '../../src/sim/world.ts';
-import { PlayerKind } from '../../src/sim/player.ts';
-import { AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
+import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
+import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
 
 function arg(name: string, dflt: number): number {
   const i = process.argv.indexOf(`--${name}`);

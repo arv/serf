@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
-import { Terrain, WATER_LEVEL, type MapView } from '../sim/map';
+import { WATER_LEVEL, type MapView } from '../sim/map';
 import type { FogQuery } from './fogOfWar';
+import * as Terrain from '../sim/terrainEnum.ts';
 
 /** One wisp per 256 tiles — the classic 16 on a 64 map, denser seas get
  * proportionally more so the mist never thins out with the map. */

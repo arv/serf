@@ -10,9 +10,10 @@ import { AiSeats } from '../sim/aiSeats';
 import { REPLAY_VERSION } from '../shared/replayVersion';
 import { createWorld, type World, type WorldConfig } from '../sim/world';
 import { tickWorld, type PlayerCommand } from '../sim/tick';
-import { type SimCommand, CommandKind } from '../sim/commands';
-import { BuildingTypeId } from '../sim/defs/buildings';
-import { PlayerKind } from '../sim/player';
+import type { SimCommand } from '../sim/commands';
+import * as CommandKind from '../sim/commandKindEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
 
 function sample(): ReplayData {
   return {

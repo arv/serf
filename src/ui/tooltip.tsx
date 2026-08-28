@@ -1,3 +1,4 @@
+import type { Enum } from '../shared/enum.ts';
 import {
   For,
   Show,
@@ -14,20 +15,26 @@ if (import.meta.hot) {
   import.meta.hot.accept(() => import.meta.hot?.invalidate());
 }
 import { TICKS_PER_SECOND } from '../sim/defs/balance';
-import {
-  BUILDING_DEFS,
-  gatherRecipeOf,
-  type Recipe,
-  BuildingTypeId,
-  RecipeKind,
-} from '../sim/defs/buildings';
-import { type GoodAmounts, GoodId, goodEntries } from '../sim/defs/goods';
-import { TECH_DEFS, type TechId, TechEffectKind } from '../sim/defs/techs';
-import { COUNTER_TABLE, UNIT_DEFS, UnitTypeId, UnitClass } from '../sim/defs/units';
+import { BUILDING_DEFS, gatherRecipeOf, type Recipe } from '../sim/defs/buildings';
+import { type GoodAmounts, goodEntries } from '../sim/defs/goods';
+import { TECH_DEFS, type TechId } from '../sim/defs/techs';
+import { COUNTER_TABLE, UNIT_DEFS } from '../sim/defs/units';
 import { GoodIcon } from './icons';
 import { buildingName, goodName, techDesc, techName, unitName } from './names';
 import { stock, techs } from './store';
-import { TileResource, type TileResourceKind } from '../sim/map';
+import type { TileResourceKind } from '../sim/map';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as RecipeKind from '../sim/defs/recipeKindEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as TechEffectKind from '../sim/defs/techEffectKindEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as UnitClass from '../sim/defs/unitClassEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type GoodId = Enum<typeof GoodId>;
+type UnitClass = Enum<typeof UnitClass>;
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * One floating tooltip layer for the whole HUD. Spread `{...tooltip(...)}`

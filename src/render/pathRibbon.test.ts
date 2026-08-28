@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
-import { PathLevel } from '../sim/map';
 import { ROAD_HALF, TRAIL_HALF, newRibbonDist, ribbonCover, ribbonDistances } from './pathRibbon';
+import * as PathLevel from '../sim/pathLevelEnum.ts';
 
 function mapWith(tiles: readonly (readonly [number, number, number])[]): Uint8Array {
   const path = new Uint8Array(tileCount(DEFAULT_MAP_SIZE));

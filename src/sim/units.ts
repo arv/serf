@@ -4,7 +4,6 @@ import type { UnitTypeId } from './defs/units.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as UnitTaskKindNs from './unitTaskKindEnum.ts';
 
-export * as UnitTaskKind from './unitTaskKindEnum.ts';
 export type UnitTaskKind = Enum<typeof UnitTaskKindNs>;
 
 /**

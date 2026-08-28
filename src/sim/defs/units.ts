@@ -1,12 +1,12 @@
 import type { Enum } from '../../shared/enum.ts';
-import { GoodId } from './goods.ts';
 import * as UnitTypeIdNs from './unitTypeIdEnum.ts';
 import * as UnitClassNs from './unitClassEnum.ts';
+import * as GoodId from './goodIdEnum.ts';
 
-export * as UnitClass from './unitClassEnum.ts';
+type GoodId = Enum<typeof GoodId>;
+
 export type UnitClass = Enum<typeof UnitClassNs>;
 
-export * as UnitTypeId from './unitTypeIdEnum.ts';
 export type UnitTypeId = Enum<typeof UnitTypeIdNs>;
 
 const U = UnitTypeIdNs;

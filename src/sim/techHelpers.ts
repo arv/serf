@@ -1,8 +1,16 @@
-import { TECH_DEFS, type TechId, ModifierKey, TechEffectKind } from './defs/techs.ts';
-import { buildingDef, BuildingTypeId } from './defs/buildings.ts';
+import type { Enum } from '../shared/enum.ts';
+import { TECH_DEFS, type TechId } from './defs/techs.ts';
+import { buildingDef } from './defs/buildings.ts';
 import type { UnitTypeId } from './defs/units.ts';
-import { type Owner, BuildingState } from './entities.ts';
+import type { Owner } from './entities.ts';
 import type { World } from './world.ts';
+import * as ModifierKey from './defs/modifierKeyEnum.ts';
+import * as TechEffectKind from './defs/techEffectKindEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type ModifierKey = Enum<typeof ModifierKey>;
 
 /**
  * All tech effects are read through these functions, so sim systems never

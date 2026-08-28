@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { createWorld } from '../sim/world.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
 import { strategyOf } from '../sim/defs/aiStrategies.ts';
-import { buildMessages, extractSummary, ChatRole, CHAT_ROLE_KEYS } from './prompt.ts';
-import { POSTURES, POSTURE_ORDER, postureAdvice, PostureId, POSTURE_KEYS } from './posture.ts';
+import { buildMessages, extractSummary, CHAT_ROLE_KEYS } from './prompt.ts';
+import { POSTURES, POSTURE_ORDER, postureAdvice, POSTURE_KEYS } from './posture.ts';
 import { toOverride } from './advice.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
-import { PlayerKind } from '../sim/player.ts';
+import * as ChatRole from './chatRoleEnum.ts';
+import * as PostureId from './postureIdEnum.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
 
 /**
  * The prompt is judged on the two things that matter to a small model:

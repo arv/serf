@@ -4,7 +4,6 @@ import type { TechState } from './world.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as PlayerKindNs from './playerKindEnum.ts';
 
-export * as PlayerKind from './playerKindEnum.ts';
 export type PlayerKind = Enum<typeof PlayerKindNs>;
 
 /**

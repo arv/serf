@@ -1,3 +1,4 @@
+import type { Enum } from '../shared/enum.ts';
 import * as THREE from 'three';
 import {
   ACTION,
@@ -8,7 +9,7 @@ import {
   type SabReader,
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
-import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
+import { UNIT_DEFS } from '../sim/defs/units';
 import { animCue, LOOP_CUES } from '../audio/animCues';
 import type { CueId } from '../audio/cues';
 import type { PierInfo } from './buildingSync';
@@ -23,9 +24,12 @@ import {
   setWorkTool,
   TOOL_STOWED,
   type CharacterVisual,
-  AnimKey,
 } from './characters';
 import type { HeightField } from './heightField';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as AnimKey from './animKeyEnum.ts';
+
+type AnimKey = Enum<typeof AnimKey>;
 
 interface UnitVisual {
   group: THREE.Group;

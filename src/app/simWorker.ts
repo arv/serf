@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { createWorldAsync, type World, MatchState } from '../sim/world';
+import { createWorldAsync, type World } from '../sim/world';
 import { deserializeWorld, serializeWorld } from '../sim/save';
 import { tickWorld, type PlayerCommand } from '../sim/tick';
 import { MATCHER_INTERVAL, TICK_MS } from '../sim/defs/balance';
@@ -11,13 +11,10 @@ import { snapBuildings, snapJobs, snapPlayers, unitSnapshots } from '../protocol
 import { REPLAY_VERSION } from '../shared/replayVersion';
 import { REPLAY_FORMAT, serializeReplay, type ReplayData } from './replay';
 import type { GoodAmounts } from '../sim/defs/goods';
-import {
-  type MainToWorker,
-  type StructuralUpdate,
-  type WorkerToMain,
-  MainToWorkerKind,
-  WorkerToMainKind,
-} from '../protocol/messages';
+import type { MainToWorker, StructuralUpdate, WorkerToMain } from '../protocol/messages';
+import * as MatchState from '../sim/matchStateEnum.ts';
+import * as MainToWorkerKind from '../protocol/mainToWorkerKindEnum.ts';
+import * as WorkerToMainKind from '../protocol/workerToMainKindEnum.ts';
 
 /**
  * Single player: owns the World and the fixed-timestep loop, publishes unit

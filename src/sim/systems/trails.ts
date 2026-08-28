@@ -8,10 +8,13 @@ import {
   WEAR_DECAY,
 } from '../defs/balance.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
-import { buildingDef, BuildingTypeId } from '../defs/buildings.ts';
-import { PathLevel, Terrain } from '../map.ts';
-import { isPlayerOwner, type Owner, BuildingState } from '../entities.ts';
+import { buildingDef } from '../defs/buildings.ts';
+import { isPlayerOwner, type Owner } from '../entities.ts';
 import { placeSite, pushDelta, type World } from '../world.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as PathLevel from '../pathLevelEnum.ts';
+import * as Terrain from '../terrainEnum.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
 
 /**
  * Emergent trails, the Settlers homage: foot traffic wears tiles (movement

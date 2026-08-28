@@ -1,4 +1,7 @@
-import { GoodId } from '../sim/defs/goods.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+
+type GoodId = Enum<typeof GoodId>;
 /**
  * The game palette — the Warcraft/Settlers key: bright saturated meadow,
  * clear water, high warm sun, gentle blue haze. Every color in the game

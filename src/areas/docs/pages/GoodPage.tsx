@@ -14,8 +14,8 @@ import { GOOD_DESC } from '../descriptions';
 import { DocLink, Section } from '../components';
 import { Prose } from '../prose';
 import { buildingHref, goodHref, techHref, unitHref } from '../routes';
-import { BuildingTypeId } from '../../../sim/defs/buildings';
-import { TechId } from '../../../sim/defs/techs';
+import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
+import * as TechId from '../../../sim/defs/techIdEnum.ts';
 
 // `entry`, not `ref`: ref is a reserved prop in Solid (element forwarding),
 // and a component that borrows the name never receives the value.

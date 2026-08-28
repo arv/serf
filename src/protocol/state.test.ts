@@ -11,7 +11,7 @@ import {
 } from './state';
 import type { UnitSnapshot } from './sabLayout';
 import type { MapSnapshot } from './messages';
-import { CommandKind } from '../sim/commands';
+import * as CommandKind from '../sim/commandKindEnum.ts';
 
 const TILES = tileCount(DEFAULT_MAP_SIZE);
 

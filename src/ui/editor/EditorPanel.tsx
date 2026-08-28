@@ -34,8 +34,8 @@ import {
   viewMode,
 } from '../../editor/uiState.ts';
 import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE, marginFor } from '../../shared/grid.ts';
-import { PlayerKind } from '../../sim/player.ts';
-import { ViewMode } from '../../render/cameraRig.ts';
+import * as PlayerKind from '../../sim/playerKindEnum.ts';
+import * as ViewMode from '../../render/viewModeEnum.ts';
 
 /**
  * The editor's whole DOM overlay: tool palette on the left, the session

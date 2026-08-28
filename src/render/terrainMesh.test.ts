@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import { HeightField } from './heightField';
 import { Spoil, TerrainMesh, spoilOf, type SpoilKind } from './terrainMesh';
 import { tileIdx } from '../shared/grid';
-import { Terrain, type MapView } from '../sim/map';
-import { BuildingTypeId } from '../sim/defs/buildings';
+import type { MapView } from '../sim/map';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 
 // The speckle detail sheet is drawn on a 2D canvas, which node has none of.
 // It multiplies over the vertex colours at draw time and never touches the

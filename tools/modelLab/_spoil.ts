@@ -1,12 +1,17 @@
+import type { Enum } from '../../src/shared/enum.ts';
 import * as THREE from 'three';
 import { makeLights, makeRenderer, PITCH } from './scene';
 import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
 import { HeightField } from '../../src/render/heightField';
 import { TerrainMesh, Spoil, type SpoilKind } from '../../src/render/terrainMesh';
 import { ScatterMesh } from '../../src/render/scatterMesh';
-import { TileResource, Terrain, type MapView } from '../../src/sim/map';
+import type { MapView } from '../../src/sim/map';
 import { tileIdx } from '../../src/shared/grid';
-import { BuildingTypeId } from '../../src/sim/defs/buildings';
+import * as TileResource from '../../src/sim/tileResourceEnum.ts';
+import * as Terrain from '../../src/sim/terrainEnum.ts';
+import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 /**
  * The spoil pass, on the real terrain mesh.

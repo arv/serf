@@ -1,9 +1,14 @@
-import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../../sim/defs/buildings';
-import { GOODS, GoodId, GOOD_KEYS } from '../../sim/defs/goods';
+import type { Enum } from '../../shared/enum.ts';
+import { BUILDING_DEFS, BUILDING_TYPES } from '../../sim/defs/buildings';
+import { GOODS, GOOD_KEYS } from '../../sim/defs/goods';
 import { TECH_DEFS, type TechId, TECH_IDS } from '../../sim/defs/techs';
 import { UNIT_DEFS, type UnitTypeId, UNIT_TYPES } from '../../sim/defs/units';
 import { goodName, techName, unitName } from '../../ui/names';
 import { buildingHref, goodHref, techHref, unitHref } from './routes';
+import * as BuildingTypeId from '../../sim/defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../../sim/defs/goodIdEnum.ts';
+
+type GoodId = Enum<typeof GoodId>;
 
 /**
  * Which words in a sentence name something with a page of its own.

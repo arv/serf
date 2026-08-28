@@ -1,9 +1,13 @@
+import type { Enum } from '../shared/enum.ts';
 import { For, Show, createSignal } from 'solid-js';
-import { MISSION_DEFS, nextMissionId, MissionId } from '../sim/defs/missions';
+import { MISSION_DEFS, nextMissionId } from '../sim/defs/missions';
 import { MISSION_HINTS } from './hints';
 import { hintsHidden, setHintsHidden } from './campaign';
 import { briefingOpen, mission, setBriefingOpen, speed } from './store';
 import { COMPACT } from './breakpoints';
+import * as MissionId from '../sim/defs/missionIdEnum.ts';
+
+type MissionId = Enum<typeof MissionId>;
 
 /**
  * The campaign's HUD: the briefing card a mission opens on, the standing

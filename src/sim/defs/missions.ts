@@ -1,16 +1,21 @@
-import { type GoodAmounts, GoodId } from './goods.ts';
-import { BuildingTypeId } from './buildings.ts';
-import { TechId } from './techs.ts';
+import type { GoodAmounts } from './goods.ts';
 import type { Enum } from '../../shared/enum.ts';
 import * as MissionIdNs from './missionIdEnum.ts';
 
-export * as MissionId from './missionIdEnum.ts';
 export type MissionId = Enum<typeof MissionIdNs>;
 import * as ObjectiveKindNs from './objectiveKindEnum.ts';
-import { AiStrategyId } from './aiStrategies.ts';
-import { PlayerKind } from '../player.ts';
+import * as GoodId from './goodIdEnum.ts';
+import * as BuildingTypeId from './buildingTypeIdEnum.ts';
+import * as TechId from './techIdEnum.ts';
+import * as AiStrategyId from './aiStrategyIdEnum.ts';
+import * as PlayerKind from '../playerKindEnum.ts';
 
-export * as ObjectiveKind from './objectiveKindEnum.ts';
+type AiStrategyId = Enum<typeof AiStrategyId>;
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type GoodId = Enum<typeof GoodId>;
+type PlayerKind = Enum<typeof PlayerKind>;
+type TechId = Enum<typeof TechId>;
+
 export type ObjectiveKind = Enum<typeof ObjectiveKindNs>;
 
 /**

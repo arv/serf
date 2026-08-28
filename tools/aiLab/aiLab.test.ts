@@ -26,9 +26,10 @@ import { binomCdfHalf, compare, readRun, renderComparison, type ArmOutcomes } fr
 import { renderMatchup, renderReport, verdict, type ReportHeader } from './report.ts';
 import { matchupOf, summarize, trialsForPrecision, wilson, type SeedRun } from './stats.ts';
 import { adviceOf, describeMutation, mutate, MUTABLE_KNOBS, MUTABLE_RANGES } from './mutate.ts';
-import { AI_STRATEGIES, AI_STRATEGY_ORDER, AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
+import { AI_STRATEGIES, AI_STRATEGY_ORDER } from '../../src/sim/defs/aiStrategies.ts';
 import { Rng } from '../../src/shared/rng.ts';
 import type { Owner } from '../../src/sim/entities.ts';
+import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
 
 /**
  * The harness measuring the harness.

@@ -1,3 +1,4 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
 import { parseAdvice, toOverride, ADVICE_RANGES } from './advice.ts';
 import {
@@ -8,11 +9,13 @@ import {
   POSTURE_JSON_SCHEMA,
   POSTURE_ORDER,
   postureAdvice,
-  PostureId,
   POSTURE_KEYS,
   postureFromKey,
 } from './posture.ts';
 import type { AiWorldSummary } from './summary.ts';
+import * as PostureId from './postureIdEnum.ts';
+
+type PostureId = Enum<typeof PostureId>;
 
 /**
  * Postures are the strategist's whole vocabulary now, so what is covered

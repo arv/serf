@@ -1,14 +1,18 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
 import {
   ALL_ECONOMY_RULES,
   ECONOMY_RULES,
   runEconomyRules,
   type EconomyRule,
-  EconomyRuleId,
   type RuleContext,
 } from './economyRules.ts';
-import { type SimCommand, CommandKind } from './commands.ts';
-import { RulePhase } from './economyRules.ts';
+import type { SimCommand } from './commands.ts';
+import * as EconomyRuleId from './economyRuleIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import * as RulePhase from './rulePhaseEnum.ts';
+
+type EconomyRuleId = Enum<typeof EconomyRuleId>;
 
 /**
  * The rules themselves are covered where they can be seen working — against

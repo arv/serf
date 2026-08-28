@@ -1,10 +1,15 @@
+import type { Enum } from '../../shared/enum.ts';
 import { RAID_CAP, raidIntervalFor } from '../defs/balance.ts';
 import { BANDIT, isPlayerOwner, type Building } from '../entities.ts';
-import { spawnUnitNearby, type World, GameEventKind, MatchState } from '../world.ts';
+import { spawnUnitNearby, type World } from '../world.ts';
 import { Rng } from '../../shared/rng.ts';
-import { UnitTypeId } from '../defs/units.ts';
-import { BuildingTypeId } from '../defs/buildings.ts';
-import { UnitTaskKind } from '../units.ts';
+import * as GameEventKind from '../gameEventKindEnum.ts';
+import * as MatchState from '../matchStateEnum.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * Escalating raids: waves grow and diversify (light -> +ranged -> +heavy) so

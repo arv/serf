@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
-import { TECH_DEFS, ModifierKey, TechId } from './defs/techs.ts';
+import { TECH_DEFS } from './defs/techs.ts';
 import { BARRACKS_ALE_CAP, FESTIVAL_DURATION } from './defs/balance.ts';
 import { getModifier, isBuildingUnlocked } from './techHelpers.ts';
 import { cmds, addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils.ts';
-import { GoodId } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
-import { CommandKind } from './commands.ts';
+import * as ModifierKey from './defs/modifierKeyEnum.ts';
+import * as TechId from './defs/techIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

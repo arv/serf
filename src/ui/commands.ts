@@ -1,10 +1,16 @@
-import { BUILDING_DEFS, BuildingTypeId } from '../sim/defs/buildings';
-import { TECH_DEFS, type TechId, TechEffectKind } from '../sim/defs/techs';
-import { type GoodAmounts, GoodId } from '../sim/defs/goods';
+import type { Enum } from '../shared/enum.ts';
+import { BUILDING_DEFS } from '../sim/defs/buildings';
+import { TECH_DEFS, type TechId } from '../sim/defs/techs';
+import type { GoodAmounts } from '../sim/defs/goods';
 import type { BuildingSnap } from '../protocol/messages';
 import { HIRE_QUEUE_CAP, HIRE_SERF_COST, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
-import { UnitTypeId } from '../sim/defs/units';
-import { BuildingState } from '../sim/entities';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as TechEffectKind from '../sim/defs/techEffectKindEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
+
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * The commands a selected building offers: who may run them, and which

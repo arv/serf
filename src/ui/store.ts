@@ -18,13 +18,11 @@ import type {
 } from '../protocol/messages';
 import { play, setAudioMuted, setAudioVolume } from '../audio/audio';
 import { audioFromUrl, loadAudioPrefs, saveAudioPrefs, volumeToGain } from '../audio/settings';
-import { MatchState } from '../sim/world';
 import type { Enum } from '../shared/enum.ts';
 import * as OrderModeNs from './orderModeEnum.ts';
-export * as OrderMode from './orderModeEnum.ts';
 export type OrderMode = Enum<typeof OrderModeNs>;
 import * as HudPanelNs from './hudPanelEnum.ts';
-export * as HudPanel from './hudPanelEnum.ts';
+import * as MatchState from '../sim/matchStateEnum.ts';
 export type HudPanel = Enum<typeof HudPanelNs>;
 
 /**

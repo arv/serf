@@ -33,10 +33,10 @@ import { combatSystem } from '../../src/sim/systems/combat.ts';
 import { banditsSystem } from '../../src/sim/systems/bandits.ts';
 import { trailsSystem } from '../../src/sim/systems/trails.ts';
 import { victorySystem } from '../../src/sim/systems/victory.ts';
-import { UnitTypeId } from '../../src/sim/defs/units.ts';
-import { PlayerKind } from '../../src/sim/player.ts';
-import { BuildingState } from '../../src/sim/entities.ts';
-import { AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
+import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
+import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
+import * as BuildingState from '../../src/sim/buildingStateEnum.ts';
+import * as AiStrategyId from '../../src/sim/defs/aiStrategyIdEnum.ts';
 
 function arg(name: string, dflt: number): number {
   const i = process.argv.indexOf(`--${name}`);

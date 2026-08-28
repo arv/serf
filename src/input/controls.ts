@@ -1,6 +1,7 @@
+import type { Enum } from '../shared/enum.ts';
 import type * as THREE from 'three';
 import { inBounds, tileIdx } from '../shared/grid';
-import { buildingDef, BuildingTypeId } from '../sim/defs/buildings';
+import { buildingDef } from '../sim/defs/buildings';
 import { canPlace } from '../sim/world';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { HIRE_SERF_COST } from '../sim/defs/balance';
@@ -37,7 +38,6 @@ import {
   techPanelOpen,
   techs,
   toggleMuted,
-  OrderMode,
 } from '../ui/store';
 import { buildAffordable, buildUnlocked, buildingForKey } from '../ui/buildMenu';
 import {
@@ -60,7 +60,7 @@ import {
   type BuildingHeights,
   type BuildingProbe,
 } from './picking';
-import { groupEmpty, keyDigit, matchingGroup, type ControlGroup, ControlGroupKind } from './groups';
+import { groupEmpty, keyDigit, matchingGroup, type ControlGroup } from './groups';
 import { foreignChord, typingInto } from './typing';
 import { capturePointer } from './mouseCapture';
 import type { SceneSync } from '../render/sceneSync';
@@ -70,9 +70,15 @@ import type { HeightField } from '../render/heightField';
 import type { WorldMirror } from '../app/mirror';
 import type { SimHost } from '../app/simHost';
 import type { BuildingSnap } from '../protocol/messages';
-import { GoodId } from '../sim/defs/goods';
-import { BuildingState } from '../sim/entities';
-import { CommandKind } from '../sim/commands';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as OrderMode from '../ui/orderModeEnum.ts';
+import * as ControlGroupKind from './controlGroupKindEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
+import * as CommandKind from '../sim/commandKindEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type OrderMode = Enum<typeof OrderMode>;
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;

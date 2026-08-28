@@ -44,11 +44,10 @@
  * are frozen artifacts anyway: they are re-authored when someone means
  * to, not rebuilt on every worldgen tweak.
  */
+import type { Enum } from '../../src/shared/enum.ts';
 import { hash2 } from '../../src/shared/math.ts';
 import { gridFor, inBounds, marginFor, tileCount, tileIdx } from '../../src/shared/grid.ts';
 import {
-  Terrain,
-  TileResource,
   WATER_ACCESS_RADIUS,
   countResourceNear,
   inPlayArea,
@@ -67,9 +66,13 @@ import {
   buildingDef,
   gatherOrigin,
   gatherRecipeOf,
-  BuildingTypeId,
   BUILDING_KEYS,
 } from '../../src/sim/defs/buildings.ts';
+import * as Terrain from '../../src/sim/terrainEnum.ts';
+import * as TileResource from '../../src/sim/tileResourceEnum.ts';
+import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 /** Below this field value a tile floods (worldgen's LAKE_LEVEL_T). */
 export const LAKE_LEVEL = 0.26;

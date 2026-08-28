@@ -1,17 +1,25 @@
+import type { Enum } from '../../shared/enum.ts';
 import { HIRE_SERF_COST, START_STOCK, TICKS_PER_SECOND } from '../../sim/defs/balance';
 import {
   BUILDING_DEFS,
   TOOL_OF,
   outputGoodsOf,
   type Recipe,
-  BuildingTypeId,
   BUILDING_TYPES,
-  RecipeKind,
 } from '../../sim/defs/buildings';
-import { GOODS, type GoodAmounts, GoodId, goodEntries, goodKeys } from '../../sim/defs/goods';
-import { TECH_DEFS, type TechId, TechEffectKind, TECH_IDS } from '../../sim/defs/techs';
-import { UNIT_DEFS, WEAPON_OF, UnitTypeId, UNIT_TYPES } from '../../sim/defs/units';
+import { GOODS, type GoodAmounts, goodEntries, goodKeys } from '../../sim/defs/goods';
+import { TECH_DEFS, type TechId, TECH_IDS } from '../../sim/defs/techs';
+import { UNIT_DEFS, WEAPON_OF, UNIT_TYPES } from '../../sim/defs/units';
 import { BUILD_GROUPS } from '../../ui/buildMenu';
+import * as BuildingTypeId from '../../sim/defs/buildingTypeIdEnum.ts';
+import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
+import * as GoodId from '../../sim/defs/goodIdEnum.ts';
+import * as TechEffectKind from '../../sim/defs/techEffectKindEnum.ts';
+import * as UnitTypeId from '../../sim/defs/unitTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type GoodId = Enum<typeof GoodId>;
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * The cross-reference graph the wiki walks: every "produced by / used by /

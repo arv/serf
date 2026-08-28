@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
-import { Terrain, TileResource, playEdgeDist, type MapView } from '../sim/map';
+import { playEdgeDist, type MapView } from '../sim/map';
 import { makeButterflySprite } from './spriteTextures';
 import type { HeightField } from './heightField';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 
 /** How many at most — ambient life, not a swarm. */
 const MAX_COUNT = 36;
@@ -88,7 +90,11 @@ export class Butterflies {
       dummy.position.set(x, y, z);
       // Nose along the direction of travel (cheap: the loop's derivative
       // sign is close enough at this size), wings squeezing to flap.
-      dummy.rotation.set(0, Math.atan2(Math.cos(t * 0.31) * 0.53, -Math.sin(t * 0.27 + phase) * 0.46), 0);
+      dummy.rotation.set(
+        0,
+        Math.atan2(Math.cos(t * 0.31) * 0.53, -Math.sin(t * 0.27 + phase) * 0.46),
+        0,
+      );
       dummy.scale.set(0.55 + Math.abs(Math.sin(t * 9 + phase)) * 0.55, 1, 1);
       dummy.updateMatrix();
       this.mesh.setMatrixAt(k, dummy.matrix);

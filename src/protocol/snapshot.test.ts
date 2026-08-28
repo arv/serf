@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { snapBuilding } from './snapshot.ts';
-import { TileResource, findResourceNear } from '../sim/map.ts';
+import { findResourceNear } from '../sim/map.ts';
 import { addBuiltHut, addResourceTile, addStorehouse, bareWorld } from '../sim/testUtils.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 
 /**
  * The reach readout: what a gatherer's card says is left in the ground

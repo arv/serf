@@ -4,13 +4,14 @@ import { tickWorld } from './tick.ts';
 import { hiringSystem } from './systems/training.ts';
 import { popCapOf, populationOf, hasRoomToHire, pendingHiresOf } from './population.ts';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS, START_SERFS } from './defs/balance.ts';
-import { BUILDING_DEFS, BuildingTypeId } from './defs/buildings.ts';
+import { BUILDING_DEFS } from './defs/buildings.ts';
 import { addSerf, addStorehouse, bareWorld, cmds } from './testUtils.ts';
-import { GoodId } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingState } from './entities.ts';
-import { CommandKind } from './commands.ts';
-import { PlayerKind } from './player.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 
 /**
  * The population cap. Beds, not bodies, are the ceiling: the castle sleeps

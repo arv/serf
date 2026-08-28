@@ -1,9 +1,9 @@
-import { readOpponent, Archetype } from './archetype.ts';
+import { readOpponent } from './archetype.ts';
 import type { StrategyAdvice } from './advice.ts';
 import type { AiWorldSummary } from './summary.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as PostureIdNs from './postureIdEnum.ts';
-export * as PostureId from './postureIdEnum.ts';
+import * as Archetype from './archetypeEnum.ts';
 export type PostureId = Enum<typeof PostureIdNs>;
 
 /**

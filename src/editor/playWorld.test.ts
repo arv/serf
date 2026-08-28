@@ -2,17 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid.ts';
 import { BANDIT } from '../sim/entities.ts';
 import { START_SERFS, START_STOCK } from '../sim/defs/balance.ts';
-import { Terrain, TileResource, recomputeBlocked } from '../sim/map.ts';
+import { recomputeBlocked } from '../sim/map.ts';
 import { deserializeWorld, serializeWorld } from '../sim/save.ts';
 import { tickWorld } from '../sim/tick.ts';
 import { checkInvariants } from '../sim/debug/invariants.ts';
 import { applyBrush } from './brush.ts';
 import { createBlankMap } from './editorMap.ts';
 import { worldFromEditor } from './playWorld.ts';
-import { UnitTypeId } from '../sim/defs/units.ts';
-import { BuildingTypeId } from '../sim/defs/buildings.ts';
-import { PlayerKind } from '../sim/player.ts';
-import { MatchState } from '../sim/world.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
+import * as MatchState from '../sim/matchStateEnum.ts';
 
 function authoredState() {
   // play 64 -> grid 112, play region [24, 88).

@@ -1,8 +1,8 @@
 import { tileCount, tileIdx, tileX, tileY } from '../shared/grid.ts';
 import { clamp, hash2 } from '../shared/math.ts';
-import { Terrain } from '../sim/map.ts';
 import type { EditorMapState } from './editorMap.ts';
 import { tileImages } from './symmetry.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
 
 /**
  * One-click "make it read like a generated map": re-derive the heightfield
@@ -97,8 +97,7 @@ export function naturalize(state: EditorMapState, folds: number): number[] {
     const canon = tileImages(x, y, size, folds).reduce((a, b) => Math.min(a, b), i);
     const cx = tileX(canon, size);
     const cy = tileY(canon, size);
-    const roll =
-      (noiseAt(cx, cy, 61, 12) * 0.6 + noiseAt(cx, cy, 67, 5) * 0.4 - 0.5) * 0.55;
+    const roll = (noiseAt(cx, cy, 61, 12) * 0.6 + noiseAt(cx, cy, 67, 5) * 0.4 - 0.5) * 0.55;
 
     const before = map.height[i]!;
     let after: number;

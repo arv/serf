@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ADVICE_RANGES, MARCH_CONFIDENCE_RANGE, parseAdvice, toOverride } from './advice.ts';
-import { UnitTypeId } from '../sim/defs/units.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 
 /**
  * The advice parser stands between a language model and the AI brain, so

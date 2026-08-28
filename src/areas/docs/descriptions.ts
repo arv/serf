@@ -1,7 +1,15 @@
-import { BUILDING_DEFS, BuildingTypeId, RecipeKind } from '../../sim/defs/buildings';
+import type { Enum } from '../../shared/enum.ts';
+import { BUILDING_DEFS } from '../../sim/defs/buildings';
 import type { BuildGroupLabel } from '../../ui/buildMenu';
-import { UNIT_DEFS, UnitTypeId } from '../../sim/defs/units';
-import { GoodId } from '../../sim/defs/goods';
+import { UNIT_DEFS } from '../../sim/defs/units';
+import * as BuildingTypeId from '../../sim/defs/buildingTypeIdEnum.ts';
+import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
+import * as UnitTypeId from '../../sim/defs/unitTypeIdEnum.ts';
+import * as GoodId from '../../sim/defs/goodIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type GoodId = Enum<typeof GoodId>;
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * The one authored layer of the wiki: a sentence or two of flavor and

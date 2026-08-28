@@ -1,8 +1,7 @@
 import type { Enum } from '../shared/enum.ts';
 import * as BusIdNs from './busIdEnum.ts';
-import { AnimKey } from '../render/characters.ts';
+import * as AnimKey from '../render/animKeyEnum.ts';
 
-export * as BusId from './busIdEnum.ts';
 export type BusId = Enum<typeof BusIdNs>;
 
 /**

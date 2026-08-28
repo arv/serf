@@ -1,5 +1,6 @@
+import type { Enum } from '../../shared/enum.ts';
 import { buildingDef } from '../defs/buildings.ts';
-import { UNIT_DEFS, UnitTypeId } from '../defs/units.ts';
+import { UNIT_DEFS } from '../defs/units.ts';
 import { getModifier, isUnitUnlocked } from '../techHelpers.ts';
 import { HIRE_SERF_TICKS, TRAIN_QUEUE_CAP } from '../defs/balance.ts';
 import { spawnUnit, type World } from '../world.ts';
@@ -7,9 +8,14 @@ import { popCapOf, populationOf } from '../population.ts';
 import { findPath, nearestWalkable } from '../path.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
 import { type GoodId, goodEntries } from '../defs/goods.ts';
-import { type Building, BuildingState } from '../entities.ts';
-import { type Unit, UnitTaskKind } from '../units.ts';
-import { ModifierKey } from '../defs/techs.ts';
+import type { Building } from '../entities.ts';
+import type { Unit } from '../units.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import * as ModifierKey from '../defs/modifierKeyEnum.ts';
+
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * Barracks training. A queue item starts when its ingredients are in the input

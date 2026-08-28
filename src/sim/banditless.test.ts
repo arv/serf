@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld, MatchState } from './world.ts';
+import { createWorld } from './world.ts';
 import { tickWorld } from './tick.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
-import { PlayerKind } from './player.ts';
+import * as MatchState from './matchStateEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 
 /**
  * A world generated without bandits has no camp, no guards, and no

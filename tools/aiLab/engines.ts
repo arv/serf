@@ -1,3 +1,4 @@
+import type { Enum } from '../../src/shared/enum.ts';
 import { ADVICE_RANGES, ADVISABLE_UNITS } from '../../src/ai/advice.ts';
 import {
   choosePosture,
@@ -9,7 +10,9 @@ import { Rng } from '../../src/shared/rng.ts';
 import { type PostureId, postureFromKey, POSTURE_KEYS } from '../../src/ai/posture.ts';
 import type { AiWorldSummary } from '../../src/ai/summary.ts';
 import type { ChatEngine } from '../../src/ai/strategist.ts';
-import { UnitTypeId } from '../../src/sim/defs/units.ts';
+import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
+
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * The models a bake-off can put in the strategist's seat.

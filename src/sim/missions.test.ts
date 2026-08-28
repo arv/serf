@@ -1,3 +1,4 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
 import {
   canPlace,
@@ -5,32 +6,36 @@ import {
   createWorldAsync,
   missionWorldConfig,
   type World,
-  GameEventKind,
-  MatchState,
 } from './world.ts';
 import { tickWorld } from './tick.ts';
 import { cmds } from './testUtils.ts';
 import { AiBrain } from './systems/ai.ts';
-import { AI_STRATEGIES, AiStrategyId } from './defs/aiStrategies.ts';
-import {
-  MISSION_DEFS,
-  MISSION_ORDER,
-  nextMissionId,
-  parseMissionId,
-  MissionId,
-} from './defs/missions.ts';
+import { AI_STRATEGIES } from './defs/aiStrategies.ts';
+import { MISSION_DEFS, MISSION_ORDER, nextMissionId, parseMissionId } from './defs/missions.ts';
 import { hashWorld } from './hash.ts';
 import { loadMissionMap } from './defs/missionMaps.ts';
 import { parseMapData } from './mapFile.ts';
 import { rectClear } from './map.ts';
 import { deserializeWorld, serializeWorld } from './save.ts';
 import { firstRaidTickFor } from './defs/balance.ts';
-import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF, BuildingTypeId } from './defs/buildings.ts';
-import { type SimCommand, CommandKind } from './commands.ts';
-import { GoodId } from './defs/goods.ts';
-import { TechId } from './defs/techs.ts';
-import { BuildingState } from './entities.ts';
-import { PlayerKind } from './player.ts';
+import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF } from './defs/buildings.ts';
+import type { SimCommand } from './commands.ts';
+import * as GameEventKind from './gameEventKindEnum.ts';
+import * as MatchState from './matchStateEnum.ts';
+import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
+import * as MissionId from './defs/missionIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as TechId from './defs/techIdEnum.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
+
+type AiStrategyId = Enum<typeof AiStrategyId>;
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type GoodId = Enum<typeof GoodId>;
+type MissionId = Enum<typeof MissionId>;
+type TechId = Enum<typeof TechId>;
 
 /**
  * The campaign missions hold the same line winnable.test.ts holds for the

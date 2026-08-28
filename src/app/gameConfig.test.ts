@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { configFromUrl } from './gameConfig';
-import { MISSION_DEFS, MissionId } from '../sim/defs/missions';
-import { PlayerKind } from '../sim/player';
-import { AiStrategyId } from '../sim/defs/aiStrategies';
+import { MISSION_DEFS } from '../sim/defs/missions';
+import * as MissionId from '../sim/defs/missionIdEnum.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
+import * as AiStrategyId from '../sim/defs/aiStrategyIdEnum.ts';
 
 /**
  * The start screen speaks to the game entirely through the query string, so

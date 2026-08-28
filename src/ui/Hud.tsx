@@ -1,3 +1,4 @@
+import type { Enum } from '../shared/enum.ts';
 import { For, Show, createEffect, createSignal, type JSX } from 'solid-js';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { TechId } from '../sim/defs/techs';
@@ -84,13 +85,17 @@ import {
   type OrderMode,
 } from './store';
 import { play } from '../audio/audio';
-import { GoodId, goodEntries } from '../sim/defs/goods';
-import { MatchState } from '../sim/world';
-import { NetState } from '../protocol/messages';
-import { HudPanel } from './store';
-import { MinimapMode } from './Minimap.tsx';
-import { LlmState, CONSULT_OUTCOME_KEYS } from '../ai/strategist';
+import { goodEntries } from '../sim/defs/goods';
+import { CONSULT_OUTCOME_KEYS } from '../ai/strategist';
 import { CHAT_ROLE_KEYS } from '../ai/prompt';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as MatchState from '../sim/matchStateEnum.ts';
+import * as NetState from '../protocol/netStateEnum.ts';
+import * as HudPanel from './hudPanelEnum.ts';
+import * as MinimapMode from './minimapModeEnum.ts';
+import * as LlmState from '../ai/llmStateEnum.ts';
+
+type GoodId = Enum<typeof GoodId>;
 
 const SPEEDS = [
   { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },

@@ -1,5 +1,6 @@
+import type { Enum } from '../../../shared/enum.ts';
 import { For, Show, type JSX } from 'solid-js';
-import { BUILDING_DEFS, TOOL_OF, BuildingTypeId } from '../../../sim/defs/buildings';
+import { BUILDING_DEFS, TOOL_OF } from '../../../sim/defs/buildings';
 import { type GoodId, goodKeys } from '../../../sim/defs/goods';
 import { buildKey } from '../../../ui/buildMenu';
 import { buildingName, goodName, techName, unitName } from '../../../ui/names';
@@ -9,6 +10,9 @@ import { CostList, DocLink, GoodChip, RecipeView, Section, Stat, Stats } from '.
 import { ModelCard } from '../preview/ModelCard';
 import { Prose } from '../prose';
 import { buildingHref, goodHref, techHref, unitHref } from '../routes';
+import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
   const def = BUILDING_DEFS[props.id];

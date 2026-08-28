@@ -3,17 +3,12 @@ import { BANDIT } from '../sim/entities.ts';
 import { START_SERFS, START_STOCK, firstRaidTickFor } from '../sim/defs/balance.ts';
 import { dealStrategies, type AiStrategyId } from '../sim/defs/aiStrategies.ts';
 import { makePlayer, type PlayerKind } from '../sim/player.ts';
-import {
-  campCorners,
-  placeBuiltBuilding,
-  spawnUnitNearby,
-  type World,
-  MatchState,
-} from '../sim/world.ts';
+import { campCorners, placeBuiltBuilding, spawnUnitNearby, type World } from '../sim/world.ts';
 import { clearResources, rectClear, recomputeBlocked, type GameMap } from '../sim/map.ts';
 import type { EditorMapState } from './editorMap.ts';
-import { UnitTypeId } from '../sim/defs/units.ts';
-import { BuildingTypeId } from '../sim/defs/buildings.ts';
+import * as MatchState from '../sim/matchStateEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 
 export interface EditorPlayConfig {
   /** Deals the AI seats their playbooks (and the solo camp its corner). */

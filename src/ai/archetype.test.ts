@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { ARCHETYPE, classifyRival, readOpponent, Archetype } from './archetype.ts';
+import { ARCHETYPE, classifyRival, readOpponent } from './archetype.ts';
 import type { AiWorldSummary, RivalSummary } from './summary.ts';
+import * as Archetype from './archetypeEnum.ts';
 
 /**
  * The classifier is a pure function of one rival's line in the summary, and

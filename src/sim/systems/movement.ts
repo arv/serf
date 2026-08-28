@@ -1,11 +1,13 @@
 import { tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { TICKS_PER_SECOND } from '../defs/balance.ts';
-import { UNIT_DEFS, UnitTypeId } from '../defs/units.ts';
+import { UNIT_DEFS } from '../defs/units.ts';
 import { findPath, nearestWalkable, tileSpeedMult } from '../path.ts';
 import { getModifier } from '../techHelpers.ts';
-import { type Unit, UnitTaskKind } from '../units.ts';
+import type { Unit } from '../units.ts';
 import type { World } from '../world.ts';
-import { ModifierKey } from '../defs/techs.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import * as ModifierKey from '../defs/modifierKeyEnum.ts';
 
 /**
  * Advance every unit along its path. Waypoints are tile centers; speed is the

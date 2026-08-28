@@ -1,7 +1,6 @@
 import type { Enum } from '../../shared/enum.ts';
 import * as GoodIdNs from './goodIdEnum.ts';
 
-export * as GoodId from './goodIdEnum.ts';
 export type GoodId = Enum<typeof GoodIdNs>;
 
 const G = GoodIdNs;

@@ -4,9 +4,9 @@ import { tickWorld } from './tick.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import { spawnUnit, type World } from './world.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { UnitTaskKind } from './units.ts';
-import { CommandKind } from './commands.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

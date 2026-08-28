@@ -18,7 +18,8 @@ import type { NetInfo } from '../protocol/messages';
 import type { Screen } from './screen';
 import { clearFatal, fatal, fatalFrom, showFatal } from './fatalScreen';
 import { stashGet, stashSet } from './stash';
-import { playerKindFromKey, PlayerKind } from '../sim/player';
+import { playerKindFromKey } from '../sim/player';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
 
 /**
  * The app's entry point: the boot handshake, and the router that decides

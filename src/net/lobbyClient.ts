@@ -2,8 +2,8 @@ import { createSignal } from 'solid-js';
 import type { CouncilHooks, CouncilView } from '../ui/WarCouncil';
 import { sanitizeLobbyConfig, defaultLobbyConfig, type LobbyConfig } from '../protocol/lobby';
 import type { NetInfo } from '../protocol/messages';
-import { PlayerKind } from '../sim/player';
-import { CouncilPhase } from '../ui/WarCouncil.tsx';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
+import * as CouncilPhase from '../ui/councilPhaseEnum.ts';
 
 /**
  * Main-thread lobby flow: a short-lived JSON WebSocket for room setup. On

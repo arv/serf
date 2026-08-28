@@ -26,7 +26,7 @@ import { WORLD_SAVE_VERSION, canReadSave } from '../shared/saveVersion';
 import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
 import { muted, toggleMuted } from './store';
-import { LlmState } from '../ai/strategist';
+import * as LlmState from '../ai/llmStateEnum.ts';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),

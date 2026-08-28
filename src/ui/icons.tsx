@@ -1,6 +1,9 @@
+import type { Enum } from '../shared/enum.ts';
 import type { JSX } from 'solid-js';
 import { goodName } from './names';
-import { GoodId } from '../sim/defs/goods';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+
+type GoodId = Enum<typeof GoodId>;
 
 /**
  * Tiny inline-SVG icon set — no emoji, no assets. Goods use their palette

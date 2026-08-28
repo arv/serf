@@ -1,8 +1,9 @@
 import { GOODS, type GoodAmounts, GOOD_KEYS } from '../defs/goods.ts';
-import { type World, HaulPhase } from '../world.ts';
-import { UnitTypeId } from '../defs/units.ts';
+import type { World } from '../world.ts';
 import { BUILDING_KEYS } from '../defs/buildings.ts';
-import { UnitTaskKind } from '../units.ts';
+import * as HaulPhase from '../haulPhaseEnum.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 
 /**
  * Dev-only consistency checks over the logistics bookkeeping. Violations mean

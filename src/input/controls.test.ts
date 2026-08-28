@@ -1,3 +1,4 @@
+import type { Enum } from '../shared/enum.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createComputed, createRoot } from 'solid-js';
@@ -35,10 +36,12 @@ import {
   setStock,
   setTechs,
 } from '../ui/store';
-import { GoodId } from '../sim/defs/goods';
-import { BuildingTypeId } from '../sim/defs/buildings';
-import { BuildingState } from '../sim/entities';
-import { CommandKind } from '../sim/commands';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
+import * as CommandKind from '../sim/commandKindEnum.ts';
+
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
 const CANVAS_W = 800;
 const CANVAS_H = 600;

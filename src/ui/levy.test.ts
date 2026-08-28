@@ -3,10 +3,11 @@ import { levyOrder } from './levy';
 import { snapBuilding } from '../protocol/snapshot.ts';
 import { tickWorld } from '../sim/tick.ts';
 import { placeBuiltBuilding, placeSite, spawnUnit } from '../sim/world.ts';
-import { BUILDING_DEFS, BuildingTypeId } from '../sim/defs/buildings.ts';
+import { BUILDING_DEFS } from '../sim/defs/buildings.ts';
 import { addSerf, addStorehouse, bareWorld, cmds } from '../sim/testUtils.ts';
-import { UnitTypeId } from '../sim/defs/units.ts';
-import { CommandKind } from '../sim/commands.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as CommandKind from '../sim/commandKindEnum.ts';
 
 const CAP = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity;
 

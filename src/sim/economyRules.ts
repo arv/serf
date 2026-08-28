@@ -6,7 +6,6 @@ import {
   gatherOrigin,
   gatherRecipeOf,
   OUTPUT_CAP,
-  BuildingTypeId,
 } from './defs/buildings.ts';
 import { FORGE_QUEUE_CAP } from './defs/balance.ts';
 import { findResourcesNear, nearestResource } from './map.ts';
@@ -14,19 +13,24 @@ import { WEAPON_OF, type UnitTypeId } from './defs/units.ts';
 import { isUnitUnlocked } from './techHelpers.ts';
 import type { AiStrategy } from './defs/aiStrategies.ts';
 import type { TechId } from './defs/techs.ts';
-import { type Building, type EntityId, type Owner, BuildingState } from './entities.ts';
-import { type SimCommand, CommandKind } from './commands.ts';
+import type { Building, EntityId, Owner } from './entities.ts';
+import type { SimCommand } from './commands.ts';
 import type { World } from './world.ts';
-import { GoodId, goodKeys, type GoodAmounts, goodEntries } from './defs/goods.ts';
-import { UnitTaskKind } from './units.ts';
+import { goodKeys, type GoodAmounts, goodEntries } from './defs/goods.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as EconomyRuleIdNs from './economyRuleIdEnum.ts';
 
-export * as EconomyRuleId from './economyRuleIdEnum.ts';
 export type EconomyRuleId = Enum<typeof EconomyRuleIdNs>;
 import * as RulePhaseNs from './rulePhaseEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
 
-export * as RulePhase from './rulePhaseEnum.ts';
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type GoodId = Enum<typeof GoodId>;
+
 export type RulePhase = Enum<typeof RulePhaseNs>;
 
 /**

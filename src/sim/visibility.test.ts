@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid';
 import { SeatVision } from './visibility';
-import { UNIT_DEFS, UnitTypeId } from './defs/units';
-import { buildingDef, BuildingTypeId } from './defs/buildings';
+import { UNIT_DEFS } from './defs/units';
+import { buildingDef } from './defs/buildings';
 import { spawnUnit } from './world';
 import { addStorehouse, bareWorld } from './testUtils';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 
 describe('seat vision', () => {
   it('lights ground around your own units and not around anyone else', () => {

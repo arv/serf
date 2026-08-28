@@ -65,7 +65,6 @@ import {
 } from '../audio/audio';
 import { markMissionComplete } from '../ui/campaign';
 import { MISSION_DEFS, MISSION_KEYS } from '../sim/defs/missions';
-import { Terrain } from '../sim/map';
 import { inBounds, tileCount, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
 import { envelopeSave, unpackExplored } from './saveEnvelope';
@@ -80,10 +79,12 @@ import type { NetInfo } from '../protocol/messages';
 import type { Screen } from './screen';
 import { fatal } from './fatalScreen';
 import { stashGet, stashSet } from './stash';
-import { BuildingTypeId } from '../sim/defs/buildings';
-import { GameEventKind, MatchState } from '../sim/world';
-import { PlayerKind } from '../sim/player';
-import { LlmState } from '../ai/strategist';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as GameEventKind from '../sim/gameEventKindEnum.ts';
+import * as MatchState from '../sim/matchStateEnum.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
+import * as LlmState from '../ai/llmStateEnum.ts';
 
 /**
  * The playing screen, and everything only it needs: three.js, the render

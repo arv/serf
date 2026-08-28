@@ -1,3 +1,4 @@
+import type { Enum } from '../../shared/enum.ts';
 import { tileCount, tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import {
   ALL_ECONOMY_RULES,
@@ -6,17 +7,9 @@ import {
   type RuleContext,
 } from '../economyRules.ts';
 import { exactDist } from '../../shared/math.ts';
-import {
-  findResourcesNear,
-  nearestResource,
-  playMin,
-  playMax,
-  Terrain,
-  TileResource,
-  tileBlocks,
-} from '../map.ts';
+import { findResourcesNear, nearestResource, playMin, playMax, tileBlocks } from '../map.ts';
 import { SeatVision } from '../visibility.ts';
-import { campCorners, startLayout, canPlace, type World, MatchState } from '../world.ts';
+import { campCorners, startLayout, canPlace, type World } from '../world.ts';
 import {
   BUILDING_DEFS,
   buildingDef,
@@ -25,10 +18,9 @@ import {
   gatherRecipeOf,
   OUTPUT_CAP,
   repairBill,
-  BuildingTypeId,
 } from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
-import { UNIT_DEFS, WEAPON_OF, UnitTypeId, UnitClass } from '../defs/units.ts';
+import { UNIT_DEFS, WEAPON_OF } from '../defs/units.ts';
 import {
   addGarrison,
   classHp,
@@ -39,18 +31,28 @@ import {
 } from '../combatOdds.ts';
 import { HIRE_QUEUE_CAP, HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
-import { type AiStrategy, type BuildStep, BuildAnchor } from '../defs/aiStrategies.ts';
-import {
-  isPlayerOwner,
-  type Building,
-  type EntityId,
-  type Owner,
-  BuildingState,
-} from '../entities.ts';
-import { GoodId, goodEntries, type GoodAmounts } from '../defs/goods.ts';
-import { type Unit, UnitTaskKind } from '../units.ts';
-import { type SimCommand, CommandKind } from '../commands.ts';
-import { RulePhase } from '../economyRules.ts';
+import type { AiStrategy, BuildStep } from '../defs/aiStrategies.ts';
+import { isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
+import { goodEntries, type GoodAmounts } from '../defs/goods.ts';
+import type { Unit } from '../units.ts';
+import type { SimCommand } from '../commands.ts';
+import * as Terrain from '../terrainEnum.ts';
+import * as TileResource from '../tileResourceEnum.ts';
+import * as MatchState from '../matchStateEnum.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import * as UnitClass from '../defs/unitClassEnum.ts';
+import * as BuildAnchor from '../defs/buildAnchorEnum.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import * as CommandKind from '../commandKindEnum.ts';
+import * as RulePhase from '../rulePhaseEnum.ts';
+
+type BuildAnchor = Enum<typeof BuildAnchor>;
+type BuildingTypeId = Enum<typeof BuildingTypeId>;
+type UnitClass = Enum<typeof UnitClass>;
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
  * The AI opponent's brain: a pure strategic layer that reads a World and

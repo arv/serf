@@ -1,19 +1,22 @@
 import { parseAdvice } from '../../src/ai/advice.ts';
-import { LlmStrategist, type LlmStatus, LlmState } from '../../src/ai/strategist.ts';
+import { LlmStrategist, type LlmStatus } from '../../src/ai/strategist.ts';
 import { summarizeForSeat } from '../../src/ai/summary.ts';
 import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { checkInvariants } from '../../src/sim/debug/invariants.ts';
 import { buildingDef } from '../../src/sim/defs/buildings.ts';
 import { TICK_MS } from '../../src/sim/defs/balance.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
-import { createWorld, type World, MatchState } from '../../src/sim/world.ts';
+import { createWorld, type World } from '../../src/sim/world.ts';
 import type { AiStrategyId, AiStrategy } from '../../src/sim/defs/aiStrategies.ts';
 import type { ChatMessage } from '../../src/ai/prompt.ts';
-import { type Owner, BuildingState } from '../../src/sim/entities.ts';
+import type { Owner } from '../../src/sim/entities.ts';
 import type { EconomyRuleId } from '../../src/sim/economyRules.ts';
 import type { LabEngine } from './engines.ts';
-import { UnitTypeId } from '../../src/sim/defs/units.ts';
-import { PlayerKind } from '../../src/sim/player.ts';
+import * as LlmState from '../../src/ai/llmStateEnum.ts';
+import * as MatchState from '../../src/sim/matchStateEnum.ts';
+import * as BuildingState from '../../src/sim/buildingStateEnum.ts';
+import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
+import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
 
 /**
  * One headless match, played the way the game plays it.

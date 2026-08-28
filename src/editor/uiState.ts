@@ -1,7 +1,11 @@
+import type { Enum } from '../shared/enum.ts';
 import { createSignal } from 'solid-js';
 import type { Tool } from './brush.ts';
-import { Terrain, TileResource } from '../sim/map.ts';
-import { ViewMode } from '../render/cameraRig.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import * as ViewMode from '../render/viewModeEnum.ts';
+
+type ViewMode = Enum<typeof ViewMode>;
 
 /**
  * The editor's UI state as module-level signals — the store.ts pattern:

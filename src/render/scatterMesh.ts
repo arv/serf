@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { tileCount, tileX, tileY } from '../shared/grid';
 import { hash2 } from '../shared/math';
-import { Terrain, TileResource, WATER_LEVEL, playEdgeDist, type MapView } from '../sim/map';
+import { WATER_LEVEL, playEdgeDist, type MapView } from '../sim/map';
 import { goldOre, ironOre, rock, rockDark, silverOre } from './palette';
 import {
   foliageMaterial,
@@ -13,6 +13,8 @@ import {
 } from './spriteTextures';
 import { glbDoodads, glbForest, glbRocks, glbTrees } from './assets';
 import type { HeightField } from './heightField';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 
 /**
  * Two quads crossed at 90°, each doubled back-to-back — the classic
@@ -187,10 +189,7 @@ export class ScatterMesh {
           deadTreeTiles.push(i);
         } else if (map.height[i]! < 1.0 && hash2(i, 463) < 0.06) flowerTiles.push(i);
       }
-      if (
-        map.terrain[i] === Terrain.Rock &&
-        hash2(i, 93) < (this.#nearShadow(i) ? 0.3 : 0.12)
-      ) {
+      if (map.terrain[i] === Terrain.Rock && hash2(i, 93) < (this.#nearShadow(i) ? 0.3 : 0.12)) {
         ridgeTiles.push(i);
       }
       if (map.terrain[i] === Terrain.Water) {

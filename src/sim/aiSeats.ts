@@ -18,7 +18,7 @@ import { AiBrain } from './systems/ai.ts';
 import type { Owner } from './entities.ts';
 import type { PlayerCommand } from './tick.ts';
 import type { World } from './world.ts';
-import { PlayerKind } from './player.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 
 export class AiSeats {
   #brains: AiBrain[];

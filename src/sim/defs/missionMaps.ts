@@ -1,5 +1,8 @@
+import type { Enum } from '../../shared/enum.ts';
 import type { MapFile } from '../mapFile.ts';
-import { MissionId } from './missions.ts';
+import * as MissionId from './missionIdEnum.ts';
+
+type MissionId = Enum<typeof MissionId>;
 
 /**
  * The campaign's authored ground, loaded on demand. Dynamic imports on

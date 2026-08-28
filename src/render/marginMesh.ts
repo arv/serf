@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { hash2 } from '../shared/math';
 import { tileIdx } from '../shared/grid';
-import { Terrain, TileResource, playMax, playMin, type MapView } from '../sim/map';
+import { playMax, playMin, type MapView } from '../sim/map';
 import {
   bankMoss,
   fog,
@@ -17,6 +17,8 @@ import {
 import { vnoise } from './noise';
 import { makeGroundTexture } from './groundTexture';
 import type { HeightField } from './heightField';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
 
 /** Smoothstep of t clamped to [0, 1]. */
 function ease01(t: number): number {

@@ -1,3 +1,4 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
@@ -7,11 +8,14 @@ import { deserializeWorld, serializeWorld } from './save.ts';
 import { tileX, tileY } from '../shared/grid.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { cmds, addSerf, addStorehouse, bareWorld } from './testUtils.ts';
-import { type Unit, UnitTaskKind } from './units.ts';
-import { GoodId } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
-import { CommandKind } from './commands.ts';
+import type { Unit } from './units.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

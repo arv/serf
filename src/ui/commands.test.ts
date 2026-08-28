@@ -1,9 +1,14 @@
+import type { Enum } from '../shared/enum.ts';
 import { describe, expect, it } from 'vitest';
-import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../sim/defs/buildings';
-import { UNIT_DEFS, UnitTypeId, UNIT_TYPES } from '../sim/defs/units';
+import { BUILDING_DEFS, BUILDING_TYPES } from '../sim/defs/buildings';
+import { UNIT_DEFS, UNIT_TYPES } from '../sim/defs/units';
 import { HIRE_KEY, RESEARCH_KEY, TRAIN_KEYS, trainKey, trainingForKey } from './commands';
 import { BUILD_KEYS } from './buildMenu';
 import type { BuildingSnap } from '../protocol/messages';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+
+type UnitTypeId = Enum<typeof UnitTypeId>;
 
 const TYPES = BUILDING_TYPES;
 /** Every unit any building can be ordered to drill. */

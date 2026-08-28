@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld, MatchState } from './world.ts';
+import { createWorld } from './world.ts';
 import { tickWorld } from './tick.ts';
 import { AiBrain } from './systems/ai.ts';
 import { strategyOf } from './defs/aiStrategies.ts';
-import { PlayerKind } from './player.ts';
+import * as MatchState from './matchStateEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 
 /**
  * THE playtest: the AI brain (systems/ai.ts) wins the solo campaign on the

@@ -1,3 +1,4 @@
+import type { Enum } from '../../shared/enum.ts';
 import {
   BUILDING_DEFS,
   type BuildingTypeId,
@@ -6,7 +7,10 @@ import {
 } from '../../sim/defs/buildings';
 import { GOODS, type GoodId, goodFromKey, GOOD_KEYS } from '../../sim/defs/goods';
 import { UNIT_DEFS, type UnitTypeId, UNIT_KEYS, unitFromKey } from '../../sim/defs/units';
-import { TECH_KEYS, TechId } from '../../sim/defs/techs';
+import { TECH_KEYS } from '../../sim/defs/techs';
+import * as TechId from '../../sim/defs/techIdEnum.ts';
+
+type TechId = Enum<typeof TechId>;
 
 /**
  * What a /docs URL names. Pure — the screen feeds it location.pathname and

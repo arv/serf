@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { MovePredictor } from './predict';
 import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
-import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
+import { UNIT_DEFS } from '../sim/defs/units';
 import { ACTION, type UnitSnapshot } from '../protocol/sabLayout';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 
 const openMap = () => ({
   size: DEFAULT_MAP_SIZE,

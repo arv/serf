@@ -5,16 +5,15 @@ import {
   type WorldConfig,
   placeBuiltBuilding,
   spawnUnit,
-  MatchState,
 } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
 import { AI_PACING, AI_STALL, AiBrain, LEVY_HOLD } from './systems/ai.ts';
 import { HIRE_SERF_COST } from './defs/balance.ts';
-import { TECH_DEFS, TechId } from './defs/techs.ts';
+import { TECH_DEFS } from './defs/techs.ts';
 import { AiSeats } from './aiSeats.ts';
-import { strategyOf, type AiStrategy, AI_STRATEGIES, AiStrategyId } from './defs/aiStrategies.ts';
+import { strategyOf, type AiStrategy, AI_STRATEGIES } from './defs/aiStrategies.ts';
 import { checkInvariants } from './debug/invariants.ts';
-import { BUILDING_DEFS, OUTPUT_CAP, BuildingTypeId } from './defs/buildings.ts';
+import { BUILDING_DEFS, OUTPUT_CAP } from './defs/buildings.ts';
 import { tileIdx } from '../shared/grid.ts';
 import { BANDIT, type Building } from './entities.ts';
 import {
@@ -25,11 +24,17 @@ import {
   bareWorld,
   cmds,
 } from './testUtils.ts';
-import { type SimCommand, CommandKind } from './commands.ts';
-import { GoodId, type GoodAmounts } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { UnitTaskKind } from './units.ts';
-import { PlayerKind } from './player.ts';
+import type { SimCommand } from './commands.ts';
+import type { GoodAmounts } from './defs/goods.ts';
+import * as MatchState from './matchStateEnum.ts';
+import * as TechId from './defs/techIdEnum.ts';
+import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 
 function digest(world: World): unknown {
   return {

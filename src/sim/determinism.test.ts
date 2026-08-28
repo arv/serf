@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { cmds } from './testUtils.ts';
 import { createWorld, type World } from './world.ts';
 import { tickWorld } from './tick.ts';
-import { type SimCommand, CommandKind } from './commands.ts';
+import type { SimCommand } from './commands.ts';
+import * as CommandKind from './commandKindEnum.ts';
 
 /** Deep-comparable digest of sim state (Maps flattened, floats exact). */
 function digest(world: World) {

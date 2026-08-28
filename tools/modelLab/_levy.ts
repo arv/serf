@@ -11,15 +11,12 @@
  */
 import * as THREE from 'three';
 import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
-import {
-  loadCharacterAssets,
-  makeCharacter,
-  playAnimation,
-  AnimKey,
-} from '../../src/render/characters';
-import { UNIT_DEFS, UnitTypeId } from '../../src/sim/defs/units';
+import { loadCharacterAssets, makeCharacter, playAnimation } from '../../src/render/characters';
+import { UNIT_DEFS } from '../../src/sim/defs/units';
 import { makeLights, makeRenderer, YAW, PITCH } from './scene';
-import { BuildingTypeId } from '../../src/sim/defs/buildings';
+import * as AnimKey from '../../src/render/animKeyEnum.ts';
+import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
+import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
 
 const params = new URLSearchParams(location.search);
 const t = Number(params.get('t') ?? '0');
