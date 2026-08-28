@@ -1,17 +1,16 @@
 import { Rng } from '../shared/rng.ts';
 import { inBounds, tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { UNIT_DEFS } from './defs/units.ts';
-import { BANDIT, type Owner } from './entities.ts';
+import { UNIT_DEFS, UNIT_TYPES } from './defs/units.ts';
+import { BANDIT, type Owner, BuildingState } from './entities.ts';
 import { findPath, nearestWalkable } from './path.ts';
 import { movementSystem } from './systems/movement.ts';
 import { wanderSystem } from './systems/wander.ts';
-import { abortJob, logisticsSystem } from './systems/logistics.ts';
+import { abortJob, logisticsSystem, findStorehouse } from './systems/logistics.ts';
 import { productionSystem, unbindWorker } from './systems/production.ts';
 import { cancelRepair, constructionSystem, orderRepair } from './systems/construction.ts';
 import { trailsSystem } from './systems/trails.ts';
 import { canPlace, destroyBuilding, killUnit, placeSite, spawnUnit, type World } from './world.ts';
-import { GOODS } from './defs/goods.ts';
-import { findStorehouse } from './systems/logistics.ts';
+import { GOODS, GoodId, goodEntries } from './defs/goods.ts';
 import { researchSystem } from './systems/research.ts';
 import {
   trainingSystem,
@@ -29,14 +28,8 @@ import { CORPSE_TICKS, FORGE_QUEUE_CAP, HIRE_QUEUE_CAP, HIRE_SERF_COST } from '.
 import { TECH_DEFS } from './defs/techs.ts';
 import { canResearch, isBuildingUnlocked } from './techHelpers.ts';
 import { hasRoomToHire } from './population.ts';
-import type { SimCommand } from './commands.ts';
-import { GoodId } from './defs/goods.ts';
-import { goodEntries } from './defs/goods.ts';
-import { UNIT_TYPES } from './defs/units.ts';
-import { BuildingState } from './entities.ts';
+import { type SimCommand, CommandKind, AdminAction } from './commands.ts';
 import { UnitTaskKind } from './units.ts';
-import { CommandKind } from './commands.ts';
-import { AdminAction } from './commands.ts';
 
 export { TICKS_PER_SECOND, TICK_MS } from './defs/balance.ts';
 
@@ -156,9 +149,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       const sh = findStorehouse(world, playerId);
       const cost = TECH_DEFS[cmd.tech].cost;
       if (!sh) break;
-      const affordable = goodEntries(cost).every(
-        ([good, n]) => (sh.stock[good] ?? 0) >= n,
-      );
+      const affordable = goodEntries(cost).every(([good, n]) => (sh.stock[good] ?? 0) >= n);
       if (!affordable) break;
       for (const [good, n] of goodEntries(cost)) {
         sh.stock[good] = (sh.stock[good] ?? 0) - n;
@@ -340,7 +331,8 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         hasRoomToHire(world, playerId)
       ) {
         sh.stock[GoodId.silver] = (sh.stock[GoodId.silver] ?? 0) - HIRE_SERF_COST;
-        world.ledger.consumed[GoodId.silver] = (world.ledger.consumed[GoodId.silver] ?? 0) + HIRE_SERF_COST;
+        world.ledger.consumed[GoodId.silver] =
+          (world.ledger.consumed[GoodId.silver] ?? 0) + HIRE_SERF_COST;
         sh.hireQueue = (sh.hireQueue ?? 0) + 1;
       }
       break;

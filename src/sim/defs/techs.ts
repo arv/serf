@@ -1,4 +1,4 @@
-import type { GoodAmounts } from './goods.ts';
+import { type GoodAmounts, GoodId } from './goods.ts';
 import type { Enum } from '../../shared/enum.ts';
 import * as TechIdNs from './techIdEnum.ts';
 
@@ -15,7 +15,6 @@ export * as TechEffectKind from './techEffectKindEnum.ts';
 export type TechEffectKind = Enum<typeof TechEffectKindNs>;
 
 const T = TechIdNs;
-import { GoodId } from './goods.ts';
 import { UnitTypeId } from './units.ts';
 import { BuildingTypeId } from './buildings.ts';
 
@@ -31,7 +30,6 @@ export type TechEffect =
   | { kind: TechEffectKindNs.unlockUnit; unit: UnitTypeId }
   | { kind: TechEffectKindNs.modifier; key: ModifierKey; multiplier: number }
   | { kind: TechEffectKindNs.unlockPaving };
-
 
 export interface TechDef {
   id: TechId;
@@ -221,7 +219,11 @@ export const TECH_DEFS: Record<TechId, TechDef> = {
   },
 };
 
-export const TECH_BRANCHES: TechBranch[] = [TechBranchNs.agriculture, TechBranchNs.craft, TechBranchNs.warfare];
+export const TECH_BRANCHES: TechBranch[] = [
+  TechBranchNs.agriculture,
+  TechBranchNs.craft,
+  TechBranchNs.warfare,
+];
 
 /** Every research, in id order — TECH_DEFS' own enumeration order. */
 export const TECH_IDS: readonly TechId[] = [

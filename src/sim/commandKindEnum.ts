@@ -1,6 +1,6 @@
 /**
  * Every order the sim takes, as a JS enum module (see shared/enum.ts).
- * 
+ *
  * The values ride in command frames and in replay logs, so they are
  * append-only: a new order takes the next number.
  */

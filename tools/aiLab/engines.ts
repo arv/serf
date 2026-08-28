@@ -6,12 +6,10 @@ import {
 } from '../../src/ai/posture.ts';
 import { extractSummary } from '../../src/ai/prompt.ts';
 import { Rng } from '../../src/shared/rng.ts';
-import type { PostureId } from '../../src/ai/posture.ts';
+import { type PostureId, postureFromKey, POSTURE_KEYS } from '../../src/ai/posture.ts';
 import type { AiWorldSummary } from '../../src/ai/summary.ts';
 import type { ChatEngine } from '../../src/ai/strategist.ts';
 import { UnitTypeId } from '../../src/sim/defs/units.ts';
-import { postureFromKey } from '../../src/ai/posture.ts';
-import { POSTURE_KEYS } from '../../src/ai/posture.ts';
 
 /**
  * The models a bake-off can put in the strategist's seat.

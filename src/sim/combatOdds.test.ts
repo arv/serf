@@ -32,7 +32,10 @@ function mixed(heavy: number, light: number, ranged: number): Force {
     heavy,
     light,
     ranged,
-    hp: heavy * classHp(UnitClass.heavy) + light * classHp(UnitClass.light) + ranged * classHp(UnitClass.ranged),
+    hp:
+      heavy * classHp(UnitClass.heavy) +
+      light * classHp(UnitClass.light) +
+      ranged * classHp(UnitClass.ranged),
   };
 }
 

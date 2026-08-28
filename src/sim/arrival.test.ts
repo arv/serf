@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
 import { TileResource } from './map.ts';
-import { placeBuiltBuilding, type World } from './world.ts';
-import { addBuiltHut, addResourceTile, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts';
-import type { Unit } from './units.ts';
+import { placeBuiltBuilding, type World, HaulPhase } from './world.ts';
+import {
+  addBuiltHut,
+  addResourceTile,
+  addSerf,
+  addSite,
+  addStorehouse,
+  bareWorld,
+} from './testUtils.ts';
+import { type Unit, UnitTaskKind } from './units.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
-import { UnitTaskKind } from './units.ts';
-import { HaulPhase } from './world.ts';
 
 /** Put a unit where its walk would have left it had the route died: far from
  * where it was going, with nothing left to walk. */
@@ -91,7 +96,10 @@ describe('work only happens where the worker is standing', () => {
     addResourceTile(world, 36, 30, TileResource.Wood, 6);
     const hut = addBuiltHut(world, 33, 30);
     const worker = world.units.get(hut.workerId!)!;
-    runUntil(world, () => worker.task.t === UnitTaskKind.gatherHome && worker.carrying !== undefined);
+    runUntil(
+      world,
+      () => worker.task.t === UnitTaskKind.gatherHome && worker.carrying !== undefined,
+    );
 
     const held = hut.stock[GoodId.wood] ?? 0;
     strandFarAway(worker);

@@ -8,17 +8,24 @@ import {
   type SabReader,
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
-import { UNIT_DEFS } from '../sim/defs/units';
+import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
 import { animCue, LOOP_CUES } from '../audio/animCues';
 import type { CueId } from '../audio/cues';
 import type { PierInfo } from './buildingSync';
 import type { ViewBounds } from './cameraRig';
 import type { FogQuery } from './fogOfWar';
 import { makeCarryProp } from './models';
-import { TARGET_HEIGHT, makeCharacter, playAnimation, setGaitSpeed, setWorkTool, TOOL_STOWED, type CharacterVisual } from './characters';
+import {
+  TARGET_HEIGHT,
+  makeCharacter,
+  playAnimation,
+  setGaitSpeed,
+  setWorkTool,
+  TOOL_STOWED,
+  type CharacterVisual,
+  AnimKey,
+} from './characters';
 import type { HeightField } from './heightField';
-import { UnitTypeId } from '../sim/defs/units';
-import { AnimKey } from './characters';
 
 interface UnitVisual {
   group: THREE.Group;
@@ -160,9 +167,8 @@ const HP_BAR_Y = TARGET_HEIGHT * 0.943;
  * now and the colour rides per instance, but the five steps stay exactly
  * as they were — this is a draw-call change, not a palette change.
  */
-const HP_BUCKET_COLORS = Array.from(
-  { length: 5 },
-  (_, bucket) => new THREE.Color().setHSL(0.33 * (bucket / 4), 0.8, 0.45),
+const HP_BUCKET_COLORS = Array.from({ length: 5 }, (_, bucket) =>
+  new THREE.Color().setHSL(0.33 * (bucket / 4), 0.8, 0.45),
 );
 
 function hpBucket(pct: number): number {
@@ -321,7 +327,14 @@ export class SceneSync {
    * sim has no unit collision by design, so hauling and combat never jam.
    */
   #computeSeparation(
-    latest: { count: number; xs: Float32Array; ys: Float32Array; aux: Uint8Array; index: Map<number, number>; ids: Int32Array },
+    latest: {
+      count: number;
+      xs: Float32Array;
+      ys: Float32Array;
+      aux: Uint8Array;
+      index: Map<number, number>;
+      ids: Int32Array;
+    },
     prev: { xs: Float32Array; ys: Float32Array; index: Map<number, number> },
     alpha: number,
   ): void {

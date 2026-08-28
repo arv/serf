@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Rng } from '../shared/rng.ts';
 import { tileIdx } from '../shared/grid.ts';
 import { tickWorld } from './tick.ts';
-import { destroyBuilding, killUnit, placeBuiltBuilding, type World } from './world.ts';
+import { destroyBuilding, killUnit, placeBuiltBuilding, type World, HaulPhase } from './world.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
 import {
   cmds,
@@ -14,12 +14,10 @@ import {
   staffBuilding,
 } from './testUtils.ts';
 import { TileResource } from './map.ts';
-import type { GoodAmounts } from './defs/goods.ts';
-import { GoodId } from './defs/goods.ts';
+import { type GoodAmounts, GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { BuildingState } from './entities.ts';
-import { HaulPhase } from './world.ts';
 import { UnitTaskKind } from './units.ts';
 import { CommandKind } from './commands.ts';
 
@@ -143,7 +141,10 @@ describe('cancellation table', () => {
   it('serf dies mid-dropoff: job aborts, carried good ledgered as lost', () => {
     const { world, initial } = setupHaul();
     let guard = 0;
-    while (![...world.jobs.values()].some((j) => j.phase === HaulPhase.toDropoff) && guard++ < 500) {
+    while (
+      ![...world.jobs.values()].some((j) => j.phase === HaulPhase.toDropoff) &&
+      guard++ < 500
+    ) {
       tickWorld(world, []);
     }
     const job = [...world.jobs.values()].find((j) => j.phase === HaulPhase.toDropoff)!;
@@ -174,7 +175,10 @@ describe('cancellation table', () => {
   it('destination destroyed mid-haul: jobs abort cleanly', () => {
     const { world, initial } = setupHaul();
     let guard = 0;
-    while (![...world.jobs.values()].some((j) => j.phase === HaulPhase.toDropoff) && guard++ < 500) {
+    while (
+      ![...world.jobs.values()].some((j) => j.phase === HaulPhase.toDropoff) &&
+      guard++ < 500
+    ) {
       tickWorld(world, []);
     }
     const site = [...world.buildings.values()].find((b) => b.state === BuildingState.site)!;
@@ -233,7 +237,9 @@ describe('fuzz: 10k ticks of random destruction never corrupts the economy', () 
         // Random mayhem, weighted toward serf deaths.
         const roll = rng.next();
         if (roll < 0.5) {
-          const serfs = [...world.units.values()].filter((u) => u.kind === UnitTypeId.serf && !u.dead);
+          const serfs = [...world.units.values()].filter(
+            (u) => u.kind === UnitTypeId.serf && !u.dead,
+          );
           if (serfs.length > 2) killUnit(world, serfs[rng.int(serfs.length)]!);
         } else if (roll < 0.65) {
           const targets = [...world.buildings.values()].filter(
@@ -243,7 +249,10 @@ describe('fuzz: 10k ticks of random destruction never corrupts the economy', () 
         } else if (roll < 0.85) {
           const x = 18 + rng.int(24);
           const y = 18 + rng.int(24);
-          tickWorld(world, cmds({ kind: CommandKind.placeBuilding, building: BuildingTypeId.woodcutter, x, y }));
+          tickWorld(
+            world,
+            cmds({ kind: CommandKind.placeBuilding, building: BuildingTypeId.woodcutter, x, y }),
+          );
         } else {
           const serfs = [...world.units.values()].filter((u) => u.kind === UnitTypeId.serf);
           if (serfs.length < 8) addSerf(world, 30 + rng.int(4), 35);
@@ -284,7 +293,7 @@ describe('move orders outrank employment', () => {
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
-  it('never destroys the good in a reassigned serf\'s hands', () => {
+  it("never destroys the good in a reassigned serf's hands", () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.wood]: 5 });
     const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 36, 30);

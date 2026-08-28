@@ -1,10 +1,8 @@
-import { GOODS, type GoodAmounts } from '../defs/goods.ts';
-import type { World } from '../world.ts';
-import { GOOD_KEYS } from '../defs/goods.ts';
+import { GOODS, type GoodAmounts, GOOD_KEYS } from '../defs/goods.ts';
+import { type World, HaulPhase } from '../world.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { BUILDING_KEYS } from '../defs/buildings.ts';
 import { UnitTaskKind } from '../units.ts';
-import { HaulPhase } from '../world.ts';
 
 /**
  * Dev-only consistency checks over the logistics bookkeeping. Violations mean
@@ -64,10 +62,14 @@ export function checkInvariants(world: World): InvariantReport {
       const rOut = b.reservedOut[good] ?? 0;
       const inb = b.inbound[good] ?? 0;
       if (rOut < 0 || inb < 0 || stock < 0) {
-        violations.push(`building ${b.id} ${BUILDING_KEYS[b.type]}: negative ${GOOD_KEYS[good]} bookkeeping`);
+        violations.push(
+          `building ${b.id} ${BUILDING_KEYS[b.type]}: negative ${GOOD_KEYS[good]} bookkeeping`,
+        );
       }
       if (rOut > stock) {
-        violations.push(`building ${b.id} ${BUILDING_KEYS[b.type]}: reservedOut[${GOOD_KEYS[good]}]=${rOut} > stock=${stock}`);
+        violations.push(
+          `building ${b.id} ${BUILDING_KEYS[b.type]}: reservedOut[${GOOD_KEYS[good]}]=${rOut} > stock=${stock}`,
+        );
       }
       const expOut = expectOut.get(b.id)?.[good] ?? 0;
       if (rOut !== expOut) {
@@ -90,8 +92,14 @@ export function checkInvariants(world: World): InvariantReport {
     if (u.jobId !== undefined) {
       const job = world.jobs.get(u.jobId);
       if (!job) violations.push(`serf ${u.id}: jobId=${u.jobId} but job missing`);
-      else if (job.serfId !== u.id) violations.push(`serf ${u.id}: job ${job.id} names serf ${job.serfId}`);
-      if (u.kind === UnitTypeId.serf && u.carrying !== undefined && job && job.phase !== HaulPhase.toDropoff) {
+      else if (job.serfId !== u.id)
+        violations.push(`serf ${u.id}: job ${job.id} names serf ${job.serfId}`);
+      if (
+        u.kind === UnitTypeId.serf &&
+        u.carrying !== undefined &&
+        job &&
+        job.phase !== HaulPhase.toDropoff
+      ) {
         violations.push(`serf ${u.id}: carrying ${u.carrying} in phase ${job.phase}`);
       }
     } else if (u.kind === UnitTypeId.serf && u.carrying !== undefined) {

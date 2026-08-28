@@ -47,8 +47,7 @@ function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
     case 'repair':
       return (
         <li>
-          Mends the{' '}
-          <DocLink href={buildingHref(r.building)}>{buildingName(r.building)}</DocLink>
+          Mends the <DocLink href={buildingHref(r.building)}>{buildingName(r.building)}</DocLink>
         </li>
       );
     case 'training':
@@ -74,25 +73,30 @@ function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
     case 'weapon':
       return (
         <li>
-          The weapon a <DocLink href={unitHref(r.unit)}>{unitName(r.unit)}</DocLink> is trained
-          with
+          The weapon a <DocLink href={unitHref(r.unit)}>{unitName(r.unit)}</DocLink> is trained with
         </li>
       );
     case 'festival':
       return (
         <li>
           Drunk at the{' '}
-          <DocLink href={buildingHref(BuildingTypeId.abbey)}>{buildingName(BuildingTypeId.abbey)}</DocLink> to hold a
-          festival, once <DocLink href={techHref(TechId.festivals)}>{techName(TechId.festivals)}</DocLink>{' '}
-          is researched
+          <DocLink href={buildingHref(BuildingTypeId.abbey)}>
+            {buildingName(BuildingTypeId.abbey)}
+          </DocLink>{' '}
+          to hold a festival, once{' '}
+          <DocLink href={techHref(TechId.festivals)}>{techName(TechId.festivals)}</DocLink> is
+          researched
         </li>
       );
     case 'ration':
       return (
         <li>
           Kept in the{' '}
-          <DocLink href={buildingHref(BuildingTypeId.barracks)}>{buildingName(BuildingTypeId.barracks)}</DocLink> cask —
-          with <DocLink href={techHref(TechId.aleRations)}>{techName(TechId.aleRations)}</DocLink> each
+          <DocLink href={buildingHref(BuildingTypeId.barracks)}>
+            {buildingName(BuildingTypeId.barracks)}
+          </DocLink>{' '}
+          cask — with{' '}
+          <DocLink href={techHref(TechId.aleRations)}>{techName(TechId.aleRations)}</DocLink> each
           recruit drinks one and trains faster
         </li>
       );

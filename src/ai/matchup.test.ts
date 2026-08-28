@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld, type World } from '../sim/world.ts';
+import { createWorld, type World, MatchState } from '../sim/world.ts';
 import { tickWorld } from '../sim/tick.ts';
 import { AiSeats } from '../sim/aiSeats.ts';
 import { checkInvariants } from '../sim/debug/invariants.ts';
 import { LlmStrategist, type ChatEngine } from './strategist.ts';
 import { summarizeForSeat } from './summary.ts';
 import type { ChatMessage } from './prompt.ts';
-import { MatchState } from '../sim/world.ts';
 import { AiStrategyId } from '../sim/defs/aiStrategies.ts';
 import { PlayerKind } from '../sim/player.ts';
 

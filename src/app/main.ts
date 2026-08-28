@@ -18,8 +18,7 @@ import type { NetInfo } from '../protocol/messages';
 import type { Screen } from './screen';
 import { clearFatal, fatal, fatalFrom, showFatal } from './fatalScreen';
 import { stashGet, stashSet } from './stash';
-import { playerKindFromKey } from '../sim/player';
-import { PlayerKind } from '../sim/player';
+import { playerKindFromKey, PlayerKind } from '../sim/player';
 
 /**
  * The app's entry point: the boot handshake, and the router that decides
@@ -84,8 +83,7 @@ function lobbyInitFromUrl(params: URLSearchParams): LobbyConfig {
  */
 function gameChosen(params: URLSearchParams): boolean {
   return (
-    LAUNCH_PARAMS.some((k) => params.has(k)) ||
-    stashGet('session', 'serf-load-pending') !== null
+    LAUNCH_PARAMS.some((k) => params.has(k)) || stashGet('session', 'serf-load-pending') !== null
   );
 }
 
@@ -206,9 +204,7 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     // the wardrobe while recording the screen as 'editor' — breaking the
     // same-key-same-screen invariant the router leans on.
     const { mountWardrobe } = await import('../ui/wardrobe');
-    const wardrobe = await mountWardrobe(
-      document.getElementById('canvas') as HTMLCanvasElement,
-    );
+    const wardrobe = await mountWardrobe(document.getElementById('canvas') as HTMLCanvasElement);
     present({ key, dispose: () => wardrobe.dispose() });
     return;
   }

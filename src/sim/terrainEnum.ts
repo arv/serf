@@ -1,6 +1,6 @@
 /**
  * What a tile is made of, as a JS enum module (see shared/enum.ts).
- * 
+ *
  * The values are the bytes in GameMap.terrain, which ride in every save and
  * every map file — they are the format, not an implementation detail.
  */

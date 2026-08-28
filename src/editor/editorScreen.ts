@@ -536,7 +536,10 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const safe = mapName().trim().replace(/[^\w-]+/g, '_') || 'map';
+      const safe =
+        mapName()
+          .trim()
+          .replace(/[^\w-]+/g, '_') || 'map';
       a.download = `${safe}.serfmap.json`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);

@@ -11,8 +11,7 @@ import {
 } from './strategist.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 import { PlayerKind } from '../sim/player.ts';
-import { LlmState } from './strategist.ts';
-import { ConsultOutcome } from './strategist.ts';
+import { LlmState, ConsultOutcome } from './strategist.ts';
 
 /**
  * The engine-adapter and warmModel tests go through the strategist's real
@@ -51,8 +50,7 @@ const wllamaMock = vi.hoisted(() => {
     downloads: [] as { url: string; signal: AbortSignal | undefined }[],
     /** Override the download itself; null = instant success with progress. */
     downloadGate: null as
-      | null
-      | ((opts?: { signal?: AbortSignal; progressCallback?: Progress }) => Promise<unknown>),
+      null | ((opts?: { signal?: AbortSignal; progressCallback?: Progress }) => Promise<unknown>),
     cacheEntries,
     cacheDeletes,
     /** The one cache both stand-ins hand out — the same OPFS directory
@@ -123,7 +121,10 @@ vi.mock('@wllama/wllama/esm/wasm/wllama.wasm?url', () => ({ default: 'wllama.was
  */
 
 function testSummary(): AiWorldSummary {
-  const world = createWorld({ seed: 5, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }] });
+  const world = createWorld({
+    seed: 5,
+    players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
+  });
   const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
   brain.decide(world); // one beat, so vision exists
   return summarizeForSeat(world, brain);
@@ -260,7 +261,11 @@ describe('LlmStrategist', () => {
     }
     // One message downstairs, three entries in the ledger.
     expect(sent).toHaveLength(1);
-    expect(traces.map((t) => t.outcome)).toEqual([ConsultOutcome.sent, ConsultOutcome.kept, ConsultOutcome.kept]);
+    expect(traces.map((t) => t.outcome)).toEqual([
+      ConsultOutcome.sent,
+      ConsultOutcome.kept,
+      ConsultOutcome.kept,
+    ]);
     expect(traces[2]!.advice).toEqual({});
     expect(traces[2]!.standing).toEqual({ homeGuard: 8, reason: 'hold' });
   });
@@ -271,7 +276,10 @@ describe('LlmStrategist', () => {
     strategist.onSummary(1, testSummary());
     await settle();
     expect(traces).toHaveLength(1);
-    expect(traces[0]).toMatchObject({ outcome: ConsultOutcome.failed, raw: 'the peasants are revolting' });
+    expect(traces[0]).toMatchObject({
+      outcome: ConsultOutcome.failed,
+      raw: 'the peasants are revolting',
+    });
     expect(traces[0]!.error).toContain('unparseable advice');
   });
 
@@ -471,7 +479,10 @@ describe('LlmStrategist', () => {
   it('a load that fails through the real adapter reports and frees the model', async () => {
     wllamaMock.loadFails = true;
     const statuses: LlmStatus[] = [];
-    const strategist = new LlmStrategist({ sendAdvice: () => {}, onStatus: (s) => statuses.push(s) });
+    const strategist = new LlmStrategist({
+      sendAdvice: () => {},
+      onStatus: (s) => statuses.push(s),
+    });
     await strategist.start();
     expect(statuses.at(-1)).toMatchObject({ state: LlmState.failed });
     expect((statuses.at(-1) as { reason: string }).reason).toContain('403');
@@ -484,7 +495,10 @@ describe('LlmStrategist', () => {
     const { LLM_MODEL_URL } = await import('./strategist.ts');
     leaveUnfinishedDownload(LLM_MODEL_URL);
     const statuses: LlmStatus[] = [];
-    const strategist = new LlmStrategist({ sendAdvice: () => {}, onStatus: (s) => statuses.push(s) });
+    const strategist = new LlmStrategist({
+      sendAdvice: () => {},
+      onStatus: (s) => statuses.push(s),
+    });
     await strategist.start();
     expect(wllamaMock.cacheDeletes).toEqual([`key:${LLM_MODEL_URL}`]);
     expect(statuses.at(-1)).toEqual({ state: LlmState.ready });

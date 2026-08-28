@@ -1,7 +1,7 @@
 /**
  * What is standing or buried on a tile, as a JS enum module (see
  * shared/enum.ts).
- * 
+ *
  * The values are the bytes in GameMap.resource and the codes the gather
  * recipes name, so they ride in saves and map files. This used to be two
  * things — these codes, and a parallel union of words on the recipes

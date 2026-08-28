@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupEmpty, keyDigit, matchingGroup } from './groups';
-import type { ControlGroup } from './groups';
-import { ControlGroupKind } from './groups';
+import { groupEmpty, keyDigit, matchingGroup, type ControlGroup, ControlGroupKind } from './groups';
 
 /** A keydown as the DOM reports it — only the two fields keyDigit reads. */
 const key = (code: string, k: string) => ({ code, key: k });

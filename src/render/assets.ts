@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BUILDING_DEFS } from '../sim/defs/buildings';
+import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../sim/defs/buildings';
 import { factionTint, TEAM_SWATCH_UV } from './factionPalette';
 import { makeBakehouse } from './procBuildings';
 import { makeFishSign, makeShoal } from './procParts';
@@ -13,8 +13,6 @@ import {
   makeSluice,
   makeWindlassHouse,
 } from './procMines';
-import { BuildingTypeId } from '../sim/defs/buildings';
-import { BUILDING_TYPES } from '../sim/defs/buildings';
 import type { Enum } from '../shared/enum.ts';
 import * as ScatterPackNs from './scatterPackEnum.ts';
 export * as ScatterPack from './scatterPackEnum.ts';
@@ -221,7 +219,13 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
     // On the ridge, where the pack's sailing ship was — turned 45 degrees so
     // it stands near broadside to the default camera yaw. Along either axis
     // the fish would be read end-on and vanish.
-    { make: (prop) => makeFishSign(0.19, prop), at: [0.06, -0.02], y: 0.34, size: 1, rot: Math.PI / 4 },
+    {
+      make: (prop) => makeFishSign(0.19, prop),
+      at: [0.06, -0.02],
+      y: 0.34,
+      size: 1,
+      rot: Math.PI / 4,
+    },
     { prop: 'extra/anchor', at: [-0.38, 0.26], size: 0.16, rot: 0.4 },
     { prop: 'extra/boatrack', at: [0.4, 0.3], size: 0.1, rot: -0.3 },
     // A shoal working the water off the pier. buildingSync swims it while
@@ -245,8 +249,20 @@ const BUILDING_DECOR: Partial<Record<BuildingTypeId, Decor[]>> = {
   // in the middle of this deck, so unlike the roofed towers there is no
   // reason to push them out to the rim.
   [BuildingTypeId.guardTower]: [
-    { make: () => new THREE.Group(), at: [-POST_D, POST_D], y: ROOF_Y, size: 1, name: 'towerPost0' },
-    { make: () => new THREE.Group(), at: [POST_D, -POST_D], y: ROOF_Y, size: 1, name: 'towerPost1' },
+    {
+      make: () => new THREE.Group(),
+      at: [-POST_D, POST_D],
+      y: ROOF_Y,
+      size: 1,
+      name: 'towerPost0',
+    },
+    {
+      make: () => new THREE.Group(),
+      at: [POST_D, -POST_D],
+      y: ROOF_Y,
+      size: 1,
+      name: 'towerPost1',
+    },
   ],
   // The four extraction posts. They share one pack model — a rock mound
   // with a timbered adit — and used to share very nearly one look with it:
@@ -506,11 +522,7 @@ function normalize(scene: THREE.Group): THREE.Group {
   const spanZ = bbox.max.z - bbox.min.z;
   const s = 1 / Math.max(spanX, spanZ);
   const wrapper = new THREE.Group();
-  scene.position.set(
-    -(bbox.min.x + bbox.max.x) / 2,
-    -bbox.min.y,
-    -(bbox.min.z + bbox.max.z) / 2,
-  );
+  scene.position.set(-(bbox.min.x + bbox.max.x) / 2, -bbox.min.y, -(bbox.min.z + bbox.max.z) / 2);
   wrapper.scale.setScalar(s);
   wrapper.add(scene);
   const out = new THREE.Group();
@@ -760,7 +772,12 @@ async function loadGlbAssetsOnce(): Promise<boolean> {
           }
         });
       }
-      if (type === BuildingTypeId.quarry || type === BuildingTypeId.ironMine || type === BuildingTypeId.silverMine || type === BuildingTypeId.goldMine) {
+      if (
+        type === BuildingTypeId.quarry ||
+        type === BuildingTypeId.ironMine ||
+        type === BuildingTypeId.silverMine ||
+        type === BuildingTypeId.goldMine
+      ) {
         // The mine model bakes three spoil boulders at its mouth — stock
         // that was never mined. Cut them (validated component-by-component
         // like the lumbermill; the rocky mounds and frame lose at most a

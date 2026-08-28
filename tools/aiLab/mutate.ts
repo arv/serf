@@ -1,5 +1,9 @@
-import { ADVICE_RANGES, ADVISABLE_UNITS, MARCH_CONFIDENCE_RANGE } from '../../src/ai/advice.ts';
-import type { StrategyAdvice } from '../../src/ai/advice.ts';
+import {
+  ADVICE_RANGES,
+  ADVISABLE_UNITS,
+  MARCH_CONFIDENCE_RANGE,
+  type StrategyAdvice,
+} from '../../src/ai/advice.ts';
 import type { AiStrategy } from '../../src/sim/defs/aiStrategies.ts';
 import type { Rng } from '../../src/shared/rng.ts';
 import type { UnitTypeId } from '../../src/sim/defs/units.ts';

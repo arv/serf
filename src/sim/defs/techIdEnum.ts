@@ -1,6 +1,6 @@
 /**
  * Every research, as a JS enum module (see shared/enum.ts).
- * 
+ *
  * Order is TECH_DEFS' order, which is the order the tech tree lays its
  * branches out; one-based, and append-only — the ids ride in saves and in
  * the research command.

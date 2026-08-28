@@ -1,4 +1,9 @@
-import { trialsForPrecision, type BakeoffReport, type PlaybookMatchup, type Rate } from './stats.ts';
+import {
+  trialsForPrecision,
+  type BakeoffReport,
+  type PlaybookMatchup,
+  type Rate,
+} from './stats.ts';
 import { TICK_MS } from '../../src/sim/defs/balance.ts';
 import type { SeatStrategies } from './match.ts';
 import { AI_STRATEGY_KEYS } from '../../src/sim/defs/aiStrategies.ts';
@@ -85,13 +90,17 @@ export function renderMatchup(m: PlaybookMatchup): string[] {
   const { paired } = m;
   const decisive = paired.bothA + paired.bothB;
 
-  p(`PLAYBOOK MATCHUP  ${AI_STRATEGY_KEYS[m.a]} vs ${AI_STRATEGY_KEYS[m.b]}  (unadvised matches only)`);
+  p(
+    `PLAYBOOK MATCHUP  ${AI_STRATEGY_KEYS[m.a]} vs ${AI_STRATEGY_KEYS[m.b]}  (unadvised matches only)`,
+  );
   p(
     `  ${AI_STRATEGY_KEYS[m.a].padEnd(12)}${`${m.rate.wins} / ${m.rate.trials}`.padEnd(9)} ` +
       `${pct(m.rate.rate).padStart(6)}   95% CI [${pct(m.rate.lo)}, ${pct(m.rate.hi)}] (optimistic — see below)`,
   );
   for (const s of m.bySeat) {
-    p(`    on seat ${s.seat}  ${String(s.wins).padStart(3)} / ${String(s.trials).padEnd(4)} ${pct(s.trials === 0 ? 0 : s.wins / s.trials).padStart(6)}`);
+    p(
+      `    on seat ${s.seat}  ${String(s.wins).padStart(3)} / ${String(s.trials).padEnd(4)} ${pct(s.trials === 0 ? 0 : s.wins / s.trials).padStart(6)}`,
+    );
   }
   p('  A wide gap between those two lines is the valley favouring a start,');
   p('  which is exactly what playing both seatings cancels.');

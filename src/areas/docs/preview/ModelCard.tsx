@@ -1,10 +1,8 @@
 import { Show, createEffect, createSignal, onCleanup, onMount, type JSX } from 'solid-js';
 import type { AnimKey } from '../../../render/characters';
-import type { BuildingTypeId } from '../../../sim/defs/buildings';
-import type { UnitTypeId } from '../../../sim/defs/units';
+import { type BuildingTypeId, BUILDING_KEYS } from '../../../sim/defs/buildings';
+import { type UnitTypeId, UNIT_KEYS } from '../../../sim/defs/units';
 import { registerCard, type CardHandle } from './hub';
-import { UNIT_KEYS } from '../../../sim/defs/units';
-import { BUILDING_KEYS } from '../../../sim/defs/buildings';
 
 /**
  * A live 3D preview of a building or unit, rendered from the game's own
@@ -26,7 +24,14 @@ type ModelCardProps =
 /** Hand-drawn monochrome stand-ins (never emoji — house rule). */
 function SilhouetteIcon(props: { kind: 'building' | 'unit' }): JSX.Element {
   return (
-    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+    <svg
+      width="42"
+      height="42"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.6"
+    >
       {props.kind === 'building' ? (
         <>
           <path d="M4 20v-8l8-7 8 7v8" />

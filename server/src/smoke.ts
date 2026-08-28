@@ -29,10 +29,7 @@ const startedAt = process.hrtime.bigint();
 for (let i = 0; i < TICKS; i++) tickWorld(world, []);
 const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
 
-const failures = [
-  ...checkInvariants(world).violations,
-  ...checkLedger(world, initialGoods),
-];
+const failures = [...checkInvariants(world).violations, ...checkLedger(world, initialGoods)];
 
 if (world.tick !== TICKS) failures.push(`tick is ${world.tick}, expected ${TICKS}`);
 if (world.units.size === 0) failures.push('no units survived');

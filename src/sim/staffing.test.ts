@@ -12,11 +12,10 @@ import {
   staffBuilding,
 } from './testUtils.ts';
 import { tileIdx } from '../shared/grid.ts';
-import { OUTPUT_CAP } from './defs/buildings.ts';
+import { OUTPUT_CAP, BuildingTypeId } from './defs/buildings.ts';
 import { bindWorker } from './systems/production.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
 import { TechId } from './defs/techs.ts';
 import { UnitTaskKind } from './units.ts';
 import { CommandKind } from './commands.ts';
@@ -47,9 +46,16 @@ describe('releasing a worker', () => {
     const hut = addBuiltHut(world, 40, 40);
     hut.stock = { [GoodId.wood]: OUTPUT_CAP };
     const worker = world.units.get(hut.workerId!)!;
-    worker.task = { t: UnitTaskKind.gatherWork, tile: tileIdx(40, 41, world.map.size), until: 999_999 };
+    worker.task = {
+      t: UnitTaskKind.gatherWork,
+      tile: tileIdx(40, 41, world.map.size),
+      until: 999_999,
+    };
 
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: hut.id, paused: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingPaused, buildingId: hut.id, paused: true }),
+    );
 
     expect(worker.kind).toBe(UnitTypeId.serf);
     // Idle, or already claimed for a haul — either is in the pool. What is
@@ -63,7 +69,11 @@ describe('releasing a worker', () => {
     addResourceTile(world, 40, 41);
     const hut = addBuiltHut(world, 40, 40);
     const worker = world.units.get(hut.workerId!)!;
-    worker.task = { t: UnitTaskKind.gatherWork, tile: tileIdx(40, 41, world.map.size), until: 999_999 };
+    worker.task = {
+      t: UnitTaskKind.gatherWork,
+      tile: tileIdx(40, 41, world.map.size),
+      until: 999_999,
+    };
 
     tickWorld(world, cmds({ kind: CommandKind.sellBuilding, buildingId: hut.id }));
 
@@ -131,7 +141,10 @@ describe('the population economy', () => {
     addSerf(world, 34, 34);
     addSerf(world, 33, 34); // one hauls, one enlists
     const peopleBefore = [...world.units.values()].filter((u) => !u.dead).length;
-    tickWorld(world, cmds({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: UnitTypeId.spearman }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: UnitTypeId.spearman }),
+    );
     run(world, 20 * 90);
 
     const spearman = [...world.units.values()].filter((u) => u.kind === UnitTypeId.spearman);

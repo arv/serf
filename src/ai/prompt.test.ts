@@ -3,12 +3,10 @@ import { createWorld } from '../sim/world.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
 import { strategyOf } from '../sim/defs/aiStrategies.ts';
 import { buildMessages, extractSummary } from './prompt.ts';
-import { POSTURES, POSTURE_ORDER, postureAdvice } from './posture.ts';
+import { POSTURES, POSTURE_ORDER, postureAdvice, PostureId, POSTURE_KEYS } from './posture.ts';
 import { toOverride } from './advice.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
 import { PlayerKind } from '../sim/player.ts';
-import { PostureId } from './posture.ts';
-import { POSTURE_KEYS } from './posture.ts';
 
 /**
  * The prompt is judged on the two things that matter to a small model:
@@ -17,7 +15,10 @@ import { POSTURE_KEYS } from './posture.ts';
  */
 
 function summaries(): { first: AiWorldSummary; later: AiWorldSummary } {
-  const world = createWorld({ seed: 5, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }] });
+  const world = createWorld({
+    seed: 5,
+    players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
+  });
   const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
   brain.decide(world); // one beat, so vision exists
   const first = summarizeForSeat(world, brain);
@@ -65,7 +66,11 @@ describe('buildMessages', () => {
 
   it('names the standing posture without quoting the numbers under it', () => {
     const { first, later } = summaries();
-    const advice = { ...postureAdvice(PostureId.siege), posture: PostureId.siege, reason: 'castle found' };
+    const advice = {
+      ...postureAdvice(PostureId.siege),
+      posture: PostureId.siege,
+      reason: 'castle found',
+    };
     const withAdvice = buildMessages(later, advice, first);
     expect(withAdvice[1]!.content).toContain('standing posture is "siege"');
     // The stance's knob blob must not ride along: see the note in
@@ -96,7 +101,11 @@ describe('buildMessages', () => {
 
   it('holds the token budget: the whole prompt stays small', () => {
     const { first, later } = summaries();
-    const total = buildMessages(later, { ...postureAdvice(PostureId.siege), posture: PostureId.siege }, first)
+    const total = buildMessages(
+      later,
+      { ...postureAdvice(PostureId.siege), posture: PostureId.siege },
+      first,
+    )
       .map((m) => m.content)
       .join('').length;
     // ~4 chars per token: 4500 chars keeps the prompt near the 900-token

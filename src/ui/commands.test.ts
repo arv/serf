@@ -1,13 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDING_DEFS } from '../sim/defs/buildings';
-import { UNIT_DEFS } from '../sim/defs/units';
+import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../sim/defs/buildings';
+import { UNIT_DEFS, UnitTypeId, UNIT_TYPES } from '../sim/defs/units';
 import { HIRE_KEY, RESEARCH_KEY, TRAIN_KEYS, trainKey, trainingForKey } from './commands';
 import { BUILD_KEYS } from './buildMenu';
 import type { BuildingSnap } from '../protocol/messages';
-import { UnitTypeId } from '../sim/defs/units';
-import { UNIT_TYPES } from '../sim/defs/units';
-import { BuildingTypeId } from '../sim/defs/buildings';
-import { BUILDING_TYPES } from '../sim/defs/buildings';
 
 const TYPES = BUILDING_TYPES;
 /** Every unit any building can be ordered to drill. */

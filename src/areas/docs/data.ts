@@ -1,19 +1,17 @@
 import { HIRE_SERF_COST, START_STOCK, TICKS_PER_SECOND } from '../../sim/defs/balance';
-import { BUILDING_DEFS, TOOL_OF, outputGoodsOf, type Recipe } from '../../sim/defs/buildings';
-import { GOODS, type GoodAmounts } from '../../sim/defs/goods';
-import { TECH_DEFS, type TechId } from '../../sim/defs/techs';
-import { UNIT_DEFS, WEAPON_OF } from '../../sim/defs/units';
+import {
+  BUILDING_DEFS,
+  TOOL_OF,
+  outputGoodsOf,
+  type Recipe,
+  BuildingTypeId,
+  BUILDING_TYPES,
+  RecipeKind,
+} from '../../sim/defs/buildings';
+import { GOODS, type GoodAmounts, GoodId, goodEntries, goodKeys } from '../../sim/defs/goods';
+import { TECH_DEFS, type TechId, TechEffectKind, TECH_IDS } from '../../sim/defs/techs';
+import { UNIT_DEFS, WEAPON_OF, UnitTypeId, UNIT_TYPES } from '../../sim/defs/units';
 import { BUILD_GROUPS } from '../../ui/buildMenu';
-import { GoodId } from '../../sim/defs/goods';
-import { goodEntries } from '../../sim/defs/goods';
-import { goodKeys } from '../../sim/defs/goods';
-import { UnitTypeId } from '../../sim/defs/units';
-import { UNIT_TYPES } from '../../sim/defs/units';
-import { BuildingTypeId } from '../../sim/defs/buildings';
-import { BUILDING_TYPES } from '../../sim/defs/buildings';
-import { TechEffectKind } from '../../sim/defs/techs';
-import { TECH_IDS } from '../../sim/defs/techs';
-import { RecipeKind } from '../../sim/defs/buildings';
 
 /**
  * The cross-reference graph the wiki walks: every "produced by / used by /
@@ -35,7 +33,11 @@ export const ALL_TECHS: readonly TechId[] = TECH_IDS;
  * raider rendered as owner 0 comes out in player one's green, where
  * factionTint(BANDIT) deliberately leaves the pack's own grim look alone.
  */
-export const RAIDER_UNITS: UnitTypeId[] = [UnitTypeId.bandit, UnitTypeId.banditArcher, UnitTypeId.marauder];
+export const RAIDER_UNITS: UnitTypeId[] = [
+  UnitTypeId.bandit,
+  UnitTypeId.banditArcher,
+  UnitTypeId.marauder,
+];
 export const RAIDER_BUILDINGS: BuildingTypeId[] = [BuildingTypeId.banditCamp];
 
 /**
@@ -147,7 +149,13 @@ function buildProducedBy(): Map<GoodId, ProducerRef[]> {
   for (const id of ALL_BUILDINGS) {
     const def = BUILDING_DEFS[id];
     if (def.recipe) {
-      producersFrom(id, def.recipe, def.recipe.kind === RecipeKind.gather ? 'gather' : 'convert', undefined, map);
+      producersFrom(
+        id,
+        def.recipe,
+        def.recipe.kind === RecipeKind.gather ? 'gather' : 'convert',
+        undefined,
+        map,
+      );
     }
     for (const opt of def.recipeOptions ?? []) {
       producersFrom(id, opt.recipe, 'forge', opt.requiresTech, map);
@@ -169,7 +177,8 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
       push(map, good, { kind: 'repair', building: id });
     }
     if (def.recipe?.kind === RecipeKind.convert) {
-      for (const good of goodsOf(def.recipe.inputs)) push(map, good, { kind: 'recipe', building: id });
+      for (const good of goodsOf(def.recipe.inputs))
+        push(map, good, { kind: 'recipe', building: id });
     }
     // One entry per good per building, not per forge option: nine Smith
     // recipes eating iron is one line on the iron page, not five.
@@ -219,8 +228,14 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
   return map;
 }
 
-function buildTrainedAt(): Map<UnitTypeId, { building: BuildingTypeId; cost: GoodAmounts; durationTicks: number }> {
-  const map = new Map<UnitTypeId, { building: BuildingTypeId; cost: GoodAmounts; durationTicks: number }>();
+function buildTrainedAt(): Map<
+  UnitTypeId,
+  { building: BuildingTypeId; cost: GoodAmounts; durationTicks: number }
+> {
+  const map = new Map<
+    UnitTypeId,
+    { building: BuildingTypeId; cost: GoodAmounts; durationTicks: number }
+  >();
   for (const id of ALL_BUILDINGS) {
     for (const t of BUILDING_DEFS[id].trains ?? []) {
       map.set(t.unit, { building: id, cost: t.cost, durationTicks: t.durationTicks });

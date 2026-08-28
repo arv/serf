@@ -1,7 +1,6 @@
-import type { World } from './world.ts';
+import type { World, HaulJob } from './world.ts';
 import type { Building } from './entities.ts';
 import type { Unit } from './units.ts';
-import type { HaulJob } from './world.ts';
 import type { GoodAmounts } from './defs/goods.ts';
 import type { PlayerState } from './player.ts';
 

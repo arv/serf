@@ -65,7 +65,10 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
         'Bread is a chain: well → wheat farm → mill → bakery. Water twice — ' +
         'the bakery drinks too. Select any workshop to watch its buffers.',
     },
-    { text: 'Raise a Well. Drawing water is a chore serfs run, not a post anyone holds.', objective: 0 },
+    {
+      text: 'Raise a Well. Drawing water is a chore serfs run, not a post anyone holds.',
+      objective: 0,
+    },
     { text: 'A Wheat Farm next — flat grass near the castle serves fine.', objective: 1 },
     {
       text: 'Now the Mill. One mill serves two farms: it grinds faster than they grow.',

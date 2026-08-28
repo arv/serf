@@ -40,4 +40,6 @@ cam.position.set(0, 20, 0.001);
 cam.lookAt(0, 0, 0);
 cam.updateProjectionMatrix();
 r.render(scene, cam);
-console.log('plan rendered (red line = z axis at x=0, blue = x axis at z=0; +z is DOWN the image, +x RIGHT)');
+console.log(
+  'plan rendered (red line = z axis at x=0, blue = x axis at z=0; +z is DOWN the image, +x RIGHT)',
+);

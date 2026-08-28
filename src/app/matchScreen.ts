@@ -64,7 +64,7 @@ import {
   setAudioView,
 } from '../audio/audio';
 import { markMissionComplete } from '../ui/campaign';
-import { MISSION_DEFS } from '../sim/defs/missions';
+import { MISSION_DEFS, MISSION_KEYS } from '../sim/defs/missions';
 import { Terrain } from '../sim/map';
 import { inBounds, tileCount, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
@@ -81,9 +81,7 @@ import type { Screen } from './screen';
 import { fatal } from './fatalScreen';
 import { stashGet, stashSet } from './stash';
 import { BuildingTypeId } from '../sim/defs/buildings';
-import { GameEventKind } from '../sim/world';
-import { MISSION_KEYS } from '../sim/defs/missions';
-import { MatchState } from '../sim/world';
+import { GameEventKind, MatchState } from '../sim/world';
 import { PlayerKind } from '../sim/player';
 import { LlmState } from '../ai/strategist';
 

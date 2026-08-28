@@ -20,11 +20,10 @@ import {
   firstRaidTickFor,
   raidIntervalFor,
 } from '../../../sim/defs/balance';
-import { BUILDING_DEFS } from '../../../sim/defs/buildings';
+import { BUILDING_DEFS, BuildingTypeId } from '../../../sim/defs/buildings';
 import { fmtSecs } from '../data';
 import { CostList, Section, Stat, Stats } from '../components';
 import { Prose } from '../prose';
-import { BuildingTypeId } from '../../../sim/defs/buildings';
 import { UnitClass } from '../../../sim/defs/units';
 
 /** The map the raid clock is quoted against — the size every other number
@@ -44,7 +43,9 @@ export function BasicsPage(): JSX.Element {
       <Section title="Opening">
         <Stats>
           <Stat label="Serfs">{START_SERFS}</Stat>
-          <Stat label="Beds">{BUILDING_DEFS[BuildingTypeId.storehouse].housing}, in the castle</Stat>
+          <Stat label="Beds">
+            {BUILDING_DEFS[BuildingTypeId.storehouse].housing}, in the castle
+          </Stat>
           <Stat label="Stock">
             <CostList amounts={START_STOCK} />
           </Stat>
@@ -100,8 +101,8 @@ export function BasicsPage(): JSX.Element {
       </Section>
       <Section title="Time">
         <p class="lede">
-          The game keeps time in ticks — {TICKS_PER_SECOND} to the second. Every duration in
-          this guide is given in seconds.
+          The game keeps time in ticks — {TICKS_PER_SECOND} to the second. Every duration in this
+          guide is given in seconds.
         </p>
       </Section>
     </>

@@ -1,11 +1,10 @@
 import * as THREE from 'three';
 import type { BuildingTypeId } from '../sim/entities';
-import { GOODS } from '../sim/defs/goods';
+import { GOODS, GoodId } from '../sim/defs/goods';
 import { makeGlbBuilding, glbCarryProp } from './assets';
 import { mapMaterials } from './materials';
 import { goodColors as goodColorsLocal, rock, stalk, stoneRoad, wood, woodLight } from './palette';
 import { planks, plaster, roofTiles, stoneBlocks, thatch } from './buildingTextures';
-import { GoodId } from '../sim/defs/goods';
 
 export { goodColors } from './palette';
 
@@ -66,11 +65,7 @@ export function makeRoadPile(): THREE.Group {
   return g;
 }
 
-export function makeGhostModel(
-  type: BuildingTypeId,
-  opacity = 0.45,
-  owner = 0,
-): THREE.Group {
+export function makeGhostModel(type: BuildingTypeId, opacity = 0.45, owner = 0): THREE.Group {
   // Preview whatever model will actually be built, in your colors.
   // (Only road sites have no GLB; they preview as the wood pile marker.)
   const g = makeGlbBuilding(type, owner) ?? makeRoadPile();
@@ -236,7 +231,10 @@ function carryProto(good: GoodId): THREE.Group {
       break;
     }
     case GoodId.spear: {
-      const shaft = mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.05, 5), goodColorsLocal[GoodId.spear]);
+      const shaft = mesh(
+        new THREE.CylinderGeometry(0.022, 0.022, 1.05, 5),
+        goodColorsLocal[GoodId.spear],
+      );
       shaft.rotation.z = Math.PI / 2;
       shaft.rotation.y = 0.25;
       add(shaft);
@@ -249,7 +247,10 @@ function carryProto(good: GoodId): THREE.Group {
       break;
     }
     case GoodId.bow: {
-      const bow = mesh(new THREE.TorusGeometry(0.26, 0.022, 5, 10, Math.PI), goodColorsLocal[GoodId.bow]);
+      const bow = mesh(
+        new THREE.TorusGeometry(0.26, 0.022, 5, 10, Math.PI),
+        goodColorsLocal[GoodId.bow],
+      );
       bow.rotation.z = Math.PI / 2;
       add(bow);
       g.position.y = 0.85;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
-import { buildingDef, repairBill } from './defs/buildings.ts';
+import { buildingDef, repairBill, BuildingTypeId } from './defs/buildings.ts';
 import { REPAIR_MEND_TICKS } from './defs/balance.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
 import {
@@ -15,7 +15,6 @@ import {
   staffBuilding,
 } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
 import { CommandKind } from './commands.ts';
 
 function run(world: World, ticks: number): void {
@@ -55,7 +54,10 @@ describe('repairing a building', () => {
     hut.hp = max * 0.2;
     const initial = countGoods(world);
 
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }),
+    );
     // Half the build price, scaled by the four fifths that is broken.
     expect(hut.repairNeeds).toEqual({ [GoodId.wood]: Math.ceil(6 * 0.8 * 0.5) });
 
@@ -75,12 +77,18 @@ describe('repairing a building', () => {
 
     // The keep costs nothing to raise, so `cost` cannot price its repair.
     expect(buildingDef(BuildingTypeId.storehouse).cost).toEqual({});
-    expect(repairBill(BuildingTypeId.storehouse, max / 2)).toEqual({ [GoodId.wood]: 5, [GoodId.stone]: 3 });
+    expect(repairBill(BuildingTypeId.storehouse, max / 2)).toEqual({
+      [GoodId.wood]: 5,
+      [GoodId.stone]: 3,
+    });
 
     // ...and it is repaired out of the pile inside it: nobody carries a plank
     // out of the castle door to hand it back in through the same door, and
     // no haul could, since a job's source is never its destination.
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: sh.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: sh.id, repair: true }),
+    );
     expect(sh.repairNeeds).toBeUndefined(); // the whole bill was settled at once
     expect(sh.stock[GoodId.wood]).toBe(35);
     expect(sh.stock[GoodId.stone]).toBe(37);
@@ -102,7 +110,10 @@ describe('repairing a building', () => {
     const max = buildingDef(BuildingTypeId.storehouse).hp;
     sh.hp = max - 40;
 
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: sh.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: sh.id, repair: true }),
+    );
     const rate = max / REPAIR_MEND_TICKS;
     // One tick of masonry per tick, and no more — a 40 hp scratch is half a
     // second of work, not a step change on the tick it is paid.
@@ -123,20 +134,29 @@ describe('repairing a building', () => {
     const max = buildingDef(BuildingTypeId.storehouse).hp;
     sh.hp = max / 2;
 
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: sh.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: sh.id, repair: true }),
+    );
     const spent = { [GoodId.wood]: sh.stock[GoodId.wood], [GoodId.stone]: sh.stock[GoodId.stone] };
 
     // The masons are still at work and the building still reads as damaged,
     // but every point of that damage is bought: a second order takes nothing.
     run(world, 20);
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: sh.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: sh.id, repair: true }),
+    );
     expect(sh.repairNeeds).toBeUndefined();
     expect(sh.stock[GoodId.wood]).toBe(spent[GoodId.wood]);
     expect(sh.stock[GoodId.stone]).toBe(spent[GoodId.stone]);
 
     // Fresh damage on top of a running mend is a fresh bill, though.
     sh.hp -= 100;
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: sh.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: sh.id, repair: true }),
+    );
     expect(sh.stock[GoodId.wood]).toBeLessThan(spent[GoodId.wood]!);
     runRepair(world, sh.id);
     expect(sh.hp).toBe(max);
@@ -150,7 +170,10 @@ describe('repairing a building', () => {
     const max = buildingDef(BuildingTypeId.woodcutter).hp;
     hut.hp = max / 2;
 
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }),
+    );
     hut.hp -= 30; // the raiders come back while the masons are walking over
 
     runRepair(world, hut.id);
@@ -158,7 +181,10 @@ describe('repairing a building', () => {
     // the fresh 30 wants a fresh order.
     expect(hut.hp).toBe(max - 30);
 
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }),
+    );
     runRepair(world, hut.id);
     expect(hut.hp).toBe(max);
   });
@@ -171,11 +197,17 @@ describe('repairing a building', () => {
     hut.hp = 20;
     const initial = countGoods(world);
 
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }),
+    );
     run(world, 10); // a serf is on the road with a plank by now
     expect(world.jobs.size).toBeGreaterThan(0);
 
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: false }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: false }),
+    );
     expect(hut.repairNeeds).toBeUndefined();
     expect(hut.inbound[GoodId.wood] ?? 0).toBe(0);
 
@@ -196,10 +228,16 @@ describe('repairing a building', () => {
     const hut = addBuiltHut(world, 36, 30);
     hut.hp = 30;
 
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }),
+    );
     const first = { ...hut.repairNeeds };
     run(world, 5); // the matcher books the hauls
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }),
+    );
 
     expect(hut.repairNeeds).toEqual(first);
     // The old order's reservations went with it — no double booking.
@@ -217,14 +255,21 @@ describe('repairing a building', () => {
 
     // The smith forges from wood and mends with wood, so both errands book
     // hauls of the same good to the same door.
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: smith.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: smith.id, repair: true }),
+    );
     run(world, 5); // the matcher books them
-    const woodJobs = () => [...world.jobs.values()].filter((j) => j.to === smith.id && j.good === GoodId.wood);
+    const woodJobs = () =>
+      [...world.jobs.values()].filter((j) => j.to === smith.id && j.good === GoodId.wood);
     expect(woodJobs().filter((j) => j.repair).length).toBe(smith.repairNeeds![GoodId.wood]);
     const forging = woodJobs().filter((j) => !j.repair).length;
     expect(forging).toBeGreaterThan(0);
 
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: smith.id, repair: false }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: smith.id, repair: false }),
+    );
     expect(woodJobs().filter((j) => j.repair)).toEqual([]);
     expect(woodJobs().length).toBe(forging); // the forge's wood is still coming
     expect(checkInvariants(world).violations).toEqual([]);
@@ -237,23 +282,36 @@ describe('repairing a building', () => {
     const hut = addBuiltHut(world, 36, 30);
     const site = addSite(world, 44, 30);
 
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true }),
+    );
     expect(hut.repairNeeds).toBeUndefined(); // undamaged
 
     site.hp = 5;
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: site.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: site.id, repair: true }),
+    );
     expect(site.repairNeeds).toBeUndefined(); // a site heals as it rises
 
     hut.hp = 30;
     tickWorld(world, [
-      { playerId: 1, cmd: { kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true } },
+      {
+        playerId: 1,
+        cmd: { kind: CommandKind.setBuildingRepair, buildingId: hut.id, repair: true },
+      },
     ]);
     expect(hut.repairNeeds).toBeUndefined(); // not your building
   });
 
   it('a repaired workshop keeps working, and its inputs keep flowing', () => {
     const world = bareWorld();
-    const sh = addStorehouse(world, 30, 30, { [GoodId.wood]: 30, [GoodId.stone]: 10, [GoodId.iron]: 8 });
+    const sh = addStorehouse(world, 30, 30, {
+      [GoodId.wood]: 30,
+      [GoodId.stone]: 10,
+      [GoodId.iron]: 8,
+    });
     const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 36, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto)
     staffBuilding(world, smith);
@@ -263,7 +321,10 @@ describe('repairing a building', () => {
 
     // Wood is both what the smith forges with and what mends it; the two
     // demands share a building and a good without confusing each other.
-    tickWorld(world, cmds({ kind: CommandKind.setBuildingRepair, buildingId: smith.id, repair: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingRepair, buildingId: smith.id, repair: true }),
+    );
     runRepair(world, smith.id);
     expect(smith.hp).toBe(buildingDef(BuildingTypeId.weaponsmith).hp);
 
@@ -279,8 +340,14 @@ describe('repairing a building', () => {
 describe('the repair bill', () => {
   it('scales with the damage and is never free', () => {
     const max = buildingDef(BuildingTypeId.barracks).hp;
-    expect(repairBill(BuildingTypeId.barracks, max)).toEqual({ [GoodId.wood]: 6, [GoodId.stone]: 4 }); // half of 12/8
-    expect(repairBill(BuildingTypeId.barracks, max / 2)).toEqual({ [GoodId.wood]: 3, [GoodId.stone]: 2 });
+    expect(repairBill(BuildingTypeId.barracks, max)).toEqual({
+      [GoodId.wood]: 6,
+      [GoodId.stone]: 4,
+    }); // half of 12/8
+    expect(repairBill(BuildingTypeId.barracks, max / 2)).toEqual({
+      [GoodId.wood]: 3,
+      [GoodId.stone]: 2,
+    });
     // A scratch still costs a plank: the mason does not work for nothing.
     expect(repairBill(BuildingTypeId.barracks, 1)).toEqual({ [GoodId.wood]: 1, [GoodId.stone]: 1 });
     expect(repairBill(BuildingTypeId.barracks, 0)).toEqual({});

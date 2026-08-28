@@ -15,11 +15,9 @@
  * hat.
  */
 
-import type { CueDef } from './cues';
+import { type CueDef, BusId, BUS_IDS } from './cues';
 import type { PlayRequest } from './voices';
 import { AnimKey } from '../render/characters';
-import { BusId } from './cues';
-import { BUS_IDS } from './cues';
 
 /** Fixed design mix per bus; only master is player-facing for now. */
 const BUS_GAINS: Record<BusId, number> = {

@@ -7,9 +7,7 @@ import {
   buildingForKey,
   playerBuildable,
 } from './buildMenu';
-import { BUILDING_DEFS } from '../sim/defs/buildings';
-import { BuildingTypeId } from '../sim/defs/buildings';
-import { BUILDING_TYPES } from '../sim/defs/buildings';
+import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../sim/defs/buildings';
 
 const TYPES = BUILDING_TYPES;
 const inMenu = BUILD_GROUPS.flatMap((g) => g.types);

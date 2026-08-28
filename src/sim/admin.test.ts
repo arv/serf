@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CORPSE_TICKS } from './defs/balance.ts';
-import { BANDIT } from './entities.ts';
+import { BANDIT, BuildingState } from './entities.ts';
 import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
 import { checkInvariants, checkLedger, countGoods } from './debug/invariants.ts';
@@ -8,9 +8,7 @@ import { cmds, addSerf, addSite, addStorehouse, bareWorld } from './testUtils.ts
 import { GoodId } from './defs/goods.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { TechId } from './defs/techs.ts';
-import { BuildingState } from './entities.ts';
-import { CommandKind } from './commands.ts';
-import { AdminAction } from './commands.ts';
+import { CommandKind, AdminAction } from './commands.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);

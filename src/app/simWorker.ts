@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
-import { createWorldAsync, type World } from '../sim/world';
+import { createWorldAsync, type World, MatchState } from '../sim/world';
 import { deserializeWorld, serializeWorld } from '../sim/save';
-import { tickWorld } from '../sim/tick';
+import { tickWorld, type PlayerCommand } from '../sim/tick';
 import { MATCHER_INTERVAL, TICK_MS } from '../sim/defs/balance';
 import { checkInvariants, checkLedger, countGoods } from '../sim/debug/invariants';
 import { AiSeats } from '../sim/aiSeats';
@@ -11,11 +11,13 @@ import { snapBuildings, snapJobs, snapPlayers, unitSnapshots } from '../protocol
 import { REPLAY_VERSION } from '../shared/replayVersion';
 import { REPLAY_FORMAT, serializeReplay, type ReplayData } from './replay';
 import type { GoodAmounts } from '../sim/defs/goods';
-import type { PlayerCommand } from '../sim/tick';
-import type { MainToWorker, StructuralUpdate, WorkerToMain } from '../protocol/messages';
-import { MatchState } from '../sim/world';
-import { MainToWorkerKind } from '../protocol/messages';
-import { WorkerToMainKind } from '../protocol/messages';
+import {
+  type MainToWorker,
+  type StructuralUpdate,
+  type WorkerToMain,
+  MainToWorkerKind,
+  WorkerToMainKind,
+} from '../protocol/messages';
 
 /**
  * Single player: owns the World and the fixed-timestep loop, publishes unit
@@ -148,9 +150,7 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
             // The fog the match booted with, from the main thread (this
             // worker has no notion of what a seat has seen). Only rides a
             // replay that resumes from a save — the world it belongs to.
-            ...(recording.loadData !== undefined && msg.explored
-              ? { explored: msg.explored }
-              : {}),
+            ...(recording.loadData !== undefined && msg.explored ? { explored: msg.explored } : {}),
             commands: recording.commands,
             endTick: world.tick,
           }),
@@ -185,9 +185,10 @@ async function init(
   ai = replay ? null : new AiSeats(world);
   // First summaries only after the opening has taken shape — advice on an
   // empty valley would just be the model guessing at the map.
-  summaryDue = llm && ai
-    ? new Map(ai.seatIds().map((id, i) => [id, ADVICE_PERIOD + i * ADVICE_STAGGER]))
-    : null;
+  summaryDue =
+    llm && ai
+      ? new Map(ai.seatIds().map((id, i) => [id, ADVICE_PERIOD + i * ADVICE_STAGGER]))
+      : null;
   initialGoods = countGoods(world);
   const sab = new SharedArrayBuffer(SAB_BYTES);
   writer = new SabWriter(sab);
@@ -340,7 +341,8 @@ function postSummaries(): void {
     // Through the brain, not the raw world: the strategist may know only
     // what the seat has scouted.
     const brain = ai.brainFor(playerId);
-    if (brain) post({ type: WorkerToMainKind.aiSummary, playerId, summary: summarizeForSeat(world, brain) });
+    if (brain)
+      post({ type: WorkerToMainKind.aiSummary, playerId, summary: summarizeForSeat(world, brain) });
   }
 }
 

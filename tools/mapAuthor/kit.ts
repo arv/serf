@@ -63,10 +63,13 @@ import {
 import { WOOD_MAX_AMT } from '../../src/sim/defs/balance.ts';
 import { serializeMapFile } from '../../src/sim/mapFile.ts';
 import { canPlace } from '../../src/sim/world.ts';
-import { buildingDef, gatherOrigin, gatherRecipeOf } from '../../src/sim/defs/buildings.ts';
-import { BuildingTypeId } from '../../src/sim/defs/buildings.ts';
-import { BUILDING_KEYS } from '../../src/sim/defs/buildings.ts';
-
+import {
+  buildingDef,
+  gatherOrigin,
+  gatherRecipeOf,
+  BuildingTypeId,
+  BUILDING_KEYS,
+} from '../../src/sim/defs/buildings.ts';
 
 /** Below this field value a tile floods (worldgen's LAKE_LEVEL_T). */
 export const LAKE_LEVEL = 0.26;
@@ -530,7 +533,7 @@ export class Valley {
     /** Value noise around the perimeter, in [0,1], wrapping seamlessly. */
     const meander = (salt: number, p: number, wavelength: number): number => {
       const cells = Math.max(4, Math.round(perimeter / wavelength));
-      const f = (((p % perimeter) + perimeter) % perimeter / perimeter) * cells;
+      const f = ((((p % perimeter) + perimeter) % perimeter) / perimeter) * cells;
       const i0 = Math.floor(f);
       const t = ease01(f - i0);
       const a = hash2(this.grain + salt, i0 % cells);
@@ -647,10 +650,8 @@ export class Valley {
       // The domain warp is what makes a coast curl rather than merely
       // wobble: the field is sampled at a point that has itself been
       // moved by another field, at two scales.
-      const wx =
-        (this.noise(21, x, y, 47) - 0.5) * 30 + (this.noise(26, x, y, 15) - 0.5) * 11;
-      const wy =
-        (this.noise(22, x, y, 47) - 0.5) * 30 + (this.noise(27, x, y, 15) - 0.5) * 11;
+      const wx = (this.noise(21, x, y, 47) - 0.5) * 30 + (this.noise(26, x, y, 15) - 0.5) * 11;
+      const wy = (this.noise(22, x, y, 47) - 0.5) * 30 + (this.noise(27, x, y, 15) - 0.5) * 11;
       // Five octaves, and the first one is nearly half the map across.
       // That octave is what stops the LANDMASS being a rounded square: the
       // finer scales only ever decorate an outline, while a wavelength
@@ -993,9 +994,7 @@ export class Valley {
           d = Math.max(d, s.d);
         }
         const edgeH =
-          this.height[
-            this.idx(clamp(x, this.p0, this.p1 - 1), clamp(y, this.p0, this.p1 - 1))
-          ]!;
+          this.height[this.idx(clamp(x, this.p0, this.p1 - 1), clamp(y, this.p0, this.p1 - 1))]!;
         this.height[i] = Math.max(edgeH + (h - edgeH) * ease01(d / 2.5), edgeH - d * 0.4);
       }
     }
@@ -1025,13 +1024,7 @@ export class Valley {
     return this.scatter(TileResource.Rock, amt, c, r, density);
   }
 
-  private scatter(
-    res: TileResourceKind,
-    amt: number,
-    c: Pt,
-    r: number,
-    density: number,
-  ): number {
+  private scatter(res: TileResourceKind, amt: number, c: Pt, r: number, density: number): number {
     let placed = 0;
     // Room for the outline to bulge past the nominal radius.
     const R = Math.ceil(r * 1.5) + 1;
@@ -1412,9 +1405,7 @@ export interface Authored {
 
 /** Walkable in the sim's terms: playable, dry, and nothing standing on it. */
 function walkable(v: Valley, i: number): boolean {
-  return (
-    v.inPlay(i % v.size, (i / v.size) | 0) && !tileBlocks(v.terrain[i]!, v.resource[i]!)
-  );
+  return v.inPlay(i % v.size, (i / v.size) | 0) && !tileBlocks(v.terrain[i]!, v.resource[i]!);
 }
 
 /** Everything reachable on foot from a tile. */
@@ -1612,7 +1603,9 @@ export function audit(a: Authored): AuditReport {
       }
     }
     if (shore > WATER_ACCESS_RADIUS) {
-      problems.push(`${who}: no reachable shore within ${WATER_ACCESS_RADIUS} tiles (${shore.toFixed(1)})`);
+      problems.push(
+        `${who}: no reachable shore within ${WATER_ACCESS_RADIUS} tiles (${shore.toFixed(1)})`,
+      );
     } else lines.push(`  shore at ${shore.toFixed(1)}`);
 
     // Every deposit has to be walkable-to: a seam behind a lake is a seam
@@ -1704,8 +1697,12 @@ export function audit(a: Authored): AuditReport {
     const ox = a.starts[0]!.x + b.dx;
     const oy = a.starts[0]!.y + b.dy;
     const at = nearestSite(map, b.type, { x: ox, y: oy }, 6);
-    if (!at) problems.push(`prebuilt ${BUILDING_KEYS[b.type]} at ${b.dx},${b.dy}: no legal site within 5 tiles`);
-    else if (at.r > 3) lines.push(`  prebuilt ${BUILDING_KEYS[b.type]} slides ${at.r} tiles to find ground`);
+    if (!at)
+      problems.push(
+        `prebuilt ${BUILDING_KEYS[b.type]} at ${b.dx},${b.dy}: no legal site within 5 tiles`,
+      );
+    else if (at.r > 3)
+      lines.push(`  prebuilt ${BUILDING_KEYS[b.type]} slides ${at.r} tiles to find ground`);
   }
 
   // What a player can actually raise, how far they walk to do it, and —

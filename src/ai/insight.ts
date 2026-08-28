@@ -1,8 +1,7 @@
 import { TICK_MS } from '../sim/defs/balance.ts';
 import type { StrategyAdvice } from './advice.ts';
 import type { SeatKnobs } from './summary.ts';
-import { UNIT_KEYS } from '../sim/defs/units.ts';
-import { UnitTypeId } from '../sim/defs/units.ts';
+import { UNIT_KEYS, UnitTypeId } from '../sim/defs/units.ts';
 
 /**
  * Advice → English, for the dev overlay. The model speaks in knob JSON;

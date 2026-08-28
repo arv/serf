@@ -1,5 +1,4 @@
-import { For, Show, createEffect, createSignal } from 'solid-js';
-import type { JSX } from 'solid-js';
+import { For, Show, createEffect, createSignal, type JSX } from 'solid-js';
 import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
 import type { TechId } from '../sim/defs/techs';
 import type { UnitTypeId } from '../sim/defs/units';
@@ -11,7 +10,8 @@ import { SelectionPanel } from './SelectionPanel';
 import { AdminPanel } from './AdminPanel';
 import { MissionPanel, continueTarget } from './MissionPanel';
 import { Minimap, type MinimapSource } from './Minimap';
-import { LedgerIcon,
+import {
+  LedgerIcon,
   EyeIcon,
   EyeOffIcon,
   FastIcon,
@@ -84,14 +84,12 @@ import {
   type OrderMode,
 } from './store';
 import { play } from '../audio/audio';
-import { GoodId } from '../sim/defs/goods';
-import { goodEntries } from '../sim/defs/goods';
+import { GoodId, goodEntries } from '../sim/defs/goods';
 import { MatchState } from '../sim/world';
 import { NetState } from '../protocol/messages';
 import { HudPanel } from './store';
 import { MinimapMode } from './Minimap.tsx';
-import { LlmState } from '../ai/strategist';
-import { CONSULT_OUTCOME_KEYS } from '../ai/strategist';
+import { LlmState, CONSULT_OUTCOME_KEYS } from '../ai/strategist';
 
 const SPEEDS = [
   { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },
@@ -368,7 +366,10 @@ export function Hud(props: {
           </Show>
           <button
             {...tooltip(() => (
-              <TextTip title="Muster the army" body="Selects every soldier you own, wherever they are." />
+              <TextTip
+                title="Muster the army"
+                body="Selects every soldier you own, wherever they are."
+              />
             ))}
             onClick={() => props.onSelectArmy()}
           >
@@ -1627,497 +1628,504 @@ export function Hud(props: {
       `}</style>
 
       <div class="hud-top">
-      <div class="hud-resources">
-        <div class="panel">
-          <For each={HUD_GOODS}>
-            {(good) => (
-              <span
-                class="res"
-                classList={{ has: (stock()[good] ?? 0) > 0 }}
-                {...tooltip(() => <GoodTip good={good} />)}
-              >
-                <GoodIcon good={good} /> <span class="num">{stock()[good] ?? 0}</span>
-              </span>
-            )}
-          </For>
-          <span
-            class="res pop has"
-            classList={{ full: population().pop >= population().cap }}
-            {...tooltip(() => (
-              <TextTip
-                title="Population"
-                body={
-                  population().pop >= population().cap
-                    ? 'Every bed is taken — build a house before you hire again. Workers and soldiers are counted too: each one was a serf.'
-                    : 'Everyone you own: idle serfs, the workers inside your buildings, and your soldiers. The castle sleeps 10; each house adds 10 more.'
-                }
-              />
-            ))}
-          >
-            <PopIcon /> <span class="num">{population().pop}</span>/
-            <span class="num cap">{population().cap}</span>
-          </span>
-          {/* The ledger: the rest of the goods live behind this chip.
-              A button styled as a chip, ruled off like population — it
-              is not a good either, it is where the other twelve went. */}
-          <button
-            class="res ledger has"
-            classList={{ active: economyPanelOpen() }}
-            {...tooltip(() => (
-              <TextTip
-                title="The Ledger"
-                body="Every good the village owns, grouped — arms, tools, and all. The strip keeps only the handful you watch constantly."
-              />
-            ))}
-            onClick={() => setEconomyPanelOpen(!economyPanelOpen())}
-          >
-            <LedgerIcon />
-          </button>
-        </div>
-      </div>
-
-      <div class="hud-chrome">
-      {/* The speed cluster comes first and the ☰ last: in a
-          right-anchored row that pins the menu button to the corner
-          and lets the chips beside it grow away into open sky. */}
-      <Show when={!netMode() || netStatus()?.state === NetState.ok}>
-      <div class="hud-speed panel" classList={{ single: speedIsSingle() }}>
-        <Show when={netMode() && netStatus()?.state === NetState.ok}>
-          <span
-            class="net-chip"
-            {...tooltip(() => (
-              <TextTip title="Connection" body="Round-trip to the relay and prediction lead." />
-            ))}
-          >
-            ⇄ <span class="num">{(netStatus() as { rttMs: number }).rttMs}</span>ms
-          </span>
-        </Show>
-        <Show when={!netMode()}>
-          <Show when={replayMode()}>
+        <div class="hud-resources">
+          <div class="panel">
+            <For each={HUD_GOODS}>
+              {(good) => (
+                <span
+                  class="res"
+                  classList={{ has: (stock()[good] ?? 0) > 0 }}
+                  {...tooltip(() => <GoodTip good={good} />)}
+                >
+                  <GoodIcon good={good} /> <span class="num">{stock()[good] ?? 0}</span>
+                </span>
+              )}
+            </For>
             <span
-              class="net-chip"
-              {...tooltip(() => (
-                <TextTip title="Replay" body="Watching a recording — orders have no effect." />
-              ))}
-            >
-              Replay
-            </span>
-            {/* The recording is a finished match, so lifting the fog is
-                spectating rather than cheating — the live game keeps this
-                behind the admin panel. Render-only: playback is unchanged. */}
-            <button
-              class="icon"
-              classList={{ active: !fogEnabled() }}
+              class="res pop has"
+              classList={{ full: population().pop >= population().cap }}
               {...tooltip(() => (
                 <TextTip
-                  title={fogEnabled() ? 'Reveal the valley' : 'Fog of war'}
+                  title="Population"
                   body={
-                    (fogEnabled()
-                      ? 'Turns fog of war off to watch the whole map, rivals and all.'
-                      : 'Turns fog of war back on — see only what this seat saw.') +
-                    (hasKeyboard() ? ' (F)' : '')
+                    population().pop >= population().cap
+                      ? 'Every bed is taken — build a house before you hire again. Workers and soldiers are counted too: each one was a serf.'
+                      : 'Everyone you own: idle serfs, the workers inside your buildings, and your soldiers. The castle sleeps 10; each house adds 10 more.'
                   }
                 />
               ))}
-              onClick={() => setFogEnabled(!fogEnabled())}
             >
-              {fogEnabled() ? <EyeOffIcon /> : <EyeIcon />}
-            </button>
-            <span class="div"></span>
-          </Show>
-          <Show
-            when={isCompact()}
-            fallback={
-              <For each={speeds()}>
-                {(s) => (
-                  <button
-                    class="icon"
-                    classList={{ active: speed() === s.value }}
-                    {...tooltip(() => <TextTip title={s.label} body={s.hint} />)}
-                    onClick={() => props.onSpeed(s.value)}
-                  >
-                    <s.icon />
-                  </button>
-                )}
-              </For>
-            }
-          >
-            {/* One thumb, one button: each tap steps play -> fast -> pause.
-                The icon shows the state you are in, gold when time is not
-                running normally. */}
+              <PopIcon /> <span class="num">{population().pop}</span>/
+              <span class="num cap">{population().cap}</span>
+            </span>
+            {/* The ledger: the rest of the goods live behind this chip.
+              A button styled as a chip, ruled off like population — it
+              is not a good either, it is where the other twelve went. */}
             <button
-              class="icon"
-              classList={{ active: speed() !== 1 }}
+              class="res ledger has"
+              classList={{ active: economyPanelOpen() }}
               {...tooltip(() => (
                 <TextTip
-                  title={speeds().find((s) => s.value === speed())?.label ?? 'Speed'}
-                  body="Taps cycle play, fast forward, pause."
+                  title="The Ledger"
+                  body="Every good the village owns, grouped — arms, tools, and all. The strip keeps only the handful you watch constantly."
                 />
               ))}
-              onClick={() => {
-                const order = replayMode() ? [1, 3, REPLAY_SPEED.value, 0] : [1, 3, 0];
-                const next = order[(order.indexOf(speed()) + 1) % order.length]!;
-                props.onSpeed(next);
-              }}
+              onClick={() => setEconomyPanelOpen(!economyPanelOpen())}
             >
-              {(() => {
-                const s = speeds().find((x) => x.value === speed()) ?? SPEEDS[1]!;
-                return <s.icon />;
-              })()}
+              <LedgerIcon />
             </button>
-          </Show>
-        </Show>
-      </div>
-      </Show>
-      <button
-        class="hud-menu-btn panel"
-        classList={{ active: menuOpen() }}
-        {...tooltip(() => <TextTip title="Menu" body="Save, load, or leave the village." />)}
-        onClick={() => setMenuOpen(!menuOpen())}
-      >
-        ☰
-      </button>
-      </div>
+          </div>
+        </div>
 
-      {/* Row two of the top grid: everything that comes and goes.
+        <div class="hud-chrome">
+          {/* The speed cluster comes first and the ☰ last: in a
+          right-anchored row that pins the menu button to the corner
+          and lets the chips beside it grow away into open sky. */}
+          <Show when={!netMode() || netStatus()?.state === NetState.ok}>
+            <div class="hud-speed panel" classList={{ single: speedIsSingle() }}>
+              <Show when={netMode() && netStatus()?.state === NetState.ok}>
+                <span
+                  class="net-chip"
+                  {...tooltip(() => (
+                    <TextTip
+                      title="Connection"
+                      body="Round-trip to the relay and prediction lead."
+                    />
+                  ))}
+                >
+                  ⇄ <span class="num">{(netStatus() as { rttMs: number }).rttMs}</span>ms
+                </span>
+              </Show>
+              <Show when={!netMode()}>
+                <Show when={replayMode()}>
+                  <span
+                    class="net-chip"
+                    {...tooltip(() => (
+                      <TextTip
+                        title="Replay"
+                        body="Watching a recording — orders have no effect."
+                      />
+                    ))}
+                  >
+                    Replay
+                  </span>
+                  {/* The recording is a finished match, so lifting the fog is
+                spectating rather than cheating — the live game keeps this
+                behind the admin panel. Render-only: playback is unchanged. */}
+                  <button
+                    class="icon"
+                    classList={{ active: !fogEnabled() }}
+                    {...tooltip(() => (
+                      <TextTip
+                        title={fogEnabled() ? 'Reveal the valley' : 'Fog of war'}
+                        body={
+                          (fogEnabled()
+                            ? 'Turns fog of war off to watch the whole map, rivals and all.'
+                            : 'Turns fog of war back on — see only what this seat saw.') +
+                          (hasKeyboard() ? ' (F)' : '')
+                        }
+                      />
+                    ))}
+                    onClick={() => setFogEnabled(!fogEnabled())}
+                  >
+                    {fogEnabled() ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                  <span class="div"></span>
+                </Show>
+                <Show
+                  when={isCompact()}
+                  fallback={
+                    <For each={speeds()}>
+                      {(s) => (
+                        <button
+                          class="icon"
+                          classList={{ active: speed() === s.value }}
+                          {...tooltip(() => <TextTip title={s.label} body={s.hint} />)}
+                          onClick={() => props.onSpeed(s.value)}
+                        >
+                          <s.icon />
+                        </button>
+                      )}
+                    </For>
+                  }
+                >
+                  {/* One thumb, one button: each tap steps play -> fast -> pause.
+                The icon shows the state you are in, gold when time is not
+                running normally. */}
+                  <button
+                    class="icon"
+                    classList={{ active: speed() !== 1 }}
+                    {...tooltip(() => (
+                      <TextTip
+                        title={speeds().find((s) => s.value === speed())?.label ?? 'Speed'}
+                        body="Taps cycle play, fast forward, pause."
+                      />
+                    ))}
+                    onClick={() => {
+                      const order = replayMode() ? [1, 3, REPLAY_SPEED.value, 0] : [1, 3, 0];
+                      const next = order[(order.indexOf(speed()) + 1) % order.length]!;
+                      props.onSpeed(next);
+                    }}
+                  >
+                    {(() => {
+                      const s = speeds().find((x) => x.value === speed()) ?? SPEEDS[1]!;
+                      return <s.icon />;
+                    })()}
+                  </button>
+                </Show>
+              </Show>
+            </div>
+          </Show>
+          <button
+            class="hud-menu-btn panel"
+            classList={{ active: menuOpen() }}
+            {...tooltip(() => <TextTip title="Menu" body="Save, load, or leave the village." />)}
+            onClick={() => setMenuOpen(!menuOpen())}
+          >
+            ☰
+          </button>
+        </div>
+
+        {/* Row two of the top grid: everything that comes and goes.
           It begins wherever the strip and the chrome above it
           happened to end, so a goods strip that wraps pushes the
           rails down instead of being drawn through by them. */}
-      <div class="hud-rails">
-        {/* Left rail: the standing account of who you are and how the
+        <div class="hud-rails">
+          {/* Left rail: the standing account of who you are and how the
             machinery under the match is doing. */}
-        <div class="hud-rail left">
-          <Show when={llmBadge()}>{(text) => <div class="hud-llm panel">{text()}</div>}</Show>
-          <MissionPanel onSpeed={props.onSpeed} />
-        </div>
+          <div class="hud-rail left">
+            <Show when={llmBadge()}>{(text) => <div class="hud-llm panel">{text()}</div>}</Show>
+            <MissionPanel onSpeed={props.onSpeed} />
+          </div>
 
-        {/* Centre rail, under the goods strip: what the village is busy
+          {/* Centre rail, under the goods strip: what the village is busy
             with, and what has gone wrong. Ordered by how long each stays
             — a study runs for minutes, a broken connection is meant to
             be read and gone. */}
-        <div class="hud-rail center">
-          <Show when={techs().active}>
-            {(a) => (
-              <button
-                class="research-chip panel"
-                {...tooltip(() => (
-                  <TextTip
-                    title={techName(a().tech)}
-                    body="Being researched — click to open the tech tree."
+          <div class="hud-rail center">
+            <Show when={techs().active}>
+              {(a) => (
+                <button
+                  class="research-chip panel"
+                  {...tooltip(() => (
+                    <TextTip
+                      title={techName(a().tech)}
+                      body="Being researched — click to open the tech tree."
+                    />
+                  ))}
+                  onClick={() => setTechPanelOpen(true)}
+                >
+                  <span
+                    class="fill"
+                    style={{ width: `${Math.round((1 - a().ticksLeft / a().totalTicks) * 100)}%` }}
                   />
-                ))}
-                onClick={() => setTechPanelOpen(true)}
-              >
-                <span
-                  class="fill"
-                  style={{ width: `${Math.round((1 - a().ticksLeft / a().totalTicks) * 100)}%` }}
-                />
-                <span class="label">⚗ {techName(a().tech)}</span>
-              </button>
-            )}
-          </Show>
-          <Show when={techs().festivalTicksLeft > 0}>
-            <div class="hud-festival panel">Festival! Everyone works faster</div>
-          </Show>
-          {/* Posts standing open for tools. In the rail, not the strip,
+                  <span class="label">⚗ {techName(a().tech)}</span>
+                </button>
+              )}
+            </Show>
+            <Show when={techs().festivalTicksLeft > 0}>
+              <div class="hud-festival panel">Festival! Everyone works faster</div>
+            </Show>
+            {/* Posts standing open for tools. In the rail, not the strip,
               for the research chip's reason: a want coming and going
               must not shunt the goods sideways. Click opens the ledger. */}
-          <Show when={Object.keys(toolWants()).length > 0}>
-            <button
-              class="hud-toolwants panel"
-              {...tooltip(() => (
-                <TextTip
-                  title="Posts want tools"
-                  body="Buildings standing open until the Smith forges (or a hauler brings) the tool their worker needs. Sites count too — each borrows a hammer while it rises."
-                />
-              ))}
-              onClick={() => setEconomyPanelOpen(true)}
-            >
-              wants{' '}
-              <For each={goodEntries(toolWants())}>
-                {([good, n]) => (
-                  <span class="tw">
-                    <GoodIcon good={good} size={12} /> {n}
-                  </span>
+            <Show when={Object.keys(toolWants()).length > 0}>
+              <button
+                class="hud-toolwants panel"
+                {...tooltip(() => (
+                  <TextTip
+                    title="Posts want tools"
+                    body="Buildings standing open until the Smith forges (or a hauler brings) the tool their worker needs. Sites count too — each borrows a hammer while it rises."
+                  />
+                ))}
+                onClick={() => setEconomyPanelOpen(true)}
+              >
+                wants{' '}
+                <For each={goodEntries(toolWants())}>
+                  {([good, n]) => (
+                    <span class="tw">
+                      <GoodIcon good={good} size={12} /> {n}
+                    </span>
+                  )}
+                </For>
+              </button>
+            </Show>
+            <Show when={netMode() && netStatus()?.state === NetState.disconnected}>
+              <div class="hud-nettrouble panel">
+                Connection to the server lost. Reconnecting… — your seat is held, and the match
+                rides out even a server restart.
+              </div>
+            </Show>
+            <Show when={invariantViolations().length > 0}>
+              <div class="hud-violations panel">
+                {invariantViolations().length} invariant violation(s) — see console
+              </div>
+            </Show>
+          </div>
+
+          {/* Right rail, under the chrome it must not cover: notices, then
+            the diagnostics table dev builds open. */}
+          <div class="hud-rail right">
+            <div class="hud-toasts">
+              <For each={toasts()}>
+                {(t) => (
+                  <div
+                    class="panel toast"
+                    classList={{ clickable: !!t.focus }}
+                    onClick={() => {
+                      if (!t.focus) return;
+                      props.onFocus(t.focus.x, t.focus.y);
+                      dismissToast(t.id);
+                    }}
+                  >
+                    {t.text}
+                  </div>
                 )}
               </For>
-            </button>
-          </Show>
-          <Show when={netMode() && netStatus()?.state === NetState.disconnected}>
-            <div class="hud-nettrouble panel">
-              Connection to the server lost. Reconnecting… — your seat is held,
-              and the match rides out even a server restart.
             </div>
-          </Show>
-          <Show when={invariantViolations().length > 0}>
-            <div class="hud-violations panel">
-              {invariantViolations().length} invariant violation(s) — see console
-            </div>
-          </Show>
-        </div>
-
-        {/* Right rail, under the chrome it must not cover: notices, then
-            the diagnostics table dev builds open. */}
-        <div class="hud-rail right">
-          <div class="hud-toasts">
-            <For each={toasts()}>
-              {(t) => (
-                <div
-                  class="panel toast"
-                  classList={{ clickable: !!t.focus }}
-                  onClick={() => {
-                    if (!t.focus) return;
-                    props.onFocus(t.focus.x, t.focus.y);
-                    dismissToast(t.id);
-                  }}
-                >
-                  {t.text}
-                </div>
-              )}
-            </For>
-          </div>
-          <Show when={debugOpen()}>
-            <div class="hud-debug panel">
-              {/* The strategist's consultation ledger (dev builds only — the
+            <Show when={debugOpen()}>
+              <div class="hud-debug panel">
+                {/* The strategist's consultation ledger (dev builds only — the
                   signal stays empty everywhere else). Collapsed, each entry is
                   one line: who, when, how long, and what came of it; open, it
                   shows the advice sent downstairs, the standing pile, the
                   model's reply verbatim, and the exact prompt — the loop for
                   tuning prompt.ts without leaving the match. */}
-              <Show when={llmTraces().length > 0}>
-                <div class="llm">
-                  <b>strategist ({llmTraces().length})</b>
-                  {/* Where each seat stands now: its whole standing pile in
+                <Show when={llmTraces().length > 0}>
+                  <div class="llm">
+                    <b>strategist ({llmTraces().length})</b>
+                    {/* Where each seat stands now: its whole standing pile in
                       English, diffed against the playbook print. The entries
                       below are the history of how it got there. */}
-                  <For each={llmPostures()}>
-                    {(p) => (
-                      <div class="posture">
-                        <b>seat {p.playerId} posture</b>
-                        <For
-                          each={p.moved}
-                          fallback={<div class="held">playing the playbook as printed</div>}
-                        >
-                          {(line) => <div>{line}</div>}
-                        </For>
-                        <Show when={p.moved.length > 0}>
-                          <div class="held">everything else per the playbook</div>
-                        </Show>
-                      </div>
-                    )}
-                  </For>
-                  <For each={llmTraces()}>
-                    {(t) => (
-                      <details>
-                        <summary>
-                          <span class={CONSULT_OUTCOME_KEYS[t.outcome]}>{CONSULT_OUTCOME_KEYS[t.outcome]}</span> · seat {t.playerId} · min{' '}
-                          {t.minutes} · {(t.ms / 1000).toFixed(1)}s
-                          {t.advice?.reason ? ` — ${t.advice.reason}` : ''}
-                        </summary>
-                        <Show when={t.error}>
-                          <pre>error: {t.error}</pre>
-                        </Show>
-                        {/* This reply's real moves alone, clamped to what the
+                    <For each={llmPostures()}>
+                      {(p) => (
+                        <div class="posture">
+                          <b>seat {p.playerId} posture</b>
+                          <For
+                            each={p.moved}
+                            fallback={<div class="held">playing the playbook as printed</div>}
+                          >
+                            {(line) => <div>{line}</div>}
+                          </For>
+                          <Show when={p.moved.length > 0}>
+                            <div class="held">everything else per the playbook</div>
+                          </Show>
+                        </div>
+                      )}
+                    </For>
+                    <For each={llmTraces()}>
+                      {(t) => (
+                        <details>
+                          <summary>
+                            <span class={CONSULT_OUTCOME_KEYS[t.outcome]}>
+                              {CONSULT_OUTCOME_KEYS[t.outcome]}
+                            </span>{' '}
+                            · seat {t.playerId} · min {t.minutes} · {(t.ms / 1000).toFixed(1)}s
+                            {t.advice?.reason ? ` — ${t.advice.reason}` : ''}
+                          </summary>
+                          <Show when={t.error}>
+                            <pre>error: {t.error}</pre>
+                          </Show>
+                          {/* This reply's real moves alone, clamped to what the
                             sim would take. A small model echoes most of the
                             print back on every reply, so the echoes collapse
                             to a count — the reply below has them verbatim. */}
-                        <Show when={t.advice}>
-                          {(advice) => {
-                            const lines = () => describeAdvice(advice(), t.knobs);
-                            const moved = () => lines().filter((l) => l.moved);
-                            const held = () => lines().length - moved().length;
-                            const knobs = (n: number): string => `${n} knob${n === 1 ? '' : 's'}`;
-                            return (
-                              <div class="knobs">
-                                <For
-                                  each={moved()}
-                                  fallback={
-                                    <div class="held">
-                                      {held() > 0
-                                        ? `only echoes the playbook (${knobs(held())})`
-                                        : 'no knob changes'}
-                                    </div>
-                                  }
-                                >
-                                  {(line) => <div>{line.text}</div>}
-                                </For>
-                                <Show when={moved().length > 0 && held() > 0}>
-                                  <div class="held">+ {knobs(held())} echoing the playbook</div>
-                                </Show>
-                              </div>
-                            );
-                          }}
-                        </Show>
-                        <pre>reply: {t.raw || '(none)'}</pre>
-                        <details>
-                          <summary>prompt</summary>
-                          <For each={t.messages}>
-                            {(m) => (
-                              <pre>
-                                [{m.role}] {m.content}
-                              </pre>
-                            )}
-                          </For>
+                          <Show when={t.advice}>
+                            {(advice) => {
+                              const lines = () => describeAdvice(advice(), t.knobs);
+                              const moved = () => lines().filter((l) => l.moved);
+                              const held = () => lines().length - moved().length;
+                              const knobs = (n: number): string => `${n} knob${n === 1 ? '' : 's'}`;
+                              return (
+                                <div class="knobs">
+                                  <For
+                                    each={moved()}
+                                    fallback={
+                                      <div class="held">
+                                        {held() > 0
+                                          ? `only echoes the playbook (${knobs(held())})`
+                                          : 'no knob changes'}
+                                      </div>
+                                    }
+                                  >
+                                    {(line) => <div>{line.text}</div>}
+                                  </For>
+                                  <Show when={moved().length > 0 && held() > 0}>
+                                    <div class="held">+ {knobs(held())} echoing the playbook</div>
+                                  </Show>
+                                </div>
+                              );
+                            }}
+                          </Show>
+                          <pre>reply: {t.raw || '(none)'}</pre>
+                          <details>
+                            <summary>prompt</summary>
+                            <For each={t.messages}>
+                              {(m) => (
+                                <pre>
+                                  [{m.role}] {m.content}
+                                </pre>
+                              )}
+                            </For>
+                          </details>
                         </details>
-                      </details>
-                    )}
-                  </For>
-                </div>
-              </Show>
-              <b>jobs ({debugJobs().length})</b>
-              <table>
-                <thead>
-                  <tr>
-                    <th>id</th>
-                    <th>good</th>
-                    <th>route</th>
-                    <th>pri</th>
-                    <th>phase</th>
-                    <th>serf</th>
-                    <th>age</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <For each={debugJobs()}>
-                    {(j) => (
-                      <tr>
-                        <td>{j.id}</td>
-                        <td>{j.good}</td>
-                        <td>
-                          {j.from}→{j.to}
-                        </td>
-                        <td>{j.priority}</td>
-                        <td>{j.phase}</td>
-                        <td>{j.serfId ?? '—'}</td>
-                        <td>{j.age}</td>
-                      </tr>
-                    )}
-                  </For>
-                </tbody>
-              </table>
-            </div>
-          </Show>
-        </div>
+                      )}
+                    </For>
+                  </div>
+                </Show>
+                <b>jobs ({debugJobs().length})</b>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>id</th>
+                      <th>good</th>
+                      <th>route</th>
+                      <th>pri</th>
+                      <th>phase</th>
+                      <th>serf</th>
+                      <th>age</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <For each={debugJobs()}>
+                      {(j) => (
+                        <tr>
+                          <td>{j.id}</td>
+                          <td>{j.good}</td>
+                          <td>
+                            {j.from}→{j.to}
+                          </td>
+                          <td>{j.priority}</td>
+                          <td>{j.phase}</td>
+                          <td>{j.serfId ?? '—'}</td>
+                          <td>{j.age}</td>
+                        </tr>
+                      )}
+                    </For>
+                  </tbody>
+                </table>
+              </div>
+            </Show>
+          </div>
 
-        <Show when={menuOpen()}>
-          <div class="hud-menu panel">
-            <div class="menu-head">
-              <span>Menu</span>
-              <button class="menu-close" onClick={() => setMenuOpen(false)}>
-                ✕
-              </button>
-            </div>
-            {/* Everything the local disk is party to, under one gate:
+          <Show when={menuOpen()}>
+            <div class="hud-menu panel">
+              <div class="menu-head">
+                <span>Menu</span>
+                <button class="menu-close" onClick={() => setMenuOpen(false)}>
+                  ✕
+                </button>
+              </div>
+              {/* Everything the local disk is party to, under one gate:
                 only a solo game's world is this device's to write down or
                 to put back. A match lives on the server and a replay is
                 already a recording. */}
-            <Show when={isSolo()}>
-              <button
-                onClick={() => {
-                  props.onSave();
-                  setMenuOpen(false);
-                }}
-              >
-                Save village
-              </button>
-              {/* Any time in a solo match: the log runs from boot, so a
+              <Show when={isSolo()}>
+                <button
+                  onClick={() => {
+                    props.onSave();
+                    setMenuOpen(false);
+                  }}
+                >
+                  Save village
+                </button>
+                {/* Any time in a solo match: the log runs from boot, so a
                   mid-match save records everything up to this moment and
                   playback pauses there. Multiplayer still records on the
                   server, which only hands the log out once the match is
                   decided — its button lives on the end card. */}
+                <button
+                  onClick={() => {
+                    props.onSaveReplay();
+                    setMenuOpen(false);
+                  }}
+                >
+                  Save replay
+                </button>
+                <button
+                  disabled={lastSave() === null}
+                  title={
+                    lastSave() !== null
+                      ? `Saved ${lastSave()!}`
+                      : 'Nothing saved on this device yet'
+                  }
+                  onClick={() => {
+                    // Asked again here rather than taken from the signal
+                    // above: that name is as old as the last time this menu
+                    // opened, and loading a file another tab has deleted
+                    // since takes the running match down to the fatal card.
+                    // One OPFS read is nothing beside the world about to be
+                    // read off it.
+                    void latestSaveName().then((name) => {
+                      setLastSave(name);
+                      if (name === null) return;
+                      // The save's name is the whole address, like a
+                      // replay's: the world lives in OPFS, and a reload of
+                      // this URL comes back into the same village. force
+                      // because loading the save this match already booted
+                      // from is the same URL, and the router would otherwise
+                      // call it the screen it is already on.
+                      goto('?load=' + encodeURIComponent(name), { force: true });
+                    });
+                  }}
+                >
+                  Load last save
+                </button>
+              </Show>
+              <Show when={fs.offerable()}>
+                <button
+                  aria-pressed={fs.active()}
+                  onClick={() => {
+                    fs.toggle();
+                    setMenuOpen(false);
+                  }}
+                >
+                  {fs.active() ? 'Exit full screen' : 'Full screen'}
+                </button>
+              </Show>
+              <div class="menu-sound">
+                <button
+                  class="menu-mute"
+                  aria-pressed={muted()}
+                  // M only mutes while nothing is selected — with a squad
+                  // standing it is the move order. Advertising a key that
+                  // would march the army instead is worse than no hint.
+                  title={
+                    (muted() ? 'Sound off' : 'Sound on') +
+                    (hasKeyboard() && nothingSelected() ? ' (M)' : '')
+                  }
+                  onClick={() => toggleMuted()}
+                >
+                  {muted() ? <SpeakerOffIcon /> : <SpeakerIcon />}
+                </button>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={volume()}
+                  disabled={muted()}
+                  aria-label="Sound volume"
+                  onInput={(e) => setVolumePref(Number(e.currentTarget.value))}
+                  onChange={() => play('uiClick')}
+                />
+              </div>
               <button
                 onClick={() => {
-                  props.onSaveReplay();
-                  setMenuOpen(false);
+                  // In a match the world lives on (solo: gone unless saved;
+                  // multiplayer: the room plays on and the seat token can
+                  // rejoin) — but the player is leaving either way, so ask.
+                  // Asked by our own card, not confirm(): the browser climbs
+                  // out of fullscreen to show a native dialog.
+                  setQuitConfirm(true);
                 }}
               >
-                Save replay
+                Quit to menu
               </button>
-              <button
-                disabled={lastSave() === null}
-                title={
-                  lastSave() !== null
-                    ? `Saved ${lastSave()!}`
-                    : 'Nothing saved on this device yet'
-                }
-                onClick={() => {
-                  // Asked again here rather than taken from the signal
-                  // above: that name is as old as the last time this menu
-                  // opened, and loading a file another tab has deleted
-                  // since takes the running match down to the fatal card.
-                  // One OPFS read is nothing beside the world about to be
-                  // read off it.
-                  void latestSaveName().then((name) => {
-                    setLastSave(name);
-                    if (name === null) return;
-                    // The save's name is the whole address, like a
-                    // replay's: the world lives in OPFS, and a reload of
-                    // this URL comes back into the same village. force
-                    // because loading the save this match already booted
-                    // from is the same URL, and the router would otherwise
-                    // call it the screen it is already on.
-                    goto('?load=' + encodeURIComponent(name), { force: true });
-                  });
-                }}
-              >
-                Load last save
-              </button>
-            </Show>
-            <Show when={fs.offerable()}>
-              <button
-                aria-pressed={fs.active()}
-                onClick={() => {
-                  fs.toggle();
-                  setMenuOpen(false);
-                }}
-              >
-                {fs.active() ? 'Exit full screen' : 'Full screen'}
-              </button>
-            </Show>
-            <div class="menu-sound">
-              <button
-                class="menu-mute"
-                aria-pressed={muted()}
-                // M only mutes while nothing is selected — with a squad
-                // standing it is the move order. Advertising a key that
-                // would march the army instead is worse than no hint.
-                title={
-                  (muted() ? 'Sound off' : 'Sound on') +
-                  (hasKeyboard() && nothingSelected() ? ' (M)' : '')
-                }
-                onClick={() => toggleMuted()}
-              >
-                {muted() ? <SpeakerOffIcon /> : <SpeakerIcon />}
-              </button>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={volume()}
-                disabled={muted()}
-                aria-label="Sound volume"
-                onInput={(e) => setVolumePref(Number(e.currentTarget.value))}
-                onChange={() => play('uiClick')}
-              />
             </div>
-            <button
-              onClick={() => {
-                // In a match the world lives on (solo: gone unless saved;
-                // multiplayer: the room plays on and the seat token can
-                // rejoin) — but the player is leaving either way, so ask.
-                // Asked by our own card, not confirm(): the browser climbs
-                // out of fullscreen to show a native dialog.
-                setQuitConfirm(true);
-              }}
-            >
-              Quit to menu
-            </button>
-          </div>
-        </Show>
+          </Show>
+        </div>
       </div>
-      </div>
-
 
       <div class="hud-bottom">
         {/* Upright, the cards stack and these two stand on the last line
@@ -2175,9 +2183,7 @@ export function Hud(props: {
                 <span>
                   <Key label="Build" k="B" />
                 </span>
-                <span class="chord-hint">
-                  {buildChord() ? 'now a letter…' : 'then a letter'}
-                </span>
+                <span class="chord-hint">{buildChord() ? 'now a letter…' : 'then a letter'}</span>
               </div>
             </Show>
             {/* Head of the card on a desktop, foot of the sheet on a
@@ -2275,22 +2281,23 @@ export function Hud(props: {
             mode={MinimapMode.jump}
             onNavigate={() => setMinimapOpen(false)}
           />
-          <button class="minimap-close" aria-label="Close the map" onClick={() => setMinimapOpen(false)}>
+          <button
+            class="minimap-close"
+            aria-label="Close the map"
+            onClick={() => setMinimapOpen(false)}
+          >
             ✕
           </button>
         </div>
       </Show>
-
-
 
       <Show when={endCard() === 'gone'}>
         <div class="hud-end">
           <div class="panel end-card">
             <h1>The match is gone</h1>
             <p>
-              The server no longer knows this match. A room stands for a few
-              minutes after its last player leaves, then winds down — and
-              this one wound down. It can't be resumed.
+              The server no longer knows this match. A room stands for a few minutes after its last
+              player leaves, then winds down — and this one wound down. It can't be resumed.
             </p>
             <button onClick={() => goto(location.pathname)}>Back to the menu</button>
           </div>
@@ -2302,8 +2309,8 @@ export function Hud(props: {
           <div class="panel end-card">
             <h1>Defeat</h1>
             <p>
-              Your castle has fallen and the village scatters — but the battle
-              for the valley rages on without you.
+              Your castle has fallen and the village scatters — but the battle for the valley rages
+              on without you.
             </p>
             <button onClick={() => setSpectating(true)}>Watch the rest</button>
             <button onClick={() => setQuitConfirm(true)}>Quit to menu</button>
@@ -2408,7 +2415,9 @@ export function Hud(props: {
           <h1 id="quit-title">Leave the match?</h1>
           <p>{quitStakes()}</p>
           <div class="confirm-actions">
-            <button onClick={() => setQuitConfirm(false)}>Stay{hasKeyboard() ? ' (Esc)' : ''}</button>
+            <button onClick={() => setQuitConfirm(false)}>
+              Stay{hasKeyboard() ? ' (Esc)' : ''}
+            </button>
             <button
               // showModal() hands focus to the autofocus element, so Enter
               // answers yes — the reflex the native dialog taught.
@@ -2426,7 +2435,6 @@ export function Hud(props: {
       </Show>
 
       <TooltipLayer />
-
     </>
   );
 }

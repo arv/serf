@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
 import { WORLD_SAVE_VERSION } from '../shared/saveVersion';
-import { envelopeSave } from './saveEnvelope';
+import { envelopeSave, type SaveMeta } from './saveEnvelope';
 import { installOpfs } from './opfsMock';
 import {
   deleteSaveFile,
@@ -12,9 +12,7 @@ import {
   readSaveFile,
   saveGameFile,
 } from './saveStore';
-import { MissionId } from '../sim/defs/missions';
-import { MISSION_KEYS } from '../sim/defs/missions';
-import type { SaveMeta } from './saveEnvelope';
+import { MissionId, MISSION_KEYS } from '../sim/defs/missions';
 
 const TILES = tileCount(DEFAULT_MAP_SIZE);
 

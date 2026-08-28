@@ -16,16 +16,18 @@
  * there, having looked like gains on the range they were tuned against.
  * Tune on one range, believe it only after another.
  */
-import { createWorld } from '../../src/sim/world.ts';
+import { createWorld, MatchState } from '../../src/sim/world.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
 import { AiBrain } from '../../src/sim/systems/ai.ts';
-import { AI_STRATEGIES, type AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
+import {
+  AI_STRATEGIES,
+  type AiStrategyId,
+  AI_STRATEGY_KEYS,
+  AI_STRATEGY_IDS,
+} from '../../src/sim/defs/aiStrategies.ts';
 import { UnitTypeId } from '../../src/sim/defs/units.ts';
 import { BuildingTypeId } from '../../src/sim/defs/buildings.ts';
 import { PlayerKind } from '../../src/sim/player.ts';
-import { MatchState } from '../../src/sim/world.ts';
-import { AI_STRATEGY_KEYS } from '../../src/sim/defs/aiStrategies.ts';
-import { AI_STRATEGY_IDS } from '../../src/sim/defs/aiStrategies.ts';
 
 /** Long enough that a seat which is going to win has, and a stalled one is
  * visibly stalled rather than merely slow. */

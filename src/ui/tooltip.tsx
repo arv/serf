@@ -14,22 +14,20 @@ if (import.meta.hot) {
   import.meta.hot.accept(() => import.meta.hot?.invalidate());
 }
 import { TICKS_PER_SECOND } from '../sim/defs/balance';
-import { BUILDING_DEFS, gatherRecipeOf, type Recipe } from '../sim/defs/buildings';
-import { type GoodAmounts } from '../sim/defs/goods';
-import { TECH_DEFS, type TechId } from '../sim/defs/techs';
-import { COUNTER_TABLE, UNIT_DEFS } from '../sim/defs/units';
+import {
+  BUILDING_DEFS,
+  gatherRecipeOf,
+  type Recipe,
+  BuildingTypeId,
+  RecipeKind,
+} from '../sim/defs/buildings';
+import { type GoodAmounts, GoodId, goodEntries } from '../sim/defs/goods';
+import { TECH_DEFS, type TechId, TechEffectKind } from '../sim/defs/techs';
+import { COUNTER_TABLE, UNIT_DEFS, UnitTypeId, UnitClass } from '../sim/defs/units';
 import { GoodIcon } from './icons';
 import { buildingName, goodName, techDesc, techName, unitName } from './names';
 import { stock, techs } from './store';
-import { GoodId } from '../sim/defs/goods';
-import { goodEntries } from '../sim/defs/goods';
-import { UnitTypeId } from '../sim/defs/units';
-import { BuildingTypeId } from '../sim/defs/buildings';
-import { TechEffectKind } from '../sim/defs/techs';
-import { RecipeKind } from '../sim/defs/buildings';
-import { UnitClass } from '../sim/defs/units';
-import { TileResource } from '../sim/map';
-import type { TileResourceKind } from '../sim/map';
+import { TileResource, type TileResourceKind } from '../sim/map';
 
 /**
  * One floating tooltip layer for the whole HUD. Spread `{...tooltip(...)}`
@@ -309,7 +307,8 @@ const GOOD_DESC: Record<GoodId, string> = {
   [GoodId.flour]: 'Ground at the mill. On its own it feeds nobody.',
   [GoodId.food]: 'Baked from flour and water. What a soldier costs.',
   [GoodId.axe]: 'Ground keen at the Smith. A woodcutter works with one or not at all.',
-  [GoodId.pickaxe]: 'Wood and stone \u2014 never iron, so the mines can always restart. Staffs the quarry and every mine.',
+  [GoodId.pickaxe]:
+    'Wood and stone \u2014 never iron, so the mines can always restart. Staffs the quarry and every mine.',
   [GoodId.scythe]: 'A long blade from the Smith. No farmer takes a field without one.',
   [GoodId.hammer]: 'The builder\u2019s loan: every site borrows one and returns it at topping-out.',
   [GoodId.cauldron]: 'Smithed copperwork. The bakery and the brewery cook out of it.',
@@ -358,12 +357,15 @@ function recipeText(recipe: Recipe): string {
 }
 
 const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
-  [BuildingTypeId.abbey]: 'Monks research the tech tree here; delivered ale throws work-speed festivals.',
+  [BuildingTypeId.abbey]:
+    'Monks research the tech tree here; delivered ale throws work-speed festivals.',
   [BuildingTypeId.barracks]: 'Trains knights, spearmen, and archers from wheat and forged weapons.',
   [BuildingTypeId.guardTower]:
     'Two archers man the roof, shooting half again as hard and two tiles further than they would on the ground. Man it and any archer with nothing else to do walks in from the field on his own; while none is free — none trained yet, or every one of them marching — villagers answer instead and hold it with stones, far weaker but today rather than three techs from now. Standing it down empties the roof again and gives the men back. Nobody manning it can be shot at while the tower stands.',
-  [BuildingTypeId.house]: 'Sleeps ten more villagers. Nobody lives here yet — beds are what let you hire.',
-  [BuildingTypeId.storehouse]: 'The heart of the village. All goods flow here — lose it and all is lost.',
+  [BuildingTypeId.house]:
+    'Sleeps ten more villagers. Nobody lives here yet — beds are what let you hire.',
+  [BuildingTypeId.storehouse]:
+    'The heart of the village. All goods flow here — lose it and all is lost.',
 };
 
 export function BuildingTip(props: { type: BuildingTypeId }) {
@@ -393,8 +395,8 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
         {(gather) => (
           <div class="tip-line">
             Must be built within {gather().radius} tiles of{' '}
-            {RESOURCE_NAMES[gather().resource] ?? gather().resource} — that is as far as its
-            worker will walk.
+            {RESOURCE_NAMES[gather().resource] ?? gather().resource} — that is as far as its worker
+            will walk.
           </div>
         )}
       </Show>

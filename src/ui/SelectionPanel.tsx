@@ -1,13 +1,30 @@
 import { For, Index, Show } from 'solid-js';
-import { BUILDING_DEFS, gatherRecipeOf, repairBill } from '../sim/defs/buildings';
-import { FORGE_QUEUE_CAP, HIRE_SERF_COST, HIRE_SERF_TICKS, TICKS_PER_SECOND, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
-import type { BuildingSnap } from '../protocol/messages';
-import type { GoodAmounts } from '../sim/defs/goods';
+import { BUILDING_DEFS, gatherRecipeOf, repairBill, BuildingTypeId } from '../sim/defs/buildings';
+import {
+  FORGE_QUEUE_CAP,
+  HIRE_SERF_COST,
+  HIRE_SERF_TICKS,
+  TICKS_PER_SECOND,
+  TRAIN_QUEUE_CAP,
+} from '../sim/defs/balance';
+import { type BuildingSnap, StaffingState } from '../protocol/messages';
+import { type GoodAmounts, goodEntries, GoodId, goodKeys } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
 import { TextTip, TipWrap, UnitTip } from './tooltip';
 import { Key } from './shortcut';
-import { myPlayerId, orderMode, population, selectedBuilding, selection, selectionGroup, setTechPanelOpen, stock, techs } from './store';
+import {
+  myPlayerId,
+  orderMode,
+  population,
+  selectedBuilding,
+  selection,
+  selectionGroup,
+  setTechPanelOpen,
+  stock,
+  techs,
+  OrderMode,
+} from './store';
 
 import { buildingName, goodName, techName, unitName } from './names';
 import {
@@ -21,19 +38,11 @@ import {
 } from './commands';
 import { SHORT } from './breakpoints';
 import { levyOrder } from './levy';
-import { goodEntries } from '../sim/defs/goods';
-import { GoodId } from '../sim/defs/goods';
-import { goodKeys } from '../sim/defs/goods';
-import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
-import { TileResource } from '../sim/map';
-import type { TileResourceKind } from '../sim/map';
-import { StaffingState } from '../protocol/messages';
-import { OrderMode } from './store';
+import { TileResource, type TileResourceKind } from '../sim/map';
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
-  const entries = () =>
-    goodEntries(props.amounts).filter(([, n]) => n > 0);
+  const entries = () => goodEntries(props.amounts).filter(([, n]) => n > 0);
   return (
     <Show when={entries().length > 0} fallback={<span style={{ opacity: 0.6 }}>none</span>}>
       <For each={entries()}>
@@ -406,7 +415,9 @@ export function SelectionPanel(props: {
                     )}
                   >
                     <button
-                      disabled={b().state !== BuildingState.built || (!b().repairNeeds && unpaid() <= 0)}
+                      disabled={
+                        b().state !== BuildingState.built || (!b().repairNeeds && unpaid() <= 0)
+                      }
                       onClick={() => props.onRepair(b().id, b().repairNeeds === undefined)}
                     >
                       {b().repairNeeds ? 'Cancel repair' : 'Repair'}
@@ -414,7 +425,9 @@ export function SelectionPanel(props: {
                           damage is bought and only waiting on the masons:
                           repairBill of nothing is nothing, and "Repair none"
                           is worse than saying only "Repair". */}
-                      <Show when={b().state === BuildingState.built && !b().repairNeeds && unpaid() > 0}>
+                      <Show
+                        when={b().state === BuildingState.built && !b().repairNeeds && unpaid() > 0}
+                      >
                         <span class="cost">
                           <GoodsLine amounts={repairBill(b().type, unpaid())} />
                         </span>
@@ -442,9 +455,7 @@ export function SelectionPanel(props: {
                         />
                       )}
                     >
-                      <button
-                        onClick={() => props.onTogglePause(b().id, !b().paused)}
-                      >
+                      <button onClick={() => props.onTogglePause(b().id, !b().paused)}>
                         {pauseLabel()}
                       </button>
                     </TipWrap>
@@ -539,9 +550,7 @@ export function SelectionPanel(props: {
                               <button
                                 class="sel-slot"
                                 classList={{ waiting: !item().started }}
-                                onClick={() =>
-                                  props.onCancelForge(b().id, i, item().recipeIndex)
-                                }
+                                onClick={() => props.onCancelForge(b().id, i, item().recipeIndex)}
                               >
                                 <span class="unit">
                                   <GoodIcon good={output()} size={13} />{' '}
@@ -570,10 +579,7 @@ export function SelectionPanel(props: {
                         goodKeys(def().recipeOptions![b().recipeIndex!]!.recipe.outputs)[0]!,
                       ).toLowerCase()}
                       s{' '}
-                      <button
-                        class="sel-idle-clear"
-                        onClick={() => props.onSetRecipe(b().id, -1)}
-                      >
+                      <button class="sel-idle-clear" onClick={() => props.onSetRecipe(b().id, -1)}>
                         ✕
                       </button>
                     </span>
@@ -581,7 +587,9 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={b().type === BuildingTypeId.storehouse && b().state === BuildingState.built}>
+              <Show
+                when={b().type === BuildingTypeId.storehouse && b().state === BuildingState.built}
+              >
                 <div class="sel-row">
                   <TipWrap
                     tip={() => (
@@ -701,7 +709,9 @@ export function SelectionPanel(props: {
                   >
                     <button
                       classList={{ active: orderMode() === OrderMode.rally }}
-                      onClick={() => props.onArmOrder(orderMode() === OrderMode.rally ? null : OrderMode.rally)}
+                      onClick={() =>
+                        props.onArmOrder(orderMode() === OrderMode.rally ? null : OrderMode.rally)
+                      }
                     >
                       <Key label="Rally" k={RALLY_KEY} />
                     </button>
@@ -820,7 +830,12 @@ export function SelectionPanel(props: {
                   </span>
                 </Show>
                 <Show when={b().staffing}>
-                  <span classList={{ good: b().staffing === StaffingState.staffed, bad: b().staffing !== StaffingState.staffed }}>
+                  <span
+                    classList={{
+                      good: b().staffing === StaffingState.staffed,
+                      bad: b().staffing !== StaffingState.staffed,
+                    }}
+                  >
                     {b().state === BuildingState.site
                       ? b().staffing === StaffingState.staffed
                         ? 'builder at work'
@@ -897,7 +912,8 @@ export function SelectionPanel(props: {
                 </Show>
                 <Show when={b().state === BuildingState.built}>
                   <span>
-                    stock <GoodsLine amounts={b().stock} /> <span style={{ 'margin-left': '8px' }}>
+                    stock <GoodsLine amounts={b().stock} />{' '}
+                    <span style={{ 'margin-left': '8px' }}>
                       in <GoodsLine amounts={b().inputs} />
                     </span>
                   </span>
@@ -944,7 +960,9 @@ export function SelectionPanel(props: {
             >
               <button
                 classList={{ active: orderMode() === OrderMode.attack }}
-                onClick={() => props.onArmOrder(orderMode() === OrderMode.attack ? null : OrderMode.attack)}
+                onClick={() =>
+                  props.onArmOrder(orderMode() === OrderMode.attack ? null : OrderMode.attack)
+                }
               >
                 <Key label="Attack" k="A" />
               </button>
@@ -959,7 +977,9 @@ export function SelectionPanel(props: {
             >
               <button
                 classList={{ active: orderMode() === OrderMode.move }}
-                onClick={() => props.onArmOrder(orderMode() === OrderMode.move ? null : OrderMode.move)}
+                onClick={() =>
+                  props.onArmOrder(orderMode() === OrderMode.move ? null : OrderMode.move)
+                }
               >
                 <Key label="Move" k="M" />
               </button>

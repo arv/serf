@@ -8,24 +8,19 @@ import {
   SITE_FRAME_H,
 } from './models';
 import { glbYardProp, glbYardRock, makeGlbBuilding } from './assets';
-import { makeCharacter, playAnimation, type CharacterVisual } from './characters';
+import { makeCharacter, playAnimation, type CharacterVisual, AnimKey } from './characters';
 import { eachMaterial, mapMaterials } from './materials';
-import { buildingDef } from '../sim/defs/buildings';
-import { UNIT_DEFS } from '../sim/defs/units';
+import { buildingDef, BuildingTypeId } from '../sim/defs/buildings';
+import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
 import { WATER_LEVEL } from '../sim/map';
 import { CAMERA_YAW, type ViewBounds } from './cameraRig';
-import { GOODS } from '../sim/defs/goods';
+import { GOODS, GoodId } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
 import type { FogQuery } from './fogOfWar';
-import type { BuildingSnap } from '../protocol/messages';
+import { type BuildingSnap, StaffingState } from '../protocol/messages';
 import type { HeightField } from './heightField';
 import type { CueId } from '../audio/cues';
-import { GoodId } from '../sim/defs/goods';
-import { UnitTypeId } from '../sim/defs/units';
-import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
-import { StaffingState } from '../protocol/messages';
-import { AnimKey } from './characters';
 
 /** A built fishery's pier, in world space: the deck line from its landward
  * end to the fishing spot near the tip, plank height, and the yaw that
@@ -347,7 +342,12 @@ export class BuildingSync {
         // a swap the player can see (fog guard — see onCue), and only on
         // a real transition: a boot or a resync builds every visual
         // fresh and must not arrive as a fanfare salvo.
-        if (this.onCue && v.state === BuildingState.site && b.state === BuildingState.built && v.root.visible) {
+        if (
+          this.onCue &&
+          v.state === BuildingState.site &&
+          b.state === BuildingState.built &&
+          v.root.visible
+        ) {
           this.onCue('buildingComplete', b.x + b.w / 2, b.y + b.h / 2);
         }
         this.#dispose(b.id);
@@ -814,10 +814,34 @@ export class BuildingSync {
       size: 0.12,
       per: 3,
     },
-    [BuildingTypeId.quarry]: { good: GoodId.stone, prop: 'resource_stone', spots: MINE_SPOTS, size: 0.12, per: 3 },
-    [BuildingTypeId.ironMine]: { good: GoodId.iron, rock: 0x9a5f42, spots: MINE_SPOTS, size: 0.153, per: 2 },
-    [BuildingTypeId.silverMine]: { good: GoodId.silver, rock: 0xdbe4ee, spots: MINE_SPOTS, size: 0.153, per: 2 },
-    [BuildingTypeId.goldMine]: { good: GoodId.gold, rock: 0xf0bc42, spots: MINE_SPOTS, size: 0.153, per: 2 },
+    [BuildingTypeId.quarry]: {
+      good: GoodId.stone,
+      prop: 'resource_stone',
+      spots: MINE_SPOTS,
+      size: 0.12,
+      per: 3,
+    },
+    [BuildingTypeId.ironMine]: {
+      good: GoodId.iron,
+      rock: 0x9a5f42,
+      spots: MINE_SPOTS,
+      size: 0.153,
+      per: 2,
+    },
+    [BuildingTypeId.silverMine]: {
+      good: GoodId.silver,
+      rock: 0xdbe4ee,
+      spots: MINE_SPOTS,
+      size: 0.153,
+      per: 2,
+    },
+    [BuildingTypeId.goldMine]: {
+      good: GoodId.gold,
+      rock: 0xf0bc42,
+      spots: MINE_SPOTS,
+      size: 0.153,
+      per: 2,
+    },
   };
 
   #syncYard(v: BuildingVisual, b: BuildingSnap): boolean {

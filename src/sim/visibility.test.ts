@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid';
 import { SeatVision } from './visibility';
-import { UNIT_DEFS } from './defs/units';
-import { buildingDef } from './defs/buildings';
+import { UNIT_DEFS, UnitTypeId } from './defs/units';
+import { buildingDef, BuildingTypeId } from './defs/buildings';
 import { spawnUnit } from './world';
 import { addStorehouse, bareWorld } from './testUtils';
-import { UnitTypeId } from './defs/units';
-import { BuildingTypeId } from './defs/buildings';
 
 describe('seat vision', () => {
   it('lights ground around your own units and not around anyone else', () => {
@@ -79,7 +77,9 @@ describe('seat vision', () => {
     // The radii live on the defs so the server filter and the renderer's
     // fog read one source; a per-kind change needs no code change here.
     expect(UNIT_DEFS[UnitTypeId.serf].sight).toBeGreaterThan(0);
-    expect(buildingDef(BuildingTypeId.storehouse).sight).toBeGreaterThan(buildingDef(BuildingTypeId.quarry).sight);
+    expect(buildingDef(BuildingTypeId.storehouse).sight).toBeGreaterThan(
+      buildingDef(BuildingTypeId.quarry).sight,
+    );
   });
 
   it('gives a storehouse a wider view than a unit', () => {

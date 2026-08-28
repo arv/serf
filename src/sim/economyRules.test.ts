@@ -7,8 +7,7 @@ import {
   EconomyRuleId,
   type RuleContext,
 } from './economyRules.ts';
-import type { SimCommand } from './commands.ts';
-import { CommandKind } from './commands.ts';
+import { type SimCommand, CommandKind } from './commands.ts';
 import { RulePhase } from './economyRules.ts';
 
 /**
@@ -67,10 +66,7 @@ describe('the rule table', () => {
   it('runs only the phase it is asked for', () => {
     // Phases exist because command order inside a tick is load-bearing, so a
     // rule leaking into the wrong one is a real bug, not a tidiness issue.
-    const table = [
-      stub(A, [1]),
-      { ...stub(B, [2]), phase: RulePhase.production },
-    ];
+    const table = [stub(A, [1]), { ...stub(B, [2]), phase: RulePhase.production }];
     expect(runTable(table).fired).toEqual([A]);
   });
 });
@@ -101,13 +97,19 @@ describe('composition', () => {
 
   it('orders commands by the table, not by when a rule happened to fire', () => {
     const { commands } = runTable([stub(A, [1]), stub(B, [2])]);
-    expect(commands.map((c) => (c.kind === CommandKind.sellBuilding ? c.buildingId : -1))).toEqual([1, 2]);
+    expect(commands.map((c) => (c.kind === CommandKind.sellBuilding ? c.buildingId : -1))).toEqual([
+      1, 2,
+    ]);
   });
 });
 
 describe('the ablation handle', () => {
   it('runs nothing at all when the set is empty', () => {
-    const out = runEconomyRules({ ...ctx, stalled: true } as RuleContext, new Set(), RulePhase.recovery);
+    const out = runEconomyRules(
+      { ...ctx, stalled: true } as RuleContext,
+      new Set(),
+      RulePhase.recovery,
+    );
     expect(out.commands).toEqual([]);
     expect(out.fired).toEqual([]);
   });

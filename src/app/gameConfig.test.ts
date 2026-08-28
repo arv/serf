@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { configFromUrl } from './gameConfig';
-import { MISSION_DEFS } from '../sim/defs/missions';
-import { MissionId } from '../sim/defs/missions';
+import { MISSION_DEFS, MissionId } from '../sim/defs/missions';
 import { PlayerKind } from '../sim/player';
 import { AiStrategyId } from '../sim/defs/aiStrategies';
 
@@ -28,7 +27,11 @@ describe('configFromUrl', () => {
   it('builds the skirmish the menu asks for', () => {
     const c = configFromUrl('?ai=2&seed=1234');
     expect(c.seed).toBe(1234);
-    expect(c.players).toEqual([{ kind: PlayerKind.human }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }]);
+    expect(c.players).toEqual([
+      { kind: PlayerKind.human },
+      { kind: PlayerKind.ai },
+      { kind: PlayerKind.ai },
+    ]);
     expect(c.myPlayerId).toBe(0);
   });
 
@@ -40,7 +43,12 @@ describe('configFromUrl', () => {
 
   it('names the opponents ?bots asks for, seat by seat', () => {
     const c = configFromUrl('?ai=3&bots=warlord,,abbot');
-    expect(c.players.map((p) => p.strategy)).toEqual([undefined, AiStrategyId.warlord, undefined, AiStrategyId.abbot]);
+    expect(c.players.map((p) => p.strategy)).toEqual([
+      undefined,
+      AiStrategyId.warlord,
+      undefined,
+      AiStrategyId.abbot,
+    ]);
     // No param at all: every opponent is left to the seed's deal.
     expect(configFromUrl('?ai=2').players.map((p) => p.strategy)).toEqual([
       undefined,

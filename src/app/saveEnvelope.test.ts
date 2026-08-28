@@ -9,8 +9,7 @@ import {
   splitSave,
   unpackExplored,
 } from './saveEnvelope';
-import { MissionId } from '../sim/defs/missions';
-import { MISSION_KEYS } from '../sim/defs/missions';
+import { MissionId, MISSION_KEYS } from '../sim/defs/missions';
 
 const TILES = tileCount(DEFAULT_MAP_SIZE);
 

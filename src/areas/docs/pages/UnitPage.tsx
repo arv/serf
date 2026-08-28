@@ -1,7 +1,13 @@
 import { For, Show, createSignal, type JSX } from 'solid-js';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS } from '../../../sim/defs/balance';
-import { BUILDING_DEFS } from '../../../sim/defs/buildings';
-import { COUNTER_TABLE, UNIT_DEFS, WEAPON_OF } from '../../../sim/defs/units';
+import { BUILDING_DEFS, BuildingTypeId } from '../../../sim/defs/buildings';
+import {
+  COUNTER_TABLE,
+  UNIT_DEFS,
+  WEAPON_OF,
+  UnitTypeId,
+  UnitClass,
+} from '../../../sim/defs/units';
 import { buildingName, techName, unitName } from '../../../ui/names';
 import { ALL_BUILDINGS, TRAINED_AT, UNIT_UNLOCKED_BY, fmtSecs } from '../data';
 import { UNIT_DESC } from '../descriptions';
@@ -9,9 +15,6 @@ import { CostList, DocLink, GoodChip, Section, Stat, Stats } from '../components
 import { ModelCard } from '../preview/ModelCard';
 import { Prose } from '../prose';
 import { buildingHref, techHref, unitHref } from '../routes';
-import { UnitTypeId } from '../../../sim/defs/units';
-import { BuildingTypeId } from '../../../sim/defs/buildings';
-import { UnitClass } from '../../../sim/defs/units';
 import { AnimKey } from '../../../render/characters';
 
 const CLASSES: UnitClass[] = [UnitClass.heavy, UnitClass.light, UnitClass.ranged];
@@ -33,7 +36,9 @@ function animOptions(unit: UnitTypeId): { key: AnimKey; label: string }[] {
   }
   return [
     ...walk,
-    combat.class === UnitClass.ranged ? { key: AnimKey.shoot, label: 'Shoot' } : { key: AnimKey.attack, label: 'Attack' },
+    combat.class === UnitClass.ranged
+      ? { key: AnimKey.shoot, label: 'Shoot' }
+      : { key: AnimKey.attack, label: 'Attack' },
     { key: AnimKey.death, label: 'Fall' },
   ];
 }
@@ -174,8 +179,8 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
       </Show>
       <Show when={props.id === UnitTypeId.worker}>
         <p class="lede">
-          A worker is a <DocLink href={unitHref(UnitTypeId.serf)}>serf</DocLink> who took one of the posts
-          above; dismiss the post and he is a serf again.
+          A worker is a <DocLink href={unitHref(UnitTypeId.serf)}>serf</DocLink> who took one of the
+          posts above; dismiss the post and he is a serf again.
         </p>
       </Show>
     </>

@@ -22,7 +22,6 @@ export type BusId = Enum<typeof BusIdNs>;
  * (isolation.lint.test.ts makes the import ban executable).
  */
 
-
 /** Oscillator shapes, named locally so this module needs no DOM types. */
 export type Wave = 'sine' | 'square' | 'sawtooth' | 'triangle';
 

@@ -1,11 +1,8 @@
 import { FORGE_QUEUE_CAP, TRAIN_QUEUE_CAP } from './defs/balance.ts';
-import { AUTO_RECIPE, BUILDING_DEFS } from './defs/buildings.ts';
-import { TECH_DEFS } from './defs/techs.ts';
-import { UNIT_DEFS } from './defs/units.ts';
+import { AUTO_RECIPE, BUILDING_DEFS, type BuildingTypeId } from './defs/buildings.ts';
+import { TECH_DEFS, type TechId } from './defs/techs.ts';
+import { UNIT_DEFS, type UnitTypeId } from './defs/units.ts';
 import type { EntityId } from './entities.ts';
-import type { BuildingTypeId } from './defs/buildings.ts';
-import type { TechId } from './defs/techs.ts';
-import type { UnitTypeId } from './defs/units.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as CommandKindNs from './commandKindEnum.ts';
 
@@ -27,7 +24,13 @@ export type SimCommand =
   // whatever it meets, and `'half'` walks the front half of the route as a
   // plain move before going live (the mobile tap default: one gesture must
   // both send an army out to fight and let it flee without reengaging).
-  | { kind: CommandKindNs.moveUnits; unitIds: EntityId[]; x: number; y: number; attack?: true | 'half' }
+  | {
+      kind: CommandKindNs.moveUnits;
+      unitIds: EntityId[];
+      x: number;
+      y: number;
+      attack?: true | 'half';
+    }
   | { kind: CommandKindNs.placeBuilding; building: BuildingTypeId; x: number; y: number }
   | { kind: CommandKindNs.hireSerf }
   | { kind: CommandKindNs.sellBuilding; buildingId: EntityId }
@@ -146,7 +149,12 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
     case CommandKindNs.placeBuilding:
       if (!isDefined(BUILDING_DEFS, c.building)) return null;
       if (!isTile(c.x) || !isTile(c.y)) return null;
-      return { kind: CommandKindNs.placeBuilding, building: c.building as BuildingTypeId, x: c.x, y: c.y };
+      return {
+        kind: CommandKindNs.placeBuilding,
+        building: c.building as BuildingTypeId,
+        x: c.x,
+        y: c.y,
+      };
     case CommandKindNs.hireSerf:
       return { kind: CommandKindNs.hireSerf };
     case CommandKindNs.sellBuilding:
@@ -154,10 +162,18 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       return { kind: CommandKindNs.sellBuilding, buildingId: c.buildingId };
     case CommandKindNs.setBuildingPaused:
       if (!isId(c.buildingId)) return null;
-      return { kind: CommandKindNs.setBuildingPaused, buildingId: c.buildingId, paused: c.paused === true };
+      return {
+        kind: CommandKindNs.setBuildingPaused,
+        buildingId: c.buildingId,
+        paused: c.paused === true,
+      };
     case CommandKindNs.setBuildingRepair:
       if (!isId(c.buildingId)) return null;
-      return { kind: CommandKindNs.setBuildingRepair, buildingId: c.buildingId, repair: c.repair === true };
+      return {
+        kind: CommandKindNs.setBuildingRepair,
+        buildingId: c.buildingId,
+        repair: c.repair === true,
+      };
     case CommandKindNs.setBuildingRecipe: {
       if (!isId(c.buildingId)) return null;
       // -1 is AUTO_RECIPE: clear the standing order and let the Smith pick.
@@ -167,7 +183,11 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
     case CommandKindNs.enqueueForge: {
       if (!isId(c.buildingId)) return null;
       if (!isRecipeIndex(c.recipeIndex)) return null;
-      return { kind: CommandKindNs.enqueueForge, buildingId: c.buildingId, recipeIndex: c.recipeIndex };
+      return {
+        kind: CommandKindNs.enqueueForge,
+        buildingId: c.buildingId,
+        recipeIndex: c.recipeIndex,
+      };
     }
     case CommandKindNs.cancelForge: {
       if (!isId(c.buildingId)) return null;
@@ -188,7 +208,11 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       return { kind: CommandKindNs.research, tech: c.tech as TechId };
     case CommandKindNs.trainUnit:
       if (!isId(c.buildingId) || !isDefined(UNIT_DEFS, c.unit)) return null;
-      return { kind: CommandKindNs.trainUnit, buildingId: c.buildingId, unit: c.unit as UnitTypeId };
+      return {
+        kind: CommandKindNs.trainUnit,
+        buildingId: c.buildingId,
+        unit: c.unit as UnitTypeId,
+      };
     case CommandKindNs.cancelTraining: {
       if (!isId(c.buildingId) || !isDefined(UNIT_DEFS, c.unit)) return null;
       if (!isSlot(c.index, TRAIN_QUEUE_CAP)) return null;

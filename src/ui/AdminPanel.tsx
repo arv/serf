@@ -33,13 +33,17 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
         ))}
         onClick={() => props.onAdmin(AdminAction.toggleRaids)}
       >
-        Raids: <span class={adminState().raidsEnabled ? 'on' : 'off'}>
+        Raids:{' '}
+        <span class={adminState().raidsEnabled ? 'on' : 'off'}>
           {adminState().raidsEnabled ? 'on' : 'off'}
         </span>
       </button>
       <button
         {...tooltip(() => (
-          <TextTip title="Clear bandits" body="Kill every bandit on the map right now (the camp stays)." />
+          <TextTip
+            title="Clear bandits"
+            body="Kill every bandit on the map right now (the camp stays)."
+          />
         ))}
         onClick={() => props.onAdmin(AdminAction.clearBandits)}
       >
@@ -55,14 +59,12 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
       </button>
       <button
         {...tooltip(() => (
-          <TextTip
-            title="Instant build"
-            body="Sites need no materials and finish immediately."
-          />
+          <TextTip title="Instant build" body="Sites need no materials and finish immediately." />
         ))}
         onClick={() => props.onAdmin(AdminAction.toggleInstantBuild)}
       >
-        Instant build: <span class={adminState().instantBuild ? 'on' : 'off'}>
+        Instant build:{' '}
+        <span class={adminState().instantBuild ? 'on' : 'off'}>
           {adminState().instantBuild ? 'on' : 'off'}
         </span>
       </button>
@@ -75,9 +77,7 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
         ))}
         onClick={() => setFogEnabled(!fogEnabled())}
       >
-        Fog of war: <span class={fogEnabled() ? 'on' : 'off'}>
-          {fogEnabled() ? 'on' : 'off'}
-        </span>
+        Fog of war: <span class={fogEnabled() ? 'on' : 'off'}>{fogEnabled() ? 'on' : 'off'}</span>
       </button>
       <button
         {...tooltip(() => (

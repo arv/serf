@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { AiBrain, AI_INTEL } from './systems/ai.ts';
-import { AI_STRATEGIES } from './defs/aiStrategies.ts';
-import { placeBuiltBuilding, spawnUnit } from './world.ts';
+import { AI_STRATEGIES, AiStrategyId } from './defs/aiStrategies.ts';
+import { placeBuiltBuilding, spawnUnit, type World } from './world.ts';
 import { addStorehouse, bareWorld } from './testUtils.ts';
-import type { World } from './world.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
-import { AiStrategyId } from './defs/aiStrategies.ts';
 
 /**
  * The intelligence picture: what a seat knows about a rival, and how it

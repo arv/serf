@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { playMax, playMin } from '../sim/map.ts';
 import { tileIdx } from '../shared/grid.ts';
-import { createWorld, type World } from '../sim/world.ts';
+import { createWorld, type World, MatchState } from '../sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../sim/tick.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
-import { strategyOf } from '../sim/defs/aiStrategies.ts';
+import { strategyOf, AiStrategyId } from '../sim/defs/aiStrategies.ts';
 import { summarizeForSeat } from './summary.ts';
-import { BuildingTypeId } from '../sim/defs/buildings.ts';
-import { BUILDING_KEYS } from '../sim/defs/buildings.ts';
-import { MatchState } from '../sim/world.ts';
-import { AiStrategyId } from '../sim/defs/aiStrategies.ts';
+import { BuildingTypeId, BUILDING_KEYS } from '../sim/defs/buildings.ts';
 import { PlayerKind } from '../sim/player.ts';
 
 /**
@@ -25,13 +22,18 @@ import { PlayerKind } from '../sim/player.ts';
 function playedWorld(ticks: number): { world: World; brains: AiBrain[] } {
   const world = createWorld({
     seed: 11,
-    players: [{ kind: PlayerKind.ai, strategy: AiStrategyId.steward }, { kind: PlayerKind.ai, strategy: AiStrategyId.warlord }],
+    players: [
+      { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
+      { kind: PlayerKind.ai, strategy: AiStrategyId.warlord },
+    ],
     // What is under test is the summary's shape and budget, at the tempo
     // its tick horizons were written for — the classic 64 map keeps these
     // sims inside vitest's default timeout. Map scale has its own tests.
     mapSize: 64,
   });
-  const brains = world.players.map((p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
+  const brains = world.players.map(
+    (p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size),
+  );
   for (let t = 0; t < ticks && world.outcome.state === MatchState.playing; t++) {
     const commands: PlayerCommand[] = [];
     for (const brain of brains) {
@@ -44,7 +46,7 @@ function playedWorld(ticks: number): { world: World; brains: AiBrain[] } {
 }
 
 describe('summarizeForSeat', () => {
-  it('reports the seat\'s own village the way the world holds it', () => {
+  it("reports the seat's own village the way the world holds it", () => {
     const { world, brains } = playedWorld(4_000);
     const summary = summarizeForSeat(world, brains[0]!);
 
@@ -127,9 +129,7 @@ describe('summarizeForSeat', () => {
         if (rival.intel === null) continue;
         expect(rival.intel.ageTicks).toBeGreaterThanOrEqual(0);
         expect(rival.intel.ageTicks).toBeLessThanOrEqual(8_000); // trustFor
-        expect(rival.intel.heavy + rival.intel.light + rival.intel.ranged).toBe(
-          rival.intel.total,
-        );
+        expect(rival.intel.heavy + rival.intel.light + rival.intel.ranged).toBe(rival.intel.total);
         expect(rival.intel.total).toBeGreaterThan(0);
       }
     }

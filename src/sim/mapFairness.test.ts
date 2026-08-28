@@ -49,13 +49,7 @@ function countNear(tiles: [number, number][], x: number, y: number, r: number): 
  * amount per tile — and that is exactly how the unfairness hid: a start
  * whose seam had room for one tile passed the "has silver" check below on
  * a twentieth of the metal its neighbour drew. */
-function amountNear(
-  world: World,
-  code: TileResourceKind,
-  x: number,
-  y: number,
-  r: number,
-): number {
+function amountNear(world: World, code: TileResourceKind, x: number, y: number, r: number): number {
   const size = world.map.size;
   let total = 0;
   for (let i = 0; i < tileCount(size); i++) {
@@ -142,7 +136,9 @@ describe('map fairness', () => {
         const gy = gold.reduce((s, [, y]) => s + y, 0) / gold.length;
         expect(Math.hypot(gx - MID, gy - MID), `seed ${seed}: gold central`).toBeLessThan(10);
 
-        const camp = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.banditCamp);
+        const camp = [...world.buildings.values()].find(
+          (b) => b.type === BuildingTypeId.banditCamp,
+        );
         expect(camp, `seed ${seed}: camp exists`).toBeDefined();
         const cd = Math.max(Math.abs(camp!.x + 1 - MID), Math.abs(camp!.y + 1 - MID));
         expect(cd, `seed ${seed}: camp central`).toBeLessThanOrEqual(12);

@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { MovePredictor } from './predict';
 import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
-import { UNIT_DEFS } from '../sim/defs/units';
-import { ACTION } from '../protocol/sabLayout';
-import type { UnitSnapshot } from '../protocol/sabLayout';
-import { UnitTypeId } from '../sim/defs/units';
+import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
+import { ACTION, type UnitSnapshot } from '../protocol/sabLayout';
 
 const openMap = () => ({
   size: DEFAULT_MAP_SIZE,
@@ -122,7 +120,15 @@ describe('move prediction', () => {
     const mine = unit(1, 10.5, 10.5);
     const theirs = unit(2, 40.5, 40.5, 1);
     // Even if an order somehow named a rival's unit, it is not ours to move.
-    p.order([1, 2], 20, 10, new Map([[1, mine], [2, theirs]]));
+    p.order(
+      [1, 2],
+      20,
+      10,
+      new Map([
+        [1, mine],
+        [2, theirs],
+      ]),
+    );
 
     const frame = [{ ...mine }, { ...theirs }];
     p.apply(frame, 0);

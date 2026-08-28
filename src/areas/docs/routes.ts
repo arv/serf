@@ -1,14 +1,12 @@
-import { BUILDING_DEFS, type BuildingTypeId } from '../../sim/defs/buildings';
-import { GOODS, type GoodId } from '../../sim/defs/goods';
-import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
-import { goodFromKey } from '../../sim/defs/goods';
-import { GOOD_KEYS } from '../../sim/defs/goods';
-import { UNIT_KEYS } from '../../sim/defs/units';
-import { unitFromKey } from '../../sim/defs/units';
-import { buildingFromKey } from '../../sim/defs/buildings';
-import { BUILDING_KEYS } from '../../sim/defs/buildings';
-import { TECH_KEYS } from '../../sim/defs/techs';
-import { TechId } from '../../sim/defs/techs';
+import {
+  BUILDING_DEFS,
+  type BuildingTypeId,
+  buildingFromKey,
+  BUILDING_KEYS,
+} from '../../sim/defs/buildings';
+import { GOODS, type GoodId, goodFromKey, GOOD_KEYS } from '../../sim/defs/goods';
+import { UNIT_DEFS, type UnitTypeId, UNIT_KEYS, unitFromKey } from '../../sim/defs/units';
+import { TECH_KEYS, TechId } from '../../sim/defs/techs';
 
 /**
  * What a /docs URL names. Pure — the screen feeds it location.pathname and

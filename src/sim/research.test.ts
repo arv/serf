@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { tickWorld } from './tick.ts';
 import { placeBuiltBuilding, type World } from './world.ts';
-import { TECH_DEFS } from './defs/techs.ts';
+import { TECH_DEFS, ModifierKey, TechId } from './defs/techs.ts';
 import { BARRACKS_ALE_CAP, FESTIVAL_DURATION } from './defs/balance.ts';
 import { getModifier, isBuildingUnlocked } from './techHelpers.ts';
 import { cmds, addSerf, addStorehouse, bareWorld, staffBuilding } from './testUtils.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
-import { ModifierKey } from './defs/techs.ts';
-import { TechId } from './defs/techs.ts';
 import { CommandKind } from './commands.ts';
 
 function run(world: World, ticks: number): void {
@@ -17,7 +15,14 @@ function run(world: World, ticks: number): void {
 }
 
 function setupSchool(world: World): void {
-  addStorehouse(world, 30, 30, { [GoodId.wheat]: 50, [GoodId.silver]: 50, [GoodId.stone]: 20, [GoodId.wood]: 20, [GoodId.ale]: 10, [GoodId.iron]: 10 });
+  addStorehouse(world, 30, 30, {
+    [GoodId.wheat]: 50,
+    [GoodId.silver]: 50,
+    [GoodId.stone]: 20,
+    [GoodId.wood]: 20,
+    [GoodId.ale]: 10,
+    [GoodId.iron]: 10,
+  });
   placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 24, 30);
 }
 
@@ -37,7 +42,9 @@ describe('research', () => {
 
     expect(world.players[0]!.techs.active?.tech).toBe(TechId.cobbledBoots);
     const sh = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
-    expect(sh.stock[GoodId.silver]).toBe(silverBefore - (TECH_DEFS[TechId.cobbledBoots].cost[GoodId.silver] ?? 0));
+    expect(sh.stock[GoodId.silver]).toBe(
+      silverBefore - (TECH_DEFS[TechId.cobbledBoots].cost[GoodId.silver] ?? 0),
+    );
     expect(getModifier(world, 0, ModifierKey.serfSpeed)).toBe(1);
 
     run(world, TECH_DEFS[TechId.cobbledBoots].durationTicks + 2);
@@ -69,8 +76,13 @@ describe('research', () => {
     expect(isBuildingUnlocked(world, 0, BuildingTypeId.weaponsmith)).toBe(true);
     expect(isBuildingUnlocked(world, 0, BuildingTypeId.ironMine)).toBe(false);
 
-    tickWorld(world, cmds({ kind: CommandKind.placeBuilding, building: BuildingTypeId.ironMine, x: 40, y: 40 }));
-    expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.ironMine)).toBe(false);
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.placeBuilding, building: BuildingTypeId.ironMine, x: 40, y: 40 }),
+    );
+    expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.ironMine)).toBe(
+      false,
+    );
 
     world.players[0]!.techs.researched.push(TechId.ironworking);
     expect(isBuildingUnlocked(world, 0, BuildingTypeId.ironMine)).toBe(true);
@@ -134,7 +146,11 @@ describe('research', () => {
     staffBuilding(world, smith);
     smith.inputs[GoodId.iron] = 1;
     smith.inputs[GoodId.wood] = 2;
-    world.players[0]!.techs.researched.push(TechId.cobbledBoots, TechId.ironworking, TechId.bellows);
+    world.players[0]!.techs.researched.push(
+      TechId.cobbledBoots,
+      TechId.ironworking,
+      TechId.bellows,
+    );
     run(world, 2);
     expect(smith.prodTicksLeft).toBeLessThan(200); // spear: 200 base / 1.3 ≈ 154
   });
@@ -167,7 +183,10 @@ describe('research', () => {
     const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     barracks.inputs[GoodId.ale] = 1;
     addSerf(world, 34, 34);
-    tickWorld(world, cmds({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: UnitTypeId.spearman }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: UnitTypeId.spearman }),
+    );
 
     let guard = 20 * 120;
     while (!barracks.trainQueue?.[0]?.started && guard-- > 0) tickWorld(world, []);

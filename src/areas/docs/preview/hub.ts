@@ -1,15 +1,18 @@
 import * as THREE from 'three';
 import { loadGlbAssets, makeGlbBuilding } from '../../../render/assets';
-import { loadCharacterAssets, makeCharacter, playAnimation, type CharacterVisual } from '../../../render/characters';
+import {
+  loadCharacterAssets,
+  makeCharacter,
+  playAnimation,
+  type CharacterVisual,
+  AnimKey,
+} from '../../../render/characters';
 import { makeRoadPile } from '../../../render/models';
-import { BUILDING_DEFS, type BuildingTypeId } from '../../../sim/defs/buildings';
+import { BUILDING_DEFS, type BuildingTypeId, buildingFromKey } from '../../../sim/defs/buildings';
 import { BANDIT } from '../../../sim/entities';
-import { UNIT_DEFS, type UnitTypeId } from '../../../sim/defs/units';
+import { UNIT_DEFS, type UnitTypeId, unitFromKey } from '../../../sim/defs/units';
 import { RAIDER_BUILDINGS, RAIDER_UNITS } from '../data';
 import { YAW, frame, frameFor, makeLights, makePlate, makeRenderer, type Framing } from './scene';
-import { unitFromKey } from '../../../sim/defs/units';
-import { buildingFromKey } from '../../../sim/defs/buildings';
-import { AnimKey } from '../../../render/characters';
 
 /**
  * One WebGL context for every preview on every wiki page.

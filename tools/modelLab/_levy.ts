@@ -11,12 +11,15 @@
  */
 import * as THREE from 'three';
 import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
-import { loadCharacterAssets, makeCharacter, playAnimation } from '../../src/render/characters';
-import { UNIT_DEFS } from '../../src/sim/defs/units';
+import {
+  loadCharacterAssets,
+  makeCharacter,
+  playAnimation,
+  AnimKey,
+} from '../../src/render/characters';
+import { UNIT_DEFS, UnitTypeId } from '../../src/sim/defs/units';
 import { makeLights, makeRenderer, YAW, PITCH } from './scene';
-import { UnitTypeId } from '../../src/sim/defs/units';
 import { BuildingTypeId } from '../../src/sim/defs/buildings';
-import { AnimKey } from '../../src/render/characters';
 
 const params = new URLSearchParams(location.search);
 const t = Number(params.get('t') ?? '0');
@@ -80,7 +83,12 @@ function tower(kindCode: number, clip: AnimKey.throwing | AnimKey.shoot, x: numb
 }
 
 /** One figure, turned to face the camera, scrubbed to phase `phase`. */
-function figure(kindCode: number, clip: AnimKey.throwing | AnimKey.shoot, x: number, phase: number): void {
+function figure(
+  kindCode: number,
+  clip: AnimKey.throwing | AnimKey.shoot,
+  x: number,
+  phase: number,
+): void {
   const made = makeCharacter(kindCode, 0, 0);
   if (!made) throw new Error('characters not loaded');
   // Along the camera's screen-horizontal, not world X: under a 45-degree

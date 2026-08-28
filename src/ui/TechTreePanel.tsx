@@ -1,14 +1,12 @@
 import { For, Show } from 'solid-js';
-import { TECH_BRANCHES, TECH_DEFS, type TechId } from '../sim/defs/techs';
-import { GOODS, type GoodId } from '../sim/defs/goods';
+import { TECH_BRANCHES, TECH_DEFS, type TechId, TECH_IDS } from '../sim/defs/techs';
+import { GOODS, type GoodId, goodEntries } from '../sim/defs/goods';
 import { GoodIcon } from './icons';
 import { TechTip, tooltip } from './tooltip';
 import { buildingName, techDesc, techName } from './names';
 import { setTechPanelOpen, stock, techs } from './store';
 import { COMPACT, SHORT } from './breakpoints';
-import { goodEntries } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
-import { TECH_IDS } from '../sim/defs/techs';
 import type { Enum } from '../shared/enum.ts';
 import * as TechNodeStateNs from './techNodeStateEnum.ts';
 export * as TechNodeState from './techNodeStateEnum.ts';
@@ -19,7 +17,6 @@ const BRANCH_LABELS: Record<string, string> = {
   craft: 'Craft',
   warfare: 'Warfare',
 };
-
 
 export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
   const state = (id: TechId): TechNodeState => {
@@ -228,47 +225,46 @@ export function TechTreePanel(props: { onResearch: (tech: TechId) => void }) {
           </button>
         </div>
         <div class="tech-branches">
-        <For each={TECH_BRANCHES}>
-          {(branch) => (
-            <div class="tech-branch">
-              <h3>{BRANCH_LABELS[branch]}</h3>
-              <For
-                each={TECH_IDS.filter((id) => TECH_DEFS[id].branch === branch)}
-              >
-                {(id) => (
-                  <div
-                    classList={{ 'tech-node': true, [state(id)]: true }}
-                    {...tooltip(() => <TechTip tech={id} />)}
-                    onClick={() => {
-                      if (state(id) === TechNodeStateNs.available && techs().hasAbbey) props.onResearch(id);
-                    }}
-                  >
-                    {/* First in the DOM so it paints behind the text. */}
-                    <Show when={state(id) === TechNodeStateNs.researching}>
-                      <div class="fill" style={{ width: `${progress(id)}%` }} />
-                    </Show>
-                    <b>
-                      {state(id) === TechNodeStateNs.done ? '✓ ' : ''}
-                      {techName(id)}
-                    </b>
-                    <span class="cost">
-                      <For each={goodEntries(TECH_DEFS[id].cost)}>
-                        {([good, n]) => (
-                          <>
-                            {' '}
-                            <GoodIcon good={good} size={12} />
-                            {n}
-                          </>
-                        )}
-                      </For>
-                    </span>
-                    <div class="desc">{techDesc(id)}</div>
-                  </div>
-                )}
-              </For>
-            </div>
-          )}
-        </For>
+          <For each={TECH_BRANCHES}>
+            {(branch) => (
+              <div class="tech-branch">
+                <h3>{BRANCH_LABELS[branch]}</h3>
+                <For each={TECH_IDS.filter((id) => TECH_DEFS[id].branch === branch)}>
+                  {(id) => (
+                    <div
+                      classList={{ 'tech-node': true, [state(id)]: true }}
+                      {...tooltip(() => <TechTip tech={id} />)}
+                      onClick={() => {
+                        if (state(id) === TechNodeStateNs.available && techs().hasAbbey)
+                          props.onResearch(id);
+                      }}
+                    >
+                      {/* First in the DOM so it paints behind the text. */}
+                      <Show when={state(id) === TechNodeStateNs.researching}>
+                        <div class="fill" style={{ width: `${progress(id)}%` }} />
+                      </Show>
+                      <b>
+                        {state(id) === TechNodeStateNs.done ? '✓ ' : ''}
+                        {techName(id)}
+                      </b>
+                      <span class="cost">
+                        <For each={goodEntries(TECH_DEFS[id].cost)}>
+                          {([good, n]) => (
+                            <>
+                              {' '}
+                              <GoodIcon good={good} size={12} />
+                              {n}
+                            </>
+                          )}
+                        </For>
+                      </span>
+                      <div class="desc">{techDesc(id)}</div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            )}
+          </For>
         </div>
       </div>
     </>

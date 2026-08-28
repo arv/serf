@@ -1,29 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { canPlace, createWorld, createWorldAsync, missionWorldConfig, type World } from './world.ts';
+import {
+  canPlace,
+  createWorld,
+  createWorldAsync,
+  missionWorldConfig,
+  type World,
+  GameEventKind,
+  MatchState,
+} from './world.ts';
 import { tickWorld } from './tick.ts';
 import { cmds } from './testUtils.ts';
 import { AiBrain } from './systems/ai.ts';
-import { AI_STRATEGIES } from './defs/aiStrategies.ts';
-import { MISSION_DEFS, MISSION_ORDER, nextMissionId, parseMissionId } from './defs/missions.ts';
+import { AI_STRATEGIES, AiStrategyId } from './defs/aiStrategies.ts';
+import {
+  MISSION_DEFS,
+  MISSION_ORDER,
+  nextMissionId,
+  parseMissionId,
+  MissionId,
+  MISSION_IDS,
+} from './defs/missions.ts';
 import { hashWorld } from './hash.ts';
 import { loadMissionMap } from './defs/missionMaps.ts';
 import { parseMapData } from './mapFile.ts';
 import { rectClear } from './map.ts';
 import { deserializeWorld, serializeWorld } from './save.ts';
 import { firstRaidTickFor } from './defs/balance.ts';
-import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF } from './defs/buildings.ts';
-import type { SimCommand } from './commands.ts';
+import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF, BuildingTypeId } from './defs/buildings.ts';
+import { type SimCommand, CommandKind } from './commands.ts';
 import { GoodId } from './defs/goods.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
 import { TechId } from './defs/techs.ts';
 import { BuildingState } from './entities.ts';
-import { CommandKind } from './commands.ts';
-import { GameEventKind } from './world.ts';
-import { MatchState } from './world.ts';
-import { MissionId } from './defs/missions.ts';
-import { AiStrategyId } from './defs/aiStrategies.ts';
 import { PlayerKind } from './player.ts';
-import { MISSION_IDS } from './defs/missions.ts';
 
 /**
  * The campaign missions hold the same line winnable.test.ts holds for the
@@ -56,7 +64,12 @@ function stockOf(world: World, good: GoodId): number {
 
 /** The nearest spot the placement rules accept — the ghost search a player
  * runs by eye, in the same ring-spiral order worldgen uses. */
-function findSpot(world: World, type: BuildingTypeId, cx: number, cy: number): { x: number; y: number } {
+function findSpot(
+  world: World,
+  type: BuildingTypeId,
+  cx: number,
+  cy: number,
+): { x: number; y: number } {
   for (let r = 0; r < 16; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -70,7 +83,11 @@ function findSpot(world: World, type: BuildingTypeId, cx: number, cy: number): {
 
 /** Drive the AI brain in the human's chair — the stand-in for a competent
  * player, the same harness winnable.test.ts uses. */
-async function playMission(id: MissionId, strategy: AiStrategyId, maxTicks: number): Promise<World> {
+async function playMission(
+  id: MissionId,
+  strategy: AiStrategyId,
+  maxTicks: number,
+): Promise<World> {
   const config = missionWorldConfig(id);
   config.players = config.players.map((p, i) => (i === 0 ? { kind: PlayerKind.ai } : p));
   const world = await createWorldAsync(config);
@@ -127,16 +144,24 @@ describe('the campaign missions', () => {
       tickWorld(world, []);
     }
 
-    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: MatchState.over, winner: 0 });
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+      state: MatchState.over,
+      winner: 0,
+    });
     expect(world.objectivesDone).toEqual([true, true, true, true, true]);
     // The completion events fired once each (five objectives, one gameOver).
-    const completions = world.pendingEvents.filter((e) => e.kind === GameEventKind.objectiveComplete);
+    const completions = world.pendingEvents.filter(
+      (e) => e.kind === GameEventKind.objectiveComplete,
+    );
     expect(completions.length).toBe(5);
   }, 120_000);
 
   it('mission 2 (Bread and Water) is winnable', async () => {
     const world = await playMission(MissionId.breadAndWater, AiStrategyId.steward, 45_000);
-    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: MatchState.over, winner: 0 });
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+      state: MatchState.over,
+      winner: 0,
+    });
     expect(stockOf(world, GoodId.wood)).toBeGreaterThanOrEqual(0);
   }, 240_000);
 
@@ -147,8 +172,7 @@ describe('the campaign missions', () => {
     const world = await createWorldAsync(missionWorldConfig(MissionId.ledger));
     const keep = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
     const castle = { x: keep.x + 1, y: keep.y + 1 };
-    const researched = (tech: TechId): boolean =>
-      world.players[0]!.techs.researched.includes(tech);
+    const researched = (tech: TechId): boolean => world.players[0]!.techs.researched.includes(tech);
     const place = (type: BuildingTypeId): SimCommand => {
       const spot = findSpot(world, type, castle.x, castle.y);
       return { kind: CommandKind.placeBuilding, building: type, x: spot.x, y: spot.y };
@@ -163,7 +187,11 @@ describe('the campaign missions', () => {
       // A player clicks when the button lights up; every 50 ticks is fine.
       if (world.tick % 50 === 0) {
         const active = world.players[0]!.techs.active;
-        if (!active && countBuilt(world, BuildingTypeId.abbey) >= 1 && !researched(TechId.cobbledBoots)) {
+        if (
+          !active &&
+          countBuilt(world, BuildingTypeId.abbey) >= 1 &&
+          !researched(TechId.cobbledBoots)
+        ) {
           tickWorld(world, cmds({ kind: CommandKind.research, tech: TechId.cobbledBoots }));
           continue;
         }
@@ -180,7 +208,8 @@ describe('the campaign missions', () => {
         // A fresh Smith idles on auto; the crown wants spears — the player
         // clicks the forge menu once the roof is up.
         const smith = [...world.buildings.values()].find(
-          (b) => b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === BuildingState.built,
+          (b) =>
+            b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === BuildingState.built,
         );
         if (smith && smith.recipeIndex === undefined) {
           tickWorld(
@@ -193,7 +222,10 @@ describe('the campaign missions', () => {
       tickWorld(world, []);
     }
 
-    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: MatchState.over, winner: 0 });
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+      state: MatchState.over,
+      winner: 0,
+    });
     expect(world.objectivesDone).toEqual([true, true, true, true, true, true]);
   }, 240_000);
 
@@ -226,14 +258,23 @@ describe('the campaign missions', () => {
     const spot = findSpot(world, BuildingTypeId.weaponsmith, castle.x, castle.y);
     // The one roof the mission is about — and the reeve's one hammer is
     // what raises it, on loan until the roof goes on.
-    tickWorld(world, cmds({ kind: CommandKind.placeBuilding, building: BuildingTypeId.weaponsmith, x: spot.x, y: spot.y }));
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.placeBuilding,
+        building: BuildingTypeId.weaponsmith,
+        x: spot.x,
+        y: spot.y,
+      }),
+    );
 
     const HAMMER_RECIPE = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!.findIndex(
       (o) => (o.recipe.outputs[GoodId.hammer] ?? 0) > 0,
     );
     const staffed = (): boolean =>
       [...world.buildings.values()].every((b) => {
-        if (b.dead || b.owner !== 0 || b.state !== BuildingState.built || !TOOL_OF[b.type]) return true;
+        if (b.dead || b.owner !== 0 || b.state !== BuildingState.built || !TOOL_OF[b.type])
+          return true;
         const w = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
         return w !== undefined && !w.dead;
       });
@@ -244,7 +285,8 @@ describe('the campaign missions', () => {
       // A player clicks when the button lights up; every 50 ticks is fine.
       if (!ordered && world.tick % 50 === 0) {
         const smith = [...world.buildings.values()].find(
-          (b) => b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === BuildingState.built,
+          (b) =>
+            b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === BuildingState.built,
         );
         // Left alone the Smith tools the open posts and then lets the fire
         // go cold. Once every peg is filled the player queues the batch the
@@ -268,7 +310,10 @@ describe('the campaign missions', () => {
       tickWorld(world, []);
     }
 
-    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: MatchState.over, winner: 0 });
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+      state: MatchState.over,
+      winner: 0,
+    });
     expect(world.objectivesDone).toEqual([true, true, true, true, true]);
     // The loan came home rather than being forged twice over.
     expect(stockOf(world, GoodId.hammer)).toBe(3);
@@ -276,12 +321,18 @@ describe('the campaign missions', () => {
 
   it('mission 5 (The Levy) is winnable, early raid and all', async () => {
     const world = await playMission(MissionId.levy, AiStrategyId.steward, 60_000);
-    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: MatchState.over, winner: 0 });
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+      state: MatchState.over,
+      winner: 0,
+    });
   }, 240_000);
 
   it('mission 6 (Hold the Valley) is exactly the winnable map, reached by mission id', async () => {
     const world = await playMission(MissionId.holdTheValley, AiStrategyId.steward, 45_000);
-    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: MatchState.over, winner: 0 });
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+      state: MatchState.over,
+      winner: 0,
+    });
     expect(world.objectivesDone).toEqual([true]);
   }, 240_000);
 
@@ -312,7 +363,11 @@ describe('the campaign missions', () => {
         def.prebuilt!.filter((s) => s.type === spec.type).length,
       );
     }
-    expect(world.players[0]!.techs.researched).toEqual([TechId.soldiery, TechId.cobbledBoots, TechId.ironworking]);
+    expect(world.players[0]!.techs.researched).toEqual([
+      TechId.soldiery,
+      TechId.cobbledBoots,
+      TechId.ironworking,
+    ]);
     expect(world.raidState.nextRaidTick).toBe(def.firstRaidTick);
     expect(stockOf(world, GoodId.silver)).toBe(def.startStock![GoodId.silver]);
     // And a mission with no clock override keeps the default — the
@@ -339,7 +394,9 @@ describe('the campaign missions', () => {
     expect(loaded.objectivesDone).toEqual(world.objectivesDone);
     expect(hashWorld(loaded)).toBe(hashWorld(world));
     // A sandbox save carries no mission fields at all.
-    const sandbox = deserializeWorld(serializeWorld(createWorld({ seed: 5, players: [{ kind: PlayerKind.human }] })));
+    const sandbox = deserializeWorld(
+      serializeWorld(createWorld({ seed: 5, players: [{ kind: PlayerKind.human }] })),
+    );
     expect(sandbox.missionId).toBeUndefined();
     expect(sandbox.objectivesDone).toBeUndefined();
   });

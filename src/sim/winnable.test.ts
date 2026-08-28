@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld } from './world.ts';
+import { createWorld, MatchState } from './world.ts';
 import { tickWorld } from './tick.ts';
 import { AiBrain } from './systems/ai.ts';
 import { strategyOf } from './defs/aiStrategies.ts';
-import { MatchState } from './world.ts';
 import { PlayerKind } from './player.ts';
 
 /**
@@ -41,7 +40,10 @@ describe('the campaign is winnable', () => {
     }
 
     // The one assertion that matters.
-    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: MatchState.over, winner: 0 });
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+      state: MatchState.over,
+      winner: 0,
+    });
     expect(world.tick).toBeLessThan(45_000);
   }, 120_000);
 });

@@ -20,6 +20,27 @@
  * directly.
  */
 /**
+ * 33: every id in the sim is a number. Goods, buildings, units, techs,
+ * task tags, job phases, building states, tile resources, command kinds,
+ * admin actions, mission and playbook ids — all of them were unions of
+ * string literals and are JS enum modules now (shared/enum.ts).
+ *
+ * Two things this breaks for an older log, either of which is the whole
+ * reason for the bump. The command frames in the file name their kind as a
+ * word, and sanitizeCommand reads a number — so every order in an old log
+ * is screened out and the replay plays an empty match. And the sim ticks
+ * differently: a GoodAmounts is keyed by number now, integer keys
+ * enumerate in ascending order rather than in the order the goods were
+ * authored or first arrived, and the logistics pass reads shelves in that
+ * order. A cost written `{stone, wood}` is walked wood-first today, which
+ * moves which demand is booked first and therefore which job takes which
+ * id.
+ *
+ * Nothing about the *rules* moved — this is the same game — but "the same
+ * seed re-runs the same world" is exactly what a replay rests on, and it
+ * no longer holds across the change.
+ */
+/**
  * 32: the campaign's seven maps are composed rather than rolled. They
  * used to be worldgen output at pinned seeds, frozen to files; they are
  * recipes now (tools/mapAuthor/), each valley shaped around the lesson
@@ -247,4 +268,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 32;
+export const REPLAY_VERSION = 33;

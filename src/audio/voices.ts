@@ -290,7 +290,8 @@ export class CueScheduler {
         const gain = Math.min(maxGain * (1 + COLLAPSE_SLOPE * Math.log2(n)), ceiling);
         const ci = candLen++;
         let c = this.#cands[ci];
-        if (!c) c = this.#cands[ci] = { cue: '', bus: BusId.ui, pan: 0, gain: 0, delay: 0, score: 0 };
+        if (!c)
+          c = this.#cands[ci] = { cue: '', bus: BusId.ui, pan: 0, gain: 0, delay: 0, score: 0 };
         c.cue = g.cue;
         c.bus = def.bus;
         c.pan = gainSum > 0 ? panGainSum / gainSum : 0;

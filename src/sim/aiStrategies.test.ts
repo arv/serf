@@ -1,18 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld, type World, type WorldConfig } from './world.ts';
+import { createWorld, type World, type WorldConfig, MatchState } from './world.ts';
 import { tickWorld, type PlayerCommand } from './tick.ts';
 import { serializeWorld, deserializeWorld } from './save.ts';
 import { AiBrain, mustersNeeded } from './systems/ai.ts';
 import { popCapOf, populationOf } from './population.ts';
-import { BUILDING_DEFS } from './defs/buildings.ts';
-import { AI_STRATEGIES, AI_STRATEGY_ORDER, dealStrategies, parseStrategyId, shuffledStrategies, strategyOf } from './defs/aiStrategies.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
+import { BUILDING_DEFS, BuildingTypeId } from './defs/buildings.ts';
+import {
+  AI_STRATEGIES,
+  AI_STRATEGY_ORDER,
+  dealStrategies,
+  parseStrategyId,
+  shuffledStrategies,
+  strategyOf,
+  AiStrategyId,
+  AI_STRATEGY_IDS,
+  AI_STRATEGY_KEYS,
+} from './defs/aiStrategies.ts';
 import { TechId } from './defs/techs.ts';
-import { MatchState } from './world.ts';
-import { AiStrategyId } from './defs/aiStrategies.ts';
 import { PlayerKind } from './player.ts';
-import { AI_STRATEGY_IDS } from './defs/aiStrategies.ts';
-import { AI_STRATEGY_KEYS } from './defs/aiStrategies.ts';
 
 /**
  * Every AI seat used to run one hard-coded playbook, so beating one
@@ -77,9 +82,10 @@ describe('the AI playbooks', () => {
       expect(houses.length, `${AI_STRATEGY_KEYS[id]} built no house`).toBeGreaterThan(0);
       // A plan that only ever builds beds is no better than one that builds
       // none: what the housing is for is a village bigger than ten.
-      expect(populationOf(world, 0), `${AI_STRATEGY_KEYS[id]} never outgrew the castle`).toBeGreaterThan(
-        BUILDING_DEFS[BuildingTypeId.storehouse].housing!,
-      );
+      expect(
+        populationOf(world, 0),
+        `${AI_STRATEGY_KEYS[id]} never outgrew the castle`,
+      ).toBeGreaterThan(BUILDING_DEFS[BuildingTypeId.storehouse].housing!);
       // And it never sneaks past its own ceiling.
       expect(populationOf(world, 0)).toBeLessThanOrEqual(popCapOf(world, 0));
     }
@@ -104,16 +110,22 @@ describe('the AI playbooks', () => {
       expect(held.men, `${AI_STRATEGY_KEYS[id]} left its towers empty`).toBeGreaterThan(0);
     }
     for (const id of [AiStrategyId.steward, AiStrategyId.warlord]) {
-      expect(garrisonOf(playCampaign(id, 45_000)).towers, `${AI_STRATEGY_KEYS[id]} built a tower it cannot man`).toBe(
-        0,
-      );
+      expect(
+        garrisonOf(playCampaign(id, 45_000)).towers,
+        `${AI_STRATEGY_KEYS[id]} built a tower it cannot man`,
+      ).toBe(0);
     }
   }, 240_000);
 
   it('deals every AI seat a different playbook, and writes it into the world', () => {
     const world = createWorld({
       seed: 11,
-      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
+      players: [
+        { kind: PlayerKind.human },
+        { kind: PlayerKind.ai },
+        { kind: PlayerKind.ai },
+        { kind: PlayerKind.ai },
+      ],
     });
     const dealt = world.players.slice(1).map((p) => p.strategy);
     expect(new Set(dealt).size).toBe(3);
@@ -239,7 +251,12 @@ describe('the AI playbooks', () => {
     const world = playSeats(
       {
         seed: 42,
-        players: [{ kind: PlayerKind.ai }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
+        players: [
+          { kind: PlayerKind.ai },
+          { kind: PlayerKind.ai },
+          { kind: PlayerKind.ai },
+          { kind: PlayerKind.ai },
+        ],
         banditsEnabled: false,
         mapSize: 64,
       },

@@ -5,18 +5,18 @@ import { deserializeWorld, serializeWorld } from './save.ts';
 import { tickWorld } from './tick.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { BANDIT } from './entities.ts';
-import { UNIT_DEFS } from './defs/units.ts';
-import { BUILDING_DEFS } from './defs/buildings.ts';
-import type { SimCommand } from './commands.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
-import { CommandKind } from './commands.ts';
+import { UNIT_DEFS, UnitTypeId } from './defs/units.ts';
+import { BUILDING_DEFS, BuildingTypeId } from './defs/buildings.ts';
+import { type SimCommand, CommandKind } from './commands.ts';
 import { PlayerKind } from './player.ts';
 
 function commandScript(tick: number): SimCommand[] {
-  if (tick === 50) return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.woodcutter, x: 26, y: 36 }];
-  if (tick === 60) return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.well, x: 38, y: 36 }];
-  if (tick === 800) return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.wheatFarm, x: 40, y: 30 }];
+  if (tick === 50)
+    return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.woodcutter, x: 26, y: 36 }];
+  if (tick === 60)
+    return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.well, x: 38, y: 36 }];
+  if (tick === 800)
+    return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.wheatFarm, x: 40, y: 30 }];
   return [];
 }
 
@@ -178,5 +178,4 @@ describe('the map grids', () => {
     const short = (doc.world.map.height as string).slice(0, 64);
     expect(() => deserializeWorld(withGrid('height', short))).toThrow(/bad map size/);
   });
-
 });

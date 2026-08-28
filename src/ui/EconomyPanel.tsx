@@ -1,12 +1,10 @@
 import { For, Show } from 'solid-js';
-import { GOODS } from '../sim/defs/goods';
+import { GOODS, GoodId, GOOD_KEYS } from '../sim/defs/goods';
 import { GoodIcon } from './icons';
 import { GoodTip, tooltip } from './tooltip';
 import { goodName } from './names';
 import { setEconomyPanelOpen, stock, toolWants } from './store';
 import { COMPACT } from './breakpoints';
-import { GoodId } from '../sim/defs/goods';
-import { GOOD_KEYS } from '../sim/defs/goods';
 
 /**
  * The ledger: every good the village owns, grouped by what it is for.
@@ -27,7 +25,10 @@ const GROUPS: { label: string; goods: GoodId[] }[] = [
   { label: 'Food', goods: [GoodId.wheat, GoodId.flour, GoodId.food, GoodId.ale] },
   { label: 'Metal', goods: [GoodId.iron, GoodId.silver, GoodId.gold] },
   { label: 'Arms', goods: [GoodId.spear, GoodId.sword, GoodId.bow] },
-  { label: 'Tools', goods: [GoodId.axe, GoodId.pickaxe, GoodId.scythe, GoodId.hammer, GoodId.cauldron, GoodId.rod] },
+  {
+    label: 'Tools',
+    goods: [GoodId.axe, GoodId.pickaxe, GoodId.scythe, GoodId.hammer, GoodId.cauldron, GoodId.rod],
+  },
 ];
 
 // The panel must account for every good — a new one someone forgets to

@@ -264,7 +264,9 @@ describe('stone-road paving', () => {
 
     expect(world.map.pathLevel[idx]).toBe(PathLevel.Road);
     // The road site consumed a stone and removed itself.
-    expect([...world.buildings.values()].filter((b) => b.type === BuildingTypeId.roadSite)).toEqual([]);
+    expect([...world.buildings.values()].filter((b) => b.type === BuildingTypeId.roadSite)).toEqual(
+      [],
+    );
     expect(world.map.buildingAt[idx]).toBe(-1);
     expect(world.map.blocked[idx]).toBe(0);
     expect(checkInvariants(world).violations).toEqual([]);

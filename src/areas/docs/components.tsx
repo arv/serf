@@ -1,13 +1,11 @@
 import { For, Show, type JSX } from 'solid-js';
 import { goto } from '../../app/router';
-import type { GoodAmounts, GoodId } from '../../sim/defs/goods';
-import type { Recipe } from '../../sim/defs/buildings';
+import { type GoodAmounts, type GoodId, goodEntries } from '../../sim/defs/goods';
+import { type Recipe, RecipeKind } from '../../sim/defs/buildings';
 import { GoodIcon } from '../../ui/icons';
 import { goodName } from '../../ui/names';
 import { fmtPerMinute, fmtSecs } from './data';
 import { goodHref } from './routes';
-import { goodEntries } from '../../sim/defs/goods';
-import { RecipeKind } from '../../sim/defs/buildings';
 
 /**
  * An internal wiki link: a real <a>, so middle-click and copy-link work,
@@ -45,9 +43,7 @@ export function GoodChip(props: { good: GoodId; amount?: number }): JSX.Element 
   // separate elements they carried only a CSS margin, and an accessible
   // name is computed from text, so the chip was announced as "10Wood".
   const label = (): string =>
-    props.amount === undefined
-      ? goodName(props.good)
-      : `${props.amount} ${goodName(props.good)}`;
+    props.amount === undefined ? goodName(props.good) : `${props.amount} ${goodName(props.good)}`;
   return (
     <DocLink href={goodHref(props.good)} class="chip">
       {/* The text names the good; a labelled icon would repeat it. */}

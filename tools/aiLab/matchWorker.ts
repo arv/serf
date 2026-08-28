@@ -1,7 +1,6 @@
-import { buildEngine, type EngineSpec } from './engines.ts';
+import { buildEngine, type EngineSpec, type LabEngine } from './engines.ts';
 import { playMatch, type MatchConfig, type MatchRecord } from './match.ts';
 import type { Owner } from '../../src/sim/entities.ts';
-import type { LabEngine } from './engines.ts';
 
 /**
  * One match in one child process — the unit `--jobs` parallelizes over.

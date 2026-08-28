@@ -1,9 +1,8 @@
-import { readOpponent } from './archetype.ts';
+import { readOpponent, Archetype } from './archetype.ts';
 import type { StrategyAdvice } from './advice.ts';
 import type { AiWorldSummary } from './summary.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as PostureIdNs from './postureIdEnum.ts';
-import { Archetype } from './archetype.ts';
 export * as PostureId from './postureIdEnum.ts';
 export type PostureId = Enum<typeof PostureIdNs>;
 
@@ -42,7 +41,6 @@ export type PostureId = Enum<typeof PostureIdNs>;
  * steers how big the army is and when it marches; the captain keeps the
  * choice of what to arm it with.
  */
-
 
 /** Menu order — also the order quoted to the model, economy first. */
 export const POSTURE_ORDER: readonly PostureId[] = [
@@ -88,7 +86,10 @@ export interface Posture {
    * is a type error rather than a seat playing a blend of two. */
   knobs: Readonly<
     Required<
-      Omit<StrategyAdvice, 'trainPreference' | 'weaponMix' | 'reason' | 'posture' | 'marchConfidence'>
+      Omit<
+        StrategyAdvice,
+        'trainPreference' | 'weaponMix' | 'reason' | 'posture' | 'marchConfidence'
+      >
     >
   >;
 }

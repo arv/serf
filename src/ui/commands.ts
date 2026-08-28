@@ -1,12 +1,9 @@
-import { BUILDING_DEFS } from '../sim/defs/buildings';
-import { TECH_DEFS, type TechId } from '../sim/defs/techs';
-import type { GoodAmounts } from '../sim/defs/goods';
+import { BUILDING_DEFS, BuildingTypeId } from '../sim/defs/buildings';
+import { TECH_DEFS, type TechId, TechEffectKind } from '../sim/defs/techs';
+import { type GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { BuildingSnap } from '../protocol/messages';
 import { HIRE_QUEUE_CAP, HIRE_SERF_COST, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
-import { GoodId } from '../sim/defs/goods';
 import { UnitTypeId } from '../sim/defs/units';
-import { BuildingTypeId } from '../sim/defs/buildings';
-import { TechEffectKind } from '../sim/defs/techs';
 import { BuildingState } from '../sim/entities';
 
 /**
@@ -50,7 +47,9 @@ export function canHire(
   if (b.type !== BuildingTypeId.storehouse || b.state !== BuildingState.built) return false;
   const queued = b.hireQueue ?? 0;
   return (
-    (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST && queued < HIRE_QUEUE_CAP && pop.pop + queued < pop.cap
+    (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST &&
+    queued < HIRE_QUEUE_CAP &&
+    pop.pop + queued < pop.cap
   );
 }
 

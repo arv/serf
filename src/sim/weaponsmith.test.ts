@@ -79,7 +79,14 @@ describe('the forge queue', () => {
     const world = bareWorld();
     // Zero the fixture tool kit: these tests measure the tool economy
     // itself, and a shelf of spare axes covers every gap auto would see.
-    addStorehouse(world, 24, 24, { [GoodId.axe]: 0, [GoodId.pickaxe]: 0, [GoodId.scythe]: 0, [GoodId.hammer]: 0, [GoodId.cauldron]: 0, [GoodId.rod]: 0 });
+    addStorehouse(world, 24, 24, {
+      [GoodId.axe]: 0,
+      [GoodId.pickaxe]: 0,
+      [GoodId.scythe]: 0,
+      [GoodId.hammer]: 0,
+      [GoodId.cauldron]: 0,
+      [GoodId.rod]: 0,
+    });
     world.players[0]!.techs.researched.push(TechId.ironworking, TechId.archery);
     const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 30, 30);
     staffBuilding(world, smith);
@@ -116,7 +123,10 @@ describe('the forge queue', () => {
     const { world, smith } = forgeWorld();
     smith.inputs[GoodId.iron] = 4;
     smith.inputs[GoodId.wood] = 8;
-    tickWorld(world, cmds({ kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: 2 }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: 2 }),
+    );
     let guard = 0;
     while (smith.prodTicksLeft === undefined && guard++ < 100) tickWorld(world, []);
     expect(smith.forgeQueue![0]!.started).toBe(true);
@@ -135,8 +145,14 @@ describe('the forge queue', () => {
 
   it('a stale cancel misses instead of striking a neighbour', () => {
     const { world, smith } = forgeWorld();
-    tickWorld(world, cmds({ kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: 2 }));
-    tickWorld(world, cmds({ kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: 0 }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: 2 }),
+    );
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: 0 }),
+    );
     // The player saw [bow, spear] and clicked slot 0 to cancel the bow —
     // but by then the bow was already struck; slot 0 now holds the spear.
     smith.forgeQueue!.splice(0, 1);
@@ -153,7 +169,10 @@ describe('the forge queue', () => {
     addStorehouse(world, 24, 24, {});
     world.players[0]!.techs.researched.push(TechId.ironworking); // no archery
     const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 30, 30);
-    tickWorld(world, cmds({ kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: 2 }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: 2 }),
+    );
     expect(smith.forgeQueue).toBeUndefined();
   });
 

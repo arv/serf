@@ -1,5 +1,4 @@
-import type { GoodAmounts } from './goods.ts';
-import { GoodId } from './goods.ts';
+import { type GoodAmounts, GoodId } from './goods.ts';
 import { BuildingTypeId } from './buildings.ts';
 import { TechId } from './techs.ts';
 import type { Enum } from '../../shared/enum.ts';
@@ -39,7 +38,6 @@ export type ObjectiveKind = Enum<typeof ObjectiveKindNs>;
  * UI in src/ui/hints.ts. The sim knows whether you have won; only the UI
  * knows how to help you.
  */
-
 
 /**
  * One win requirement. Every spec is a stateless predicate over the world —
@@ -123,16 +121,35 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // balance floor doesn't apply.
     // Tools for the two posts this mission teaches, and hammers for its
     // sites — the tool economy itself is mission 4's lesson, not this one's.
-    startStock: { [GoodId.wood]: 20, [GoodId.stone]: 6, [GoodId.silver]: 24, [GoodId.axe]: 1, [GoodId.pickaxe]: 1, [GoodId.hammer]: 2 },
+    startStock: {
+      [GoodId.wood]: 20,
+      [GoodId.stone]: 6,
+      [GoodId.silver]: 24,
+      [GoodId.axe]: 1,
+      [GoodId.pickaxe]: 1,
+      [GoodId.hammer]: 2,
+    },
     objectives: [
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.woodcutter, count: 1 }, label: 'Raise a Woodcutter' },
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.quarry, count: 1 }, label: 'Raise a Quarry' },
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.house, count: 1 }, label: 'Raise a House' },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.woodcutter, count: 1 },
+        label: 'Raise a Woodcutter',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.quarry, count: 1 },
+        label: 'Raise a Quarry',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.house, count: 1 },
+        label: 'Raise a House',
+      },
       // Eleven, one past the castle's ten beds: the house objective is
       // load-bearing (population is beds), not a checkbox. Five hires at
       // 4 silver each out of the 24 the mission opens with.
       { spec: { kind: ObjectiveKindNs.population, count: 11 }, label: 'Grow the village to 11' },
-      { spec: { kind: ObjectiveKindNs.stock, good: GoodId.wood, amount: 30 }, label: 'Lay in 30 wood at the Castle' },
+      {
+        spec: { kind: ObjectiveKindNs.stock, good: GoodId.wood, amount: 30 },
+        label: 'Lay in 30 wood at the Castle',
+      },
     ],
   },
 
@@ -158,11 +175,26 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       [GoodId.hammer]: 2,
     },
     objectives: [
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.well, count: 1 }, label: 'Raise a Well' },
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.wheatFarm, count: 1 }, label: 'Raise a Wheat Farm' },
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.mill, count: 1 }, label: 'Raise a Mill' },
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.bakery, count: 1 }, label: 'Raise a Bakery' },
-      { spec: { kind: ObjectiveKindNs.stock, good: GoodId.food, amount: 12 }, label: 'Lay in 12 food at the Castle' },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.well, count: 1 },
+        label: 'Raise a Well',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.wheatFarm, count: 1 },
+        label: 'Raise a Wheat Farm',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.mill, count: 1 },
+        label: 'Raise a Mill',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.bakery, count: 1 },
+        label: 'Raise a Bakery',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.stock, good: GoodId.food, amount: 12 },
+        label: 'Lay in 12 food at the Castle',
+      },
     ],
   },
 
@@ -199,13 +231,31 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       { type: BuildingTypeId.wheatFarm, dx: 8, dy: 2 },
     ],
     objectives: [
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.abbey, count: 1 }, label: 'Raise an Abbey' },
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.silverMine, count: 1 }, label: 'Dig a Silver Mine' },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.abbey, count: 1 },
+        label: 'Raise an Abbey',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.silverMine, count: 1 },
+        label: 'Dig a Silver Mine',
+      },
       // Forces Cobbled Boots first — the tree's prereq line teaches itself.
-      { spec: { kind: ObjectiveKindNs.research, tech: TechId.ironworking }, label: 'Research Ironworking' },
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.ironMine, count: 1 }, label: 'Dig an Iron Mine' },
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.weaponsmith, count: 1 }, label: 'Raise a Smith' },
-      { spec: { kind: ObjectiveKindNs.stock, good: GoodId.spear, amount: 4 }, label: 'Forge 4 spears' },
+      {
+        spec: { kind: ObjectiveKindNs.research, tech: TechId.ironworking },
+        label: 'Research Ironworking',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.ironMine, count: 1 },
+        label: 'Dig an Iron Mine',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.weaponsmith, count: 1 },
+        label: 'Raise a Smith',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.stock, good: GoodId.spear, amount: 4 },
+        label: 'Forge 4 spears',
+      },
     ],
   },
 
@@ -237,7 +287,13 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // until the mine is manned. The pickaxe costs no iron on purpose
     // (buildings.ts says why), so the way out of a bare rack is always to
     // forge the pick first and let the hill pay for the rest.
-    startStock: { [GoodId.wood]: 30, [GoodId.stone]: 15, [GoodId.iron]: 4, [GoodId.silver]: 6, [GoodId.hammer]: 1 },
+    startStock: {
+      [GoodId.wood]: 30,
+      [GoodId.stone]: 15,
+      [GoodId.iron]: 4,
+      [GoodId.silver]: 6,
+      [GoodId.hammer]: 1,
+    },
     // Research was mission 3's lesson; the forge recipes it opened are
     // granted here so the tools themselves are the only puzzle.
     startTechs: [TechId.cobbledBoots, TechId.ironworking],
@@ -260,17 +316,32 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // because a forged tool is hauled to whichever post is calling for it
     // — it reaches the castle shelf only once nothing is waiting on it.
     objectives: [
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.weaponsmith, count: 1 }, label: 'Raise a Smith' },
-      { spec: { kind: ObjectiveKindNs.stock, good: GoodId.iron, amount: 12 }, label: 'Lay in 12 iron at the Castle' },
-      { spec: { kind: ObjectiveKindNs.stock, good: GoodId.wood, amount: 45 }, label: 'Lay in 45 wood at the Castle' },
-      { spec: { kind: ObjectiveKindNs.stock, good: GoodId.food, amount: 12 }, label: 'Lay in 12 food at the Castle' },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.weaponsmith, count: 1 },
+        label: 'Raise a Smith',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.stock, good: GoodId.iron, amount: 12 },
+        label: 'Lay in 12 iron at the Castle',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.stock, good: GoodId.wood, amount: 45 },
+        label: 'Lay in 45 wood at the Castle',
+      },
+      {
+        spec: { kind: ObjectiveKindNs.stock, good: GoodId.food, amount: 12 },
+        label: 'Lay in 12 food at the Castle',
+      },
       // The one the auto-forge will never do for you: a hammer is wanted
       // by a site, so a village with nothing rising wants none, and the
       // fire goes cold. Three is a batch queued by hand at the forge menu
       // — two of them, since the hammer the mission opens with comes back
       // off the Smith's own site when the roof goes on. Three on the shelf
       // is three sites that can rise at once.
-      { spec: { kind: ObjectiveKindNs.stock, good: GoodId.hammer, amount: 3 }, label: 'Lay in 3 hammers at the Castle' },
+      {
+        spec: { kind: ObjectiveKindNs.stock, good: GoodId.hammer, amount: 3 },
+        label: 'Lay in 3 hammers at the Castle',
+      },
     ],
   },
 
@@ -326,7 +397,10 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       { type: BuildingTypeId.abbey, dx: 8, dy: -1 },
     ],
     objectives: [
-      { spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.barracks, count: 1 }, label: 'Raise a Barracks' },
+      {
+        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.barracks, count: 1 },
+        label: 'Raise a Barracks',
+      },
       { spec: { kind: ObjectiveKindNs.soldiers, count: 6 }, label: 'Field 6 soldiers at once' },
       { spec: { kind: ObjectiveKindNs.razeCamp }, label: 'Raze the bandit camp' },
     ],
@@ -348,9 +422,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     players: [{ kind: PlayerKind.human }],
     bandits: true,
     campSpot: { x: 106, y: 106 },
-    objectives: [
-      { spec: { kind: ObjectiveKindNs.razeCamp }, label: 'Raze the bandit camp' },
-    ],
+    objectives: [{ spec: { kind: ObjectiveKindNs.razeCamp }, label: 'Raze the bandit camp' }],
   },
 
   [MissionIdNs.rivalBanner]: {
@@ -434,6 +506,4 @@ export const MISSION_IDS: readonly MissionId[] = [
   MissionIdNs.rivalBanner,
 ];
 
-const MISSION_BY_KEY = new Map<string, MissionId>(
-  MISSION_IDS.map((id) => [MISSION_KEYS[id], id]),
-);
+const MISSION_BY_KEY = new Map<string, MissionId>(MISSION_IDS.map((id) => [MISSION_KEYS[id], id]));

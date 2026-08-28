@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { gridFor, tileCount, tileIdx } from '../shared/grid.ts';
 import { createWorld, campCorners, type World } from './world.ts';
-import {
-  Terrain,
-  TileResource,
-  inPlayArea,
-  playEdgeDist,
-  playMin,
-  type GameMap,
-} from './map.ts';
+import { Terrain, TileResource, inPlayArea, playEdgeDist, playMin, type GameMap } from './map.ts';
 import { WOOD_MAX_AMT } from './defs/balance.ts';
 import { PlayerKind } from './player.ts';
 

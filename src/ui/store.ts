@@ -9,7 +9,13 @@ if (import.meta.hot) {
 }
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { BuildingTypeId } from '../sim/defs/buildings';
-import type { BuildingSnap, JobSnap, OutcomeSnap, PlayerSnap, TechSnap } from '../protocol/messages';
+import type {
+  BuildingSnap,
+  JobSnap,
+  OutcomeSnap,
+  PlayerSnap,
+  TechSnap,
+} from '../protocol/messages';
 import { play, setAudioMuted, setAudioVolume } from '../audio/audio';
 import { audioFromUrl, loadAudioPrefs, saveAudioPrefs, volumeToGain } from '../audio/settings';
 import { MatchState } from '../sim/world';
@@ -258,9 +264,9 @@ export const [fogEnabled, setFogEnabled] = createSignal(
  * nothing to show. Failures surface as a toast instead — the seats keep
  * playing their playbooks either way.
  */
-export const [llmStatus, setLlmStatus] = createSignal<
-  import('../ai/strategist').LlmStatus | null
->(null);
+export const [llmStatus, setLlmStatus] = createSignal<import('../ai/strategist').LlmStatus | null>(
+  null,
+);
 
 /**
  * Sound preferences — player-scoped like the campaign profile, so
@@ -348,9 +354,9 @@ export const [invariantViolations, setInvariantViolations] = createSignal<string
  * (main.ts wires onTrace behind import.meta.env.DEV), read by the debug
  * overlay; production matches leave it empty and the overlay shows nothing.
  */
-export const [llmTraces, setLlmTraces] = createSignal<
-  import('../ai/strategist').ConsultTrace[]
->([]);
+export const [llmTraces, setLlmTraces] = createSignal<import('../ai/strategist').ConsultTrace[]>(
+  [],
+);
 /** Enough history to see the model change its mind; the prompts inside are
  * ~1 KB each, so the cap keeps a long match from hoarding them. */
 const LLM_TRACE_CAP = 20;

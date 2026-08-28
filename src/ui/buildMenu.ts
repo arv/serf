@@ -1,9 +1,6 @@
-import { BUILDING_DEFS } from '../sim/defs/buildings';
-import type { GoodAmounts, GoodId } from '../sim/defs/goods';
+import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../sim/defs/buildings';
+import { type GoodAmounts, type GoodId, goodEntries } from '../sim/defs/goods';
 import type { TechId } from '../sim/defs/techs';
-import { goodEntries } from '../sim/defs/goods';
-import { BuildingTypeId } from '../sim/defs/buildings';
-import { BUILDING_TYPES } from '../sim/defs/buildings';
 
 /**
  * The build ribbon's tabs, in the order they are shown.
@@ -76,7 +73,16 @@ export type BuildGroupLabel = 'Village' | 'Food' | 'Arms';
 export const BUILD_GROUPS: { label: BuildGroupLabel; types: BuildingTypeId[] }[] = [
   // Top row the three you raise without thinking; under them the Abbey and
   // the coin that pays for what it researches.
-  { label: 'Village', types: [BuildingTypeId.house, BuildingTypeId.woodcutter, BuildingTypeId.quarry, BuildingTypeId.abbey, BuildingTypeId.silverMine] },
+  {
+    label: 'Village',
+    types: [
+      BuildingTypeId.house,
+      BuildingTypeId.woodcutter,
+      BuildingTypeId.quarry,
+      BuildingTypeId.abbey,
+      BuildingTypeId.silverMine,
+    ],
+  },
   // The well leads: water is an input to the farm, the bakery and the
   // brewery and to nothing else, so the player building the chain finds it
   // at the head of the chain. Bread's four along the top and round the
@@ -84,11 +90,30 @@ export const BUILD_GROUPS: { label: BuildGroupLabel; types: BuildingTypeId[] }[]
   // no chain at all, and the brewery, which bids against the mill for the
   // same wheat. Fish or bake, bread or beer — both decisions sit inside
   // this one tab, which is the whole of why it is grouped this way.
-  { label: 'Food', types: [BuildingTypeId.well, BuildingTypeId.wheatFarm, BuildingTypeId.mill, BuildingTypeId.bakery, BuildingTypeId.fishery, BuildingTypeId.brewery] },
+  {
+    label: 'Food',
+    types: [
+      BuildingTypeId.well,
+      BuildingTypeId.wheatFarm,
+      BuildingTypeId.mill,
+      BuildingTypeId.bakery,
+      BuildingTypeId.fishery,
+      BuildingTypeId.brewery,
+    ],
+  },
   // Ore, forge, army along the top, in that order and in that direction.
   // Under them the two that come later: the wall raised when the raids
   // start, and the gilding affordable once the army already stands.
-  { label: 'Arms', types: [BuildingTypeId.ironMine, BuildingTypeId.weaponsmith, BuildingTypeId.barracks, BuildingTypeId.guardTower, BuildingTypeId.goldMine] },
+  {
+    label: 'Arms',
+    types: [
+      BuildingTypeId.ironMine,
+      BuildingTypeId.weaponsmith,
+      BuildingTypeId.barracks,
+      BuildingTypeId.guardTower,
+      BuildingTypeId.goldMine,
+    ],
+  },
 ];
 
 /**

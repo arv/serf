@@ -304,7 +304,11 @@ export function jetty(K: Kit, len = 1.6, w = 0.5): THREE.Group {
 }
 
 /** Sacks tipped against a wall — the mill's yard. */
-export function sacks(K: Kit, n: number, swatch: 'cream' | 'straw' | 'white' | null = null): THREE.Group {
+export function sacks(
+  K: Kit,
+  n: number,
+  swatch: 'cream' | 'straw' | 'white' | null = null,
+): THREE.Group {
   const g = new THREE.Group();
   const spots: [number, number, number][] = [
     [0, 0, 0],
@@ -447,7 +451,14 @@ export const VARIANTS: Variant[] = [
       for (let i = 0; i < 4; i++) {
         const f = fish(K, 0.22);
         f.rotation.z = 0.25;
-        add(g, f, -0.44 + (i % 2) * 0.14, 0.2 + Math.floor(i / 2) * 0.08, -0.04 + (i % 2) * 0.08, i * 0.6);
+        add(
+          g,
+          f,
+          -0.44 + (i % 2) * 0.14,
+          0.2 + Math.floor(i / 2) * 0.08,
+          -0.04 + (i % 2) * 0.08,
+          i * 0.6,
+        );
       }
       add(g, K.prop('crate_long_A', { span: 0.44, rot: -0.2 }), 0.5, 0, 0);
       for (let i = 0; i < 2; i++) {

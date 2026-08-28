@@ -99,7 +99,8 @@ export function matchingGroup(
   const better = (digit: number) => match === null || digitRank(digit) < digitRank(match);
   if (building !== null) {
     for (const [digit, group] of groups) {
-      if (group.kind === ControlGroupKindNs.building && group.id === building && better(digit)) match = digit;
+      if (group.kind === ControlGroupKindNs.building && group.id === building && better(digit))
+        match = digit;
     }
     return match;
   }

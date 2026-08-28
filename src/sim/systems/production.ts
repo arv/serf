@@ -13,19 +13,15 @@ import {
 } from '../defs/buildings.ts';
 import { TileResource, findResourcesNear } from '../map.ts';
 import { atBuilding, atTile, walkToBuilding, walkToTile } from '../arrival.ts';
-import type { Building } from '../entities.ts';
+import { type Building, BuildingState } from '../entities.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { depleteResourceTile, type World } from '../world.ts';
 import { getModifier } from '../techHelpers.ts';
-import type { Unit } from '../units.ts';
-import { GoodId } from '../defs/goods.ts';
-import { goodEntries } from '../defs/goods.ts';
+import { type Unit, UnitTaskKind } from '../units.ts';
+import { GoodId, goodEntries } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
-import { BuildingTypeId } from '../defs/buildings.ts';
+import { BuildingTypeId, RecipeKind } from '../defs/buildings.ts';
 import { ModifierKey } from '../defs/techs.ts';
-import { BuildingState } from '../entities.ts';
-import { UnitTaskKind } from '../units.ts';
-import { RecipeKind } from '../defs/buildings.ts';
 
 /**
  * How many nearby resource tiles one trip-start will try to path to before
@@ -144,8 +140,12 @@ function convertStep(
   const speedup =
     getModifier(world, b.owner, ModifierKey.workSpeed) *
     (b.type === BuildingTypeId.wheatFarm ? getModifier(world, b.owner, ModifierKey.farmSpeed) : 1) *
-    (b.type === BuildingTypeId.mill || b.type === BuildingTypeId.bakery ? getModifier(world, b.owner, ModifierKey.foodSpeed) : 1) *
-    (b.type === BuildingTypeId.weaponsmith ? getModifier(world, b.owner, ModifierKey.forgeSpeed) : 1);
+    (b.type === BuildingTypeId.mill || b.type === BuildingTypeId.bakery
+      ? getModifier(world, b.owner, ModifierKey.foodSpeed)
+      : 1) *
+    (b.type === BuildingTypeId.weaponsmith
+      ? getModifier(world, b.owner, ModifierKey.forgeSpeed)
+      : 1);
   b.prodTicksLeft = Math.max(1, Math.round(active.durationTicks / speedup));
   if (def.recipeOptions) {
     b.prodRecipeIndex = activeIndex;
@@ -273,7 +273,11 @@ export function autoForgeIndex(world: World, b: Building, def: BuildingDef): num
     if (ob.dead || ob.owner !== owner) continue;
     if (ob.state === BuildingState.site) {
       // A site still owed its hammer is a hammer the village lacks.
-      if (!ob.paused && (ob.siteNeeds?.[GoodId.hammer] ?? 0) > 0 && (ob.inbound[GoodId.hammer] ?? 0) === 0) {
+      if (
+        !ob.paused &&
+        (ob.siteNeeds?.[GoodId.hammer] ?? 0) > 0 &&
+        (ob.inbound[GoodId.hammer] ?? 0) === 0
+      ) {
         want[HAMMER_SLOT] = want[HAMMER_SLOT]! + 1;
       }
       continue;
@@ -435,10 +439,7 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
         }
         return;
       }
-      if (
-        world.map.resource[tile] !== recipe.resource ||
-        world.map.resourceAmt[tile]! <= 0
-      ) {
+      if (world.map.resource[tile] !== recipe.resource || world.map.resourceAmt[tile]! <= 0) {
         worker.task = { t: UnitTaskKind.idle, until: world.tick }; // someone else finished it
         return;
       }
@@ -460,8 +461,7 @@ function gatherStep(world: World, b: Building, recipe: Recipe & { kind: RecipeKi
         worker.carrying = recipe.output;
         // The good exists from the moment it's chopped (it's on the worker's
         // shoulders and countable) — ledger it here, not at deposit.
-        world.ledger.produced[recipe.output] =
-          (world.ledger.produced[recipe.output] ?? 0) + 1;
+        world.ledger.produced[recipe.output] = (world.ledger.produced[recipe.output] ?? 0) + 1;
       }
       const path = findPathToAdjacent(
         world.map,

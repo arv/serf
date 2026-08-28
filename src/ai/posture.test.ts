@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { parseAdvice, toOverride, ADVICE_RANGES } from './advice.ts';
-import { choosePosture, choosePostureReadingOpponent, isPostureId, POSTURES, POSTURE_JSON_SCHEMA, POSTURE_ORDER, postureAdvice } from './posture.ts';
+import {
+  choosePosture,
+  choosePostureReadingOpponent,
+  isPostureId,
+  POSTURES,
+  POSTURE_JSON_SCHEMA,
+  POSTURE_ORDER,
+  postureAdvice,
+  PostureId,
+  POSTURE_KEYS,
+  postureFromKey,
+} from './posture.ts';
 import type { AiWorldSummary } from './summary.ts';
-import { PostureId } from './posture.ts';
-import { POSTURE_KEYS } from './posture.ts';
-import { postureFromKey } from './posture.ts';
 
 /**
  * Postures are the strategist's whole vocabulary now, so what is covered
@@ -38,7 +46,9 @@ function summary(over: Partial<AiWorldSummary> = {}): AiWorldSummary {
   };
 }
 
-function rival(over: Partial<AiWorldSummary['rivals'][number]> = {}): AiWorldSummary['rivals'][number] {
+function rival(
+  over: Partial<AiWorldSummary['rivals'][number]> = {},
+): AiWorldSummary['rivals'][number] {
   return {
     id: 1,
     alive: true,
@@ -89,7 +99,9 @@ describe('the posture table', () => {
   it('hands out copies, so one seat cannot edit the stance another seat will get', () => {
     const a = postureAdvice(PostureId.siege);
     a.serfTarget = 99;
-    expect(postureAdvice(PostureId.siege).serfTarget).toBe(POSTURES[PostureId.siege].knobs.serfTarget);
+    expect(postureAdvice(PostureId.siege).serfTarget).toBe(
+      POSTURES[PostureId.siege].knobs.serfTarget,
+    );
   });
 });
 
@@ -143,7 +155,9 @@ describe('choosePosture — the null', () => {
   });
 
   it('keeps sieging while merely outgunned — only the yard breaks stance', () => {
-    const seen = rival({ intel: { ageTicks: 400, heavy: 9, light: 0, ranged: 0, total: 9, peak: 9 } });
+    const seen = rival({
+      intel: { ageTicks: 400, heavy: 9, light: 0, ranged: 0, total: 9, peak: 9 },
+    });
     expect(choosePosture(summary({ rivals: [seen] }))).toBe(PostureId.siege);
   });
 
@@ -159,7 +173,9 @@ describe('choosePosture — the null', () => {
 
   it('never reads the opponent, whatever the opponent is doing', () => {
     const boomer = rival({ buildings: 16, intel: null });
-    const rusher = rival({ contact: { firstSoldierMin: 2, firstAttackMin: 5, buildingsAtFive: 3 } });
+    const rusher = rival({
+      contact: { firstSoldierMin: 2, firstAttackMin: 5, buildingsAtFive: 3 },
+    });
     expect(choosePosture(summary({ rivals: [boomer] }))).toBe(PostureId.siege);
     expect(choosePosture(summary({ rivals: [rusher] }))).toBe(PostureId.siege);
   });

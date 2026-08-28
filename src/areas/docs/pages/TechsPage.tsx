@@ -1,13 +1,17 @@
 import { For, Show, type JSX } from 'solid-js';
-import { TECH_BRANCHES, TECH_DEFS, type TechEffect } from '../../../sim/defs/techs';
+import {
+  TECH_BRANCHES,
+  TECH_DEFS,
+  type TechEffect,
+  ModifierKey,
+  TechBranch,
+  TechEffectKind,
+} from '../../../sim/defs/techs';
 import { buildingName, unitName } from '../../../ui/names';
 import { ALL_TECHS, fmtSecs } from '../data';
 import { CostList, DocLink } from '../components';
 import { Prose } from '../prose';
 import { buildingHref, techHref, unitHref } from '../routes';
-import { ModifierKey } from '../../../sim/defs/techs';
-import { TechBranch } from '../../../sim/defs/techs';
-import { TechEffectKind } from '../../../sim/defs/techs';
 
 const BRANCH_LABEL: Record<TechBranch, string> = {
   [TechBranch.agriculture]: 'Agriculture',
@@ -33,8 +37,7 @@ function EffectLine(props: { effect: TechEffect; self: string }): JSX.Element {
     case TechEffectKind.unlockBuilding:
       return (
         <>
-          Unlocks the{' '}
-          <DocLink href={buildingHref(e.building)}>{buildingName(e.building)}</DocLink>
+          Unlocks the <DocLink href={buildingHref(e.building)}>{buildingName(e.building)}</DocLink>
         </>
       );
     case TechEffectKind.unlockUnit:

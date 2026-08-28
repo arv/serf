@@ -1,22 +1,19 @@
 import { parseAdvice } from '../../src/ai/advice.ts';
-import { LlmStrategist, type LlmStatus } from '../../src/ai/strategist.ts';
+import { LlmStrategist, type LlmStatus, LlmState } from '../../src/ai/strategist.ts';
 import { summarizeForSeat } from '../../src/ai/summary.ts';
 import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { checkInvariants } from '../../src/sim/debug/invariants.ts';
 import { buildingDef } from '../../src/sim/defs/buildings.ts';
 import { TICK_MS } from '../../src/sim/defs/balance.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
-import { createWorld, type World } from '../../src/sim/world.ts';
+import { createWorld, type World, MatchState } from '../../src/sim/world.ts';
 import type { AiStrategyId, AiStrategy } from '../../src/sim/defs/aiStrategies.ts';
 import type { ChatMessage } from '../../src/ai/prompt.ts';
-import type { Owner } from '../../src/sim/entities.ts';
+import { type Owner, BuildingState } from '../../src/sim/entities.ts';
 import type { EconomyRuleId } from '../../src/sim/economyRules.ts';
 import type { LabEngine } from './engines.ts';
 import { UnitTypeId } from '../../src/sim/defs/units.ts';
-import { BuildingState } from '../../src/sim/entities.ts';
 import { PlayerKind } from '../../src/sim/player.ts';
-import { MatchState } from '../../src/sim/world.ts';
-import { LlmState } from '../../src/ai/strategist.ts';
 
 /**
  * One headless match, played the way the game plays it.
@@ -242,7 +239,13 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
           override,
           // A consultation always exists here: sendAdvice is only ever
           // reached from inside #consult, which the harness started.
-          consult: consult ?? { playerId: id, tick: world.tick, ms: 0, promptChars: 0, replyChars: 0 },
+          consult: consult ?? {
+            playerId: id,
+            tick: world.tick,
+            ms: 0,
+            promptChars: 0,
+            replyChars: 0,
+          },
         });
       },
       onStatus: (status: LlmStatus) => {
@@ -325,7 +328,14 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
       if (!started) {
         // The strategist declined: already thinking, already given up, or
         // disposed. The game drops these summaries too.
-        consults.push({ playerId, tick: world.tick, ms: 0, promptChars: 0, replyChars: 0, skipped: true });
+        consults.push({
+          playerId,
+          tick: world.tick,
+          ms: 0,
+          promptChars: 0,
+          replyChars: 0,
+          skipped: true,
+        });
         continue;
       }
       // Wait for the model, then let the strategist's own continuations —
@@ -385,7 +395,9 @@ function worldDigest(world: World): string {
   };
   feed(`t${world.tick}`);
   for (const u of world.units.values()) {
-    feed(`|u${u.kind},${u.owner},${Math.round(u.x * 10)},${Math.round(u.y * 10)},${u.hp},${u.dead ? 1 : 0}`);
+    feed(
+      `|u${u.kind},${u.owner},${Math.round(u.x * 10)},${Math.round(u.y * 10)},${u.hp},${u.dead ? 1 : 0}`,
+    );
   }
   for (const b of world.buildings.values()) {
     feed(`|b${b.type},${b.owner},${b.x},${b.y},${b.state},${b.dead ? 1 : 0}`);

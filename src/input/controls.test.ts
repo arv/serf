@@ -53,7 +53,14 @@ type Listener = (e: unknown) => void;
  * is a div of exactly this shape, so one fake serves both.
  */
 function fakeEl(): {
-  style: { cssText: string; display: string; left: string; top: string; width: string; height: string };
+  style: {
+    cssText: string;
+    display: string;
+    left: string;
+    top: string;
+    width: string;
+    height: string;
+  };
   clientWidth: number;
   clientHeight: number;
   addEventListener: (type: string, fn: Listener) => void;
@@ -84,7 +91,11 @@ function fakeEl(): {
  * window, so a test that wants to press a key has to be able to fire one
  * there; the no-op stub the pointer tests get would swallow it.
  */
-function fakeWindow(): { addEventListener: (t: string, fn: Listener) => void; removeEventListener: () => void; fire: (t: string, e: unknown) => void } {
+function fakeWindow(): {
+  addEventListener: (t: string, fn: Listener) => void;
+  removeEventListener: () => void;
+  fire: (t: string, e: unknown) => void;
+} {
   const listeners = new Map<string, Listener[]>();
   return {
     addEventListener: (t, fn) => void listeners.set(t, [...(listeners.get(t) ?? []), fn]),
@@ -227,7 +238,10 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
   };
   /** Where the camera was last sent — the second press of a number. */
   const rides: { x: number; z: number }[] = [];
-  const rig = { touchPanEnabled: true, glideTo: (x: number, z: number) => void rides.push({ x, z }) };
+  const rig = {
+    touchPanEnabled: true,
+    glideTo: (x: number, z: number) => void rides.push({ x, z }),
+  };
 
   // The keyboard lives on the window, so this has to be in place before
   // the constructor binds it. Stubbed here rather than in a hook because
@@ -295,7 +309,13 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
   /** The tile the plain ground hit under a screen point falls on — what an
    * order used to aim at, and what the test contrasts the new aim with. */
   const groundTileAt = (p: { x: number; y: number }): { x: number; y: number } | null => {
-    const g = screenToGround(camera, canvas as unknown as HTMLCanvasElement, p.x, p.y, heights as unknown as HeightField);
+    const g = screenToGround(
+      camera,
+      canvas as unknown as HTMLCanvasElement,
+      p.x,
+      p.y,
+      heights as unknown as HeightField,
+    );
     return g && { x: Math.floor(g.x), y: Math.floor(g.z) };
   };
 
@@ -338,7 +358,9 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
 }
 
 /** The rectangle that covers these screen points, with room to spare. */
-function around(points: { x: number; y: number }[]): [{ x: number; y: number }, { x: number; y: number }] {
+function around(
+  points: { x: number; y: number }[],
+): [{ x: number; y: number }, { x: number; y: number }] {
   const pad = 20;
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);

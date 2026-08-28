@@ -335,8 +335,14 @@ export class CameraRig {
   touchPanEnabled = true;
   /** In-flight glideTo tween; null when the camera is at rest or the
    * player grabbed it back (any manual pan or focusOn cancels the glide). */
-  #glide: { fromX: number; fromZ: number; toX: number; toZ: number; t: number; dur: number } | null =
-    null;
+  #glide: {
+    fromX: number;
+    fromZ: number;
+    toX: number;
+    toZ: number;
+    t: number;
+    dur: number;
+  } | null = null;
 
   /**
    * `interactive: false` builds a rig nobody can drive — no key, wheel or
@@ -370,64 +376,88 @@ export class CameraRig {
     // letter shortcuts in controls.ts take the opposite order, and are
     // right to: a player pressing B for Build wants the glyph they see.)
     const keyCode = (e: KeyboardEvent): string => e.code || e.key;
-    window.addEventListener('keydown', (e) => {
-      if (e.repeat) return;
-      // A key going into a field is being typed, and a chord belongs to
-      // the browser: ⌘[ is Back, and it must not also turn the camera.
-      // Ctrl is foreign here too — unlike Controls, the rig binds nothing
-      // to it. Only keydown is gated; keyup below has to stay
-      // unconditional so a key held when focus moved into a field is
-      // still let go of.
-      if (foreignChord(e) || e.ctrlKey || typingInto(e.target)) return;
-      const code = keyCode(e);
-      this.#keys.add(code);
-      if (this.#turnKey(code) !== 0) this.#unseen.add(code);
-    }, { signal });
-    window.addEventListener('keyup', (e) => {
-      const code = keyCode(e);
-      this.#keys.delete(code);
-      if (!this.#unseen.delete(code)) return;
-      if (this.#pitch !== TOP_PITCH) this.#turns += this.#turnKey(code);
-    }, { signal });
-    window.addEventListener('blur', () => {
-      this.#keys.clear();
-      this.#unseen.clear();
-      this.#edge.clear();
-    }, { signal });
+    window.addEventListener(
+      'keydown',
+      (e) => {
+        if (e.repeat) return;
+        // A key going into a field is being typed, and a chord belongs to
+        // the browser: ⌘[ is Back, and it must not also turn the camera.
+        // Ctrl is foreign here too — unlike Controls, the rig binds nothing
+        // to it. Only keydown is gated; keyup below has to stay
+        // unconditional so a key held when focus moved into a field is
+        // still let go of.
+        if (foreignChord(e) || e.ctrlKey || typingInto(e.target)) return;
+        const code = keyCode(e);
+        this.#keys.add(code);
+        if (this.#turnKey(code) !== 0) this.#unseen.add(code);
+      },
+      { signal },
+    );
+    window.addEventListener(
+      'keyup',
+      (e) => {
+        const code = keyCode(e);
+        this.#keys.delete(code);
+        if (!this.#unseen.delete(code)) return;
+        if (this.#pitch !== TOP_PITCH) this.#turns += this.#turnKey(code);
+      },
+      { signal },
+    );
+    window.addEventListener(
+      'blur',
+      () => {
+        this.#keys.clear();
+        this.#unseen.clear();
+        this.#edge.clear();
+      },
+      { signal },
+    );
     window.addEventListener('resize', () => this.resize(), { signal });
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.#edge.clear();
-    }, { signal });
+    document.addEventListener(
+      'visibilitychange',
+      () => {
+        if (document.hidden) this.#edge.clear();
+      },
+      { signal },
+    );
 
     // --- Edge scroll ------------------------------------------------------
     // On the window rather than the canvas, because the HUD's own strips sit
     // inside the bands: a canvas listener would go dead wherever a control
     // opts back into pointer events, and the scroll would cut out over the
     // resource strip in the very corner it was crossing.
-    window.addEventListener('pointermove', (e) => {
-      // A finger has its own way to move the map, and turning the switch
-      // off mid-match has to stop a push already under way.
-      if (!edgeScrollEnabled() || e.pointerType !== 'mouse') {
-        this.#edge.clear();
-        return;
-      }
-      // A left-drag band is deliberately not blocked: it resolves against
-      // live screen positions on release (controls.ts #selectInRect), so
-      // dragging into an edge extends the selection past the view exactly
-      // the way the genre does, and what the band covers on screen is what
-      // it catches.
-      const target = e.target;
-      const blocked =
-        this.#dragging || // a middle-drag is already panning
-        (target instanceof Element && target.closest('#ui, #menu') !== null);
-      this.#edge.moved(e.clientX, e.clientY, window.innerWidth, window.innerHeight, blocked);
-    }, { signal });
+    window.addEventListener(
+      'pointermove',
+      (e) => {
+        // A finger has its own way to move the map, and turning the switch
+        // off mid-match has to stop a push already under way.
+        if (!edgeScrollEnabled() || e.pointerType !== 'mouse') {
+          this.#edge.clear();
+          return;
+        }
+        // A left-drag band is deliberately not blocked: it resolves against
+        // live screen positions on release (controls.ts #selectInRect), so
+        // dragging into an edge extends the selection past the view exactly
+        // the way the genre does, and what the band covers on screen is what
+        // it catches.
+        const target = e.target;
+        const blocked =
+          this.#dragging || // a middle-drag is already panning
+          (target instanceof Element && target.closest('#ui, #menu') !== null);
+        this.#edge.moved(e.clientX, e.clientY, window.innerWidth, window.innerHeight, blocked);
+      },
+      { signal },
+    );
     // A null relatedTarget is the pointer leaving the window altogether —
     // onto the menu bar, or off the display. Every other pointerout is just
     // a boundary between two elements of ours.
-    window.addEventListener('pointerout', (e) => {
-      if (e.relatedTarget === null) this.#edge.left();
-    }, { signal });
+    window.addEventListener(
+      'pointerout',
+      (e) => {
+        if (e.relatedTarget === null) this.#edge.left();
+      },
+      { signal },
+    );
 
     canvas.addEventListener(
       'wheel',
@@ -459,21 +489,33 @@ export class CameraRig {
       { passive: false, signal },
     );
 
-    canvas.addEventListener('pointerdown', (e) => {
-      if (e.button === 1) {
-        e.preventDefault();
-        this.#dragging = true;
-        capturePointer(canvas, e);
-      }
-    }, { signal });
-    canvas.addEventListener('pointerup', (e) => {
-      if (e.button === 1) this.#dragging = false;
-    }, { signal });
-    canvas.addEventListener('pointermove', (e) => {
-      if (!this.#dragging) return;
-      const worldPerPixel = this.#viewHeight / this.#canvas.clientHeight;
-      this.#panScreen(-e.movementX * worldPerPixel, -e.movementY * worldPerPixel);
-    }, { signal });
+    canvas.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (e.button === 1) {
+          e.preventDefault();
+          this.#dragging = true;
+          capturePointer(canvas, e);
+        }
+      },
+      { signal },
+    );
+    canvas.addEventListener(
+      'pointerup',
+      (e) => {
+        if (e.button === 1) this.#dragging = false;
+      },
+      { signal },
+    );
+    canvas.addEventListener(
+      'pointermove',
+      (e) => {
+        if (!this.#dragging) return;
+        const worldPerPixel = this.#viewHeight / this.#canvas.clientHeight;
+        this.#panScreen(-e.movementX * worldPerPixel, -e.movementY * worldPerPixel);
+      },
+      { signal },
+    );
 
     // --- Touch: one finger drags the map, two fingers pinch to zoom ------
     // (There is no wheel, middle button, or keyboard on a phone.) Selection
@@ -484,12 +526,16 @@ export class CameraRig {
       const [a, b] = [...touches.values()];
       return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
     };
-    canvas.addEventListener('touchstart', (e) => {
-      for (const t of e.changedTouches) {
-        touches.set(t.identifier, { x: t.clientX, y: t.clientY });
-      }
-      if (touches.size === 2) pinchDist = spread();
-    }, { signal });
+    canvas.addEventListener(
+      'touchstart',
+      (e) => {
+        for (const t of e.changedTouches) {
+          touches.set(t.identifier, { x: t.clientX, y: t.clientY });
+        }
+        if (touches.size === 2) pinchDist = spread();
+      },
+      { signal },
+    );
     canvas.addEventListener(
       'touchmove',
       (e) => {
@@ -681,7 +727,11 @@ export class CameraRig {
     this.#unseen.clear();
     // Looking straight down, +Y up is parallel to the view line; -Z as up
     // puts north at the top of the screen instead.
-    this.camera.up.set(0, mode === ViewModeNs.topDown ? 0 : 1, mode === ViewModeNs.topDown ? -1 : 0);
+    this.camera.up.set(
+      0,
+      mode === ViewModeNs.topDown ? 0 : 1,
+      mode === ViewModeNs.topDown ? -1 : 0,
+    );
     this.#apply();
   }
 
@@ -824,8 +874,7 @@ export class CameraRig {
         // Ease toward the target; the camera orbits its look-at point, so
         // the spot mid-screen stays put while the world swings round it.
         const d = yawTarget - this.#yaw;
-        this.#yaw =
-          Math.abs(d) < 1e-4 ? yawTarget : this.#yaw + d * (1 - Math.exp(-dt / YAW_EASE));
+        this.#yaw = Math.abs(d) < 1e-4 ? yawTarget : this.#yaw + d * (1 - Math.exp(-dt / YAW_EASE));
         this.#apply();
       }
     }

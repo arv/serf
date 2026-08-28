@@ -1,15 +1,10 @@
 import { UNIT_DEFS } from '../defs/units.ts';
-import { MISSION_DEFS } from '../defs/missions.ts';
-import { buildingDef } from '../defs/buildings.ts';
+import { MISSION_DEFS, type ObjectiveSpec, ObjectiveKind } from '../defs/missions.ts';
+import { buildingDef, BuildingTypeId } from '../defs/buildings.ts';
 import { populationOf } from '../population.ts';
-import type { ObjectiveSpec } from '../defs/missions.ts';
-import type { Owner } from '../entities.ts';
-import type { World } from '../world.ts';
-import { BuildingTypeId } from '../defs/buildings.ts';
-import { BuildingState } from '../entities.ts';
+import { type Owner, BuildingState } from '../entities.ts';
+import { type World, GameEventKind } from '../world.ts';
 import { CommandKind } from '../commands.ts';
-import { GameEventKind } from '../world.ts';
-import { ObjectiveKind } from '../defs/missions.ts';
 
 /**
  * Mission objectives: stateless predicates over the world, latched into
@@ -22,7 +17,13 @@ export function objectiveMet(world: World, spec: ObjectiveSpec, player: Owner): 
     case ObjectiveKind.building: {
       let n = 0;
       for (const b of world.buildings.values()) {
-        if (!b.dead && b.state === BuildingState.built && b.owner === player && b.type === spec.type) n++;
+        if (
+          !b.dead &&
+          b.state === BuildingState.built &&
+          b.owner === player &&
+          b.type === spec.type
+        )
+          n++;
       }
       return n >= spec.count;
     }
@@ -31,7 +32,12 @@ export function objectiveMet(world: World, spec: ObjectiveSpec, player: Owner): 
       // buffers or serfs' hands don't count until they come home.
       let n = 0;
       for (const b of world.buildings.values()) {
-        if (!b.dead && b.state === BuildingState.built && b.owner === player && buildingDef(b.type).storage) {
+        if (
+          !b.dead &&
+          b.state === BuildingState.built &&
+          b.owner === player &&
+          buildingDef(b.type).storage
+        ) {
           n += b.stock[spec.good] ?? 0;
         }
       }

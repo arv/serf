@@ -1,11 +1,7 @@
-import { buildingDef } from '../defs/buildings.ts';
+import { buildingDef, BuildingTypeId } from '../defs/buildings.ts';
 import { latchObjectives } from './objectives.ts';
-import type { Owner } from '../entities.ts';
-import type { World } from '../world.ts';
-import { BuildingTypeId } from '../defs/buildings.ts';
-import { BuildingState } from '../entities.ts';
-import { GameEventKind } from '../world.ts';
-import { MatchState } from '../world.ts';
+import { type Owner, BuildingState } from '../entities.ts';
+import { type World, GameEventKind, MatchState } from '../world.ts';
 
 /**
  * Elimination and match end. A player whose storehouse falls is out; the

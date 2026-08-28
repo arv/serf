@@ -15,7 +15,10 @@ function run(world: World, ticks: number): void {
 
 describe('cloneWorld — the rollback snapshot primitive', () => {
   it('clones equal and mutation-isolated', () => {
-    const world = createWorld({ seed: 5, players: [{ kind: PlayerKind.ai }, { kind: PlayerKind.ai }] });
+    const world = createWorld({
+      seed: 5,
+      players: [{ kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
+    });
     run(world, 800);
     const snap = cloneWorld(world);
     expect(hashWorld(snap)).toBe(hashWorld(world));
@@ -66,7 +69,12 @@ describe('cloneWorld — the rollback snapshot primitive', () => {
   it('stays cheap enough to snapshot a live world', () => {
     const world = createWorld({
       seed: 8,
-      players: [{ kind: PlayerKind.ai }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
+      players: [
+        { kind: PlayerKind.ai },
+        { kind: PlayerKind.ai },
+        { kind: PlayerKind.ai },
+        { kind: PlayerKind.ai },
+      ],
     });
     run(world, 3000); // a grown 4-economy world
 

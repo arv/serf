@@ -3,14 +3,11 @@ import * as THREE from 'three';
 import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
 import { HeightField } from './heightField';
 import { SelectedReach } from './reachOutline';
-import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings';
-import { type MapView } from '../sim/map';
+import { buildingDef, gatherOrigin, gatherRecipeOf, BuildingTypeId } from '../sim/defs/buildings';
+import { type MapView, type TileResourceKind, TileResource } from '../sim/map';
 import { verdictBad, verdictGood } from './palette';
 import type { BuildingSnap } from '../protocol/messages';
-import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
-import type { TileResourceKind } from '../sim/map';
-import { TileResource } from '../sim/map';
 
 const SIZE = DEFAULT_MAP_SIZE;
 

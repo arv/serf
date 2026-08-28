@@ -50,7 +50,9 @@ const ids: MissionId[] = [];
 for (const arg of args.filter((a) => !a.startsWith('--'))) {
   const id = parseMissionId(arg);
   if (id === undefined) {
-    console.error(`unknown mission: ${arg} (${MISSION_ORDER.map((m) => MISSION_KEYS[m]).join(', ')})`);
+    console.error(
+      `unknown mission: ${arg} (${MISSION_ORDER.map((m) => MISSION_KEYS[m]).join(', ')})`,
+    );
     process.exit(1);
   }
   ids.push(id);

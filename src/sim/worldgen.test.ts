@@ -45,7 +45,9 @@ describe('N-player worldgen', () => {
           seed,
           players: Array.from({ length: n }, () => ({ kind: PlayerKind.human })),
         });
-        const storehouses = [...world.buildings.values()].filter((b) => b.type === BuildingTypeId.storehouse);
+        const storehouses = [...world.buildings.values()].filter(
+          (b) => b.type === BuildingTypeId.storehouse,
+        );
         expect(storehouses.length).toBe(n);
         for (let p = 0; p < n; p++) {
           expect(storehouses.some((b) => b.owner === p)).toBe(true);
@@ -64,7 +66,9 @@ describe('N-player worldgen', () => {
           expect(reachable(world.map, doors[0]!, doors[i]!)).toBe(true);
         }
         // The camp exists and belongs to the bandits.
-        const camp = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.banditCamp);
+        const camp = [...world.buildings.values()].find(
+          (b) => b.type === BuildingTypeId.banditCamp,
+        );
         expect(camp).toBeDefined();
         expect(camp!.owner).toBe(BANDIT);
         expect(isPlayerOwner(camp!.owner)).toBe(false);

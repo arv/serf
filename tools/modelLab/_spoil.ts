@@ -43,10 +43,10 @@ const POSTS = KINDS.map((k, i) => {
   const t = (i - (KINDS.length - 1) / 2) * SPACING;
   return {
     ...k,
-    at: [
-      Math.round(MID + t * Math.cos(YAW)),
-      Math.round(MID - t * Math.sin(YAW)),
-    ] as [number, number],
+    at: [Math.round(MID + t * Math.cos(YAW)), Math.round(MID - t * Math.sin(YAW))] as [
+      number,
+      number,
+    ],
   };
 });
 

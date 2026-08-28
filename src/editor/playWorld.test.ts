@@ -39,7 +39,9 @@ describe('worldFromEditor', () => {
   it('stands one stocked storehouse per seat on the authored starts', () => {
     const state = authoredState();
     const world = worldFromEditor(state, PLAY);
-    const stores = [...world.buildings.values()].filter((b) => b.type === BuildingTypeId.storehouse);
+    const stores = [...world.buildings.values()].filter(
+      (b) => b.type === BuildingTypeId.storehouse,
+    );
     expect(stores).toHaveLength(2);
     for (let p = 0; p < 2; p++) {
       const store = stores.find((b) => b.owner === p)!;
@@ -56,7 +58,9 @@ describe('worldFromEditor', () => {
     const world = worldFromEditor(authoredState(), PLAY);
     const units = [...world.units.values()];
     for (let p = 0; p < 2; p++) {
-      expect(units.filter((u) => u.owner === p && u.kind === UnitTypeId.serf)).toHaveLength(START_SERFS);
+      expect(units.filter((u) => u.owner === p && u.kind === UnitTypeId.serf)).toHaveLength(
+        START_SERFS,
+      );
     }
     const camp = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.banditCamp);
     expect(camp).toBeDefined();
@@ -66,7 +70,9 @@ describe('worldFromEditor', () => {
 
   it('honors the bandits toggle', () => {
     const world = worldFromEditor(authoredState(), { ...PLAY, banditsEnabled: false });
-    expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.banditCamp)).toBe(false);
+    expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.banditCamp)).toBe(
+      false,
+    );
     expect([...world.units.values()].some((u) => u.owner === BANDIT)).toBe(false);
   });
 
@@ -128,6 +134,8 @@ describe('worldFromEditor', () => {
     expect(() => worldFromEditor(state, solo)).toThrow(/bandit camp/);
     // The same map is a fine peaceful sandbox.
     const world = worldFromEditor(state, { ...solo, banditsEnabled: false });
-    expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.banditCamp)).toBe(false);
+    expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.banditCamp)).toBe(
+      false,
+    );
   });
 });

@@ -314,11 +314,11 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
         });
       } else if (msg.t === 'begin') {
         const stashJson = JSON.stringify({
-            code: view().code || req.mp.toUpperCase(),
-            token: msg.token,
-            playerId: msg.playerId,
-            seats: msg.seats,
-          } satisfies SeatStash);
+          code: view().code || req.mp.toUpperCase(),
+          token: msg.token,
+          playerId: msg.playerId,
+          seats: msg.seats,
+        } satisfies SeatStash);
         stashWrite('session', stashJson);
         stashWrite('local', stashJson);
         unmount();

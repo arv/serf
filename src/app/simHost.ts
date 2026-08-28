@@ -11,10 +11,8 @@ import type { AiWorldSummary } from '../ai/summary';
 import type { SimCommand } from '../sim/commands';
 import type { AiStrategy } from '../sim/defs/aiStrategies';
 import type { GameConfig } from './gameConfig';
-import type { NetInfo } from '../protocol/messages';
+import { type NetInfo, MainToWorkerKind, WorkerToMainKind } from '../protocol/messages';
 import type { ReplayData } from './replay';
-import { MainToWorkerKind } from '../protocol/messages';
-import { WorkerToMainKind } from '../protocol/messages';
 
 export interface SimInit {
   reader: SabReader;
@@ -30,7 +28,12 @@ export interface SimInit {
  * same interface later because the sim is pure.
  */
 export interface SimHost {
-  start(config: GameConfig, loadData?: string, net?: NetInfo, replay?: ReplayData): Promise<SimInit>;
+  start(
+    config: GameConfig,
+    loadData?: string,
+    net?: NetInfo,
+    replay?: ReplayData,
+  ): Promise<SimInit>;
   sendCommands(commands: SimCommand[]): void;
   setSpeed(speed: number): void;
   /** Tell the worker whether the debug overlay is watching (jobs feed). */
@@ -97,7 +100,12 @@ export class WorkerSimHost implements SimHost {
         : new Worker(new URL('./simWorker.ts', import.meta.url), { type: 'module' });
   }
 
-  start(config: GameConfig, loadData?: string, net?: NetInfo, replay?: ReplayData): Promise<SimInit> {
+  start(
+    config: GameConfig,
+    loadData?: string,
+    net?: NetInfo,
+    replay?: ReplayData,
+  ): Promise<SimInit> {
     this.playerId = config.myPlayerId;
     return new Promise((resolve, reject) => {
       // A worker that dies after start would otherwise fail silently: the

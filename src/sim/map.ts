@@ -2,9 +2,8 @@ import { Rng } from '../shared/rng.ts';
 import { gridFor, inBounds, marginFor, tileCount, tileIdx } from '../shared/grid.ts';
 import { hash2 } from '../shared/math.ts';
 import { WOOD_MAX_AMT } from './defs/balance.ts';
-import { buildingDef } from './defs/buildings.ts';
+import { buildingDef, BuildingTypeId } from './defs/buildings.ts';
 import { buildingSight } from './visibility.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
 
 import type { Enum } from '../shared/enum.ts';
 import * as TerrainNs from './terrainEnum.ts';
@@ -23,7 +22,6 @@ const RIM_SEA = 0;
 const RIM_RIDGE = 1;
 const RIM_FOREST = 2;
 type RimStyle = typeof RIM_SEA | typeof RIM_RIDGE | typeof RIM_FOREST;
-
 
 /**
  * The map as structure-of-arrays. Everything here is serializable typed-array
@@ -265,7 +263,11 @@ function castleCenter(s: StartSpot): { x: number; y: number } {
  * than promising stone that arrives as fog.
  */
 export const CASTLE_OPENING_SIGHT =
-  buildingSight(BuildingTypeId.storehouse, buildingDef(BuildingTypeId.storehouse).w, buildingDef(BuildingTypeId.storehouse).h) - 1;
+  buildingSight(
+    BuildingTypeId.storehouse,
+    buildingDef(BuildingTypeId.storehouse).w,
+    buildingDef(BuildingTypeId.storehouse).h,
+  ) - 1;
 
 /**
  * How far from home (castle center, tile-center metric) worldgen promises
@@ -420,10 +422,7 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
   // `u` runs along the owning edge and `d` outward from it — the ridge
   // height field is anisotropic in those axes (ranges parallel the border,
   // like every real border range in the game).
-  const marginMix = (
-    x: number,
-    y: number,
-  ): { side: number; w: number; u: number; d: number }[] => {
+  const marginMix = (x: number, y: number): { side: number; w: number; u: number; d: number }[] => {
     const ox = x < p0 ? p0 - x : x >= p1 ? x - (p1 - 1) : 0;
     const oy = y < p0 ? p0 - y : y >= p1 ? y - (p1 - 1) : 0;
     const out: { side: number; w: number; u: number; d: number }[] = [];
@@ -448,7 +447,9 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
       const rough =
         (valueNoise(s7 + 177, u * 1.7, d * 1.7, 2.7) - 0.5) * 0.5 +
         (hash2(u * 31 + side, d * 57) - 0.5) * 0.25;
-      return 0.45 + ridged * (1.8 + massif * 1.8) + (valueNoise(s7 + 174, u, d, 21) - 0.5) * 0.6 + rough;
+      return (
+        0.45 + ridged * (1.8 + massif * 1.8) + (valueNoise(s7 + 174, u, d, 21) - 0.5) * 0.6 + rough
+      );
     }
     // Forest: rolling wooded hills straight from the belt's last row.
     const s7 = heightSeed + side * 7;
@@ -660,8 +661,7 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
     }
   };
   const heightAt = (x: number, y: number): number => map.height[tileIdx(x, y, size)]!;
-  const centerDist = (x: number, y: number): number =>
-    Math.hypot(x - size / 2, y - size / 2);
+  const centerDist = (x: number, y: number): number => Math.hypot(x - size / 2, y - size / 2);
   // Distance to the nearest faction start — the multiplayer generalization
   // of "distance from the (center) home plateau". Solo start anchors at the
   // map center, so this IS centerDist there, keeping the classic seeds
@@ -726,8 +726,7 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
   // earns proportionally more of both (exact integer math, the classic
   // counts at 64). A fixed count spread over 2.25x the land starved the
   // mid-game — woodcutters walked half the valley for the next grove.
-  const clusterCount = (classic: number): number =>
-    Math.floor((classic * play * play) / 4096);
+  const clusterCount = (classic: number): number => Math.floor((classic * play * play) / 4096);
 
   // Tree groves in the valleys — but off the immediate shoreline, so a
   // hut's commute never dead-ends against the water.
@@ -895,8 +894,7 @@ export function generateMap(rng: Rng, starts: readonly StartSpot[], play: number
   // walkable ground already).
   if (starts.length > 1) {
     const walkable = (i: number): boolean =>
-      inPlayArea(map, i % size, (i / size) | 0) &&
-      !tileBlocks(map.terrain[i]!, map.resource[i]!);
+      inPlayArea(map, i % size, (i / size) | 0) && !tileBlocks(map.terrain[i]!, map.resource[i]!);
     const reach = (from: number): Uint8Array => {
       const seen = new Uint8Array(tiles);
       const queue = [from];
@@ -1090,7 +1088,8 @@ function computeTerrain(
 
   // Basins flood (grass only — rim rock stands above any basin).
   for (let i = 0; i < tiles; i++) {
-    if (map.terrain[i] === TerrainNs.Grass && raw[i]! < LAKE_LEVEL_T) map.terrain[i] = TerrainNs.Water;
+    if (map.terrain[i] === TerrainNs.Grass && raw[i]! < LAKE_LEVEL_T)
+      map.terrain[i] = TerrainNs.Water;
   }
 
   // Rival plateaus must share the landmass: if the lakes cut a start off

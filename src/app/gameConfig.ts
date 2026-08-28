@@ -1,8 +1,7 @@
 import { DEFAULT_SEED } from '../protocol/lobby';
 import { parseStrategyId } from '../sim/defs/aiStrategies';
 import { parseMissionId } from '../sim/defs/missions';
-import { missionWorldConfig } from '../sim/world';
-import type { WorldConfig } from '../sim/world';
+import { missionWorldConfig, type WorldConfig } from '../sim/world';
 import { PlayerKind } from '../sim/player';
 
 /**

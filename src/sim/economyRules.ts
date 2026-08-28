@@ -1,20 +1,23 @@
-import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF, convertRecipeOf, gatherOrigin, gatherRecipeOf, OUTPUT_CAP } from './defs/buildings.ts';
+import {
+  BUILDING_DEFS,
+  TOOL_GOODS,
+  TOOL_OF,
+  convertRecipeOf,
+  gatherOrigin,
+  gatherRecipeOf,
+  OUTPUT_CAP,
+  BuildingTypeId,
+} from './defs/buildings.ts';
 import { FORGE_QUEUE_CAP } from './defs/balance.ts';
 import { findResourcesNear, nearestResource } from './map.ts';
-import { WEAPON_OF } from './defs/units.ts';
+import { WEAPON_OF, type UnitTypeId } from './defs/units.ts';
 import { isUnitUnlocked } from './techHelpers.ts';
 import type { AiStrategy } from './defs/aiStrategies.ts';
 import type { TechId } from './defs/techs.ts';
-import type { UnitTypeId } from './defs/units.ts';
-import type { Building, EntityId, Owner } from './entities.ts';
-import type { SimCommand } from './commands.ts';
+import { type Building, type EntityId, type Owner, BuildingState } from './entities.ts';
+import { type SimCommand, CommandKind } from './commands.ts';
 import type { World } from './world.ts';
-import { GoodId } from './defs/goods.ts';
-import { goodKeys } from './defs/goods.ts';
-import type { GoodAmounts } from './defs/goods.ts';
-import { goodEntries } from './defs/goods.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
-import { BuildingState } from './entities.ts';
+import { GoodId, goodKeys, type GoodAmounts, goodEntries } from './defs/goods.ts';
 import { UnitTaskKind } from './units.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as EconomyRuleIdNs from './economyRuleIdEnum.ts';
@@ -22,7 +25,6 @@ import * as EconomyRuleIdNs from './economyRuleIdEnum.ts';
 export * as EconomyRuleId from './economyRuleIdEnum.ts';
 export type EconomyRuleId = Enum<typeof EconomyRuleIdNs>;
 import * as RulePhaseNs from './rulePhaseEnum.ts';
-import { CommandKind } from './commands.ts';
 
 export * as RulePhase from './rulePhaseEnum.ts';
 export type RulePhase = Enum<typeof RulePhaseNs>;
@@ -65,7 +67,6 @@ export type RulePhase = Enum<typeof RulePhaseNs>;
  * Determinism: the table is a fixed array, buildings are walked in id
  * order, and nothing here reads a clock or an RNG.
  */
-
 
 /**
  * Where in a beat a rule runs.
@@ -121,7 +122,6 @@ export interface EconomyRule {
   /** null when the rule has nothing to say this beat. */
   fire(ctx: RuleContext): RuleFiring | null;
 }
-
 
 /**
  * Re-site a worked-out extractor.
@@ -316,7 +316,9 @@ const keepTheToolsComing: EconomyRule = {
     // may stand every forge in the village down, and a village that cannot
     // replace a lost axe has no woodcutter. A halted Smith is one order
     // away from working, so it counts.
-    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built);
+    const smiths = ctx.mine.filter(
+      (b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built,
+    );
     if (smiths.length === 0) return null;
 
     // What the village is short of: a post open for it with nothing on the
@@ -324,7 +326,11 @@ const keepTheToolsComing: EconomyRule = {
     const wanted = new Set<GoodId>();
     for (const b of ctx.mine) {
       if (b.state === BuildingState.site) {
-        if (!b.paused && (b.siteNeeds?.[GoodId.hammer] ?? 0) > 0 && (b.inbound[GoodId.hammer] ?? 0) === 0) {
+        if (
+          !b.paused &&
+          (b.siteNeeds?.[GoodId.hammer] ?? 0) > 0 &&
+          (b.inbound[GoodId.hammer] ?? 0) === 0
+        ) {
           wanted.add(GoodId.hammer);
         }
         continue;
@@ -441,7 +447,9 @@ const forgeTheCounter: EconomyRule = {
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
-    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built);
+    const smiths = ctx.mine.filter(
+      (b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built,
+    );
     smiths.forEach((smith, i) => {
       let want = ctx.strategy.weaponMix[Math.min(i, ctx.strategy.weaponMix.length - 1)]!;
       if (ctx.counter && i > 0) {
@@ -569,12 +577,14 @@ const FORGE_GLUT_CLEAR = 4;
  */
 const holdTheGlutForge: EconomyRule = {
   id: EconomyRuleIdNs.holdTheGlutForge,
-  when: 'a forge is spending the village\'s wood on a weapon nobody is claiming',
+  when: "a forge is spending the village's wood on a weapon nobody is claiming",
   phase: RulePhaseNs.production,
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
-    const smiths = ctx.mine.filter((b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built);
+    const smiths = ctx.mine.filter(
+      (b) => b.type === BuildingTypeId.weaponsmith && b.state === BuildingState.built,
+    );
     for (const b of smiths) {
       const recipe = convertRecipeOf(BUILDING_DEFS[BuildingTypeId.weaponsmith], b);
       if (!recipe) continue;
@@ -670,7 +680,10 @@ const handsBeforeSoldiers: EconomyRule = {
     const short = ctx.serfCount < ctx.strategy.survivalFloor;
     const clear = ctx.serfCount > ctx.strategy.survivalFloor;
     for (const b of ctx.mine) {
-      if (b.state !== BuildingState.built || BUILDING_DEFS[b.type as BuildingTypeId].trains === undefined) {
+      if (
+        b.state !== BuildingState.built ||
+        BUILDING_DEFS[b.type as BuildingTypeId].trains === undefined
+      ) {
         continue;
       }
       const halted = b.paused === true;
@@ -713,7 +726,9 @@ const keepTheQueueWarm: EconomyRule = {
   when: 'the barracks queue is short, or stuck behind a weapon nobody can make',
   phase: RulePhaseNs.production,
   fire(ctx) {
-    const barracks = ctx.mine.find((b) => b.type === BuildingTypeId.barracks && b.state === BuildingState.built);
+    const barracks = ctx.mine.find(
+      (b) => b.type === BuildingTypeId.barracks && b.state === BuildingState.built,
+    );
     if (!barracks) return null;
     const around = (good: GoodId): boolean =>
       (ctx.stock[good] ?? 0) + (barracks.inputs[good] ?? 0) + (barracks.inbound[good] ?? 0) > 0;
@@ -731,8 +746,7 @@ const keepTheQueueWarm: EconomyRule = {
     // an empty queue. And an empty queue is not merely idle: unstarted
     // orders are what summon their own ingredients (trainingDemand), so
     // nothing hauls bread or a weapon there either.
-    const trainable = (unit: UnitTypeId): boolean =>
-      isUnitUnlocked(ctx.world, ctx.owner, unit);
+    const trainable = (unit: UnitTypeId): boolean => isUnitUnlocked(ctx.world, ctx.owner, unit);
     const ready = prefs.find((unit) => {
       const weapon = WEAPON_OF[unit];
       return weapon !== undefined && around(weapon) && trainable(unit);

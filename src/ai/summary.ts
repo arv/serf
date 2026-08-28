@@ -1,19 +1,14 @@
 import { TICK_MS } from '../sim/defs/balance.ts';
-import { UNIT_DEFS } from '../sim/defs/units.ts';
-import { buildingDef } from '../sim/defs/buildings.ts';
+import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units.ts';
+import { buildingDef, BuildingTypeId, BUILDING_KEYS } from '../sim/defs/buildings.ts';
 import { AI_INTEL, hostileNear, type AiBrain } from '../sim/systems/ai.ts';
-import type { Building, Owner } from '../sim/entities.ts';
+import { type Building, type Owner, BuildingState } from '../sim/entities.ts';
 import { popCapOf, populationOf } from '../sim/population.ts';
 import { playMin, playMax } from '../sim/map.ts';
 import { tileIdx } from '../shared/grid.ts';
 import type { World } from '../sim/world.ts';
-import { GOOD_KEYS } from '../sim/defs/goods.ts';
-import { goodEntries } from '../sim/defs/goods.ts';
-import { UnitTypeId } from '../sim/defs/units.ts';
-import { BuildingTypeId } from '../sim/defs/buildings.ts';
-import { BUILDING_KEYS } from '../sim/defs/buildings.ts';
+import { GOOD_KEYS, goodEntries } from '../sim/defs/goods.ts';
 import { TECH_KEYS } from '../sim/defs/techs.ts';
-import { BuildingState } from '../sim/entities.ts';
 import { AI_STRATEGY_KEYS } from '../sim/defs/aiStrategies.ts';
 
 /**
@@ -143,7 +138,12 @@ function inMinutes(tick: number): number {
 
 function castleOf(world: World, owner: Owner): Building | undefined {
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.owner === owner && buildingDef(b.type).storage && b.state === BuildingState.built) {
+    if (
+      !b.dead &&
+      b.owner === owner &&
+      buildingDef(b.type).storage &&
+      b.state === BuildingState.built
+    ) {
       return b;
     }
   }
@@ -285,7 +285,9 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
       army,
       researched: techs ? techs.researched.map((t) => TECH_KEYS[t]) : [],
       researching: techs?.active === undefined ? null : TECH_KEYS[techs.active.tech],
-      underAttack: castle ? hostileNear(world, vision, playerId, bx, by, UNDER_ATTACK_RADIUS) : false,
+      underAttack: castle
+        ? hostileNear(world, vision, playerId, bx, by, UNDER_ATTACK_RADIUS)
+        : false,
     },
     rivals,
     bandits: { camps, nearestCamp },

@@ -1,12 +1,14 @@
 import { Rng } from '../shared/rng.ts';
-import { marginFor,
+import {
+  marginFor,
   DEFAULT_MAP_SIZE,
   MAX_MAP_SIZE,
   MIN_MAP_SIZE,
   inBounds,
   tileIdx,
 } from '../shared/grid.ts';
-import { inPlayArea,
+import {
+  inPlayArea,
   Terrain,
   TileResource,
   clearResources,
@@ -22,30 +24,23 @@ import { inPlayArea,
 import { parseMapData, type MapFile } from './mapFile.ts';
 import { loadMissionMap } from './defs/missionMaps.ts';
 import { START_SERFS, START_STOCK, firstRaidTickFor } from './defs/balance.ts';
-import { UNIT_DEFS } from './defs/units.ts';
-import { buildingDef, gatherOrigin, gatherRecipeOf } from './defs/buildings.ts';
+import { UNIT_DEFS, UnitTypeId } from './defs/units.ts';
+import { buildingDef, gatherOrigin, gatherRecipeOf, BuildingTypeId } from './defs/buildings.ts';
 import { dealStrategies, type AiStrategyId } from './defs/aiStrategies.ts';
 import { MISSION_DEFS, type MissionId } from './defs/missions.ts';
 import { makeUnit, type Unit } from './units.ts';
 import { nearestWalkable } from './path.ts';
-import type { GoodAmounts } from './defs/goods.ts';
+import { type GoodAmounts, GoodId, goodKeys, goodEntries } from './defs/goods.ts';
 import type { TechId } from './defs/techs.ts';
-import { BANDIT, type Building, type EntityId, type Owner } from './entities.ts';
-import { makePlayer, type PlayerState } from './player.ts';
-import { GoodId } from './defs/goods.ts';
-import { goodKeys } from './defs/goods.ts';
-import { goodEntries } from './defs/goods.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { BuildingTypeId } from './defs/buildings.ts';
+import { BANDIT, type Building, type EntityId, type Owner, BuildingState } from './entities.ts';
+import { makePlayer, type PlayerState, PlayerKind } from './player.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as HaulPhaseNs from './haulPhaseEnum.ts';
-import { BuildingState } from './entities.ts';
 import * as GameEventKindNs from './gameEventKindEnum.ts';
 
 export * as GameEventKind from './gameEventKindEnum.ts';
 export type GameEventKind = Enum<typeof GameEventKindNs>;
 import * as MatchStateNs from './matchStateEnum.ts';
-import { PlayerKind } from './player.ts';
 
 export * as MatchState from './matchStateEnum.ts';
 export type MatchState = Enum<typeof MatchStateNs>;
@@ -422,10 +417,22 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           if (rectClear(map, cx + dx, cy + dy, 3, 3)) {
-            const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, cx + dx, cy + dy);
+            const camp = placeBuiltBuilding(
+              world,
+              BuildingTypeId.banditCamp,
+              BANDIT,
+              cx + dx,
+              cy + dy,
+            );
             // Standing guards defend the camp (auto-acquire handles the rest).
             for (let g = 0; g < 3; g++) {
-              spawnUnitNearby(world, UnitTypeId.bandit, BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
+              spawnUnitNearby(
+                world,
+                UnitTypeId.bandit,
+                BANDIT,
+                camp.x - 0.5 + g * 2,
+                camp.y + camp.h + 1.5,
+              );
             }
             campPlaced = true;
             break outer;
@@ -441,7 +448,7 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
   if (mission && campSeeds.length > 0 && !campPlaced) {
     throw new Error(
       `mission ${mission.id}'s map has no room for the bandit camp: ` +
-        'clear a 3×3 near its campSpot, or turn the mission\'s bandits off',
+        "clear a 3×3 near its campSpot, or turn the mission's bandits off",
     );
   }
 

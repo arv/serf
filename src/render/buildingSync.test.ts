@@ -4,12 +4,10 @@ import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
 import { WATER_LEVEL } from '../sim/map';
 import { HeightField } from './heightField';
 import { SITE_FRAME_H } from './models';
-import type { BuildingSnap } from '../protocol/messages';
-import type { GoodAmounts } from '../sim/defs/goods';
-import { GoodId } from '../sim/defs/goods';
+import { type BuildingSnap, StaffingState } from '../protocol/messages';
+import { type GoodAmounts, GoodId } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
-import { StaffingState } from '../protocol/messages';
 
 // The KayKit buildings carry material *arrays* on their meshes (the textured
 // group plus the team-color group). The real loader needs GLB files, so mock
@@ -169,7 +167,16 @@ describe("the fishery's pier", () => {
 
   it('is absent while the fishery is still a site', () => {
     const { sync } = makeSync();
-    sync.update([snap({ type: BuildingTypeId.fishery, w: 3, h: 3, facing: 1, state: BuildingState.site, siteNeeds: {} })]);
+    sync.update([
+      snap({
+        type: BuildingTypeId.fishery,
+        w: 3,
+        h: 3,
+        facing: 1,
+        state: BuildingState.site,
+        siteNeeds: {},
+      }),
+    ]);
     expect(sync.fisheryPiers().length).toBe(0);
   });
 });
@@ -210,7 +217,9 @@ describe('the damage bars', () => {
 
     // A camera at rest rebuilds nothing — the bars are left exactly as they
     // were, instance buffer and all.
-    const bars = scene.children.find((o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh)!;
+    const bars = scene.children.find(
+      (o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh,
+    )!;
     const before = bars.instanceMatrix.version;
     sync.frame(1 / 60);
     sync.frame(1 / 60);
@@ -237,7 +246,9 @@ describe('the damage bars', () => {
     aimAt(40, 55);
     sync.cameraQuaternion = cam;
     sync.update([snap({ hp: 60 })]);
-    const bars = scene.children.find((o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh)!;
+    const bars = scene.children.find(
+      (o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh,
+    )!;
     const before = bars.instanceMatrix.version;
     // A long pan, in the fractional steps a real one arrives in.
     let differing = 0;
@@ -356,7 +367,16 @@ describe('the measurements the pointer picks against', () => {
 
   it('leaves a road flat: its scaffolding is not a pick box', () => {
     const { sync } = makeSync();
-    sync.update([snap({ type: BuildingTypeId.roadSite, w: 1, h: 1, state: BuildingState.site, progress01: 0, siteNeeds: {} })]);
+    sync.update([
+      snap({
+        type: BuildingTypeId.roadSite,
+        w: 1,
+        h: 1,
+        state: BuildingState.site,
+        progress01: 0,
+        siteNeeds: {},
+      }),
+    ]);
     // The frame stands 0.7 up while the road is laid, but a road is ground:
     // picking it by its scaffolding would shadow the route it is part of.
     expect(sync.heightOf(7)).toBe(0);
@@ -447,7 +467,8 @@ describe('the stock piles at a building door', () => {
     expect(stands(both, alone[0]!)).toBe(true);
     // Iron arrives: it takes the freed lane rather than opening a third one
     // past the stone, and the stone still has not moved.
-    const refilled = (sync.update([castle({ [GoodId.stone]: 2, [GoodId.iron]: 3 })]), stackXs(scene));
+    const refilled =
+      (sync.update([castle({ [GoodId.stone]: 2, [GoodId.iron]: 3 })]), stackXs(scene));
     expect(refilled.length).toBe(2);
     for (const x of both) expect(stands(refilled, x)).toBe(true);
   });

@@ -1,8 +1,6 @@
-import { isPostureId, postureAdvice, type PostureId } from './posture.ts';
+import { isPostureId, postureAdvice, type PostureId, postureFromKey } from './posture.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
-import { UnitTypeId } from '../sim/defs/units.ts';
-import { asUnitTypeId } from '../sim/defs/units.ts';
-import { postureFromKey } from './posture.ts';
+import { UnitTypeId, asUnitTypeId } from '../sim/defs/units.ts';
 
 /**
  * The contract between the LLM strategist and the AI brain: which playbook
@@ -86,7 +84,11 @@ export const ADVICE_RANGES = {
 export const MARCH_CONFIDENCE_RANGE: readonly [number, number] = [0, 90];
 
 /** The soldiers a barracks can train — the only ids trainPreference keeps. */
-export const ADVISABLE_UNITS: readonly UnitTypeId[] = [UnitTypeId.knight, UnitTypeId.spearman, UnitTypeId.archer];
+export const ADVISABLE_UNITS: readonly UnitTypeId[] = [
+  UnitTypeId.knight,
+  UnitTypeId.spearman,
+  UnitTypeId.archer,
+];
 
 /** Recipe indices a forge understands: 0 spear, 1 sword, 2 bow. */
 const WEAPON_MIX_MAX = 2;
@@ -157,7 +159,8 @@ export function parseAdvice(raw: string): StrategyAdvice | null {
   const advice: StrategyAdvice = {};
   // The model answers with the word it was shown; a posture reaching this
   // screen as an id (the lab, a replayed trace) is read too.
-  const posture = postureFromKey(obj['posture']) ?? (isPostureId(obj['posture']) ? obj['posture'] : undefined);
+  const posture =
+    postureFromKey(obj['posture']) ?? (isPostureId(obj['posture']) ? obj['posture'] : undefined);
   if (posture !== undefined) {
     Object.assign(advice, postureAdvice(posture));
     advice.posture = posture;

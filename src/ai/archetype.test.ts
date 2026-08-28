@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ARCHETYPE, classifyRival, readOpponent } from './archetype.ts';
+import { ARCHETYPE, classifyRival, readOpponent, Archetype } from './archetype.ts';
 import type { AiWorldSummary, RivalSummary } from './summary.ts';
-import { Archetype } from './archetype.ts';
 
 /**
  * The classifier is a pure function of one rival's line in the summary, and
@@ -54,7 +53,11 @@ describe('classifyRival', () => {
   it('does not call a late march a rush — every seat attacks eventually', () => {
     const late = rival({
       intel: intel(0),
-      contact: { firstSoldierMin: 3, firstAttackMin: ARCHETYPE.rushBefore + 1, buildingsAtFive: 14 },
+      contact: {
+        firstSoldierMin: 3,
+        firstAttackMin: ARCHETYPE.rushBefore + 1,
+        buildingsAtFive: 14,
+      },
     });
     expect(classifyRival(late, 20)).not.toBe(Archetype.rusher);
   });

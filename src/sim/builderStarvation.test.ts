@@ -34,10 +34,7 @@ describe('builder recruitment under sustained haul pressure', () => {
 
     // Run until the site's materials are fully delivered.
     let guard = 0;
-    while (
-      Object.values(site.siteNeeds ?? {}).some((n) => n > 0) &&
-      guard++ < 6000
-    ) {
+    while (Object.values(site.siteNeeds ?? {}).some((n) => n > 0) && guard++ < 6000) {
       tickWorld(world, []);
     }
     expect(Object.values(site.siteNeeds ?? {}).every((n) => n === 0)).toBe(true);

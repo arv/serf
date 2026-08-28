@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { SAB_BYTES, SabWriter } from '../protocol/sabLayout';
+import { SAB_BYTES, SabWriter, type UnitSnapshot } from '../protocol/sabLayout';
 import { decodeState, encodeCmd, encodePing } from '../protocol/state';
 import { MovePredictor } from '../net/predict';
 import type {
@@ -11,12 +11,8 @@ import type {
   StructuralUpdate,
   WorkerToMain,
 } from '../protocol/messages';
-import type { SimCommand } from '../sim/commands';
-import type { UnitSnapshot } from '../protocol/sabLayout';
-import { CommandKind } from '../sim/commands';
-import { MainToWorkerKind } from '../protocol/messages';
-import { WorkerToMainKind } from '../protocol/messages';
-import { NetState } from '../protocol/messages';
+import { type SimCommand, CommandKind } from '../sim/commands';
+import { MainToWorkerKind, WorkerToMainKind, NetState } from '../protocol/messages';
 
 /**
  * The multiplayer client's end of the wire. It holds the socket, decodes the
@@ -217,7 +213,10 @@ function connect(net: NetInfo, attempt: number): void {
           });
           ws.close();
         } else if (msg.t === 'replay') {
-          post({ type: WorkerToMainKind.replayData, data: typeof msg.data === 'string' ? msg.data : '' });
+          post({
+            type: WorkerToMainKind.replayData,
+            data: typeof msg.data === 'string' ? msg.data : '',
+          });
         }
       } catch {
         // Non-JSON lobby chatter; nothing to do.

@@ -55,7 +55,13 @@ function playBack(replay: ReplayData) {
 
 describe('server replay recording', () => {
   it('is withheld while the match is undecided', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 555, size: DEFAULT_MAP_SIZE, bots: [] });
+    const room = createRoom('closed', {
+      ai: 1,
+      bandits: false,
+      seed: 555,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 20);
@@ -67,7 +73,13 @@ describe('server replay recording', () => {
     // the whole world at every tick, so a replay handed to a beaten player
     // while their rivals play on is a maphack by proxy — their game being
     // over is not the game being over.
-    const room = createRoom('closed', { ai: 0, bandits: false, seed: 21, size: DEFAULT_MAP_SIZE, bots: [] });
+    const room = createRoom('closed', {
+      ai: 0,
+      bandits: false,
+      seed: 21,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
     const winner = addSeat(room, 'human', null);
     addSeat(room, 'human', null);
     const fallen = addSeat(room, 'human', null);
@@ -86,7 +98,13 @@ describe('server replay recording', () => {
   });
 
   it('reproduces the pumped match without re-running the AI', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 900, size: DEFAULT_MAP_SIZE, bots: [] });
+    const room = createRoom('closed', {
+      ai: 1,
+      bandits: false,
+      seed: 900,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
 
@@ -94,7 +112,12 @@ describe('server replay recording', () => {
     order(room, seat, { kind: CommandKind.hireSerf });
     advance(room, 100);
     order(room, seat, { kind: CommandKind.moveUnits, unitIds: [7, 8], x: 20, y: 20 });
-    order(room, seat, { kind: CommandKind.placeBuilding, building: BuildingTypeId.well, x: 30, y: 30 });
+    order(room, seat, {
+      kind: CommandKind.placeBuilding,
+      building: BuildingTypeId.well,
+      x: 30,
+      y: 30,
+    });
     advance(room, 250);
 
     const expected = serializeWorld(room.world!);
@@ -116,7 +139,13 @@ describe('server replay recording', () => {
   });
 
   it('carries the log across a same-version restore, whole match intact', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 4141, size: DEFAULT_MAP_SIZE, bots: [] });
+    const room = createRoom('closed', {
+      ai: 1,
+      bandits: false,
+      seed: 4141,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 60);
@@ -147,7 +176,13 @@ describe('server replay recording', () => {
   });
 
   it('rebases onto the snapshot when the version changed across the deploy', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 660, size: DEFAULT_MAP_SIZE, bots: [] });
+    const room = createRoom('closed', {
+      ai: 1,
+      bandits: false,
+      seed: 660,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 80);

@@ -16,30 +16,40 @@ import {
   tileBlocks,
 } from '../map.ts';
 import { SeatVision } from '../visibility.ts';
-import { campCorners, startLayout } from '../world.ts';
-import { BUILDING_DEFS, buildingDef, gatherOrigin, garrisonRoom, gatherRecipeOf, OUTPUT_CAP, repairBill } from '../defs/buildings.ts';
+import { campCorners, startLayout, canPlace, type World, MatchState } from '../world.ts';
+import {
+  BUILDING_DEFS,
+  buildingDef,
+  gatherOrigin,
+  garrisonRoom,
+  gatherRecipeOf,
+  OUTPUT_CAP,
+  repairBill,
+  BuildingTypeId,
+} from '../defs/buildings.ts';
 import { TECH_DEFS, type TechId } from '../defs/techs.ts';
-import { UNIT_DEFS, WEAPON_OF } from '../defs/units.ts';
-import { addGarrison, classHp, damageEquivalent, shouldCommit, type Force } from '../combatOdds.ts';
+import { UNIT_DEFS, WEAPON_OF, UnitTypeId, UnitClass } from '../defs/units.ts';
+import {
+  addGarrison,
+  classHp,
+  damageEquivalent,
+  shouldCommit,
+  type Force,
+  tallyClass,
+} from '../combatOdds.ts';
 import { HIRE_QUEUE_CAP, HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
-import type { AiStrategy, BuildStep } from '../defs/aiStrategies.ts';
-import { canPlace, type World } from '../world.ts';
-import { isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
-import { GoodId } from '../defs/goods.ts';
-import type { Unit } from '../units.ts';
-import type { SimCommand } from '../commands.ts';
-import { goodEntries } from '../defs/goods.ts';
-import type { GoodAmounts } from '../defs/goods.ts';
-import { UnitTypeId } from '../defs/units.ts';
-import { BuildingTypeId } from '../defs/buildings.ts';
-import { BuildingState } from '../entities.ts';
-import { UnitTaskKind } from '../units.ts';
-import { UnitClass } from '../defs/units.ts';
-import { tallyClass } from '../combatOdds.ts';
-import { CommandKind } from '../commands.ts';
-import { MatchState } from '../world.ts';
-import { BuildAnchor } from '../defs/aiStrategies.ts';
+import { type AiStrategy, type BuildStep, BuildAnchor } from '../defs/aiStrategies.ts';
+import {
+  isPlayerOwner,
+  type Building,
+  type EntityId,
+  type Owner,
+  BuildingState,
+} from '../entities.ts';
+import { GoodId, goodEntries, type GoodAmounts } from '../defs/goods.ts';
+import { type Unit, UnitTaskKind } from '../units.ts';
+import { type SimCommand, CommandKind } from '../commands.ts';
 import { RulePhase } from '../economyRules.ts';
 
 /**
@@ -372,7 +382,6 @@ const MILITARY = new Set<UnitTypeId>([UnitTypeId.knight, UnitTypeId.spearman, Un
  * seat into emptying its yard. */
 const MIN_SORTIE = 3;
 
-
 const ANCHOR_RESOURCE: Partial<Record<BuildAnchor, number>> = {
   [BuildAnchor.wood]: TileResource.Wood,
   [BuildAnchor.rock]: TileResource.Rock,
@@ -567,7 +576,9 @@ export class AiBrain {
     this.#vision.recompute(world, this.playerId);
     const commands: SimCommand[] = [];
     const mine = ownedBuildings(world, this.playerId);
-    const sh = mine.find((b) => b.type === BuildingTypeId.storehouse && b.state === BuildingState.built);
+    const sh = mine.find(
+      (b) => b.type === BuildingTypeId.storehouse && b.state === BuildingState.built,
+    );
     // Watching comes before the castle check, and before every decision
     // below reads the picture: a seat about to lose its last storehouse has
     // no orders left to give, but what it can see is still worth filing.
@@ -654,7 +665,13 @@ export class AiBrain {
       affordable(BUILDING_DEFS[BuildingTypeId.house].cost, stock)
     ) {
       const spot = findSpot(world, BuildingTypeId.house, baseX, baseY);
-      if (spot) commands.push({ kind: CommandKind.placeBuilding, building: BuildingTypeId.house, x: spot.x, y: spot.y });
+      if (spot)
+        commands.push({
+          kind: CommandKind.placeBuilding,
+          building: BuildingTypeId.house,
+          x: spot.x,
+          y: spot.y,
+        });
     }
 
     // --- Repairs: patch what the raiders left standing -----------------------
@@ -665,7 +682,8 @@ export class AiBrain {
     // village waits for stone it hasn't quarried yet.
     let worst: Building | undefined;
     for (const b of mine) {
-      if (b.state !== BuildingState.built || b.repairNeeds || b.repairPending !== undefined) continue;
+      if (b.state !== BuildingState.built || b.repairNeeds || b.repairPending !== undefined)
+        continue;
       const max = BUILDING_DEFS[b.type].hp;
       if (b.hp >= max * AI_REPAIR_BELOW) continue;
       if (!worst || b.hp / max < worst.hp / BUILDING_DEFS[worst.type].hp) worst = b;
@@ -782,7 +800,9 @@ export class AiBrain {
         const leavesHireMoney =
           serfCount >= s.survivalFloor ||
           !room ||
-          (stock[GoodId.silver] ?? 0) - (hiring ? HIRE_SERF_COST : 0) - (cost[GoodId.silver] ?? 0) >=
+          (stock[GoodId.silver] ?? 0) -
+            (hiring ? HIRE_SERF_COST : 0) -
+            (cost[GoodId.silver] ?? 0) >=
             HIRE_SERF_COST;
         if (ok && leavesHireMoney) commands.push({ kind: CommandKind.research, tech: next });
       }
@@ -800,7 +820,14 @@ export class AiBrain {
     const army = [...world.units.values()].filter(
       (u) => !u.dead && u.owner === this.playerId && MILITARY.has(u.kind) && !manning.has(u.id),
     );
-    const target = pickAttackTarget(world, this.#vision, this.playerId, baseX, baseY, s.prefersRivals);
+    const target = pickAttackTarget(
+      world,
+      this.#vision,
+      this.playerId,
+      baseX,
+      baseY,
+      s.prefersRivals,
+    );
     const rallyReady = world.tick - this.#lastRallyTick > s.rallyCooldown;
     const idleFor = world.tick - this.#lastAttackTick;
     const cooled = idleFor > s.attackCooldown;
@@ -923,7 +950,8 @@ export class AiBrain {
       // as a garrison and the rest are the party. Ties break on id, so the
       // split is as deterministic as everything else here.
       const byHome = [...army].sort(
-        (a, z) => exactDist(a.x - baseX, a.y - baseY) - exactDist(z.x - baseX, z.y - baseY) || a.id - z.id,
+        (a, z) =>
+          exactDist(a.x - baseX, a.y - baseY) - exactDist(z.x - baseX, z.y - baseY) || a.id - z.id,
       );
       const held = Math.min(SWEEP_GARRISON, Math.floor(army.length / 2));
       const garrison = byHome.slice(0, held);
@@ -952,7 +980,9 @@ export class AiBrain {
           // wherever the last march happened to end — so the ones still out
           // are called in with the same beat. Only those: re-ordering a
           // soldier already at his post just restarts his walk.
-          const strays = garrison.filter((u) => exactDist(u.x - baseX, u.y - baseY) > GARRISON_POST);
+          const strays = garrison.filter(
+            (u) => exactDist(u.x - baseX, u.y - baseY) > GARRISON_POST,
+          );
           if (strays.length > 0) {
             commands.push({
               kind: CommandKind.moveUnits,
@@ -1121,7 +1151,6 @@ export class AiBrain {
         x.stock === first.stock,
     );
   }
-
 
   /** The scout stands down entirely. */
   #clearScout(): void {
@@ -1321,7 +1350,8 @@ export class AiBrain {
         // wall is for. Staffing picks who actually walks (nearest first);
         // what matters here is that the army is that many men short.
         for (const id of pool.splice(0, spare)) claimed.add(id);
-        if (b.paused) commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
+        if (b.paused)
+          commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
         continue;
       }
       if (b.garrison && b.garrisonKind !== rule.levy.unit) continue;
@@ -1331,10 +1361,12 @@ export class AiBrain {
       // anyone beats a wall held by nobody while there is something out
       // there to shoot at.
       if (besieged) {
-        if (b.paused) commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
+        if (b.paused)
+          commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
         continue;
       }
-      if (!b.paused) commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: true });
+      if (!b.paused)
+        commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: true });
     }
     return claimed;
   }
@@ -1400,7 +1432,10 @@ export class AiBrain {
       light,
       ranged,
       // Counts only — a scout cannot read armour research, so base hp it is.
-      hp: heavy * classHp(UnitClass.heavy) + light * classHp(UnitClass.light) + ranged * classHp(UnitClass.ranged),
+      hp:
+        heavy * classHp(UnitClass.heavy) +
+        light * classHp(UnitClass.light) +
+        ranged * classHp(UnitClass.ranged),
     };
   }
 
@@ -1619,7 +1654,8 @@ function spotFor(
   baseX: number,
   baseY: number,
 ): { x: number; y: number } | null {
-  if (step.anchor === BuildAnchor.base) return findSpot(world, step.type, baseX, baseY, step.radius);
+  if (step.anchor === BuildAnchor.base)
+    return findSpot(world, step.type, baseX, baseY, step.radius);
   // The shore is terrain, not a resource seam, so it gets its own search.
   // A map with no water near home simply never places the step, and the
   // brain moves on down the list — which is the right answer, not a stall.
@@ -1691,30 +1727,30 @@ function nearestWater(world: World, cx: number, cy: number): number {
   // Play-area rows only: the margin's sea is scenery no pier can reach,
   // and the scan has no business paying for it.
   for (let y = lo; y < hi; y++) {
-  for (let x = lo; x < hi; x++) {
-    const i = y * size + x;
-    if (map.terrain[i] !== Terrain.Water) continue;
-    let banked = false;
-    for (const [nx, ny] of [
-      [x - 1, y],
-      [x + 1, y],
-      [x, y - 1],
-      [x, y + 1],
-    ] as const) {
-      if (nx < lo || ny < lo || nx >= hi || ny >= hi) continue;
-      const n = ny * size + nx;
-      if (!tileBlocks(map.terrain[n]!, map.resource[n]!)) {
-        banked = true;
-        break;
+    for (let x = lo; x < hi; x++) {
+      const i = y * size + x;
+      if (map.terrain[i] !== Terrain.Water) continue;
+      let banked = false;
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ] as const) {
+        if (nx < lo || ny < lo || nx >= hi || ny >= hi) continue;
+        const n = ny * size + nx;
+        if (!tileBlocks(map.terrain[n]!, map.resource[n]!)) {
+          banked = true;
+          break;
+        }
+      }
+      if (!banked) continue;
+      const d = Math.abs(x - cx) + Math.abs(y - cy);
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
       }
     }
-    if (!banked) continue;
-    const d = Math.abs(x - cx) + Math.abs(y - cy);
-    if (d < bestDist) {
-      bestDist = d;
-      best = i;
-    }
-  }
   }
   return best;
 }
@@ -1811,13 +1847,15 @@ function searchLandmarks(world: World): [number, number][] {
   const pts: [number, number][] = [];
   // Rival doorsteps (the seat's own start is explored from tick 0 and
   // drops out on its own). Storehouses are 3x3, so +1 is the center.
-  for (const [sx, sy] of startLayout(world.map.play, playMin(world.map), world.players.length) ?? []) {
+  for (const [sx, sy] of startLayout(world.map.play, playMin(world.map), world.players.length) ??
+    []) {
     pts.push([sx + 1, sy + 1]);
   }
   // Camp seeds: the middle, then the corners — the very spots worldgen
   // seeds from (campCorners), at their 3x3 centers.
   pts.push([size / 2, size / 2]);
-  for (const [cx, cy] of campCorners(world.map.play, playMin(world.map))) pts.push([cx + 1, cy + 1]);
+  for (const [cx, cy] of campCorners(world.map.play, playMin(world.map)))
+    pts.push([cx + 1, cy + 1]);
   return pts;
 }
 
@@ -1923,7 +1961,12 @@ const GARRISON_POST = 6;
  */
 export const LEVY_HOLD = 30 * 20;
 
-export function scoutLeg(goal: number, sx: number, sy: number, size: number): { x: number; y: number } {
+export function scoutLeg(
+  goal: number,
+  sx: number,
+  sy: number,
+  size: number,
+): { x: number; y: number } {
   const gx = tileX(goal, size);
   const gy = tileY(goal, size);
   const gateY = Math.max(0, gy - GATE_NORTH);

@@ -1,12 +1,10 @@
 import { RAID_CAP, raidIntervalFor } from '../defs/balance.ts';
 import { BANDIT, isPlayerOwner, type Building } from '../entities.ts';
-import { spawnUnitNearby, type World } from '../world.ts';
+import { spawnUnitNearby, type World, GameEventKind, MatchState } from '../world.ts';
 import { Rng } from '../../shared/rng.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
 import { UnitTaskKind } from '../units.ts';
-import { GameEventKind } from '../world.ts';
-import { MatchState } from '../world.ts';
 
 /**
  * Escalating raids: waves grow and diversify (light -> +ranged -> +heavy) so

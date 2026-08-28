@@ -1,7 +1,6 @@
-import { POSTURES, POSTURE_ORDER } from './posture.ts';
+import { POSTURES, POSTURE_ORDER, POSTURE_KEYS } from './posture.ts';
 import type { StrategyAdvice } from './advice.ts';
 import type { AiWorldSummary } from './summary.ts';
-import { POSTURE_KEYS } from './posture.ts';
 
 /**
  * Summary → chat messages. Kept apart from the strategist so the whole

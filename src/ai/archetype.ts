@@ -40,7 +40,6 @@ export type Archetype = Enum<typeof ArchetypeNs>;
  * because behind fog three quite different openings look much alike.
  */
 
-
 /**
  * The numbers the classifier turns on. Calibrated by watching the three
  * shipped playbooks play themselves (8 seeds each, minutes 5 through 14),
@@ -101,7 +100,12 @@ export function classifyRival(rival: RivalSummary, minutes: number): Archetype {
  * the clock), then turtling, then booming; ties break on the lower seat id
  * so two hosts read the same valley identically.
  */
-const LOUDNESS: Record<Archetype, number> = { [ArchetypeNs.rusher]: 3, [ArchetypeNs.turtling]: 2, [ArchetypeNs.booming]: 1, [ArchetypeNs.unmet]: 0 };
+const LOUDNESS: Record<Archetype, number> = {
+  [ArchetypeNs.rusher]: 3,
+  [ArchetypeNs.turtling]: 2,
+  [ArchetypeNs.booming]: 1,
+  [ArchetypeNs.unmet]: 0,
+};
 
 export function readOpponent(summary: AiWorldSummary): Archetype {
   let best: Archetype = ArchetypeNs.unmet;

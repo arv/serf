@@ -8,29 +8,26 @@
  * Per-player filtering happens above, on the server, so the two concerns
  * stay separable.
  */
-import { TOOL_OF, buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings.ts';
+import {
+  TOOL_OF,
+  buildingDef,
+  gatherOrigin,
+  gatherRecipeOf,
+  BuildingTypeId,
+  RecipeKind,
+} from '../sim/defs/buildings.ts';
 import { HIRE_SERF_TICKS } from '../sim/defs/balance.ts';
 import { TECH_DEFS } from '../sim/defs/techs.ts';
-import { GOODS, type GoodAmounts } from '../sim/defs/goods.ts';
-import { UNIT_DEFS, carryingCode } from '../sim/defs/units.ts';
+import { GOODS, type GoodAmounts, GoodId } from '../sim/defs/goods.ts';
+import { UNIT_DEFS, carryingCode, UnitTypeId } from '../sim/defs/units.ts';
 import { ACTION, PROFESSION, WORK, type UnitSnapshot } from './sabLayout.ts';
-import { centerOf } from '../sim/entities.ts';
-import { countResourceNear } from '../sim/map.ts';
+import { centerOf, type Building, type Owner, BuildingState } from '../sim/entities.ts';
+import { countResourceNear, TileResource } from '../sim/map.ts';
 import { exactDist } from '../shared/math.ts';
 import { distToFootprint } from '../sim/arrival.ts';
-import type { World } from '../sim/world.ts';
-import type { Building, Owner } from '../sim/entities.ts';
-import type { Unit } from '../sim/units.ts';
-import type { BuildingSnap, JobSnap, PlayerSnap } from './messages.ts';
-import { GoodId } from '../sim/defs/goods.ts';
-import { UnitTypeId } from '../sim/defs/units.ts';
-import { BuildingTypeId } from '../sim/defs/buildings.ts';
-import { BuildingState } from '../sim/entities.ts';
-import { UnitTaskKind } from '../sim/units.ts';
-import { HaulPhase } from '../sim/world.ts';
-import { RecipeKind } from '../sim/defs/buildings.ts';
-import { TileResource } from '../sim/map.ts';
-import { StaffingState } from './messages.ts';
+import { type World, HaulPhase } from '../sim/world.ts';
+import { type Unit, UnitTaskKind } from '../sim/units.ts';
+import { type BuildingSnap, type JobSnap, type PlayerSnap, StaffingState } from './messages.ts';
 
 export function snapBuilding(world: World, b: Building): BuildingSnap {
   const def = buildingDef(b.type);
@@ -39,7 +36,9 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
   // so it reports no staffing state rather than a false "needed" alarm.
   const wantsStaff =
     !b.paused &&
-    (b.state === BuildingState.built ? def.workerKind !== undefined : b.state === BuildingState.site && !def.isRoad);
+    (b.state === BuildingState.built
+      ? def.workerKind !== undefined
+      : b.state === BuildingState.site && !def.isRoad);
   if (wantsStaff) {
     const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
     staffing =
@@ -66,7 +65,9 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     repairNeeds: b.repairNeeds ? { ...b.repairNeeds } : undefined,
     repairPending: b.repairPending,
     progress01:
-      b.state === BuildingState.site && def.buildTicks > 0 ? (b.buildProgress ?? 0) / def.buildTicks : undefined,
+      b.state === BuildingState.site && def.buildTicks > 0
+        ? (b.buildProgress ?? 0) / def.buildTicks
+        : undefined,
     stock: { ...b.stock },
     inputs: { ...b.inputs },
     inbound: { ...b.inbound },
@@ -114,13 +115,7 @@ function reachableResource(world: World, b: Building): number | undefined {
   const gather = gatherRecipeOf(def);
   if (!gather) return undefined;
   const origin = gatherOrigin(def, b.x, b.y);
-  return countResourceNear(
-    world.map,
-    origin.x,
-    origin.y,
-    gather.resource,
-    gather.radius,
-  );
+  return countResourceNear(world.map, origin.x, origin.y, gather.resource, gather.radius);
 }
 
 export function snapBuildings(world: World): BuildingSnap[] {
@@ -149,7 +144,11 @@ export function snapPlayers(world: World): PlayerSnap[] {
     if (b.dead) continue;
     if (b.state === BuildingState.site) {
       // A site still owed its borrowed hammer counts as a hammer want.
-      if (!b.paused && (b.siteNeeds?.[GoodId.hammer] ?? 0) > 0 && (b.inbound[GoodId.hammer] ?? 0) === 0) {
+      if (
+        !b.paused &&
+        (b.siteNeeds?.[GoodId.hammer] ?? 0) > 0 &&
+        (b.inbound[GoodId.hammer] ?? 0) === 0
+      ) {
         wantTool(b.owner, GoodId.hammer);
       }
       continue;

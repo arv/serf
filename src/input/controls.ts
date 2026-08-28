@@ -1,10 +1,44 @@
 import type * as THREE from 'three';
 import { inBounds, tileIdx } from '../shared/grid';
-import { buildingDef } from '../sim/defs/buildings';
+import { buildingDef, BuildingTypeId } from '../sim/defs/buildings';
 import { canPlace } from '../sim/world';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { HIRE_SERF_COST } from '../sim/defs/balance';
-import { bandArm, buildChord, debugOpen, fogEnabled, lastAlert, muted, myPlayerId, openPanel, orderMode, placing, population, pushToast, quitConfirm, replayMode, selectedBuilding, setBandArm, setBuildAim, setBuildChord, setDebugOpen, setFogEnabled, setOpenPanel, setOrderMode, setPlacing, setQuitConfirm, setSelectedBuilding, setSelection, setSelectionGroup, setTechPanelOpen, stock, techPanelOpen, techs, toggleMuted } from '../ui/store';
+import {
+  bandArm,
+  buildChord,
+  debugOpen,
+  fogEnabled,
+  lastAlert,
+  muted,
+  myPlayerId,
+  openPanel,
+  orderMode,
+  placing,
+  population,
+  pushToast,
+  quitConfirm,
+  replayMode,
+  selectedBuilding,
+  setBandArm,
+  setBuildAim,
+  setBuildChord,
+  setDebugOpen,
+  setFogEnabled,
+  setOpenPanel,
+  setOrderMode,
+  setPlacing,
+  setQuitConfirm,
+  setSelectedBuilding,
+  setSelection,
+  setSelectionGroup,
+  setTechPanelOpen,
+  stock,
+  techPanelOpen,
+  techs,
+  toggleMuted,
+  OrderMode,
+} from '../ui/store';
 import { buildAffordable, buildUnlocked, buildingForKey } from '../ui/buildMenu';
 import {
   HIRE_KEY,
@@ -26,10 +60,9 @@ import {
   type BuildingHeights,
   type BuildingProbe,
 } from './picking';
-import { groupEmpty, keyDigit, matchingGroup } from './groups';
+import { groupEmpty, keyDigit, matchingGroup, type ControlGroup, ControlGroupKind } from './groups';
 import { foreignChord, typingInto } from './typing';
 import { capturePointer } from './mouseCapture';
-import type { ControlGroup } from './groups';
 import type { SceneSync } from '../render/sceneSync';
 import type { GhostPlacement } from '../render/ghost';
 import type { FogQuery } from '../render/fogOfWar';
@@ -38,11 +71,8 @@ import type { WorldMirror } from '../app/mirror';
 import type { SimHost } from '../app/simHost';
 import type { BuildingSnap } from '../protocol/messages';
 import { GoodId } from '../sim/defs/goods';
-import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
 import { CommandKind } from '../sim/commands';
-import { ControlGroupKind } from './groups';
-import { OrderMode } from '../ui/store';
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
@@ -515,7 +545,11 @@ export class Controls {
   #buildingCommand(b: BuildingSnap, letter: string): boolean {
     if (!letter || replayMode()) return false;
 
-    if (letter === HIRE_KEY && b.type === BuildingTypeId.storehouse && b.state === BuildingState.built) {
+    if (
+      letter === HIRE_KEY &&
+      b.type === BuildingTypeId.storehouse &&
+      b.state === BuildingState.built
+    ) {
       if (!canHire(b, stock(), population())) {
         const queued = b.hireQueue ?? 0;
         pushToast(
@@ -1431,7 +1465,8 @@ export class Controls {
     // stale snapshot. The press is not remembered either — a refusal is not
     // a first press, and recording it would hand the *next* press of this
     // number to the camera when that press is someone's first real recall.
-    const snap = group.kind === ControlGroupKind.building ? this.#mirror.buildings.get(group.id) : null;
+    const snap =
+      group.kind === ControlGroupKind.building ? this.#mirror.buildings.get(group.id) : null;
     if (group.kind === ControlGroupKind.building && !snap) {
       this.#groups.delete(digit);
       play('uiRefused');

@@ -2,13 +2,12 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { clamp } from '../shared/math';
-import { UNIT_DEFS } from '../sim/defs/units';
+import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
 import { lathe } from './models';
 import { loadGltfRetry } from './assets';
 import { goodColors } from './palette';
 import { factionTint } from './factionPalette';
 import { GoodId } from '../sim/defs/goods';
-import { UnitTypeId } from '../sim/defs/units';
 import type { Enum } from '../shared/enum.ts';
 import * as AnimKeyNs from './animKeyEnum.ts';
 export * as AnimKey from './animKeyEnum.ts';
@@ -25,7 +24,6 @@ export type Gait = Enum<typeof GaitNs>;
  * assets can't load, callers fall back to the procedural people in
  * models.ts.
  */
-
 
 const KK_DIR = '/models/kaykit/';
 const KK_CHARACTER_FILES = ['Knight', 'Barbarian', 'Rogue', 'Rogue_Hooded', 'Mage', 'Ranger'];
@@ -102,54 +100,64 @@ interface KKSpec {
 
 const KK_SPECS = new Map<number, KKSpec>([
   [1, { file: 'Rogue', hide: ['Rogue_Cape'] }],
-  [2, {
-    // The Mage, bare-headed: under the wizard hat it is a hooded work
-    // smock — the closest thing the pack has to a laborer. The Barbarian
-    // it replaces read as a shirtless warrior hauling lumber. The pack
-    // axe stays in the kit but only for the chop — a laborer walks
-    // empty-handed (a builder marching around armed read as a raid), and
-    // the modeled axe beats any procedural stand-in while he swings.
-    file: 'Mage',
-    hide: ['Mage_Hat'],
-    right: 'axe_1handed',
-    // The axe loads blade-backwards in the grip; spin it to face the swing.
-    rightRot: [0, Math.PI, 0],
-    rightWorkKind: 1, // WORK.chop
-  }],
+  [
+    2,
+    {
+      // The Mage, bare-headed: under the wizard hat it is a hooded work
+      // smock — the closest thing the pack has to a laborer. The Barbarian
+      // it replaces read as a shirtless warrior hauling lumber. The pack
+      // axe stays in the kit but only for the chop — a laborer walks
+      // empty-handed (a builder marching around armed read as a raid), and
+      // the modeled axe beats any procedural stand-in while he swings.
+      file: 'Mage',
+      hide: ['Mage_Hat'],
+      right: 'axe_1handed',
+      // The axe loads blade-backwards in the grip; spin it to face the swing.
+      rightRot: [0, Math.PI, 0],
+      rightWorkKind: 1, // WORK.chop
+    },
+  ],
   [3, { file: 'Knight', right: 'sword_1handed', left: 'shield_badge', jog: true }],
-  [4, {
-    file: 'Knight',
-    hide: ['Knight_Cape', 'Knight_HelmetVisor'],
-    // A spear, built here: the pack's wizard staff stood in for one and
-    // the crystal on its head gave the game away (see spearProp).
-    rightBuilt: spearProp,
-    jog: true,
-    attackClip: 'Melee_1H_Attack_Stab',
-  }],
+  [
+    4,
+    {
+      file: 'Knight',
+      hide: ['Knight_Cape', 'Knight_HelmetVisor'],
+      // A spear, built here: the pack's wizard staff stood in for one and
+      // the crystal on its head gave the game away (see spearProp).
+      rightBuilt: spearProp,
+      jog: true,
+      attackClip: 'Melee_1H_Attack_Stab',
+    },
+  ],
   [5, { file: 'Ranger', right: 'bow_withString', jog: true, ranged: true }],
   [6, { file: 'Rogue', tint: 0x7c8290, right: 'dagger', jog: true }],
-  [7, {
-    file: 'Rogue_Hooded',
-    tint: 0x7c8290,
-    right: 'bow_withString',
-    back: 'quiver',
-    jog: true,
-    ranged: true,
-  }],
-  [8, {
-    file: 'Barbarian',
-    tint: 0x94848c,
-    right: 'axe_2handed',
-    scale: 1.18,
-    jog: true,
-    attackClip: 'Melee_2H_Attack_Chop',
-  }],
+  [
+    7,
+    {
+      file: 'Rogue_Hooded',
+      tint: 0x7c8290,
+      right: 'bow_withString',
+      back: 'quiver',
+      jog: true,
+      ranged: true,
+    },
+  ],
+  [
+    8,
+    {
+      file: 'Barbarian',
+      tint: 0x94848c,
+      right: 'axe_2handed',
+      scale: 1.18,
+      jog: true,
+      attackClip: 'Melee_2H_Attack_Chop',
+    },
+  ],
 ]);
 
 /** Sim ground speed by kind byte, for matching gait playback to it. */
-const KIND_SPEED = new Map<number, number>(
-  Object.values(UNIT_DEFS).map((d) => [d.id, d.speed]),
-);
+const KIND_SPEED = new Map<number, number>(Object.values(UNIT_DEFS).map((d) => [d.id, d.speed]));
 
 interface KKCharacter {
   scene: THREE.Group;
@@ -633,7 +641,10 @@ function spearProp(): THREE.Group {
   // the shaft from ending in nothing when it is seen against the grass.
   const collar = toolMesh(new THREE.CylinderGeometry(0.088, 0.088, 0.12, 6), 0x6b4e2e);
   collar.position.y = 1.36;
-  const butt = toolMesh(new THREE.CylinderGeometry(0.078, 0.078, 0.15, 6), goodColors[GoodId.sword]);
+  const butt = toolMesh(
+    new THREE.CylinderGeometry(0.078, 0.078, 0.15, 6),
+    goodColors[GoodId.sword],
+  );
   butt.position.y = -0.79;
   g.add(shaft, blade, collar, butt);
   spearTemplate = g;
@@ -710,7 +721,9 @@ function makeKayKitCharacter(
           // (cloth texels are mid-brown, and green x brown is bog), while
           // a touch of emissive restores the saturation multiply loses.
           // Together they read as dyed cloth under the same sun.
-          tinted.color.lerp(new THREE.Color(clothFaction), 0.9).lerp(new THREE.Color(0xffffff), 0.12);
+          tinted.color
+            .lerp(new THREE.Color(clothFaction), 0.9)
+            .lerp(new THREE.Color(0xffffff), 0.12);
           tinted.emissive.set(clothFaction).multiplyScalar(0.22);
         }
         kkTintMaterials.set(key, tinted);
@@ -848,7 +861,8 @@ function makeKayKitCharacter(
   for (const key of ANIM_KEYS) {
     let name = key === AnimKeyNs.attack && spec.attackClip ? spec.attackClip : KK_CLIP_NAMES[key];
     // A jogging carrier gets the run-legged carry composite.
-    if (key === AnimKeyNs.carry && gait === GaitNs.jog && kkAssets.clips.has('Carry_Jog')) name = 'Carry_Jog';
+    if (key === AnimKeyNs.carry && gait === GaitNs.jog && kkAssets.clips.has('Carry_Jog'))
+      name = 'Carry_Jog';
     const clip = kkAssets.clips.get(name);
     if (!clip) continue;
     const action = mixer.clipAction(clip);

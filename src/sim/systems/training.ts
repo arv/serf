@@ -1,19 +1,15 @@
 import { buildingDef } from '../defs/buildings.ts';
-import { UNIT_DEFS } from '../defs/units.ts';
+import { UNIT_DEFS, UnitTypeId } from '../defs/units.ts';
 import { getModifier, isUnitUnlocked } from '../techHelpers.ts';
 import { HIRE_SERF_TICKS, TRAIN_QUEUE_CAP } from '../defs/balance.ts';
 import { spawnUnit, type World } from '../world.ts';
 import { popCapOf, populationOf } from '../population.ts';
 import { findPath, nearestWalkable } from '../path.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
-import type { GoodId } from '../defs/goods.ts';
-import type { Building } from '../entities.ts';
-import type { Unit } from '../units.ts';
-import { goodEntries } from '../defs/goods.ts';
-import { UnitTypeId } from '../defs/units.ts';
+import { type GoodId, goodEntries } from '../defs/goods.ts';
+import { type Building, BuildingState } from '../entities.ts';
+import { type Unit, UnitTaskKind } from '../units.ts';
 import { ModifierKey } from '../defs/techs.ts';
-import { BuildingState } from '../entities.ts';
-import { UnitTaskKind } from '../units.ts';
 
 /**
  * Barracks training. A queue item starts when its ingredients are in the input
@@ -40,7 +36,9 @@ export function trainingSystem(world: World): void {
       b.trainQueue.shift();
       const door = doorOf(world, b);
       const unit = spawnUnit(world, head.unit, b.owner, door.x, door.y);
-      unit.hp = Math.round(UNIT_DEFS[head.unit].hp * getModifier(world, b.owner, ModifierKey.militaryHp));
+      unit.hp = Math.round(
+        UNIT_DEFS[head.unit].hp * getModifier(world, b.owner, ModifierKey.militaryHp),
+      );
       marchToRally(world, b, unit);
     }
   }
@@ -132,7 +130,9 @@ export function evictGarrison(world: World, b: Building, n: number): void {
       // Armour research is a soldier's; a serf goes back to work as he was.
       // Only for a garrison that never recorded a man (a save from before
       // garrisonHp) — otherwise what he walked in with stands.
-      unit.hp = Math.round(UNIT_DEFS[kind].hp * getModifier(world, b.owner, ModifierKey.militaryHp));
+      unit.hp = Math.round(
+        UNIT_DEFS[kind].hp * getModifier(world, b.owner, ModifierKey.militaryHp),
+      );
     }
     // The bow does not reload for free either: a man leaving a tower that has
     // just loosed carries what is left of its clock, or standing down between

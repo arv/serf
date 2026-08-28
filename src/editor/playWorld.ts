@@ -2,14 +2,18 @@ import { Rng } from '../shared/rng.ts';
 import { BANDIT } from '../sim/entities.ts';
 import { START_SERFS, START_STOCK, firstRaidTickFor } from '../sim/defs/balance.ts';
 import { dealStrategies, type AiStrategyId } from '../sim/defs/aiStrategies.ts';
-import { makePlayer } from '../sim/player.ts';
-import { campCorners, placeBuiltBuilding, spawnUnitNearby, type World } from '../sim/world.ts';
+import { makePlayer, type PlayerKind } from '../sim/player.ts';
+import {
+  campCorners,
+  placeBuiltBuilding,
+  spawnUnitNearby,
+  type World,
+  MatchState,
+} from '../sim/world.ts';
 import { clearResources, rectClear, recomputeBlocked, type GameMap } from '../sim/map.ts';
 import type { EditorMapState } from './editorMap.ts';
 import { UnitTypeId } from '../sim/defs/units.ts';
 import { BuildingTypeId } from '../sim/defs/buildings.ts';
-import { MatchState } from '../sim/world.ts';
-import type { PlayerKind } from '../sim/player.ts';
 
 export interface EditorPlayConfig {
   /** Deals the AI seats their playbooks (and the solo camp its corner). */
@@ -113,9 +117,21 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           if (rectClear(map, cx + dx, cy + dy, 3, 3)) {
-            const camp = placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, cx + dx, cy + dy);
+            const camp = placeBuiltBuilding(
+              world,
+              BuildingTypeId.banditCamp,
+              BANDIT,
+              cx + dx,
+              cy + dy,
+            );
             for (let g = 0; g < 3; g++) {
-              spawnUnitNearby(world, UnitTypeId.bandit, BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
+              spawnUnitNearby(
+                world,
+                UnitTypeId.bandit,
+                BANDIT,
+                camp.x - 0.5 + g * 2,
+                camp.y + camp.h + 1.5,
+              );
             }
             campPlaced = true;
             break outer;

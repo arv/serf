@@ -1,6 +1,4 @@
-import { MAX_UNITS_PER_ORDER, type SimCommand } from '../../sim/commands';
-import { CommandKind } from '../../sim/commands';
-import { AdminAction } from '../../sim/commands';
+import { MAX_UNITS_PER_ORDER, type SimCommand, CommandKind, AdminAction } from '../../sim/commands';
 
 /**
  * The command reference. SimCommand is a type — erased at runtime — so the
@@ -52,7 +50,8 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
     payload: 'buildingId, recipeIndex',
   },
   [CommandKind.cancelForge]: {
-    summary: 'Cancel a queued forge order. Names both the slot and the recipe so a stale click misses rather than cancels a neighbour.',
+    summary:
+      'Cancel a queued forge order. Names both the slot and the recipe so a stale click misses rather than cancels a neighbour.',
     payload: 'buildingId, index, recipeIndex',
   },
   [CommandKind.research]: {
@@ -60,15 +59,18 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
     payload: 'tech',
   },
   [CommandKind.trainUnit]: {
-    summary: 'Queue a soldier at the barracks. Ingredients are spent when training starts, not when queued.',
+    summary:
+      'Queue a soldier at the barracks. Ingredients are spent when training starts, not when queued.',
     payload: 'buildingId, unit',
   },
   [CommandKind.cancelTraining]: {
-    summary: 'Cancel a queued recruit. Slot and unit both named, for the same stale-click reason as cancelForge.',
+    summary:
+      'Cancel a queued recruit. Slot and unit both named, for the same stale-click reason as cancelForge.',
     payload: 'buildingId, index, unit',
   },
   [CommandKind.setRallyPoint]: {
-    summary: 'Plant the barracks’ rally flag — fresh soldiers march there — or take it down by sending no coordinates.',
+    summary:
+      'Plant the barracks’ rally flag — fresh soldiers march there — or take it down by sending no coordinates.',
     payload: 'buildingId, x?, y?',
   },
   [CommandKind.admin]: {

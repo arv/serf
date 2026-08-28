@@ -1,17 +1,14 @@
 import type { AiWorldSummary } from '../ai/summary.ts';
-import type { EntityId, Owner } from '../sim/entities.ts';
+import type { EntityId, Owner, BuildingState } from '../sim/entities.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 import type { UnitTypeId } from '../sim/defs/units.ts';
-import type { BuildingState } from '../sim/entities.ts';
-import type { MatchOutcome } from '../sim/world.ts';
+import type { MatchOutcome, HaulPhase, GameEvent, MapDelta, WorldConfig } from '../sim/world.ts';
 import type { PlayerKind } from '../sim/player.ts';
-import type { HaulPhase } from '../sim/world.ts';
 import type { BuildingTypeId } from '../sim/defs/buildings.ts';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods.ts';
 import type { MissionId } from '../sim/defs/missions.ts';
 import type { TechId } from '../sim/defs/techs.ts';
 import type { PlayerCommand } from '../sim/tick.ts';
-import type { GameEvent, MapDelta, WorldConfig } from '../sim/world.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as MainToWorkerKindNs from './mainToWorkerKindEnum.ts';
 import * as WorkerToMainKindNs from './workerToMainKindEnum.ts';
@@ -26,7 +23,6 @@ export * as NetState from './netStateEnum.ts';
 export type NetState = Enum<typeof NetStateNs>;
 export * as StaffingState from './staffingStateEnum.ts';
 export type StaffingState = Enum<typeof StaffingStateNs>;
-
 
 /** Tech-tree state for the UI. */
 export interface TechSnap {

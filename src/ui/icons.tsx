@@ -34,7 +34,9 @@ const GOOD_HEX: Record<GoodId, string> = {
  * 24-unit box and scaled into the 16-unit one. */
 const PATHS: Record<GoodId, (c: string) => JSX.Element> = {
   // Droplet
-  [GoodId.water]: (c) => <path d="M8 1.5C8 1.5 3.5 7 3.5 10a4.5 4.5 0 0 0 9 0C12.5 7 8 1.5 8 1.5Z" fill={c} />,
+  [GoodId.water]: (c) => (
+    <path d="M8 1.5C8 1.5 3.5 7 3.5 10a4.5 4.5 0 0 0 9 0C12.5 7 8 1.5 8 1.5Z" fill={c} />
+  ),
   // Wheat ear: stalk + grain ellipses
   [GoodId.wheat]: (c) => (
     <g transform="scale(0.667)">
@@ -103,13 +105,11 @@ const PATHS: Record<GoodId, (c: string) => JSX.Element> = {
   // Tankard: tapered mug, handle, foam head
   [GoodId.ale]: (c) => (
     <g transform="scale(0.667)">
-      <path d="M6 7.5h9.5l-.8 12.2a1.6 1.6 0 0 1-1.6 1.5H8.4a1.6 1.6 0 0 1-1.6-1.5L6 7.5Z" fill={c} />
       <path
-        d="M15.2 10.2h1.9a2.9 2.9 0 0 1 0 5.8h-1.9"
-        fill="none"
-        stroke={c}
-        stroke-width="1.8"
+        d="M6 7.5h9.5l-.8 12.2a1.6 1.6 0 0 1-1.6 1.5H8.4a1.6 1.6 0 0 1-1.6-1.5L6 7.5Z"
+        fill={c}
       />
+      <path d="M15.2 10.2h1.9a2.9 2.9 0 0 1 0 5.8h-1.9" fill="none" stroke={c} stroke-width="1.8" />
       <path d="M5.6 4.4h10.3a1.7 1.7 0 0 1 0 3.4H5.6a1.7 1.7 0 0 1 0-3.4Z" fill="#f4ecd8" />
       <circle cx="8.5" cy="3.9" r="2" fill="#f4ecd8" />
       <circle cx="13" cy="4.1" r="1.7" fill="#f4ecd8" />
@@ -151,22 +151,13 @@ const PATHS: Record<GoodId, (c: string) => JSX.Element> = {
         stroke-linecap="round"
         fill="none"
       />
-      <path
-        d="M12.4 3.6c3.4-1.2 6.6-.2 8.4 2-1.2 3-3.4 5-6.4 6-1.8-2.6-2.4-5.4-2-8Z"
-        fill={c}
-      />
+      <path d="M12.4 3.6c3.4-1.2 6.6-.2 8.4 2-1.2 3-3.4 5-6.4 6-1.8-2.6-2.4-5.4-2-8Z" fill={c} />
     </g>
   ),
   // Miner's pick: curved twin-spike head over a straight haft
   [GoodId.pickaxe]: (c) => (
     <g transform="scale(0.667)">
-      <path
-        d="M12 7.5v14"
-        stroke="#8a6a42"
-        stroke-width="2.2"
-        stroke-linecap="round"
-        fill="none"
-      />
+      <path d="M12 7.5v14" stroke="#8a6a42" stroke-width="2.2" stroke-linecap="round" fill="none" />
       <path
         d="M3.4 8.6C6 4.4 9.6 2.6 12 2.6s6 1.8 8.6 6c-2.2-2-5.2-3-8.6-3s-6.4 1-8.6 3Z"
         fill={c}
@@ -192,13 +183,7 @@ const PATHS: Record<GoodId, (c: string) => JSX.Element> = {
   // Smith's hammer: square steel head, straight haft
   [GoodId.hammer]: (c) => (
     <g transform="scale(0.667)">
-      <path
-        d="M12 9v12.5"
-        stroke="#8a6a42"
-        stroke-width="2.2"
-        stroke-linecap="round"
-        fill="none"
-      />
+      <path d="M12 9v12.5" stroke="#8a6a42" stroke-width="2.2" stroke-linecap="round" fill="none" />
       <rect x="5.5" y="3.2" width="13" height="6" rx="1.4" fill={c} />
     </g>
   ),
@@ -249,7 +234,12 @@ export function GoodIcon(props: { good: GoodId; size?: number; decorative?: bool
 
 export function LockIcon(props: { size?: number }) {
   return (
-    <svg viewBox="0 0 16 16" width={props.size ?? 12} height={props.size ?? 12} style={{ 'vertical-align': '-1px' }}>
+    <svg
+      viewBox="0 0 16 16"
+      width={props.size ?? 12}
+      height={props.size ?? 12}
+      style={{ 'vertical-align': '-1px' }}
+    >
       <path
         d="M4.5 7V5.5a3.5 3.5 0 0 1 7 0V7h.8a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H3.7a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h.8Zm1.6 0h3.8V5.5a1.9 1.9 0 0 0-3.8 0V7Z"
         fill="#9a8f7a"
@@ -364,7 +354,10 @@ export function EyeOffIcon() {
 export function SpeakerIcon() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
-      <path d="M2.6 6.1h2.3L8.2 3.2v9.6L4.9 9.9H2.6a.9.9 0 0 1-.9-.9V7a.9.9 0 0 1 .9-.9Z" fill="currentColor" />
+      <path
+        d="M2.6 6.1h2.3L8.2 3.2v9.6L4.9 9.9H2.6a.9.9 0 0 1-.9-.9V7a.9.9 0 0 1 .9-.9Z"
+        fill="currentColor"
+      />
       <g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
         <path d="M10.5 6.3a2.6 2.6 0 0 1 0 3.4" />
         <path d="M12.5 4.5a5.2 5.2 0 0 1 0 7" />
@@ -377,7 +370,10 @@ export function SpeakerIcon() {
 export function SpeakerOffIcon() {
   return (
     <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }}>
-      <path d="M2.6 6.1h2.3L8.2 3.2v9.6L4.9 9.9H2.6a.9.9 0 0 1-.9-.9V7a.9.9 0 0 1 .9-.9Z" fill="currentColor" />
+      <path
+        d="M2.6 6.1h2.3L8.2 3.2v9.6L4.9 9.9H2.6a.9.9 0 0 1-.9-.9V7a.9.9 0 0 1 .9-.9Z"
+        fill="currentColor"
+      />
       <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
         <path d="M10.9 6.4l3.5 3.4" />
         <path d="M14.4 6.4l-3.5 3.4" />
@@ -389,7 +385,13 @@ export function SpeakerOffIcon() {
 /** The ledger: ruled lines with entries — the strip's "all goods" chip. */
 export function LedgerIcon() {
   return (
-    <svg viewBox="0 0 16 16" width="14" height="14" style={{ 'vertical-align': '-2px' }} aria-label="Ledger">
+    <svg
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      style={{ 'vertical-align': '-2px' }}
+      aria-label="Ledger"
+    >
       <g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
         <rect x="2.5" y="1.8" width="11" height="12.4" rx="1.6" />
         <path d="M5 5.2h6M5 8h6M5 10.8h3.5" />

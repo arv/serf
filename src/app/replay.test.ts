@@ -10,9 +10,8 @@ import { AiSeats } from '../sim/aiSeats';
 import { REPLAY_VERSION } from '../shared/replayVersion';
 import { createWorld, type World, type WorldConfig } from '../sim/world';
 import { tickWorld, type PlayerCommand } from '../sim/tick';
-import type { SimCommand } from '../sim/commands';
+import { type SimCommand, CommandKind } from '../sim/commands';
 import { BuildingTypeId } from '../sim/defs/buildings';
-import { CommandKind } from '../sim/commands';
 import { PlayerKind } from '../sim/player';
 
 function sample(): ReplayData {
@@ -20,13 +19,20 @@ function sample(): ReplayData {
     format: REPLAY_FORMAT,
     replayVersion: REPLAY_VERSION,
     savedAt: '2026-08-12T10:00:00.000Z',
-    config: { seed: 42, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }], myPlayerId: 0 },
+    config: {
+      seed: 42,
+      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
+      myPlayerId: 0,
+    },
     commands: [
       { tick: 10, commands: [{ playerId: 0, cmd: { kind: CommandKind.hireSerf } }] },
       {
         tick: 25,
         commands: [
-          { playerId: 0, cmd: { kind: CommandKind.placeBuilding, building: BuildingTypeId.well, x: 3, y: 4 } },
+          {
+            playerId: 0,
+            cmd: { kind: CommandKind.placeBuilding, building: BuildingTypeId.well, x: 3, y: 4 },
+          },
           // An AI seat's move rides the same log — playback never runs brains.
           { playerId: 1, cmd: { kind: CommandKind.hireSerf } },
         ],
@@ -51,7 +57,14 @@ describe('replay format', () => {
     const unversioned = { ...sample(), replayVersion: undefined };
     expect(parseReplay(JSON.stringify(unversioned))).toBeNull();
     expect(
-      parseReplay(JSON.stringify({ format: REPLAY_FORMAT, replayVersion: 1, config: { seed: 1 }, endTick: 5 })),
+      parseReplay(
+        JSON.stringify({
+          format: REPLAY_FORMAT,
+          replayVersion: 1,
+          config: { seed: 1 },
+          endTick: 5,
+        }),
+      ),
     ).toBeNull(); // players missing
   });
 
@@ -67,7 +80,9 @@ describe('replay format', () => {
     );
     const parsed = parseReplay(JSON.stringify(doc));
     expect(parsed).not.toBeNull();
-    expect(parsed!.commands[0]!.commands).toEqual([{ playerId: 0, cmd: { kind: CommandKind.hireSerf } }]);
+    expect(parsed!.commands[0]!.commands).toEqual([
+      { playerId: 0, cmd: { kind: CommandKind.hireSerf } },
+    ]);
   });
 
   it('restates ascending tick order on the log', () => {
@@ -99,7 +114,6 @@ describe('replay format', () => {
     expect(readReplayVersion(raw)).toBe(REPLAY_VERSION);
     expect(readReplayVersion('{}')).toBeUndefined();
   });
-
 });
 
 /** Deep-comparable digest of sim state (see determinism.test.ts). */
@@ -115,7 +129,10 @@ function digest(world: World) {
   };
 }
 
-const CONFIG: WorldConfig = { seed: 77, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }] };
+const CONFIG: WorldConfig = {
+  seed: 77,
+  players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
+};
 
 function playerScript(tick: number): SimCommand[] {
   if (tick === 50) return [{ kind: CommandKind.hireSerf }];
@@ -132,7 +149,10 @@ describe('replay determinism', () => {
     const liveAi = new AiSeats(live);
     const log: ReplayData['commands'] = [];
     for (let t = 0; t < 1500; t++) {
-      const executed: PlayerCommand[] = playerScript(live.tick).map((cmd) => ({ playerId: 0, cmd }));
+      const executed: PlayerCommand[] = playerScript(live.tick).map((cmd) => ({
+        playerId: 0,
+        cmd,
+      }));
       executed.push(...liveAi.decide(live));
       if (executed.length > 0) log.push({ tick: live.tick, commands: executed.slice() });
       tickWorld(live, executed);

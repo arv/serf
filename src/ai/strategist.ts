@@ -282,7 +282,10 @@ export class LlmStrategist {
       // A hide aborts the consultation on purpose; only genuine failures
       // count toward giving up — or into the trace ledger.
       if (!this.#currentPaused && !this.#disposed) {
-        trace({ outcome: LlmStateNs.failed, error: err instanceof Error ? err.message : String(err) });
+        trace({
+          outcome: LlmStateNs.failed,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
       if (!this.#currentPaused && ++this.#failures >= MAX_CONSECUTIVE_FAILURES && !this.#dead) {
         this.#fail(

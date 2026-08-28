@@ -1,19 +1,15 @@
 import { ALE_TRAIN_SPEEDUP, TICKS_PER_SECOND } from '../defs/balance.ts';
 import { TOOL_OF, buildingDef, garrisonRoom } from '../defs/buildings.ts';
-import { GOODS } from '../defs/goods.ts';
+import { GOODS, GoodId, goodEntries } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { atBuilding, walkToBuilding } from '../arrival.ts';
 import { bindWorker, consumePostTool, unbindWorker } from './production.ts';
 import { evictGarrison } from './training.ts';
-import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
-import type { Unit } from '../units.ts';
+import { isPlayerOwner, type Building, type Owner, BuildingState } from '../entities.ts';
+import { type Unit, UnitTaskKind } from '../units.ts';
 import type { World } from '../world.ts';
-import { GoodId } from '../defs/goods.ts';
-import { goodEntries } from '../defs/goods.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { TechId } from '../defs/techs.ts';
-import { BuildingState } from '../entities.ts';
-import { UnitTaskKind } from '../units.ts';
 
 const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
 const UNREACHABLE_BACKOFF = REQUEST_INTERVAL; // hold before re-pathing to a walled-off post
@@ -111,9 +107,7 @@ export function firstReadyTraining(b: Building): number {
     if (item.started) return false;
     const opt = def.trains!.find((o) => o.unit === item.unit);
     if (!opt) return false;
-    return goodEntries(opt.cost).every(
-      ([good, n]) => (b.inputs[good] ?? 0) >= n,
-    );
+    return goodEntries(opt.cost).every(([good, n]) => (b.inputs[good] ?? 0) >= n);
   });
 }
 

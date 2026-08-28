@@ -1,15 +1,9 @@
-import { BUILDING_DEFS } from '../../sim/defs/buildings';
-import { GOODS } from '../../sim/defs/goods';
-import { TECH_DEFS, type TechId } from '../../sim/defs/techs';
-import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
+import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../../sim/defs/buildings';
+import { GOODS, GoodId, GOOD_KEYS } from '../../sim/defs/goods';
+import { TECH_DEFS, type TechId, TECH_IDS } from '../../sim/defs/techs';
+import { UNIT_DEFS, type UnitTypeId, UNIT_TYPES } from '../../sim/defs/units';
 import { goodName, techName, unitName } from '../../ui/names';
 import { buildingHref, goodHref, techHref, unitHref } from './routes';
-import { GoodId } from '../../sim/defs/goods';
-import { GOOD_KEYS } from '../../sim/defs/goods';
-import { UNIT_TYPES } from '../../sim/defs/units';
-import { BuildingTypeId } from '../../sim/defs/buildings';
-import { BUILDING_TYPES } from '../../sim/defs/buildings';
-import { TECH_IDS } from '../../sim/defs/techs';
 
 /**
  * Which words in a sentence name something with a page of its own.

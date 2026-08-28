@@ -82,8 +82,7 @@ function EditorUi(props: { actions: EditorActions }) {
     !dirtySinceSave() || window.confirm('Discard unsaved changes to this map?');
 
   /** Does Save write without asking? (Bound, and still under that name.) */
-  const savesStraightBack = (): boolean =>
-    savedName() !== null && mapName().trim() === savedName();
+  const savesStraightBack = (): boolean => savedName() !== null && mapName().trim() === savedName();
 
   return (
     <div class="ed-root">
@@ -164,7 +163,11 @@ function EditorUi(props: { actions: EditorActions }) {
                 <button
                   class="ed-fold"
                   classList={{ active: folds() === n }}
-                  title={n === mapPlayers() ? `${String(n)}× — matches this map's seats` : `${String(n)}×`}
+                  title={
+                    n === mapPlayers()
+                      ? `${String(n)}× — matches this map's seats`
+                      : `${String(n)}×`
+                  }
                   onClick={() => setFolds(n)}
                 >
                   {n}×
@@ -301,8 +304,7 @@ function NewMapDialog(props: { actions: EditorActions }) {
         />
       </label>
       <div class="ed-dim">
-        A scenery ring {marginFor(size())} tiles deep surrounds it — paintable,
-        unwalkable.
+        A scenery ring {marginFor(size())} tiles deep surrounds it — paintable, unwalkable.
       </div>
       <div class="ed-row">
         Players

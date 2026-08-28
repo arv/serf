@@ -1,6 +1,4 @@
-import { COUNTER_TABLE, UNIT_DEFS } from './defs/units.ts';
-import { UnitTypeId } from './defs/units.ts';
-import { UnitClass } from './defs/units.ts';
+import { COUNTER_TABLE, UNIT_DEFS, UnitTypeId, UnitClass } from './defs/units.ts';
 
 /**
  * Will this fight be won? — the question the brain never asked.
@@ -90,14 +88,21 @@ function classDamage(cls: UnitClass): number {
 /** Add one soldier of `cls` to a per-class tally. A class was a property
  * name while it was a word; it is a number now, so the fan-out lives here
  * rather than at each of the four tallies that keep one. */
-export function tallyClass(counts: { heavy: number; light: number; ranged: number }, cls: UnitClass): void {
+export function tallyClass(
+  counts: { heavy: number; light: number; ranged: number },
+  cls: UnitClass,
+): void {
   if (cls === UnitClass.heavy) counts.heavy++;
   else if (cls === UnitClass.light) counts.light++;
   else counts.ranged++;
 }
 
 function countOf(force: Force, cls: UnitClass): number {
-  return cls === UnitClass.heavy ? force.heavy : cls === UnitClass.light ? force.light : force.ranged;
+  return cls === UnitClass.heavy
+    ? force.heavy
+    : cls === UnitClass.light
+      ? force.light
+      : force.ranged;
 }
 
 /**

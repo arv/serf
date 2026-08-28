@@ -16,7 +16,6 @@ const U = UnitTypeIdNs;
  * path (unitTypeIdEnum.ts) — keep the numbers stable.
  */
 
-
 export interface CombatStats {
   class: UnitClass;
   damage: number;
@@ -47,14 +46,26 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     speed: 1.6,
     hp: 80,
     sight: 6.5,
-    combat: { class: UnitClassNs.heavy, damage: 10, cooldownTicks: 20, range: 1.3, acquireRadius: 6 },
+    combat: {
+      class: UnitClassNs.heavy,
+      damage: 10,
+      cooldownTicks: 20,
+      range: 1.3,
+      acquireRadius: 6,
+    },
   },
   [U.spearman]: {
     id: U.spearman,
     speed: 2.4,
     hp: 45,
     sight: 6.5,
-    combat: { class: UnitClassNs.light, damage: 7, cooldownTicks: 20, range: 1.3, acquireRadius: 6 },
+    combat: {
+      class: UnitClassNs.light,
+      damage: 7,
+      cooldownTicks: 20,
+      range: 1.3,
+      acquireRadius: 6,
+    },
   },
   [U.archer]: {
     id: U.archer,
@@ -68,7 +79,13 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     speed: 2.0,
     hp: 40,
     sight: 6.5,
-    combat: { class: UnitClassNs.light, damage: 6, cooldownTicks: 20, range: 1.3, acquireRadius: 8 },
+    combat: {
+      class: UnitClassNs.light,
+      damage: 6,
+      cooldownTicks: 20,
+      range: 1.3,
+      acquireRadius: 8,
+    },
   },
   [U.banditArcher]: {
     id: U.banditArcher,
@@ -82,15 +99,33 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     speed: 1.5,
     hp: 70,
     sight: 6.5,
-    combat: { class: UnitClassNs.heavy, damage: 9, cooldownTicks: 20, range: 1.3, acquireRadius: 8 },
+    combat: {
+      class: UnitClassNs.heavy,
+      damage: 9,
+      cooldownTicks: 20,
+      range: 1.3,
+      acquireRadius: 8,
+    },
   },
 };
 
 /** The whole RPS system: damage multiplier attacker-class -> defender-class. */
 export const COUNTER_TABLE: Record<UnitClass, Record<UnitClass, number>> = {
-  [UnitClassNs.heavy]: { [UnitClassNs.heavy]: 1.0, [UnitClassNs.light]: 1.5, [UnitClassNs.ranged]: 0.67 },
-  [UnitClassNs.light]: { [UnitClassNs.heavy]: 0.67, [UnitClassNs.light]: 1.0, [UnitClassNs.ranged]: 1.5 },
-  [UnitClassNs.ranged]: { [UnitClassNs.heavy]: 1.5, [UnitClassNs.light]: 0.67, [UnitClassNs.ranged]: 1.0 },
+  [UnitClassNs.heavy]: {
+    [UnitClassNs.heavy]: 1.0,
+    [UnitClassNs.light]: 1.5,
+    [UnitClassNs.ranged]: 0.67,
+  },
+  [UnitClassNs.light]: {
+    [UnitClassNs.heavy]: 0.67,
+    [UnitClassNs.light]: 1.0,
+    [UnitClassNs.ranged]: 1.5,
+  },
+  [UnitClassNs.ranged]: {
+    [UnitClassNs.heavy]: 1.5,
+    [UnitClassNs.light]: 0.67,
+    [UnitClassNs.ranged]: 1.0,
+  },
 };
 
 /**

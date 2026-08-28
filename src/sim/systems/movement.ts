@@ -1,13 +1,11 @@
 import { tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { TICKS_PER_SECOND } from '../defs/balance.ts';
-import { UNIT_DEFS } from '../defs/units.ts';
+import { UNIT_DEFS, UnitTypeId } from '../defs/units.ts';
 import { findPath, nearestWalkable, tileSpeedMult } from '../path.ts';
 import { getModifier } from '../techHelpers.ts';
-import type { Unit } from '../units.ts';
+import { type Unit, UnitTaskKind } from '../units.ts';
 import type { World } from '../world.ts';
-import { UnitTypeId } from '../defs/units.ts';
 import { ModifierKey } from '../defs/techs.ts';
-import { UnitTaskKind } from '../units.ts';
 
 /**
  * Advance every unit along its path. Waypoints are tile centers; speed is the
@@ -68,7 +66,8 @@ export function movementSystem(world: World): void {
 
     if (unit.path && unit.pathIdx >= path.length) {
       unit.path = null;
-      if (unit.task.t === UnitTaskKind.move) unit.task = { t: UnitTaskKind.idle, until: world.tick };
+      if (unit.task.t === UnitTaskKind.move)
+        unit.task = { t: UnitTaskKind.idle, until: world.tick };
     }
   }
 }
