@@ -1,7 +1,7 @@
 import { For, Show, type JSX } from 'solid-js';
 import { goto } from '../../app/router';
-import type { GoodAmounts, GoodId } from '../../sim/defs/goods';
-import type { Recipe } from '../../sim/defs/buildings';
+import { type GoodAmounts, type GoodId, goodEntries } from '../../sim/defs/goods';
+import { type Recipe, RecipeKind } from '../../sim/defs/buildings';
 import { GoodIcon } from '../../ui/icons';
 import { goodName } from '../../ui/names';
 import { fmtPerMinute, fmtSecs } from './data';
@@ -43,9 +43,7 @@ export function GoodChip(props: { good: GoodId; amount?: number }): JSX.Element 
   // separate elements they carried only a CSS margin, and an accessible
   // name is computed from text, so the chip was announced as "10Wood".
   const label = (): string =>
-    props.amount === undefined
-      ? goodName(props.good)
-      : `${props.amount} ${goodName(props.good)}`;
+    props.amount === undefined ? goodName(props.good) : `${props.amount} ${goodName(props.good)}`;
   return (
     <DocLink href={goodHref(props.good)} class="chip">
       {/* The text names the good; a labelled icon would repeat it. */}
@@ -57,7 +55,7 @@ export function GoodChip(props: { good: GoodId; amount?: number }): JSX.Element 
 
 /** A GoodAmounts as a row of chips — build costs, recipe sides, tech bills. */
 export function CostList(props: { amounts: GoodAmounts; freeLabel?: string }): JSX.Element {
-  const entries = () => Object.entries(props.amounts) as [GoodId, number][];
+  const entries = () => goodEntries(props.amounts);
   return (
     <span class="costs">
       <Show
@@ -101,7 +99,7 @@ export function Stat(props: { label: string; children: JSX.Element }): JSX.Eleme
  */
 export function RecipeView(props: { recipe: Recipe }): JSX.Element {
   const r = props.recipe;
-  if (r.kind === 'gather') {
+  if (r.kind === RecipeKind.gather) {
     return (
       <span>
         works <b>{r.resource}</b> tiles within {r.radius} → <GoodChip good={r.output} amount={1} />{' '}
@@ -109,7 +107,7 @@ export function RecipeView(props: { recipe: Recipe }): JSX.Element {
       </span>
     );
   }
-  const outputs = Object.entries(r.outputs) as [GoodId, number][];
+  const outputs = goodEntries(r.outputs);
   return (
     <span>
       <CostList amounts={r.inputs} freeLabel="nothing" /> → <CostList amounts={r.outputs} /> ·{' '}

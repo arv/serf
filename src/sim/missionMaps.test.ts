@@ -13,9 +13,15 @@ import {
 } from './map.ts';
 import { parseMapData, type AuthoredMap } from './mapFile.ts';
 import { loadMissionMap } from './defs/missionMaps.ts';
-import { MISSION_DEFS, MISSION_ORDER, type MissionId } from './defs/missions.ts';
+import {
+  MISSION_DEFS,
+  MISSION_ORDER,
+  MissionId,
+  ObjectiveKind,
+  MISSION_KEYS,
+} from './defs/missions.ts';
 import { canPlace } from './world.ts';
-import { BUILDING_DEFS, type BuildingTypeId } from './defs/buildings.ts';
+import { BUILDING_DEFS, BuildingTypeId } from './defs/buildings.ts';
 
 /**
  * The campaign's ground is authored (tools/mapAuthor/), and this is what
@@ -46,7 +52,12 @@ function keepCenter(s: StartSpot): { x: number; y: number } {
 
 /** Resource tiles of one kind within `radius` of a point, tile centres
  * against the point the way the visibility stamp measures. */
-function countWithin(map: GameMap, c: { x: number; y: number }, code: TileResourceKind, radius: number): number {
+function countWithin(
+  map: GameMap,
+  c: { x: number; y: number },
+  code: TileResourceKind,
+  radius: number,
+): number {
   let n = 0;
   const r = Math.ceil(radius) + 1;
   for (let dy = -r; dy <= r; dy++) {
@@ -66,7 +77,8 @@ function reachableFrom(map: GameMap, from: { x: number; y: number }): Uint8Array
   const size = map.size;
   const seen = new Uint8Array(tileCount(size));
   const walkable = (i: number): boolean =>
-    inPlayArea(map, tileX(i, size), tileY(i, size)) && !tileBlocks(map.terrain[i]!, map.resource[i]!);
+    inPlayArea(map, tileX(i, size), tileY(i, size)) &&
+    !tileBlocks(map.terrain[i]!, map.resource[i]!);
   const start = tileIdx(Math.round(from.x), Math.round(from.y), size);
   if (!walkable(start)) return seen;
   seen[start] = 1;
@@ -93,7 +105,12 @@ function reachableFrom(map: GameMap, from: { x: number; y: number }): Uint8Array
 
 /** The nearest ring the placement rules accept this building on — the
  * ghost search a player runs by eye, and the one placePrebuiltNear runs. */
-function siteRing(map: GameMap, type: BuildingTypeId, c: { x: number; y: number }, maxRing: number): number {
+function siteRing(
+  map: GameMap,
+  type: BuildingTypeId,
+  c: { x: number; y: number },
+  maxRing: number,
+): number {
   const cx = Math.round(c.x);
   const cy = Math.round(c.y);
   for (let r = 0; r <= maxRing; r++) {
@@ -115,62 +132,88 @@ describe('the campaign’s authored ground', () => {
       const where = `${id} @ ${start.x},${start.y}`;
       // Stone the player can SEE, and enough of it within a short walk to
       // be worth siting a quarry on: worldgen's own repair threshold.
-      expect(countWithin(map, c, TileResource.Rock, CASTLE_OPENING_SIGHT), `${where}: stone in sight`)
-        .toBeGreaterThan(0);
-      expect(countWithin(map, c, TileResource.Rock, 13), `${where}: stone worth quarrying`)
-        .toBeGreaterThanOrEqual(5);
+      expect(
+        countWithin(map, c, TileResource.Rock, CASTLE_OPENING_SIGHT),
+        `${where}: stone in sight`,
+      ).toBeGreaterThan(0);
+      expect(
+        countWithin(map, c, TileResource.Rock, 13),
+        `${where}: stone worth quarrying`,
+      ).toBeGreaterThanOrEqual(5);
       // Timber, and a hut that can legally stand at it.
-      expect(siteRing(map, 'woodcutter', c, 14), `${where}: a woodcutter within reach`)
-        .toBeLessThanOrEqual(14);
-      expect(siteRing(map, 'quarry', c, 14), `${where}: a quarry within reach`).toBeLessThanOrEqual(14);
+      expect(
+        siteRing(map, BuildingTypeId.woodcutter, c, 14),
+        `${where}: a woodcutter within reach`,
+      ).toBeLessThanOrEqual(14);
+      expect(
+        siteRing(map, BuildingTypeId.quarry, c, 14),
+        `${where}: a quarry within reach`,
+      ).toBeLessThanOrEqual(14);
       // Fishable water within a fishery's walk, on the village's own
       // landmass — worldgen's WATER_ACCESS_RADIUS promise.
-      expect(siteRing(map, 'fishery', c, WATER_ACCESS_RADIUS), `${where}: a shore to fish`)
-        .toBeLessThanOrEqual(WATER_ACCESS_RADIUS);
+      expect(
+        siteRing(map, BuildingTypeId.fishery, c, WATER_ACCESS_RADIUS),
+        `${where}: a shore to fish`,
+      ).toBeLessThanOrEqual(WATER_ACCESS_RADIUS);
     }
   });
 
-  it.each(MISSION_ORDER)('%s can be walked: no ore behind a lake, no camp off the landmass', async (id) => {
-    const def = MISSION_DEFS[id];
-    const { map, starts } = await mapFor(id);
-    const reach = reachableFrom(map, { x: starts[0]!.x + 2, y: starts[0]!.y + 2 });
-    const beside = (i: number): boolean => {
-      const x = tileX(i, map.size);
-      const y = tileY(i, map.size);
-      return [
-        [x - 1, y],
-        [x + 1, y],
-        [x, y - 1],
-        [x, y + 1],
-      ].some(([nx, ny]) => inBounds(nx!, ny!, map.size) && reach[tileIdx(nx!, ny!, map.size)] === 1);
-    };
-    // A miner stands beside its seam, so every deposit on the map has to
-    // have a walkable tile against it.
-    for (let i = 0; i < tileCount(map.size); i++) {
-      const res = map.resource[i]!;
-      if (res !== TileResource.IronDep && res !== TileResource.SilverDep && res !== TileResource.GoldDep) {
-        continue;
-      }
-      if (!inPlayArea(map, tileX(i, map.size), tileY(i, map.size))) continue;
-      expect(beside(i), `${id}: deposit at ${tileX(i, map.size)},${tileY(i, map.size)} is walled off`).toBe(true);
-    }
-    // Rival seats must be able to reach each other — soldiers cannot chop,
-    // and a war of elimination that cannot be marched never ends.
-    for (const s of starts.slice(1)) {
-      expect(reach[tileIdx(s.x + 2, s.y + 2, map.size)], `${id}: seat at ${s.x},${s.y} unreachable`).toBe(1);
-    }
-    // And the camp has to be marchable on, not merely placeable.
-    if (def.campSpot) {
-      const { x, y } = def.campSpot;
-      let adjacent = false;
-      for (let dy = -1; dy <= 3; dy++) {
-        for (let dx = -1; dx <= 3; dx++) {
-          if (reach[tileIdx(x + dx, y + dy, map.size)]) adjacent = true;
+  it.each(MISSION_ORDER)(
+    '%s can be walked: no ore behind a lake, no camp off the landmass',
+    async (id) => {
+      const def = MISSION_DEFS[id];
+      const { map, starts } = await mapFor(id);
+      const reach = reachableFrom(map, { x: starts[0]!.x + 2, y: starts[0]!.y + 2 });
+      const beside = (i: number): boolean => {
+        const x = tileX(i, map.size);
+        const y = tileY(i, map.size);
+        return [
+          [x - 1, y],
+          [x + 1, y],
+          [x, y - 1],
+          [x, y + 1],
+        ].some(
+          ([nx, ny]) => inBounds(nx!, ny!, map.size) && reach[tileIdx(nx!, ny!, map.size)] === 1,
+        );
+      };
+      // A miner stands beside its seam, so every deposit on the map has to
+      // have a walkable tile against it.
+      for (let i = 0; i < tileCount(map.size); i++) {
+        const res = map.resource[i]!;
+        if (
+          res !== TileResource.IronDep &&
+          res !== TileResource.SilverDep &&
+          res !== TileResource.GoldDep
+        ) {
+          continue;
         }
+        if (!inPlayArea(map, tileX(i, map.size), tileY(i, map.size))) continue;
+        expect(
+          beside(i),
+          `${id}: deposit at ${tileX(i, map.size)},${tileY(i, map.size)} is walled off`,
+        ).toBe(true);
       }
-      expect(adjacent, `${id}: camp at ${x},${y} cannot be marched to`).toBe(true);
-    }
-  });
+      // Rival seats must be able to reach each other — soldiers cannot chop,
+      // and a war of elimination that cannot be marched never ends.
+      for (const s of starts.slice(1)) {
+        expect(
+          reach[tileIdx(s.x + 2, s.y + 2, map.size)],
+          `${id}: seat at ${s.x},${s.y} unreachable`,
+        ).toBe(1);
+      }
+      // And the camp has to be marchable on, not merely placeable.
+      if (def.campSpot) {
+        const { x, y } = def.campSpot;
+        let adjacent = false;
+        for (let dy = -1; dy <= 3; dy++) {
+          for (let dx = -1; dx <= 3; dx++) {
+            if (reach[tileIdx(x + dx, y + dy, map.size)]) adjacent = true;
+          }
+        }
+        expect(adjacent, `${id}: camp at ${x},${y} cannot be marched to`).toBe(true);
+      }
+    },
+  );
 
   it.each(MISSION_ORDER)('%s stands the village its def pre-places', async (id) => {
     const def = MISSION_DEFS[id];
@@ -181,8 +224,10 @@ describe('the campaign’s authored ground', () => {
       // across the valley to find ground is a map that has drifted from
       // the village its briefing describes, even when it lands.
       const c = { x: starts[0]!.x + spec.dx, y: starts[0]!.y + spec.dy };
-      expect(siteRing(map, spec.type, c, 5), `${id}: prebuilt ${spec.type} at ${spec.dx},${spec.dy}`)
-        .toBeLessThanOrEqual(5);
+      expect(
+        siteRing(map, spec.type, c, 5),
+        `${id}: prebuilt ${spec.type} at ${spec.dx},${spec.dy}`,
+      ).toBeLessThanOrEqual(5);
     }
   });
 
@@ -190,20 +235,23 @@ describe('the campaign’s authored ground', () => {
     const def = MISSION_DEFS[id];
     const { map, starts } = await mapFor(id);
     const wanted = new Set<BuildingTypeId>();
-    for (const o of def.objectives) if (o.spec.kind === 'building') wanted.add(o.spec.type);
+    for (const o of def.objectives)
+      if (o.spec.kind === ObjectiveKind.building) wanted.add(o.spec.type);
     for (const spec of def.prebuilt ?? []) wanted.add(spec.type);
     for (const type of wanted) {
       if (!BUILDING_DEFS[type].mine) continue;
       // Reachable in the sense the mission's own tests reach for it: the
       // scripted playthroughs spiral out from the castle looking for a
       // legal spot, and give up at sixteen rings.
-      expect(siteRing(map, type, keepCenter(starts[0]!), 16), `${id}: nowhere to dig a ${type}`)
-        .toBeLessThanOrEqual(16);
+      expect(
+        siteRing(map, type, keepCenter(starts[0]!), 16),
+        `${id}: nowhere to dig a ${type}`,
+      ).toBeLessThanOrEqual(16);
     }
   });
 
   it('the rival banner is exactly symmetric under the half turn', async () => {
-    const { map, starts } = await mapFor('rivalBanner');
+    const { map, starts } = await mapFor(MissionId.rivalBanner);
     expect(starts.length).toBe(2);
     // Inside the rim only: a border draws its own wobble around the
     // perimeter and is scenery either way. The band's deepest reach is
@@ -230,7 +278,10 @@ describe('the campaign’s authored ground', () => {
     // And the seats sit at each other's twin, so the symmetry is the
     // fairness claim rather than a pretty pattern.
     const [a, b] = starts as [StartSpot, StartSpot];
-    expect({ x: map.size - 1 - (a.x + 2), y: map.size - 1 - (a.y + 2) }).toEqual({ x: b.x, y: b.y });
+    expect({ x: map.size - 1 - (a.x + 2), y: map.size - 1 - (a.y + 2) }).toEqual({
+      x: b.x,
+      y: b.y,
+    });
   });
 
   it('the tutorial maps hold only the metals their lesson is about', async () => {
@@ -239,15 +290,22 @@ describe('the campaign’s authored ground', () => {
     // mission that teaches them, and Hammer and Haft is one hill of iron.
     const has = async (id: MissionId, code: TileResourceKind): Promise<boolean> => {
       const { map } = await mapFor(id);
-      return map.resource.some((r, i) => r === code && inPlayArea(map, tileX(i, map.size), tileY(i, map.size)));
+      return map.resource.some(
+        (r, i) => r === code && inPlayArea(map, tileX(i, map.size), tileY(i, map.size)),
+      );
     };
-    for (const id of ['clearing', 'hammerAndHaft'] as const) {
-      expect(await has(id, TileResource.SilverDep), `${id}: silver`).toBe(false);
-      expect(await has(id, TileResource.GoldDep), `${id}: gold`).toBe(false);
+    for (const id of [MissionId.clearing, MissionId.hammerAndHaft]) {
+      expect(await has(id, TileResource.SilverDep), `${MISSION_KEYS[id]}: silver`).toBe(false);
+      expect(await has(id, TileResource.GoldDep), `${MISSION_KEYS[id]}: gold`).toBe(false);
     }
     // Every later mission has silver: it is what hands are hired with.
-    for (const id of ['ledger', 'levy', 'holdTheValley', 'rivalBanner'] as const) {
-      expect(await has(id, TileResource.SilverDep), `${id}: silver`).toBe(true);
+    for (const id of [
+      MissionId.ledger,
+      MissionId.levy,
+      MissionId.holdTheValley,
+      MissionId.rivalBanner,
+    ]) {
+      expect(await has(id, TileResource.SilverDep), `${MISSION_KEYS[id]}: silver`).toBe(true);
     }
   });
 
@@ -266,7 +324,9 @@ describe('the campaign’s authored ground', () => {
       }
       expect(walkableMargin, `${id}: walkable scenery`).toBe(0);
       // Nothing standing under a keep.
-      expect(map.terrain.every((t) => t === Terrain.Grass || t === Terrain.Water || t === Terrain.Rock)).toBe(true);
+      expect(
+        map.terrain.every((t) => t === Terrain.Grass || t === Terrain.Water || t === Terrain.Rock),
+      ).toBe(true);
     }
   });
 });

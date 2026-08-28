@@ -5,14 +5,18 @@ import { deserializeWorld, serializeWorld } from './save.ts';
 import { tickWorld } from './tick.ts';
 import { checkInvariants } from './debug/invariants.ts';
 import { BANDIT } from './entities.ts';
-import { UNIT_DEFS } from './defs/units.ts';
-import { BUILDING_DEFS } from './defs/buildings.ts';
-import type { SimCommand } from './commands.ts';
+import { UNIT_DEFS, UnitTypeId } from './defs/units.ts';
+import { BUILDING_DEFS, BuildingTypeId } from './defs/buildings.ts';
+import { type SimCommand, CommandKind } from './commands.ts';
+import { PlayerKind } from './player.ts';
 
 function commandScript(tick: number): SimCommand[] {
-  if (tick === 50) return [{ kind: 'placeBuilding', building: 'woodcutter', x: 26, y: 36 }];
-  if (tick === 60) return [{ kind: 'placeBuilding', building: 'well', x: 38, y: 36 }];
-  if (tick === 800) return [{ kind: 'placeBuilding', building: 'wheatFarm', x: 40, y: 30 }];
+  if (tick === 50)
+    return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.woodcutter, x: 26, y: 36 }];
+  if (tick === 60)
+    return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.well, x: 38, y: 36 }];
+  if (tick === 800)
+    return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.wheatFarm, x: 40, y: 30 }];
   return [];
 }
 
@@ -64,7 +68,7 @@ describe('save/load', () => {
     // it silently resurrects the raiders in a no-bandits match on load.
     const world = createWorld({
       seed: 5,
-      players: [{ kind: 'human' }],
+      players: [{ kind: PlayerKind.human }],
       adminEnabled: false,
       banditsEnabled: false,
     });
@@ -90,8 +94,8 @@ describe('save/load', () => {
     // for it, and it called for no bump of its own. What has to hold is
     // the reading: an old garrison is archers, because archers were the
     // only thing that could ever be up there.
-    const world = createWorld({ seed: 5, players: [{ kind: 'human' }] });
-    const tower = placeBuiltBuilding(world, 'guardTower', 0, 30, 30);
+    const world = createWorld({ seed: 5, players: [{ kind: PlayerKind.human }] });
+    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
     tower.garrison = 2;
     tower.garrisonKind = undefined; // as an older build wrote it
     const saved = serializeWorld(world);
@@ -103,16 +107,16 @@ describe('save/load', () => {
     expect(loaded.garrisonKind).toBeUndefined();
 
     // It shoots like the archers it always was, not like a levy.
-    const raider = spawnUnit(back, 'bandit', BANDIT, 34.5, 31.5);
+    const raider = spawnUnit(back, UnitTypeId.bandit, BANDIT, 34.5, 31.5);
     const before = raider.hp;
     tickWorld(back, []);
-    const combat = UNIT_DEFS.archer.combat!;
-    const rule = BUILDING_DEFS.guardTower.garrison!;
+    const combat = UNIT_DEFS[UnitTypeId.archer].combat!;
+    const rule = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!;
     expect(before - raider.hp).toBeCloseTo(combat.damage * rule.damageMult * 2, 5);
 
     // And hands archers back, not serfs, when it is emptied.
-    tickWorld(back, cmds({ kind: 'sellBuilding', buildingId: loaded.id }));
-    const out = [...back.units.values()].filter((u) => !u.dead && u.kind === 'archer');
+    tickWorld(back, cmds({ kind: CommandKind.sellBuilding, buildingId: loaded.id }));
+    const out = [...back.units.values()].filter((u) => !u.dead && u.kind === UnitTypeId.archer);
     expect(out).toHaveLength(2);
   });
 });
@@ -174,5 +178,4 @@ describe('the map grids', () => {
     const short = (doc.world.map.height as string).slice(0, 64);
     expect(() => deserializeWorld(withGrid('height', short))).toThrow(/bad map size/);
   });
-
 });

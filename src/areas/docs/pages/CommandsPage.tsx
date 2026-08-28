@@ -1,8 +1,8 @@
 import { For, type JSX } from 'solid-js';
 import { BUILD_KEYS } from '../../../ui/buildMenu';
 import { HIRE_KEY, RALLY_KEY, RESEARCH_KEY, TRAIN_KEYS } from '../../../ui/commands';
-import type { BuildingTypeId } from '../../../sim/defs/buildings';
-import type { UnitTypeId } from '../../../sim/defs/units';
+import { type BuildingTypeId, BUILDING_TYPES } from '../../../sim/defs/buildings';
+import { type UnitTypeId, UNIT_TYPES } from '../../../sim/defs/units';
 import { buildingName, unitName } from '../../../ui/names';
 import { ADMIN_DOCS, COMMAND_DOCS } from '../commandsDoc';
 import { DocLink, Section } from '../components';
@@ -10,15 +10,19 @@ import { Prose } from '../prose';
 import { buildingHref, unitHref } from '../routes';
 
 export function CommandsPage(): JSX.Element {
-  const buildKeys = Object.entries(BUILD_KEYS) as [BuildingTypeId, string][];
-  const trainKeys = Object.entries(TRAIN_KEYS) as [UnitTypeId, string][];
+  const buildKeys = BUILDING_TYPES.flatMap((b): [BuildingTypeId, string][] =>
+    BUILD_KEYS[b] === undefined ? [] : [[b, BUILD_KEYS[b]]],
+  );
+  const trainKeys = UNIT_TYPES.flatMap((u): [UnitTypeId, string][] =>
+    TRAIN_KEYS[u] === undefined ? [] : [[u, TRAIN_KEYS[u]]],
+  );
   return (
     <>
       <h1>Commands</h1>
       <p class="lede">
-        Every order the sim takes — the same list whether it comes from a click, a hotkey, the
-        AI or the far end of a multiplayer socket. The sim revalidates everything; the UI’s
-        checks are advisory.
+        Every order the sim takes — the same list whether it comes from a click, a hotkey, the AI or
+        the far end of a multiplayer socket. The sim revalidates everything; the UI’s checks are
+        advisory.
       </p>
       <Section title="Orders">
         <div class="scroll-x">
@@ -76,8 +80,8 @@ export function CommandsPage(): JSX.Element {
       </Section>
       <Section title="Build chord">
         <p class="lede">
-          Press <b>B</b>, then the building’s letter — the same letter the ribbon bolds in its
-          name. The ribbon turns to that building’s tab either way: if the stores are short or the
+          Press <b>B</b>, then the building’s letter — the same letter the ribbon bolds in its name.
+          The ribbon turns to that building’s tab either way: if the stores are short or the
           research is missing, nothing is armed, but the button is in front of you with the cost or
           the lock on it.
         </p>

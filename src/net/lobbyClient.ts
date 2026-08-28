@@ -2,6 +2,8 @@ import { createSignal } from 'solid-js';
 import type { CouncilHooks, CouncilView } from '../ui/WarCouncil';
 import { sanitizeLobbyConfig, defaultLobbyConfig, type LobbyConfig } from '../protocol/lobby';
 import type { NetInfo } from '../protocol/messages';
+import { PlayerKind } from '../sim/player';
+import { CouncilPhase } from '../ui/WarCouncil.tsx';
 
 /**
  * Main-thread lobby flow: a short-lived JSON WebSocket for room setup. On
@@ -21,7 +23,7 @@ import type { NetInfo } from '../protocol/messages';
 
 export interface LobbyResult {
   net: NetInfo;
-  seats: { kind: 'human' | 'ai' }[];
+  seats: { kind: PlayerKind.human | 'ai' }[];
   myPlayerId: number;
 }
 
@@ -118,7 +120,7 @@ interface RoomMsg {
   t: 'room';
   code: string;
   yourSeat: number;
-  seats: { kind: 'human' | 'ai'; connected: boolean }[];
+  seats: { kind: PlayerKind.human | 'ai'; connected: boolean }[];
   config?: unknown;
 }
 
@@ -139,7 +141,7 @@ interface SeatStash {
   code: string;
   token: string;
   playerId: number;
-  seats: { kind: 'human' | 'ai' }[];
+  seats: { kind: PlayerKind.human | 'ai' }[];
 }
 
 /**
@@ -213,7 +215,7 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
 
     const [view, setView] = createSignal<CouncilView>({
       notice: req.notice,
-      phase: 'connecting',
+      phase: CouncilPhase.connecting,
       code: '',
       yourSeat: isHost ? 0 : -1,
       seats: [],
@@ -286,9 +288,9 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
             t: 'begin';
             playerId: number;
             token: string;
-            seats: { kind: 'human' | 'ai' }[];
+            seats: { kind: PlayerKind.human | 'ai' }[];
           }
-        | { t: 'rejoined'; playerId: number; seats: { kind: 'human' | 'ai' }[] }
+        | { t: 'rejoined'; playerId: number; seats: { kind: PlayerKind.human | 'ai' }[] }
         | { t: 'error'; message: string }
         | { t: 'peer' };
       if (msg.t === 'rejoined' && stash) {
@@ -302,7 +304,7 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
       } else if (msg.t === 'room') {
         setView({
           notice: view().notice,
-          phase: 'lobby',
+          phase: CouncilPhase.lobby,
           code: String(msg.code ?? ''),
           yourSeat: Number(msg.yourSeat ?? -1),
           // Sliced because the length is the relay's word too, and a table
@@ -312,11 +314,11 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
         });
       } else if (msg.t === 'begin') {
         const stashJson = JSON.stringify({
-            code: view().code || req.mp.toUpperCase(),
-            token: msg.token,
-            playerId: msg.playerId,
-            seats: msg.seats,
-          } satisfies SeatStash);
+          code: view().code || req.mp.toUpperCase(),
+          token: msg.token,
+          playerId: msg.playerId,
+          seats: msg.seats,
+        } satisfies SeatStash);
         stashWrite('session', stashJson);
         stashWrite('local', stashJson);
         unmount();

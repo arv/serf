@@ -1,6 +1,6 @@
-import { isPostureId, postureAdvice, type PostureId } from './posture.ts';
+import { isPostureId, postureAdvice, type PostureId, postureFromKey } from './posture.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
-import type { UnitTypeId } from '../sim/defs/units.ts';
+import { UnitTypeId, asUnitTypeId } from '../sim/defs/units.ts';
 
 /**
  * The contract between the LLM strategist and the AI brain: which playbook
@@ -84,7 +84,11 @@ export const ADVICE_RANGES = {
 export const MARCH_CONFIDENCE_RANGE: readonly [number, number] = [0, 90];
 
 /** The soldiers a barracks can train — the only ids trainPreference keeps. */
-export const ADVISABLE_UNITS: readonly UnitTypeId[] = ['knight', 'spearman', 'archer'];
+export const ADVISABLE_UNITS: readonly UnitTypeId[] = [
+  UnitTypeId.knight,
+  UnitTypeId.spearman,
+  UnitTypeId.archer,
+];
 
 /** Recipe indices a forge understands: 0 spear, 1 sword, 2 bow. */
 const WEAPON_MIX_MAX = 2;
@@ -153,9 +157,13 @@ export function parseAdvice(raw: string): StrategyAdvice | null {
   // A posture names every knob it steers, so it goes down first and the
   // per-key passes below overwrite whatever the reply also spelled out.
   const advice: StrategyAdvice = {};
-  if (Object.hasOwn(obj, 'posture') && isPostureId(obj['posture'])) {
-    Object.assign(advice, postureAdvice(obj['posture']));
-    advice.posture = obj['posture'];
+  // The model answers with the word it was shown; a posture reaching this
+  // screen as an id (the lab, a replayed trace) is read too.
+  const posture =
+    postureFromKey(obj['posture']) ?? (isPostureId(obj['posture']) ? obj['posture'] : undefined);
+  if (posture !== undefined) {
+    Object.assign(advice, postureAdvice(posture));
+    advice.posture = posture;
   }
 
   for (const key of Object.keys(ADVICE_RANGES) as (keyof typeof ADVICE_RANGES)[]) {
@@ -176,9 +184,9 @@ export function parseAdvice(raw: string): StrategyAdvice | null {
   if (Object.hasOwn(obj, 'trainPreference') && Array.isArray(obj['trainPreference'])) {
     const seen = new Set<UnitTypeId>();
     for (const entry of obj['trainPreference']) {
-      if (typeof entry !== 'string') continue;
-      if (!(ADVISABLE_UNITS as readonly string[]).includes(entry)) continue;
-      seen.add(entry as UnitTypeId);
+      const unit = asUnitTypeId(entry);
+      if (unit === undefined || !ADVISABLE_UNITS.includes(unit)) continue;
+      seen.add(unit);
       if (seen.size >= 3) break;
     }
     // An empty preference would leave the barracks training nothing — a

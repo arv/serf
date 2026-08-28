@@ -9,6 +9,8 @@ import {
   playEdgeDist,
   type TileResourceKind,
 } from './map.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
+import { PlayerKind } from './player.ts';
 
 /**
  * The fairness contract for generated maps: every faction has its own wood,
@@ -47,13 +49,7 @@ function countNear(tiles: [number, number][], x: number, y: number, r: number): 
  * amount per tile — and that is exactly how the unfairness hid: a start
  * whose seam had room for one tile passed the "has silver" check below on
  * a twentieth of the metal its neighbour drew. */
-function amountNear(
-  world: World,
-  code: TileResourceKind,
-  x: number,
-  y: number,
-  r: number,
-): number {
+function amountNear(world: World, code: TileResourceKind, x: number, y: number, r: number): number {
   const size = world.map.size;
   let total = 0;
   for (let i = 0; i < tileCount(size); i++) {
@@ -69,13 +65,13 @@ function amountNear(
 function makeWorld(seed: number, players: number): World {
   return createWorld({
     seed,
-    players: Array.from({ length: players }, () => ({ kind: 'human' as const })),
+    players: Array.from({ length: players }, () => ({ kind: PlayerKind.human })),
   });
 }
 
 function anchors(world: World): { x: number; y: number }[] {
   return [...world.buildings.values()]
-    .filter((b) => b.type === 'storehouse')
+    .filter((b) => b.type === BuildingTypeId.storehouse)
     .map((b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 }));
 }
 
@@ -140,7 +136,9 @@ describe('map fairness', () => {
         const gy = gold.reduce((s, [, y]) => s + y, 0) / gold.length;
         expect(Math.hypot(gx - MID, gy - MID), `seed ${seed}: gold central`).toBeLessThan(10);
 
-        const camp = [...world.buildings.values()].find((b) => b.type === 'banditCamp');
+        const camp = [...world.buildings.values()].find(
+          (b) => b.type === BuildingTypeId.banditCamp,
+        );
         expect(camp, `seed ${seed}: camp exists`).toBeDefined();
         const cd = Math.max(Math.abs(camp!.x + 1 - MID), Math.abs(camp!.y + 1 - MID));
         expect(cd, `seed ${seed}: camp central`).toBeLessThanOrEqual(12);

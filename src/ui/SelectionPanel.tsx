@@ -1,14 +1,14 @@
 import { For, Index, Show } from 'solid-js';
+import { BUILDING_DEFS, gatherRecipeOf, repairBill, BuildingTypeId } from '../sim/defs/buildings';
 import {
-  BUILDING_DEFS,
-  gatherRecipeOf,
-  repairBill,
-  type BuildingTypeId,
-  type TileResourceName,
-} from '../sim/defs/buildings';
-import { FORGE_QUEUE_CAP, HIRE_SERF_COST, HIRE_SERF_TICKS, TICKS_PER_SECOND, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
-import type { BuildingSnap } from '../protocol/messages';
-import type { GoodAmounts, GoodId } from '../sim/defs/goods';
+  FORGE_QUEUE_CAP,
+  HIRE_SERF_COST,
+  HIRE_SERF_TICKS,
+  TICKS_PER_SECOND,
+  TRAIN_QUEUE_CAP,
+} from '../sim/defs/balance';
+import { type BuildingSnap, StaffingState } from '../protocol/messages';
+import { type GoodAmounts, goodEntries, GoodId, goodKeys } from '../sim/defs/goods';
 import type { UnitTypeId } from '../sim/defs/units';
 import { GoodIcon, LockIcon } from './icons';
 import { TextTip, TipWrap, UnitTip } from './tooltip';
@@ -23,7 +23,7 @@ import {
   setTechPanelOpen,
   stock,
   techs,
-  type OrderMode,
+  OrderMode,
 } from './store';
 
 import { buildingName, goodName, techName, unitName } from './names';
@@ -38,10 +38,11 @@ import {
 } from './commands';
 import { SHORT } from './breakpoints';
 import { levyOrder } from './levy';
+import { BuildingState } from '../sim/entities';
+import { TileResource, type TileResourceKind } from '../sim/map';
 
 function GoodsLine(props: { amounts: GoodAmounts }) {
-  const entries = () =>
-    (Object.entries(props.amounts) as [GoodId, number][]).filter(([, n]) => n > 0);
+  const entries = () => goodEntries(props.amounts).filter(([, n]) => n > 0);
   return (
     <Show when={entries().length > 0} fallback={<span style={{ opacity: 0.6 }}>none</span>}>
       <For each={entries()}>
@@ -81,8 +82,8 @@ function forgeSlots(
  * the player does about it: a spent seam is a mine to tear down, a thin
  * grove is a woodcutter that will pick up again on its own.
  */
-function reachTip(type: BuildingTypeId, resource: TileResourceName, left: number): string {
-  const renews = resource === 'wood';
+function reachTip(type: BuildingTypeId, resource: TileResourceKind, left: number): string {
+  const renews = resource === TileResource.Wood;
   if (left <= 0) {
     return renews
       ? 'Every tree inside the search square is down. Stumps grow back in time, slowly — this hut will start again on its own, but a forest is where it belongs.'
@@ -400,7 +401,7 @@ export function SelectionPanel(props: {
                       <TextTip
                         title={b().repairNeeds ? 'Call off the repair' : 'Repair building'}
                         body={
-                          b().state !== 'built'
+                          b().state !== BuildingState.built
                             ? 'A site heals as it rises — the builders are already putting every delivery on the walls, so there is nothing separate to mend.'
                             : b().repairNeeds
                               ? 'Stops the order. Materials already worked into the walls stay there; the ones still walking over turn around and go back into the stores.'
@@ -414,7 +415,9 @@ export function SelectionPanel(props: {
                     )}
                   >
                     <button
-                      disabled={b().state !== 'built' || (!b().repairNeeds && unpaid() <= 0)}
+                      disabled={
+                        b().state !== BuildingState.built || (!b().repairNeeds && unpaid() <= 0)
+                      }
                       onClick={() => props.onRepair(b().id, b().repairNeeds === undefined)}
                     >
                       {b().repairNeeds ? 'Cancel repair' : 'Repair'}
@@ -422,7 +425,9 @@ export function SelectionPanel(props: {
                           damage is bought and only waiting on the masons:
                           repairBill of nothing is nothing, and "Repair none"
                           is worse than saying only "Repair". */}
-                      <Show when={b().state === 'built' && !b().repairNeeds && unpaid() > 0}>
+                      <Show
+                        when={b().state === BuildingState.built && !b().repairNeeds && unpaid() > 0}
+                      >
                         <span class="cost">
                           <GoodsLine amounts={repairBill(b().type, unpaid())} />
                         </span>
@@ -435,7 +440,7 @@ export function SelectionPanel(props: {
                         <TextTip
                           title={pauseLabel()}
                           body={
-                            b().state !== 'built'
+                            b().state !== BuildingState.built
                               ? b().paused
                                 ? 'Resumes the build: materials flow again and a builder is called back to the frame.'
                                 : 'Halts the site where it stands — no new deliveries are called for (a load already on the road still lands), no progress — and the builder rejoins the serf pool. Nothing already delivered is lost.'
@@ -450,9 +455,7 @@ export function SelectionPanel(props: {
                         />
                       )}
                     >
-                      <button
-                        onClick={() => props.onTogglePause(b().id, !b().paused)}
-                      >
+                      <button onClick={() => props.onTogglePause(b().id, !b().paused)}>
                         {pauseLabel()}
                       </button>
                     </TipWrap>
@@ -470,7 +473,7 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={def().recipeOptions && b().state === 'built'}>
+              <Show when={def().recipeOptions && b().state === BuildingState.built}>
                 {/* The forge menu: one declared grid, three to a row —
                     nine recipes today and the frame would hold a tenth.
                     A click ORDERS one batch (the barracks' verb), it does
@@ -481,7 +484,7 @@ export function SelectionPanel(props: {
                   <span class="sel-label">forge</span>
                   <For each={def().recipeOptions!}>
                     {(opt, i) => {
-                      const output = () => Object.keys(opt.recipe.outputs)[0] as GoodId;
+                      const output = () => goodKeys(opt.recipe.outputs)[0]!;
                       const locked = () =>
                         opt.requiresTech !== undefined &&
                         !techs().researched.includes(opt.requiresTech);
@@ -530,9 +533,7 @@ export function SelectionPanel(props: {
                       >
                         {(item) => {
                           const output = () =>
-                            Object.keys(
-                              def().recipeOptions![item().recipeIndex]!.recipe.outputs,
-                            )[0] as GoodId;
+                            goodKeys(def().recipeOptions![item().recipeIndex]!.recipe.outputs)[0]!;
                           return (
                             <TipWrap
                               tip={() => (
@@ -549,9 +550,7 @@ export function SelectionPanel(props: {
                               <button
                                 class="sel-slot"
                                 classList={{ waiting: !item().started }}
-                                onClick={() =>
-                                  props.onCancelForge(b().id, i, item().recipeIndex)
-                                }
+                                onClick={() => props.onCancelForge(b().id, i, item().recipeIndex)}
                               >
                                 <span class="unit">
                                   <GoodIcon good={output()} size={13} />{' '}
@@ -577,15 +576,10 @@ export function SelectionPanel(props: {
                     <span>
                       between orders: forges{' '}
                       {goodName(
-                        Object.keys(
-                          def().recipeOptions![b().recipeIndex!]!.recipe.outputs,
-                        )[0] as GoodId,
+                        goodKeys(def().recipeOptions![b().recipeIndex!]!.recipe.outputs)[0]!,
                       ).toLowerCase()}
                       s{' '}
-                      <button
-                        class="sel-idle-clear"
-                        onClick={() => props.onSetRecipe(b().id, -1)}
-                      >
+                      <button class="sel-idle-clear" onClick={() => props.onSetRecipe(b().id, -1)}>
                         ✕
                       </button>
                     </span>
@@ -593,7 +587,9 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={b().type === 'storehouse' && b().state === 'built'}>
+              <Show
+                when={b().type === BuildingTypeId.storehouse && b().state === BuildingState.built}
+              >
                 <div class="sel-row">
                   <TipWrap
                     tip={() => (
@@ -629,7 +625,7 @@ export function SelectionPanel(props: {
                         </span>
                       </span>
                       <span class="cost">
-                        <GoodIcon good="silver" size={12} />
+                        <GoodIcon good={GoodId.silver} size={12} />
                         {HIRE_SERF_COST}
                       </span>
                     </button>
@@ -637,7 +633,7 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={b().type === 'abbey' && b().state === 'built'}>
+              <Show when={b().type === BuildingTypeId.abbey && b().state === BuildingState.built}>
                 <div class="sel-row">
                   <button onClick={() => setTechPanelOpen(true)}>
                     <Key label="Research…" k={RESEARCH_KEY} />
@@ -656,7 +652,7 @@ export function SelectionPanel(props: {
                 </div>
               </Show>
 
-              <Show when={def().trains && b().state === 'built'}>
+              <Show when={def().trains && b().state === BuildingState.built}>
                 {/* Wraps: three priced train buttons outgrow the card's
                     width cap on a narrow screen, and are better stacked
                     than sliced. Safe to wrap where the queue below is
@@ -712,14 +708,16 @@ export function SelectionPanel(props: {
                     )}
                   >
                     <button
-                      classList={{ active: orderMode() === 'rally' }}
-                      onClick={() => props.onArmOrder(orderMode() === 'rally' ? null : 'rally')}
+                      classList={{ active: orderMode() === OrderMode.rally }}
+                      onClick={() =>
+                        props.onArmOrder(orderMode() === OrderMode.rally ? null : OrderMode.rally)
+                      }
                     >
                       <Key label="Rally" k={RALLY_KEY} />
                     </button>
                   </TipWrap>
                   <Show
-                    when={orderMode() === 'rally'}
+                    when={orderMode() === OrderMode.rally}
                     fallback={
                       <Show when={b().rally}>
                         <span class="sel-label">
@@ -822,7 +820,7 @@ export function SelectionPanel(props: {
                     two is up there, and a stood-down one says plainly that
                     it is empty, because a tower nobody has manned defends
                     nothing at all. */}
-                <Show when={manned() && b().state === 'built'}>
+                <Show when={manned() && b().state === BuildingState.built}>
                   <span classList={{ good: garrison() > 0, bad: garrison() === 0 }}>
                     {garrison() === 0
                       ? b().paused
@@ -832,16 +830,21 @@ export function SelectionPanel(props: {
                   </span>
                 </Show>
                 <Show when={b().staffing}>
-                  <span classList={{ good: b().staffing === 'staffed', bad: b().staffing !== 'staffed' }}>
-                    {b().state === 'site'
-                      ? b().staffing === 'staffed'
+                  <span
+                    classList={{
+                      good: b().staffing === StaffingState.staffed,
+                      bad: b().staffing !== StaffingState.staffed,
+                    }}
+                  >
+                    {b().state === BuildingState.site
+                      ? b().staffing === StaffingState.staffed
                         ? 'builder at work'
-                        : b().staffing === 'recruiting'
+                        : b().staffing === StaffingState.recruiting
                           ? 'builder on the way'
                           : 'needs a builder!'
-                      : b().staffing === 'staffed'
+                      : b().staffing === StaffingState.staffed
                         ? 'worker at post'
-                        : b().staffing === 'recruiting'
+                        : b().staffing === StaffingState.recruiting
                           ? 'worker on the way'
                           : 'needs a worker!'}
                   </span>
@@ -902,14 +905,15 @@ export function SelectionPanel(props: {
               </Show>
 
               <div class="sel-line">
-                <Show when={b().state === 'site'}>
+                <Show when={b().state === BuildingState.site}>
                   <span>
                     needs <GoodsLine amounts={b().siteNeeds ?? {}} />
                   </span>
                 </Show>
-                <Show when={b().state === 'built'}>
+                <Show when={b().state === BuildingState.built}>
                   <span>
-                    stock <GoodsLine amounts={b().stock} /> <span style={{ 'margin-left': '8px' }}>
+                    stock <GoodsLine amounts={b().stock} />{' '}
+                    <span style={{ 'margin-left': '8px' }}>
                       in <GoodsLine amounts={b().inputs} />
                     </span>
                   </span>
@@ -955,8 +959,10 @@ export function SelectionPanel(props: {
               )}
             >
               <button
-                classList={{ active: orderMode() === 'attack' }}
-                onClick={() => props.onArmOrder(orderMode() === 'attack' ? null : 'attack')}
+                classList={{ active: orderMode() === OrderMode.attack }}
+                onClick={() =>
+                  props.onArmOrder(orderMode() === OrderMode.attack ? null : OrderMode.attack)
+                }
               >
                 <Key label="Attack" k="A" />
               </button>
@@ -970,8 +976,10 @@ export function SelectionPanel(props: {
               )}
             >
               <button
-                classList={{ active: orderMode() === 'move' }}
-                onClick={() => props.onArmOrder(orderMode() === 'move' ? null : 'move')}
+                classList={{ active: orderMode() === OrderMode.move }}
+                onClick={() =>
+                  props.onArmOrder(orderMode() === OrderMode.move ? null : OrderMode.move)
+                }
               >
                 <Key label="Move" k="M" />
               </button>
@@ -986,9 +994,9 @@ export function SelectionPanel(props: {
               the buttons, so swapping one sentence for another cannot
               shuffle them. */}
           <div class="sel-line" style={{ opacity: 0.6 }}>
-            {orderMode() === 'attack'
+            {orderMode() === OrderMode.attack
               ? 'click where to attack-move'
-              : orderMode() === 'move'
+              : orderMode() === OrderMode.move
                 ? 'click where to walk'
                 : matchMedia('(pointer: coarse)').matches
                   ? 'tap the ground to send them'

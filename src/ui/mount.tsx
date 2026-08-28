@@ -6,6 +6,7 @@ import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { SimHost } from '../app/simHost';
 import { saveGameNow } from '../app/saveStore';
 import type { MinimapSource } from './Minimap';
+import { CommandKind } from '../sim/commands';
 
 /** What the HUD needs from the app: selection actions from Controls (touch
  * has no shift/drag), and the save assembled where world and fog meet. */
@@ -75,47 +76,47 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiClick');
           // No coordinates is the take-the-flag-down spelling; planting one
           // needs a map click and goes through Controls instead.
-          host.sendCommands([{ kind: 'setRallyPoint', buildingId }]);
+          host.sendCommands([{ kind: CommandKind.setRallyPoint, buildingId }]);
         }}
         onHire={() => {
           play('uiCoin');
-          host.sendCommands([{ kind: 'hireSerf' }]);
+          host.sendCommands([{ kind: CommandKind.hireSerf }]);
         }}
         onSell={(buildingId) => {
           play('uiCoin');
-          host.sendCommands([{ kind: 'sellBuilding', buildingId }]);
+          host.sendCommands([{ kind: CommandKind.sellBuilding, buildingId }]);
         }}
         onRepair={(buildingId, repair) => {
           play('uiClick');
-          host.sendCommands([{ kind: 'setBuildingRepair', buildingId, repair }]);
+          host.sendCommands([{ kind: CommandKind.setBuildingRepair, buildingId, repair }]);
         }}
         onTogglePause={(buildingId, paused) => {
           play('uiClick');
-          host.sendCommands([{ kind: 'setBuildingPaused', buildingId, paused }]);
+          host.sendCommands([{ kind: CommandKind.setBuildingPaused, buildingId, paused }]);
         }}
         onSetRecipe={(buildingId, index) => {
           play('uiClick');
-          host.sendCommands([{ kind: 'setBuildingRecipe', buildingId, index }]);
+          host.sendCommands([{ kind: CommandKind.setBuildingRecipe, buildingId, index }]);
         }}
         onEnqueueForge={(buildingId, recipeIndex) => {
           play('uiClick');
-          host.sendCommands([{ kind: 'enqueueForge', buildingId, recipeIndex }]);
+          host.sendCommands([{ kind: CommandKind.enqueueForge, buildingId, recipeIndex }]);
         }}
         onCancelForge={(buildingId, index, recipeIndex) => {
           play('uiClick');
-          host.sendCommands([{ kind: 'cancelForge', buildingId, index, recipeIndex }]);
+          host.sendCommands([{ kind: CommandKind.cancelForge, buildingId, index, recipeIndex }]);
         }}
         onResearch={(tech) => {
           play('uiClick');
-          host.sendCommands([{ kind: 'research', tech }]);
+          host.sendCommands([{ kind: CommandKind.research, tech }]);
         }}
         onTrain={(buildingId, unit) => {
           play('uiClick');
-          host.sendCommands([{ kind: 'trainUnit', buildingId, unit }]);
+          host.sendCommands([{ kind: CommandKind.trainUnit, buildingId, unit }]);
         }}
         onCancelTrain={(buildingId, index, unit) => {
           play('uiClick');
-          host.sendCommands([{ kind: 'cancelTraining', buildingId, index, unit }]);
+          host.sendCommands([{ kind: CommandKind.cancelTraining, buildingId, index, unit }]);
         }}
         onSave={() => {
           play('uiClick');
@@ -147,7 +148,7 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
         }}
         onAdmin={(action) => {
           play('uiClick');
-          host.sendCommands([{ kind: 'admin', action }]);
+          host.sendCommands([{ kind: CommandKind.admin, action }]);
         }}
         onFocus={(x, y) => {
           play('uiClick');

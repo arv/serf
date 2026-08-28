@@ -14,6 +14,8 @@ import { GOOD_DESC } from '../descriptions';
 import { DocLink, Section } from '../components';
 import { Prose } from '../prose';
 import { buildingHref, goodHref, techHref, unitHref } from '../routes';
+import { BuildingTypeId } from '../../../sim/defs/buildings';
+import { TechId } from '../../../sim/defs/techs';
 
 // `entry`, not `ref`: ref is a reserved prop in Solid (element forwarding),
 // and a component that borrows the name never receives the value.
@@ -45,8 +47,7 @@ function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
     case 'repair':
       return (
         <li>
-          Mends the{' '}
-          <DocLink href={buildingHref(r.building)}>{buildingName(r.building)}</DocLink>
+          Mends the <DocLink href={buildingHref(r.building)}>{buildingName(r.building)}</DocLink>
         </li>
       );
     case 'training':
@@ -72,25 +73,30 @@ function ConsumerLine(props: { entry: ConsumerRef }): JSX.Element {
     case 'weapon':
       return (
         <li>
-          The weapon a <DocLink href={unitHref(r.unit)}>{unitName(r.unit)}</DocLink> is trained
-          with
+          The weapon a <DocLink href={unitHref(r.unit)}>{unitName(r.unit)}</DocLink> is trained with
         </li>
       );
     case 'festival':
       return (
         <li>
           Drunk at the{' '}
-          <DocLink href={buildingHref('abbey')}>{buildingName('abbey')}</DocLink> to hold a
-          festival, once <DocLink href={techHref('festivals')}>{techName('festivals')}</DocLink>{' '}
-          is researched
+          <DocLink href={buildingHref(BuildingTypeId.abbey)}>
+            {buildingName(BuildingTypeId.abbey)}
+          </DocLink>{' '}
+          to hold a festival, once{' '}
+          <DocLink href={techHref(TechId.festivals)}>{techName(TechId.festivals)}</DocLink> is
+          researched
         </li>
       );
     case 'ration':
       return (
         <li>
           Kept in the{' '}
-          <DocLink href={buildingHref('barracks')}>{buildingName('barracks')}</DocLink> cask —
-          with <DocLink href={techHref('aleRations')}>{techName('aleRations')}</DocLink> each
+          <DocLink href={buildingHref(BuildingTypeId.barracks)}>
+            {buildingName(BuildingTypeId.barracks)}
+          </DocLink>{' '}
+          cask — with{' '}
+          <DocLink href={techHref(TechId.aleRations)}>{techName(TechId.aleRations)}</DocLink> each
           recruit drinks one and trains faster
         </li>
       );

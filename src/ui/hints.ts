@@ -1,4 +1,4 @@
-import type { MissionId } from '../sim/defs/missions';
+import { MissionId } from '../sim/defs/missions.ts';
 
 /**
  * Tutorial hint scripts, one per teaching mission. UI-side on purpose: a
@@ -19,7 +19,7 @@ export interface HintStep {
 }
 
 export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
-  clearing: [
+  [MissionId.clearing]: [
     {
       text:
         'Arrow keys pan, and so does a finger; scroll or pinch to zoom. ' +
@@ -59,13 +59,16 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     },
   ],
 
-  breadAndWater: [
+  [MissionId.breadAndWater]: [
     {
       text:
         'Bread is a chain: well → wheat farm → mill → bakery. Water twice — ' +
         'the bakery drinks too. Select any workshop to watch its buffers.',
     },
-    { text: 'Raise a Well. Drawing water is a chore serfs run, not a post anyone holds.', objective: 0 },
+    {
+      text: 'Raise a Well. Drawing water is a chore serfs run, not a post anyone holds.',
+      objective: 0,
+    },
     { text: 'A Wheat Farm next — flat grass near the castle serves fine.', objective: 1 },
     {
       text: 'Now the Mill. One mill serves two farms: it grinds faster than they grow.',
@@ -81,7 +84,7 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     },
   ],
 
-  ledger: [
+  [MissionId.ledger]: [
     {
       text:
         'Learning happens at the Abbey and is paid in goods — one study at a ' +
@@ -111,7 +114,7 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     { text: 'Let the forge run: four spears in the castle settles the ledger.', objective: 5 },
   ],
 
-  hammerAndHaft: [
+  [MissionId.hammerAndHaft]: [
     {
       text:
         'Every hut here is empty because its tool is gone: no axe, no post. ' +
@@ -150,7 +153,7 @@ export const MISSION_HINTS: Partial<Record<MissionId, HintStep[]>> = {
     },
   ],
 
-  levy: [
+  [MissionId.levy]: [
     {
       text:
         'The barracks turns bread, a weapon and a villager into a soldier. ' +

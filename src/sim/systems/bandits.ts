@@ -1,8 +1,10 @@
 import { RAID_CAP, raidIntervalFor } from '../defs/balance.ts';
-import { type UnitTypeId } from '../defs/units.ts';
 import { BANDIT, isPlayerOwner, type Building } from '../entities.ts';
-import { spawnUnitNearby, type World } from '../world.ts';
+import { spawnUnitNearby, type World, GameEventKind, MatchState } from '../world.ts';
 import { Rng } from '../../shared/rng.ts';
+import { UnitTypeId } from '../defs/units.ts';
+import { BuildingTypeId } from '../defs/buildings.ts';
+import { UnitTaskKind } from '../units.ts';
 
 /**
  * Escalating raids: waves grow and diversify (light -> +ranged -> +heavy) so
@@ -10,7 +12,7 @@ import { Rng } from '../../shared/rng.ts';
  * — has to answer. The wave preview event lets the UI warn with composition.
  */
 export function banditsSystem(world: World, rng: Rng): void {
-  if (world.outcome.state !== 'playing' || !world.admin.raidsEnabled) return;
+  if (world.outcome.state !== MatchState.playing || !world.admin.raidsEnabled) return;
   if (world.tick < world.raidState.nextRaidTick) return;
 
   const camp = findCamp(world);
@@ -26,9 +28,9 @@ export function banditsSystem(world: World, rng: Rng): void {
 
   const roster: UnitTypeId[] = [];
   const bandits = Math.min(2 + wave, 5);
-  for (let i = 0; i < bandits; i++) roster.push('bandit');
-  for (let i = 0; i < wave - 2; i++) roster.push('banditArcher');
-  for (let i = 0; i < wave - 4; i++) roster.push('marauder');
+  for (let i = 0; i < bandits; i++) roster.push(UnitTypeId.bandit);
+  for (let i = 0; i < wave - 2; i++) roster.push(UnitTypeId.banditArcher);
+  for (let i = 0; i < wave - 4; i++) roster.push(UnitTypeId.marauder);
   roster.length = Math.min(roster.length, RAID_CAP);
 
   const target = pickTarget(world, rng);
@@ -43,19 +45,19 @@ export function banditsSystem(world: World, rng: Rng): void {
       camp.x + 1.5 + (i % 4) - 1.5,
       camp.y + camp.h + 1.5 + Math.floor(i / 4),
     );
-    unit.task = { t: 'raid', buildingId: target.id };
+    unit.task = { t: UnitTaskKind.raid, buildingId: target.id };
   }
 
-  const counts = new Map<string, number>();
+  const counts = new Map<UnitTypeId, number>();
   for (const kind of roster) counts.set(kind, (counts.get(kind) ?? 0) + 1);
-  const names: Record<string, string> = {
-    bandit: 'bandits',
-    banditArcher: 'bandit archers',
-    marauder: 'marauders',
+  const names: Partial<Record<UnitTypeId, string>> = {
+    [UnitTypeId.bandit]: 'bandits',
+    [UnitTypeId.banditArcher]: 'bandit archers',
+    [UnitTypeId.marauder]: 'marauders',
   };
   const text = [...counts.entries()].map(([k, n]) => `${n} ${names[k] ?? k}`).join(', ');
   world.pendingEvents.push({
-    kind: 'raidIncoming',
+    kind: GameEventKind.raidIncoming,
     text: `${text} approaching!`,
     player: target.owner,
   });
@@ -63,7 +65,7 @@ export function banditsSystem(world: World, rng: Rng): void {
 
 function findCamp(world: World): Building | undefined {
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.type === 'banditCamp') return b;
+    if (!b.dead && b.type === BuildingTypeId.banditCamp) return b;
   }
   return undefined;
 }
@@ -75,7 +77,7 @@ function pickTarget(world: World, rng: Rng): Building | undefined {
   for (const b of world.buildings.values()) {
     if (b.dead || !isPlayerOwner(b.owner)) continue;
     targets.push(b);
-    if (b.type === 'storehouse') storehouses.push(b);
+    if (b.type === BuildingTypeId.storehouse) storehouses.push(b);
   }
   if (targets.length === 0) return undefined;
   if (storehouses.length > 0 && rng.next() < 0.6) {

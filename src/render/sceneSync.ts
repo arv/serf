@@ -8,7 +8,7 @@ import {
   type SabReader,
 } from '../protocol/sabLayout';
 import { clamp, hash2, lerp } from '../shared/math';
-import { UNIT_DEFS } from '../sim/defs/units';
+import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
 import { animCue, LOOP_CUES } from '../audio/animCues';
 import type { CueId } from '../audio/cues';
 import type { PierInfo } from './buildingSync';
@@ -22,8 +22,8 @@ import {
   setGaitSpeed,
   setWorkTool,
   TOOL_STOWED,
-  type AnimKey,
   type CharacterVisual,
+  AnimKey,
 } from './characters';
 import type { HeightField } from './heightField';
 
@@ -84,7 +84,7 @@ interface Well {
 
 /** The render-walk speed out along the pier — the worker's own sim gait,
  * so the commute reads like every other one. */
-const PIER_WALK_SPEED = UNIT_DEFS.worker.speed;
+const PIER_WALK_SPEED = UNIT_DEFS[UnitTypeId.worker].speed;
 
 /** GLTFLoader sanitizes bone names ('upperarm.r' → 'upperarmr'). */
 function findArm(group: THREE.Group): ArmChain | null {
@@ -134,19 +134,19 @@ function ikReach(arm: ArmChain, target: THREE.Vector3): void {
 function workAnimKey(workKind: number): AnimKey {
   switch (workKind) {
     case WORK.pickaxe:
-      return 'pickaxe';
+      return AnimKey.pickaxe;
     case WORK.hammer:
-      return 'hammer';
+      return AnimKey.hammer;
     case WORK.dig:
-      return 'dig';
+      return AnimKey.dig;
     case WORK.tend:
-      return 'tend';
+      return AnimKey.tend;
     case WORK.draw:
-      return 'draw';
+      return AnimKey.draw;
     case WORK.fish:
-      return 'fish';
+      return AnimKey.fish;
     default:
-      return 'work';
+      return AnimKey.work;
   }
 }
 
@@ -167,9 +167,8 @@ const HP_BAR_Y = TARGET_HEIGHT * 0.943;
  * now and the colour rides per instance, but the five steps stay exactly
  * as they were — this is a draw-call change, not a palette change.
  */
-const HP_BUCKET_COLORS = Array.from(
-  { length: 5 },
-  (_, bucket) => new THREE.Color().setHSL(0.33 * (bucket / 4), 0.8, 0.45),
+const HP_BUCKET_COLORS = Array.from({ length: 5 }, (_, bucket) =>
+  new THREE.Color().setHSL(0.33 * (bucket / 4), 0.8, 0.45),
 );
 
 function hpBucket(pct: number): number {
@@ -328,7 +327,14 @@ export class SceneSync {
    * sim has no unit collision by design, so hauling and combat never jam.
    */
   #computeSeparation(
-    latest: { count: number; xs: Float32Array; ys: Float32Array; aux: Uint8Array; index: Map<number, number>; ids: Int32Array },
+    latest: {
+      count: number;
+      xs: Float32Array;
+      ys: Float32Array;
+      aux: Uint8Array;
+      index: Map<number, number>;
+      ids: Int32Array;
+    },
     prev: { xs: Float32Array; ys: Float32Array; index: Map<number, number> },
     alpha: number,
   ): void {
@@ -448,7 +454,7 @@ export class SceneSync {
     return this.#reader.latest.aux[li * AUX_STRIDE + 1]!;
   }
 
-  /** Unit kind code (UNIT_DEFS kindCode), for kind-aware selection. */
+  /** Unit kind (UnitTypeId — its own SAB byte), for kind-aware selection. */
   kindOf(id: number): number | null {
     const li = this.#reader.latest.index.get(id);
     if (li === undefined) return null;
@@ -716,12 +722,12 @@ export class SceneSync {
       } else if (visual.char) {
         const heldCarry = carrying > 0;
         let key: AnimKey;
-        if (dead) key = 'death';
-        else if (moving) key = heldCarry ? 'carry' : visual.char.gait;
-        else if (pier) key = fishing ? 'fish' : visual.char.gait;
-        else if (action === ACTION.fight) key = visual.char.ranged ? 'shoot' : 'attack';
-        else if (action === ACTION.work) key = crankWell ? 'idle' : workAnimKey(workKind);
-        else key = heldCarry ? 'carryIdle' : 'idle';
+        if (dead) key = AnimKey.death;
+        else if (moving) key = heldCarry ? AnimKey.carry : visual.char.gait;
+        else if (pier) key = fishing ? AnimKey.fish : visual.char.gait;
+        else if (action === ACTION.fight) key = visual.char.ranged ? AnimKey.shoot : AnimKey.attack;
+        else if (action === ACTION.work) key = crankWell ? AnimKey.idle : workAnimKey(workKind);
+        else key = heldCarry ? AnimKey.carryIdle : AnimKey.idle;
         // Right tool for the job: mallet on sites, pickaxe at rock faces,
         // carried on the walk out too — a woodcutter heads to the trees
         // axe in fist. Only full hands stow it: cargo owns the grip.
@@ -730,12 +736,12 @@ export class SceneSync {
         // state change, or the first frame back from a cull (which nulled
         // `current`). Read before the call — it sets `current` to key.
         const restarted = visual.char.current !== key;
-        if (dead && !visual.char.actions.has('death')) {
+        if (dead && !visual.char.actions.has(AnimKey.death)) {
           // No death clip in this library: tip the body over instead.
           tipOver(visual.group, dt);
-          playAnimation(visual.char, 'idle', hash2(id, 3));
+          playAnimation(visual.char, AnimKey.idle, hash2(id, 3));
         } else {
-          playAnimation(visual.char, key, key === 'death' ? 0 : hash2(id, 3));
+          playAnimation(visual.char, key, key === AnimKey.death ? 0 : hash2(id, 3));
         }
         const fn = this.onCue;
         // State-entry sound, from audio's own memory — char.current is

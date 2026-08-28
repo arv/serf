@@ -1,5 +1,4 @@
-import type { StartSpot } from '../sim/map.ts';
-import { tileBlocks, inPlayArea } from '../sim/map.ts';
+import { type StartSpot, tileBlocks, inPlayArea } from '../sim/map.ts';
 import { tileX, tileY } from '../shared/grid.ts';
 import type { EditorMapState } from './editorMap.ts';
 

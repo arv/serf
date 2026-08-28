@@ -10,6 +10,9 @@ import {
   type LlmStatus,
 } from './strategist.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
+import { PlayerKind } from '../sim/player.ts';
+import { LlmState, ConsultOutcome } from './strategist.ts';
+import { ChatRole } from './prompt.ts';
 
 /**
  * The engine-adapter and warmModel tests go through the strategist's real
@@ -48,8 +51,7 @@ const wllamaMock = vi.hoisted(() => {
     downloads: [] as { url: string; signal: AbortSignal | undefined }[],
     /** Override the download itself; null = instant success with progress. */
     downloadGate: null as
-      | null
-      | ((opts?: { signal?: AbortSignal; progressCallback?: Progress }) => Promise<unknown>),
+      null | ((opts?: { signal?: AbortSignal; progressCallback?: Progress }) => Promise<unknown>),
     cacheEntries,
     cacheDeletes,
     /** The one cache both stand-ins hand out — the same OPFS directory
@@ -120,7 +122,10 @@ vi.mock('@wllama/wllama/esm/wasm/wllama.wasm?url', () => ({ default: 'wllama.was
  */
 
 function testSummary(): AiWorldSummary {
-  const world = createWorld({ seed: 5, players: [{ kind: 'human' }, { kind: 'ai' }] });
+  const world = createWorld({
+    seed: 5,
+    players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
+  });
   const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
   brain.decide(world); // one beat, so vision exists
   return summarizeForSeat(world, brain);
@@ -187,7 +192,7 @@ describe('LlmStrategist', () => {
       complete: async () => '{"armyAttackSize": 99, "reason": "overwhelm them"}',
     });
     await strategist.start();
-    expect(statuses).toEqual([{ state: 'ready' }]);
+    expect(statuses).toEqual([{ state: LlmState.ready }]);
     strategist.onSummary(1, testSummary());
     await settle();
     // Clamped to the published range, reason kept out of the override.
@@ -217,7 +222,7 @@ describe('LlmStrategist', () => {
     await settle();
     expect(sent).toEqual([]);
     // Garbage counted a strike, but one strike is not out.
-    expect(statuses).toEqual([{ state: 'ready' }]);
+    expect(statuses).toEqual([{ state: LlmState.ready }]);
   });
 
   it('traces a consultation whole: prompt, reply, timing, and what was sent', async () => {
@@ -230,7 +235,7 @@ describe('LlmStrategist', () => {
     const t = traces[0]!;
     expect(t).toMatchObject({
       playerId: 1,
-      outcome: 'sent',
+      outcome: ConsultOutcome.sent,
       raw: reply,
       // Clamped like the advice itself; reason rides along for the overlay
       // but stays out of the override, exactly as sendAdvice saw it.
@@ -239,7 +244,7 @@ describe('LlmStrategist', () => {
       override: { armyAttackSize: 16 },
     });
     // The prompt verbatim — system glossary plus the match state.
-    expect(t.messages.map((m) => m.role)).toEqual(['system', 'user']);
+    expect(t.messages.map((m) => m.role)).toEqual([ChatRole.system, ChatRole.user]);
     expect(t.ms).toBeGreaterThanOrEqual(0);
     expect(t.minutes).toBeGreaterThanOrEqual(0);
     // The playbook print rides along, so the overlay can show the delta.
@@ -257,7 +262,11 @@ describe('LlmStrategist', () => {
     }
     // One message downstairs, three entries in the ledger.
     expect(sent).toHaveLength(1);
-    expect(traces.map((t) => t.outcome)).toEqual(['sent', 'kept', 'kept']);
+    expect(traces.map((t) => t.outcome)).toEqual([
+      ConsultOutcome.sent,
+      ConsultOutcome.kept,
+      ConsultOutcome.kept,
+    ]);
     expect(traces[2]!.advice).toEqual({});
     expect(traces[2]!.standing).toEqual({ homeGuard: 8, reason: 'hold' });
   });
@@ -268,7 +277,10 @@ describe('LlmStrategist', () => {
     strategist.onSummary(1, testSummary());
     await settle();
     expect(traces).toHaveLength(1);
-    expect(traces[0]).toMatchObject({ outcome: 'failed', raw: 'the peasants are revolting' });
+    expect(traces[0]).toMatchObject({
+      outcome: ConsultOutcome.failed,
+      raw: 'the peasants are revolting',
+    });
     expect(traces[0]!.error).toContain('unparseable advice');
   });
 
@@ -311,7 +323,7 @@ describe('LlmStrategist', () => {
     expect(calls).toBe(3);
     expect(sent).toEqual([]);
     const last = statuses.at(-1)!;
-    expect(last.state).toBe('failed');
+    expect(last.state).toBe(LlmState.failed);
     expect((last as { reason: string }).reason).toContain('out of VRAM');
   });
 
@@ -322,7 +334,7 @@ describe('LlmStrategist', () => {
       strategist.onSummary(1, testSummary());
       await new Promise((r) => setTimeout(r, 15));
     }
-    expect(statuses.at(-1)!.state).toBe('failed');
+    expect(statuses.at(-1)!.state).toBe(LlmState.failed);
   });
 
   it('a hide aborts the consultation mid-thought, and it never counts as a strike', async () => {
@@ -347,7 +359,7 @@ describe('LlmStrategist', () => {
       await settle();
     }
     expect(sent).toEqual([]);
-    expect(statuses).toEqual([{ state: 'ready' }]); // never 'failed'
+    expect(statuses).toEqual([{ state: LlmState.ready }]); // never 'failed'
     // A pause is not model behavior: nothing for the ledger either.
     expect(traces).toEqual([]);
   });
@@ -380,7 +392,7 @@ describe('LlmStrategist', () => {
       engineFactory: () => Promise.reject(new Error('no adapter')),
     });
     await strategist.start();
-    expect(statuses.at(-1)).toMatchObject({ state: 'failed' });
+    expect(statuses.at(-1)).toMatchObject({ state: LlmState.failed });
     strategist.onSummary(1, testSummary());
     await settle();
     expect(sent).toEqual([]);
@@ -412,7 +424,7 @@ describe('LlmStrategist', () => {
       strategist.onSummary(1, testSummary());
       await settle();
     }
-    expect(statuses.at(-1)!.state).toBe('failed');
+    expect(statuses.at(-1)!.state).toBe(LlmState.failed);
     // Inert must not keep the model — and its memory — alive.
     expect(wllamaMock.instances[0]!.exited).toBe(1);
   });
@@ -468,9 +480,12 @@ describe('LlmStrategist', () => {
   it('a load that fails through the real adapter reports and frees the model', async () => {
     wllamaMock.loadFails = true;
     const statuses: LlmStatus[] = [];
-    const strategist = new LlmStrategist({ sendAdvice: () => {}, onStatus: (s) => statuses.push(s) });
+    const strategist = new LlmStrategist({
+      sendAdvice: () => {},
+      onStatus: (s) => statuses.push(s),
+    });
     await strategist.start();
-    expect(statuses.at(-1)).toMatchObject({ state: 'failed' });
+    expect(statuses.at(-1)).toMatchObject({ state: LlmState.failed });
     expect((statuses.at(-1) as { reason: string }).reason).toContain('403');
     expect(wllamaMock.instances[0]!.exited).toBe(1);
   });
@@ -481,10 +496,13 @@ describe('LlmStrategist', () => {
     const { LLM_MODEL_URL } = await import('./strategist.ts');
     leaveUnfinishedDownload(LLM_MODEL_URL);
     const statuses: LlmStatus[] = [];
-    const strategist = new LlmStrategist({ sendAdvice: () => {}, onStatus: (s) => statuses.push(s) });
+    const strategist = new LlmStrategist({
+      sendAdvice: () => {},
+      onStatus: (s) => statuses.push(s),
+    });
     await strategist.start();
     expect(wllamaMock.cacheDeletes).toEqual([`key:${LLM_MODEL_URL}`]);
-    expect(statuses.at(-1)).toEqual({ state: 'ready' });
+    expect(statuses.at(-1)).toEqual({ state: LlmState.ready });
   });
 
   it('disposed before the model load begins, it never loads one', async () => {
@@ -531,7 +549,7 @@ describe('warmModel', () => {
     const statuses: LlmStatus[] = [];
     warmModel((s) => statuses.push(s));
     await settle();
-    expect(statuses).toEqual([{ state: 'ready' }]);
+    expect(statuses).toEqual([{ state: LlmState.ready }]);
     expect(wllamaMock.downloads).toHaveLength(0);
   });
 
@@ -539,8 +557,8 @@ describe('warmModel', () => {
     const statuses: LlmStatus[] = [];
     warmModel((s) => statuses.push(s));
     await settle();
-    expect(statuses[0]).toMatchObject({ state: 'loading', pct: 25 });
-    expect(statuses.at(-1)).toEqual({ state: 'ready' });
+    expect(statuses[0]).toMatchObject({ state: LlmState.loading, pct: 25 });
+    expect(statuses.at(-1)).toEqual({ state: LlmState.ready });
     expect(wllamaMock.downloads).toHaveLength(1);
     // Download only — the menu spends no CPU and holds no model memory.
     expect(wllamaMock.instances).toHaveLength(0);
@@ -565,7 +583,7 @@ describe('warmModel', () => {
     const statuses: LlmStatus[] = [];
     warmModel((s) => statuses.push(s));
     await settle();
-    expect(statuses.at(-1)).toEqual({ state: 'ready' });
+    expect(statuses.at(-1)).toEqual({ state: LlmState.ready });
     expect(wllamaMock.downloads).toHaveLength(1);
   });
 
@@ -583,7 +601,7 @@ describe('warmModel', () => {
     const statuses: LlmStatus[] = [];
     warmModel((s) => statuses.push(s));
     await settle();
-    expect(statuses.at(-1)).toMatchObject({ state: 'failed' });
+    expect(statuses.at(-1)).toMatchObject({ state: LlmState.failed });
     expect((statuses.at(-1) as { reason: string }).reason).toContain('403');
   });
 
@@ -607,6 +625,6 @@ describe('warmModel', () => {
     // The abort's rejection and the late progress both land after dispose:
     // neither reaches the menu.
     expect(statuses).toHaveLength(seen);
-    expect(statuses.every((s) => s.state !== 'failed')).toBe(true);
+    expect(statuses.every((s) => s.state !== LlmState.failed)).toBe(true);
   });
 });

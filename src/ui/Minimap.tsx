@@ -9,6 +9,10 @@ import { play } from '../audio/audio';
 import { capturePointer } from '../input/mouseCapture';
 import { paintBase, ownerTint } from './minimapPaint';
 import { toasts } from './store';
+import type { Enum } from '../shared/enum.ts';
+import * as MinimapModeNs from './minimapModeEnum.ts';
+export * as MinimapMode from './minimapModeEnum.ts';
+export type MinimapMode = Enum<typeof MinimapModeNs>;
 
 /**
  * What the minimap reads and drives — assembled in main.ts where the
@@ -70,7 +74,7 @@ const TAP_SLOP_PX = 10;
  */
 export function Minimap(props: {
   source: MinimapSource;
-  mode: 'pan' | 'jump' | 'thumb';
+  mode: MinimapMode;
   onNavigate?: () => void;
 }) {
   let canvas!: HTMLCanvasElement;
@@ -178,7 +182,7 @@ export function Minimap(props: {
     }
     ctx.closePath();
     ctx.lineJoin = 'round';
-    if (props.mode === 'thumb') {
+    if (props.mode === MinimapModeNs.thumb) {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
       ctx.lineWidth = 1;
       ctx.stroke();
@@ -279,9 +283,9 @@ export function Minimap(props: {
     <canvas
       ref={canvas}
       class="minimap-canvas"
-      classList={{ thumb: props.mode === 'thumb' }}
+      classList={{ thumb: props.mode === MinimapModeNs.thumb }}
       onPointerDown={(e) => {
-        if (props.mode === 'thumb') return;
+        if (props.mode === MinimapModeNs.thumb) return;
         e.preventDefault();
         capturePointer(canvas, e);
         down = true;
@@ -290,7 +294,7 @@ export function Minimap(props: {
         downY = e.clientY;
         // The desktop card answers the press itself; the sheet waits to
         // see whether this is a tap or a drag.
-        if (props.mode === 'pan') {
+        if (props.mode === MinimapModeNs.pan) {
           scrubbing = true;
           const p = toWorld(e);
           src.jumpTo(p.x, p.z);
@@ -309,7 +313,7 @@ export function Minimap(props: {
         if (!down) return;
         const wasScrub = scrubbing;
         reset();
-        if (props.mode !== 'jump') return;
+        if (props.mode !== MinimapModeNs.jump) return;
         if (wasScrub) {
           // The drag already steered the camera where it was let go; the
           // release just gets the sheet out of the way of looking at it.

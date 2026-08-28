@@ -1,13 +1,12 @@
 import { For, Show, createSignal, type JSX } from 'solid-js';
-import type { AnimKey } from '../../../render/characters';
 import { HIRE_SERF_COST, HIRE_SERF_TICKS } from '../../../sim/defs/balance';
-import { BUILDING_DEFS } from '../../../sim/defs/buildings';
+import { BUILDING_DEFS, BuildingTypeId } from '../../../sim/defs/buildings';
 import {
   COUNTER_TABLE,
   UNIT_DEFS,
   WEAPON_OF,
-  type UnitClass,
-  type UnitTypeId,
+  UnitTypeId,
+  UnitClass,
 } from '../../../sim/defs/units';
 import { buildingName, techName, unitName } from '../../../ui/names';
 import { ALL_BUILDINGS, TRAINED_AT, UNIT_UNLOCKED_BY, fmtSecs } from '../data';
@@ -16,8 +15,9 @@ import { CostList, DocLink, GoodChip, Section, Stat, Stats } from '../components
 import { ModelCard } from '../preview/ModelCard';
 import { Prose } from '../prose';
 import { buildingHref, techHref, unitHref } from '../routes';
+import { AnimKey } from '../../../render/characters';
 
-const CLASSES: UnitClass[] = ['heavy', 'light', 'ranged'];
+const CLASSES: UnitClass[] = [UnitClass.heavy, UnitClass.light, UnitClass.ranged];
 
 /**
  * The clips worth watching, per kind of person. A soldier's third is the
@@ -28,16 +28,18 @@ const CLASSES: UnitClass[] = ['heavy', 'light', 'ranged'];
 function animOptions(unit: UnitTypeId): { key: AnimKey; label: string }[] {
   const combat = UNIT_DEFS[unit].combat;
   const walk: { key: AnimKey; label: string }[] = [
-    { key: 'idle', label: 'Idle' },
-    { key: 'walk', label: 'Walk' },
+    { key: AnimKey.idle, label: 'Idle' },
+    { key: AnimKey.walk, label: 'Walk' },
   ];
   if (!combat) {
-    return [...walk, { key: 'carry', label: 'Carry' }, { key: 'work', label: 'Work' }];
+    return [...walk, { key: AnimKey.carry, label: 'Carry' }, { key: AnimKey.work, label: 'Work' }];
   }
   return [
     ...walk,
-    combat.class === 'ranged' ? { key: 'shoot', label: 'Shoot' } : { key: 'attack', label: 'Attack' },
-    { key: 'death', label: 'Fall' },
+    combat.class === UnitClass.ranged
+      ? { key: AnimKey.shoot, label: 'Shoot' }
+      : { key: AnimKey.attack, label: 'Attack' },
+    { key: AnimKey.death, label: 'Fall' },
   ];
 }
 
@@ -48,7 +50,7 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
   const gate = UNIT_UNLOCKED_BY.get(props.id);
   const employers = ALL_BUILDINGS.filter((b) => BUILDING_DEFS[b].workerKind === props.id);
   const anims = animOptions(props.id);
-  const [anim, setAnim] = createSignal<AnimKey>('idle');
+  const [anim, setAnim] = createSignal<AnimKey>(AnimKey.idle);
   return (
     <>
       <p class="crumb">
@@ -132,12 +134,10 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
                 <DocLink href={buildingHref(t().building)}>{buildingName(t().building)}</DocLink>{' '}
                 for <CostList amounts={t().cost} /> in {fmtSecs(t().durationTicks)}
               </li>
-              <Show when={weapon}>
-                {(w) => (
-                  <li>
-                    Marches with a <GoodChip good={w()} /> — no weapon in store, no recruit
-                  </li>
-                )}
+              <Show when={weapon !== undefined}>
+                <li>
+                  Marches with a <GoodChip good={weapon!} /> — no weapon in store, no recruit
+                </li>
               </Show>
               <Show when={gate}>
                 {(tech) => (
@@ -150,14 +150,14 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
           </Section>
         )}
       </Show>
-      <Show when={props.id === 'serf'}>
+      <Show when={props.id === UnitTypeId.serf}>
         <Section title="Hiring">
           <p class="lede">
             <Prose
               text={
                 `Hired at the castle for ${HIRE_SERF_COST} silver; the recruit walks in ` +
                 `after ${fmtSecs(HIRE_SERF_TICKS)}. Every serf needs a bed — the castle ` +
-                `sleeps ${BUILDING_DEFS.storehouse.housing}, houses add the rest.`
+                `sleeps ${BUILDING_DEFS[BuildingTypeId.storehouse].housing}, houses add the rest.`
               }
               self={unitHref(props.id)}
             />
@@ -177,10 +177,10 @@ export function UnitPage(props: { id: UnitTypeId }): JSX.Element {
           </ul>
         </Section>
       </Show>
-      <Show when={props.id === 'worker'}>
+      <Show when={props.id === UnitTypeId.worker}>
         <p class="lede">
-          A worker is a <DocLink href={unitHref('serf')}>serf</DocLink> who took one of the posts
-          above; dismiss the post and he is a serf again.
+          A worker is a <DocLink href={unitHref(UnitTypeId.serf)}>serf</DocLink> who took one of the
+          posts above; dismiss the post and he is a serf again.
         </p>
       </Show>
     </>

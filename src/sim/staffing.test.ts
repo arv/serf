@@ -12,8 +12,13 @@ import {
   staffBuilding,
 } from './testUtils.ts';
 import { tileIdx } from '../shared/grid.ts';
-import { OUTPUT_CAP } from './defs/buildings.ts';
+import { OUTPUT_CAP, BuildingTypeId } from './defs/buildings.ts';
 import { bindWorker } from './systems/production.ts';
+import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
+import { TechId } from './defs/techs.ts';
+import { UnitTaskKind } from './units.ts';
+import { CommandKind } from './commands.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -39,16 +44,23 @@ describe('releasing a worker', () => {
     addStorehouse(world, 30, 30, {});
     addResourceTile(world, 40, 41);
     const hut = addBuiltHut(world, 40, 40);
-    hut.stock = { wood: OUTPUT_CAP };
+    hut.stock = { [GoodId.wood]: OUTPUT_CAP };
     const worker = world.units.get(hut.workerId!)!;
-    worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
+    worker.task = {
+      t: UnitTaskKind.gatherWork,
+      tile: tileIdx(40, 41, world.map.size),
+      until: 999_999,
+    };
 
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: true }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.setBuildingPaused, buildingId: hut.id, paused: true }),
+    );
 
-    expect(worker.kind).toBe('serf');
+    expect(worker.kind).toBe(UnitTypeId.serf);
     // Idle, or already claimed for a haul — either is in the pool. What is
     // fatal is a leftover gather task.
-    expect(['idle', 'haul']).toContain(worker.task.t);
+    expect([UnitTaskKind.idle, UnitTaskKind.haul]).toContain(worker.task.t);
   });
 
   it('does the same when the whole building is sold out from under him', () => {
@@ -57,78 +69,85 @@ describe('releasing a worker', () => {
     addResourceTile(world, 40, 41);
     const hut = addBuiltHut(world, 40, 40);
     const worker = world.units.get(hut.workerId!)!;
-    worker.task = { t: 'gatherWork', tile: tileIdx(40, 41, world.map.size), until: 999_999 };
+    worker.task = {
+      t: UnitTaskKind.gatherWork,
+      tile: tileIdx(40, 41, world.map.size),
+      until: 999_999,
+    };
 
-    tickWorld(world, cmds({ kind: 'sellBuilding', buildingId: hut.id }));
+    tickWorld(world, cmds({ kind: CommandKind.sellBuilding, buildingId: hut.id }));
 
     expect(worker.dead).toBe(false);
-    expect(worker.kind).toBe('serf');
-    expect(['idle', 'haul']).toContain(worker.task.t);
+    expect(worker.kind).toBe(UnitTypeId.serf);
+    expect([UnitTaskKind.idle, UnitTaskKind.haul]).toContain(worker.task.t);
   });
 });
 
 describe('the population economy', () => {
   it('an idle serf walks over and becomes the worker', () => {
     const world = bareWorld();
-    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
-    farm.inputs.water = 3;
-    farm.inputs.scythe = 1; // the post's tool, already on the rack
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 30, 30);
+    farm.inputs[GoodId.water] = 3;
+    farm.inputs[GoodId.scythe] = 1; // the post's tool, already on the rack
     const serf = addSerf(world, 36, 34);
     run(world, 20 * 15);
 
-    expect(serf.kind).toBe('worker');
+    expect(serf.kind).toBe(UnitTypeId.worker);
     expect(farm.workerId).toBe(serf.id);
-    expect(farm.stock.wheat ?? 0).toBeGreaterThan(0); // staffed => producing
+    expect(farm.stock[GoodId.wheat] ?? 0).toBeGreaterThan(0); // staffed => producing
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('unstaffed buildings produce nothing', () => {
     const world = bareWorld();
-    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
-    farm.inputs.water = 3;
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 30, 30);
+    farm.inputs[GoodId.water] = 3;
     run(world, 20 * 20); // no serfs anywhere
-    expect(farm.stock.wheat ?? 0).toBe(0);
+    expect(farm.stock[GoodId.wheat] ?? 0).toBe(0);
   });
 
   it('a dead worker is replaced from the serf pool', () => {
     const world = bareWorld();
-    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 30, 30);
     // The replacement's scythe: the first worker's died with him.
-    farm.inputs.scythe = 1;
+    farm.inputs[GoodId.scythe] = 1;
     const worker = staffBuilding(world, farm);
     const spare = addSerf(world, 35, 35);
     run(world, 5);
     killUnit(world, worker);
     run(world, 20 * 15);
 
-    expect(spare.kind).toBe('worker');
+    expect(spare.kind).toBe(UnitTypeId.worker);
     expect(farm.workerId).toBe(spare.id);
   });
 
   it('staffing competes with hauling: one serf cannot do both', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { wood: 20 });
-    placeBuiltBuilding(world, 'wheatFarm', 0, 22, 30);
+    addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
+    placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 22, 30);
     addSerf(world, 28, 34); // exactly one person
     run(world, 20 * 15);
 
     // The lone serf took the farm post — nobody is left to haul.
     const kinds = [...world.units.values()].map((u) => u.kind);
-    expect(kinds).toEqual(['worker']);
+    expect(kinds).toEqual([UnitTypeId.worker]);
   });
 
   it('training a soldier consumes a serf (people become the army)', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { food: 6, spear: 2 });
-    world.players[0]!.techs.researched.push('soldiery');
-    const barracks = placeBuiltBuilding(world, 'barracks', 0, 36, 30);
+    addStorehouse(world, 30, 30, { [GoodId.food]: 6, [GoodId.spear]: 2 });
+    world.players[0]!.techs.researched.push(TechId.soldiery);
+    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     addSerf(world, 34, 34);
     addSerf(world, 33, 34); // one hauls, one enlists
     const peopleBefore = [...world.units.values()].filter((u) => !u.dead).length;
-    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: 'spearman' }));
+    tickWorld(
+      world,
+      cmds({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: UnitTypeId.spearman }),
+    );
     run(world, 20 * 90);
 
-    const spearman = [...world.units.values()].filter((u) => u.kind === 'spearman');
+    const spearman = [...world.units.values()].filter((u) => u.kind === UnitTypeId.spearman);
     expect(spearman.length).toBe(1);
     // Net population unchanged: serf out, soldier in.
     const peopleAfter = [...world.units.values()].filter((u) => !u.dead).length;
@@ -138,23 +157,23 @@ describe('the population economy', () => {
 
   it('a destroyed building frees its en-route recruit', () => {
     const world = bareWorld();
-    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 30, 30);
-    farm.inputs.scythe = 1; // recruitment waits on the post's tool
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 30, 30);
+    farm.inputs[GoodId.scythe] = 1; // recruitment waits on the post's tool
     const serf = addSerf(world, 44, 44); // long walk
     run(world, 30); // recruitment fires, serf is en route
-    expect(serf.task.t).toBe('staff');
+    expect(serf.task.t).toBe(UnitTaskKind.staff);
     farm.dead = true;
     run(world, 20 * 10);
 
     expect(serf.dead).toBe(false);
-    expect(serf.kind).toBe('serf');
-    expect(serf.task.t === 'idle' || serf.task.t === 'move').toBe(true);
+    expect(serf.kind).toBe(UnitTypeId.serf);
+    expect(serf.task.t === UnitTaskKind.idle || serf.task.t === UnitTaskKind.move).toBe(true);
   });
 
   it('the well keeps no one, and still supplies the farm', () => {
     const world = bareWorld();
-    const well = placeBuiltBuilding(world, 'well', 0, 30, 30);
-    const farm = placeBuiltBuilding(world, 'wheatFarm', 0, 34, 29);
+    const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 30, 30);
+    const farm = placeBuiltBuilding(world, BuildingTypeId.wheatFarm, 0, 34, 29);
     const hauler = addSerf(world, 32, 32);
     staffBuilding(world, farm);
     run(world, 20 * 60);
@@ -163,32 +182,32 @@ describe('the population economy', () => {
     expect(well.workerId).toBeUndefined();
     expect(hauler.homeId).toBeUndefined();
     // The water reached the farm and came out the other side as grain.
-    expect(farm.stock.wheat ?? 0).toBeGreaterThan(0);
+    expect(farm.stock[GoodId.wheat] ?? 0).toBeGreaterThan(0);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('a save from before the well lost its keeper gives the hand back', () => {
     const world = bareWorld();
-    const well = placeBuiltBuilding(world, 'well', 0, 30, 30);
+    const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 30, 30);
     // Exactly what an older save deserializes into: a standing well with a
     // resident bound to it, from the days when its def asked for one.
     const keeper = addSerf(world, 30, 31);
-    keeper.kind = 'worker';
+    keeper.kind = UnitTypeId.worker;
     bindWorker(well, keeper);
     expect(well.workerId).toBe(keeper.id);
 
     run(world, 30); // past one recruitment sweep
 
     expect(well.workerId).toBeUndefined();
-    expect(keeper.kind).toBe('serf');
+    expect(keeper.kind).toBe(UnitTypeId.serf);
     expect(keeper.homeId).toBeUndefined();
-    expect(keeper.task.t).toBe('idle');
+    expect(keeper.task.t).toBe(UnitTaskKind.idle);
     expect(checkInvariants(world).violations).toEqual([]);
   });
 
   it('drawing costs the hauler its six seconds at the windlass', () => {
     const world = bareWorld();
-    const well = placeBuiltBuilding(world, 'well', 0, 30, 30);
+    const well = placeBuiltBuilding(world, BuildingTypeId.well, 0, 30, 30);
     const store = addStorehouse(world, 34, 30, {});
     const serf = addSerf(world, 31, 31);
 
@@ -214,6 +233,6 @@ describe('the population economy', () => {
     // Nothing in its hands until the windlass is done.
     expect(carriedWhileDrawing).toBe(false);
     // And then the water arrives.
-    expect(store.stock.water ?? 0).toBeGreaterThan(0);
+    expect(store.stock[GoodId.water] ?? 0).toBeGreaterThan(0);
   });
 });

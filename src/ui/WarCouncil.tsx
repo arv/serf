@@ -7,6 +7,11 @@ import {
   type AiStrategyId,
 } from '../sim/defs/aiStrategies';
 import { DiceIcon } from './menuChrome';
+import { PlayerKind } from '../sim/player';
+import type { Enum } from '../shared/enum.ts';
+import * as CouncilPhaseNs from './councilPhaseEnum.ts';
+export * as CouncilPhase from './councilPhaseEnum.ts';
+export type CouncilPhase = Enum<typeof CouncilPhaseNs>;
 
 /**
  * The multiplayer waiting room: the start screen's sibling, not its
@@ -27,10 +32,10 @@ export interface CouncilView {
   /** One-line context from the journey here ('Your previous match has
    * ended.') — shown quietly above the lobby. */
   notice?: string;
-  phase: 'connecting' | 'lobby';
+  phase: CouncilPhase;
   code: string;
   yourSeat: number;
-  seats: { kind: 'human' | 'ai'; connected: boolean }[];
+  seats: { kind: PlayerKind.human | 'ai'; connected: boolean }[];
   config: LobbyConfig;
 }
 
@@ -78,7 +83,15 @@ const COUNCIL_STYLE = `
 
 function ShareIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+    >
       <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7L11 5" />
       <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L13 19" />
     </svg>
@@ -96,7 +109,7 @@ interface SeatRow {
 export function WarCouncil(props: CouncilHooks) {
   const [shared, setShared] = createSignal(false);
   const v = props.view;
-  const inRoom = (): boolean => v().phase === 'lobby';
+  const inRoom = (): boolean => v().phase === CouncilPhaseNs.lobby;
   // Seat 0 runs the council. Derived, not passed in: if the host leaves the
   // lobby the relay renumbers the seats, and whoever lands at 0 inherits
   // the controls without a reload.
@@ -147,7 +160,13 @@ export function WarCouncil(props: CouncilHooks) {
       });
     }
     while (out.length < MAX_SEATS) {
-      out.push({ color: '', who: 'Open seat', state: 'share the invite', stateClass: '', open: true });
+      out.push({
+        color: '',
+        who: 'Open seat',
+        state: 'share the invite',
+        stateClass: '',
+        open: true,
+      });
     }
     return out;
   };
@@ -192,9 +211,7 @@ export function WarCouncil(props: CouncilHooks) {
               </p>
             </Show>
             <p class="tagline">
-              {inRoom()
-                ? 'The march begins when the host gives the word.'
-                : 'Reaching the relay…'}
+              {inRoom() ? 'The march begins when the host gives the word.' : 'Reaching the relay…'}
             </p>
           </div>
 
@@ -250,9 +267,7 @@ export function WarCouncil(props: CouncilHooks) {
                     <div>
                       <div class="row-label">Who they are</div>
                       <div class="row-hint">
-                        {isHost()
-                          ? 'Random keeps it to itself until the march'
-                          : 'Set by the host'}
+                        {isHost() ? 'Random keeps it to itself until the march' : 'Set by the host'}
                       </div>
                     </div>
                     <div class="opponents">
@@ -314,9 +329,7 @@ export function WarCouncil(props: CouncilHooks) {
                       <button
                         class="icon-btn"
                         title="Random seed"
-                        onClick={() =>
-                          patch({ seed: Math.floor(Math.random() * 9e7) + 1e7 })
-                        }
+                        onClick={() => patch({ seed: Math.floor(Math.random() * 9e7) + 1e7 })}
                       >
                         <DiceIcon />
                       </button>

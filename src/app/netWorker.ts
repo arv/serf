@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { SAB_BYTES, SabWriter } from '../protocol/sabLayout';
+import { SAB_BYTES, SabWriter, type UnitSnapshot } from '../protocol/sabLayout';
 import { decodeState, encodeCmd, encodePing } from '../protocol/state';
 import { MovePredictor } from '../net/predict';
 import type {
@@ -11,8 +11,8 @@ import type {
   StructuralUpdate,
   WorkerToMain,
 } from '../protocol/messages';
-import type { SimCommand } from '../sim/commands';
-import type { UnitSnapshot } from '../protocol/sabLayout';
+import { type SimCommand, CommandKind } from '../sim/commands';
+import { MainToWorkerKind, WorkerToMainKind, NetState } from '../protocol/messages';
 
 /**
  * The multiplayer client's end of the wire. It holds the socket, decodes the
@@ -49,7 +49,7 @@ function postStatus(status: NetStatus): void {
   const key = JSON.stringify(status);
   if (key === lastStatus) return;
   lastStatus = key;
-  post({ type: 'netStatus', status });
+  post({ type: WorkerToMainKind.netStatus, status });
 }
 
 interface InitPayload {
@@ -67,7 +67,7 @@ function rosterUpdate(
   fullMap?: StructuralUpdate['fullMap'],
 ): StructuralUpdate {
   return {
-    type: 'structural',
+    type: WorkerToMainKind.structural,
     tick,
     buildings: payload.buildings,
     mapDeltas: [],
@@ -90,7 +90,7 @@ function onInit(tick: number, map: MapSnapshot, explored: Uint8Array, payload: I
     started = true;
     sab = new SharedArrayBuffer(SAB_BYTES);
     writer = new SabWriter(sab);
-    post({ type: 'ready', sab, map, buildings: payload.buildings, explored });
+    post({ type: WorkerToMainKind.ready, sab, map, buildings: payload.buildings, explored });
     // The roster arrives with the map, so the HUD has stock and tech
     // immediately rather than after the first structural frame.
     post(rosterUpdate(tick, payload));
@@ -124,7 +124,7 @@ function onFrame(data: Uint8Array): void {
     }
     case 'struct': {
       const json = frame.json as Omit<StructuralUpdate, 'type' | 'tick'>;
-      post({ ...json, type: 'structural', tick: frame.tick });
+      post({ ...json, type: WorkerToMainKind.structural, tick: frame.tick });
       return;
     }
     case 'pong': {
@@ -133,7 +133,7 @@ function onFrame(data: Uint8Array): void {
       // keep the previous estimate rather than reporting nonsense.
       const rtt = (Date.now() % 0xffffffff) - frame.clientTimeEcho;
       if (rtt >= 0 && rtt < 60_000) rttMs = rtt;
-      postStatus({ state: 'ok', rttMs });
+      postStatus({ state: NetState.ok, rttMs });
       return;
     }
     default:
@@ -208,12 +208,15 @@ function connect(net: NetInfo, attempt: number): void {
         if (msg.t === 'error') {
           gone = true;
           postStatus({
-            state: 'gone',
+            state: NetState.gone,
             message: 'The room has wound down — the match is over.',
           });
           ws.close();
         } else if (msg.t === 'replay') {
-          post({ type: 'replayData', data: typeof msg.data === 'string' ? msg.data : '' });
+          post({
+            type: WorkerToMainKind.replayData,
+            data: typeof msg.data === 'string' ? msg.data : '',
+          });
         }
       } catch {
         // Non-JSON lobby chatter; nothing to do.
@@ -224,7 +227,7 @@ function connect(net: NetInfo, attempt: number): void {
   };
   ws.onclose = () => {
     if (gone) return;
-    postStatus({ state: 'disconnected' });
+    postStatus({ state: NetState.disconnected });
     const delay = Math.min(500 * 2 ** attempt, 8000);
     setTimeout(() => connect(net, attempt + 1), delay);
   };
@@ -248,7 +251,7 @@ function sendCommands(commands: SimCommand[]): void {
   // Start moving before the server has heard the order — the dead window
   // between click and answer is the whole of what a player feels as lag.
   for (const cmd of commands) {
-    if (cmd.kind === 'moveUnits') {
+    if (cmd.kind === CommandKind.moveUnits) {
       lastUnitsIndex ??= new Map(lastUnitRows.map((u) => [u.id, u]));
       predictor?.order(cmd.unitIds, cmd.x, cmd.y, lastUnitsIndex);
     }
@@ -259,17 +262,17 @@ function sendCommands(commands: SimCommand[]): void {
 self.onmessage = (e: MessageEvent<MainToWorker>) => {
   const msg = e.data;
   switch (msg.type) {
-    case 'init':
+    case MainToWorkerKind.init:
       if (!msg.net) throw new Error('netWorker requires net info');
       myPlayerId = msg.net.playerId;
       init(msg.net);
       break;
-    case 'commands':
+    case MainToWorkerKind.commands:
       // The envelope's playerId is advisory here — the server stamps
       // identity from the authenticated seat.
       sendCommands(msg.commands.map((c) => c.cmd));
       break;
-    case 'setDebug':
+    case MainToWorkerKind.setDebug:
       // The server holds the jobs table, so the overlay's open/closed state
       // is relayed to it rather than handled here.
       if (debugWanted !== msg.enabled) {
@@ -277,7 +280,7 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
         if (socket?.readyState === WebSocket.OPEN) sendDebug(socket);
       }
       break;
-    case 'setHidden':
+    case MainToWorkerKind.setHidden:
       // The shared world runs on whoever looks away — but this seat's
       // stream needn't. Tell the relay; it stops sending while we are
       // hidden and answers the return with a full init resync (the same
@@ -296,7 +299,7 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
         connect(netInfo, 0);
       }
       break;
-    case 'requestReplay':
+    case MainToWorkerKind.requestReplay:
       // The server holds the world, so it holds the recording too. Ask for
       // this seat's copy; the answer comes back as a {t:'replay'} string
       // frame. With no live socket, answer empty ourselves — the promise
@@ -304,14 +307,14 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       if (socket?.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ t: 'replay' }));
       } else {
-        post({ type: 'replayData', data: '' });
+        post({ type: WorkerToMainKind.replayData, data: '' });
       }
       break;
     // Speed and saving are single-player affairs: a shared world runs at
     // one rate whoever looks away, and there is nothing local to
     // serialize.
-    case 'setSpeed':
-    case 'requestSave':
+    case MainToWorkerKind.setSpeed:
+    case MainToWorkerKind.requestSave:
       break;
   }
 };

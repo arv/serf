@@ -8,20 +8,26 @@
  * Per-player filtering happens above, on the server, so the two concerns
  * stay separable.
  */
-import { TOOL_OF, buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings.ts';
+import {
+  TOOL_OF,
+  buildingDef,
+  gatherOrigin,
+  gatherRecipeOf,
+  BuildingTypeId,
+  RecipeKind,
+} from '../sim/defs/buildings.ts';
 import { HIRE_SERF_TICKS } from '../sim/defs/balance.ts';
 import { TECH_DEFS } from '../sim/defs/techs.ts';
-import { GOODS, type GoodAmounts, type GoodId } from '../sim/defs/goods.ts';
-import { UNIT_DEFS, carryingCode } from '../sim/defs/units.ts';
+import { GOODS, type GoodAmounts, GoodId } from '../sim/defs/goods.ts';
+import { UNIT_DEFS, carryingCode, UnitTypeId } from '../sim/defs/units.ts';
 import { ACTION, PROFESSION, WORK, type UnitSnapshot } from './sabLayout.ts';
-import { centerOf } from '../sim/entities.ts';
-import { RESOURCE_CODE, countResourceNear } from '../sim/map.ts';
+import { centerOf, type Building, type Owner, BuildingState } from '../sim/entities.ts';
+import { countResourceNear, TileResource } from '../sim/map.ts';
 import { exactDist } from '../shared/math.ts';
 import { distToFootprint } from '../sim/arrival.ts';
-import type { World } from '../sim/world.ts';
-import type { Building, Owner } from '../sim/entities.ts';
-import type { Unit } from '../sim/units.ts';
-import type { BuildingSnap, JobSnap, PlayerSnap } from './messages.ts';
+import { type World, HaulPhase } from '../sim/world.ts';
+import { type Unit, UnitTaskKind } from '../sim/units.ts';
+import { type BuildingSnap, type JobSnap, type PlayerSnap, StaffingState } from './messages.ts';
 
 export function snapBuilding(world: World, b: Building): BuildingSnap {
   const def = buildingDef(b.type);
@@ -30,11 +36,17 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
   // so it reports no staffing state rather than a false "needed" alarm.
   const wantsStaff =
     !b.paused &&
-    (b.state === 'built' ? def.workerKind !== undefined : b.state === 'site' && !def.isRoad);
+    (b.state === BuildingState.built
+      ? def.workerKind !== undefined
+      : b.state === BuildingState.site && !def.isRoad);
   if (wantsStaff) {
     const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
     staffing =
-      worker && !worker.dead ? 'staffed' : b.recruitId !== undefined ? 'recruiting' : 'needed';
+      worker && !worker.dead
+        ? StaffingState.staffed
+        : b.recruitId !== undefined
+          ? StaffingState.recruiting
+          : StaffingState.needed;
   }
   return {
     staffing,
@@ -53,7 +65,9 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     repairNeeds: b.repairNeeds ? { ...b.repairNeeds } : undefined,
     repairPending: b.repairPending,
     progress01:
-      b.state === 'site' && def.buildTicks > 0 ? (b.buildProgress ?? 0) / def.buildTicks : undefined,
+      b.state === BuildingState.site && def.buildTicks > 0
+        ? (b.buildProgress ?? 0) / def.buildTicks
+        : undefined,
     stock: { ...b.stock },
     inputs: { ...b.inputs },
     inbound: { ...b.inbound },
@@ -101,13 +115,7 @@ function reachableResource(world: World, b: Building): number | undefined {
   const gather = gatherRecipeOf(def);
   if (!gather) return undefined;
   const origin = gatherOrigin(def, b.x, b.y);
-  return countResourceNear(
-    world.map,
-    origin.x,
-    origin.y,
-    RESOURCE_CODE[gather.resource],
-    gather.radius,
-  );
+  return countResourceNear(world.map, origin.x, origin.y, gather.resource, gather.radius);
 }
 
 export function snapBuildings(world: World): BuildingSnap[] {
@@ -134,15 +142,19 @@ export function snapPlayers(world: World): PlayerSnap[] {
   };
   for (const b of world.buildings.values()) {
     if (b.dead) continue;
-    if (b.state === 'site') {
+    if (b.state === BuildingState.site) {
       // A site still owed its borrowed hammer counts as a hammer want.
-      if (!b.paused && (b.siteNeeds?.hammer ?? 0) > 0 && (b.inbound.hammer ?? 0) === 0) {
-        wantTool(b.owner, 'hammer');
+      if (
+        !b.paused &&
+        (b.siteNeeds?.[GoodId.hammer] ?? 0) > 0 &&
+        (b.inbound[GoodId.hammer] ?? 0) === 0
+      ) {
+        wantTool(b.owner, GoodId.hammer);
       }
       continue;
     }
-    if (b.state !== 'built') continue;
-    if (b.type === 'abbey') abbeyOwners.add(b.owner);
+    if (b.state !== BuildingState.built) continue;
+    if (b.type === BuildingTypeId.abbey) abbeyOwners.add(b.owner);
     if (!storehouses.has(b.owner) && buildingDef(b.type).storage) storehouses.set(b.owner, b);
     const housing = buildingDef(b.type).housing;
     if (housing) beds.set(b.owner, (beds.get(b.owner) ?? 0) + housing);
@@ -212,9 +224,9 @@ export function snapJobs(world: World, owner?: number): JobSnap[] {
  * whole population bar one or two serfs at any moment.
  */
 function drawingAt(w: World, u: Unit): Building | undefined {
-  if (u.task.t !== 'haul' || u.jobId === undefined) return undefined;
+  if (u.task.t !== UnitTaskKind.haul || u.jobId === undefined) return undefined;
   const job = w.jobs.get(u.jobId);
-  if (!job || job.phase !== 'toPickup' || job.drawUntil === undefined) return undefined;
+  if (!job || job.phase !== HaulPhase.toPickup || job.drawUntil === undefined) return undefined;
   if (w.tick >= job.drawUntil) return undefined;
   return w.buildings.get(job.from);
 }
@@ -266,16 +278,16 @@ function actionOf(w: World, u: Unit, engaged: boolean): number {
   // Engaged fighters swing (the renderer overrides with a walk while moving).
   if (engaged) return ACTION.fight;
   // Gather workers swinging at a resource tile.
-  if (u.task.t === 'gatherWork') return ACTION.work;
+  if (u.task.t === UnitTaskKind.gatherWork) return ACTION.work;
   // A hauler on the well's windlass. The well keeps no resident, so this is
   // the only way anyone is ever seen drawing.
   if (drawingAt(w, u) !== undefined) return ACTION.work;
   // Resident workers: builders hammering up their site once materials are
   // in, or convert-building staff mid-batch (hoeing, hammering...).
-  if (u.homeId !== undefined && u.task.t === 'idle') {
+  if (u.homeId !== undefined && u.task.t === UnitTaskKind.idle) {
     const home = w.buildings.get(u.homeId);
     if (home && !home.dead) {
-      if (home.state === 'site') {
+      if (home.state === BuildingState.site) {
         const waiting = GOODS.some((g) => ((home.siteNeeds ?? {})[g] ?? 0) > 0);
         return waiting ? ACTION.idle : ACTION.work;
       }
@@ -287,19 +299,19 @@ function actionOf(w: World, u: Unit, engaged: boolean): number {
 
 /** Workplace flavor for profession-dressed worker bodies (the farmer's straw hat). */
 function professionOf(w: World, u: Unit): number {
-  if (u.kind !== 'worker' || u.homeId === undefined) return PROFESSION.none;
+  if (u.kind !== UnitTypeId.worker || u.homeId === undefined) return PROFESSION.none;
   const home = w.buildings.get(u.homeId);
   if (!home || home.dead) return PROFESSION.none;
   // The look comes with the job, not the job offer: a builder raising his
   // own future farm stays a plain laborer until the roof is on — the
   // straw hat goes on when farming starts.
-  if (home.state !== 'built') return PROFESSION.none;
-  if (home.type === 'wheatFarm') return PROFESSION.farmer;
+  if (home.state !== BuildingState.built) return PROFESSION.none;
+  if (home.type === BuildingTypeId.wheatFarm) return PROFESSION.farmer;
   if (
-    home.type === 'quarry' ||
-    home.type === 'ironMine' ||
-    home.type === 'silverMine' ||
-    home.type === 'goldMine'
+    home.type === BuildingTypeId.quarry ||
+    home.type === BuildingTypeId.ironMine ||
+    home.type === BuildingTypeId.silverMine ||
+    home.type === BuildingTypeId.goldMine
   ) {
     return PROFESSION.miner;
   }
@@ -310,18 +322,18 @@ function professionOf(w: World, u: Unit): number {
 function workKindOf(w: World, u: Unit): number {
   // A hauler mid-draw has no post; the building it is standing at is what
   // says which animation to play.
-  if (drawingAt(w, u)?.type === 'well') return WORK.draw;
+  if (drawingAt(w, u)?.type === BuildingTypeId.well) return WORK.draw;
   const home = u.homeId !== undefined ? w.buildings.get(u.homeId) : undefined;
   if (!home) return WORK.tend;
-  if (home.state === 'site') return WORK.hammer; // builder at the frame
+  if (home.state === BuildingState.site) return WORK.hammer; // builder at the frame
   const def = buildingDef(home.type);
-  if (def.recipe?.kind === 'gather') {
-    return def.recipe.resource === 'wood' ? WORK.chop : WORK.pickaxe;
+  if (def.recipe?.kind === RecipeKind.gather) {
+    return def.recipe.resource === TileResource.Wood ? WORK.chop : WORK.pickaxe;
   }
-  if (home.type === 'weaponsmith') return WORK.hammer;
-  if (home.type === 'wheatFarm') return WORK.dig;
-  if (home.type === 'well') return WORK.draw; // cranking the bucket up
-  if (home.type === 'fishery') return WORK.fish; // pole out on the pier
+  if (home.type === BuildingTypeId.weaponsmith) return WORK.hammer;
+  if (home.type === BuildingTypeId.wheatFarm) return WORK.dig;
+  if (home.type === BuildingTypeId.well) return WORK.draw; // cranking the bucket up
+  if (home.type === BuildingTypeId.fishery) return WORK.fish; // pole out on the pier
   return WORK.tend;
 }
 
@@ -336,7 +348,7 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
       id: u.id,
       x: u.x,
       y: u.y,
-      kind: UNIT_DEFS[u.kind].kindCode,
+      kind: u.kind,
       owner: u.owner, // numeric owner rides the aux byte raw
       hpPct:
         action === ACTION.dead

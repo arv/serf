@@ -1,6 +1,12 @@
-import { BUILDING_DEFS, type BuildingTypeId } from '../../sim/defs/buildings';
-import { GOODS, type GoodId } from '../../sim/defs/goods';
-import { UNIT_DEFS, type UnitTypeId } from '../../sim/defs/units';
+import {
+  BUILDING_DEFS,
+  type BuildingTypeId,
+  buildingFromKey,
+  BUILDING_KEYS,
+} from '../../sim/defs/buildings';
+import { GOODS, type GoodId, goodFromKey, GOOD_KEYS } from '../../sim/defs/goods';
+import { UNIT_DEFS, type UnitTypeId, UNIT_KEYS, unitFromKey } from '../../sim/defs/units';
+import { TECH_KEYS, TechId } from '../../sim/defs/techs';
 
 /**
  * What a /docs URL names. Pure — the screen feeds it location.pathname and
@@ -39,15 +45,22 @@ export function parseDocsPath(pathname: string): DocsRoute {
       return { page: 'index' };
     case 'buildings':
       if (id === undefined) return { page: 'buildings' };
-      if (isKeyOf(BUILDING_DEFS, id)) return { page: 'building', id };
+      {
+        const building = buildingFromKey(id);
+        if (building !== undefined) return { page: 'building', id: building };
+      }
       return { page: 'missing', path: pathname };
     case 'units':
       if (id === undefined) return { page: 'units' };
-      if (isKeyOf(UNIT_DEFS, id)) return { page: 'unit', id };
+      {
+        const unit = unitFromKey(id);
+        if (unit !== undefined) return { page: 'unit', id: unit };
+      }
       return { page: 'missing', path: pathname };
     case 'goods':
       if (id === undefined) return { page: 'goods' };
-      if ((GOODS as readonly string[]).includes(id)) return { page: 'good', id: id as GoodId };
+      const good = goodFromKey(id);
+      if (good !== undefined) return { page: 'good', id: good };
       return { page: 'missing', path: pathname };
     case 'techs':
       if (id === undefined) return { page: 'techs' };
@@ -64,15 +77,15 @@ export function parseDocsPath(pathname: string): DocsRoute {
 }
 
 export function buildingHref(id: BuildingTypeId): string {
-  return `/docs/buildings/${id}`;
+  return `/docs/buildings/${BUILDING_KEYS[id]}`;
 }
 export function unitHref(id: UnitTypeId): string {
-  return `/docs/units/${id}`;
+  return `/docs/units/${UNIT_KEYS[id]}`;
 }
 export function goodHref(id: GoodId): string {
-  return `/docs/goods/${id}`;
+  return `/docs/goods/${GOOD_KEYS[id]}`;
 }
 /** Techs share one page; a tech link is an anchor on it. */
-export function techHref(id: string): string {
-  return `/docs/techs#tech-${id}`;
+export function techHref(id: TechId): string {
+  return `/docs/techs#tech-${TECH_KEYS[id]}`;
 }

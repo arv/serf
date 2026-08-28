@@ -1,14 +1,15 @@
 import { ALE_TRAIN_SPEEDUP, TICKS_PER_SECOND } from '../defs/balance.ts';
 import { TOOL_OF, buildingDef, garrisonRoom } from '../defs/buildings.ts';
-import { GOODS, type GoodId } from '../defs/goods.ts';
+import { GOODS, GoodId, goodEntries } from '../defs/goods.ts';
 import { findPathToAdjacent } from '../path.ts';
 import { atBuilding, walkToBuilding } from '../arrival.ts';
 import { bindWorker, consumePostTool, unbindWorker } from './production.ts';
 import { evictGarrison } from './training.ts';
-import { isPlayerOwner, type Building, type Owner } from '../entities.ts';
-import type { UnitTypeId } from '../defs/units.ts';
-import type { Unit } from '../units.ts';
+import { isPlayerOwner, type Building, type Owner, BuildingState } from '../entities.ts';
+import { type Unit, UnitTaskKind } from '../units.ts';
 import type { World } from '../world.ts';
+import { UnitTypeId } from '../defs/units.ts';
+import { TechId } from '../defs/techs.ts';
 
 const REQUEST_INTERVAL = 25; // ticks between recruitment sweeps
 const UNREACHABLE_BACKOFF = REQUEST_INTERVAL; // hold before re-pathing to a walled-off post
@@ -58,7 +59,7 @@ export function staffingSystem(world: World): void {
  */
 function releaseObsoletePosts(world: World): void {
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built' || b.workerId === undefined) continue;
+    if (b.dead || b.state !== BuildingState.built || b.workerId === undefined) continue;
     if (buildingDef(b.type).workerKind !== undefined) continue;
     const worker = world.units.get(b.workerId);
     if (!worker || worker.dead) {
@@ -87,7 +88,7 @@ function releaseObsoletePosts(world: World): void {
  */
 function emptyHaltedTowers(world: World): void {
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built' || !b.paused || !b.garrison) continue;
+    if (b.dead || b.state !== BuildingState.built || !b.paused || !b.garrison) continue;
     if (!buildingDef(b.type).garrison) continue;
     evictGarrison(world, b, b.garrison);
   }
@@ -106,15 +107,13 @@ export function firstReadyTraining(b: Building): number {
     if (item.started) return false;
     const opt = def.trains!.find((o) => o.unit === item.unit);
     if (!opt) return false;
-    return (Object.entries(opt.cost) as [GoodId, number][]).every(
-      ([good, n]) => (b.inputs[good] ?? 0) >= n,
-    );
+    return goodEntries(opt.cost).every(([good, n]) => (b.inputs[good] ?? 0) >= n);
   });
 }
 
 function handleArrivals(world: World): void {
   for (const unit of world.units.values()) {
-    if (unit.dead || unit.task.t !== 'staff' || unit.path !== null) continue;
+    if (unit.dead || unit.task.t !== UnitTaskKind.staff || unit.path !== null) continue;
     const b = world.buildings.get(unit.task.buildingId);
     // Arrived, or just out of road? A walk ended short by new construction
     // would otherwise bind a worker to a post he is nowhere near — or, at a
@@ -122,7 +121,7 @@ function handleArrivals(world: World): void {
     // reserved for him while there is still a way to it.
     if (b && !b.dead && !atBuilding(unit, b) && walkToBuilding(world.map, unit, b)) continue;
     if (b?.recruitId === unit.id) b.recruitId = undefined;
-    unit.task = { t: 'idle', until: world.tick };
+    unit.task = { t: UnitTaskKind.idle, until: world.tick };
     if (!b || b.dead) continue;
 
     const def = buildingDef(b.type);
@@ -134,15 +133,15 @@ function handleArrivals(world: World): void {
     // the roof back — letting a soldier climb in anyway would hand one
     // straight back to the order that just emptied it.
     if (b.paused) continue;
-    if (b.state === 'site') {
+    if (b.state === BuildingState.site) {
       // The builder: this serf raises the building (construction only
       // advances while they're on site) and stays on as its worker.
       if (def.isRoad || liveWorker(world, b)) continue;
-      unit.kind = def.workerKind ?? 'worker';
+      unit.kind = def.workerKind ?? UnitTypeId.worker;
       bindWorker(b, unit);
       continue;
     }
-    if (b.state !== 'built') continue;
+    if (b.state !== BuildingState.built) continue;
     if (def.garrison && unit.kind === def.garrison.unit) {
       // The tower's archer climbs in. Consumed exactly as a barracks
       // recruit is — no unit is left standing outside for a raider to
@@ -194,7 +193,7 @@ function handleArrivals(world: World): void {
       }
       const head = b.trainQueue![0]!;
       const option = def.trains.find((o) => o.unit === head.unit)!;
-      for (const [good, n] of Object.entries(option.cost) as [GoodId, number][]) {
+      for (const [good, n] of goodEntries(option.cost)) {
         b.inputs[good] = (b.inputs[good] ?? 0) - n;
         world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
       }
@@ -204,11 +203,11 @@ function handleArrivals(world: World): void {
       // Checked here and not in cost — no ale never blocks the course, and
       // a cancelled order doesn't refund a drink already drunk.
       if (
-        (b.inputs.ale ?? 0) > 0 &&
-        world.players[b.owner]?.techs.researched.includes('aleRations')
+        (b.inputs[GoodId.ale] ?? 0) > 0 &&
+        world.players[b.owner]?.techs.researched.includes(TechId.aleRations)
       ) {
-        b.inputs.ale = (b.inputs.ale ?? 0) - 1;
-        world.ledger.consumed.ale = (world.ledger.consumed.ale ?? 0) + 1;
+        b.inputs[GoodId.ale] = (b.inputs[GoodId.ale] ?? 0) - 1;
+        world.ledger.consumed[GoodId.ale] = (world.ledger.consumed[GoodId.ale] ?? 0) + 1;
         head.ticksLeft = Math.max(1, Math.round(option.durationTicks / ALE_TRAIN_SPEEDUP));
       }
       unit.dead = true; // the person is now inside, training
@@ -245,7 +244,7 @@ function handleArrivals(world: World): void {
 function wantedKinds(b: Building): UnitTypeId[] {
   const def = buildingDef(b.type);
   const g = def.garrison;
-  if (!g || b.state !== 'built') return ['serf'];
+  if (!g || b.state !== BuildingState.built) return [UnitTypeId.serf];
   if (b.paused) return [];
   const room = garrisonRoom(def, b);
   const kinds: UnitTypeId[] = [];
@@ -287,7 +286,7 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     if (b.dead || !isPlayerOwner(b.owner)) continue;
     if (
       starvedOnly &&
-      (b.state !== 'site' ||
+      (b.state !== BuildingState.site ||
         b.builderWantedSince === undefined ||
         world.tick - b.builderWantedSince < BUILDER_STARVED_TICKS)
     ) {
@@ -302,12 +301,12 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     // halting one is the order to take its roof back, so calling a soldier
     // over to climb straight up it would undo the order as it was given.
     if (b.paused) continue;
-    if (b.state === 'site' ? def.isRoad : b.state !== 'built') continue;
+    if (b.state === BuildingState.site ? def.isRoad : b.state !== BuildingState.built) continue;
 
     // Validate any recruit en route.
     if (b.recruitId !== undefined) {
       const r = world.units.get(b.recruitId);
-      if (!r || r.dead || r.task.t !== 'staff' || r.task.buildingId !== b.id) {
+      if (!r || r.dead || r.task.t !== UnitTaskKind.staff || r.task.buildingId !== b.id) {
         b.recruitId = undefined;
       } else {
         continue; // someone is on the way
@@ -323,7 +322,7 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     // `state === 'site'`, so summing it for the settlement's built
     // buildings — twenty optional lookups and a closure apiece, every
     // sweep — only ever produced a number nothing read.
-    const isSite = b.state === 'site';
+    const isSite = b.state === BuildingState.site;
     let needsLeft = 0;
     if (isSite) for (const g of GOODS) needsLeft += b.siteNeeds?.[g] ?? 0;
     const wantsBuilder =
@@ -343,7 +342,7 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     }
     const tool = TOOL_OF[b.type];
     const wantsWorker =
-      b.state === 'built' &&
+      b.state === BuildingState.built &&
       def.workerKind !== undefined &&
       !liveWorker(world, b) &&
       // A tool-gated post summons nobody until its tool hangs in the
@@ -351,13 +350,13 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
       // of an empty peg while the axe is still on the road.
       (tool === undefined || (b.inputs[tool] ?? 0) >= 1);
     const wantsRecruit =
-      b.state === 'built' && def.trains !== undefined && firstReadyTraining(b) >= 0;
+      b.state === BuildingState.built && def.trains !== undefined && firstReadyTraining(b) >= 0;
     // A tower short of its garrison calls for another man. Unlike a post,
     // this one may draw from the field rather than from the loose pool: the
     // soldiers it prefers have already been trained. It also calls when it
     // is full of villagers, because a soldier arriving relieves them.
     const wantsGarrison =
-      b.state === 'built' && def.garrison !== undefined && wantedKinds(b).length > 0;
+      b.state === BuildingState.built && def.garrison !== undefined && wantedKinds(b).length > 0;
     if (wantsBuilder || wantsWorker || wantsRecruit || wantsGarrison) wanting.push(b);
   }
   if (wanting.length === 0) return;
@@ -370,7 +369,7 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
   // deciding for itself and drifting: the scan used to bucket archers for
   // a tower that was still a building site and wanted a builder.
   const wanted = new Set<UnitTypeId>(wanting.flatMap(wantedKinds));
-  wanted.add('serf');
+  wanted.add(UnitTypeId.serf);
 
   // Idle people available for recruitment this pass, bucketed by faction and
   // kind — buildings only ever draw from their own owner's pool.
@@ -382,7 +381,7 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     // him mid-stride would make the order look ignored. Nor do we hire a
     // serf still holding a good — he owes that delivery first, and taking
     // a post would strand it in his hands forever.
-    if (u.task.t === 'idle' && u.carrying === undefined) {
+    if (u.task.t === UnitTaskKind.idle && u.carrying === undefined) {
       let byKind = idleByOwner.get(u.owner);
       if (!byKind) idleByOwner.set(u.owner, (byKind = new Map()));
       let bucket = byKind.get(u.kind);
@@ -439,7 +438,7 @@ function requestRecruits(world: World, starvedOnly: boolean): void {
     idle.splice(bestIdx, 1);
     recruit.path = path;
     recruit.pathIdx = 0;
-    recruit.task = { t: 'staff', buildingId: b.id };
+    recruit.task = { t: UnitTaskKind.staff, buildingId: b.id };
     b.recruitId = recruit.id;
   }
 }

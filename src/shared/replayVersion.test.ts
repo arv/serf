@@ -36,8 +36,12 @@ import { REPLAY_VERSION } from './replayVersion';
 // rule layer that reads it, which is equally outside playback. A seat that
 // now halts a forge it used to leave running emits orders whose tick
 // semantics are untouched, so yesterday's logs still play back exactly.
-const EXPECTED_VERSION = 32;
-const EXPECTED_HASH = 'e90c7c6152533cac21d183f41f3e6fe6';
+// 33 for the ids themselves becoming numbers: a logged command names its
+// kind in a word the screen no longer reads, and a shelf keyed by number
+// enumerates in id order rather than in the order it was written. Both
+// are in replayVersion.ts at length.
+const EXPECTED_VERSION = 33;
+const EXPECTED_HASH = '52679646fc61455567a88129d1dbe082';
 
 /**
  * Everything a replay's playback depends on, as raw source:

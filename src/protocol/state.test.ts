@@ -11,6 +11,7 @@ import {
 } from './state';
 import type { UnitSnapshot } from './sabLayout';
 import type { MapSnapshot } from './messages';
+import { CommandKind } from '../sim/commands';
 
 const TILES = tileCount(DEFAULT_MAP_SIZE);
 
@@ -115,8 +116,8 @@ describe('state frames', () => {
     const struct = decodeState(encodeStruct(11, { buildings: [], jobs: [] }));
     expect(struct).toEqual({ kind: 'struct', tick: 11, json: { buildings: [], jobs: [] } });
 
-    const cmd = decodeState(encodeCmd(5, [{ kind: 'hireSerf' }]));
-    expect(cmd).toEqual({ kind: 'cmd', seq: 5, commands: [{ kind: 'hireSerf' }] });
+    const cmd = decodeState(encodeCmd(5, [{ kind: CommandKind.hireSerf }]));
+    expect(cmd).toEqual({ kind: 'cmd', seq: 5, commands: [{ kind: CommandKind.hireSerf }] });
   });
 
   it('round-trips the clock probe', () => {

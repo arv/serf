@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld, type World } from '../sim/world.ts';
+import { createWorld, type World, MatchState } from '../sim/world.ts';
 import { tickWorld } from '../sim/tick.ts';
 import { AiSeats } from '../sim/aiSeats.ts';
 import { checkInvariants } from '../sim/debug/invariants.ts';
 import { LlmStrategist, type ChatEngine } from './strategist.ts';
 import { summarizeForSeat } from './summary.ts';
 import type { ChatMessage } from './prompt.ts';
+import { AiStrategyId } from '../sim/defs/aiStrategies.ts';
+import { PlayerKind } from '../sim/player.ts';
 
 /**
  * Two LLM-advised seats against each other: the whole strategist pipeline —
@@ -43,8 +45,8 @@ async function playAdvisedMatch(
   const world = createWorld({
     seed,
     players: [
-      { kind: 'ai', strategy: 'steward' },
-      { kind: 'ai', strategy: 'steward' },
+      { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
+      { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
     ],
     banditsEnabled: false,
     // What is under test is the advice plumbing and its fingerprints on
@@ -83,7 +85,7 @@ async function playAdvisedMatch(
   const summaryDue = new Map(
     seats.seatIds().map((id, i) => [id, ADVICE_PERIOD + i * ADVICE_STAGGER]),
   );
-  for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
+  for (let t = 0; t < maxTicks && world.outcome.state === MatchState.playing; t++) {
     tickWorld(world, seats.decide(world));
     for (const [playerId, due] of summaryDue) {
       if (world.tick < due) continue;
@@ -150,7 +152,7 @@ describe('an LLM-advised match, seat against seat', () => {
     // that never leaves home. Either the rush wins or the turtle grinds it
     // down — but somebody wins; two stock stewards on this map would both
     // march at seven into mutual attrition.
-    expect(world.outcome.state, `still playing at tick ${world.tick}`).toBe('over');
+    expect(world.outcome.state, `still playing at tick ${world.tick}`).toBe(MatchState.over);
     expect((world.outcome as { winner: number | null }).winner).not.toBeNull();
   }, 240_000);
 
@@ -159,8 +161,8 @@ describe('an LLM-advised match, seat against seat', () => {
     const control = createWorld({
       seed: 42,
       players: [
-        { kind: 'ai', strategy: 'steward' },
-        { kind: 'ai', strategy: 'steward' },
+        { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
+        { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
       ],
       banditsEnabled: false,
       mapSize: 64, // must mirror playAdvisedMatch's world exactly
@@ -170,7 +172,7 @@ describe('an LLM-advised match, seat against seat', () => {
     // first marks on the field — this seed's roll develops both economies
     // identically for the first ~12k, and the horizon must sit past where
     // the armies start moving differently.
-    for (let t = 0; t < 16_000 && control.outcome.state === 'playing'; t++) {
+    for (let t = 0; t < 16_000 && control.outcome.state === MatchState.playing; t++) {
       tickWorld(control, controlSeats.decide(control));
     }
 

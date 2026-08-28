@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { tileIdx } from '../shared/grid.ts';
 import { SeatVision } from './visibility.ts';
 import { AiBrain, AI_INTEL, hostileNear, pickAttackTarget } from './systems/ai.ts';
-import { AI_STRATEGIES } from './defs/aiStrategies.ts';
+import { AI_STRATEGIES, AiStrategyId } from './defs/aiStrategies.ts';
 import { BANDIT } from './entities.ts';
 import { placeBuiltBuilding, spawnUnit } from './world.ts';
 import { addSerf, addStorehouse, bareWorld } from './testUtils.ts';
-import type { SimCommand } from './commands.ts';
+import { type SimCommand, CommandKind } from './commands.ts';
+import { GoodId } from './defs/goods.ts';
+import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
+import { TechId } from './defs/techs.ts';
+import { UnitTaskKind } from './units.ts';
 
 /**
  * The brain plays under the fog. These are the two rules the server holds
@@ -27,15 +32,17 @@ function hands(world: ReturnType<typeof bareWorld>): void {
 function musterWorld(): ReturnType<typeof bareWorld> {
   const world = bareWorld();
   addStorehouse(world, 30, 30, {});
-  for (let i = 0; i < 7; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
-  placeBuiltBuilding(world, 'banditCamp', BANDIT, 5, 5);
+  for (let i = 0; i < 7; i++) spawnUnit(world, UnitTypeId.knight, 0, 33.5, 27.5 + i);
+  placeBuiltBuilding(world, BuildingTypeId.banditCamp, BANDIT, 5, 5);
   // Past the steward's attack cooldown, so the army logic is live.
   world.tick = 1000;
   return world;
 }
 
-function moveOrders(commands: SimCommand[]): Extract<SimCommand, { kind: 'moveUnits' }>[] {
-  return commands.filter((c) => c.kind === 'moveUnits');
+function moveOrders(
+  commands: SimCommand[],
+): Extract<SimCommand, { kind: CommandKind.moveUnits }>[] {
+  return commands.filter((c) => c.kind === CommandKind.moveUnits);
 }
 
 describe('the AI under fog of war', () => {
@@ -48,29 +55,29 @@ describe('the AI under fog of war', () => {
 
   it('targets the camp once someone has stood close enough to see it', () => {
     const world = musterWorld();
-    spawnUnit(world, 'knight', 0, 8.5, 8.5); // a scout within sight of the camp
+    spawnUnit(world, UnitTypeId.knight, 0, 8.5, 8.5); // a scout within sight of the camp
     const vision = new SeatVision(world.map.size);
     vision.recompute(world, 0);
-    expect(pickAttackTarget(world, vision, 0, 31, 31, false)?.type).toBe('banditCamp');
+    expect(pickAttackTarget(world, vision, 0, 31, 31, false)?.type).toBe(BuildingTypeId.banditCamp);
   });
 
   it('counts a hostile at the gates only when it stands in lit ground', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
     // Well inside a homeGuard radius of 14, but beyond the castle's sight.
-    spawnUnit(world, 'bandit', BANDIT, 43.5, 31.5);
+    spawnUnit(world, UnitTypeId.bandit, BANDIT, 43.5, 31.5);
     const vision = new SeatVision(world.map.size);
     vision.recompute(world, 0);
     expect(hostileNear(world, vision, 0, 31, 31, 14)).toBe(false);
     // A watchman near the raider lights the ground under it.
-    spawnUnit(world, 'knight', 0, 40.5, 31.5);
+    spawnUnit(world, UnitTypeId.knight, 0, 40.5, 31.5);
     vision.recompute(world, 0);
     expect(hostileNear(world, vision, 0, 31, 31, 14)).toBe(true);
   });
 
   it('sends a full muster scouting when its map holds no target', () => {
     const world = musterWorld();
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const moves = moveOrders(brain.decide(world));
     expect(moves).toHaveLength(1);
     const { x, y } = moves[0]!;
@@ -96,17 +103,17 @@ describe('the AI under fog of war', () => {
 
   it('keeps the sweep goal while marching, and re-aims once it lights up', () => {
     const world = musterWorld();
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const first = moveOrders(brain.decide(world))[0]!;
     // Mid-march (units busy, goal still dark) the brain leaves the army be.
     for (const u of world.units.values()) {
-      if (u.kind === 'knight') u.task = { t: 'move' };
+      if (u.kind === UnitTypeId.knight) u.task = { t: UnitTaskKind.move };
     }
     world.tick += 20;
     expect(moveOrders(brain.decide(world))).toHaveLength(0);
     // The goal lights up: a knight now stands on it, so the next beat picks
     // a fresh patch of dark ground instead of re-ordering the same march.
-    const scout = [...world.units.values()].find((u) => u.kind === 'knight')!;
+    const scout = [...world.units.values()].find((u) => u.kind === UnitTypeId.knight)!;
     scout.x = first.x + 0.5;
     scout.y = first.y + 0.5;
     world.tick += 20;
@@ -117,8 +124,8 @@ describe('the AI under fog of war', () => {
 
   it('marches on the camp as soon as the sweep uncovers it', () => {
     const world = musterWorld();
-    spawnUnit(world, 'knight', 0, 8.5, 8.5); // the sweep got this far
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    spawnUnit(world, UnitTypeId.knight, 0, 8.5, 8.5); // the sweep got this far
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const moves = moveOrders(brain.decide(world));
     expect(moves).toHaveLength(1);
     // The camp's footprint origin is (5,5); the brain aims at its center.
@@ -130,24 +137,26 @@ describe('the AI under fog of war', () => {
     // turn to swords (the second one against its playbook line of spears)
     // and the barracks trains the knight the sword in stock can arm.
     const world = bareWorld(1, 2);
-    addStorehouse(world, 30, 30, { sword: 1, spear: 1 });
+    addStorehouse(world, 30, 30, { [GoodId.sword]: 1, [GoodId.spear]: 1 });
     // Hands in the village, because that is what these fixtures mean by a
     // seat with a barracks: below the survival floor `handsBeforeSoldiers`
     // stands the barracks down, and a queue rule cannot be read through a
     // hold that is doing its job.
     hands(world);
-    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
-    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
-    for (let i = 0; i < 4; i++) spawnUnit(world, 'spearman', 1, 35.5, 30.5 + i);
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.ironworking);
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 34);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 26);
+    for (let i = 0; i < 4; i++) spawnUnit(world, UnitTypeId.spearman, 1, 35.5, 30.5 + i);
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const commands = brain.decide(world);
-    const recipes = commands.filter((c) => c.kind === 'setBuildingRecipe');
+    const recipes = commands.filter((c) => c.kind === CommandKind.setBuildingRecipe);
     expect(recipes).toHaveLength(2);
     for (const r of recipes) expect(r).toMatchObject({ index: 1 }); // sword
-    expect(commands.find((c) => c.kind === 'trainUnit')).toMatchObject({ unit: 'knight' });
+    expect(commands.find((c) => c.kind === CommandKind.trainUnit)).toMatchObject({
+      unit: UnitTypeId.knight,
+    });
   });
 
   it('keeps the playbook line when the counter is out of its reach', () => {
@@ -155,20 +164,22 @@ describe('the AI under fog of war', () => {
     // behind ironworking the fletcher never researches — the forges stay
     // on bows and the barracks trains the archer it can actually arm.
     const world = bareWorld(1, 2);
-    addStorehouse(world, 30, 30, { bow: 2 });
+    addStorehouse(world, 30, 30, { [GoodId.bow]: 2 });
     hands(world);
-    world.players[0]!.techs.researched.push('soldiery', 'archery');
-    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
-    for (let i = 0; i < 4; i++) spawnUnit(world, 'archer', 1, 35.5, 30.5 + i);
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.archery);
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 34);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 26);
+    for (let i = 0; i < 4; i++) spawnUnit(world, UnitTypeId.archer, 1, 35.5, 30.5 + i);
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.fletcher, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.fletcher], world.map.size);
     const commands = brain.decide(world);
-    const recipes = commands.filter((c) => c.kind === 'setBuildingRecipe');
+    const recipes = commands.filter((c) => c.kind === CommandKind.setBuildingRecipe);
     expect(recipes).toHaveLength(2);
     for (const r of recipes) expect(r).toMatchObject({ index: 2 }); // bowstaves
-    expect(commands.find((c) => c.kind === 'trainUnit')).toMatchObject({ unit: 'archer' });
+    expect(commands.find((c) => c.kind === CommandKind.trainUnit)).toMatchObject({
+      unit: UnitTypeId.archer,
+    });
   });
 
   it('holds the barracks slot with a unit the seat can actually train', () => {
@@ -181,12 +192,12 @@ describe('the AI under fog of war', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, {}); // no weapon anywhere: the fallback path
     hands(world);
-    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
-    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.ironworking);
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.abbot, world.map.size);
-    expect(brain.decide(world).find((c) => c.kind === 'trainUnit')).toMatchObject({
-      unit: 'knight',
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.abbot], world.map.size);
+    expect(brain.decide(world).find((c) => c.kind === CommandKind.trainUnit)).toMatchObject({
+      unit: UnitTypeId.knight,
     });
   });
 
@@ -195,21 +206,21 @@ describe('the AI under fog of war', () => {
     // preference list must be read through the same gate the fallback is:
     // an armed order the sim refuses fills no queue either.
     const world = bareWorld(1, 2);
-    addStorehouse(world, 30, 30, { bow: 4 });
+    addStorehouse(world, 30, 30, { [GoodId.bow]: 4 });
     hands(world);
-    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
-    placeBuiltBuilding(world, 'barracks', 0, 34, 34);
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.ironworking);
+    placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 34, 34);
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.abbot, world.map.size);
-    const order = brain.decide(world).find((c) => c.kind === 'trainUnit');
-    expect(order).toMatchObject({ unit: 'knight' });
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.abbot], world.map.size);
+    const order = brain.decide(world).find((c) => c.kind === CommandKind.trainUnit);
+    expect(order).toMatchObject({ unit: UnitTypeId.knight });
 
     // Once the research lands the archer is the playbook's own answer to a
     // shelf of bows, and the rule goes back to giving it.
-    world.players[0]!.techs.researched.push('archery');
+    world.players[0]!.techs.researched.push(TechId.archery);
     world.tick += 20;
-    expect(brain.decide(world).find((c) => c.kind === 'trainUnit')).toMatchObject({
-      unit: 'archer',
+    expect(brain.decide(world).find((c) => c.kind === CommandKind.trainUnit)).toMatchObject({
+      unit: UnitTypeId.archer,
     });
   });
 
@@ -220,25 +231,29 @@ describe('the AI under fog of war', () => {
     // sighting is still inside its trust window, and the forges keep
     // answering it with swords.
     const world = bareWorld(1, 2);
-    addStorehouse(world, 30, 30, { sword: 1, spear: 1 });
+    addStorehouse(world, 30, 30, { [GoodId.sword]: 1, [GoodId.spear]: 1 });
     addStorehouse(world, 44, 44, {}, 1);
-    world.players[0]!.techs.researched.push('soldiery', 'ironworking');
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 34);
-    placeBuiltBuilding(world, 'weaponsmith', 0, 26, 26);
-    const foes = Array.from({ length: 4 }, (_, i) => spawnUnit(world, 'spearman', 1, 35.5, 30.5 + i));
+    world.players[0]!.techs.researched.push(TechId.soldiery, TechId.ironworking);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 34);
+    placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 26, 26);
+    const foes = Array.from({ length: 4 }, (_, i) =>
+      spawnUnit(world, UnitTypeId.spearman, 1, 35.5, 30.5 + i),
+    );
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
-    expect(brain.decide(world).filter((c) => c.kind === 'setBuildingRecipe')).toHaveLength(2);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
+    expect(
+      brain.decide(world).filter((c) => c.kind === CommandKind.setBuildingRecipe),
+    ).toHaveLength(2);
     // The spearmen vanish; the scout finds their yard empty well past the
     // refresh clock but well inside the trust window.
     for (const u of foes) u.dead = true;
-    spawnUnit(world, 'knight', 0, 45.5, 48.5); // already standing at the doorstep
+    spawnUnit(world, UnitTypeId.knight, 0, 45.5, 48.5); // already standing at the doorstep
     world.tick = 5200;
     brain.decide(world); // the errand starts
     world.tick = 5220;
     brain.decide(world); // standing at the yard: the read stamps the clock
     world.tick = 5240;
-    const recipes = brain.decide(world).filter((c) => c.kind === 'setBuildingRecipe');
+    const recipes = brain.decide(world).filter((c) => c.kind === CommandKind.setBuildingRecipe);
     expect(recipes).toHaveLength(2); // both smiths still ordered to swords
     for (const r of recipes) expect(r).toMatchObject({ index: 1 });
   });
@@ -250,10 +265,10 @@ describe('the AI under fog of war', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, {});
     addStorehouse(world, 66, 66, {}, 1); // the rival's castle, on its start
-    for (let i = 0; i < 3; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
-    spawnUnit(world, 'knight', 0, 64.5, 65.5); // close enough to have seen it
+    for (let i = 0; i < 3; i++) spawnUnit(world, UnitTypeId.knight, 0, 33.5, 27.5 + i);
+    spawnUnit(world, UnitTypeId.knight, 0, 64.5, 65.5); // close enough to have seen it
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const commands = brain.decide(world);
     const single = moveOrders(commands).filter((c) => c.unitIds.length === 1);
     expect(single).toHaveLength(1);
@@ -276,10 +291,10 @@ describe('the AI under fog of war', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, {});
     addStorehouse(world, 66, 66, {}, 1);
-    for (let i = 0; i < 3; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
-    spawnUnit(world, 'knight', 0, 64.5, 65.5);
+    for (let i = 0; i < 3; i++) spawnUnit(world, UnitTypeId.knight, 0, 33.5, 27.5 + i);
+    spawnUnit(world, UnitTypeId.knight, 0, 64.5, 65.5);
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const gateLeg = moveOrders(brain.decide(world)).filter((c) => c.unitIds.length === 1)[0]!;
     expect(gateLeg).toMatchObject({ x: 67, y: 58 });
     const scout = world.units.get(gateLeg.unitIds[0]!)!;
@@ -318,13 +333,14 @@ describe('the AI under fog of war', () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, {});
     addStorehouse(world, 66, 66, {}, 1);
-    for (let i = 0; i < 3; i++) spawnUnit(world, 'knight', 0, 33.5, 27.5 + i);
-    spawnUnit(world, 'knight', 0, 64.5, 65.5);
+    for (let i = 0; i < 3; i++) spawnUnit(world, UnitTypeId.knight, 0, 33.5, 27.5 + i);
+    spawnUnit(world, UnitTypeId.knight, 0, 64.5, 65.5);
     // The garrison the errand was sent to count: minSighting of them, on
     // the doorstep, inside the watch point's sight circle.
-    for (let i = 0; i < AI_INTEL.minSighting; i++) spawnUnit(world, 'spearman', 1, 66.5 + i, 71.5);
+    for (let i = 0; i < AI_INTEL.minSighting; i++)
+      spawnUnit(world, UnitTypeId.spearman, 1, 66.5 + i, 71.5);
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const gateLeg = moveOrders(brain.decide(world)).filter((c) => c.unitIds.length === 1)[0]!;
     const scout = world.units.get(gateLeg.unitIds[0]!)!;
     const legs: { x: number; y: number }[] = [];
@@ -351,12 +367,12 @@ describe('the AI under fog of war', () => {
     // cannot cover for a castle that was left empty in the first place.
     const world = musterWorld();
     for (const u of world.units.values()) {
-      if (u.kind === 'knight') {
+      if (u.kind === UnitTypeId.knight) {
         u.x = 55.5;
         u.y = 55.5;
       }
     }
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const moves = moveOrders(brain.decide(world));
     expect(moves).toHaveLength(2);
 
@@ -375,7 +391,7 @@ describe('the AI under fog of war', () => {
 
   it('abandons sweep goals the army stood down in front of', () => {
     const world = musterWorld();
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     // The army never goes anywhere (every order falls on deaf feet in this
     // fixture — decide() output is never applied): each beat finds everyone
     // idle with the goal still dark. The brain must write goals off and try

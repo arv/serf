@@ -1,5 +1,5 @@
-import type { MissionId } from './missions.ts';
 import type { MapFile } from '../mapFile.ts';
+import { MissionId } from './missions.ts';
 
 /**
  * The campaign's authored ground, loaded on demand. Dynamic imports on
@@ -20,13 +20,13 @@ import type { MapFile } from '../mapFile.ts';
  * JSON-module MIME check can object.
  */
 const MISSION_MAPS: Record<MissionId, () => Promise<{ default: MapFile }>> = {
-  clearing: () => import('./maps/clearing.ts'),
-  breadAndWater: () => import('./maps/breadAndWater.ts'),
-  ledger: () => import('./maps/ledger.ts'),
-  hammerAndHaft: () => import('./maps/hammerAndHaft.ts'),
-  levy: () => import('./maps/levy.ts'),
-  holdTheValley: () => import('./maps/holdTheValley.ts'),
-  rivalBanner: () => import('./maps/rivalBanner.ts'),
+  [MissionId.clearing]: () => import('./maps/clearing.ts'),
+  [MissionId.breadAndWater]: () => import('./maps/breadAndWater.ts'),
+  [MissionId.ledger]: () => import('./maps/ledger.ts'),
+  [MissionId.hammerAndHaft]: () => import('./maps/hammerAndHaft.ts'),
+  [MissionId.levy]: () => import('./maps/levy.ts'),
+  [MissionId.holdTheValley]: () => import('./maps/holdTheValley.ts'),
+  [MissionId.rivalBanner]: () => import('./maps/rivalBanner.ts'),
 };
 
 /** Fetch one mission's authored map (the raw file; parseMapData is the

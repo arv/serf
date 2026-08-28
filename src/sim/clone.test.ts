@@ -5,6 +5,9 @@ import { deserializeWorld, serializeWorld } from './save.ts';
 import { createWorld, type World } from './world.ts';
 import { tickWorld } from './tick.ts';
 import type { Unit } from './units.ts';
+import { GoodId } from './defs/goods.ts';
+import { BuildingState } from './entities.ts';
+import { PlayerKind } from './player.ts';
 
 function run(world: World, ticks: number): void {
   for (let t = 0; t < ticks; t++) tickWorld(world, []);
@@ -12,7 +15,10 @@ function run(world: World, ticks: number): void {
 
 describe('cloneWorld — the rollback snapshot primitive', () => {
   it('clones equal and mutation-isolated', () => {
-    const world = createWorld({ seed: 5, players: [{ kind: 'ai' }, { kind: 'ai' }] });
+    const world = createWorld({
+      seed: 5,
+      players: [{ kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
+    });
     run(world, 800);
     const snap = cloneWorld(world);
     expect(hashWorld(snap)).toBe(hashWorld(world));
@@ -32,7 +38,7 @@ describe('cloneWorld — the rollback snapshot primitive', () => {
   it('pins clone, save, and hash to each other', () => {
     // A forgotten field diverges one of the three copies of the world
     // schema — this catches it structurally.
-    const world = createWorld({ seed: 6, players: [{ kind: 'ai' }] });
+    const world = createWorld({ seed: 6, players: [{ kind: PlayerKind.ai }] });
     run(world, 600);
     const viaClone = cloneWorld(world);
     const viaSave = deserializeWorld(serializeWorld(world));
@@ -51,19 +57,24 @@ describe('cloneWorld — the rollback snapshot primitive', () => {
     // place (applyRepairMaterial), so a clone sharing it by reference sees
     // the original's spending — both worlds watch the bill fall twice as
     // fast, and the save round-trip reference this file exists for lies.
-    const world = createWorld({ seed: 5, players: [{ kind: 'ai' }] });
+    const world = createWorld({ seed: 5, players: [{ kind: PlayerKind.ai }] });
     run(world, 200);
-    const b = [...world.buildings.values()].find((x) => x.state === 'built')!;
-    b.repairNeeds = { wood: 3 };
+    const b = [...world.buildings.values()].find((x) => x.state === BuildingState.built)!;
+    b.repairNeeds = { [GoodId.wood]: 3 };
     const snap = cloneWorld(world);
-    b.repairNeeds.wood = 2; // the original works a plank in
-    expect(snap.buildings.get(b.id)!.repairNeeds).toEqual({ wood: 3 });
+    b.repairNeeds[GoodId.wood] = 2; // the original works a plank in
+    expect(snap.buildings.get(b.id)!.repairNeeds).toEqual({ [GoodId.wood]: 3 });
   });
 
   it('stays cheap enough to snapshot a live world', () => {
     const world = createWorld({
       seed: 8,
-      players: [{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }],
+      players: [
+        { kind: PlayerKind.ai },
+        { kind: PlayerKind.ai },
+        { kind: PlayerKind.ai },
+        { kind: PlayerKind.ai },
+      ],
     });
     run(world, 3000); // a grown 4-economy world
 
@@ -87,9 +98,9 @@ describe('cloneWorld — the rollback snapshot primitive', () => {
 
 describe('hashWorld', () => {
   it('is stable across identical runs and differs across seeds', () => {
-    const a = createWorld({ seed: 21, players: [{ kind: 'ai' }] });
-    const b = createWorld({ seed: 21, players: [{ kind: 'ai' }] });
-    const c = createWorld({ seed: 22, players: [{ kind: 'ai' }] });
+    const a = createWorld({ seed: 21, players: [{ kind: PlayerKind.ai }] });
+    const b = createWorld({ seed: 21, players: [{ kind: PlayerKind.ai }] });
+    const c = createWorld({ seed: 22, players: [{ kind: PlayerKind.ai }] });
     run(a, 400);
     run(b, 400);
     run(c, 400);
@@ -102,7 +113,7 @@ describe('hashWorld', () => {
     // every position, hp and task tag identical. A digest blind to them calls
     // two worlds the same right up until the fight resolves differently —
     // which is exactly when it is too late to be told.
-    const world = createWorld({ seed: 21, players: [{ kind: 'ai' }] });
+    const world = createWorld({ seed: 21, players: [{ kind: PlayerKind.ai }] });
     run(world, 400);
     const base = hashWorld(world);
     const mutations: ((u: Unit) => void)[] = [
@@ -142,7 +153,7 @@ describe('hashWorld', () => {
     // An arrow against masonry lands at half strength (BUILDING_DAMAGE_MULT),
     // so building hp lives below the integer line too: a digest that
     // truncates it calls two walls the same until one falls a tick earlier.
-    const world = createWorld({ seed: 21, players: [{ kind: 'ai' }] });
+    const world = createWorld({ seed: 21, players: [{ kind: PlayerKind.ai }] });
     run(world, 400);
     const base = hashWorld(world);
     const w = cloneWorld(world);

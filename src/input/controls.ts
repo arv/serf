@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import { inBounds, tileIdx } from '../shared/grid';
-import { buildingDef, type BuildingTypeId } from '../sim/defs/buildings';
+import { buildingDef, BuildingTypeId } from '../sim/defs/buildings';
 import { canPlace } from '../sim/world';
 import { UNIT_DEFS } from '../sim/defs/units';
 import { HIRE_SERF_COST } from '../sim/defs/balance';
@@ -37,7 +37,7 @@ import {
   techPanelOpen,
   techs,
   toggleMuted,
-  type OrderMode,
+  OrderMode,
 } from '../ui/store';
 import { buildAffordable, buildUnlocked, buildingForKey } from '../ui/buildMenu';
 import {
@@ -60,10 +60,9 @@ import {
   type BuildingHeights,
   type BuildingProbe,
 } from './picking';
-import { groupEmpty, keyDigit, matchingGroup } from './groups';
+import { groupEmpty, keyDigit, matchingGroup, type ControlGroup, ControlGroupKind } from './groups';
 import { foreignChord, typingInto } from './typing';
 import { capturePointer } from './mouseCapture';
-import type { ControlGroup } from './groups';
 import type { SceneSync } from '../render/sceneSync';
 import type { GhostPlacement } from '../render/ghost';
 import type { FogQuery } from '../render/fogOfWar';
@@ -71,6 +70,9 @@ import type { HeightField } from '../render/heightField';
 import type { WorldMirror } from '../app/mirror';
 import type { SimHost } from '../app/simHost';
 import type { BuildingSnap } from '../protocol/messages';
+import { GoodId } from '../sim/defs/goods';
+import { BuildingState } from '../sim/entities';
+import { CommandKind } from '../sim/commands';
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
@@ -116,10 +118,10 @@ function keyLetter(e: KeyboardEvent): string {
 }
 
 /** Kind codes that count as army for the select-army shortcut. */
-const MILITARY_CODES = new Set(
+const MILITARY_CODES = new Set<number>(
   Object.values(UNIT_DEFS)
     .filter((d) => d.combat !== undefined)
-    .map((d) => d.kindCode),
+    .map((d) => d.id),
 );
 
 /**
@@ -341,7 +343,7 @@ export class Controls {
     // Nobody to order about — an armed order over an empty selection would
     // eat the click that was going to select someone. The rally flag is
     // the exception: it is armed from a selected barracks, not a squad.
-    if (mode === 'rally') {
+    if (mode === OrderMode.rally) {
       if (!this.#rallyTarget()) return;
     } else if (mode !== null && (this.#selection.size === 0 || replayMode())) {
       return;
@@ -483,7 +485,7 @@ export class Controls {
       play('uiClick');
     } else if (letter === 'A' || letter === 'M') {
       if (this.#selection.size > 0 && !replayMode()) {
-        this.armOrder(letter === 'A' ? 'attack' : 'move');
+        this.armOrder(letter === 'A' ? OrderMode.attack : OrderMode.move);
         play('uiClick');
       } else if (letter === 'M') {
         toggleMuted();
@@ -543,11 +545,15 @@ export class Controls {
   #buildingCommand(b: BuildingSnap, letter: string): boolean {
     if (!letter || replayMode()) return false;
 
-    if (letter === HIRE_KEY && b.type === 'storehouse' && b.state === 'built') {
+    if (
+      letter === HIRE_KEY &&
+      b.type === BuildingTypeId.storehouse &&
+      b.state === BuildingState.built
+    ) {
       if (!canHire(b, stock(), population())) {
         const queued = b.hireQueue ?? 0;
         pushToast(
-          (stock().silver ?? 0) < HIRE_SERF_COST
+          (stock()[GoodId.silver] ?? 0) < HIRE_SERF_COST
             ? `Not enough silver to hire — a serf costs ${HIRE_SERF_COST}.`
             : population().pop + queued >= population().cap
               ? 'Every bed is taken — build a house before you hire again.'
@@ -556,21 +562,21 @@ export class Controls {
         play('uiRefused');
         return true;
       }
-      this.#host.sendCommands([{ kind: 'hireSerf' }]);
+      this.#host.sendCommands([{ kind: CommandKind.hireSerf }]);
       play('uiCoin');
       return true;
     }
 
     if (letter === RALLY_KEY && canRally(b)) {
       // Arms the flag for the next click, exactly like the card's button.
-      this.armOrder('rally');
+      this.armOrder(OrderMode.rally);
       play('uiClick');
       return true;
     }
 
     const unit = trainingForKey(b, letter);
     if (unit !== null) {
-      if (b.state !== 'built') return true;
+      if (b.state !== BuildingState.built) return true;
       const gate = unitTechGate(unit);
       if (!canTrain(b, unit, techs().researched)) {
         pushToast(
@@ -581,7 +587,7 @@ export class Controls {
         play('uiRefused');
         return true;
       }
-      this.#host.sendCommands([{ kind: 'trainUnit', buildingId: b.id, unit }]);
+      this.#host.sendCommands([{ kind: CommandKind.trainUnit, buildingId: b.id, unit }]);
       play('uiClick');
       return true;
     }
@@ -592,7 +598,7 @@ export class Controls {
   /** Backspace: back to your own keep, the way both games spend that key. */
   #jumpHome(): void {
     for (const b of this.#mirror.buildings.values()) {
-      if (b.type === 'storehouse' && b.owner === myPlayerId()) {
+      if (b.type === BuildingTypeId.storehouse && b.owner === myPlayerId()) {
         this.#rig?.glideTo(b.x + b.w / 2, b.y + b.h / 2);
         return;
       }
@@ -672,7 +678,7 @@ export class Controls {
     // is aimed at wherever they last stood.
     let groupsChanged = false;
     for (const [digit, group] of this.#groups) {
-      if (group.kind === 'building') {
+      if (group.kind === ControlGroupKind.building) {
         // A razed (or sold) building is the same problem one entry wide,
         // and the number goes with it: an empty unit group can still be
         // grown by a Shift press, but a building group has nothing left to
@@ -708,7 +714,7 @@ export class Controls {
     // Without this, recalling a control group left rally armed with
     // nothing to plant for, and the next map click was swallowed. The
     // empty-selection case is the disarm further down.
-    if (sel.size > 0 && orderMode() === 'rally') this.armOrder(null);
+    if (sel.size > 0 && orderMode() === OrderMode.rally) this.armOrder(null);
     this.#selection = sel;
     setSelection(new Set(sel));
     this.#publishGroup();
@@ -768,8 +774,8 @@ export class Controls {
           this.#touchOrigin = { x: e.clientX, y: e.clientY };
           return;
         }
-        if (order === 'rally') this.#issueRally(e.clientX, e.clientY);
-        else this.#issueMove(e.clientX, e.clientY, order === 'attack');
+        if (order === OrderMode.rally) this.#issueRally(e.clientX, e.clientY);
+        else this.#issueMove(e.clientX, e.clientY, order === OrderMode.attack);
         this.armOrder(null);
       } else if (e.button === 2) {
         this.armOrder(null);
@@ -864,7 +870,7 @@ export class Controls {
     const origin = this.#placementOrigin(px, py);
     if (origin && this.#canPlaceHere(type, origin.x, origin.y)) {
       this.#host.sendCommands([
-        { kind: 'placeBuilding', building: type, x: origin.x, y: origin.y },
+        { kind: CommandKind.placeBuilding, building: type, x: origin.x, y: origin.y },
       ]);
       play('uiPlace');
       if (!keepArmed) this.setPlacement(null);
@@ -983,8 +989,8 @@ export class Controls {
     const order = this.#liveOrder();
     if (order) {
       if (e.pointerType === 'touch' && e.button === 0 && heldStill) {
-        if (order === 'rally') this.#issueRally(e.clientX, e.clientY);
-        else this.#issueMove(e.clientX, e.clientY, order === 'attack');
+        if (order === OrderMode.rally) this.#issueRally(e.clientX, e.clientY);
+        else this.#issueMove(e.clientX, e.clientY, order === OrderMode.attack);
         this.armOrder(null);
       }
       return;
@@ -1415,12 +1421,12 @@ export class Controls {
     // here as anywhere. A group emptied by casualties counts as free.
     const building = selectedBuilding();
     if (building) {
-      const already = held?.kind === 'building' && held.id === building.id;
+      const already = held?.kind === ControlGroupKind.building && held.id === building.id;
       if (!assign && !already && !groupEmpty(held)) {
         play('uiRefused');
         return;
       }
-      this.#groups.set(digit, { kind: 'building', id: building.id });
+      this.#groups.set(digit, { kind: ControlGroupKind.building, id: building.id });
       play('uiClick');
       // The badge on the card is the only thing on screen that says the
       // stamp took, so it has to be republished here: neither spelling of
@@ -1436,13 +1442,13 @@ export class Controls {
       play('uiRefused');
       return;
     }
-    if (!assign && held?.kind === 'building') {
+    if (!assign && held?.kind === ControlGroupKind.building) {
       play('uiRefused');
       return;
     }
-    const ids = assign || held?.kind !== 'units' ? new Set<number>() : held.ids;
+    const ids = assign || held?.kind !== ControlGroupKind.units ? new Set<number>() : held.ids;
     for (const id of this.#selection) ids.add(id);
-    this.#groups.set(digit, { kind: 'units', ids });
+    this.#groups.set(digit, { kind: ControlGroupKind.units, ids });
     play('uiClick');
     this.#publishGroup();
   }
@@ -1459,8 +1465,9 @@ export class Controls {
     // stale snapshot. The press is not remembered either — a refusal is not
     // a first press, and recording it would hand the *next* press of this
     // number to the camera when that press is someone's first real recall.
-    const snap = group.kind === 'building' ? this.#mirror.buildings.get(group.id) : null;
-    if (group.kind === 'building' && !snap) {
+    const snap =
+      group.kind === ControlGroupKind.building ? this.#mirror.buildings.get(group.id) : null;
+    if (group.kind === ControlGroupKind.building && !snap) {
       this.#groups.delete(digit);
       play('uiRefused');
       this.#publishGroup();
@@ -1482,7 +1489,7 @@ export class Controls {
       // #setSel republishes the badge, which reads the open card.
       this.#setSel(new Set());
       this.#setBuilding(snap);
-    } else if (group.kind === 'units') {
+    } else if (group.kind === ControlGroupKind.units) {
       this.#setBuilding(null);
       this.#setSel(new Set(group.ids));
     }
@@ -1491,7 +1498,7 @@ export class Controls {
     // means by it.
     if (prev !== null && prev.digit === digit && now - prev.time <= GROUP_RECALL_MS) {
       if (snap) this.#rig?.glideTo(snap.x + snap.w / 2, snap.y + snap.h / 2);
-      else if (group.kind === 'units') this.#glideToGroup(group.ids);
+      else if (group.kind === ControlGroupKind.units) this.#glideToGroup(group.ids);
     }
   }
 
@@ -1568,7 +1575,7 @@ export class Controls {
    */
   #liveOrder(): OrderMode | null {
     const order = orderMode();
-    if (order === 'rally' && !this.#rallyTarget()) {
+    if (order === OrderMode.rally && !this.#rallyTarget()) {
       this.armOrder(null);
       return null;
     }
@@ -1606,8 +1613,8 @@ export class Controls {
     const { x, y } = target;
     this.#host.sendCommands([
       onSelf
-        ? { kind: 'setRallyPoint', buildingId: b.id }
-        : { kind: 'setRallyPoint', buildingId: b.id, x, y },
+        ? { kind: CommandKind.setRallyPoint, buildingId: b.id }
+        : { kind: CommandKind.setRallyPoint, buildingId: b.id, x, y },
     ]);
     // Solid gold: an order taken, but nobody moves for it yet — the pulse
     // shape family the move orders wear, in the flag's own color.
@@ -1619,7 +1626,7 @@ export class Controls {
     if (this.#selection.size === 0) return;
     this.#host.sendCommands([
       {
-        kind: 'moveUnits',
+        kind: CommandKind.moveUnits,
         unitIds: [...this.#selection],
         x,
         y,

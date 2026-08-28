@@ -11,7 +11,7 @@ import {
   parseStrategyId,
   type AiStrategyId,
 } from '../sim/defs/aiStrategies';
-import { MISSION_DEFS, MISSION_ORDER, type MissionId } from '../sim/defs/missions';
+import { MISSION_DEFS, MISSION_ORDER, type MissionId, parseMissionId } from '../sim/defs/missions';
 import { isMissionComplete, isMissionUnlocked } from './campaign';
 import { LockIcon } from './icons';
 import {
@@ -20,17 +20,13 @@ import {
   listReplayFiles,
   type ReplayFileInfo,
 } from '../app/replayStore';
-import {
-  deleteSaveFile,
-  importSaveFile,
-  listSaveFiles,
-  type SaveFileInfo,
-} from '../app/saveStore';
+import { deleteSaveFile, importSaveFile, listSaveFiles, type SaveFileInfo } from '../app/saveStore';
 import type { ImportResult, StoredFileInfo } from '../app/fileStore';
 import { WORLD_SAVE_VERSION, canReadSave } from '../shared/saveVersion';
 import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
 import { muted, toggleMuted } from './store';
+import { LlmState } from '../ai/strategist';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -201,15 +197,30 @@ function listRooms(): Promise<OpenRoom[]> {
   });
 }
 
-
 const OneIcon = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+  >
     <circle cx="12" cy="8" r="3.6" />
     <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
   </svg>
 );
 const ManyIcon = (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+  >
     <circle cx="9" cy="8.5" r="3.1" />
     <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
     <path d="M16.5 6.2a3.1 3.1 0 0 1 0 5.9" />
@@ -217,21 +228,48 @@ const ManyIcon = (
   </svg>
 );
 const BannerIcon = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
     <path d="M6 3v18" />
     <path d="M6 4h12l-3 4 3 4H6" />
   </svg>
 );
 /** Out of the shelf, back to the tab bar. */
 const BackIcon = (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
     <path d="M19 12H5" />
     <path d="M11 6l-6 6 6 6" />
   </svg>
 );
 /** A wound scroll: matches watched back off the shelf. */
 const ScrollIcon = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
     <path d="M8 21h9a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H8" />
     <path d="M8 3a2 2 0 0 0-2 2v14a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2h4" />
     <path d="M11 8h5M11 12h5" />
@@ -241,7 +279,16 @@ const ScrollIcon = (
  * component, not a const — every visible row draws its own. */
 function ShareIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
       <circle cx="18" cy="5" r="2.5" />
       <circle cx="6" cy="12" r="2.5" />
       <circle cx="18" cy="19" r="2.5" />
@@ -394,7 +441,8 @@ export function StartMenu(props: StartMenuProps) {
       .catch(() => {
         // The strategist chunk itself failed to fetch (offline, deploy in
         // flight): same story as a failed model download.
-        if (!menuGone) setLlmWarm({ state: 'failed', reason: 'strategist code failed to load' });
+        if (!menuGone)
+          setLlmWarm({ state: LlmState.failed, reason: 'strategist code failed to load' });
       });
   };
   const setLlmAndWarm = (on: boolean): void => {
@@ -417,9 +465,11 @@ export function StartMenu(props: StartMenuProps) {
   });
   const llmHint = (): string => {
     const s = llmWarm();
-    if (s?.state === 'loading') return `Downloading the model — ${s.pct}%`;
-    if (s?.state === 'ready') return 'Model ready — opponents will consult it from the start';
-    if (s?.state === 'failed') return 'Download failed — opponents will use standard tactics';
+    if (s?.state === LlmState.loading) return `Downloading the model — ${s.pct}%`;
+    if (s?.state === LlmState.ready)
+      return 'Model ready — opponents will consult it from the start';
+    if (s?.state === LlmState.failed)
+      return 'Download failed — opponents will use standard tactics';
     return 'Opponents consult an on-device language model (~400 MB one-time download)';
   };
   // One roll per visit to this screen, which is one roll per launch:
@@ -616,7 +666,8 @@ export function StartMenu(props: StartMenuProps) {
    * the load path screens it again before a match is built. */
   const saveRow = (f: SaveFileInfo): ShelfRow => {
     const ok = f.world === undefined || canReadSave(f.world);
-    const mission = f.meta?.mission !== undefined ? MISSION_DEFS[f.meta.mission] : undefined;
+    const missionId = parseMissionId(f.meta?.mission);
+    const mission = missionId !== undefined ? MISSION_DEFS[missionId] : undefined;
     const opponents = f.meta?.opponents ?? 0;
     const what =
       mission?.title ??
@@ -838,7 +889,10 @@ export function StartMenu(props: StartMenuProps) {
                   {OneIcon}
                   Single player
                 </button>
-                <button class={mode() === 'campaign' ? 'on' : ''} onClick={() => pickMode('campaign')}>
+                <button
+                  class={mode() === 'campaign' ? 'on' : ''}
+                  onClick={() => pickMode('campaign')}
+                >
                   {BannerIcon}
                   Campaign
                 </button>
@@ -872,9 +926,14 @@ export function StartMenu(props: StartMenuProps) {
 
               <Show when={isMulti()}>
                 <div class="choices">
-                  <button class={`choice ${mp() === 'host' ? 'on' : ''}`} onClick={() => setMp('host')}>
+                  <button
+                    class={`choice ${mp() === 'host' ? 'on' : ''}`}
+                    onClick={() => setMp('host')}
+                  >
                     <span>Host a room</span>
-                    <span class="row-hint" style="display:block">You generate the valley</span>
+                    <span class="row-hint" style="display:block">
+                      You generate the valley
+                    </span>
                   </button>
                   <button
                     class={`choice ${mp() === 'join' ? 'on' : ''}`}
@@ -884,7 +943,9 @@ export function StartMenu(props: StartMenuProps) {
                     }}
                   >
                     <span>Join a room</span>
-                    <span class="row-hint" style="display:block">Pick one, or use a code</span>
+                    <span class="row-hint" style="display:block">
+                      Pick one, or use a code
+                    </span>
                   </button>
                 </div>
               </Show>
@@ -902,7 +963,15 @@ export function StartMenu(props: StartMenuProps) {
                       style="width:30px;height:30px;border-radius:8px"
                       onClick={() => void refresh()}
                     >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      >
                         <path d="M21 12a9 9 0 1 1-2.64-6.36" />
                         <path d="M21 3v5h-5" />
                       </svg>
@@ -999,10 +1068,18 @@ export function StartMenu(props: StartMenuProps) {
                     <div class="row-hint">Open rooms appear in everyone’s browser</div>
                   </div>
                   <div class="vis">
-                    <button class={vis() === 'open' ? 'on' : ''} title="Listed for anyone to join" onClick={() => setVis('open')}>
+                    <button
+                      class={vis() === 'open' ? 'on' : ''}
+                      title="Listed for anyone to join"
+                      onClick={() => setVis('open')}
+                    >
                       Open
                     </button>
-                    <button class={vis() === 'private' ? 'on' : ''} title="Code only — unlisted" onClick={() => setVis('private')}>
+                    <button
+                      class={vis() === 'private' ? 'on' : ''}
+                      title="Code only — unlisted"
+                      onClick={() => setVis('private')}
+                    >
                       Private
                     </button>
                   </div>
@@ -1011,8 +1088,8 @@ export function StartMenu(props: StartMenuProps) {
                   <div>
                     <div class="row-label">Match settings</div>
                     <div class="row-hint">
-                      Computer seats, map seed and bandit raids are chosen in the War Council,
-                      where everyone sees them.
+                      Computer seats, map seed and bandit raids are chosen in the War Council, where
+                      everyone sees them.
                     </div>
                   </div>
                 </div>
@@ -1196,7 +1273,9 @@ export function StartMenu(props: StartMenuProps) {
                   </Show>
 
                   <Show when={importNote() !== null}>
-                    <div class="row-hint" style="color:#d9c37a">{importNote()}</div>
+                    <div class="row-hint" style="color:#d9c37a">
+                      {importNote()}
+                    </div>
                   </Show>
 
                   <div class="row-hint">
@@ -1271,7 +1350,6 @@ export function StartMenu(props: StartMenuProps) {
                     </button>
                   </div>
                 </Show>
-
               </Show>
 
               <Show when={isSingle() && OPTIONS.showBanditsRow}>
@@ -1327,7 +1405,9 @@ export function StartMenu(props: StartMenuProps) {
                 <div class="row">
                   <div>
                     <div class="row-label">Full screen</div>
-                    <div class="row-hint">The pointer plays inside it, and the edges pan the map</div>
+                    <div class="row-hint">
+                      The pointer plays inside it, and the edges pan the map
+                    </div>
                   </div>
                   <button
                     class={`toggle ${fs.active() ? 'on' : ''}`}
@@ -1340,7 +1420,6 @@ export function StartMenu(props: StartMenuProps) {
                   </button>
                 </div>
               </Show>
-
             </div>
 
             <div class="cta-wrap">
@@ -1355,7 +1434,14 @@ export function StartMenu(props: StartMenuProps) {
               </button>
               <Show when={OPTIONS.showLaunchUrl && !isMulti()}>
                 <div class="cta-url">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
                     <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7L11 5" />
                     <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L13 19" />
                   </svg>
@@ -1380,7 +1466,15 @@ export function StartMenu(props: StartMenuProps) {
               }
               onClick={() => openShelf('saves')}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <path d="M7 10l5 5 5-5" />
                 <path d="M12 15V3" />
@@ -1408,7 +1502,15 @@ export function StartMenu(props: StartMenuProps) {
                 goto('?editor');
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
                 <path d="M12 19l7-7 3 3-7 7-3-3z" />
                 <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
                 <path d="M2 2l7.586 7.586" />
@@ -1425,7 +1527,16 @@ export function StartMenu(props: StartMenuProps) {
                 goto('/docs');
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M3 4.5A1.5 1.5 0 0 1 4.5 3H9a3 3 0 0 1 3 3v14a2.5 2.5 0 0 0-2.5-2.5H3z" />
                 <path d="M21 4.5A1.5 1.5 0 0 0 19.5 3H15a3 3 0 0 0-3 3v14a2.5 2.5 0 0 1 2.5-2.5H21z" />
               </svg>

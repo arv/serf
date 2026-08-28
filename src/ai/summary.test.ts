@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { playMax, playMin } from '../sim/map.ts';
 import { tileIdx } from '../shared/grid.ts';
-import { createWorld, type World } from '../sim/world.ts';
+import { createWorld, type World, MatchState } from '../sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../sim/tick.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
-import { strategyOf } from '../sim/defs/aiStrategies.ts';
+import { strategyOf, AiStrategyId } from '../sim/defs/aiStrategies.ts';
 import { summarizeForSeat } from './summary.ts';
+import { BuildingTypeId, BUILDING_KEYS } from '../sim/defs/buildings.ts';
+import { PlayerKind } from '../sim/player.ts';
 
 /**
  * The summary is the strategist's only eyes, and the brain it serves plays
@@ -20,14 +22,19 @@ import { summarizeForSeat } from './summary.ts';
 function playedWorld(ticks: number): { world: World; brains: AiBrain[] } {
   const world = createWorld({
     seed: 11,
-    players: [{ kind: 'ai', strategy: 'steward' }, { kind: 'ai', strategy: 'warlord' }],
+    players: [
+      { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
+      { kind: PlayerKind.ai, strategy: AiStrategyId.warlord },
+    ],
     // What is under test is the summary's shape and budget, at the tempo
     // its tick horizons were written for — the classic 64 map keeps these
     // sims inside vitest's default timeout. Map scale has its own tests.
     mapSize: 64,
   });
-  const brains = world.players.map((p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
-  for (let t = 0; t < ticks && world.outcome.state === 'playing'; t++) {
+  const brains = world.players.map(
+    (p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size),
+  );
+  for (let t = 0; t < ticks && world.outcome.state === MatchState.playing; t++) {
     const commands: PlayerCommand[] = [];
     for (const brain of brains) {
       if (!brain.shouldDecide(world.tick)) continue;
@@ -39,20 +46,20 @@ function playedWorld(ticks: number): { world: World; brains: AiBrain[] } {
 }
 
 describe('summarizeForSeat', () => {
-  it('reports the seat\'s own village the way the world holds it', () => {
+  it("reports the seat's own village the way the world holds it", () => {
     const { world, brains } = playedWorld(4_000);
     const summary = summarizeForSeat(world, brains[0]!);
 
     expect(summary.tick).toBe(world.tick);
     expect(summary.minutes).toBe(Math.round(world.tick / 1200)); // 20 Hz
     expect(summary.seat).toMatchObject({ id: 0, strategyId: 'steward' });
-    expect(summary.seat.knobs.armyAttackSize).toBe(strategyOf('steward').armyAttackSize);
+    expect(summary.seat.knobs.armyAttackSize).toBe(strategyOf(AiStrategyId.steward).armyAttackSize);
 
     // Own counts agree with a straight scan — a seat always knows itself.
     const myBuildings = [...world.buildings.values()].filter((b) => !b.dead && b.owner === 0);
     const counted = Object.values(summary.me.buildings).reduce((a, n) => a + n, 0);
     expect(counted).toBe(myBuildings.length);
-    expect(summary.me.buildings.storehouse).toBe(1);
+    expect(summary.me.buildings[BUILDING_KEYS[BuildingTypeId.storehouse]]).toBe(1);
     expect(summary.me.pop).toBeGreaterThan(0);
     expect(summary.me.pop).toBeLessThanOrEqual(summary.me.popCap);
     expect(summary.me.serfs).toBeGreaterThan(0);
@@ -122,9 +129,7 @@ describe('summarizeForSeat', () => {
         if (rival.intel === null) continue;
         expect(rival.intel.ageTicks).toBeGreaterThanOrEqual(0);
         expect(rival.intel.ageTicks).toBeLessThanOrEqual(8_000); // trustFor
-        expect(rival.intel.heavy + rival.intel.light + rival.intel.ranged).toBe(
-          rival.intel.total,
-        );
+        expect(rival.intel.heavy + rival.intel.light + rival.intel.ranged).toBe(rival.intel.total);
         expect(rival.intel.total).toBeGreaterThan(0);
       }
     }
@@ -140,7 +145,7 @@ describe('summarizeForSeat', () => {
   it('does not crash on a seat whose castle has fallen', () => {
     const { world, brains } = playedWorld(500);
     for (const b of world.buildings.values()) {
-      if (b.owner === 0 && b.type === 'storehouse') b.dead = true;
+      if (b.owner === 0 && b.type === BuildingTypeId.storehouse) b.dead = true;
     }
     const summary = summarizeForSeat(world, brains[0]!);
     expect(summary.me.stock).toEqual({});

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { BuildingTypeId } from '../sim/entities';
-import { GOODS, type GoodId } from '../sim/defs/goods';
+import { GOODS, GoodId } from '../sim/defs/goods';
 import { makeGlbBuilding, glbCarryProp } from './assets';
 import { mapMaterials } from './materials';
 import { goodColors as goodColorsLocal, rock, stalk, stoneRoad, wood, woodLight } from './palette';
@@ -65,11 +65,7 @@ export function makeRoadPile(): THREE.Group {
   return g;
 }
 
-export function makeGhostModel(
-  type: BuildingTypeId,
-  opacity = 0.45,
-  owner = 0,
-): THREE.Group {
+export function makeGhostModel(type: BuildingTypeId, opacity = 0.45, owner = 0): THREE.Group {
   // Preview whatever model will actually be built, in your colors.
   // (Only road sites have no GLB; they preview as the wood pile marker.)
   const g = makeGlbBuilding(type, owner) ?? makeRoadPile();
@@ -144,7 +140,7 @@ function carryProto(good: GoodId): THREE.Group {
   };
 
   switch (good) {
-    case 'water': {
+    case GoodId.water: {
       // A shoulder pole with a pail swinging at each end.
       const pole = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.78, 5), woodLight);
       pole.rotation.z = Math.PI / 2;
@@ -163,7 +159,7 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.88;
       break;
     }
-    case 'wheat': {
+    case GoodId.wheat: {
       // A straw grain bale with rope bindings.
       const bale = mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.32, 8), 0xd8c288);
       bale.rotation.z = Math.PI / 2;
@@ -177,7 +173,7 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.92;
       break;
     }
-    case 'wood': {
+    case GoodId.wood: {
       // A bundle of poles over the shoulder.
       for (const [dy, dz, r] of [
         [0, 0, 0.032],
@@ -193,17 +189,17 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.9;
       break;
     }
-    case 'stone': {
+    case GoodId.stone: {
       const chunk = mesh(new THREE.DodecahedronGeometry(0.14), rock);
       chunk.scale.y = 0.8;
       add(chunk);
       g.position.y = 0.92;
       break;
     }
-    case 'iron':
-    case 'silver':
-    case 'gold': {
-      const tone = good === 'iron' ? 0x5a5350 : good === 'silver' ? 0xc4cad2 : 0xe0b44a;
+    case GoodId.iron:
+    case GoodId.silver:
+    case GoodId.gold: {
+      const tone = good === GoodId.iron ? 0x5a5350 : good === GoodId.silver ? 0xc4cad2 : 0xe0b44a;
       const a = mesh(new THREE.BoxGeometry(0.24, 0.07, 0.1), tone);
       add(a);
       const b = mesh(new THREE.BoxGeometry(0.24, 0.07, 0.1), tone);
@@ -213,7 +209,7 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.9;
       break;
     }
-    case 'sword': {
+    case GoodId.sword: {
       // Sheathed arming sword: leather scabbard, straight crossguard.
       // Parts sit along the same yaw as the scabbard, so their offsets are
       // (d·cos 0.35, −d·sin 0.35) for a distance d up the blade.
@@ -234,8 +230,11 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.92;
       break;
     }
-    case 'spear': {
-      const shaft = mesh(new THREE.CylinderGeometry(0.022, 0.022, 1.05, 5), goodColorsLocal.spear);
+    case GoodId.spear: {
+      const shaft = mesh(
+        new THREE.CylinderGeometry(0.022, 0.022, 1.05, 5),
+        goodColorsLocal[GoodId.spear],
+      );
       shaft.rotation.z = Math.PI / 2;
       shaft.rotation.y = 0.25;
       add(shaft);
@@ -247,14 +246,17 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.92;
       break;
     }
-    case 'bow': {
-      const bow = mesh(new THREE.TorusGeometry(0.26, 0.022, 5, 10, Math.PI), goodColorsLocal.bow);
+    case GoodId.bow: {
+      const bow = mesh(
+        new THREE.TorusGeometry(0.26, 0.022, 5, 10, Math.PI),
+        goodColorsLocal[GoodId.bow],
+      );
       bow.rotation.z = Math.PI / 2;
       add(bow);
       g.position.y = 0.85;
       break;
     }
-    case 'flour': {
+    case GoodId.flour: {
       // A milled sack: plumper than the grain sack the pack ships, and pale
       // with the dust of it, so the two never read alike on a road.
       const body = mesh(new THREE.SphereGeometry(0.13, 8, 6), 0xe4dcc9);
@@ -269,14 +271,14 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.9;
       break;
     }
-    case 'food': {
+    case GoodId.food: {
       // Loaves in the crook of an arm: three round ones, slashed.
       for (const [dx, dy, dz, r] of [
         [-0.07, 0, 0.01, 0.075],
         [0.06, 0.005, -0.02, 0.08],
         [0, 0.075, 0, 0.07],
       ] as const) {
-        const loaf = mesh(new THREE.SphereGeometry(r, 7, 5), goodColorsLocal.food);
+        const loaf = mesh(new THREE.SphereGeometry(r, 7, 5), goodColorsLocal[GoodId.food]);
         loaf.scale.set(1.35, 0.72, 0.85);
         loaf.position.set(dx, dy, dz);
         add(loaf);
@@ -287,7 +289,7 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.91;
       break;
     }
-    case 'scythe': {
+    case GoodId.scythe: {
       // The one tool RPG Tools Bits does not ship: a snath over the
       // shoulder with the blade hooked out past one end, lying flat the
       // way the pack tools are laid by PACK_CARRY.
@@ -302,7 +304,7 @@ function carryProto(good: GoodId): THREE.Group {
       g.position.y = 0.9;
       break;
     }
-    case 'ale': {
+    case GoodId.ale: {
       // A stout ale cask, iron-hooped, carried on its side.
       const staves = mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 10), 0x8a6033);
       staves.rotation.z = Math.PI / 2;
@@ -331,22 +333,22 @@ const carryPrototypes = new Map<GoodId, THREE.Group>();
 const PACK_CARRY: Partial<
   Record<GoodId, { prop: string; span: number; rot?: [number, number, number] }>
 > = {
-  wood: { prop: 'resource_lumber', span: 0.44 },
-  stone: { prop: 'resource_stone', span: 0.36 },
+  [GoodId.wood]: { prop: 'resource_lumber', span: 0.44 },
+  [GoodId.stone]: { prop: 'resource_stone', span: 0.36 },
   // The procedural shoulder-pole carry spanned most of a tile; water
   // travels by the hand-sized pack bucket instead.
-  water: { prop: 'bucket_water', span: 0.26 },
-  wheat: { prop: 'sack', span: 0.3 },
-  ale: { prop: 'barrel', span: 0.3 },
+  [GoodId.water]: { prop: 'bucket_water', span: 0.26 },
+  [GoodId.wheat]: { prop: 'sack', span: 0.3 },
+  [GoodId.ale]: { prop: 'barrel', span: 0.3 },
   // The tools ride from RPG Tools Bits, laid across the arms (they are
   // authored standing, handle up +Y — the rot is what lays them down and
   // what the span is measured against). The scythe has no pack model and
   // keeps its procedural carry; the cauldron is the pack's metal bucket.
-  axe: { prop: 'tools/axe', span: 0.4, rot: [0, 0, Math.PI / 2] },
-  pickaxe: { prop: 'tools/pickaxe', span: 0.42, rot: [0, 0, Math.PI / 2] },
-  hammer: { prop: 'tools/hammer', span: 0.34, rot: [0, 0, Math.PI / 2] },
-  cauldron: { prop: 'tools/bucket_metal', span: 0.26 },
-  rod: { prop: 'tools/fishing_rod', span: 0.5, rot: [0, 0, Math.PI / 2] },
+  [GoodId.axe]: { prop: 'tools/axe', span: 0.4, rot: [0, 0, Math.PI / 2] },
+  [GoodId.pickaxe]: { prop: 'tools/pickaxe', span: 0.42, rot: [0, 0, Math.PI / 2] },
+  [GoodId.hammer]: { prop: 'tools/hammer', span: 0.34, rot: [0, 0, Math.PI / 2] },
+  [GoodId.cauldron]: { prop: 'tools/bucket_metal', span: 0.26 },
+  [GoodId.rod]: { prop: 'tools/fishing_rod', span: 0.5, rot: [0, 0, Math.PI / 2] },
 };
 
 /** Ground stock renders a quarter larger than the carried version: at

@@ -8,9 +8,9 @@ import {
   WEAR_DECAY,
 } from '../defs/balance.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
-import { buildingDef } from '../defs/buildings.ts';
+import { buildingDef, BuildingTypeId } from '../defs/buildings.ts';
 import { PathLevel, Terrain } from '../map.ts';
-import { isPlayerOwner, type Owner } from '../entities.ts';
+import { isPlayerOwner, type Owner, BuildingState } from '../entities.ts';
 import { placeSite, pushDelta, type World } from '../world.ts';
 
 /**
@@ -62,7 +62,7 @@ function paveStep(world: World): void {
 
   let active = 0;
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.type === 'roadSite') active++;
+    if (!b.dead && b.type === BuildingTypeId.roadSite) active++;
   }
   if (active >= MAX_CONCURRENT_PAVING) return;
 
@@ -83,7 +83,7 @@ function paveStep(world: World): void {
     // owner has actually researched Masonry.
     const owner = nearestStorageOwner(world, tileX(idx, size), tileY(idx, size));
     if (owner === undefined || !world.players[owner]?.pavingUnlocked) continue;
-    placeSite(world, 'roadSite', owner, tileX(idx, size), tileY(idx, size));
+    placeSite(world, BuildingTypeId.roadSite, owner, tileX(idx, size), tileY(idx, size));
   }
 }
 
@@ -93,7 +93,7 @@ function nearestStorageOwner(world: World, x: number, y: number): Owner | undefi
   let best: Owner | undefined;
   let bestDist = Infinity;
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built' || !buildingDef(b.type).storage) continue;
+    if (b.dead || b.state !== BuildingState.built || !buildingDef(b.type).storage) continue;
     if (!isPlayerOwner(b.owner)) continue;
     const dist = Math.max(Math.abs(b.x + b.w / 2 - x), Math.abs(b.y + b.h / 2 - y));
     if (dist < bestDist) {

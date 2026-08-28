@@ -1,17 +1,13 @@
 import { REPAIR_MEND_TICKS } from '../defs/balance.ts';
 import { buildingDef, repairBill } from '../defs/buildings.ts';
-import { GOODS, type GoodId } from '../defs/goods.ts';
+import { GOODS, GoodId, goodKeys } from '../defs/goods.ts';
 import { PathLevel } from '../map.ts';
 import { abortJob, availableOut } from './logistics.ts';
 import { consumePostTool } from './production.ts';
-import {
-  applyRepairMaterial,
-  clearRepairOrder,
-  destroyBuilding,
-  type World,
-} from '../world.ts';
+import { applyRepairMaterial, clearRepairOrder, destroyBuilding, type World } from '../world.ts';
 import { tileIdx } from '../../shared/grid.ts';
-import type { Building } from '../entities.ts';
+import { type Building, BuildingState } from '../entities.ts';
+import { UnitTypeId } from '../defs/units.ts';
 
 /**
  * Sites whose materials are fully delivered tick a build timer, then become
@@ -27,7 +23,7 @@ export function constructionSystem(world: World): void {
       if (b.repairNeeds) spendOwnStores(world, b);
       if (b.repairPending !== undefined) mendRepair(world, b);
     }
-    if (b.dead || b.state !== 'site' || !b.siteNeeds || b.paused) continue;
+    if (b.dead || b.state !== BuildingState.site || !b.siteNeeds || b.paused) continue;
 
     // Sandbox: sites need nothing and finish now (reconcile cancels any
     // in-flight material hauls via the "site no longer needs good" rule).
@@ -59,7 +55,7 @@ export function constructionSystem(world: World): void {
       continue;
     }
 
-    b.state = 'built';
+    b.state = BuildingState.built;
     b.hp = def.hp;
     // A tower comes up stood down — an empty roof, waiting to be manned.
     // Villagers are the whole village's hands, and a running tower would put
@@ -75,9 +71,9 @@ export function constructionSystem(world: World): void {
     // shelf, where evacuation hauls it home for the next site. This is
     // what makes hammers a cap on concurrent construction rather than a
     // cost — the only way to lose one is to lose the site itself.
-    if ((b.inputs.hammer ?? 0) > 0) {
-      b.stock.hammer = (b.stock.hammer ?? 0) + (b.inputs.hammer ?? 0);
-      b.inputs.hammer = 0;
+    if ((b.inputs[GoodId.hammer] ?? 0) > 0) {
+      b.stock[GoodId.hammer] = (b.stock[GoodId.hammer] ?? 0) + (b.inputs[GoodId.hammer] ?? 0);
+      b.inputs[GoodId.hammer] = 0;
     }
     // The builder stays on as the building's worker — if the post's tool
     // is here to hand him (sites pre-order it, so it usually arrived with
@@ -87,7 +83,7 @@ export function constructionSystem(world: World): void {
     if (b.workerId !== undefined && (def.workerKind === undefined || !consumePostTool(world, b))) {
       const builder = world.units.get(b.workerId);
       if (builder && !builder.dead) {
-        builder.kind = 'serf';
+        builder.kind = UnitTypeId.serf;
         builder.homeId = undefined;
       }
       b.workerId = undefined;
@@ -166,7 +162,7 @@ function unpaidDamage(b: Building): number {
 /** Can this building be told to mend itself right now? */
 export function canRepair(b: Building): boolean {
   const def = buildingDef(b.type);
-  if (b.dead || b.state !== 'built' || def.isRoad || def.systemOnly) return false;
+  if (b.dead || b.state !== BuildingState.built || def.isRoad || def.systemOnly) return false;
   // A site heals as it rises (constructionSystem), a building nobody has
   // scratched has nothing to pay for, and damage a running repair has
   // already bought is waiting on the masons, not on a second order.
@@ -211,7 +207,7 @@ export function orderRepair(world: World, b: Building): void {
 export function cancelRepair(world: World, b: Building): void {
   const needs = b.repairNeeds;
   if (!needs) return;
-  clearRepairOrder(b, Object.keys(needs) as GoodId[]);
+  clearRepairOrder(b, goodKeys(needs));
   for (const job of world.jobs.values()) {
     if (job.repair && job.to === b.id) abortJob(world, job, 'repair called off', true);
   }

@@ -1,15 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { gridFor, tileCount, tileIdx } from '../shared/grid.ts';
 import { createWorld, campCorners, type World } from './world.ts';
-import {
-  Terrain,
-  TileResource,
-  inPlayArea,
-  playEdgeDist,
-  playMin,
-  type GameMap,
-} from './map.ts';
+import { Terrain, TileResource, inPlayArea, playEdgeDist, playMin, type GameMap } from './map.ts';
 import { WOOD_MAX_AMT } from './defs/balance.ts';
+import { PlayerKind } from './player.ts';
 
 /**
  * The mixed-border contract on the Warcraft-style grid: the world is
@@ -29,7 +23,7 @@ const FRINGE = 4; // floor(96 / 24)
 const MAX_DEPTH = 3 * FRINGE + 2;
 
 function solo(seed: number): World {
-  return createWorld({ seed, players: [{ kind: 'human' }] });
+  return createWorld({ seed, players: [{ kind: PlayerKind.human }] });
 }
 
 /** Grid coordinates of a probe on `side`, `along` tiles down the play
@@ -200,8 +194,8 @@ describe('map borders', () => {
 
   it('is deterministic and keeps the camp corners on land at every size', () => {
     for (const mapSize of [64, 96, 128]) {
-      const a = createWorld({ seed: 5, players: [{ kind: 'human' }], mapSize });
-      const b = createWorld({ seed: 5, players: [{ kind: 'human' }], mapSize });
+      const a = createWorld({ seed: 5, players: [{ kind: PlayerKind.human }], mapSize });
+      const b = createWorld({ seed: 5, players: [{ kind: PlayerKind.human }], mapSize });
       expect(a.map.terrain).toEqual(b.map.terrain);
       expect(a.map.resource).toEqual(b.map.resource);
       for (const [cx, cy] of campCorners(mapSize)) {

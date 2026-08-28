@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from 'solid-js';
-import { MISSION_DEFS, nextMissionId } from '../sim/defs/missions';
+import { MISSION_DEFS, nextMissionId, MissionId } from '../sim/defs/missions';
 import { MISSION_HINTS } from './hints';
 import { hintsHidden, setHintsHidden } from './campaign';
 import { briefingOpen, mission, setBriefingOpen, speed } from './store';
@@ -124,10 +124,7 @@ export function MissionPanel(props: { onSpeed: (speed: number) => void }) {
           <div class="hud-mission panel">
             <div class="mission-head">
               <span>{def()!.title}</span>
-              <button
-                title="Read the commission again"
-                onClick={() => setBriefingOpen(true)}
-              >
+              <button title="Read the commission again" onClick={() => setBriefingOpen(true)}>
                 brief
               </button>
             </div>
@@ -164,7 +161,7 @@ export function MissionPanel(props: { onSpeed: (speed: number) => void }) {
 }
 
 /** The next commission, for the end card. */
-export function continueTarget(): { id: string; title: string } | undefined {
+export function continueTarget(): { id: MissionId; title: string } | undefined {
   const m = mission();
   if (!m) return undefined;
   const next = nextMissionId(m.id);

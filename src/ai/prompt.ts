@@ -1,6 +1,22 @@
-import { POSTURES, POSTURE_ORDER } from './posture.ts';
+import { POSTURES, POSTURE_ORDER, POSTURE_KEYS } from './posture.ts';
 import type { StrategyAdvice } from './advice.ts';
 import type { AiWorldSummary } from './summary.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as ChatRoleNs from './chatRoleEnum.ts';
+
+export * as ChatRole from './chatRoleEnum.ts';
+export type ChatRole = Enum<typeof ChatRoleNs>;
+
+/**
+ * The spelling each role is rendered as. llama.cpp applies the model's own
+ * chat template to these words, so they are the engine's vocabulary rather
+ * than ours — the one place they are needed is the hand-off in
+ * strategist.ts.
+ */
+export const CHAT_ROLE_KEYS: Readonly<Record<ChatRole, 'system' | 'user'>> = {
+  [ChatRoleNs.system]: 'system',
+  [ChatRoleNs.user]: 'user',
+};
 
 /**
  * Summary → chat messages. Kept apart from the strategist so the whole
@@ -26,7 +42,7 @@ import type { AiWorldSummary } from './summary.ts';
 /** OpenAI-style chat shape, structurally what WebLLM accepts — declared
  * here so nothing on this path imports the engine package. */
 export interface ChatMessage {
-  role: 'system' | 'user';
+  role: ChatRole;
   content: string;
 }
 
@@ -37,7 +53,7 @@ Fog of war: you know only what your seat has scouted ("explored" is your map cov
 Your one job is posture: how the seat spends the next minute and a half.
 
 Choose exactly one posture:
-${POSTURE_ORDER.map((id) => `- ${id}: ${POSTURES[id].when}`).join('\n')}
+${POSTURE_ORDER.map((id) => `- ${POSTURE_KEYS[id]}: ${POSTURES[id].when}`).join('\n')}
 
 Reply with a single JSON object: {"posture": "<one of the postures above>", "reason": "<a few words citing a specific fact from the match state>"}. Nothing else.`;
 
@@ -84,7 +100,7 @@ function intelLine(intel: { heavy: number; light: number; ranged: number; total:
  * genuine pipeline instead of a private side channel into the sim.
  */
 export function extractSummary(messages: readonly ChatMessage[]): AiWorldSummary | null {
-  const user = messages.find((m) => m.role === 'user');
+  const user = messages.find((m) => m.role === ChatRoleNs.user);
   if (!user) return null;
   // Second block of buildMessages' `parts`, which are joined on a blank
   // line and never contain one internally.
@@ -113,12 +129,12 @@ export function buildMessages(
     // lfm2.5-350m spent a whole sweep replying with the playbook's own
     // trainPreference — and it has no decision to make about them anyway.
     lastAdvice?.posture
-      ? `Your standing posture is "${lastAdvice.posture}". Keep it or change it, as the state warrants.`
+      ? `Your standing posture is "${POSTURE_KEYS[lastAdvice.posture]}". Keep it or change it, as the state warrants.`
       : 'You have not set a posture yet; the playbook runs at its printed values.',
     'Reply with only the JSON object naming your posture.',
   ];
   return [
-    { role: 'system', content: SYSTEM },
-    { role: 'user', content: parts.join('\n\n') },
+    { role: ChatRoleNs.system, content: SYSTEM },
+    { role: ChatRoleNs.user, content: parts.join('\n\n') },
   ];
 }

@@ -1,24 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import type { AnimKey } from '../render/characters';
 import { CUES } from './cues';
 import { animCue, LOOP_CUES } from './animCues';
+import { AnimKey } from '../render/characters';
 
 const KEYS: AnimKey[] = [
-  'idle',
-  'walk',
-  'jog',
-  'attack',
-  'shoot',
-  'work',
-  'pickaxe',
-  'hammer',
-  'dig',
-  'tend',
-  'draw',
-  'fish',
-  'carry',
-  'carryIdle',
-  'death',
+  AnimKey.idle,
+  AnimKey.walk,
+  AnimKey.jog,
+  AnimKey.attack,
+  AnimKey.shoot,
+  AnimKey.work,
+  AnimKey.pickaxe,
+  AnimKey.hammer,
+  AnimKey.dig,
+  AnimKey.tend,
+  AnimKey.draw,
+  AnimKey.fish,
+  AnimKey.carry,
+  AnimKey.carryIdle,
+  AnimKey.death,
 ];
 
 describe('animCue', () => {
@@ -26,7 +26,7 @@ describe('animCue', () => {
     for (const prev of [null, ...KEYS]) {
       for (const next of KEYS) {
         const cue = animCue(prev, next);
-        if (next === 'death' && prev !== 'death') {
+        if (next === AnimKey.death && prev !== AnimKey.death) {
           expect(cue, `${String(prev)} -> ${next}`).toBe('unitDeath');
         } else {
           expect(cue, `${String(prev)} -> ${next}`).toBeNull();
@@ -40,7 +40,7 @@ describe('animCue', () => {
     // either would machine-gun the speakers on every camera pan.
     for (const next of KEYS) {
       const cue = animCue(null, next);
-      if (next === 'death') expect(cue).toBe('unitDeath');
+      if (next === AnimKey.death) expect(cue).toBe('unitDeath');
       else expect(cue).toBeNull();
     }
   });
@@ -64,16 +64,16 @@ describe('LOOP_CUES', () => {
   });
 
   it('gaits are two footfalls a cycle; so are the pack tool loops', () => {
-    expect(LOOP_CUES.walk?.perCycle).toBe(2);
-    expect(LOOP_CUES.jog?.perCycle).toBe(2);
-    expect(LOOP_CUES.carry?.perCycle).toBe(2);
+    expect(LOOP_CUES[AnimKey.walk]?.perCycle).toBe(2);
+    expect(LOOP_CUES[AnimKey.jog]?.perCycle).toBe(2);
+    expect(LOOP_CUES[AnimKey.carry]?.perCycle).toBe(2);
     // Pickaxing and Hammering genuinely strike twice per clip, on the
     // half-cycle (animImpacts.mjs measures 0.06/0.56 and 0.09/0.59).
-    expect(LOOP_CUES.pickaxe?.perCycle).toBe(2);
-    expect(LOOP_CUES.hammer?.perCycle).toBe(2);
-    expect(LOOP_CUES.work?.perCycle).toBe(1);
-    expect(LOOP_CUES.attack?.perCycle).toBe(1);
-    expect(LOOP_CUES.shoot?.perCycle).toBe(1);
+    expect(LOOP_CUES[AnimKey.pickaxe]?.perCycle).toBe(2);
+    expect(LOOP_CUES[AnimKey.hammer]?.perCycle).toBe(2);
+    expect(LOOP_CUES[AnimKey.work]?.perCycle).toBe(1);
+    expect(LOOP_CUES[AnimKey.attack]?.perCycle).toBe(1);
+    expect(LOOP_CUES[AnimKey.shoot]?.perCycle).toBe(1);
   });
 
   it('a twice-a-cycle phase stays in the first half — the mirror lands +0.5', () => {
@@ -89,8 +89,8 @@ describe('LOOP_CUES', () => {
   it('carry keeps step with the legs it borrowed — walk by default, jog by clip', () => {
     // characters.ts composites Carry_Walk from Walking_A and Carry_Jog
     // from Running_A; the footfalls are those gaits' own.
-    expect(LOOP_CUES.carry?.impactPhase01).toBe(LOOP_CUES.walk?.impactPhase01);
-    expect(LOOP_CUES.carry?.byClip?.Carry_Jog).toBe(LOOP_CUES.jog?.impactPhase01);
+    expect(LOOP_CUES[AnimKey.carry]?.impactPhase01).toBe(LOOP_CUES[AnimKey.walk]?.impactPhase01);
+    expect(LOOP_CUES[AnimKey.carry]?.byClip?.Carry_Jog).toBe(LOOP_CUES[AnimKey.jog]?.impactPhase01);
   });
 
   it('the attack key covers each attackClip a kind can swap in', () => {
@@ -100,7 +100,7 @@ describe('LOOP_CUES', () => {
     // owns the measurements): the stab thrusts in the clip's first half
     // where both chops swing in the second — a slide back toward one
     // shared phase trips these.
-    const attack = LOOP_CUES.attack!;
+    const attack = LOOP_CUES[AnimKey.attack]!;
     const stab = attack.byClip?.Melee_1H_Attack_Stab ?? NaN;
     const chop2h = attack.byClip?.Melee_2H_Attack_Chop ?? NaN;
     expect(stab).toBeGreaterThan(0);
@@ -111,8 +111,8 @@ describe('LOOP_CUES', () => {
   });
 
   it('death and the idles have no percussion', () => {
-    expect(LOOP_CUES.death).toBeUndefined();
-    expect(LOOP_CUES.idle).toBeUndefined();
-    expect(LOOP_CUES.carryIdle).toBeUndefined();
+    expect(LOOP_CUES[AnimKey.death]).toBeUndefined();
+    expect(LOOP_CUES[AnimKey.idle]).toBeUndefined();
+    expect(LOOP_CUES[AnimKey.carryIdle]).toBeUndefined();
   });
 });

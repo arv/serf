@@ -5,6 +5,9 @@ import { createWorld } from './world.ts';
 import { BANDIT, isPlayerOwner } from './entities.ts';
 import { START_SERFS } from './defs/balance.ts';
 import { tickWorld } from './tick.ts';
+import { UnitTypeId } from './defs/units.ts';
+import { BuildingTypeId } from './defs/buildings.ts';
+import { PlayerKind } from './player.ts';
 
 /** 4-connected grass reachability between two tiles. */
 function reachable(map: { size: number; terrain: Uint8Array }, from: number, to: number): boolean {
@@ -40,14 +43,16 @@ describe('N-player worldgen', () => {
       for (const seed of [1, 42, 20260724]) {
         const world = createWorld({
           seed,
-          players: Array.from({ length: n }, () => ({ kind: 'human' as const })),
+          players: Array.from({ length: n }, () => ({ kind: PlayerKind.human })),
         });
-        const storehouses = [...world.buildings.values()].filter((b) => b.type === 'storehouse');
+        const storehouses = [...world.buildings.values()].filter(
+          (b) => b.type === BuildingTypeId.storehouse,
+        );
         expect(storehouses.length).toBe(n);
         for (let p = 0; p < n; p++) {
           expect(storehouses.some((b) => b.owner === p)).toBe(true);
           const serfs = [...world.units.values()].filter(
-            (u) => u.owner === p && u.kind === 'serf',
+            (u) => u.owner === p && u.kind === UnitTypeId.serf,
           );
           expect(serfs.length).toBe(START_SERFS);
         }
@@ -61,7 +66,9 @@ describe('N-player worldgen', () => {
           expect(reachable(world.map, doors[0]!, doors[i]!)).toBe(true);
         }
         // The camp exists and belongs to the bandits.
-        const camp = [...world.buildings.values()].find((b) => b.type === 'banditCamp');
+        const camp = [...world.buildings.values()].find(
+          (b) => b.type === BuildingTypeId.banditCamp,
+        );
         expect(camp).toBeDefined();
         expect(camp!.owner).toBe(BANDIT);
         expect(isPlayerOwner(camp!.owner)).toBe(false);
@@ -80,7 +87,7 @@ describe('N-player worldgen', () => {
   }
 
   it('deterministic: same config twice gives identical maps', () => {
-    const config = { seed: 7, players: [{ kind: 'human' as const }, { kind: 'human' as const }] };
+    const config = { seed: 7, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.human }] };
     const a = createWorld(config);
     const b = createWorld(config);
     expect([...a.map.terrain]).toEqual([...b.map.terrain]);

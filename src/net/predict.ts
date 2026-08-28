@@ -59,7 +59,7 @@ interface Prediction {
 }
 
 const SPEED_BY_KIND_CODE = new Map<number, number>(
-  Object.values(UNIT_DEFS).map((d) => [d.kindCode, d.speed]),
+  Object.values(UNIT_DEFS).map((d) => [d.id, d.speed]),
 );
 
 export class MovePredictor {
@@ -83,7 +83,12 @@ export class MovePredictor {
    * A local move order just went out. `known` is the latest server frame,
    * which is where these units are starting from as far as anyone knows.
    */
-  order(unitIds: readonly number[], tx: number, ty: number, known: Map<number, UnitSnapshot>): void {
+  order(
+    unitIds: readonly number[],
+    tx: number,
+    ty: number,
+    known: Map<number, UnitSnapshot>,
+  ): void {
     for (const id of unitIds) {
       const u = known.get(id);
       if (!u) continue;

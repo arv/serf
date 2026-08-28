@@ -6,9 +6,10 @@ import {
 } from '../../src/ai/posture.ts';
 import { extractSummary } from '../../src/ai/prompt.ts';
 import { Rng } from '../../src/shared/rng.ts';
-import type { PostureId } from '../../src/ai/posture.ts';
+import { type PostureId, postureFromKey, POSTURE_KEYS } from '../../src/ai/posture.ts';
 import type { AiWorldSummary } from '../../src/ai/summary.ts';
 import type { ChatEngine } from '../../src/ai/strategist.ts';
+import { UnitTypeId } from '../../src/sim/defs/units.ts';
 
 /**
  * The models a bake-off can put in the strategist's seat.
@@ -65,7 +66,7 @@ export type EngineSpec =
   | { kind: 'random'; seed: number }
   | { kind: 'posture' }
   | { kind: 'postureReads' }
-  | { kind: 'postureFixed'; posture: string }
+  | { kind: 'postureFixed'; posture: PostureId }
   | { kind: 'http'; baseUrl: string; model: string };
 
 /**
@@ -85,9 +86,12 @@ export function parseEngineSpec(raw: string, model = 'local-model'): EngineSpec 
   if (raw === 'posture') return { kind: 'posture' };
   if (raw === 'posture-reads') return { kind: 'postureReads' };
   if (raw.startsWith('posture:')) {
-    const posture = raw.slice('posture:'.length);
-    if (!(POSTURE_ORDER as readonly string[]).includes(posture)) {
-      throw new Error(`--engine posture: wants one of ${POSTURE_ORDER.join(', ')}, got "${posture}"`);
+    const word = raw.slice('posture:'.length);
+    const posture = postureFromKey(word);
+    if (posture === undefined) {
+      throw new Error(
+        `--engine posture: wants one of ${POSTURE_ORDER.map((id) => POSTURE_KEYS[id]).join(', ')}, got "${word}"`,
+      );
     }
     return { kind: 'postureFixed', posture };
   }
@@ -206,11 +210,13 @@ export function randomEngine(seed: number): LabEngine {
         } else if (which === numeric.length) {
           reply['prefersRivals'] = rng.next() < 0.5;
         } else if (which === numeric.length + 1) {
-          const order = [...ADVISABLE_UNITS];
+          const order: UnitTypeId[] = [...ADVISABLE_UNITS];
           // Fisher-Yates, so every priority order is reachable.
           for (let j = order.length - 1; j > 0; j--) {
             const k = rng.int(j + 1);
-            [order[j], order[k]] = [order[k]!, order[j]!];
+            const swap = order[j]!;
+            order[j] = order[k]!;
+            order[k] = swap;
           }
           reply['trainPreference'] = order;
         } else {

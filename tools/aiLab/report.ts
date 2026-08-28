@@ -1,6 +1,12 @@
-import { trialsForPrecision, type BakeoffReport, type PlaybookMatchup, type Rate } from './stats.ts';
+import {
+  trialsForPrecision,
+  type BakeoffReport,
+  type PlaybookMatchup,
+  type Rate,
+} from './stats.ts';
 import { TICK_MS } from '../../src/sim/defs/balance.ts';
 import type { SeatStrategies } from './match.ts';
+import { AI_STRATEGY_KEYS } from '../../src/sim/defs/aiStrategies.ts';
 
 /**
  * The printed run. Written to be read by someone deciding whether to swap
@@ -25,7 +31,9 @@ const pct = (x: number): string => `${(x * 100).toFixed(1)}%`;
 
 /** What the seats ran, and whether the sweep owed a seating mirror for it. */
 export function describeSeating([a, b]: SeatStrategies): string {
-  return a === b ? a : `${a} vs ${b} (both seatings)`;
+  const an = AI_STRATEGY_KEYS[a];
+  const bn = AI_STRATEGY_KEYS[b];
+  return a === b ? an : `${an} vs ${bn} (both seatings)`;
 }
 
 const minutes = (ticks: number): string => `${((ticks * TICK_MS) / 60_000).toFixed(1)} min`;
@@ -82,13 +90,17 @@ export function renderMatchup(m: PlaybookMatchup): string[] {
   const { paired } = m;
   const decisive = paired.bothA + paired.bothB;
 
-  p(`PLAYBOOK MATCHUP  ${m.a} vs ${m.b}  (unadvised matches only)`);
   p(
-    `  ${m.a.padEnd(12)}${`${m.rate.wins} / ${m.rate.trials}`.padEnd(9)} ` +
+    `PLAYBOOK MATCHUP  ${AI_STRATEGY_KEYS[m.a]} vs ${AI_STRATEGY_KEYS[m.b]}  (unadvised matches only)`,
+  );
+  p(
+    `  ${AI_STRATEGY_KEYS[m.a].padEnd(12)}${`${m.rate.wins} / ${m.rate.trials}`.padEnd(9)} ` +
       `${pct(m.rate.rate).padStart(6)}   95% CI [${pct(m.rate.lo)}, ${pct(m.rate.hi)}] (optimistic — see below)`,
   );
   for (const s of m.bySeat) {
-    p(`    on seat ${s.seat}  ${String(s.wins).padStart(3)} / ${String(s.trials).padEnd(4)} ${pct(s.trials === 0 ? 0 : s.wins / s.trials).padStart(6)}`);
+    p(
+      `    on seat ${s.seat}  ${String(s.wins).padStart(3)} / ${String(s.trials).padEnd(4)} ${pct(s.trials === 0 ? 0 : s.wins / s.trials).padStart(6)}`,
+    );
   }
   p('  A wide gap between those two lines is the valley favouring a start,');
   p('  which is exactly what playing both seatings cancels.');
@@ -96,8 +108,8 @@ export function renderMatchup(m: PlaybookMatchup): string[] {
   const seedLine = (label: string, n: number): void =>
     p(`    ${label.padEnd(24)}${String(n).padStart(4)}`);
   p(`  PER SEED, across the two seatings`);
-  seedLine(`${m.a} took both`, paired.bothA);
-  seedLine(`${m.b} took both`, paired.bothB);
+  seedLine(`${AI_STRATEGY_KEYS[m.a]} took both`, paired.bothA);
+  seedLine(`${AI_STRATEGY_KEYS[m.b]} took both`, paired.bothB);
   seedLine('one each (no evidence)', paired.split);
   if (paired.unresolved > 0) seedLine('unresolved', paired.unresolved);
   p(`    exact binomial over the ${decisive} decisive seeds: p = ${paired.p.toPrecision(3)}`);
@@ -106,7 +118,8 @@ export function renderMatchup(m: PlaybookMatchup): string[] {
     p(`  VERDICT   every seed split one seating each — nothing separates`);
     p(`            these playbooks here.`);
   } else if (paired.p < 0.05) {
-    p(`  VERDICT   ${paired.bothA > paired.bothB ? m.a : m.b} is the better playbook on these seeds (p < 0.05).`);
+    const better = AI_STRATEGY_KEYS[paired.bothA > paired.bothB ? m.a : m.b];
+    p(`  VERDICT   ${better} is the better playbook on these seeds (p < 0.05).`);
   } else {
     p(`  VERDICT   not significant — a seed that swings with the seating is`);
     p(`            the map talking, and the ones that did not are consistent`);

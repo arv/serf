@@ -8,18 +8,19 @@ import {
   SITE_FRAME_H,
 } from './models';
 import { glbYardProp, glbYardRock, makeGlbBuilding } from './assets';
-import { makeCharacter, playAnimation, type CharacterVisual } from './characters';
+import { makeCharacter, playAnimation, type CharacterVisual, AnimKey } from './characters';
 import { eachMaterial, mapMaterials } from './materials';
-import { buildingDef } from '../sim/defs/buildings';
-import { UNIT_DEFS } from '../sim/defs/units';
+import { buildingDef, BuildingTypeId } from '../sim/defs/buildings';
+import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
 import { WATER_LEVEL } from '../sim/map';
 import { CAMERA_YAW, type ViewBounds } from './cameraRig';
-import { GOODS, type GoodId } from '../sim/defs/goods';
+import { GOODS, GoodId } from '../sim/defs/goods';
 import { hash2 } from '../shared/math';
 import type { FogQuery } from './fogOfWar';
-import type { BuildingSnap } from '../protocol/messages';
+import { type BuildingSnap, StaffingState } from '../protocol/messages';
 import type { HeightField } from './heightField';
 import type { CueId } from '../audio/cues';
+import { BuildingState } from '../sim/entities';
 
 /** A built fishery's pier, in world space: the deck line from its landward
  * end to the fishing spot near the tip, plank height, and the yaw that
@@ -49,10 +50,10 @@ const SHOAL_DRAFT = 0.14;
  */
 const GHOST_SEED_SCALE = 0.22;
 
-/** UNIT_DEFS.archer.kindCode — who mans a guard tower's roof. */
-const ARCHER_KIND = UNIT_DEFS.archer.kindCode;
+/** Who mans a guard tower's roof. */
+const ARCHER_KIND = UnitTypeId.archer;
 /** The levy on the roof wears the serf it is. */
-const LEVY_KIND = UNIT_DEFS.serf.kindCode;
+const LEVY_KIND = UnitTypeId.serf;
 
 /** Reused for the post->root coordinate hop; buildings do not move. */
 const SCRATCH_POS = new THREE.Vector3();
@@ -90,7 +91,7 @@ function freeLane(taken: Set<number>): number {
 
 interface BuildingVisual {
   root: THREE.Group;
-  state: 'site' | 'built';
+  state: BuildingState;
   frame?: THREE.Group;
   model: THREE.Group;
   /** Warcraft-style rise: a world-space clip plane reveals the model
@@ -305,7 +306,7 @@ export class BuildingSync {
     // ground people order units down — a pick box on each would hang a
     // wall of them over the route. Nobody means to click a road anyway.
     if (v.road) return 0;
-    if (v.state !== 'site') return v.topY;
+    if (v.state !== BuildingState.site) return v.topY;
     const raised = v.clip
       ? Math.max(0, v.clip.plane.constant - v.clip.baseY)
       : // The ghost site grows by scale rather than by clip, and topY was
@@ -341,7 +342,12 @@ export class BuildingSync {
         // a swap the player can see (fog guard — see onCue), and only on
         // a real transition: a boot or a resync builds every visual
         // fresh and must not arrive as a fanfare salvo.
-        if (this.onCue && v.state === 'site' && b.state === 'built' && v.root.visible) {
+        if (
+          this.onCue &&
+          v.state === BuildingState.site &&
+          b.state === BuildingState.built &&
+          v.root.visible
+        ) {
           this.onCue('buildingComplete', b.x + b.w / 2, b.y + b.h / 2);
         }
         this.#dispose(b.id);
@@ -351,7 +357,7 @@ export class BuildingSync {
         v = this.#create(b);
         this.#visuals.set(b.id, v);
       }
-      if (b.state === 'site') {
+      if (b.state === BuildingState.site) {
         const p = b.progress01 ?? 0;
         if (v.clip) {
           // Reveal the build bottom-up; a sliver shows from the start so
@@ -369,7 +375,7 @@ export class BuildingSync {
         v.root.visible = this.#fog.exploredAt(b.x + b.w / 2, b.y + b.h / 2);
       }
 
-      v.staffed = b.staffing === 'staffed';
+      v.staffed = b.staffing === StaffingState.staffed;
       v.working = b.working === true;
       v.firing = b.firing === true;
       this.#syncPiles(v, b);
@@ -451,7 +457,7 @@ export class BuildingSync {
     let frame: THREE.Group | undefined;
     let model: THREE.Group;
     let clip: BuildingVisual['clip'];
-    if (b.state === 'site') {
+    if (b.state === BuildingState.site) {
       frame = makeSiteFrame(b.w, b.h);
       root.add(frame);
       const glb = makeGlbBuilding(b.type, b.owner);
@@ -511,7 +517,7 @@ export class BuildingSync {
     // there, and all of it over the ground this one stands on.
     const road = buildingDef(b.type).isRoad === true;
     const finished =
-      b.state === 'site'
+      b.state === BuildingState.site
         ? Math.max(SITE_FRAME_H, clip ? topY : topY / GHOST_SEED_SCALE)
         : topY;
     if (!road) this.#ceiling = Math.max(this.#ceiling, root.position.y + finished);
@@ -551,7 +557,7 @@ export class BuildingSync {
   wellCranks(): { x: number; z: number; crank: THREE.Object3D; grip: THREE.Object3D }[] {
     const out: { x: number; z: number; crank: THREE.Object3D; grip: THREE.Object3D }[] = [];
     for (const v of this.#visuals.values()) {
-      if (v.state !== 'built' || !v.crank) continue;
+      if (v.state !== BuildingState.built || !v.crank) continue;
       const grip = v.crank.getObjectByName('wellGrip');
       if (grip) out.push({ x: v.root.position.x, z: v.root.position.z, crank: v.crank, grip });
     }
@@ -575,7 +581,7 @@ export class BuildingSync {
   fisheryPiers(): PierInfo[] {
     const out: PierInfo[] = [];
     for (const v of this.#visuals.values()) {
-      if (v.state !== 'built' || !v.pier) continue;
+      if (v.state !== BuildingState.built || !v.pier) continue;
       out.push((v.pierLine ??= this.#measurePier(v)));
     }
     return out;
@@ -711,11 +717,11 @@ export class BuildingSync {
         // target: heavy sails carry momentum, and the coast also bridges
         // the one-tick gap between back-to-back batches, which would
         // otherwise read as a stutter whenever a publish lands in it.
-        const target = v.working && v.state === 'built' ? MILL_FAN_SPEED : 0;
+        const target = v.working && v.state === BuildingState.built ? MILL_FAN_SPEED : 0;
         v.fanSpeed += (target - v.fanSpeed) * Math.min(1, dt * 1.6);
         if (v.fanSpeed > 0.01) v.fan.rotation.z += v.fanSpeed * dt;
       }
-      if (v.shoal && v.staffed && v.state === 'built') {
+      if (v.shoal && v.staffed && v.state === BuildingState.built) {
         // Each fish carries its own circle, direction and depth. Advancing
         // the phase and pointing the nose down the tangent is the whole
         // motion: at village zoom a rigid fish on a slow curve reads as
@@ -741,8 +747,8 @@ export class BuildingSync {
         if (!char) continue;
         // The levy has no bow to draw, so it lobs: the villager throws and
         // the archer keeps his own loose.
-        const shooting = v.levied ? 'throw' : 'shoot';
-        playAnimation(char, v.firing ? shooting : 'idle', i * 0.37);
+        const shooting = v.levied ? AnimKey.throwing : AnimKey.shoot;
+        playAnimation(char, v.firing ? shooting : AnimKey.idle, i * 0.37);
         char.mixer.update(dt);
       }
     }
@@ -797,8 +803,8 @@ export class BuildingSync {
    * shipped with, except a carrier can walk off with them. Spots are
    * biggest-first; `per` goods fill one stack/boulder. */
   static #YARDS: Partial<Record<BuildingSnap['type'], YardStyle>> = {
-    woodcutter: {
-      good: 'wood',
+    [BuildingTypeId.woodcutter]: {
+      good: GoodId.wood,
       prop: 'resource_lumber',
       spots: [
         [0.36, 0.28, 0.3, 1],
@@ -808,15 +814,39 @@ export class BuildingSync {
       size: 0.12,
       per: 3,
     },
-    quarry: { good: 'stone', prop: 'resource_stone', spots: MINE_SPOTS, size: 0.12, per: 3 },
-    ironMine: { good: 'iron', rock: 0x9a5f42, spots: MINE_SPOTS, size: 0.153, per: 2 },
-    silverMine: { good: 'silver', rock: 0xdbe4ee, spots: MINE_SPOTS, size: 0.153, per: 2 },
-    goldMine: { good: 'gold', rock: 0xf0bc42, spots: MINE_SPOTS, size: 0.153, per: 2 },
+    [BuildingTypeId.quarry]: {
+      good: GoodId.stone,
+      prop: 'resource_stone',
+      spots: MINE_SPOTS,
+      size: 0.12,
+      per: 3,
+    },
+    [BuildingTypeId.ironMine]: {
+      good: GoodId.iron,
+      rock: 0x9a5f42,
+      spots: MINE_SPOTS,
+      size: 0.153,
+      per: 2,
+    },
+    [BuildingTypeId.silverMine]: {
+      good: GoodId.silver,
+      rock: 0xdbe4ee,
+      spots: MINE_SPOTS,
+      size: 0.153,
+      per: 2,
+    },
+    [BuildingTypeId.goldMine]: {
+      good: GoodId.gold,
+      rock: 0xf0bc42,
+      spots: MINE_SPOTS,
+      size: 0.153,
+      per: 2,
+    },
   };
 
   #syncYard(v: BuildingVisual, b: BuildingSnap): boolean {
     const yard = BuildingSync.#YARDS[b.type];
-    if (!yard || b.state !== 'built') return false;
+    if (!yard || b.state !== BuildingState.built) return false;
     const n = (b.stock[yard.good] ?? 0) + (b.inputs[yard.good] ?? 0);
     const stacks = Math.min(Math.ceil(n / yard.per), yard.spots.length);
     const key = `yard${stacks}`;
@@ -859,7 +889,7 @@ export class BuildingSync {
    * back through the root to get there.
    */
   #syncGarrison(v: BuildingVisual, b: BuildingSnap): void {
-    const want = v.state === 'built' ? Math.min(b.garrison ?? 0, v.posts.length) : 0;
+    const want = v.state === BuildingState.built ? Math.min(b.garrison ?? 0, v.posts.length) : 0;
     // A relief swaps who is standing there without moving the count, so the
     // kind has to be able to condemn the figures the way the count does.
     const levied = b.levied === true;
@@ -897,7 +927,7 @@ export class BuildingSync {
     const shown: [GoodId, number][] = [];
     for (const g of GOODS) {
       let n: number;
-      if (b.state === 'site') {
+      if (b.state === BuildingState.site) {
         // Delivered materials wait by the frame, then drain into the
         // structure as the build progresses.
         const delivered =
@@ -908,7 +938,7 @@ export class BuildingSync {
       }
       if (n > 0) shown.push([g, Math.min(n, 8)]);
     }
-    const key = shown.map(([g, n]) => `${g}${n}`).join('.');
+    const key = shown.map(([g, n]) => `${g}:${n}`).join('.');
     if (key === v.pileKey) return;
     v.pileKey = key;
     // Lanes are sticky. Laying the stacks out by their index in `shown`

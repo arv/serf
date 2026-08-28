@@ -11,7 +11,7 @@ import type { AiWorldSummary } from '../ai/summary';
 import type { SimCommand } from '../sim/commands';
 import type { AiStrategy } from '../sim/defs/aiStrategies';
 import type { GameConfig } from './gameConfig';
-import type { NetInfo } from '../protocol/messages';
+import { type NetInfo, MainToWorkerKind, WorkerToMainKind } from '../protocol/messages';
 import type { ReplayData } from './replay';
 
 export interface SimInit {
@@ -28,7 +28,12 @@ export interface SimInit {
  * same interface later because the sim is pure.
  */
 export interface SimHost {
-  start(config: GameConfig, loadData?: string, net?: NetInfo, replay?: ReplayData): Promise<SimInit>;
+  start(
+    config: GameConfig,
+    loadData?: string,
+    net?: NetInfo,
+    replay?: ReplayData,
+  ): Promise<SimInit>;
   sendCommands(commands: SimCommand[]): void;
   setSpeed(speed: number): void;
   /** Tell the worker whether the debug overlay is watching (jobs feed). */
@@ -95,7 +100,12 @@ export class WorkerSimHost implements SimHost {
         : new Worker(new URL('./simWorker.ts', import.meta.url), { type: 'module' });
   }
 
-  start(config: GameConfig, loadData?: string, net?: NetInfo, replay?: ReplayData): Promise<SimInit> {
+  start(
+    config: GameConfig,
+    loadData?: string,
+    net?: NetInfo,
+    replay?: ReplayData,
+  ): Promise<SimInit> {
     this.playerId = config.myPlayerId;
     return new Promise((resolve, reject) => {
       // A worker that dies after start would otherwise fail silently: the
@@ -106,34 +116,34 @@ export class WorkerSimHost implements SimHost {
       };
       this.#worker.onmessage = (e: MessageEvent<WorkerToMain>) => {
         const msg = e.data;
-        if (msg.type === 'ready') {
+        if (msg.type === WorkerToMainKind.ready) {
           resolve({
             reader: new SabReader(msg.sab),
             map: msg.map,
             buildings: msg.buildings,
             explored: msg.explored,
           });
-        } else if (msg.type === 'structural') {
+        } else if (msg.type === WorkerToMainKind.structural) {
           if (this.#structuralCb) this.#structuralCb(msg);
           else this.#pendingStructural.push(msg);
-        } else if (msg.type === 'saved') {
+        } else if (msg.type === WorkerToMainKind.saved) {
           this.#saveCb?.(msg.data);
           this.#saveCb = null;
-        } else if (msg.type === 'replayData') {
+        } else if (msg.type === WorkerToMainKind.replayData) {
           this.#replayCbs.shift()?.(msg.data);
-        } else if (msg.type === 'replayEnded') {
+        } else if (msg.type === WorkerToMainKind.replayEnded) {
           if (this.#replayEndedCb) this.#replayEndedCb();
           else this.#replayEndedPending = true;
-        } else if (msg.type === 'netStatus') {
+        } else if (msg.type === WorkerToMainKind.netStatus) {
           this.#netStatusCb?.(msg.status);
-        } else if (msg.type === 'aiSummary') {
+        } else if (msg.type === WorkerToMainKind.aiSummary) {
           this.#aiSummaryCb?.(msg.playerId, msg.summary);
-        } else if (msg.type === 'log') {
+        } else if (msg.type === WorkerToMainKind.log) {
           console.log(msg.message);
         }
       };
       this.#worker.postMessage({
-        type: 'init',
+        type: MainToWorkerKind.init,
         config,
         loadData,
         net,
@@ -169,14 +179,14 @@ export class WorkerSimHost implements SimHost {
   requestSave(): Promise<string> {
     return new Promise((resolve) => {
       this.#saveCb = resolve;
-      this.#post({ type: 'requestSave' });
+      this.#post({ type: MainToWorkerKind.requestSave });
     });
   }
 
   requestReplay(explored?: string): Promise<string> {
     return new Promise((resolve) => {
       this.#replayCbs.push(resolve);
-      this.#post({ type: 'requestReplay', explored });
+      this.#post({ type: MainToWorkerKind.requestReplay, explored });
     });
   }
 
@@ -204,28 +214,28 @@ export class WorkerSimHost implements SimHost {
   }
 
   sendAiAdvice(playerId: number, override: Partial<AiStrategy>): void {
-    this.#post({ type: 'aiAdvice', playerId, override });
+    this.#post({ type: MainToWorkerKind.aiAdvice, playerId, override });
   }
 
   sendCommands(commands: SimCommand[]): void {
     if (commands.length > 0) {
       this.#post({
-        type: 'commands',
+        type: MainToWorkerKind.commands,
         commands: commands.map((cmd) => ({ playerId: this.playerId, cmd })),
       });
     }
   }
 
   setSpeed(speed: number): void {
-    this.#post({ type: 'setSpeed', speed });
+    this.#post({ type: MainToWorkerKind.setSpeed, speed });
   }
 
   setDebug(enabled: boolean): void {
-    this.#post({ type: 'setDebug', enabled });
+    this.#post({ type: MainToWorkerKind.setDebug, enabled });
   }
 
   setHidden(hidden: boolean): void {
-    this.#post({ type: 'setHidden', hidden });
+    this.#post({ type: MainToWorkerKind.setHidden, hidden });
   }
 
   #post(msg: MainToWorker): void {

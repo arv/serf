@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { createWorld } from '../sim/world.ts';
 import { AiBrain } from '../sim/systems/ai.ts';
 import { strategyOf } from '../sim/defs/aiStrategies.ts';
-import { buildMessages, extractSummary } from './prompt.ts';
-import { POSTURES, POSTURE_ORDER, postureAdvice } from './posture.ts';
+import { buildMessages, extractSummary, ChatRole, CHAT_ROLE_KEYS } from './prompt.ts';
+import { POSTURES, POSTURE_ORDER, postureAdvice, PostureId, POSTURE_KEYS } from './posture.ts';
 import { toOverride } from './advice.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
+import { PlayerKind } from '../sim/player.ts';
 
 /**
  * The prompt is judged on the two things that matter to a small model:
@@ -14,7 +15,10 @@ import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
  */
 
 function summaries(): { first: AiWorldSummary; later: AiWorldSummary } {
-  const world = createWorld({ seed: 5, players: [{ kind: 'human' }, { kind: 'ai' }] });
+  const world = createWorld({
+    seed: 5,
+    players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
+  });
   const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
   brain.decide(world); // one beat, so vision exists
   const first = summarizeForSeat(world, brain);
@@ -39,12 +43,12 @@ describe('buildMessages', () => {
   it('is one system briefing and one user report', () => {
     const { first } = summaries();
     const messages = buildMessages(first, null, null);
-    expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
+    expect(messages.map((m) => m.role)).toEqual([ChatRole.system, ChatRole.user]);
     // The menu names every stance the parser will accept, and each one
     // comes with the situation to pick it under — the model is matching a
     // valley to a label, so a bare list of names would not be the ask.
     for (const id of POSTURE_ORDER) {
-      expect(messages[0]!.content).toContain(id);
+      expect(messages[0]!.content).toContain(POSTURE_KEYS[id]);
       expect(messages[0]!.content).toContain(POSTURES[id].when);
     }
     // Knob values are the table's business, not the model's: quoting them
@@ -60,9 +64,25 @@ describe('buildMessages', () => {
     expect(messages[1]!.content).toContain('first consultation');
   });
 
+  it('spells the roles out again at the engine door', () => {
+    // The ids are ours; 'system' and 'user' are llama.cpp's, which renders
+    // the model's chat template off those words. Nothing else covers the
+    // hand-off — the lab and the tests hand fake engines a ChatMessage[]
+    // straight — so a slip there would reach only a real model, silently.
+    const wire = buildMessages(summaries().first, null, null).map((m) => ({
+      role: CHAT_ROLE_KEYS[m.role],
+      content: m.content,
+    }));
+    expect(wire.map((m) => m.role)).toEqual(['system', 'user']);
+  });
+
   it('names the standing posture without quoting the numbers under it', () => {
     const { first, later } = summaries();
-    const advice = { ...postureAdvice('siege'), posture: 'siege' as const, reason: 'castle found' };
+    const advice = {
+      ...postureAdvice(PostureId.siege),
+      posture: PostureId.siege,
+      reason: 'castle found',
+    };
     const withAdvice = buildMessages(later, advice, first);
     expect(withAdvice[1]!.content).toContain('standing posture is "siege"');
     // The stance's knob blob must not ride along: see the note in
@@ -78,7 +98,7 @@ describe('buildMessages', () => {
   it('hands the summary back to engines that reason over state', () => {
     const { first, later } = summaries();
     expect(extractSummary(buildMessages(later, null, first))).toEqual(later);
-    expect(extractSummary([{ role: 'user', content: 'no json here' }])).toBeNull();
+    expect(extractSummary([{ role: ChatRole.user, content: 'no json here' }])).toBeNull();
     expect(extractSummary([])).toBeNull();
   });
 
@@ -93,7 +113,11 @@ describe('buildMessages', () => {
 
   it('holds the token budget: the whole prompt stays small', () => {
     const { first, later } = summaries();
-    const total = buildMessages(later, { ...postureAdvice('siege'), posture: 'siege' }, first)
+    const total = buildMessages(
+      later,
+      { ...postureAdvice(PostureId.siege), posture: PostureId.siege },
+      first,
+    )
       .map((m) => m.content)
       .join('').length;
     // ~4 chars per token: 4500 chars keeps the prompt near the 900-token

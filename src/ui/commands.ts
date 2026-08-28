@@ -1,9 +1,10 @@
-import { BUILDING_DEFS } from '../sim/defs/buildings';
-import { TECH_DEFS, type TechId } from '../sim/defs/techs';
-import type { UnitTypeId } from '../sim/defs/units';
-import type { GoodAmounts } from '../sim/defs/goods';
+import { BUILDING_DEFS, BuildingTypeId } from '../sim/defs/buildings';
+import { TECH_DEFS, type TechId, TechEffectKind } from '../sim/defs/techs';
+import { type GoodAmounts, GoodId } from '../sim/defs/goods';
 import type { BuildingSnap } from '../protocol/messages';
 import { HIRE_QUEUE_CAP, HIRE_SERF_COST, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
+import { UnitTypeId } from '../sim/defs/units';
+import { BuildingState } from '../sim/entities';
 
 /**
  * The commands a selected building offers: who may run them, and which
@@ -27,7 +28,7 @@ import { HIRE_QUEUE_CAP, HIRE_SERF_COST, TRAIN_QUEUE_CAP } from '../sim/defs/bal
 export function unitTechGate(unit: UnitTypeId): TechId | undefined {
   for (const def of Object.values(TECH_DEFS)) {
     for (const e of def.effects) {
-      if (e.kind === 'unlockUnit' && e.unit === unit) return def.id;
+      if (e.kind === TechEffectKind.unlockUnit && e.unit === unit) return def.id;
     }
   }
   return undefined;
@@ -43,10 +44,12 @@ export function canHire(
   stock: GoodAmounts,
   pop: { pop: number; cap: number },
 ): boolean {
-  if (b.type !== 'storehouse' || b.state !== 'built') return false;
+  if (b.type !== BuildingTypeId.storehouse || b.state !== BuildingState.built) return false;
   const queued = b.hireQueue ?? 0;
   return (
-    (stock.silver ?? 0) >= HIRE_SERF_COST && queued < HIRE_QUEUE_CAP && pop.pop + queued < pop.cap
+    (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST &&
+    queued < HIRE_QUEUE_CAP &&
+    pop.pop + queued < pop.cap
   );
 }
 
@@ -61,7 +64,7 @@ export function canTrain(
   unit: UnitTypeId,
   researched: readonly TechId[],
 ): boolean {
-  if (b.state !== 'built') return false;
+  if (b.state !== BuildingState.built) return false;
   const gate = unitTechGate(unit);
   if (gate !== undefined && !researched.includes(gate)) return false;
   return (b.trainQueue?.length ?? 0) < TRAIN_QUEUE_CAP;
@@ -73,9 +76,9 @@ export function canTrain(
  * one lives in its own unit's name so the button can bold it in place.
  */
 export const TRAIN_KEYS: Partial<Record<UnitTypeId, string>> = {
-  knight: 'K',
-  spearman: 'S',
-  archer: 'A',
+  [UnitTypeId.knight]: 'K',
+  [UnitTypeId.spearman]: 'S',
+  [UnitTypeId.archer]: 'A',
 };
 
 export function trainKey(unit: UnitTypeId): string {
@@ -105,7 +108,7 @@ export const RALLY_KEY = 'Y';
 /** May this building fly a rally flag at all? A type-level question — the
  * same one the sim asks (only buildings that train take one). */
 export function canRally(b: BuildingSnap): boolean {
-  return b.state === 'built' && BUILDING_DEFS[b.type].trains !== undefined;
+  return b.state === BuildingState.built && BUILDING_DEFS[b.type].trains !== undefined;
 }
 
 /**

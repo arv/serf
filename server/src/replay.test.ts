@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseReplay } from '../../src/app/replay.ts';
+import { parseReplay, type ReplayData } from '../../src/app/replay.ts';
 import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
 import { deserializeWorld, serializeWorld } from '../../src/sim/save.ts';
-import { createWorld } from '../../src/sim/world.ts';
+import { createWorld, MatchState } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
-import type { SimCommand } from '../../src/sim/commands.ts';
-import type { ReplayData } from '../../src/app/replay.ts';
+import { type SimCommand, CommandKind } from '../../src/sim/commands.ts';
 import { DEFAULT_MAP_SIZE } from '../../src/shared/grid.ts';
 import {
   TICK_MS,
@@ -19,6 +18,7 @@ import {
   type Seat,
 } from './rooms.ts';
 import { roomFromRecord, roomToRecord } from './persist.ts';
+import { BuildingTypeId } from '../../src/sim/defs/buildings.ts';
 
 /** Pump exactly `ticks` ticks, one per call, on the room's own clock. */
 function advance(room: Room, ticks: number): void {
@@ -52,7 +52,13 @@ function playBack(replay: ReplayData) {
 
 describe('server replay recording', () => {
   it('is withheld while the match is undecided', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 555, size: DEFAULT_MAP_SIZE, bots: [] });
+    const room = createRoom('closed', {
+      ai: 1,
+      bandits: false,
+      seed: 555,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 20);
@@ -64,7 +70,13 @@ describe('server replay recording', () => {
     // the whole world at every tick, so a replay handed to a beaten player
     // while their rivals play on is a maphack by proxy — their game being
     // over is not the game being over.
-    const room = createRoom('closed', { ai: 0, bandits: false, seed: 21, size: DEFAULT_MAP_SIZE, bots: [] });
+    const room = createRoom('closed', {
+      ai: 0,
+      bandits: false,
+      seed: 21,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
     const winner = addSeat(room, 'human', null);
     addSeat(room, 'human', null);
     const fallen = addSeat(room, 'human', null);
@@ -74,30 +86,41 @@ describe('server replay recording', () => {
     // still undecided — victory waits for a single banner.
     room.world!.players[fallen.playerId]!.alive = false;
     advance(room, 10);
-    expect(room.world!.outcome.state).toBe('playing');
+    expect(room.world!.outcome.state).toBe(MatchState.playing);
     expect(replayFor(room, fallen)).toBeNull();
     // Decided: now every seat may take its copy home, the fallen included.
-    room.world!.outcome = { state: 'over', winner: winner.playerId };
+    room.world!.outcome = { state: MatchState.over, winner: winner.playerId };
     expect(replayFor(room, fallen)).not.toBeNull();
     expect(replayFor(room, winner)).not.toBeNull();
   });
 
   it('reproduces the pumped match without re-running the AI', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 900, size: DEFAULT_MAP_SIZE, bots: [] });
+    const room = createRoom('closed', {
+      ai: 1,
+      bandits: false,
+      seed: 900,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
 
     advance(room, 50);
-    order(room, seat, { kind: 'hireSerf' });
+    order(room, seat, { kind: CommandKind.hireSerf });
     advance(room, 100);
-    order(room, seat, { kind: 'moveUnits', unitIds: [7, 8], x: 20, y: 20 });
-    order(room, seat, { kind: 'placeBuilding', building: 'well', x: 30, y: 30 });
+    order(room, seat, { kind: CommandKind.moveUnits, unitIds: [7, 8], x: 20, y: 20 });
+    order(room, seat, {
+      kind: CommandKind.placeBuilding,
+      building: BuildingTypeId.well,
+      x: 30,
+      y: 30,
+    });
     advance(room, 250);
 
     const expected = serializeWorld(room.world!);
     // The gate wants a decided match; the test decides it by fiat. Captured
     // `expected` first — playback cannot know about this mutation.
-    room.world!.outcome = { state: 'over', winner: 0 };
+    room.world!.outcome = { state: MatchState.over, winner: 0 };
 
     const data = replayFor(room, seat)!;
     expect(data).not.toBeNull();
@@ -113,11 +136,17 @@ describe('server replay recording', () => {
   });
 
   it('carries the log across a same-version restore, whole match intact', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 4141, size: DEFAULT_MAP_SIZE, bots: [] });
+    const room = createRoom('closed', {
+      ai: 1,
+      bandits: false,
+      seed: 4141,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 60);
-    order(room, seat, { kind: 'hireSerf' });
+    order(room, seat, { kind: CommandKind.hireSerf });
     advance(room, 60);
 
     // Deploy under the same version: the log rides the snapshot and keeps
@@ -129,11 +158,11 @@ describe('server replay recording', () => {
 
     const seat2 = revived.seats[0]!;
     advance(revived, 40);
-    order(revived, seat2, { kind: 'moveUnits', unitIds: [3], x: 10, y: 12 });
+    order(revived, seat2, { kind: CommandKind.moveUnits, unitIds: [3], x: 10, y: 12 });
     advance(revived, 100);
 
     const expected = serializeWorld(revived.world!);
-    revived.world!.outcome = { state: 'over', winner: 0 };
+    revived.world!.outcome = { state: MatchState.over, winner: 0 };
 
     const replay = parseReplay(replayFor(revived, seat2)!)!;
     // From the very beginning: pre-restore commands are in the log too.
@@ -144,11 +173,17 @@ describe('server replay recording', () => {
   });
 
   it('rebases onto the snapshot when the version changed across the deploy', () => {
-    const room = createRoom('closed', { ai: 1, bandits: false, seed: 660, size: DEFAULT_MAP_SIZE, bots: [] });
+    const room = createRoom('closed', {
+      ai: 1,
+      bandits: false,
+      seed: 660,
+      size: DEFAULT_MAP_SIZE,
+      bots: [],
+    });
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 80);
-    order(room, seat, { kind: 'hireSerf' });
+    order(room, seat, { kind: CommandKind.hireSerf });
     advance(room, 40);
 
     const record = roomToRecord(room)!;
@@ -165,7 +200,7 @@ describe('server replay recording', () => {
     const seat2 = revived.seats[0]!;
     advance(revived, 120);
     const expected = serializeWorld(revived.world!);
-    revived.world!.outcome = { state: 'over', winner: 0 };
+    revived.world!.outcome = { state: MatchState.over, winner: 0 };
 
     const replay = parseReplay(replayFor(revived, seat2)!)!;
     expect(replay.loadData).toBe(record.world);

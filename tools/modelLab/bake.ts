@@ -1,6 +1,7 @@
 import { Kit } from './kit';
 import { requiredFiles, GAME_BUILDINGS } from './variants';
 import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
+import { BUILDING_KEYS } from '../../src/sim/defs/buildings';
 
 /**
  * The bake page: flatten everything the gallery draws into vertex-colored
@@ -28,8 +29,8 @@ try {
   await loadGlbAssets();
   for (const b of GAME_BUILDINGS) {
     const g = makeGlbBuilding(b.type, 0);
-    if (!g) throw new Error(`no model for ${b.type}`);
-    K.absorb(`game/${b.type}`, g);
+    if (!g) throw new Error(`no model for ${BUILDING_KEYS[b.type]}`);
+    K.absorb(`game/${BUILDING_KEYS[b.type]}`, g);
   }
   window.__BAKED = JSON.stringify(K.bake());
   status.textContent = 'baked';

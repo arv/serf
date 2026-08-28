@@ -1,16 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { CueScheduler, GLOBAL_CAP, type PlayRequest } from './voices';
+import { BusId } from './cues';
 
 /** A tiny catalogue with the knobs the scheduler actually reads. */
 const DEFS = {
-  chop: { bus: 'work', cooldownMs: 90, priority: 2 },
-  step: { bus: 'work', cooldownMs: 45, priority: 1 },
-  click: { bus: 'ui', cooldownMs: 30, priority: 4 },
-  horn: { bus: 'world', cooldownMs: 2000, priority: 5 },
-  swing: { bus: 'combat', cooldownMs: 60, priority: 3, collapseCeiling: 1.5 },
+  chop: { bus: BusId.work, cooldownMs: 90, priority: 2 },
+  step: { bus: BusId.work, cooldownMs: 45, priority: 1 },
+  click: { bus: BusId.ui, cooldownMs: 30, priority: 4 },
+  horn: { bus: BusId.world, cooldownMs: 2000, priority: 5 },
+  swing: { bus: BusId.combat, cooldownMs: 60, priority: 3, collapseCeiling: 1.5 },
 };
 
-const CAPS = { ui: 2, combat: 3, work: 2, world: 6 };
+const CAPS: Record<BusId, number> = {
+  [BusId.ui]: 2,
+  [BusId.combat]: 3,
+  [BusId.work]: 2,
+  [BusId.world]: 6,
+  [BusId.ambient]: 2,
+  [BusId.music]: 1,
+};
 
 function flush(s: CueScheduler, now: number, active = 0, out: PlayRequest[] = []): PlayRequest[] {
   const n = s.flush(now, active, out);
@@ -120,7 +128,15 @@ describe('CueScheduler', () => {
   });
 
   it('honors the global cap minus voices still ringing in the engine', () => {
-    const s = new CueScheduler(DEFS, { ui: 99, combat: 99, work: 99, world: 99 }, 4);
+    const wide: Record<BusId, number> = {
+      [BusId.ui]: 99,
+      [BusId.combat]: 99,
+      [BusId.work]: 99,
+      [BusId.world]: 99,
+      [BusId.ambient]: 99,
+      [BusId.music]: 99,
+    };
+    const s = new CueScheduler(DEFS, wide, 4);
     s.request('chop', 0, 0.9);
     s.request('step', 0, 0.9);
     s.request('click', 0, 0.9);

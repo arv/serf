@@ -55,6 +55,7 @@ import {
   showNotice,
   viewMode,
 } from './uiState.ts';
+import { ViewMode } from '../render/cameraRig.ts';
 
 /** Everything the Solid panel can ask the screen to do. */
 export interface EditorActions {
@@ -370,7 +371,7 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       refreshProblems();
     },
     toggleView(): void {
-      const next = viewMode() === 'topDown' ? 'game' : 'topDown';
+      const next = viewMode() === ViewMode.topDown ? ViewMode.game : ViewMode.topDown;
       setViewMode(next);
       renderer.rig.setViewMode(next);
     },
@@ -535,7 +536,10 @@ export async function mountEditor(canvas: HTMLCanvasElement): Promise<{
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const safe = mapName().trim().replace(/[^\w-]+/g, '_') || 'map';
+      const safe =
+        mapName()
+          .trim()
+          .replace(/[^\w-]+/g, '_') || 'map';
       a.download = `${safe}.serfmap.json`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);

@@ -1,6 +1,6 @@
-import type { AdminAction } from '../sim/commands';
 import { TextTip, tooltip } from './tooltip';
 import { adminState, fogEnabled, setFogEnabled, techs } from './store';
+import { AdminAction } from '../sim/commands';
 
 /**
  * Sandbox controls for tweaking the game, shown only with ?admin in the URL.
@@ -31,17 +31,21 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
         {...tooltip(() => (
           <TextTip title="Raids" body="Turn bandit waves on or off. Off = peaceful sandbox." />
         ))}
-        onClick={() => props.onAdmin('toggleRaids')}
+        onClick={() => props.onAdmin(AdminAction.toggleRaids)}
       >
-        Raids: <span class={adminState().raidsEnabled ? 'on' : 'off'}>
+        Raids:{' '}
+        <span class={adminState().raidsEnabled ? 'on' : 'off'}>
           {adminState().raidsEnabled ? 'on' : 'off'}
         </span>
       </button>
       <button
         {...tooltip(() => (
-          <TextTip title="Clear bandits" body="Kill every bandit on the map right now (the camp stays)." />
+          <TextTip
+            title="Clear bandits"
+            body="Kill every bandit on the map right now (the camp stays)."
+          />
         ))}
-        onClick={() => props.onAdmin('clearBandits')}
+        onClick={() => props.onAdmin(AdminAction.clearBandits)}
       >
         Clear bandits
       </button>
@@ -49,20 +53,18 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
         {...tooltip(() => (
           <TextTip title="Grant goods" body="+25 of every good into the storehouse." />
         ))}
-        onClick={() => props.onAdmin('grantGoods')}
+        onClick={() => props.onAdmin(AdminAction.grantGoods)}
       >
         +25 all goods
       </button>
       <button
         {...tooltip(() => (
-          <TextTip
-            title="Instant build"
-            body="Sites need no materials and finish immediately."
-          />
+          <TextTip title="Instant build" body="Sites need no materials and finish immediately." />
         ))}
-        onClick={() => props.onAdmin('toggleInstantBuild')}
+        onClick={() => props.onAdmin(AdminAction.toggleInstantBuild)}
       >
-        Instant build: <span class={adminState().instantBuild ? 'on' : 'off'}>
+        Instant build:{' '}
+        <span class={adminState().instantBuild ? 'on' : 'off'}>
           {adminState().instantBuild ? 'on' : 'off'}
         </span>
       </button>
@@ -75,16 +77,14 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
         ))}
         onClick={() => setFogEnabled(!fogEnabled())}
       >
-        Fog of war: <span class={fogEnabled() ? 'on' : 'off'}>
-          {fogEnabled() ? 'on' : 'off'}
-        </span>
+        Fog of war: <span class={fogEnabled() ? 'on' : 'off'}>{fogEnabled() ? 'on' : 'off'}</span>
       </button>
       <button
         {...tooltip(() => (
           <TextTip title="Finish research" body="Complete the tech currently being researched." />
         ))}
         disabled={!techs().active}
-        onClick={() => props.onAdmin('finishResearch')}
+        onClick={() => props.onAdmin(AdminAction.finishResearch)}
       >
         Finish research
       </button>
@@ -95,7 +95,7 @@ export function AdminPanel(props: { onAdmin: (action: AdminAction) => void }) {
             body="One of each unit kind by the storehouse — for eyeballing models and animations."
           />
         ))}
-        onClick={() => props.onAdmin('spawnParade')}
+        onClick={() => props.onAdmin(AdminAction.spawnParade)}
       >
         Spawn parade
       </button>

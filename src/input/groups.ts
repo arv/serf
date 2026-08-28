@@ -1,3 +1,9 @@
+import type { Enum } from '../shared/enum.ts';
+import * as ControlGroupKindNs from './controlGroupKindEnum.ts';
+
+export * as ControlGroupKind from './controlGroupKindEnum.ts';
+export type ControlGroupKind = Enum<typeof ControlGroupKindNs>;
+
 /**
  * The pure half of the control-group bindings: reading a number off a
  * keypress, and deciding which group a selection currently *is*.
@@ -49,8 +55,8 @@ export function keyDigit(e: Pick<KeyboardEvent, 'code' | 'key'>): number | null 
  * opens its card wherever the fighting has taken the view.
  */
 export type ControlGroup =
-  | { readonly kind: 'units'; readonly ids: Set<number> }
-  | { readonly kind: 'building'; readonly id: number };
+  | { readonly kind: ControlGroupKindNs.units; readonly ids: Set<number> }
+  | { readonly kind: ControlGroupKindNs.building; readonly id: number };
 
 /**
  * A group nobody would miss — never stamped, or emptied by casualties.
@@ -61,7 +67,7 @@ export type ControlGroup =
  * it has been dropped whole.
  */
 export function groupEmpty(group: ControlGroup | undefined): boolean {
-  return group === undefined || (group.kind === 'units' && group.ids.size === 0);
+  return group === undefined || (group.kind === ControlGroupKindNs.units && group.ids.size === 0);
 }
 
 /** Group numbers in the order a player reads them: 1 first, 0 last. */
@@ -93,13 +99,14 @@ export function matchingGroup(
   const better = (digit: number) => match === null || digitRank(digit) < digitRank(match);
   if (building !== null) {
     for (const [digit, group] of groups) {
-      if (group.kind === 'building' && group.id === building && better(digit)) match = digit;
+      if (group.kind === ControlGroupKindNs.building && group.id === building && better(digit))
+        match = digit;
     }
     return match;
   }
   if (selection.size === 0) return null;
   for (const [digit, group] of groups) {
-    if (group.kind !== 'units' || group.ids.size !== selection.size) continue;
+    if (group.kind !== ControlGroupKindNs.units || group.ids.size !== selection.size) continue;
     let same = true;
     for (const id of group.ids) {
       if (!selection.has(id)) {

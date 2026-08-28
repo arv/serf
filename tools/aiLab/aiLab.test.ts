@@ -4,24 +4,31 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseAdvice } from '../../src/ai/advice.ts';
 import { parseArgs, parseStrategies } from './bakeoff.ts';
-import { buildEngine, describeSpec, parseEngineSpec, randomEngine, scriptEngine } from './engines.ts';
+import {
+  buildEngine,
+  describeSpec,
+  parseEngineSpec,
+  randomEngine,
+  scriptEngine,
+  type LabEngine,
+} from './engines.ts';
 import { POSTURE_ORDER } from '../../src/ai/posture.ts';
-import { queueAdvice, type PendingAdvice } from './match.ts';
-import { digestOf, playMatch, type MatchConfig, type MatchRecord, type SeatStrategies } from './match.ts';
+import {
+  queueAdvice,
+  type PendingAdvice,
+  digestOf,
+  playMatch,
+  type MatchConfig,
+  type MatchRecord,
+  type SeatStrategies,
+} from './match.ts';
 import { binomCdfHalf, compare, readRun, renderComparison, type ArmOutcomes } from './compare.ts';
 import { renderMatchup, renderReport, verdict, type ReportHeader } from './report.ts';
 import { matchupOf, summarize, trialsForPrecision, wilson, type SeedRun } from './stats.ts';
-import {
-  adviceOf,
-  describeMutation,
-  mutate,
-  MUTABLE_KNOBS,
-  MUTABLE_RANGES,
-} from './mutate.ts';
-import { AI_STRATEGIES, AI_STRATEGY_ORDER } from '../../src/sim/defs/aiStrategies.ts';
+import { adviceOf, describeMutation, mutate, MUTABLE_KNOBS, MUTABLE_RANGES } from './mutate.ts';
+import { AI_STRATEGIES, AI_STRATEGY_ORDER, AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
 import { Rng } from '../../src/shared/rng.ts';
 import type { Owner } from '../../src/sim/entities.ts';
-import type { LabEngine } from './engines.ts';
 
 /**
  * The harness measuring the harness.
@@ -38,7 +45,7 @@ function config(over: Partial<MatchConfig> = {}): MatchConfig {
     seed: 42,
     mapSize: 64,
     bandits: false,
-    strategies: ['steward', 'steward'],
+    strategies: [AiStrategyId.steward, AiStrategyId.steward],
     maxTicks: 4_000,
     advicePeriod: 500,
     adviceStagger: 200,
@@ -182,7 +189,13 @@ describe('the advice queue', () => {
 
   it('orders an arbitrary arrival sequence, ties intact', () => {
     const q: PendingAdvice[] = [];
-    const arrivals: [number, number][] = [[30, 1], [10, 2], [30, 3], [20, 4], [10, 5]];
+    const arrivals: [number, number][] = [
+      [30, 1],
+      [10, 2],
+      [30, 3],
+      [20, 4],
+      [10, 5],
+    ];
     for (const [due, label] of arrivals) queueAdvice(q, entry(due, label));
     expect(q.map((e) => e.dueTick)).toEqual([10, 10, 20, 30, 30]);
     expect(order(q)).toEqual([2, 5, 4, 1, 3]);
@@ -235,9 +248,7 @@ describe('a headless match', () => {
     // dies before its army knobs ever gate a decision, so advising it is a
     // genuine no-op — which is itself the kind of truth the bake-off's
     // mirrored arms exist to average out.
-    const control = await playMatch(
-      config({ seed: FULL_MATCH_SEED, maxTicks: FULL_MATCH_TICKS }),
-    );
+    const control = await playMatch(config({ seed: FULL_MATCH_SEED, maxTicks: FULL_MATCH_TICKS }));
     const advised = await playMatch(
       config({
         seed: FULL_MATCH_SEED,
@@ -319,11 +330,17 @@ describe('a headless match', () => {
   });
 
   it('seats a different playbook per side, and says which sat where', async () => {
-    const straight = await playMatch(config({ strategies: ['steward', 'warlord'] }));
-    const swapped = await playMatch(config({ strategies: ['warlord', 'steward'] }));
-    const mirror = await playMatch(config({ strategies: ['steward', 'steward'] }));
-    expect(straight.strategies).toEqual(['steward', 'warlord']);
-    expect(swapped.strategies).toEqual(['warlord', 'steward']);
+    const straight = await playMatch(
+      config({ strategies: [AiStrategyId.steward, AiStrategyId.warlord] }),
+    );
+    const swapped = await playMatch(
+      config({ strategies: [AiStrategyId.warlord, AiStrategyId.steward] }),
+    );
+    const mirror = await playMatch(
+      config({ strategies: [AiStrategyId.steward, AiStrategyId.steward] }),
+    );
+    expect(straight.strategies).toEqual([AiStrategyId.steward, AiStrategyId.warlord]);
+    expect(swapped.strategies).toEqual([AiStrategyId.warlord, AiStrategyId.steward]);
     // Three genuinely different games on one seed — the swap is not a
     // relabelling of the same match, which is the whole reason the seating
     // mirror is worth playing.
@@ -348,7 +365,7 @@ function fake(
   seed: number,
   winner: Owner | null,
   decided = true,
-  strategies: SeatStrategies = ['steward', 'steward'],
+  strategies: SeatStrategies = [AiStrategyId.steward, AiStrategyId.steward],
 ): MatchRecord {
   return {
     seed,
@@ -390,9 +407,12 @@ function mirrored(results: [Owner | null, Owner | null][], control: (Owner | nul
  * the SEAT that won each seating, and playbook A sits at seat 0 in seating
  * 0 and at seat 1 in seating 1.
  */
-function seated(wins: [Owner | null, Owner | null][], decided: [boolean, boolean][] = []): SeedRun[] {
-  const A: SeatStrategies = ['steward', 'warlord'];
-  const B: SeatStrategies = ['warlord', 'steward'];
+function seated(
+  wins: [Owner | null, Owner | null][],
+  decided: [boolean, boolean][] = [],
+): SeedRun[] {
+  const A: SeatStrategies = [AiStrategyId.steward, AiStrategyId.warlord];
+  const B: SeatStrategies = [AiStrategyId.warlord, AiStrategyId.steward];
   return wins.map(([w0, w1], i) => ({
     seed: i + 1,
     layouts: [
@@ -487,8 +507,14 @@ describe('the playbook matchup', () => {
     // Seat 0 wins every match whoever is sitting in it — a maximally
     // lopsided map with two evenly matched playbooks. The seating mirror
     // has to read that as exactly 50%, and as no evidence at all.
-    const m = matchupOf(seated([[0, 0], [0, 0], [0, 0]]))!;
-    expect(m.a).toBe('steward');
+    const m = matchupOf(
+      seated([
+        [0, 0],
+        [0, 0],
+        [0, 0],
+      ]),
+    )!;
+    expect(m.a).toBe(AiStrategyId.steward);
     expect(m.rate.rate).toBe(0.5);
     expect(m.rate.trials).toBe(6);
     expect(m.paired).toMatchObject({ bothA: 0, bothB: 0, split: 3, p: 1 });
@@ -512,7 +538,18 @@ describe('the playbook matchup', () => {
   });
 
   it('holds back a seed whose seatings did not both decide', () => {
-    const m = matchupOf(seated([[0, 1], [0, null]], [[true, true], [true, false]]))!;
+    const m = matchupOf(
+      seated(
+        [
+          [0, 1],
+          [0, null],
+        ],
+        [
+          [true, true],
+          [true, false],
+        ],
+      ),
+    )!;
     expect(m.rate.trials).toBe(3); // the undecided seating is not scored
     expect(m.paired.bothA).toBe(1);
     expect(m.paired.unresolved).toBe(1);
@@ -554,7 +591,10 @@ describe('the playbook matchup', () => {
     const runs = seated([[0, 1]]);
     for (const layout of runs[0]!.layouts) {
       layout.arms = [
-        { advisedSeat: 0 as Owner, record: { ...layout.control!, advised: [{ playerId: 0, engine: 'x' }] } },
+        {
+          advisedSeat: 0 as Owner,
+          record: { ...layout.control!, advised: [{ playerId: 0, engine: 'x' }] },
+        },
       ];
       layout.control = null;
     }
@@ -570,7 +610,7 @@ describe('the verdict', () => {
     seedCount: 3,
     mapSize: 64,
     bandits: false,
-    strategies: ['steward', 'steward'],
+    strategies: [AiStrategyId.steward, AiStrategyId.steward],
     advicePeriod: 1800,
     latency: 0,
     maxTicks: 120_000,
@@ -628,8 +668,18 @@ describe('paired comparison', () => {
   });
 
   it('scores only the discordant pairs', () => {
-    const a = run('a', [['1:0', true], ['1:1', true], ['2:0', true], ['2:1', false]]);
-    const b = run('b', [['1:0', true], ['1:1', false], ['2:0', false], ['2:1', false]]);
+    const a = run('a', [
+      ['1:0', true],
+      ['1:1', true],
+      ['2:0', true],
+      ['2:1', false],
+    ]);
+    const b = run('b', [
+      ['1:0', true],
+      ['1:1', false],
+      ['2:0', false],
+      ['2:1', false],
+    ]);
     const c = compare(a, b);
     expect(c.paired).toBe(4);
     expect(c.aOnly).toBe(2);
@@ -658,7 +708,10 @@ describe('paired comparison', () => {
   });
 
   it('drops trials only one run played, and says so', () => {
-    const a = run('a', [['1:0', true], ['9:0', true]]);
+    const a = run('a', [
+      ['1:0', true],
+      ['9:0', true],
+    ]);
     const b = run('b', [['1:0', false]]);
     const c = compare(a, b);
     expect(c.paired).toBe(1);
@@ -667,8 +720,14 @@ describe('paired comparison', () => {
   });
 
   it('calls a run that never disagreed what it is: no evidence', () => {
-    const a = run('a', [['1:0', true], ['1:1', false]]);
-    const b = run('b', [['1:0', true], ['1:1', false]]);
+    const a = run('a', [
+      ['1:0', true],
+      ['1:1', false],
+    ]);
+    const b = run('b', [
+      ['1:0', true],
+      ['1:1', false],
+    ]);
     const c = compare(a, b);
     expect(c.p).toBe(1);
     expect(renderComparison(c)).toContain('never disagreed');
@@ -677,8 +736,14 @@ describe('paired comparison', () => {
   it('declares a winner only past the conventional bar', () => {
     // Nine discordant pairs, all falling A's way: p ≈ 0.004.
     const entries = Array.from({ length: 9 }, (_, i) => `${i}:0`);
-    const a = run('a', entries.map((k) => [k, true] as [string, boolean]));
-    const b = run('b', entries.map((k) => [k, false] as [string, boolean]));
+    const a = run(
+      'a',
+      entries.map((k) => [k, true] as [string, boolean]),
+    );
+    const b = run(
+      'b',
+      entries.map((k) => [k, false] as [string, boolean]),
+    );
     const c = compare(a, b);
     expect(c.p).toBeLessThan(0.05);
     expect(renderComparison(c)).toContain('A is better');
@@ -689,9 +754,9 @@ describe('the mutation space', () => {
   const playbooks = AI_STRATEGY_ORDER.map((id) => AI_STRATEGIES[id]);
 
   it('replays exactly, so a generation can be re-run after the fact', () => {
-    const a = mutate(AI_STRATEGIES.steward, new Rng(7), { knobs: 3 });
-    const b = mutate(AI_STRATEGIES.steward, new Rng(7), { knobs: 3 });
-    const c = mutate(AI_STRATEGIES.steward, new Rng(8), { knobs: 3 });
+    const a = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(7), { knobs: 3 });
+    const b = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(7), { knobs: 3 });
+    const c = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(8), { knobs: 3 });
     expect(b.changes).toEqual(a.changes);
     expect(b.strategy).toEqual(a.strategy);
     expect(c.changes).not.toEqual(a.changes);
@@ -714,7 +779,7 @@ describe('the mutation space', () => {
 
   it('stays inside the ranges advice.ts enforces, however long the walk', () => {
     const rng = new Rng(3);
-    let current = AI_STRATEGIES.warlord;
+    let current = AI_STRATEGIES[AiStrategyId.warlord];
     for (let i = 0; i < 500; i++) {
       current = mutate(current, rng, { knobs: 4, step: 0.9 }).strategy;
       for (const [knob, [lo, hi]] of Object.entries(MUTABLE_RANGES)) {
@@ -738,20 +803,22 @@ describe('the mutation space', () => {
     // so much as copy the arrays, or a later change could quietly start
     // editing them.
     const rng = new Rng(5);
-    let current = AI_STRATEGIES.abbot;
+    let current = AI_STRATEGIES[AiStrategyId.abbot];
     for (let i = 0; i < 50; i++) current = mutate(current, rng, { knobs: 5 }).strategy;
-    expect(current.build).toBe(AI_STRATEGIES.abbot.build);
-    expect(current.researchOrder).toBe(AI_STRATEGIES.abbot.researchOrder);
-    expect(current.survivalFloor).toBe(AI_STRATEGIES.abbot.survivalFloor);
-    expect(current.growthAfter).toBe(AI_STRATEGIES.abbot.growthAfter);
+    expect(current.build).toBe(AI_STRATEGIES[AiStrategyId.abbot].build);
+    expect(current.researchOrder).toBe(AI_STRATEGIES[AiStrategyId.abbot].researchOrder);
+    expect(current.survivalFloor).toBe(AI_STRATEGIES[AiStrategyId.abbot].survivalFloor);
+    expect(current.growthAfter).toBe(AI_STRATEGIES[AiStrategyId.abbot].growthAfter);
   });
 
   it('turns the number of knobs it was asked for, and always at least one', () => {
     const rng = new Rng(13);
     for (let i = 0; i < 100; i++) {
-      const one = mutate(AI_STRATEGIES.fletcher, rng);
+      const one = mutate(AI_STRATEGIES[AiStrategyId.fletcher], rng);
       expect(one.changes).toHaveLength(1);
-      expect(mutate(AI_STRATEGIES.fletcher, rng, { knobs: 3 }).changes).toHaveLength(3);
+      expect(mutate(AI_STRATEGIES[AiStrategyId.fletcher], rng, { knobs: 3 }).changes).toHaveLength(
+        3,
+      );
     }
   });
 
@@ -762,7 +829,9 @@ describe('the mutation space', () => {
     const rng = new Rng(2);
     let moved = 0;
     for (let i = 0; i < 60; i++) {
-      const m = mutate(AI_STRATEGIES.steward, rng, { frozen: MUTABLE_KNOBS.filter((k) => k !== 'marchConfidence') });
+      const m = mutate(AI_STRATEGIES[AiStrategyId.steward], rng, {
+        frozen: MUTABLE_KNOBS.filter((k) => k !== 'marchConfidence'),
+      });
       expect(m.changes).toHaveLength(1);
       expect(m.strategy.marchConfidence).toBeGreaterThan(0);
       moved++;
@@ -773,12 +842,12 @@ describe('the mutation space', () => {
   it('leaves frozen knobs alone', () => {
     const rng = new Rng(17);
     for (let i = 0; i < 100; i++) {
-      const m = mutate(AI_STRATEGIES.steward, rng, {
+      const m = mutate(AI_STRATEGIES[AiStrategyId.steward], rng, {
         knobs: 4,
         frozen: ['armyAttackSize', 'prefersRivals'],
       });
-      expect(m.strategy.armyAttackSize).toBe(AI_STRATEGIES.steward.armyAttackSize);
-      expect(m.strategy.prefersRivals).toBe(AI_STRATEGIES.steward.prefersRivals);
+      expect(m.strategy.armyAttackSize).toBe(AI_STRATEGIES[AiStrategyId.steward].armyAttackSize);
+      expect(m.strategy.prefersRivals).toBe(AI_STRATEGIES[AiStrategyId.steward].prefersRivals);
       expect(m.changes.some((c) => c.knob === 'armyAttackSize')).toBe(false);
     }
   });
@@ -787,16 +856,18 @@ describe('the mutation space', () => {
     // The end of the claim the whole space is designed around: a mutant is
     // advice, so the harness can play one today by handing its knobs to the
     // advice path — no new AiStrategyId, no change under src/sim.
-    const mutant = mutate(AI_STRATEGIES.steward, new Rng(29), { knobs: 6 });
+    const mutant = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(29), { knobs: 6 });
     const record = await playMatch(
-      config({ engines: new Map<Owner, LabEngine>([[1, scriptEngine(adviceOf(mutant.strategy))]]) }),
+      config({
+        engines: new Map<Owner, LabEngine>([[1, scriptEngine(adviceOf(mutant.strategy))]]),
+      }),
     );
     expect(record.consults.every((c) => c.skipped || c.parsed === true)).toBe(true);
     expect(record.adviceApplied['1']).toBe(1);
   });
 
   it('says what it changed, in terms a run log can be read by', () => {
-    const m = mutate(AI_STRATEGIES.steward, new Rng(23), { knobs: 2 });
+    const m = mutate(AI_STRATEGIES[AiStrategyId.steward], new Rng(23), { knobs: 2 });
     const line = describeMutation(m);
     for (const c of m.changes) expect(line).toContain(c.knob);
     expect(line).toContain('→');
@@ -840,10 +911,16 @@ describe('the command line', () => {
   it('reads one playbook for both seats, or one per seat', () => {
     // The bare form is what every recorded run in the README used, so it
     // has to keep meaning what it meant.
-    expect(parseArgs([]).strategies).toEqual(['steward', 'steward']);
-    expect(parseStrategies('warlord')).toEqual(['warlord', 'warlord']);
-    expect(parseStrategies('steward:warlord')).toEqual(['steward', 'warlord']);
-    expect(parseStrategies(' abbot : fletcher ')).toEqual(['abbot', 'fletcher']);
+    expect(parseArgs([]).strategies).toEqual([AiStrategyId.steward, AiStrategyId.steward]);
+    expect(parseStrategies('warlord')).toEqual([AiStrategyId.warlord, AiStrategyId.warlord]);
+    expect(parseStrategies('steward:warlord')).toEqual([
+      AiStrategyId.steward,
+      AiStrategyId.warlord,
+    ]);
+    expect(parseStrategies(' abbot : fletcher ')).toEqual([
+      AiStrategyId.abbot,
+      AiStrategyId.fletcher,
+    ]);
   });
 
   it('refuses a playbook it does not have rather than quietly seating the steward', () => {

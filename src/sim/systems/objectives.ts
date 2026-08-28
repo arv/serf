@@ -1,10 +1,10 @@
 import { UNIT_DEFS } from '../defs/units.ts';
-import { MISSION_DEFS } from '../defs/missions.ts';
-import { buildingDef } from '../defs/buildings.ts';
+import { MISSION_DEFS, type ObjectiveSpec, ObjectiveKind } from '../defs/missions.ts';
+import { buildingDef, BuildingTypeId } from '../defs/buildings.ts';
 import { populationOf } from '../population.ts';
-import type { ObjectiveSpec } from '../defs/missions.ts';
-import type { Owner } from '../entities.ts';
-import type { World } from '../world.ts';
+import { type Owner, BuildingState } from '../entities.ts';
+import { type World, GameEventKind } from '../world.ts';
+import { CommandKind } from '../commands.ts';
 
 /**
  * Mission objectives: stateless predicates over the world, latched into
@@ -14,39 +14,50 @@ import type { World } from '../world.ts';
 
 export function objectiveMet(world: World, spec: ObjectiveSpec, player: Owner): boolean {
   switch (spec.kind) {
-    case 'building': {
+    case ObjectiveKind.building: {
       let n = 0;
       for (const b of world.buildings.values()) {
-        if (!b.dead && b.state === 'built' && b.owner === player && b.type === spec.type) n++;
+        if (
+          !b.dead &&
+          b.state === BuildingState.built &&
+          b.owner === player &&
+          b.type === spec.type
+        )
+          n++;
       }
       return n >= spec.count;
     }
-    case 'stock': {
+    case ObjectiveKind.stock: {
       // Storehouse stock — what the resource bar shows. Goods in workshop
       // buffers or serfs' hands don't count until they come home.
       let n = 0;
       for (const b of world.buildings.values()) {
-        if (!b.dead && b.state === 'built' && b.owner === player && buildingDef(b.type).storage) {
+        if (
+          !b.dead &&
+          b.state === BuildingState.built &&
+          b.owner === player &&
+          buildingDef(b.type).storage
+        ) {
           n += b.stock[spec.good] ?? 0;
         }
       }
       return n >= spec.amount;
     }
-    case 'research':
+    case ObjectiveKind.research:
       return world.players[player]?.techs.researched.includes(spec.tech) ?? false;
-    case 'population':
+    case ObjectiveKind.population:
       return populationOf(world, player) >= spec.count;
-    case 'soldiers': {
+    case ObjectiveKind.soldiers: {
       let n = 0;
       for (const u of world.units.values()) {
         if (!u.dead && u.owner === player && UNIT_DEFS[u.kind].combat) n++;
       }
       return n >= spec.count;
     }
-    case 'razeCamp': {
+    case ObjectiveKind.razeCamp: {
       if (!world.banditsEnabled) return false; // a campless sandbox never auto-wins
       for (const b of world.buildings.values()) {
-        if (!b.dead && b.type === 'banditCamp') return false;
+        if (!b.dead && b.type === BuildingTypeId.banditCamp) return false;
       }
       return true;
     }
@@ -68,7 +79,7 @@ export function latchObjectives(world: World): boolean {
     if (done[i]) continue;
     if (objectiveMet(world, mission.objectives[i]!.spec, 0)) {
       done[i] = true;
-      world.pendingEvents.push({ kind: 'objectiveComplete', index: i, player: 0 });
+      world.pendingEvents.push({ kind: GameEventKind.objectiveComplete, index: i, player: 0 });
     } else {
       all = false;
     }

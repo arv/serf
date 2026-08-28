@@ -1,7 +1,7 @@
 import type { WebSocket } from 'ws';
 import { tileCount } from '../../src/shared/grid.ts';
 import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
-import { createWorld, type World, type WorldConfig } from '../../src/sim/world.ts';
+import { createWorld, type World, type WorldConfig, type GameEvent, type MapDelta, MatchState } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
 import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { parseStrategyId } from '../../src/sim/defs/aiStrategies.ts';
@@ -9,8 +9,8 @@ import { TICK_MS } from '../../src/sim/defs/balance.ts';
 import { REPLAY_FORMAT, serializeReplay, type ReplayData } from '../../src/app/replay.ts';
 import { MAX_SEATS, type LobbyConfig } from '../../src/protocol/lobby.ts';
 import type { SimCommand } from '../../src/sim/commands.ts';
-import type { GameEvent, MapDelta } from '../../src/sim/world.ts';
 import { SeatView, recomputeVision, sendHot, sendStruct } from './sync.ts';
+import { playerKindFromKey, PlayerKind } from '../../src/sim/player.ts';
 
 export { TICK_MS };
 
@@ -252,7 +252,9 @@ export function matchWorldConfig(room: Room): WorldConfig {
     // match starts, the sanitized lobby setting is the promise.
     mapSize: room.world?.map.size ?? room.config.size,
     players: room.seats.map((s) => ({
-      kind: s.kind,
+      // The lobby speaks in words on the wire (a room message is meant to
+      // be readable in a log); the sim takes the number.
+      kind: playerKindFromKey(s.kind) ?? PlayerKind.human,
       strategy: s.kind === 'ai' ? parseStrategyId(bots[picked++]) : undefined,
     })),
     // Cheats are a single-player affair; a networked world never honors them.
@@ -396,7 +398,7 @@ export function pumpRoom(room: Room, nowMs: number): void {
  */
 export function replayFor(room: Room, seat: Seat): string | null {
   const world = room.world;
-  if (!world || !room.replay || world.outcome.state !== 'over') return null;
+  if (!world || !room.replay || world.outcome.state !== MatchState.over) return null;
   // replayVersion right after format — readReplayVersion scans only the
   // head of the file for it.
   return serializeReplay({

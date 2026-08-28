@@ -9,6 +9,10 @@ import { checkInvariants } from '../sim/debug/invariants.ts';
 import { applyBrush } from './brush.ts';
 import { createBlankMap } from './editorMap.ts';
 import { worldFromEditor } from './playWorld.ts';
+import { UnitTypeId } from '../sim/defs/units.ts';
+import { BuildingTypeId } from '../sim/defs/buildings.ts';
+import { PlayerKind } from '../sim/player.ts';
+import { MatchState } from '../sim/world.ts';
 
 function authoredState() {
   // play 64 -> grid 112, play region [24, 88).
@@ -27,7 +31,7 @@ function authoredState() {
 
 const PLAY = {
   seed: 12345,
-  players: [{ kind: 'human' as const }, { kind: 'ai' as const }],
+  players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
   banditsEnabled: true,
 };
 
@@ -35,7 +39,9 @@ describe('worldFromEditor', () => {
   it('stands one stocked storehouse per seat on the authored starts', () => {
     const state = authoredState();
     const world = worldFromEditor(state, PLAY);
-    const stores = [...world.buildings.values()].filter((b) => b.type === 'storehouse');
+    const stores = [...world.buildings.values()].filter(
+      (b) => b.type === BuildingTypeId.storehouse,
+    );
     expect(stores).toHaveLength(2);
     for (let p = 0; p < 2; p++) {
       const store = stores.find((b) => b.owner === p)!;
@@ -52,9 +58,11 @@ describe('worldFromEditor', () => {
     const world = worldFromEditor(authoredState(), PLAY);
     const units = [...world.units.values()];
     for (let p = 0; p < 2; p++) {
-      expect(units.filter((u) => u.owner === p && u.kind === 'serf')).toHaveLength(START_SERFS);
+      expect(units.filter((u) => u.owner === p && u.kind === UnitTypeId.serf)).toHaveLength(
+        START_SERFS,
+      );
     }
-    const camp = [...world.buildings.values()].find((b) => b.type === 'banditCamp');
+    const camp = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.banditCamp);
     expect(camp).toBeDefined();
     expect(camp!.owner).toBe(BANDIT);
     expect(units.filter((u) => u.owner === BANDIT)).toHaveLength(3);
@@ -62,7 +70,9 @@ describe('worldFromEditor', () => {
 
   it('honors the bandits toggle', () => {
     const world = worldFromEditor(authoredState(), { ...PLAY, banditsEnabled: false });
-    expect([...world.buildings.values()].some((b) => b.type === 'banditCamp')).toBe(false);
+    expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.banditCamp)).toBe(
+      false,
+    );
     expect([...world.units.values()].some((u) => u.owner === BANDIT)).toBe(false);
   });
 
@@ -86,7 +96,7 @@ describe('worldFromEditor', () => {
     expect(back.buildings.size).toBe(world.buildings.size);
     expect(back.units.size).toBe(world.units.size);
     expect(back.players).toHaveLength(2);
-    expect(back.players[1]!.kind).toBe('ai');
+    expect(back.players[1]!.kind).toBe(PlayerKind.ai);
   });
 
   it('ticks cleanly: 200 ticks with no invariant violations', () => {
@@ -94,12 +104,12 @@ describe('worldFromEditor', () => {
     for (let t = 0; t < 200; t++) tickWorld(world, []);
     expect(checkInvariants(world).violations).toEqual([]);
     expect(world.tick).toBe(200);
-    expect(world.outcome.state).toBe('playing');
+    expect(world.outcome.state).toBe(MatchState.playing);
   });
 
   it('refuses a seat count that does not match the map', () => {
     expect(() =>
-      worldFromEditor(authoredState(), { ...PLAY, players: [{ kind: 'human' }] }),
+      worldFromEditor(authoredState(), { ...PLAY, players: [{ kind: PlayerKind.human }] }),
     ).toThrow(/seat/);
   });
 
@@ -120,10 +130,12 @@ describe('worldFromEditor', () => {
       }
     }
     recomputeBlocked(state.map);
-    const solo = { seed: 7, players: [{ kind: 'human' as const }], banditsEnabled: true };
+    const solo = { seed: 7, players: [{ kind: PlayerKind.human }], banditsEnabled: true };
     expect(() => worldFromEditor(state, solo)).toThrow(/bandit camp/);
     // The same map is a fine peaceful sandbox.
     const world = worldFromEditor(state, { ...solo, banditsEnabled: false });
-    expect([...world.buildings.values()].some((b) => b.type === 'banditCamp')).toBe(false);
+    expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.banditCamp)).toBe(
+      false,
+    );
   });
 });

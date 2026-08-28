@@ -1,13 +1,14 @@
 import { Rng } from '../shared/rng.ts';
-import { marginFor,
+import {
+  marginFor,
   DEFAULT_MAP_SIZE,
   MAX_MAP_SIZE,
   MIN_MAP_SIZE,
   inBounds,
   tileIdx,
 } from '../shared/grid.ts';
-import { inPlayArea,
-  RESOURCE_CODE,
+import {
+  inPlayArea,
   Terrain,
   TileResource,
   clearResources,
@@ -23,21 +24,29 @@ import { inPlayArea,
 import { parseMapData, type MapFile } from './mapFile.ts';
 import { loadMissionMap } from './defs/missionMaps.ts';
 import { START_SERFS, START_STOCK, firstRaidTickFor } from './defs/balance.ts';
-import { UNIT_DEFS } from './defs/units.ts';
-import {
-  buildingDef,
-  gatherOrigin,
-  gatherRecipeOf,
-  type BuildingTypeId,
-} from './defs/buildings.ts';
+import { UNIT_DEFS, UnitTypeId } from './defs/units.ts';
+import { buildingDef, gatherOrigin, gatherRecipeOf, BuildingTypeId } from './defs/buildings.ts';
 import { dealStrategies, type AiStrategyId } from './defs/aiStrategies.ts';
 import { MISSION_DEFS, type MissionId } from './defs/missions.ts';
 import { makeUnit, type Unit } from './units.ts';
 import { nearestWalkable } from './path.ts';
-import type { GoodAmounts, GoodId } from './defs/goods.ts';
+import { type GoodAmounts, GoodId, goodKeys, goodEntries } from './defs/goods.ts';
 import type { TechId } from './defs/techs.ts';
-import { BANDIT, type Building, type EntityId, type Owner } from './entities.ts';
-import { makePlayer, type PlayerState } from './player.ts';
+import { BANDIT, type Building, type EntityId, type Owner, BuildingState } from './entities.ts';
+import { makePlayer, type PlayerState, PlayerKind } from './player.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as HaulPhaseNs from './haulPhaseEnum.ts';
+import * as GameEventKindNs from './gameEventKindEnum.ts';
+
+export * as GameEventKind from './gameEventKindEnum.ts';
+export type GameEventKind = Enum<typeof GameEventKindNs>;
+import * as MatchStateNs from './matchStateEnum.ts';
+
+export * as MatchState from './matchStateEnum.ts';
+export type MatchState = Enum<typeof MatchStateNs>;
+
+export * as HaulPhase from './haulPhaseEnum.ts';
+export type HaulPhase = Enum<typeof HaulPhaseNs>;
 
 export interface HaulJob {
   id: number;
@@ -48,7 +57,7 @@ export interface HaulJob {
   owner: Owner;
   priority: 1 | 2 | 3;
   createdTick: number;
-  phase: 'open' | 'toPickup' | 'toDropoff';
+  phase: HaulPhase;
   serfId?: EntityId;
   /**
    * This haul was booked by an ordered repair. Cancelling the repair stands
@@ -117,9 +126,9 @@ export interface World {
 }
 
 export type MatchOutcome =
-  | { state: 'playing' }
+  | { state: MatchStateNs.playing }
   /** winner null = the last player fell too (solo loss / mutual destruction). */
-  | { state: 'over'; winner: Owner | null };
+  | { state: MatchStateNs.over; winner: Owner | null };
 
 export interface AdminState {
   /** Admin commands are honored at all (set once at world creation, so every
@@ -132,13 +141,13 @@ export interface AdminState {
 }
 
 export type GameEvent =
-  | { kind: 'raidIncoming'; text: string; player: Owner }
-  | { kind: 'playerEliminated'; player: Owner }
-  | { kind: 'gameOver'; winner: Owner | null }
-  | { kind: 'objectiveComplete'; index: number; player: Owner }
+  | { kind: GameEventKindNs.raidIncoming; text: string; player: Owner }
+  | { kind: GameEventKindNs.playerEliminated; player: Owner }
+  | { kind: GameEventKindNs.gameOver; winner: Owner | null }
+  | { kind: GameEventKindNs.objectiveComplete; index: number; player: Owner }
   /** A player's building or unit lost hp. One event per strike, addressed
    * to the victim's owner; the client aggregates them into alerts. */
-  | { kind: 'damage'; player: Owner; x: number; y: number; building: boolean };
+  | { kind: GameEventKindNs.damage; player: Owner; x: number; y: number; building: boolean };
 
 export interface TechState {
   researched: TechId[];
@@ -161,7 +170,7 @@ export interface WorldConfig {
   seed: number;
   /** 1..4 seats; index = playerId. An AI seat may name the playbook it
    * wants; the ones that don't are dealt from the seed. */
-  players: { kind: 'human' | 'ai'; strategy?: AiStrategyId }[];
+  players: { kind: PlayerKind; strategy?: AiStrategyId }[];
   /** Admin (cheat) commands honored. Default true — networked games pass false. */
   adminEnabled?: boolean;
   /** Bandits exist. Default true; false places no camp, no guards, and
@@ -293,7 +302,7 @@ export async function createWorldAsync(config: WorldConfig): Promise<World> {
 export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: MapFile): World {
   const config: WorldConfig =
     typeof seedOrConfig === 'number'
-      ? { seed: seedOrConfig, players: [{ kind: 'human' }] }
+      ? { seed: seedOrConfig, players: [{ kind: PlayerKind.human }] }
       : seedOrConfig;
   const seed = config.seed | 0;
   const mission = config.mission ? MISSION_DEFS[config.mission] : undefined;
@@ -355,7 +364,7 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
       instantBuild: false,
     },
     pendingEvents: [],
-    outcome: { state: 'playing' },
+    outcome: { state: MatchStateNs.playing },
     banditsEnabled: config.banditsEnabled ?? true,
   };
 
@@ -365,7 +374,7 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
   for (let p = 0; p < starts.length; p++) {
     const { x: shX, y: shY } = starts[p]!;
     clearResources(map, shX - 1, shY - 1, 5, 5);
-    const storehouse = placeBuiltBuilding(world, 'storehouse', p, shX, shY);
+    const storehouse = placeBuiltBuilding(world, BuildingTypeId.storehouse, p, shX, shY);
     // Mission overrides apply to the human's seat only (seat 0); a mission
     // rival opens with the standard larder.
     storehouse.stock = { ...(p === 0 && mission?.startStock ? mission.startStock : START_STOCK) };
@@ -408,10 +417,22 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           if (rectClear(map, cx + dx, cy + dy, 3, 3)) {
-            const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, cx + dx, cy + dy);
+            const camp = placeBuiltBuilding(
+              world,
+              BuildingTypeId.banditCamp,
+              BANDIT,
+              cx + dx,
+              cy + dy,
+            );
             // Standing guards defend the camp (auto-acquire handles the rest).
             for (let g = 0; g < 3; g++) {
-              spawnUnitNearby(world, 'bandit', BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
+              spawnUnitNearby(
+                world,
+                UnitTypeId.bandit,
+                BANDIT,
+                camp.x - 0.5 + g * 2,
+                camp.y + camp.h + 1.5,
+              );
             }
             campPlaced = true;
             break outer;
@@ -427,7 +448,7 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
   if (mission && campSeeds.length > 0 && !campPlaced) {
     throw new Error(
       `mission ${mission.id}'s map has no room for the bandit camp: ` +
-        'clear a 3×3 near its campSpot, or turn the mission\'s bandits off',
+        "clear a 3×3 near its campSpot, or turn the mission's bandits off",
     );
   }
 
@@ -443,7 +464,7 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
     for (let i = 0; i < serfs; i++) {
       const x = shX - 1 + (i % 5) + 0.5;
       const y = shY + 4 + Math.floor(i / 5) + 0.5;
-      spawnSerf(world, 'serf', p, x, y);
+      spawnSerf(world, UnitTypeId.serf, p, x, y);
     }
   }
 
@@ -608,7 +629,7 @@ function makeBuildingRecord(
     w: def.w,
     h: def.h,
     hp: def.hp,
-    state: 'built',
+    state: BuildingState.built,
     stock: {},
     inputs: {},
     inbound: {},
@@ -657,7 +678,7 @@ export function placeSite(
 ): Building {
   const def = buildingDef(type);
   const b = makeBuildingRecord(world, type, owner, x, y);
-  b.state = 'site';
+  b.state = BuildingState.site;
   // A bare frame is fragile; hp climbs to full as construction advances.
   b.hp = Math.max(1, Math.round(def.hp * 0.2));
   b.siteNeeds = { ...def.cost };
@@ -665,7 +686,7 @@ export function placeSite(
   // it at completion (constructionSystem) — the loan that caps how many
   // buildings can rise at once. Roads pave themselves and pay no loan.
   if (!def.isRoad && !def.systemOnly) {
-    b.siteNeeds.hammer = (b.siteNeeds.hammer ?? 0) + 1;
+    b.siteNeeds[GoodId.hammer] = (b.siteNeeds[GoodId.hammer] ?? 0) + 1;
   }
   b.buildProgress = 0;
   world.buildings.set(b.id, b);
@@ -743,7 +764,7 @@ export function canPlace(map: MapView, type: BuildingTypeId, x: number, y: numbe
   const gather = gatherRecipeOf(def);
   if (gather) {
     const c = gatherOrigin(def, x, y);
-    if (findResourceNear(map, c.x, c.y, RESOURCE_CODE[gather.resource]!, gather.radius) < 0) {
+    if (findResourceNear(map, c.x, c.y, gather.resource, gather.radius) < 0) {
       return false;
     }
   }
@@ -802,9 +823,9 @@ export function destroyBuilding(world: World, b: Building): void {
     }
   }
   for (const goods of [b.stock, b.inputs]) {
-    for (const [good, n] of Object.entries(goods)) {
+    for (const [good, n] of goodEntries(goods)) {
       if (n) {
-        world.ledger.consumed[good as GoodId] = (world.ledger.consumed[good as GoodId] ?? 0) + n;
+        world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
       }
     }
   }
@@ -839,7 +860,7 @@ export function applyRepairMaterial(world: World, b: Building, good: GoodId): vo
   // mended wall. constructionSystem's masons work the bank down.
   b.repairPending = (b.repairPending ?? 0) + (b.repairHpPerGood ?? 0);
   world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + 1;
-  const bill = Object.keys(b.repairNeeds!) as GoodId[];
+  const bill = goodKeys(b.repairNeeds!);
   for (const g of bill) {
     if ((b.repairNeeds![g] ?? 0) > 0) return;
   }

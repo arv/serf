@@ -4,13 +4,13 @@ import {
   loadCharacterAssets,
   makeCharacter,
   playAnimation,
-  type AnimKey,
   type CharacterVisual,
+  AnimKey,
 } from '../../../render/characters';
 import { makeRoadPile } from '../../../render/models';
-import { BUILDING_DEFS, type BuildingTypeId } from '../../../sim/defs/buildings';
+import { BUILDING_DEFS, type BuildingTypeId, buildingFromKey } from '../../../sim/defs/buildings';
 import { BANDIT } from '../../../sim/entities';
-import { UNIT_DEFS, type UnitTypeId } from '../../../sim/defs/units';
+import { UNIT_DEFS, type UnitTypeId, unitFromKey } from '../../../sim/defs/units';
 import { RAIDER_BUILDINGS, RAIDER_UNITS } from '../data';
 import { YAW, frame, frameFor, makeLights, makePlate, makeRenderer, type Framing } from './scene';
 
@@ -342,7 +342,8 @@ function animTick(t: number): void {
 
 function buildContent(card: Card): CardContent | null {
   if (card.kind === 'building') {
-    const id = card.id as BuildingTypeId;
+    const id = buildingFromKey(card.id);
+    if (id === undefined) return null;
     // Owner picks the team-colour slot; the camp belongs to the raiders,
     // and BANDIT is the one owner factionTint leaves untinted.
     const owner = RAIDER_BUILDINGS.includes(id) ? BANDIT : 0;
@@ -362,14 +363,15 @@ function buildContent(card: Card): CardContent | null {
     const owned: THREE.Object3D[] = pile ? [plate, pile] : [plate];
     return { group, framing: frameFor(model, plateR), owned };
   }
-  const unit = card.id as UnitTypeId;
-  const made = makeCharacter(UNIT_DEFS[unit].kindCode, 0, RAIDER_UNITS.includes(unit) ? BANDIT : 0);
+  const unit = unitFromKey(card.id);
+  if (unit === undefined) return null;
+  const made = makeCharacter(unit, 0, RAIDER_UNITS.includes(unit) ? BANDIT : 0);
   if (!made) return null;
   const plateR = 0.62;
   const group = new THREE.Group();
   const plate = makePlate(plateR, Math.floor(card.seed * 997));
   group.add(plate, made.group);
-  playAnimation(made.visual, 'idle', card.seed % 1);
+  playAnimation(made.visual, AnimKey.idle, card.seed % 1);
   // Sampled here so the very first paint shows an idle pose rather than
   // the bind pose — the animation loop may never run at all.
   sampleOnce(made.visual);
@@ -538,7 +540,7 @@ export function registerCard(spec: CardSpec): CardHandle {
       // The seed desyncs looping clips, but death plays once (LoopOnce in
       // characters.ts) — started part-way through, a card would show the
       // last third of a fall. sceneSync makes the same exception.
-      playAnimation(visual, key, key === 'death' ? 0 : card.seed);
+      playAnimation(visual, key, key === AnimKey.death ? 0 : card.seed);
       // Put the new clip on the skeleton before painting: under reduced
       // motion no loop will do it, so the picker would change nothing.
       sampleOnce(visual);

@@ -1,12 +1,15 @@
 import { TICK_MS } from '../sim/defs/balance.ts';
-import { UNIT_DEFS, type UnitTypeId } from '../sim/defs/units.ts';
-import { buildingDef, type BuildingTypeId } from '../sim/defs/buildings.ts';
+import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units.ts';
+import { buildingDef, BuildingTypeId, BUILDING_KEYS } from '../sim/defs/buildings.ts';
 import { AI_INTEL, hostileNear, type AiBrain } from '../sim/systems/ai.ts';
-import type { Building, Owner } from '../sim/entities.ts';
+import { type Building, type Owner, BuildingState } from '../sim/entities.ts';
 import { popCapOf, populationOf } from '../sim/population.ts';
 import { playMin, playMax } from '../sim/map.ts';
 import { tileIdx } from '../shared/grid.ts';
 import type { World } from '../sim/world.ts';
+import { GOOD_KEYS, goodEntries } from '../sim/defs/goods.ts';
+import { TECH_KEYS } from '../sim/defs/techs.ts';
+import { AI_STRATEGY_KEYS } from '../sim/defs/aiStrategies.ts';
 
 /**
  * One AI seat's view of the match, folded down for a language model. The
@@ -108,8 +111,11 @@ export interface AiWorldSummary {
     serfs: number;
     pop: number;
     popCap: number;
-    /** Standing counts by type, construction sites included. */
-    buildings: Partial<Record<BuildingTypeId, number>>;
+    /** Standing counts by type, construction sites included. Keyed by the
+     * building's spelling rather than its id: this whole summary is
+     * JSON.stringify'd into the model's prompt, and a 1B model shown
+     * `{"5":2}` has been told nothing. */
+    buildings: Record<string, number>;
     army: { knight: number; spearman: number; archer: number };
     researched: string[];
     researching: string | null;
@@ -132,7 +138,12 @@ function inMinutes(tick: number): number {
 
 function castleOf(world: World, owner: Owner): Building | undefined {
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.owner === owner && buildingDef(b.type).storage && b.state === 'built') {
+    if (
+      !b.dead &&
+      b.owner === owner &&
+      buildingDef(b.type).storage &&
+      b.state === BuildingState.built
+    ) {
       return b;
     }
   }
@@ -150,12 +161,12 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
 
   const stock: Record<string, number> = {};
   if (castle) {
-    for (const [good, n] of Object.entries(castle.stock as Record<string, number>)) {
-      if (n > 0) stock[good] = n;
+    for (const [good, n] of goodEntries(castle.stock)) {
+      if (n > 0) stock[GOOD_KEYS[good]] = n;
     }
   }
 
-  const buildings: Partial<Record<BuildingTypeId, number>> = {};
+  const buildings: Record<string, number> = {};
   let serfs = 0;
   const army = { knight: 0, spearman: 0, archer: 0 };
   /** Rival buildings on explored ground, and camps likewise. */
@@ -165,11 +176,12 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
   for (const b of world.buildings.values()) {
     if (b.dead) continue;
     if (b.owner === playerId) {
-      buildings[b.type] = (buildings[b.type] ?? 0) + 1;
+      const key = BUILDING_KEYS[b.type];
+      buildings[key] = (buildings[key] ?? 0) + 1;
       continue;
     }
     if (!vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
-    if (b.type === 'banditCamp') {
+    if (b.type === BuildingTypeId.banditCamp) {
       camps++;
       if (castle) {
         const d = Math.abs(b.x + 1 - bx) + Math.abs(b.y + 1 - by);
@@ -181,10 +193,10 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
   }
   for (const u of world.units.values()) {
     if (u.dead || u.owner !== playerId) continue;
-    if (u.kind === 'serf') serfs++;
-    else if (u.kind === 'knight' || u.kind === 'spearman' || u.kind === 'archer') {
-      army[u.kind]++;
-    }
+    if (u.kind === UnitTypeId.serf) serfs++;
+    else if (u.kind === UnitTypeId.knight) army.knight++;
+    else if (u.kind === UnitTypeId.spearman) army.spearman++;
+    else if (u.kind === UnitTypeId.archer) army.archer++;
   }
 
   const intelByOwner = new Map(brain.intelReport().map((r) => [r.owner, r]));
@@ -248,7 +260,7 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
     explored: Math.round((exploredTiles / tiles) * 100) / 100,
     seat: {
       id: playerId,
-      strategyId: strategy.id,
+      strategyId: AI_STRATEGY_KEYS[strategy.id],
       knobs: {
         serfTarget: strategy.serfTarget,
         armyAttackSize: strategy.armyAttackSize,
@@ -271,9 +283,11 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
       popCap: popCapOf(world, playerId),
       buildings,
       army,
-      researched: techs ? [...techs.researched] : [],
-      researching: techs?.active?.tech ?? null,
-      underAttack: castle ? hostileNear(world, vision, playerId, bx, by, UNDER_ATTACK_RADIUS) : false,
+      researched: techs ? techs.researched.map((t) => TECH_KEYS[t]) : [],
+      researching: techs?.active === undefined ? null : TECH_KEYS[techs.active.tech],
+      underAttack: castle
+        ? hostileNear(world, vision, playerId, bx, by, UNDER_ATTACK_RADIUS)
+        : false,
     },
     rivals,
     bandits: { camps, nearestCamp },

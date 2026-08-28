@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
 import { WORLD_SAVE_VERSION } from '../shared/saveVersion';
-import { envelopeSave } from './saveEnvelope';
+import { envelopeSave, type SaveMeta } from './saveEnvelope';
 import { installOpfs } from './opfsMock';
 import {
   deleteSaveFile,
@@ -12,11 +12,12 @@ import {
   readSaveFile,
   saveGameFile,
 } from './saveStore';
+import { MissionId, MISSION_KEYS } from '../sim/defs/missions';
 
 const TILES = tileCount(DEFAULT_MAP_SIZE);
 
 /** A save as the match writes one: a world string under a metadata head. */
-function save(about: { mission?: 'clearing'; opponents?: number } = {}): string {
+function save(about: Omit<SaveMeta, 'world'> = {}): string {
   return envelopeSave(
     JSON.stringify({ version: WORLD_SAVE_VERSION, world: { tick: 7 } }),
     new Uint8Array(TILES),
@@ -51,10 +52,13 @@ describe('the saves shelf', () => {
 
   it('reads each row’s badge out of the file head', async () => {
     installOpfs();
-    await saveGameFile('mission', save({ mission: 'clearing' }));
+    await saveGameFile('mission', save({ mission: MISSION_KEYS[MissionId.clearing] }));
     await saveGameFile('skirmish', save({ opponents: 3 }));
     const byName = new Map((await listSaveFiles()).map((f) => [f.name, f.meta]));
-    expect(byName.get('mission')).toEqual({ world: WORLD_SAVE_VERSION, mission: 'clearing' });
+    expect(byName.get('mission')).toEqual({
+      world: WORLD_SAVE_VERSION,
+      mission: MISSION_KEYS[MissionId.clearing],
+    });
     expect(byName.get('skirmish')).toEqual({ world: WORLD_SAVE_VERSION, opponents: 3 });
   });
 

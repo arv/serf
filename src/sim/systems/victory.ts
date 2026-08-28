@@ -1,7 +1,7 @@
-import { buildingDef } from '../defs/buildings.ts';
+import { buildingDef, BuildingTypeId } from '../defs/buildings.ts';
 import { latchObjectives } from './objectives.ts';
-import type { Owner } from '../entities.ts';
-import type { World } from '../world.ts';
+import { type Owner, BuildingState } from '../entities.ts';
+import { type World, GameEventKind, MatchState } from '../world.ts';
 
 /**
  * Elimination and match end. A player whose storehouse falls is out; the
@@ -17,12 +17,12 @@ import type { World } from '../world.ts';
  * elimination rules.
  */
 export function victorySystem(world: World): void {
-  if (world.outcome.state !== 'playing') return;
+  if (world.outcome.state !== MatchState.playing) return;
 
   // One pass over the buildings replaces a full scan per player per tick.
   const hasStorehouse = new Set<Owner>();
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.state === 'built' && buildingDef(b.type).storage) {
+    if (!b.dead && b.state === BuildingState.built && buildingDef(b.type).storage) {
       hasStorehouse.add(b.owner);
     }
   }
@@ -30,7 +30,7 @@ export function victorySystem(world: World): void {
     if (!p.alive) continue;
     if (!hasStorehouse.has(p.id)) {
       p.alive = false;
-      world.pendingEvents.push({ kind: 'playerEliminated', player: p.id });
+      world.pendingEvents.push({ kind: GameEventKind.playerEliminated, player: p.id });
     }
   }
 
@@ -51,7 +51,7 @@ export function victorySystem(world: World): void {
     // outright (razing the camp is then just one line on the list).
     let campStands = false;
     for (const b of world.buildings.values()) {
-      if (!b.dead && b.type === 'banditCamp') {
+      if (!b.dead && b.type === BuildingTypeId.banditCamp) {
         campStands = true;
         break;
       }
@@ -64,6 +64,6 @@ export function victorySystem(world: World): void {
 }
 
 function endMatch(world: World, winner: Owner | null): void {
-  world.outcome = { state: 'over', winner };
-  world.pendingEvents.push({ kind: 'gameOver', winner });
+  world.outcome = { state: MatchState.over, winner };
+  world.pendingEvents.push({ kind: GameEventKind.gameOver, winner });
 }

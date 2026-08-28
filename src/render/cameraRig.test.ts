@@ -1,13 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CAMERA_YAW, CameraRig } from './cameraRig';
+import { CAMERA_YAW, CameraRig, ViewMode } from './cameraRig';
 import { screenToGround, worldToScreen } from '../input/picking';
-import {
-  DEFAULT_MAP_SIZE,
-  MAX_MAP_SIZE,
-  MIN_MAP_SIZE,
-  gridFor,
-  marginFor,
-} from '../shared/grid';
+import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE, gridFor, marginFor } from '../shared/grid';
 
 /**
  * The rig's turn: Shift+wheel and Insert/Delete, stepped so the view lands
@@ -109,7 +103,10 @@ describe('CameraRig turn', () => {
   let rig: CameraRig;
 
   beforeEach(() => {
-    vi.stubGlobal('window', Object.assign(new EventTarget(), { innerWidth: 1600, innerHeight: 900 }));
+    vi.stubGlobal(
+      'window',
+      Object.assign(new EventTarget(), { innerWidth: 1600, innerHeight: 900 }),
+    );
     vi.stubGlobal('document', Object.assign(new EventTarget(), { hidden: false }));
     vi.stubGlobal('location', { search: '' });
     canvas = makeCanvas();
@@ -523,7 +520,7 @@ describe('CameraRig turn', () => {
   });
 
   it("the plan view is north-up by definition and doesn't turn", () => {
-    rig.setViewMode('topDown');
+    rig.setViewMode(ViewMode.topDown);
     wheel(canvas, 100);
     hold(rig, 'Delete', 0.5);
     keyDown('Insert');
@@ -532,13 +529,13 @@ describe('CameraRig turn', () => {
     expectYaw(rig, 0, 10);
     // Back in the game, on the game's own line, with nothing banked — a
     // press the plan view swallowed must not turn the match's camera.
-    rig.setViewMode('game');
+    rig.setViewMode(ViewMode.game);
     settle(rig);
     expectYaw(rig, CAMERA_YAW, 10);
     keyDown('Delete');
-    rig.setViewMode('topDown');
+    rig.setViewMode(ViewMode.topDown);
     keyUp('Delete');
-    rig.setViewMode('game');
+    rig.setViewMode(ViewMode.game);
     settle(rig);
     expectYaw(rig, CAMERA_YAW, 10);
   });
@@ -554,7 +551,9 @@ describe('CameraRig turn', () => {
     // corners. If picking and the rig disagree about the yaw, this parts.
     const corners = (): { x: number; y: number }[] => {
       const q = rig.viewQuad(new Float64Array(8));
-      return [0, 1, 2, 3].map((i) => worldToScreen(rig.camera, canvas, q[i * 2]!, 0, q[i * 2 + 1]!));
+      return [0, 1, 2, 3].map((i) =>
+        worldToScreen(rig.camera, canvas, q[i * 2]!, 0, q[i * 2 + 1]!),
+      );
     };
     const expected = [
       { x: 0, y: 0 },
@@ -620,7 +619,6 @@ describe('CameraRig turn', () => {
   });
 });
 
-
 /**
  * The zoom-out cap and the scenery ring's depth are one decision: the ring
  * is however far a frame reaches past the play square at full zoom-out, and
@@ -669,7 +667,11 @@ const stubWindow = (): void => {
 
 /** A rig on a window of the given shape, bounded to a play square of
  * `play` tiles sitting in its ring. */
-const rigFor = (play: number, w: number, h: number): { rig: CameraRig; canvas: HTMLCanvasElement } => {
+const rigFor = (
+  play: number,
+  w: number,
+  h: number,
+): { rig: CameraRig; canvas: HTMLCanvasElement } => {
   const canvas = makeCanvas();
   Object.assign(canvas, { clientWidth: w, clientHeight: h });
   const rig = new CameraRig(canvas);
@@ -799,7 +801,14 @@ describe('the whole valley can still be looked at', () => {
   ];
 
   /** Can the player bring this world point into frame at all, at this yaw? */
-  const canReach = (play: number, w: number, h: number, turn: number, x: number, z: number): boolean => {
+  const canReach = (
+    play: number,
+    w: number,
+    h: number,
+    turn: number,
+    x: number,
+    z: number,
+  ): boolean => {
     const quad = new Float64Array(8);
     for (const lean of LEANS) {
       const { rig, canvas } = rigFor(play, w, h);

@@ -3,12 +3,14 @@ import {
   BUILDING_DEFS,
   TOOL_OF,
   outputGoodsOf,
-  type BuildingTypeId,
   type Recipe,
+  BuildingTypeId,
+  BUILDING_TYPES,
+  RecipeKind,
 } from '../../sim/defs/buildings';
-import { GOODS, type GoodAmounts, type GoodId } from '../../sim/defs/goods';
-import { TECH_DEFS, type TechId } from '../../sim/defs/techs';
-import { UNIT_DEFS, WEAPON_OF, type UnitTypeId } from '../../sim/defs/units';
+import { GOODS, type GoodAmounts, GoodId, goodEntries, goodKeys } from '../../sim/defs/goods';
+import { TECH_DEFS, type TechId, TechEffectKind, TECH_IDS } from '../../sim/defs/techs';
+import { UNIT_DEFS, WEAPON_OF, UnitTypeId, UNIT_TYPES } from '../../sim/defs/units';
 import { BUILD_GROUPS } from '../../ui/buildMenu';
 
 /**
@@ -18,9 +20,9 @@ import { BUILD_GROUPS } from '../../ui/buildMenu';
  * these pages the moment its def exists, with every def field it carries.
  */
 
-export const ALL_BUILDINGS = Object.keys(BUILDING_DEFS) as BuildingTypeId[];
-export const ALL_UNITS = Object.keys(UNIT_DEFS) as UnitTypeId[];
-export const ALL_TECHS = Object.keys(TECH_DEFS) as TechId[];
+export const ALL_BUILDINGS: readonly BuildingTypeId[] = BUILDING_TYPES;
+export const ALL_UNITS: readonly UnitTypeId[] = UNIT_TYPES;
+export const ALL_TECHS: readonly TechId[] = TECH_IDS;
 
 /**
  * The kinds the raids are made of, and the camp they muster from.
@@ -31,8 +33,12 @@ export const ALL_TECHS = Object.keys(TECH_DEFS) as TechId[];
  * raider rendered as owner 0 comes out in player one's green, where
  * factionTint(BANDIT) deliberately leaves the pack's own grim look alone.
  */
-export const RAIDER_UNITS: UnitTypeId[] = ['bandit', 'banditArcher', 'marauder'];
-export const RAIDER_BUILDINGS: BuildingTypeId[] = ['banditCamp'];
+export const RAIDER_UNITS: UnitTypeId[] = [
+  UnitTypeId.bandit,
+  UnitTypeId.banditArcher,
+  UnitTypeId.marauder,
+];
+export const RAIDER_BUILDINGS: BuildingTypeId[] = [BuildingTypeId.banditCamp];
 
 /**
  * The roofs no ribbon tab offers: worldgen's and the road pass's. Derived
@@ -101,7 +107,7 @@ export type ConsumerRef =
   | { kind: 'ration' };
 
 function goodsOf(amounts: GoodAmounts): GoodId[] {
-  return Object.keys(amounts) as GoodId[];
+  return goodKeys(amounts);
 }
 
 function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
@@ -117,7 +123,7 @@ function producersFrom(
   requiresTech: TechId | undefined,
   into: Map<GoodId, ProducerRef[]>,
 ): void {
-  if (recipe.kind === 'gather') {
+  if (recipe.kind === RecipeKind.gather) {
     push(into, recipe.output, {
       building,
       via,
@@ -127,7 +133,7 @@ function producersFrom(
     });
     return;
   }
-  for (const [good, amount] of Object.entries(recipe.outputs) as [GoodId, number][]) {
+  for (const [good, amount] of goodEntries(recipe.outputs)) {
     push(into, good, {
       building,
       via,
@@ -143,7 +149,13 @@ function buildProducedBy(): Map<GoodId, ProducerRef[]> {
   for (const id of ALL_BUILDINGS) {
     const def = BUILDING_DEFS[id];
     if (def.recipe) {
-      producersFrom(id, def.recipe, def.recipe.kind === 'gather' ? 'gather' : 'convert', undefined, map);
+      producersFrom(
+        id,
+        def.recipe,
+        def.recipe.kind === RecipeKind.gather ? 'gather' : 'convert',
+        undefined,
+        map,
+      );
     }
     for (const opt of def.recipeOptions ?? []) {
       producersFrom(id, opt.recipe, 'forge', opt.requiresTech, map);
@@ -164,8 +176,9 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
     for (const good of goodsOf(def.repairCost ?? {})) {
       push(map, good, { kind: 'repair', building: id });
     }
-    if (def.recipe?.kind === 'convert') {
-      for (const good of goodsOf(def.recipe.inputs)) push(map, good, { kind: 'recipe', building: id });
+    if (def.recipe?.kind === RecipeKind.convert) {
+      for (const good of goodsOf(def.recipe.inputs))
+        push(map, good, { kind: 'recipe', building: id });
     }
     // One entry per good per building, not per forge option: nine Smith
     // recipes eating iron is one line on the iron page, not five.
@@ -195,26 +208,34 @@ function buildConsumedBy(): Map<GoodId, ConsumerRef[]> {
   for (const id of ALL_TECHS) {
     for (const good of goodsOf(TECH_DEFS[id].cost)) push(map, good, { kind: 'tech', tech: id });
   }
-  for (const [building, tool] of Object.entries(TOOL_OF) as [BuildingTypeId, GoodId][]) {
-    push(map, tool, { kind: 'tool', building });
+  for (const building of BUILDING_TYPES) {
+    const tool = TOOL_OF[building];
+    if (tool !== undefined) push(map, tool, { kind: 'tool', building });
   }
-  for (const [unit, weapon] of Object.entries(WEAPON_OF) as [UnitTypeId, GoodId][]) {
-    push(map, weapon, { kind: 'weapon', unit });
+  for (const unit of UNIT_TYPES) {
+    const weapon = WEAPON_OF[unit];
+    if (weapon !== undefined) push(map, weapon, { kind: 'weapon', unit });
   }
   // The consumers no def table names, because they are mechanics rather
   // than recipe rows: hiring is priced in balance.ts, every construction
   // site borrows a hammer (see TOOL_OF), and ale is drunk in two places —
   // the abbey's festivals and the barracks' cask. Without these the ale
   // page would list what research costs and nothing about what ale is for.
-  push(map, 'silver', { kind: 'hire' });
-  push(map, 'hammer', { kind: 'siteLoan' });
-  push(map, 'ale', { kind: 'festival' });
-  push(map, 'ale', { kind: 'ration' });
+  push(map, GoodId.silver, { kind: 'hire' });
+  push(map, GoodId.hammer, { kind: 'siteLoan' });
+  push(map, GoodId.ale, { kind: 'festival' });
+  push(map, GoodId.ale, { kind: 'ration' });
   return map;
 }
 
-function buildTrainedAt(): Map<UnitTypeId, { building: BuildingTypeId; cost: GoodAmounts; durationTicks: number }> {
-  const map = new Map<UnitTypeId, { building: BuildingTypeId; cost: GoodAmounts; durationTicks: number }>();
+function buildTrainedAt(): Map<
+  UnitTypeId,
+  { building: BuildingTypeId; cost: GoodAmounts; durationTicks: number }
+> {
+  const map = new Map<
+    UnitTypeId,
+    { building: BuildingTypeId; cost: GoodAmounts; durationTicks: number }
+  >();
   for (const id of ALL_BUILDINGS) {
     for (const t of BUILDING_DEFS[id].trains ?? []) {
       map.set(t.unit, { building: id, cost: t.cost, durationTicks: t.durationTicks });
@@ -229,7 +250,7 @@ function buildBuildingUnlocks(): Map<BuildingTypeId, TechId> {
   const map = new Map<BuildingTypeId, TechId>();
   for (const id of ALL_TECHS) {
     for (const e of TECH_DEFS[id].effects) {
-      if (e.kind === 'unlockBuilding') map.set(e.building, id);
+      if (e.kind === TechEffectKind.unlockBuilding) map.set(e.building, id);
     }
   }
   return map;
@@ -241,7 +262,7 @@ function buildUnitUnlocks(): Map<UnitTypeId, TechId> {
   const map = new Map<UnitTypeId, TechId>();
   for (const id of ALL_TECHS) {
     for (const e of TECH_DEFS[id].effects) {
-      if (e.kind === 'unlockUnit') map.set(e.unit, id);
+      if (e.kind === TechEffectKind.unlockUnit) map.set(e.unit, id);
     }
   }
   return map;

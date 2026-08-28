@@ -35,6 +35,10 @@ import {
   setStock,
   setTechs,
 } from '../ui/store';
+import { GoodId } from '../sim/defs/goods';
+import { BuildingTypeId } from '../sim/defs/buildings';
+import { BuildingState } from '../sim/entities';
+import { CommandKind } from '../sim/commands';
 
 const CANVAS_W = 800;
 const CANVAS_H = 600;
@@ -49,7 +53,14 @@ type Listener = (e: unknown) => void;
  * is a div of exactly this shape, so one fake serves both.
  */
 function fakeEl(): {
-  style: { cssText: string; display: string; left: string; top: string; width: string; height: string };
+  style: {
+    cssText: string;
+    display: string;
+    left: string;
+    top: string;
+    width: string;
+    height: string;
+  };
   clientWidth: number;
   clientHeight: number;
   addEventListener: (type: string, fn: Listener) => void;
@@ -80,7 +91,11 @@ function fakeEl(): {
  * window, so a test that wants to press a key has to be able to fire one
  * there; the no-op stub the pointer tests get would swallow it.
  */
-function fakeWindow(): { addEventListener: (t: string, fn: Listener) => void; removeEventListener: () => void; fire: (t: string, e: unknown) => void } {
+function fakeWindow(): {
+  addEventListener: (t: string, fn: Listener) => void;
+  removeEventListener: () => void;
+  fire: (t: string, e: unknown) => void;
+} {
   const listeners = new Map<string, Listener[]>();
   return {
     addEventListener: (t, fn) => void listeners.set(t, [...(listeners.get(t) ?? []), fn]),
@@ -142,7 +157,7 @@ function rightPtr(x: number, y: number): Record<string, unknown> {
 function building(id: number): BuildingSnap {
   return {
     id,
-    type: 'storehouse',
+    type: BuildingTypeId.storehouse,
     owner: ME,
     x: 10,
     y: 10,
@@ -150,7 +165,7 @@ function building(id: number): BuildingSnap {
     h: 3,
     hp: 100,
     maxHp: 100,
-    state: 'built',
+    state: BuildingState.built,
     stock: {},
     inputs: {},
     inbound: {},
@@ -223,7 +238,10 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
   };
   /** Where the camera was last sent — the second press of a number. */
   const rides: { x: number; z: number }[] = [];
-  const rig = { touchPanEnabled: true, glideTo: (x: number, z: number) => void rides.push({ x, z }) };
+  const rig = {
+    touchPanEnabled: true,
+    glideTo: (x: number, z: number) => void rides.push({ x, z }),
+  };
 
   // The keyboard lives on the window, so this has to be in place before
   // the constructor binds it. Stubbed here rather than in a hook because
@@ -291,7 +309,13 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
   /** The tile the plain ground hit under a screen point falls on — what an
    * order used to aim at, and what the test contrasts the new aim with. */
   const groundTileAt = (p: { x: number; y: number }): { x: number; y: number } | null => {
-    const g = screenToGround(camera, canvas as unknown as HTMLCanvasElement, p.x, p.y, heights as unknown as HeightField);
+    const g = screenToGround(
+      camera,
+      canvas as unknown as HTMLCanvasElement,
+      p.x,
+      p.y,
+      heights as unknown as HeightField,
+    );
     return g && { x: Math.floor(g.x), y: Math.floor(g.z) };
   };
 
@@ -334,7 +358,9 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
 }
 
 /** The rectangle that covers these screen points, with room to spare. */
-function around(points: { x: number; y: number }[]): [{ x: number; y: number }, { x: number; y: number }] {
+function around(
+  points: { x: number; y: number }[],
+): [{ x: number; y: number }, { x: number; y: number }] {
   const pad = 20;
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
@@ -768,7 +794,7 @@ describe('right-click orders', () => {
     // marched around the keep onto the open ground on its far side.
     h.order(roof);
 
-    expect(h.commands.at(-1)).toMatchObject({ kind: 'moveUnits', ...KEEP_TILE });
+    expect(h.commands.at(-1)).toMatchObject({ kind: CommandKind.moveUnits, ...KEEP_TILE });
   });
 
   it('reads the roof pixel as the keep even though the ground there is not', () => {
@@ -827,7 +853,7 @@ describe('right-click orders', () => {
     expect(h.hoverAt(grass)).toBe(-1);
     h.order(grass);
 
-    expect(h.commands.at(-1)).toMatchObject({ kind: 'moveUnits', x: 11, y: 17 });
+    expect(h.commands.at(-1)).toMatchObject({ kind: CommandKind.moveUnits, x: 11, y: 17 });
   });
 });
 
@@ -861,13 +887,13 @@ describe('build chord', () => {
   it('arms the building the letter names, and aims the ribbon at it', () => {
     const h = harness();
     controls = h.controls;
-    setStock({ wood: 20, stone: 20 });
+    setStock({ [GoodId.wood]: 20, [GoodId.stone]: 20 });
 
     h.type('B');
     h.type('M');
 
-    expect(placing()).toBe('mill');
-    expect(buildAim()).toBe('mill');
+    expect(placing()).toBe(BuildingTypeId.mill);
+    expect(buildAim()).toBe(BuildingTypeId.mill);
   });
 
   it('aims the ribbon at a building the stores cannot pay for', () => {
@@ -877,25 +903,25 @@ describe('build chord', () => {
     // holds — but the ribbon has been pointed at the answer.
     const h = harness();
     controls = h.controls;
-    setStock({ wood: 1 });
+    setStock({ [GoodId.wood]: 1 });
 
     h.type('B');
     h.type('M');
 
     expect(placing()).toBeNull();
-    expect(buildAim()).toBe('mill');
+    expect(buildAim()).toBe(BuildingTypeId.mill);
   });
 
   it('aims the ribbon at a building that is not researched yet', () => {
     const h = harness();
     controls = h.controls;
-    setStock({ wood: 99, stone: 99 });
+    setStock({ [GoodId.wood]: 99, [GoodId.stone]: 99 });
 
     h.type('B');
     h.type('I'); // the Iron Mine, behind ironworking
 
     expect(placing()).toBeNull();
-    expect(buildAim()).toBe('ironMine');
+    expect(buildAim()).toBe(BuildingTypeId.ironMine);
   });
 
   it('aims again when the same refused building is chorded twice', () => {
@@ -905,7 +931,7 @@ describe('build chord', () => {
     const h = harness();
     controls = h.controls;
     setStock({});
-    const aims: (string | null)[] = [];
+    const aims: (BuildingTypeId | null)[] = [];
 
     const stop = createRoot((dispose) => {
       createComputed(() => void aims.push(buildAim()));
@@ -917,13 +943,13 @@ describe('build chord', () => {
     h.type('M');
     stop();
 
-    expect(aims).toEqual([null, 'mill', 'mill']);
+    expect(aims).toEqual([null, BuildingTypeId.mill, BuildingTypeId.mill]);
   });
 
   it('leaves a stray letter alone', () => {
     const h = harness();
     controls = h.controls;
-    setStock({ wood: 99, stone: 99 });
+    setStock({ [GoodId.wood]: 99, [GoodId.stone]: 99 });
 
     h.type('B');
     h.type('Z');

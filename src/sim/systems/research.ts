@@ -1,7 +1,9 @@
 import { FESTIVAL_DURATION } from '../defs/balance.ts';
-import { TECH_DEFS } from '../defs/techs.ts';
-import { type World } from '../world.ts';
-import type { Building, Owner } from '../entities.ts';
+import { TECH_DEFS, TechEffectKind, TechId } from '../defs/techs.ts';
+import type { World } from '../world.ts';
+import { type Building, type Owner, BuildingState } from '../entities.ts';
+import { GoodId } from '../defs/goods.ts';
+import { BuildingTypeId } from '../defs/buildings.ts';
 
 /**
  * Ticks every player's active research and festival buff. Research is
@@ -18,7 +20,12 @@ export function researchSystem(world: World): void {
     if (!abbeys) {
       abbeys = new Map();
       for (const b of world.buildings.values()) {
-        if (!b.dead && b.type === 'abbey' && b.state === 'built' && !abbeys.has(b.owner)) {
+        if (
+          !b.dead &&
+          b.type === BuildingTypeId.abbey &&
+          b.state === BuildingState.built &&
+          !abbeys.has(b.owner)
+        ) {
           abbeys.set(b.owner, b);
         }
       }
@@ -35,7 +42,7 @@ export function researchSystem(world: World): void {
         const def = TECH_DEFS[t.active.tech];
         t.researched.push(def.id);
         for (const effect of def.effects) {
-          if (effect.kind === 'unlockPaving') p.pavingUnlocked = true;
+          if (effect.kind === TechEffectKind.unlockPaving) p.pavingUnlocked = true;
         }
         t.active = undefined;
       }
@@ -47,11 +54,11 @@ export function researchSystem(world: World): void {
     }
 
     // Festivals: this player's built abbey burns 1 ale for a buff.
-    if (!t.researched.includes('festivals')) continue;
+    if (!t.researched.includes(TechId.festivals)) continue;
     const abbey = abbeyOf(p.id);
-    if (abbey && (abbey.inputs.ale ?? 0) > 0) {
-      abbey.inputs.ale = (abbey.inputs.ale ?? 0) - 1;
-      world.ledger.consumed.ale = (world.ledger.consumed.ale ?? 0) + 1;
+    if (abbey && (abbey.inputs[GoodId.ale] ?? 0) > 0) {
+      abbey.inputs[GoodId.ale] = (abbey.inputs[GoodId.ale] ?? 0) - 1;
+      world.ledger.consumed[GoodId.ale] = (world.ledger.consumed[GoodId.ale] ?? 0) + 1;
       t.festivalTicksLeft = FESTIVAL_DURATION;
     }
   }

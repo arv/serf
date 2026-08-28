@@ -1,17 +1,16 @@
 import { Rng } from '../shared/rng.ts';
 import { inBounds, tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { UNIT_DEFS } from './defs/units.ts';
-import { BANDIT, type Owner } from './entities.ts';
+import { UNIT_DEFS, UNIT_TYPES } from './defs/units.ts';
+import { BANDIT, type Owner, BuildingState } from './entities.ts';
 import { findPath, nearestWalkable } from './path.ts';
 import { movementSystem } from './systems/movement.ts';
 import { wanderSystem } from './systems/wander.ts';
-import { abortJob, logisticsSystem } from './systems/logistics.ts';
+import { abortJob, logisticsSystem, findStorehouse } from './systems/logistics.ts';
 import { productionSystem, unbindWorker } from './systems/production.ts';
 import { cancelRepair, constructionSystem, orderRepair } from './systems/construction.ts';
 import { trailsSystem } from './systems/trails.ts';
 import { canPlace, destroyBuilding, killUnit, placeSite, spawnUnit, type World } from './world.ts';
-import { GOODS } from './defs/goods.ts';
-import { findStorehouse } from './systems/logistics.ts';
+import { GOODS, GoodId, goodEntries } from './defs/goods.ts';
 import { researchSystem } from './systems/research.ts';
 import {
   trainingSystem,
@@ -29,8 +28,8 @@ import { CORPSE_TICKS, FORGE_QUEUE_CAP, HIRE_QUEUE_CAP, HIRE_SERF_COST } from '.
 import { TECH_DEFS } from './defs/techs.ts';
 import { canResearch, isBuildingUnlocked } from './techHelpers.ts';
 import { hasRoomToHire } from './population.ts';
-import type { GoodId } from './defs/goods.ts';
-import type { AdminAction, SimCommand } from './commands.ts';
+import { type SimCommand, CommandKind, AdminAction } from './commands.ts';
+import { UnitTaskKind } from './units.ts';
 
 export { TICKS_PER_SECOND, TICK_MS } from './defs/balance.ts';
 
@@ -94,10 +93,10 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
   const player = world.players[playerId];
   if (!player || !player.alive) return; // eliminated players spectate
   switch (cmd.kind) {
-    case 'moveUnits':
+    case CommandKind.moveUnits:
       applyMoveUnits(world, playerId, cmd);
       break;
-    case 'placeBuilding':
+    case CommandKind.placeBuilding:
       if (
         !buildingDef(cmd.building).systemOnly &&
         // Storehouses are the elimination token — never buildable.
@@ -108,17 +107,17 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         placeSite(world, cmd.building, playerId, cmd.x, cmd.y);
       }
       break;
-    case 'trainUnit': {
+    case CommandKind.trainUnit: {
       const b = world.buildings.get(cmd.buildingId);
       if (b && b.owner === playerId) enqueueTraining(world, b, cmd.unit);
       break;
     }
-    case 'cancelTraining': {
+    case CommandKind.cancelTraining: {
       const b = world.buildings.get(cmd.buildingId);
       if (b && !b.dead && b.owner === playerId) cancelTraining(world, b, cmd.index, cmd.unit);
       break;
     }
-    case 'setRallyPoint': {
+    case CommandKind.setRallyPoint: {
       // The barracks' muster flag: fresh soldiers march to it as they step
       // out of the door. Only buildings that train take one — a flag on a
       // bakery would be an order nothing ever reads. The tile is checked
@@ -142,26 +141,24 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       b.rally = { x: cmd.x, y: cmd.y };
       break;
     }
-    case 'admin':
+    case CommandKind.admin:
       if (world.admin.enabled) applyAdmin(world, playerId, cmd.action);
       break;
-    case 'research': {
+    case CommandKind.research: {
       if (!canResearch(world, playerId, cmd.tech).ok) break;
       const sh = findStorehouse(world, playerId);
       const cost = TECH_DEFS[cmd.tech].cost;
       if (!sh) break;
-      const affordable = (Object.entries(cost) as [GoodId, number][]).every(
-        ([good, n]) => (sh.stock[good] ?? 0) >= n,
-      );
+      const affordable = goodEntries(cost).every(([good, n]) => (sh.stock[good] ?? 0) >= n);
       if (!affordable) break;
-      for (const [good, n] of Object.entries(cost) as [GoodId, number][]) {
+      for (const [good, n] of goodEntries(cost)) {
         sh.stock[good] = (sh.stock[good] ?? 0) - n;
         world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) + n;
       }
       player.techs.active = { tech: cmd.tech, ticksLeft: TECH_DEFS[cmd.tech].durationTicks };
       break;
     }
-    case 'setBuildingPaused': {
+    case CommandKind.setBuildingPaused: {
       // Halt the workshop without breaking it up: production, input hauls
       // and construction progress stop, and any finished stock still
       // evacuates. The lever for 'the bowyer is eating all my wood'.
@@ -194,7 +191,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       if (cmd.paused && def.garrison) evictGarrison(world, b, b.garrison ?? 0);
       break;
     }
-    case 'setBuildingRepair': {
+    case CommandKind.setBuildingRepair: {
       // Mend the walls: the building calls for materials like a site and
       // heals as they arrive. The bill is struck against the damage it has
       // right now, so a building that keeps taking hits is ordered again
@@ -205,7 +202,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       else cancelRepair(world, b);
       break;
     }
-    case 'setBuildingRecipe': {
+    case CommandKind.setBuildingRecipe: {
       // The forge's standing order: what the Smith works on when its queue
       // is empty. AUTO_RECIPE (-1) clears it — the Smith forges whatever
       // tool the village most lacks. Gated per option (bows need archery,
@@ -228,13 +225,13 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       b.recipeIndex = cmd.index;
       break;
     }
-    case 'enqueueForge': {
+    case CommandKind.enqueueForge: {
       // A forge order jumps the standing order: the queue is worked first,
       // batch by batch, then the Smith falls back to recipeIndex/auto.
       // Nothing is paid at enqueue — inputs are consumed at batch start,
       // exactly like every other convert batch.
       const b = world.buildings.get(cmd.buildingId);
-      if (!b || b.dead || b.owner !== playerId || b.state !== 'built') break;
+      if (!b || b.dead || b.owner !== playerId || b.state !== BuildingState.built) break;
       const opt = buildingDef(b.type).recipeOptions?.[cmd.recipeIndex];
       if (!opt) break;
       if (
@@ -248,7 +245,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       b.forgeQueue.push({ recipeIndex: cmd.recipeIndex, started: false });
       break;
     }
-    case 'cancelForge': {
+    case CommandKind.cancelForge: {
       // Both the slot and what the player thinks is in it (cancelTraining's
       // rule): a stale click after the queue shifted must miss rather than
       // cancel a neighbour. A started batch is not refunded — it finishes
@@ -267,7 +264,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       if (b.forgeQueue.length === 0) b.forgeQueue = undefined;
       break;
     }
-    case 'sellBuilding': {
+    case CommandKind.sellBuilding: {
       // Tear a building down for half its cost back, floored per good.
       // Sites refund half of what was actually delivered. The resident
       // walks out a serf again before the wrecking starts — demolition is
@@ -288,8 +285,8 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       evictGarrison(world, b, b.garrison ?? 0);
       const sh = findStorehouse(world, playerId);
       if (sh) {
-        for (const [good, n] of Object.entries(def.cost) as [GoodId, number][]) {
-          const delivered = b.state === 'site' ? n - (b.siteNeeds?.[good] ?? 0) : n;
+        for (const [good, n] of goodEntries(def.cost)) {
+          const delivered = b.state === BuildingState.site ? n - (b.siteNeeds?.[good] ?? 0) : n;
           const refund = Math.floor(delivered / 2);
           if (refund <= 0) continue;
           sh.stock[good] = (sh.stock[good] ?? 0) + refund;
@@ -307,7 +304,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         // is the rule: a sold Smith loses its forged stock the way a sold
         // bakery loses its bread. A move, not a mint, so no ledger entry.
         const rescue = new Set<GoodId>();
-        if (b.state === 'site') rescue.add('hammer');
+        if (b.state === BuildingState.site) rescue.add(GoodId.hammer);
         const postTool = TOOL_OF[b.type];
         if (postTool) rescue.add(postTool);
         for (const good of rescue) {
@@ -321,7 +318,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       destroyBuilding(world, b);
       break;
     }
-    case 'hireSerf': {
+    case CommandKind.hireSerf: {
       // Pay now, arrive later: the recruit is summoned, not conjured. The
       // hiring system walks the queue down and drops them at the door.
       // A recruit already on the road holds their bed, so ordering five at
@@ -329,12 +326,13 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       const sh = findStorehouse(world, playerId);
       if (
         sh &&
-        (sh.stock.silver ?? 0) >= HIRE_SERF_COST &&
+        (sh.stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST &&
         (sh.hireQueue ?? 0) < HIRE_QUEUE_CAP &&
         hasRoomToHire(world, playerId)
       ) {
-        sh.stock.silver = (sh.stock.silver ?? 0) - HIRE_SERF_COST;
-        world.ledger.consumed.silver = (world.ledger.consumed.silver ?? 0) + HIRE_SERF_COST;
+        sh.stock[GoodId.silver] = (sh.stock[GoodId.silver] ?? 0) - HIRE_SERF_COST;
+        world.ledger.consumed[GoodId.silver] =
+          (world.ledger.consumed[GoodId.silver] ?? 0) + HIRE_SERF_COST;
         sh.hireQueue = (sh.hireQueue ?? 0) + 1;
       }
       break;
@@ -344,15 +342,15 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
 
 function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
   switch (action) {
-    case 'toggleRaids':
+    case AdminAction.toggleRaids:
       world.admin.raidsEnabled = !world.admin.raidsEnabled;
       break;
-    case 'clearBandits':
+    case AdminAction.clearBandits:
       for (const unit of world.units.values()) {
         if (unit.owner === BANDIT) killUnit(world, unit);
       }
       break;
-    case 'grantGoods': {
+    case AdminAction.grantGoods: {
       const sh = findStorehouse(world, playerId);
       if (!sh) break;
       for (const good of GOODS) {
@@ -362,30 +360,20 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
       }
       break;
     }
-    case 'toggleInstantBuild':
+    case AdminAction.toggleInstantBuild:
       world.admin.instantBuild = !world.admin.instantBuild;
       break;
-    case 'finishResearch': {
+    case AdminAction.finishResearch: {
       const active = world.players[playerId]?.techs.active;
       if (active) active.ticksLeft = 1;
       break;
     }
-    case 'spawnParade': {
+    case AdminAction.spawnParade: {
       // One of each unit kind by the storehouse door — a visual test rig for
       // wardrobe and animation work. Issuer-owned so nobody starts a war.
       const sh = findStorehouse(world, playerId);
       if (!sh) break;
-      const kinds = [
-        'serf',
-        'worker',
-        'knight',
-        'spearman',
-        'archer',
-        'bandit',
-        'banditArcher',
-        'marauder',
-      ] as const;
-      kinds.forEach((k, i) => {
+      UNIT_TYPES.forEach((k, i) => {
         spawnUnit(world, k, playerId, sh.x - 2.5 + i, sh.y + sh.h + 2.5);
       });
       break;
@@ -416,7 +404,7 @@ function applyMoveUnits(
         const unit = world.units.get(id);
         if (!unit || unit.dead || unit.owner !== playerId) continue;
         if (!UNIT_DEFS[unit.kind].combat) continue; // civilians don't storm camps
-        unit.task = { t: 'raid', buildingId: target.id };
+        unit.task = { t: UnitTaskKind.raid, buildingId: target.id };
         unit.targetId = target.id;
         unit.targetIsBuilding = true;
         unit.path = null;
@@ -462,9 +450,9 @@ function applyMoveUnits(
     unit.task =
       cmd.attack && UNIT_DEFS[unit.kind].combat
         ? cmd.attack === 'half' && engageIdx > 0
-          ? { t: 'attackMove', destX: goalX, destY: goalY, engageIdx }
-          : { t: 'attackMove', destX: goalX, destY: goalY }
-        : { t: 'move' };
+          ? { t: UnitTaskKind.attackMove, destX: goalX, destY: goalY, engageIdx }
+          : { t: UnitTaskKind.attackMove, destX: goalX, destY: goalY }
+        : { t: UnitTaskKind.move };
     // Explicit orders disengage combat; an attack-move re-acquires freely.
     unit.targetId = undefined;
     unit.targetIsBuilding = undefined;

@@ -12,13 +12,18 @@
 import { Rng } from '../../src/shared/rng.ts';
 import { hashWorld } from '../../src/sim/hash.ts';
 import { tileIdx } from '../../src/shared/grid.ts';
-import { BUILDING_DEFS, buildingDef } from '../../src/sim/defs/buildings.ts';
+import { BUILDING_DEFS, buildingDef, type BuildingType } from '../../src/sim/defs/buildings.ts';
 import { GOODS } from '../../src/sim/defs/goods.ts';
-import { canPlace, createWorld, placeSite, spawnUnitNearby, type World } from '../../src/sim/world.ts';
-import { findStorehouse } from '../../src/sim/systems/logistics.ts';
+import {
+  canPlace,
+  createWorld,
+  placeSite,
+  spawnUnitNearby,
+  type World,
+} from '../../src/sim/world.ts';
+import { findStorehouse, logisticsSystem } from '../../src/sim/systems/logistics.ts';
 import { researchSystem } from '../../src/sim/systems/research.ts';
 import { productionSystem } from '../../src/sim/systems/production.ts';
-import { logisticsSystem } from '../../src/sim/systems/logistics.ts';
 import { constructionSystem } from '../../src/sim/systems/construction.ts';
 import { staffingSystem } from '../../src/sim/systems/staffing.ts';
 import { trainingSystem, hiringSystem } from '../../src/sim/systems/training.ts';
@@ -28,7 +33,8 @@ import { combatSystem } from '../../src/sim/systems/combat.ts';
 import { banditsSystem } from '../../src/sim/systems/bandits.ts';
 import { trailsSystem } from '../../src/sim/systems/trails.ts';
 import { victorySystem } from '../../src/sim/systems/victory.ts';
-import type { BuildingType } from '../../src/sim/defs/buildings.ts';
+import { UnitTypeId } from '../../src/sim/defs/units.ts';
+import { PlayerKind } from '../../src/sim/player.ts';
 
 function arg(name: string, dflt: number): number {
   const i = process.argv.indexOf(`--${name}`);
@@ -42,7 +48,7 @@ const SEED = arg('seed', 7);
 
 const world = createWorld({
   seed: SEED,
-  players: [{ kind: 'human' }, { kind: 'ai', strategy: 'warlord' }],
+  players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai, strategy: 'warlord' }],
   banditsEnabled: true,
   mapSize: SIZE,
 });
@@ -73,10 +79,10 @@ for (let attempt = 0; attempt < 4000 && placed < 90; attempt++) {
 }
 
 for (let i = 0; i < SERFS; i++) {
-  spawnUnitNearby(world, 'serf', 0, sh.x + (i % 20) - 10, sh.y + Math.floor(i / 20) - 5);
+  spawnUnitNearby(world, UnitTypeId.serf, 0, sh.x + (i % 20) - 10, sh.y + Math.floor(i / 20) - 5);
 }
 for (let i = 0; i < 40; i++) {
-  spawnUnitNearby(world, 'knight', 0, sh.x + (i % 10) - 5, sh.y + 12 + Math.floor(i / 10));
+  spawnUnitNearby(world, UnitTypeId.knight, 0, sh.x + (i % 10) - 5, sh.y + 12 + Math.floor(i / 10));
 }
 
 const systems: [string, (w: World) => void][] = [
@@ -116,7 +122,8 @@ for (let i = 0; i < TICKS; i++) {
     }
   }
   // removeDead, inlined (not exported)
-  for (const [id, u] of world.units) if (u.dead && u.deathTick === undefined) world.units.delete(id);
+  for (const [id, u] of world.units)
+    if (u.dead && u.deathTick === undefined) world.units.delete(id);
   for (const [id, b] of world.buildings) if (b.dead) world.buildings.delete(id);
   world.tick++;
 }
@@ -135,5 +142,7 @@ const rows = [...totals.entries()]
 console.log(
   `world: ${world.units.size} units, ${world.buildings.size} buildings, ${world.jobs.size} jobs, ${SIZE}x${SIZE}`,
 );
-console.log(`${TICKS} ticks in ${totalMs.toFixed(0)}ms = ${(totalMs / TICKS).toFixed(3)} ms/tick\n`);
+console.log(
+  `${TICKS} ticks in ${totalMs.toFixed(0)}ms = ${(totalMs / TICKS).toFixed(3)} ms/tick\n`,
+);
 console.table(rows);

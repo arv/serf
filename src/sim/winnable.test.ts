@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld } from './world.ts';
+import { createWorld, MatchState } from './world.ts';
 import { tickWorld } from './tick.ts';
 import { AiBrain } from './systems/ai.ts';
 import { strategyOf } from './defs/aiStrategies.ts';
+import { PlayerKind } from './player.ts';
 
 /**
  * THE playtest: the AI brain (systems/ai.ts) wins the solo campaign on the
@@ -22,7 +23,7 @@ describe('the campaign is winnable', () => {
     // at 2/3/4 seats (mapFairness's own suite, run against it), and every
     // playbook takes it with room to spare: 13.5k, 14.7k, 16.3k and 18.9k
     // of the 45k budget.
-    const world = createWorld({ seed: 37, players: [{ kind: 'ai' }] });
+    const world = createWorld({ seed: 37, players: [{ kind: PlayerKind.ai }] });
     // Whichever playbook this seed dealt the seat — every one of them can
     // take this map (aiStrategies.test.ts holds that line); what is tested
     // here is that the map stays takeable.
@@ -35,11 +36,14 @@ describe('the campaign is winnable', () => {
         world,
         commands.map((cmd) => ({ playerId: 0, cmd })),
       );
-      if (world.outcome.state !== 'playing') break;
+      if (world.outcome.state !== MatchState.playing) break;
     }
 
     // The one assertion that matters.
-    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({ state: 'over', winner: 0 });
+    expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
+      state: MatchState.over,
+      winner: 0,
+    });
     expect(world.tick).toBeLessThan(45_000);
   }, 120_000);
 });

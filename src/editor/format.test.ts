@@ -3,8 +3,7 @@ import { bytesFromBase64, bytesToBase64 } from '../shared/base64.ts';
 import { Terrain, TileResource } from '../sim/map.ts';
 import { applyBrush } from './brush.ts';
 import { createBlankMap } from './editorMap.ts';
-import { parseEditorMap, serializeEditorMap } from './format.ts';
-import type { EditorMapFile } from './format.ts';
+import { parseEditorMap, serializeEditorMap, type EditorMapFile } from './format.ts';
 
 function sampleState() {
   // play 64 -> grid 112, play region [24, 88).

@@ -1,17 +1,19 @@
 import { parseAdvice } from '../../src/ai/advice.ts';
-import { LlmStrategist, type LlmStatus } from '../../src/ai/strategist.ts';
+import { LlmStrategist, type LlmStatus, LlmState } from '../../src/ai/strategist.ts';
 import { summarizeForSeat } from '../../src/ai/summary.ts';
 import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { checkInvariants } from '../../src/sim/debug/invariants.ts';
 import { buildingDef } from '../../src/sim/defs/buildings.ts';
 import { TICK_MS } from '../../src/sim/defs/balance.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
-import { createWorld, type World } from '../../src/sim/world.ts';
+import { createWorld, type World, MatchState } from '../../src/sim/world.ts';
 import type { AiStrategyId, AiStrategy } from '../../src/sim/defs/aiStrategies.ts';
 import type { ChatMessage } from '../../src/ai/prompt.ts';
-import type { Owner } from '../../src/sim/entities.ts';
+import { type Owner, BuildingState } from '../../src/sim/entities.ts';
 import type { EconomyRuleId } from '../../src/sim/economyRules.ts';
 import type { LabEngine } from './engines.ts';
+import { UnitTypeId } from '../../src/sim/defs/units.ts';
+import { PlayerKind } from '../../src/sim/player.ts';
 
 /**
  * One headless match, played the way the game plays it.
@@ -193,8 +195,8 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
   const world = createWorld({
     seed: cfg.seed,
     players: [
-      { kind: 'ai', strategy: cfg.strategies[0] },
-      { kind: 'ai', strategy: cfg.strategies[1] },
+      { kind: PlayerKind.ai, strategy: cfg.strategies[0] },
+      { kind: PlayerKind.ai, strategy: cfg.strategies[1] },
     ],
     banditsEnabled: cfg.bandits,
     mapSize: cfg.mapSize,
@@ -237,11 +239,17 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
           override,
           // A consultation always exists here: sendAdvice is only ever
           // reached from inside #consult, which the harness started.
-          consult: consult ?? { playerId: id, tick: world.tick, ms: 0, promptChars: 0, replyChars: 0 },
+          consult: consult ?? {
+            playerId: id,
+            tick: world.tick,
+            ms: 0,
+            promptChars: 0,
+            replyChars: 0,
+          },
         });
       },
       onStatus: (status: LlmStatus) => {
-        if (status.state === 'failed') failures.push({ playerId, reason: status.reason });
+        if (status.state === LlmState.failed) failures.push({ playerId, reason: status.reason });
       },
       ...(cfg.timeoutMs !== undefined ? { timeoutMs: cfg.timeoutMs } : {}),
       engineFactory: () =>
@@ -295,7 +303,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     seats.seatIds().map((id, i) => [id, cfg.advicePeriod + i * cfg.adviceStagger]),
   );
 
-  for (let t = 0; t < cfg.maxTicks && world.outcome.state === 'playing'; t++) {
+  for (let t = 0; t < cfg.maxTicks && world.outcome.state === MatchState.playing; t++) {
     // Advice due this tick lands before the brains think, so a seat acts on
     // it the same tick the game would have.
     while (pending.length > 0 && pending[0]!.dueTick <= world.tick) {
@@ -320,7 +328,14 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
       if (!started) {
         // The strategist declined: already thinking, already given up, or
         // disposed. The game drops these summaries too.
-        consults.push({ playerId, tick: world.tick, ms: 0, promptChars: 0, replyChars: 0, skipped: true });
+        consults.push({
+          playerId,
+          tick: world.tick,
+          ms: 0,
+          promptChars: 0,
+          replyChars: 0,
+          skipped: true,
+        });
         continue;
       }
       // Wait for the model, then let the strategist's own continuations —
@@ -343,7 +358,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
   // records without an appliedTick, which is exactly what happened.
   for (const strategist of strategists.values()) strategist.dispose();
 
-  const decided = world.outcome.state === 'over';
+  const decided = world.outcome.state === MatchState.over;
   return {
     seed: cfg.seed,
     mapSize: cfg.mapSize,
@@ -380,7 +395,9 @@ function worldDigest(world: World): string {
   };
   feed(`t${world.tick}`);
   for (const u of world.units.values()) {
-    feed(`|u${u.kind},${u.owner},${Math.round(u.x * 10)},${Math.round(u.y * 10)},${u.hp},${u.dead ? 1 : 0}`);
+    feed(
+      `|u${u.kind},${u.owner},${Math.round(u.x * 10)},${Math.round(u.y * 10)},${u.hp},${u.dead ? 1 : 0}`,
+    );
   }
   for (const b of world.buildings.values()) {
     feed(`|b${b.type},${b.owner},${b.x},${b.y},${b.state},${b.dead ? 1 : 0}`);
@@ -402,7 +419,7 @@ export function standingOf(world: World, playerId: Owner): SeatStanding {
     buildings++;
     // The castle is the storehouse building — summary.ts finds it the same
     // way, by the storage flag rather than by an id that does not exist.
-    if (buildingDef(b.type).storage && b.state === 'built') castleStanding = true;
+    if (buildingDef(b.type).storage && b.state === BuildingState.built) castleStanding = true;
   }
   let pop = 0;
   let armyHp = 0;
@@ -410,10 +427,9 @@ export function standingOf(world: World, playerId: Owner): SeatStanding {
   for (const u of world.units.values()) {
     if (u.dead || u.owner !== playerId) continue;
     pop++;
-    if (u.kind === 'knight' || u.kind === 'spearman' || u.kind === 'archer') {
-      army[u.kind]++;
-      armyHp += u.hp;
-    }
+    if (u.kind === UnitTypeId.knight) (army.knight++, (armyHp += u.hp));
+    else if (u.kind === UnitTypeId.spearman) (army.spearman++, (armyHp += u.hp));
+    else if (u.kind === UnitTypeId.archer) (army.archer++, (armyHp += u.hp));
   }
   return {
     playerId,

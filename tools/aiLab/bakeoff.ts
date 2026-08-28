@@ -11,7 +11,12 @@ import {
   type LabEngine,
 } from './engines.ts';
 import { playMatch, type MatchConfig, type MatchRecord, type SeatStrategies } from './match.ts';
-import { ALL_ECONOMY_RULES, type EconomyRuleId } from '../../src/sim/economyRules.ts';
+import {
+  ALL_ECONOMY_RULES,
+  type EconomyRuleId,
+  economyRuleFromKey,
+  ECONOMY_RULE_KEYS,
+} from '../../src/sim/economyRules.ts';
 import { renderReport, type ReportHeader } from './report.ts';
 import { summarize, type LayoutRun, type SeedRun } from './stats.ts';
 import { parseStrategyId, AI_STRATEGY_ORDER } from '../../src/sim/defs/aiStrategies.ts';
@@ -229,12 +234,15 @@ export function parseArgs(argv: string[]): Options {
         ? []
         : rulesRaw.split(',').map((id) => {
             const trimmed = id.trim();
-            if (!(ALL_ECONOMY_RULES as readonly string[]).includes(trimmed)) {
+            const rule = economyRuleFromKey(trimmed);
+            if (rule === undefined) {
               throw new Error(
-                `--rules does not know "${trimmed}" (have: ${ALL_ECONOMY_RULES.join(', ')})`,
+                `--rules does not know "${trimmed}" (have: ${ALL_ECONOMY_RULES.map(
+                  (r) => ECONOMY_RULE_KEYS[r],
+                ).join(', ')})`,
               );
             }
-            return trimmed as EconomyRuleId;
+            return rule;
           });
 
   const timeoutRaw = get('--timeout-ms');
@@ -248,7 +256,9 @@ export function parseArgs(argv: string[]): Options {
 
   const matchTimeoutMs = num('--match-timeout-ms', 600_000);
   if (matchTimeoutMs <= 0) {
-    throw new Error(`--match-timeout-ms wants a positive number of milliseconds, got "${matchTimeoutMs}"`);
+    throw new Error(
+      `--match-timeout-ms wants a positive number of milliseconds, got "${matchTimeoutMs}"`,
+    );
   }
 
   return {
@@ -395,7 +405,11 @@ function playInWorker(t: Trial, opts: Options, base: MatchBase): Promise<MatchRe
 
 /** Run `work` over every item, at most `width` at a time, order preserved
  * in the result. Rejections surface as the item's settled error. */
-async function pool<T, R>(items: T[], width: number, work: (item: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+async function pool<T, R>(
+  items: T[],
+  width: number,
+  work: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
   const results = new Array<PromiseSettledResult<R>>(items.length);
   let cursor = 0;
   const lane = async (): Promise<void> => {

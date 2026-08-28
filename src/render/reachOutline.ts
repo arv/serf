@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { verdictBad, verdictGood } from './palette';
 import { buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings';
-import { RESOURCE_CODE, findResourceNear, type MapView, type TileResourceKind } from '../sim/map';
+import { findResourceNear, type MapView, type TileResourceKind } from '../sim/map';
 import type { BuildingSnap } from '../protocol/messages';
 import type { HeightField } from './heightField';
 
@@ -194,7 +194,7 @@ export class SelectedReach {
       this.#search = {
         x: origin.x,
         y: origin.y,
-        code: RESOURCE_CODE[gather.resource],
+        code: gather.resource,
         radius: gather.radius,
       };
     }

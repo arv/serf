@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
-import { UNIT_DEFS, type UnitTypeId } from '../sim/defs/units';
+import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../sim/defs/buildings';
+import { UNIT_DEFS, UnitTypeId, UNIT_TYPES } from '../sim/defs/units';
 import { HIRE_KEY, RESEARCH_KEY, TRAIN_KEYS, trainKey, trainingForKey } from './commands';
 import { BUILD_KEYS } from './buildMenu';
 import type { BuildingSnap } from '../protocol/messages';
 
-const TYPES = Object.keys(BUILDING_DEFS) as BuildingTypeId[];
+const TYPES = BUILDING_TYPES;
 /** Every unit any building can be ordered to drill. */
 const TRAINABLE = [
   ...new Set(TYPES.flatMap((t) => (BUILDING_DEFS[t].trains ?? []).map((o) => o.unit))),
@@ -25,7 +25,7 @@ describe('building command keys', () => {
   });
 
   it('gives no letter to a unit nobody trains', () => {
-    const stray = (Object.keys(TRAIN_KEYS) as UnitTypeId[]).filter((u) => !TRAINABLE.includes(u));
+    const stray = UNIT_TYPES.filter((u) => TRAIN_KEYS[u] !== undefined && !TRAINABLE.includes(u));
     expect(stray).toEqual([]);
   });
 
@@ -38,22 +38,22 @@ describe('building command keys', () => {
 
   it('picks letters the unit name can bold', () => {
     const NAMES: Record<UnitTypeId, string> = {
-      serf: 'Serf',
-      worker: 'Worker',
-      knight: 'Knight',
-      spearman: 'Spearman',
-      archer: 'Archer',
-      bandit: 'Bandit',
-      banditArcher: 'Bandit Archer',
-      marauder: 'Marauder',
+      [UnitTypeId.serf]: 'Serf',
+      [UnitTypeId.worker]: 'Worker',
+      [UnitTypeId.knight]: 'Knight',
+      [UnitTypeId.spearman]: 'Spearman',
+      [UnitTypeId.archer]: 'Archer',
+      [UnitTypeId.bandit]: 'Bandit',
+      [UnitTypeId.banditArcher]: 'Bandit Archer',
+      [UnitTypeId.marauder]: 'Marauder',
     };
     const unbolded = TRAINABLE.filter((u) => !NAMES[u].toUpperCase().includes(trainKey(u)));
     expect(unbolded).toEqual([]);
   });
 
   it('resolves a letter back to its unit at that building, in either case', () => {
-    const barracks = { type: 'barracks' } as BuildingSnap;
-    for (const option of BUILDING_DEFS.barracks.trains ?? []) {
+    const barracks = { type: BuildingTypeId.barracks } as BuildingSnap;
+    for (const option of BUILDING_DEFS[BuildingTypeId.barracks].trains ?? []) {
       const k = trainKey(option.unit);
       expect(trainingForKey(barracks, k)).toBe(option.unit);
       expect(trainingForKey(barracks, k.toLowerCase())).toBe(option.unit);
@@ -61,7 +61,7 @@ describe('building command keys', () => {
     expect(trainingForKey(barracks, 'Z')).toBeNull();
     // A building that drills nobody answers every letter with null rather
     // than throwing on an absent `trains`.
-    expect(trainingForKey({ type: 'house' } as BuildingSnap, 'K')).toBeNull();
+    expect(trainingForKey({ type: BuildingTypeId.house } as BuildingSnap, 'K')).toBeNull();
   });
 
   it('leaves B alone, so the build chord opens from any selection', () => {
@@ -72,7 +72,7 @@ describe('building command keys', () => {
     // the chord has already swallowed the keystroke.)
     const contextual = [HIRE_KEY, ...TRAINABLE.map((u) => trainKey(u))];
     expect(contextual).not.toContain('B');
-    expect(BUILD_KEYS.bakery).toBe('B');
+    expect(BUILD_KEYS[BuildingTypeId.bakery]).toBe('B');
   });
 
   it('keeps hire and research off each other', () => {

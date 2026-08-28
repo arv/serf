@@ -1,12 +1,28 @@
 import type { AiWorldSummary } from '../ai/summary.ts';
-import type { EntityId, Owner } from '../sim/entities.ts';
+import type { EntityId, Owner, BuildingState } from '../sim/entities.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
+import type { UnitTypeId } from '../sim/defs/units.ts';
+import type { MatchOutcome, HaulPhase, GameEvent, MapDelta, WorldConfig } from '../sim/world.ts';
+import type { PlayerKind } from '../sim/player.ts';
 import type { BuildingTypeId } from '../sim/defs/buildings.ts';
-import type { GoodAmounts } from '../sim/defs/goods.ts';
+import type { GoodAmounts, GoodId } from '../sim/defs/goods.ts';
 import type { MissionId } from '../sim/defs/missions.ts';
 import type { TechId } from '../sim/defs/techs.ts';
 import type { PlayerCommand } from '../sim/tick.ts';
-import type { GameEvent, MapDelta, WorldConfig } from '../sim/world.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as MainToWorkerKindNs from './mainToWorkerKindEnum.ts';
+import * as WorkerToMainKindNs from './workerToMainKindEnum.ts';
+import * as NetStateNs from './netStateEnum.ts';
+import * as StaffingStateNs from './staffingStateEnum.ts';
+
+export * as MainToWorkerKind from './mainToWorkerKindEnum.ts';
+export type MainToWorkerKind = Enum<typeof MainToWorkerKindNs>;
+export * as WorkerToMainKind from './workerToMainKindEnum.ts';
+export type WorkerToMainKind = Enum<typeof WorkerToMainKindNs>;
+export * as NetState from './netStateEnum.ts';
+export type NetState = Enum<typeof NetStateNs>;
+export * as StaffingState from './staffingStateEnum.ts';
+export type StaffingState = Enum<typeof StaffingStateNs>;
 
 /** Tech-tree state for the UI. */
 export interface TechSnap {
@@ -20,7 +36,7 @@ export interface TechSnap {
 /** Per-player faction block; the main thread picks its own by myPlayerId. */
 export interface PlayerSnap {
   id: Owner;
-  kind: 'human' | 'ai';
+  kind: PlayerKind;
   alive: boolean;
   /** This player's storehouse stock ({} once eliminated). */
   stock: GoodAmounts;
@@ -34,7 +50,9 @@ export interface PlayerSnap {
   popCap: number;
 }
 
-export type OutcomeSnap = { state: 'playing' } | { state: 'over'; winner: Owner | null };
+/** The match outcome as the client mirror sees it — the sim's own type,
+ * which serializes as-is now that the state is a number. */
+export type OutcomeSnap = MatchOutcome;
 
 /** Serializable snapshot of a building for the main thread's mirror. */
 export interface BuildingSnap {
@@ -46,7 +64,7 @@ export interface BuildingSnap {
   w: number;
   h: number;
   hp: number;
-  state: 'site' | 'built';
+  state: BuildingState;
   /** Remaining materials, present for sites. */
   siteNeeds?: GoodAmounts;
   /** Remaining materials of an ordered repair; absent when none is running. */
@@ -62,7 +80,7 @@ export interface BuildingSnap {
   reservedOut: GoodAmounts;
   maxHp: number;
   /** Barracks orders in queue order; the started one carries its progress 0..1. */
-  trainQueue?: { unit: string; started: boolean; progress01?: number }[];
+  trainQueue?: { unit: UnitTypeId; started: boolean; progress01?: number }[];
   /** The rally flag fresh soldiers march to (barracks); absent when none stands. */
   rally?: { x: number; y: number };
   /** Serf hires paid for and still walking in, and the leader's progress 0..1. */
@@ -71,7 +89,7 @@ export interface BuildingSnap {
   /** Quarter turns from "front faces +z" — shore buildings only. */
   facing?: 0 | 1 | 2 | 3;
   /** Staffing state (undefined = building needs no worker). */
-  staffing?: 'staffed' | 'recruiting' | 'needed';
+  staffing?: StaffingState;
   /** Present (as `true`) only while a convert batch is mid-grind and not
    * paused; omitted otherwise — `false` is never sent. The cue for decor
    * that moves with production rather than with staff (the mill's sails,
@@ -107,11 +125,11 @@ export interface BuildingSnap {
 /** Debug-overlay row for a haul job. */
 export interface JobSnap {
   id: number;
-  good: string;
+  good: GoodId;
   from: EntityId;
   to: EntityId;
   priority: number;
-  phase: string;
+  phase: HaulPhase;
   serfId?: EntityId;
   age: number;
 }
@@ -143,15 +161,15 @@ export interface NetInfo {
  * happen now that one machine simulates and the rest render what it sends.
  */
 export type NetStatus =
-  | { state: 'ok'; rttMs: number }
-  | { state: 'disconnected' }
+  | { state: NetStateNs.ok; rttMs: number }
+  | { state: NetStateNs.disconnected }
   /** The room no longer knows us (swept, or the relay restarted): the
    * match is unreachable for good — stop reconnecting, say so. */
-  | { state: 'gone'; message: string };
+  | { state: NetStateNs.gone; message: string };
 
 export type MainToWorker =
   | {
-      type: 'init';
+      type: MainToWorkerKindNs.init;
       config: WorldConfig;
       loadData?: string;
       net?: NetInfo;
@@ -163,27 +181,27 @@ export type MainToWorker =
        * above are ignored — the replay carries its own. */
       replay?: import('../app/replay.ts').ReplayData;
     }
-  | { type: 'commands'; commands: PlayerCommand[] }
+  | { type: MainToWorkerKindNs.commands; commands: PlayerCommand[] }
   /** Strategist advice for one AI seat: playbook knobs to lay over its
    * strategy. Validated and clamped on the main thread (src/ai/advice.ts)
    * before it is ever posted. */
-  | { type: 'aiAdvice'; playerId: number; override: Partial<AiStrategy> }
-  | { type: 'setSpeed'; speed: number }
+  | { type: MainToWorkerKindNs.aiAdvice; playerId: number; override: Partial<AiStrategy> }
+  | { type: MainToWorkerKindNs.setSpeed; speed: number }
   /** Debug overlay visibility: the worker only serializes its jobs table
    * into structural updates while someone is actually watching. */
-  | { type: 'setDebug'; enabled: boolean }
+  | { type: MainToWorkerKindNs.setDebug; enabled: boolean }
   /** Page visibility: hidden freezes the single-player sim (and its pump
    * timer) so a backgrounded phone stops burning battery on a valley
    * nobody is watching. Multiplayer ignores it — the server's world keeps
    * running either way, and the socket has to stay warm. */
-  | { type: 'setHidden'; hidden: boolean }
-  | { type: 'requestSave' }
+  | { type: MainToWorkerKindNs.setHidden; hidden: boolean }
+  | { type: MainToWorkerKindNs.requestSave }
   /** Solo only: serialize the recording so the main thread can write it to
    * OPFS. Answered with 'replayData'. `explored` is the packed fog memory
    * the match booted with (a loaded save's), which the worker cannot know
    * — fog is render-side — and carries into the file unread, so playback
    * from that save resumes with the ground the player had scouted. */
-  | { type: 'requestReplay'; explored?: string };
+  | { type: MainToWorkerKindNs.requestReplay; explored?: string };
 
 /**
  * Low-frequency structural state (every 5 ticks / on change): building
@@ -191,7 +209,7 @@ export type MainToWorker =
  * per-tick unit state rides the SharedArrayBuffer instead.
  */
 export interface StructuralUpdate {
-  type: 'structural';
+  type: WorkerToMainKindNs.structural;
   tick: number;
   /** Absent = unchanged since the last frame (the mirror keeps what it has). */
   buildings?: BuildingSnap[];
@@ -226,7 +244,7 @@ export interface StructuralUpdate {
 
 export type WorkerToMain =
   | {
-      type: 'ready';
+      type: WorkerToMainKindNs.ready;
       sab: SharedArrayBuffer;
       map: MapSnapshot;
       buildings: BuildingSnap[];
@@ -236,14 +254,14 @@ export type WorkerToMain =
       explored?: Uint8Array;
     }
   | StructuralUpdate
-  | { type: 'saved'; data: string }
+  | { type: WorkerToMainKindNs.saved; data: string }
   /** The recording, serialized — the answer to 'requestReplay'. */
-  | { type: 'replayData'; data: string }
+  | { type: WorkerToMainKindNs.replayData; data: string }
   /** Replay playback reached the log's end tick; the sim has paused itself. */
-  | { type: 'replayEnded' }
-  | { type: 'netStatus'; status: NetStatus }
+  | { type: WorkerToMainKindNs.replayEnded }
+  | { type: WorkerToMainKindNs.netStatus; status: NetStatus }
   /** One AI seat's folded-down view of the match, on the advice cadence
    * (~45 s) — the input the LLM strategist prompts from. Only sent when
    * init asked with `llm`. */
-  | { type: 'aiSummary'; playerId: number; summary: AiWorldSummary }
-  | { type: 'log'; message: string };
+  | { type: WorkerToMainKindNs.aiSummary; playerId: number; summary: AiWorldSummary }
+  | { type: WorkerToMainKindNs.log; message: string };

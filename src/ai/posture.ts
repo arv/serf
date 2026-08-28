@@ -1,6 +1,10 @@
-import { readOpponent } from './archetype.ts';
+import { readOpponent, Archetype } from './archetype.ts';
 import type { StrategyAdvice } from './advice.ts';
 import type { AiWorldSummary } from './summary.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as PostureIdNs from './postureIdEnum.ts';
+export * as PostureId from './postureIdEnum.ts';
+export type PostureId = Enum<typeof PostureIdNs>;
 
 /**
  * Postures: the strategist's vocabulary, a handful of named stances instead
@@ -38,17 +42,38 @@ import type { AiWorldSummary } from './summary.ts';
  * choice of what to arm it with.
  */
 
-export type PostureId = 'expand' | 'fortify' | 'raid' | 'muster' | 'siege' | 'pounce';
-
 /** Menu order — also the order quoted to the model, economy first. */
 export const POSTURE_ORDER: readonly PostureId[] = [
-  'expand',
-  'fortify',
-  'raid',
-  'muster',
-  'siege',
-  'pounce',
+  PostureIdNs.expand,
+  PostureIdNs.fortify,
+  PostureIdNs.raid,
+  PostureIdNs.muster,
+  PostureIdNs.siege,
+  PostureIdNs.pounce,
 ];
+
+/**
+ * The spelling of each stance. Load-bearing at both ends of the model's
+ * turn: the menu is quoted into the prompt in words, and the reply comes
+ * back as a word. Inside the seat a posture is a number like the rest.
+ */
+export const POSTURE_KEYS: Readonly<Record<PostureId, string>> = {
+  [PostureIdNs.expand]: 'expand',
+  [PostureIdNs.fortify]: 'fortify',
+  [PostureIdNs.raid]: 'raid',
+  [PostureIdNs.muster]: 'muster',
+  [PostureIdNs.siege]: 'siege',
+  [PostureIdNs.pounce]: 'pounce',
+};
+
+const POSTURE_BY_KEY = new Map<string, PostureId>(
+  POSTURE_ORDER.map((id) => [POSTURE_KEYS[id], id]),
+);
+
+/** The stance a word names, or undefined — the read side of POSTURE_KEYS. */
+export function postureFromKey(key: unknown): PostureId | undefined {
+  return typeof key === 'string' ? POSTURE_BY_KEY.get(key) : undefined;
+}
 
 export interface Posture {
   id: PostureId;
@@ -61,7 +86,10 @@ export interface Posture {
    * is a type error rather than a seat playing a blend of two. */
   knobs: Readonly<
     Required<
-      Omit<StrategyAdvice, 'trainPreference' | 'weaponMix' | 'reason' | 'posture' | 'marchConfidence'>
+      Omit<
+        StrategyAdvice,
+        'trainPreference' | 'weaponMix' | 'reason' | 'posture' | 'marchConfidence'
+      >
     >
   >;
 }
@@ -74,8 +102,8 @@ export interface Posture {
  * deliberate rather than everywhere at once.
  */
 export const POSTURES: Record<PostureId, Posture> = {
-  expand: {
-    id: 'expand',
+  [PostureIdNs.expand]: {
+    id: PostureIdNs.expand,
     when: 'the valley is quiet and you are still small — grow the village before it fights',
     knobs: {
       serfTarget: 16,
@@ -89,8 +117,8 @@ export const POSTURES: Record<PostureId, Posture> = {
       researchReserve: 16,
     },
   },
-  fortify: {
-    id: 'fortify',
+  [PostureIdNs.fortify]: {
+    id: PostureIdNs.fortify,
     when: 'enemies are at your gates, or a rival fields more soldiers than you do',
     knobs: {
       serfTarget: 10,
@@ -104,8 +132,8 @@ export const POSTURES: Record<PostureId, Posture> = {
       researchReserve: 6,
     },
   },
-  raid: {
-    id: 'raid',
+  [PostureIdNs.raid]: {
+    id: PostureIdNs.raid,
     when: 'bandit camps are near and no rival castle is found yet — keep the army working',
     knobs: {
       serfTarget: 11,
@@ -119,8 +147,8 @@ export const POSTURES: Record<PostureId, Posture> = {
       researchReserve: 8,
     },
   },
-  muster: {
-    id: 'muster',
+  [PostureIdNs.muster]: {
+    id: PostureIdNs.muster,
     when: 'a rival is found but your army is too thin to take a castle — build it up first',
     knobs: {
       serfTarget: 13,
@@ -134,8 +162,8 @@ export const POSTURES: Record<PostureId, Posture> = {
       researchReserve: 10,
     },
   },
-  siege: {
-    id: 'siege',
+  [PostureIdNs.siege]: {
+    id: PostureIdNs.siege,
     when: 'you have the soldiers and a rival castle is found — go and raze it',
     knobs: {
       serfTarget: 11,
@@ -170,8 +198,8 @@ export const POSTURES: Record<PostureId, Posture> = {
    * rule's 19. Aggression ends games, which is phase 1's problem answered
    * from an unexpected direction.
    */
-  pounce: {
-    id: 'pounce',
+  [PostureIdNs.pounce]: {
+    id: PostureIdNs.pounce,
     when: 'a rival castle is found and they have no army worth the name — go now, before they do',
     knobs: {
       serfTarget: 11,
@@ -196,7 +224,7 @@ export const POSTURES: Record<PostureId, Posture> = {
 export const POSTURE_JSON_SCHEMA = {
   type: 'object',
   properties: {
-    posture: { type: 'string', enum: [...POSTURE_ORDER] },
+    posture: { type: 'string', enum: POSTURE_ORDER.map((id) => POSTURE_KEYS[id]) },
     reason: { type: 'string' },
   },
   required: ['posture'],
@@ -204,7 +232,7 @@ export const POSTURE_JSON_SCHEMA = {
 } as const;
 
 export function isPostureId(raw: unknown): raw is PostureId {
-  return typeof raw === 'string' && Object.hasOwn(POSTURES, raw);
+  return typeof raw === 'number' && Object.hasOwn(POSTURES, raw);
 }
 
 /** A posture's knobs as advice. Copied, because the caller merges into it
@@ -258,18 +286,18 @@ export function postureAdvice(id: PostureId): StrategyAdvice {
 export function choosePosture(summary: AiWorldSummary): PostureId {
   // Someone is in the yard. The only situation worth breaking stance for:
   // an army that marches while its castle burns loses the castle.
-  if (summary.me.underAttack) return 'fortify';
+  if (summary.me.underAttack) return PostureIdNs.fortify;
 
   // Nothing located yet. `siege` sets prefersRivals, which parks the army
   // until a castle is found — so until one is, mass instead, which leaves
   // the captain free to clear the camps he can reach.
   const found = summary.rivals.some((r) => r.alive && r.found);
-  if (!found) return 'muster';
+  if (!found) return PostureIdNs.muster;
 
   // A castle is on the map. Go and take it — including when the army is
   // still thin, which is where the draft rule went wrong: it waited, and
   // waiting is what `expand` and the printed playbook already lose to.
-  return 'siege';
+  return PostureIdNs.siege;
 }
 
 /**
@@ -316,14 +344,14 @@ export function choosePosture(summary: AiWorldSummary): PostureId {
 export function choosePostureReadingOpponent(summary: AiWorldSummary): PostureId {
   const opponent = readOpponent(summary);
 
-  if (summary.me.underAttack && opponent !== 'booming' && opponent !== 'turtling') {
-    return 'fortify';
+  if (summary.me.underAttack && opponent !== Archetype.booming && opponent !== Archetype.turtling) {
+    return PostureIdNs.fortify;
   }
 
   const found = summary.rivals.some((r) => r.alive && r.found);
-  if (!found) return 'muster';
+  if (!found) return PostureIdNs.muster;
 
-  if (opponent === 'booming') return 'pounce';
+  if (opponent === Archetype.booming) return PostureIdNs.pounce;
 
-  return 'siege';
+  return PostureIdNs.siege;
 }

@@ -1,14 +1,15 @@
 import { buildingDef } from '../defs/buildings.ts';
-import { UNIT_DEFS } from '../defs/units.ts';
+import { UNIT_DEFS, UnitTypeId } from '../defs/units.ts';
 import { getModifier, isUnitUnlocked } from '../techHelpers.ts';
 import { HIRE_SERF_TICKS, TRAIN_QUEUE_CAP } from '../defs/balance.ts';
 import { spawnUnit, type World } from '../world.ts';
 import { popCapOf, populationOf } from '../population.ts';
 import { findPath, nearestWalkable } from '../path.ts';
 import { tileX, tileY } from '../../shared/grid.ts';
-import type { GoodId } from '../defs/goods.ts';
-import type { Building } from '../entities.ts';
-import type { Unit } from '../units.ts';
+import { type GoodId, goodEntries } from '../defs/goods.ts';
+import { type Building, BuildingState } from '../entities.ts';
+import { type Unit, UnitTaskKind } from '../units.ts';
+import { ModifierKey } from '../defs/techs.ts';
 
 /**
  * Barracks training. A queue item starts when its ingredients are in the input
@@ -18,7 +19,7 @@ import type { Unit } from '../units.ts';
  */
 export function trainingSystem(world: World): void {
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built') continue;
+    if (b.dead || b.state !== BuildingState.built) continue;
     const def = buildingDef(b.type);
     if (!def.trains || !b.trainQueue || b.trainQueue.length === 0) continue;
 
@@ -35,7 +36,9 @@ export function trainingSystem(world: World): void {
       b.trainQueue.shift();
       const door = doorOf(world, b);
       const unit = spawnUnit(world, head.unit, b.owner, door.x, door.y);
-      unit.hp = Math.round(UNIT_DEFS[head.unit].hp * getModifier(world, b.owner, 'militaryHp'));
+      unit.hp = Math.round(
+        UNIT_DEFS[head.unit].hp * getModifier(world, b.owner, ModifierKey.militaryHp),
+      );
       marchToRally(world, b, unit);
     }
   }
@@ -69,7 +72,7 @@ function marchToRally(world: World, b: Building, unit: Unit): void {
   if (!path) return;
   unit.path = path;
   unit.pathIdx = 0;
-  unit.task = { t: 'move' };
+  unit.task = { t: UnitTaskKind.move };
 }
 
 /**
@@ -84,12 +87,12 @@ function marchToRally(world: World, b: Building, unit: Unit): void {
  */
 export function hiringSystem(world: World): void {
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built' || !b.hireQueue) continue;
+    if (b.dead || b.state !== BuildingState.built || !b.hireQueue) continue;
     b.hireTicksLeft = Math.max(0, (b.hireTicksLeft ?? HIRE_SERF_TICKS) - 1);
     if (b.hireTicksLeft > 0) continue;
     if (populationOf(world, b.owner) >= popCapOf(world, b.owner)) continue; // no bed yet
     const door = doorOf(world, b);
-    spawnUnit(world, 'serf', b.owner, door.x, door.y);
+    spawnUnit(world, UnitTypeId.serf, b.owner, door.x, door.y);
     b.hireQueue--;
     b.hireTicksLeft = b.hireQueue > 0 ? HIRE_SERF_TICKS : undefined;
   }
@@ -127,7 +130,9 @@ export function evictGarrison(world: World, b: Building, n: number): void {
       // Armour research is a soldier's; a serf goes back to work as he was.
       // Only for a garrison that never recorded a man (a save from before
       // garrisonHp) — otherwise what he walked in with stands.
-      unit.hp = Math.round(UNIT_DEFS[kind].hp * getModifier(world, b.owner, 'militaryHp'));
+      unit.hp = Math.round(
+        UNIT_DEFS[kind].hp * getModifier(world, b.owner, ModifierKey.militaryHp),
+      );
     }
     // The bow does not reload for free either: a man leaving a tower that has
     // just loosed carries what is left of its clock, or standing down between
@@ -158,17 +163,17 @@ export function trainingDemand(b: Building): Partial<Record<GoodId, number>> {
     if (item.started) continue;
     const option = def.trains.find((o) => o.unit === item.unit);
     if (!option) continue;
-    for (const [good, n] of Object.entries(option.cost) as [GoodId, number][]) {
+    for (const [good, n] of goodEntries(option.cost)) {
       need[good] = (need[good] ?? 0) + n;
     }
   }
   return need;
 }
 
-export function enqueueTraining(world: World, b: Building, unit: string): void {
+export function enqueueTraining(world: World, b: Building, unit: UnitTypeId): void {
   const def = buildingDef(b.type);
   const option = def.trains?.find((o) => o.unit === unit);
-  if (!option || b.state !== 'built' || b.dead) return;
+  if (!option || b.state !== BuildingState.built || b.dead) return;
   if (!isUnitUnlocked(world, b.owner, option.unit)) return;
   b.trainQueue ??= [];
   if (b.trainQueue.length >= TRAIN_QUEUE_CAP) return;
@@ -188,20 +193,20 @@ export function enqueueTraining(world: World, b: Building, unit: string): void {
  * recruit, and both walk back out — goods into the input buffer, the person
  * out the door as a serf. Only the training time already spent is lost.
  */
-export function cancelTraining(world: World, b: Building, index: number, unit: string): void {
+export function cancelTraining(world: World, b: Building, index: number, unit: UnitTypeId): void {
   const item = b.trainQueue?.[index];
   if (!item || item.unit !== unit) return;
   b.trainQueue!.splice(index, 1);
   if (!item.started) return;
   const option = buildingDef(b.type).trains?.find((o) => o.unit === item.unit);
   if (option) {
-    for (const [good, n] of Object.entries(option.cost) as [GoodId, number][]) {
+    for (const [good, n] of goodEntries(option.cost)) {
       b.inputs[good] = (b.inputs[good] ?? 0) + n;
       world.ledger.consumed[good] = (world.ledger.consumed[good] ?? 0) - n;
     }
   }
   const door = doorOf(world, b);
-  spawnUnit(world, 'serf', b.owner, door.x, door.y);
+  spawnUnit(world, UnitTypeId.serf, b.owner, door.x, door.y);
 }
 
 export function doorOf(world: World, b: Building): { x: number; y: number } {

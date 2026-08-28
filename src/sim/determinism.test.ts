@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { cmds } from './testUtils.ts';
 import { createWorld, type World } from './world.ts';
 import { tickWorld } from './tick.ts';
-import type { SimCommand } from './commands.ts';
+import { type SimCommand, CommandKind } from './commands.ts';
 
 /** Deep-comparable digest of sim state (Maps flattened, floats exact). */
 function digest(world: World) {
@@ -19,10 +19,10 @@ function digest(world: World) {
 
 function commandScript(tick: number): SimCommand[] {
   // A deterministic, moderately adversarial command stream.
-  if (tick === 100) return [{ kind: 'moveUnits', unitIds: [7, 8], x: 10, y: 10 }];
-  if (tick === 300) return [{ kind: 'moveUnits', unitIds: [7, 8, 9], x: 50, y: 50 }];
-  if (tick === 301) return [{ kind: 'moveUnits', unitIds: [7], x: 5, y: 60 }];
-  if (tick === 900) return [{ kind: 'moveUnits', unitIds: [999], x: 1, y: 1 }]; // unknown id
+  if (tick === 100) return [{ kind: CommandKind.moveUnits, unitIds: [7, 8], x: 10, y: 10 }];
+  if (tick === 300) return [{ kind: CommandKind.moveUnits, unitIds: [7, 8, 9], x: 50, y: 50 }];
+  if (tick === 301) return [{ kind: CommandKind.moveUnits, unitIds: [7], x: 5, y: 60 }];
+  if (tick === 900) return [{ kind: CommandKind.moveUnits, unitIds: [999], x: 1, y: 1 }]; // unknown id
   return [];
 }
 

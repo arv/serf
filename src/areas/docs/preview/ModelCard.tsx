@@ -1,7 +1,7 @@
 import { Show, createEffect, createSignal, onCleanup, onMount, type JSX } from 'solid-js';
 import type { AnimKey } from '../../../render/characters';
-import type { BuildingTypeId } from '../../../sim/defs/buildings';
-import type { UnitTypeId } from '../../../sim/defs/units';
+import { type BuildingTypeId, BUILDING_KEYS } from '../../../sim/defs/buildings';
+import { type UnitTypeId, UNIT_KEYS } from '../../../sim/defs/units';
 import { registerCard, type CardHandle } from './hub';
 
 /**
@@ -24,7 +24,14 @@ type ModelCardProps =
 /** Hand-drawn monochrome stand-ins (never emoji — house rule). */
 function SilhouetteIcon(props: { kind: 'building' | 'unit' }): JSX.Element {
   return (
-    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+    <svg
+      width="42"
+      height="42"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.6"
+    >
       {props.kind === 'building' ? (
         <>
           <path d="M4 20v-8l8-7 8 7v8" />
@@ -59,10 +66,10 @@ export function ModelCard(props: ModelCardProps): JSX.Element {
       stage,
       canvas,
       kind: props.kind,
-      id: props.id,
+      id: props.kind === 'unit' ? UNIT_KEYS[props.id] : BUILDING_KEYS[props.id],
       animated: props.animated === true,
       interactive: props.interactive === true,
-      seed: seedFrom(props.id),
+      seed: seedFrom(props.kind === 'unit' ? UNIT_KEYS[props.id] : BUILDING_KEYS[props.id]),
       onState: setState,
     });
   });

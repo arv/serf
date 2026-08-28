@@ -1,6 +1,8 @@
 import { UNIT_DEFS } from './defs/units.ts';
 import { GOODS } from './defs/goods.ts';
 import type { World } from './world.ts';
+import { BuildingState } from './entities.ts';
+import { UnitTaskKind } from './units.ts';
 
 /**
  * 32-bit FNV-1a digest of the outcome-relevant world state. It was the
@@ -62,8 +64,8 @@ export function hashWorld(world: World): number {
     mixU32(u.repathAt ?? 0);
     mixU32(u.targetId ?? 0); // 0 is a safe sentinel: entity ids start at 1
     mix(u.targetIsBuilding ? 1 : 0);
-    for (let i = 0; i < u.task.t.length; i++) mix(u.task.t.charCodeAt(i)); // task tag
-    if (u.task.t === 'attackMove') {
+    mix(u.task.t); // task tag
+    if (u.task.t === UnitTaskKind.attackMove) {
       // The stored destination steers behavior for many ticks — a clone or
       // save that garbled it must not hash as "the same world".
       mixU32(u.task.destX);
@@ -79,7 +81,7 @@ export function hashWorld(world: World): number {
     // two walls the same until one falls a tick earlier.
     mixF64(b.hp);
     mixU32(b.owner);
-    mix(b.state === 'built' ? 1 : 0);
+    mix(b.state === BuildingState.built ? 1 : 0);
     mix(b.dead ? 1 : 0);
     for (const good of GOODS) {
       mix(b.stock[good] ?? 0);
@@ -100,7 +102,7 @@ export function hashWorld(world: World): number {
     // dropped it would play on as the same world until something walked
     // into range. (Whether the tower is calling anyone up is `paused`,
     // which is mixed with the rest of the standing orders.)
-    mix(b.garrisonKind === undefined ? 0 : UNIT_DEFS[b.garrisonKind].kindCode);
+    mix(b.garrisonKind === undefined ? 0 : b.garrisonKind);
     // ...and what each of them walked in with: a save that dropped their
     // wounds would play on as the same world until the tower stood down and
     // handed back men in better shape than the ones who went up.

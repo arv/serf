@@ -1,10 +1,11 @@
 import { tileIdx, tileX, tileY } from '../../shared/grid.ts';
 import { TICKS_PER_SECOND } from '../defs/balance.ts';
-import { UNIT_DEFS } from '../defs/units.ts';
+import { UNIT_DEFS, UnitTypeId } from '../defs/units.ts';
 import { findPath, nearestWalkable, tileSpeedMult } from '../path.ts';
 import { getModifier } from '../techHelpers.ts';
-import type { Unit } from '../units.ts';
+import { type Unit, UnitTaskKind } from '../units.ts';
 import type { World } from '../world.ts';
+import { ModifierKey } from '../defs/techs.ts';
 
 /**
  * Advance every unit along its path. Waypoints are tile centers; speed is the
@@ -18,7 +19,7 @@ export function movementSystem(world: World): void {
   // without a player entry (BANDIT) fall back to the same baseline of 1.
   const serfSpeedMod: number[] = [];
   for (let owner = 0; owner < world.players.length; owner++) {
-    serfSpeedMod[owner] = getModifier(world, owner, 'serfSpeed');
+    serfSpeedMod[owner] = getModifier(world, owner, ModifierKey.serfSpeed);
   }
 
   for (const unit of world.units.values()) {
@@ -33,7 +34,7 @@ export function movementSystem(world: World): void {
       }
       unit.lastTile = here;
     }
-    const civilian = unit.kind === 'serf' || unit.kind === 'worker';
+    const civilian = unit.kind === UnitTypeId.serf || unit.kind === UnitTypeId.worker;
     let budget =
       (UNIT_DEFS[unit.kind].speed *
         tileSpeedMult(world.map, here) *
@@ -65,7 +66,8 @@ export function movementSystem(world: World): void {
 
     if (unit.path && unit.pathIdx >= path.length) {
       unit.path = null;
-      if (unit.task.t === 'move') unit.task = { t: 'idle', until: world.tick };
+      if (unit.task.t === UnitTaskKind.move)
+        unit.task = { t: UnitTaskKind.idle, until: world.tick };
     }
   }
 }
@@ -107,8 +109,8 @@ function routeAround(world: World, unit: Unit, goal: number): void {
   }
   unit.path = p && p.length > 0 ? p : null;
   unit.pathIdx = 0;
-  if (unit.path === null && unit.task.t === 'move') {
-    unit.task = { t: 'idle', until: world.tick };
+  if (unit.path === null && unit.task.t === UnitTaskKind.move) {
+    unit.task = { t: UnitTaskKind.idle, until: world.tick };
   }
 }
 

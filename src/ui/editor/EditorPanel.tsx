@@ -34,6 +34,8 @@ import {
   viewMode,
 } from '../../editor/uiState.ts';
 import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE, marginFor } from '../../shared/grid.ts';
+import { PlayerKind } from '../../sim/player.ts';
+import { ViewMode } from '../../render/cameraRig.ts';
 
 /**
  * The editor's whole DOM overlay: tool palette on the left, the session
@@ -80,8 +82,7 @@ function EditorUi(props: { actions: EditorActions }) {
     !dirtySinceSave() || window.confirm('Discard unsaved changes to this map?');
 
   /** Does Save write without asking? (Bound, and still under that name.) */
-  const savesStraightBack = (): boolean =>
-    savedName() !== null && mapName().trim() === savedName();
+  const savesStraightBack = (): boolean => savedName() !== null && mapName().trim() === savedName();
 
   return (
     <div class="ed-root">
@@ -162,7 +163,11 @@ function EditorUi(props: { actions: EditorActions }) {
                 <button
                   class="ed-fold"
                   classList={{ active: folds() === n }}
-                  title={n === mapPlayers() ? `${String(n)}× — matches this map's seats` : `${String(n)}×`}
+                  title={
+                    n === mapPlayers()
+                      ? `${String(n)}× — matches this map's seats`
+                      : `${String(n)}×`
+                  }
                   onClick={() => setFolds(n)}
                 >
                   {n}×
@@ -175,7 +180,7 @@ function EditorUi(props: { actions: EditorActions }) {
           title="Toggle perspective (V): straight-down plan view or the game's own camera"
           onClick={() => props.actions.toggleView()}
         >
-          {viewMode() === 'topDown' ? 'View: top-down' : 'View: game'}
+          {viewMode() === ViewMode.topDown ? 'View: top-down' : 'View: game'}
         </button>
         <button
           classList={{ active: showBounds() }}
@@ -299,8 +304,7 @@ function NewMapDialog(props: { actions: EditorActions }) {
         />
       </label>
       <div class="ed-dim">
-        A scenery ring {marginFor(size())} tiles deep surrounds it — paintable,
-        unwalkable.
+        A scenery ring {marginFor(size())} tiles deep surrounds it — paintable, unwalkable.
       </div>
       <div class="ed-row">
         Players
@@ -494,7 +498,7 @@ function PlayDialog(props: { actions: EditorActions }) {
             props.actions.play({
               seed: Number.isFinite(parsed) ? parsed : 1,
               players: Array.from({ length: seats }, (_, i) =>
-                i === 0 ? { kind: 'human' as const } : { kind: 'ai' as const },
+                i === 0 ? { kind: PlayerKind.human } : { kind: PlayerKind.ai },
               ),
               banditsEnabled: bandits(),
             });

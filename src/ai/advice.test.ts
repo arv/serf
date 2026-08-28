@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ADVICE_RANGES, MARCH_CONFIDENCE_RANGE, parseAdvice, toOverride } from './advice.ts';
+import { UnitTypeId } from '../sim/defs/units.ts';
 
 /**
  * The advice parser stands between a language model and the AI brain, so
@@ -66,7 +67,7 @@ describe('parseAdvice', () => {
 
   it('filters trainPreference to real soldiers, deduplicated, never empty', () => {
     expect(parseAdvice('{"trainPreference": ["archer", "serf", "archer", "knight"]}')).toEqual({
-      trainPreference: ['archer', 'knight'],
+      trainPreference: [UnitTypeId.archer, UnitTypeId.knight],
     });
     // A list that filters to nothing would train nothing — dropped instead.
     expect(parseAdvice('{"trainPreference": ["bandit", "dragon"]}')).toEqual({});

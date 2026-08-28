@@ -1,4 +1,4 @@
-import { type JSX } from 'solid-js';
+import type { JSX } from 'solid-js';
 import { DocLink } from './components';
 import { linkifyProse } from './linkify';
 

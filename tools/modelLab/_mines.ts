@@ -1,12 +1,7 @@
 import * as THREE from 'three';
 import { makeLights, makeRenderer, PITCH } from './scene';
-import {
-  loadGlbAssets,
-  makeGlbBuilding,
-  glbYardProp,
-  glbYardRock,
-} from '../../src/render/assets';
-import type { BuildingTypeId } from '../../src/sim/defs/buildings';
+import { loadGlbAssets, makeGlbBuilding, glbYardProp, glbYardRock } from '../../src/render/assets';
+import { BuildingTypeId } from '../../src/sim/defs/buildings';
 
 /**
  * A scratch page for the one question the cards cannot answer: do the four
@@ -21,7 +16,12 @@ import type { BuildingTypeId } from '../../src/sim/defs/buildings';
 
 const q = new URLSearchParams(location.search);
 
-const TYPES: BuildingTypeId[] = ['quarry', 'ironMine', 'silverMine', 'goldMine'];
+const TYPES: BuildingTypeId[] = [
+  BuildingTypeId.quarry,
+  BuildingTypeId.ironMine,
+  BuildingTypeId.silverMine,
+  BuildingTypeId.goldMine,
+];
 const NAMES = ['Quarry', 'Iron Mine', 'Silver Mine', 'Gold Mine'];
 
 /** buildingSync's MINE_SPOTS and YARDS, copied so the page needs no
@@ -59,7 +59,7 @@ const W = Number(q.get('w') ?? 1600);
 const H = Number(q.get('h') ?? 380);
 // The rig's own default is 30 degrees (CAMERA_YAW), turnable in 15-degree
 // steps, so a composition has to survive being walked around.
-const YAW = ((Number(q.get('yaw') ?? 30) * Math.PI) / 180);
+const YAW = (Number(q.get('yaw') ?? 30) * Math.PI) / 180;
 
 await loadGlbAssets();
 
@@ -110,7 +110,7 @@ function row(stacks: number, title: string): void {
 
   const view = H / (W / (PITCH_X * TYPES.length + 1.4));
   const cam = new THREE.OrthographicCamera(
-    (-(PITCH_X * TYPES.length + 1.4)) / 2,
+    -(PITCH_X * TYPES.length + 1.4) / 2,
     (PITCH_X * TYPES.length + 1.4) / 2,
     view / 2 + 0.55,
     -view / 2 + 0.55,

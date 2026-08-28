@@ -2,16 +2,24 @@ import { Rng } from '../shared/rng.ts';
 import { BANDIT } from '../sim/entities.ts';
 import { START_SERFS, START_STOCK, firstRaidTickFor } from '../sim/defs/balance.ts';
 import { dealStrategies, type AiStrategyId } from '../sim/defs/aiStrategies.ts';
-import { makePlayer } from '../sim/player.ts';
-import { campCorners, placeBuiltBuilding, spawnUnitNearby, type World } from '../sim/world.ts';
+import { makePlayer, type PlayerKind } from '../sim/player.ts';
+import {
+  campCorners,
+  placeBuiltBuilding,
+  spawnUnitNearby,
+  type World,
+  MatchState,
+} from '../sim/world.ts';
 import { clearResources, rectClear, recomputeBlocked, type GameMap } from '../sim/map.ts';
 import type { EditorMapState } from './editorMap.ts';
+import { UnitTypeId } from '../sim/defs/units.ts';
+import { BuildingTypeId } from '../sim/defs/buildings.ts';
 
 export interface EditorPlayConfig {
   /** Deals the AI seats their playbooks (and the solo camp its corner). */
   seed: number;
   /** One entry per seat; length must equal the map's player count. */
-  players: { kind: 'human' | 'ai'; strategy?: AiStrategyId }[];
+  players: { kind: PlayerKind; strategy?: AiStrategyId }[];
   banditsEnabled: boolean;
 }
 
@@ -68,7 +76,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
     raidState: { nextRaidTick: firstRaidTickFor(map.play), wave: 0 },
     admin: { enabled: true, raidsEnabled: cfg.banditsEnabled, instantBuild: false },
     pendingEvents: [],
-    outcome: { state: 'playing' },
+    outcome: { state: MatchState.playing },
     banditsEnabled: cfg.banditsEnabled,
   };
 
@@ -76,7 +84,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
   for (let p = 0; p < starts.length; p++) {
     const { x: shX, y: shY } = starts[p]!;
     clearResources(map, shX - 1, shY - 1, 5, 5);
-    const storehouse = placeBuiltBuilding(world, 'storehouse', p, shX, shY);
+    const storehouse = placeBuiltBuilding(world, BuildingTypeId.storehouse, p, shX, shY);
     storehouse.stock = { ...START_STOCK };
   }
 
@@ -109,9 +117,21 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
         for (let dx = -r; dx <= r; dx++) {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           if (rectClear(map, cx + dx, cy + dy, 3, 3)) {
-            const camp = placeBuiltBuilding(world, 'banditCamp', BANDIT, cx + dx, cy + dy);
+            const camp = placeBuiltBuilding(
+              world,
+              BuildingTypeId.banditCamp,
+              BANDIT,
+              cx + dx,
+              cy + dy,
+            );
             for (let g = 0; g < 3; g++) {
-              spawnUnitNearby(world, 'bandit', BANDIT, camp.x - 0.5 + g * 2, camp.y + camp.h + 1.5);
+              spawnUnitNearby(
+                world,
+                UnitTypeId.bandit,
+                BANDIT,
+                camp.x - 0.5 + g * 2,
+                camp.y + camp.h + 1.5,
+              );
             }
             campPlaced = true;
             break outer;
@@ -139,7 +159,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
     for (let i = 0; i < START_SERFS; i++) {
       const x = shX - 1 + (i % 5) + 0.5;
       const y = shY + 4 + Math.floor(i / 5) + 0.5;
-      spawnUnitNearby(world, 'serf', p, x, y);
+      spawnUnitNearby(world, UnitTypeId.serf, p, x, y);
     }
   }
 

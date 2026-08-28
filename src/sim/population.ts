@@ -1,5 +1,5 @@
 import { buildingDef } from './defs/buildings.ts';
-import type { Owner } from './entities.ts';
+import { type Owner, BuildingState } from './entities.ts';
 import type { World } from './world.ts';
 
 /**
@@ -42,7 +42,7 @@ export function populationOf(world: World, owner: Owner): number {
 export function popCapOf(world: World, owner: Owner): number {
   let cap = 0;
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== 'built' || b.owner !== owner) continue;
+    if (b.dead || b.state !== BuildingState.built || b.owner !== owner) continue;
     cap += buildingDef(b.type).housing ?? 0;
   }
   return cap;

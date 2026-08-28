@@ -1,7 +1,7 @@
-import { TECH_DEFS, type ModifierKey, type TechId } from './defs/techs.ts';
-import { buildingDef, type BuildingTypeId } from './defs/buildings.ts';
+import { TECH_DEFS, type TechId, ModifierKey, TechEffectKind } from './defs/techs.ts';
+import { buildingDef, BuildingTypeId } from './defs/buildings.ts';
 import type { UnitTypeId } from './defs/units.ts';
-import type { Owner } from './entities.ts';
+import { type Owner, BuildingState } from './entities.ts';
 import type { World } from './world.ts';
 
 /**
@@ -18,10 +18,10 @@ export function getModifier(world: World, owner: Owner, key: ModifierKey): numbe
   let m = 1;
   for (const id of techs.researched) {
     for (const effect of TECH_DEFS[id].effects) {
-      if (effect.kind === 'modifier' && effect.key === key) m *= effect.multiplier;
+      if (effect.kind === TechEffectKind.modifier && effect.key === key) m *= effect.multiplier;
     }
   }
-  if (key === 'workSpeed' && techs.festivalTicksLeft > 0) m *= 1.25;
+  if (key === ModifierKey.workSpeed && techs.festivalTicksLeft > 0) m *= 1.25;
   return m;
 }
 
@@ -38,7 +38,7 @@ export function isBuildingUnlocked(world: World, owner: Owner, type: BuildingTyp
 export function isUnitUnlocked(world: World, owner: Owner, unit: UnitTypeId): boolean {
   for (const def of Object.values(TECH_DEFS)) {
     for (const effect of def.effects) {
-      if (effect.kind === 'unlockUnit' && effect.unit === unit) {
+      if (effect.kind === TechEffectKind.unlockUnit && effect.unit === unit) {
         return world.players[owner]?.techs.researched.includes(def.id) ?? false;
       }
     }
@@ -61,7 +61,12 @@ export function canResearch(
   }
   let hasAbbey = false;
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.type === 'abbey' && b.state === 'built' && b.owner === owner) {
+    if (
+      !b.dead &&
+      b.type === BuildingTypeId.abbey &&
+      b.state === BuildingState.built &&
+      b.owner === owner
+    ) {
       hasAbbey = true;
       break;
     }

@@ -64,7 +64,7 @@ import {
   setAudioView,
 } from '../audio/audio';
 import { markMissionComplete } from '../ui/campaign';
-import { MISSION_DEFS } from '../sim/defs/missions';
+import { MISSION_DEFS, MISSION_KEYS } from '../sim/defs/missions';
 import { Terrain } from '../sim/map';
 import { inBounds, tileCount, tileIdx } from '../shared/grid';
 import { WorldMirror } from './mirror';
@@ -80,6 +80,10 @@ import type { NetInfo } from '../protocol/messages';
 import type { Screen } from './screen';
 import { fatal } from './fatalScreen';
 import { stashGet, stashSet } from './stash';
+import { BuildingTypeId } from '../sim/defs/buildings';
+import { GameEventKind, MatchState } from '../sim/world';
+import { PlayerKind } from '../sim/player';
+import { LlmState } from '../ai/strategist';
 
 /**
  * The playing screen, and everything only it needs: three.js, the render
@@ -111,7 +115,7 @@ async function bootLlmStrategist(
   const strategist = new LlmStrategist({
     sendAdvice: (playerId, override) => host.sendAiAdvice(playerId, override),
     onStatus: (status) => {
-      if (status.state === 'failed') {
+      if (status.state === LlmState.failed) {
         // The badge would just be a standing shrug; say it once and move on.
         console.warn(`[strategist] ${status.reason}`);
         pushToast('The LLM strategist is unavailable — opponents use standard tactics');
@@ -120,7 +124,7 @@ async function bootLlmStrategist(
       }
       setLlmStatus(status);
       // "On" has nothing more to report; linger long enough to be seen.
-      if (status.state === 'ready') setTimeout(() => setLlmStatus(null), 10_000);
+      if (status.state === LlmState.ready) setTimeout(() => setLlmStatus(null), 10_000);
     },
     // Dev builds watch the model work: every consultation lands in the
     // backquote overlay's ledger and prints one console line (the trace
@@ -467,14 +471,14 @@ export async function runMatch(
   // from the config so a save written before the first frame lands still
   // says so.
   let missionNow = config.mission;
-  let opponentsNow = config.players.filter((p) => p.kind === 'ai').length;
+  let opponentsNow = config.players.filter((p) => p.kind === PlayerKind.ai).length;
   // One save string for every writer — the menu button and the GPU-crash
   // handoff alike: the world from the worker, the fog's memory from here,
   // and the head of metadata above so the shelf can tell one village from
   // another without opening any of them.
   const saveGame = async (): Promise<string> =>
     envelopeSave(await host.requestSave(), fog.exportExplored(), {
-      ...(missionNow !== undefined ? { mission: missionNow } : {}),
+      ...(missionNow !== undefined ? { mission: MISSION_KEYS[missionNow] } : {}),
       ...(opponentsNow > 0 ? { opponents: opponentsNow } : {}),
     });
   // Not while watching a replay: a GPU-loss reload comes back on the same
@@ -511,7 +515,7 @@ export async function runMatch(
   // multiplayer start sits on a ring — the first thing a player sees must
   // be their storehouse, not the bandits' hill.
   const home = init.buildings.find(
-    (b) => b.type === 'storehouse' && b.owner === config.myPlayerId,
+    (b) => b.type === BuildingTypeId.storehouse && b.owner === config.myPlayerId,
   );
   if (home) renderer.rig.focusOn(home.x + home.w / 2, home.y + home.h / 2);
 
@@ -589,12 +593,12 @@ export async function runMatch(
     }
     if (msg.players) {
       setPlayersMeta(msg.players);
-      opponentsNow = msg.players.filter((p) => p.kind === 'ai').length;
+      opponentsNow = msg.players.filter((p) => p.kind === PlayerKind.ai).length;
     }
     if (msg.jobs) setDebugJobs(msg.jobs);
     setInvariantViolations(msg.invariantViolations);
     setOutcome(msg.outcome);
-    if (msg.outcome.state === 'over') damageAlerts.clear();
+    if (msg.outcome.state === MatchState.over) damageAlerts.clear();
     setAdminState(msg.admin);
     // The worker, not the URL, says which mission this is: a loaded save
     // reboots on ?seed=…, but the world remembers. Synced both ways — a
@@ -605,22 +609,22 @@ export async function runMatch(
     if (msg.mission) {
       // Finishing writes the profile. Idempotent, so every structural frame
       // after the win may say it again.
-      if (msg.outcome.state === 'over' && msg.outcome.winner === myPlayerId()) {
+      if (msg.outcome.state === MatchState.over && msg.outcome.winner === myPlayerId()) {
         markMissionComplete(msg.mission.id);
       }
     } else if (briefingOpen()) {
       setBriefingOpen(false);
     }
     for (const event of msg.events) {
-      if (event.kind === 'raidIncoming' && event.player === myPlayerId()) {
+      if (event.kind === GameEventKind.raidIncoming && event.player === myPlayerId()) {
         // Non-positional on purpose: a warning must be heard wherever the
         // camera happens to be looking.
         play('raidHorn');
         pushToast(event.text);
-      } else if (event.kind === 'playerEliminated' && event.player !== myPlayerId()) {
+      } else if (event.kind === GameEventKind.playerEliminated && event.player !== myPlayerId()) {
         play('distantBell');
         pushToast('A rival banner has fallen!');
-      } else if (event.kind === 'damage' && event.player === myPlayerId()) {
+      } else if (event.kind === GameEventKind.damage && event.player === myPlayerId()) {
         // The solo worker delivers every seat's events; filter like raids.
         // Only struck *buildings* sound from here — this event exists for
         // player-owned damage alone (combat.ts filters at the source), so
@@ -628,13 +632,13 @@ export async function runMatch(
         // sounds come from the animation layer, which sees every side.
         if (event.building) playAt('buildingHit', event.x, event.y);
         damageAlerts.report(event);
-      } else if (event.kind === 'objectiveComplete' && event.player === myPlayerId()) {
+      } else if (event.kind === GameEventKind.objectiveComplete && event.player === myPlayerId()) {
         play('objectiveDone');
         const label = msg.mission
           ? MISSION_DEFS[msg.mission.id].objectives[event.index]?.label
           : undefined;
         pushToast(label ? `Objective complete: ${label}` : 'Objective complete');
-      } else if (event.kind === 'gameOver') {
+      } else if (event.kind === GameEventKind.gameOver) {
         play(event.winner === myPlayerId() ? 'victory' : 'defeat');
       }
     }

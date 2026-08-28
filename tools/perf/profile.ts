@@ -11,6 +11,7 @@
 import { AiSeats } from '../../src/sim/aiSeats.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
 import { createWorld } from '../../src/sim/world.ts';
+import { PlayerKind } from '../../src/sim/player.ts';
 
 function arg(name: string, dflt: number): number {
   const i = process.argv.indexOf(`--${name}`);
@@ -24,8 +25,8 @@ const SIZE = arg('size', 96);
 const world = createWorld({
   seed: SEED,
   players: [
-    { kind: 'ai', strategy: 'steward' },
-    { kind: 'ai', strategy: 'warlord' },
+    { kind: PlayerKind.ai, strategy: 'steward' },
+    { kind: PlayerKind.ai, strategy: 'warlord' },
   ],
   banditsEnabled: true,
   mapSize: SIZE,

@@ -7,9 +7,9 @@ import {
   buildingForKey,
   playerBuildable,
 } from './buildMenu';
-import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
+import { BUILDING_DEFS, BuildingTypeId, BUILDING_TYPES } from '../sim/defs/buildings';
 
-const TYPES = Object.keys(BUILDING_DEFS) as BuildingTypeId[];
+const TYPES = BUILDING_TYPES;
 const inMenu = BUILD_GROUPS.flatMap((g) => g.types);
 
 /**
@@ -63,7 +63,7 @@ describe('the build chord', () => {
   });
 
   it('gives no letter to anything the ribbon does not offer', () => {
-    const stray = (Object.keys(BUILD_KEYS) as BuildingTypeId[]).filter((t) => !inMenu.includes(t));
+    const stray = TYPES.filter((t) => BUILD_KEYS[t] !== undefined && !inMenu.includes(t));
     expect(stray).toEqual([]);
   });
 
@@ -88,7 +88,7 @@ describe('the build chord', () => {
     }
     // Storage is never in the ribbon, so nothing to show and no tab to
     // show it on — the caller's own -1 branch.
-    expect(buildTab('storehouse')).toBe(-1);
+    expect(buildTab(BuildingTypeId.storehouse)).toBe(-1);
   });
 
   it('resolves a letter back to its building, in either case', () => {

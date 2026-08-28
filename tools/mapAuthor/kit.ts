@@ -50,7 +50,6 @@ import {
   Terrain,
   TileResource,
   WATER_ACCESS_RADIUS,
-  RESOURCE_CODE,
   countResourceNear,
   inPlayArea,
   playEdgeDist,
@@ -68,9 +67,9 @@ import {
   buildingDef,
   gatherOrigin,
   gatherRecipeOf,
-  type BuildingTypeId,
+  BuildingTypeId,
+  BUILDING_KEYS,
 } from '../../src/sim/defs/buildings.ts';
-
 
 /** Below this field value a tile floods (worldgen's LAKE_LEVEL_T). */
 export const LAKE_LEVEL = 0.26;
@@ -534,7 +533,7 @@ export class Valley {
     /** Value noise around the perimeter, in [0,1], wrapping seamlessly. */
     const meander = (salt: number, p: number, wavelength: number): number => {
       const cells = Math.max(4, Math.round(perimeter / wavelength));
-      const f = (((p % perimeter) + perimeter) % perimeter / perimeter) * cells;
+      const f = ((((p % perimeter) + perimeter) % perimeter) / perimeter) * cells;
       const i0 = Math.floor(f);
       const t = ease01(f - i0);
       const a = hash2(this.grain + salt, i0 % cells);
@@ -651,10 +650,8 @@ export class Valley {
       // The domain warp is what makes a coast curl rather than merely
       // wobble: the field is sampled at a point that has itself been
       // moved by another field, at two scales.
-      const wx =
-        (this.noise(21, x, y, 47) - 0.5) * 30 + (this.noise(26, x, y, 15) - 0.5) * 11;
-      const wy =
-        (this.noise(22, x, y, 47) - 0.5) * 30 + (this.noise(27, x, y, 15) - 0.5) * 11;
+      const wx = (this.noise(21, x, y, 47) - 0.5) * 30 + (this.noise(26, x, y, 15) - 0.5) * 11;
+      const wy = (this.noise(22, x, y, 47) - 0.5) * 30 + (this.noise(27, x, y, 15) - 0.5) * 11;
       // Five octaves, and the first one is nearly half the map across.
       // That octave is what stops the LANDMASS being a rounded square: the
       // finer scales only ever decorate an outline, while a wavelength
@@ -997,9 +994,7 @@ export class Valley {
           d = Math.max(d, s.d);
         }
         const edgeH =
-          this.height[
-            this.idx(clamp(x, this.p0, this.p1 - 1), clamp(y, this.p0, this.p1 - 1))
-          ]!;
+          this.height[this.idx(clamp(x, this.p0, this.p1 - 1), clamp(y, this.p0, this.p1 - 1))]!;
         this.height[i] = Math.max(edgeH + (h - edgeH) * ease01(d / 2.5), edgeH - d * 0.4);
       }
     }
@@ -1029,13 +1024,7 @@ export class Valley {
     return this.scatter(TileResource.Rock, amt, c, r, density);
   }
 
-  private scatter(
-    res: TileResourceKind,
-    amt: number,
-    c: Pt,
-    r: number,
-    density: number,
-  ): number {
+  private scatter(res: TileResourceKind, amt: number, c: Pt, r: number, density: number): number {
     let placed = 0;
     // Room for the outline to bulge past the nominal radius.
     const R = Math.ceil(r * 1.5) + 1;
@@ -1296,7 +1285,7 @@ export class Valley {
    * deep and stops.
    */
   noDeadWoodSites(starts: readonly StartSpot[], rings = 6, want = 24): number {
-    const def = buildingDef('woodcutter');
+    const def = buildingDef(BuildingTypeId.woodcutter);
     const radius = gatherRecipeOf(def)!.radius;
     let felled = 0;
     for (let pass = 0; pass < 3; pass++) {
@@ -1320,7 +1309,7 @@ export class Valley {
               if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
               const x = cx + dx;
               const y = cy + dy;
-              if (!canPlace(map, 'woodcutter', x, y)) continue;
+              if (!canPlace(map, BuildingTypeId.woodcutter, x, y)) continue;
               const o = gatherOrigin(def, x, y);
               if (countResourceNear(this, o.x, o.y, TileResource.Wood, radius) >= want) continue;
               for (let ty = o.y - radius; ty <= o.y + radius; ty++) {
@@ -1416,9 +1405,7 @@ export interface Authored {
 
 /** Walkable in the sim's terms: playable, dry, and nothing standing on it. */
 function walkable(v: Valley, i: number): boolean {
-  return (
-    v.inPlay(i % v.size, (i / v.size) | 0) && !tileBlocks(v.terrain[i]!, v.resource[i]!)
-  );
+  return v.inPlay(i % v.size, (i / v.size) | 0) && !tileBlocks(v.terrain[i]!, v.resource[i]!);
 }
 
 /** Everything reachable on foot from a tile. */
@@ -1616,7 +1603,9 @@ export function audit(a: Authored): AuditReport {
       }
     }
     if (shore > WATER_ACCESS_RADIUS) {
-      problems.push(`${who}: no reachable shore within ${WATER_ACCESS_RADIUS} tiles (${shore.toFixed(1)})`);
+      problems.push(
+        `${who}: no reachable shore within ${WATER_ACCESS_RADIUS} tiles (${shore.toFixed(1)})`,
+      );
     } else lines.push(`  shore at ${shore.toFixed(1)}`);
 
     // Every deposit has to be walkable-to: a seam behind a lake is a seam
@@ -1708,8 +1697,12 @@ export function audit(a: Authored): AuditReport {
     const ox = a.starts[0]!.x + b.dx;
     const oy = a.starts[0]!.y + b.dy;
     const at = nearestSite(map, b.type, { x: ox, y: oy }, 6);
-    if (!at) problems.push(`prebuilt ${b.type} at ${b.dx},${b.dy}: no legal site within 5 tiles`);
-    else if (at.r > 3) lines.push(`  prebuilt ${b.type} slides ${at.r} tiles to find ground`);
+    if (!at)
+      problems.push(
+        `prebuilt ${BUILDING_KEYS[b.type]} at ${b.dx},${b.dy}: no legal site within 5 tiles`,
+      );
+    else if (at.r > 3)
+      lines.push(`  prebuilt ${BUILDING_KEYS[b.type]} slides ${at.r} tiles to find ground`);
   }
 
   // What a player can actually raise, how far they walk to do it, and —
@@ -1724,37 +1717,46 @@ export function audit(a: Authored): AuditReport {
   // first legal tile) fails on a map that reads fine.
   for (const s0 of a.starts) {
     const c = keep(s0);
-    const sites = (['woodcutter', 'quarry', 'ironMine', 'silverMine', 'goldMine', 'fishery'] as const)
+    const siteTypes: readonly BuildingTypeId[] = [
+      BuildingTypeId.woodcutter,
+      BuildingTypeId.quarry,
+      BuildingTypeId.ironMine,
+      BuildingTypeId.silverMine,
+      BuildingTypeId.goldMine,
+      BuildingTypeId.fishery,
+    ];
+    const sites = siteTypes
       .map((type) => {
+        const name = BUILDING_KEYS[type];
         const at = nearestSite(map, type, c, 40);
-        if (!at) return `${type} --`;
+        if (!at) return `${name} --`;
         const gather = gatherRecipeOf(buildingDef(type));
-        if (!gather) return `${type} ${at.r}`;
+        if (!gather) return `${name} ${at.r}`;
         const o = gatherOrigin(buildingDef(type), at.x, at.y);
-        const held = countResourceNear(v, o.x, o.y, RESOURCE_CODE[gather.resource]!, gather.radius);
-        return `${type} ${at.r} (${held})`;
+        const held = countResourceNear(v, o.x, o.y, gather.resource, gather.radius);
+        return `${name} ${at.r} (${held})`;
       })
       .join('  ');
     lines.push(`  nearest legal site (and what it can work): ${sites}`);
     // A hut on the first legal tile has to find a real day's work there.
     for (const [type, want] of [
-      ['woodcutter', 40],
-      ['quarry', 40],
+      [BuildingTypeId.woodcutter, 40],
+      [BuildingTypeId.quarry, 40],
     ] as const) {
       const at = nearestSite(map, type, c, 40);
       if (!at) continue;
       const gather = gatherRecipeOf(buildingDef(type))!;
       const o = gatherOrigin(buildingDef(type), at.x, at.y);
-      const held = countResourceNear(v, o.x, o.y, RESOURCE_CODE[gather.resource]!, gather.radius);
+      const held = countResourceNear(v, o.x, o.y, gather.resource, gather.radius);
       // A trap, not a merely thin spot: below four tiles' worth is a hut
       // that fells what it can see and then stands idle.
       if (held < 24) {
         problems.push(
-          `the first legal ${type} site out of the keep can only work ${held} — a stray ` +
+          `the first legal ${BUILDING_KEYS[type]} site out of the keep can only work ${held} — a stray ` +
             'grove tile is making a dead spot look legal',
         );
       } else if (held < want) {
-        lines.push(`  (the first ${type} site is a thin one at ${held})`);
+        lines.push(`  (the first ${BUILDING_KEYS[type]} site is a thin one at ${held})`);
       }
     }
   }

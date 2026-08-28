@@ -24,7 +24,7 @@ import { SeatVision } from '../../src/sim/visibility.ts';
 import type { UnitSnapshot } from '../../src/protocol/sabLayout.ts';
 import type { BuildingSnap, MapSnapshot, PlayerSnap } from '../../src/protocol/messages.ts';
 import type { EntityId } from '../../src/sim/entities.ts';
-import type { GameEvent, MapDelta, World } from '../../src/sim/world.ts';
+import { type GameEvent, type MapDelta, type World, GameEventKind } from '../../src/sim/world.ts';
 import type { Room, Seat } from './rooms.ts';
 
 /** Ticks between structural-frame *checks* — a cadence cap, not a schedule:
@@ -197,7 +197,9 @@ function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
  * public. Damage stays private so fights don't leak through rivals' fog. */
 function eventsFor(events: GameEvent[], seatId: number): GameEvent[] {
   return events.filter((e) =>
-    (e.kind === 'raidIncoming' || e.kind === 'damage') ? e.player === seatId : true,
+    e.kind === GameEventKind.raidIncoming || e.kind === GameEventKind.damage
+      ? e.player === seatId
+      : true,
   );
 }
 

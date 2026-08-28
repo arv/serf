@@ -1,6 +1,6 @@
 import { For, Show, type JSX } from 'solid-js';
-import { BUILDING_DEFS, TOOL_OF, type BuildingTypeId } from '../../../sim/defs/buildings';
-import type { GoodId } from '../../../sim/defs/goods';
+import { BUILDING_DEFS, TOOL_OF, BuildingTypeId } from '../../../sim/defs/buildings';
+import { type GoodId, goodKeys } from '../../../sim/defs/goods';
 import { buildKey } from '../../../ui/buildMenu';
 import { buildingName, goodName, techName, unitName } from '../../../ui/names';
 import { buildingTechGates, fmtSecs } from '../data';
@@ -55,7 +55,11 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
             )}
           </Show>
           <Show when={def.nearWater}>
-            {(nw) => <Stat label="Placement">open water within {nw().radius} tile{nw().radius === 1 ? '' : 's'}</Stat>}
+            {(nw) => (
+              <Stat label="Placement">
+                open water within {nw().radius} tile{nw().radius === 1 ? '' : 's'}
+              </Stat>
+            )}
           </Show>
           <Show when={def.mine}>
             <Stat label="Ground">dug into the hillside — exempt from flat ground</Stat>
@@ -68,23 +72,20 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
       <Show when={def.workerKind !== undefined || tool !== undefined}>
         <Section title="Staffing">
           <ul class="refs">
-            <Show when={def.workerKind}>
-              {(kind) => (
-                <li>
-                  Staffed by a <DocLink href={unitHref(kind())}>{unitName(kind())}</DocLink> when
-                  construction completes
-                </li>
-              )}
+            <Show when={def.workerKind !== undefined}>
+              <li>
+                Staffed by a{' '}
+                <DocLink href={unitHref(def.workerKind!)}>{unitName(def.workerKind!)}</DocLink> when
+                construction completes
+              </li>
             </Show>
-            <Show when={tool}>
-              {(t) => (
-                <li>
-                  The post needs a <GoodChip good={t()} /> from the{' '}
-                  <DocLink href={buildingHref('weaponsmith')}>
-                    {buildingName('weaponsmith')}
-                  </DocLink>
-                </li>
-              )}
+            <Show when={tool !== undefined}>
+              <li>
+                The post needs a <GoodChip good={tool!} /> from the{' '}
+                <DocLink href={buildingHref(BuildingTypeId.weaponsmith)}>
+                  {buildingName(BuildingTypeId.weaponsmith)}
+                </DocLink>
+              </li>
             </Show>
           </ul>
         </Section>
@@ -120,24 +121,22 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
                 <tbody>
                   <For each={options()}>
                     {(opt) => {
-                      const output = (Object.keys(opt.recipe.outputs) as GoodId[])[0];
+                      const output = goodKeys(opt.recipe.outputs)[0];
                       return (
                         <tr>
                           <td>
-                            <Show when={output} fallback="—">
-                              {(good) => (
-                                <DocLink href={goodHref(good())}>{goodName(good())}</DocLink>
-                              )}
+                            <Show when={output !== undefined} fallback="—">
+                              <DocLink href={goodHref(output!)}>{goodName(output!)}</DocLink>
                             </Show>
                           </td>
                           <td>
                             <RecipeView recipe={opt.recipe} />
                           </td>
                           <td>
-                            <Show when={opt.requiresTech} fallback="—">
-                              {(tech) => (
-                                <DocLink href={techHref(tech())}>{techName(tech())}</DocLink>
-                              )}
+                            <Show when={opt.requiresTech !== undefined} fallback="—">
+                              <DocLink href={techHref(opt.requiresTech!)}>
+                                {techName(opt.requiresTech!)}
+                              </DocLink>
                             </Show>
                           </td>
                         </tr>

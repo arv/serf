@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AiSeats } from './aiSeats';
 import { createWorld } from './world';
 import { tickWorld } from './tick';
+import { PlayerKind } from './player';
 
 /**
  * The brains themselves are covered by ai.test.ts and winnable.test.ts.
@@ -14,7 +15,7 @@ describe('AI seats', () => {
   it('drives every ai seat and leaves human seats alone', () => {
     const world = createWorld({
       seed: 3,
-      players: [{ kind: 'human' }, { kind: 'ai' }, { kind: 'ai' }],
+      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
       adminEnabled: false,
     });
     const seats = new AiSeats(world);
@@ -32,7 +33,7 @@ describe('AI seats', () => {
   it('actually gets the AI building — the wiring is live, not just called', () => {
     const world = createWorld({
       seed: 3,
-      players: [{ kind: 'human' }, { kind: 'ai' }],
+      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
       adminEnabled: false,
       banditsEnabled: false,
     });
@@ -51,7 +52,7 @@ describe('AI seats', () => {
   it('has no brains at all in a world of humans', () => {
     const world = createWorld({
       seed: 3,
-      players: [{ kind: 'human' }, { kind: 'human' }],
+      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.human }],
       adminEnabled: false,
     });
     const seats = new AiSeats(world);

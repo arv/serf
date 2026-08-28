@@ -2,11 +2,19 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { clamp } from '../shared/math';
-import { UNIT_DEFS } from '../sim/defs/units';
+import { UNIT_DEFS, UnitTypeId } from '../sim/defs/units';
 import { lathe } from './models';
 import { loadGltfRetry } from './assets';
 import { goodColors } from './palette';
 import { factionTint } from './factionPalette';
+import { GoodId } from '../sim/defs/goods';
+import type { Enum } from '../shared/enum.ts';
+import * as AnimKeyNs from './animKeyEnum.ts';
+export * as AnimKey from './animKeyEnum.ts';
+export type AnimKey = Enum<typeof AnimKeyNs>;
+import * as GaitNs from './gaitEnum.ts';
+export * as Gait from './gaitEnum.ts';
+export type Gait = Enum<typeof GaitNs>;
 
 /**
  * Skinned-character pipeline: KayKit Adventurers 2.0 characters animated by
@@ -16,24 +24,6 @@ import { factionTint } from './factionPalette';
  * assets can't load, callers fall back to the procedural people in
  * models.ts.
  */
-
-export type AnimKey =
-  | 'idle'
-  | 'walk'
-  | 'jog'
-  | 'attack'
-  | 'shoot'
-  | 'throw'
-  | 'work'
-  | 'pickaxe'
-  | 'hammer'
-  | 'dig'
-  | 'tend'
-  | 'draw'
-  | 'fish'
-  | 'carry'
-  | 'carryIdle'
-  | 'death';
 
 const KK_DIR = '/models/kaykit/';
 const KK_CHARACTER_FILES = ['Knight', 'Barbarian', 'Rogue', 'Rogue_Hooded', 'Mage', 'Ranger'];
@@ -58,29 +48,29 @@ const KK_PROP_FILES = [
 ];
 
 const KK_CLIP_NAMES: Record<AnimKey, string> = {
-  idle: 'Idle_A',
-  walk: 'Walking_A',
-  jog: 'Running_A',
-  attack: 'Melee_1H_Attack_Chop',
-  shoot: 'Ranged_Bow_Draw',
+  [AnimKeyNs.idle]: 'Idle_A',
+  [AnimKeyNs.walk]: 'Walking_A',
+  [AnimKeyNs.jog]: 'Running_A',
+  [AnimKeyNs.attack]: 'Melee_1H_Attack_Chop',
+  [AnimKeyNs.shoot]: 'Ranged_Bow_Draw',
   // The levy on a tower roof: an overhand lob, empty-handed. The pack's
   // one throw, and it reads as a stone going over the parapet where the
   // bow draw read as a man miming an archer he is not.
-  throw: 'Throw',
+  [AnimKeyNs.throwing]: 'Throw',
   // Real tool loops per work site.
-  work: 'Chopping',
-  pickaxe: 'Pickaxing',
-  hammer: 'Hammering',
-  dig: 'Digging',
-  tend: 'Working_A',
+  [AnimKeyNs.work]: 'Chopping',
+  [AnimKeyNs.pickaxe]: 'Pickaxing',
+  [AnimKeyNs.hammer]: 'Hammering',
+  [AnimKeyNs.dig]: 'Digging',
+  [AnimKeyNs.tend]: 'Working_A',
   // Hand-over-hand reeling doubles as cranking the well bucket up.
-  draw: 'Fishing_Reeling',
+  [AnimKeyNs.draw]: 'Fishing_Reeling',
   // The patient hold, rod out over the water — the actual fisherman.
-  fish: 'Fishing_Idle',
+  [AnimKeyNs.fish]: 'Fishing_Idle',
   // Composited at load: gait legs + holding-pose arms.
-  carry: 'Carry_Walk',
-  carryIdle: 'Carry_Idle',
-  death: 'Death_A',
+  [AnimKeyNs.carry]: 'Carry_Walk',
+  [AnimKeyNs.carryIdle]: 'Carry_Idle',
+  [AnimKeyNs.death]: 'Death_A',
 };
 
 interface KKSpec {
@@ -110,54 +100,64 @@ interface KKSpec {
 
 const KK_SPECS = new Map<number, KKSpec>([
   [1, { file: 'Rogue', hide: ['Rogue_Cape'] }],
-  [2, {
-    // The Mage, bare-headed: under the wizard hat it is a hooded work
-    // smock — the closest thing the pack has to a laborer. The Barbarian
-    // it replaces read as a shirtless warrior hauling lumber. The pack
-    // axe stays in the kit but only for the chop — a laborer walks
-    // empty-handed (a builder marching around armed read as a raid), and
-    // the modeled axe beats any procedural stand-in while he swings.
-    file: 'Mage',
-    hide: ['Mage_Hat'],
-    right: 'axe_1handed',
-    // The axe loads blade-backwards in the grip; spin it to face the swing.
-    rightRot: [0, Math.PI, 0],
-    rightWorkKind: 1, // WORK.chop
-  }],
+  [
+    2,
+    {
+      // The Mage, bare-headed: under the wizard hat it is a hooded work
+      // smock — the closest thing the pack has to a laborer. The Barbarian
+      // it replaces read as a shirtless warrior hauling lumber. The pack
+      // axe stays in the kit but only for the chop — a laborer walks
+      // empty-handed (a builder marching around armed read as a raid), and
+      // the modeled axe beats any procedural stand-in while he swings.
+      file: 'Mage',
+      hide: ['Mage_Hat'],
+      right: 'axe_1handed',
+      // The axe loads blade-backwards in the grip; spin it to face the swing.
+      rightRot: [0, Math.PI, 0],
+      rightWorkKind: 1, // WORK.chop
+    },
+  ],
   [3, { file: 'Knight', right: 'sword_1handed', left: 'shield_badge', jog: true }],
-  [4, {
-    file: 'Knight',
-    hide: ['Knight_Cape', 'Knight_HelmetVisor'],
-    // A spear, built here: the pack's wizard staff stood in for one and
-    // the crystal on its head gave the game away (see spearProp).
-    rightBuilt: spearProp,
-    jog: true,
-    attackClip: 'Melee_1H_Attack_Stab',
-  }],
+  [
+    4,
+    {
+      file: 'Knight',
+      hide: ['Knight_Cape', 'Knight_HelmetVisor'],
+      // A spear, built here: the pack's wizard staff stood in for one and
+      // the crystal on its head gave the game away (see spearProp).
+      rightBuilt: spearProp,
+      jog: true,
+      attackClip: 'Melee_1H_Attack_Stab',
+    },
+  ],
   [5, { file: 'Ranger', right: 'bow_withString', jog: true, ranged: true }],
   [6, { file: 'Rogue', tint: 0x7c8290, right: 'dagger', jog: true }],
-  [7, {
-    file: 'Rogue_Hooded',
-    tint: 0x7c8290,
-    right: 'bow_withString',
-    back: 'quiver',
-    jog: true,
-    ranged: true,
-  }],
-  [8, {
-    file: 'Barbarian',
-    tint: 0x94848c,
-    right: 'axe_2handed',
-    scale: 1.18,
-    jog: true,
-    attackClip: 'Melee_2H_Attack_Chop',
-  }],
+  [
+    7,
+    {
+      file: 'Rogue_Hooded',
+      tint: 0x7c8290,
+      right: 'bow_withString',
+      back: 'quiver',
+      jog: true,
+      ranged: true,
+    },
+  ],
+  [
+    8,
+    {
+      file: 'Barbarian',
+      tint: 0x94848c,
+      right: 'axe_2handed',
+      scale: 1.18,
+      jog: true,
+      attackClip: 'Melee_2H_Attack_Chop',
+    },
+  ],
 ]);
 
 /** Sim ground speed by kind byte, for matching gait playback to it. */
-const KIND_SPEED = new Map<number, number>(
-  Object.values(UNIT_DEFS).map((d) => [d.kindCode, d.speed]),
-);
+const KIND_SPEED = new Map<number, number>(Object.values(UNIT_DEFS).map((d) => [d.id, d.speed]));
 
 interface KKCharacter {
   scene: THREE.Group;
@@ -203,7 +203,7 @@ export interface CharacterVisual {
   current: AnimKey | null;
   /** Locomotion clip for this unit, picked at build time to suit its sim
    * speed (see the gait matching in makeKayKitCharacter). */
-  gait: 'walk' | 'jog';
+  gait: Gait;
   /** Natural ground speed of each gait clip for this body, world units/sec
    * (0 = unmeasured: that gait plays at its authored rate). */
   gaitNat: { walk: number; jog: number };
@@ -386,8 +386,8 @@ async function loadKayKitCharacters(): Promise<boolean> {
     // for all of them under the tape measure.
     const rig = chars.values().next().value;
     const gaitSpeeds = {
-      walk: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES.walk)) : 0,
-      jog: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES.jog)) : 0,
+      walk: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES[AnimKeyNs.walk])) : 0,
+      jog: rig ? measureGaitSpeed(rig.scene, clips.get(KK_CLIP_NAMES[AnimKeyNs.jog])) : 0,
     };
 
     kkAssets = { chars, clips, props, gaitSpeeds };
@@ -615,7 +615,7 @@ function spearProp(): THREE.Group {
   const g = new THREE.Group();
   g.name = 'spear';
   // Ash haft, thickening toward the butt, gripped a third of the way up.
-  const shaft = toolMesh(new THREE.CylinderGeometry(0.062, 0.07, 2.3, 6), goodColors.spear);
+  const shaft = toolMesh(new THREE.CylinderGeometry(0.062, 0.07, 2.3, 6), goodColors[GoodId.spear]);
   shaft.position.y = 0.3;
   // Leaf head, turned rather than extruded: a flat blade is what the spade
   // has, and it vanishes edge-on — a spear is seen from every side at once
@@ -630,7 +630,7 @@ function spearProp(): THREE.Group {
       [0.052, 0.51],
       [0, 0.62],
     ],
-    goodColors.sword,
+    goodColors[GoodId.sword],
     8,
   );
   // Flattened across the swing, the way a blade is: a full body of
@@ -641,7 +641,10 @@ function spearProp(): THREE.Group {
   // the shaft from ending in nothing when it is seen against the grass.
   const collar = toolMesh(new THREE.CylinderGeometry(0.088, 0.088, 0.12, 6), 0x6b4e2e);
   collar.position.y = 1.36;
-  const butt = toolMesh(new THREE.CylinderGeometry(0.078, 0.078, 0.15, 6), goodColors.sword);
+  const butt = toolMesh(
+    new THREE.CylinderGeometry(0.078, 0.078, 0.15, 6),
+    goodColors[GoodId.sword],
+  );
   butt.position.y = -0.79;
   g.add(shaft, blade, collar, butt);
   spearTemplate = g;
@@ -680,13 +683,13 @@ const PROF_LOOKS = new Map<number, ProfLook>([
 ]);
 
 function makeKayKitCharacter(
-  kindCode: number,
+  kind: number,
   profession = 0,
   owner = 0,
 ): { group: THREE.Group; visual: CharacterVisual } | null {
   if (!kkAssets) return null;
-  const look = kindCode === 2 ? PROF_LOOKS.get(profession) : undefined;
-  const spec = look?.spec ?? KK_SPECS.get(kindCode) ?? KK_SPECS.get(1)!;
+  const look = kind === 2 ? PROF_LOOKS.get(profession) : undefined;
+  const spec = look?.spec ?? KK_SPECS.get(kind) ?? KK_SPECS.get(1)!;
   const char = kkAssets.chars.get(spec.file);
   if (!char) return null;
   const root = skeletonClone(char.scene);
@@ -718,7 +721,9 @@ function makeKayKitCharacter(
           // (cloth texels are mid-brown, and green x brown is bog), while
           // a touch of emissive restores the saturation multiply loses.
           // Together they read as dyed cloth under the same sun.
-          tinted.color.lerp(new THREE.Color(clothFaction), 0.9).lerp(new THREE.Color(0xffffff), 0.12);
+          tinted.color
+            .lerp(new THREE.Color(clothFaction), 0.9)
+            .lerp(new THREE.Color(0xffffff), 0.12);
           tinted.emissive.set(clothFaction).multiplyScalar(0.22);
         }
         kkTintMaterials.set(key, tinted);
@@ -787,10 +792,10 @@ function makeKayKitCharacter(
   // The base kind speed only seeds the rate — the real thing also wears
   // road/trail multipliers and the serfSpeed tech, so sceneSync keeps
   // re-feeding the speed it observes (setGaitSpeed).
-  const simSpeed = KIND_SPEED.get(kindCode) ?? UNIT_DEFS.worker.speed;
+  const simSpeed = KIND_SPEED.get(kind) ?? UNIT_DEFS[UnitTypeId.worker].speed;
   const walkNat = kkAssets.gaitSpeeds.walk * s;
   const jogNat = kkAssets.gaitSpeeds.jog * s;
-  const gait: 'walk' | 'jog' = spec.jog ? 'jog' : 'walk';
+  const gait: Gait = spec.jog ? GaitNs.jog : GaitNs.walk;
 
   // Carried goods anchor: on the chest bone (so loads bob and sway with
   // the gait), counter-scaled back to world units, held out in front at
@@ -853,14 +858,15 @@ function makeKayKitCharacter(
 
   const mixer = new THREE.AnimationMixer(root);
   const actions = new Map<AnimKey, THREE.AnimationAction>();
-  for (const key of Object.keys(KK_CLIP_NAMES) as AnimKey[]) {
-    let name = key === 'attack' && spec.attackClip ? spec.attackClip : KK_CLIP_NAMES[key];
+  for (const key of ANIM_KEYS) {
+    let name = key === AnimKeyNs.attack && spec.attackClip ? spec.attackClip : KK_CLIP_NAMES[key];
     // A jogging carrier gets the run-legged carry composite.
-    if (key === 'carry' && gait === 'jog' && kkAssets.clips.has('Carry_Jog')) name = 'Carry_Jog';
+    if (key === AnimKeyNs.carry && gait === GaitNs.jog && kkAssets.clips.has('Carry_Jog'))
+      name = 'Carry_Jog';
     const clip = kkAssets.clips.get(name);
     if (!clip) continue;
     const action = mixer.clipAction(clip);
-    if (key === 'death') {
+    if (key === AnimKeyNs.death) {
       action.setLoop(THREE.LoopOnce, 1);
       action.clampWhenFinished = true; // hold the final crumpled pose
     }
@@ -894,9 +900,9 @@ function makeKayKitCharacter(
  * band is wide enough that soldiers track their true speed — 1.2x to 1.8x
  * across kinds — before a leg-blur cap.
  */
-const GAIT_RATE = {
-  walk: { lo: 0.85, hi: 1.3 },
-  jog: { lo: 0.8, hi: 1.8 },
+const GAIT_RATE: Record<Gait, { lo: number; hi: number }> = {
+  [GaitNs.walk]: { lo: 0.85, hi: 1.3 },
+  [GaitNs.jog]: { lo: 0.8, hi: 1.8 },
 };
 
 /**
@@ -911,15 +917,19 @@ const GAIT_RATE = {
 export function setGaitSpeed(visual: CharacterVisual, speed: number): void {
   if (Math.abs(speed - visual.gaitSpeed) < visual.gaitSpeed * 0.02) return;
   visual.gaitSpeed = speed;
-  const set = (key: AnimKey, g: 'walk' | 'jog', nat: number): void => {
+  const set = (key: AnimKey, g: Gait, nat: number): void => {
     const action = visual.actions.get(key);
     if (!action) return;
     const band = GAIT_RATE[g];
     action.timeScale = nat > 0 ? clamp(speed / nat, band.lo, band.hi) : 1;
   };
-  set('walk', 'walk', visual.gaitNat.walk);
-  set('jog', 'jog', visual.gaitNat.jog);
-  set('carry', visual.gait, visual.gait === 'jog' ? visual.gaitNat.jog : visual.gaitNat.walk);
+  set(AnimKeyNs.walk, GaitNs.walk, visual.gaitNat.walk);
+  set(AnimKeyNs.jog, GaitNs.jog, visual.gaitNat.jog);
+  set(
+    AnimKeyNs.carry,
+    visual.gait,
+    visual.gait === GaitNs.jog ? visual.gaitNat.jog : visual.gaitNat.walk,
+  );
 }
 
 /**
@@ -1032,17 +1042,17 @@ export function serfSole(): Sole | null {
  * are loaded (callers fall back to the procedural person).
  */
 export function makeCharacter(
-  kindCode: number,
+  kind: number,
   profession = 0,
   owner = 0,
 ): { group: THREE.Group; visual: CharacterVisual } | null {
-  return makeKayKitCharacter(kindCode, profession, owner);
+  return makeKayKitCharacter(kind, profession, owner);
 }
 
 /** Crossfade to the clip for this key; no-op when already playing it. */
 export function playAnimation(visual: CharacterVisual, key: AnimKey, offset: number): void {
   if (visual.current === key) return;
-  const next = visual.actions.get(key) ?? visual.actions.get('idle');
+  const next = visual.actions.get(key) ?? visual.actions.get(AnimKeyNs.idle);
   if (!next) return;
   const prev = visual.current ? visual.actions.get(visual.current) : undefined;
   next.reset();
@@ -1052,3 +1062,23 @@ export function playAnimation(visual: CharacterVisual, key: AnimKey, offset: num
   if (prev && prev !== next) prev.crossFadeTo(next, 0.16, false);
   visual.current = key;
 }
+
+/** Every animation key, in id order — what the clip loader walks. */
+export const ANIM_KEYS: readonly AnimKey[] = [
+  AnimKeyNs.idle,
+  AnimKeyNs.walk,
+  AnimKeyNs.jog,
+  AnimKeyNs.attack,
+  AnimKeyNs.shoot,
+  AnimKeyNs.throwing,
+  AnimKeyNs.work,
+  AnimKeyNs.pickaxe,
+  AnimKeyNs.hammer,
+  AnimKeyNs.dig,
+  AnimKeyNs.tend,
+  AnimKeyNs.draw,
+  AnimKeyNs.fish,
+  AnimKeyNs.carry,
+  AnimKeyNs.carryIdle,
+  AnimKeyNs.death,
+];

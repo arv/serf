@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js';
-import type { ViewMode } from '../render/cameraRig';
 import type { Tool } from './brush.ts';
 import { Terrain, TileResource } from '../sim/map.ts';
+import { ViewMode } from '../render/cameraRig.ts';
 
 /**
  * The editor's UI state as module-level signals — the store.ts pattern:
@@ -27,12 +27,42 @@ export const PALETTE: PaletteEntry[] = [
   { key: '1', label: 'Grass', group: 'terrain', tool: { kind: 'terrain', terrain: Terrain.Grass } },
   { key: '2', label: 'Water', group: 'terrain', tool: { kind: 'terrain', terrain: Terrain.Water } },
   { key: '3', label: 'Rock', group: 'terrain', tool: { kind: 'terrain', terrain: Terrain.Rock } },
-  { key: '4', label: 'Trees', group: 'resource', tool: { kind: 'resource', res: TileResource.Wood } },
-  { key: '5', label: 'Stone', group: 'resource', tool: { kind: 'resource', res: TileResource.Rock } },
-  { key: '6', label: 'Iron', group: 'resource', tool: { kind: 'resource', res: TileResource.IronDep } },
-  { key: '7', label: 'Silver', group: 'resource', tool: { kind: 'resource', res: TileResource.SilverDep } },
-  { key: '8', label: 'Gold', group: 'resource', tool: { kind: 'resource', res: TileResource.GoldDep } },
-  { key: '9', label: 'Erase', group: 'resource', tool: { kind: 'resource', res: TileResource.None } },
+  {
+    key: '4',
+    label: 'Trees',
+    group: 'resource',
+    tool: { kind: 'resource', res: TileResource.Wood },
+  },
+  {
+    key: '5',
+    label: 'Stone',
+    group: 'resource',
+    tool: { kind: 'resource', res: TileResource.Rock },
+  },
+  {
+    key: '6',
+    label: 'Iron',
+    group: 'resource',
+    tool: { kind: 'resource', res: TileResource.IronDep },
+  },
+  {
+    key: '7',
+    label: 'Silver',
+    group: 'resource',
+    tool: { kind: 'resource', res: TileResource.SilverDep },
+  },
+  {
+    key: '8',
+    label: 'Gold',
+    group: 'resource',
+    tool: { kind: 'resource', res: TileResource.GoldDep },
+  },
+  {
+    key: '9',
+    label: 'Erase',
+    group: 'resource',
+    tool: { kind: 'resource', res: TileResource.None },
+  },
   { key: 'r', label: 'Raise', group: 'height', tool: { kind: 'height', dir: 1 } },
   { key: 'f', label: 'Lower', group: 'height', tool: { kind: 'height', dir: -1 } },
   { key: 'n', label: 'Roughen', group: 'height', tool: { kind: 'noise' } },
@@ -46,7 +76,7 @@ export const BRUSH_MAX = 12;
 export const [kaleido, setKaleido] = createSignal(true);
 /** Fold count 1..4; New re-defaults it to the map's player count. */
 export const [folds, setFolds] = createSignal(2);
-export const [viewMode, setViewMode] = createSignal<ViewMode>('topDown');
+export const [viewMode, setViewMode] = createSignal<ViewMode>(ViewMode.topDown);
 /** The play-area boundary band + margin veil (B toggles it). */
 export const [showBounds, setShowBounds] = createSignal(true);
 /** History depth flags, kept fresh by the screen after every action. */

@@ -17,15 +17,17 @@ import { TICKS_PER_SECOND } from '../sim/defs/balance';
 import {
   BUILDING_DEFS,
   gatherRecipeOf,
-  type BuildingTypeId,
   type Recipe,
+  BuildingTypeId,
+  RecipeKind,
 } from '../sim/defs/buildings';
-import { type GoodAmounts, type GoodId } from '../sim/defs/goods';
-import { TECH_DEFS, type TechId } from '../sim/defs/techs';
-import { COUNTER_TABLE, UNIT_DEFS, type UnitClass, type UnitTypeId } from '../sim/defs/units';
+import { type GoodAmounts, GoodId, goodEntries } from '../sim/defs/goods';
+import { TECH_DEFS, type TechId, TechEffectKind } from '../sim/defs/techs';
+import { COUNTER_TABLE, UNIT_DEFS, UnitTypeId, UnitClass } from '../sim/defs/units';
 import { GoodIcon } from './icons';
 import { buildingName, goodName, techDesc, techName, unitName } from './names';
 import { stock, techs } from './store';
+import { TileResource, type TileResourceKind } from '../sim/map';
 
 /**
  * One floating tooltip layer for the whole HUD. Spread `{...tooltip(...)}`
@@ -258,7 +260,7 @@ export function TipWrap(props: ParentProps<{ tip: () => JSX.Element }>) {
 // --- Shared fragments -------------------------------------------------------
 
 export function CostLine(props: { label: string; cost: GoodAmounts; extra?: string }) {
-  const entries = () => (Object.entries(props.cost) as [GoodId, number][]).filter(([, n]) => n > 0);
+  const entries = () => goodEntries(props.cost).filter(([, n]) => n > 0);
   const short = () => {
     const s = stock();
     return entries().some(([good, n]) => (s[good] ?? 0) < n);
@@ -291,25 +293,26 @@ export function CostLine(props: { label: string; cost: GoodAmounts; extra?: stri
 /** Names live in names.ts (the icon layer needs them too); the flavor text
  * lives here. */
 const GOOD_DESC: Record<GoodId, string> = {
-  water: 'Drawn at wells. Soaks the fields and thins the ale.',
-  wheat: 'The crop. Milled into flour, brewed into ale, and it funds research.',
-  wood: 'Felled in the forest. The village is built from it.',
-  stone: 'Quarried from outcrops. Heavy building and road paving.',
-  iron: 'Hauled from mountain seams. Becomes blades and spearheads.',
-  silver: 'Minted currency. Pays for serfs and scholarship.',
-  gold: 'Rare and bright. Buys the finest arms and gilding.',
-  sword: 'Forged by the swordsmith. Arms one knight.',
-  spear: 'Shafted by the spearmaker. Arms one spearman.',
-  bow: 'Strung by the bowyer. Arms one archer.',
-  ale: 'Brewed from wheat and water. Fuels festivals at the Abbey.',
-  flour: 'Ground at the mill. On its own it feeds nobody.',
-  food: 'Baked from flour and water. What a soldier costs.',
-  axe: 'Ground keen at the Smith. A woodcutter works with one or not at all.',
-  pickaxe: 'Wood and stone \u2014 never iron, so the mines can always restart. Staffs the quarry and every mine.',
-  scythe: 'A long blade from the Smith. No farmer takes a field without one.',
-  hammer: 'The builder\u2019s loan: every site borrows one and returns it at topping-out.',
-  cauldron: 'Smithed copperwork. The bakery and the brewery cook out of it.',
-  rod: 'Cut and strung at the Smith \u2014 no iron in it. Staffs the fishery.',
+  [GoodId.water]: 'Drawn at wells. Soaks the fields and thins the ale.',
+  [GoodId.wheat]: 'The crop. Milled into flour, brewed into ale, and it funds research.',
+  [GoodId.wood]: 'Felled in the forest. The village is built from it.',
+  [GoodId.stone]: 'Quarried from outcrops. Heavy building and road paving.',
+  [GoodId.iron]: 'Hauled from mountain seams. Becomes blades and spearheads.',
+  [GoodId.silver]: 'Minted currency. Pays for serfs and scholarship.',
+  [GoodId.gold]: 'Rare and bright. Buys the finest arms and gilding.',
+  [GoodId.sword]: 'Forged by the swordsmith. Arms one knight.',
+  [GoodId.spear]: 'Shafted by the spearmaker. Arms one spearman.',
+  [GoodId.bow]: 'Strung by the bowyer. Arms one archer.',
+  [GoodId.ale]: 'Brewed from wheat and water. Fuels festivals at the Abbey.',
+  [GoodId.flour]: 'Ground at the mill. On its own it feeds nobody.',
+  [GoodId.food]: 'Baked from flour and water. What a soldier costs.',
+  [GoodId.axe]: 'Ground keen at the Smith. A woodcutter works with one or not at all.',
+  [GoodId.pickaxe]:
+    'Wood and stone \u2014 never iron, so the mines can always restart. Staffs the quarry and every mine.',
+  [GoodId.scythe]: 'A long blade from the Smith. No farmer takes a field without one.',
+  [GoodId.hammer]: 'The builder\u2019s loan: every site borrows one and returns it at topping-out.',
+  [GoodId.cauldron]: 'Smithed copperwork. The bakery and the brewery cook out of it.',
+  [GoodId.rod]: 'Cut and strung at the Smith \u2014 no iron in it. Staffs the fishery.',
 };
 
 export function GoodTip(props: { good: GoodId }) {
@@ -324,25 +327,25 @@ export function GoodTip(props: { good: GoodId }) {
   );
 }
 
-const RESOURCE_NAMES: Record<string, string> = {
-  wood: 'woods',
-  rock: 'rock outcrops',
-  ironDep: 'iron seams',
-  silverDep: 'silver seams',
-  goldDep: 'gold seams',
+const RESOURCE_NAMES: Partial<Record<TileResourceKind, string>> = {
+  [TileResource.Wood]: 'woods',
+  [TileResource.Rock]: 'rock outcrops',
+  [TileResource.IronDep]: 'iron seams',
+  [TileResource.SilverDep]: 'silver seams',
+  [TileResource.GoldDep]: 'gold seams',
 };
 
 function goodsList(amounts: GoodAmounts): string {
-  return (Object.entries(amounts) as [GoodId, number][])
+  return goodEntries(amounts)
     .filter(([, n]) => n > 0)
     .map(([g, n]) => `${n} ${goodName(g).toLowerCase()}`)
     .join(' + ');
 }
 
 function recipeText(recipe: Recipe): string {
-  if (recipe.kind === 'gather') {
+  if (recipe.kind === RecipeKind.gather) {
     return `Its worker gathers ${goodName(recipe.output).toLowerCase()} from nearby ${
-      RESOURCE_NAMES[recipe.resource] ?? recipe.resource
+      RESOURCE_NAMES[recipe.resource] ?? 'ground'
     }.`;
   }
   const secs = Math.round(recipe.durationTicks / TICKS_PER_SECOND);
@@ -354,12 +357,15 @@ function recipeText(recipe: Recipe): string {
 }
 
 const BUILDING_FLAVOR: Partial<Record<BuildingTypeId, string>> = {
-  abbey: 'Monks research the tech tree here; delivered ale throws work-speed festivals.',
-  barracks: 'Trains knights, spearmen, and archers from wheat and forged weapons.',
-  guardTower:
+  [BuildingTypeId.abbey]:
+    'Monks research the tech tree here; delivered ale throws work-speed festivals.',
+  [BuildingTypeId.barracks]: 'Trains knights, spearmen, and archers from wheat and forged weapons.',
+  [BuildingTypeId.guardTower]:
     'Two archers man the roof, shooting half again as hard and two tiles further than they would on the ground. Man it and any archer with nothing else to do walks in from the field on his own; while none is free — none trained yet, or every one of them marching — villagers answer instead and hold it with stones, far weaker but today rather than three techs from now. Standing it down empties the roof again and gives the men back. Nobody manning it can be shot at while the tower stands.',
-  house: 'Sleeps ten more villagers. Nobody lives here yet — beds are what let you hire.',
-  storehouse: 'The heart of the village. All goods flow here — lose it and all is lost.',
+  [BuildingTypeId.house]:
+    'Sleeps ten more villagers. Nobody lives here yet — beds are what let you hire.',
+  [BuildingTypeId.storehouse]:
+    'The heart of the village. All goods flow here — lose it and all is lost.',
 };
 
 export function BuildingTip(props: { type: BuildingTypeId }) {
@@ -389,8 +395,8 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
         {(gather) => (
           <div class="tip-line">
             Must be built within {gather().radius} tiles of{' '}
-            {RESOURCE_NAMES[gather().resource] ?? gather().resource} — that is as far as its
-            worker will walk.
+            {RESOURCE_NAMES[gather().resource] ?? gather().resource} — that is as far as its worker
+            will walk.
           </div>
         )}
       </Show>
@@ -401,7 +407,7 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
       />
       <Show when={lockedBy()}>
         <div class="tip-warn">
-          Requires {lockedBy()} (research at the {buildingName('abbey')})
+          Requires {lockedBy()} (research at the {buildingName(BuildingTypeId.abbey)})
         </div>
       </Show>
     </>
@@ -409,15 +415,15 @@ export function BuildingTip(props: { type: BuildingTypeId }) {
 }
 
 const CLASS_INFO: Record<UnitClass, { name: string; beats: UnitClass; losesTo: UnitClass }> = {
-  heavy: { name: 'Heavy', beats: 'light', losesTo: 'ranged' },
-  light: { name: 'Light', beats: 'ranged', losesTo: 'heavy' },
-  ranged: { name: 'Ranged', beats: 'heavy', losesTo: 'light' },
+  [UnitClass.heavy]: { name: 'Heavy', beats: UnitClass.light, losesTo: UnitClass.ranged },
+  [UnitClass.light]: { name: 'Light', beats: UnitClass.ranged, losesTo: UnitClass.heavy },
+  [UnitClass.ranged]: { name: 'Ranged', beats: UnitClass.heavy, losesTo: UnitClass.light },
 };
 
 const UNIT_FLAVOR: Partial<Record<UnitTypeId, string>> = {
-  knight: 'Slow, armored, and lethal up close.',
-  spearman: 'Fast peasant spears — they run archers down.',
-  archer: 'Keeps its distance and kites heavy armor.',
+  [UnitTypeId.knight]: 'Slow, armored, and lethal up close.',
+  [UnitTypeId.spearman]: 'Fast peasant spears — they run archers down.',
+  [UnitTypeId.archer]: 'Keeps its distance and kites heavy armor.',
 };
 
 export function UnitTip(props: { unit: UnitTypeId; cost?: GoodAmounts; lockedBy?: string | null }) {
@@ -448,7 +454,7 @@ export function UnitTip(props: { unit: UnitTypeId; cost?: GoodAmounts; lockedBy?
       </Show>
       <Show when={props.lockedBy}>
         <div class="tip-warn">
-          Requires {props.lockedBy} (research at the {buildingName('abbey')})
+          Requires {props.lockedBy} (research at the {buildingName(BuildingTypeId.abbey)})
         </div>
       </Show>
     </>
@@ -460,9 +466,9 @@ export function TechTip(props: { tech: TechId }) {
   const unlockNames = () =>
     def()
       .effects.flatMap((e) =>
-        e.kind === 'unlockBuilding'
+        e.kind === TechEffectKind.unlockBuilding
           ? [buildingName(e.building)]
-          : e.kind === 'unlockUnit'
+          : e.kind === TechEffectKind.unlockUnit
             ? [unitName(e.unit)]
             : [],
       )

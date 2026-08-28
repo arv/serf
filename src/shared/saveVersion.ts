@@ -13,7 +13,10 @@
  * same kind of change as 4: the grid an older file describes is not a grid
  * this build makes. Version 8 is the same change again, the ring having
  * come in a second time. Older saves are refused rather than silently
- * mis-loaded.
+ * mis-loaded. Version 9 is the ids themselves: a good, a building, a unit,
+ * a tech, a task tag, a job phase and a seat kind are numbers now rather
+ * than words, so every record in an older file is keyed and spelled in a
+ * language this build no longer reads.
  *
  * A module of its own, next to REPLAY_VERSION and for the same reason: the
  * menu stamps it into every save's metadata head so the saves shelf can
@@ -21,7 +24,7 @@
  * number without pulling the whole serializer — a worker's worth of code —
  * into the main thread's bundle.
  */
-export const WORLD_SAVE_VERSION = 8;
+export const WORLD_SAVE_VERSION = 9;
 
 /**
  * Can this build open a file written in that format? Version 5 changed how
