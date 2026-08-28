@@ -18,6 +18,7 @@ import type {PierInfo} from './buildingSync';
 import type {ViewBounds} from './cameraRig';
 import {
   TARGET_HEIGHT,
+  gaitAnimKey,
   makeCharacter,
   playAnimation,
   setGaitSpeed,
@@ -767,9 +768,13 @@ export class SceneSync {
       } else if (visual.char) {
         const heldCarry = carrying > 0;
         let key: AnimKey;
+        // The gait is a Gait, not an AnimKey — the numbers collide
+        // (Gait.walk === AnimKey.idle), so it goes through gaitAnimKey.
         if (dead) key = AnimKey.death;
-        else if (moving) key = heldCarry ? AnimKey.carry : visual.char.gait;
-        else if (pier) key = fishing ? AnimKey.fish : visual.char.gait;
+        else if (moving)
+          key = heldCarry ? AnimKey.carry : gaitAnimKey(visual.char.gait);
+        else if (pier)
+          key = fishing ? AnimKey.fish : gaitAnimKey(visual.char.gait);
         else if (action === ACTION.fight)
           key = visual.char.ranged ? AnimKey.shoot : AnimKey.attack;
         else if (action === ACTION.work)
