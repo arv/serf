@@ -24,9 +24,8 @@ import { SeatVision } from '../../src/sim/visibility.ts';
 import type { UnitSnapshot } from '../../src/protocol/sabLayout.ts';
 import type { BuildingSnap, MapSnapshot, PlayerSnap } from '../../src/protocol/messages.ts';
 import type { EntityId } from '../../src/sim/entities.ts';
-import type { GameEvent, MapDelta, World } from '../../src/sim/world.ts';
+import { type GameEvent, type MapDelta, type World, GameEventKind } from '../../src/sim/world.ts';
 import type { Room, Seat } from './rooms.ts';
-import { GameEventKind } from '../../src/sim/world.ts';
 
 /** Ticks between structural-frame *checks* — a cadence cap, not a schedule:
  * a checked frame identical to the last one sent goes nowhere. */

@@ -23,7 +23,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { audit, type Authored } from './mapAuthor/kit.ts';
-import { MISSION_ORDER, MISSION_DEFS, MissionId } from '../src/sim/defs/missions.ts';
+import { MISSION_ORDER, MISSION_DEFS, MissionId, parseMissionId, MISSION_KEYS } from '../src/sim/defs/missions.ts';
 import { build as clearing } from './mapAuthor/missions/clearing.ts';
 import { build as breadAndWater } from './mapAuthor/missions/breadAndWater.ts';
 import { build as ledger } from './mapAuthor/missions/ledger.ts';
@@ -31,8 +31,6 @@ import { build as hammerAndHaft } from './mapAuthor/missions/hammerAndHaft.ts';
 import { build as levy } from './mapAuthor/missions/levy.ts';
 import { build as holdTheValley } from './mapAuthor/missions/holdTheValley.ts';
 import { build as rivalBanner } from './mapAuthor/missions/rivalBanner.ts';
-import { parseMissionId } from '../src/sim/defs/missions.ts';
-import { MISSION_KEYS } from '../src/sim/defs/missions.ts';
 
 const RECIPES: Record<MissionId, () => Authored> = {
   [MissionId.clearing]: clearing,

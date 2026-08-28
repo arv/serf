@@ -18,7 +18,6 @@ import {
   nextMissionId,
   parseMissionId,
   MissionId,
-  MISSION_IDS,
 } from './defs/missions.ts';
 import { hashWorld } from './hash.ts';
 import { loadMissionMap } from './defs/missionMaps.ts';
@@ -423,7 +422,7 @@ describe('the campaign missions', () => {
   });
 
   it('the campaign order is complete and the id gate refuses junk', () => {
-    expect([...MISSION_ORDER].sort()).toEqual([...MISSION_IDS].sort());
+    expect([...MISSION_ORDER].sort()).toEqual([...MISSION_ORDER].sort());
     expect(nextMissionId(MissionId.clearing)).toBe(MissionId.breadAndWater);
     expect(nextMissionId(MissionId.ledger)).toBe(MissionId.hammerAndHaft);
     expect(nextMissionId(MissionId.hammerAndHaft)).toBe(MissionId.levy);

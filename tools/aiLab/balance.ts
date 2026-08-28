@@ -23,7 +23,7 @@ import {
   AI_STRATEGIES,
   type AiStrategyId,
   AI_STRATEGY_KEYS,
-  AI_STRATEGY_IDS,
+  AI_STRATEGY_ORDER,
 } from '../../src/sim/defs/aiStrategies.ts';
 import { UnitTypeId } from '../../src/sim/defs/units.ts';
 import { BuildingTypeId } from '../../src/sim/defs/buildings.ts';
@@ -117,7 +117,7 @@ const offset = intArg(process.argv[3], 101, 'offset', 0);
 // Strided rather than consecutive: neighbouring seeds can generate valleys
 // that rhyme, and a sweep wants independent maps.
 const seeds = Array.from({ length: count }, (_, i) => offset + i * 7);
-const ids: readonly AiStrategyId[] = AI_STRATEGY_IDS;
+const ids: readonly AiStrategyId[] = AI_STRATEGY_ORDER;
 
 console.log(`${count} seeds from ${offset}, ${MAX_TICKS} ticks each\n`);
 const everyWin: number[] = [];

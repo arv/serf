@@ -41,7 +41,7 @@ import { REPLAY_VERSION } from './replayVersion';
 // enumerates in id order rather than in the order it was written. Both
 // are in replayVersion.ts at length.
 const EXPECTED_VERSION = 33;
-const EXPECTED_HASH = '77786c11f4e631405bbea4600a751441';
+const EXPECTED_HASH = '52679646fc61455567a88129d1dbe082';
 
 /**
  * Everything a replay's playback depends on, as raw source:

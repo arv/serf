@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseReplay } from '../../src/app/replay.ts';
+import { parseReplay, type ReplayData } from '../../src/app/replay.ts';
 import { REPLAY_VERSION } from '../../src/shared/replayVersion.ts';
 import { deserializeWorld, serializeWorld } from '../../src/sim/save.ts';
-import { createWorld } from '../../src/sim/world.ts';
+import { createWorld, MatchState } from '../../src/sim/world.ts';
 import { tickWorld, type PlayerCommand } from '../../src/sim/tick.ts';
-import type { SimCommand } from '../../src/sim/commands.ts';
-import type { ReplayData } from '../../src/app/replay.ts';
+import { type SimCommand, CommandKind } from '../../src/sim/commands.ts';
 import { DEFAULT_MAP_SIZE } from '../../src/shared/grid.ts';
 import {
   TICK_MS,
@@ -20,8 +19,6 @@ import {
 } from './rooms.ts';
 import { roomFromRecord, roomToRecord } from './persist.ts';
 import { BuildingTypeId } from '../../src/sim/defs/buildings.ts';
-import { CommandKind } from '../../src/sim/commands.ts';
-import { MatchState } from '../../src/sim/world.ts';
 
 /** Pump exactly `ticks` ticks, one per call, on the room's own clock. */
 function advance(room: Room, ticks: number): void {

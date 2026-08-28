@@ -13,7 +13,6 @@ import {
   shuffledStrategies,
   strategyOf,
   AiStrategyId,
-  AI_STRATEGY_IDS,
   AI_STRATEGY_KEYS,
 } from './defs/aiStrategies.ts';
 import { TechId } from './defs/techs.ts';
@@ -30,7 +29,7 @@ import { PlayerKind } from './player.ts';
  * regression, and it stays the yardstick this file compares to.)
  */
 
-const IDS: readonly AiStrategyId[] = AI_STRATEGY_IDS;
+const IDS: readonly AiStrategyId[] = AI_STRATEGY_ORDER;
 
 /** Drive one playbook alone on the campaign map, the way its host does. */
 function playCampaign(id: AiStrategyId, maxTicks: number): World {

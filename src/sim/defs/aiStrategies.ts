@@ -768,13 +768,6 @@ export const AI_STRATEGY_KEYS: Readonly<Record<AiStrategyId, string>> = {
   [AiStrategyIdNs.fletcher]: 'fletcher',
 };
 
-export const AI_STRATEGY_IDS: readonly AiStrategyId[] = [
-  AiStrategyIdNs.steward,
-  AiStrategyIdNs.warlord,
-  AiStrategyIdNs.abbot,
-  AiStrategyIdNs.fletcher,
-];
-
 const STRATEGY_BY_KEY = new Map<string, AiStrategyId>(
-  AI_STRATEGY_IDS.map((id) => [AI_STRATEGY_KEYS[id], id]),
+  AI_STRATEGY_ORDER.map((id) => [AI_STRATEGY_KEYS[id], id]),
 );

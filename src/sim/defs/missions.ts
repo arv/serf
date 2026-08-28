@@ -496,14 +496,6 @@ export const MISSION_KEYS: Readonly<Record<MissionId, string>> = {
   [MissionIdNs.rivalBanner]: 'rivalBanner',
 };
 
-export const MISSION_IDS: readonly MissionId[] = [
-  MissionIdNs.clearing,
-  MissionIdNs.breadAndWater,
-  MissionIdNs.ledger,
-  MissionIdNs.hammerAndHaft,
-  MissionIdNs.levy,
-  MissionIdNs.holdTheValley,
-  MissionIdNs.rivalBanner,
-];
-
-const MISSION_BY_KEY = new Map<string, MissionId>(MISSION_IDS.map((id) => [MISSION_KEYS[id], id]));
+const MISSION_BY_KEY = new Map<string, MissionId>(
+  MISSION_ORDER.map((id) => [MISSION_KEYS[id], id]),
+);
