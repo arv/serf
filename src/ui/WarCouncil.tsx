@@ -7,6 +7,7 @@ import {
   type AiStrategyId,
 } from '../sim/defs/aiStrategies';
 import { DiceIcon } from './menuChrome';
+import { PlayerKind } from '../sim/player';
 
 /**
  * The multiplayer waiting room: the start screen's sibling, not its
@@ -30,7 +31,7 @@ export interface CouncilView {
   phase: 'connecting' | 'lobby';
   code: string;
   yourSeat: number;
-  seats: { kind: 'human' | 'ai'; connected: boolean }[];
+  seats: { kind: PlayerKind.human | 'ai'; connected: boolean }[];
   config: LobbyConfig;
 }
 

@@ -31,8 +31,10 @@ const FMT_V2 = 'serf-save-v2';
 export interface SaveMeta {
   /** WORLD_SAVE_VERSION as of the write. */
   world: number;
-  /** The campaign mission this village belongs to; absent in free play. */
-  mission?: MissionId;
+  /** The campaign mission this village belongs to; absent in free play.
+   * Spelled, not numbered: the shelf shows this to a player and the file
+   * is one a person may open, so the head stays readable. */
+  mission?: string;
   /** Computer opponents in the match. */
   opponents?: number;
 }
@@ -120,7 +122,7 @@ export function readSaveMeta(head: string): SaveMeta | undefined {
   if (typeof meta.world !== 'number' || !Number.isInteger(meta.world)) return undefined;
   return {
     world: meta.world,
-    ...(typeof meta.mission === 'string' ? { mission: meta.mission as MissionId } : {}),
+    ...(typeof meta.mission === 'string' ? { mission: meta.mission } : {}),
     ...(typeof meta.opponents === 'number' && Number.isInteger(meta.opponents)
       ? { opponents: meta.opponents }
       : {}),

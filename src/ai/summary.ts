@@ -14,6 +14,7 @@ import { BuildingTypeId } from '../sim/defs/buildings.ts';
 import { BUILDING_KEYS } from '../sim/defs/buildings.ts';
 import { TECH_KEYS } from '../sim/defs/techs.ts';
 import { BuildingState } from '../sim/entities.ts';
+import { AI_STRATEGY_KEYS } from '../sim/defs/aiStrategies.ts';
 
 /**
  * One AI seat's view of the match, folded down for a language model. The
@@ -259,7 +260,7 @@ export function summarizeForSeat(world: World, brain: AiBrain): AiWorldSummary {
     explored: Math.round((exploredTiles / tiles) * 100) / 100,
     seat: {
       id: playerId,
-      strategyId: strategy.id,
+      strategyId: AI_STRATEGY_KEYS[strategy.id],
       knobs: {
         serfTarget: strategy.serfTarget,
         armyAttackSize: strategy.armyAttackSize,

@@ -7,6 +7,7 @@ import { BUILDING_DEFS } from '../sim/defs/buildings.ts';
 import { addSerf, addStorehouse, bareWorld, cmds } from '../sim/testUtils.ts';
 import { UnitTypeId } from '../sim/defs/units.ts';
 import { BuildingTypeId } from '../sim/defs/buildings.ts';
+import { CommandKind } from '../sim/commands.ts';
 
 const CAP = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity;
 
@@ -35,14 +36,14 @@ describe('the tower manning order', () => {
     for (let i = 0; i < CAP; i++) addSerf(world, 33, 33 + i);
     expect(levyOrder(snapBuilding(world, tower))).toEqual({ label: 'Man the tower' });
 
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: false }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: tower.id, paused: false }));
     let guard = 0;
     while ((tower.garrison ?? 0) < CAP && guard++ < 4000) tickWorld(world, []);
     expect(tower.garrison).toBe(CAP);
     expect(tower.garrisonKind).toBe(UnitTypeId.serf);
     expect(levyOrder(snapBuilding(world, tower))).toEqual({ label: 'Stand down' });
 
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: tower.id, paused: true }));
     expect(tower.garrison).toBeUndefined();
   });
 
@@ -58,7 +59,7 @@ describe('the tower manning order', () => {
 
     // Stand it down: the roof empties and the archers are two soldiers
     // standing at the door again, free to march.
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: true }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: tower.id, paused: true }));
     const snap = snapBuilding(world, tower);
     expect(snap.garrison).toBe(0);
     expect(levyOrder(snap)).toEqual({ label: 'Man the tower' });
@@ -73,7 +74,7 @@ describe('the tower manning order', () => {
 
     // Which is the point: "manned" and "stood down" can no longer both be
     // true, so the card can never again say "2/2 archers on the roof · paused".
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: tower.id, paused: false }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: tower.id, paused: false }));
     guard = 0;
     while ((tower.garrison ?? 0) < CAP && guard++ < 4000) tickWorld(world, []);
     const back = snapBuilding(world, tower);

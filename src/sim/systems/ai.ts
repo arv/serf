@@ -23,7 +23,7 @@ import { UNIT_DEFS, WEAPON_OF } from '../defs/units.ts';
 import { addGarrison, classHp, damageEquivalent, shouldCommit, type Force } from '../combatOdds.ts';
 import { HIRE_QUEUE_CAP, HIRE_SERF_COST } from '../defs/balance.ts';
 import { hasRoomToHire, plannedPopCapOf, populationOf } from '../population.ts';
-import type { AiStrategy, BuildAnchor, BuildStep } from '../defs/aiStrategies.ts';
+import type { AiStrategy, BuildStep } from '../defs/aiStrategies.ts';
 import { canPlace, type World } from '../world.ts';
 import { isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
 import { GoodId } from '../defs/goods.ts';
@@ -37,6 +37,10 @@ import { BuildingState } from '../entities.ts';
 import { UnitTaskKind } from '../units.ts';
 import { UnitClass } from '../defs/units.ts';
 import { tallyClass } from '../combatOdds.ts';
+import { CommandKind } from '../commands.ts';
+import { MatchState } from '../world.ts';
+import { BuildAnchor } from '../defs/aiStrategies.ts';
+import { RulePhase } from '../economyRules.ts';
 
 /**
  * The AI opponent's brain: a pure strategic layer that reads a World and
@@ -369,12 +373,12 @@ const MILITARY = new Set<UnitTypeId>([UnitTypeId.knight, UnitTypeId.spearman, Un
 const MIN_SORTIE = 3;
 
 
-const ANCHOR_RESOURCE: Record<Exclude<BuildAnchor, 'base' | 'water'>, number> = {
-  wood: TileResource.Wood,
-  rock: TileResource.Rock,
-  iron: TileResource.IronDep,
-  silver: TileResource.SilverDep,
-  gold: TileResource.GoldDep,
+const ANCHOR_RESOURCE: Partial<Record<BuildAnchor, number>> = {
+  [BuildAnchor.wood]: TileResource.Wood,
+  [BuildAnchor.rock]: TileResource.Rock,
+  [BuildAnchor.iron]: TileResource.IronDep,
+  [BuildAnchor.silver]: TileResource.SilverDep,
+  [BuildAnchor.gold]: TileResource.GoldDep,
 };
 
 export class AiBrain {
@@ -559,7 +563,7 @@ export class AiBrain {
   decide(world: World): SimCommand[] {
     const s = this.#override ? { ...this.strategy, ...this.#override } : this.strategy;
     const p = world.players[this.playerId];
-    if (!p || !p.alive || world.outcome.state !== 'playing') return [];
+    if (!p || !p.alive || world.outcome.state !== MatchState.playing) return [];
     this.#vision.recompute(world, this.playerId);
     const commands: SimCommand[] = [];
     const mine = ownedBuildings(world, this.playerId);
@@ -629,7 +633,7 @@ export class AiBrain {
       if (!affordable(BUILDING_DEFS[step.type].cost, stock)) continue;
       const spot = spotFor(world, step, baseX, baseY);
       if (!spot) continue;
-      commands.push({ kind: 'placeBuilding', building: step.type, x: spot.x, y: spot.y });
+      commands.push({ kind: CommandKind.placeBuilding, building: step.type, x: spot.x, y: spot.y });
       placed = true;
       break; // one placement per decision to keep hauling focused
     }
@@ -650,7 +654,7 @@ export class AiBrain {
       affordable(BUILDING_DEFS[BuildingTypeId.house].cost, stock)
     ) {
       const spot = findSpot(world, BuildingTypeId.house, baseX, baseY);
-      if (spot) commands.push({ kind: 'placeBuilding', building: BuildingTypeId.house, x: spot.x, y: spot.y });
+      if (spot) commands.push({ kind: CommandKind.placeBuilding, building: BuildingTypeId.house, x: spot.x, y: spot.y });
     }
 
     // --- Repairs: patch what the raiders left standing -----------------------
@@ -669,7 +673,7 @@ export class AiBrain {
     if (worst) {
       const bill = repairBill(worst.type, BUILDING_DEFS[worst.type].hp - worst.hp);
       if (affordable(bill, stock)) {
-        commands.push({ kind: 'setBuildingRepair', buildingId: worst.id, repair: true });
+        commands.push({ kind: CommandKind.setBuildingRepair, buildingId: worst.id, repair: true });
       }
     }
 
@@ -707,7 +711,7 @@ export class AiBrain {
     // shows but no longer has.
     let hiring = false;
     if (room && serfCount < s.survivalFloor && (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST) {
-      commands.push({ kind: 'hireSerf' });
+      commands.push({ kind: CommandKind.hireSerf });
       hiring = true;
     } else if (
       room &&
@@ -715,7 +719,7 @@ export class AiBrain {
       serfCount < s.serfTarget &&
       (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST + (researchPending ? reserve : 0)
     ) {
-      commands.push({ kind: 'hireSerf' });
+      commands.push({ kind: CommandKind.hireSerf });
       hiring = true;
     }
 
@@ -742,7 +746,7 @@ export class AiBrain {
       counter: this.#counterPlan(world),
     };
     if (this.#rules.size > 0) {
-      const recovery = runEconomyRules(ruleCtx, this.#rules, 'recovery');
+      const recovery = runEconomyRules(ruleCtx, this.#rules, RulePhase.recovery);
       commands.push(...recovery.commands);
       this.#recoveries += recovery.fired.length;
     }
@@ -780,7 +784,7 @@ export class AiBrain {
           !room ||
           (stock[GoodId.silver] ?? 0) - (hiring ? HIRE_SERF_COST : 0) - (cost[GoodId.silver] ?? 0) >=
             HIRE_SERF_COST;
-        if (ok && leavesHireMoney) commands.push({ kind: 'research', tech: next });
+        if (ok && leavesHireMoney) commands.push({ kind: CommandKind.research, tech: next });
       }
     }
 
@@ -789,7 +793,7 @@ export class AiBrain {
     // earlier, because command order inside a tick is load-bearing: research
     // above spends the same shelf these orders draw on.
     if (this.#rules.size > 0) {
-      commands.push(...runEconomyRules(ruleCtx, this.#rules, 'production').commands);
+      commands.push(...runEconomyRules(ruleCtx, this.#rules, RulePhase.production).commands);
     }
 
     // --- Army: rally at home until strong, then march ------------------------
@@ -864,7 +868,7 @@ export class AiBrain {
       // legs exist for — see scoutLeg). Step due north first; the garrison
       // rally collects the scout from that safe latitude soon enough.
       commands.push({
-        kind: 'moveUnits',
+        kind: CommandKind.moveUnits,
         unitIds: [scout.id],
         x: Math.floor(scout.x),
         y: Math.max(0, Math.floor(scout.y) - GATE_NORTH),
@@ -878,7 +882,7 @@ export class AiBrain {
       this.#lastAttackTick = world.tick;
       this.#armyGrewTick = world.tick;
       commands.push({
-        kind: 'moveUnits',
+        kind: CommandKind.moveUnits,
         unitIds: army.map((u) => u.id),
         x: target.x + 1,
         y: target.y + 1,
@@ -899,7 +903,7 @@ export class AiBrain {
       this.#sweepGoal = -1;
       this.#lastRallyTick = world.tick;
       commands.push({
-        kind: 'moveUnits',
+        kind: CommandKind.moveUnits,
         unitIds: army.map((u) => u.id),
         attack: true,
         x: baseX,
@@ -938,7 +942,7 @@ export class AiBrain {
         if (this.#sweepGoal >= 0) {
           const at = approachPoint(this.#sweepGoal, world.map.size);
           commands.push({
-            kind: 'moveUnits',
+            kind: CommandKind.moveUnits,
             unitIds: party.map((u) => u.id),
             attack: true,
             x: at.x,
@@ -951,7 +955,7 @@ export class AiBrain {
           const strays = garrison.filter((u) => exactDist(u.x - baseX, u.y - baseY) > GARRISON_POST);
           if (strays.length > 0) {
             commands.push({
-              kind: 'moveUnits',
+              kind: CommandKind.moveUnits,
               unitIds: strays.map((u) => u.id),
               attack: true,
               x: baseX,
@@ -1056,7 +1060,7 @@ export class AiBrain {
               this.#clearScoutGoal();
             } else {
               this.#scoutLeg = leg;
-              commands.push({ kind: 'moveUnits', unitIds: [su.id], x: at.x, y: at.y });
+              commands.push({ kind: CommandKind.moveUnits, unitIds: [su.id], x: at.x, y: at.y });
             }
           }
         }
@@ -1067,7 +1071,7 @@ export class AiBrain {
         const idle = army.filter((u) => u.task.t === UnitTaskKind.idle && u.id !== this.#scoutId);
         if (idle.length > 0) {
           commands.push({
-            kind: 'moveUnits',
+            kind: CommandKind.moveUnits,
             unitIds: idle.map((u) => u.id),
             x: baseX,
             y: baseY + 4,
@@ -1317,7 +1321,7 @@ export class AiBrain {
         // wall is for. Staffing picks who actually walks (nearest first);
         // what matters here is that the army is that many men short.
         for (const id of pool.splice(0, spare)) claimed.add(id);
-        if (b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
+        if (b.paused) commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
         continue;
       }
       if (b.garrison && b.garrisonKind !== rule.levy.unit) continue;
@@ -1327,10 +1331,10 @@ export class AiBrain {
       // anyone beats a wall held by nobody while there is something out
       // there to shoot at.
       if (besieged) {
-        if (b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
+        if (b.paused) commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
         continue;
       }
-      if (!b.paused) commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: true });
+      if (!b.paused) commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: true });
     }
     return claimed;
   }
@@ -1615,17 +1619,19 @@ function spotFor(
   baseX: number,
   baseY: number,
 ): { x: number; y: number } | null {
-  if (step.anchor === 'base') return findSpot(world, step.type, baseX, baseY, step.radius);
+  if (step.anchor === BuildAnchor.base) return findSpot(world, step.type, baseX, baseY, step.radius);
   // The shore is terrain, not a resource seam, so it gets its own search.
   // A map with no water near home simply never places the step, and the
   // brain moves on down the list — which is the right answer, not a stall.
-  if (step.anchor === 'water') {
+  if (step.anchor === BuildAnchor.water) {
     const shore = nearestWater(world, baseX, baseY);
     if (shore < 0) return null;
     const size = world.map.size;
     return findSpot(world, step.type, tileX(shore, size), tileY(shore, size), step.radius);
   }
-  const tile = nearestResource(world.map, ANCHOR_RESOURCE[step.anchor], baseX, baseY);
+  const code = ANCHOR_RESOURCE[step.anchor];
+  if (code === undefined) return null; // the keep anchor sites off the castle, not a seam
+  const tile = nearestResource(world.map, code, baseX, baseY);
   if (tile < 0) return null;
   const size = world.map.size;
   return findSpot(world, step.type, tileX(tile, size), tileY(tile, size), step.radius);

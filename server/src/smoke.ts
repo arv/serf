@@ -13,12 +13,13 @@
 import { createWorld } from '../../src/sim/world.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
 import { checkInvariants, checkLedger, countGoods } from '../../src/sim/debug/invariants.ts';
+import { PlayerKind } from '../../src/sim/player.ts';
 
 const TICKS = 1000;
 
 const world = createWorld({
   seed: 7,
-  players: [{ kind: 'human' }, { kind: 'ai' }],
+  players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
   adminEnabled: false,
   banditsEnabled: true,
 });

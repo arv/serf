@@ -18,6 +18,8 @@ import type { NetInfo } from '../protocol/messages';
 import type { Screen } from './screen';
 import { clearFatal, fatal, fatalFrom, showFatal } from './fatalScreen';
 import { stashGet, stashSet } from './stash';
+import { playerKindFromKey } from '../sim/player';
+import { PlayerKind } from '../sim/player';
 
 /**
  * The app's entry point: the boot handshake, and the router that decides
@@ -472,7 +474,7 @@ async function startNetMatch(lobby: LobbyResult): Promise<Screen> {
   return runMatch(
     {
       ...configFromUrl(location.search),
-      players: lobby.seats,
+      players: lobby.seats.map((s) => ({ kind: playerKindFromKey(s.kind) ?? PlayerKind.human })),
       myPlayerId: lobby.myPlayerId,
       adminEnabled: false,
     },

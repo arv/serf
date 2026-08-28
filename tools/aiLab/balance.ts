@@ -22,6 +22,10 @@ import { AiBrain } from '../../src/sim/systems/ai.ts';
 import { AI_STRATEGIES, type AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
 import { UnitTypeId } from '../../src/sim/defs/units.ts';
 import { BuildingTypeId } from '../../src/sim/defs/buildings.ts';
+import { PlayerKind } from '../../src/sim/player.ts';
+import { MatchState } from '../../src/sim/world.ts';
+import { AI_STRATEGY_KEYS } from '../../src/sim/defs/aiStrategies.ts';
+import { AI_STRATEGY_IDS } from '../../src/sim/defs/aiStrategies.ts';
 
 /** Long enough that a seat which is going to win has, and a stalled one is
  * visibly stalled rather than merely slow. */
@@ -50,10 +54,10 @@ function playCampaign(id: AiStrategyId, seed: number): Run {
   // itself is a trap for whatever reads it next. Safe for the numbers:
   // dealStrategies is a pure function of the seed and runs before the
   // world's Rng is constructed, so naming a playbook cannot move the map.
-  const world = createWorld({ seed, players: [{ kind: 'ai', strategy: id }] });
+  const world = createWorld({ seed, players: [{ kind: PlayerKind.ai, strategy: id }] });
   const brain = new AiBrain(0, AI_STRATEGIES[id], world.map.size);
   let levyTicks = 0;
-  for (let t = 0; t < MAX_TICKS && world.outcome.state === 'playing'; t++) {
+  for (let t = 0; t < MAX_TICKS && world.outcome.state === MatchState.playing; t++) {
     const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     tickWorld(
       world,
@@ -73,7 +77,7 @@ function playCampaign(id: AiStrategyId, seed: number): Run {
   const state = world.outcome.state;
   const winner = (world.outcome as { winner?: number }).winner;
   return {
-    outcome: state === 'playing' ? 'timeout' : winner === 0 ? 'win' : 'dead',
+    outcome: state === MatchState.playing ? 'timeout' : winner === 0 ? 'win' : 'dead',
     tick: world.tick,
     towers: towers.length,
     manned: towers.filter((b) => (b.garrison ?? 0) > 0).length,
@@ -111,7 +115,7 @@ const offset = intArg(process.argv[3], 101, 'offset', 0);
 // Strided rather than consecutive: neighbouring seeds can generate valleys
 // that rhyme, and a sweep wants independent maps.
 const seeds = Array.from({ length: count }, (_, i) => offset + i * 7);
-const ids = Object.keys(AI_STRATEGIES) as AiStrategyId[];
+const ids: readonly AiStrategyId[] = AI_STRATEGY_IDS;
 
 console.log(`${count} seeds from ${offset}, ${MAX_TICKS} ticks each\n`);
 const everyWin: number[] = [];
@@ -124,7 +128,7 @@ for (const id of ids) {
   wins += won.length;
   runs += res.length;
   console.log(
-    `${id.padEnd(9)} win ${String(won.length).padStart(2)}/${res.length}` +
+    `${AI_STRATEGY_KEYS[id].padEnd(9)} win ${String(won.length).padStart(2)}/${res.length}` +
       `  median ${String(median(won.map((r) => r.tick))).padStart(6)}` +
       `  dead ${res.filter((r) => r.outcome === 'dead').length}` +
       `  timeout ${res.filter((r) => r.outcome === 'timeout').length}` +

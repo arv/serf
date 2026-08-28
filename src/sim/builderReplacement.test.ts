@@ -6,6 +6,7 @@ import { addBuiltHut, addSerf, addSite, addStorehouse, bareWorld, cmds } from '.
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingState } from './entities.ts';
+import { CommandKind } from './commands.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -91,7 +92,7 @@ describe('the pause escape hatch', () => {
     expect((site.siteNeeds?.[GoodId.wood] ?? 0)).toBeGreaterThan(0);
 
     // The player halts one hut, which hands its worker back.
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: huts[0]!.id, paused: true }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: huts[0]!.id, paused: true }));
     expect(huts[0]!.workerId).toBeUndefined();
 
     // With no further orders he hauls the materials, then — because sites
@@ -108,14 +109,14 @@ describe('the pause escape hatch', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
     const hut = addBuiltHut(world, 25, 30);
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: true }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: hut.id, paused: true }));
     run(world, 1200);
     expect(hut.workerId).toBeUndefined();
     expect(hut.recruitId).toBeUndefined();
     expect(checkInvariants(world).violations).toEqual([]);
 
     // Starting it again is what asks for a worker back.
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: false }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: hut.id, paused: false }));
     let guard = 0;
     while (hut.workerId === undefined && guard++ < 2000) tickWorld(world, []);
     expect(hut.workerId).toBeDefined();
@@ -132,7 +133,7 @@ describe('the pause escape hatch', () => {
     while (site.recruitId === undefined && guard++ < 2000) tickWorld(world, []);
     expect(site.recruitId).toBeDefined();
     const walker = world.units.get(site.recruitId!)!;
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: true }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: site.id, paused: true }));
     run(world, 600);
     // He reached the door and was sent away, rather than binding to a post
     // the player had just emptied on purpose.
@@ -149,7 +150,7 @@ describe('the pause escape hatch', () => {
     const worker = hut.workerId;
     expect(worker).toBeDefined();
     tickWorld(world, [
-      { playerId: 1, cmd: { kind: 'setBuildingPaused', buildingId: hut.id, paused: true } },
+      { playerId: 1, cmd: { kind: CommandKind.setBuildingPaused, buildingId: hut.id, paused: true } },
     ]);
     expect(hut.paused).toBeUndefined();
     expect(hut.workerId).toBe(worker); // player 1 cannot fire player 0's people

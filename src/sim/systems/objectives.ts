@@ -7,6 +7,9 @@ import type { Owner } from '../entities.ts';
 import type { World } from '../world.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
 import { BuildingState } from '../entities.ts';
+import { CommandKind } from '../commands.ts';
+import { GameEventKind } from '../world.ts';
+import { ObjectiveKind } from '../defs/missions.ts';
 
 /**
  * Mission objectives: stateless predicates over the world, latched into
@@ -16,14 +19,14 @@ import { BuildingState } from '../entities.ts';
 
 export function objectiveMet(world: World, spec: ObjectiveSpec, player: Owner): boolean {
   switch (spec.kind) {
-    case 'building': {
+    case ObjectiveKind.building: {
       let n = 0;
       for (const b of world.buildings.values()) {
         if (!b.dead && b.state === BuildingState.built && b.owner === player && b.type === spec.type) n++;
       }
       return n >= spec.count;
     }
-    case 'stock': {
+    case ObjectiveKind.stock: {
       // Storehouse stock — what the resource bar shows. Goods in workshop
       // buffers or serfs' hands don't count until they come home.
       let n = 0;
@@ -34,18 +37,18 @@ export function objectiveMet(world: World, spec: ObjectiveSpec, player: Owner): 
       }
       return n >= spec.amount;
     }
-    case 'research':
+    case ObjectiveKind.research:
       return world.players[player]?.techs.researched.includes(spec.tech) ?? false;
-    case 'population':
+    case ObjectiveKind.population:
       return populationOf(world, player) >= spec.count;
-    case 'soldiers': {
+    case ObjectiveKind.soldiers: {
       let n = 0;
       for (const u of world.units.values()) {
         if (!u.dead && u.owner === player && UNIT_DEFS[u.kind].combat) n++;
       }
       return n >= spec.count;
     }
-    case 'razeCamp': {
+    case ObjectiveKind.razeCamp: {
       if (!world.banditsEnabled) return false; // a campless sandbox never auto-wins
       for (const b of world.buildings.values()) {
         if (!b.dead && b.type === BuildingTypeId.banditCamp) return false;
@@ -70,7 +73,7 @@ export function latchObjectives(world: World): boolean {
     if (done[i]) continue;
     if (objectiveMet(world, mission.objectives[i]!.spec, 0)) {
       done[i] = true;
-      world.pendingEvents.push({ kind: 'objectiveComplete', index: i, player: 0 });
+      world.pendingEvents.push({ kind: GameEventKind.objectiveComplete, index: i, player: 0 });
     } else {
       all = false;
     }

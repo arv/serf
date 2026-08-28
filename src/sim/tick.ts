@@ -29,12 +29,14 @@ import { CORPSE_TICKS, FORGE_QUEUE_CAP, HIRE_QUEUE_CAP, HIRE_SERF_COST } from '.
 import { TECH_DEFS } from './defs/techs.ts';
 import { canResearch, isBuildingUnlocked } from './techHelpers.ts';
 import { hasRoomToHire } from './population.ts';
-import type { AdminAction, SimCommand } from './commands.ts';
+import type { SimCommand } from './commands.ts';
 import { GoodId } from './defs/goods.ts';
 import { goodEntries } from './defs/goods.ts';
 import { UNIT_TYPES } from './defs/units.ts';
 import { BuildingState } from './entities.ts';
 import { UnitTaskKind } from './units.ts';
+import { CommandKind } from './commands.ts';
+import { AdminAction } from './commands.ts';
 
 export { TICKS_PER_SECOND, TICK_MS } from './defs/balance.ts';
 
@@ -98,10 +100,10 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
   const player = world.players[playerId];
   if (!player || !player.alive) return; // eliminated players spectate
   switch (cmd.kind) {
-    case 'moveUnits':
+    case CommandKind.moveUnits:
       applyMoveUnits(world, playerId, cmd);
       break;
-    case 'placeBuilding':
+    case CommandKind.placeBuilding:
       if (
         !buildingDef(cmd.building).systemOnly &&
         // Storehouses are the elimination token — never buildable.
@@ -112,17 +114,17 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
         placeSite(world, cmd.building, playerId, cmd.x, cmd.y);
       }
       break;
-    case 'trainUnit': {
+    case CommandKind.trainUnit: {
       const b = world.buildings.get(cmd.buildingId);
       if (b && b.owner === playerId) enqueueTraining(world, b, cmd.unit);
       break;
     }
-    case 'cancelTraining': {
+    case CommandKind.cancelTraining: {
       const b = world.buildings.get(cmd.buildingId);
       if (b && !b.dead && b.owner === playerId) cancelTraining(world, b, cmd.index, cmd.unit);
       break;
     }
-    case 'setRallyPoint': {
+    case CommandKind.setRallyPoint: {
       // The barracks' muster flag: fresh soldiers march to it as they step
       // out of the door. Only buildings that train take one — a flag on a
       // bakery would be an order nothing ever reads. The tile is checked
@@ -146,10 +148,10 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       b.rally = { x: cmd.x, y: cmd.y };
       break;
     }
-    case 'admin':
+    case CommandKind.admin:
       if (world.admin.enabled) applyAdmin(world, playerId, cmd.action);
       break;
-    case 'research': {
+    case CommandKind.research: {
       if (!canResearch(world, playerId, cmd.tech).ok) break;
       const sh = findStorehouse(world, playerId);
       const cost = TECH_DEFS[cmd.tech].cost;
@@ -165,7 +167,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       player.techs.active = { tech: cmd.tech, ticksLeft: TECH_DEFS[cmd.tech].durationTicks };
       break;
     }
-    case 'setBuildingPaused': {
+    case CommandKind.setBuildingPaused: {
       // Halt the workshop without breaking it up: production, input hauls
       // and construction progress stop, and any finished stock still
       // evacuates. The lever for 'the bowyer is eating all my wood'.
@@ -198,7 +200,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       if (cmd.paused && def.garrison) evictGarrison(world, b, b.garrison ?? 0);
       break;
     }
-    case 'setBuildingRepair': {
+    case CommandKind.setBuildingRepair: {
       // Mend the walls: the building calls for materials like a site and
       // heals as they arrive. The bill is struck against the damage it has
       // right now, so a building that keeps taking hits is ordered again
@@ -209,7 +211,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       else cancelRepair(world, b);
       break;
     }
-    case 'setBuildingRecipe': {
+    case CommandKind.setBuildingRecipe: {
       // The forge's standing order: what the Smith works on when its queue
       // is empty. AUTO_RECIPE (-1) clears it — the Smith forges whatever
       // tool the village most lacks. Gated per option (bows need archery,
@@ -232,7 +234,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       b.recipeIndex = cmd.index;
       break;
     }
-    case 'enqueueForge': {
+    case CommandKind.enqueueForge: {
       // A forge order jumps the standing order: the queue is worked first,
       // batch by batch, then the Smith falls back to recipeIndex/auto.
       // Nothing is paid at enqueue — inputs are consumed at batch start,
@@ -252,7 +254,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       b.forgeQueue.push({ recipeIndex: cmd.recipeIndex, started: false });
       break;
     }
-    case 'cancelForge': {
+    case CommandKind.cancelForge: {
       // Both the slot and what the player thinks is in it (cancelTraining's
       // rule): a stale click after the queue shifted must miss rather than
       // cancel a neighbour. A started batch is not refunded — it finishes
@@ -271,7 +273,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       if (b.forgeQueue.length === 0) b.forgeQueue = undefined;
       break;
     }
-    case 'sellBuilding': {
+    case CommandKind.sellBuilding: {
       // Tear a building down for half its cost back, floored per good.
       // Sites refund half of what was actually delivered. The resident
       // walks out a serf again before the wrecking starts — demolition is
@@ -325,7 +327,7 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
       destroyBuilding(world, b);
       break;
     }
-    case 'hireSerf': {
+    case CommandKind.hireSerf: {
       // Pay now, arrive later: the recruit is summoned, not conjured. The
       // hiring system walks the queue down and drops them at the door.
       // A recruit already on the road holds their bed, so ordering five at
@@ -348,15 +350,15 @@ export function applyCommand(world: World, playerId: Owner, cmd: SimCommand): vo
 
 function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
   switch (action) {
-    case 'toggleRaids':
+    case AdminAction.toggleRaids:
       world.admin.raidsEnabled = !world.admin.raidsEnabled;
       break;
-    case 'clearBandits':
+    case AdminAction.clearBandits:
       for (const unit of world.units.values()) {
         if (unit.owner === BANDIT) killUnit(world, unit);
       }
       break;
-    case 'grantGoods': {
+    case AdminAction.grantGoods: {
       const sh = findStorehouse(world, playerId);
       if (!sh) break;
       for (const good of GOODS) {
@@ -366,15 +368,15 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
       }
       break;
     }
-    case 'toggleInstantBuild':
+    case AdminAction.toggleInstantBuild:
       world.admin.instantBuild = !world.admin.instantBuild;
       break;
-    case 'finishResearch': {
+    case AdminAction.finishResearch: {
       const active = world.players[playerId]?.techs.active;
       if (active) active.ticksLeft = 1;
       break;
     }
-    case 'spawnParade': {
+    case AdminAction.spawnParade: {
       // One of each unit kind by the storehouse door — a visual test rig for
       // wardrobe and animation work. Issuer-owned so nobody starts a war.
       const sh = findStorehouse(world, playerId);

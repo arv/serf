@@ -38,6 +38,7 @@ import {
 import { GoodId } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
+import { CommandKind } from '../sim/commands';
 
 const CANVAS_W = 800;
 const CANVAS_H = 600;
@@ -771,7 +772,7 @@ describe('right-click orders', () => {
     // marched around the keep onto the open ground on its far side.
     h.order(roof);
 
-    expect(h.commands.at(-1)).toMatchObject({ kind: 'moveUnits', ...KEEP_TILE });
+    expect(h.commands.at(-1)).toMatchObject({ kind: CommandKind.moveUnits, ...KEEP_TILE });
   });
 
   it('reads the roof pixel as the keep even though the ground there is not', () => {
@@ -830,7 +831,7 @@ describe('right-click orders', () => {
     expect(h.hoverAt(grass)).toBe(-1);
     h.order(grass);
 
-    expect(h.commands.at(-1)).toMatchObject({ kind: 'moveUnits', x: 11, y: 17 });
+    expect(h.commands.at(-1)).toMatchObject({ kind: CommandKind.moveUnits, x: 11, y: 17 });
   });
 });
 

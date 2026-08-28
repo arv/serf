@@ -10,6 +10,7 @@ import {
   type TileResourceKind,
 } from './map.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { PlayerKind } from './player.ts';
 
 /**
  * The fairness contract for generated maps: every faction has its own wood,
@@ -70,7 +71,7 @@ function amountNear(
 function makeWorld(seed: number, players: number): World {
   return createWorld({
     seed,
-    players: Array.from({ length: players }, () => ({ kind: 'human' as const })),
+    players: Array.from({ length: players }, () => ({ kind: PlayerKind.human })),
   });
 }
 

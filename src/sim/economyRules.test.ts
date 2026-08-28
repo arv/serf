@@ -4,10 +4,12 @@ import {
   ECONOMY_RULES,
   runEconomyRules,
   type EconomyRule,
-  type EconomyRuleId,
+  EconomyRuleId,
   type RuleContext,
 } from './economyRules.ts';
 import type { SimCommand } from './commands.ts';
+import { CommandKind } from './commands.ts';
+import { RulePhase } from './economyRules.ts';
 
 /**
  * The rules themselves are covered where they can be seen working — against
@@ -19,15 +21,22 @@ import type { SimCommand } from './commands.ts';
 const ctx = {} as RuleContext;
 const all = new Set<EconomyRuleId>(ALL_ECONOMY_RULES);
 
+/** Three real rule ids, standing in as 'a', 'b' and 'c' did while an id was
+ * a free-form string. Which three does not matter — the table machinery
+ * only ever compares them. */
+const A = EconomyRuleId.resiteExtractor;
+const B = EconomyRuleId.freeCappedHauler;
+const C = EconomyRuleId.resumeDrainedPost;
+
 /** A stand-in rule: fires unconditionally, claims what it is told to. */
-function stub(id: string, claims: number[], group?: string): EconomyRule {
+function stub(id: EconomyRuleId, claims: number[], group?: string): EconomyRule {
   return {
-    id: id as EconomyRuleId,
+    id,
     when: 'always, for the test',
-    phase: 'recovery',
+    phase: RulePhase.recovery,
     ...(group !== undefined ? { group } : {}),
     fire: () => ({
-      commands: [{ kind: 'sellBuilding', buildingId: claims[0] ?? 0 } as SimCommand],
+      commands: [{ kind: CommandKind.sellBuilding, buildingId: claims[0] ?? 0 } as SimCommand],
       claims,
     }),
   };
@@ -37,7 +46,7 @@ function stub(id: string, claims: number[], group?: string): EconomyRule {
  * exercises `runEconomyRules` rather than a second copy of its logic. */
 function runTable(table: EconomyRule[], enabled?: EconomyRuleId[]) {
   const on = new Set<EconomyRuleId>((enabled ?? table.map((r) => r.id)) as EconomyRuleId[]);
-  return runEconomyRules(ctx, on, 'recovery', table);
+  return runEconomyRules(ctx, on, RulePhase.recovery, table);
 }
 
 describe('the rule table', () => {
@@ -58,58 +67,61 @@ describe('the rule table', () => {
   it('runs only the phase it is asked for', () => {
     // Phases exist because command order inside a tick is load-bearing, so a
     // rule leaking into the wrong one is a real bug, not a tidiness issue.
-    const table = [stub('a', [1]), { ...stub('b', [2]), phase: 'production' as const }];
-    expect(runTable(table).fired).toEqual(['a']);
+    const table = [
+      stub(A, [1]),
+      { ...stub(B, [2]), phase: RulePhase.production },
+    ];
+    expect(runTable(table).fired).toEqual([A]);
   });
 });
 
 describe('composition', () => {
   it('lets rules in different groups answer the same beat', () => {
     // The point of the layer: a cascade would have run only the first.
-    const { fired } = runTable([stub('a', [1]), stub('b', [2])]);
-    expect(fired).toEqual(['a', 'b']);
+    const { fired } = runTable([stub(A, [1]), stub(B, [2])]);
+    expect(fired).toEqual([A, B]);
   });
 
   it('keeps one rule per group, so alternatives stay alternatives', () => {
     // How the two stall-recovery rules keep the first-wins behaviour they
     // were measured with.
-    const { fired } = runTable([stub('a', [1], 'g'), stub('b', [2], 'g'), stub('c', [3])]);
-    expect(fired).toEqual(['a', 'c']);
+    const { fired } = runTable([stub(A, [1], 'g'), stub(B, [2], 'g'), stub(C, [3])]);
+    expect(fired).toEqual([A, C]);
   });
 
   it('will not let two rules order the same building in one beat', () => {
-    const { fired } = runTable([stub('a', [7]), stub('b', [7])]);
-    expect(fired).toEqual(['a']);
+    const { fired } = runTable([stub(A, [7]), stub(B, [7])]);
+    expect(fired).toEqual([A]);
   });
 
   it('yields only the conflicting rule, not the ones after it', () => {
-    const { fired } = runTable([stub('a', [7]), stub('b', [7]), stub('c', [9])]);
-    expect(fired).toEqual(['a', 'c']);
+    const { fired } = runTable([stub(A, [7]), stub(B, [7]), stub(C, [9])]);
+    expect(fired).toEqual([A, C]);
   });
 
   it('orders commands by the table, not by when a rule happened to fire', () => {
-    const { commands } = runTable([stub('a', [1]), stub('b', [2])]);
-    expect(commands.map((c) => (c.kind === 'sellBuilding' ? c.buildingId : -1))).toEqual([1, 2]);
+    const { commands } = runTable([stub(A, [1]), stub(B, [2])]);
+    expect(commands.map((c) => (c.kind === CommandKind.sellBuilding ? c.buildingId : -1))).toEqual([1, 2]);
   });
 });
 
 describe('the ablation handle', () => {
   it('runs nothing at all when the set is empty', () => {
-    const out = runEconomyRules({ ...ctx, stalled: true } as RuleContext, new Set(), 'recovery');
+    const out = runEconomyRules({ ...ctx, stalled: true } as RuleContext, new Set(), RulePhase.recovery);
     expect(out.commands).toEqual([]);
     expect(out.fired).toEqual([]);
   });
 
   it('runs only what it is given', () => {
-    const { fired } = runTable([stub('a', [1]), stub('b', [2])], ['b' as EconomyRuleId]);
-    expect(fired).toEqual(['b']);
+    const { fired } = runTable([stub(A, [1]), stub(B, [2])], [B]);
+    expect(fired).toEqual([B]);
   });
 
   it('reports which rules fired, so a null result is diagnosable', () => {
     // A rule that never fires and a rule that fires without helping produce
     // the same win rate — telling them apart is what this is for.
-    const { fired } = runTable([stub('a', [1], 'g'), stub('b', [2], 'g')]);
-    expect(fired).toEqual(['a']);
+    const { fired } = runTable([stub(A, [1], 'g'), stub(B, [2], 'g')]);
+    expect(fired).toEqual([A]);
   });
 });
 
@@ -133,7 +145,7 @@ describe('the real rules stay quiet on a healthy seat', () => {
     // never taken apart for a hauler, and its barracks is never stood down.
     // Which side of THAT gate a reading falls on is covered against a real
     // world in ai.test.ts, where there are buildings to order around.
-    expect(runEconomyRules(healthy, all, 'recovery').fired).toEqual([]);
-    expect(runEconomyRules(healthy, all, 'production').fired).toEqual([]);
+    expect(runEconomyRules(healthy, all, RulePhase.recovery).fired).toEqual([]);
+    expect(runEconomyRules(healthy, all, RulePhase.production).fired).toEqual([]);
   });
 });

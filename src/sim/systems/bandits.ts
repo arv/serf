@@ -5,6 +5,8 @@ import { Rng } from '../../shared/rng.ts';
 import { UnitTypeId } from '../defs/units.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
 import { UnitTaskKind } from '../units.ts';
+import { GameEventKind } from '../world.ts';
+import { MatchState } from '../world.ts';
 
 /**
  * Escalating raids: waves grow and diversify (light -> +ranged -> +heavy) so
@@ -12,7 +14,7 @@ import { UnitTaskKind } from '../units.ts';
  * — has to answer. The wave preview event lets the UI warn with composition.
  */
 export function banditsSystem(world: World, rng: Rng): void {
-  if (world.outcome.state !== 'playing' || !world.admin.raidsEnabled) return;
+  if (world.outcome.state !== MatchState.playing || !world.admin.raidsEnabled) return;
   if (world.tick < world.raidState.nextRaidTick) return;
 
   const camp = findCamp(world);
@@ -57,7 +59,7 @@ export function banditsSystem(world: World, rng: Rng): void {
   };
   const text = [...counts.entries()].map(([k, n]) => `${n} ${names[k] ?? k}`).join(', ');
   world.pendingEvents.push({
-    kind: 'raidIncoming',
+    kind: GameEventKind.raidIncoming,
     text: `${text} approaching!`,
     player: target.owner,
   });

@@ -17,6 +17,8 @@ import { summarize, type LayoutRun, type SeedRun } from './stats.ts';
 import { parseStrategyId, AI_STRATEGY_ORDER } from '../../src/sim/defs/aiStrategies.ts';
 import type { Owner } from '../../src/sim/entities.ts';
 import type { WorkerTask } from './matchWorker.ts';
+import { economyRuleFromKey } from '../../src/sim/economyRules.ts';
+import { ECONOMY_RULE_KEYS } from '../../src/sim/economyRules.ts';
 
 /**
  * The bake-off: does putting a model in the strategist's seat beat not
@@ -229,12 +231,15 @@ export function parseArgs(argv: string[]): Options {
         ? []
         : rulesRaw.split(',').map((id) => {
             const trimmed = id.trim();
-            if (!(ALL_ECONOMY_RULES as readonly string[]).includes(trimmed)) {
+            const rule = economyRuleFromKey(trimmed);
+            if (rule === undefined) {
               throw new Error(
-                `--rules does not know "${trimmed}" (have: ${ALL_ECONOMY_RULES.join(', ')})`,
+                `--rules does not know "${trimmed}" (have: ${ALL_ECONOMY_RULES.map(
+                  (r) => ECONOMY_RULE_KEYS[r],
+                ).join(', ')})`,
               );
             }
-            return trimmed as EconomyRuleId;
+            return rule;
           });
 
   const timeoutRaw = get('--timeout-ms');

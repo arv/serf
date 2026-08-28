@@ -16,6 +16,16 @@ import { goodEntries } from './defs/goods.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { BuildingState } from './entities.ts';
 import { UnitTaskKind } from './units.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as EconomyRuleIdNs from './economyRuleIdEnum.ts';
+
+export * as EconomyRuleId from './economyRuleIdEnum.ts';
+export type EconomyRuleId = Enum<typeof EconomyRuleIdNs>;
+import * as RulePhaseNs from './rulePhaseEnum.ts';
+import { CommandKind } from './commands.ts';
+
+export * as RulePhase from './rulePhaseEnum.ts';
+export type RulePhase = Enum<typeof RulePhaseNs>;
 
 /**
  * The seat's economy as a set of named rules instead of a cascade.
@@ -56,15 +66,6 @@ import { UnitTaskKind } from './units.ts';
  * order, and nothing here reads a clock or an RNG.
  */
 
-export type EconomyRuleId =
-  | 'resiteExtractor'
-  | 'freeCappedHauler'
-  | 'resumeDrainedPost'
-  | 'keepTheToolsComing'
-  | 'forgeTheCounter'
-  | 'holdTheGlutForge'
-  | 'handsBeforeSoldiers'
-  | 'keepTheQueueWarm';
 
 /**
  * Where in a beat a rule runs.
@@ -75,7 +76,6 @@ export type EconomyRuleId =
  * brain already emitted from, so rules keep firing exactly where the code
  * they came from did.
  */
-export type RulePhase = 'recovery' | 'production';
 
 /** What a rule reads. Assembled once per beat by the brain and handed to
  * every rule, so no rule can quietly widen what it depends on. */
@@ -154,9 +154,9 @@ export interface EconomyRule {
  * does not support.
  */
 const resiteExtractor: EconomyRule = {
-  id: 'resiteExtractor',
+  id: EconomyRuleIdNs.resiteExtractor,
   when: 'a gatherer has exhausted everything inside its radius',
-  phase: 'recovery',
+  phase: RulePhaseNs.recovery,
   group: 'stallRecovery',
   fire(ctx) {
     if (!ctx.stalled) return null;
@@ -174,7 +174,7 @@ const resiteExtractor: EconomyRule = {
         ([good, n]) => (ctx.stock[good] ?? 0) + Math.floor(n / 2) >= n,
       );
       if (!canRebuild) continue;
-      return { commands: [{ kind: 'sellBuilding', buildingId: b.id }], claims: [b.id] };
+      return { commands: [{ kind: CommandKind.sellBuilding, buildingId: b.id }], claims: [b.id] };
     }
     return null;
   },
@@ -268,9 +268,9 @@ const resiteExtractor: EconomyRule = {
  * visit often, and the rules that answer it were unreachable.
  */
 const freeCappedHauler: EconomyRule = {
-  id: 'freeCappedHauler',
+  id: EconomyRuleIdNs.freeCappedHauler,
   when: 'the village is short of hands and a post is sitting at its output cap',
-  phase: 'recovery',
+  phase: RulePhaseNs.recovery,
   group: 'stallRecovery',
   fire(ctx) {
     if (ctx.serfCount >= ctx.strategy.survivalFloor) return null;
@@ -281,7 +281,7 @@ const freeCappedHauler: EconomyRule = {
       const worker = ctx.world.units.get(b.workerId);
       if (!worker || worker.dead || worker.task.t !== UnitTaskKind.idle) continue;
       return {
-        commands: [{ kind: 'setBuildingPaused', buildingId: b.id, paused: true }],
+        commands: [{ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: true }],
         claims: [b.id],
       };
     }
@@ -307,9 +307,9 @@ const freeCappedHauler: EconomyRule = {
  * keep steering the same anvil's standing work in the same beat.
  */
 const keepTheToolsComing: EconomyRule = {
-  id: 'keepTheToolsComing',
+  id: EconomyRuleIdNs.keepTheToolsComing,
   when: 'a post stands open for a tool nobody has made and nobody has ordered',
-  phase: 'production',
+  phase: RulePhaseNs.production,
   fire(ctx) {
     // Halted anvils included, and that is what makes this rule the tool
     // line's guarantee rather than a best effort: `holdTheGlutForge` below
@@ -359,7 +359,7 @@ const keepTheToolsComing: EconomyRule = {
       if (holder) {
         if (holder.paused !== true) continue;
         return {
-          commands: [{ kind: 'setBuildingPaused', buildingId: holder.id, paused: false }],
+          commands: [{ kind: CommandKind.setBuildingPaused, buildingId: holder.id, paused: false }],
           claims: [holder.id],
         };
       }
@@ -376,10 +376,10 @@ const keepTheToolsComing: EconomyRule = {
       // open in one beat is the exact collision claims exist to settle.
       const claims: EntityId[] = [];
       if (smith.paused === true) {
-        commands.push({ kind: 'setBuildingPaused', buildingId: smith.id, paused: false });
+        commands.push({ kind: CommandKind.setBuildingPaused, buildingId: smith.id, paused: false });
         claims.push(smith.id);
       }
-      commands.push({ kind: 'enqueueForge', buildingId: smith.id, recipeIndex: index });
+      commands.push({ kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: index });
       return { commands, claims };
     }
     return null;
@@ -405,9 +405,9 @@ const keepTheToolsComing: EconomyRule = {
  * the towers `#manTowers` stands down are never restarted from here.
  */
 const resumeDrainedPost: EconomyRule = {
-  id: 'resumeDrainedPost',
+  id: EconomyRuleIdNs.resumeDrainedPost,
   when: 'a post paused to free its hand has shipped the last of its pile',
-  phase: 'recovery',
+  phase: RulePhaseNs.recovery,
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
@@ -415,7 +415,7 @@ const resumeDrainedPost: EconomyRule = {
       if (b.state !== BuildingState.built || !b.paused) continue;
       const out = gatherRecipeOf(BUILDING_DEFS[b.type as BuildingTypeId])?.output;
       if (out === undefined || (b.stock[out] ?? 0) > 0) continue;
-      commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
+      commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
       claims.push(b.id);
     }
     return commands.length > 0 ? { commands, claims } : null;
@@ -435,9 +435,9 @@ const resumeDrainedPost: EconomyRule = {
  * forge in the same beat.
  */
 const forgeTheCounter: EconomyRule = {
-  id: 'forgeTheCounter',
+  id: EconomyRuleIdNs.forgeTheCounter,
   when: 'a forge is set to something other than what this seat should be making',
-  phase: 'production',
+  phase: RulePhaseNs.production,
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
@@ -454,7 +454,7 @@ const forgeTheCounter: EconomyRule = {
       if (!option) return;
       if (option.requiresTech !== undefined && !ctx.researched(option.requiresTech)) return;
       if (smith.recipeIndex !== want) {
-        commands.push({ kind: 'setBuildingRecipe', buildingId: smith.id, index: want });
+        commands.push({ kind: CommandKind.setBuildingRecipe, buildingId: smith.id, index: want });
         claims.push(smith.id);
       }
     });
@@ -568,9 +568,9 @@ const FORGE_GLUT_CLEAR = 4;
  * making.
  */
 const holdTheGlutForge: EconomyRule = {
-  id: 'holdTheGlutForge',
+  id: EconomyRuleIdNs.holdTheGlutForge,
   when: 'a forge is spending the village\'s wood on a weapon nobody is claiming',
-  phase: 'production',
+  phase: RulePhaseNs.production,
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
@@ -584,13 +584,13 @@ const holdTheGlutForge: EconomyRule = {
       for (const good of goodKeys(recipe.outputs)) shelf += ctx.stock[good] ?? 0;
       if (b.paused === true) {
         if (shelf > FORGE_GLUT_CLEAR) continue;
-        commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: false });
+        commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: false });
         claims.push(b.id);
         continue;
       }
       if (shelf <= FORGE_GLUT) continue;
       if ((b.forgeQueue?.length ?? 0) > 0) continue;
-      commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: true });
+      commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: true });
       claims.push(b.id);
     }
     return commands.length > 0 ? { commands, claims } : null;
@@ -658,9 +658,9 @@ const holdTheGlutForge: EconomyRule = {
  * this rule is standing down in the same beat.
  */
 const handsBeforeSoldiers: EconomyRule = {
-  id: 'handsBeforeSoldiers',
+  id: EconomyRuleIdNs.handsBeforeSoldiers,
   when: 'the raid took the hands: the barracks waits until the village has serfs again',
-  phase: 'production',
+  phase: RulePhaseNs.production,
   fire(ctx) {
     const commands: SimCommand[] = [];
     const claims: EntityId[] = [];
@@ -681,7 +681,7 @@ const handsBeforeSoldiers: EconomyRule = {
       // for the whole match.
       if (!want && !halted) continue;
       if (want !== halted) {
-        commands.push({ kind: 'setBuildingPaused', buildingId: b.id, paused: want });
+        commands.push({ kind: CommandKind.setBuildingPaused, buildingId: b.id, paused: want });
       }
       // Claimed on every beat the hold stands, order or no order: the pause
       // is sent once and the claim is what keeps the queue from being
@@ -709,9 +709,9 @@ const handsBeforeSoldiers: EconomyRule = {
  * in reach must hold its place in line rather than clear it.
  */
 const keepTheQueueWarm: EconomyRule = {
-  id: 'keepTheQueueWarm',
+  id: EconomyRuleIdNs.keepTheQueueWarm,
   when: 'the barracks queue is short, or stuck behind a weapon nobody can make',
-  phase: 'production',
+  phase: RulePhaseNs.production,
   fire(ctx) {
     const barracks = ctx.mine.find((b) => b.type === BuildingTypeId.barracks && b.state === BuildingState.built);
     if (!barracks) return null;
@@ -755,7 +755,7 @@ const keepTheQueueWarm: EconomyRule = {
       });
       if (staleIdx >= 0) {
         commands.push({
-          kind: 'cancelTraining',
+          kind: CommandKind.cancelTraining,
           buildingId: barracks.id,
           index: staleIdx,
           unit: barracks.trainQueue![staleIdx]!.unit,
@@ -768,7 +768,7 @@ const keepTheQueueWarm: EconomyRule = {
       order !== undefined &&
       (barracks.trainQueue?.length ?? 0) - cancelled < ctx.strategy.barracksQueueDepth
     ) {
-      commands.push({ kind: 'trainUnit', buildingId: barracks.id, unit: order });
+      commands.push({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: order });
     }
     return commands.length > 0 ? { commands, claims: [barracks.id] } : null;
   },
@@ -827,4 +827,24 @@ export function runEconomyRules(
     fired.push(rule.id);
   }
   return { commands, fired };
+}
+
+/** The spelling of each rule id, for the lab's --rules flag and its traces. */
+export const ECONOMY_RULE_KEYS: Readonly<Record<EconomyRuleId, string>> = {
+  [EconomyRuleIdNs.resiteExtractor]: 'resiteExtractor',
+  [EconomyRuleIdNs.freeCappedHauler]: 'freeCappedHauler',
+  [EconomyRuleIdNs.resumeDrainedPost]: 'resumeDrainedPost',
+  [EconomyRuleIdNs.keepTheToolsComing]: 'keepTheToolsComing',
+  [EconomyRuleIdNs.forgeTheCounter]: 'forgeTheCounter',
+  [EconomyRuleIdNs.holdTheGlutForge]: 'holdTheGlutForge',
+  [EconomyRuleIdNs.handsBeforeSoldiers]: 'handsBeforeSoldiers',
+  [EconomyRuleIdNs.keepTheQueueWarm]: 'keepTheQueueWarm',
+};
+
+const ECONOMY_RULE_BY_KEY = new Map<string, EconomyRuleId>(
+  ALL_ECONOMY_RULES.map((id) => [ECONOMY_RULE_KEYS[id], id]),
+);
+
+export function economyRuleFromKey(key: string): EconomyRuleId | undefined {
+  return ECONOMY_RULE_BY_KEY.get(key);
 }

@@ -40,6 +40,15 @@ import { BuildingTypeId } from './defs/buildings.ts';
 import type { Enum } from '../shared/enum.ts';
 import * as HaulPhaseNs from './haulPhaseEnum.ts';
 import { BuildingState } from './entities.ts';
+import * as GameEventKindNs from './gameEventKindEnum.ts';
+
+export * as GameEventKind from './gameEventKindEnum.ts';
+export type GameEventKind = Enum<typeof GameEventKindNs>;
+import * as MatchStateNs from './matchStateEnum.ts';
+import { PlayerKind } from './player.ts';
+
+export * as MatchState from './matchStateEnum.ts';
+export type MatchState = Enum<typeof MatchStateNs>;
 
 export * as HaulPhase from './haulPhaseEnum.ts';
 export type HaulPhase = Enum<typeof HaulPhaseNs>;
@@ -122,9 +131,9 @@ export interface World {
 }
 
 export type MatchOutcome =
-  | { state: 'playing' }
+  | { state: MatchStateNs.playing }
   /** winner null = the last player fell too (solo loss / mutual destruction). */
-  | { state: 'over'; winner: Owner | null };
+  | { state: MatchStateNs.over; winner: Owner | null };
 
 export interface AdminState {
   /** Admin commands are honored at all (set once at world creation, so every
@@ -137,13 +146,13 @@ export interface AdminState {
 }
 
 export type GameEvent =
-  | { kind: 'raidIncoming'; text: string; player: Owner }
-  | { kind: 'playerEliminated'; player: Owner }
-  | { kind: 'gameOver'; winner: Owner | null }
-  | { kind: 'objectiveComplete'; index: number; player: Owner }
+  | { kind: GameEventKindNs.raidIncoming; text: string; player: Owner }
+  | { kind: GameEventKindNs.playerEliminated; player: Owner }
+  | { kind: GameEventKindNs.gameOver; winner: Owner | null }
+  | { kind: GameEventKindNs.objectiveComplete; index: number; player: Owner }
   /** A player's building or unit lost hp. One event per strike, addressed
    * to the victim's owner; the client aggregates them into alerts. */
-  | { kind: 'damage'; player: Owner; x: number; y: number; building: boolean };
+  | { kind: GameEventKindNs.damage; player: Owner; x: number; y: number; building: boolean };
 
 export interface TechState {
   researched: TechId[];
@@ -166,7 +175,7 @@ export interface WorldConfig {
   seed: number;
   /** 1..4 seats; index = playerId. An AI seat may name the playbook it
    * wants; the ones that don't are dealt from the seed. */
-  players: { kind: 'human' | 'ai'; strategy?: AiStrategyId }[];
+  players: { kind: PlayerKind; strategy?: AiStrategyId }[];
   /** Admin (cheat) commands honored. Default true — networked games pass false. */
   adminEnabled?: boolean;
   /** Bandits exist. Default true; false places no camp, no guards, and
@@ -298,7 +307,7 @@ export async function createWorldAsync(config: WorldConfig): Promise<World> {
 export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: MapFile): World {
   const config: WorldConfig =
     typeof seedOrConfig === 'number'
-      ? { seed: seedOrConfig, players: [{ kind: 'human' }] }
+      ? { seed: seedOrConfig, players: [{ kind: PlayerKind.human }] }
       : seedOrConfig;
   const seed = config.seed | 0;
   const mission = config.mission ? MISSION_DEFS[config.mission] : undefined;
@@ -360,7 +369,7 @@ export function createWorld(seedOrConfig: number | WorldConfig, missionMap?: Map
       instantBuild: false,
     },
     pendingEvents: [],
-    outcome: { state: 'playing' },
+    outcome: { state: MatchStateNs.playing },
     banditsEnabled: config.banditsEnabled ?? true,
   };
 

@@ -2,6 +2,7 @@ import { createSignal } from 'solid-js';
 import type { CouncilHooks, CouncilView } from '../ui/WarCouncil';
 import { sanitizeLobbyConfig, defaultLobbyConfig, type LobbyConfig } from '../protocol/lobby';
 import type { NetInfo } from '../protocol/messages';
+import { PlayerKind } from '../sim/player';
 
 /**
  * Main-thread lobby flow: a short-lived JSON WebSocket for room setup. On
@@ -21,7 +22,7 @@ import type { NetInfo } from '../protocol/messages';
 
 export interface LobbyResult {
   net: NetInfo;
-  seats: { kind: 'human' | 'ai' }[];
+  seats: { kind: PlayerKind.human | 'ai' }[];
   myPlayerId: number;
 }
 
@@ -118,7 +119,7 @@ interface RoomMsg {
   t: 'room';
   code: string;
   yourSeat: number;
-  seats: { kind: 'human' | 'ai'; connected: boolean }[];
+  seats: { kind: PlayerKind.human | 'ai'; connected: boolean }[];
   config?: unknown;
 }
 
@@ -139,7 +140,7 @@ interface SeatStash {
   code: string;
   token: string;
   playerId: number;
-  seats: { kind: 'human' | 'ai' }[];
+  seats: { kind: PlayerKind.human | 'ai' }[];
 }
 
 /**
@@ -286,9 +287,9 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
             t: 'begin';
             playerId: number;
             token: string;
-            seats: { kind: 'human' | 'ai' }[];
+            seats: { kind: PlayerKind.human | 'ai' }[];
           }
-        | { t: 'rejoined'; playerId: number; seats: { kind: 'human' | 'ai' }[] }
+        | { t: 'rejoined'; playerId: number; seats: { kind: PlayerKind.human | 'ai' }[] }
         | { t: 'error'; message: string }
         | { t: 'peer' };
       if (msg.t === 'rejoined' && stash) {

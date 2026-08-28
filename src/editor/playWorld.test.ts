@@ -11,6 +11,8 @@ import { createBlankMap } from './editorMap.ts';
 import { worldFromEditor } from './playWorld.ts';
 import { UnitTypeId } from '../sim/defs/units.ts';
 import { BuildingTypeId } from '../sim/defs/buildings.ts';
+import { PlayerKind } from '../sim/player.ts';
+import { MatchState } from '../sim/world.ts';
 
 function authoredState() {
   // play 64 -> grid 112, play region [24, 88).
@@ -29,7 +31,7 @@ function authoredState() {
 
 const PLAY = {
   seed: 12345,
-  players: [{ kind: 'human' as const }, { kind: 'ai' as const }],
+  players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
   banditsEnabled: true,
 };
 
@@ -88,7 +90,7 @@ describe('worldFromEditor', () => {
     expect(back.buildings.size).toBe(world.buildings.size);
     expect(back.units.size).toBe(world.units.size);
     expect(back.players).toHaveLength(2);
-    expect(back.players[1]!.kind).toBe('ai');
+    expect(back.players[1]!.kind).toBe(PlayerKind.ai);
   });
 
   it('ticks cleanly: 200 ticks with no invariant violations', () => {
@@ -96,12 +98,12 @@ describe('worldFromEditor', () => {
     for (let t = 0; t < 200; t++) tickWorld(world, []);
     expect(checkInvariants(world).violations).toEqual([]);
     expect(world.tick).toBe(200);
-    expect(world.outcome.state).toBe('playing');
+    expect(world.outcome.state).toBe(MatchState.playing);
   });
 
   it('refuses a seat count that does not match the map', () => {
     expect(() =>
-      worldFromEditor(authoredState(), { ...PLAY, players: [{ kind: 'human' }] }),
+      worldFromEditor(authoredState(), { ...PLAY, players: [{ kind: PlayerKind.human }] }),
     ).toThrow(/seat/);
   });
 
@@ -122,7 +124,7 @@ describe('worldFromEditor', () => {
       }
     }
     recomputeBlocked(state.map);
-    const solo = { seed: 7, players: [{ kind: 'human' as const }], banditsEnabled: true };
+    const solo = { seed: 7, players: [{ kind: PlayerKind.human }], banditsEnabled: true };
     expect(() => worldFromEditor(state, solo)).toThrow(/bandit camp/);
     // The same map is a fine peaceful sandbox.
     const world = worldFromEditor(state, { ...solo, banditsEnabled: false });

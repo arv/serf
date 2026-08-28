@@ -13,10 +13,13 @@ import {
 } from './map.ts';
 import { parseMapData, type AuthoredMap } from './mapFile.ts';
 import { loadMissionMap } from './defs/missionMaps.ts';
-import { MISSION_DEFS, MISSION_ORDER, type MissionId } from './defs/missions.ts';
+import { MISSION_DEFS, MISSION_ORDER } from './defs/missions.ts';
 import { canPlace } from './world.ts';
 import { BUILDING_DEFS } from './defs/buildings.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { MissionId } from './defs/missions.ts';
+import { ObjectiveKind } from './defs/missions.ts';
+import { MISSION_KEYS } from './defs/missions.ts';
 
 /**
  * The campaign's ground is authored (tools/mapAuthor/), and this is what
@@ -191,7 +194,7 @@ describe('the campaign’s authored ground', () => {
     const def = MISSION_DEFS[id];
     const { map, starts } = await mapFor(id);
     const wanted = new Set<BuildingTypeId>();
-    for (const o of def.objectives) if (o.spec.kind === 'building') wanted.add(o.spec.type);
+    for (const o of def.objectives) if (o.spec.kind === ObjectiveKind.building) wanted.add(o.spec.type);
     for (const spec of def.prebuilt ?? []) wanted.add(spec.type);
     for (const type of wanted) {
       if (!BUILDING_DEFS[type].mine) continue;
@@ -204,7 +207,7 @@ describe('the campaign’s authored ground', () => {
   });
 
   it('the rival banner is exactly symmetric under the half turn', async () => {
-    const { map, starts } = await mapFor('rivalBanner');
+    const { map, starts } = await mapFor(MissionId.rivalBanner);
     expect(starts.length).toBe(2);
     // Inside the rim only: a border draws its own wobble around the
     // perimeter and is scenery either way. The band's deepest reach is
@@ -242,13 +245,13 @@ describe('the campaign’s authored ground', () => {
       const { map } = await mapFor(id);
       return map.resource.some((r, i) => r === code && inPlayArea(map, tileX(i, map.size), tileY(i, map.size)));
     };
-    for (const id of ['clearing', 'hammerAndHaft'] as const) {
-      expect(await has(id, TileResource.SilverDep), `${id}: silver`).toBe(false);
-      expect(await has(id, TileResource.GoldDep), `${id}: gold`).toBe(false);
+    for (const id of [MissionId.clearing, MissionId.hammerAndHaft]) {
+      expect(await has(id, TileResource.SilverDep), `${MISSION_KEYS[id]}: silver`).toBe(false);
+      expect(await has(id, TileResource.GoldDep), `${MISSION_KEYS[id]}: gold`).toBe(false);
     }
     // Every later mission has silver: it is what hands are hired with.
-    for (const id of ['ledger', 'levy', 'holdTheValley', 'rivalBanner'] as const) {
-      expect(await has(id, TileResource.SilverDep), `${id}: silver`).toBe(true);
+    for (const id of [MissionId.ledger, MissionId.levy, MissionId.holdTheValley, MissionId.rivalBanner]) {
+      expect(await has(id, TileResource.SilverDep), `${MISSION_KEYS[id]}: silver`).toBe(true);
     }
   });
 

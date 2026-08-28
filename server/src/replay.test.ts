@@ -20,6 +20,8 @@ import {
 } from './rooms.ts';
 import { roomFromRecord, roomToRecord } from './persist.ts';
 import { BuildingTypeId } from '../../src/sim/defs/buildings.ts';
+import { CommandKind } from '../../src/sim/commands.ts';
+import { MatchState } from '../../src/sim/world.ts';
 
 /** Pump exactly `ticks` ticks, one per call, on the room's own clock. */
 function advance(room: Room, ticks: number): void {
@@ -75,10 +77,10 @@ describe('server replay recording', () => {
     // still undecided — victory waits for a single banner.
     room.world!.players[fallen.playerId]!.alive = false;
     advance(room, 10);
-    expect(room.world!.outcome.state).toBe('playing');
+    expect(room.world!.outcome.state).toBe(MatchState.playing);
     expect(replayFor(room, fallen)).toBeNull();
     // Decided: now every seat may take its copy home, the fallen included.
-    room.world!.outcome = { state: 'over', winner: winner.playerId };
+    room.world!.outcome = { state: MatchState.over, winner: winner.playerId };
     expect(replayFor(room, fallen)).not.toBeNull();
     expect(replayFor(room, winner)).not.toBeNull();
   });
@@ -89,16 +91,16 @@ describe('server replay recording', () => {
     startMatch(room);
 
     advance(room, 50);
-    order(room, seat, { kind: 'hireSerf' });
+    order(room, seat, { kind: CommandKind.hireSerf });
     advance(room, 100);
-    order(room, seat, { kind: 'moveUnits', unitIds: [7, 8], x: 20, y: 20 });
-    order(room, seat, { kind: 'placeBuilding', building: BuildingTypeId.well, x: 30, y: 30 });
+    order(room, seat, { kind: CommandKind.moveUnits, unitIds: [7, 8], x: 20, y: 20 });
+    order(room, seat, { kind: CommandKind.placeBuilding, building: BuildingTypeId.well, x: 30, y: 30 });
     advance(room, 250);
 
     const expected = serializeWorld(room.world!);
     // The gate wants a decided match; the test decides it by fiat. Captured
     // `expected` first — playback cannot know about this mutation.
-    room.world!.outcome = { state: 'over', winner: 0 };
+    room.world!.outcome = { state: MatchState.over, winner: 0 };
 
     const data = replayFor(room, seat)!;
     expect(data).not.toBeNull();
@@ -118,7 +120,7 @@ describe('server replay recording', () => {
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 60);
-    order(room, seat, { kind: 'hireSerf' });
+    order(room, seat, { kind: CommandKind.hireSerf });
     advance(room, 60);
 
     // Deploy under the same version: the log rides the snapshot and keeps
@@ -130,11 +132,11 @@ describe('server replay recording', () => {
 
     const seat2 = revived.seats[0]!;
     advance(revived, 40);
-    order(revived, seat2, { kind: 'moveUnits', unitIds: [3], x: 10, y: 12 });
+    order(revived, seat2, { kind: CommandKind.moveUnits, unitIds: [3], x: 10, y: 12 });
     advance(revived, 100);
 
     const expected = serializeWorld(revived.world!);
-    revived.world!.outcome = { state: 'over', winner: 0 };
+    revived.world!.outcome = { state: MatchState.over, winner: 0 };
 
     const replay = parseReplay(replayFor(revived, seat2)!)!;
     // From the very beginning: pre-restore commands are in the log too.
@@ -149,7 +151,7 @@ describe('server replay recording', () => {
     const seat = addSeat(room, 'human', null);
     startMatch(room);
     advance(room, 80);
-    order(room, seat, { kind: 'hireSerf' });
+    order(room, seat, { kind: CommandKind.hireSerf });
     advance(room, 40);
 
     const record = roomToRecord(room)!;
@@ -166,7 +168,7 @@ describe('server replay recording', () => {
     const seat2 = revived.seats[0]!;
     advance(revived, 120);
     const expected = serializeWorld(revived.world!);
-    revived.world!.outcome = { state: 'over', winner: 0 };
+    revived.world!.outcome = { state: MatchState.over, winner: 0 };
 
     const replay = parseReplay(replayFor(revived, seat2)!)!;
     expect(replay.loadData).toBe(record.world);

@@ -7,6 +7,7 @@ import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { BuildingState } from './entities.ts';
+import { CommandKind } from './commands.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -28,7 +29,7 @@ describe('pausing a building', () => {
     const worker = world.units.get(smith.workerId!)!;
     addSerf(world, 33, 33);
 
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: smith.id, paused: true }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: smith.id, paused: true }));
     // The post empties on the order itself: the hand is loose again.
     expect(smith.workerId).toBeUndefined();
     expect(worker.kind).toBe(UnitTypeId.serf);
@@ -44,7 +45,7 @@ describe('pausing a building', () => {
     expect(checkInvariants(world).violations).toEqual([]);
 
     // Unpause: a worker is recruited, materials flow and spears come out.
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: smith.id, paused: false }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: smith.id, paused: false }));
     let guard = 0;
     while ((smith.stock[GoodId.spear] ?? 0) === 0 && guard++ < 4000) tickWorld(world, []);
     expect(smith.workerId).toBeDefined();
@@ -57,13 +58,13 @@ describe('pausing a building', () => {
     addStorehouse(world, 30, 30, { [GoodId.wood]: 20 });
     const site = addSite(world, 36, 30);
     for (let i = 0; i < 3; i++) addSerf(world, 32, 33 + i);
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: true }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: site.id, paused: true }));
     run(world, 800);
     expect(site.state).toBe(BuildingState.site);
     expect(site.buildProgress ?? 0).toBe(0);
     expect(site.workerId).toBeUndefined();
 
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: false }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: site.id, paused: false }));
     let guard = 0;
     while (site.state !== BuildingState.built && guard++ < 6000) tickWorld(world, []);
     expect(site.state).toBe(BuildingState.built);
@@ -87,7 +88,7 @@ describe('pausing a building', () => {
     while (site.workerId === undefined && guard++ < 6000) tickWorld(world, []);
     expect(site.workerId).toBeDefined();
 
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: true }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: site.id, paused: true }));
     expect(site.workerId).toBeUndefined(); // the order released the hand
     run(world, 800);
     expect(site.state).toBe(BuildingState.site);
@@ -96,7 +97,7 @@ describe('pausing a building', () => {
     expect(site.recruitId).toBeUndefined();
     expect(checkInvariants(world).violations).toEqual([]);
 
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: site.id, paused: false }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: site.id, paused: false }));
     guard = 0;
     while (site.state !== BuildingState.built && guard++ < 8000) tickWorld(world, []);
     expect(site.state).toBe(BuildingState.built);
@@ -108,7 +109,7 @@ describe('pausing a building', () => {
     const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 36, 30);
     smith.recipeIndex = 0; // pinned on spears (default is auto)
     tickWorld(world, [
-      { playerId: 1, cmd: { kind: 'setBuildingPaused', buildingId: smith.id, paused: true } },
+      { playerId: 1, cmd: { kind: CommandKind.setBuildingPaused, buildingId: smith.id, paused: true } },
     ]);
     expect(smith.paused).toBeUndefined();
   });

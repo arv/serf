@@ -12,6 +12,7 @@ import type { BuildingTypeId } from '../sim/defs/buildings';
 import type { BuildingSnap, JobSnap, OutcomeSnap, PlayerSnap, TechSnap } from '../protocol/messages';
 import { play, setAudioMuted, setAudioVolume } from '../audio/audio';
 import { audioFromUrl, loadAudioPrefs, saveAudioPrefs, volumeToGain } from '../audio/settings';
+import { MatchState } from '../sim/world';
 
 /**
  * Main-thread UI state. Worker structural updates write into this; Solid
@@ -206,7 +207,7 @@ export function dismissToast(id: number): void {
 }
 
 /** Match outcome (drives the end screen). */
-export const [outcome, setOutcome] = createSignal<OutcomeSnap>({ state: 'playing' });
+export const [outcome, setOutcome] = createSignal<OutcomeSnap>({ state: MatchState.playing });
 
 /** Sandbox switches, mirrored from the sim (?admin panel). */
 export const [adminState, setAdminState] = createSignal({
@@ -390,7 +391,7 @@ export function resetMatchState(): void {
   setSelectedBuilding(null);
   setToasts([]);
   setLastAlert(null);
-  setOutcome({ state: 'playing' });
+  setOutcome({ state: MatchState.playing });
   setAdminState({ enabled: true, raidsEnabled: true, instantBuild: false });
   setLlmStatus(null);
   setDebugOpen(false);

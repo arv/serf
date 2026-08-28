@@ -8,6 +8,9 @@ import { strategyOf } from '../sim/defs/aiStrategies.ts';
 import { summarizeForSeat } from './summary.ts';
 import { BuildingTypeId } from '../sim/defs/buildings.ts';
 import { BUILDING_KEYS } from '../sim/defs/buildings.ts';
+import { MatchState } from '../sim/world.ts';
+import { AiStrategyId } from '../sim/defs/aiStrategies.ts';
+import { PlayerKind } from '../sim/player.ts';
 
 /**
  * The summary is the strategist's only eyes, and the brain it serves plays
@@ -22,14 +25,14 @@ import { BUILDING_KEYS } from '../sim/defs/buildings.ts';
 function playedWorld(ticks: number): { world: World; brains: AiBrain[] } {
   const world = createWorld({
     seed: 11,
-    players: [{ kind: 'ai', strategy: 'steward' }, { kind: 'ai', strategy: 'warlord' }],
+    players: [{ kind: PlayerKind.ai, strategy: AiStrategyId.steward }, { kind: PlayerKind.ai, strategy: AiStrategyId.warlord }],
     // What is under test is the summary's shape and budget, at the tempo
     // its tick horizons were written for — the classic 64 map keeps these
     // sims inside vitest's default timeout. Map scale has its own tests.
     mapSize: 64,
   });
   const brains = world.players.map((p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
-  for (let t = 0; t < ticks && world.outcome.state === 'playing'; t++) {
+  for (let t = 0; t < ticks && world.outcome.state === MatchState.playing; t++) {
     const commands: PlayerCommand[] = [];
     for (const brain of brains) {
       if (!brain.shouldDecide(world.tick)) continue;
@@ -48,7 +51,7 @@ describe('summarizeForSeat', () => {
     expect(summary.tick).toBe(world.tick);
     expect(summary.minutes).toBe(Math.round(world.tick / 1200)); // 20 Hz
     expect(summary.seat).toMatchObject({ id: 0, strategyId: 'steward' });
-    expect(summary.seat.knobs.armyAttackSize).toBe(strategyOf('steward').armyAttackSize);
+    expect(summary.seat.knobs.armyAttackSize).toBe(strategyOf(AiStrategyId.steward).armyAttackSize);
 
     // Own counts agree with a straight scan — a seat always knows itself.
     const myBuildings = [...world.buildings.values()].filter((b) => !b.dead && b.owner === 0);

@@ -14,6 +14,8 @@ import type { EconomyRuleId } from '../../src/sim/economyRules.ts';
 import type { LabEngine } from './engines.ts';
 import { UnitTypeId } from '../../src/sim/defs/units.ts';
 import { BuildingState } from '../../src/sim/entities.ts';
+import { PlayerKind } from '../../src/sim/player.ts';
+import { MatchState } from '../../src/sim/world.ts';
 
 /**
  * One headless match, played the way the game plays it.
@@ -195,8 +197,8 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
   const world = createWorld({
     seed: cfg.seed,
     players: [
-      { kind: 'ai', strategy: cfg.strategies[0] },
-      { kind: 'ai', strategy: cfg.strategies[1] },
+      { kind: PlayerKind.ai, strategy: cfg.strategies[0] },
+      { kind: PlayerKind.ai, strategy: cfg.strategies[1] },
     ],
     banditsEnabled: cfg.bandits,
     mapSize: cfg.mapSize,
@@ -297,7 +299,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     seats.seatIds().map((id, i) => [id, cfg.advicePeriod + i * cfg.adviceStagger]),
   );
 
-  for (let t = 0; t < cfg.maxTicks && world.outcome.state === 'playing'; t++) {
+  for (let t = 0; t < cfg.maxTicks && world.outcome.state === MatchState.playing; t++) {
     // Advice due this tick lands before the brains think, so a seat acts on
     // it the same tick the game would have.
     while (pending.length > 0 && pending[0]!.dueTick <= world.tick) {
@@ -345,7 +347,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
   // records without an appliedTick, which is exactly what happened.
   for (const strategist of strategists.values()) strategist.dispose();
 
-  const decided = world.outcome.state === 'over';
+  const decided = world.outcome.state === MatchState.over;
   return {
     seed: cfg.seed,
     mapSize: cfg.mapSize,

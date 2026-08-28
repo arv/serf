@@ -3,6 +3,8 @@ import type { EntityId, Owner } from '../sim/entities.ts';
 import type { AiStrategy } from '../sim/defs/aiStrategies.ts';
 import type { UnitTypeId } from '../sim/defs/units.ts';
 import type { BuildingState } from '../sim/entities.ts';
+import type { MatchOutcome } from '../sim/world.ts';
+import type { PlayerKind } from '../sim/player.ts';
 import type { HaulPhase } from '../sim/world.ts';
 import type { BuildingTypeId } from '../sim/defs/buildings.ts';
 import type { GoodAmounts, GoodId } from '../sim/defs/goods.ts';
@@ -23,7 +25,7 @@ export interface TechSnap {
 /** Per-player faction block; the main thread picks its own by myPlayerId. */
 export interface PlayerSnap {
   id: Owner;
-  kind: 'human' | 'ai';
+  kind: PlayerKind;
   alive: boolean;
   /** This player's storehouse stock ({} once eliminated). */
   stock: GoodAmounts;
@@ -37,7 +39,9 @@ export interface PlayerSnap {
   popCap: number;
 }
 
-export type OutcomeSnap = { state: 'playing' } | { state: 'over'; winner: Owner | null };
+/** The match outcome as the client mirror sees it — the sim's own type,
+ * which serializes as-is now that the state is a number. */
+export type OutcomeSnap = MatchOutcome;
 
 /** Serializable snapshot of a building for the main thread's mirror. */
 export interface BuildingSnap {

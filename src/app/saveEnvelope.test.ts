@@ -9,6 +9,8 @@ import {
   splitSave,
   unpackExplored,
 } from './saveEnvelope';
+import { MissionId } from '../sim/defs/missions';
+import { MISSION_KEYS } from '../sim/defs/missions';
 
 const TILES = tileCount(DEFAULT_MAP_SIZE);
 
@@ -65,12 +67,12 @@ describe('the metadata head', () => {
     // The world is the megabyte; the head is what a listing reads, so it
     // has to be complete well inside the slice the shelf takes.
     const raw = envelopeSave(JSON.stringify({ big: 'x'.repeat(4000) }), explored, {
-      mission: 'clearing',
+      mission: MISSION_KEYS[MissionId.clearing],
       opponents: 2,
     });
     expect(readSaveMeta(raw.slice(0, 512))).toEqual({
       world: WORLD_SAVE_VERSION,
-      mission: 'clearing',
+      mission: MISSION_KEYS[MissionId.clearing],
       opponents: 2,
     });
   });

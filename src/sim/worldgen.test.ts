@@ -7,6 +7,7 @@ import { START_SERFS } from './defs/balance.ts';
 import { tickWorld } from './tick.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { PlayerKind } from './player.ts';
 
 /** 4-connected grass reachability between two tiles. */
 function reachable(map: { size: number; terrain: Uint8Array }, from: number, to: number): boolean {
@@ -42,7 +43,7 @@ describe('N-player worldgen', () => {
       for (const seed of [1, 42, 20260724]) {
         const world = createWorld({
           seed,
-          players: Array.from({ length: n }, () => ({ kind: 'human' as const })),
+          players: Array.from({ length: n }, () => ({ kind: PlayerKind.human })),
         });
         const storehouses = [...world.buildings.values()].filter((b) => b.type === BuildingTypeId.storehouse);
         expect(storehouses.length).toBe(n);
@@ -82,7 +83,7 @@ describe('N-player worldgen', () => {
   }
 
   it('deterministic: same config twice gives identical maps', () => {
-    const config = { seed: 7, players: [{ kind: 'human' as const }, { kind: 'human' as const }] };
+    const config = { seed: 7, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.human }] };
     const a = createWorld(config);
     const b = createWorld(config);
     expect([...a.map.terrain]).toEqual([...b.map.terrain]);

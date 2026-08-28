@@ -6,6 +6,7 @@ import { addStorehouse, bareWorld } from './testUtils.ts';
 import type { World } from './world.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { AiStrategyId } from './defs/aiStrategies.ts';
 
 /**
  * The intelligence picture: what a seat knows about a rival, and how it
@@ -26,7 +27,7 @@ function watchWorld(): { world: World; brain: AiBrain } {
   addStorehouse(world, 44, 30, {}, 1);
   spawnUnit(world, UnitTypeId.knight, 0, 42.5, 30.5); // our scout, lighting their yard
   world.tick = 1000;
-  return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size) };
+  return { world, brain: new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size) };
 }
 
 function picture(brain: AiBrain): ReturnType<AiBrain['intelReport']>[number] | undefined {

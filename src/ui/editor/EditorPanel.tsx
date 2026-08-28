@@ -34,6 +34,7 @@ import {
   viewMode,
 } from '../../editor/uiState.ts';
 import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE, marginFor } from '../../shared/grid.ts';
+import { PlayerKind } from '../../sim/player.ts';
 
 /**
  * The editor's whole DOM overlay: tool palette on the left, the session
@@ -494,7 +495,7 @@ function PlayDialog(props: { actions: EditorActions }) {
             props.actions.play({
               seed: Number.isFinite(parsed) ? parsed : 1,
               players: Array.from({ length: seats }, (_, i) =>
-                i === 0 ? { kind: 'human' as const } : { kind: 'ai' as const },
+                i === 0 ? { kind: PlayerKind.human } : { kind: PlayerKind.ai },
               ),
               banditsEnabled: bandits(),
             });

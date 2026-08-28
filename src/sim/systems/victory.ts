@@ -4,6 +4,8 @@ import type { Owner } from '../entities.ts';
 import type { World } from '../world.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
 import { BuildingState } from '../entities.ts';
+import { GameEventKind } from '../world.ts';
+import { MatchState } from '../world.ts';
 
 /**
  * Elimination and match end. A player whose storehouse falls is out; the
@@ -19,7 +21,7 @@ import { BuildingState } from '../entities.ts';
  * elimination rules.
  */
 export function victorySystem(world: World): void {
-  if (world.outcome.state !== 'playing') return;
+  if (world.outcome.state !== MatchState.playing) return;
 
   // One pass over the buildings replaces a full scan per player per tick.
   const hasStorehouse = new Set<Owner>();
@@ -32,7 +34,7 @@ export function victorySystem(world: World): void {
     if (!p.alive) continue;
     if (!hasStorehouse.has(p.id)) {
       p.alive = false;
-      world.pendingEvents.push({ kind: 'playerEliminated', player: p.id });
+      world.pendingEvents.push({ kind: GameEventKind.playerEliminated, player: p.id });
     }
   }
 
@@ -66,6 +68,6 @@ export function victorySystem(world: World): void {
 }
 
 function endMatch(world: World, winner: Owner | null): void {
-  world.outcome = { state: 'over', winner };
-  world.pendingEvents.push({ kind: 'gameOver', winner });
+  world.outcome = { state: MatchState.over, winner };
+  world.pendingEvents.push({ kind: GameEventKind.gameOver, winner });
 }

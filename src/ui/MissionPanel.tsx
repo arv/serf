@@ -4,6 +4,7 @@ import { MISSION_HINTS } from './hints';
 import { hintsHidden, setHintsHidden } from './campaign';
 import { briefingOpen, mission, setBriefingOpen, speed } from './store';
 import { COMPACT } from './breakpoints';
+import { MissionId } from '../sim/defs/missions';
 
 /**
  * The campaign's HUD: the briefing card a mission opens on, the standing
@@ -164,7 +165,7 @@ export function MissionPanel(props: { onSpeed: (speed: number) => void }) {
 }
 
 /** The next commission, for the end card. */
-export function continueTarget(): { id: string; title: string } | undefined {
+export function continueTarget(): { id: MissionId; title: string } | undefined {
   const m = mission();
   if (!m) return undefined;
   const next = nextMissionId(m.id);

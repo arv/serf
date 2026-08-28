@@ -10,6 +10,7 @@ import {
   type LlmStatus,
 } from './strategist.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
+import { PlayerKind } from '../sim/player.ts';
 
 /**
  * The engine-adapter and warmModel tests go through the strategist's real
@@ -120,7 +121,7 @@ vi.mock('@wllama/wllama/esm/wasm/wllama.wasm?url', () => ({ default: 'wllama.was
  */
 
 function testSummary(): AiWorldSummary {
-  const world = createWorld({ seed: 5, players: [{ kind: 'human' }, { kind: 'ai' }] });
+  const world = createWorld({ seed: 5, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }] });
   const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
   brain.decide(world); // one beat, so vision exists
   return summarizeForSeat(world, brain);

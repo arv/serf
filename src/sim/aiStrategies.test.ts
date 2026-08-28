@@ -5,17 +5,14 @@ import { serializeWorld, deserializeWorld } from './save.ts';
 import { AiBrain, mustersNeeded } from './systems/ai.ts';
 import { popCapOf, populationOf } from './population.ts';
 import { BUILDING_DEFS } from './defs/buildings.ts';
-import {
-  AI_STRATEGIES,
-  AI_STRATEGY_ORDER,
-  dealStrategies,
-  parseStrategyId,
-  shuffledStrategies,
-  strategyOf,
-  type AiStrategyId,
-} from './defs/aiStrategies.ts';
+import { AI_STRATEGIES, AI_STRATEGY_ORDER, dealStrategies, parseStrategyId, shuffledStrategies, strategyOf } from './defs/aiStrategies.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { TechId } from './defs/techs.ts';
+import { MatchState } from './world.ts';
+import { AiStrategyId } from './defs/aiStrategies.ts';
+import { PlayerKind } from './player.ts';
+import { AI_STRATEGY_IDS } from './defs/aiStrategies.ts';
+import { AI_STRATEGY_KEYS } from './defs/aiStrategies.ts';
 
 /**
  * Every AI seat used to run one hard-coded playbook, so beating one
@@ -28,13 +25,13 @@ import { TechId } from './defs/techs.ts';
  * regression, and it stays the yardstick this file compares to.)
  */
 
-const IDS = Object.keys(AI_STRATEGIES) as AiStrategyId[];
+const IDS: readonly AiStrategyId[] = AI_STRATEGY_IDS;
 
 /** Drive one playbook alone on the campaign map, the way its host does. */
 function playCampaign(id: AiStrategyId, maxTicks: number): World {
-  const world = createWorld({ seed: 37, players: [{ kind: 'ai' }] });
+  const world = createWorld({ seed: 37, players: [{ kind: PlayerKind.ai }] });
   const brain = new AiBrain(0, AI_STRATEGIES[id], world.map.size);
-  for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
+  for (let t = 0; t < maxTicks && world.outcome.state === MatchState.playing; t++) {
     const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     tickWorld(
       world,
@@ -47,9 +44,9 @@ function playCampaign(id: AiStrategyId, maxTicks: number): World {
 function playSeats(config: WorldConfig, maxTicks: number): World {
   const world = createWorld(config);
   const brains = world.players.map((p) =>
-    p.kind === 'ai' ? new AiBrain(p.id, strategyOf(p.strategy), world.map.size) : null,
+    p.kind === PlayerKind.ai ? new AiBrain(p.id, strategyOf(p.strategy), world.map.size) : null,
   );
-  for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
+  for (let t = 0; t < maxTicks && world.outcome.state === MatchState.playing; t++) {
     const commands: PlayerCommand[] = [];
     for (const brain of brains) {
       if (!brain || !brain.shouldDecide(world.tick)) continue;
@@ -64,8 +61,8 @@ describe('the AI playbooks', () => {
   it('every playbook can win the campaign map on its own', () => {
     for (const id of IDS) {
       const world = playCampaign(id, 60_000);
-      expect(world.outcome, `${id} ended at tick ${world.tick}`).toEqual({
-        state: 'over',
+      expect(world.outcome, `${AI_STRATEGY_KEYS[id]} ended at tick ${world.tick}`).toEqual({
+        state: MatchState.over,
         winner: 0,
       });
     }
@@ -77,10 +74,10 @@ describe('the AI playbooks', () => {
       const houses = [...world.buildings.values()].filter(
         (b) => !b.dead && b.owner === 0 && b.type === BuildingTypeId.house,
       );
-      expect(houses.length, `${id} built no house`).toBeGreaterThan(0);
+      expect(houses.length, `${AI_STRATEGY_KEYS[id]} built no house`).toBeGreaterThan(0);
       // A plan that only ever builds beds is no better than one that builds
       // none: what the housing is for is a village bigger than ten.
-      expect(populationOf(world, 0), `${id} never outgrew the castle`).toBeGreaterThan(
+      expect(populationOf(world, 0), `${AI_STRATEGY_KEYS[id]} never outgrew the castle`).toBeGreaterThan(
         BUILDING_DEFS[BuildingTypeId.storehouse].housing!,
       );
       // And it never sneaks past its own ceiling.
@@ -99,15 +96,15 @@ describe('the AI playbooks', () => {
       return { towers: towers.length, men: towers.reduce((n, b) => n + (b.garrison ?? 0), 0) };
     };
 
-    for (const id of ['abbot', 'fletcher'] as AiStrategyId[]) {
+    for (const id of [AiStrategyId.abbot, AiStrategyId.fletcher]) {
       const held = garrisonOf(playCampaign(id, 45_000));
-      expect(held.towers, `${id} raised no tower`).toBeGreaterThan(0);
+      expect(held.towers, `${AI_STRATEGY_KEYS[id]} raised no tower`).toBeGreaterThan(0);
       // Filled, not merely built: an empty tower is a wall that cannot shoot,
       // and the archers walk in on their own or the plan is a waste of stone.
-      expect(held.men, `${id} left its towers empty`).toBeGreaterThan(0);
+      expect(held.men, `${AI_STRATEGY_KEYS[id]} left its towers empty`).toBeGreaterThan(0);
     }
-    for (const id of ['steward', 'warlord'] as AiStrategyId[]) {
-      expect(garrisonOf(playCampaign(id, 45_000)).towers, `${id} built a tower it cannot man`).toBe(
+    for (const id of [AiStrategyId.steward, AiStrategyId.warlord]) {
+      expect(garrisonOf(playCampaign(id, 45_000)).towers, `${AI_STRATEGY_KEYS[id]} built a tower it cannot man`).toBe(
         0,
       );
     }
@@ -116,7 +113,7 @@ describe('the AI playbooks', () => {
   it('deals every AI seat a different playbook, and writes it into the world', () => {
     const world = createWorld({
       seed: 11,
-      players: [{ kind: 'human' }, { kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }],
+      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
     });
     const dealt = world.players.slice(1).map((p) => p.strategy);
     expect(new Set(dealt).size).toBe(3);
@@ -140,24 +137,24 @@ describe('the AI playbooks', () => {
 
   it('keeps a named opponent, and deals the rest around it', () => {
     const seats = [
-      { kind: 'human' as const },
-      { kind: 'ai' as const, strategy: 'fletcher' as AiStrategyId },
-      { kind: 'ai' as const },
-      { kind: 'ai' as const },
+      { kind: PlayerKind.human },
+      { kind: PlayerKind.ai, strategy: AiStrategyId.fletcher as AiStrategyId },
+      { kind: PlayerKind.ai },
+      { kind: PlayerKind.ai },
     ];
     const deal = dealStrategies(7, seats);
     expect(deal[0]).toBeUndefined();
-    expect(deal[1]).toBe('fletcher');
+    expect(deal[1]).toBe(AiStrategyId.fletcher);
     // A picked playbook leaves the deck, so no one else turns up as it.
     expect(deal.slice(2)).not.toContain('fletcher');
     expect(new Set(deal.slice(1)).size).toBe(3);
 
     const world = createWorld({ seed: 7, players: seats });
-    expect(world.players[1]!.strategy).toBe('fletcher');
+    expect(world.players[1]!.strategy).toBe(AiStrategyId.fletcher);
   });
 
   it('refuses a playbook that does not exist, and falls back to the deal', () => {
-    expect(parseStrategyId('warlord')).toBe('warlord');
+    expect(parseStrategyId('warlord')).toBe(AiStrategyId.warlord);
     expect(parseStrategyId('constructor')).toBeUndefined(); // truthy on the prototype
     expect(parseStrategyId('')).toBeUndefined();
     expect(parseStrategyId(42)).toBeUndefined();
@@ -165,7 +162,7 @@ describe('the AI playbooks', () => {
     // dealt one like any other.
     const world = createWorld({
       seed: 3,
-      players: [{ kind: 'ai', strategy: parseStrategyId('nonesuch') }],
+      players: [{ kind: PlayerKind.ai, strategy: parseStrategyId('nonesuch') }],
     });
     expect(world.players[0]!.strategy).toBe(shuffledStrategies(3)[0]);
   });
@@ -173,13 +170,13 @@ describe('the AI playbooks', () => {
   it('carries the deal through a save, so opponents do not change mid-match', () => {
     const world = createWorld({
       seed: 99,
-      players: [{ kind: 'human' }, { kind: 'ai' }, { kind: 'ai' }],
+      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
     });
     const loaded = deserializeWorld(serializeWorld(world));
     expect(loaded.players.map((p) => p.strategy)).toEqual(world.players.map((p) => p.strategy));
     // A save from before the deal existed names nothing; those seats run
     // the campaign line rather than crashing or drawing at random.
-    expect(strategyOf(undefined).id).toBe('steward');
+    expect(strategyOf(undefined).id).toBe(AiStrategyId.steward);
   });
 
   it('plays four visibly different games in one world', () => {
@@ -193,20 +190,20 @@ describe('the AI playbooks', () => {
       {
         seed: 13,
         players: [
-          { kind: 'ai', strategy: 'steward' },
-          { kind: 'ai', strategy: 'warlord' },
-          { kind: 'ai', strategy: 'abbot' },
-          { kind: 'ai', strategy: 'fletcher' },
+          { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
+          { kind: PlayerKind.ai, strategy: AiStrategyId.warlord },
+          { kind: PlayerKind.ai, strategy: AiStrategyId.abbot },
+          { kind: PlayerKind.ai, strategy: AiStrategyId.fletcher },
         ],
         banditsEnabled: false,
       },
       9_000,
     );
     expect(world.players.map((p) => p.strategy)).toEqual([
-      'steward',
-      'warlord',
-      'abbot',
-      'fletcher',
+      AiStrategyId.steward,
+      AiStrategyId.warlord,
+      AiStrategyId.abbot,
+      AiStrategyId.fletcher,
     ]);
 
     // A fingerprint per seat: what it researched and what it built. Two
@@ -242,13 +239,13 @@ describe('the AI playbooks', () => {
     const world = playSeats(
       {
         seed: 42,
-        players: [{ kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }],
+        players: [{ kind: PlayerKind.ai }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
         banditsEnabled: false,
         mapSize: 64,
       },
       90_000,
     );
-    expect(world.outcome.state, `still playing at tick ${world.tick}`).toBe('over');
+    expect(world.outcome.state, `still playing at tick ${world.tick}`).toBe(MatchState.over);
   }, 240_000);
 
   it('drops the muster bar only once a standoff has really set in', () => {

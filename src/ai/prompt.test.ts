@@ -6,6 +6,7 @@ import { buildMessages, extractSummary } from './prompt.ts';
 import { POSTURES, POSTURE_ORDER, postureAdvice } from './posture.ts';
 import { toOverride } from './advice.ts';
 import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
+import { PlayerKind } from '../sim/player.ts';
 
 /**
  * The prompt is judged on the two things that matter to a small model:
@@ -14,7 +15,7 @@ import { summarizeForSeat, type AiWorldSummary } from './summary.ts';
  */
 
 function summaries(): { first: AiWorldSummary; later: AiWorldSummary } {
-  const world = createWorld({ seed: 5, players: [{ kind: 'human' }, { kind: 'ai' }] });
+  const world = createWorld({ seed: 5, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }] });
   const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
   brain.decide(world); // one beat, so vision exists
   const first = summarizeForSeat(world, brain);

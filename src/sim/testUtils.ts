@@ -12,6 +12,8 @@ import type { Unit } from './units.ts';
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { MatchState } from './world.ts';
+import { PlayerKind } from './player.ts';
 
 /** An all-grass, empty 64x64 map for deterministic logistics tests. */
 export function bareMap(size = DEFAULT_MAP_SIZE): GameMap {
@@ -42,11 +44,11 @@ export function bareWorld(seed = 1, playerCount = 1): World {
     nextJobId: 1,
     ledger: { produced: {}, consumed: {} },
     pendingDeltas: [],
-    players: Array.from({ length: playerCount }, (_, i) => makePlayer(i, 'human')),
+    players: Array.from({ length: playerCount }, (_, i) => makePlayer(i, PlayerKind.human)),
     raidState: { nextRaidTick: Number.MAX_SAFE_INTEGER, wave: 0 }, // raids opt in
     admin: { enabled: true, raidsEnabled: true, instantBuild: false },
     pendingEvents: [],
-    outcome: { state: 'playing' },
+    outcome: { state: MatchState.playing },
     banditsEnabled: true,
   };
 }

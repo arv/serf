@@ -13,6 +13,7 @@ import { REPLAY_FORMAT, serializeReplay, type ReplayData } from './replay';
 import type { GoodAmounts } from '../sim/defs/goods';
 import type { PlayerCommand } from '../sim/tick';
 import type { MainToWorker, StructuralUpdate, WorkerToMain } from '../protocol/messages';
+import { MatchState } from '../sim/world';
 
 /**
  * Single player: owns the World and the fixed-timestep loop, publishes unit
@@ -330,7 +331,7 @@ function replayCommandsFor(tick: number): PlayerCommand[] {
  * the tick loop on purpose: summaries are advisory, so "at least every
  * period" is the contract, not "on an exact tick". */
 function postSummaries(): void {
-  if (!world || !ai || !summaryDue || world.outcome.state !== 'playing') return;
+  if (!world || !ai || !summaryDue || world.outcome.state !== MatchState.playing) return;
   for (const [playerId, due] of summaryDue) {
     if (world.tick < due) continue;
     summaryDue.set(playerId, world.tick + ADVICE_PERIOD);

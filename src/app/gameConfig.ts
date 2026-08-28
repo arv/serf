@@ -3,6 +3,7 @@ import { parseStrategyId } from '../sim/defs/aiStrategies';
 import { parseMissionId } from '../sim/defs/missions';
 import { missionWorldConfig } from '../sim/world';
 import type { WorldConfig } from '../sim/world';
+import { PlayerKind } from '../sim/player';
 
 /**
  * Everything a client needs to boot a game: the world recipe plus which
@@ -55,13 +56,13 @@ export function configFromUrl(search: string): GameConfig {
   const players: WorldConfig['players'] =
     aiSeats > 0
       ? [
-          { kind: 'human' },
+          { kind: PlayerKind.human },
           ...Array.from({ length: aiSeats }, (_, i) => ({
-            kind: 'ai' as const,
+            kind: PlayerKind.ai,
             strategy: parseStrategyId(bots[i]),
           })),
         ]
-      : Array.from({ length: seats }, () => ({ kind: 'human' as const }));
+      : Array.from({ length: seats }, () => ({ kind: PlayerKind.human }));
 
   return {
     seed,

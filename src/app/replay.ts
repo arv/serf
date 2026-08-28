@@ -6,6 +6,7 @@ import { parseStrategyId } from '../sim/defs/aiStrategies.ts';
 import { parseMissionId } from '../sim/defs/missions.ts';
 import type { PlayerCommand } from '../sim/tick.ts';
 import type { WorldConfig } from '../sim/world.ts';
+import { playerKindFromKey } from '../sim/player.ts';
 
 /**
  * A replay is the sim's whole diet, written down: the world recipe (and the
@@ -105,12 +106,13 @@ function sanitizeConfig(raw: unknown): ReplayData['config'] | null {
   for (const entry of c.players as unknown[]) {
     if (typeof entry !== 'object' || entry === null) return null;
     const kind = (entry as { kind?: unknown }).kind;
-    if (kind !== 'human' && kind !== 'ai') return null;
+    const seat = playerKindFromKey(kind);
+    if (seat === undefined) return null;
     // Strategy is decorative on playback (the brains never run — their
     // moves are in the log), so an unknown one degrades to "dealt" rather
     // than sinking the file.
     const strategy = parseStrategyId((entry as { strategy?: unknown }).strategy);
-    players.push({ kind, ...(strategy ? { strategy } : {}) });
+    players.push({ kind: seat, ...(strategy ? { strategy } : {}) });
   }
   const mission = parseMissionId(c.mission);
   const myPlayerId = c.myPlayerId;

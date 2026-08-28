@@ -30,6 +30,7 @@ import { trailsSystem } from '../../src/sim/systems/trails.ts';
 import { victorySystem } from '../../src/sim/systems/victory.ts';
 import type { BuildingType } from '../../src/sim/defs/buildings.ts';
 import { UnitTypeId } from '../../src/sim/defs/units.ts';
+import { PlayerKind } from '../../src/sim/player.ts';
 
 function arg(name: string, dflt: number): number {
   const i = process.argv.indexOf(`--${name}`);
@@ -43,7 +44,7 @@ const SEED = arg('seed', 7);
 
 const world = createWorld({
   seed: SEED,
-  players: [{ kind: 'human' }, { kind: 'ai', strategy: 'warlord' }],
+  players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai, strategy: 'warlord' }],
   banditsEnabled: true,
   mapSize: SIZE,
 });

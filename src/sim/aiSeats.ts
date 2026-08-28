@@ -18,6 +18,7 @@ import { AiBrain } from './systems/ai.ts';
 import type { Owner } from './entities.ts';
 import type { PlayerCommand } from './tick.ts';
 import type { World } from './world.ts';
+import { PlayerKind } from './player.ts';
 
 export class AiSeats {
   #brains: AiBrain[];
@@ -27,7 +28,7 @@ export class AiSeats {
     // was dealt them at creation and has carried them through every save
     // and restart since.
     this.#brains = world.players
-      .filter((p) => p.kind === 'ai')
+      .filter((p) => p.kind === PlayerKind.ai)
       .map((p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
   }
 

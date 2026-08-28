@@ -3,6 +3,8 @@ import { createWorld } from './world.ts';
 import { tickWorld } from './tick.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { PlayerKind } from './player.ts';
+import { MatchState } from './world.ts';
 
 /**
  * A world generated without bandits has no camp, no guards, and no
@@ -14,7 +16,7 @@ describe('a banditless world', () => {
   it('places no camp and never auto-wins the solo campaign', () => {
     const world = createWorld({
       seed: 20260724,
-      players: [{ kind: 'human' }],
+      players: [{ kind: PlayerKind.human }],
       banditsEnabled: false,
     });
     const camps = [...world.buildings.values()].filter((b) => b.type === BuildingTypeId.banditCamp);
@@ -23,11 +25,11 @@ describe('a banditless world', () => {
     expect(bandits).toEqual([]);
 
     for (let i = 0; i < 600; i++) tickWorld(world, []);
-    expect(world.outcome.state).toBe('playing');
+    expect(world.outcome.state).toBe(MatchState.playing);
   });
 
   it('with bandits on, the camp still spawns and razing it still wins', () => {
-    const world = createWorld({ seed: 20260724, players: [{ kind: 'human' }] });
+    const world = createWorld({ seed: 20260724, players: [{ kind: PlayerKind.human }] });
     const camp = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.banditCamp);
     expect(camp).toBeDefined();
   });

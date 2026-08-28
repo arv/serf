@@ -21,6 +21,7 @@ import { BuildingTypeId } from './defs/buildings.ts';
 import { BuildingState } from './entities.ts';
 import { HaulPhase } from './world.ts';
 import { UnitTaskKind } from './units.ts';
+import { CommandKind } from './commands.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -242,7 +243,7 @@ describe('fuzz: 10k ticks of random destruction never corrupts the economy', () 
         } else if (roll < 0.85) {
           const x = 18 + rng.int(24);
           const y = 18 + rng.int(24);
-          tickWorld(world, cmds({ kind: 'placeBuilding', building: BuildingTypeId.woodcutter, x, y }));
+          tickWorld(world, cmds({ kind: CommandKind.placeBuilding, building: BuildingTypeId.woodcutter, x, y }));
         } else {
           const serfs = [...world.units.values()].filter((u) => u.kind === UnitTypeId.serf);
           if (serfs.length < 8) addSerf(world, 30 + rng.int(4), 35);
@@ -273,7 +274,7 @@ describe('move orders outrank employment', () => {
     run(world, 40);
     expect(serf.jobId).toBeDefined(); // the matcher hired him
 
-    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 20, y: 20 }));
+    tickWorld(world, cmds({ kind: CommandKind.moveUnits, unitIds: [serf.id], x: 20, y: 20 }));
     expect(serf.jobId).toBeUndefined();
     expect(serf.task.t).toBe(UnitTaskKind.move);
     expect(checkInvariants(world).violations).toEqual([]);
@@ -298,7 +299,7 @@ describe('move orders outrank employment', () => {
     // The abort must not write the good off — compare the ledger across the
     // interrupt itself, since production legitimately consumes wood later.
     const consumed = world.ledger.consumed[GoodId.wood] ?? 0;
-    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 20, y: 20 }));
+    tickWorld(world, cmds({ kind: CommandKind.moveUnits, unitIds: [serf.id], x: 20, y: 20 }));
     expect(serf.carrying).toBe(GoodId.wood); // still in his hands
     expect(world.ledger.consumed[GoodId.wood] ?? 0).toBe(consumed);
     expect(serf.task.t).toBe(UnitTaskKind.move);
@@ -323,7 +324,7 @@ describe('move orders outrank employment', () => {
 
     let guard = 0;
     while (serf.carrying === undefined && guard++ < 600) tickWorld(world, []);
-    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [serf.id], x: 20, y: 20 }));
+    tickWorld(world, cmds({ kind: CommandKind.moveUnits, unitIds: [serf.id], x: 20, y: 20 }));
     expect(serf.carrying).toBe(GoodId.wood);
 
     // dispatch runs every tick and used to claim him the moment he arrived,
@@ -348,7 +349,7 @@ describe('move orders outrank employment', () => {
     const worker = staffBuilding(world, hut);
     expect(hut.workerId).toBe(worker.id);
 
-    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [worker.id], x: 24, y: 24 }));
+    tickWorld(world, cmds({ kind: CommandKind.moveUnits, unitIds: [worker.id], x: 24, y: 24 }));
     expect(worker.homeId).toBeUndefined();
     expect(worker.kind).toBe(UnitTypeId.serf);
     expect(hut.workerId).toBeUndefined();
@@ -373,7 +374,7 @@ describe('move orders outrank employment', () => {
         if (x !== 50 || y !== 50) world.map.blocked[tileIdx(x, y, world.map.size)] = 1;
       }
     }
-    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [worker.id], x: 50, y: 50 }));
+    tickWorld(world, cmds({ kind: CommandKind.moveUnits, unitIds: [worker.id], x: 50, y: 50 }));
 
     // He used to be fired before the path was even attempted, which left an
     // ex-worker holding a gather task no system drives: production had lost

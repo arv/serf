@@ -10,6 +10,7 @@ import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { ModifierKey } from './defs/techs.ts';
 import { TechId } from './defs/techs.ts';
+import { CommandKind } from './commands.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -24,7 +25,7 @@ describe('research', () => {
   it('requires a abbey', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, { [GoodId.wheat]: 50, [GoodId.silver]: 50 });
-    tickWorld(world, cmds({ kind: 'research', tech: TechId.irrigation }));
+    tickWorld(world, cmds({ kind: CommandKind.research, tech: TechId.irrigation }));
     expect(world.players[0]!.techs.active).toBeUndefined();
   });
 
@@ -32,7 +33,7 @@ describe('research', () => {
     const world = bareWorld();
     setupSchool(world);
     const silverBefore = 50;
-    tickWorld(world, cmds({ kind: 'research', tech: TechId.cobbledBoots }));
+    tickWorld(world, cmds({ kind: CommandKind.research, tech: TechId.cobbledBoots }));
 
     expect(world.players[0]!.techs.active?.tech).toBe(TechId.cobbledBoots);
     const sh = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
@@ -50,13 +51,13 @@ describe('research', () => {
     setupSchool(world);
     // deepMining requires ironworking — rejected. (Ironworking itself is a
     // craft root now: the tool economy cannot wait on boots.)
-    tickWorld(world, cmds({ kind: 'research', tech: TechId.deepMining }));
+    tickWorld(world, cmds({ kind: CommandKind.research, tech: TechId.deepMining }));
     expect(world.players[0]!.techs.active).toBeUndefined();
 
-    tickWorld(world, cmds({ kind: 'research', tech: TechId.cobbledBoots }));
+    tickWorld(world, cmds({ kind: CommandKind.research, tech: TechId.cobbledBoots }));
     expect(world.players[0]!.techs.active?.tech).toBe(TechId.cobbledBoots);
     // A second research while active — rejected.
-    tickWorld(world, cmds({ kind: 'research', tech: TechId.irrigation }));
+    tickWorld(world, cmds({ kind: CommandKind.research, tech: TechId.irrigation }));
     expect(world.players[0]!.techs.active?.tech).toBe(TechId.cobbledBoots);
   });
 
@@ -68,7 +69,7 @@ describe('research', () => {
     expect(isBuildingUnlocked(world, 0, BuildingTypeId.weaponsmith)).toBe(true);
     expect(isBuildingUnlocked(world, 0, BuildingTypeId.ironMine)).toBe(false);
 
-    tickWorld(world, cmds({ kind: 'placeBuilding', building: BuildingTypeId.ironMine, x: 40, y: 40 }));
+    tickWorld(world, cmds({ kind: CommandKind.placeBuilding, building: BuildingTypeId.ironMine, x: 40, y: 40 }));
     expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.ironMine)).toBe(false);
 
     world.players[0]!.techs.researched.push(TechId.ironworking);
@@ -80,7 +81,7 @@ describe('research', () => {
     setupSchool(world);
     expect(world.players[0]!.pavingUnlocked).toBe(false);
     world.players[0]!.techs.researched.push(TechId.cobbledBoots);
-    tickWorld(world, cmds({ kind: 'research', tech: TechId.masonry }));
+    tickWorld(world, cmds({ kind: CommandKind.research, tech: TechId.masonry }));
     run(world, TECH_DEFS[TechId.masonry].durationTicks + 2);
     expect(world.players[0]!.pavingUnlocked).toBe(true);
   });
@@ -166,7 +167,7 @@ describe('research', () => {
     const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
     barracks.inputs[GoodId.ale] = 1;
     addSerf(world, 34, 34);
-    tickWorld(world, cmds({ kind: 'trainUnit', buildingId: barracks.id, unit: UnitTypeId.spearman }));
+    tickWorld(world, cmds({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: UnitTypeId.spearman }));
 
     let guard = 20 * 120;
     while (!barracks.trainQueue?.[0]?.started && guard-- > 0) tickWorld(world, []);

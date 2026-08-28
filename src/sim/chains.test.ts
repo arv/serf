@@ -23,6 +23,7 @@ import {
 import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
+import { CommandKind } from './commands.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -290,7 +291,7 @@ describe('hiring a serf', () => {
   it('charges up front and delivers the recruit after the wait', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { [GoodId.silver]: 10 });
-    tickWorld(world, cmds({ kind: 'hireSerf' }));
+    tickWorld(world, cmds({ kind: CommandKind.hireSerf }));
 
     // Paid immediately, but nobody has walked in yet.
     expect(sh.stock[GoodId.silver]).toBe(10 - HIRE_SERF_COST);
@@ -308,7 +309,7 @@ describe('hiring a serf', () => {
   it('queues repeat orders and staggers their arrivals', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { [GoodId.silver]: 20 });
-    tickWorld(world, cmds({ kind: 'hireSerf' }, { kind: 'hireSerf' }));
+    tickWorld(world, cmds({ kind: CommandKind.hireSerf }, { kind: CommandKind.hireSerf }));
     expect(sh.hireQueue).toBe(2);
     expect(sh.stock[GoodId.silver]).toBe(20 - HIRE_SERF_COST * 2);
 
@@ -323,7 +324,7 @@ describe('hiring a serf', () => {
   it('refuses orders it cannot afford, and never charges for them', () => {
     const world = bareWorld();
     const sh = addStorehouse(world, 30, 30, { [GoodId.silver]: HIRE_SERF_COST - 1 });
-    tickWorld(world, cmds({ kind: 'hireSerf' }));
+    tickWorld(world, cmds({ kind: CommandKind.hireSerf }));
     expect(sh.hireQueue).toBeUndefined();
     expect(sh.stock[GoodId.silver]).toBe(HIRE_SERF_COST - 1);
   });

@@ -31,6 +31,7 @@ import { WORLD_SAVE_VERSION, canReadSave } from '../shared/saveVersion';
 import { fullscreen } from './fullscreen';
 import { goto } from '../app/router';
 import { muted, toggleMuted } from './store';
+import { parseMissionId } from '../sim/defs/missions';
 
 /**
  * Pre-boot start screen — the first screen of the menu shell (MenuApp.tsx),
@@ -616,7 +617,8 @@ export function StartMenu(props: StartMenuProps) {
    * the load path screens it again before a match is built. */
   const saveRow = (f: SaveFileInfo): ShelfRow => {
     const ok = f.world === undefined || canReadSave(f.world);
-    const mission = f.meta?.mission !== undefined ? MISSION_DEFS[f.meta.mission] : undefined;
+    const missionId = parseMissionId(f.meta?.mission);
+    const mission = missionId !== undefined ? MISSION_DEFS[missionId] : undefined;
     const opponents = f.meta?.opponents ?? 0;
     const what =
       mission?.title ??

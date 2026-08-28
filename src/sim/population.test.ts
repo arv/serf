@@ -10,6 +10,8 @@ import { GoodId } from './defs/goods.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { BuildingState } from './entities.ts';
+import { CommandKind } from './commands.ts';
+import { PlayerKind } from './player.ts';
 
 /**
  * The population cap. Beds, not bodies, are the ceiling: the castle sleeps
@@ -26,7 +28,7 @@ describe('the population cap', () => {
   }
 
   it('starts every village at ten beds under the castle', () => {
-    const world = createWorld({ seed: 20260724, players: [{ kind: 'human' }] });
+    const world = createWorld({ seed: 20260724, players: [{ kind: PlayerKind.human }] });
     expect(popCapOf(world, 0)).toBe(BUILDING_DEFS[BuildingTypeId.storehouse].housing);
     expect(popCapOf(world, 0)).toBe(10);
     // Eight serfs under ten roofs: room to replace a loss, not to grow on.
@@ -52,14 +54,14 @@ describe('the population cap', () => {
   it('refuses a hire once every bed is taken, and keeps the silver', () => {
     const { world, sh } = village(10); // 10 people under the castle's 10 beds
     expect(hasRoomToHire(world, 0)).toBe(false);
-    tickWorld(world, cmds({ kind: 'hireSerf' }));
+    tickWorld(world, cmds({ kind: CommandKind.hireSerf }));
     expect(sh.hireQueue ?? 0).toBe(0);
     expect(sh.stock[GoodId.silver]).toBe(100); // not spent on a hire that never happened
   });
 
   it('counts recruits already on the road against the beds', () => {
     const { world, sh } = village(8); // two beds free
-    for (let i = 0; i < 5; i++) tickWorld(world, cmds({ kind: 'hireSerf' }));
+    for (let i = 0; i < 5; i++) tickWorld(world, cmds({ kind: CommandKind.hireSerf }));
     // Five orders, two beds: three are refused rather than overshooting.
     expect(sh.hireQueue).toBe(2);
     expect(pendingHiresOf(world, 0)).toBe(2);
@@ -88,7 +90,7 @@ describe('the population cap', () => {
 
   it('holds a paid recruit at the gate until a bed opens', () => {
     const { world, sh } = village(9); // one bed free
-    tickWorld(world, cmds({ kind: 'hireSerf' }));
+    tickWorld(world, cmds({ kind: CommandKind.hireSerf }));
     expect(sh.hireQueue).toBe(1);
 
     // The bed is taken while the recruit is still walking in.

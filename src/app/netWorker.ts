@@ -13,6 +13,7 @@ import type {
 } from '../protocol/messages';
 import type { SimCommand } from '../sim/commands';
 import type { UnitSnapshot } from '../protocol/sabLayout';
+import { CommandKind } from '../sim/commands';
 
 /**
  * The multiplayer client's end of the wire. It holds the socket, decodes the
@@ -248,7 +249,7 @@ function sendCommands(commands: SimCommand[]): void {
   // Start moving before the server has heard the order — the dead window
   // between click and answer is the whole of what a player feels as lag.
   for (const cmd of commands) {
-    if (cmd.kind === 'moveUnits') {
+    if (cmd.kind === CommandKind.moveUnits) {
       lastUnitsIndex ??= new Map(lastUnitRows.map((u) => [u.id, u]));
       predictor?.order(cmd.unitIds, cmd.x, cmd.y, lastUnitsIndex);
     }

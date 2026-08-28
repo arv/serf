@@ -6,6 +6,7 @@ import { addStorehouse, bareWorld, cmds } from './testUtils.ts';
 import { spawnUnit, type World } from './world.ts';
 import { UnitTypeId } from './defs/units.ts';
 import { UnitTaskKind } from './units.ts';
+import { CommandKind } from './commands.ts';
 
 function run(world: World, ticks: number): void {
   for (let i = 0; i < ticks; i++) tickWorld(world, []);
@@ -27,7 +28,7 @@ describe('a route obstructed mid-walk', () => {
     const world = bareWorld();
     addStorehouse(world, 50, 50, {});
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
-    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 40, y: 30 }));
+    tickWorld(world, cmds({ kind: CommandKind.moveUnits, unitIds: [knight.id], x: 40, y: 30 }));
     expect(knight.task.t).toBe(UnitTaskKind.move);
     run(world, 10); // under way, well short of the goal
 
@@ -49,7 +50,7 @@ describe('a route obstructed mid-walk', () => {
     const world = bareWorld();
     addStorehouse(world, 50, 50, {});
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
-    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 40, y: 30 }));
+    tickWorld(world, cmds({ kind: CommandKind.moveUnits, unitIds: [knight.id], x: 40, y: 30 }));
     run(world, 10);
 
     const goal = knight.path![knight.path!.length - 1]!;
@@ -74,7 +75,7 @@ describe('a route obstructed mid-walk', () => {
     const world = bareWorld();
     addStorehouse(world, 50, 50, {});
     const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
-    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 40, y: 30 }));
+    tickWorld(world, cmds({ kind: CommandKind.moveUnits, unitIds: [knight.id], x: 40, y: 30 }));
     run(world, 10);
 
     const path = knight.path!;
@@ -102,7 +103,7 @@ describe('a route obstructed mid-walk', () => {
     expect(checkInvariants(world).violations).toEqual([]);
 
     // And he is genuinely available again: a fresh order still moves him.
-    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: [knight.id], x: 30, y: 36 }));
+    tickWorld(world, cmds({ kind: CommandKind.moveUnits, unitIds: [knight.id], x: 30, y: 36 }));
     run(world, 20 * 30);
     expect(Math.floor(knight.y)).toBe(36);
   });
@@ -112,7 +113,7 @@ describe('a route obstructed mid-walk', () => {
     addStorehouse(world, 50, 50, {});
     const ids: number[] = [];
     for (let i = 0; i < 4; i++) ids.push(spawnUnit(world, UnitTypeId.knight, 0, 30.5, 29.5 + i).id);
-    tickWorld(world, cmds({ kind: 'moveUnits', unitIds: ids, x: 42, y: 30 }));
+    tickWorld(world, cmds({ kind: CommandKind.moveUnits, unitIds: ids, x: 42, y: 30 }));
     run(world, 10);
 
     // A wall across the whole column's route, bar one gap far to the south.

@@ -11,6 +11,7 @@ import type { Unit } from '../units.ts';
 import { BuildingTypeId } from '../defs/buildings.ts';
 import { BuildingState } from '../entities.ts';
 import { UnitTaskKind } from '../units.ts';
+import { GameEventKind } from '../world.ts';
 
 /**
  * Thin, quarantined combat: reads positions, writes hp and movement intents.
@@ -207,7 +208,7 @@ export function combatSystem(world: World): void {
           if (isPlayerOwner(targetBuilding.owner)) {
             const c = centerOf(targetBuilding);
             world.pendingEvents.push({
-              kind: 'damage',
+              kind: GameEventKind.damage,
               player: targetBuilding.owner,
               x: c.x,
               y: c.y,
@@ -291,7 +292,7 @@ function towerFire(world: World, buildings: readonly Building[], units: readonly
     b.attackCooldown = volley.cooldownTicks;
     if (isPlayerOwner(target.owner)) {
       world.pendingEvents.push({
-        kind: 'damage',
+        kind: GameEventKind.damage,
         player: target.owner,
         x: target.x,
         y: target.y,
@@ -549,7 +550,7 @@ function strikeUnit(world: World, attacker: Unit, defender: Unit): void {
   defender.hp -= a.damage * mult;
   if (isPlayerOwner(defender.owner)) {
     world.pendingEvents.push({
-      kind: 'damage',
+      kind: GameEventKind.damage,
       player: defender.owner,
       x: defender.x,
       y: defender.y,

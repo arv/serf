@@ -86,6 +86,7 @@ import {
 import { play } from '../audio/audio';
 import { GoodId } from '../sim/defs/goods';
 import { goodEntries } from '../sim/defs/goods';
+import { MatchState } from '../sim/world';
 
 const SPEEDS = [
   { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },
@@ -467,13 +468,13 @@ export function Hud(props: {
   const speeds = (): typeof SPEEDS => (replayMode() ? [...SPEEDS, REPLAY_SPEED] : SPEEDS);
   /** This seat has fallen while the match plays on (multiplayer). */
   const eliminated = (): boolean =>
-    outcome().state === 'playing' && playersMeta()[myPlayerId()]?.alive === false;
+    outcome().state === MatchState.playing && playersMeta()[myPlayerId()]?.alive === false;
   const [spectating, setSpectating] = createSignal(false);
   /** The outcome card was waved away to watch the world play on. */
   const [observing, setObserving] = createSignal(false);
   const won = (): boolean => {
     const o = outcome();
-    return o.state === 'over' && o.winner === myPlayerId();
+    return o.state === MatchState.over && o.winner === myPlayerId();
   };
   /**
    * The one end-of-match card on screen. These states can genuinely overlap
@@ -487,7 +488,7 @@ export function Hud(props: {
     // A replay's outcome was decided when it was recorded; the only card
     // playback owes is the one that says the recording has run out.
     if (replayMode()) return replayOver() ? 'replayOver' : undefined;
-    if (outcome().state === 'over') return observing() ? undefined : 'outcome';
+    if (outcome().state === MatchState.over) return observing() ? undefined : 'outcome';
     if (netMode() && netStatus()?.state === 'gone') return 'gone';
     if (eliminated() && !spectating()) return 'eliminated';
     return undefined;

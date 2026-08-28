@@ -14,6 +14,7 @@ import { snapBuildings } from '../protocol/snapshot';
 import { createWorld } from '../sim/world';
 import { batteryFramePacer } from '../render/framePacer';
 import { BuildingTypeId } from '../sim/defs/buildings';
+import { PlayerKind } from '../sim/player';
 
 /**
  * The pre-boot background, shared by every menu screen: the actual game,
@@ -144,7 +145,7 @@ export async function startMenuBackdrop(canvas: HTMLCanvasElement): Promise<Back
 
   const world = createWorld({
     seed: BACKDROP_SEED,
-    players: [{ kind: 'human' }],
+    players: [{ kind: PlayerKind.human }],
     adminEnabled: false,
     banditsEnabled: false,
   });

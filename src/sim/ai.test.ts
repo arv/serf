@@ -27,6 +27,10 @@ import { UnitTypeId } from './defs/units.ts';
 import { BuildingTypeId } from './defs/buildings.ts';
 import { TechId } from './defs/techs.ts';
 import { UnitTaskKind } from './units.ts';
+import { CommandKind } from './commands.ts';
+import { MatchState } from './world.ts';
+import { AiStrategyId } from './defs/aiStrategies.ts';
+import { PlayerKind } from './player.ts';
 
 function digest(world: World): unknown {
   return {
@@ -46,9 +50,9 @@ function runWithBrains(config: WorldConfig, maxTicks: number, onTick?: (w: World
   // Playbooks come off the world, which was dealt them from the seed —
   // the same lookup AiSeats does for the hosts.
   const brains = world.players
-    .filter((p) => p.kind === 'ai')
+    .filter((p) => p.kind === PlayerKind.ai)
     .map((p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size));
-  for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
+  for (let t = 0; t < maxTicks && world.outcome.state === MatchState.playing; t++) {
     const commands: PlayerCommand[] = [];
     for (const brain of brains) {
       if (brain.shouldDecide(world.tick)) {
@@ -66,7 +70,7 @@ describe('the AI opponent', () => {
     const world = runWithBrains(
       // Seed 11: re-pinned for the margin grid (99's roll stood off past
       // the 90k budget).
-      { seed: 11, players: [{ kind: 'ai' }, { kind: 'ai' }], banditsEnabled: false },
+      { seed: 11, players: [{ kind: PlayerKind.ai }, { kind: PlayerKind.ai }], banditsEnabled: false },
       90_000,
       (w) => {
         if (w.tick % 200 === 0) {
@@ -74,20 +78,20 @@ describe('the AI opponent', () => {
         }
       },
     );
-    expect(world.outcome.state, `still playing at tick ${world.tick}`).toBe('over');
+    expect(world.outcome.state, `still playing at tick ${world.tick}`).toBe(MatchState.over);
     // A winner exists (either seat may take it; a draw would be null).
     expect((world.outcome as { winner: number | null }).winner).not.toBeNull();
   }, 240_000);
 
   it('is deterministic: two identical runs match at tick 3000', () => {
-    const config: WorldConfig = { seed: 7, players: [{ kind: 'human' }, { kind: 'ai' }] };
+    const config: WorldConfig = { seed: 7, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }] };
     expect(digest(runWithBrains(config, 3000))).toEqual(digest(runWithBrains(config, 3000)));
   });
 
   it('4-player mixed world is deterministic at tick 3000', () => {
     const config: WorldConfig = {
       seed: 11,
-      players: [{ kind: 'human' }, { kind: 'ai' }, { kind: 'ai' }, { kind: 'ai' }],
+      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
     };
     expect(digest(runWithBrains(config, 3000))).toEqual(digest(runWithBrains(config, 3000)));
   });
@@ -99,8 +103,8 @@ describe('the AI opponent', () => {
  * makes — laid and cleared it leaves no trace, and laid with real values
  * the brain actually plays differently.
  */
-function moveOrders(commands: SimCommand[]): Extract<SimCommand, { kind: 'moveUnits' }>[] {
-  return commands.filter((c) => c.kind === 'moveUnits');
+function moveOrders(commands: SimCommand[]): Extract<SimCommand, { kind: CommandKind.moveUnits }>[] {
+  return commands.filter((c) => c.kind === CommandKind.moveUnits);
 }
 
 /**
@@ -116,7 +120,7 @@ function marchOrders(
   commands: SimCommand[],
   castleX: number,
   castleY: number,
-): Extract<SimCommand, { kind: 'moveUnits' }>[] {
+): Extract<SimCommand, { kind: CommandKind.moveUnits }>[] {
   const home = { x: castleX + 1, y: castleY + 1 + 4 };
   return moveOrders(commands).filter(
     (m) => m.unitIds.length >= 3 && (m.x !== home.x || m.y !== home.y),
@@ -132,7 +136,7 @@ function siegeStandoff(): { world: World; brain: AiBrain } {
   for (let i = 0; i < 12; i++) spawnUnit(world, UnitTypeId.knight, 1, 45.5, 28.5 + i * 0.4);
   spawnUnit(world, UnitTypeId.knight, 0, 42.5, 30.5); // the scout
   world.tick = 1000; // past the steward's attack cooldown
-  return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size) };
+  return { world, brain: new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size) };
 }
 
 describe('strategist overrides', () => {
@@ -147,16 +151,16 @@ describe('strategist overrides', () => {
    * that the unadvised march lands inside the budget with room for an
    * eager one to beat it: 13.7k against a 20k cap here. */
   function firstMarchTick(override: Partial<AiStrategy> | null, maxTicks: number): number {
-    const world = createWorld({ seed: 17, players: [{ kind: 'ai', strategy: 'steward' }] });
+    const world = createWorld({ seed: 17, players: [{ kind: PlayerKind.ai, strategy: AiStrategyId.steward }] });
     const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy), world.map.size);
     if (override) brain.setOverride(override);
     const castle = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
     const home = { x: castle.x + 1, y: castle.y + 1 + 4 };
-    for (let t = 0; t < maxTicks && world.outcome.state === 'playing'; t++) {
+    for (let t = 0; t < maxTicks && world.outcome.state === MatchState.playing; t++) {
       const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
       for (const cmd of commands) {
         if (
-          cmd.kind === 'moveUnits' &&
+          cmd.kind === CommandKind.moveUnits &&
           cmd.unitIds.length >= 3 &&
           (cmd.x !== home.x || cmd.y !== home.y)
         ) {
@@ -172,12 +176,12 @@ describe('strategist overrides', () => {
   }
 
   it('laid empty and cleared again, the seam leaves the game untouched', () => {
-    const config: WorldConfig = { seed: 7, players: [{ kind: 'human' }, { kind: 'ai' }] };
+    const config: WorldConfig = { seed: 7, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }] };
     const baseline = digest(runWithBrains(config, 3000));
 
     const world = createWorld(config);
     const brain = new AiBrain(1, strategyOf(world.players[1]!.strategy), world.map.size);
-    for (let t = 0; t < 3000 && world.outcome.state === 'playing'; t++) {
+    for (let t = 0; t < 3000 && world.outcome.state === MatchState.playing; t++) {
       // An empty override spreads to the same values; clearing goes back to
       // the playbook object itself. Either way: the identical game.
       if (t === 1000) brain.setOverride({});
@@ -245,7 +249,7 @@ describe('strategist overrides', () => {
     spawnUnit(world, UnitTypeId.spearman, 1, 45.5, 30.5);
     spawnUnit(world, UnitTypeId.knight, 0, 42.5, 30.5); // scout, lighting castle and yard
     world.tick = 1000;
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]); // headcount says wait
     brain.setOverride({ marchConfidence: 60 });
     expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
@@ -260,7 +264,7 @@ describe('strategist overrides', () => {
   it('AiSeats routes advice to the seat it names, and shrugs at one it cannot find', () => {
     const world = createWorld({
       seed: 7,
-      players: [{ kind: 'human' }, { kind: 'ai' }, { kind: 'ai' }],
+      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
     });
     const seats = new AiSeats(world);
     expect(seats.seatIds()).toEqual([1, 2]);
@@ -288,7 +292,7 @@ describe('the muster bar under a growth stall', () => {
     addStorehouse(world, 44, 30, {}, 1);
     spawnUnit(world, UnitTypeId.knight, 0, 42.5, 30.5); // the scout, lighting it
     world.tick = 1000;
-    return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size) };
+    return { world, brain: new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size) };
   }
 
   it('marches what it has once the army has stopped growing', () => {
@@ -327,7 +331,7 @@ describe('the stall watchdog', () => {
     addResourceTile(world, 40, 41);
     const hut = addBuiltHut(world, 40, 40);
     hut.stock = { [GoodId.wood]: OUTPUT_CAP };
-    return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size), hut };
+    return { world, brain: new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size), hut };
   }
 
   /** Beat the brain forward to `until`, keeping the world frozen — only the
@@ -363,7 +367,7 @@ describe('the stall watchdog', () => {
     // worth more carrying the pile to the storehouse than standing beside it,
     // and halting the hut is what hands him back.
     expect(commands).toContainEqual({
-      kind: 'setBuildingPaused',
+      kind: CommandKind.setBuildingPaused,
       buildingId: hut.id,
       paused: true,
     });
@@ -375,10 +379,10 @@ describe('the stall watchdog', () => {
     // work with and the capped hut is somebody's next errand, not a village
     // to break up.
     const { world, brain, hut } = frozenVillage();
-    for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor; i++) addSerf(world, 31 + i, 31);
+    for (let i = 0; i < AI_STRATEGIES[AiStrategyId.steward].survivalFloor; i++) addSerf(world, 31 + i, 31);
     const commands = beatUntil(brain, world, AI_PACING.decisionInterval * 2);
     expect(commands).not.toContainEqual({
-      kind: 'setBuildingPaused',
+      kind: CommandKind.setBuildingPaused,
       buildingId: hut.id,
       paused: true,
     });
@@ -392,7 +396,7 @@ describe('the stall watchdog', () => {
     hut.stock = {};
     const commands = beatUntil(brain, world, AI_PACING.decisionInterval * 2);
     expect(commands).toContainEqual({
-      kind: 'setBuildingPaused',
+      kind: CommandKind.setBuildingPaused,
       buildingId: hut.id,
       paused: false,
     });
@@ -403,7 +407,7 @@ describe('the stall watchdog', () => {
     hut.paused = true; // stock is still at OUTPUT_CAP from frozenVillage
     const commands = beatUntil(brain, world, AI_PACING.decisionInterval * 2);
     expect(commands).not.toContainEqual({
-      kind: 'setBuildingPaused',
+      kind: CommandKind.setBuildingPaused,
       buildingId: hut.id,
       paused: false,
     });
@@ -421,7 +425,7 @@ describe('the stall watchdog', () => {
     hut.stock = { [GoodId.wood]: OUTPUT_CAP };
     const worker = world.units.get(hut.workerId!)!;
     worker.task = { t: UnitTaskKind.gatherWork, tile: tileIdx(40, 41, world.map.size), until: 999_999 };
-    tickWorld(world, cmds({ kind: 'setBuildingPaused', buildingId: hut.id, paused: true }));
+    tickWorld(world, cmds({ kind: CommandKind.setBuildingPaused, buildingId: hut.id, paused: true }));
     expect(worker.kind).toBe(UnitTypeId.serf);
     // Idle, or already claimed for a haul — either is in the pool. What is
     // fatal is a leftover gather task.
@@ -437,13 +441,13 @@ describe('the stall watchdog', () => {
     addStorehouse(world, 30, 30, { [GoodId.wood]: 3 });
     const dead = addBuiltHut(world, 40, 40); // no resource tile in reach
     addResourceTile(world, 12, 12); // ...but a live grove clear across the map
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const commands = beatUntil(
       brain,
       world,
       AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100,
     );
-    expect(commands).toContainEqual({ kind: 'sellBuilding', buildingId: dead.id });
+    expect(commands).toContainEqual({ kind: CommandKind.sellBuilding, buildingId: dead.id });
   });
 
   it('will not sell a worked-out extractor it could not afford to rebuild', () => {
@@ -451,13 +455,13 @@ describe('the stall watchdog', () => {
     addStorehouse(world, 30, 30, {}); // empty shelf: half the cost back is not enough
     const dead = addBuiltHut(world, 40, 40);
     addResourceTile(world, 12, 12);
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const commands = beatUntil(
       brain,
       world,
       AI_STALL.graceUntil + AI_STALL.samplePeriod * AI_STALL.window + 100,
     );
-    expect(commands).not.toContainEqual({ kind: 'sellBuilding', buildingId: dead.id });
+    expect(commands).not.toContainEqual({ kind: CommandKind.sellBuilding, buildingId: dead.id });
   });
 
   it('starts a threatened tower, and halts it again once the ground is quiet', () => {
@@ -465,13 +469,13 @@ describe('the stall watchdog', () => {
     addStorehouse(world, 30, 30, {});
     const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
     tower.paused = true; // as one comes off the scaffold
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const beat = (): SimCommand[] => {
       world.tick += AI_PACING.decisionInterval;
       return brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     };
-    const start = { kind: 'setBuildingPaused', buildingId: tower.id, paused: false };
-    const halt = { kind: 'setBuildingPaused', buildingId: tower.id, paused: true };
+    const start = { kind: CommandKind.setBuildingPaused, buildingId: tower.id, paused: false };
+    const halt = { kind: CommandKind.setBuildingPaused, buildingId: tower.id, paused: true };
 
     // Quiet ground: no reason to take anyone off a haul.
     expect(beat()).not.toContainEqual(start);
@@ -495,7 +499,7 @@ describe('the stall watchdog', () => {
     tower.garrisonKind = UnitTypeId.serf;
     const out = beat();
     expect(out).toContainEqual(halt);
-    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toHaveLength(1);
+    expect(out.filter((c) => c.kind === CommandKind.setBuildingPaused)).toHaveLength(1);
   });
 
   it('walks an archer up to a tower under attack instead of leaving it to the levy', () => {
@@ -514,17 +518,17 @@ describe('the stall watchdog', () => {
     tower.garrisonKind = UnitTypeId.serf;
     spawnUnit(world, UnitTypeId.bandit, BANDIT, 37.5, 38.5);
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 34.5, 34.5);
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     world.tick += AI_PACING.decisionInterval;
     const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     // He is the wall's now: claimed for the tower means left out of the
     // army, so nothing marches him anywhere. A soldier at the door relieves
     // the whole levy, so the villagers go back to their errands.
-    expect(out.some((c) => c.kind === 'moveUnits' && c.unitIds.includes(archer.id))).toBe(false);
+    expect(out.some((c) => c.kind === CommandKind.moveUnits && c.unitIds.includes(archer.id))).toBe(false);
     // And the tower keeps running while he walks — a besieged wall is never
     // stood down, whoever is holding it.
     expect(out).not.toContainEqual({
-      kind: 'setBuildingPaused',
+      kind: CommandKind.setBuildingPaused,
       buildingId: tower.id,
       paused: true,
     });
@@ -539,11 +543,11 @@ describe('the stall watchdog', () => {
     const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
     tower.paused = true; // as one comes off the scaffold
     spawnUnit(world, UnitTypeId.bandit, BANDIT, 37.5, 38.5);
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     world.tick += AI_PACING.decisionInterval;
     const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     expect(out).toContainEqual({
-      kind: 'setBuildingPaused',
+      kind: CommandKind.setBuildingPaused,
       buildingId: tower.id,
       paused: false,
     });
@@ -560,10 +564,10 @@ describe('the stall watchdog', () => {
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 40.5, 40.5);
     archer.task = { t: UnitTaskKind.staff, buildingId: tower.id };
     tower.recruitId = archer.id;
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     world.tick += AI_PACING.decisionInterval;
     const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
-    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
+    expect(out.filter((c) => c.kind === CommandKind.setBuildingPaused)).toEqual([]);
   });
 
   it('lets an idle archer relieve a levy rather than standing it down', () => {
@@ -576,10 +580,10 @@ describe('the stall watchdog', () => {
     tower.garrison = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity;
     tower.garrisonKind = UnitTypeId.serf;
     spawnUnit(world, UnitTypeId.archer, 0, 34.5, 34.5);
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     world.tick += AI_PACING.decisionInterval;
     const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
-    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
+    expect(out.filter((c) => c.kind === CommandKind.setBuildingPaused)).toEqual([]);
   });
 
   it('does not open a tower for an archer it has just marched away', () => {
@@ -591,12 +595,12 @@ describe('the stall watchdog', () => {
     const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
     tower.paused = true;
     const archer = spawnUnit(world, UnitTypeId.archer, 0, 34.5, 34.5);
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     world.tick += AI_PACING.decisionInterval;
     const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
-    const marched = out.some((c) => c.kind === 'moveUnits' && c.unitIds.includes(archer.id));
+    const marched = out.some((c) => c.kind === CommandKind.moveUnits && c.unitIds.includes(archer.id));
     const started = out.some(
-      (c) => c.kind === 'setBuildingPaused' && c.buildingId === tower.id && !c.paused,
+      (c) => c.kind === CommandKind.setBuildingPaused && c.buildingId === tower.id && !c.paused,
     );
     // Whichever the seat picks, it does not pick both for the one man.
     expect(marched && started).toBe(false);
@@ -613,12 +617,12 @@ describe('the stall watchdog', () => {
     tower.paused = true;
     tower.staffBackoffUntil = world.tick + 10_000; // walled off, for now
     spawnUnit(world, UnitTypeId.archer, 0, 34.5, 34.5);
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     world.tick += AI_PACING.decisionInterval;
     const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     // No point opening it: nobody can get in, and the archer stays the
     // army's to spend.
-    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
+    expect(out.filter((c) => c.kind === CommandKind.setBuildingPaused)).toEqual([]);
   });
 
   it('never stands a tower its archers hold down, or up', () => {
@@ -627,14 +631,14 @@ describe('the stall watchdog', () => {
     const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 36);
     tower.garrison = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity;
     tower.garrisonKind = UnitTypeId.archer;
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     world.tick += AI_PACING.decisionInterval;
     const out = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     // Halting a tower now empties the roof whoever is on it, so the
     // quiet-ground halt is held back from one the soldiers hold: standing
     // them down would trade a wall that cannot be shot back at for two men
     // in the open, and start them climbing back up at the next sighting.
-    expect(out.filter((c) => c.kind === 'setBuildingPaused')).toEqual([]);
+    expect(out.filter((c) => c.kind === CommandKind.setBuildingPaused)).toEqual([]);
     expect(tower.garrison).toBe(BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity);
   });
 
@@ -642,7 +646,7 @@ describe('the stall watchdog', () => {
     // The whole safety story: the watchdog is memory and a comparison, and
     // an unstalled seat must play the game it played before it existed.
     // Long enough to run past graceUntil and a full window.
-    const config: WorldConfig = { seed: 7, players: [{ kind: 'human' }, { kind: 'ai' }] };
+    const config: WorldConfig = { seed: 7, players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }] };
     expect(digest(runWithBrains(config, 40_000))).toEqual(digest(runWithBrains(config, 40_000)));
   }, 240_000);
 });
@@ -665,7 +669,7 @@ describe('a village that lost its hands', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
     const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 36);
-    return { world, brain: new AiBrain(0, AI_STRATEGIES.steward, world.map.size), barracks };
+    return { world, brain: new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size), barracks };
   }
 
   function beat(brain: AiBrain, world: World): SimCommand[] {
@@ -676,7 +680,7 @@ describe('a village that lost its hands', () => {
   it('stands the barracks down while the pool is below the survival floor', () => {
     const { world, brain, barracks } = raidedVillage();
     expect(beat(brain, world)).toContainEqual({
-      kind: 'setBuildingPaused',
+      kind: CommandKind.setBuildingPaused,
       buildingId: barracks.id,
       paused: true,
     });
@@ -688,15 +692,15 @@ describe('a village that lost its hands', () => {
     // none of. Paired on purpose — the same seat, the same beat, one serf
     // either side of the floor.
     const { world, brain, barracks } = raidedVillage();
-    for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor; i++) addSerf(world, 31 + i, 31);
-    expect(beat(brain, world).filter((c) => c.kind === 'trainUnit')).not.toEqual([]);
+    for (let i = 0; i < AI_STRATEGIES[AiStrategyId.steward].survivalFloor; i++) addSerf(world, 31 + i, 31);
+    expect(beat(brain, world).filter((c) => c.kind === CommandKind.trainUnit)).not.toEqual([]);
 
     const raided = raidedVillage();
-    for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor - 1; i++) addSerf(raided.world, 31 + i, 31);
+    for (let i = 0; i < AI_STRATEGIES[AiStrategyId.steward].survivalFloor - 1; i++) addSerf(raided.world, 31 + i, 31);
     const held = beat(raided.brain, raided.world);
-    expect(held.filter((c) => c.kind === 'trainUnit')).toEqual([]);
+    expect(held.filter((c) => c.kind === CommandKind.trainUnit)).toEqual([]);
     expect(held).toContainEqual({
-      kind: 'setBuildingPaused',
+      kind: CommandKind.setBuildingPaused,
       buildingId: raided.barracks.id,
       paused: true,
     });
@@ -709,8 +713,8 @@ describe('a village that lost its hands', () => {
     // recruiter the hand that put the seat back over it.
     const { world, brain, barracks } = raidedVillage();
     barracks.paused = true;
-    const open = { kind: 'setBuildingPaused', buildingId: barracks.id, paused: false };
-    for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor; i++) addSerf(world, 31 + i, 31);
+    const open = { kind: CommandKind.setBuildingPaused, buildingId: barracks.id, paused: false };
+    for (let i = 0; i < AI_STRATEGIES[AiStrategyId.steward].survivalFloor; i++) addSerf(world, 31 + i, 31);
     expect(beat(brain, world)).not.toContainEqual(open); // at the floor: the hold stands
 
     addSerf(world, 35, 31); // one clear of it
@@ -727,10 +731,10 @@ describe('a village that lost its hands', () => {
     // such hauls with the two hands the seat had; with the band, one — the
     // one already in a serf's hands when the hold came down.
     const { world, brain, barracks } = raidedVillage();
-    const floor = AI_STRATEGIES.steward.survivalFloor;
+    const floor = AI_STRATEGIES[AiStrategyId.steward].survivalFloor;
     for (let i = 0; i < floor; i++) addSerf(world, 31 + i, 31);
-    const halt = { kind: 'setBuildingPaused', buildingId: barracks.id, paused: true };
-    const open = { kind: 'setBuildingPaused', buildingId: barracks.id, paused: false };
+    const halt = { kind: CommandKind.setBuildingPaused, buildingId: barracks.id, paused: true };
+    const open = { kind: CommandKind.setBuildingPaused, buildingId: barracks.id, paused: false };
 
     // At the floor with the barracks running, nothing happens: the rule
     // closes under the line, it does not go looking for a barracks to shut.
@@ -748,7 +752,7 @@ describe('a village that lost its hands', () => {
     serfs[0]!.dead = false;
     const atFloor = beat(brain, world);
     expect(atFloor).not.toContainEqual(open);
-    expect(atFloor.filter((c) => c.kind === 'trainUnit')).toEqual([]);
+    expect(atFloor.filter((c) => c.kind === CommandKind.trainUnit)).toEqual([]);
   });
 
   it('lets the recruiter take one hand past the floor, and no more', () => {
@@ -768,9 +772,9 @@ describe('a village that lost its hands', () => {
     const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 36);
     barracks.inputs = { [GoodId.food]: 30, [GoodId.sword]: 30 };
     barracks.paused = true;
-    const floor = AI_STRATEGIES.steward.survivalFloor;
+    const floor = AI_STRATEGIES[AiStrategyId.steward].survivalFloor;
     for (let i = 0; i < floor + 1; i++) addSerf(world, 31 + i, 31);
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     const loose = (): number =>
       [...world.units.values()].filter((u) => !u.dead && u.kind === UnitTypeId.serf).length;
     let low = loose();
@@ -798,8 +802,8 @@ describe('a village that lost its hands', () => {
     const world = bareWorld();
     const shelf = addStorehouse(world, 30, 30, { [GoodId.silver]: soldiery + 1, [GoodId.wheat]: 20 });
     placeBuiltBuilding(world, BuildingTypeId.abbey, 0, 36, 36);
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
-    expect(beat(brain, world).filter((c) => c.kind === 'research')).toEqual([]);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
+    expect(beat(brain, world).filter((c) => c.kind === CommandKind.research)).toEqual([]);
 
     // And the sum has to count the hire this same beat already ordered:
     // commands apply in the order they are pushed, so the four silver the
@@ -808,19 +812,19 @@ describe('a village that lost its hands', () => {
     // and is not — it is 10 - 4 - 6 = 0.
     shelf.stock[GoodId.silver] = HIRE_SERF_COST + soldiery;
     const beat10 = beat(brain, world);
-    expect(beat10.filter((c) => c.kind === 'hireSerf')).not.toEqual([]);
-    expect(beat10.filter((c) => c.kind === 'research')).toEqual([]);
+    expect(beat10.filter((c) => c.kind === CommandKind.hireSerf)).not.toEqual([]);
+    expect(beat10.filter((c) => c.kind === CommandKind.research)).toEqual([]);
 
     // Not a blanket ban: with the hand, the tech and the NEXT hand all paid
     // for, the queue runs even below the floor.
     shelf.stock[GoodId.silver] = HIRE_SERF_COST * 2 + soldiery;
-    expect(beat(brain, world).filter((c) => c.kind === 'research')).not.toEqual([]);
+    expect(beat(brain, world).filter((c) => c.kind === CommandKind.research)).not.toEqual([]);
 
     // And with the pool back over the floor the guard is silent entirely —
     // the playbook's own research reserve takes over from here.
-    for (let i = 0; i < AI_STRATEGIES.steward.survivalFloor; i++) addSerf(world, 31 + i, 31);
+    for (let i = 0; i < AI_STRATEGIES[AiStrategyId.steward].survivalFloor; i++) addSerf(world, 31 + i, 31);
     shelf.stock[GoodId.silver] = soldiery;
-    expect(beat(brain, world).filter((c) => c.kind === 'research')).not.toEqual([]);
+    expect(beat(brain, world).filter((c) => c.kind === CommandKind.research)).not.toEqual([]);
   });
 
   it('actually unfreezes: the pile moves and a hand comes back', () => {
@@ -833,7 +837,7 @@ describe('a village that lost its hands', () => {
     addResourceTile(world, 40, 41);
     const hut = addBuiltHut(world, 40, 40);
     hut.stock = { [GoodId.wood]: OUTPUT_CAP };
-    const brain = new AiBrain(0, AI_STRATEGIES.steward, world.map.size);
+    const brain = new AiBrain(0, AI_STRATEGIES[AiStrategyId.steward], world.map.size);
     let sawSerf = false;
     for (let t = 0; t < 3000; t++) {
       const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
@@ -865,11 +869,11 @@ describe('a forge nobody is buying from', () => {
     addStorehouse(world, 30, 30, stock);
     const swords = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 36, 36);
     const bows = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 40, 36);
-    swords.recipeIndex = AI_STRATEGIES.abbot.weaponMix[0]!;
-    bows.recipeIndex = AI_STRATEGIES.abbot.weaponMix[1]!;
+    swords.recipeIndex = AI_STRATEGIES[AiStrategyId.abbot].weaponMix[0]!;
+    bows.recipeIndex = AI_STRATEGIES[AiStrategyId.abbot].weaponMix[1]!;
     return {
       world,
-      brain: new AiBrain(0, AI_STRATEGIES.abbot, world.map.size),
+      brain: new AiBrain(0, AI_STRATEGIES[AiStrategyId.abbot], world.map.size),
       swords,
       bows,
     };
@@ -881,12 +885,12 @@ describe('a forge nobody is buying from', () => {
   }
 
   const halt = (b: Building): SimCommand => ({
-    kind: 'setBuildingPaused',
+    kind: CommandKind.setBuildingPaused,
     buildingId: b.id,
     paused: true,
   });
   const start = (b: Building): SimCommand => ({
-    kind: 'setBuildingPaused',
+    kind: CommandKind.setBuildingPaused,
     buildingId: b.id,
     paused: false,
   });
@@ -948,13 +952,13 @@ describe('a forge nobody is buying from', () => {
     addBuiltHut(world, 20, 20, false);
 
     const orders = beat(brain, world);
-    const woken = orders.find((c) => c.kind === 'setBuildingPaused' && c.paused === false);
+    const woken = orders.find((c) => c.kind === CommandKind.setBuildingPaused && c.paused === false);
     expect(woken).toBeDefined();
     const axe = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!.findIndex(
       (o) => (o.recipe.outputs[GoodId.axe] ?? 0) > 0,
     );
     expect(orders).toContainEqual({
-      kind: 'enqueueForge',
+      kind: CommandKind.enqueueForge,
       buildingId: (woken as { buildingId: number }).buildingId,
       recipeIndex: axe,
     });
@@ -973,7 +977,7 @@ describe('a forge nobody is buying from', () => {
     addBuiltHut(world, 20, 20, false);
 
     const opened = beat(brain, world)
-      .filter((c) => c.kind === 'setBuildingPaused' && c.paused === false)
+      .filter((c) => c.kind === CommandKind.setBuildingPaused && c.paused === false)
       .map((c) => (c as { buildingId: number }).buildingId);
     expect(opened).toEqual([...new Set(opened)]);
   });

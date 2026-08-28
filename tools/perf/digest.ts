@@ -20,6 +20,7 @@ import { hashWorld } from '../../src/sim/hash.ts';
 import { tickWorld } from '../../src/sim/tick.ts';
 import { createWorld } from '../../src/sim/world.ts';
 import { AI_STRATEGY_ORDER } from '../../src/sim/defs/aiStrategies.ts';
+import { PlayerKind } from '../../src/sim/player.ts';
 
 const DIGEST_EVERY = 500;
 const TICKS = Number(process.env.DIGEST_TICKS ?? 6000);
@@ -37,8 +38,8 @@ for (const size of SIZES) {
       const world = createWorld({
         seed,
         players: [
-          { kind: 'ai', strategy: a },
-          { kind: 'ai', strategy: b },
+          { kind: PlayerKind.ai, strategy: a },
+          { kind: PlayerKind.ai, strategy: b },
         ],
         banditsEnabled: bandits,
         mapSize: size,

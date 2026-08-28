@@ -8,12 +8,14 @@ import { clearResources, rectClear, recomputeBlocked, type GameMap } from '../si
 import type { EditorMapState } from './editorMap.ts';
 import { UnitTypeId } from '../sim/defs/units.ts';
 import { BuildingTypeId } from '../sim/defs/buildings.ts';
+import { MatchState } from '../sim/world.ts';
+import type { PlayerKind } from '../sim/player.ts';
 
 export interface EditorPlayConfig {
   /** Deals the AI seats their playbooks (and the solo camp its corner). */
   seed: number;
   /** One entry per seat; length must equal the map's player count. */
-  players: { kind: 'human' | 'ai'; strategy?: AiStrategyId }[];
+  players: { kind: PlayerKind; strategy?: AiStrategyId }[];
   banditsEnabled: boolean;
 }
 
@@ -70,7 +72,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
     raidState: { nextRaidTick: firstRaidTickFor(map.play), wave: 0 },
     admin: { enabled: true, raidsEnabled: cfg.banditsEnabled, instantBuild: false },
     pendingEvents: [],
-    outcome: { state: 'playing' },
+    outcome: { state: MatchState.playing },
     banditsEnabled: cfg.banditsEnabled,
   };
 

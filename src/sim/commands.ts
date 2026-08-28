@@ -6,6 +6,15 @@ import type { EntityId } from './entities.ts';
 import type { BuildingTypeId } from './defs/buildings.ts';
 import type { TechId } from './defs/techs.ts';
 import type { UnitTypeId } from './defs/units.ts';
+import type { Enum } from '../shared/enum.ts';
+import * as CommandKindNs from './commandKindEnum.ts';
+
+export * as CommandKind from './commandKindEnum.ts';
+export type CommandKind = Enum<typeof CommandKindNs>;
+import * as AdminActionNs from './adminActionEnum.ts';
+
+export * as AdminAction from './adminActionEnum.ts';
+export type AdminAction = Enum<typeof AdminActionNs>;
 
 /**
  * The only way anything outside the sim mutates the world. Commands are
@@ -18,40 +27,33 @@ export type SimCommand =
   // whatever it meets, and `'half'` walks the front half of the route as a
   // plain move before going live (the mobile tap default: one gesture must
   // both send an army out to fight and let it flee without reengaging).
-  | { kind: 'moveUnits'; unitIds: EntityId[]; x: number; y: number; attack?: true | 'half' }
-  | { kind: 'placeBuilding'; building: BuildingTypeId; x: number; y: number }
-  | { kind: 'hireSerf' }
-  | { kind: 'sellBuilding'; buildingId: EntityId }
-  | { kind: 'setBuildingPaused'; buildingId: EntityId; paused: boolean }
-  | { kind: 'setBuildingRepair'; buildingId: EntityId; repair: boolean }
-  | { kind: 'setBuildingRecipe'; buildingId: EntityId; index: number }
-  | { kind: 'enqueueForge'; buildingId: EntityId; recipeIndex: number }
-  | { kind: 'cancelForge'; buildingId: EntityId; index: number; recipeIndex: number }
-  | { kind: 'research'; tech: TechId }
-  | { kind: 'trainUnit'; buildingId: EntityId; unit: UnitTypeId }
-  | { kind: 'cancelTraining'; buildingId: EntityId; index: number; unit: UnitTypeId }
+  | { kind: CommandKindNs.moveUnits; unitIds: EntityId[]; x: number; y: number; attack?: true | 'half' }
+  | { kind: CommandKindNs.placeBuilding; building: BuildingTypeId; x: number; y: number }
+  | { kind: CommandKindNs.hireSerf }
+  | { kind: CommandKindNs.sellBuilding; buildingId: EntityId }
+  | { kind: CommandKindNs.setBuildingPaused; buildingId: EntityId; paused: boolean }
+  | { kind: CommandKindNs.setBuildingRepair; buildingId: EntityId; repair: boolean }
+  | { kind: CommandKindNs.setBuildingRecipe; buildingId: EntityId; index: number }
+  | { kind: CommandKindNs.enqueueForge; buildingId: EntityId; recipeIndex: number }
+  | { kind: CommandKindNs.cancelForge; buildingId: EntityId; index: number; recipeIndex: number }
+  | { kind: CommandKindNs.research; tech: TechId }
+  | { kind: CommandKindNs.trainUnit; buildingId: EntityId; unit: UnitTypeId }
+  | { kind: CommandKindNs.cancelTraining; buildingId: EntityId; index: number; unit: UnitTypeId }
   // Plant (x and y present) or take down (both absent) a barracks' rally
   // flag: the tile fresh soldiers march to as they step out of the door.
-  | { kind: 'setRallyPoint'; buildingId: EntityId; x?: number; y?: number }
-  | { kind: 'admin'; action: AdminAction };
+  | { kind: CommandKindNs.setRallyPoint; buildingId: EntityId; x?: number; y?: number }
+  | { kind: CommandKindNs.admin; action: AdminAction };
 
 /** Sandbox tweaks (the ?admin panel). Single-player: no cheat gating needed. */
-export type AdminAction =
-  | 'toggleRaids'
-  | 'clearBandits'
-  | 'grantGoods'
-  | 'toggleInstantBuild'
-  | 'finishResearch'
-  | 'spawnParade';
 
-const ADMIN_ACTIONS = [
-  'toggleRaids',
-  'clearBandits',
-  'grantGoods',
-  'toggleInstantBuild',
-  'finishResearch',
-  'spawnParade',
-] as const satisfies readonly AdminAction[];
+const ADMIN_ACTIONS: readonly AdminAction[] = [
+  AdminActionNs.toggleRaids,
+  AdminActionNs.clearBandits,
+  AdminActionNs.grantGoods,
+  AdminActionNs.toggleInstantBuild,
+  AdminActionNs.finishResearch,
+  AdminActionNs.spawnParade,
+];
 
 /**
  * Ceiling on one move order's unit list. Far above any selection a player
@@ -125,13 +127,13 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const c = raw as Record<string, unknown>;
   switch (c.kind) {
-    case 'moveUnits': {
+    case CommandKindNs.moveUnits: {
       if (!Array.isArray(c.unitIds)) return null;
       if (c.unitIds.length > MAX_UNITS_PER_ORDER) return null;
       if (!c.unitIds.every(isId)) return null;
       if (!isTile(c.x) || !isTile(c.y)) return null;
       return {
-        kind: 'moveUnits',
+        kind: CommandKindNs.moveUnits,
         unitIds: [...(c.unitIds as EntityId[])],
         x: c.x,
         y: c.y,
@@ -141,33 +143,33 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
         ...(c.attack === true || c.attack === 'half' ? { attack: c.attack } : {}),
       };
     }
-    case 'placeBuilding':
+    case CommandKindNs.placeBuilding:
       if (!isDefined(BUILDING_DEFS, c.building)) return null;
       if (!isTile(c.x) || !isTile(c.y)) return null;
-      return { kind: 'placeBuilding', building: c.building as BuildingTypeId, x: c.x, y: c.y };
-    case 'hireSerf':
-      return { kind: 'hireSerf' };
-    case 'sellBuilding':
+      return { kind: CommandKindNs.placeBuilding, building: c.building as BuildingTypeId, x: c.x, y: c.y };
+    case CommandKindNs.hireSerf:
+      return { kind: CommandKindNs.hireSerf };
+    case CommandKindNs.sellBuilding:
       if (!isId(c.buildingId)) return null;
-      return { kind: 'sellBuilding', buildingId: c.buildingId };
-    case 'setBuildingPaused':
+      return { kind: CommandKindNs.sellBuilding, buildingId: c.buildingId };
+    case CommandKindNs.setBuildingPaused:
       if (!isId(c.buildingId)) return null;
-      return { kind: 'setBuildingPaused', buildingId: c.buildingId, paused: c.paused === true };
-    case 'setBuildingRepair':
+      return { kind: CommandKindNs.setBuildingPaused, buildingId: c.buildingId, paused: c.paused === true };
+    case CommandKindNs.setBuildingRepair:
       if (!isId(c.buildingId)) return null;
-      return { kind: 'setBuildingRepair', buildingId: c.buildingId, repair: c.repair === true };
-    case 'setBuildingRecipe': {
+      return { kind: CommandKindNs.setBuildingRepair, buildingId: c.buildingId, repair: c.repair === true };
+    case CommandKindNs.setBuildingRecipe: {
       if (!isId(c.buildingId)) return null;
       // -1 is AUTO_RECIPE: clear the standing order and let the Smith pick.
       if (c.index !== AUTO_RECIPE && !isRecipeIndex(c.index)) return null;
-      return { kind: 'setBuildingRecipe', buildingId: c.buildingId, index: c.index };
+      return { kind: CommandKindNs.setBuildingRecipe, buildingId: c.buildingId, index: c.index };
     }
-    case 'enqueueForge': {
+    case CommandKindNs.enqueueForge: {
       if (!isId(c.buildingId)) return null;
       if (!isRecipeIndex(c.recipeIndex)) return null;
-      return { kind: 'enqueueForge', buildingId: c.buildingId, recipeIndex: c.recipeIndex };
+      return { kind: CommandKindNs.enqueueForge, buildingId: c.buildingId, recipeIndex: c.recipeIndex };
     }
-    case 'cancelForge': {
+    case CommandKindNs.cancelForge: {
       if (!isId(c.buildingId)) return null;
       // Both the slot and what the player thinks is in it, like
       // cancelTraining: a stale click after the queue shifted must miss
@@ -175,41 +177,41 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       if (!isSlot(c.index, FORGE_QUEUE_CAP)) return null;
       if (!isRecipeIndex(c.recipeIndex)) return null;
       return {
-        kind: 'cancelForge',
+        kind: CommandKindNs.cancelForge,
         buildingId: c.buildingId,
         index: c.index,
         recipeIndex: c.recipeIndex,
       };
     }
-    case 'research':
+    case CommandKindNs.research:
       if (!isDefined(TECH_DEFS, c.tech)) return null;
-      return { kind: 'research', tech: c.tech as TechId };
-    case 'trainUnit':
+      return { kind: CommandKindNs.research, tech: c.tech as TechId };
+    case CommandKindNs.trainUnit:
       if (!isId(c.buildingId) || !isDefined(UNIT_DEFS, c.unit)) return null;
-      return { kind: 'trainUnit', buildingId: c.buildingId, unit: c.unit as UnitTypeId };
-    case 'cancelTraining': {
+      return { kind: CommandKindNs.trainUnit, buildingId: c.buildingId, unit: c.unit as UnitTypeId };
+    case CommandKindNs.cancelTraining: {
       if (!isId(c.buildingId) || !isDefined(UNIT_DEFS, c.unit)) return null;
       if (!isSlot(c.index, TRAIN_QUEUE_CAP)) return null;
       return {
-        kind: 'cancelTraining',
+        kind: CommandKindNs.cancelTraining,
         buildingId: c.buildingId,
         index: c.index,
         unit: c.unit as UnitTypeId,
       };
     }
-    case 'setRallyPoint': {
+    case CommandKindNs.setRallyPoint: {
       if (!isId(c.buildingId)) return null;
       // No coordinates at all is the take-the-flag-down order; a half-given
       // pair is garbage rather than a guess at what was meant.
       if (c.x === undefined && c.y === undefined) {
-        return { kind: 'setRallyPoint', buildingId: c.buildingId };
+        return { kind: CommandKindNs.setRallyPoint, buildingId: c.buildingId };
       }
       if (!isTile(c.x) || !isTile(c.y)) return null;
-      return { kind: 'setRallyPoint', buildingId: c.buildingId, x: c.x, y: c.y };
+      return { kind: CommandKindNs.setRallyPoint, buildingId: c.buildingId, x: c.x, y: c.y };
     }
-    case 'admin':
+    case CommandKindNs.admin:
       if (!ADMIN_ACTIONS.includes(c.action as AdminAction)) return null;
-      return { kind: 'admin', action: c.action as AdminAction };
+      return { kind: CommandKindNs.admin, action: c.action as AdminAction };
     default:
       return null;
   }

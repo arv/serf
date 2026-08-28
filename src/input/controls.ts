@@ -74,6 +74,7 @@ import type { BuildingSnap } from '../protocol/messages';
 import { GoodId } from '../sim/defs/goods';
 import { BuildingTypeId } from '../sim/defs/buildings';
 import { BuildingState } from '../sim/entities';
+import { CommandKind } from '../sim/commands';
 
 const CLICK_RADIUS_PX = 16;
 const DRAG_THRESHOLD_PX = 4;
@@ -559,7 +560,7 @@ export class Controls {
         play('uiRefused');
         return true;
       }
-      this.#host.sendCommands([{ kind: 'hireSerf' }]);
+      this.#host.sendCommands([{ kind: CommandKind.hireSerf }]);
       play('uiCoin');
       return true;
     }
@@ -584,7 +585,7 @@ export class Controls {
         play('uiRefused');
         return true;
       }
-      this.#host.sendCommands([{ kind: 'trainUnit', buildingId: b.id, unit }]);
+      this.#host.sendCommands([{ kind: CommandKind.trainUnit, buildingId: b.id, unit }]);
       play('uiClick');
       return true;
     }
@@ -867,7 +868,7 @@ export class Controls {
     const origin = this.#placementOrigin(px, py);
     if (origin && this.#canPlaceHere(type, origin.x, origin.y)) {
       this.#host.sendCommands([
-        { kind: 'placeBuilding', building: type, x: origin.x, y: origin.y },
+        { kind: CommandKind.placeBuilding, building: type, x: origin.x, y: origin.y },
       ]);
       play('uiPlace');
       if (!keepArmed) this.setPlacement(null);
@@ -1609,8 +1610,8 @@ export class Controls {
     const { x, y } = target;
     this.#host.sendCommands([
       onSelf
-        ? { kind: 'setRallyPoint', buildingId: b.id }
-        : { kind: 'setRallyPoint', buildingId: b.id, x, y },
+        ? { kind: CommandKind.setRallyPoint, buildingId: b.id }
+        : { kind: CommandKind.setRallyPoint, buildingId: b.id, x, y },
     ]);
     // Solid gold: an order taken, but nobody moves for it yet — the pulse
     // shape family the move orders wear, in the flag's own color.
@@ -1622,7 +1623,7 @@ export class Controls {
     if (this.#selection.size === 0) return;
     this.#host.sendCommands([
       {
-        kind: 'moveUnits',
+        kind: CommandKind.moveUnits,
         unitIds: [...this.#selection],
         x,
         y,
