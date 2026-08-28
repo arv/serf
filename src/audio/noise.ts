@@ -5,7 +5,7 @@
  * two sessions render bit-identical cue buffers for free.
  */
 
-import { hash2 } from '../shared/math';
+import {hash2} from '../shared/math';
 
 /** Fill `out` with white noise in [-1, 1) for a given seed. */
 export function fillNoise(out: Float32Array, seed: number): void {

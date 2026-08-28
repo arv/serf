@@ -1,8 +1,14 @@
-import { For, Show, createSignal, onCleanup, onMount } from 'solid-js';
-import { render } from 'solid-js/web';
-import type { EditorActions } from '../../editor/editorScreen.ts';
-import { parseEditorMap } from '../../editor/format.ts';
-import { deleteMap, hasMap, listMaps, loadMap, saveBoundName } from '../../editor/storage.ts';
+import {For, Show, createSignal, onCleanup, onMount} from 'solid-js';
+import {render} from 'solid-js/web';
+import type {EditorActions} from '../../editor/editorScreen.ts';
+import {parseEditorMap} from '../../editor/format.ts';
+import {
+  deleteMap,
+  hasMap,
+  listMaps,
+  loadMap,
+  saveBoundName,
+} from '../../editor/storage.ts';
 import {
   BRUSH_MAX,
   BRUSH_MIN,
@@ -33,9 +39,14 @@ import {
   tool,
   viewMode,
 } from '../../editor/uiState.ts';
-import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE, marginFor } from '../../shared/grid.ts';
-import * as PlayerKind from '../../sim/playerKindEnum.ts';
 import * as ViewMode from '../../render/viewModeEnum.ts';
+import {
+  DEFAULT_MAP_SIZE,
+  MAX_MAP_SIZE,
+  MIN_MAP_SIZE,
+  marginFor,
+} from '../../shared/grid.ts';
+import * as PlayerKind from '../../sim/playerKindEnum.ts';
 
 /**
  * The editor's whole DOM overlay: tool palette on the left, the session
@@ -57,14 +68,14 @@ const GROUP_TITLES: Record<string, string> = {
   start: 'Players',
 };
 
-function EditorUi(props: { actions: EditorActions }) {
+function EditorUi(props: {actions: EditorActions}) {
   const groups = ['terrain', 'resource', 'height', 'start'] as const;
 
   let filePick: HTMLInputElement | undefined;
   const importFile = (file: File): void => {
     file
       .text()
-      .then((text) => {
+      .then(text => {
         const state = parseEditorMap(text);
         // A file is not a slot: the map opens unbound, so the first Save
         // asks where it should live rather than overwriting whatever was
@@ -74,7 +85,9 @@ function EditorUi(props: { actions: EditorActions }) {
         showNotice(`Opened "${state.name}" — Save to keep it in the browser`);
       })
       .catch((err: unknown) => {
-        showNotice(err instanceof Error ? err.message : 'could not read that file');
+        showNotice(
+          err instanceof Error ? err.message : 'could not read that file',
+        );
       });
   };
 
@@ -82,7 +95,8 @@ function EditorUi(props: { actions: EditorActions }) {
     !dirtySinceSave() || window.confirm('Discard unsaved changes to this map?');
 
   /** Does Save write without asking? (Bound, and still under that name.) */
-  const savesStraightBack = (): boolean => savedName() !== null && mapName().trim() === savedName();
+  const savesStraightBack = (): boolean =>
+    savedName() !== null && mapName().trim() === savedName();
 
   return (
     <div class="ed-root">
@@ -91,17 +105,18 @@ function EditorUi(props: { actions: EditorActions }) {
       {/* ——— left: tool palette ——— */}
       <div class="ed-tools panel">
         <For each={[...groups]}>
-          {(group) => (
+          {group => (
             <div class="ed-group">
               <h4>{GROUP_TITLES[group]}</h4>
-              <For each={PALETTE.filter((p) => p.group === group)}>
-                {(entry) => (
+              <For each={PALETTE.filter(p => p.group === group)}>
+                {entry => (
                   <button
-                    classList={{ active: tool() === entry.tool }}
+                    classList={{active: tool() === entry.tool}}
                     title={`${entry.label} (${entry.key.toUpperCase()})`}
                     onClick={() => setTool(entry.tool)}
                   >
-                    <span class="kbd">{entry.key.toUpperCase()}</span> {entry.label}
+                    <span class="kbd">{entry.key.toUpperCase()}</span>{' '}
+                    {entry.label}
                   </button>
                 )}
               </For>
@@ -118,7 +133,7 @@ function EditorUi(props: { actions: EditorActions }) {
           title="The map’s name — rename it and the next Save asks where to keep it"
           value={mapName()}
           maxLength={40}
-          onInput={(e) => {
+          onInput={e => {
             setMapName(e.currentTarget.value);
             setDirtySinceSave(true);
           }}
@@ -146,12 +161,12 @@ function EditorUi(props: { actions: EditorActions }) {
             min={BRUSH_MIN}
             max={BRUSH_MAX}
             value={brushRadius()}
-            onInput={(e) => setBrushRadius(Number(e.currentTarget.value))}
+            onInput={e => setBrushRadius(Number(e.currentTarget.value))}
           />
         </label>
         <div class="ed-kaleido">
           <button
-            classList={{ active: kaleido() }}
+            classList={{active: kaleido()}}
             title="Kaleidoscope (K): every stroke paints once per fold, rotated around the map's center"
             onClick={() => setKaleido(!kaleido())}
           >
@@ -159,10 +174,10 @@ function EditorUi(props: { actions: EditorActions }) {
           </button>
           <Show when={kaleido()}>
             <For each={[1, 2, 3, 4]}>
-              {(n) => (
+              {n => (
                 <button
                   class="ed-fold"
-                  classList={{ active: folds() === n }}
+                  classList={{active: folds() === n}}
                   title={
                     n === mapPlayers()
                       ? `${String(n)}× — matches this map's seats`
@@ -183,7 +198,7 @@ function EditorUi(props: { actions: EditorActions }) {
           {viewMode() === ViewMode.topDown ? 'View: top-down' : 'View: game'}
         </button>
         <button
-          classList={{ active: showBounds() }}
+          classList={{active: showBounds()}}
           title="Play area (B): outline the playable square and press the scenery ring back"
           onClick={() => setShowBounds(!showBounds())}
         >
@@ -201,7 +216,10 @@ function EditorUi(props: { actions: EditorActions }) {
         >
           New…
         </button>
-        <button title="Open a saved map, or a map file (Ctrl+O)" onClick={() => setDialog('open')}>
+        <button
+          title="Open a saved map, or a map file (Ctrl+O)"
+          onClick={() => setDialog('open')}
+        >
           Open…
         </button>
         <button
@@ -220,7 +238,10 @@ function EditorUi(props: { actions: EditorActions }) {
             </span>
           </Show>
         </button>
-        <button title="Save under a new name (Ctrl+Shift+S)" onClick={() => setDialog('saveAs')}>
+        <button
+          title="Save under a new name (Ctrl+Shift+S)"
+          onClick={() => setDialog('saveAs')}
+        >
           Save as…
         </button>
         <button
@@ -237,9 +258,13 @@ function EditorUi(props: { actions: EditorActions }) {
         </button>
         <button
           class="ed-play"
-          classList={{ active: problems().length === 0 }}
+          classList={{active: problems().length === 0}}
           disabled={problems().length > 0}
-          title={problems().length > 0 ? problems().join('\n') : 'Launch a match on this map'}
+          title={
+            problems().length > 0
+              ? problems().join('\n')
+              : 'Launch a match on this map'
+          }
           onClick={() => setDialog('play')}
         >
           ▶ Play…
@@ -249,7 +274,7 @@ function EditorUi(props: { actions: EditorActions }) {
           type="file"
           accept=".json,application/json"
           style="display:none"
-          onChange={(e) => {
+          onChange={e => {
             const file = e.currentTarget.files?.[0];
             e.currentTarget.value = '';
             if (file) importFile(file);
@@ -260,7 +285,7 @@ function EditorUi(props: { actions: EditorActions }) {
       {/* ——— bottom: problems + notice ——— */}
       <Show when={problems().length > 0}>
         <div class="ed-problems panel">
-          <For each={problems()}>{(p) => <div>⚠ {p}</div>}</For>
+          <For each={problems()}>{p => <div>⚠ {p}</div>}</For>
         </div>
       </Show>
       <Show when={notice()}>
@@ -287,7 +312,7 @@ function EditorUi(props: { actions: EditorActions }) {
   );
 }
 
-function NewMapDialog(props: { actions: EditorActions }) {
+function NewMapDialog(props: {actions: EditorActions}) {
   const [size, setSize] = createSignal(DEFAULT_MAP_SIZE);
   const [players, setPlayers] = createSignal(mapPlayers());
   return (
@@ -300,18 +325,22 @@ function NewMapDialog(props: { actions: EditorActions }) {
           max={MAX_MAP_SIZE}
           step={2}
           value={size()}
-          onInput={(e) => setSize(Number(e.currentTarget.value))}
+          onInput={e => setSize(Number(e.currentTarget.value))}
         />
       </label>
       <div class="ed-dim">
-        A scenery ring {marginFor(size())} tiles deep surrounds it — paintable, unwalkable.
+        A scenery ring {marginFor(size())} tiles deep surrounds it — paintable,
+        unwalkable.
       </div>
       <div class="ed-row">
         Players
         <div class="ed-seg">
           <For each={[1, 2, 3, 4]}>
-            {(n) => (
-              <button classList={{ active: players() === n }} onClick={() => setPlayers(n)}>
+            {n => (
+              <button
+                classList={{active: players() === n}}
+                onClick={() => setPlayers(n)}
+              >
                 {n}
               </button>
             )}
@@ -343,12 +372,17 @@ function OpenDialog(props: {
   return (
     <Dialog title="Open a map">
       <Show when={names().length === 0}>
-        <div class="ed-dim">Nothing saved in this browser yet — “Save” keeps a map here.</div>
+        <div class="ed-dim">
+          Nothing saved in this browser yet — “Save” keeps a map here.
+        </div>
       </Show>
       <For each={names()}>
-        {(name) => (
+        {name => (
           <div class="ed-row ed-slot">
-            <span class="ed-slot-name" classList={{ current: name === savedName() }}>
+            <span
+              class="ed-slot-name"
+              classList={{current: name === savedName()}}
+            >
               {name}
             </span>
             <button
@@ -400,7 +434,7 @@ function OpenDialog(props: {
   );
 }
 
-function SaveAsDialog(props: { actions: EditorActions }) {
+function SaveAsDialog(props: {actions: EditorActions}) {
   const [name, setName] = createSignal(mapName().trim() || 'Untitled');
   // Read the slot list once, on open: it feeds a per-keystroke check.
   const existing = listMaps();
@@ -421,7 +455,11 @@ function SaveAsDialog(props: { actions: EditorActions }) {
     }
     // Asked of storage, not of the list read when the dialog opened: a
     // name free a minute ago can have been taken by another tab since.
-    if (n !== savedName() && hasMap(n) && !window.confirm(`Replace the saved map “${n}”?`)) {
+    if (
+      n !== savedName() &&
+      hasMap(n) &&
+      !window.confirm(`Replace the saved map “${n}”?`)
+    ) {
       return;
     }
     // Only close on a save that landed — a full quota leaves the dialog
@@ -438,17 +476,21 @@ function SaveAsDialog(props: { actions: EditorActions }) {
           aria-label="Save as name"
           value={name()}
           maxLength={40}
-          onInput={(e) => setName(e.currentTarget.value)}
-          onKeyDown={(e) => {
+          onInput={e => setName(e.currentTarget.value)}
+          onKeyDown={e => {
             if (e.key === 'Enter') commit();
           }}
         />
       </label>
       <Show when={taken()}>
-        <div class="ed-dim">“{name().trim()}” already exists — saving replaces it.</div>
+        <div class="ed-dim">
+          “{name().trim()}” already exists — saving replaces it.
+        </div>
       </Show>
       <Show when={existing.length > 0}>
-        <div class="ed-dim ed-existing">Already saved: {existing.join(', ')}</div>
+        <div class="ed-dim ed-existing">
+          Already saved: {existing.join(', ')}
+        </div>
       </Show>
       <div class="ed-row ed-actions">
         <button onClick={() => setDialog(null)}>Cancel</button>
@@ -460,14 +502,17 @@ function SaveAsDialog(props: { actions: EditorActions }) {
   );
 }
 
-function PlayDialog(props: { actions: EditorActions }) {
-  const [seed, setSeed] = createSignal(String(Math.floor(Math.random() * 1_000_000)));
+function PlayDialog(props: {actions: EditorActions}) {
+  const [seed, setSeed] = createSignal(
+    String(Math.floor(Math.random() * 1_000_000)),
+  );
   const [bandits, setBandits] = createSignal(true);
   const seats = mapPlayers();
   return (
     <Dialog title="Playtest this map">
       <div class="ed-dim">
-        You take seat 1{seats > 1 ? `; seats 2–${String(seats)} play as AI rivals.` : '.'}
+        You take seat 1
+        {seats > 1 ? `; seats 2–${String(seats)} play as AI rivals.` : '.'}
       </div>
       <label class="ed-row">
         Seed
@@ -475,16 +520,22 @@ function PlayDialog(props: { actions: EditorActions }) {
           class="ed-seed"
           value={seed()}
           inputmode="numeric"
-          onInput={(e) => setSeed(e.currentTarget.value)}
+          onInput={e => setSeed(e.currentTarget.value)}
         />
       </label>
       <div class="ed-row">
         Bandits
         <div class="ed-seg">
-          <button classList={{ active: bandits() }} onClick={() => setBandits(true)}>
+          <button
+            classList={{active: bandits()}}
+            onClick={() => setBandits(true)}
+          >
             on
           </button>
-          <button classList={{ active: !bandits() }} onClick={() => setBandits(false)}>
+          <button
+            classList={{active: !bandits()}}
+            onClick={() => setBandits(false)}
+          >
             off
           </button>
         </div>
@@ -497,8 +548,8 @@ function PlayDialog(props: { actions: EditorActions }) {
             const parsed = Number(seed());
             props.actions.play({
               seed: Number.isFinite(parsed) ? parsed : 1,
-              players: Array.from({ length: seats }, (_, i) =>
-                i === 0 ? { kind: PlayerKind.human } : { kind: PlayerKind.ai },
+              players: Array.from({length: seats}, (_, i) =>
+                i === 0 ? {kind: PlayerKind.human} : {kind: PlayerKind.ai},
               ),
               banditsEnabled: bandits(),
             });
@@ -511,7 +562,7 @@ function PlayDialog(props: { actions: EditorActions }) {
   );
 }
 
-function Dialog(props: { title: string; children?: unknown }) {
+function Dialog(props: {title: string; children?: unknown}) {
   let card: HTMLDivElement | undefined;
   // Escape closes, and focus lands inside so keyboard users are IN the
   // dialog rather than tabbing the panel behind the scrim. (Not a full

@@ -1,12 +1,12 @@
-import type { Enum } from '../shared/enum.ts';
-import { For, Show } from 'solid-js';
-import { GOODS, GOOD_KEYS } from '../sim/defs/goods';
-import { GoodIcon } from './icons';
-import { GoodTip, tooltip } from './tooltip';
-import { goodName } from './names';
-import { setEconomyPanelOpen, stock, toolWants } from './store';
-import { COMPACT } from './breakpoints';
+import {For, Show} from 'solid-js';
+import type {Enum} from '../shared/enum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import {GOODS, GOOD_KEYS} from '../sim/defs/goods';
+import {COMPACT} from './breakpoints';
+import {GoodIcon} from './icons';
+import {goodName} from './names';
+import {setEconomyPanelOpen, stock, toolWants} from './store';
+import {GoodTip, tooltip} from './tooltip';
 
 type GoodId = Enum<typeof GoodId>;
 
@@ -24,23 +24,31 @@ type GoodId = Enum<typeof GoodId>;
  * append-only (its index is the carry code), so new goods land at its
  * end regardless of what they are. Here they sit with their kin.
  */
-const GROUPS: { label: string; goods: GoodId[] }[] = [
-  { label: 'Raw', goods: [GoodId.wood, GoodId.stone, GoodId.water] },
-  { label: 'Food', goods: [GoodId.wheat, GoodId.flour, GoodId.food, GoodId.ale] },
-  { label: 'Metal', goods: [GoodId.iron, GoodId.silver, GoodId.gold] },
-  { label: 'Arms', goods: [GoodId.spear, GoodId.sword, GoodId.bow] },
+const GROUPS: {label: string; goods: GoodId[]}[] = [
+  {label: 'Raw', goods: [GoodId.wood, GoodId.stone, GoodId.water]},
+  {label: 'Food', goods: [GoodId.wheat, GoodId.flour, GoodId.food, GoodId.ale]},
+  {label: 'Metal', goods: [GoodId.iron, GoodId.silver, GoodId.gold]},
+  {label: 'Arms', goods: [GoodId.spear, GoodId.sword, GoodId.bow]},
   {
     label: 'Tools',
-    goods: [GoodId.axe, GoodId.pickaxe, GoodId.scythe, GoodId.hammer, GoodId.cauldron, GoodId.rod],
+    goods: [
+      GoodId.axe,
+      GoodId.pickaxe,
+      GoodId.scythe,
+      GoodId.hammer,
+      GoodId.cauldron,
+      GoodId.rod,
+    ],
   },
 ];
 
 // The panel must account for every good — a new one someone forgets to
 // seat here should fail loudly in dev rather than silently not exist.
 if (import.meta.env.DEV) {
-  const seated = new Set(GROUPS.flatMap((g) => g.goods));
+  const seated = new Set(GROUPS.flatMap(g => g.goods));
   for (const g of GOODS) {
-    if (!seated.has(g)) throw new Error(`EconomyPanel: good '${GOOD_KEYS[g]}' is in no group`);
+    if (!seated.has(g))
+      throw new Error(`EconomyPanel: good '${GOOD_KEYS[g]}' is in no group`);
   }
 }
 
@@ -131,21 +139,23 @@ export function EconomyPanel() {
         </div>
         <div class="econ-groups">
           <For each={GROUPS}>
-            {(group) => (
+            {group => (
               <div class="econ-group">
                 <h3>{group.label}</h3>
                 <For each={group.goods}>
-                  {(good) => (
+                  {good => (
                     <div
                       class="econ-row"
-                      classList={{ none: (stock()[good] ?? 0) === 0 }}
+                      classList={{none: (stock()[good] ?? 0) === 0}}
                       {...tooltip(() => <GoodTip good={good} />)}
                     >
                       <GoodIcon good={good} size={14} />
                       <span class="name">{goodName(good)}</span>
                       <Show when={group.label === 'Tools'}>
                         <span class="want">
-                          {(toolWants()[good] ?? 0) > 0 ? `+${toolWants()[good]}` : ''}
+                          {(toolWants()[good] ?? 0) > 0
+                            ? `+${toolWants()[good]}`
+                            : ''}
                         </span>
                       </Show>
                       <span class="num">{stock()[good] ?? 0}</span>

@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { createWorld } from './world.ts';
-import { tickWorld } from './tick.ts';
-import { AiBrain } from './systems/ai.ts';
-import { strategyOf } from './defs/aiStrategies.ts';
+import {describe, expect, it} from 'vitest';
+import {strategyOf} from './defs/aiStrategies.ts';
 import * as MatchState from './matchStateEnum.ts';
 import * as PlayerKind from './playerKindEnum.ts';
+import {AiBrain} from './systems/ai.ts';
+import {tickWorld} from './tick.ts';
+import {createWorld} from './world.ts';
 
 /**
  * THE playtest: the AI brain (systems/ai.ts) wins the solo campaign on the
@@ -24,18 +24,24 @@ describe('the campaign is winnable', () => {
     // at 2/3/4 seats (mapFairness's own suite, run against it), and every
     // playbook takes it with room to spare: 13.5k, 14.7k, 16.3k and 18.9k
     // of the 45k budget.
-    const world = createWorld({ seed: 37, players: [{ kind: PlayerKind.ai }] });
+    const world = createWorld({seed: 37, players: [{kind: PlayerKind.ai}]});
     // Whichever playbook this seed dealt the seat — every one of them can
     // take this map (aiStrategies.test.ts holds that line); what is tested
     // here is that the map stays takeable.
-    const brain = new AiBrain(0, strategyOf(world.players[0]!.strategy), world.map.size);
+    const brain = new AiBrain(
+      0,
+      strategyOf(world.players[0]!.strategy),
+      world.map.size,
+    );
 
     const MAX_TICKS = 45_000; // ~37 minutes of game time
     for (let t = 0; t < MAX_TICKS; t++) {
-      const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
+      const commands = brain.shouldDecide(world.tick)
+        ? brain.decide(world)
+        : [];
       tickWorld(
         world,
-        commands.map((cmd) => ({ playerId: 0, cmd })),
+        commands.map(cmd => ({playerId: 0, cmd})),
       );
       if (world.outcome.state !== MatchState.playing) break;
     }

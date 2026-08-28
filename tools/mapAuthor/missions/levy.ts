@@ -17,14 +17,14 @@
  * ground, silver in the knoll the def puts its mine on, iron in the
  * eastern hills where the smith can reach it.
  */
-import { HILL, MEADOW, PEAK, Valley, type Authored } from '../kit.ts';
-import { keepAnchor, keepCenter, seats } from '../layout.ts';
+import {HILL, MEADOW, PEAK, Valley, type Authored} from '../kit.ts';
+import {keepAnchor, keepCenter, seats} from '../layout.ts';
 
 export function build(): Authored {
   const v = new Valley(96, 5051);
   const [start] = seats(1);
   const keep = keepCenter(start!);
-  const at = (dx: number, dy: number) => ({ x: keep.x + dx, y: keep.y + dy });
+  const at = (dx: number, dy: number) => ({x: keep.x + dx, y: keep.y + dy});
 
   v.meadow(MEADOW, 0.05)
     // The northern hills, and the silver knoll the mission's own mine
@@ -50,8 +50,8 @@ export function build(): Authored {
     // The camp's own ground: the def pins it fifteen tiles off the corner,
     // and the western range would otherwise take it. The band eases away
     // instead, leaving the hollow in the hills the bandits sit in.
-    .keepClear({ x: 44.5, y: 44.5 }, 8)
-    .borders({ n: 'ridge', e: 'forest', s: 'sea', w: 'ridge' });
+    .keepClear({x: 44.5, y: 44.5}, 8)
+    .borders({n: 'ridge', e: 'forest', s: 'sea', w: 'ridge'});
 
   const drowned = v.settle(keepAnchor(start!));
 

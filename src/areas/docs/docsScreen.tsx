@@ -1,20 +1,20 @@
-import { Match, Switch, createSignal, type Accessor, type JSX } from 'solid-js';
-import { render } from 'solid-js/web';
-import { buildingName, goodName, unitName } from '../../ui/names';
-import { DocLink } from './components';
-import { disposePreviewHub } from './preview/hub';
-import { parseDocsPath, type DocsRoute } from './routes';
-import { DOCS_STYLE } from './styles';
-import { BasicsPage } from './pages/BasicsPage';
-import { BuildingPage } from './pages/BuildingPage';
-import { BuildingsPage } from './pages/BuildingsPage';
-import { CommandsPage } from './pages/CommandsPage';
-import { GoodPage } from './pages/GoodPage';
-import { GoodsPage } from './pages/GoodsPage';
-import { IndexPage } from './pages/IndexPage';
-import { TechsPage } from './pages/TechsPage';
-import { UnitPage } from './pages/UnitPage';
-import { UnitsPage } from './pages/UnitsPage';
+import {Match, Switch, createSignal, type Accessor, type JSX} from 'solid-js';
+import {render} from 'solid-js/web';
+import {buildingName, goodName, unitName} from '../../ui/names';
+import {DocLink} from './components';
+import {BasicsPage} from './pages/BasicsPage';
+import {BuildingPage} from './pages/BuildingPage';
+import {BuildingsPage} from './pages/BuildingsPage';
+import {CommandsPage} from './pages/CommandsPage';
+import {GoodPage} from './pages/GoodPage';
+import {GoodsPage} from './pages/GoodsPage';
+import {IndexPage} from './pages/IndexPage';
+import {TechsPage} from './pages/TechsPage';
+import {UnitPage} from './pages/UnitPage';
+import {UnitsPage} from './pages/UnitsPage';
+import {disposePreviewHub} from './preview/hub';
+import {parseDocsPath, type DocsRoute} from './routes';
+import {DOCS_STYLE} from './styles';
 
 /**
  * The field guide: a wiki over the game's own defs, mounted at /docs.
@@ -26,13 +26,17 @@ import { UnitsPage } from './pages/UnitsPage';
  * exactly one context.
  */
 
-const NAV: { href: string; label: string; section: DocsRoute['page'][] }[] = [
-  { href: '/docs/buildings', label: 'Buildings', section: ['buildings', 'building'] },
-  { href: '/docs/units', label: 'Units', section: ['units', 'unit'] },
-  { href: '/docs/goods', label: 'Goods', section: ['goods', 'good'] },
-  { href: '/docs/techs', label: 'Research', section: ['techs'] },
-  { href: '/docs/commands', label: 'Commands', section: ['commands'] },
-  { href: '/docs/basics', label: 'Basics', section: ['basics'] },
+const NAV: {href: string; label: string; section: DocsRoute['page'][]}[] = [
+  {
+    href: '/docs/buildings',
+    label: 'Buildings',
+    section: ['buildings', 'building'],
+  },
+  {href: '/docs/units', label: 'Units', section: ['units', 'unit']},
+  {href: '/docs/goods', label: 'Goods', section: ['goods', 'good']},
+  {href: '/docs/techs', label: 'Research', section: ['techs']},
+  {href: '/docs/commands', label: 'Commands', section: ['commands']},
+  {href: '/docs/basics', label: 'Basics', section: ['basics']},
 ];
 
 function pageTitle(route: DocsRoute): string {
@@ -62,7 +66,7 @@ function pageTitle(route: DocsRoute): string {
   }
 }
 
-function MissingPage(props: { path: string }): JSX.Element {
+function MissingPage(props: {path: string}): JSX.Element {
   return (
     <div class="missing">
       <p>Nothing in the guide answers to “{props.path}”.</p>
@@ -71,7 +75,7 @@ function MissingPage(props: { path: string }): JSX.Element {
   );
 }
 
-function DocsApp(props: { route: Accessor<DocsRoute> }): JSX.Element {
+function DocsApp(props: {route: Accessor<DocsRoute>}): JSX.Element {
   return (
     <>
       <style>{DOCS_STYLE}</style>
@@ -90,7 +94,7 @@ function DocsApp(props: { route: Accessor<DocsRoute> }): JSX.Element {
       </header>
       <div class="doc-body">
         <nav class="doc-nav">
-          {NAV.map((n) => (
+          {NAV.map(n => (
             <DocLink
               href={n.href}
               class={n.section.includes(props.route().page) ? 'on' : undefined}
@@ -110,20 +114,38 @@ function DocsApp(props: { route: Accessor<DocsRoute> }): JSX.Element {
             </Match>
             {/* keyed: a building->building link swaps defs, and the hero
                 preview must rebuild for the new model rather than reconcile. */}
-            <Match when={(() => { const r = props.route(); return r.page === 'building' ? r : null; })()} keyed>
-              {(r) => <BuildingPage id={r.id} />}
+            <Match
+              when={(() => {
+                const r = props.route();
+                return r.page === 'building' ? r : null;
+              })()}
+              keyed
+            >
+              {r => <BuildingPage id={r.id} />}
             </Match>
             <Match when={props.route().page === 'units'}>
               <UnitsPage />
             </Match>
-            <Match when={(() => { const r = props.route(); return r.page === 'unit' ? r : null; })()} keyed>
-              {(r) => <UnitPage id={r.id} />}
+            <Match
+              when={(() => {
+                const r = props.route();
+                return r.page === 'unit' ? r : null;
+              })()}
+              keyed
+            >
+              {r => <UnitPage id={r.id} />}
             </Match>
             <Match when={props.route().page === 'goods'}>
               <GoodsPage />
             </Match>
-            <Match when={(() => { const r = props.route(); return r.page === 'good' ? r : null; })()} keyed>
-              {(r) => <GoodPage id={r.id} />}
+            <Match
+              when={(() => {
+                const r = props.route();
+                return r.page === 'good' ? r : null;
+              })()}
+              keyed
+            >
+              {r => <GoodPage id={r.id} />}
             </Match>
             <Match when={props.route().page === 'techs'}>
               <TechsPage />
@@ -134,8 +156,14 @@ function DocsApp(props: { route: Accessor<DocsRoute> }): JSX.Element {
             <Match when={props.route().page === 'basics'}>
               <BasicsPage />
             </Match>
-            <Match when={(() => { const r = props.route(); return r.page === 'missing' ? r : null; })()} keyed>
-              {(r) => <MissingPage path={r.path} />}
+            <Match
+              when={(() => {
+                const r = props.route();
+                return r.page === 'missing' ? r : null;
+              })()}
+              keyed
+            >
+              {r => <MissingPage path={r.path} />}
             </Match>
           </Switch>
         </main>
@@ -144,7 +172,7 @@ function DocsApp(props: { route: Accessor<DocsRoute> }): JSX.Element {
   );
 }
 
-export function mountDocs(): { dispose(): void; onRouteChange(): void } {
+export function mountDocs(): {dispose(): void; onRouteChange(): void} {
   // The wiki brings its own root and takes it away again, so the game's DOM
   // is untouched by a feature most sessions never open (the pattern
   // menuBackdrop.ts set with its canvas).
@@ -152,7 +180,9 @@ export function mountDocs(): { dispose(): void; onRouteChange(): void } {
   root.id = 'docs';
   document.body.appendChild(root);
 
-  const [route, setRoute] = createSignal<DocsRoute>(parseDocsPath(location.pathname));
+  const [route, setRoute] = createSignal<DocsRoute>(
+    parseDocsPath(location.pathname),
+  );
   const priorTitle = document.title;
   document.title = `${pageTitle(route())} · Serf Valley`;
   let lastPath = location.pathname;
@@ -175,7 +205,7 @@ export function mountDocs(): { dispose(): void; onRouteChange(): void } {
     if (!el) return;
     el.setAttribute('tabindex', '-1');
     // The scroll is ours to place (below); focus must not fight it.
-    el.focus({ preventScroll: true });
+    el.focus({preventScroll: true});
   };
 
   const showHashTarget = (): boolean => {

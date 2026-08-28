@@ -16,20 +16,20 @@
  * there, having looked like gains on the range they were tuned against.
  * Tune on one range, believe it only after another.
  */
-import type { Enum } from '../../src/shared/enum.ts';
-import { createWorld } from '../../src/sim/world.ts';
-import { tickWorld } from '../../src/sim/tick.ts';
-import { AiBrain } from '../../src/sim/systems/ai.ts';
+import type {Enum} from '../../src/shared/enum.ts';
 import {
   AI_STRATEGIES,
   type AiStrategyId,
   AI_STRATEGY_KEYS,
   AI_STRATEGY_ORDER,
 } from '../../src/sim/defs/aiStrategies.ts';
-import * as MatchState from '../../src/sim/matchStateEnum.ts';
-import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
+import * as MatchState from '../../src/sim/matchStateEnum.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
+import {AiBrain} from '../../src/sim/systems/ai.ts';
+import {tickWorld} from '../../src/sim/tick.ts';
+import {createWorld} from '../../src/sim/world.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -50,7 +50,11 @@ interface Run {
   army: number;
 }
 
-const SOLDIERS = new Set<UnitTypeId>([UnitTypeId.knight, UnitTypeId.spearman, UnitTypeId.archer]);
+const SOLDIERS = new Set<UnitTypeId>([
+  UnitTypeId.knight,
+  UnitTypeId.spearman,
+  UnitTypeId.archer,
+]);
 
 function playCampaign(id: AiStrategyId, seed: number): Run {
   // The seat names its playbook rather than being dealt one, so the world's
@@ -60,36 +64,45 @@ function playCampaign(id: AiStrategyId, seed: number): Run {
   // itself is a trap for whatever reads it next. Safe for the numbers:
   // dealStrategies is a pure function of the seed and runs before the
   // world's Rng is constructed, so naming a playbook cannot move the map.
-  const world = createWorld({ seed, players: [{ kind: PlayerKind.ai, strategy: id }] });
+  const world = createWorld({
+    seed,
+    players: [{kind: PlayerKind.ai, strategy: id}],
+  });
   const brain = new AiBrain(0, AI_STRATEGIES[id], world.map.size);
   let levyTicks = 0;
-  for (let t = 0; t < MAX_TICKS && world.outcome.state === MatchState.playing; t++) {
+  for (
+    let t = 0;
+    t < MAX_TICKS && world.outcome.state === MatchState.playing;
+    t++
+  ) {
     const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     tickWorld(
       world,
-      commands.map((cmd) => ({ playerId: 0, cmd })),
+      commands.map(cmd => ({playerId: 0, cmd})),
     );
     if (world.tick % SAMPLE_EVERY !== 0) continue;
     for (const b of world.buildings.values()) {
-      if (b.dead || b.owner !== 0 || b.garrisonKind !== UnitTypeId.serf) continue;
+      if (b.dead || b.owner !== 0 || b.garrisonKind !== UnitTypeId.serf)
+        continue;
       levyTicks += SAMPLE_EVERY;
       break;
     }
   }
   const towers = [...world.buildings.values()].filter(
-    (b) => !b.dead && b.owner === 0 && b.type === BuildingTypeId.guardTower,
+    b => !b.dead && b.owner === 0 && b.type === BuildingTypeId.guardTower,
   );
-  const mine = [...world.units.values()].filter((u) => !u.dead && u.owner === 0);
+  const mine = [...world.units.values()].filter(u => !u.dead && u.owner === 0);
   const state = world.outcome.state;
-  const winner = (world.outcome as { winner?: number }).winner;
+  const winner = (world.outcome as {winner?: number}).winner;
   return {
-    outcome: state === MatchState.playing ? 'timeout' : winner === 0 ? 'win' : 'dead',
+    outcome:
+      state === MatchState.playing ? 'timeout' : winner === 0 ? 'win' : 'dead',
     tick: world.tick,
     towers: towers.length,
-    manned: towers.filter((b) => (b.garrison ?? 0) > 0).length,
+    manned: towers.filter(b => (b.garrison ?? 0) > 0).length,
     levyTicks,
     pop: mine.length,
-    army: mine.filter((u) => SOLDIERS.has(u.kind)).length,
+    army: mine.filter(u => SOLDIERS.has(u.kind)).length,
   };
 }
 
@@ -99,9 +112,15 @@ function median(xs: number[]): number {
   return s[Math.floor(s.length / 2)]!;
 }
 
-const mean = (xs: number[]): number => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+const mean = (xs: number[]): number =>
+  xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 
-function intArg(raw: string | undefined, fallback: number, name: string, min: number): number {
+function intArg(
+  raw: string | undefined,
+  fallback: number,
+  name: string,
+  min: number,
+): number {
   if (raw === undefined) return fallback;
   const n = Number(raw);
   if (!Number.isInteger(n) || n < min) {
@@ -120,7 +139,7 @@ const count = intArg(process.argv[2], 32, 'seeds', 1);
 const offset = intArg(process.argv[3], 101, 'offset', 0);
 // Strided rather than consecutive: neighbouring seeds can generate valleys
 // that rhyme, and a sweep wants independent maps.
-const seeds = Array.from({ length: count }, (_, i) => offset + i * 7);
+const seeds = Array.from({length: count}, (_, i) => offset + i * 7);
 const ids: readonly AiStrategyId[] = AI_STRATEGY_ORDER;
 
 console.log(`${count} seeds from ${offset}, ${MAX_TICKS} ticks each\n`);
@@ -128,20 +147,20 @@ const everyWin: number[] = [];
 let wins = 0;
 let runs = 0;
 for (const id of ids) {
-  const res = seeds.map((s) => playCampaign(id, s));
-  const won = res.filter((r) => r.outcome === 'win');
-  everyWin.push(...won.map((r) => r.tick));
+  const res = seeds.map(s => playCampaign(id, s));
+  const won = res.filter(r => r.outcome === 'win');
+  everyWin.push(...won.map(r => r.tick));
   wins += won.length;
   runs += res.length;
   console.log(
     `${AI_STRATEGY_KEYS[id].padEnd(9)} win ${String(won.length).padStart(2)}/${res.length}` +
-      `  median ${String(median(won.map((r) => r.tick))).padStart(6)}` +
-      `  dead ${res.filter((r) => r.outcome === 'dead').length}` +
-      `  timeout ${res.filter((r) => r.outcome === 'timeout').length}` +
-      `  pop ${mean(res.map((r) => r.pop)).toFixed(1)}` +
-      `  army ${mean(res.map((r) => r.army)).toFixed(1)}` +
-      `  towers ${mean(res.map((r) => r.towers)).toFixed(1)}` +
-      `  levyTicks ${Math.round(mean(res.map((r) => r.levyTicks)))}`,
+      `  median ${String(median(won.map(r => r.tick))).padStart(6)}` +
+      `  dead ${res.filter(r => r.outcome === 'dead').length}` +
+      `  timeout ${res.filter(r => r.outcome === 'timeout').length}` +
+      `  pop ${mean(res.map(r => r.pop)).toFixed(1)}` +
+      `  army ${mean(res.map(r => r.army)).toFixed(1)}` +
+      `  towers ${mean(res.map(r => r.towers)).toFixed(1)}` +
+      `  levyTicks ${Math.round(mean(res.map(r => r.levyTicks)))}`,
   );
 }
 console.log(`\nTOTAL     win ${wins}/${runs}  median ${median(everyWin)}`);

@@ -6,11 +6,16 @@ import {
   int16FromBase64,
   int16ToBase64,
 } from '../shared/base64.ts';
-import { MAX_MAP_SIZE, MIN_MAP_SIZE, gridFor, tileCount } from '../shared/grid.ts';
-import type { GameMap } from './map.ts';
-import type { PlayerState } from './player.ts';
-import type { MatchOutcome, World } from './world.ts';
-import { WORLD_SAVE_VERSION, canReadSave } from '../shared/saveVersion.ts';
+import {
+  MAX_MAP_SIZE,
+  MIN_MAP_SIZE,
+  gridFor,
+  tileCount,
+} from '../shared/grid.ts';
+import {WORLD_SAVE_VERSION, canReadSave} from '../shared/saveVersion.ts';
+import type {GameMap} from './map.ts';
+import type {PlayerState} from './player.ts';
+import type {MatchOutcome, World} from './world.ts';
 
 /**
  * Save/load. The World is serializable by construction (plain records, ID
@@ -104,7 +109,7 @@ export function serializeWorld(world: World): string {
       admin: world.admin,
       outcome: world.outcome,
       ...(world.missionId !== undefined
-        ? { missionId: world.missionId, objectivesDone: world.objectivesDone }
+        ? {missionId: world.missionId, objectivesDone: world.objectivesDone}
         : {}),
     },
   };
@@ -123,7 +128,9 @@ function int16s(raw: string | number[]): Int16Array {
 }
 
 function float32s(raw: string | number[]): Float32Array {
-  return typeof raw === 'string' ? float32FromBase64(raw) : Float32Array.from(raw);
+  return typeof raw === 'string'
+    ? float32FromBase64(raw)
+    : Float32Array.from(raw);
 }
 
 export function deserializeWorld(json: string): World {
@@ -172,7 +179,7 @@ export function deserializeWorld(json: string): World {
       map.wear,
       map.pathLevel,
       map.height,
-    ].some((grid) => grid.length !== tileCount(map.size))
+    ].some(grid => grid.length !== tileCount(map.size))
   ) {
     throw new Error('corrupt save: bad map size');
   }
@@ -184,20 +191,24 @@ export function deserializeWorld(json: string): World {
     nextId: w.nextId,
     nextJobId: w.nextJobId,
     map,
-    units: new Map((w.units as { id: number }[]).map((u) => [u.id, u])) as World['units'],
+    units: new Map(
+      (w.units as {id: number}[]).map(u => [u.id, u]),
+    ) as World['units'],
     buildings: new Map(
-      (w.buildings as { id: number }[]).map((b) => [b.id, b]),
+      (w.buildings as {id: number}[]).map(b => [b.id, b]),
     ) as World['buildings'],
-    jobs: new Map((w.jobs as { id: number }[]).map((j) => [j.id, j])) as World['jobs'],
+    jobs: new Map(
+      (w.jobs as {id: number}[]).map(j => [j.id, j]),
+    ) as World['jobs'],
     ledger: w.ledger,
     pendingDeltas: [],
     players: w.players,
     raidState: w.raidState,
-    admin: w.admin ?? { enabled: true, raidsEnabled: true, instantBuild: false },
+    admin: w.admin ?? {enabled: true, raidsEnabled: true, instantBuild: false},
     pendingEvents: [],
     outcome: w.outcome,
     ...(w.missionId !== undefined
-      ? { missionId: w.missionId, objectivesDone: w.objectivesDone ?? [] }
+      ? {missionId: w.missionId, objectivesDone: w.objectivesDone ?? []}
       : {}),
   };
 }

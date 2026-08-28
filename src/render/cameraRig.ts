@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { DEFAULT_MAP_SIZE } from '../shared/grid';
-import { clamp } from '../shared/math';
-import { EdgeScroll, edgeScrollEnabled } from '../input/edgeScroll';
-import { foreignChord, typingInto } from '../input/typing';
-import { capturePointer } from '../input/mouseCapture';
-import type { Enum } from '../shared/enum.ts';
+import {EdgeScroll, edgeScrollEnabled} from '../input/edgeScroll';
+import {capturePointer} from '../input/mouseCapture';
+import {foreignChord, typingInto} from '../input/typing';
+import type {Enum} from '../shared/enum.ts';
+import {DEFAULT_MAP_SIZE} from '../shared/grid';
+import {clamp} from '../shared/math';
 import * as ViewModeNs from './viewModeEnum.ts';
 export type ViewMode = Enum<typeof ViewModeNs>;
 
@@ -229,7 +229,7 @@ const PAN_KEYS: readonly (readonly [string, number, number])[] = [
 const DRIVE_TAIL_MS = 200;
 
 /** Scratch for #footprintExt, which runs per pan and per frame. */
-const EXT = { x: 0, z: 0 };
+const EXT = {x: 0, z: 0};
 /** Scratch for #apply, which runs on every pan, glide step and turn. */
 const DIR = new THREE.Vector3();
 
@@ -377,7 +377,7 @@ export class CameraRig {
     const keyCode = (e: KeyboardEvent): string => e.code || e.key;
     window.addEventListener(
       'keydown',
-      (e) => {
+      e => {
         if (e.repeat) return;
         // A key going into a field is being typed, and a chord belongs to
         // the browser: ⌘[ is Back, and it must not also turn the camera.
@@ -390,17 +390,17 @@ export class CameraRig {
         this.#keys.add(code);
         if (this.#turnKey(code) !== 0) this.#unseen.add(code);
       },
-      { signal },
+      {signal},
     );
     window.addEventListener(
       'keyup',
-      (e) => {
+      e => {
         const code = keyCode(e);
         this.#keys.delete(code);
         if (!this.#unseen.delete(code)) return;
         if (this.#pitch !== TOP_PITCH) this.#turns += this.#turnKey(code);
       },
-      { signal },
+      {signal},
     );
     window.addEventListener(
       'blur',
@@ -409,15 +409,15 @@ export class CameraRig {
         this.#unseen.clear();
         this.#edge.clear();
       },
-      { signal },
+      {signal},
     );
-    window.addEventListener('resize', () => this.resize(), { signal });
+    window.addEventListener('resize', () => this.resize(), {signal});
     document.addEventListener(
       'visibilitychange',
       () => {
         if (document.hidden) this.#edge.clear();
       },
-      { signal },
+      {signal},
     );
 
     // --- Edge scroll ------------------------------------------------------
@@ -427,7 +427,7 @@ export class CameraRig {
     // resource strip in the very corner it was crossing.
     window.addEventListener(
       'pointermove',
-      (e) => {
+      e => {
         // A finger has its own way to move the map, and turning the switch
         // off mid-match has to stop a push already under way.
         if (!edgeScrollEnabled() || e.pointerType !== 'mouse') {
@@ -443,24 +443,30 @@ export class CameraRig {
         const blocked =
           this.#dragging || // a middle-drag is already panning
           (target instanceof Element && target.closest('#ui, #menu') !== null);
-        this.#edge.moved(e.clientX, e.clientY, window.innerWidth, window.innerHeight, blocked);
+        this.#edge.moved(
+          e.clientX,
+          e.clientY,
+          window.innerWidth,
+          window.innerHeight,
+          blocked,
+        );
       },
-      { signal },
+      {signal},
     );
     // A null relatedTarget is the pointer leaving the window altogether —
     // onto the menu bar, or off the display. Every other pointerout is just
     // a boundary between two elements of ours.
     window.addEventListener(
       'pointerout',
-      (e) => {
+      e => {
         if (e.relatedTarget === null) this.#edge.left();
       },
-      { signal },
+      {signal},
     );
 
     canvas.addEventListener(
       'wheel',
-      (e) => {
+      e => {
         e.preventDefault();
         // Deltas arrive in lines or pages as readily as in pixels; both
         // the turn and the zoom want one unit.
@@ -474,7 +480,8 @@ export class CameraRig {
           // Shift+wheel turns. Some platforms hand a shifted wheel over as
           // horizontal travel (Chromium on Windows and Linux, a few
           // trackpad drivers) — whichever axis carries the motion is it.
-          const travel = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+          const travel =
+            Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
           this.#turnByWheel(travel * px);
           return;
         }
@@ -485,41 +492,44 @@ export class CameraRig {
         );
         this.resize();
       },
-      { passive: false, signal },
+      {passive: false, signal},
     );
 
     canvas.addEventListener(
       'pointerdown',
-      (e) => {
+      e => {
         if (e.button === 1) {
           e.preventDefault();
           this.#dragging = true;
           capturePointer(canvas, e);
         }
       },
-      { signal },
+      {signal},
     );
     canvas.addEventListener(
       'pointerup',
-      (e) => {
+      e => {
         if (e.button === 1) this.#dragging = false;
       },
-      { signal },
+      {signal},
     );
     canvas.addEventListener(
       'pointermove',
-      (e) => {
+      e => {
         if (!this.#dragging) return;
         const worldPerPixel = this.#viewHeight / this.#canvas.clientHeight;
-        this.#panScreen(-e.movementX * worldPerPixel, -e.movementY * worldPerPixel);
+        this.#panScreen(
+          -e.movementX * worldPerPixel,
+          -e.movementY * worldPerPixel,
+        );
       },
-      { signal },
+      {signal},
     );
 
     // --- Touch: one finger drags the map, two fingers pinch to zoom ------
     // (There is no wheel, middle button, or keyboard on a phone.) Selection
     // and orders stay with Controls, which ignores multi-touch gestures.
-    const touches = new Map<number, { x: number; y: number }>();
+    const touches = new Map<number, {x: number; y: number}>();
     let pinchDist = 0;
     const spread = (): number => {
       const [a, b] = [...touches.values()];
@@ -527,17 +537,17 @@ export class CameraRig {
     };
     canvas.addEventListener(
       'touchstart',
-      (e) => {
+      e => {
         for (const t of e.changedTouches) {
-          touches.set(t.identifier, { x: t.clientX, y: t.clientY });
+          touches.set(t.identifier, {x: t.clientX, y: t.clientY});
         }
         if (touches.size === 2) pinchDist = spread();
       },
-      { signal },
+      {signal},
     );
     canvas.addEventListener(
       'touchmove',
-      (e) => {
+      e => {
         e.preventDefault(); // no browser scroll/zoom over the map
         if (!this.touchPanEnabled) {
           // A selection band owns this drag; just keep the anchors fresh so
@@ -566,25 +576,32 @@ export class CameraRig {
           prev.y = t.clientY;
         }
         if (moved > 0) {
-          this.#panScreen((-dx / moved) * worldPerPixel, (-dy / moved) * worldPerPixel);
+          this.#panScreen(
+            (-dx / moved) * worldPerPixel,
+            (-dy / moved) * worldPerPixel,
+          );
         }
         if (touches.size === 2) {
           const d = spread();
           if (pinchDist > 0 && d > 0) {
-            this.#viewHeight = clamp(this.#viewHeight * (pinchDist / d), MIN_VIEW, this.#maxView());
+            this.#viewHeight = clamp(
+              this.#viewHeight * (pinchDist / d),
+              MIN_VIEW,
+              this.#maxView(),
+            );
             this.resize();
           }
           pinchDist = d;
         }
       },
-      { passive: false, signal },
+      {passive: false, signal},
     );
     const endTouch = (e: TouchEvent): void => {
       for (const t of e.changedTouches) touches.delete(t.identifier);
       if (touches.size < 2) pinchDist = 0;
     };
-    canvas.addEventListener('touchend', endTouch, { signal });
-    canvas.addEventListener('touchcancel', endTouch, { signal });
+    canvas.addEventListener('touchend', endTouch, {signal});
+    canvas.addEventListener('touchcancel', endTouch, {signal});
   }
 
   /**
@@ -694,7 +711,9 @@ export class CameraRig {
 
   /** The step nearest the angle the camera is actually showing. */
   #nearestStep(): number {
-    return Math.round((this.#yaw - (this.#pitch === TOP_PITCH ? 0 : YAW)) / YAW_STEP);
+    return Math.round(
+      (this.#yaw - (this.#pitch === TOP_PITCH ? 0 : YAW)) / YAW_STEP,
+    );
   }
 
   /**
@@ -713,7 +732,8 @@ export class CameraRig {
   #settleKeyTurn(): void {
     const near = this.#nearestStep();
     const floor = this.#turnsAtPress + this.#keyTurn;
-    this.#turns = this.#keyTurn > 0 ? Math.max(near, floor) : Math.min(near, floor);
+    this.#turns =
+      this.#keyTurn > 0 ? Math.max(near, floor) : Math.min(near, floor);
   }
 
   /** Swap between the game's isometric line and the editor's plan view. */
@@ -751,8 +771,9 @@ export class CameraRig {
    *
    * Written into the caller's object — this runs per pan and per frame.
    */
-  #footprintExt(out: { x: number; z: number }): { x: number; z: number } {
-    const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
+  #footprintExt(out: {x: number; z: number}): {x: number; z: number} {
+    const aspect =
+      this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
     const halfH = this.#viewHeight / 2;
     const halfW = halfH * aspect;
     const halfG = halfH / Math.sin(this.#pitch);
@@ -841,7 +862,8 @@ export class CameraRig {
   tick(dt: number): void {
     // A press this tick finds still down is a hold, whatever it nets to
     // with the other keys — only a press no tick ever sees is a tap.
-    for (const key of this.#unseen) if (this.#keys.has(key)) this.#unseen.delete(key);
+    for (const key of this.#unseen)
+      if (this.#keys.has(key)) this.#unseen.delete(key);
     const held = this.#interactive ? this.#heldTurn() : 0;
     if (held !== 0) {
       // A held key turns freely, at its own pace; the step grid waits for
@@ -873,7 +895,10 @@ export class CameraRig {
         // Ease toward the target; the camera orbits its look-at point, so
         // the spot mid-screen stays put while the world swings round it.
         const d = yawTarget - this.#yaw;
-        this.#yaw = Math.abs(d) < 1e-4 ? yawTarget : this.#yaw + d * (1 - Math.exp(-dt / YAW_EASE));
+        this.#yaw =
+          Math.abs(d) < 1e-4
+            ? yawTarget
+            : this.#yaw + d * (1 - Math.exp(-dt / YAW_EASE));
         this.#apply();
       }
     }
@@ -917,8 +942,16 @@ export class CameraRig {
     const fx = -Math.sin(this.#yaw);
     const fz = -Math.cos(this.#yaw);
     const ext = this.#footprintExt(EXT);
-    this.#target.x = this.#clampAxis(this.#target.x + rx * x - fx * z, this.#target.x, ext.x);
-    this.#target.z = this.#clampAxis(this.#target.z + rz * x - fz * z, this.#target.z, ext.z);
+    this.#target.x = this.#clampAxis(
+      this.#target.x + rx * x - fx * z,
+      this.#target.x,
+      ext.x,
+    );
+    this.#target.z = this.#clampAxis(
+      this.#target.z + rz * x - fz * z,
+      this.#target.z,
+      ext.z,
+    );
     this.#apply();
   }
 
@@ -933,7 +966,8 @@ export class CameraRig {
    * frame to see whether the camera moved, so it allocates nothing.
    */
   viewQuad(out: Float64Array): Float64Array {
-    const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
+    const aspect =
+      this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
     const halfW = (this.#viewHeight / 2) * aspect;
     // The screen's vertical half-span, stretched onto the ground plane —
     // the same 1/sin(pitch) #footprintExt uses.
@@ -973,8 +1007,12 @@ export class CameraRig {
    * Screen-up on the ground is screen-right turned a quarter: (rz, -rx).
    * Written into `out` — this runs per frame.
    */
-  viewFrame(margin = 3, out: ViewFrame = { cx: 0, cz: 0, rx: 0, rz: 0, ext: 0 }): ViewFrame {
-    const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
+  viewFrame(
+    margin = 3,
+    out: ViewFrame = {cx: 0, cz: 0, rx: 0, rz: 0, ext: 0},
+  ): ViewFrame {
+    const aspect =
+      this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
     const halfH = this.#viewHeight / 2;
     const halfW = halfH * aspect;
     const halfG = halfH / Math.sin(this.#pitch);
@@ -991,7 +1029,10 @@ export class CameraRig {
    * Used to skip per-frame animation work for units nobody can see; the
    * margin also absorbs the screen shift terrain height introduces.
    */
-  viewBounds(margin = 3, out: ViewBounds = { minX: 0, maxX: 0, minZ: 0, maxZ: 0 }): ViewBounds {
+  viewBounds(
+    margin = 3,
+    out: ViewBounds = {minX: 0, maxX: 0, minZ: 0, maxZ: 0},
+  ): ViewBounds {
     const ext = this.#footprintExt(EXT);
     out.minX = this.#target.x - ext.x - margin;
     out.maxX = this.#target.x + ext.x + margin;
@@ -1001,7 +1042,8 @@ export class CameraRig {
   }
 
   resize(): void {
-    const aspect = this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
+    const aspect =
+      this.#canvas.clientWidth / Math.max(this.#canvas.clientHeight, 1);
     const halfH = this.#viewHeight / 2;
     const halfW = halfH * aspect;
     this.camera.left = -halfW;

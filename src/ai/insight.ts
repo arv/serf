@@ -1,9 +1,9 @@
-import type { Enum } from '../shared/enum.ts';
-import { TICK_MS } from '../sim/defs/balance.ts';
-import type { StrategyAdvice } from './advice.ts';
-import type { SeatKnobs } from './summary.ts';
-import { UNIT_KEYS } from '../sim/defs/units.ts';
+import type {Enum} from '../shared/enum.ts';
+import {TICK_MS} from '../sim/defs/balance.ts';
+import {UNIT_KEYS} from '../sim/defs/units.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import type {StrategyAdvice} from './advice.ts';
+import type {SeatKnobs} from './summary.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -37,25 +37,29 @@ const WEAPON_NAMES = ['spear', 'sword', 'bow'] as const;
 
 /** A training preference in the words the overlay reads in. */
 const unitList = (units: readonly UnitTypeId[]): string =>
-  units.map((u) => UNIT_KEYS[u]).join(' > ');
+  units.map(u => UNIT_KEYS[u]).join(' > ');
 
-const secs = (ticks: number): string => `${Math.round((ticks * TICK_MS) / 1000)}s`;
+const secs = (ticks: number): string =>
+  `${Math.round((ticks * TICK_MS) / 1000)}s`;
 const weapons = (mix: readonly number[]): string =>
-  mix.map((i) => WEAPON_NAMES[i] ?? `?${i}`).join(', ');
+  mix.map(i => WEAPON_NAMES[i] ?? `?${i}`).join(', ');
 
 /**
  * One English line per knob present in the advice, in the contract's
  * order. `playbook` is the seat's printed values (summary.seat.knobs);
  * when given and the advice differs, the line says what it moved from.
  */
-export function describeAdvice(advice: StrategyAdvice, playbook?: SeatKnobs): AdviceLine[] {
+export function describeAdvice(
+  advice: StrategyAdvice,
+  playbook?: SeatKnobs,
+): AdviceLine[] {
   const lines: AdviceLine[] = [];
   /** The line, plus "(playbook X)" when the advice moved off the print. */
   const put = (line: string, changed: boolean, printed: string): void => {
     lines.push(
       playbook && changed
-        ? { text: `${line} (playbook ${printed})`, moved: true }
-        : { text: line, moved: !playbook },
+        ? {text: `${line} (playbook ${printed})`, moved: true}
+        : {text: line, moved: !playbook},
     );
   };
 

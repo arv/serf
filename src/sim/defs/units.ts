@@ -1,7 +1,7 @@
-import type { Enum } from '../../shared/enum.ts';
-import * as UnitTypeIdNs from './unitTypeIdEnum.ts';
-import * as UnitClassNs from './unitClassEnum.ts';
+import type {Enum} from '../../shared/enum.ts';
 import * as GoodId from './goodIdEnum.ts';
+import * as UnitClassNs from './unitClassEnum.ts';
+import * as UnitTypeIdNs from './unitTypeIdEnum.ts';
 
 type GoodId = Enum<typeof GoodId>;
 
@@ -39,8 +39,8 @@ export interface UnitDef {
  * kites heavy. Enemy kinds mirror the classes so counters matter both ways.
  */
 export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
-  [U.serf]: { id: U.serf, speed: 1.5, hp: 25, sight: 6.5 },
-  [U.worker]: { id: U.worker, speed: 1.4, hp: 25, sight: 6.5 },
+  [U.serf]: {id: U.serf, speed: 1.5, hp: 25, sight: 6.5},
+  [U.worker]: {id: U.worker, speed: 1.4, hp: 25, sight: 6.5},
   [U.knight]: {
     id: U.knight,
     speed: 1.6,
@@ -72,7 +72,13 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     speed: 2.0,
     hp: 35,
     sight: 6.5,
-    combat: { class: UnitClassNs.ranged, damage: 6, cooldownTicks: 24, range: 5, acquireRadius: 7 },
+    combat: {
+      class: UnitClassNs.ranged,
+      damage: 6,
+      cooldownTicks: 24,
+      range: 5,
+      acquireRadius: 7,
+    },
   },
   [U.bandit]: {
     id: U.bandit,
@@ -92,7 +98,13 @@ export const UNIT_DEFS: Record<UnitTypeId, UnitDef> = {
     speed: 1.9,
     hp: 30,
     sight: 6.5,
-    combat: { class: UnitClassNs.ranged, damage: 5, cooldownTicks: 24, range: 5, acquireRadius: 8 },
+    combat: {
+      class: UnitClassNs.ranged,
+      damage: 5,
+      cooldownTicks: 24,
+      range: 5,
+      acquireRadius: 8,
+    },
   },
   [U.marauder]: {
     id: U.marauder,
@@ -175,7 +187,9 @@ export const UNIT_KEYS: Readonly<Record<UnitTypeId, string>> = {
   [U.marauder]: 'marauder',
 };
 
-const UNIT_BY_KEY = new Map<string, UnitTypeId>(UNIT_TYPES.map((u) => [UNIT_KEYS[u], u]));
+const UNIT_BY_KEY = new Map<string, UnitTypeId>(
+  UNIT_TYPES.map(u => [UNIT_KEYS[u], u]),
+);
 
 /** The id a spelling names, or undefined — the read side of UNIT_KEYS. */
 export function unitFromKey(key: string): UnitTypeId | undefined {

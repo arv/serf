@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { describeAdvice } from './insight.ts';
-import type { SeatKnobs } from './summary.ts';
+import {describe, expect, it} from 'vitest';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {describeAdvice} from './insight.ts';
+import type {SeatKnobs} from './summary.ts';
 
 /**
  * The humanizer is judged the way the prompt is: a reader who knows
@@ -46,7 +46,7 @@ describe('describeAdvice', () => {
       },
       playbook,
     );
-    expect(lines.map((l) => l.text)).toEqual([
+    expect(lines.map(l => l.text)).toEqual([
       'serfs: hire toward 11 (playbook 8)',
       'army: march at 10 soldiers (playbook 6)',
       'marches: every 35s (playbook 30s)',
@@ -59,22 +59,25 @@ describe('describeAdvice', () => {
       'housing headroom: 3 beds (playbook 2)',
       'research reserve: 8 silver (playbook 5)',
     ]);
-    expect(lines.every((l) => l.moved)).toBe(true);
+    expect(lines.every(l => l.moved)).toBe(true);
   });
 
   it('tells a real change from an echo of the print', () => {
-    const lines = describeAdvice({ armyAttackSize: 6, homeGuard: 12 }, playbook);
+    const lines = describeAdvice({armyAttackSize: 6, homeGuard: 12}, playbook);
     expect(lines).toEqual([
       // Restating the playbook's own 6 is not a change, and says so.
-      { text: 'army: march at 6 soldiers', moved: false },
-      { text: 'home guard: recall within 12 tiles (playbook never)', moved: true },
+      {text: 'army: march at 6 soldiers', moved: false},
+      {
+        text: 'home guard: recall within 12 tiles (playbook never)',
+        moved: true,
+      },
     ]);
   });
 
   it('reads fine with no playbook to compare against — every line counts as a move', () => {
-    expect(describeAdvice({ attackCooldown: 400, homeGuard: 0 })).toEqual([
-      { text: 'marches: every 20s', moved: true },
-      { text: 'home guard: never recall', moved: true },
+    expect(describeAdvice({attackCooldown: 400, homeGuard: 0})).toEqual([
+      {text: 'marches: every 20s', moved: true},
+      {text: 'home guard: never recall', moved: true},
     ]);
     expect(describeAdvice({})).toEqual([]);
   });

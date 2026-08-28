@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { vermillion } from './palette';
-import type { SceneSync } from './sceneSync';
-import type { HeightField } from './heightField';
+import type {HeightField} from './heightField';
+import {vermillion} from './palette';
+import type {SceneSync} from './sceneSync';
 
 /**
  * Vermillion rings under selected units. Rings are pooled and repositioned
@@ -20,7 +20,7 @@ export class SelectionFx {
   });
   // Scratch for the per-ring position reads: with an army selected this
   // runs hundreds of times a frame, so it must not allocate.
-  #pos = { x: 0, y: 0 };
+  #pos = {x: 0, y: 0};
 
   constructor(scene: THREE.Scene, heights: HeightField) {
     this.#scene = scene;
@@ -43,6 +43,7 @@ export class SelectionFx {
       ring.position.set(pos.x, this.#heights.at(pos.x, pos.y) + 0.05, pos.y);
       used++;
     }
-    for (let i = used; i < this.#pool.length; i++) this.#pool[i]!.visible = false;
+    for (let i = used; i < this.#pool.length; i++)
+      this.#pool[i]!.visible = false;
   }
 }

@@ -1,7 +1,7 @@
-import type { Enum } from '../../shared/enum.ts';
-import { MAX_UNITS_PER_ORDER, type SimCommand } from '../../sim/commands';
-import * as CommandKind from '../../sim/commandKindEnum.ts';
+import type {Enum} from '../../shared/enum.ts';
 import * as AdminAction from '../../sim/adminActionEnum.ts';
+import * as CommandKind from '../../sim/commandKindEnum.ts';
+import {MAX_UNITS_PER_ORDER, type SimCommand} from '../../sim/commands';
 
 type AdminAction = Enum<typeof AdminAction>;
 
@@ -25,11 +25,13 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER}), x, y, attack?: true | ‘half’`,
   },
   [CommandKind.placeBuilding]: {
-    summary: 'Stake out a construction site. The sim revalidates ground, cost and tech gate.',
+    summary:
+      'Stake out a construction site. The sim revalidates ground, cost and tech gate.',
     payload: 'building, x, y',
   },
   [CommandKind.hireSerf]: {
-    summary: 'Pay silver for a recruit from the next village over; he walks in after a delay.',
+    summary:
+      'Pay silver for a recruit from the next village over; he walks in after a delay.',
     payload: 'no fields',
   },
   [CommandKind.sellBuilding]: {
@@ -42,7 +44,8 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
     payload: 'buildingId, paused',
   },
   [CommandKind.setBuildingRepair]: {
-    summary: 'Order (or cancel) a mend: materials are billed pro rata to the damage.',
+    summary:
+      'Order (or cancel) a mend: materials are billed pro rata to the damage.',
     payload: 'buildingId, repair',
   },
   [CommandKind.setBuildingRecipe]: {
@@ -88,7 +91,8 @@ export const ADMIN_DOCS: Record<AdminAction, string> = {
   [AdminAction.toggleRaids]: 'Switch the raid clock off and on.',
   [AdminAction.clearBandits]: 'Remove every raider on the map.',
   [AdminAction.grantGoods]: 'Drop a bundle of goods into the store.',
-  [AdminAction.toggleInstantBuild]: 'Construction completes the moment materials land.',
+  [AdminAction.toggleInstantBuild]:
+    'Construction completes the moment materials land.',
   [AdminAction.finishResearch]: 'Complete the research in progress.',
   [AdminAction.spawnParade]: 'March one of every unit past the castle.',
 };

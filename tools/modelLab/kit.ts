@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 /**
  * The model lab's toolkit: KayKit scenes, normalized, plus small procedural
@@ -123,7 +123,7 @@ export class Kit {
     const loader = new GLTFLoader();
     const samplers = new Map<HTMLImageElement | ImageBitmap, Sampler>();
     await Promise.all(
-      files.map(async (f) => {
+      files.map(async f => {
         const gltf = await loader.loadAsync(`${DIR}${f}.gltf`);
         this.#models.set(f, flatten(gltf.scene, samplers));
       }),
@@ -140,13 +140,21 @@ export class Kit {
   loadBaked(set: BakedSet): void {
     for (const [name, m] of Object.entries(set)) {
       const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(fromBase64(m.p)), 3));
-      geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(fromBase64(m.n)), 3));
+      geo.setAttribute(
+        'position',
+        new THREE.BufferAttribute(new Float32Array(fromBase64(m.p)), 3),
+      );
+      geo.setAttribute(
+        'normal',
+        new THREE.BufferAttribute(new Float32Array(fromBase64(m.n)), 3),
+      );
       const srgb = new Uint8Array(fromBase64(m.c));
       const lin = new Float32Array(srgb.length);
       for (let i = 0; i < srgb.length; i++) lin[i] = LINEAR[srgb[i]!]!;
       geo.setAttribute('color', new THREE.BufferAttribute(lin, 3));
-      geo.setIndex(new THREE.BufferAttribute(new Uint32Array(fromBase64(m.i)), 1));
+      geo.setIndex(
+        new THREE.BufferAttribute(new Uint32Array(fromBase64(m.i)), 1),
+      );
       this.#models.set(name, geo);
     }
   }
@@ -165,7 +173,9 @@ export class Kit {
         srgb[i] = Math.round(Math.min(1, Math.max(0, s)) * 255);
       }
       out[name] = {
-        p: toBase64((geo.getAttribute('position').array as Float32Array).buffer),
+        p: toBase64(
+          (geo.getAttribute('position').array as Float32Array).buffer,
+        ),
         n: toBase64((geo.getAttribute('normal').array as Float32Array).buffer),
         c: toBase64(srgb.buffer),
         i: toBase64(new Uint32Array(geo.getIndex()!.array).buffer),
@@ -208,12 +218,21 @@ export class Kit {
     return this.part(new THREE.BoxGeometry(w, h, d), swatch);
   }
 
-  cyl(rt: number, rb: number, h: number, seg: number, swatch: SwatchName): THREE.Mesh {
+  cyl(
+    rt: number,
+    rb: number,
+    h: number,
+    seg: number,
+    swatch: SwatchName,
+  ): THREE.Mesh {
     return this.part(new THREE.CylinderGeometry(rt, rb, h, seg), swatch);
   }
 
   sphere(r: number, swatch: SwatchName, seg = 8): THREE.Mesh {
-    return this.part(new THREE.SphereGeometry(r, seg, Math.max(4, seg >> 1)), swatch);
+    return this.part(
+      new THREE.SphereGeometry(r, seg, Math.max(4, seg >> 1)),
+      swatch,
+    );
   }
 
   cone(r: number, h: number, seg: number, swatch: SwatchName): THREE.Mesh {
@@ -283,7 +302,12 @@ export class Kit {
    * side of the footprint. Previews therefore show the exact size the game
    * would draw.
    */
-  base(file: string, w: number, h: number, opts: { rot?: number } = {}): THREE.Group | null {
+  base(
+    file: string,
+    w: number,
+    h: number,
+    opts: {rot?: number} = {},
+  ): THREE.Group | null {
     const inner = this.#mesh(file);
     if (!inner) return null;
     const bb = new THREE.Box3().setFromObject(inner);
@@ -307,7 +331,7 @@ export class Kit {
   /** Repaint a loaded pack model into one atlas cell — how a white flour
    * sack is made out of the grain sack. */
   recolor(obj: THREE.Object3D, swatch: SwatchName): THREE.Object3D {
-    obj.traverse((o) => {
+    obj.traverse(o => {
       if (o instanceof THREE.Mesh) {
         o.geometry = (o.geometry as THREE.BufferGeometry).clone();
         this.paint(o.geometry as THREE.BufferGeometry, swatch);
@@ -340,15 +364,20 @@ function samplerFor(
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const ctx = canvas.getContext('2d', {willReadFrequently: true});
   if (!ctx) return null;
   ctx.drawImage(img as CanvasImageSource, 0, 0);
-  const s = { data: ctx.getImageData(0, 0, w, h).data, w, h };
+  const s = {data: ctx.getImageData(0, 0, w, h).data, w, h};
   cache.set(img, s);
   return s;
 }
 
-function sample(s: Sampler, u: number, v: number, out: [number, number, number]): void {
+function sample(
+  s: Sampler,
+  u: number,
+  v: number,
+  out: [number, number, number],
+): void {
   // GLTF textures are not flipped, so v runs down the image.
   const x = Math.min(s.w - 1, Math.max(0, Math.round(u * s.w - 0.5)));
   const y = Math.min(s.h - 1, Math.max(0, Math.round(v * s.h - 0.5)));
@@ -376,7 +405,7 @@ function flatten(
   const v = new THREE.Vector3();
   const nm = new THREE.Matrix3();
 
-  scene.traverse((o) => {
+  scene.traverse(o => {
     if (!(o instanceof THREE.Mesh)) return;
     const geo = o.geometry as THREE.BufferGeometry;
     const pos = geo.getAttribute('position');
@@ -420,7 +449,9 @@ function flatten(
         // quietly shipping a colorless building.
         if (!warned) {
           warned = true;
-          console.warn(`[kit] no atlas for ${o.name || 'a mesh'} — it will render flat grey`);
+          console.warn(
+            `[kit] no atlas for ${o.name || 'a mesh'} — it will render flat grey`,
+          );
         }
         rgb[0] = 200;
         rgb[1] = 200;

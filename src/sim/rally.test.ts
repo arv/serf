@@ -1,19 +1,19 @@
-import type { Enum } from '../shared/enum.ts';
-import { describe, expect, it } from 'vitest';
-import { tickWorld } from './tick.ts';
-import { placeBuiltBuilding, type World } from './world.ts';
-import { cloneWorld } from './clone.ts';
-import { hashWorld } from './hash.ts';
-import { deserializeWorld, serializeWorld } from './save.ts';
-import { tileX, tileY } from '../shared/grid.ts';
-import { checkInvariants } from './debug/invariants.ts';
-import { cmds, addSerf, addStorehouse, bareWorld } from './testUtils.ts';
-import type { Unit } from './units.ts';
-import * as UnitTaskKind from './unitTaskKindEnum.ts';
+import {describe, expect, it} from 'vitest';
+import type {Enum} from '../shared/enum.ts';
+import {tileX, tileY} from '../shared/grid.ts';
+import {cloneWorld} from './clone.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import {checkInvariants} from './debug/invariants.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
-import * as CommandKind from './commandKindEnum.ts';
+import {hashWorld} from './hash.ts';
+import {deserializeWorld, serializeWorld} from './save.ts';
+import {cmds, addSerf, addStorehouse, bareWorld} from './testUtils.ts';
+import {tickWorld} from './tick.ts';
+import type {Unit} from './units.ts';
+import * as UnitTaskKind from './unitTaskKindEnum.ts';
+import {placeBuiltBuilding, type World} from './world.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -22,10 +22,14 @@ function run(world: World, ticks: number): void {
 }
 
 /** Tick until the first unit of this kind exists, or the guard runs out. */
-function trainOut(world: World, kind: UnitTypeId, guard = 20 * 120): Unit | undefined {
+function trainOut(
+  world: World,
+  kind: UnitTypeId,
+  guard = 20 * 120,
+): Unit | undefined {
   let unit: Unit | undefined;
   while (
-    !(unit = [...world.units.values()].find((u) => u.kind === kind && !u.dead)) &&
+    !(unit = [...world.units.values()].find(u => u.kind === kind && !u.dead)) &&
     guard-- > 0
   ) {
     tickWorld(world, []);
@@ -37,55 +41,101 @@ describe('the barracks rally flag', () => {
   it('plants, moves and strikes the flag — on a building that trains only', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      30,
+    );
 
     tickWorld(
       world,
-      cmds({ kind: CommandKind.setRallyPoint, buildingId: barracks.id, x: 45, y: 40 }),
+      cmds({
+        kind: CommandKind.setRallyPoint,
+        buildingId: barracks.id,
+        x: 45,
+        y: 40,
+      }),
     );
-    expect(barracks.rally).toEqual({ x: 45, y: 40 });
+    expect(barracks.rally).toEqual({x: 45, y: 40});
 
     // A second order re-aims the same flag rather than planting a second one.
     tickWorld(
       world,
-      cmds({ kind: CommandKind.setRallyPoint, buildingId: barracks.id, x: 20, y: 21 }),
+      cmds({
+        kind: CommandKind.setRallyPoint,
+        buildingId: barracks.id,
+        x: 20,
+        y: 21,
+      }),
     );
-    expect(barracks.rally).toEqual({ x: 20, y: 21 });
+    expect(barracks.rally).toEqual({x: 20, y: 21});
 
     // A half-given pair changes nothing — the sim reads it the way the
     // sanitizer does, so a caller that skipped screening cannot strike a
     // standing flag with a malformed plant.
-    tickWorld(world, cmds({ kind: CommandKind.setRallyPoint, buildingId: barracks.id, x: 30 }));
-    expect(barracks.rally).toEqual({ x: 20, y: 21 });
-    tickWorld(world, cmds({ kind: CommandKind.setRallyPoint, buildingId: barracks.id, y: 30 }));
-    expect(barracks.rally).toEqual({ x: 20, y: 21 });
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.setRallyPoint, buildingId: barracks.id, x: 30}),
+    );
+    expect(barracks.rally).toEqual({x: 20, y: 21});
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.setRallyPoint, buildingId: barracks.id, y: 30}),
+    );
+    expect(barracks.rally).toEqual({x: 20, y: 21});
 
     // No coordinates is the take-it-down order.
-    tickWorld(world, cmds({ kind: CommandKind.setRallyPoint, buildingId: barracks.id }));
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.setRallyPoint, buildingId: barracks.id}),
+    );
     expect(barracks.rally).toBeUndefined();
 
     // A flag aimed off the map is refused, not clamped.
     tickWorld(
       world,
-      cmds({ kind: CommandKind.setRallyPoint, buildingId: barracks.id, x: 10_000, y: 3 }),
+      cmds({
+        kind: CommandKind.setRallyPoint,
+        buildingId: barracks.id,
+        x: 10_000,
+        y: 3,
+      }),
     );
     expect(barracks.rally).toBeUndefined();
 
     // A storehouse trains nobody, so a flag on it would be an order nothing
     // ever reads — refused at the door.
-    const sh = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
-    tickWorld(world, cmds({ kind: CommandKind.setRallyPoint, buildingId: sh.id, x: 45, y: 40 }));
+    const sh = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.storehouse,
+    )!;
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.setRallyPoint, buildingId: sh.id, x: 45, y: 40}),
+    );
     expect(sh.rally).toBeUndefined();
   });
 
   it("refuses a flag on someone else's barracks", () => {
     const world = bareWorld(1, 2);
     addStorehouse(world, 30, 30, {});
-    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      30,
+    );
     tickWorld(world, [
       {
         playerId: 1,
-        cmd: { kind: CommandKind.setRallyPoint, buildingId: barracks.id, x: 45, y: 40 },
+        cmd: {
+          kind: CommandKind.setRallyPoint,
+          buildingId: barracks.id,
+          x: 45,
+          y: 40,
+        },
       },
     ]);
     expect(barracks.rally).toBeUndefined();
@@ -93,16 +143,31 @@ describe('the barracks rally flag', () => {
 
   it('marches a fresh soldier from the door to the flag', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
-    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
+    addStorehouse(world, 30, 30, {[GoodId.food]: 10, [GoodId.sword]: 2});
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      30,
+    );
     addSerf(world, 34, 34);
     tickWorld(
       world,
-      cmds({ kind: CommandKind.setRallyPoint, buildingId: barracks.id, x: 45, y: 40 }),
+      cmds({
+        kind: CommandKind.setRallyPoint,
+        buildingId: barracks.id,
+        x: 45,
+        y: 40,
+      }),
     );
     tickWorld(
       world,
-      cmds({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: UnitTypeId.knight }),
+      cmds({
+        kind: CommandKind.trainUnit,
+        buildingId: barracks.id,
+        unit: UnitTypeId.knight,
+      }),
     );
 
     const knight = trainOut(world, UnitTypeId.knight);
@@ -124,12 +189,22 @@ describe('the barracks rally flag', () => {
 
   it('without a flag the recruit stands at the door, as ever', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
-    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
+    addStorehouse(world, 30, 30, {[GoodId.food]: 10, [GoodId.sword]: 2});
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      30,
+    );
     addSerf(world, 34, 34);
     tickWorld(
       world,
-      cmds({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: UnitTypeId.knight }),
+      cmds({
+        kind: CommandKind.trainUnit,
+        buildingId: barracks.id,
+        unit: UnitTypeId.knight,
+      }),
     );
 
     const knight = trainOut(world, UnitTypeId.knight);
@@ -139,20 +214,36 @@ describe('the barracks rally flag', () => {
 
   it('a cancelled order still returns its serf to the door, not the flag', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 1 });
-    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
+    addStorehouse(world, 30, 30, {[GoodId.food]: 10, [GoodId.sword]: 1});
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      30,
+    );
     addSerf(world, 34, 34);
     tickWorld(
       world,
-      cmds({ kind: CommandKind.setRallyPoint, buildingId: barracks.id, x: 45, y: 40 }),
+      cmds({
+        kind: CommandKind.setRallyPoint,
+        buildingId: barracks.id,
+        x: 45,
+        y: 40,
+      }),
     );
     tickWorld(
       world,
-      cmds({ kind: CommandKind.trainUnit, buildingId: barracks.id, unit: UnitTypeId.knight }),
+      cmds({
+        kind: CommandKind.trainUnit,
+        buildingId: barracks.id,
+        unit: UnitTypeId.knight,
+      }),
     );
 
     let guard = 20 * 120;
-    while (!barracks.trainQueue?.[0]?.started && guard-- > 0) tickWorld(world, []);
+    while (!barracks.trainQueue?.[0]?.started && guard-- > 0)
+      tickWorld(world, []);
     expect(barracks.trainQueue?.[0]?.started).toBe(true);
     tickWorld(
       world,
@@ -165,7 +256,9 @@ describe('the barracks rally flag', () => {
     );
     // The person walks back out a serf, and the flag — a soldiers' muster —
     // is no order of his.
-    const serf = [...world.units.values()].find((u) => u.kind === UnitTypeId.serf && !u.dead);
+    const serf = [...world.units.values()].find(
+      u => u.kind === UnitTypeId.serf && !u.dead,
+    );
     expect(serf).toBeDefined();
     expect(serf!.path).toBeNull();
   });
@@ -173,10 +266,21 @@ describe('the barracks rally flag', () => {
   it('survives clone and save round-trips, and the hash sees it', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      30,
+    );
     tickWorld(
       world,
-      cmds({ kind: CommandKind.setRallyPoint, buildingId: barracks.id, x: 45, y: 40 }),
+      cmds({
+        kind: CommandKind.setRallyPoint,
+        buildingId: barracks.id,
+        x: 45,
+        y: 40,
+      }),
     );
 
     const viaClone = cloneWorld(world);
@@ -187,7 +291,7 @@ describe('the barracks rally flag', () => {
     // The flag steers every recruit that steps out of the door — a copy
     // that lost or moved it must not hash as "the same world".
     const moved = cloneWorld(world);
-    moved.buildings.get(barracks.id)!.rally = { x: 45, y: 41 };
+    moved.buildings.get(barracks.id)!.rally = {x: 45, y: 41};
     expect(hashWorld(moved)).not.toBe(hashWorld(world));
     const struck = cloneWorld(world);
     struck.buildings.get(barracks.id)!.rally = undefined;

@@ -36,10 +36,10 @@
  * under vitest's node environment.
  */
 
-import type { Enum } from '../shared/enum.ts';
-import { hash2 } from '../shared/math';
-import { MIN_AUDIBLE } from './pan';
+import type {Enum} from '../shared/enum.ts';
+import {hash2} from '../shared/math';
 import * as BusId from './busIdEnum.ts';
+import {MIN_AUDIBLE} from './pan';
 
 type BusId = Enum<typeof BusId>;
 
@@ -191,7 +191,9 @@ export class CueScheduler {
     let groupLen = 0;
     for (let i = 0; i < this.#len; i++) {
       const cue = this.#cues[i]!;
-      const bucket = Math.floor((this.#delays[i]! * 1000) / this.#defs[cue]!.cooldownMs);
+      const bucket = Math.floor(
+        (this.#delays[i]! * 1000) / this.#defs[cue]!.cooldownMs,
+      );
       let g: Group | undefined;
       for (let gi = 0; gi < groupLen; gi++) {
         const seen = this.#groups[gi]!;
@@ -209,8 +211,20 @@ export class CueScheduler {
             bucket,
             minPan: 0,
             maxPan: 0,
-            left: { n: 0, maxGain: 0, gainSum: 0, panGainSum: 0, delayGainSum: 0 },
-            right: { n: 0, maxGain: 0, gainSum: 0, panGainSum: 0, delayGainSum: 0 },
+            left: {
+              n: 0,
+              maxGain: 0,
+              gainSum: 0,
+              panGainSum: 0,
+              delayGainSum: 0,
+            },
+            right: {
+              n: 0,
+              maxGain: 0,
+              gainSum: 0,
+              panGainSum: 0,
+              delayGainSum: 0,
+            },
           };
         }
         g.cue = cue;
@@ -240,7 +254,9 @@ export class CueScheduler {
     // flush are a handful; the quadratic scan is nothing.
     const meanDelay = (g: Group): number => {
       const gainSum = g.left.gainSum + g.right.gainSum;
-      return gainSum > 0 ? (g.left.delayGainSum + g.right.delayGainSum) / gainSum : 0;
+      return gainSum > 0
+        ? (g.left.delayGainSum + g.right.delayGainSum) / gainSum
+        : 0;
     };
     for (let a = 0; a < groupLen; a++) {
       const ga = this.#groups[a]!;
@@ -278,10 +294,14 @@ export class CueScheduler {
       const def = this.#defs[g.cue]!;
       const split = g.maxPan - g.minPan > CLUSTER_SPREAD;
       for (const side of split ? [g.left, g.right] : [null]) {
-        let n: number, maxGain: number, gainSum: number, panGainSum: number, delayGainSum: number;
+        let n: number,
+          maxGain: number,
+          gainSum: number,
+          panGainSum: number,
+          delayGainSum: number;
         if (side) {
           if (side.n === 0) continue;
-          ({ n, maxGain, gainSum, panGainSum, delayGainSum } = side);
+          ({n, maxGain, gainSum, panGainSum, delayGainSum} = side);
         } else {
           n = g.left.n + g.right.n;
           maxGain = Math.max(g.left.maxGain, g.right.maxGain);
@@ -290,11 +310,21 @@ export class CueScheduler {
           delayGainSum = g.left.delayGainSum + g.right.delayGainSum;
         }
         const ceiling = def.collapseCeiling ?? DEFAULT_CEILING;
-        const gain = Math.min(maxGain * (1 + COLLAPSE_SLOPE * Math.log2(n)), ceiling);
+        const gain = Math.min(
+          maxGain * (1 + COLLAPSE_SLOPE * Math.log2(n)),
+          ceiling,
+        );
         const ci = candLen++;
         let c = this.#cands[ci];
         if (!c)
-          c = this.#cands[ci] = { cue: '', bus: BusId.ui, pan: 0, gain: 0, delay: 0, score: 0 };
+          c = this.#cands[ci] = {
+            cue: '',
+            bus: BusId.ui,
+            pan: 0,
+            gain: 0,
+            delay: 0,
+            score: 0,
+          };
         c.cue = g.cue;
         c.bus = def.bus;
         c.pan = gainSum > 0 ? panGainSum / gainSum : 0;
@@ -331,7 +361,8 @@ export class CueScheduler {
       this.#busUsed.set(c.bus, used + 1);
       budget--;
       let slot = out[outLen];
-      if (!slot) slot = out[outLen] = { cue: '', pan: 0, gain: 0, delay: 0, seed: 0 };
+      if (!slot)
+        slot = out[outLen] = {cue: '', pan: 0, gain: 0, delay: 0, seed: 0};
       slot.cue = c.cue;
       slot.pan = c.pan;
       slot.gain = c.gain;

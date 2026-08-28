@@ -1,8 +1,13 @@
-import type { Enum } from '../../src/shared/enum.ts';
 import * as THREE from 'three';
-import { makeLights, makeRenderer, PITCH } from './scene';
-import { loadGlbAssets, makeGlbBuilding, glbYardProp, glbYardRock } from '../../src/render/assets';
+import {
+  loadGlbAssets,
+  makeGlbBuilding,
+  glbYardProp,
+  glbYardRock,
+} from '../../src/render/assets';
+import type {Enum} from '../../src/shared/enum.ts';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+import {makeLights, makeRenderer, PITCH} from './scene';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
@@ -34,11 +39,11 @@ const MINE_SPOTS: [number, number, number, number][] = [
   [0.177, 0.337, -0.3, 0.52],
   [-0.325, 0.274, 1.1, 0.54],
 ];
-const YARD: Record<string, { prop?: string; rock?: number; size: number }> = {
-  quarry: { prop: 'resource_stone', size: 0.12 },
-  ironMine: { rock: 0x9a5f42, size: 0.153 },
-  silverMine: { rock: 0xdbe4ee, size: 0.153 },
-  goldMine: { rock: 0xf0bc42, size: 0.153 },
+const YARD: Record<string, {prop?: string; rock?: number; size: number}> = {
+  quarry: {prop: 'resource_stone', size: 0.12},
+  ironMine: {rock: 0x9a5f42, size: 0.153},
+  silverMine: {rock: 0xdbe4ee, size: 0.153},
+  goldMine: {rock: 0xf0bc42, size: 0.153},
 };
 
 function yardPiles(type: BuildingTypeId, stacks: number): THREE.Group {
@@ -83,7 +88,7 @@ function row(stacks: number, title: string): void {
   makeLights(scene);
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(120, 120),
-    new THREE.MeshStandardMaterial({ color: 0x55a02a, roughness: 1 }),
+    new THREE.MeshStandardMaterial({color: 0x55a02a, roughness: 1}),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -98,7 +103,7 @@ function row(stacks: number, title: string): void {
     // A dirt apron, the way the game's ground reads under a worked post.
     const apron = new THREE.Mesh(
       new THREE.CircleGeometry(1.3, 28),
-      new THREE.MeshStandardMaterial({ color: 0x8d7146, roughness: 1 }),
+      new THREE.MeshStandardMaterial({color: 0x8d7146, roughness: 1}),
     );
     apron.rotation.x = -Math.PI / 2;
     apron.position.y = 0.004;
@@ -133,7 +138,7 @@ function row(stacks: number, title: string): void {
   const labels = document.createElement('div');
   labels.className = 'labels';
   labels.style.width = `${W}px`;
-  labels.innerHTML = NAMES.map((n) => `<span>${n}</span>`).join('');
+  labels.innerHTML = NAMES.map(n => `<span>${n}</span>`).join('');
   document.querySelector('#app')!.appendChild(labels);
 }
 

@@ -1,8 +1,8 @@
-import { POSTURES, POSTURE_ORDER, POSTURE_KEYS } from './posture.ts';
-import type { StrategyAdvice } from './advice.ts';
-import type { AiWorldSummary } from './summary.ts';
-import type { Enum } from '../shared/enum.ts';
+import type {Enum} from '../shared/enum.ts';
+import type {StrategyAdvice} from './advice.ts';
 import * as ChatRoleNs from './chatRoleEnum.ts';
+import {POSTURES, POSTURE_ORDER, POSTURE_KEYS} from './posture.ts';
+import type {AiWorldSummary} from './summary.ts';
 
 export type ChatRole = Enum<typeof ChatRoleNs>;
 
@@ -52,7 +52,7 @@ Fog of war: you know only what your seat has scouted ("explored" is your map cov
 Your one job is posture: how the seat spends the next minute and a half.
 
 Choose exactly one posture:
-${POSTURE_ORDER.map((id) => `- ${POSTURE_KEYS[id]}: ${POSTURES[id].when}`).join('\n')}
+${POSTURE_ORDER.map(id => `- ${POSTURE_KEYS[id]}: ${POSTURES[id].when}`).join('\n')}
 
 Reply with a single JSON object: {"posture": "<one of the postures above>", "reason": "<a few words citing a specific fact from the match state>"}. Nothing else.`;
 
@@ -66,7 +66,7 @@ function deltas(current: AiWorldSummary, prev: AiWorldSummary | null): string {
     `- your army ${myArmy(current) - myArmy(prev) >= 0 ? 'grew' : 'shrank'} from ${myArmy(prev)} to ${myArmy(current)}`,
   ];
   for (const rival of current.rivals) {
-    const before = prev.rivals.find((r) => r.id === rival.id);
+    const before = prev.rivals.find(r => r.id === rival.id);
     if (!before) continue;
     if (before.alive && !rival.alive) {
       lines.push(`- rival ${rival.id} was eliminated`);
@@ -74,18 +74,33 @@ function deltas(current: AiWorldSummary, prev: AiWorldSummary | null): string {
     }
     if (!rival.alive) continue;
     if (!before.found && rival.found) {
-      lines.push(`- rival ${rival.id}'s castle was FOUND, ${rival.distance} tiles away`);
+      lines.push(
+        `- rival ${rival.id}'s castle was FOUND, ${rival.distance} tiles away`,
+      );
     }
     if (rival.intel && !before.intel) {
-      lines.push(`- first sighting of rival ${rival.id}'s army: ${intelLine(rival.intel)}`);
-    } else if (rival.intel && before.intel && rival.intel.ageTicks < before.intel.ageTicks) {
-      lines.push(`- fresh look at rival ${rival.id}'s army: ${intelLine(rival.intel)}`);
+      lines.push(
+        `- first sighting of rival ${rival.id}'s army: ${intelLine(rival.intel)}`,
+      );
+    } else if (
+      rival.intel &&
+      before.intel &&
+      rival.intel.ageTicks < before.intel.ageTicks
+    ) {
+      lines.push(
+        `- fresh look at rival ${rival.id}'s army: ${intelLine(rival.intel)}`,
+      );
     }
   }
   return lines.join('\n');
 }
 
-function intelLine(intel: { heavy: number; light: number; ranged: number; total: number }): string {
+function intelLine(intel: {
+  heavy: number;
+  light: number;
+  ranged: number;
+  total: number;
+}): string {
   return `${intel.total} soldiers (${intel.heavy} heavy, ${intel.light} light, ${intel.ranged} ranged)`;
 }
 
@@ -98,8 +113,10 @@ function intelLine(intel: { heavy: number; light: number; ranged: number; total:
  * engine on the ChatEngine seam every other engine uses, so it runs the
  * genuine pipeline instead of a private side channel into the sim.
  */
-export function extractSummary(messages: readonly ChatMessage[]): AiWorldSummary | null {
-  const user = messages.find((m) => m.role === ChatRoleNs.user);
+export function extractSummary(
+  messages: readonly ChatMessage[],
+): AiWorldSummary | null {
+  const user = messages.find(m => m.role === ChatRoleNs.user);
   if (!user) return null;
   // Second block of buildMessages' `parts`, which are joined on a blank
   // line and never contain one internally.
@@ -107,7 +124,9 @@ export function extractSummary(messages: readonly ChatMessage[]): AiWorldSummary
   if (block === undefined) return null;
   try {
     const parsed: unknown = JSON.parse(block);
-    return typeof parsed === 'object' && parsed !== null ? (parsed as AiWorldSummary) : null;
+    return typeof parsed === 'object' && parsed !== null
+      ? (parsed as AiWorldSummary)
+      : null;
   } catch {
     return null;
   }
@@ -133,7 +152,7 @@ export function buildMessages(
     'Reply with only the JSON object naming your posture.',
   ];
   return [
-    { role: ChatRoleNs.system, content: SYSTEM },
-    { role: ChatRoleNs.user, content: parts.join('\n\n') },
+    {role: ChatRoleNs.system, content: SYSTEM},
+    {role: ChatRoleNs.user, content: parts.join('\n\n')},
   ];
 }

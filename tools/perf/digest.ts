@@ -15,12 +15,12 @@
  * cancels out by the final tick still means the sim moved, and the tick it
  * first shows up on is the one worth debugging.
  */
-import { AiSeats } from '../../src/sim/aiSeats.ts';
-import { hashWorld } from '../../src/sim/hash.ts';
-import { tickWorld } from '../../src/sim/tick.ts';
-import { createWorld } from '../../src/sim/world.ts';
-import { AI_STRATEGY_ORDER } from '../../src/sim/defs/aiStrategies.ts';
+import {AiSeats} from '../../src/sim/aiSeats.ts';
+import {AI_STRATEGY_ORDER} from '../../src/sim/defs/aiStrategies.ts';
+import {hashWorld} from '../../src/sim/hash.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
+import {tickWorld} from '../../src/sim/tick.ts';
+import {createWorld} from '../../src/sim/world.ts';
 
 const DIGEST_EVERY = 500;
 const TICKS = Number(process.env.DIGEST_TICKS ?? 6000);
@@ -38,8 +38,8 @@ for (const size of SIZES) {
       const world = createWorld({
         seed,
         players: [
-          { kind: PlayerKind.ai, strategy: a },
-          { kind: PlayerKind.ai, strategy: b },
+          {kind: PlayerKind.ai, strategy: a},
+          {kind: PlayerKind.ai, strategy: b},
         ],
         banditsEnabled: bandits,
         mapSize: size,
@@ -49,7 +49,9 @@ for (const size of SIZES) {
       for (let t = 0; t < TICKS; t++) {
         tickWorld(world, seats.decide(world));
         if (world.tick % DIGEST_EVERY === 0) {
-          console.log(`${tag} tick=${world.tick} hash=${hashWorld(world).toString(16)}`);
+          console.log(
+            `${tag} tick=${world.tick} hash=${hashWorld(world).toString(16)}`,
+          );
         }
       }
       console.log(

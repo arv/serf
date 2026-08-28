@@ -1,4 +1,4 @@
-import { immersive } from './mouseCapture';
+import {immersive} from './mouseCapture';
 
 /**
  * Edge scrolling: the map follows the pointer as it nears the screen's edge.
@@ -62,10 +62,15 @@ function ramp(d: number): number {
  * instead — a window narrower than 96px is a debugging curiosity, not a
  * thing to scroll.
  */
-export function edgePush(x: number, y: number, w: number, h: number): EdgePush | null {
+export function edgePush(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): EdgePush | null {
   const px = w > 2 * EDGE_BAND_PX ? ramp(w - 1 - x) - ramp(x) : 0;
   const pz = h > 2 * EDGE_BAND_PX ? ramp(h - 1 - y) - ramp(y) : 0;
-  return px === 0 && pz === 0 ? null : { x: px, z: pz };
+  return px === 0 && pz === 0 ? null : {x: px, z: pz};
 }
 
 /**

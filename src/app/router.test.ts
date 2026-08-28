@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import {describe, expect, it} from 'vitest';
 
 /**
  * The router itself is DOM plumbing (a Navigation API listener, or
@@ -13,13 +13,21 @@ import { describe, expect, it } from 'vitest';
  * and rebuild the moment it learned its own code.
  */
 
-const LAUNCH_PARAMS = ['mp', 'ai', 'players', 'seed', 'skipMenu', 'mission', 'replay'];
+const LAUNCH_PARAMS = [
+  'mp',
+  'ai',
+  'players',
+  'seed',
+  'skipMenu',
+  'mission',
+  'replay',
+];
 
 /** The rule under test, over a URL rather than `location` — the same
  * expression main.ts routes on. */
 function screenKey(search: string, loadPending = false): string {
   const params = new URLSearchParams(search);
-  const chosen = LAUNCH_PARAMS.some((k) => params.has(k)) || loadPending;
+  const chosen = LAUNCH_PARAMS.some(k => params.has(k)) || loadPending;
   if (!chosen || params.get('mp') !== null) return 'menu';
   return `match:${search}`;
 }
@@ -39,7 +47,9 @@ describe('which screen a URL names', () => {
 
   it('treats every launch as its own screen', () => {
     expect(screenKey('?ai=2&seed=1')).toBe('match:?ai=2&seed=1');
-    expect(screenKey('?mission=first-camp')).not.toBe(screenKey('?mission=the-raid'));
+    expect(screenKey('?mission=first-camp')).not.toBe(
+      screenKey('?mission=the-raid'),
+    );
     expect(screenKey('?replay=a.json')).not.toBe(screenKey('?replay=b.json'));
   });
 

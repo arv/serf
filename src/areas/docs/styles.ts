@@ -1,4 +1,4 @@
-import { GOLD } from '../../ui/menuChrome';
+import {GOLD} from '../../ui/menuChrome';
 
 /**
  * The wiki's one sheet, scoped under #docs like MENU_STYLE is under #menu,

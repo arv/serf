@@ -1,6 +1,7 @@
-import type { Enum } from '../shared/enum.ts';
 import * as THREE from 'three';
-import { GameRenderer } from '../render/renderer';
+import {worldToScreen} from '../input/picking';
+import {WORK} from '../protocol/sabLayout';
+import * as AnimKey from '../render/animKeyEnum.ts';
 import {
   loadCharacterAssets,
   makeCharacter,
@@ -9,15 +10,14 @@ import {
   TOOL_STOWED,
   type CharacterVisual,
 } from '../render/characters';
-import { worldToScreen } from '../input/picking';
-import { grass } from '../render/palette';
-import { UNIT_DEFS } from '../sim/defs/units';
-import { WORK } from '../protocol/sabLayout';
-import { unitName } from './names';
-import { BANDIT } from '../sim/entities';
-import { DEFAULT_MAP_SIZE as MAP_SIZE } from '../shared/grid';
-import * as AnimKey from '../render/animKeyEnum.ts';
+import {grass} from '../render/palette';
+import {GameRenderer} from '../render/renderer';
+import type {Enum} from '../shared/enum.ts';
+import {DEFAULT_MAP_SIZE as MAP_SIZE} from '../shared/grid';
+import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {BANDIT} from '../sim/entities';
+import {unitName} from './names';
 
 type AnimKey = Enum<typeof AnimKey>;
 
@@ -55,13 +55,38 @@ function columns(): Column[] {
     if (def.id === UnitTypeId.worker) {
       // One column per trade: the profession looks (see PROF_LOOKS) plus
       // the work each performs in Work mode — tool in hand, proper loop.
-      out.push({ code: def.id, profession: 0, label: 'Builder', workKind: WORK.hammer });
-      out.push({ code: def.id, profession: 0, label: 'Woodcutter', workKind: WORK.chop });
-      out.push({ code: def.id, profession: 1, label: 'Farmer', workKind: WORK.dig });
-      out.push({ code: def.id, profession: 2, label: 'Miner', workKind: WORK.pickaxe });
-      out.push({ code: def.id, profession: 0, label: 'Fisher', workKind: WORK.fish });
+      out.push({
+        code: def.id,
+        profession: 0,
+        label: 'Builder',
+        workKind: WORK.hammer,
+      });
+      out.push({
+        code: def.id,
+        profession: 0,
+        label: 'Woodcutter',
+        workKind: WORK.chop,
+      });
+      out.push({
+        code: def.id,
+        profession: 1,
+        label: 'Farmer',
+        workKind: WORK.dig,
+      });
+      out.push({
+        code: def.id,
+        profession: 2,
+        label: 'Miner',
+        workKind: WORK.pickaxe,
+      });
+      out.push({
+        code: def.id,
+        profession: 0,
+        label: 'Fisher',
+        workKind: WORK.fish,
+      });
     } else {
-      out.push({ code: def.id, profession: 0, label: unitName(def.id) });
+      out.push({code: def.id, profession: 0, label: unitName(def.id)});
     }
   }
   return out;
@@ -98,7 +123,8 @@ function clipFor(mode: Mode, col: Column, v: CharacterVisual): AnimKey {
     case 'walk':
       return v.gait;
     case 'work':
-      if (col.workKind !== undefined) return WORK_ANIM[col.workKind] ?? AnimKey.work;
+      if (col.workKind !== undefined)
+        return WORK_ANIM[col.workKind] ?? AnimKey.work;
       if (col.code === 1) return AnimKey.carry; // a serf's work is hauling
       return v.ranged ? AnimKey.shoot : AnimKey.attack;
     default:
@@ -107,14 +133,18 @@ function clipFor(mode: Mode, col: Column, v: CharacterVisual): AnimKey {
 }
 
 const ROWS: Row[] = [
-  { owner: 0, label: 'Player 1 · green' },
-  { owner: 1, label: 'Player 2 · red' },
-  { owner: 2, label: 'Player 3 · blue' },
-  { owner: 3, label: 'Player 4 · gold' },
-  { owner: BANDIT, label: 'Bandits · stock' },
+  {owner: 0, label: 'Player 1 · green'},
+  {owner: 1, label: 'Player 2 · red'},
+  {owner: 2, label: 'Player 3 · blue'},
+  {owner: 3, label: 'Player 4 · gold'},
+  {owner: BANDIT, label: 'Bandits · stock'},
 ];
 
-function makeLabel(parent: HTMLElement, text: string, header = false): HTMLSpanElement {
+function makeLabel(
+  parent: HTMLElement,
+  text: string,
+  header = false,
+): HTMLSpanElement {
   const el = document.createElement('span');
   el.textContent = text;
   el.style.position = 'absolute';
@@ -127,7 +157,9 @@ function makeLabel(parent: HTMLElement, text: string, header = false): HTMLSpanE
   return el;
 }
 
-export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispose(): void }> {
+export async function mountWardrobe(
+  canvas: HTMLCanvasElement,
+): Promise<{dispose(): void}> {
   await loadCharacterAssets();
   const renderer = new GameRenderer(canvas);
   // Same console handles the game exposes — texture forensics and scripted
@@ -143,7 +175,7 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispos
   // survive against in play.
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(MAP_SIZE * 2, MAP_SIZE * 2),
-    new THREE.MeshLambertMaterial({ color: grass }),
+    new THREE.MeshLambertMaterial({color: grass}),
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(MAP_SIZE / 2, 0, MAP_SIZE / 2);
@@ -161,8 +193,8 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispos
   overlay.style.pointerEvents = 'none';
   document.body.appendChild(overlay);
 
-  const cast: { visual: CharacterVisual; col: Column; offset: number }[] = [];
-  const labels: { el: HTMLSpanElement; x: number; y: number; z: number }[] = [];
+  const cast: {visual: CharacterVisual; col: Column; offset: number}[] = [];
+  const labels: {el: HTMLSpanElement; x: number; y: number; z: number}[] = [];
 
   ROWS.forEach((row, r) => {
     const z = startZ + r * ROW_SPACING;
@@ -182,9 +214,9 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispos
       renderer.scene.add(made.group);
       const offset = r * 1.7 + c * 0.6;
       playAnimation(made.visual, AnimKey.idle, offset);
-      cast.push({ visual: made.visual, col, offset });
+      cast.push({visual: made.visual, col, offset});
       if (r === 0) {
-        labels.push({ el: makeLabel(overlay, col.label), x, y: 0, z: z - 1.1 });
+        labels.push({el: makeLabel(overlay, col.label), x, y: 0, z: z - 1.1});
       }
     });
   });
@@ -199,7 +231,7 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispos
     'padding:6px 8px;border-radius:8px';
   overlay.appendChild(bar);
   const setMode = (mode: Mode): void => {
-    for (const { visual, col, offset } of cast) {
+    for (const {visual, col, offset} of cast) {
       // Work and the walk to it carry the trade's tool (matching the
       // game's rule), carrying stows everything — the hands are full —
       // and idle shows the standing kit.
@@ -238,7 +270,7 @@ export async function mountWardrobe(canvas: HTMLCanvasElement): Promise<{ dispos
   const loop = (): void => {
     if (over) return;
     const dt = renderer.frame();
-    for (const { visual } of cast) visual.mixer.update(dt);
+    for (const {visual} of cast) visual.mixer.update(dt);
     for (const l of labels) {
       const p = worldToScreen(renderer.rig.camera, canvas, l.x, l.y, l.z);
       l.el.style.left = `${p.x}px`;

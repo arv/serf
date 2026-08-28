@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { worldToScreen } from '../input/picking';
-import { pushToast } from '../ui/store';
-import type { HeightField } from '../render/heightField';
+import {worldToScreen} from '../input/picking';
+import type {HeightField} from '../render/heightField';
+import {pushToast} from '../ui/store';
 
 /** Strikes within this many tiles of an existing hotspot merge into it —
  * one raid reads as one alert, not a toast per swing. */
@@ -55,7 +55,7 @@ export class DamageAlerts {
   #ringGeometry = new THREE.RingGeometry(0.5, 0.62, 32);
 
   // Scratch for the per-hotspot projection — no per-frame allocation.
-  #screen = { x: 0, y: 0 };
+  #screen = {x: 0, y: 0};
 
   constructor(opts: {
     scene: THREE.Scene;
@@ -70,13 +70,14 @@ export class DamageAlerts {
     this.#ringGeometry.rotateX(-Math.PI / 2);
     this.#hazeLayer = document.createElement('div');
     this.#hazeLayer.id = 'damage-haze';
-    this.#hazeLayer.style.cssText = 'position: fixed; inset: 0; pointer-events: none;';
+    this.#hazeLayer.style.cssText =
+      'position: fixed; inset: 0; pointer-events: none;';
     const ui = document.getElementById('ui');
     document.body.insertBefore(this.#hazeLayer, ui);
   }
 
   /** Feed one sim damage event, already filtered to the local player. */
-  report(e: { x: number; y: number; building: boolean }): void {
+  report(e: {x: number; y: number; building: boolean}): void {
     const now = performance.now();
     let nearest: Hotspot | undefined;
     let nearestSq = CLUSTER_RADIUS_SQ;
@@ -101,11 +102,18 @@ export class DamageAlerts {
       }
       return;
     }
-    const spot: Hotspot = { x: e.x, y: e.y, building: e.building, lastHitAt: now, toastAt: now };
+    const spot: Hotspot = {
+      x: e.x,
+      y: e.y,
+      building: e.building,
+      lastHitAt: now,
+      toastAt: now,
+    };
     if (this.#hotspots.length >= MAX_HOTSPOTS) {
       let stalest = 0;
       for (let i = 1; i < this.#hotspots.length; i++) {
-        if (this.#hotspots[i]!.lastHitAt < this.#hotspots[stalest]!.lastHitAt) stalest = i;
+        if (this.#hotspots[i]!.lastHitAt < this.#hotspots[stalest]!.lastHitAt)
+          stalest = i;
       }
       this.#hotspots.splice(stalest, 1);
     }
@@ -114,10 +122,15 @@ export class DamageAlerts {
   }
 
   #toast(h: Hotspot): void {
-    pushToast(h.building ? 'Your village is under attack!' : 'Your serfs are under attack!', {
-      x: h.x,
-      y: h.y,
-    });
+    pushToast(
+      h.building
+        ? 'Your village is under attack!'
+        : 'Your serfs are under attack!',
+      {
+        x: h.x,
+        y: h.y,
+      },
+    );
   }
 
   /** Once per render frame. */
@@ -135,18 +148,36 @@ export class DamageAlerts {
       }
       const alpha = Math.min(1, (TTL_MS - age) / FADE_MS);
       const ground = this.#heights.at(h.x, h.y);
-      const p = worldToScreen(this.#camera, this.#canvas, h.x, ground, h.y, this.#screen);
+      const p = worldToScreen(
+        this.#camera,
+        this.#canvas,
+        h.x,
+        ground,
+        h.y,
+        this.#screen,
+      );
       const onScreen =
-        p.x >= SCREEN_INSET && p.x <= w - SCREEN_INSET && p.y >= SCREEN_INSET && p.y <= hgt - SCREEN_INSET;
+        p.x >= SCREEN_INSET &&
+        p.x <= w - SCREEN_INSET &&
+        p.y >= SCREEN_INSET &&
+        p.y <= hgt - SCREEN_INSET;
       if (onScreen) this.#ring(ringsUsed++, h, ground, now, alpha);
       else this.#blob(blobsUsed++, p, w, hgt, now, alpha);
     }
-    for (let i = blobsUsed; i < this.#blobs.length; i++) this.#blobs[i]!.style.display = 'none';
-    for (let i = ringsUsed; i < this.#rings.length; i++) this.#rings[i]!.visible = false;
+    for (let i = blobsUsed; i < this.#blobs.length; i++)
+      this.#blobs[i]!.style.display = 'none';
+    for (let i = ringsUsed; i < this.#rings.length; i++)
+      this.#rings[i]!.visible = false;
   }
 
   /** An expanding red ring on the ground at the fight. */
-  #ring(index: number, h: Hotspot, ground: number, now: number, alpha: number): void {
+  #ring(
+    index: number,
+    h: Hotspot,
+    ground: number,
+    now: number,
+    alpha: number,
+  ): void {
     let ring = this.#rings[index];
     if (!ring) {
       ring = new THREE.Mesh(
@@ -171,7 +202,7 @@ export class DamageAlerts {
   /** A red haze blob clamped to the screen edge, toward the fight. */
   #blob(
     index: number,
-    p: { x: number; y: number },
+    p: {x: number; y: number},
     w: number,
     hgt: number,
     now: number,

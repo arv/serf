@@ -1,7 +1,12 @@
 import * as THREE from 'three';
-import { hash2 } from '../shared/math';
-import { tileIdx } from '../shared/grid';
-import { playMax, playMin, type MapView } from '../sim/map';
+import {tileIdx} from '../shared/grid';
+import {hash2} from '../shared/math';
+import {playMax, playMin, type MapView} from '../sim/map';
+import * as Terrain from '../sim/terrainEnum.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import {makeGroundTexture} from './groundTexture';
+import type {HeightField} from './heightField';
+import {vnoise} from './noise';
 import {
   bankMoss,
   fog,
@@ -14,11 +19,6 @@ import {
   rockDark,
   water,
 } from './palette';
-import { vnoise } from './noise';
-import { makeGroundTexture } from './groundTexture';
-import type { HeightField } from './heightField';
-import * as Terrain from '../sim/terrainEnum.ts';
-import * as TileResource from '../sim/tileResourceEnum.ts';
 
 /** Smoothstep of t clamped to [0, 1]. */
 function ease01(t: number): number {
@@ -92,7 +92,8 @@ export class MarginMesh {
         this.#paint(map, x, z, y, d, c);
         // The far field melts into the haze (dry land only — a pale-faded
         // bed under the semi-transparent sea reads as a milky sheet).
-        if (y > -0.3) c.lerp(COL.fog, ease01((d - marginW * 0.7) / (marginW * 0.3)));
+        if (y > -0.3)
+          c.lerp(COL.fog, ease01((d - marginW * 0.7) / (marginW * 0.3)));
       }
       pos.setY(v, y);
       const s = 0.92 + hash2(v, 977) * 0.16;
@@ -109,7 +110,7 @@ export class MarginMesh {
     // `size`: they are the same number today, one vertex per tile, and the
     // day they stop being (a coarser margin mesh is the obvious reason)
     // this would otherwise index off the end of the buffer.
-    const { widthSegments, heightSegments } = geometry.parameters;
+    const {widthSegments, heightSegments} = geometry.parameters;
     const index: number[] = [];
     const row = widthSegments + 1;
     for (let iz = 0; iz < heightSegments; iz++) {
@@ -129,14 +130,19 @@ export class MarginMesh {
       // its paint, at the same four-tiles-per-repeat density (the margin is
       // a whole number of repeats wide, so the pattern stays in phase
       // across the boundary).
-      new THREE.MeshLambertMaterial({ vertexColors: true, map: makeGroundTexture(size) }),
+      new THREE.MeshLambertMaterial({
+        vertexColors: true,
+        map: makeGroundTexture(size),
+      }),
     );
     this.mesh.receiveShadow = true;
   }
 
   /** Bed color under open water, graded by depth like the terrain paint. */
   #bedColor(out: THREE.Color, y: number): void {
-    out.copy(COL.bed).lerp(COL.water, Math.min(Math.max((-y - 0.2) * 1.4, 0), 1) * 0.75);
+    out
+      .copy(COL.bed)
+      .lerp(COL.water, Math.min(Math.max((-y - 0.2) * 1.4, 0), 1) * 0.75);
   }
 
   /**
@@ -145,12 +151,25 @@ export class MarginMesh {
    * valley shade) eased in over the first tiles so no rule change ever
    * lands exactly on the boundary as a line.
    */
-  #paint(map: MapView, x: number, z: number, y: number, d: number, out: THREE.Color): void {
+  #paint(
+    map: MapView,
+    x: number,
+    z: number,
+    y: number,
+    d: number,
+    out: THREE.Color,
+  ): void {
     const size = map.size;
     // The same boundary warp the fine mesh samples through, so the class
     // edges wander across the seam instead of restarting at it.
-    const tx = Math.max(0, Math.min(size - 1, Math.floor(x + (vnoise(41, x, z, 2.1) - 0.5) * 1.1)));
-    const tz = Math.max(0, Math.min(size - 1, Math.floor(z + (vnoise(43, x, z, 2.1) - 0.5) * 1.1)));
+    const tx = Math.max(
+      0,
+      Math.min(size - 1, Math.floor(x + (vnoise(41, x, z, 2.1) - 0.5) * 1.1)),
+    );
+    const tz = Math.max(
+      0,
+      Math.min(size - 1, Math.floor(z + (vnoise(43, x, z, 2.1) - 0.5) * 1.1)),
+    );
     const tile = tileIdx(tx, tz, size);
     const terrain = map.terrain[tile];
 
@@ -159,7 +178,9 @@ export class MarginMesh {
       return;
     }
     const m =
-      vnoise(51, x, z, 9) * 0.5 + vnoise(53, x, z, 3.4) * 0.34 + vnoise(57, x, z, 1.2) * 0.16;
+      vnoise(51, x, z, 9) * 0.5 +
+      vnoise(53, x, z, 3.4) * 0.34 +
+      vnoise(57, x, z, 1.2) * 0.16;
     if (m < 0.52) out.copy(COL.lush).lerp(COL.olive, m / 0.52);
     else out.copy(COL.olive).lerp(COL.gold, (m - 0.52) / 0.48);
     if (terrain === Terrain.Rock) {
@@ -172,15 +193,25 @@ export class MarginMesh {
       // eases in the same way.
       const settle = ease01(d / 8);
       const snowLine = 1.95 + 0.35 * settle;
-      if (y > snowLine) out.lerp(COL.snow, Math.min((y - snowLine) / 0.45, 1) * 0.85);
-      out.multiplyScalar(1 - 0.22 * (1 - Math.min(Math.max(y / 2.8, 0), 1)) * ease01(d / 6));
+      if (y > snowLine)
+        out.lerp(COL.snow, Math.min((y - snowLine) / 0.45, 1) * 0.85);
+      out.multiplyScalar(
+        1 - 0.22 * (1 - Math.min(Math.max(y / 2.8, 0), 1)) * ease01(d / 6),
+      );
     } else {
-      if (y > 0.9) out.lerp(m < 0.5 ? COL.rock : COL.rockDark, Math.min((y - 0.9) / 0.55, 1) * 0.9);
+      if (y > 0.9)
+        out.lerp(
+          m < 0.5 ? COL.rock : COL.rockDark,
+          Math.min((y - 0.9) / 0.55, 1) * 0.9,
+        );
       if (map.resource[tile] === TileResource.Wood) {
         // Forest floor under the margin's solid timber: shaded toward
         // moss so gaps between crowns read as canopy, eased in from the
         // seam where the playable belt's own ground has no such shade.
-        out.lerp(COL.moss, (0.34 + (vnoise(59, x, z, 5) - 0.5) * 0.24) * ease01(d / 5));
+        out.lerp(
+          COL.moss,
+          (0.34 + (vnoise(59, x, z, 5) - 0.5) * 0.24) * ease01(d / 5),
+        );
       }
     }
     // Banks sink into dark moss near the waterline, like the map's own.

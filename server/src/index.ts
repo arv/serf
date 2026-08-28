@@ -1,11 +1,15 @@
-import { createServer, type ServerResponse } from 'node:http';
-import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
-import { extname, join, normalize, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { WebSocket, WebSocketServer } from 'ws';
-import { decodeState, encodePong } from '../../src/protocol/state.ts';
-import { defaultLobbyConfig, sanitizeLobbyConfig } from '../../src/protocol/lobby.ts';
-import { sanitizeCommands } from '../../src/sim/commands.ts';
+import {createReadStream, existsSync, readdirSync, statSync} from 'node:fs';
+import {createServer, type ServerResponse} from 'node:http';
+import {extname, join, normalize, resolve, sep} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {WebSocket, WebSocketServer} from 'ws';
+import {
+  defaultLobbyConfig,
+  sanitizeLobbyConfig,
+} from '../../src/protocol/lobby.ts';
+import {decodeState, encodePong} from '../../src/protocol/state.ts';
+import {sanitizeCommands} from '../../src/sim/commands.ts';
+import {persistRooms, restorePersistedRooms} from './persist.ts';
 import {
   MAX_COMMANDS_PER_FRAME,
   MAX_SEATS,
@@ -27,8 +31,7 @@ import {
   type Room,
   type Seat,
 } from './rooms.ts';
-import { sendInit } from './sync.ts';
-import { persistRooms, restorePersistedRooms } from './persist.ts';
+import {sendInit} from './sync.ts';
 
 /**
  * The Serf Valley server: rooms, the simulation, and per-client state frames. It
@@ -65,7 +68,7 @@ const SERVES_GAME = existsSync(join(DIST_DIR, 'index.html'));
 const STATIC_FILES = new Map<string, string>();
 if (SERVES_GAME) {
   const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    for (const entry of readdirSync(dir, {withFileTypes: true})) {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
       else STATIC_FILES.set(full, statSync(full).mtime.toUTCString());
@@ -101,8 +104,8 @@ const http = createServer((req, res) => {
   if (req.url === '/health') {
     // Deliberately more than 'ok': this process now simulates, so the useful
     // question is how close to full it is.
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, ...serverStats() }));
+    res.writeHead(200, {'content-type': 'application/json'});
+    res.end(JSON.stringify({ok: true, ...serverStats()}));
     return;
   }
   if (!SERVES_GAME || (req.method !== 'GET' && req.method !== 'HEAD')) {
@@ -163,8 +166,8 @@ const http = createServer((req, res) => {
 
 // No permessage-deflate: at 20 Hz of small binary frames the zlib contexts
 // cost far more in CPU and per-socket memory than the bytes they save.
-const wss = new WebSocketServer({ server: http, perMessageDeflate: false });
-wss.on('error', (err) => console.error('[serf] websocket server error:', err));
+const wss = new WebSocketServer({server: http, perMessageDeflate: false});
+wss.on('error', err => console.error('[serf] websocket server error:', err));
 
 interface Conn {
   room?: Room;
@@ -178,15 +181,15 @@ interface Conn {
 const LIST_MIN_GAP_MS = 1000;
 
 type LobbyMsg =
-  | { t: 'list' }
-  | { t: 'create'; open?: boolean; config?: unknown }
-  | { t: 'join'; code: string }
-  | { t: 'config'; config?: unknown }
-  | { t: 'start' }
-  | { t: 'rejoin'; token: string }
-  | { t: 'debug'; enabled?: boolean }
-  | { t: 'hidden'; hidden?: boolean }
-  | { t: 'replay' };
+  | {t: 'list'}
+  | {t: 'create'; open?: boolean; config?: unknown}
+  | {t: 'join'; code: string}
+  | {t: 'config'; config?: unknown}
+  | {t: 'start'}
+  | {t: 'rejoin'; token: string}
+  | {t: 'debug'; enabled?: boolean}
+  | {t: 'hidden'; hidden?: boolean}
+  | {t: 'replay'};
 
 function sendJson(ws: WebSocket, msg: unknown): void {
   // Simultaneous disconnects race the close callbacks: a seat can still
@@ -199,7 +202,7 @@ function sendJson(ws: WebSocket, msg: unknown): void {
 }
 
 function broadcastRoomState(room: Room): void {
-  const seats = room.seats.map((s) => ({ kind: s.kind, connected: s.connected }));
+  const seats = room.seats.map(s => ({kind: s.kind, connected: s.connected}));
   for (const s of room.seats) {
     if (s.connected && s.ws) {
       sendJson(s.ws, {
@@ -213,7 +216,7 @@ function broadcastRoomState(room: Room): void {
   }
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', ws => {
   const conn: Conn = {};
 
   // A client that vanishes rudely — phone reload, tab kill, radio drop —
@@ -221,8 +224,11 @@ wss.on('connection', (ws) => {
   // no listener takes down the whole process, every room with it. The
   // close handler right below does the actual seat bookkeeping; this only
   // has to exist.
-  ws.on('error', (err) => {
-    console.warn('[serf] client socket error:', err instanceof Error ? err.message : err);
+  ws.on('error', err => {
+    console.warn(
+      '[serf] client socket error:',
+      err instanceof Error ? err.message : err,
+    );
   });
 
   ws.on('message', (data, isBinary) => {
@@ -233,13 +239,16 @@ wss.on('connection', (ws) => {
         handleLobby(ws, conn, JSON.parse(String(data)) as LobbyMsg);
       }
     } catch (err) {
-      sendJson(ws, { t: 'error', message: err instanceof Error ? err.message : String(err) });
+      sendJson(ws, {
+        t: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
       ws.close();
     }
   });
 
   ws.on('close', () => {
-    const { room, seat } = conn;
+    const {room, seat} = conn;
     if (!room || !seat) return;
     // A newer socket may have taken this seat over (worker rejoin after the
     // lobby socket) — only the current socket's close disconnects the seat.
@@ -263,7 +272,8 @@ wss.on('connection', (ws) => {
     seat.connected = false;
     seat.ws = null;
     for (const s of room.seats) {
-      if (s.connected && s.ws) sendJson(s.ws, { t: 'peer', playerId: seat.playerId, connected: false });
+      if (s.connected && s.ws)
+        sendJson(s.ws, {t: 'peer', playerId: seat.playerId, connected: false});
     }
     deleteRoomIfDead(room);
   });
@@ -279,7 +289,7 @@ wss.on('connection', (ws) => {
  * lobby at full.
  */
 function releaseRoom(conn: Conn, ws: WebSocket): void {
-  const { room, seat } = conn;
+  const {room, seat} = conn;
   conn.room = undefined;
   conn.seat = undefined;
   if (!room || !seat) return;
@@ -300,9 +310,13 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
   switch (msg.t) {
     case 'list': {
       const now = Date.now();
-      if (conn.lastListMs !== undefined && now - conn.lastListMs < LIST_MIN_GAP_MS) return;
+      if (
+        conn.lastListMs !== undefined &&
+        now - conn.lastListMs < LIST_MIN_GAP_MS
+      )
+        return;
       conn.lastListMs = now;
-      sendJson(ws, { t: 'rooms', rooms: listOpenRooms(now) });
+      sendJson(ws, {t: 'rooms', rooms: listOpenRooms(now)});
       break;
     }
     case 'create': {
@@ -341,7 +355,7 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       break;
     }
     case 'config': {
-      const { room, seat } = conn;
+      const {room, seat} = conn;
       if (!room || !seat) throw new Error('not in a room');
       if (room.state !== 'lobby') throw new Error('already started');
       // Not the host's word: ignored, not fatal — a stale client mustn't
@@ -352,21 +366,24 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       break;
     }
     case 'start': {
-      const { room, seat } = conn;
+      const {room, seat} = conn;
       if (!room || !seat) throw new Error('not in a room');
-      if (seat.playerId !== 0) throw new Error('only the host starts the match');
+      if (seat.playerId !== 0)
+        throw new Error('only the host starts the match');
       if (room.state !== 'lobby') throw new Error('already started');
       // The server builds the world from room.config. With one simulator
       // there is no cross-engine worldgen risk and no blob to ship around.
       startMatch(room);
-      console.log(`[serf] room ${room.code} started, ${room.seats.length} seat(s)`);
+      console.log(
+        `[serf] room ${room.code} started, ${room.seats.length} seat(s)`,
+      );
       for (const s of room.seats) {
         if (s.connected && s.ws) {
           sendJson(s.ws, {
             t: 'begin',
             playerId: s.playerId,
             token: s.token,
-            seats: room.seats.map((x) => ({ kind: x.kind })),
+            seats: room.seats.map(x => ({kind: x.kind})),
           });
         }
       }
@@ -374,9 +391,11 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
     }
     case 'rejoin': {
       const found = findSeatByToken(msg.token);
-      console.log(`[relay] rejoin token=${msg.token.slice(0, 8)} found=${!!found}`);
+      console.log(
+        `[relay] rejoin token=${msg.token.slice(0, 8)} found=${!!found}`,
+      );
       if (!found) throw new Error('unknown token');
-      const { room, seat } = found;
+      const {room, seat} = found;
       // Same leak as create/join: a socket that already held a seat must let
       // go of it before binding another.
       if (conn.seat !== seat) releaseRoom(conn, ws);
@@ -398,14 +417,14 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       sendJson(ws, {
         t: 'rejoined',
         playerId: seat.playerId,
-        seats: room.seats.map((x) => ({ kind: x.kind })),
+        seats: room.seats.map(x => ({kind: x.kind})),
       });
       // Current state, not a replay: the server holds the world, so catching
       // a client up is one frame regardless of how long the match has run.
       sendInit(room, seat);
       for (const s of room.seats) {
         if (s !== seat && s.connected && s.ws) {
-          sendJson(s.ws, { t: 'peer', playerId: seat.playerId, connected: true });
+          sendJson(s.ws, {t: 'peer', playerId: seat.playerId, connected: true});
         }
       }
       break;
@@ -413,7 +432,7 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
     case 'debug': {
       // The debug overlay opened (or closed) on this seat's client: jobs
       // ride its struct frames only while someone is actually watching.
-      const { seat } = conn;
+      const {seat} = conn;
       if (seat) seat.wantsJobs = msg.enabled === true;
       break;
     }
@@ -423,9 +442,9 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       // the match is still undecided: the log is a full-information view
       // of a fogged world, so it only leaves the server once the outcome
       // has nothing left to hide.
-      const { room, seat } = conn;
+      const {room, seat} = conn;
       if (!room || !seat) break;
-      sendJson(ws, { t: 'replay', data: replayFor(room, seat) });
+      sendJson(ws, {t: 'replay', data: replayFor(room, seat)});
       break;
     }
     case 'hidden': {
@@ -434,7 +453,7 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
       // counts as connected, so the room is not abandoned — but the stream
       // stops, and a pocketed phone spends neither radio nor CPU on a
       // match it cannot show.
-      const { room, seat } = conn;
+      const {room, seat} = conn;
       if (!room || !seat) break;
       const hidden = msg.hidden === true;
       if (seat.hidden === hidden) break;
@@ -449,7 +468,7 @@ function handleLobby(ws: WebSocket, conn: Conn, msg: LobbyMsg): void {
 }
 
 function handleBinary(ws: WebSocket, conn: Conn, data: Uint8Array): void {
-  const { room, seat } = conn;
+  const {room, seat} = conn;
   if (!room || !seat) throw new Error('binary frame before joining a room');
   const frame = decodeState(data);
   if (!frame) throw new Error('unknown frame from client');
@@ -464,10 +483,16 @@ function handleBinary(ws: WebSocket, conn: Conn, data: Uint8Array): void {
     // A lobby room never pumps, so anything queued before the match starts
     // would sit in room.queued forever, growing with every frame. No client
     // submits before it has been told the match began.
-    if (room.state !== 'running') throw new Error('command frame before the match started');
+    if (room.state !== 'running')
+      throw new Error('command frame before the match started');
     // What came off the wire only claims to be commands. Screen it here, at
     // the trust boundary, so nothing malformed can reach the shared tick.
-    queueCommands(room, seat, frame.seq, sanitizeCommands(frame.commands, MAX_COMMANDS_PER_FRAME));
+    queueCommands(
+      room,
+      seat,
+      frame.seq,
+      sanitizeCommands(frame.commands, MAX_COMMANDS_PER_FRAME),
+    );
     return;
   }
   if (frame.kind === 'ping') {
@@ -489,7 +514,10 @@ setInterval(() => {
       room.pumpErrors = (room.pumpErrors ?? 0) + 1;
       // Loud the first time, then occasionally: this fires at 100 Hz.
       if (room.pumpErrors === 1 || room.pumpErrors % 1000 === 0) {
-        console.error(`[serf] room ${room.code} pump failed (x${room.pumpErrors}):`, err);
+        console.error(
+          `[serf] room ${room.code} pump failed (x${room.pumpErrors}):`,
+          err,
+        );
       }
     }
   }
@@ -500,7 +528,8 @@ setInterval(() => sweepRooms(Date.now()), 30_000);
 // restored before the listener opens, so the tokens clients are already
 // retrying with are honored from the very first upgrade.
 const restored = restorePersistedRooms(Date.now());
-if (restored > 0) console.log(`[serf] restored ${restored} room(s) from the previous process`);
+if (restored > 0)
+  console.log(`[serf] restored ${restored} room(s) from the previous process`);
 
 // Every deploy replaces this process: SIGTERM, grace, then the new image.
 // Running rooms go to disk for the next process; the sockets just die,

@@ -1,22 +1,25 @@
-import { parseAdvice } from '../../src/ai/advice.ts';
-import { LlmStrategist, type LlmStatus } from '../../src/ai/strategist.ts';
-import { summarizeForSeat } from '../../src/ai/summary.ts';
-import { AiSeats } from '../../src/sim/aiSeats.ts';
-import { checkInvariants } from '../../src/sim/debug/invariants.ts';
-import { buildingDef } from '../../src/sim/defs/buildings.ts';
-import { TICK_MS } from '../../src/sim/defs/balance.ts';
-import { tickWorld } from '../../src/sim/tick.ts';
-import { createWorld, type World } from '../../src/sim/world.ts';
-import type { AiStrategyId, AiStrategy } from '../../src/sim/defs/aiStrategies.ts';
-import type { ChatMessage } from '../../src/ai/prompt.ts';
-import type { Owner } from '../../src/sim/entities.ts';
-import type { EconomyRuleId } from '../../src/sim/economyRules.ts';
-import type { LabEngine } from './engines.ts';
+import {parseAdvice} from '../../src/ai/advice.ts';
 import * as LlmState from '../../src/ai/llmStateEnum.ts';
-import * as MatchState from '../../src/sim/matchStateEnum.ts';
+import type {ChatMessage} from '../../src/ai/prompt.ts';
+import {LlmStrategist, type LlmStatus} from '../../src/ai/strategist.ts';
+import {summarizeForSeat} from '../../src/ai/summary.ts';
+import {AiSeats} from '../../src/sim/aiSeats.ts';
 import * as BuildingState from '../../src/sim/buildingStateEnum.ts';
+import {checkInvariants} from '../../src/sim/debug/invariants.ts';
+import type {
+  AiStrategyId,
+  AiStrategy,
+} from '../../src/sim/defs/aiStrategies.ts';
+import {TICK_MS} from '../../src/sim/defs/balance.ts';
+import {buildingDef} from '../../src/sim/defs/buildings.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
+import type {EconomyRuleId} from '../../src/sim/economyRules.ts';
+import type {Owner} from '../../src/sim/entities.ts';
+import * as MatchState from '../../src/sim/matchStateEnum.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
+import {tickWorld} from '../../src/sim/tick.ts';
+import {createWorld, type World} from '../../src/sim/world.ts';
+import type {LabEngine} from './engines.ts';
 
 /**
  * One headless match, played the way the game plays it.
@@ -119,7 +122,7 @@ export interface SeatStanding {
   castleStanding: boolean;
   buildings: number;
   pop: number;
-  army: { knight: number; spearman: number; archer: number };
+  army: {knight: number; spearman: number; archer: number};
   /** Summed hit points of standing soldiers — army size weighted by how
    * much of it is left. */
   armyHp: number;
@@ -133,7 +136,7 @@ export interface MatchRecord {
    * playbook sat where, or a swapped-seating sweep cannot be scored. */
   strategies: SeatStrategies;
   /** Seats that had a strategist, and what was in it. */
-  advised: { playerId: Owner; engine: string }[];
+  advised: {playerId: Owner; engine: string}[];
   ticks: number;
   /** The sim reached a verdict rather than hitting maxTicks. */
   decided: boolean;
@@ -145,7 +148,7 @@ export interface MatchRecord {
    * consultations: standing advice repeated verbatim costs no message. */
   adviceApplied: Record<string, number>;
   /** A strategist that gave up, and why. */
-  failures: { playerId: Owner; reason: string }[];
+  failures: {playerId: Owner; reason: string}[];
   /**
    * What the stall watchdog saw per seat (AI_STALL in sim/systems/ai.ts):
    * decision beats that read as stalled, and recovery orders sent. Beside
@@ -154,7 +157,7 @@ export interface MatchRecord {
    * indistinguishable from one that fires uselessly if all you have is the
    * undecided count.
    */
-  stalls: { playerId: Owner; beats: number; recoveries: number }[];
+  stalls: {playerId: Owner; beats: number; recoveries: number}[];
   /** Wall-clock milliseconds the whole match took, sim and inference. */
   wallMs: number;
   /** Every unit and building at the final tick, folded to a string. Two
@@ -187,7 +190,10 @@ export interface PendingAdvice {
  * Inserted after the last entry due no later than this one, so ties keep the
  * order they were asked in and a sweep stays reproducible.
  */
-export function queueAdvice(pending: PendingAdvice[], entry: PendingAdvice): void {
+export function queueAdvice(
+  pending: PendingAdvice[],
+  entry: PendingAdvice,
+): void {
   let i = pending.length;
   while (i > 0 && pending[i - 1]!.dueTick > entry.dueTick) i--;
   pending.splice(i, 0, entry);
@@ -198,23 +204,24 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
   const world = createWorld({
     seed: cfg.seed,
     players: [
-      { kind: PlayerKind.ai, strategy: cfg.strategies[0] },
-      { kind: PlayerKind.ai, strategy: cfg.strategies[1] },
+      {kind: PlayerKind.ai, strategy: cfg.strategies[0]},
+      {kind: PlayerKind.ai, strategy: cfg.strategies[1]},
     ],
     banditsEnabled: cfg.bandits,
     mapSize: cfg.mapSize,
   });
   const seats = new AiSeats(world);
   if (cfg.economyRules !== undefined) {
-    for (const id of seats.seatIds()) seats.brainFor(id)?.setEconomyRules(cfg.economyRules);
+    for (const id of seats.seatIds())
+      seats.brainFor(id)?.setEconomyRules(cfg.economyRules);
   }
 
   const consults: ConsultRecord[] = [];
   const adviceApplied = new Map<Owner, number>();
-  const failures: { playerId: Owner; reason: string }[] = [];
+  const failures: {playerId: Owner; reason: string}[] = [];
   const pending: PendingAdvice[] = [];
   const strategists = new Map<Owner, LlmStrategist>();
-  const advised: { playerId: Owner; engine: string }[] = [];
+  const advised: {playerId: Owner; engine: string}[] = [];
 
   // The consultation the tick loop is currently waiting on. The strategist
   // is fire-and-forget by design, so the harness reaches into the engine
@@ -227,7 +234,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
 
   for (const [playerId, engine] of cfg.engines) {
     if (!seats.seatIds().includes(playerId)) continue;
-    advised.push({ playerId, engine: engine.label });
+    advised.push({playerId, engine: engine.label});
     const strategist = new LlmStrategist({
       sendAdvice: (id, override) => {
         adviceApplied.set(id, (adviceApplied.get(id) ?? 0) + 1);
@@ -252,9 +259,10 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
         });
       },
       onStatus: (status: LlmStatus) => {
-        if (status.state === LlmState.failed) failures.push({ playerId, reason: status.reason });
+        if (status.state === LlmState.failed)
+          failures.push({playerId, reason: status.reason});
       },
-      ...(cfg.timeoutMs !== undefined ? { timeoutMs: cfg.timeoutMs } : {}),
+      ...(cfg.timeoutMs !== undefined ? {timeoutMs: cfg.timeoutMs} : {}),
       engineFactory: () =>
         Promise.resolve({
           complete: (messages, schema, signal) => {
@@ -264,13 +272,13 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
               ms: 0,
               promptChars: messages.reduce((n, m) => n + m.content.length, 0),
               replyChars: 0,
-              ...(cfg.trace ? { prompt: messages } : {}),
+              ...(cfg.trace ? {prompt: messages} : {}),
             };
             consults.push(record);
             inflightRecord = record;
             const t0 = Date.now();
             const call = engine.complete(messages, schema, signal).then(
-              (reply) => {
+              reply => {
                 record.ms = Date.now() - t0;
                 record.replyChars = reply.length;
                 // Judge the reply the way the strategist is about to. The
@@ -281,7 +289,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
                 const advice = parseAdvice(reply);
                 record.parsed = advice !== null;
                 if (advice) {
-                  const { reason: _reason, ...knobs } = advice;
+                  const {reason: _reason, ...knobs} = advice;
                   record.knobs = Object.keys(knobs).length;
                 }
                 if (cfg.trace) record.reply = reply;
@@ -303,10 +311,16 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
   }
 
   const summaryDue = new Map(
-    seats.seatIds().map((id, i) => [id, cfg.advicePeriod + i * cfg.adviceStagger]),
+    seats
+      .seatIds()
+      .map((id, i) => [id, cfg.advicePeriod + i * cfg.adviceStagger]),
   );
 
-  for (let t = 0; t < cfg.maxTicks && world.outcome.state === MatchState.playing; t++) {
+  for (
+    let t = 0;
+    t < cfg.maxTicks && world.outcome.state === MatchState.playing;
+    t++
+  ) {
     // Advice due this tick lands before the brains think, so a seat acts on
     // it the same tick the game would have.
     while (pending.length > 0 && pending[0]!.dueTick <= world.tick) {
@@ -345,14 +359,16 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
       // parse, clamp, sendAdvice — run before the sim moves again. Those
       // are all microtasks, so one macrotask turn drains them.
       await started.catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
 
     const every = cfg.checkInvariantsEvery ?? 0;
     if (every > 0 && world.tick % every === 0) {
-      const { violations } = checkInvariants(world);
+      const {violations} = checkInvariants(world);
       if (violations.length > 0) {
-        throw new Error(`invariants broken at tick ${world.tick}: ${violations.join('; ')}`);
+        throw new Error(
+          `invariants broken at tick ${world.tick}: ${violations.join('; ')}`,
+        );
       }
     }
   }
@@ -370,14 +386,16 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     advised,
     ticks: world.tick,
     decided,
-    winner: decided ? (world.outcome as { winner: Owner | null }).winner : null,
-    standings: seats.seatIds().map((id) => standingOf(world, id)),
+    winner: decided ? (world.outcome as {winner: Owner | null}).winner : null,
+    standings: seats.seatIds().map(id => standingOf(world, id)),
     consults,
-    adviceApplied: Object.fromEntries([...adviceApplied].map(([id, n]) => [String(id), n])),
+    adviceApplied: Object.fromEntries(
+      [...adviceApplied].map(([id, n]) => [String(id), n]),
+    ),
     failures,
-    stalls: seats.seatIds().map((id) => {
-      const { beats, recoveries } = seats.brainFor(id)!.stallReport();
-      return { playerId: id, beats, recoveries };
+    stalls: seats.seatIds().map(id => {
+      const {beats, recoveries} = seats.brainFor(id)!.stallReport();
+      return {playerId: id, beats, recoveries};
     }),
     wallMs: Date.now() - startedAt,
     digest: worldDigest(world),
@@ -422,16 +440,18 @@ export function standingOf(world: World, playerId: Owner): SeatStanding {
     buildings++;
     // The castle is the storehouse building — summary.ts finds it the same
     // way, by the storage flag rather than by an id that does not exist.
-    if (buildingDef(b.type).storage && b.state === BuildingState.built) castleStanding = true;
+    if (buildingDef(b.type).storage && b.state === BuildingState.built)
+      castleStanding = true;
   }
   let pop = 0;
   let armyHp = 0;
-  const army = { knight: 0, spearman: 0, archer: 0 };
+  const army = {knight: 0, spearman: 0, archer: 0};
   for (const u of world.units.values()) {
     if (u.dead || u.owner !== playerId) continue;
     pop++;
     if (u.kind === UnitTypeId.knight) (army.knight++, (armyHp += u.hp));
-    else if (u.kind === UnitTypeId.spearman) (army.spearman++, (armyHp += u.hp));
+    else if (u.kind === UnitTypeId.spearman)
+      (army.spearman++, (armyHp += u.hp));
     else if (u.kind === UnitTypeId.archer) (army.archer++, (armyHp += u.hp));
   }
   return {

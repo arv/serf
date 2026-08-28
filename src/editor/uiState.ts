@@ -1,9 +1,9 @@
-import type { Enum } from '../shared/enum.ts';
-import { createSignal } from 'solid-js';
-import type { Tool } from './brush.ts';
+import {createSignal} from 'solid-js';
+import * as ViewMode from '../render/viewModeEnum.ts';
+import type {Enum} from '../shared/enum.ts';
 import * as Terrain from '../sim/terrainEnum.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
-import * as ViewMode from '../render/viewModeEnum.ts';
+import type {Tool} from './brush.ts';
 
 type ViewMode = Enum<typeof ViewMode>;
 
@@ -14,7 +14,7 @@ type ViewMode = Enum<typeof ViewMode>;
  */
 
 /** The palette's tools plus the start-mover (which paints nothing). */
-export type EditorTool = Tool | { kind: 'start' };
+export type EditorTool = Tool | {kind: 'start'};
 
 export interface PaletteEntry {
   key: string;
@@ -28,49 +28,64 @@ export interface PaletteEntry {
  * these exact objects — so the active-tool check is plain identity.
  */
 export const PALETTE: PaletteEntry[] = [
-  { key: '1', label: 'Grass', group: 'terrain', tool: { kind: 'terrain', terrain: Terrain.Grass } },
-  { key: '2', label: 'Water', group: 'terrain', tool: { kind: 'terrain', terrain: Terrain.Water } },
-  { key: '3', label: 'Rock', group: 'terrain', tool: { kind: 'terrain', terrain: Terrain.Rock } },
+  {
+    key: '1',
+    label: 'Grass',
+    group: 'terrain',
+    tool: {kind: 'terrain', terrain: Terrain.Grass},
+  },
+  {
+    key: '2',
+    label: 'Water',
+    group: 'terrain',
+    tool: {kind: 'terrain', terrain: Terrain.Water},
+  },
+  {
+    key: '3',
+    label: 'Rock',
+    group: 'terrain',
+    tool: {kind: 'terrain', terrain: Terrain.Rock},
+  },
   {
     key: '4',
     label: 'Trees',
     group: 'resource',
-    tool: { kind: 'resource', res: TileResource.Wood },
+    tool: {kind: 'resource', res: TileResource.Wood},
   },
   {
     key: '5',
     label: 'Stone',
     group: 'resource',
-    tool: { kind: 'resource', res: TileResource.Rock },
+    tool: {kind: 'resource', res: TileResource.Rock},
   },
   {
     key: '6',
     label: 'Iron',
     group: 'resource',
-    tool: { kind: 'resource', res: TileResource.IronDep },
+    tool: {kind: 'resource', res: TileResource.IronDep},
   },
   {
     key: '7',
     label: 'Silver',
     group: 'resource',
-    tool: { kind: 'resource', res: TileResource.SilverDep },
+    tool: {kind: 'resource', res: TileResource.SilverDep},
   },
   {
     key: '8',
     label: 'Gold',
     group: 'resource',
-    tool: { kind: 'resource', res: TileResource.GoldDep },
+    tool: {kind: 'resource', res: TileResource.GoldDep},
   },
   {
     key: '9',
     label: 'Erase',
     group: 'resource',
-    tool: { kind: 'resource', res: TileResource.None },
+    tool: {kind: 'resource', res: TileResource.None},
   },
-  { key: 'r', label: 'Raise', group: 'height', tool: { kind: 'height', dir: 1 } },
-  { key: 'f', label: 'Lower', group: 'height', tool: { kind: 'height', dir: -1 } },
-  { key: 'n', label: 'Roughen', group: 'height', tool: { kind: 'noise' } },
-  { key: 's', label: 'Starts', group: 'start', tool: { kind: 'start' } },
+  {key: 'r', label: 'Raise', group: 'height', tool: {kind: 'height', dir: 1}},
+  {key: 'f', label: 'Lower', group: 'height', tool: {kind: 'height', dir: -1}},
+  {key: 'n', label: 'Roughen', group: 'height', tool: {kind: 'noise'}},
+  {key: 's', label: 'Starts', group: 'start', tool: {kind: 'start'}},
 ];
 
 export const [tool, setTool] = createSignal<EditorTool>(PALETTE[0]!.tool);
@@ -86,7 +101,9 @@ export const [showBounds, setShowBounds] = createSignal(true);
 /** History depth flags, kept fresh by the screen after every action. */
 export const [canUndo, setCanUndo] = createSignal(false);
 export const [canRedo, setCanRedo] = createSignal(false);
-export const [dialog, setDialog] = createSignal<'new' | 'play' | 'open' | 'saveAs' | null>(null);
+export const [dialog, setDialog] = createSignal<
+  'new' | 'play' | 'open' | 'saveAs' | null
+>(null);
 /** validateForPlay's output, refreshed after every stroke that could change it. */
 export const [problems, setProblems] = createSignal<string[]>([]);
 /** Editor-local toasts (the HUD's live in match state we never mount). */
@@ -118,7 +135,7 @@ export function activeFolds(): number {
  * binds Save to it; New and a file import leave it unbound.
  */
 export function resetEditorUiState(
-  state: { players: number; name: string },
+  state: {players: number; name: string},
   boundName: string | null = null,
 ): void {
   setDialog(null);

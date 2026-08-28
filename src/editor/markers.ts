@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { worldToScreen } from '../input/picking';
-import { makeGhostModel } from '../render/models';
-import { eachMaterial } from '../render/materials';
-import type { HeightField } from '../render/heightField';
-import type { StartSpot } from '../sim/map.ts';
+import {worldToScreen} from '../input/picking';
+import type {HeightField} from '../render/heightField';
+import {eachMaterial} from '../render/materials';
+import {makeGhostModel} from '../render/models';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import type {StartSpot} from '../sim/map.ts';
 
 const VALID = new THREE.Color(0x7fbf6a);
 const INVALID = new THREE.Color(0xd45252);
@@ -37,13 +37,13 @@ export class StartMarkers {
   /** Rebuild for a new seat list (New map / Import / player-count change). */
   set(starts: readonly StartSpot[]): void {
     this.clear();
-    this.#starts = starts.map((s) => ({ ...s }));
+    this.#starts = starts.map(s => ({...s}));
     this.#starts.forEach((s, p) => {
       const ghost = makeGhostModel(BuildingTypeId.storehouse, 0.6, p);
       this.#ghosts.push(ghost);
-      ghost.traverse((obj) => {
+      ghost.traverse(obj => {
         if (obj instanceof THREE.Mesh) {
-          eachMaterial(obj, (m) => {
+          eachMaterial(obj, m => {
             const lit = m as THREE.MeshLambertMaterial;
             if (lit.color) this.#base.set(m, lit.color.clone());
           });
@@ -86,7 +86,8 @@ export class StartMarkers {
   hitTest(x: number, y: number): number {
     for (let p = 0; p < this.#starts.length; p++) {
       const s = this.#starts[p]!;
-      if (x >= s.x && x < s.x + START_W && y >= s.y && y < s.y + START_W) return p;
+      if (x >= s.x && x < s.x + START_W && y >= s.y && y < s.y + START_W)
+        return p;
     }
     return -1;
   }
@@ -102,7 +103,13 @@ export class StartMarkers {
       const s = this.#starts[p]!;
       const cx = s.x + START_W / 2;
       const cz = s.y + START_W / 2;
-      const pt = worldToScreen(camera, canvas, cx, this.#heights.at(cx, cz) + 2.6, cz);
+      const pt = worldToScreen(
+        camera,
+        canvas,
+        cx,
+        this.#heights.at(cx, cz) + 2.6,
+        cz,
+      );
       const label = this.#labels[p]!;
       label.style.left = `${pt.x}px`;
       label.style.top = `${pt.y}px`;
@@ -120,9 +127,9 @@ export class StartMarkers {
   #tint(seat: number, color: THREE.Color | null): void {
     const ghost = this.#ghosts[seat];
     if (!ghost) return;
-    ghost.traverse((obj) => {
+    ghost.traverse(obj => {
       if (obj instanceof THREE.Mesh) {
-        eachMaterial(obj, (m) => {
+        eachMaterial(obj, m => {
           const base = this.#base.get(m);
           const lit = m as THREE.MeshLambertMaterial;
           if (!base || !lit.color) return;
@@ -139,9 +146,9 @@ export class StartMarkers {
       // Ghost materials are per-instance clones (makeGhostModel clones on
       // build); free them — the editor rebuilds markers inside a live
       // context. Geometry is the shared building GLB: leave it alone.
-      g.traverse((obj) => {
+      g.traverse(obj => {
         if (obj instanceof THREE.Mesh) {
-          eachMaterial(obj, (m) => m.dispose());
+          eachMaterial(obj, m => m.dispose());
         }
       });
     }

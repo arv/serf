@@ -36,18 +36,18 @@ const DOCUMENT = '/index.html';
  * connection busy, few enough to leave room for the page's own loads. */
 const WARM_BATCH = 6;
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   event.waitUntil(precache());
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', event => {
   event.waitUntil(activate());
 });
 
 // The page asks for the handover rather than us seizing it: a new worker
 // that claims mid-match would pull the rug on a running game (see
 // serviceWorker.ts, which only sends this from the menu).
-self.addEventListener('message', (event) => {
+self.addEventListener('message', event => {
   if (event.data && event.data.type === 'skip-waiting') void self.skipWaiting();
 });
 
@@ -63,13 +63,17 @@ async function warmAssets() {
   const cache = await caches.open(ASSET_CACHE);
   // Carried over from the previous version of the shell: same URLs, same
   // cache name, nothing to fetch.
-  const have = new Set((await cache.keys()).map((req) => new URL(req.url).pathname));
-  const missing = ASSETS.filter((url) => !have.has(url));
+  const have = new Set(
+    (await cache.keys()).map(req => new URL(req.url).pathname),
+  );
+  const missing = ASSETS.filter(url => !have.has(url));
   for (let i = 0; i < missing.length; i += WARM_BATCH) {
     await Promise.all(
       // These are immutable and were almost certainly just pulled by the
       // page itself, so this is an HTTP-cache read, not a second download.
-      missing.slice(i, i + WARM_BATCH).map((url) => cache.add(url).catch(() => undefined)),
+      missing
+        .slice(i, i + WARM_BATCH)
+        .map(url => cache.add(url).catch(() => undefined)),
     );
   }
 }
@@ -78,12 +82,14 @@ async function activate() {
   const keep = new Set([SHELL_CACHE, ASSET_CACHE]);
   const names = await caches.keys();
   await Promise.all(
-    names.filter((name) => name.startsWith('serf-') && !keep.has(name)).map((n) => caches.delete(n)),
+    names
+      .filter(name => name.startsWith('serf-') && !keep.has(name))
+      .map(n => caches.delete(n)),
   );
   await self.clients.claim();
 }
 
-self.addEventListener('fetch', (event) => {
+self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
@@ -124,10 +130,10 @@ const ASSET_FAMILIES = ['/models/', '/audio/'];
 
 async function serveAsset(request) {
   const shell = await caches.open(SHELL_CACHE);
-  const hit = await shell.match(request, { ignoreSearch: true });
+  const hit = await shell.match(request, {ignoreSearch: true});
   if (hit) return hit;
   const assets = await caches.open(ASSET_CACHE);
-  const asset = await assets.match(request, { ignoreSearch: true });
+  const asset = await assets.match(request, {ignoreSearch: true});
   if (asset) return asset;
 
   // First sight of a model or sample the warm pass missed (or a file added
@@ -146,9 +152,11 @@ async function serveAsset(request) {
   // old page asking for an asset the new deploy deleted gets the server's
   // SPA fallback — 200, text/html — and remembering the DOCUMENT under a
   // model's URL poisons the cache as surely as caching it under a chunk's.
-  const isHtml = (response.headers.get('content-type') ?? '').includes('text/html');
+  const isHtml = (response.headers.get('content-type') ?? '').includes(
+    'text/html',
+  );
   if (
-    ASSET_FAMILIES.some((p) => path.startsWith(p)) &&
+    ASSET_FAMILIES.some(p => path.startsWith(p)) &&
     response.ok &&
     response.type === 'basic' &&
     !isHtml

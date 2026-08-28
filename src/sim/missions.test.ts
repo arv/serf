@@ -1,5 +1,33 @@
-import type { Enum } from '../shared/enum.ts';
-import { describe, expect, it } from 'vitest';
+import {describe, expect, it} from 'vitest';
+import type {Enum} from '../shared/enum.ts';
+import * as BuildingState from './buildingStateEnum.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import type {SimCommand} from './commands.ts';
+import {AI_STRATEGIES} from './defs/aiStrategies.ts';
+import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
+import {firstRaidTickFor} from './defs/balance.ts';
+import {BUILDING_DEFS, TOOL_GOODS, TOOL_OF} from './defs/buildings.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as MissionId from './defs/missionIdEnum.ts';
+import {loadMissionMap} from './defs/missionMaps.ts';
+import {
+  MISSION_DEFS,
+  MISSION_ORDER,
+  nextMissionId,
+  parseMissionId,
+} from './defs/missions.ts';
+import * as TechId from './defs/techIdEnum.ts';
+import * as GameEventKind from './gameEventKindEnum.ts';
+import {hashWorld} from './hash.ts';
+import {rectClear} from './map.ts';
+import {parseMapData} from './mapFile.ts';
+import * as MatchState from './matchStateEnum.ts';
+import * as PlayerKind from './playerKindEnum.ts';
+import {deserializeWorld, serializeWorld} from './save.ts';
+import {AiBrain} from './systems/ai.ts';
+import {cmds} from './testUtils.ts';
+import {tickWorld} from './tick.ts';
 import {
   canPlace,
   createWorld,
@@ -7,29 +35,6 @@ import {
   missionWorldConfig,
   type World,
 } from './world.ts';
-import { tickWorld } from './tick.ts';
-import { cmds } from './testUtils.ts';
-import { AiBrain } from './systems/ai.ts';
-import { AI_STRATEGIES } from './defs/aiStrategies.ts';
-import { MISSION_DEFS, MISSION_ORDER, nextMissionId, parseMissionId } from './defs/missions.ts';
-import { hashWorld } from './hash.ts';
-import { loadMissionMap } from './defs/missionMaps.ts';
-import { parseMapData } from './mapFile.ts';
-import { rectClear } from './map.ts';
-import { deserializeWorld, serializeWorld } from './save.ts';
-import { firstRaidTickFor } from './defs/balance.ts';
-import { BUILDING_DEFS, TOOL_GOODS, TOOL_OF } from './defs/buildings.ts';
-import type { SimCommand } from './commands.ts';
-import * as GameEventKind from './gameEventKindEnum.ts';
-import * as MatchState from './matchStateEnum.ts';
-import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
-import * as MissionId from './defs/missionIdEnum.ts';
-import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
-import * as CommandKind from './commandKindEnum.ts';
-import * as GoodId from './defs/goodIdEnum.ts';
-import * as TechId from './defs/techIdEnum.ts';
-import * as BuildingState from './buildingStateEnum.ts';
-import * as PlayerKind from './playerKindEnum.ts';
 
 type AiStrategyId = Enum<typeof AiStrategyId>;
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -52,7 +57,13 @@ type TechId = Enum<typeof TechId>;
 function countBuilt(world: World, type: BuildingTypeId, owner = 0): number {
   let n = 0;
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.state === BuildingState.built && b.owner === owner && b.type === type) n++;
+    if (
+      !b.dead &&
+      b.state === BuildingState.built &&
+      b.owner === owner &&
+      b.type === type
+    )
+      n++;
   }
   return n;
 }
@@ -61,7 +72,8 @@ function countBuilt(world: World, type: BuildingTypeId, owner = 0): number {
 function stockOf(world: World, good: GoodId): number {
   let n = 0;
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.owner === 0 && b.type === BuildingTypeId.storehouse) n += b.stock[good] ?? 0;
+    if (!b.dead && b.owner === 0 && b.type === BuildingTypeId.storehouse)
+      n += b.stock[good] ?? 0;
   }
   return n;
 }
@@ -73,12 +85,13 @@ function findSpot(
   type: BuildingTypeId,
   cx: number,
   cy: number,
-): { x: number; y: number } {
+): {x: number; y: number} {
   for (let r = 0; r < 16; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-        if (canPlace(world.map, type, cx + dx, cy + dy)) return { x: cx + dx, y: cy + dy };
+        if (canPlace(world.map, type, cx + dx, cy + dy))
+          return {x: cx + dx, y: cy + dy};
       }
     }
   }
@@ -93,14 +106,20 @@ async function playMission(
   maxTicks: number,
 ): Promise<World> {
   const config = missionWorldConfig(id);
-  config.players = config.players.map((p, i) => (i === 0 ? { kind: PlayerKind.ai } : p));
+  config.players = config.players.map((p, i) =>
+    i === 0 ? {kind: PlayerKind.ai} : p,
+  );
   const world = await createWorldAsync(config);
   const brain = new AiBrain(0, AI_STRATEGIES[strategy], world.map.size);
-  for (let t = 0; t < maxTicks && world.outcome.state === MatchState.playing; t++) {
+  for (
+    let t = 0;
+    t < maxTicks && world.outcome.state === MatchState.playing;
+    t++
+  ) {
     const commands = brain.shouldDecide(world.tick) ? brain.decide(world) : [];
     tickWorld(
       world,
-      commands.map((cmd) => ({ playerId: 0, cmd })),
+      commands.map(cmd => ({playerId: 0, cmd})),
     );
   }
   return world;
@@ -108,7 +127,9 @@ async function playMission(
 
 describe('the campaign missions', () => {
   it('mission 1 (The Clearing) is won by the taught line: build, hire, stockpile', async () => {
-    const world = await createWorldAsync(missionWorldConfig(MissionId.clearing));
+    const world = await createWorldAsync(
+      missionWorldConfig(MissionId.clearing),
+    );
     expect(world.missionId).toBe(MissionId.clearing);
     expect(world.objectivesDone).toEqual([false, false, false, false, false]);
 
@@ -117,11 +138,18 @@ describe('the campaign missions', () => {
     // teaches — canPlace refuses a hut out of range of its resource. The
     // castle is wherever worldgen put the solo start (the map's middle,
     // whatever the size), not a pinned coordinate.
-    const keep = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
-    const castle = { x: keep.x + 1, y: keep.y + 1 };
+    const keep = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.storehouse,
+    )!;
+    const castle = {x: keep.x + 1, y: keep.y + 1};
     const place = (type: BuildingTypeId): SimCommand => {
       const spot = findSpot(world, type, castle.x, castle.y);
-      return { kind: CommandKind.placeBuilding, building: type, x: spot.x, y: spot.y };
+      return {
+        kind: CommandKind.placeBuilding,
+        building: type,
+        x: spot.x,
+        y: spot.y,
+      };
     };
     tickWorld(world, cmds(place(BuildingTypeId.woodcutter)));
     tickWorld(world, cmds(place(BuildingTypeId.quarry)));
@@ -129,17 +157,21 @@ describe('the campaign missions', () => {
 
     let hired = false;
     const MAX = 36_000; // 30 minutes of game time, far past the expected 5-8
-    for (let t = 0; t < MAX && world.outcome.state === MatchState.playing; t++) {
+    for (
+      let t = 0;
+      t < MAX && world.outcome.state === MatchState.playing;
+      t++
+    ) {
       if (!hired && countBuilt(world, BuildingTypeId.house) >= 1) {
         // Five hires at 4 silver: 6 souls to the checklist's 11.
         tickWorld(
           world,
           cmds(
-            { kind: CommandKind.hireSerf },
-            { kind: CommandKind.hireSerf },
-            { kind: CommandKind.hireSerf },
-            { kind: CommandKind.hireSerf },
-            { kind: CommandKind.hireSerf },
+            {kind: CommandKind.hireSerf},
+            {kind: CommandKind.hireSerf},
+            {kind: CommandKind.hireSerf},
+            {kind: CommandKind.hireSerf},
+            {kind: CommandKind.hireSerf},
           ),
         );
         hired = true;
@@ -155,13 +187,17 @@ describe('the campaign missions', () => {
     expect(world.objectivesDone).toEqual([true, true, true, true, true]);
     // The completion events fired once each (five objectives, one gameOver).
     const completions = world.pendingEvents.filter(
-      (e) => e.kind === GameEventKind.objectiveComplete,
+      e => e.kind === GameEventKind.objectiveComplete,
     );
     expect(completions.length).toBe(5);
   }, 120_000);
 
   it('mission 2 (Bread and Water) is winnable', async () => {
-    const world = await playMission(MissionId.breadAndWater, AiStrategyId.steward, 45_000);
+    const world = await playMission(
+      MissionId.breadAndWater,
+      AiStrategyId.steward,
+      45_000,
+    );
     expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
       state: MatchState.over,
       winner: 0,
@@ -174,12 +210,20 @@ describe('the campaign missions', () => {
     // it can and eats every spear the checklist wants stockpiled. A player
     // in a bandit-free mission has no barracks and no such leak.
     const world = await createWorldAsync(missionWorldConfig(MissionId.ledger));
-    const keep = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
-    const castle = { x: keep.x + 1, y: keep.y + 1 };
-    const researched = (tech: TechId): boolean => world.players[0]!.techs.researched.includes(tech);
+    const keep = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.storehouse,
+    )!;
+    const castle = {x: keep.x + 1, y: keep.y + 1};
+    const researched = (tech: TechId): boolean =>
+      world.players[0]!.techs.researched.includes(tech);
     const place = (type: BuildingTypeId): SimCommand => {
       const spot = findSpot(world, type, castle.x, castle.y);
-      return { kind: CommandKind.placeBuilding, building: type, x: spot.x, y: spot.y };
+      return {
+        kind: CommandKind.placeBuilding,
+        building: type,
+        x: spot.x,
+        y: spot.y,
+      };
     };
 
     tickWorld(world, cmds(place(BuildingTypeId.abbey)));
@@ -187,7 +231,11 @@ describe('the campaign missions', () => {
 
     let ironPlaced = false;
     const MAX = 45_000;
-    for (let t = 0; t < MAX && world.outcome.state === MatchState.playing; t++) {
+    for (
+      let t = 0;
+      t < MAX && world.outcome.state === MatchState.playing;
+      t++
+    ) {
       // A player clicks when the button lights up; every 50 ticks is fine.
       if (world.tick % 50 === 0) {
         const active = world.players[0]!.techs.active;
@@ -196,11 +244,21 @@ describe('the campaign missions', () => {
           countBuilt(world, BuildingTypeId.abbey) >= 1 &&
           !researched(TechId.cobbledBoots)
         ) {
-          tickWorld(world, cmds({ kind: CommandKind.research, tech: TechId.cobbledBoots }));
+          tickWorld(
+            world,
+            cmds({kind: CommandKind.research, tech: TechId.cobbledBoots}),
+          );
           continue;
         }
-        if (!active && researched(TechId.cobbledBoots) && !researched(TechId.ironworking)) {
-          tickWorld(world, cmds({ kind: CommandKind.research, tech: TechId.ironworking }));
+        if (
+          !active &&
+          researched(TechId.cobbledBoots) &&
+          !researched(TechId.ironworking)
+        ) {
+          tickWorld(
+            world,
+            cmds({kind: CommandKind.research, tech: TechId.ironworking}),
+          );
           continue;
         }
         if (!ironPlaced && researched(TechId.ironworking)) {
@@ -212,13 +270,19 @@ describe('the campaign missions', () => {
         // A fresh Smith idles on auto; the crown wants spears — the player
         // clicks the forge menu once the roof is up.
         const smith = [...world.buildings.values()].find(
-          (b) =>
-            b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === BuildingState.built,
+          b =>
+            b.type === BuildingTypeId.weaponsmith &&
+            !b.dead &&
+            b.state === BuildingState.built,
         );
         if (smith && smith.recipeIndex === undefined) {
           tickWorld(
             world,
-            cmds({ kind: CommandKind.setBuildingRecipe, buildingId: smith.id, index: 0 }),
+            cmds({
+              kind: CommandKind.setBuildingRecipe,
+              buildingId: smith.id,
+              index: 0,
+            }),
           );
           continue;
         }
@@ -239,27 +303,42 @@ describe('the campaign missions', () => {
     // rising wants none and the auto-forge goes cold. No rule in the game
     // orders the batch this checklist asks for — a player does, by hand,
     // at the forge menu.
-    const world = await createWorldAsync(missionWorldConfig(MissionId.hammerAndHaft));
+    const world = await createWorldAsync(
+      missionWorldConfig(MissionId.hammerAndHaft),
+    );
     const def = MISSION_DEFS[MissionId.hammerAndHaft];
 
     // The valley opens exactly as the briefing tells it: the huts stand,
     // the racks are bare, and not one tool-gated post has a soul in it.
     for (const spec of def.prebuilt!) {
-      expect(countBuilt(world, spec.type), `prebuilt ${spec.type} missing`).toBeGreaterThanOrEqual(
-        def.prebuilt!.filter((s) => s.type === spec.type).length,
+      expect(
+        countBuilt(world, spec.type),
+        `prebuilt ${spec.type} missing`,
+      ).toBeGreaterThanOrEqual(
+        def.prebuilt!.filter(s => s.type === spec.type).length,
       );
     }
     for (const b of world.buildings.values()) {
-      if (b.owner !== 0 || b.state !== BuildingState.built || !TOOL_OF[b.type]) continue;
+      if (b.owner !== 0 || b.state !== BuildingState.built || !TOOL_OF[b.type])
+        continue;
       expect(b.workerId, `${b.type} staffed with no tool`).toBeUndefined();
     }
     for (const tool of TOOL_GOODS) {
-      expect(stockOf(world, tool), `${tool} in the rack`).toBe(tool === GoodId.hammer ? 1 : 0);
+      expect(stockOf(world, tool), `${tool} in the rack`).toBe(
+        tool === GoodId.hammer ? 1 : 0,
+      );
     }
 
-    const keep = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.storehouse)!;
-    const castle = { x: keep.x + 1, y: keep.y + 1 };
-    const spot = findSpot(world, BuildingTypeId.weaponsmith, castle.x, castle.y);
+    const keep = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.storehouse,
+    )!;
+    const castle = {x: keep.x + 1, y: keep.y + 1};
+    const spot = findSpot(
+      world,
+      BuildingTypeId.weaponsmith,
+      castle.x,
+      castle.y,
+    );
     // The one roof the mission is about — and the reeve's one hammer is
     // what raises it, on loan until the roof goes on.
     tickWorld(
@@ -272,25 +351,37 @@ describe('the campaign missions', () => {
       }),
     );
 
-    const HAMMER_RECIPE = BUILDING_DEFS[BuildingTypeId.weaponsmith].recipeOptions!.findIndex(
-      (o) => (o.recipe.outputs[GoodId.hammer] ?? 0) > 0,
-    );
+    const HAMMER_RECIPE = BUILDING_DEFS[
+      BuildingTypeId.weaponsmith
+    ].recipeOptions!.findIndex(o => (o.recipe.outputs[GoodId.hammer] ?? 0) > 0);
     const staffed = (): boolean =>
-      [...world.buildings.values()].every((b) => {
-        if (b.dead || b.owner !== 0 || b.state !== BuildingState.built || !TOOL_OF[b.type])
+      [...world.buildings.values()].every(b => {
+        if (
+          b.dead ||
+          b.owner !== 0 ||
+          b.state !== BuildingState.built ||
+          !TOOL_OF[b.type]
+        )
           return true;
-        const w = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+        const w =
+          b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
         return w !== undefined && !w.dead;
       });
 
     let ordered = false;
     const MAX = 45_000;
-    for (let t = 0; t < MAX && world.outcome.state === MatchState.playing; t++) {
+    for (
+      let t = 0;
+      t < MAX && world.outcome.state === MatchState.playing;
+      t++
+    ) {
       // A player clicks when the button lights up; every 50 ticks is fine.
       if (!ordered && world.tick % 50 === 0) {
         const smith = [...world.buildings.values()].find(
-          (b) =>
-            b.type === BuildingTypeId.weaponsmith && !b.dead && b.state === BuildingState.built,
+          b =>
+            b.type === BuildingTypeId.weaponsmith &&
+            !b.dead &&
+            b.state === BuildingState.built,
         );
         // Left alone the Smith tools the open posts and then lets the fire
         // go cold. Once every peg is filled the player queues the batch the
@@ -303,8 +394,16 @@ describe('the campaign missions', () => {
           tickWorld(
             world,
             cmds(
-              { kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: HAMMER_RECIPE },
-              { kind: CommandKind.enqueueForge, buildingId: smith.id, recipeIndex: HAMMER_RECIPE },
+              {
+                kind: CommandKind.enqueueForge,
+                buildingId: smith.id,
+                recipeIndex: HAMMER_RECIPE,
+              },
+              {
+                kind: CommandKind.enqueueForge,
+                buildingId: smith.id,
+                recipeIndex: HAMMER_RECIPE,
+              },
             ),
           );
           ordered = true;
@@ -324,7 +423,11 @@ describe('the campaign missions', () => {
   }, 240_000);
 
   it('mission 5 (The Levy) is winnable, early raid and all', async () => {
-    const world = await playMission(MissionId.levy, AiStrategyId.steward, 60_000);
+    const world = await playMission(
+      MissionId.levy,
+      AiStrategyId.steward,
+      60_000,
+    );
     expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
       state: MatchState.over,
       winner: 0,
@@ -332,7 +435,11 @@ describe('the campaign missions', () => {
   }, 240_000);
 
   it('mission 6 (Hold the Valley) is exactly the winnable map, reached by mission id', async () => {
-    const world = await playMission(MissionId.holdTheValley, AiStrategyId.steward, 45_000);
+    const world = await playMission(
+      MissionId.holdTheValley,
+      AiStrategyId.steward,
+      45_000,
+    );
     expect(world.outcome, `ended at tick ${world.tick}`).toEqual({
       state: MatchState.over,
       winner: 0,
@@ -342,29 +449,46 @@ describe('the campaign missions', () => {
 
   it('mission 7 (The Rival Banner) reaches an ending under the elimination rules', async () => {
     const config = missionWorldConfig(MissionId.rivalBanner);
-    config.players = config.players.map((p, i) => (i === 0 ? { kind: PlayerKind.ai } : p));
+    config.players = config.players.map((p, i) =>
+      i === 0 ? {kind: PlayerKind.ai} : p,
+    );
     const world = await createWorldAsync(config);
     expect(world.players[1]!.strategy).toBe(AiStrategyId.steward);
     const brains = world.players.map(
-      (p) => new AiBrain(p.id, AI_STRATEGIES[p.strategy ?? AiStrategyId.steward], world.map.size),
+      p =>
+        new AiBrain(
+          p.id,
+          AI_STRATEGIES[p.strategy ?? AiStrategyId.steward],
+          world.map.size,
+        ),
     );
-    for (let t = 0; t < 90_000 && world.outcome.state === MatchState.playing; t++) {
+    for (
+      let t = 0;
+      t < 90_000 && world.outcome.state === MatchState.playing;
+      t++
+    ) {
       const commands = [];
       for (const brain of brains) {
         if (!brain.shouldDecide(world.tick)) continue;
-        for (const cmd of brain.decide(world)) commands.push({ playerId: brain.playerId, cmd });
+        for (const cmd of brain.decide(world))
+          commands.push({playerId: brain.playerId, cmd});
       }
       tickWorld(world, commands);
     }
-    expect(world.outcome.state, `still playing at tick ${world.tick}`).toBe(MatchState.over);
+    expect(world.outcome.state, `still playing at tick ${world.tick}`).toBe(
+      MatchState.over,
+    );
   }, 480_000);
 
   it('the levy opens with its village standing and its lessons granted', async () => {
     const world = await createWorldAsync(missionWorldConfig(MissionId.levy));
     const def = MISSION_DEFS[MissionId.levy];
     for (const spec of def.prebuilt!) {
-      expect(countBuilt(world, spec.type), `prebuilt ${spec.type} missing`).toBeGreaterThanOrEqual(
-        def.prebuilt!.filter((s) => s.type === spec.type).length,
+      expect(
+        countBuilt(world, spec.type),
+        `prebuilt ${spec.type} missing`,
+      ).toBeGreaterThanOrEqual(
+        def.prebuilt!.filter(s => s.type === spec.type).length,
       );
     }
     expect(world.players[0]!.techs.researched).toEqual([
@@ -376,8 +500,12 @@ describe('the campaign missions', () => {
     expect(stockOf(world, GoodId.silver)).toBe(def.startStock![GoodId.silver]);
     // And a mission with no clock override keeps the default — the
     // size-scaled peace period, since raid pacing follows the commutes.
-    const finale = await createWorldAsync(missionWorldConfig(MissionId.holdTheValley));
-    expect(finale.raidState.nextRaidTick).toBe(firstRaidTickFor(finale.map.play));
+    const finale = await createWorldAsync(
+      missionWorldConfig(MissionId.holdTheValley),
+    );
+    expect(finale.raidState.nextRaidTick).toBe(
+      firstRaidTickFor(finale.map.play),
+    );
   });
 
   it('mission worlds are deterministic: same id, same world, tick for tick', async () => {
@@ -391,7 +519,9 @@ describe('the campaign missions', () => {
   });
 
   it('mission fields ride the save', async () => {
-    const world = await createWorldAsync(missionWorldConfig(MissionId.clearing));
+    const world = await createWorldAsync(
+      missionWorldConfig(MissionId.clearing),
+    );
     for (let t = 0; t < 500; t++) tickWorld(world, []);
     const loaded = deserializeWorld(serializeWorld(world));
     expect(loaded.missionId).toBe(MissionId.clearing);
@@ -399,7 +529,9 @@ describe('the campaign missions', () => {
     expect(hashWorld(loaded)).toBe(hashWorld(world));
     // A sandbox save carries no mission fields at all.
     const sandbox = deserializeWorld(
-      serializeWorld(createWorld({ seed: 5, players: [{ kind: PlayerKind.human }] })),
+      serializeWorld(
+        createWorld({seed: 5, players: [{kind: PlayerKind.human}]}),
+      ),
     );
     expect(sandbox.missionId).toBeUndefined();
     expect(sandbox.objectivesDone).toBeUndefined();
@@ -412,12 +544,17 @@ describe('the campaign missions', () => {
     for (const id of MISSION_ORDER) {
       const def = MISSION_DEFS[id];
       const authored = parseMapData(await loadMissionMap(id));
-      expect(authored.players, `${id}: map seats vs def seats`).toBe(def.players.length);
+      expect(authored.players, `${id}: map seats vs def seats`).toBe(
+        def.players.length,
+      );
       if (def.bandits) {
         // The camp must stand where the def pins it — the spiral would
         // quietly relocate a blocked spot, and "the balance was proven
         // here" only means something if drift is loud.
-        expect(def.campSpot, `${id}: bandit mission needs a campSpot`).toBeDefined();
+        expect(
+          def.campSpot,
+          `${id}: bandit mission needs a campSpot`,
+        ).toBeDefined();
         expect(
           rectClear(authored.map, def.campSpot!.x, def.campSpot!.y, 3, 3),
           `${id}: campSpot is not a clear 3×3`,

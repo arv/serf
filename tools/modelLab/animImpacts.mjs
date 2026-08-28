@@ -25,9 +25,9 @@
  * numbers into animCues.ts (and cues.ts for the death thump) by hand —
  * picking contact vs. swing-start is a judgement the script does not make.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import {readFileSync} from 'node:fs';
+import {dirname, join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 const KK_DIR = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -50,37 +50,58 @@ function parseGlb(path) {
     else if (type === 0x004e4942) bin = chunk;
     off += 8 + len;
   }
-  return { json, bin };
+  return {json, bin};
 }
 
 function accessorArray(gltf, bin, idx) {
   const acc = gltf.accessors[idx];
   const bv = gltf.bufferViews[acc.bufferView];
-  const n = { SCALAR: 1, VEC3: 3, VEC4: 4 }[acc.type];
+  const n = {SCALAR: 1, VEC3: 3, VEC4: 4}[acc.type];
   if (acc.componentType !== 5126) throw new Error('non-float accessor');
   const byteOff = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
   const stride = bv.byteStride ?? n * 4;
   const out = new Float32Array(acc.count * n);
   for (let i = 0; i < acc.count; i++) {
-    for (let c = 0; c < n; c++) out[i * n + c] = bin.readFloatLE(byteOff + i * stride + c * 4);
+    for (let c = 0; c < n; c++)
+      out[i * n + c] = bin.readFloatLE(byteOff + i * stride + c * 4);
   }
-  return { data: out, count: acc.count, n };
+  return {data: out, count: acc.count, n};
 }
 
 // --- just enough math to compose world transforms -------------------------
 
 function composeTRS(t, q, s) {
   const [x, y, z, w] = q;
-  const x2 = x + x, y2 = y + y, z2 = z + z;
-  const xx = x * x2, xy = x * y2, xz = x * z2;
-  const yy = y * y2, yz = y * z2, zz = z * z2;
-  const wx = w * x2, wy = w * y2, wz = w * z2;
+  const x2 = x + x,
+    y2 = y + y,
+    z2 = z + z;
+  const xx = x * x2,
+    xy = x * y2,
+    xz = x * z2;
+  const yy = y * y2,
+    yz = y * z2,
+    zz = z * z2;
+  const wx = w * x2,
+    wy = w * y2,
+    wz = w * z2;
   // Column-major 4x4.
   return [
-    (1 - (yy + zz)) * s[0], (xy + wz) * s[0], (xz - wy) * s[0], 0,
-    (xy - wz) * s[1], (1 - (xx + zz)) * s[1], (yz + wx) * s[1], 0,
-    (xz + wy) * s[2], (yz - wx) * s[2], (1 - (xx + yy)) * s[2], 0,
-    t[0], t[1], t[2], 1,
+    (1 - (yy + zz)) * s[0],
+    (xy + wz) * s[0],
+    (xz - wy) * s[0],
+    0,
+    (xy - wz) * s[1],
+    (1 - (xx + zz)) * s[1],
+    (yz + wx) * s[1],
+    0,
+    (xz + wy) * s[2],
+    (yz - wx) * s[2],
+    (1 - (xx + yy)) * s[2],
+    0,
+    t[0],
+    t[1],
+    t[2],
+    1,
   ];
 }
 
@@ -94,15 +115,16 @@ function mulMat(a, b) {
 
 /** Normalized lerp — plenty for reading impact timing off dense tracks. */
 function nlerpQuat(a, b, t) {
-  const sign = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0 ? -1 : 1;
+  const sign =
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0 ? -1 : 1;
   const o = a.map((v, k) => v + (sign * b[k] - v) * t);
   const len = Math.hypot(...o) || 1;
-  return o.map((v) => v / len);
+  return o.map(v => v / len);
 }
 
 class ClipEvaluator {
   constructor(gltf, bin, clipName) {
-    const anim = gltf.animations.find((a) => a.name === clipName);
+    const anim = gltf.animations.find(a => a.name === clipName);
     if (!anim) throw new Error(`no clip ${clipName}`);
     this.tracks = new Map(); // node index -> {translation?, rotation?, scale?}
     this.duration = 0;
@@ -123,14 +145,17 @@ class ClipEvaluator {
     }
     this.nodes = gltf.nodes;
     this.parent = new Array(this.nodes.length).fill(-1);
-    this.nodes.forEach((n, i) => (n.children ?? []).forEach((c) => (this.parent[c] = i)));
+    this.nodes.forEach((n, i) =>
+      (n.children ?? []).forEach(c => (this.parent[c] = i)),
+    );
     this.byName = new Map(this.nodes.map((n, i) => [n.name, i]));
   }
 
   #sample(tr, t) {
-    const { times, count, values, n, step } = tr;
+    const {times, count, values, n, step} = tr;
     if (t <= times[0]) return Array.from(values.slice(0, n));
-    if (t >= times[count - 1]) return Array.from(values.slice((count - 1) * n, count * n));
+    if (t >= times[count - 1])
+      return Array.from(values.slice((count - 1) * n, count * n));
     let i = 1;
     while (times[i] < t) i++;
     const f = step ? 0 : (t - times[i - 1]) / (times[i] - times[i - 1]);
@@ -143,9 +168,13 @@ class ClipEvaluator {
     const node = this.nodes[nodeIdx];
     const tr = this.tracks.get(nodeIdx) ?? {};
     return composeTRS(
-      tr.translation ? this.#sample(tr.translation, t) : node.translation ?? [0, 0, 0],
-      tr.rotation ? this.#sample(tr.rotation, t) : node.rotation ?? [0, 0, 0, 1],
-      tr.scale ? this.#sample(tr.scale, t) : node.scale ?? [1, 1, 1],
+      tr.translation
+        ? this.#sample(tr.translation, t)
+        : (node.translation ?? [0, 0, 0]),
+      tr.rotation
+        ? this.#sample(tr.rotation, t)
+        : (node.rotation ?? [0, 0, 0, 1]),
+      tr.scale ? this.#sample(tr.scale, t) : (node.scale ?? [1, 1, 1]),
     );
   }
 
@@ -153,35 +182,37 @@ class ClipEvaluator {
     let i = this.byName.get(boneName);
     if (i === undefined) throw new Error(`no bone ${boneName}`);
     let m = this.#local(i, t);
-    for (let p = this.parent[i]; p !== -1; p = this.parent[p]) m = mulMat(this.#local(p, t), m);
+    for (let p = this.parent[i]; p !== -1; p = this.parent[p])
+      m = mulMat(this.#local(p, t), m);
     return [m[12], m[13], m[14]];
   }
 
   /** N+1 world positions of a bone across the clip, plus speeds between. */
   sampleBone(boneName, N) {
     const pos = [];
-    for (let i = 0; i <= N; i++) pos.push(this.worldPos(boneName, (i / N) * this.duration));
+    for (let i = 0; i <= N; i++)
+      pos.push(this.worldPos(boneName, (i / N) * this.duration));
     const dt = this.duration / N;
     const speed = pos.map((p, i) => {
       if (i === 0) return 0;
       const q = pos[i - 1];
       return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) / dt;
     });
-    return { pos, speed };
+    return {pos, speed};
   }
 }
 
 const cache = new Map();
 function evaluator(file, clip) {
   if (!cache.has(file)) cache.set(file, parseGlb(join(KK_DIR, file)));
-  const { json, bin } = cache.get(file);
+  const {json, bin} = cache.get(file);
   return new ClipEvaluator(json, bin, clip);
 }
 
 // --- detectors ------------------------------------------------------------
 
 const N = 400;
-const ph = (i) => (i / N).toFixed(2);
+const ph = i => (i / N).toFixed(2);
 
 /**
  * Footfall contact for one bone: where its Y descends into the floor band
@@ -191,7 +222,7 @@ const ph = (i) => (i / N).toFixed(2);
  * that reads as the step.
  */
 function plantPhases(ev, bone) {
-  const ys = ev.sampleBone(bone, N).pos.map((p) => p[1]);
+  const ys = ev.sampleBone(bone, N).pos.map(p => p[1]);
   const min = Math.min(...ys);
   const band = min + 0.2 * (Math.max(...ys) - min);
   let maxDrop = 0;
@@ -200,7 +231,11 @@ function plantPhases(ev, bone) {
   for (let i = 0; i <= N; i++) {
     if (!(ys[i] <= band && ys[(i + N) % (N + 1)] > band)) continue;
     let j = i;
-    while (j - i < N / 4 && ys[j % (N + 1)] - ys[(j + 1) % (N + 1)] > 0.1 * maxDrop) j++;
+    while (
+      j - i < N / 4 &&
+      ys[j % (N + 1)] - ys[(j + 1) % (N + 1)] > 0.1 * maxDrop
+    )
+      j++;
     events.push(`${ph(i)} (stalls ${ph(j % (N + 1))})`);
   }
   return events;
@@ -210,13 +245,15 @@ function gait(file, clip) {
   const ev = evaluator(file, clip);
   console.log(`${clip}  (${ev.duration.toFixed(2)}s)`);
   for (const bone of ['toes.l', 'toes.r', 'foot.l', 'foot.r']) {
-    console.log(`  ${bone} touches down at phase ${plantPhases(ev, bone).join(', ')}`);
+    console.log(
+      `  ${bone} touches down at phase ${plantPhases(ev, bone).join(', ')}`,
+    );
   }
 }
 
 function strike(file, clip, bone = 'handslot.r') {
   const ev = evaluator(file, clip);
-  const { speed } = ev.sampleBone(bone, N);
+  const {speed} = ev.sampleBone(bone, N);
   const peak = Math.max(...speed);
   // Fast-swing windows: speed above half its peak.
   const windows = [];
@@ -237,22 +274,26 @@ function strike(file, clip, bone = 'handslot.r') {
   const stops = [];
   for (const [d, i] of decel) {
     if (d < 0.25 * decel[0][0]) break;
-    if (stops.every((s) => Math.abs(s - i) > N / 10)) stops.push(i);
+    if (stops.every(s => Math.abs(s - i) > N / 10)) stops.push(i);
   }
   stops.sort((a, b) => a - b);
   console.log(`${clip}  (${ev.duration.toFixed(2)}s)  ${bone}`);
-  console.log(`  swings ${windows.join(', ')}  stops at ${stops.map(ph).join(', ')}`);
+  console.log(
+    `  swings ${windows.join(', ')}  stops at ${stops.map(ph).join(', ')}`,
+  );
 }
 
 function death(file, clip) {
   const ev = evaluator(file, clip);
-  const { pos, speed } = ev.sampleBone('hips', N);
+  const {pos, speed} = ev.sampleBone('hips', N);
   // Landing: the last sample after which the hips never move again.
   let rest = N;
   while (rest > 0 && speed[rest] < 0.05) rest--;
   const t = ((rest / N) * ev.duration).toFixed(2);
   console.log(`${clip}  (${ev.duration.toFixed(2)}s)`);
-  console.log(`  body at rest from t=${t}s (hips settle at y=${pos[N][1].toFixed(2)})`);
+  console.log(
+    `  body at rest from t=${t}s (hips settle at y=${pos[N][1].toFixed(2)})`,
+  );
 }
 
 // --- modes ----------------------------------------------------------------
@@ -265,7 +306,7 @@ if (mode === 'curve') {
   const M = Number(samples ?? 80);
   console.log(`# ${clip} ${bone} duration=${ev.duration.toFixed(3)}s`);
   console.log('phase\tt\tx\ty\tz\tspeed');
-  const { pos, speed } = ev.sampleBone(bone, M);
+  const {pos, speed} = ev.sampleBone(bone, M);
   for (let i = 0; i <= M; i++) {
     const p = pos[i];
     console.log(
@@ -276,7 +317,9 @@ if (mode === 'curve') {
 } else {
   // The clips LOOP_CUES maps (KK_CLIP_NAMES + every KKSpec.attackClip),
   // and the death clip the unitDeath thump is timed against.
-  console.log('== gaits (footfall = toe plants; heel-strike ends where the ankle stalls)');
+  console.log(
+    '== gaits (footfall = toe plants; heel-strike ends where the ankle stalls)',
+  );
   gait('Rig_Medium_MovementBasic.glb', 'Walking_A');
   gait('Rig_Medium_MovementBasic.glb', 'Running_A');
   console.log('\n== work loops');

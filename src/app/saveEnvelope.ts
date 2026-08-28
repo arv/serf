@@ -13,8 +13,8 @@
  * untouched, fog simply unseeded — precisely the old behavior.
  */
 
-import { WORLD_SAVE_VERSION } from '../shared/saveVersion';
-import type { MissionId } from '../sim/defs/missions';
+import {WORLD_SAVE_VERSION} from '../shared/saveVersion';
+import type {MissionId} from '../sim/defs/missions';
 
 const FMT = 'serf-save-v3';
 /** The envelope before the metadata head; still loaded, just listed with
@@ -52,7 +52,10 @@ export function packExplored(explored: Uint8Array): string {
   return btoa(bin);
 }
 
-export function unpackExplored(packed: string, tiles: number): Uint8Array | undefined {
+export function unpackExplored(
+  packed: string,
+  tiles: number,
+): Uint8Array | undefined {
   try {
     const bin = atob(packed);
     const out = new Uint8Array(tiles);
@@ -76,27 +79,40 @@ export function envelopeSave(
   explored: Uint8Array,
   about: Omit<SaveMeta, 'world'> = {},
 ): string {
-  const meta: SaveMeta = { world: WORLD_SAVE_VERSION, ...about };
-  return JSON.stringify({ fmt: FMT, meta, world, explored: packExplored(explored) });
+  const meta: SaveMeta = {world: WORLD_SAVE_VERSION, ...about};
+  return JSON.stringify({
+    fmt: FMT,
+    meta,
+    world,
+    explored: packExplored(explored),
+  });
 }
 
 /** Split the envelope without unpacking the fog: at load time the world's
  * grid size is not known yet (it only arrives with the init frame), so the
  * explored grid stays packed here and the caller unpacks it — via
  * `unpackExplored(str, tiles)` — once the size is in hand. */
-export function splitSave(data: string): { world: string; explored?: string } {
+export function splitSave(data: string): {world: string; explored?: string} {
   try {
-    const parsed = JSON.parse(data) as { fmt?: string; world?: string; explored?: string };
-    if ((parsed?.fmt === FMT || parsed?.fmt === FMT_V2) && typeof parsed.world === 'string') {
+    const parsed = JSON.parse(data) as {
+      fmt?: string;
+      world?: string;
+      explored?: string;
+    };
+    if (
+      (parsed?.fmt === FMT || parsed?.fmt === FMT_V2) &&
+      typeof parsed.world === 'string'
+    ) {
       return {
         world: parsed.world,
-        explored: typeof parsed.explored === 'string' ? parsed.explored : undefined,
+        explored:
+          typeof parsed.explored === 'string' ? parsed.explored : undefined,
       };
     }
   } catch {
     // Not JSON at all — certainly not an envelope.
   }
-  return { world: data };
+  return {world: data};
 }
 
 /**
@@ -119,12 +135,13 @@ export function readSaveMeta(head: string): SaveMeta | undefined {
   }
   if (typeof raw !== 'object' || raw === null) return undefined;
   const meta = raw as Record<string, unknown>;
-  if (typeof meta.world !== 'number' || !Number.isInteger(meta.world)) return undefined;
+  if (typeof meta.world !== 'number' || !Number.isInteger(meta.world))
+    return undefined;
   return {
     world: meta.world,
-    ...(typeof meta.mission === 'string' ? { mission: meta.mission } : {}),
+    ...(typeof meta.mission === 'string' ? {mission: meta.mission} : {}),
     ...(typeof meta.opponents === 'number' && Number.isInteger(meta.opponents)
-      ? { opponents: meta.opponents }
+      ? {opponents: meta.opponents}
       : {}),
   };
 }
@@ -171,7 +188,12 @@ export function looksLikeSave(raw: string): boolean {
   }
   if (typeof parsed !== 'object' || parsed === null) return false;
   const doc = parsed as Record<string, unknown>;
-  if ((doc.fmt === FMT || doc.fmt === FMT_V2) && typeof doc.world === 'string') return true;
+  if ((doc.fmt === FMT || doc.fmt === FMT_V2) && typeof doc.world === 'string')
+    return true;
   // A pre-envelope save: the sim's own file, version and world in hand.
-  return typeof doc.version === 'number' && typeof doc.world === 'object' && doc.world !== null;
+  return (
+    typeof doc.version === 'number' &&
+    typeof doc.world === 'object' &&
+    doc.world !== null
+  );
 }

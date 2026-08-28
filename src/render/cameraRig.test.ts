@@ -1,7 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CAMERA_YAW, CameraRig } from './cameraRig';
-import { screenToGround, worldToScreen } from '../input/picking';
-import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE, gridFor, marginFor } from '../shared/grid';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {screenToGround, worldToScreen} from '../input/picking';
+import {
+  DEFAULT_MAP_SIZE,
+  MAX_MAP_SIZE,
+  MIN_MAP_SIZE,
+  gridFor,
+  marginFor,
+} from '../shared/grid';
+import {CAMERA_YAW, CameraRig} from './cameraRig';
 import * as ViewMode from './viewModeEnum.ts';
 
 /**
@@ -20,18 +26,22 @@ const FRAME = 1 / 60;
 /** A fake canvas: an EventTarget with a size. */
 const makeCanvas = (): HTMLCanvasElement => {
   const el = new EventTarget() as HTMLCanvasElement;
-  Object.assign(el, { clientWidth: 1600, clientHeight: 900, setPointerCapture: () => {} });
+  Object.assign(el, {
+    clientWidth: 1600,
+    clientHeight: 900,
+    setPointerCapture: () => {},
+  });
   return el;
 };
 
 const fire = (target: EventTarget, type: string, init: object): void => {
-  const e = new Event(type, { cancelable: true });
+  const e = new Event(type, {cancelable: true});
   Object.assign(e, init);
   target.dispatchEvent(e);
 };
 
 const keyDown = (code: string, repeat = false): void =>
-  fire(window, 'keydown', { code, key: code, repeat });
+  fire(window, 'keydown', {code, key: code, repeat});
 
 /** A key pressed while something else on the page owns it: a focused
  * field (pass a tag name) or a chord (pass modifiers). `target` has to be
@@ -39,27 +49,30 @@ const keyDown = (code: string, repeat = false): void =>
  * would otherwise report the window it was fired on. */
 const keyDownFrom = (
   code: string,
-  opts: { tagName?: string; isContentEditable?: boolean } & Partial<KeyboardEvent>,
+  opts: {
+    tagName?: string;
+    isContentEditable?: boolean;
+  } & Partial<KeyboardEvent>,
 ): void => {
-  const { tagName, isContentEditable, ...mods } = opts;
-  const e = new Event('keydown', { cancelable: true });
-  Object.assign(e, { code, key: code, repeat: false }, mods);
+  const {tagName, isContentEditable, ...mods} = opts;
+  const e = new Event('keydown', {cancelable: true});
+  Object.assign(e, {code, key: code, repeat: false}, mods);
   if (tagName !== undefined || isContentEditable !== undefined) {
     Object.defineProperty(e, 'target', {
-      value: { tagName, isContentEditable },
+      value: {tagName, isContentEditable},
       configurable: true,
     });
   }
   window.dispatchEvent(e);
 };
-const keyUp = (code: string): void => fire(window, 'keyup', { code, key: code });
+const keyUp = (code: string): void => fire(window, 'keyup', {code, key: code});
 const wheel = (
   canvas: EventTarget,
   deltaY: number,
   shiftKey = true,
   deltaX = 0,
   deltaMode = 0,
-): void => fire(canvas, 'wheel', { deltaY, deltaX, shiftKey, deltaMode });
+): void => fire(canvas, 'wheel', {deltaY, deltaX, shiftKey, deltaMode});
 
 /** The yaw the rig is actually showing, read back off its ground quad:
  * screen-right on the ground is the top edge, and the rig's basis for it
@@ -84,7 +97,8 @@ const settle = (rig: CameraRig): void => {
 };
 
 /** Hold a key for `seconds` of frames, then let go. */
-const hold = (rig: CameraRig, code: string, seconds: number): void => holdAll(rig, [code], seconds);
+const hold = (rig: CameraRig, code: string, seconds: number): void =>
+  holdAll(rig, [code], seconds);
 
 /** The same, for a chord: every key down together, held together, released
  * together. Pressing them in sequence is a different gesture and a weaker
@@ -93,7 +107,11 @@ const hold = (rig: CameraRig, code: string, seconds: number): void => holdAll(ri
  * walk the camera back off the clamp the first one reached. Two arrows at
  * once is what a player's hand does and what drives into the corner of the
  * clamp box. */
-const holdAll = (rig: CameraRig, codes: readonly string[], seconds: number): void => {
+const holdAll = (
+  rig: CameraRig,
+  codes: readonly string[],
+  seconds: number,
+): void => {
   for (const code of codes) keyDown(code);
   for (let t = 0; t < seconds - 1e-9; t += FRAME) rig.tick(FRAME);
   for (const code of codes) keyUp(code);
@@ -106,10 +124,13 @@ describe('CameraRig turn', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'window',
-      Object.assign(new EventTarget(), { innerWidth: 1600, innerHeight: 900 }),
+      Object.assign(new EventTarget(), {innerWidth: 1600, innerHeight: 900}),
     );
-    vi.stubGlobal('document', Object.assign(new EventTarget(), { hidden: false }));
-    vi.stubGlobal('location', { search: '' });
+    vi.stubGlobal(
+      'document',
+      Object.assign(new EventTarget(), {hidden: false}),
+    );
+    vi.stubGlobal('location', {search: ''});
     canvas = makeCanvas();
     rig = new CameraRig(canvas);
   });
@@ -239,8 +260,8 @@ describe('CameraRig turn', () => {
     // code blank.
     keyDown('BracketRight');
     keyUp('BracketRight');
-    fire(window, 'keydown', { code: '', key: ']', repeat: false });
-    fire(window, 'keyup', { code: '', key: ']' });
+    fire(window, 'keydown', {code: '', key: ']', repeat: false});
+    fire(window, 'keyup', {code: '', key: ']'});
     settle(rig);
     expectYaw(rig, CAMERA_YAW + 2 * STEP, 10);
     hold(rig, 'BracketLeft', 0.5);
@@ -351,23 +372,23 @@ describe('CameraRig turn', () => {
     // of them is a camera turn. Same for the HUD's volume slider taking
     // an arrow, and for a select being walked.
     for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT']) {
-      keyDownFrom('Delete', { tagName });
+      keyDownFrom('Delete', {tagName});
       keyUp('Delete');
     }
-    keyDownFrom('Delete', { tagName: 'DIV', isContentEditable: true });
+    keyDownFrom('Delete', {tagName: 'DIV', isContentEditable: true});
     keyUp('Delete');
     // Chords belong to the browser: ⌘[ is Back, ⌥ and Ctrl are not ours.
-    keyDownFrom('BracketLeft', { metaKey: true });
+    keyDownFrom('BracketLeft', {metaKey: true});
     keyUp('BracketLeft');
-    keyDownFrom('BracketRight', { altKey: true });
+    keyDownFrom('BracketRight', {altKey: true});
     keyUp('BracketRight');
-    keyDownFrom('Delete', { ctrlKey: true });
+    keyDownFrom('Delete', {ctrlKey: true});
     keyUp('Delete');
     settle(rig);
     expectYaw(rig, CAMERA_YAW, 10);
     // A plain press over the map still turns, so the guard is a gate and
     // not a wall — and a DIV is not a field.
-    keyDownFrom('Delete', { tagName: 'DIV' });
+    keyDownFrom('Delete', {tagName: 'DIV'});
     keyUp('Delete');
     settle(rig);
     expectYaw(rig, CAMERA_YAW + STEP, 10);
@@ -378,7 +399,7 @@ describe('CameraRig turn', () => {
     // the key cannot stick down and turn the camera forever.
     keyDown('Delete');
     for (let i = 0; i < 10; i++) rig.tick(FRAME);
-    fire(window, 'keyup', { code: 'Delete', key: 'Delete' });
+    fire(window, 'keyup', {code: 'Delete', key: 'Delete'});
     settle(rig);
     const landed = yawOf(rig);
     expectYaw(rig, CAMERA_YAW + STEP, 6);
@@ -483,8 +504,8 @@ describe('CameraRig turn', () => {
       keyDown(code);
       keyUp(code);
     }
-    fire(window, 'keydown', { code: '', key: ']', repeat: false });
-    fire(window, 'keyup', { code: '', key: ']' });
+    fire(window, 'keydown', {code: '', key: ']', repeat: false});
+    fire(window, 'keyup', {code: '', key: ']'});
     hold(rig, 'Delete', 0.5);
     wheel(canvas, 100);
     wheel(canvas, 3, true, 0, 1);
@@ -550,17 +571,17 @@ describe('CameraRig turn', () => {
     // The strongest tie available: viewQuad's corners are the ground under
     // the screen's corners, so projecting them has to land on the screen's
     // corners. If picking and the rig disagree about the yaw, this parts.
-    const corners = (): { x: number; y: number }[] => {
+    const corners = (): {x: number; y: number}[] => {
       const q = rig.viewQuad(new Float64Array(8));
-      return [0, 1, 2, 3].map((i) =>
+      return [0, 1, 2, 3].map(i =>
         worldToScreen(rig.camera, canvas, q[i * 2]!, 0, q[i * 2 + 1]!),
       );
     };
     const expected = [
-      { x: 0, y: 0 },
-      { x: canvas.clientWidth, y: 0 },
-      { x: canvas.clientWidth, y: canvas.clientHeight },
-      { x: 0, y: canvas.clientHeight },
+      {x: 0, y: 0},
+      {x: canvas.clientWidth, y: 0},
+      {x: canvas.clientWidth, y: canvas.clientHeight},
+      {x: 0, y: canvas.clientHeight},
     ];
     const check = (): void => {
       corners().forEach((c, i) => {
@@ -581,7 +602,12 @@ describe('CameraRig turn', () => {
     // And the round trip: the ground under the middle of the screen is
     // the point the camera is looking at, whichever way it faces.
     settle(rig);
-    const mid = screenToGround(rig.camera, canvas, canvas.clientWidth / 2, canvas.clientHeight / 2);
+    const mid = screenToGround(
+      rig.camera,
+      canvas,
+      canvas.clientWidth / 2,
+      canvas.clientHeight / 2,
+    );
     const q = rig.viewQuad(new Float64Array(8));
     expect(mid!.x).toBeCloseTo((q[0]! + q[4]!) / 2, 6);
     expect(mid!.z).toBeCloseTo((q[1]! + q[5]!) / 2, 6);
@@ -656,14 +682,17 @@ const ARROWS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
  * nearer two. Left unpinned it would be free to grow back.
  */
 const ASPECTS = [
-  { name: '16:9', w: 1600, h: 900, slack: 0 },
-  { name: '21:9', w: 2560, h: 1080, slack: 2 },
+  {name: '16:9', w: 1600, h: 900, slack: 0},
+  {name: '21:9', w: 2560, h: 1080, slack: 2},
 ];
 
 const stubWindow = (): void => {
-  vi.stubGlobal('window', Object.assign(new EventTarget(), { innerWidth: 1600, innerHeight: 900 }));
-  vi.stubGlobal('document', Object.assign(new EventTarget(), { hidden: false }));
-  vi.stubGlobal('location', { search: '' });
+  vi.stubGlobal(
+    'window',
+    Object.assign(new EventTarget(), {innerWidth: 1600, innerHeight: 900}),
+  );
+  vi.stubGlobal('document', Object.assign(new EventTarget(), {hidden: false}));
+  vi.stubGlobal('location', {search: ''});
 };
 
 /** A rig on a window of the given shape, bounded to a play square of
@@ -672,14 +701,14 @@ const rigFor = (
   play: number,
   w: number,
   h: number,
-): { rig: CameraRig; canvas: HTMLCanvasElement } => {
+): {rig: CameraRig; canvas: HTMLCanvasElement} => {
   const canvas = makeCanvas();
-  Object.assign(canvas, { clientWidth: w, clientHeight: h });
+  Object.assign(canvas, {clientWidth: w, clientHeight: h});
   const rig = new CameraRig(canvas);
   rig.resize();
   const margin = marginFor(play);
   rig.setPlayBounds(margin, margin + play);
-  return { rig, canvas };
+  return {rig, canvas};
 };
 
 /** Far more wheel than the cap allows, so the cap is what stops it. */
@@ -693,7 +722,7 @@ describe('the frame never leaves the grid', () => {
     vi.unstubAllGlobals();
   });
 
-  for (const { name, w, h, slack } of ASPECTS) {
+  for (const {name, w, h, slack} of ASPECTS) {
     for (const play of [MIN_MAP_SIZE, DEFAULT_MAP_SIZE, MAX_MAP_SIZE]) {
       it(`holds on a ${play}-tile valley at ${name}, every turn, every corner`, () => {
         const grid = gridFor(play);
@@ -701,7 +730,7 @@ describe('the frame never leaves the grid', () => {
         for (let turn = 0; turn < TURNS; turn++) {
           // A rig apiece: the pan clamp ratchets, so a case must not inherit
           // where the last one left the camera.
-          const { rig, canvas } = rigFor(play, w, h);
+          const {rig, canvas} = rigFor(play, w, h);
           for (let t = 0; t < turn; t++) wheel(canvas, 100, true);
           settle(rig);
           zoomOut(canvas);
@@ -715,8 +744,12 @@ describe('the frame never leaves the grid', () => {
               const where = `play ${play}, ${name}, turn ${turn}, ${code}, corner ${i / 2}`;
               expect(quad[i], `x — ${where}`).toBeGreaterThanOrEqual(-slack);
               expect(quad[i], `x — ${where}`).toBeLessThanOrEqual(grid + slack);
-              expect(quad[i + 1], `z — ${where}`).toBeGreaterThanOrEqual(-slack);
-              expect(quad[i + 1], `z — ${where}`).toBeLessThanOrEqual(grid + slack);
+              expect(quad[i + 1], `z — ${where}`).toBeGreaterThanOrEqual(
+                -slack,
+              );
+              expect(quad[i + 1], `z — ${where}`).toBeLessThanOrEqual(
+                grid + slack,
+              );
             }
           }
           rig.dispose();
@@ -812,7 +845,7 @@ describe('the whole valley can still be looked at', () => {
   ): boolean => {
     const quad = new Float64Array(8);
     for (const lean of LEANS) {
-      const { rig, canvas } = rigFor(play, w, h);
+      const {rig, canvas} = rigFor(play, w, h);
       for (let t = 0; t < turn; t++) wheel(canvas, 100, true);
       settle(rig);
       // No wheel: the boot view is where the game is played and where this
@@ -843,11 +876,13 @@ describe('the whole valley can still be looked at', () => {
     vi.unstubAllGlobals();
   });
 
-  for (const { name, w, h } of ASPECTS) {
+  for (const {name, w, h} of ASPECTS) {
     for (const play of [MIN_MAP_SIZE, DEFAULT_MAP_SIZE, MAX_MAP_SIZE]) {
       it(`reaches every corner of a ${play}-tile valley at ${name}`, () => {
         for (const [x, z] of cornersOf(play)) {
-          const turns = [...Array(TURNS).keys()].filter((turn) => canReach(play, w, h, turn, x, z));
+          const turns = [...Array(TURNS).keys()].filter(turn =>
+            canReach(play, w, h, turn, x, z),
+          );
           expect(
             turns.length,
             `play ${play}, ${name}, corner ${x},${z} cannot be brought into frame at any turn`,

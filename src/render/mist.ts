@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { tileCount, tileX, tileY } from '../shared/grid';
-import { hash2 } from '../shared/math';
-import { WATER_LEVEL, type MapView } from '../sim/map';
-import type { FogQuery } from './fogOfWar';
+import {tileCount, tileX, tileY} from '../shared/grid';
+import {hash2} from '../shared/math';
+import {WATER_LEVEL, type MapView} from '../sim/map';
 import * as Terrain from '../sim/terrainEnum.ts';
+import type {FogQuery} from './fogOfWar';
 
 /** One wisp per 256 tiles — the classic 16 on a 64 map, denser seas get
  * proportionally more so the mist never thins out with the map. */
@@ -28,7 +28,14 @@ function makeMistTexture(): THREE.Texture {
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d')!;
-  const grad = ctx.createRadialGradient(size / 2, size / 2, 8, size / 2, size / 2, size / 2);
+  const grad = ctx.createRadialGradient(
+    size / 2,
+    size / 2,
+    8,
+    size / 2,
+    size / 2,
+    size / 2,
+  );
   grad.addColorStop(0, 'rgba(200, 225, 215, 0.55)');
   grad.addColorStop(0.5, 'rgba(190, 215, 210, 0.22)');
   grad.addColorStop(1, 'rgba(180, 205, 200, 0)');
@@ -61,7 +68,8 @@ export class Mist {
     // Candidate anchors: water tiles, thinned deterministically.
     const anchors: number[] = [];
     for (let i = 0; i < tileCount(size); i++) {
-      if (map.terrain[i] === Terrain.Water && hash2(i, 77) < 0.12) anchors.push(i);
+      if (map.terrain[i] === Terrain.Water && hash2(i, 77) < 0.12)
+        anchors.push(i);
     }
     if (anchors.length === 0) return;
 
@@ -102,7 +110,8 @@ export class Mist {
       const lit = this.#fog ? this.#fog.litAt(x, z) : 1;
       w.sprite.visible = lit > 0.02;
       const breathe = 0.5 + 0.5 * Math.sin(t * 0.13 + w.phase * 3);
-      (w.sprite.material as THREE.SpriteMaterial).opacity = (0.08 + breathe * 0.14) * lit;
+      (w.sprite.material as THREE.SpriteMaterial).opacity =
+        (0.08 + breathe * 0.14) * lit;
     }
   }
 }

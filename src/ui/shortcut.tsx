@@ -1,6 +1,6 @@
-import { Match, Show, Switch } from 'solid-js';
-import { hasKeyboard } from '../input/keyboard';
-import { shortcutLabel } from './shortcutLabel';
+import {Match, Show, Switch} from 'solid-js';
+import {hasKeyboard} from '../input/keyboard';
+import {shortcutLabel} from './shortcutLabel';
 
 /**
  * A label with its keyboard shortcut taught inside it: **B**uild, We**l**l.
@@ -28,21 +28,22 @@ import { shortcutLabel } from './shortcutLabel';
  * "GuardTower" — and any label whose letter opens a later word would have
  * hit the same thing. Inside one span it is ordinary inline text again.
  */
-export function Key(props: { label: string; k: string }) {
+export function Key(props: {label: string; k: string}) {
   const parts = () => shortcutLabel(props.label, props.k);
   return (
     <Show when={hasKeyboard()} fallback={props.label}>
       <Switch fallback={props.label}>
         <Match when={parts().kind === 'appended'}>
           <span>
-            {props.label} <span class="kbd">({(parts() as { key: string }).key})</span>
+            {props.label}{' '}
+            <span class="kbd">({(parts() as {key: string}).key})</span>
           </span>
         </Match>
         <Match when={parts().kind === 'split'}>
           <span>
-            {(parts() as { before: string }).before}
-            <span class="kbd">{(parts() as { letter: string }).letter}</span>
-            {(parts() as { after: string }).after}
+            {(parts() as {before: string}).before}
+            <span class="kbd">{(parts() as {letter: string}).letter}</span>
+            {(parts() as {after: string}).after}
           </span>
         </Match>
       </Switch>

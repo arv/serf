@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { tileCount, tileIdx, tileX, tileY } from '../shared/grid';
-import type { MapView } from '../sim/map';
-import { ribbonCover, type RibbonCover } from './pathRibbon';
-import { makeCobbleTexture } from './roadTexture';
-import type { HeightField } from './heightField';
+import {tileCount, tileIdx, tileX, tileY} from '../shared/grid';
+import type {MapView} from '../sim/map';
 import * as PathLevel from '../sim/pathLevelEnum.ts';
+import type {HeightField} from './heightField';
+import {ribbonCover, type RibbonCover} from './pathRibbon';
+import {makeCobbleTexture} from './roadTexture';
 
 /** Sub-quads per tile edge: how finely the paving follows the road's edge. */
 const SUB = 6;
@@ -21,7 +21,7 @@ const LIFT = 0.02;
 const STONE_CUT = 0.18;
 const STONE_RAMP = 0.5;
 
-const cover: RibbonCover = { trail: 0, road: 0 };
+const cover: RibbonCover = {trail: 0, road: 0};
 
 /**
  * The paving on a stone road: a decal skin laid over the terrain wherever a
@@ -94,7 +94,10 @@ export class RoadDecal {
           const px = ox + c / SUB;
           const pz = oy + r / SUB;
           ribbonCover(map.pathLevel, px, pz, cover);
-          const a = Math.min(Math.max((cover.road - STONE_CUT) / STONE_RAMP, 0), 1);
+          const a = Math.min(
+            Math.max((cover.road - STONE_CUT) / STONE_RAMP, 0),
+            1,
+          );
           alpha[r * (SUB + 1) + c] = a;
           if (a > 0) any = true;
         }
@@ -132,7 +135,10 @@ export class RoadDecal {
     }
 
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(positions, 3),
+    );
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 4));
     geometry.setIndex(indices);

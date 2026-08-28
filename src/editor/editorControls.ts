@@ -1,11 +1,11 @@
-import { screenToGround } from '../input/picking';
-import type { CameraRig } from '../render/cameraRig';
-import type { HeightField } from '../render/heightField';
-import { inBounds } from '../shared/grid.ts';
-import type { StartSpot } from '../sim/map.ts';
-import { toolApplies, type Tool } from './brush.ts';
-import type { BrushCursor } from './brushCursor.ts';
-import type { StartMarkers } from './markers.ts';
+import {screenToGround} from '../input/picking';
+import type {CameraRig} from '../render/cameraRig';
+import type {HeightField} from '../render/heightField';
+import {inBounds} from '../shared/grid.ts';
+import type {StartSpot} from '../sim/map.ts';
+import {toolApplies, type Tool} from './brush.ts';
+import type {BrushCursor} from './brushCursor.ts';
+import type {StartMarkers} from './markers.ts';
 import {
   BRUSH_MAX,
   BRUSH_MIN,
@@ -21,7 +21,7 @@ import {
   tool,
 } from './uiState.ts';
 
-import type { EditorMapState } from './editorMap.ts';
+import type {EditorMapState} from './editorMap.ts';
 
 /** What the controls need from the screen; the screen owns all mutation. */
 export interface EditorSurface {
@@ -64,9 +64,9 @@ export class EditorControls {
   #markers: StartMarkers;
   #surface: EditorSurface;
   /** Grid point of the previous stroke stamp, while the button is down. */
-  #stroking: { x: number; y: number } | null = null;
+  #stroking: {x: number; y: number} | null = null;
   /** Seat being dragged plus the grab offset inside its footprint. */
-  #dragging: { seat: number; dx: number; dy: number } | null = null;
+  #dragging: {seat: number; dx: number; dy: number} | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -84,21 +84,29 @@ export class EditorControls {
     this.#surface = surface;
     const signal = this.#off.signal;
 
-    canvas.addEventListener('pointerdown', (e) => this.#onDown(e), { signal });
-    canvas.addEventListener('pointermove', (e) => this.#onMove(e), { signal });
-    canvas.addEventListener('pointerup', (e) => this.#onUp(e), { signal });
-    canvas.addEventListener('pointercancel', (e) => this.#onUp(e), { signal });
-    canvas.addEventListener('pointerleave', () => this.#cursor.hide(), { signal });
-    window.addEventListener('keydown', (e) => this.#onKey(e), { signal });
+    canvas.addEventListener('pointerdown', e => this.#onDown(e), {signal});
+    canvas.addEventListener('pointermove', e => this.#onMove(e), {signal});
+    canvas.addEventListener('pointerup', e => this.#onUp(e), {signal});
+    canvas.addEventListener('pointercancel', e => this.#onUp(e), {signal});
+    canvas.addEventListener('pointerleave', () => this.#cursor.hide(), {
+      signal,
+    });
+    window.addEventListener('keydown', e => this.#onKey(e), {signal});
   }
 
   dispose(): void {
     this.#off.abort();
   }
 
-  #ground(e: PointerEvent): { x: number; y: number } | null {
-    const p = screenToGround(this.#rig.camera, this.#canvas, e.clientX, e.clientY, this.#heights);
-    return p === null ? null : { x: p.x, y: p.z };
+  #ground(e: PointerEvent): {x: number; y: number} | null {
+    const p = screenToGround(
+      this.#rig.camera,
+      this.#canvas,
+      e.clientX,
+      e.clientY,
+      this.#heights,
+    );
+    return p === null ? null : {x: p.x, y: p.z};
   }
 
   #onDown(e: PointerEvent): void {
@@ -110,12 +118,12 @@ export class EditorControls {
       const seat = this.#markers.hitTest(Math.floor(p.x), Math.floor(p.y));
       if (seat < 0) return;
       const s = this.#markers.starts[seat]!;
-      this.#dragging = { seat, dx: p.x - s.x, dy: p.y - s.y };
+      this.#dragging = {seat, dx: p.x - s.x, dy: p.y - s.y};
       this.#canvas.setPointerCapture(e.pointerId);
       this.#surface.startDragBegin();
       return;
     }
-    this.#stroking = { x: p.x, y: p.y };
+    this.#stroking = {x: p.x, y: p.y};
     this.#canvas.setPointerCapture(e.pointerId);
     this.#surface.strokeBegin(p.x, p.y);
     this.#surface.stroke(t, p.x, p.y, p.x, p.y);
@@ -138,7 +146,7 @@ export class EditorControls {
     }
     if (this.#stroking && t.kind !== 'start') {
       this.#surface.stroke(t, this.#stroking.x, this.#stroking.y, p.x, p.y);
-      this.#stroking = { x: p.x, y: p.y };
+      this.#stroking = {x: p.x, y: p.y};
     }
     this.#updateCursor(t, p);
   }
@@ -155,7 +163,7 @@ export class EditorControls {
     }
   }
 
-  #updateCursor(t: ReturnType<typeof tool>, p: { x: number; y: number }): void {
+  #updateCursor(t: ReturnType<typeof tool>, p: {x: number; y: number}): void {
     if (t.kind === 'start') {
       // The marker ghosts are their own preview; no ring.
       this.#cursor.hide();
@@ -167,8 +175,13 @@ export class EditorControls {
       this.#cursor.hide();
       return;
     }
-    this.#cursor.update(p.x, p.y, brushRadius(), activeFolds(), size, (cx, cy) =>
-      toolApplies(state, t, cx, cy),
+    this.#cursor.update(
+      p.x,
+      p.y,
+      brushRadius(),
+      activeFolds(),
+      size,
+      (cx, cy) => toolApplies(state, t, cx, cy),
     );
   }
 
@@ -209,7 +222,7 @@ export class EditorControls {
       return;
     }
     if (typing || e.altKey) return;
-    const entry = PALETTE.find((p) => p.key === e.key.toLowerCase());
+    const entry = PALETTE.find(p => p.key === e.key.toLowerCase());
     if (entry) {
       setTool(entry.tool);
       return;

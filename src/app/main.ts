@@ -1,25 +1,32 @@
-import { initAudio } from '../audio/audio';
-import { volumeToGain } from '../audio/settings';
-import { muted, resetMatchState, volume } from '../ui/store';
-import { REPLAY_VERSION } from '../shared/replayVersion';
-import { WORLD_SAVE_VERSION, canReadSave } from '../shared/saveVersion';
-import { readSaveWorldVersion, splitSave } from './saveEnvelope';
-import { parseReplay, type ReplayData } from './replay';
-import { readReplayFile } from './replayStore';
-import { migrateLegacySave, readSaveFile } from './saveStore';
-import { mountMenu, unmountMenu } from '../ui/MenuApp';
-import { armFullscreen } from '../ui/fullscreen';
-import { startRouter } from './router';
-import { registerServiceWorker, releaseServiceWorkerUpdates } from './serviceWorker';
-import { configFromUrl, type GameConfig } from './gameConfig';
-import { defaultLobbyConfig, sanitizeLobbyConfig, type LobbyConfig } from '../protocol/lobby';
-import type { LobbyResult } from '../net/lobbyClient';
-import type { NetInfo } from '../protocol/messages';
-import type { Screen } from './screen';
-import { clearFatal, fatal, fatalFrom, showFatal } from './fatalScreen';
-import { stashGet, stashSet } from './stash';
-import { playerKindFromKey } from '../sim/player';
+import {initAudio} from '../audio/audio';
+import {volumeToGain} from '../audio/settings';
+import type {LobbyResult} from '../net/lobbyClient';
+import {
+  defaultLobbyConfig,
+  sanitizeLobbyConfig,
+  type LobbyConfig,
+} from '../protocol/lobby';
+import type {NetInfo} from '../protocol/messages';
+import {REPLAY_VERSION} from '../shared/replayVersion';
+import {WORLD_SAVE_VERSION, canReadSave} from '../shared/saveVersion';
+import {playerKindFromKey} from '../sim/player';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
+import {armFullscreen} from '../ui/fullscreen';
+import {mountMenu, unmountMenu} from '../ui/MenuApp';
+import {muted, resetMatchState, volume} from '../ui/store';
+import {clearFatal, fatal, fatalFrom, showFatal} from './fatalScreen';
+import {configFromUrl, type GameConfig} from './gameConfig';
+import {parseReplay, type ReplayData} from './replay';
+import {readReplayFile} from './replayStore';
+import {startRouter} from './router';
+import {readSaveWorldVersion, splitSave} from './saveEnvelope';
+import {migrateLegacySave, readSaveFile} from './saveStore';
+import type {Screen} from './screen';
+import {
+  registerServiceWorker,
+  releaseServiceWorkerUpdates,
+} from './serviceWorker';
+import {stashGet, stashSet} from './stash';
 
 /**
  * The app's entry point: the boot handshake, and the router that decides
@@ -84,7 +91,8 @@ function lobbyInitFromUrl(params: URLSearchParams): LobbyConfig {
  */
 function gameChosen(params: URLSearchParams): boolean {
   return (
-    LAUNCH_PARAMS.some((k) => params.has(k)) || stashGet('session', 'serf-load-pending') !== null
+    LAUNCH_PARAMS.some(k => params.has(k)) ||
+    stashGet('session', 'serf-load-pending') !== null
   );
 }
 
@@ -107,7 +115,8 @@ function screenKey(): string {
   // wiki: page turns inside it are same-key navigations (onRouteChange),
   // which is what lets it keep one preview renderer and its loaded model
   // caches across twenty clicks instead of rebuilding per page.
-  if (location.pathname === '/docs' || location.pathname.startsWith('/docs/')) return 'docs';
+  if (location.pathname === '/docs' || location.pathname.startsWith('/docs/'))
+    return 'docs';
   const params = new URLSearchParams(location.search);
   // The map editor is its own screen kind — and the check comes before
   // gameChosen, because a stale load-pending handoff (or a ?seed left in
@@ -148,10 +157,15 @@ let current: Screen | null = null;
  */
 async function runMatch(
   config: GameConfig,
-  opts: { loadData?: string; fogSeed?: string; net?: NetInfo; replay?: ReplayData },
+  opts: {
+    loadData?: string;
+    fogSeed?: string;
+    net?: NetInfo;
+    replay?: ReplayData;
+  },
   key: string,
 ): Promise<Screen> {
-  const { runMatch: build } = await import('./matchScreen');
+  const {runMatch: build} = await import('./matchScreen');
   return build(config, opts, key);
 }
 
@@ -170,7 +184,7 @@ let generation = 0;
  * Every screen change goes through here — the menu's launch, the end
  * card's buttons, and the browser's own back gesture alike.
  */
-async function route(opts: { force?: boolean } = {}): Promise<void> {
+async function route(opts: {force?: boolean} = {}): Promise<void> {
   // Whatever went wrong belongs to the screen being left behind.
   clearFatal();
   const key = screenKey();
@@ -204,23 +218,27 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     // precedence, and a branch that read the params directly would mount
     // the wardrobe while recording the screen as 'editor' — breaking the
     // same-key-same-screen invariant the router leans on.
-    const { mountWardrobe } = await import('../ui/wardrobe');
-    const wardrobe = await mountWardrobe(document.getElementById('canvas') as HTMLCanvasElement);
-    present({ key, dispose: () => wardrobe.dispose() });
+    const {mountWardrobe} = await import('../ui/wardrobe');
+    const wardrobe = await mountWardrobe(
+      document.getElementById('canvas') as HTMLCanvasElement,
+    );
+    present({key, dispose: () => wardrobe.dispose()});
     return;
   }
   if (key === 'editor') {
     // The map editor: the game's render stack over an authored map, no
     // sim worker. Its chunk loads on demand — most sessions never edit.
-    const { mountEditor } = await import('../editor/editorScreen');
-    present(await mountEditor(document.getElementById('canvas') as HTMLCanvasElement));
+    const {mountEditor} = await import('../editor/editorScreen');
+    present(
+      await mountEditor(document.getElementById('canvas') as HTMLCanvasElement),
+    );
     return;
   }
   if (key === 'docs') {
     // The field guide: every def in the game, cross-linked and read from
     // the same tables the sim plays by. Its chunk (and the three.js preview
     // code it carries) loads on demand — reading is rarer than playing.
-    const { mountDocs } = await import('../areas/docs/docsScreen');
+    const {mountDocs} = await import('../areas/docs/docsScreen');
     const docs = mountDocs();
     present({
       key,
@@ -244,15 +262,19 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     mountMenu(
       mp === null
         ? null
-        : { mp, open: launchParams.get('open') !== '0', init: lobbyInitFromUrl(launchParams) },
+        : {
+            mp,
+            open: launchParams.get('open') !== '0',
+            init: lobbyInitFromUrl(launchParams),
+          },
       {
-        onBegin: (lobby) => {
+        onBegin: lobby => {
           // The shell has already torn itself down (the match needs the
           // canvas and the pointer events it was holding), so the menu
           // screen is gone whether or not this succeeds.
           current = null;
           void startNetMatch(lobby)
-            .then((match) => {
+            .then(match => {
               // Building a match takes a moment (assets, the world, a
               // socket), and the player can leave inside it — Back out of
               // the room, say. Whoever took the page in the meantime keeps
@@ -265,10 +287,10 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
         // The relay refused or could not be reached. Offer the reload: it
         // lands back on this same URL, which is the room if one was named
         // and the start screen if the trouble came before that.
-        onError: (message) => showFatal(message, { retry: true }),
+        onError: message => showFatal(message, {retry: true}),
       },
     );
-    present({ key, dispose: unmountMenu });
+    present({key, dispose: unmountMenu});
     // The menu is a waiting room, and what the player is about to press is
     // known: fetch the match's chunk behind it, so Play does not start a
     // download. Unawaited and swallowed — this is a head start, not a
@@ -286,9 +308,12 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     const raw = await readReplayFile(replayParam);
     const replay = raw !== null ? parseReplay(raw) : null;
     if (!replay) {
-      fatal(`The replay "${replayParam}" could not be loaded — it may have been deleted.`, {
-        menu: true,
-      });
+      fatal(
+        `The replay "${replayParam}" could not be loaded — it may have been deleted.`,
+        {
+          menu: true,
+        },
+      );
     }
     // Playback re-runs the sim, and the sim is version-bound: the same
     // commands against a retuned tick produce a different match. Refuse
@@ -299,12 +324,16 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
         `The replay "${replayParam}" was recorded under replay version ` +
           `${replay.replayVersion}; this build plays version ${REPLAY_VERSION}, ` +
           `and the match would not come out the way it was played.`,
-        { menu: true },
+        {menu: true},
       );
     }
     present(
       await runMatch(
-        { ...replay.config, myPlayerId: replay.config.myPlayerId ?? 0, llmOpponent: false },
+        {
+          ...replay.config,
+          myPlayerId: replay.config.myPlayerId ?? 0,
+          llmOpponent: false,
+        },
         {
           replay,
           // A replay that resumes from a save resumes its fog too, or the
@@ -341,9 +370,12 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
     if (loadName !== null) {
       raw = await readSaveFile(loadName);
       if (raw === null) {
-        fatal(`The saved game "${loadName}" could not be loaded — it may have been deleted.`, {
-          menu: true,
-        });
+        fatal(
+          `The saved game "${loadName}" could not be loaded — it may have been deleted.`,
+          {
+            menu: true,
+          },
+        );
       }
     }
   }
@@ -366,13 +398,15 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
         `${loadName !== null ? `The saved game "${loadName}"` : 'That saved game'} was ` +
           `written in save format ${written}; this build reads format ` +
           `${WORLD_SAVE_VERSION} and cannot open that village.`,
-        { menu: true },
+        {menu: true},
       );
     }
     loadData = split.world;
     fogSeed = split.explored;
   }
-  present(await runMatch(configFromUrl(location.search), { loadData, fogSeed }, key));
+  present(
+    await runMatch(configFromUrl(location.search), {loadData, fogSeed}, key),
+  );
 }
 
 /**
@@ -391,12 +425,12 @@ async function route(opts: { force?: boolean } = {}): Promise<void> {
  * they arrive here, and showFatal keeps the first one — so the specific
  * message wins over this general one.
  */
-async function routeSafely(opts: { force?: boolean } = {}): Promise<void> {
+async function routeSafely(opts: {force?: boolean} = {}): Promise<void> {
   try {
     await route(opts);
   } catch (err) {
     console.error('[app] the screen failed to come up:', err);
-    showFatal(err instanceof Error ? err.message : String(err), { menu: true });
+    showFatal(err instanceof Error ? err.message : String(err), {menu: true});
   }
 }
 
@@ -409,7 +443,15 @@ async function routeSafely(opts: { force?: boolean } = {}): Promise<void> {
 function isTextEntry(target: EventTarget | null): boolean {
   if (target instanceof HTMLTextAreaElement) return true;
   if (target instanceof HTMLInputElement) {
-    return ['text', 'search', 'password', 'email', 'url', 'number', 'tel'].includes(target.type);
+    return [
+      'text',
+      'search',
+      'password',
+      'email',
+      'url',
+      'number',
+      'tel',
+    ].includes(target.type);
   }
   return target instanceof HTMLElement && target.isContentEditable;
 }
@@ -424,7 +466,7 @@ async function boot(): Promise<void> {
   // So does the field guide, which is a document rather than game surface:
   // it hands text selection back deliberately and its links are real
   // anchors, and neither is worth much if right-click cannot copy them.
-  document.addEventListener('contextmenu', (e) => {
+  document.addEventListener('contextmenu', e => {
     if (isTextEntry(e.target)) return;
     if (e.target instanceof Element && e.target.closest('#docs')) return;
     e.preventDefault();
@@ -439,7 +481,7 @@ async function boot(): Promise<void> {
   // audio layer arms capture-phase listeners now and unlocks on whatever
   // the first real click turns out to be. The store's signals carry the
   // persisted (or ?mute=1/?vol=) starting point.
-  initAudio({ gain: volumeToGain(volume()), muted: muted() });
+  initAudio({gain: volumeToGain(volume()), muted: muted()});
   // Single player is a local sim, so with the shell and the models on disk
   // it plays with the network off entirely. A pending update only takes
   // over on the menu — never behind a live match — and route() hands the
@@ -449,7 +491,9 @@ async function boot(): Promise<void> {
   // that reckoning, but arriving on one may be a match reloading itself
   // back into its seat (see MenuApp's silent rejoin), and a worker swap
   // under that is exactly what this handshake exists to prevent.
-  registerServiceWorker({ applyUpdates: !gameChosen(new URLSearchParams(location.search)) });
+  registerServiceWorker({
+    applyUpdates: !gameChosen(new URLSearchParams(location.search)),
+  });
   // The village from before saves were files, if this device has one:
   // filed on the shelf, once, ahead of the first screen that could list
   // it. A no-op — one localStorage read — on every launch after that.
@@ -471,13 +515,17 @@ async function startNetMatch(lobby: LobbyResult): Promise<Screen> {
   return runMatch(
     {
       ...configFromUrl(location.search),
-      players: lobby.seats.map((s) => ({ kind: playerKindFromKey(s.kind) ?? PlayerKind.human })),
+      players: lobby.seats.map(s => ({
+        kind: playerKindFromKey(s.kind) ?? PlayerKind.human,
+      })),
       myPlayerId: lobby.myPlayerId,
       adminEnabled: false,
     },
-    { net: lobby.net },
+    {net: lobby.net},
     NET_MATCH_KEY,
   );
 }
 
-void boot().catch((err: unknown) => fatal(err instanceof Error ? err.message : String(err)));
+void boot().catch((err: unknown) =>
+  fatal(err instanceof Error ? err.message : String(err)),
+);

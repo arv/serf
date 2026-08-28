@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
-import { SAB_BYTES, SabWriter, type UnitSnapshot } from '../protocol/sabLayout';
-import { decodeState, encodeCmd, encodePing } from '../protocol/state';
-import { MovePredictor } from '../net/predict';
+
+import {MovePredictor} from '../net/predict';
+import * as MainToWorkerKind from '../protocol/mainToWorkerKindEnum.ts';
 import type {
   BuildingSnap,
   MainToWorker,
@@ -11,11 +11,12 @@ import type {
   StructuralUpdate,
   WorkerToMain,
 } from '../protocol/messages';
-import type { SimCommand } from '../sim/commands';
-import * as CommandKind from '../sim/commandKindEnum.ts';
-import * as MainToWorkerKind from '../protocol/mainToWorkerKindEnum.ts';
-import * as WorkerToMainKind from '../protocol/workerToMainKindEnum.ts';
 import * as NetState from '../protocol/netStateEnum.ts';
+import {SAB_BYTES, SabWriter, type UnitSnapshot} from '../protocol/sabLayout';
+import {decodeState, encodeCmd, encodePing} from '../protocol/state';
+import * as WorkerToMainKind from '../protocol/workerToMainKindEnum.ts';
+import * as CommandKind from '../sim/commandKindEnum.ts';
+import type {SimCommand} from '../sim/commands';
 
 /**
  * The multiplayer client's end of the wire. It holds the socket, decodes the
@@ -52,7 +53,7 @@ function postStatus(status: NetStatus): void {
   const key = JSON.stringify(status);
   if (key === lastStatus) return;
   lastStatus = key;
-  post({ type: WorkerToMainKind.netStatus, status });
+  post({type: WorkerToMainKind.netStatus, status});
 }
 
 interface InitPayload {
@@ -84,7 +85,12 @@ function rosterUpdate(
   };
 }
 
-function onInit(tick: number, map: MapSnapshot, explored: Uint8Array, payload: InitPayload): void {
+function onInit(
+  tick: number,
+  map: MapSnapshot,
+  explored: Uint8Array,
+  payload: InitPayload,
+): void {
   // Prediction paths on the map we were given, with the same pathfinder the
   // server moves with. A resend means the world moved on without us, so any
   // guess in flight is stale.
@@ -93,7 +99,13 @@ function onInit(tick: number, map: MapSnapshot, explored: Uint8Array, payload: I
     started = true;
     sab = new SharedArrayBuffer(SAB_BYTES);
     writer = new SabWriter(sab);
-    post({ type: WorkerToMainKind.ready, sab, map, buildings: payload.buildings, explored });
+    post({
+      type: WorkerToMainKind.ready,
+      sab,
+      map,
+      buildings: payload.buildings,
+      explored,
+    });
     // The roster arrives with the map, so the HUD has stock and tech
     // immediately rather than after the first structural frame.
     post(rosterUpdate(tick, payload));
@@ -127,7 +139,7 @@ function onFrame(data: Uint8Array): void {
     }
     case 'struct': {
       const json = frame.json as Omit<StructuralUpdate, 'type' | 'tick'>;
-      post({ ...json, type: WorkerToMainKind.structural, tick: frame.tick });
+      post({...json, type: WorkerToMainKind.structural, tick: frame.tick});
       return;
     }
     case 'pong': {
@@ -136,7 +148,7 @@ function onFrame(data: Uint8Array): void {
       // keep the previous estimate rather than reporting nonsense.
       const rtt = (Date.now() % 0xffffffff) - frame.clientTimeEcho;
       if (rtt >= 0 && rtt < 60_000) rttMs = rtt;
-      postStatus({ state: NetState.ok, rttMs });
+      postStatus({state: NetState.ok, rttMs});
       return;
     }
     default:
@@ -167,7 +179,7 @@ let netInfo: NetInfo | null = null;
 let debugWanted = false;
 
 function sendDebug(ws: WebSocket): void {
-  ws.send(JSON.stringify({ t: 'debug', enabled: debugWanted }));
+  ws.send(JSON.stringify({t: 'debug', enabled: debugWanted}));
 }
 
 function connect(net: NetInfo, attempt: number): void {
@@ -180,7 +192,8 @@ function connect(net: NetInfo, attempt: number): void {
   // yields to it rather than opening a second socket.
   if (
     socket &&
-    (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)
+    (socket.readyState === WebSocket.CONNECTING ||
+      socket.readyState === WebSocket.OPEN)
   ) {
     return;
   }
@@ -191,11 +204,11 @@ function connect(net: NetInfo, attempt: number): void {
   ws.onopen = () => {
     // The lobby socket is already closed by now, so the seat is claimed by
     // token — the same path a genuine reconnect takes.
-    ws.send(JSON.stringify({ t: 'rejoin', token: net.token }));
+    ws.send(JSON.stringify({t: 'rejoin', token: net.token}));
     if (debugWanted) sendDebug(ws);
     // Hidden already? The page hid while this socket was dialing — say so
     // before the relay starts streaming to a seat nobody is watching.
-    if (hidden) ws.send(JSON.stringify({ t: 'hidden', hidden: true }));
+    if (hidden) ws.send(JSON.stringify({t: 'hidden', hidden: true}));
     ws.send(encodePing(Date.now() % 0xffffffff));
   };
   ws.onmessage = (e: MessageEvent<ArrayBuffer | string>) => {
@@ -207,7 +220,7 @@ function connect(net: NetInfo, attempt: number): void {
       // the end card's Save replay button (null while undecided — the
       // main thread reads the empty string as "nothing to save").
       try {
-        const msg = JSON.parse(e.data) as { t?: string; data?: unknown };
+        const msg = JSON.parse(e.data) as {t?: string; data?: unknown};
         if (msg.t === 'error') {
           gone = true;
           postStatus({
@@ -230,7 +243,7 @@ function connect(net: NetInfo, attempt: number): void {
   };
   ws.onclose = () => {
     if (gone) return;
-    postStatus({ state: NetState.disconnected });
+    postStatus({state: NetState.disconnected});
     const delay = Math.min(500 * 2 ** attempt, 8000);
     setTimeout(() => connect(net, attempt + 1), delay);
   };
@@ -255,7 +268,7 @@ function sendCommands(commands: SimCommand[]): void {
   // between click and answer is the whole of what a player feels as lag.
   for (const cmd of commands) {
     if (cmd.kind === CommandKind.moveUnits) {
-      lastUnitsIndex ??= new Map(lastUnitRows.map((u) => [u.id, u]));
+      lastUnitsIndex ??= new Map(lastUnitRows.map(u => [u.id, u]));
       predictor?.order(cmd.unitIds, cmd.x, cmd.y, lastUnitsIndex);
     }
   }
@@ -273,7 +286,7 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
     case MainToWorkerKind.commands:
       // The envelope's playerId is advisory here — the server stamps
       // identity from the authenticated seat.
-      sendCommands(msg.commands.map((c) => c.cmd));
+      sendCommands(msg.commands.map(c => c.cmd));
       break;
     case MainToWorkerKind.setDebug:
       // The server holds the jobs table, so the overlay's open/closed state
@@ -291,7 +304,7 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       if (hidden === msg.hidden) break;
       hidden = msg.hidden;
       if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ t: 'hidden', hidden }));
+        socket.send(JSON.stringify({t: 'hidden', hidden}));
         // Back in view: refresh the RTT the paused pings let go stale.
         if (!hidden) socket.send(encodePing(Date.now() % 0xffffffff));
       } else if (!hidden && netInfo && !gone) {
@@ -308,9 +321,9 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       // frame. With no live socket, answer empty ourselves — the promise
       // behind this must resolve so the Save button can report failure.
       if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ t: 'replay' }));
+        socket.send(JSON.stringify({t: 'replay'}));
       } else {
-        post({ type: WorkerToMainKind.replayData, data: '' });
+        post({type: WorkerToMainKind.replayData, data: ''});
       }
       break;
     // Speed and saving are single-player affairs: a shared world runs at

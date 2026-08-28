@@ -1,8 +1,8 @@
-import { UNIT_DEFS } from './defs/units.ts';
-import { GOODS } from './defs/goods.ts';
-import type { World } from './world.ts';
 import * as BuildingState from './buildingStateEnum.ts';
+import {GOODS} from './defs/goods.ts';
+import {UNIT_DEFS} from './defs/units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
+import type {World} from './world.ts';
 
 /**
  * 32-bit FNV-1a digest of the outcome-relevant world state. It was the

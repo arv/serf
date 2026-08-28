@@ -1,15 +1,15 @@
-import type { Enum } from '../../src/shared/enum.ts';
 import * as THREE from 'three';
-import { makeLights, makeRenderer, PITCH } from './scene';
-import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
-import { HeightField } from '../../src/render/heightField';
-import { TerrainMesh, Spoil, type SpoilKind } from '../../src/render/terrainMesh';
-import { ScatterMesh } from '../../src/render/scatterMesh';
-import type { MapView } from '../../src/sim/map';
-import { tileIdx } from '../../src/shared/grid';
-import * as TileResource from '../../src/sim/tileResourceEnum.ts';
-import * as Terrain from '../../src/sim/terrainEnum.ts';
+import {loadGlbAssets, makeGlbBuilding} from '../../src/render/assets';
+import {HeightField} from '../../src/render/heightField';
+import {ScatterMesh} from '../../src/render/scatterMesh';
+import {TerrainMesh, Spoil, type SpoilKind} from '../../src/render/terrainMesh';
+import type {Enum} from '../../src/shared/enum.ts';
+import {tileIdx} from '../../src/shared/grid';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+import type {MapView} from '../../src/sim/map';
+import * as Terrain from '../../src/sim/terrainEnum.ts';
+import * as TileResource from '../../src/sim/tileResourceEnum.ts';
+import {makeLights, makeRenderer, PITCH} from './scene';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
@@ -37,21 +37,21 @@ const YAW = (Number(q.get('yaw') ?? 30) * Math.PI) / 180;
 /** Laid out along the camera's own screen-right axis so the four stay a row
  * whatever the yaw, the way _mines.html does it. */
 const SPACING = 7.5;
-const KINDS: { type: BuildingTypeId; res: number }[] = [
-  { type: BuildingTypeId.quarry, res: TileResource.Rock },
-  { type: BuildingTypeId.ironMine, res: TileResource.IronDep },
-  { type: BuildingTypeId.silverMine, res: TileResource.SilverDep },
-  { type: BuildingTypeId.goldMine, res: TileResource.GoldDep },
+const KINDS: {type: BuildingTypeId; res: number}[] = [
+  {type: BuildingTypeId.quarry, res: TileResource.Rock},
+  {type: BuildingTypeId.ironMine, res: TileResource.IronDep},
+  {type: BuildingTypeId.silverMine, res: TileResource.SilverDep},
+  {type: BuildingTypeId.goldMine, res: TileResource.GoldDep},
 ];
 const MID = 16;
 const POSTS = KINDS.map((k, i) => {
   const t = (i - (KINDS.length - 1) / 2) * SPACING;
   return {
     ...k,
-    at: [Math.round(MID + t * Math.cos(YAW)), Math.round(MID - t * Math.sin(YAW))] as [
-      number,
-      number,
-    ],
+    at: [
+      Math.round(MID + t * Math.cos(YAW)),
+      Math.round(MID - t * Math.sin(YAW)),
+    ] as [number, number],
   };
 });
 
@@ -132,7 +132,11 @@ for (const p of POSTS) {
   const b = makeGlbBuilding(p.type, 1);
   if (!b) continue;
   // buildingSync anchors a building at its footprint centre.
-  b.position.set(p.at[0] + 1, heights.at(p.at[0] + 1, p.at[1] + 1), p.at[1] + 1);
+  b.position.set(
+    p.at[0] + 1,
+    heights.at(p.at[0] + 1, p.at[1] + 1),
+    p.at[1] + 1,
+  );
   scene.add(b);
 }
 
@@ -164,7 +168,7 @@ const labels = document.createElement('div');
 labels.className = 'labels';
 labels.style.width = `${W}px`;
 labels.innerHTML = ['Quarry', 'Iron Mine', 'Silver Mine', 'Gold Mine']
-  .map((s) => `<span>${s}</span>`)
+  .map(s => `<span>${s}</span>`)
   .join('');
 document.querySelector('#app')!.appendChild(labels);
 console.log('rendered');

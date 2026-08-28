@@ -1,6 +1,6 @@
-import { galleryMarkup } from './cards';
-import { mountGallery } from './viewer';
-import type { BakedSet } from './kit';
+import {galleryMarkup} from './cards';
+import type {BakedSet} from './kit';
+import {mountGallery} from './viewer';
 
 /**
  * Entry point for the published gallery. Every model arrives as plain

@@ -1,11 +1,11 @@
-import type { Enum } from '../shared/enum.ts';
-import { For, Show, createSignal } from 'solid-js';
-import { MISSION_DEFS, nextMissionId } from '../sim/defs/missions';
-import { MISSION_HINTS } from './hints';
-import { hintsHidden, setHintsHidden } from './campaign';
-import { briefingOpen, mission, setBriefingOpen, speed } from './store';
-import { COMPACT } from './breakpoints';
+import {For, Show, createSignal} from 'solid-js';
+import type {Enum} from '../shared/enum.ts';
 import * as MissionId from '../sim/defs/missionIdEnum.ts';
+import {MISSION_DEFS, nextMissionId} from '../sim/defs/missions';
+import {COMPACT} from './breakpoints';
+import {hintsHidden, setHintsHidden} from './campaign';
+import {MISSION_HINTS} from './hints';
+import {briefingOpen, mission, setBriefingOpen, speed} from './store';
 
 type MissionId = Enum<typeof MissionId>;
 
@@ -23,7 +23,7 @@ type MissionId = Enum<typeof MissionId>;
 const [acked, setAcked] = createSignal<ReadonlySet<string>>(new Set());
 const [hideHints, setHideHints] = createSignal(hintsHidden());
 
-export function MissionPanel(props: { onSpeed: (speed: number) => void }) {
+export function MissionPanel(props: {onSpeed: (speed: number) => void}) {
   const def = () => {
     const m = mission();
     return m ? MISSION_DEFS[m.id] : undefined;
@@ -37,9 +37,9 @@ export function MissionPanel(props: { onSpeed: (speed: number) => void }) {
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i]!;
       if (step.objective !== undefined) {
-        if (!m.done[step.objective]) return { step, key: `${m.id}:${i}` };
+        if (!m.done[step.objective]) return {step, key: `${m.id}:${i}`};
       } else if (!acked().has(`${m.id}:${i}`)) {
-        return { step, key: `${m.id}:${i}` };
+        return {step, key: `${m.id}:${i}`};
       }
     }
     return undefined;
@@ -104,7 +104,7 @@ export function MissionPanel(props: { onSpeed: (speed: number) => void }) {
           paused, and Begin starts the clock. Reopening it later (the ⟲ in
           the checklist head) leaves a running clock alone. */}
       <Show when={briefingOpen() && def()}>
-        {(d) => (
+        {d => (
           <div class="hud-end hud-briefing">
             <div class="panel end-card">
               <p class="mission-no">A commission from the crown</p>
@@ -124,29 +124,42 @@ export function MissionPanel(props: { onSpeed: (speed: number) => void }) {
       </Show>
 
       <Show when={def() && !briefingOpen()}>
-        {(_) => (
+        {_ => (
           <div class="hud-mission panel">
             <div class="mission-head">
               <span>{def()!.title}</span>
-              <button title="Read the commission again" onClick={() => setBriefingOpen(true)}>
+              <button
+                title="Read the commission again"
+                onClick={() => setBriefingOpen(true)}
+              >
                 brief
               </button>
             </div>
             <For each={def()!.objectives}>
               {(o, i) => (
-                <div class="objective" classList={{ done: mission()!.done[i()] === true }}>
+                <div
+                  class="objective"
+                  classList={{done: mission()!.done[i()] === true}}
+                >
                   <span class="tick">{mission()!.done[i()] ? '✓' : '○'}</span>
                   <span>{o.label}</span>
                 </div>
               )}
             </For>
             <Show when={currentHint()}>
-              {(hint) => (
+              {hint => (
                 <div class="hint">
                   <div>{hint().step.text}</div>
                   <div class="hint-actions">
-                    <Show when={hint().step.objective === undefined} fallback={<span />}>
-                      <button onClick={() => setAcked(new Set([...acked(), hint().key]))}>
+                    <Show
+                      when={hint().step.objective === undefined}
+                      fallback={<span />}
+                    >
+                      <button
+                        onClick={() =>
+                          setAcked(new Set([...acked(), hint().key]))
+                        }
+                      >
                         Got it
                       </button>
                     </Show>
@@ -165,9 +178,9 @@ export function MissionPanel(props: { onSpeed: (speed: number) => void }) {
 }
 
 /** The next commission, for the end card. */
-export function continueTarget(): { id: MissionId; title: string } | undefined {
+export function continueTarget(): {id: MissionId; title: string} | undefined {
   const m = mission();
   if (!m) return undefined;
   const next = nextMissionId(m.id);
-  return next ? { id: next, title: MISSION_DEFS[next].title } : undefined;
+  return next ? {id: next, title: MISSION_DEFS[next].title} : undefined;
 }

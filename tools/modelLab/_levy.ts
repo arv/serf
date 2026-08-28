@@ -10,13 +10,17 @@
  * the filmstrip is shot.
  */
 import * as THREE from 'three';
-import { loadGlbAssets, makeGlbBuilding } from '../../src/render/assets';
-import { loadCharacterAssets, makeCharacter, playAnimation } from '../../src/render/characters';
-import { UNIT_DEFS } from '../../src/sim/defs/units';
-import { makeLights, makeRenderer, YAW, PITCH } from './scene';
 import * as AnimKey from '../../src/render/animKeyEnum.ts';
-import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
+import {loadGlbAssets, makeGlbBuilding} from '../../src/render/assets';
+import {
+  loadCharacterAssets,
+  makeCharacter,
+  playAnimation,
+} from '../../src/render/characters';
 import * as BuildingTypeId from '../../src/sim/defs/buildingTypeIdEnum.ts';
+import {UNIT_DEFS} from '../../src/sim/defs/units';
+import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
+import {makeLights, makeRenderer, YAW, PITCH} from './scene';
 
 const params = new URLSearchParams(location.search);
 const t = Number(params.get('t') ?? '0');
@@ -35,7 +39,7 @@ const scene = new THREE.Scene();
 makeLights(scene);
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(60, 60),
-  new THREE.MeshStandardMaterial({ color: 0x55a02a, roughness: 1 }),
+  new THREE.MeshStandardMaterial({color: 0x55a02a, roughness: 1}),
 );
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
@@ -45,7 +49,11 @@ const SCRATCH = new THREE.Vector3();
 const mixers: THREE.AnimationMixer[] = [];
 
 /** One tower, manned by `kind`, at world offset x. Mirrors #syncGarrison. */
-function tower(kindCode: number, clip: AnimKey.throwing | AnimKey.shoot, x: number): void {
+function tower(
+  kindCode: number,
+  clip: AnimKey.throwing | AnimKey.shoot,
+  x: number,
+): void {
   const root = new THREE.Group();
   root.position.x = x;
   scene.add(root);
@@ -55,7 +63,7 @@ function tower(kindCode: number, clip: AnimKey.throwing | AnimKey.shoot, x: numb
 
   // The roof marks the pack ships, by name — same harvest the renderer does.
   const posts: THREE.Object3D[] = [];
-  model.traverse((o) => {
+  model.traverse(o => {
     if (o.name.startsWith('towerPost')) posts.push(o);
   });
   if (posts.length === 0) throw new Error('no towerPost marks on the model');
@@ -111,7 +119,8 @@ if (strip) {
   const clip = shooting ? AnimKey.shoot : AnimKey.throwing;
   const kind = shooting ? UnitTypeId.archer : UnitTypeId.serf;
   const N = 6;
-  for (let i = 0; i < N; i++) figure(kind, clip, (i - (N - 1) / 2) * 0.92, i / N);
+  for (let i = 0; i < N; i++)
+    figure(kind, clip, (i - (N - 1) / 2) * 0.92, i / N);
 } else {
   tower(UnitTypeId.serf, AnimKey.throwing, -1.5);
   tower(UnitTypeId.archer, AnimKey.shoot, 1.5);
@@ -119,10 +128,21 @@ if (strip) {
 
 // Framed on the two roofs rather than the towers: the stonework is not
 // what is under review, the men standing on it are.
-const HALF_H = Number(params.get('zoom') ?? (params.get('strip') ? '0.82' : '1.5'));
+const HALF_H = Number(
+  params.get('zoom') ?? (params.get('strip') ? '0.82' : '1.5'),
+);
 const HALF_W = (HALF_H * W) / H;
-const camera = new THREE.OrthographicCamera(-HALF_W, HALF_W, HALF_H, -HALF_H, 0.1, 100);
-const FOCUS_Y = Number(params.get('fy') ?? (params.get('strip') ? '0.62' : '3.15'));
+const camera = new THREE.OrthographicCamera(
+  -HALF_W,
+  HALF_W,
+  HALF_H,
+  -HALF_H,
+  0.1,
+  100,
+);
+const FOCUS_Y = Number(
+  params.get('fy') ?? (params.get('strip') ? '0.62' : '3.15'),
+);
 camera.position.set(
   Math.sin(YAW) * 12 * Math.cos(PITCH),
   FOCUS_Y + Math.sin(PITCH) * 12,
@@ -130,5 +150,5 @@ camera.position.set(
 );
 camera.lookAt(0, FOCUS_Y, 0);
 renderer.render(scene, camera);
-(window as unknown as { LEVY_READY: boolean }).LEVY_READY = true;
+(window as unknown as {LEVY_READY: boolean}).LEVY_READY = true;
 console.log('rendered t=' + t + ' mixers=' + mixers.length);

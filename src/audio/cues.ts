@@ -1,6 +1,6 @@
-import type { Enum } from '../shared/enum.ts';
-import * as BusIdNs from './busIdEnum.ts';
 import * as AnimKey from '../render/animKeyEnum.ts';
+import type {Enum} from '../shared/enum.ts';
+import * as BusIdNs from './busIdEnum.ts';
 
 export type BusId = Enum<typeof BusIdNs>;
 
@@ -79,8 +79,11 @@ export interface CueDef {
   sample?: string;
 }
 
-const tone = (l: Omit<ToneLayer, 'kind'>): ToneLayer => ({ kind: 'tone', ...l });
-const noise = (l: Omit<NoiseLayer, 'kind'>): NoiseLayer => ({ kind: 'noise', ...l });
+const tone = (l: Omit<ToneLayer, 'kind'>): ToneLayer => ({kind: 'tone', ...l});
+const noise = (l: Omit<NoiseLayer, 'kind'>): NoiseLayer => ({
+  kind: 'noise',
+  ...l,
+});
 
 /**
  * The catalogue. UI cues are wired now; the world cues ship here as the
@@ -95,7 +98,7 @@ export const CUES = {
     gain: 0.35,
     cooldownMs: 30,
     priority: 4,
-    layers: [tone({ wave: 'square', freq: 900, gain: 0.5, decay: 0.03 })],
+    layers: [tone({wave: 'square', freq: 900, gain: 0.5, decay: 0.03})],
     sample: '/audio/uiClick.m4a',
   },
   uiOpen: {
@@ -104,8 +107,8 @@ export const CUES = {
     cooldownMs: 60,
     priority: 4,
     layers: [
-      tone({ wave: 'triangle', freq: 520, gain: 0.5, decay: 0.06 }),
-      tone({ wave: 'triangle', freq: 660, gain: 0.5, decay: 0.08, delay: 0.05 }),
+      tone({wave: 'triangle', freq: 520, gain: 0.5, decay: 0.06}),
+      tone({wave: 'triangle', freq: 660, gain: 0.5, decay: 0.08, delay: 0.05}),
     ],
     sample: '/audio/uiOpen.m4a',
   },
@@ -115,8 +118,8 @@ export const CUES = {
     cooldownMs: 60,
     priority: 4,
     layers: [
-      tone({ wave: 'triangle', freq: 660, gain: 0.5, decay: 0.06 }),
-      tone({ wave: 'triangle', freq: 520, gain: 0.5, decay: 0.08, delay: 0.05 }),
+      tone({wave: 'triangle', freq: 660, gain: 0.5, decay: 0.06}),
+      tone({wave: 'triangle', freq: 520, gain: 0.5, decay: 0.08, delay: 0.05}),
     ],
     sample: '/audio/uiClose.m4a',
   },
@@ -125,7 +128,7 @@ export const CUES = {
     gain: 0.3,
     cooldownMs: 50,
     priority: 4,
-    layers: [tone({ wave: 'triangle', freq: 880, gain: 0.5, decay: 0.06 })],
+    layers: [tone({wave: 'triangle', freq: 880, gain: 0.5, decay: 0.06})],
     sample: '/audio/uiSelect.m4a',
   },
   uiOrder: {
@@ -134,8 +137,8 @@ export const CUES = {
     cooldownMs: 60,
     priority: 4,
     layers: [
-      noise({ filter: 'bandpass', freq: 1200, q: 2, gain: 0.4, decay: 0.05 }),
-      tone({ wave: 'sine', freq: 220, gain: 0.5, decay: 0.05 }),
+      noise({filter: 'bandpass', freq: 1200, q: 2, gain: 0.4, decay: 0.05}),
+      tone({wave: 'sine', freq: 220, gain: 0.5, decay: 0.05}),
     ],
     sample: '/audio/uiOrder.m4a',
   },
@@ -145,8 +148,8 @@ export const CUES = {
     cooldownMs: 80,
     priority: 4,
     layers: [
-      tone({ wave: 'sine', freq: 180, freqEnd: 120, gain: 0.6, decay: 0.09 }),
-      noise({ filter: 'lowpass', freq: 400, gain: 0.4, decay: 0.08 }),
+      tone({wave: 'sine', freq: 180, freqEnd: 120, gain: 0.6, decay: 0.09}),
+      noise({filter: 'lowpass', freq: 400, gain: 0.4, decay: 0.08}),
     ],
     sample: '/audio/uiPlace.m4a',
   },
@@ -156,8 +159,8 @@ export const CUES = {
     cooldownMs: 150,
     priority: 4,
     layers: [
-      tone({ wave: 'square', freq: 330, gain: 0.35, decay: 0.09 }),
-      tone({ wave: 'square', freq: 311, gain: 0.35, decay: 0.12, delay: 0.1 }),
+      tone({wave: 'square', freq: 330, gain: 0.35, decay: 0.09}),
+      tone({wave: 'square', freq: 311, gain: 0.35, decay: 0.12, delay: 0.1}),
     ],
     sample: '/audio/uiRefused.m4a',
   },
@@ -166,7 +169,7 @@ export const CUES = {
     gain: 0.25,
     cooldownMs: 200,
     priority: 3,
-    layers: [noise({ filter: 'highpass', freq: 3000, gain: 0.3, decay: 0.1 })],
+    layers: [noise({filter: 'highpass', freq: 3000, gain: 0.3, decay: 0.1})],
     sample: '/audio/uiToast.m4a',
   },
   uiCoin: {
@@ -175,9 +178,15 @@ export const CUES = {
     cooldownMs: 90,
     priority: 4,
     layers: [
-      tone({ wave: 'triangle', freq: 2100, gain: 0.3, decay: 0.12 }),
-      tone({ wave: 'triangle', freq: 2700, gain: 0.25, decay: 0.14, delay: 0.03 }),
-      tone({ wave: 'triangle', freq: 3300, gain: 0.2, decay: 0.16, delay: 0.06 }),
+      tone({wave: 'triangle', freq: 2100, gain: 0.3, decay: 0.12}),
+      tone({
+        wave: 'triangle',
+        freq: 2700,
+        gain: 0.25,
+        decay: 0.14,
+        delay: 0.03,
+      }),
+      tone({wave: 'triangle', freq: 3300, gain: 0.2, decay: 0.16, delay: 0.06}),
     ],
     sample: '/audio/uiCoin.m4a',
   },
@@ -190,8 +199,8 @@ export const CUES = {
     priority: 2,
     pitchJitter: 0.06,
     layers: [
-      noise({ filter: 'bandpass', freq: 900, q: 1.5, gain: 0.55, decay: 0.07 }),
-      tone({ wave: 'sine', freq: 120, gain: 0.4, decay: 0.05 }),
+      noise({filter: 'bandpass', freq: 900, q: 1.5, gain: 0.55, decay: 0.07}),
+      tone({wave: 'sine', freq: 120, gain: 0.4, decay: 0.05}),
     ],
     sample: '/audio/chop.m4a',
   },
@@ -202,8 +211,8 @@ export const CUES = {
     priority: 2,
     pitchJitter: 0.06,
     layers: [
-      noise({ filter: 'bandpass', freq: 2500, q: 3, gain: 0.45, decay: 0.05 }),
-      tone({ wave: 'triangle', freq: 300, gain: 0.35, decay: 0.12 }),
+      noise({filter: 'bandpass', freq: 2500, q: 3, gain: 0.45, decay: 0.05}),
+      tone({wave: 'triangle', freq: 300, gain: 0.35, decay: 0.12}),
     ],
     sample: '/audio/pickaxe.m4a',
   },
@@ -214,8 +223,8 @@ export const CUES = {
     priority: 2,
     pitchJitter: 0.06,
     layers: [
-      noise({ filter: 'bandpass', freq: 600, q: 1.5, gain: 0.5, decay: 0.06 }),
-      tone({ wave: 'sine', freq: 150, gain: 0.4, decay: 0.05 }),
+      noise({filter: 'bandpass', freq: 600, q: 1.5, gain: 0.5, decay: 0.06}),
+      tone({wave: 'sine', freq: 150, gain: 0.4, decay: 0.05}),
     ],
     sample: '/audio/hammer.m4a',
   },
@@ -230,7 +239,7 @@ export const CUES = {
     cooldownMs: 45,
     priority: 1,
     pitchJitter: 0.1,
-    layers: [noise({ filter: 'lowpass', freq: 500, gain: 0.35, decay: 0.04 })],
+    layers: [noise({filter: 'lowpass', freq: 500, gain: 0.35, decay: 0.04})],
     sample: '/audio/footstep.m4a',
   },
 
@@ -242,7 +251,14 @@ export const CUES = {
     priority: 3,
     pitchJitter: 0.08,
     layers: [
-      noise({ filter: 'bandpass', freq: 400, freqEnd: 3000, q: 1.2, gain: 0.5, decay: 0.12 }),
+      noise({
+        filter: 'bandpass',
+        freq: 400,
+        freqEnd: 3000,
+        q: 1.2,
+        gain: 0.5,
+        decay: 0.12,
+      }),
     ],
     sample: '/audio/swordSwing.m4a',
   },
@@ -253,8 +269,8 @@ export const CUES = {
     priority: 3,
     pitchJitter: 0.08,
     layers: [
-      noise({ filter: 'bandpass', freq: 1800, q: 4, gain: 0.45, decay: 0.05 }),
-      tone({ wave: 'sine', freq: 90, gain: 0.3, decay: 0.03 }),
+      noise({filter: 'bandpass', freq: 1800, q: 4, gain: 0.45, decay: 0.05}),
+      tone({wave: 'sine', freq: 90, gain: 0.3, decay: 0.03}),
     ],
   },
   unitDeath: {
@@ -264,14 +280,14 @@ export const CUES = {
     priority: 4,
     pitchJitter: 0.08,
     layers: [
-      tone({ wave: 'sawtooth', freq: 220, freqEnd: 70, gain: 0.35, decay: 0.45 }),
+      tone({wave: 'sawtooth', freq: 220, freqEnd: 70, gain: 0.35, decay: 0.45}),
       // The body-fall thump. The cue fires as Death_A starts, and the
       // clip lands him at ~0.53s (tools/modelLab/animImpacts.mjs) — the
       // cry covers the fall, the thump meets the ground. This times the
       // synth path only: the recorded sample below replaces the whole
       // recipe when it loads, internal timing and all, so matching it to
       // the clip is an edit to the recording, not to this delay.
-      noise({ filter: 'lowpass', freq: 300, gain: 0.4, decay: 0.12, delay: 0.5 }),
+      noise({filter: 'lowpass', freq: 300, gain: 0.4, decay: 0.12, delay: 0.5}),
     ],
     sample: '/audio/unitDeath.m4a',
   },
@@ -281,8 +297,8 @@ export const CUES = {
     cooldownMs: 150,
     priority: 4,
     layers: [
-      noise({ filter: 'lowpass', freq: 250, gain: 0.55, decay: 0.3 }),
-      tone({ wave: 'sine', freq: 60, gain: 0.5, decay: 0.25 }),
+      noise({filter: 'lowpass', freq: 250, gain: 0.55, decay: 0.3}),
+      tone({wave: 'sine', freq: 60, gain: 0.5, decay: 0.25}),
     ],
     sample: '/audio/buildingHit.m4a',
   },
@@ -294,9 +310,22 @@ export const CUES = {
     cooldownMs: 2000,
     priority: 5,
     layers: [
-      tone({ wave: 'sawtooth', freq: 155, gain: 0.3, attack: 0.5, decay: 0.9 }),
-      tone({ wave: 'sawtooth', freq: 156.5, gain: 0.25, attack: 0.5, decay: 0.9 }),
-      tone({ wave: 'sawtooth', freq: 233, gain: 0.2, attack: 0.6, decay: 0.8, delay: 0.1 }),
+      tone({wave: 'sawtooth', freq: 155, gain: 0.3, attack: 0.5, decay: 0.9}),
+      tone({
+        wave: 'sawtooth',
+        freq: 156.5,
+        gain: 0.25,
+        attack: 0.5,
+        decay: 0.9,
+      }),
+      tone({
+        wave: 'sawtooth',
+        freq: 233,
+        gain: 0.2,
+        attack: 0.6,
+        decay: 0.8,
+        delay: 0.1,
+      }),
     ],
   },
   buildingComplete: {
@@ -305,10 +334,10 @@ export const CUES = {
     cooldownMs: 250,
     priority: 4,
     layers: [
-      tone({ wave: 'triangle', freq: 523, gain: 0.35, decay: 0.25 }),
-      tone({ wave: 'triangle', freq: 659, gain: 0.35, decay: 0.28, delay: 0.12 }),
-      tone({ wave: 'triangle', freq: 784, gain: 0.35, decay: 0.4, delay: 0.24 }),
-      noise({ filter: 'lowpass', freq: 350, gain: 0.25, decay: 0.1 }),
+      tone({wave: 'triangle', freq: 523, gain: 0.35, decay: 0.25}),
+      tone({wave: 'triangle', freq: 659, gain: 0.35, decay: 0.28, delay: 0.12}),
+      tone({wave: 'triangle', freq: 784, gain: 0.35, decay: 0.4, delay: 0.24}),
+      noise({filter: 'lowpass', freq: 350, gain: 0.25, decay: 0.1}),
     ],
     sample: '/audio/buildingComplete.m4a',
   },
@@ -318,8 +347,15 @@ export const CUES = {
     cooldownMs: 300,
     priority: 5,
     layers: [
-      noise({ filter: 'lowpass', freq: 400, freqEnd: 80, gain: 0.55, attack: 0.05, decay: 1.0 }),
-      tone({ wave: 'sine', freq: 50, gain: 0.5, attack: 0.05, decay: 0.8 }),
+      noise({
+        filter: 'lowpass',
+        freq: 400,
+        freqEnd: 80,
+        gain: 0.55,
+        attack: 0.05,
+        decay: 1.0,
+      }),
+      tone({wave: 'sine', freq: 50, gain: 0.5, attack: 0.05, decay: 0.8}),
     ],
     sample: '/audio/buildingCollapse.m4a',
   },
@@ -329,10 +365,10 @@ export const CUES = {
     cooldownMs: 400,
     priority: 5,
     layers: [
-      tone({ wave: 'triangle', freq: 659, gain: 0.3, decay: 0.22 }),
-      tone({ wave: 'triangle', freq: 784, gain: 0.3, decay: 0.24, delay: 0.1 }),
-      tone({ wave: 'triangle', freq: 988, gain: 0.3, decay: 0.26, delay: 0.2 }),
-      tone({ wave: 'triangle', freq: 1319, gain: 0.3, decay: 0.45, delay: 0.3 }),
+      tone({wave: 'triangle', freq: 659, gain: 0.3, decay: 0.22}),
+      tone({wave: 'triangle', freq: 784, gain: 0.3, decay: 0.24, delay: 0.1}),
+      tone({wave: 'triangle', freq: 988, gain: 0.3, decay: 0.26, delay: 0.2}),
+      tone({wave: 'triangle', freq: 1319, gain: 0.3, decay: 0.45, delay: 0.3}),
     ],
     sample: '/audio/objectiveDone.m4a',
   },
@@ -343,8 +379,8 @@ export const CUES = {
     priority: 4,
     layers: [
       // Two inharmonic partials read as bronze; long and quiet reads as far.
-      tone({ wave: 'sine', freq: 440, gain: 0.35, decay: 1.2 }),
-      tone({ wave: 'sine', freq: 587, gain: 0.2, decay: 0.9 }),
+      tone({wave: 'sine', freq: 440, gain: 0.35, decay: 1.2}),
+      tone({wave: 'sine', freq: 587, gain: 0.2, decay: 0.9}),
     ],
     sample: '/audio/distantBell.m4a',
   },
@@ -354,11 +390,11 @@ export const CUES = {
     cooldownMs: 5000,
     priority: 6,
     layers: [
-      tone({ wave: 'triangle', freq: 523, gain: 0.3, decay: 0.5 }),
-      tone({ wave: 'triangle', freq: 659, gain: 0.3, decay: 0.55, delay: 0.15 }),
-      tone({ wave: 'triangle', freq: 784, gain: 0.3, decay: 0.6, delay: 0.3 }),
-      tone({ wave: 'triangle', freq: 1046, gain: 0.35, decay: 1.1, delay: 0.45 }),
-      tone({ wave: 'sine', freq: 131, gain: 0.3, attack: 0.05, decay: 1.4 }),
+      tone({wave: 'triangle', freq: 523, gain: 0.3, decay: 0.5}),
+      tone({wave: 'triangle', freq: 659, gain: 0.3, decay: 0.55, delay: 0.15}),
+      tone({wave: 'triangle', freq: 784, gain: 0.3, decay: 0.6, delay: 0.3}),
+      tone({wave: 'triangle', freq: 1046, gain: 0.35, decay: 1.1, delay: 0.45}),
+      tone({wave: 'sine', freq: 131, gain: 0.3, attack: 0.05, decay: 1.4}),
     ],
     sample: '/audio/victory.m4a',
   },
@@ -368,10 +404,17 @@ export const CUES = {
     cooldownMs: 5000,
     priority: 6,
     layers: [
-      tone({ wave: 'sawtooth', freq: 392, gain: 0.18, decay: 0.7 }),
-      tone({ wave: 'sawtooth', freq: 311, gain: 0.18, decay: 0.8, delay: 0.35 }),
-      tone({ wave: 'sawtooth', freq: 262, gain: 0.2, decay: 1.4, delay: 0.7 }),
-      tone({ wave: 'sine', freq: 65, gain: 0.3, attack: 0.1, decay: 1.6, delay: 0.7 }),
+      tone({wave: 'sawtooth', freq: 392, gain: 0.18, decay: 0.7}),
+      tone({wave: 'sawtooth', freq: 311, gain: 0.18, decay: 0.8, delay: 0.35}),
+      tone({wave: 'sawtooth', freq: 262, gain: 0.2, decay: 1.4, delay: 0.7}),
+      tone({
+        wave: 'sine',
+        freq: 65,
+        gain: 0.3,
+        attack: 0.1,
+        decay: 1.6,
+        delay: 0.7,
+      }),
     ],
     sample: '/audio/defeat.m4a',
   },

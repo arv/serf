@@ -4,9 +4,9 @@ import {
   MARCH_CONFIDENCE_RANGE,
   type StrategyAdvice,
 } from '../../src/ai/advice.ts';
-import type { AiStrategy } from '../../src/sim/defs/aiStrategies.ts';
-import type { Rng } from '../../src/shared/rng.ts';
-import type { UnitTypeId } from '../../src/sim/defs/units.ts';
+import type {Rng} from '../../src/shared/rng.ts';
+import type {AiStrategy} from '../../src/sim/defs/aiStrategies.ts';
+import type {UnitTypeId} from '../../src/sim/defs/units.ts';
 
 /**
  * The mutation space over a playbook: one small, bounded, reversible step
@@ -67,7 +67,9 @@ type NumericKnob = keyof typeof ADVICE_RANGES | 'marchConfidence';
  * `marchConfidence` is kept outside the table for that exact reason and is
  * spliced back in here, which is the same trick `parseAdvice` plays.
  */
-export const MUTABLE_RANGES: Readonly<Record<NumericKnob, readonly [number, number]>> = {
+export const MUTABLE_RANGES: Readonly<
+  Record<NumericKnob, readonly [number, number]>
+> = {
   ...ADVICE_RANGES,
   marchConfidence: MARCH_CONFIDENCE_RANGE,
 };
@@ -143,7 +145,12 @@ const clamp = (v: number, [lo, hi]: readonly [number, number]): number =>
  * treats that as "this mutation did nothing" and tries another knob, which
  * is what keeps a mutant from silently being its own parent.
  */
-function stepNumber(value: number, knob: NumericKnob, rng: Rng, stepShare: number): number {
+function stepNumber(
+  value: number,
+  knob: NumericKnob,
+  rng: Rng,
+  stepShare: number,
+): number {
   const range = MUTABLE_RANGES[knob];
   const span = range[1] - range[0];
   const size = Math.max(1, Math.round(span * stepShare));
@@ -161,7 +168,7 @@ function stepNumber(value: number, knob: NumericKnob, rng: Rng, stepShare: numbe
  * training nothing, which is why `parseAdvice` drops one too. */
 function stepPreference(list: readonly UnitTypeId[], rng: Rng): UnitTypeId[] {
   const next: UnitTypeId[] = [...list];
-  const missing = ADVISABLE_UNITS.filter((u) => !next.includes(u));
+  const missing = ADVISABLE_UNITS.filter(u => !next.includes(u));
   const canSwap = next.length >= 2;
   const canDrop = next.length >= 2;
   const moves: ('swap' | 'drop' | 'add')[] = [
@@ -206,7 +213,7 @@ function stepWeaponMix(mix: readonly number[], rng: Rng): number[] {
     return next;
   }
   const i = rng.int(next.length);
-  const others = WEAPON_RECIPES.filter((r) => r !== next[i]);
+  const others = WEAPON_RECIPES.filter(r => r !== next[i]);
   next[i] = rng.pick(others);
   return next;
 }
@@ -214,7 +221,9 @@ function stepWeaponMix(mix: readonly number[], rng: Rng): number[] {
 /** Did this knob actually move? Lists compare by content. */
 function changed(before: unknown, after: unknown): boolean {
   if (Array.isArray(before) && Array.isArray(after)) {
-    return before.length !== after.length || before.some((v, i) => v !== after[i]);
+    return (
+      before.length !== after.length || before.some((v, i) => v !== after[i])
+    );
   }
   return before !== after;
 }
@@ -237,13 +246,17 @@ function changed(before: unknown, after: unknown): boolean {
  * It keeps its lineage's id because that is what it is a step away from,
  * and it reaches a seat as an override, not as a name.
  */
-export function mutate(base: AiStrategy, rng: Rng, opts: MutateOptions = {}): Mutant {
+export function mutate(
+  base: AiStrategy,
+  rng: Rng,
+  opts: MutateOptions = {},
+): Mutant {
   const wanted = Math.max(1, opts.knobs ?? 1);
   const stepShare = opts.step ?? 0.2;
   const frozen = new Set<MutableKnob>(opts.frozen ?? []);
-  const pool = MUTABLE_KNOBS.filter((k) => !frozen.has(k));
+  const pool = MUTABLE_KNOBS.filter(k => !frozen.has(k));
 
-  const next: AiStrategy = { ...base };
+  const next: AiStrategy = {...base};
   const changes: Mutation[] = [];
   const tried = new Set<MutableKnob>();
 
@@ -251,30 +264,34 @@ export function mutate(base: AiStrategy, rng: Rng, opts: MutateOptions = {}): Mu
   // (pinned at both edges of a one-value range) costs an attempt rather
   // than looping forever.
   while (changes.length < wanted && tried.size < pool.length) {
-    const candidates = pool.filter((k) => !tried.has(k));
+    const candidates = pool.filter(k => !tried.has(k));
     if (candidates.length === 0) break;
     const knob = rng.pick(candidates);
     tried.add(knob);
     const before = next[knob];
     let after: unknown;
     if (knob === 'prefersRivals') after = !next.prefersRivals;
-    else if (knob === 'trainPreference') after = stepPreference(next.trainPreference, rng);
+    else if (knob === 'trainPreference')
+      after = stepPreference(next.trainPreference, rng);
     else if (knob === 'weaponMix') after = stepWeaponMix(next.weaponMix, rng);
     else after = stepNumber(next[knob], knob, rng, stepShare);
     if (!changed(before, after)) continue;
     // Assign through a computed key: the union of knob types is wider than
     // any one field, and the branches above are what keeps it sound.
-    Object.assign(next, { [knob]: after });
-    changes.push({ knob, from: before, to: after });
+    Object.assign(next, {[knob]: after});
+    changes.push({knob, from: before, to: after});
   }
 
-  return { strategy: next, changes };
+  return {strategy: next, changes};
 }
 
 /** One line per knob that moved — what a run log wants beside the win rate,
  * because "generation 4 candidate 11" is not a finding. */
 export function describeMutation(m: Mutant): string {
   if (m.changes.length === 0) return `${m.strategy.id} (unchanged)`;
-  const show = (v: unknown): string => (Array.isArray(v) ? `[${v.join(',')}]` : String(v));
-  return m.changes.map((c) => `${c.knob} ${show(c.from)}→${show(c.to)}`).join(', ');
+  const show = (v: unknown): string =>
+    Array.isArray(v) ? `[${v.join(',')}]` : String(v);
+  return m.changes
+    .map(c => `${c.knob} ${show(c.from)}→${show(c.to)}`)
+    .join(', ');
 }

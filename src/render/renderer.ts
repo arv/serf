@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { DEFAULT_MAP_SIZE, gridFor } from '../shared/grid';
-import { background, fog, groundBounce, skyLight } from './palette';
-import { CameraRig } from './cameraRig';
+import {DEFAULT_MAP_SIZE, gridFor} from '../shared/grid';
+import {CameraRig} from './cameraRig';
+import {background, fog, groundBounce, skyLight} from './palette';
 
 /** How many frames a fence may hold the loop before it is written off as
  * one that will never signal. Four is longer than any real frame and short
@@ -29,8 +29,10 @@ export class GameRenderer {
     // Phones and tablets render the same scene on a far smaller GPU: trade
     // resolution and shadow crispness for framerate. Desktop is unchanged.
     const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-    this.#webgl = new THREE.WebGLRenderer({ canvas, antialias: !coarse });
-    this.#webgl.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.5 : 2));
+    this.#webgl = new THREE.WebGLRenderer({canvas, antialias: !coarse});
+    this.#webgl.setPixelRatio(
+      Math.min(window.devicePixelRatio, coarse ? 1.5 : 2),
+    );
     // Construction sites reveal their model with a clip plane.
     this.#webgl.localClippingEnabled = true;
     this.#webgl.shadowMap.enabled = true;
@@ -220,7 +222,9 @@ export class GameRenderer {
 
   /** The context, when it is one that can hold a fence at all. */
   #gl(): WebGL2RenderingContext | null {
-    const gl = this.#webgl.getContext() as WebGLRenderingContext | WebGL2RenderingContext;
+    const gl = this.#webgl.getContext() as
+      | WebGLRenderingContext
+      | WebGL2RenderingContext;
     return 'fenceSync' in gl ? (gl as WebGL2RenderingContext) : null;
   }
 

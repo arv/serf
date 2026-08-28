@@ -1,6 +1,6 @@
-import { buildEngine, type EngineSpec, type LabEngine } from './engines.ts';
-import { playMatch, type MatchConfig, type MatchRecord } from './match.ts';
-import type { Owner } from '../../src/sim/entities.ts';
+import type {Owner} from '../../src/sim/entities.ts';
+import {buildEngine, type EngineSpec, type LabEngine} from './engines.ts';
+import {playMatch, type MatchConfig, type MatchRecord} from './match.ts';
 
 /**
  * One match in one child process — the unit `--jobs` parallelizes over.
@@ -35,11 +35,13 @@ async function main(): Promise<void> {
     const engine = buildEngine(task.spec, task.salt);
     if (engine) engines.set(task.advisedSeat, engine);
   }
-  const record: MatchRecord = await playMatch({ ...task.config, engines });
+  const record: MatchRecord = await playMatch({...task.config, engines});
   process.stdout.write(JSON.stringify(record));
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write(err instanceof Error ? (err.stack ?? err.message) : String(err));
+  process.stderr.write(
+    err instanceof Error ? (err.stack ?? err.message) : String(err),
+  );
   process.exitCode = 1;
 });

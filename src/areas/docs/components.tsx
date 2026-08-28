@@ -1,12 +1,12 @@
-import { For, Show, type JSX } from 'solid-js';
-import { goto } from '../../app/router';
-import { type GoodAmounts, type GoodId, goodEntries } from '../../sim/defs/goods';
-import type { Recipe } from '../../sim/defs/buildings';
-import { GoodIcon } from '../../ui/icons';
-import { goodName } from '../../ui/names';
-import { fmtPerMinute, fmtSecs } from './data';
-import { goodHref } from './routes';
+import {For, Show, type JSX} from 'solid-js';
+import {goto} from '../../app/router';
+import type {Recipe} from '../../sim/defs/buildings';
+import {type GoodAmounts, type GoodId, goodEntries} from '../../sim/defs/goods';
 import * as RecipeKind from '../../sim/defs/recipeKindEnum.ts';
+import {GoodIcon} from '../../ui/icons';
+import {goodName} from '../../ui/names';
+import {fmtPerMinute, fmtSecs} from './data';
+import {goodHref} from './routes';
 
 /**
  * An internal wiki link: a real <a>, so middle-click and copy-link work,
@@ -27,8 +27,9 @@ export function DocLink(props: {
       href={props.href}
       class={props.class}
       aria-current={props.current === true ? 'location' : undefined}
-      onClick={(e) => {
-        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      onClick={e => {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+          return;
         e.preventDefault();
         goto(props.href);
       }}
@@ -39,12 +40,14 @@ export function DocLink(props: {
 }
 
 /** One good with its icon and amount, as a chip linking to the good's page. */
-export function GoodChip(props: { good: GoodId; amount?: number }): JSX.Element {
+export function GoodChip(props: {good: GoodId; amount?: number}): JSX.Element {
   // Amount and name in one text node, with a real space between them: as
   // separate elements they carried only a CSS margin, and an accessible
   // name is computed from text, so the chip was announced as "10Wood".
   const label = (): string =>
-    props.amount === undefined ? goodName(props.good) : `${props.amount} ${goodName(props.good)}`;
+    props.amount === undefined
+      ? goodName(props.good)
+      : `${props.amount} ${goodName(props.good)}`;
   return (
     <DocLink href={goodHref(props.good)} class="chip">
       {/* The text names the good; a labelled icon would repeat it. */}
@@ -55,7 +58,10 @@ export function GoodChip(props: { good: GoodId; amount?: number }): JSX.Element 
 }
 
 /** A GoodAmounts as a row of chips — build costs, recipe sides, tech bills. */
-export function CostList(props: { amounts: GoodAmounts; freeLabel?: string }): JSX.Element {
+export function CostList(props: {
+  amounts: GoodAmounts;
+  freeLabel?: string;
+}): JSX.Element {
   const entries = () => goodEntries(props.amounts);
   return (
     <span class="costs">
@@ -63,13 +69,18 @@ export function CostList(props: { amounts: GoodAmounts; freeLabel?: string }): J
         when={entries().length > 0}
         fallback={<span class="chip free">{props.freeLabel ?? 'free'}</span>}
       >
-        <For each={entries()}>{([good, n]) => <GoodChip good={good} amount={n} />}</For>
+        <For each={entries()}>
+          {([good, n]) => <GoodChip good={good} amount={n} />}
+        </For>
       </Show>
     </span>
   );
 }
 
-export function Section(props: { title: string; children: JSX.Element }): JSX.Element {
+export function Section(props: {
+  title: string;
+  children: JSX.Element;
+}): JSX.Element {
   return (
     <section>
       <h2>{props.title}</h2>
@@ -80,11 +91,14 @@ export function Section(props: { title: string; children: JSX.Element }): JSX.El
 
 /** The def-list card the detail pages are built from. Rows render only when
  * they have something to say, so the card is exactly as long as the def. */
-export function Stats(props: { children: JSX.Element }): JSX.Element {
+export function Stats(props: {children: JSX.Element}): JSX.Element {
   return <dl class="stats">{props.children}</dl>;
 }
 
-export function Stat(props: { label: string; children: JSX.Element }): JSX.Element {
+export function Stat(props: {
+  label: string;
+  children: JSX.Element;
+}): JSX.Element {
   return (
     <div>
       <dt>{props.label}</dt>
@@ -98,21 +112,22 @@ export function Stat(props: { label: string; children: JSX.Element }): JSX.Eleme
  * time, and the ideal rate. Gather recipes name the ground they work
  * instead of an input buffer.
  */
-export function RecipeView(props: { recipe: Recipe }): JSX.Element {
+export function RecipeView(props: {recipe: Recipe}): JSX.Element {
   const r = props.recipe;
   if (r.kind === RecipeKind.gather) {
     return (
       <span>
-        works <b>{r.resource}</b> tiles within {r.radius} → <GoodChip good={r.output} amount={1} />{' '}
-        · {fmtSecs(r.workTicks)} each · {fmtPerMinute(1, r.workTicks)}
+        works <b>{r.resource}</b> tiles within {r.radius} →{' '}
+        <GoodChip good={r.output} amount={1} /> · {fmtSecs(r.workTicks)} each ·{' '}
+        {fmtPerMinute(1, r.workTicks)}
       </span>
     );
   }
   const outputs = goodEntries(r.outputs);
   return (
     <span>
-      <CostList amounts={r.inputs} freeLabel="nothing" /> → <CostList amounts={r.outputs} /> ·{' '}
-      {fmtSecs(r.durationTicks)}
+      <CostList amounts={r.inputs} freeLabel="nothing" /> →{' '}
+      <CostList amounts={r.outputs} /> · {fmtSecs(r.durationTicks)}
       <For each={outputs}>
         {([good, n]) => (
           <span>

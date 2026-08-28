@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { groupEmpty, keyDigit, matchingGroup, type ControlGroup } from './groups';
+import {describe, expect, it} from 'vitest';
 import * as ControlGroupKind from './controlGroupKindEnum.ts';
+import {groupEmpty, keyDigit, matchingGroup, type ControlGroup} from './groups';
 
 /** A keydown as the DOM reports it — only the two fields keyDigit reads. */
-const key = (code: string, k: string) => ({ code, key: k });
+const key = (code: string, k: string) => ({code, key: k});
 
 describe('keyDigit', () => {
   it('reads the number row', () => {
@@ -50,25 +50,38 @@ describe('keyDigit', () => {
 describe('groupEmpty', () => {
   it('is what an untouched number and a wiped squad have in common', () => {
     expect(groupEmpty(undefined)).toBe(true);
-    expect(groupEmpty({ kind: ControlGroupKind.units, ids: new Set() })).toBe(true);
+    expect(groupEmpty({kind: ControlGroupKind.units, ids: new Set()})).toBe(
+      true,
+    );
   });
 
   it('is not a squad that still has someone, or a building at all', () => {
-    expect(groupEmpty({ kind: ControlGroupKind.units, ids: new Set([7]) })).toBe(false);
+    expect(groupEmpty({kind: ControlGroupKind.units, ids: new Set([7])})).toBe(
+      false,
+    );
     // A building group is its building or it has been dropped whole —
     // there is no emptied-by-casualties middle for it to sit in.
-    expect(groupEmpty({ kind: ControlGroupKind.building, id: 7 })).toBe(false);
+    expect(groupEmpty({kind: ControlGroupKind.building, id: 7})).toBe(false);
   });
 });
 
 describe('matchingGroup', () => {
   const groups = (entries: [number, number[]][]): Map<number, ControlGroup> =>
-    new Map(entries.map(([d, ids]) => [d, { kind: ControlGroupKind.units, ids: new Set(ids) }]));
+    new Map(
+      entries.map(([d, ids]) => [
+        d,
+        {kind: ControlGroupKind.units, ids: new Set(ids)},
+      ]),
+    );
   const halls = (entries: [number, number][]): Map<number, ControlGroup> =>
-    new Map(entries.map(([d, id]) => [d, { kind: ControlGroupKind.building, id }]));
+    new Map(
+      entries.map(([d, id]) => [d, {kind: ControlGroupKind.building, id}]),
+    );
 
   it('names the group a selection is exactly', () => {
-    expect(matchingGroup(groups([[1, [4, 5, 6]]]), new Set([6, 5, 4]), null)).toBe(1);
+    expect(
+      matchingGroup(groups([[1, [4, 5, 6]]]), new Set([6, 5, 4]), null),
+    ).toBe(1);
   });
 
   it('says nothing about a selection that merely overlaps one', () => {
@@ -137,8 +150,8 @@ describe('matchingGroup', () => {
     // number with a soldier — and a card open on #12 must not light up the
     // group that holds soldier #12.
     const mixed = new Map<number, ControlGroup>([
-      [1, { kind: ControlGroupKind.units, ids: new Set([12]) }],
-      [2, { kind: ControlGroupKind.building, id: 12 }],
+      [1, {kind: ControlGroupKind.units, ids: new Set([12])}],
+      [2, {kind: ControlGroupKind.building, id: 12}],
     ]);
     expect(matchingGroup(mixed, new Set(), 12)).toBe(2);
     expect(matchingGroup(mixed, new Set([12]), null)).toBe(1);
@@ -149,8 +162,8 @@ describe('matchingGroup', () => {
     // open the selection set is empty, and it is the card that is asked
     // about — a stale unit group can never answer for it.
     const mixed = new Map<number, ControlGroup>([
-      [1, { kind: ControlGroupKind.units, ids: new Set([4, 5]) }],
-      [3, { kind: ControlGroupKind.building, id: 90 }],
+      [1, {kind: ControlGroupKind.units, ids: new Set([4, 5])}],
+      [3, {kind: ControlGroupKind.building, id: 90}],
     ]);
     expect(matchingGroup(mixed, new Set(), 90)).toBe(3);
   });

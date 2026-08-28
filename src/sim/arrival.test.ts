@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { tickWorld } from './tick.ts';
-import { placeBuiltBuilding, type World } from './world.ts';
+import {describe, expect, it} from 'vitest';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import * as GoodId from './defs/goodIdEnum.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import * as HaulPhase from './haulPhaseEnum.ts';
 import {
   addBuiltHut,
   addResourceTile,
@@ -9,13 +11,11 @@ import {
   addStorehouse,
   bareWorld,
 } from './testUtils.ts';
-import type { Unit } from './units.ts';
+import {tickWorld} from './tick.ts';
 import * as TileResource from './tileResourceEnum.ts';
-import * as HaulPhase from './haulPhaseEnum.ts';
+import type {Unit} from './units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
-import * as GoodId from './defs/goodIdEnum.ts';
-import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import {placeBuiltBuilding, type World} from './world.ts';
 
 /** Put a unit where its walk would have left it had the route died: far from
  * where it was going, with nothing left to walk. */
@@ -42,10 +42,13 @@ function runUntil(world: World, ready: () => boolean, ticks = 600): void {
 describe('work only happens where the worker is standing', () => {
   it('a hauler cut off from the source draws nothing out of it', () => {
     const world = bareWorld();
-    const from = addStorehouse(world, 30, 30, { [GoodId.wood]: 5 });
+    const from = addStorehouse(world, 30, 30, {[GoodId.wood]: 5});
     addSite(world, 40, 40); // a site wanting wood puts a job on the board
     const serf = addSerf(world, 31, 33);
-    runUntil(world, () => serf.task.t === UnitTaskKind.haul && serf.jobId !== undefined);
+    runUntil(
+      world,
+      () => serf.task.t === UnitTaskKind.haul && serf.jobId !== undefined,
+    );
     expect(world.jobs.get(serf.jobId!)?.phase).toBe(HaulPhase.toPickup);
 
     const stock = from.stock[GoodId.wood];
@@ -59,7 +62,7 @@ describe('work only happens where the worker is standing', () => {
 
   it('a hauler cut off from the destination delivers nothing into it', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { [GoodId.wood]: 5 });
+    addStorehouse(world, 30, 30, {[GoodId.wood]: 5});
     const site = addSite(world, 40, 40);
     const serf = addSerf(world, 31, 33);
     runUntil(world, () => serf.carrying !== undefined);
@@ -82,7 +85,7 @@ describe('work only happens where the worker is standing', () => {
     const worker = world.units.get(hut.workerId!)!;
     runUntil(world, () => worker.task.t === UnitTaskKind.gatherOut);
 
-    const tile = (worker.task as { tile: number }).tile;
+    const tile = (worker.task as {tile: number}).tile;
     const standing = world.map.resourceAmt[tile];
     strandFarAway(worker);
     tickWorld(world, []);
@@ -100,7 +103,9 @@ describe('work only happens where the worker is standing', () => {
     const worker = world.units.get(hut.workerId!)!;
     runUntil(
       world,
-      () => worker.task.t === UnitTaskKind.gatherHome && worker.carrying !== undefined,
+      () =>
+        worker.task.t === UnitTaskKind.gatherHome &&
+        worker.carrying !== undefined,
     );
 
     const held = hut.stock[GoodId.wood] ?? 0;
@@ -116,7 +121,7 @@ describe('work only happens where the worker is standing', () => {
     addStorehouse(world, 30, 30, {});
     const hut = placeBuiltBuilding(world, BuildingTypeId.woodcutter, 0, 36, 30);
     const serf = addSerf(world, 34, 30);
-    serf.task = { t: UnitTaskKind.staff, buildingId: hut.id };
+    serf.task = {t: UnitTaskKind.staff, buildingId: hut.id};
     strandFarAway(serf);
     tickWorld(world, []);
 
@@ -128,12 +133,20 @@ describe('work only happens where the worker is standing', () => {
 
   it('a recruit cut off from a barracks is not enlisted by it', () => {
     const world = bareWorld();
-    addStorehouse(world, 30, 30, { [GoodId.food]: 10, [GoodId.sword]: 2 });
-    const barracks = placeBuiltBuilding(world, BuildingTypeId.barracks, 0, 36, 30);
-    barracks.trainQueue = [{ unit: UnitTypeId.knight, started: false, ticksLeft: 0 }];
-    barracks.inputs = { [GoodId.food]: 3, [GoodId.sword]: 1 };
+    addStorehouse(world, 30, 30, {[GoodId.food]: 10, [GoodId.sword]: 2});
+    const barracks = placeBuiltBuilding(
+      world,
+      BuildingTypeId.barracks,
+      0,
+      36,
+      30,
+    );
+    barracks.trainQueue = [
+      {unit: UnitTypeId.knight, started: false, ticksLeft: 0},
+    ];
+    barracks.inputs = {[GoodId.food]: 3, [GoodId.sword]: 1};
     const serf = addSerf(world, 34, 30);
-    serf.task = { t: UnitTaskKind.staff, buildingId: barracks.id };
+    serf.task = {t: UnitTaskKind.staff, buildingId: barracks.id};
     strandFarAway(serf);
     tickWorld(world, []);
 

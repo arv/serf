@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { stoneRoad } from './palette';
+import {stoneRoad} from './palette';
 
 /** Stone courses across one texture repeat; a repeat spans two map tiles. */
 const COURSES = 8;
@@ -29,12 +29,25 @@ export function makeCobbleTexture(): THREE.Texture {
   const shade = new THREE.Color();
 
   /** One stone, drawn wrapped so the texture tiles seamlessly. */
-  const stone = (cx: number, cy: number, w: number, h: number, tone: number, r: number): void => {
+  const stone = (
+    cx: number,
+    cy: number,
+    w: number,
+    h: number,
+    tone: number,
+    r: number,
+  ): void => {
     for (const dx of [-SIZE, 0, SIZE]) {
       for (const dy of [-SIZE, 0, SIZE]) {
         const x = cx + dx;
         const y = cy + dy;
-        if (x + w < -cell || x > SIZE + cell || y + h < -cell || y > SIZE + cell) continue;
+        if (
+          x + w < -cell ||
+          x > SIZE + cell ||
+          y + h < -cell ||
+          y > SIZE + cell
+        )
+          continue;
         // Body.
         shade.copy(base).multiplyScalar(tone);
         ctx.fillStyle = `#${shade.getHexString()}`;
@@ -59,7 +72,8 @@ export function makeCobbleTexture(): THREE.Texture {
   for (let row = 0; row < COURSES; row++) {
     // Running bond: every other course starts half a stone over, and the
     // courses themselves drift a little so nothing lines up perfectly.
-    const offset = (row % 2 ? cell * 0.5 : 0) + (Math.random() - 0.5) * cell * 0.2;
+    const offset =
+      (row % 2 ? cell * 0.5 : 0) + (Math.random() - 0.5) * cell * 0.2;
     let x = offset - cell;
     while (x < SIZE + cell) {
       // Stone lengths vary; now and then two courses' worth of a long slab.

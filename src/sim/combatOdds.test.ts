@@ -1,5 +1,5 @@
-import type { Enum } from '../shared/enum.ts';
-import { describe, expect, it } from 'vitest';
+import {describe, expect, it} from 'vitest';
+import type {Enum} from '../shared/enum.ts';
 import {
   classHp,
   damagePerTick,
@@ -10,7 +10,7 @@ import {
   survivorsAfter,
   type Force,
 } from './combatOdds.ts';
-import { tallyClass } from './combatOdds.ts';
+import {tallyClass} from './combatOdds.ts';
 import * as UnitClass from './defs/unitClassEnum.ts';
 
 type UnitClass = Enum<typeof UnitClass>;
@@ -25,7 +25,7 @@ type UnitClass = Enum<typeof UnitClass>;
 
 /** A force of one class at full health. */
 function only(cls: UnitClass, n: number): Force {
-  const force: Force = { heavy: 0, light: 0, ranged: 0, hp: n * classHp(cls) };
+  const force: Force = {heavy: 0, light: 0, ranged: 0, hp: n * classHp(cls)};
   for (let i = 0; i < n; i++) tallyClass(force, cls);
   return force;
 }
@@ -46,20 +46,26 @@ describe('the military triangle, as the predictor sees it', () => {
   it('gives heavy the edge over light', () => {
     const knights = only(UnitClass.heavy, 7);
     const spearmen = only(UnitClass.light, 7);
-    expect(powerOf(knights, spearmen)).toBeGreaterThan(powerOf(spearmen, knights));
+    expect(powerOf(knights, spearmen)).toBeGreaterThan(
+      powerOf(spearmen, knights),
+    );
   });
 
   it('gives light the edge over ranged', () => {
     const spearmen = only(UnitClass.light, 7);
     const archers = only(UnitClass.ranged, 7);
-    expect(powerOf(spearmen, archers)).toBeGreaterThan(powerOf(archers, spearmen));
+    expect(powerOf(spearmen, archers)).toBeGreaterThan(
+      powerOf(archers, spearmen),
+    );
   });
 
   it('gives ranged the edge over heavy, thin hit points and all', () => {
     const archers = only(UnitClass.ranged, 7);
     const knights = only(UnitClass.heavy, 7);
     expect(archers.hp).toBeLessThan(knights.hp); // 245 vs 560 — the table has to carry this
-    expect(powerOf(archers, knights)).toBeGreaterThan(powerOf(knights, archers));
+    expect(powerOf(archers, knights)).toBeGreaterThan(
+      powerOf(knights, archers),
+    );
   });
 
   it('still lets numbers tell against a kiting force', () => {
@@ -116,7 +122,7 @@ describe('composition weighting', () => {
 
   it('reads a force with no soldiers as harmless', () => {
     const knights = only(UnitClass.heavy, 7);
-    const nobody: Force = { heavy: 0, light: 0, ranged: 0, hp: 0 };
+    const nobody: Force = {heavy: 0, light: 0, ranged: 0, hp: 0};
     expect(damagePerTick(nobody, knights)).toBe(0);
     expect(damagePerTick(knights, nobody)).toBe(0);
     expect(headcount(nobody)).toBe(0);
@@ -132,7 +138,7 @@ describe('shouldCommit', () => {
 
   it('commits against an undefended target rather than standing about', () => {
     const army = only(UnitClass.heavy, 3);
-    const nobody: Force = { heavy: 0, light: 0, ranged: 0, hp: 0 };
+    const nobody: Force = {heavy: 0, light: 0, ranged: 0, hp: 0};
     expect(shouldCommit(army, nobody, 90)).toBe(true);
   });
 
@@ -159,7 +165,9 @@ describe('shouldCommit', () => {
     // The whole reason the gate thresholds on survivors: power is quadratic,
     // so a 2:1 edge in bodies is 4:1 in power and no honest bar could be set
     // on it. As a surviving share the same fight lands somewhere sayable.
-    const share = survivingFraction(only(UnitClass.heavy, 14), only(UnitClass.heavy, 7)) * 100;
+    const share =
+      survivingFraction(only(UnitClass.heavy, 14), only(UnitClass.heavy, 7)) *
+      100;
     expect(share).toBeGreaterThan(80);
     expect(share).toBeLessThan(100);
   });
@@ -172,7 +180,11 @@ describe('shouldCommit', () => {
         const commit = shouldCommit(only(UnitClass.heavy, n), theirs, odds);
         // Once it commits at some size it must commit at every larger one.
         if (commit) sawCommit = true;
-        else expect(sawCommit, `odds ${odds} flipped back to refusing at ${n}`).toBe(false);
+        else
+          expect(
+            sawCommit,
+            `odds ${odds} flipped back to refusing at ${n}`,
+          ).toBe(false);
       }
     }
   });
@@ -180,7 +192,9 @@ describe('shouldCommit', () => {
 
 describe('survivorsAfter', () => {
   it('reports nothing standing when the fight is lost', () => {
-    expect(survivorsAfter(only(UnitClass.light, 7), only(UnitClass.heavy, 7))).toBe(0);
+    expect(
+      survivorsAfter(only(UnitClass.light, 7), only(UnitClass.heavy, 7)),
+    ).toBe(0);
   });
 
   it('reports fewer survivors than went in, and more from a bigger edge', () => {
@@ -194,7 +208,7 @@ describe('survivorsAfter', () => {
 
   it('leaves an unopposed force untouched', () => {
     const army = only(UnitClass.heavy, 5);
-    const nobody: Force = { heavy: 0, light: 0, ranged: 0, hp: 0 };
+    const nobody: Force = {heavy: 0, light: 0, ranged: 0, hp: 0};
     // No enemy hp means no damage dealt either way; the model has nothing to
     // chew, so it reports no survivors rather than inventing a number.
     expect(survivorsAfter(army, nobody)).toBe(0);

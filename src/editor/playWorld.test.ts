@@ -1,30 +1,39 @@
-import { describe, expect, it } from 'vitest';
-import { tileIdx } from '../shared/grid.ts';
-import { BANDIT } from '../sim/entities.ts';
-import { START_SERFS, START_STOCK } from '../sim/defs/balance.ts';
-import { recomputeBlocked } from '../sim/map.ts';
-import { deserializeWorld, serializeWorld } from '../sim/save.ts';
-import { tickWorld } from '../sim/tick.ts';
-import { checkInvariants } from '../sim/debug/invariants.ts';
-import { applyBrush } from './brush.ts';
-import { createBlankMap } from './editorMap.ts';
-import { worldFromEditor } from './playWorld.ts';
-import * as Terrain from '../sim/terrainEnum.ts';
-import * as TileResource from '../sim/tileResourceEnum.ts';
-import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {describe, expect, it} from 'vitest';
+import {tileIdx} from '../shared/grid.ts';
+import {checkInvariants} from '../sim/debug/invariants.ts';
+import {START_SERFS, START_STOCK} from '../sim/defs/balance.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import * as PlayerKind from '../sim/playerKindEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {BANDIT} from '../sim/entities.ts';
+import {recomputeBlocked} from '../sim/map.ts';
 import * as MatchState from '../sim/matchStateEnum.ts';
+import * as PlayerKind from '../sim/playerKindEnum.ts';
+import {deserializeWorld, serializeWorld} from '../sim/save.ts';
+import * as Terrain from '../sim/terrainEnum.ts';
+import {tickWorld} from '../sim/tick.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import {applyBrush} from './brush.ts';
+import {createBlankMap} from './editorMap.ts';
+import {worldFromEditor} from './playWorld.ts';
 
 function authoredState() {
   // play 64 -> grid 112, play region [24, 88).
-  const state = createBlankMap({ size: 64, players: 2 });
+  const state = createBlankMap({size: 64, players: 2});
   // A lake, a range, a grove and a seam — enough authored variety that the
   // world builder has something real to keep intact.
-  applyBrush(state, { kind: 'terrain', terrain: Terrain.Water }, 44, 72, { radius: 5, folds: 2 });
-  applyBrush(state, { kind: 'terrain', terrain: Terrain.Rock }, 82, 44, { radius: 3, folds: 2 });
-  applyBrush(state, { kind: 'resource', res: TileResource.Wood }, 58, 52, { radius: 3, folds: 2 });
-  applyBrush(state, { kind: 'resource', res: TileResource.IronDep }, 72, 72, {
+  applyBrush(state, {kind: 'terrain', terrain: Terrain.Water}, 44, 72, {
+    radius: 5,
+    folds: 2,
+  });
+  applyBrush(state, {kind: 'terrain', terrain: Terrain.Rock}, 82, 44, {
+    radius: 3,
+    folds: 2,
+  });
+  applyBrush(state, {kind: 'resource', res: TileResource.Wood}, 58, 52, {
+    radius: 3,
+    folds: 2,
+  });
+  applyBrush(state, {kind: 'resource', res: TileResource.IronDep}, 72, 72, {
     radius: 2,
     folds: 2,
   });
@@ -33,7 +42,7 @@ function authoredState() {
 
 const PLAY = {
   seed: 12345,
-  players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
+  players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
   banditsEnabled: true,
 };
 
@@ -42,17 +51,17 @@ describe('worldFromEditor', () => {
     const state = authoredState();
     const world = worldFromEditor(state, PLAY);
     const stores = [...world.buildings.values()].filter(
-      (b) => b.type === BuildingTypeId.storehouse,
+      b => b.type === BuildingTypeId.storehouse,
     );
     expect(stores).toHaveLength(2);
     for (let p = 0; p < 2; p++) {
-      const store = stores.find((b) => b.owner === p)!;
-      expect({ x: store.x, y: store.y }).toEqual(state.starts[p]);
+      const store = stores.find(b => b.owner === p)!;
+      expect({x: store.x, y: store.y}).toEqual(state.starts[p]);
       expect(store.stock).toEqual(START_STOCK);
       // The footprint owns its tiles.
-      expect(world.map.buildingAt[tileIdx(store.x + 1, store.y + 1, world.map.size)]).toBe(
-        store.id,
-      );
+      expect(
+        world.map.buildingAt[tileIdx(store.x + 1, store.y + 1, world.map.size)],
+      ).toBe(store.id);
     }
   });
 
@@ -60,22 +69,29 @@ describe('worldFromEditor', () => {
     const world = worldFromEditor(authoredState(), PLAY);
     const units = [...world.units.values()];
     for (let p = 0; p < 2; p++) {
-      expect(units.filter((u) => u.owner === p && u.kind === UnitTypeId.serf)).toHaveLength(
-        START_SERFS,
-      );
+      expect(
+        units.filter(u => u.owner === p && u.kind === UnitTypeId.serf),
+      ).toHaveLength(START_SERFS);
     }
-    const camp = [...world.buildings.values()].find((b) => b.type === BuildingTypeId.banditCamp);
+    const camp = [...world.buildings.values()].find(
+      b => b.type === BuildingTypeId.banditCamp,
+    );
     expect(camp).toBeDefined();
     expect(camp!.owner).toBe(BANDIT);
-    expect(units.filter((u) => u.owner === BANDIT)).toHaveLength(3);
+    expect(units.filter(u => u.owner === BANDIT)).toHaveLength(3);
   });
 
   it('honors the bandits toggle', () => {
-    const world = worldFromEditor(authoredState(), { ...PLAY, banditsEnabled: false });
-    expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.banditCamp)).toBe(
-      false,
-    );
-    expect([...world.units.values()].some((u) => u.owner === BANDIT)).toBe(false);
+    const world = worldFromEditor(authoredState(), {
+      ...PLAY,
+      banditsEnabled: false,
+    });
+    expect(
+      [...world.buildings.values()].some(
+        b => b.type === BuildingTypeId.banditCamp,
+      ),
+    ).toBe(false);
+    expect([...world.units.values()].some(u => u.owner === BANDIT)).toBe(false);
   });
 
   it('never mutates the editing session it came from', () => {
@@ -111,7 +127,10 @@ describe('worldFromEditor', () => {
 
   it('refuses a seat count that does not match the map', () => {
     expect(() =>
-      worldFromEditor(authoredState(), { ...PLAY, players: [{ kind: PlayerKind.human }] }),
+      worldFromEditor(authoredState(), {
+        ...PLAY,
+        players: [{kind: PlayerKind.human}],
+      }),
     ).toThrow(/seat/);
   });
 
@@ -120,7 +139,7 @@ describe('worldFromEditor', () => {
     // (the four corners, solo) and its whole 16-ring search is drowned.
     // Launching that with bandits on would win instantly — the victory
     // check reads "no camp stands" as "the camp fell" on tick one.
-    const state = createBlankMap({ size: 64, players: 1 });
+    const state = createBlankMap({size: 64, players: 1});
     const size = state.map.size;
     state.map.terrain.fill(Terrain.Water);
     state.map.height.fill(-0.8);
@@ -132,12 +151,18 @@ describe('worldFromEditor', () => {
       }
     }
     recomputeBlocked(state.map);
-    const solo = { seed: 7, players: [{ kind: PlayerKind.human }], banditsEnabled: true };
+    const solo = {
+      seed: 7,
+      players: [{kind: PlayerKind.human}],
+      banditsEnabled: true,
+    };
     expect(() => worldFromEditor(state, solo)).toThrow(/bandit camp/);
     // The same map is a fine peaceful sandbox.
-    const world = worldFromEditor(state, { ...solo, banditsEnabled: false });
-    expect([...world.buildings.values()].some((b) => b.type === BuildingTypeId.banditCamp)).toBe(
-      false,
-    );
+    const world = worldFromEditor(state, {...solo, banditsEnabled: false});
+    expect(
+      [...world.buildings.values()].some(
+        b => b.type === BuildingTypeId.banditCamp,
+      ),
+    ).toBe(false);
   });
 });

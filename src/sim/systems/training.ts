@@ -1,19 +1,19 @@
-import type { Enum } from '../../shared/enum.ts';
-import { buildingDef } from '../defs/buildings.ts';
-import { UNIT_DEFS } from '../defs/units.ts';
-import { getModifier, isUnitUnlocked } from '../techHelpers.ts';
-import { HIRE_SERF_TICKS, TRAIN_QUEUE_CAP } from '../defs/balance.ts';
-import { spawnUnit, type World } from '../world.ts';
-import { popCapOf, populationOf } from '../population.ts';
-import { findPath, nearestWalkable } from '../path.ts';
-import { tileX, tileY } from '../../shared/grid.ts';
-import { type GoodId, goodEntries } from '../defs/goods.ts';
-import type { Building } from '../entities.ts';
-import type { Unit } from '../units.ts';
-import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import type {Enum} from '../../shared/enum.ts';
+import {tileX, tileY} from '../../shared/grid.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
-import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import {HIRE_SERF_TICKS, TRAIN_QUEUE_CAP} from '../defs/balance.ts';
+import {buildingDef} from '../defs/buildings.ts';
+import {type GoodId, goodEntries} from '../defs/goods.ts';
 import * as ModifierKey from '../defs/modifierKeyEnum.ts';
+import {UNIT_DEFS} from '../defs/units.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import type {Building} from '../entities.ts';
+import {findPath, nearestWalkable} from '../path.ts';
+import {popCapOf, populationOf} from '../population.ts';
+import {getModifier, isUnitUnlocked} from '../techHelpers.ts';
+import type {Unit} from '../units.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import {spawnUnit, type World} from '../world.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -30,7 +30,7 @@ export function trainingSystem(world: World): void {
     if (!def.trains || !b.trainQueue || b.trainQueue.length === 0) continue;
 
     const head = b.trainQueue[0]!;
-    const option = def.trains.find((o) => o.unit === head.unit);
+    const option = def.trains.find(o => o.unit === head.unit);
     if (!option) {
       b.trainQueue.shift();
       continue;
@@ -43,7 +43,8 @@ export function trainingSystem(world: World): void {
       const door = doorOf(world, b);
       const unit = spawnUnit(world, head.unit, b.owner, door.x, door.y);
       unit.hp = Math.round(
-        UNIT_DEFS[head.unit].hp * getModifier(world, b.owner, ModifierKey.militaryHp),
+        UNIT_DEFS[head.unit].hp *
+          getModifier(world, b.owner, ModifierKey.militaryHp),
       );
       marchToRally(world, b, unit);
     }
@@ -78,7 +79,7 @@ function marchToRally(world: World, b: Building, unit: Unit): void {
   if (!path) return;
   unit.path = path;
   unit.pathIdx = 0;
-  unit.task = { t: UnitTaskKind.move };
+  unit.task = {t: UnitTaskKind.move};
 }
 
 /**
@@ -137,7 +138,8 @@ export function evictGarrison(world: World, b: Building, n: number): void {
       // Only for a garrison that never recorded a man (a save from before
       // garrisonHp) — otherwise what he walked in with stands.
       unit.hp = Math.round(
-        UNIT_DEFS[kind].hp * getModifier(world, b.owner, ModifierKey.militaryHp),
+        UNIT_DEFS[kind].hp *
+          getModifier(world, b.owner, ModifierKey.militaryHp),
       );
     }
     // The bow does not reload for free either: a man leaving a tower that has
@@ -167,7 +169,7 @@ export function trainingDemand(b: Building): Partial<Record<GoodId, number>> {
   if (!def.trains || !b.trainQueue) return need;
   for (const item of b.trainQueue) {
     if (item.started) continue;
-    const option = def.trains.find((o) => o.unit === item.unit);
+    const option = def.trains.find(o => o.unit === item.unit);
     if (!option) continue;
     for (const [good, n] of goodEntries(option.cost)) {
       need[good] = (need[good] ?? 0) + n;
@@ -176,14 +178,18 @@ export function trainingDemand(b: Building): Partial<Record<GoodId, number>> {
   return need;
 }
 
-export function enqueueTraining(world: World, b: Building, unit: UnitTypeId): void {
+export function enqueueTraining(
+  world: World,
+  b: Building,
+  unit: UnitTypeId,
+): void {
   const def = buildingDef(b.type);
-  const option = def.trains?.find((o) => o.unit === unit);
+  const option = def.trains?.find(o => o.unit === unit);
   if (!option || b.state !== BuildingState.built || b.dead) return;
   if (!isUnitUnlocked(world, b.owner, option.unit)) return;
   b.trainQueue ??= [];
   if (b.trainQueue.length >= TRAIN_QUEUE_CAP) return;
-  b.trainQueue.push({ unit: option.unit, ticksLeft: 0, started: false });
+  b.trainQueue.push({unit: option.unit, ticksLeft: 0, started: false});
 }
 
 /**
@@ -199,12 +205,17 @@ export function enqueueTraining(world: World, b: Building, unit: UnitTypeId): vo
  * recruit, and both walk back out — goods into the input buffer, the person
  * out the door as a serf. Only the training time already spent is lost.
  */
-export function cancelTraining(world: World, b: Building, index: number, unit: UnitTypeId): void {
+export function cancelTraining(
+  world: World,
+  b: Building,
+  index: number,
+  unit: UnitTypeId,
+): void {
   const item = b.trainQueue?.[index];
   if (!item || item.unit !== unit) return;
   b.trainQueue!.splice(index, 1);
   if (!item.started) return;
-  const option = buildingDef(b.type).trains?.find((o) => o.unit === item.unit);
+  const option = buildingDef(b.type).trains?.find(o => o.unit === item.unit);
   if (option) {
     for (const [good, n] of goodEntries(option.cost)) {
       b.inputs[good] = (b.inputs[good] ?? 0) + n;
@@ -215,9 +226,14 @@ export function cancelTraining(world: World, b: Building, index: number, unit: U
   spawnUnit(world, UnitTypeId.serf, b.owner, door.x, door.y);
 }
 
-export function doorOf(world: World, b: Building): { x: number; y: number } {
-  const idx = nearestWalkable(world.map, Math.floor(b.x + b.w / 2), b.y + b.h, 6);
+export function doorOf(world: World, b: Building): {x: number; y: number} {
+  const idx = nearestWalkable(
+    world.map,
+    Math.floor(b.x + b.w / 2),
+    b.y + b.h,
+    6,
+  );
   const size = world.map.size;
-  if (idx >= 0) return { x: tileX(idx, size) + 0.5, y: tileY(idx, size) + 0.5 };
-  return { x: b.x + b.w / 2, y: b.y + b.h + 0.5 };
+  if (idx >= 0) return {x: tileX(idx, size) + 0.5, y: tileY(idx, size) + 0.5};
+  return {x: b.x + b.w / 2, y: b.y + b.h + 0.5};
 }

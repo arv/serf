@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { HeightField } from '../render/heightField';
+import type {HeightField} from '../render/heightField';
 
 const ndc = new THREE.Vector3();
 const origin = new THREE.Vector3();
@@ -19,7 +19,11 @@ function groundT(
   py: number,
   heights?: HeightField,
 ): number {
-  ndc.set((px / canvas.clientWidth) * 2 - 1, -(py / canvas.clientHeight) * 2 + 1, -1);
+  ndc.set(
+    (px / canvas.clientWidth) * 2 - 1,
+    -(py / canvas.clientHeight) * 2 + 1,
+    -1,
+  );
   origin.copy(ndc).unproject(camera);
   ndc.z = 1;
   dir.copy(ndc).unproject(camera).sub(origin).normalize();
@@ -46,10 +50,10 @@ export function screenToGround(
   px: number,
   py: number,
   heights?: HeightField,
-): { x: number; z: number } | null {
+): {x: number; z: number} | null {
   const t = groundT(camera, canvas, px, py, heights);
   if (t < 0) return null;
-  return { x: origin.x + dir.x * t, z: origin.z + dir.z * t };
+  return {x: origin.x + dir.x * t, z: origin.z + dir.z * t};
 }
 
 /**
@@ -148,7 +152,10 @@ export function screenToBuilding(
     const x = origin.x + dir.x * t;
     const z = origin.z + dir.z * t;
     const id = probe.idAt(x, z);
-    if (id >= 0 && origin.y + dir.y * t <= probe.baseOf(id) + probe.heightOf(id) + HEADROOM) {
+    if (
+      id >= 0 &&
+      origin.y + dir.y * t <= probe.baseOf(id) + probe.heightOf(id) + HEADROOM
+    ) {
       return id;
     }
   }
@@ -165,10 +172,10 @@ export function worldToScreen(
   x: number,
   y: number,
   z: number,
-  out?: { x: number; y: number },
-): { x: number; y: number } {
+  out?: {x: number; y: number},
+): {x: number; y: number} {
   world.set(x, y, z).project(camera);
-  const o = out ?? { x: 0, y: 0 };
+  const o = out ?? {x: 0, y: 0};
   o.x = ((world.x + 1) / 2) * canvas.clientWidth;
   o.y = ((1 - world.y) / 2) * canvas.clientHeight;
   return o;

@@ -75,9 +75,12 @@ function isWholeCopy(entry: ModelCacheEntry, url: string): boolean {
  * what lets a caller skip the network entirely (and what wllama's own
  * `Model.validate` will agree with when it goes looking).
  */
-export async function hasWholeModel(cache: ModelCache, url: string): Promise<boolean> {
+export async function hasWholeModel(
+  cache: ModelCache,
+  url: string,
+): Promise<boolean> {
   const entries = await cache.list();
-  return entries.some((entry) => isWholeCopy(entry, url));
+  return entries.some(entry => isWholeCopy(entry, url));
 }
 
 /**
@@ -87,7 +90,10 @@ export async function hasWholeModel(cache: ModelCache, url: string): Promise<boo
  *
  * @returns how many entries were discarded, for the log line.
  */
-export async function discardPartialModel(cache: ModelCache, url: string): Promise<number> {
+export async function discardPartialModel(
+  cache: ModelCache,
+  url: string,
+): Promise<number> {
   // Two ways an entry can be this model's: it carries the URL (a finished
   // download), or it merely occupies the name derived from that URL (an
   // interrupted one, which carries nothing at all). The second is the case

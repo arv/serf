@@ -20,7 +20,10 @@
  * that is stricter about elements from another realm.
  */
 export function typingInto(target: EventTarget | null | undefined): boolean {
-  const el = target as { tagName?: unknown; isContentEditable?: unknown } | null | undefined;
+  const el = target as
+    | {tagName?: unknown; isContentEditable?: unknown}
+    | null
+    | undefined;
   if (!el || typeof el.tagName !== 'string') return false;
   if (el.isContentEditable === true) return true;
   const tag = el.tagName.toUpperCase();

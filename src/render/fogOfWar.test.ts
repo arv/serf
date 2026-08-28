@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { FogOfWar } from './fogOfWar';
-import type { PlayArea } from '../sim/map';
-import { tileIdx } from '../shared/grid';
+import {describe, expect, it} from 'vitest';
+import {tileIdx} from '../shared/grid';
+import type {PlayArea} from '../sim/map';
+import {FogOfWar} from './fogOfWar';
 
 /** Grid 8, play square [2, 6) — margin two tiles deep on every side. */
-const AREA: PlayArea = { size: 8, play: 4 };
+const AREA: PlayArea = {size: 8, play: 4};
 
 /** An explored grid with just these tiles seen. */
 function seeded(...tiles: [number, number][]): Uint8Array {

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { FootprintPlanner, MAX_PRINTS_PER_STEP, STRIDE } from './footprints';
+import {describe, expect, it} from 'vitest';
+import {FootprintPlanner, MAX_PRINTS_PER_STEP, STRIDE} from './footprints';
 
 interface Print {
   x: number;
@@ -16,7 +16,9 @@ function pass(
   const out: Print[] = [];
   planner.begin();
   for (const [id, x, y] of units) {
-    planner.advance(id, x, y, (x2, y2, yaw, side) => out.push({ x: x2, y: y2, yaw, side }));
+    planner.advance(id, x, y, (x2, y2, yaw, side) =>
+      out.push({x: x2, y: y2, yaw, side}),
+    );
   }
   planner.sweep();
   return out;
@@ -34,8 +36,9 @@ describe('footprint planner', () => {
     // March east far enough for exactly three strides.
     const prints = pass(planner, [[1, 10 + STRIDE * 3.2, 10]]);
     expect(prints).toHaveLength(3);
-    for (const [k, p] of prints.entries()) expect(p.x).toBeCloseTo(10 + STRIDE * (k + 1));
-    expect(prints.map((p) => p.side)).toEqual([1, -1, 1]);
+    for (const [k, p] of prints.entries())
+      expect(p.x).toBeCloseTo(10 + STRIDE * (k + 1));
+    expect(prints.map(p => p.side)).toEqual([1, -1, 1]);
     // Heading east: the same yaw convention the unit models turn by.
     for (const p of prints) expect(p.yaw).toBeCloseTo(Math.atan2(1, 0));
   });

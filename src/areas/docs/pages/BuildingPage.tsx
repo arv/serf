@@ -1,20 +1,28 @@
-import type { Enum } from '../../../shared/enum.ts';
-import { For, Show, type JSX } from 'solid-js';
-import { BUILDING_DEFS, TOOL_OF } from '../../../sim/defs/buildings';
-import { type GoodId, goodKeys } from '../../../sim/defs/goods';
-import { buildKey } from '../../../ui/buildMenu';
-import { buildingName, goodName, techName, unitName } from '../../../ui/names';
-import { buildingTechGates, fmtSecs } from '../data';
-import { BUILDING_DESC } from '../descriptions';
-import { CostList, DocLink, GoodChip, RecipeView, Section, Stat, Stats } from '../components';
-import { ModelCard } from '../preview/ModelCard';
-import { Prose } from '../prose';
-import { buildingHref, goodHref, techHref, unitHref } from '../routes';
+import {For, Show, type JSX} from 'solid-js';
+import type {Enum} from '../../../shared/enum.ts';
+import {BUILDING_DEFS, TOOL_OF} from '../../../sim/defs/buildings';
 import * as BuildingTypeId from '../../../sim/defs/buildingTypeIdEnum.ts';
+import {type GoodId, goodKeys} from '../../../sim/defs/goods';
+import {buildKey} from '../../../ui/buildMenu';
+import {buildingName, goodName, techName, unitName} from '../../../ui/names';
+import {
+  CostList,
+  DocLink,
+  GoodChip,
+  RecipeView,
+  Section,
+  Stat,
+  Stats,
+} from '../components';
+import {buildingTechGates, fmtSecs} from '../data';
+import {BUILDING_DESC} from '../descriptions';
+import {ModelCard} from '../preview/ModelCard';
+import {Prose} from '../prose';
+import {buildingHref, goodHref, techHref, unitHref} from '../routes';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
-export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
+export function BuildingPage(props: {id: BuildingTypeId}): JSX.Element {
   const def = BUILDING_DEFS[props.id];
   const tool = TOOL_OF[props.id];
   const gates = buildingTechGates(props.id);
@@ -52,21 +60,24 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
             <Stat label="Storage">holds the village’s whole stock</Stat>
           </Show>
           <Show when={def.repairCost}>
-            {(cost) => (
+            {cost => (
               <Stat label="Repairs billed against">
                 <CostList amounts={cost()} />
               </Stat>
             )}
           </Show>
           <Show when={def.nearWater}>
-            {(nw) => (
+            {nw => (
               <Stat label="Placement">
-                open water within {nw().radius} tile{nw().radius === 1 ? '' : 's'}
+                open water within {nw().radius} tile
+                {nw().radius === 1 ? '' : 's'}
               </Stat>
             )}
           </Show>
           <Show when={def.mine}>
-            <Stat label="Ground">dug into the hillside — exempt from flat ground</Stat>
+            <Stat label="Ground">
+              dug into the hillside — exempt from flat ground
+            </Stat>
           </Show>
           <Show when={hotkey !== ''}>
             <Stat label="Hotkey">B → {hotkey}</Stat>
@@ -79,8 +90,10 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
             <Show when={def.workerKind !== undefined}>
               <li>
                 Staffed by a{' '}
-                <DocLink href={unitHref(def.workerKind!)}>{unitName(def.workerKind!)}</DocLink> when
-                construction completes
+                <DocLink href={unitHref(def.workerKind!)}>
+                  {unitName(def.workerKind!)}
+                </DocLink>{' '}
+                when construction completes
               </li>
             </Show>
             <Show when={tool !== undefined}>
@@ -95,15 +108,16 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
         </Section>
       </Show>
       <Show when={def.recipe}>
-        {(recipe) => (
+        {recipe => (
           <Section title="Production">
             <p class="lede">
               <RecipeView recipe={recipe()} />
             </p>
             <Show when={def.drawTicks}>
-              {(ticks) => (
+              {ticks => (
                 <p class="lede">
-                  No keeper: whoever comes for a good spends {fmtSecs(ticks())} drawing it.
+                  No keeper: whoever comes for a good spends {fmtSecs(ticks())}{' '}
+                  drawing it.
                 </p>
               )}
             </Show>
@@ -111,7 +125,7 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
         )}
       </Show>
       <Show when={def.recipeOptions}>
-        {(options) => (
+        {options => (
           <Section title="Forge menu">
             <div class="scroll-x">
               <table>
@@ -124,20 +138,25 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
                 </thead>
                 <tbody>
                   <For each={options()}>
-                    {(opt) => {
+                    {opt => {
                       const output = goodKeys(opt.recipe.outputs)[0];
                       return (
                         <tr>
                           <td>
                             <Show when={output !== undefined} fallback="—">
-                              <DocLink href={goodHref(output!)}>{goodName(output!)}</DocLink>
+                              <DocLink href={goodHref(output!)}>
+                                {goodName(output!)}
+                              </DocLink>
                             </Show>
                           </td>
                           <td>
                             <RecipeView recipe={opt.recipe} />
                           </td>
                           <td>
-                            <Show when={opt.requiresTech !== undefined} fallback="—">
+                            <Show
+                              when={opt.requiresTech !== undefined}
+                              fallback="—"
+                            >
                               <DocLink href={techHref(opt.requiresTech!)}>
                                 {techName(opt.requiresTech!)}
                               </DocLink>
@@ -154,7 +173,7 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
         )}
       </Show>
       <Show when={def.trains}>
-        {(trains) => (
+        {trains => (
           <Section title="Training">
             <div class="scroll-x">
               <table>
@@ -167,10 +186,12 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
                 </thead>
                 <tbody>
                   <For each={trains()}>
-                    {(t) => (
+                    {t => (
                       <tr>
                         <td>
-                          <DocLink href={unitHref(t.unit)}>{unitName(t.unit)}</DocLink>
+                          <DocLink href={unitHref(t.unit)}>
+                            {unitName(t.unit)}
+                          </DocLink>
                         </td>
                         <td>
                           <CostList amounts={t.cost} />
@@ -186,19 +207,22 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
         )}
       </Show>
       <Show when={def.garrison}>
-        {(g) => (
+        {g => (
           <Section title="Garrison">
             <Stats>
               <Stat label="Holds">
                 up to {g().capacity}{' '}
-                <DocLink href={unitHref(g().unit)}>{unitName(g().unit)}s</DocLink>
+                <DocLink href={unitHref(g().unit)}>
+                  {unitName(g().unit)}s
+                </DocLink>
               </Stat>
               <Stat label="From the wall">
                 ×{g().damageMult} damage, +{g().rangeBonus} tiles of range
               </Stat>
               <Stat label="Levy">
-                {unitName(g().levy.unit)}s hold it until soldiers arrive: {g().levy.damage} damage
-                every {fmtSecs(g().levy.cooldownTicks)}, range {g().levy.range}
+                {unitName(g().levy.unit)}s hold it until soldiers arrive:{' '}
+                {g().levy.damage} damage every {fmtSecs(g().levy.cooldownTicks)}
+                , range {g().levy.range}
               </Stat>
             </Stats>
           </Section>
@@ -208,9 +232,11 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
         <Section title="Unlocked by">
           <ul class="refs">
             <For each={gates}>
-              {(tech) => (
+              {tech => (
                 <li>
-                  Needs <DocLink href={techHref(tech)}>{techName(tech)}</DocLink> researched
+                  Needs{' '}
+                  <DocLink href={techHref(tech)}>{techName(tech)}</DocLink>{' '}
+                  researched
                   {gates.length > 1 ? ' (any one suffices)' : ''}
                 </li>
               )}
@@ -222,7 +248,10 @@ export function BuildingPage(props: { id: BuildingTypeId }): JSX.Element {
         <Section title="Placement">
           <p class="lede">
             Never offered on the build ribbon —{' '}
-            {def.isRoad ? 'the Masonry road pass places it' : 'the world places it'}.
+            {def.isRoad
+              ? 'the Masonry road pass places it'
+              : 'the world places it'}
+            .
           </p>
         </Section>
       </Show>

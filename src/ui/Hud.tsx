@@ -1,16 +1,34 @@
-import type { Enum } from '../shared/enum.ts';
-import { For, Show, createEffect, createSignal, type JSX } from 'solid-js';
-import { BUILDING_DEFS, type BuildingTypeId } from '../sim/defs/buildings';
-import type { TechId } from '../sim/defs/techs';
-import type { UnitTypeId } from '../sim/defs/units';
-import type { AdminAction } from '../sim/commands';
-import { clearSeatStash } from '../net/lobbyClient';
-import { TechTreePanel } from './TechTreePanel';
-import { EconomyPanel } from './EconomyPanel';
-import { SelectionPanel } from './SelectionPanel';
-import { AdminPanel } from './AdminPanel';
-import { MissionPanel, continueTarget } from './MissionPanel';
-import { Minimap, type MinimapSource } from './Minimap';
+import {For, Show, createEffect, createSignal, type JSX} from 'solid-js';
+import {describeAdvice} from '../ai/insight';
+import * as LlmState from '../ai/llmStateEnum.ts';
+import {CHAT_ROLE_KEYS} from '../ai/prompt';
+import {CONSULT_OUTCOME_KEYS} from '../ai/strategist';
+import {goto} from '../app/router';
+import {latestSaveName} from '../app/saveStore';
+import {play} from '../audio/audio';
+import {hasKeyboard} from '../input/keyboard';
+import {clearSeatStash} from '../net/lobbyClient';
+import * as NetState from '../protocol/netStateEnum.ts';
+import type {Enum} from '../shared/enum.ts';
+import type {AdminAction} from '../sim/commands';
+import {BUILDING_DEFS, type BuildingTypeId} from '../sim/defs/buildings';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import {goodEntries} from '../sim/defs/goods';
+import type {TechId} from '../sim/defs/techs';
+import type {UnitTypeId} from '../sim/defs/units';
+import * as MatchState from '../sim/matchStateEnum.ts';
+import {AdminPanel} from './AdminPanel';
+import {COMPACT, NARROW, SHORT, useMedia} from './breakpoints';
+import {
+  BUILD_GROUPS,
+  buildAffordable,
+  buildKey,
+  buildTab,
+  buildUnlocked,
+} from './buildMenu';
+import {EconomyPanel} from './EconomyPanel';
+import {fullscreen} from './fullscreen';
+import * as HudPanel from './hudPanelEnum.ts';
 import {
   LedgerIcon,
   EyeIcon,
@@ -28,16 +46,12 @@ import {
   SpeakerOffIcon,
   SwordsIcon,
 } from './icons';
-import { BuildingTip, GoodTip, TextTip, TipWrap, TooltipLayer, tooltip } from './tooltip';
-import { buildingName, techName } from './names';
-import { BUILD_GROUPS, buildAffordable, buildKey, buildTab, buildUnlocked } from './buildMenu';
-import { Key } from './shortcut';
-import { hasKeyboard } from '../input/keyboard';
-import { COMPACT, NARROW, SHORT, useMedia } from './breakpoints';
-import { fullscreen } from './fullscreen';
-import { goto } from '../app/router';
-import { latestSaveName } from '../app/saveStore';
-import { describeAdvice } from '../ai/insight';
+import {Minimap, type MinimapSource} from './Minimap';
+import * as MinimapMode from './minimapModeEnum.ts';
+import {MissionPanel, continueTarget} from './MissionPanel';
+import {buildingName, techName} from './names';
+import {SelectionPanel} from './SelectionPanel';
+import {Key} from './shortcut';
 import {
   cheatsAllowed,
   bandArm,
@@ -84,23 +98,37 @@ import {
   volume,
   type OrderMode,
 } from './store';
-import { play } from '../audio/audio';
-import { goodEntries } from '../sim/defs/goods';
-import { CONSULT_OUTCOME_KEYS } from '../ai/strategist';
-import { CHAT_ROLE_KEYS } from '../ai/prompt';
-import * as GoodId from '../sim/defs/goodIdEnum.ts';
-import * as MatchState from '../sim/matchStateEnum.ts';
-import * as NetState from '../protocol/netStateEnum.ts';
-import * as HudPanel from './hudPanelEnum.ts';
-import * as MinimapMode from './minimapModeEnum.ts';
-import * as LlmState from '../ai/llmStateEnum.ts';
+import {TechTreePanel} from './TechTreePanel';
+import {
+  BuildingTip,
+  GoodTip,
+  TextTip,
+  TipWrap,
+  TooltipLayer,
+  tooltip,
+} from './tooltip';
 
 type GoodId = Enum<typeof GoodId>;
 
 const SPEEDS = [
-  { value: 0, icon: PauseIcon, label: 'Pause', hint: 'Orders you give still queue up.' },
-  { value: 1, icon: PlayIcon, label: 'Normal speed', hint: undefined as string | undefined },
-  { value: 3, icon: FastIcon, label: 'Fast forward', hint: 'Runs the village at 3× speed.' },
+  {
+    value: 0,
+    icon: PauseIcon,
+    label: 'Pause',
+    hint: 'Orders you give still queue up.',
+  },
+  {
+    value: 1,
+    icon: PlayIcon,
+    label: 'Normal speed',
+    hint: undefined as string | undefined,
+  },
+  {
+    value: 3,
+    icon: FastIcon,
+    label: 'Fast forward',
+    hint: 'Runs the village at 3× speed.',
+  },
 ];
 
 /** Replays get one speed beyond the live game's fastest: nobody is issuing
@@ -121,7 +149,13 @@ const REPLAY_SPEED = {
  * ~1174px of budget at 1440), and a strip that wraps pushes the whole
  * rail stack down the map.
  */
-const HUD_GOODS: GoodId[] = [GoodId.wood, GoodId.stone, GoodId.food, GoodId.iron, GoodId.silver];
+const HUD_GOODS: GoodId[] = [
+  GoodId.wood,
+  GoodId.stone,
+  GoodId.food,
+  GoodId.iron,
+  GoodId.silver,
+];
 
 export function Hud(props: {
   onSpeed: (speed: number) => void;
@@ -143,7 +177,11 @@ export function Hud(props: {
   onTogglePause: (buildingId: number, paused: boolean) => void;
   onSetRecipe: (buildingId: number, index: number) => void;
   onEnqueueForge: (buildingId: number, recipeIndex: number) => void;
-  onCancelForge: (buildingId: number, index: number, recipeIndex: number) => void;
+  onCancelForge: (
+    buildingId: number,
+    index: number,
+    recipeIndex: number,
+  ) => void;
   minimap: MinimapSource;
 }) {
   // The sim rejects admin commands in a match (world.admin.enabled is
@@ -152,7 +190,8 @@ export function Hud(props: {
   // Evaluated at mount, which is enough: runMatch sets netMode before it
   // mounts the HUD, so a networked match reads the gate closed however it
   // was entered.
-  const adminMode = cheatsAllowed() && new URLSearchParams(location.search).has('admin');
+  const adminMode =
+    cheatsAllowed() && new URLSearchParams(location.search).has('admin');
   // Mid-match, the menu is the only place to ask. The browser will not take
   // the request from anywhere but a gesture, and this button is one.
   const fs = fullscreen();
@@ -252,7 +291,7 @@ export function Hud(props: {
    */
   const DeselectButton = (): JSX.Element => (
     <button
-      classList={{ reserved: nothingSelected() }}
+      classList={{reserved: nothingSelected()}}
       aria-hidden={nothingSelected()}
       tabindex={nothingSelected() ? -1 : undefined}
       {...tooltip(() => (
@@ -281,8 +320,11 @@ export function Hud(props: {
    * and no pressed state on either, because the card standing open above
    * is the state.
    */
-  const BuildToggle = (props: { class: string }): JSX.Element => (
-    <button class={props.class + ' panel'} onClick={() => setBuildOpen(!buildOpen())}>
+  const BuildToggle = (props: {class: string}): JSX.Element => (
+    <button
+      class={props.class + ' panel'}
+      onClick={() => setBuildOpen(!buildOpen())}
+    >
       <MalletIcon /> <Key label="Build" k="B" />
       {/* Hidden by the CSS everywhere the strip's twin can appear, so the
           two never come out different widths — and the placing bar is
@@ -337,7 +379,7 @@ export function Hud(props: {
               aria-label="Map"
               classList={{
                 active: minimapOpen(),
-                alarm: toasts().some((t) => t.focus !== undefined),
+                alarm: toasts().some(t => t.focus !== undefined),
               }}
               {...tooltip(() => (
                 <TextTip
@@ -358,7 +400,7 @@ export function Hud(props: {
               drag. */}
           <Show when={!hasFinePointer()}>
             <button
-              classList={{ active: bandArm() }}
+              classList={{active: bandArm()}}
               {...tooltip(() => (
                 <TextTip
                   title="Band select"
@@ -414,7 +456,10 @@ export function Hud(props: {
       </Show>
       <For each={BUILD_GROUPS}>
         {(group, i) => (
-          <button classList={{ active: activeTab() === i() }} onClick={() => setActiveTab(i())}>
+          <button
+            classList={{active: activeTab() === i()}}
+            onClick={() => setActiveTab(i())}
+          >
             {group.label}
           </button>
         )}
@@ -422,8 +467,10 @@ export function Hud(props: {
     </div>
   );
   const cost = (type: BuildingTypeId) => goodEntries(BUILDING_DEFS[type].cost);
-  const affordable = (type: BuildingTypeId): boolean => buildAffordable(type, stock());
-  const unlocked = (type: BuildingTypeId): boolean => buildUnlocked(type, techs().researched);
+  const affordable = (type: BuildingTypeId): boolean =>
+    buildAffordable(type, stock());
+  const unlocked = (type: BuildingTypeId): boolean =>
+    buildUnlocked(type, techs().researched);
 
   // A building named from the keyboard has to bring its tab with it: the
   // chord can reach a mine while the Food tab is showing, and a placement
@@ -452,7 +499,8 @@ export function Hud(props: {
    * a one-time toast, not a standing shrug. */
   const llmBadge = (): string | null => {
     const s = llmStatus();
-    if (s?.state === LlmState.loading) return `Strategist: downloading ${s.pct}%`;
+    if (s?.state === LlmState.loading)
+      return `Strategist: downloading ${s.pct}%`;
     if (s?.state === LlmState.ready) return 'Strategist: on';
     return null;
   };
@@ -461,8 +509,8 @@ export function Hud(props: {
    * Traces run newest-first, so the first standing pile per seat wins.
    * Only the off-playbook lines: advice echoing the print changes nothing,
    * and a pile that is all echo reads "playing the playbook as printed". */
-  const llmPostures = (): { playerId: number; moved: string[] }[] => {
-    const out: { playerId: number; moved: string[] }[] = [];
+  const llmPostures = (): {playerId: number; moved: string[]}[] => {
+    const out: {playerId: number; moved: string[]}[] = [];
     const seen = new Set<number>();
     for (const t of llmTraces()) {
       if (!t.standing || seen.has(t.playerId)) continue;
@@ -470,17 +518,19 @@ export function Hud(props: {
       out.push({
         playerId: t.playerId,
         moved: describeAdvice(t.standing, t.knobs)
-          .filter((l) => l.moved)
-          .map((l) => l.text),
+          .filter(l => l.moved)
+          .map(l => l.text),
       });
     }
     return out.sort((a, b) => a.playerId - b.playerId);
   };
   /** The speed strip: replays add one gear past the live game's fastest. */
-  const speeds = (): typeof SPEEDS => (replayMode() ? [...SPEEDS, REPLAY_SPEED] : SPEEDS);
+  const speeds = (): typeof SPEEDS =>
+    replayMode() ? [...SPEEDS, REPLAY_SPEED] : SPEEDS;
   /** This seat has fallen while the match plays on (multiplayer). */
   const eliminated = (): boolean =>
-    outcome().state === MatchState.playing && playersMeta()[myPlayerId()]?.alive === false;
+    outcome().state === MatchState.playing &&
+    playersMeta()[myPlayerId()]?.alive === false;
   const [spectating, setSpectating] = createSignal(false);
   /** The outcome card was waved away to watch the world play on. */
   const [observing, setObserving] = createSignal(false);
@@ -496,11 +546,17 @@ export function Hud(props: {
    * decided match outranks transport news: "Defeat" is the story, a swept
    * room is plumbing.
    */
-  const endCard = (): 'outcome' | 'gone' | 'eliminated' | 'replayOver' | undefined => {
+  const endCard = ():
+    | 'outcome'
+    | 'gone'
+    | 'eliminated'
+    | 'replayOver'
+    | undefined => {
     // A replay's outcome was decided when it was recorded; the only card
     // playback owes is the one that says the recording has run out.
     if (replayMode()) return replayOver() ? 'replayOver' : undefined;
-    if (outcome().state === MatchState.over) return observing() ? undefined : 'outcome';
+    if (outcome().state === MatchState.over)
+      return observing() ? undefined : 'outcome';
     if (netMode() && netStatus()?.state === NetState.gone) return 'gone';
     if (eliminated() && !spectating()) return 'eliminated';
     return undefined;
@@ -1637,19 +1693,20 @@ export function Hud(props: {
         <div class="hud-resources">
           <div class="panel">
             <For each={HUD_GOODS}>
-              {(good) => (
+              {good => (
                 <span
                   class="res"
-                  classList={{ has: (stock()[good] ?? 0) > 0 }}
+                  classList={{has: (stock()[good] ?? 0) > 0}}
                   {...tooltip(() => <GoodTip good={good} />)}
                 >
-                  <GoodIcon good={good} /> <span class="num">{stock()[good] ?? 0}</span>
+                  <GoodIcon good={good} />{' '}
+                  <span class="num">{stock()[good] ?? 0}</span>
                 </span>
               )}
             </For>
             <span
               class="res pop has"
-              classList={{ full: population().pop >= population().cap }}
+              classList={{full: population().pop >= population().cap}}
               {...tooltip(() => (
                 <TextTip
                   title="Population"
@@ -1669,7 +1726,7 @@ export function Hud(props: {
               is not a good either, it is where the other twelve went. */}
             <button
               class="res ledger has"
-              classList={{ active: economyPanelOpen() }}
+              classList={{active: economyPanelOpen()}}
               {...tooltip(() => (
                 <TextTip
                   title="The Ledger"
@@ -1688,7 +1745,7 @@ export function Hud(props: {
           right-anchored row that pins the menu button to the corner
           and lets the chips beside it grow away into open sky. */}
           <Show when={!netMode() || netStatus()?.state === NetState.ok}>
-            <div class="hud-speed panel" classList={{ single: speedIsSingle() }}>
+            <div class="hud-speed panel" classList={{single: speedIsSingle()}}>
               <Show when={netMode() && netStatus()?.state === NetState.ok}>
                 <span
                   class="net-chip"
@@ -1699,7 +1756,11 @@ export function Hud(props: {
                     />
                   ))}
                 >
-                  ⇄ <span class="num">{(netStatus() as { rttMs: number }).rttMs}</span>ms
+                  ⇄{' '}
+                  <span class="num">
+                    {(netStatus() as {rttMs: number}).rttMs}
+                  </span>
+                  ms
                 </span>
               </Show>
               <Show when={!netMode()}>
@@ -1720,10 +1781,12 @@ export function Hud(props: {
                 behind the admin panel. Render-only: playback is unchanged. */}
                   <button
                     class="icon"
-                    classList={{ active: !fogEnabled() }}
+                    classList={{active: !fogEnabled()}}
                     {...tooltip(() => (
                       <TextTip
-                        title={fogEnabled() ? 'Reveal the valley' : 'Fog of war'}
+                        title={
+                          fogEnabled() ? 'Reveal the valley' : 'Fog of war'
+                        }
                         body={
                           (fogEnabled()
                             ? 'Turns fog of war off to watch the whole map, rivals and all.'
@@ -1742,11 +1805,13 @@ export function Hud(props: {
                   when={isCompact()}
                   fallback={
                     <For each={speeds()}>
-                      {(s) => (
+                      {s => (
                         <button
                           class="icon"
-                          classList={{ active: speed() === s.value }}
-                          {...tooltip(() => <TextTip title={s.label} body={s.hint} />)}
+                          classList={{active: speed() === s.value}}
+                          {...tooltip(() => (
+                            <TextTip title={s.label} body={s.hint} />
+                          ))}
                           onClick={() => props.onSpeed(s.value)}
                         >
                           <s.icon />
@@ -1760,21 +1825,28 @@ export function Hud(props: {
                 running normally. */}
                   <button
                     class="icon"
-                    classList={{ active: speed() !== 1 }}
+                    classList={{active: speed() !== 1}}
                     {...tooltip(() => (
                       <TextTip
-                        title={speeds().find((s) => s.value === speed())?.label ?? 'Speed'}
+                        title={
+                          speeds().find(s => s.value === speed())?.label ??
+                          'Speed'
+                        }
                         body="Taps cycle play, fast forward, pause."
                       />
                     ))}
                     onClick={() => {
-                      const order = replayMode() ? [1, 3, REPLAY_SPEED.value, 0] : [1, 3, 0];
-                      const next = order[(order.indexOf(speed()) + 1) % order.length]!;
+                      const order = replayMode()
+                        ? [1, 3, REPLAY_SPEED.value, 0]
+                        : [1, 3, 0];
+                      const next =
+                        order[(order.indexOf(speed()) + 1) % order.length]!;
                       props.onSpeed(next);
                     }}
                   >
                     {(() => {
-                      const s = speeds().find((x) => x.value === speed()) ?? SPEEDS[1]!;
+                      const s =
+                        speeds().find(x => x.value === speed()) ?? SPEEDS[1]!;
                       return <s.icon />;
                     })()}
                   </button>
@@ -1784,8 +1856,10 @@ export function Hud(props: {
           </Show>
           <button
             class="hud-menu-btn panel"
-            classList={{ active: menuOpen() }}
-            {...tooltip(() => <TextTip title="Menu" body="Save, load, or leave the village." />)}
+            classList={{active: menuOpen()}}
+            {...tooltip(() => (
+              <TextTip title="Menu" body="Save, load, or leave the village." />
+            ))}
             onClick={() => setMenuOpen(!menuOpen())}
           >
             ☰
@@ -1800,7 +1874,9 @@ export function Hud(props: {
           {/* Left rail: the standing account of who you are and how the
             machinery under the match is doing. */}
           <div class="hud-rail left">
-            <Show when={llmBadge()}>{(text) => <div class="hud-llm panel">{text()}</div>}</Show>
+            <Show when={llmBadge()}>
+              {text => <div class="hud-llm panel">{text()}</div>}
+            </Show>
             <MissionPanel onSpeed={props.onSpeed} />
           </div>
 
@@ -1810,7 +1886,7 @@ export function Hud(props: {
             be read and gone. */}
           <div class="hud-rail center">
             <Show when={techs().active}>
-              {(a) => (
+              {a => (
                 <button
                   class="research-chip panel"
                   {...tooltip(() => (
@@ -1823,14 +1899,18 @@ export function Hud(props: {
                 >
                   <span
                     class="fill"
-                    style={{ width: `${Math.round((1 - a().ticksLeft / a().totalTicks) * 100)}%` }}
+                    style={{
+                      width: `${Math.round((1 - a().ticksLeft / a().totalTicks) * 100)}%`,
+                    }}
                   />
                   <span class="label">⚗ {techName(a().tech)}</span>
                 </button>
               )}
             </Show>
             <Show when={techs().festivalTicksLeft > 0}>
-              <div class="hud-festival panel">Festival! Everyone works faster</div>
+              <div class="hud-festival panel">
+                Festival! Everyone works faster
+              </div>
             </Show>
             {/* Posts standing open for tools. In the rail, not the strip,
               for the research chip's reason: a want coming and going
@@ -1856,15 +1936,18 @@ export function Hud(props: {
                 </For>
               </button>
             </Show>
-            <Show when={netMode() && netStatus()?.state === NetState.disconnected}>
+            <Show
+              when={netMode() && netStatus()?.state === NetState.disconnected}
+            >
               <div class="hud-nettrouble panel">
-                Connection to the server lost. Reconnecting… — your seat is held, and the match
-                rides out even a server restart.
+                Connection to the server lost. Reconnecting… — your seat is
+                held, and the match rides out even a server restart.
               </div>
             </Show>
             <Show when={invariantViolations().length > 0}>
               <div class="hud-violations panel">
-                {invariantViolations().length} invariant violation(s) — see console
+                {invariantViolations().length} invariant violation(s) — see
+                console
               </div>
             </Show>
           </div>
@@ -1874,10 +1957,10 @@ export function Hud(props: {
           <div class="hud-rail right">
             <div class="hud-toasts">
               <For each={toasts()}>
-                {(t) => (
+                {t => (
                   <div
                     class="panel toast"
-                    classList={{ clickable: !!t.focus }}
+                    classList={{clickable: !!t.focus}}
                     onClick={() => {
                       if (!t.focus) return;
                       props.onFocus(t.focus.x, t.focus.y);
@@ -1904,29 +1987,36 @@ export function Hud(props: {
                       English, diffed against the playbook print. The entries
                       below are the history of how it got there. */}
                     <For each={llmPostures()}>
-                      {(p) => (
+                      {p => (
                         <div class="posture">
                           <b>seat {p.playerId} posture</b>
                           <For
                             each={p.moved}
-                            fallback={<div class="held">playing the playbook as printed</div>}
+                            fallback={
+                              <div class="held">
+                                playing the playbook as printed
+                              </div>
+                            }
                           >
-                            {(line) => <div>{line}</div>}
+                            {line => <div>{line}</div>}
                           </For>
                           <Show when={p.moved.length > 0}>
-                            <div class="held">everything else per the playbook</div>
+                            <div class="held">
+                              everything else per the playbook
+                            </div>
                           </Show>
                         </div>
                       )}
                     </For>
                     <For each={llmTraces()}>
-                      {(t) => (
+                      {t => (
                         <details>
                           <summary>
                             <span class={CONSULT_OUTCOME_KEYS[t.outcome]}>
                               {CONSULT_OUTCOME_KEYS[t.outcome]}
                             </span>{' '}
-                            · seat {t.playerId} · min {t.minutes} · {(t.ms / 1000).toFixed(1)}s
+                            · seat {t.playerId} · min {t.minutes} ·{' '}
+                            {(t.ms / 1000).toFixed(1)}s
                             {t.advice?.reason ? ` — ${t.advice.reason}` : ''}
                           </summary>
                           <Show when={t.error}>
@@ -1937,11 +2027,14 @@ export function Hud(props: {
                             print back on every reply, so the echoes collapse
                             to a count — the reply below has them verbatim. */}
                           <Show when={t.advice}>
-                            {(advice) => {
-                              const lines = () => describeAdvice(advice(), t.knobs);
-                              const moved = () => lines().filter((l) => l.moved);
-                              const held = () => lines().length - moved().length;
-                              const knobs = (n: number): string => `${n} knob${n === 1 ? '' : 's'}`;
+                            {advice => {
+                              const lines = () =>
+                                describeAdvice(advice(), t.knobs);
+                              const moved = () => lines().filter(l => l.moved);
+                              const held = () =>
+                                lines().length - moved().length;
+                              const knobs = (n: number): string =>
+                                `${n} knob${n === 1 ? '' : 's'}`;
                               return (
                                 <div class="knobs">
                                   <For
@@ -1954,10 +2047,12 @@ export function Hud(props: {
                                       </div>
                                     }
                                   >
-                                    {(line) => <div>{line.text}</div>}
+                                    {line => <div>{line.text}</div>}
                                   </For>
                                   <Show when={moved().length > 0 && held() > 0}>
-                                    <div class="held">+ {knobs(held())} echoing the playbook</div>
+                                    <div class="held">
+                                      + {knobs(held())} echoing the playbook
+                                    </div>
                                   </Show>
                                 </div>
                               );
@@ -1967,7 +2062,7 @@ export function Hud(props: {
                           <details>
                             <summary>prompt</summary>
                             <For each={t.messages}>
-                              {(m) => (
+                              {m => (
                                 <pre>
                                   [{CHAT_ROLE_KEYS[m.role]}] {m.content}
                                 </pre>
@@ -1994,7 +2089,7 @@ export function Hud(props: {
                   </thead>
                   <tbody>
                     <For each={debugJobs()}>
-                      {(j) => (
+                      {j => (
                         <tr>
                           <td>{j.id}</td>
                           <td>{j.good}</td>
@@ -2062,7 +2157,7 @@ export function Hud(props: {
                     // since takes the running match down to the fatal card.
                     // One OPFS read is nothing beside the world about to be
                     // read off it.
-                    void latestSaveName().then((name) => {
+                    void latestSaveName().then(name => {
                       setLastSave(name);
                       if (name === null) return;
                       // The save's name is the whole address, like a
@@ -2071,7 +2166,7 @@ export function Hud(props: {
                       // because loading the save this match already booted
                       // from is the same URL, and the router would otherwise
                       // call it the screen it is already on.
-                      goto('?load=' + encodeURIComponent(name), { force: true });
+                      goto('?load=' + encodeURIComponent(name), {force: true});
                     });
                   }}
                 >
@@ -2112,7 +2207,7 @@ export function Hud(props: {
                   value={volume()}
                   disabled={muted()}
                   aria-label="Sound volume"
-                  onInput={(e) => setVolumePref(Number(e.currentTarget.value))}
+                  onInput={e => setVolumePref(Number(e.currentTarget.value))}
                   onChange={() => play('uiClick')}
                 />
               </div>
@@ -2145,10 +2240,11 @@ export function Hud(props: {
         </Show>
 
         <Show when={hasThumb() && !replayMode() && placing()}>
-          {(type) => (
+          {type => (
             <div class="hud-placing panel">
               <span class="what">
-                <MalletIcon /> Tap the map to place <b>{buildingName(type())}</b>
+                <MalletIcon /> Tap the map to place{' '}
+                <b>{buildingName(type())}</b>
               </span>
               <button class="cancel" onClick={() => place(null)}>
                 ✕ Cancel{hasKeyboard() ? ' (Esc)' : ''}
@@ -2176,8 +2272,12 @@ export function Hud(props: {
               the time they are dispatched. Waiting for the click leaves
               the scrim standing until every event of that tap has been
               delivered to it. */}
-          <div class="build-scrim" aria-hidden="true" onClick={() => setBuildOpen(false)} />
-          <div class="hud-build panel" classList={{ chording: buildChord() }}>
+          <div
+            class="build-scrim"
+            aria-hidden="true"
+            onClick={() => setBuildOpen(false)}
+          />
+          <div class="hud-build panel" classList={{chording: buildChord()}}>
             {/* The card's own name, which it never needed until it had a
                 shortcut to teach. Keyboard only — with nothing to press,
                 a header saying "Build" over the build card is furniture. */}
@@ -2189,7 +2289,9 @@ export function Hud(props: {
                 <span>
                   <Key label="Build" k="B" />
                 </span>
-                <span class="chord-hint">{buildChord() ? 'now a letter…' : 'then a letter'}</span>
+                <span class="chord-hint">
+                  {buildChord() ? 'now a letter…' : 'then a letter'}
+                </span>
               </div>
             </Show>
             {/* Head of the card on a desktop, foot of the sheet on a
@@ -2199,18 +2301,19 @@ export function Hud(props: {
             </Show>
             <div class="hud-items">
               <For each={BUILD_GROUPS[activeTab()]!.types}>
-                {(type) => (
+                {type => (
                   <TipWrap tip={() => <BuildingTip type={type} />}>
                     <Show
                       when={unlocked(type)}
                       fallback={
                         <button disabled>
-                          <LockIcon /> <Key label={buildingName(type)} k={buildKey(type)} />
+                          <LockIcon />{' '}
+                          <Key label={buildingName(type)} k={buildKey(type)} />
                         </button>
                       }
                     >
                       <button
-                        classList={{ active: placing() === type }}
+                        classList={{active: placing() === type}}
                         disabled={!affordable(type) && placing() !== type}
                         onClick={() => place(placing() === type ? null : type)}
                       >
@@ -2280,7 +2383,11 @@ export function Hud(props: {
           the build sheet's: click only, so the map under a departing
           scrim never receives half a tap. */}
       <Show when={isCompact() && minimapOpen()}>
-        <div class="minimap-scrim" aria-hidden="true" onClick={() => setMinimapOpen(false)} />
+        <div
+          class="minimap-scrim"
+          aria-hidden="true"
+          onClick={() => setMinimapOpen(false)}
+        />
         <div class="hud-minimap-sheet panel">
           <Minimap
             source={props.minimap}
@@ -2302,10 +2409,13 @@ export function Hud(props: {
           <div class="panel end-card">
             <h1>The match is gone</h1>
             <p>
-              The server no longer knows this match. A room stands for a few minutes after its last
-              player leaves, then winds down — and this one wound down. It can't be resumed.
+              The server no longer knows this match. A room stands for a few
+              minutes after its last player leaves, then winds down — and this
+              one wound down. It can't be resumed.
             </p>
-            <button onClick={() => goto(location.pathname)}>Back to the menu</button>
+            <button onClick={() => goto(location.pathname)}>
+              Back to the menu
+            </button>
           </div>
         </div>
       </Show>
@@ -2315,8 +2425,8 @@ export function Hud(props: {
           <div class="panel end-card">
             <h1>Defeat</h1>
             <p>
-              Your castle has fallen and the village scatters — but the battle for the valley rages
-              on without you.
+              Your castle has fallen and the village scatters — but the battle
+              for the valley rages on without you.
             </p>
             <button onClick={() => setSpectating(true)}>Watch the rest</button>
             <button onClick={() => setQuitConfirm(true)}>Quit to menu</button>
@@ -2338,7 +2448,7 @@ export function Hud(props: {
                 : 'The storehouse has fallen. The village scatters to the winds.'}
             </p>
             <Show when={won() ? continueTarget() : undefined}>
-              {(next) => (
+              {next => (
                 <button
                   onClick={() => {
                     sessionStorage.removeItem('serf-load-pending');
@@ -2363,7 +2473,7 @@ export function Hud(props: {
                 } else {
                   // This very URL, from the top — the one navigation that
                   // means "again" rather than "elsewhere".
-                  goto(location.search, { force: true });
+                  goto(location.search, {force: true});
                 }
               }}
             >
@@ -2374,7 +2484,9 @@ export function Hud(props: {
                 a multiplayer loss already has its own spectator path, and
                 a won room is winding down. */}
             <Show when={!netMode()}>
-              <button onClick={() => setObserving(true)}>Observe the rest</button>
+              <button onClick={() => setObserving(true)}>
+                Observe the rest
+              </button>
             </Show>
             {/* The recording runs from boot to this moment; saving names
                 it by the clock and files it for the menu's Replays shelf.
@@ -2388,7 +2500,9 @@ export function Hud(props: {
                 there is nothing left to abandon — the only thing this
                 card holds that the menu doesn't is the unsaved replay,
                 and its button sits right here. */}
-            <button onClick={() => goto(location.pathname)}>Quit to menu</button>
+            <button onClick={() => goto(location.pathname)}>
+              Quit to menu
+            </button>
           </div>
         </div>
       </Show>
@@ -2398,8 +2512,12 @@ export function Hud(props: {
           <div class="panel end-card">
             <h1>Replay over</h1>
             <p>The recording ends here.</p>
-            <button onClick={() => goto(location.search, { force: true })}>Watch again</button>
-            <button onClick={() => goto(location.pathname)}>Back to the menu</button>
+            <button onClick={() => goto(location.search, {force: true})}>
+              Watch again
+            </button>
+            <button onClick={() => goto(location.pathname)}>
+              Back to the menu
+            </button>
           </div>
         </div>
       </Show>
@@ -2411,7 +2529,7 @@ export function Hud(props: {
           // A <dialog> in the DOM is merely closed; modality is asked for.
           // Deferred a tick because refs run before Solid puts the element
           // in the document, and showModal() on a detached dialog throws.
-          ref={(el) => queueMicrotask(() => el.isConnected && el.showModal())}
+          ref={el => queueMicrotask(() => el.isConnected && el.showModal())}
           // Esc lands in controls.ts first (keydown outruns the browser's
           // cancel) and unmounts the card; this catches any close the game
           // did not order, so the signal never says open over a closed

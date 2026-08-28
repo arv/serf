@@ -1,10 +1,15 @@
-import { Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js';
-import { render } from 'solid-js/web';
-import { MENU_STYLE } from './menuChrome';
-import { StartMenu, rememberedMode, type StartState } from './StartMenu';
-import { WarCouncil, type CouncilHooks } from './WarCouncil';
-import { relayUrl, runLobby, type CouncilRequest, type LobbyResult } from '../net/lobbyClient';
-import { releaseMenuBackdrop, startMenuBackdrop } from './menuBackdrop';
+import {Show, createEffect, createSignal, onCleanup, onMount} from 'solid-js';
+import {render} from 'solid-js/web';
+import {
+  relayUrl,
+  runLobby,
+  type CouncilRequest,
+  type LobbyResult,
+} from '../net/lobbyClient';
+import {releaseMenuBackdrop, startMenuBackdrop} from './menuBackdrop';
+import {MENU_STYLE} from './menuChrome';
+import {StartMenu, rememberedMode, type StartState} from './StartMenu';
+import {WarCouncil, type CouncilHooks} from './WarCouncil';
 
 /**
  * The pre-boot shell: one page, two screens. The start screen and the War
@@ -38,7 +43,9 @@ export type MenuEntry = CouncilRequest | null;
 /** The start-screen pane a room belongs to: hosting one came from Host,
  * everything else from the room browser. */
 function paneFor(req: CouncilRequest | null): StartState | null {
-  return req === null ? null : { mode: 'multi', mp: req.mp === 'new' ? 'host' : 'join' };
+  return req === null
+    ? null
+    : {mode: 'multi', mp: req.mp === 'new' ? 'host' : 'join'};
 }
 
 /**
@@ -61,8 +68,10 @@ function setRoomInUrl(code: string | null): void {
   history.replaceState(null, '', query ? `?${query}` : location.pathname);
 }
 
-function MenuApp(props: { entry: MenuEntry; host: MenuHost }) {
-  const [council, setCouncil] = createSignal<CouncilRequest | null>(props.entry);
+function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
+  const [council, setCouncil] = createSignal<CouncilRequest | null>(
+    props.entry,
+  );
   // Set by runLobby the moment it has something to show. A stashed rejoin
   // never presents, which is what keeps a mid-match reload from flashing
   // the lobby — and, below, from paying for a backdrop it will not use.
@@ -72,7 +81,7 @@ function MenuApp(props: { entry: MenuEntry; host: MenuHost }) {
   // someone who arrived on an invite link and never saw the menu, who
   // belongs in the browser next to the room they just declined.
   const [resume, setResume] = createSignal<StartState>(
-    paneFor(props.entry) ?? { mode: rememberedMode(), mp: 'host' },
+    paneFor(props.entry) ?? {mode: rememberedMode(), mp: 'host'},
   );
 
   /** Is either screen actually on the glass? */
@@ -137,7 +146,9 @@ function MenuApp(props: { entry: MenuEntry; host: MenuHost }) {
     if (canvas) return;
     canvas = document.createElement('canvas');
     canvas.id = 'menu-canvas';
-    document.getElementById('canvas')!.insertAdjacentElement('afterend', canvas);
+    document
+      .getElementById('canvas')!
+      .insertAdjacentElement('afterend', canvas);
     void startMenuBackdrop(canvas).catch((err: unknown) => {
       console.warn('[menu] no live backdrop:', err);
     });
@@ -184,7 +195,7 @@ function MenuApp(props: { entry: MenuEntry; host: MenuHost }) {
         keyed
         fallback={<StartMenu start={resume()} onCouncil={enterCouncil} />}
       >
-        {(req) => (
+        {req => (
           <Council
             req={req}
             host={props.host}
@@ -218,13 +229,14 @@ function Council(props: {
       },
       onLeave: () => props.onLeave(),
     }).then(
-      (lobby) => {
+      lobby => {
         // The shell goes first: the match needs the canvas, the context and
         // the pointer events the menu is holding.
         unmountMenu();
         props.host.onBegin(lobby);
       },
-      (err: unknown) => props.host.onError(err instanceof Error ? err.message : String(err)),
+      (err: unknown) =>
+        props.host.onError(err instanceof Error ? err.message : String(err)),
     );
   });
 
@@ -233,7 +245,7 @@ function Council(props: {
   // back is a different room with a different view behind it.
   return (
     <Show when={props.hooks()} keyed>
-      {(hooks) => <WarCouncil {...hooks} />}
+      {hooks => <WarCouncil {...hooks} />}
     </Show>
   );
 }

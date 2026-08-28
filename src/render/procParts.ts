@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { wood, woodLight } from './palette';
-import type { PropFactory } from './assets';
+import type {PropFactory} from './assets';
+import {wood, woodLight} from './palette';
 
 /**
  * Hand-built dressing for buildings the KayKit pack has no model of.
@@ -15,7 +15,7 @@ import type { PropFactory } from './assets';
  */
 
 function part(geo: THREE.BufferGeometry, color: number): THREE.Mesh {
-  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
+  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({color}));
   m.castShadow = true;
   m.receiveShadow = true;
   return m;
@@ -33,14 +33,20 @@ export function makeFish(len = 0.2): THREE.Group {
   body.scale.set(1, 0.56, 0.4);
   g.add(body);
 
-  const tail = part(new THREE.ConeGeometry(len * 0.24, len * 0.28, 4), 0x8aa7b5);
+  const tail = part(
+    new THREE.ConeGeometry(len * 0.24, len * 0.28, 4),
+    0x8aa7b5,
+  );
   tail.rotation.z = Math.PI / 2;
   tail.scale.set(1, 1, 0.55);
   tail.position.x = -len * 0.56;
   g.add(tail);
 
   for (const sz of [-1, 1]) {
-    const fin = part(new THREE.ConeGeometry(len * 0.13, len * 0.16, 3), 0x6f8894);
+    const fin = part(
+      new THREE.ConeGeometry(len * 0.13, len * 0.16, 3),
+      0x6f8894,
+    );
     fin.rotation.x = (sz * Math.PI) / 2;
     fin.position.set(-len * 0.05, 0, sz * len * 0.06);
     g.add(fin);
@@ -69,11 +75,17 @@ export function makeFishSign(len = 0.32, prop?: PropFactory): THREE.Group {
   const g = new THREE.Group();
   // Short post: the fish is a roof ornament, not a mast. Standing it high
   // reads as a weathervane on a pole and takes the eye off the building.
-  const post = part(new THREE.CylinderGeometry(len * 0.06, len * 0.08, len * 0.42, 6), wood);
+  const post = part(
+    new THREE.CylinderGeometry(len * 0.06, len * 0.08, len * 0.42, 6),
+    wood,
+  );
   post.position.y = len * 0.21;
   g.add(post);
 
-  const collar = part(new THREE.BoxGeometry(len * 0.16, len * 0.06, len * 0.16), woodLight);
+  const collar = part(
+    new THREE.BoxGeometry(len * 0.16, len * 0.06, len * 0.16),
+    woodLight,
+  );
   collar.position.y = len * 0.42;
   g.add(collar);
 
@@ -100,10 +112,16 @@ export function makeFishSign(len = 0.32, prop?: PropFactory): THREE.Group {
 export function makeShoal(prop: PropFactory): THREE.Group {
   const g = new THREE.Group();
   g.name = 'fisheryShoal';
-  const paths: { r: number; phase: number; speed: number; y: number; len: number }[] = [
-    { r: 0.2, phase: 0, speed: 0.55, y: 0, len: 0.15 },
-    { r: 0.3, phase: 2.3, speed: -0.42, y: -0.015, len: 0.13 },
-    { r: 0.13, phase: 4.1, speed: 0.7, y: 0.01, len: 0.11 },
+  const paths: {
+    r: number;
+    phase: number;
+    speed: number;
+    y: number;
+    len: number;
+  }[] = [
+    {r: 0.2, phase: 0, speed: 0.55, y: 0, len: 0.15},
+    {r: 0.3, phase: 2.3, speed: -0.42, y: -0.015, len: 0.13},
+    {r: 0.13, phase: 4.1, speed: 0.7, y: 0.01, len: 0.11},
   ];
   for (const p of paths) {
     const fish = prop('fish/fish', p.len);

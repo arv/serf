@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { PieceFactory } from './assets';
+import type {PieceFactory} from './assets';
 
 /**
  * Whole buildings we model ourselves, for slots no KayKit pack has a model
@@ -73,30 +73,30 @@ interface Paint {
  */
 const KAY = {
   /** House masonry: the dark half of the grey ramp. */
-  stone: { cell: [0, 2], from: 0.54, to: 0.92 },
+  stone: {cell: [0, 2], from: 0.54, to: 0.92},
   /** The corner footings, a step lighter so they read as separate stones. */
-  stonePale: { cell: [0, 2], from: 0.4, to: 0.72 },
+  stonePale: {cell: [0, 2], from: 0.4, to: 0.72},
   /** The oven mass: the light half of the same ramp. It used to be a warm
    * limestone, which is what made it read as a different pack's asset —
    * the two masses have to part on value, not on hue. */
-  oven: { cell: [0, 2], from: 0.3, to: 0.68 },
+  oven: {cell: [0, 2], from: 0.3, to: 0.68},
   /** Its copings, banding back into the dark half. */
-  ovenDark: { cell: [0, 2], from: 0.6, to: 0.86 },
-  slate: { cell: [0, 3], from: 0.3, to: 0.72 },
+  ovenDark: {cell: [0, 2], from: 0.6, to: 0.86},
+  slate: {cell: [0, 3], from: 0.3, to: 0.72},
   /** The void behind an opening. */
-  shadow: { cell: [0, 3], from: 0.55, to: 0.9 },
+  shadow: {cell: [0, 3], from: 0.55, to: 0.9},
   /** The dominant timber. */
-  timber: { cell: [0, 6], from: 0.22, to: 0.8 },
+  timber: {cell: [0, 6], from: 0.22, to: 0.8},
   /** The lighter timber, which the pack spends sparingly. */
-  timberLight: { cell: [0, 5], from: 0.25, to: 0.7 },
+  timberLight: {cell: [0, 5], from: 0.25, to: 0.7},
   /** Plaster panels. */
-  plaster: { cell: [0, 1], from: 0.3, to: 0.72 },
+  plaster: {cell: [0, 1], from: 0.3, to: 0.72},
   /** The roof. Cell (3,3) is the slot splitTeamColorGroups repaints per
    * owner, and 0.34..0.86 is the slice home_A's own roof takes. */
-  roof: { cell: [3, 3], from: 0.34, to: 0.86 },
-  ember: { cell: [3, 4], from: 0.2, to: 0.6 },
-  loaf: { cell: [1, 3], from: 0.2, to: 0.7 },
-  flour: { cell: [1, 5], from: 0.2, to: 0.6 },
+  roof: {cell: [3, 3], from: 0.34, to: 0.86},
+  ember: {cell: [3, 4], from: 0.2, to: 0.6},
+  loaf: {cell: [1, 3], from: 0.2, to: 0.7},
+  flour: {cell: [1, 5], from: 0.2, to: 0.6},
 } as const satisfies Record<string, Paint>;
 
 /**
@@ -114,7 +114,7 @@ let atlas: THREE.Material | null = null;
  * flat white; that is the honest look for "the pack is not here", and
  * loadGlbAssets turns a real failure into a visible error anyway.
  */
-const fallback = new THREE.MeshStandardMaterial({ metalness: 0, roughness: 0.5 });
+const fallback = new THREE.MeshStandardMaterial({metalness: 0, roughness: 0.5});
 
 function mesh(geo: THREE.BufferGeometry, paint: Paint): THREE.Mesh {
   const m = new THREE.Mesh(geo, atlas ?? fallback);
@@ -134,7 +134,7 @@ function box(
   x: number,
   y: number,
   z: number,
-  rot?: { x?: number; y?: number; z?: number },
+  rot?: {x?: number; y?: number; z?: number},
 ): THREE.Mesh {
   const m = mesh(new THREE.BoxGeometry(w, h, d), paint);
   m.position.set(x, y, z);
@@ -162,7 +162,7 @@ function box(
 function applyRamps(root: THREE.Object3D): void {
   root.updateMatrixWorld(true);
   const v = new THREE.Vector3();
-  root.traverse((o) => {
+  root.traverse(o => {
     if (!(o instanceof THREE.Mesh)) return;
     const paint = o.userData.paint as Paint | undefined;
     if (!paint) return; // a pack piece, already carrying its own UVs
@@ -205,12 +205,24 @@ function applyRamps(root: THREE.Object3D): void {
  * way at any zoom. Eight corners and twelve triangles, which is cheaper
  * than the box it replaces was going to be anyway.
  */
-function frustumGeo(wb: number, db: number, wt: number, dt: number, h: number): THREE.BufferGeometry {
+function frustumGeo(
+  wb: number,
+  db: number,
+  wt: number,
+  dt: number,
+  h: number,
+): THREE.BufferGeometry {
   const b = [wb / 2, db / 2];
   const t = [wt / 2, dt / 2];
   const v = [
-    [-b[0]!, 0, b[1]!], [b[0]!, 0, b[1]!], [b[0]!, 0, -b[1]!], [-b[0]!, 0, -b[1]!],
-    [-t[0]!, h, t[1]!], [t[0]!, h, t[1]!], [t[0]!, h, -t[1]!], [-t[0]!, h, -t[1]!],
+    [-b[0]!, 0, b[1]!],
+    [b[0]!, 0, b[1]!],
+    [b[0]!, 0, -b[1]!],
+    [-b[0]!, 0, -b[1]!],
+    [-t[0]!, h, t[1]!],
+    [t[0]!, h, t[1]!],
+    [t[0]!, h, -t[1]!],
+    [-t[0]!, h, -t[1]!],
   ];
   const faces = [
     [0, 1, 5, 4], // +z
@@ -250,10 +262,19 @@ function archPath(w: number, legH: number): THREE.Shape {
  * it stands proud of the wall. One piece, so the arch stays a true
  * half-round instead of a stack of little blocks pretending to be one.
  */
-function surroundGeo(open: number, legH: number, band: number, depth: number): THREE.BufferGeometry {
+function surroundGeo(
+  open: number,
+  legH: number,
+  band: number,
+  depth: number,
+): THREE.BufferGeometry {
   const ring = archPath(open + band * 2, legH);
   ring.holes.push(new THREE.Path(archPath(open, legH).getPoints(8)));
-  return new THREE.ExtrudeGeometry(ring, { depth, bevelEnabled: false, curveSegments: 5 });
+  return new THREE.ExtrudeGeometry(ring, {
+    depth,
+    bevelEnabled: false,
+    curveSegments: 5,
+  });
 }
 
 /** A triangular prism, for a gable end. */
@@ -263,7 +284,7 @@ function gableGeo(w: number, h: number, t: number): THREE.BufferGeometry {
   s.lineTo(w / 2, 0);
   s.lineTo(0, h);
   s.closePath();
-  const geo = new THREE.ExtrudeGeometry(s, { depth: t, bevelEnabled: false });
+  const geo = new THREE.ExtrudeGeometry(s, {depth: t, bevelEnabled: false});
   geo.translate(0, 0, -t / 2);
   return geo;
 }
@@ -338,7 +359,10 @@ const OZ = 0.22;
  * mass, and the only saturated color on the building is the loaves sitting
  * in it.
  */
-export function makeBakehouse(piece: PieceFactory, packMaterial: THREE.Material | null): THREE.Group {
+export function makeBakehouse(
+  piece: PieceFactory,
+  packMaterial: THREE.Material | null,
+): THREE.Group {
   atlas = packMaterial;
   const g = new THREE.Group();
   house(g, piece);
@@ -362,7 +386,16 @@ function house(g: THREE.Group, piece: PieceFactory): void {
   // against the corner rather than as the stone the corner stands on.
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
-      box(g, 0.15, 0.09, 0.15, KAY.stone, HX + sx * (HW / 2 - 0.06), 0.045, HZ + sz * (HD / 2 - 0.06));
+      box(
+        g,
+        0.15,
+        0.09,
+        0.15,
+        KAY.stone,
+        HX + sx * (HW / 2 - 0.06),
+        0.045,
+        HZ + sz * (HD / 2 - 0.06),
+      );
     }
   }
 
@@ -378,14 +411,32 @@ function house(g: THREE.Group, piece: PieceFactory): void {
   // step OUTWARD as it comes forward: plaster innermost, stone a little
   // proud of it, timber proudest of all.
   box(g, HW - 0.055, COURSE, HD - 0.055, KAY.stonePale, HX, COURSE / 2, HZ);
-  box(g, HW - 0.09, EAVE - COURSE, HD - 0.09, KAY.plaster, HX, (EAVE + COURSE) / 2, HZ);
+  box(
+    g,
+    HW - 0.09,
+    EAVE - COURSE,
+    HD - 0.09,
+    KAY.plaster,
+    HX,
+    (EAVE + COURSE) / 2,
+    HZ,
+  );
 
   // Timber frame: corner posts, a sill rail on the stone, a top plate under
   // the eave. No braces — at this size they turned the plaster into noise.
   const midY = (EAVE + COURSE) / 2;
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
-      box(g, 0.13, EAVE - COURSE, 0.13, KAY.timber, HX + sx * (HW / 2 - 0.065), midY, HZ + sz * (HD / 2 - 0.065));
+      box(
+        g,
+        0.13,
+        EAVE - COURSE,
+        0.13,
+        KAY.timber,
+        HX + sx * (HW / 2 - 0.065),
+        midY,
+        HZ + sz * (HD / 2 - 0.065),
+      );
     }
   }
   // An intermediate post in each face that has room for one. A pack wall is
@@ -393,7 +444,16 @@ function house(g: THREE.Group, piece: PieceFactory): void {
   // about half the elevation, against a quarter here with corner posts
   // alone, which is why these walls read as painted boxes beside his.
   for (const sx of [-1, 1]) {
-    box(g, 0.11, EAVE - COURSE, 0.11, KAY.timber, HX + sx * (HW / 2 - 0.055), midY, HZ - 0.04);
+    box(
+      g,
+      0.11,
+      EAVE - COURSE,
+      0.11,
+      KAY.timber,
+      HX + sx * (HW / 2 - 0.055),
+      midY,
+      HZ - 0.04,
+    );
   }
 
   box(g, HW - 0.05, 0.08, HD - 0.05, KAY.timber, HX, COURSE + 0.032, HZ);
@@ -439,10 +499,10 @@ function house(g: THREE.Group, piece: PieceFactory): void {
    * is what makes a KayKit roof look laid rather than extruded, and a
    * single flat slab cannot have it at any size.
    */
-  const STRIPS: { frac: number; dy: number; dlen: number }[] = [
-    { frac: 0.36, dy: 0, dlen: 0 },
-    { frac: 0.3, dy: 0.026, dlen: 0.035 },
-    { frac: 0.34, dy: 0.009, dlen: -0.022 },
+  const STRIPS: {frac: number; dy: number; dlen: number}[] = [
+    {frac: 0.36, dy: 0, dlen: 0},
+    {frac: 0.3, dy: 0.026, dlen: 0.035},
+    {frac: 0.34, dy: 0.009, dlen: -0.022},
   ];
 
   for (const sx of [-1, 1]) {
@@ -457,7 +517,10 @@ function house(g: THREE.Group, piece: PieceFactory): void {
     let z = -ROOF_D / 2;
     for (const st of STRIPS) {
       const d = ROOF_D * st.frac;
-      const slab = mesh(new THREE.BoxGeometry(SLOPE + st.dlen, 0.07, d), KAY.roof);
+      const slab = mesh(
+        new THREE.BoxGeometry(SLOPE + st.dlen, 0.07, d),
+        KAY.roof,
+      );
       slab.position.set((sx * st.dlen) / 2, st.dy, z + d / 2);
       panel.add(slab);
       z += d;
@@ -485,7 +548,11 @@ function house(g: THREE.Group, piece: PieceFactory): void {
         new THREE.BoxGeometry(SLOPE + eaveOver + RIDGE_OVER, 0.12, BOARD),
         KAY.timber,
       );
-      verge.position.set((sx * (eaveOver - RIDGE_OVER)) / 2, 0.025, sz * (ROOF_D / 2 + BOARD / 2));
+      verge.position.set(
+        (sx * (eaveOver - RIDGE_OVER)) / 2,
+        0.025,
+        sz * (ROOF_D / 2 + BOARD / 2),
+      );
       panel.add(verge);
     }
   }
@@ -541,13 +608,23 @@ function house(g: THREE.Group, piece: PieceFactory): void {
 
 /** A round-headed window: a dark reveal set into the wall, a timber
  * surround proud of it, a sill under it. `turn` faces it out of its wall. */
-function window(g: THREE.Group, x: number, y: number, z: number, turn: number): void {
+function window(
+  g: THREE.Group,
+  x: number,
+  y: number,
+  z: number,
+  turn: number,
+): void {
   const holder = new THREE.Group();
   holder.position.set(x, y, z);
   holder.rotation.y = turn;
   g.add(holder);
   const win = mesh(
-    new THREE.ExtrudeGeometry(archPath(0.14, 0.09), { depth: 0.06, bevelEnabled: false, curveSegments: 5 }),
+    new THREE.ExtrudeGeometry(archPath(0.14, 0.09), {
+      depth: 0.06,
+      bevelEnabled: false,
+      curveSegments: 5,
+    }),
     KAY.shadow,
   );
   win.position.set(0, 0, -0.055);
@@ -638,5 +715,4 @@ function oven(g: THREE.Group): void {
   box(g, 0.22, 0.09, 0.04, KAY.slate, OX, 0.07, zf + 0.035);
   box(g, 0.26, 0.03, 0.05, KAY.ovenDark, OX, 0.135, zf + 0.04);
   box(g, 0.44, 0.03, 0.15, KAY.stone, OX, 0.015, zf + 0.1);
-
 }

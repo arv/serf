@@ -1,5 +1,6 @@
-import type { Enum } from '../shared/enum.ts';
 import * as THREE from 'three';
+import {animCue, LOOP_CUES} from '../audio/animCues';
+import type {CueId} from '../audio/cues';
 import {
   ACTION,
   AUX_STRIDE,
@@ -8,14 +9,13 @@ import {
   WORK,
   type SabReader,
 } from '../protocol/sabLayout';
-import { clamp, hash2, lerp } from '../shared/math';
-import { UNIT_DEFS } from '../sim/defs/units';
-import { animCue, LOOP_CUES } from '../audio/animCues';
-import type { CueId } from '../audio/cues';
-import type { PierInfo } from './buildingSync';
-import type { ViewBounds } from './cameraRig';
-import type { FogQuery } from './fogOfWar';
-import { makeCarryProp } from './models';
+import type {Enum} from '../shared/enum.ts';
+import {clamp, hash2, lerp} from '../shared/math';
+import {UNIT_DEFS} from '../sim/defs/units';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import * as AnimKey from './animKeyEnum.ts';
+import type {PierInfo} from './buildingSync';
+import type {ViewBounds} from './cameraRig';
 import {
   TARGET_HEIGHT,
   makeCharacter,
@@ -25,9 +25,9 @@ import {
   TOOL_STOWED,
   type CharacterVisual,
 } from './characters';
-import type { HeightField } from './heightField';
-import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
-import * as AnimKey from './animKeyEnum.ts';
+import type {FogQuery} from './fogOfWar';
+import type {HeightField} from './heightField';
+import {makeCarryProp} from './models';
 
 type AnimKey = Enum<typeof AnimKey>;
 
@@ -65,7 +65,7 @@ interface UnitVisual {
   ax: number;
   az: number;
   /** The mixer 'loop' listener, kept for symmetric removal. */
-  loopCb?: (e: { action: THREE.AnimationAction }) => void;
+  loopCb?: (e: {action: THREE.AnimationAction}) => void;
   /** Right-arm bone chain for the well-crank IK. undefined = not looked
    * up yet, null = this rig has no such bones. */
   arm?: ArmChain | null;
@@ -97,7 +97,7 @@ function findArm(group: THREE.Group): ArmChain | null {
   const upper = bone('upperarm.r');
   const lower = bone('lowerarm.r');
   const hand = bone('hand.r');
-  return upper && lower && hand ? { upper, lower, hand } : null;
+  return upper && lower && hand ? {upper, lower, hand} : null;
 }
 
 const IK_B = new THREE.Vector3();
@@ -109,7 +109,11 @@ const IK_PQI = new THREE.Quaternion();
 const IK_TARGET = new THREE.Vector3();
 
 /** One CCD step: swing `bone` so `tip` aims at `target` (world space). */
-function aimBone(bone: THREE.Object3D, tip: THREE.Object3D, target: THREE.Vector3): void {
+function aimBone(
+  bone: THREE.Object3D,
+  tip: THREE.Object3D,
+  target: THREE.Vector3,
+): void {
   bone.updateWorldMatrix(true, false);
   tip.updateWorldMatrix(true, false);
   bone.getWorldPosition(IK_B);
@@ -171,7 +175,7 @@ const HP_BAR_Y = TARGET_HEIGHT * 0.943;
  * now and the colour rides per instance, but the five steps stay exactly
  * as they were — this is a draw-call change, not a palette change.
  */
-const HP_BUCKET_COLORS = Array.from({ length: 5 }, (_, bucket) =>
+const HP_BUCKET_COLORS = Array.from({length: 5}, (_, bucket) =>
   new THREE.Color().setHSL(0.33 * (bucket / 4), 0.8, 0.45),
 );
 
@@ -183,7 +187,7 @@ function hpBucket(pct: number): number {
 const hpBarMaterial = new THREE.MeshBasicMaterial({
   color: 0xffffff,
   depthTest: false,
-  userData: { noFog: true },
+  userData: {noFog: true},
 });
 
 // Scratch for composing one bar's instance matrix.
@@ -220,7 +224,8 @@ export class SceneSync {
    * 'loop' event fires at the clip's wrap point, but the axe lands
    * mid-clip, and Web Audio keeps that appointment exactly.
    */
-  onCue: ((cue: CueId, x: number, z: number, delaySec: number) => void) | null = null;
+  onCue: ((cue: CueId, x: number, z: number, delaySec: number) => void) | null =
+    null;
 
   /** Built wells' world centers, windlasses + grip handles (from main's
    * structural feed). A drawing serf belongs at the windlass, but the sim
@@ -339,7 +344,7 @@ export class SceneSync {
       index: Map<number, number>;
       ids: Int32Array;
     },
-    prev: { xs: Float32Array; ys: Float32Array; index: Map<number, number> },
+    prev: {xs: Float32Array; ys: Float32Array; index: Map<number, number>},
     alpha: number,
   ): void {
     // Both are body-width measures, so they ride the villager's height
@@ -353,8 +358,14 @@ export class SceneSync {
       const id = latest.ids[i]!;
       const pi = prev.index.get(id);
       this.#prevIdx[i] = pi === undefined ? -1 : pi;
-      this.#posX[i] = pi === undefined ? latest.xs[i]! : lerp(prev.xs[pi]!, latest.xs[i]!, alpha);
-      this.#posY[i] = pi === undefined ? latest.ys[i]! : lerp(prev.ys[pi]!, latest.ys[i]!, alpha);
+      this.#posX[i] =
+        pi === undefined
+          ? latest.xs[i]!
+          : lerp(prev.xs[pi]!, latest.xs[i]!, alpha);
+      this.#posY[i] =
+        pi === undefined
+          ? latest.ys[i]!
+          : lerp(prev.ys[pi]!, latest.ys[i]!, alpha);
       this.#sepTX[i] = 0;
       this.#sepTY[i] = 0;
       if (latest.aux[i * AUX_STRIDE + 4] === ACTION.dead) continue; // corpses lie still
@@ -381,7 +392,8 @@ export class SceneSync {
             const d = Math.sqrt(d2);
             if (d < 1e-4) {
               // Exactly stacked: split along a stable per-pair direction.
-              const ang = hash2(latest.ids[i]! * 31 + latest.ids[j]!, 5) * Math.PI * 2;
+              const ang =
+                hash2(latest.ids[i]! * 31 + latest.ids[j]!, 5) * Math.PI * 2;
               this.#sepTX[i]! += Math.cos(ang) * SEP_RADIUS * 0.5;
               this.#sepTY[i]! += Math.sin(ang) * SEP_RADIUS * 0.5;
             } else {
@@ -393,7 +405,8 @@ export class SceneSync {
         }
       }
       // Cap so crowds squash instead of exploding outward.
-      const m2 = this.#sepTX[i]! * this.#sepTX[i]! + this.#sepTY[i]! * this.#sepTY[i]!;
+      const m2 =
+        this.#sepTX[i]! * this.#sepTX[i]! + this.#sepTY[i]! * this.#sepTY[i]!;
       if (m2 > MAX_PUSH * MAX_PUSH) {
         const s = MAX_PUSH / Math.sqrt(m2);
         this.#sepTX[i]! *= s;
@@ -402,7 +415,12 @@ export class SceneSync {
     }
   }
 
-  constructor(scene: THREE.Scene, reader: SabReader, heights: HeightField, owner = 0) {
+  constructor(
+    scene: THREE.Scene,
+    reader: SabReader,
+    heights: HeightField,
+    owner = 0,
+  ) {
     this.#scene = scene;
     this.#reader = reader;
     this.#heights = heights;
@@ -416,15 +434,19 @@ export class SceneSync {
   }
 
   /** Current interpolated world position of a unit (for picking/FX). */
-  positionOf(id: number, now: number): { x: number; y: number } | null {
-    const out = { x: 0, y: 0 };
+  positionOf(id: number, now: number): {x: number; y: number} | null {
+    const out = {x: 0, y: 0};
     return this.positionOfInto(id, now, out) ? out : null;
   }
 
   /** positionOf without the allocation: writes into `out`; false when the
    * unit is absent from the latest publish or hidden by fog. */
-  positionOfInto(id: number, now: number, out: { x: number; y: number }): boolean {
-    const { latest, prev } = this.#reader;
+  positionOfInto(
+    id: number,
+    now: number,
+    out: {x: number; y: number},
+  ): boolean {
+    const {latest, prev} = this.#reader;
     const li = latest.index.get(id);
     if (li === undefined) return false;
     // Hidden by fog: report no position at all, which is what keeps
@@ -473,7 +495,11 @@ export class SceneSync {
   }
 
   #alpha(now: number): number {
-    return clamp((now - this.#reader.latestObservedAt) / PUBLISH_INTERVAL_MS, 0, 1);
+    return clamp(
+      (now - this.#reader.latestObservedAt) / PUBLISH_INTERVAL_MS,
+      0,
+      1,
+    );
   }
 
   update(
@@ -484,9 +510,10 @@ export class SceneSync {
     bounds?: ViewBounds,
   ): void {
     this.#reader.poll(now);
-    const { latest, prev } = this.#reader;
+    const {latest, prev} = this.#reader;
     const alpha = this.#alpha(now);
-    const realDt = this.#lastNow > 0 ? Math.min((now - this.#lastNow) / 1000, 0.1) : 1 / 60;
+    const realDt =
+      this.#lastNow > 0 ? Math.min((now - this.#lastNow) / 1000, 0.1) : 1 / 60;
     this.#lastNow = now;
     // A paused game holds its pose: clips stop advancing and the procedural
     // animation clock stops, while interpolation keeps using the real clock
@@ -568,7 +595,10 @@ export class SceneSync {
       // back into the sim or picking.
       const offScreen =
         bounds !== undefined &&
-        (x < bounds.minX || x > bounds.maxX || y < bounds.minZ || y > bounds.maxZ);
+        (x < bounds.minX ||
+          x > bounds.maxX ||
+          y < bounds.minZ ||
+          y > bounds.maxZ);
       // ...and they leave the scene graph too. Skipping the work above
       // still left every one of them a visible object, so the renderer
       // walked its whole rig each frame — every bone, every skinned mesh,
@@ -593,7 +623,8 @@ export class SceneSync {
       if (!offScreen) {
         const hpPct = latest.aux[a + 2]! / 255;
         const highlighted = id === hoverId || (selected?.has(id) ?? false);
-        if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead) barPct = hpPct;
+        if ((hpPct < 0.995 || highlighted) && latest.aux[a + 4] !== ACTION.dead)
+          barPct = hpPct;
       }
 
       // Visible carried good — the core fantasy, as the actual object:
@@ -662,7 +693,11 @@ export class SceneSync {
       // and their hand is IK-glued to the grip, so the base pose is a calm
       // idle — the cranking motion IS the crank's.
       const crankWell =
-        !offScreen && !dead && !moving && action === ACTION.work && workKind === WORK.draw
+        !offScreen &&
+        !dead &&
+        !moving &&
+        action === ACTION.work &&
+        workKind === WORK.draw
           ? this.#nearestWell(x, y)
           : null;
       // The windlass turns because someone is winding it, and only then.
@@ -680,7 +715,11 @@ export class SceneSync {
       // water. Render-side like the well crank — the sim keeps him parked
       // on whatever adjacent tile the path found.
       const pier =
-        !offScreen && !dead && !moving && action !== ACTION.fight && workKind === WORK.fish
+        !offScreen &&
+        !dead &&
+        !moving &&
+        action !== ACTION.fight &&
+        workKind === WORK.fish
           ? this.#nearestPier(x, y)
           : null;
       let fishing = false;
@@ -692,7 +731,9 @@ export class SceneSync {
         const dirZ = Math.cos(pier.yaw);
         // Where he stands relative to the deck line, from the landward end.
         const along = (curX - pier.baseX) * dirX + (curZ - pier.baseZ) * dirZ;
-        const drift = Math.abs((curX - pier.baseX) * dirZ - (curZ - pier.baseZ) * dirX);
+        const drift = Math.abs(
+          (curX - pier.baseX) * dirZ - (curZ - pier.baseZ) * dirX,
+        );
         onDeck = along > -0.1 && drift < 0.3;
         // Two legs, not a beeline: converge on the landward end first — a
         // straight run at the tip would cut the corner through open water.
@@ -729,8 +770,10 @@ export class SceneSync {
         if (dead) key = AnimKey.death;
         else if (moving) key = heldCarry ? AnimKey.carry : visual.char.gait;
         else if (pier) key = fishing ? AnimKey.fish : visual.char.gait;
-        else if (action === ACTION.fight) key = visual.char.ranged ? AnimKey.shoot : AnimKey.attack;
-        else if (action === ACTION.work) key = crankWell ? AnimKey.idle : workAnimKey(workKind);
+        else if (action === ACTION.fight)
+          key = visual.char.ranged ? AnimKey.shoot : AnimKey.attack;
+        else if (action === ACTION.work)
+          key = crankWell ? AnimKey.idle : workAnimKey(workKind);
         else key = heldCarry ? AnimKey.carryIdle : AnimKey.idle;
         // Right tool for the job: mallet on sites, pickaxe at rock faces,
         // carried on the walk out too — a woodcutter heads to the trees
@@ -745,7 +788,11 @@ export class SceneSync {
           tipOver(visual.group, dt);
           playAnimation(visual.char, AnimKey.idle, hash2(id, 3));
         } else {
-          playAnimation(visual.char, key, key === AnimKey.death ? 0 : hash2(id, 3));
+          playAnimation(
+            visual.char,
+            key,
+            key === AnimKey.death ? 0 : hash2(id, 3),
+          );
         }
         const fn = this.onCue;
         // State-entry sound, from audio's own memory — char.current is
@@ -792,7 +839,8 @@ export class SceneSync {
               const d1 = (phase * clip.duration - action.time) / rate;
               if (d1 > -dt) fn(spec.cue, x, y, Math.max(0, d1));
               const d2 = ((phase + 0.5) * clip.duration - action.time) / rate;
-              if (spec.perCycle === 2 && d2 > -dt) fn(spec.cue, x, y, Math.max(0, d2));
+              if (spec.perCycle === 2 && d2 > -dt)
+                fn(spec.cue, x, y, Math.max(0, d2));
             }
           }
         } else if (restarted) {
@@ -803,7 +851,9 @@ export class SceneSync {
       // Body bob synced to the gait: high at mid-stance, low at heel-strike.
       // (Skinned clips carry their own bob.)
       const bob =
-        moving && !visual.char ? Math.abs(Math.cos(animNow * 0.012 + id * 2.1)) * 0.025 : 0;
+        moving && !visual.char
+          ? Math.abs(Math.cos(animNow * 0.012 + id * 2.1)) * 0.025
+          : 0;
       // The crank operator's mark: north-east of the handle, side-on to the
       // well, facing south — from the fixed camera the grip and the glued
       // hand stay in front of the body. The snap rides the smoothed
@@ -867,7 +917,8 @@ export class SceneSync {
     this.#hpBars.count = this.#hpBarCount;
     if (this.#hpBarCount > 0) {
       this.#hpBars.instanceMatrix.needsUpdate = true;
-      if (this.#hpBars.instanceColor) this.#hpBars.instanceColor.needsUpdate = true;
+      if (this.#hpBars.instanceColor)
+        this.#hpBars.instanceColor.needsUpdate = true;
     }
 
     // Dispose visuals whose ids vanished from the latest publish.
@@ -895,7 +946,7 @@ export class SceneSync {
     // Which clip wrapped: the event carries the action, not the key.
     const keyOf = new Map<THREE.AnimationAction, AnimKey>();
     for (const [key, action] of char.actions) keyOf.set(action, key);
-    const cb = (e: { action: THREE.AnimationAction }): void => {
+    const cb = (e: {action: THREE.AnimationAction}): void => {
       const fn = this.onCue;
       if (!fn) return;
       const key = keyOf.get(e.action);
@@ -922,15 +973,28 @@ export class SceneSync {
       // footfall off by that whole factor.
       const rate = e.action.getEffectiveTimeScale() || 1;
       const t = e.action.time;
-      fn(spec.cue, visual.ax, visual.az, Math.max(0, (phase * clip.duration - t) / rate));
+      fn(
+        spec.cue,
+        visual.ax,
+        visual.az,
+        Math.max(0, (phase * clip.duration - t) / rate),
+      );
       // perCycle 2 is a half-cycle symmetry: the gaits' second footfall,
       // the pick and hammer loops' second swing — half a clip later.
       if (spec.perCycle === 2) {
-        fn(spec.cue, visual.ax, visual.az, Math.max(0, ((phase + 0.5) * clip.duration - t) / rate));
+        fn(
+          spec.cue,
+          visual.ax,
+          visual.az,
+          Math.max(0, ((phase + 0.5) * clip.duration - t) / rate),
+        );
       }
     };
     visual.loopCb = cb;
-    char.mixer.addEventListener('loop', cb as Parameters<typeof char.mixer.addEventListener>[1]);
+    char.mixer.addEventListener(
+      'loop',
+      cb as Parameters<typeof char.mixer.addEventListener>[1],
+    );
   }
 
   /**
@@ -944,13 +1008,15 @@ export class SceneSync {
    */
   #removeVisual(id: number, visual: UnitVisual): void {
     this.#scene.remove(visual.group);
-    visual.group.traverse((o) => {
+    visual.group.traverse(o => {
       if (o instanceof THREE.SkinnedMesh) o.skeleton.dispose();
     });
     if (visual.char && visual.loopCb) {
       visual.char.mixer.removeEventListener(
         'loop',
-        visual.loopCb as Parameters<typeof visual.char.mixer.removeEventListener>[1],
+        visual.loopCb as Parameters<
+          typeof visual.char.mixer.removeEventListener
+        >[1],
       );
     }
     this.#visuals.delete(id);

@@ -1,4 +1,4 @@
-import { domGestures, fullscreen } from '../ui/fullscreen';
+import {domGestures, fullscreen} from '../ui/fullscreen';
 
 // Same escalation as ui/store.ts: the installed capture below is
 // module-level state, and a hot swap would strand it — a locked pointer, a
@@ -179,13 +179,13 @@ export function commonAncestor<T>(a: readonly T[], b: readonly T[]): T | null {
 export function boundary<T>(
   prev: readonly T[],
   next: readonly T[],
-): { left: T[]; entered: T[] } {
+): {left: T[]; entered: T[]} {
   const pivot = commonAncestor(prev, next);
   const upto = (chain: readonly T[]): T[] => {
     const end = pivot === null ? chain.length : chain.indexOf(pivot);
     return chain.slice(0, end === -1 ? chain.length : end);
   };
-  return { left: upto(prev), entered: upto(next).reverse() };
+  return {left: upto(prev), entered: upto(next).reverse()};
 }
 
 /**
@@ -202,7 +202,9 @@ export function boundary<T>(
  */
 export function hoverAlias(selector: string): string | null {
   if (!selector.includes(':hover')) return null;
-  const hovering = splitList(selector).filter((branch) => branch.includes(':hover'));
+  const hovering = splitList(selector).filter(branch =>
+    branch.includes(':hover'),
+  );
   if (hovering.length === 0) return null;
   return hovering.join(', ').replaceAll(':hover', `.${VHOVER}`);
 }
@@ -229,7 +231,7 @@ function splitList(selector: string): string[] {
     }
   }
   parts.push(selector.slice(start).trim());
-  return parts.filter((p) => p !== '');
+  return parts.filter(p => p !== '');
 }
 
 /**
@@ -251,7 +253,7 @@ function splitList(selector: string): string[] {
  * and what the sprite is offset by so its tip sits where the hit test
  * samples.
  */
-const SHAPES: Record<string, { hot: [number, number]; svg: string }> = {
+const SHAPES: Record<string, {hot: [number, number]; svg: string}> = {
   default: {
     hot: [1, 1],
     svg: `<svg width="14" height="21" viewBox="0 0 14 21" fill="none">
@@ -305,7 +307,8 @@ const EATEN = [
 /** The inclusive ancestor chain of an element, innermost first. */
 function chainOf(el: Element | null): Element[] {
   const chain: Element[] = [];
-  for (let node = el; node !== null; node = node.parentElement) chain.push(node);
+  for (let node = el; node !== null; node = node.parentElement)
+    chain.push(node);
   return chain;
 }
 
@@ -419,45 +422,60 @@ class MouseCapture {
       signal,
     });
     for (const type of EATEN) {
-      doc.defaultView?.addEventListener(type, this.#onEaten, { capture: true, signal });
+      doc.defaultView?.addEventListener(type, this.#onEaten, {
+        capture: true,
+        signal,
+      });
     }
     // Where the drawn cursor starts: exactly where the real one stopped.
     // This listener never fires while locked — the interceptor above takes
     // those first — so what it holds is always the last honest position.
     doc.defaultView?.addEventListener(
       'pointermove',
-      (e) => {
+      e => {
         if (!e.isTrusted || e.pointerType !== 'mouse') return;
         this.#calibrate(e);
         this.#x = e.clientX;
         this.#y = e.clientY;
       },
-      { signal },
+      {signal},
     );
-    doc.defaultView?.addEventListener('resize', () => this.#measure(), { signal });
-    doc.addEventListener('pointerlockchange', () => this.#lockChanged(), { signal });
+    doc.defaultView?.addEventListener('resize', () => this.#measure(), {
+      signal,
+    });
+    doc.addEventListener('pointerlockchange', () => this.#lockChanged(), {
+      signal,
+    });
     // A refusal — no transient activation, or a browser still cooling down
     // from the last Esc. Wait for a gesture and ask again on that.
-    doc.addEventListener('pointerlockerror', () => this.#arm(), { signal });
+    doc.addEventListener('pointerlockerror', () => this.#arm(), {signal});
     // The state this follows is fullscreen's, read through the module that
     // owns it; only the timing comes from the events, and prefixed engines
     // announce it under the older name.
     for (const type of ['fullscreenchange', 'webkitfullscreenchange']) {
-      doc.addEventListener(type, () => {
-        // Leaving full screen ends the argument: whatever the player did
-        // to the lock last time is forgotten, and re-entering offers it
-        // again from scratch.
-        if (!fullscreen().active()) this.#declined = false;
-        this.sync();
-      }, { signal });
+      doc.addEventListener(
+        type,
+        () => {
+          // Leaving full screen ends the argument: whatever the player did
+          // to the lock last time is forgotten, and re-entering offers it
+          // again from scratch.
+          if (!fullscreen().active()) this.#declined = false;
+          this.sync();
+        },
+        {signal},
+      );
     }
     // A tooltip going up (or any popover) enters the top layer above
     // everything already in it, the drawn cursor included. Toggles do not
     // bubble, so this listens where every event passes: the capture phase
     // at the document.
-    doc.addEventListener('toggle', (e) => {
-      if (this.#on && e.target !== this.#cursor) this.#promote();
-    }, { capture: true, signal });
+    doc.addEventListener(
+      'toggle',
+      e => {
+        if (this.#on && e.target !== this.#cursor) this.#promote();
+      },
+      {capture: true, signal},
+    );
   }
 
   /** Live: is the pointer ours this instant? */
@@ -667,7 +685,8 @@ class MouseCapture {
         // release, exactly as the platform would have given it to them —
         // the rig's middle-drag pan asks for this, and without it the pan
         // would stall the moment the cursor crossed a HUD strip.
-        if (this.#held === null && target !== null && held(target, raw)) this.#held = target;
+        if (this.#held === null && target !== null && held(target, raw))
+          this.#held = target;
         break;
       }
       case 'pointerup': {
@@ -696,7 +715,8 @@ class MouseCapture {
         // A click belongs to the nearest ancestor of both ends of the
         // press, which is the DOM's own rule and the reason a button
         // pressed on its label and released on its border still fires.
-        const target = commonAncestor(this.#pressed, this.#chain) ?? this.#aim();
+        const target =
+          commonAncestor(this.#pressed, this.#chain) ?? this.#aim();
         this.#send(raw, raw.type, target);
         break;
       }
@@ -750,7 +770,7 @@ class MouseCapture {
     const template = this.#pending;
     if (template === null) return;
     this.#pending = null;
-    const travel = { x: this.#owedX, y: this.#owedY };
+    const travel = {x: this.#owedX, y: this.#owedY};
     this.#owedX = 0;
     this.#owedY = 0;
     this.#hover();
@@ -839,7 +859,8 @@ class MouseCapture {
     // pixels, but snapped rather than applied, because a measurement that
     // drifts a few percent off unity would otherwise cost the player a few
     // percent of their mouse for no reason at all.
-    this.#gain = Math.abs(ratio - 1) < 0.1 ? 1 : Math.min(Math.max(ratio, 0.25), 4);
+    this.#gain =
+      Math.abs(ratio - 1) < 0.1 ? 1 : Math.min(Math.max(ratio, 0.25), 4);
   }
 
   #place(): void {
@@ -868,7 +889,7 @@ class MouseCapture {
   #cross(next: Element[], under: Element | null): void {
     const prev = this.#chain;
     const from = prev[0] ?? null;
-    const { left, entered } = boundary(prev, next);
+    const {left, entered} = boundary(prev, next);
     this.#chain = next;
     for (const el of left) el.classList.remove(VHOVER);
     for (const el of entered) el.classList.add(VHOVER);
@@ -896,7 +917,12 @@ class MouseCapture {
     }
   }
 
-  #boundary(type: string, target: Element, related: Element | null, bubbles: boolean): void {
+  #boundary(
+    type: string,
+    target: Element,
+    related: Element | null,
+    bubbles: boolean,
+  ): void {
     const init: PointerEventInit = {
       bubbles,
       cancelable: false,
@@ -910,7 +936,9 @@ class MouseCapture {
       view: this.#doc.defaultView,
     };
     target.dispatchEvent(
-      type.startsWith('pointer') ? new PointerEvent(type, init) : new MouseEvent(type, init),
+      type.startsWith('pointer')
+        ? new PointerEvent(type, init)
+        : new MouseEvent(type, init),
     );
   }
 
@@ -924,7 +952,7 @@ class MouseCapture {
     raw: MouseEvent,
     type: string,
     target: Element | null,
-    travel?: { x: number; y: number },
+    travel?: {x: number; y: number},
   ): void {
     if (target === null) return;
     const init: PointerEventInit & WheelEventInit = {
@@ -980,15 +1008,18 @@ class MouseCapture {
       'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])',
     );
     if (focusable) focusable.focus();
-    else if (this.#doc.activeElement instanceof HTMLElement) this.#doc.activeElement.blur();
+    else if (this.#doc.activeElement instanceof HTMLElement)
+      this.#doc.activeElement.blur();
   }
 
   /** Range inputs are dragged by the engine, not by their events, and the
    * engine will not do it for a synthetic press. The match has exactly one
    * — the menu's volume slider — so it is driven from here instead. */
   #grip(target: Element | null, raw: MouseEvent): void {
-    const input = target?.closest<HTMLInputElement>('input[type="range"]') ?? null;
-    this.#slider = input !== null && !input.disabled && raw.button === 0 ? input : null;
+    const input =
+      target?.closest<HTMLInputElement>('input[type="range"]') ?? null;
+    this.#slider =
+      input !== null && !input.disabled && raw.button === 0 ? input : null;
     this.#slide(raw, false);
   }
 
@@ -1009,14 +1040,16 @@ class MouseCapture {
     // game has none.
     const along = Math.min(Math.max((this.#x - box.left) / box.width, 0), 1);
     const raw01 = min + along * (max - min);
-    const step = input.step === 'any' ? 0 : Number(input.step === '' ? 1 : input.step);
-    const value = step > 0 ? min + Math.round((raw01 - min) / step) * step : raw01;
+    const step =
+      input.step === 'any' ? 0 : Number(input.step === '' ? 1 : input.step);
+    const value =
+      step > 0 ? min + Math.round((raw01 - min) / step) * step : raw01;
     const next = String(Math.min(Math.max(value, min), max));
     if (next !== input.value) {
       input.value = next;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('input', {bubbles: true}));
     }
-    if (settle) input.dispatchEvent(new Event('change', { bubbles: true }));
+    if (settle) input.dispatchEvent(new Event('change', {bubbles: true}));
   }
 
   // --- Hover, mirrored ---------------------------------------------------
@@ -1084,9 +1117,14 @@ class MouseCapture {
  * the drawn cursor. Anything that changes this line wants a look at that
  * failure first.
  */
-export function relayable(type: string, pointerType: string | null, detail: number): boolean {
+export function relayable(
+  type: string,
+  pointerType: string | null,
+  detail: number,
+): boolean {
   if (pointerType === 'touch' || pointerType === 'pen') return false;
-  const activation = type === 'click' || type === 'auxclick' || type === 'dblclick';
+  const activation =
+    type === 'click' || type === 'auxclick' || type === 'dblclick';
   return !activation || detail !== 0;
 }
 
@@ -1113,7 +1151,10 @@ function collect(rules: CSSRuleList, out: string[]): void {
     if (rule instanceof CSSStyleRule) {
       const alias = hoverAlias(rule.selectorText);
       if (alias !== null) out.push(`${alias}{${rule.style.cssText}}`);
-    } else if (rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule) {
+    } else if (
+      rule instanceof CSSMediaRule ||
+      rule instanceof CSSSupportsRule
+    ) {
       const inner: string[] = [];
       collect(rule.cssRules, inner);
       if (inner.length > 0) {
@@ -1132,7 +1173,8 @@ function collect(rules: CSSRuleList, out: string[]): void {
  * let this module be imported where there is no window at all.
  */
 function capturable(): boolean {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+  if (typeof window === 'undefined' || typeof document === 'undefined')
+    return false;
   if (!('requestPointerLock' in document.documentElement)) return false;
   return window.matchMedia?.('(any-pointer: fine)').matches ?? false;
 }
@@ -1163,7 +1205,11 @@ export function capturePointer(el: Element, e: PointerEvent): void {
   // A finger or a pen on the same machine keeps its own coordinates and is
   // none of this module's business (see `relayable`), so it is left to ask
   // the platform even while the mouse is ours.
-  if (live?.engaged === true && e.pointerType !== 'touch' && e.pointerType !== 'pen') {
+  if (
+    live?.engaged === true &&
+    e.pointerType !== 'touch' &&
+    e.pointerType !== 'pen'
+  ) {
     live.hold(el);
     return;
   }

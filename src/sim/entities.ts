@@ -1,8 +1,8 @@
-import type { GoodAmounts } from './defs/goods.ts';
-import type { BuildingTypeId } from './defs/buildings.ts';
-import type { UnitTypeId } from './defs/units.ts';
-import type { Enum } from '../shared/enum.ts';
+import type {Enum} from '../shared/enum.ts';
 import * as BuildingStateNs from './buildingStateEnum.ts';
+import type {BuildingTypeId} from './defs/buildings.ts';
+import type {GoodAmounts} from './defs/goods.ts';
+import type {UnitTypeId} from './defs/units.ts';
 
 export type BuildingState = Enum<typeof BuildingStateNs>;
 
@@ -25,7 +25,7 @@ export function isPlayerOwner(o: Owner): boolean {
   return o < MAX_PLAYERS;
 }
 
-export type { BuildingTypeId };
+export type {BuildingTypeId};
 
 export interface Building {
   id: EntityId;
@@ -78,18 +78,18 @@ export interface Building {
    * must not change what comes out of the kiln. */
   prodRecipeIndex?: number;
   /** Military training queue (barracks). */
-  trainQueue?: { unit: UnitTypeId; ticksLeft: number; started: boolean }[];
+  trainQueue?: {unit: UnitTypeId; ticksLeft: number; started: boolean}[];
   /** Rally point (buildings that train): the tile a fresh soldier marches
    * to as he steps out of the door. Absent = he stands at the door as
    * ever. Only ever set on a building whose def trains, and deliberately a
    * tile rather than an entity id: a flag planted on ground that later
    * gets built over still means "muster near there". */
-  rally?: { x: number; y: number };
+  rally?: {x: number; y: number};
   /** Forge orders (Smith): recipeOptions indices worked in order, ahead of
    * the standing recipeIndex. Mirrors trainQueue — an item is marked
    * started when its batch takes the fire and removed when it lands, so a
    * pause or a standing-order switch never loses an order. */
-  forgeQueue?: { recipeIndex: number; started: boolean }[];
+  forgeQueue?: {recipeIndex: number; started: boolean}[];
   /**
    * Men manning this building (guard tower). A count, not ids: an archer who
    * walks in is consumed the way a barracks recruit is, so there is no unit
@@ -158,6 +158,6 @@ export interface Building {
   dead: boolean;
 }
 
-export function centerOf(b: Building): { x: number; y: number } {
-  return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+export function centerOf(b: Building): {x: number; y: number} {
+  return {x: b.x + b.w / 2, y: b.y + b.h / 2};
 }

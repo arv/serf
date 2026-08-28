@@ -1,12 +1,12 @@
-import type { Enum } from '../../shared/enum.ts';
-import { BUILDING_DEFS, BUILDING_TYPES } from '../../sim/defs/buildings';
-import { GOODS, GOOD_KEYS } from '../../sim/defs/goods';
-import { TECH_DEFS, type TechId, TECH_IDS } from '../../sim/defs/techs';
-import { UNIT_DEFS, type UnitTypeId, UNIT_TYPES } from '../../sim/defs/units';
-import { goodName, techName, unitName } from '../../ui/names';
-import { buildingHref, goodHref, techHref, unitHref } from './routes';
+import type {Enum} from '../../shared/enum.ts';
+import {BUILDING_DEFS, BUILDING_TYPES} from '../../sim/defs/buildings';
 import * as BuildingTypeId from '../../sim/defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../../sim/defs/goodIdEnum.ts';
+import {GOODS, GOOD_KEYS} from '../../sim/defs/goods';
+import {TECH_DEFS, type TechId, TECH_IDS} from '../../sim/defs/techs';
+import {UNIT_DEFS, type UnitTypeId, UNIT_TYPES} from '../../sim/defs/units';
+import {goodName, techName, unitName} from '../../ui/names';
+import {buildingHref, goodHref, techHref, unitHref} from './routes';
 
 type GoodId = Enum<typeof GoodId>;
 
@@ -55,7 +55,16 @@ const AMBIGUOUS = new Set([
  * English puts an article before the adverb, which is what makes this a
  * reliable tell.
  */
-const ARTICLES = new Set(['a', 'an', 'the', 'every', 'each', 'one', 'its', 'their']);
+const ARTICLES = new Set([
+  'a',
+  'an',
+  'the',
+  'every',
+  'each',
+  'one',
+  'its',
+  'their',
+]);
 
 /**
  * What the prose calls a thing when it does not use its name. These read
@@ -63,14 +72,14 @@ const ARTICLES = new Set(['a', 'an', 'the', 'every', 'each', 'one', 'its', 'thei
  * bread, or "Wheat Farm" where a sentence would just say the farm — and
  * the reader still gets the link.
  */
-const SYNONYMS: { text: string; href: string }[] = [
-  { text: 'bread', href: goodHref(GoodId.food) },
-  { text: 'loaf', href: goodHref(GoodId.food) },
-  { text: 'loaves', href: goodHref(GoodId.food) },
-  { text: 'timber', href: goodHref(GoodId.wood) },
-  { text: 'grain', href: goodHref(GoodId.wheat) },
-  { text: 'coin', href: goodHref(GoodId.silver) },
-  { text: 'farm', href: buildingHref(BuildingTypeId.wheatFarm) },
+const SYNONYMS: {text: string; href: string}[] = [
+  {text: 'bread', href: goodHref(GoodId.food)},
+  {text: 'loaf', href: goodHref(GoodId.food)},
+  {text: 'loaves', href: goodHref(GoodId.food)},
+  {text: 'timber', href: goodHref(GoodId.wood)},
+  {text: 'grain', href: goodHref(GoodId.wheat)},
+  {text: 'coin', href: goodHref(GoodId.silver)},
+  {text: 'farm', href: buildingHref(BuildingTypeId.wheatFarm)},
   // No 'keep' for the Castle: the plural rule below would make a link of
   // the verb, and "the barracks keeps a cask" is live text.
 ];
@@ -78,25 +87,26 @@ const SYNONYMS: { text: string; href: string }[] = [
 function collectTerms(): Term[] {
   const terms: Term[] = [];
   for (const id of BUILDING_TYPES) {
-    terms.push({ text: BUILDING_DEFS[id].name, href: buildingHref(id) });
+    terms.push({text: BUILDING_DEFS[id].name, href: buildingHref(id)});
   }
   for (const id of UNIT_TYPES) {
     const name = unitName(id);
     const href = unitHref(id);
-    terms.push({ text: name, href });
+    terms.push({text: name, href});
     // The plural the sentence actually uses: a trailing 's' covers Serfs
     // and Archers, but Spearman pluralises the old way.
-    if (name.endsWith('man')) terms.push({ text: `${name.slice(0, -3)}men`, href });
+    if (name.endsWith('man'))
+      terms.push({text: `${name.slice(0, -3)}men`, href});
   }
   for (const id of GOODS as readonly GoodId[]) {
     const href = goodHref(id);
-    terms.push({ text: goodName(id), href });
+    terms.push({text: goodName(id), href});
     // 'rod' is what a sentence says; 'Fishing Rod' is the display name.
     const key = GOOD_KEYS[id];
-    if (goodName(id).toLowerCase() !== key) terms.push({ text: key, href });
+    if (goodName(id).toLowerCase() !== key) terms.push({text: key, href});
   }
   for (const id of TECH_IDS) {
-    terms.push({ text: techName(id), href: techHref(id) });
+    terms.push({text: techName(id), href: techHref(id)});
   }
   terms.push(...SYNONYMS);
   // Longest first so "Iron Mine" beats "Iron" and "Bandit Archer" beats
@@ -105,16 +115,19 @@ function collectTerms(): Term[] {
 }
 
 const TERMS = collectTerms();
-const HREF_OF = new Map(TERMS.map((t) => [t.text.toLowerCase(), t.href]));
+const HREF_OF = new Map(TERMS.map(t => [t.text.toLowerCase(), t.href]));
 
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** Every name in one pass, with an optional plural 's'. */
-const PATTERN = new RegExp(`\\b(${TERMS.map((t) => escapeRe(t.text)).join('|')})(s)?\\b`, 'gi');
+const PATTERN = new RegExp(
+  `\\b(${TERMS.map(t => escapeRe(t.text)).join('|')})(s)?\\b`,
+  'gi',
+);
 
-export type ProsePiece = string | { text: string; href: string };
+export type ProsePiece = string | {text: string; href: string};
 
 /**
  * Split `text` into plain runs and linked ones. A term links only on its
@@ -147,7 +160,7 @@ export function linkifyProse(text: string, self?: string): ProsePiece[] {
       continue;
     }
     if (m.index > last) pieces.push(text.slice(last, m.index));
-    pieces.push({ text: whole, href });
+    pieces.push({text: whole, href});
     linked.add(href);
     last = m.index + whole.length;
   }

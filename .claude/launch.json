@@ -4,9 +4,7 @@
     {
       "name": "serf-dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "dev"
-      ],
+      "runtimeArgs": ["dev"],
       "autoPort": true
     },
     {

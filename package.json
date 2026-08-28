@@ -1,30 +1,24 @@
 {
   "name": "serf-valley",
   "version": "0.8.0",
-  "description": "A medieval Settlers-like RTS in the browser",
   "private": true,
+  "description": "A medieval Settlers-like RTS in the browser",
+  "license": "ISC",
   "type": "module",
-  "packageManager": "pnpm@11.5.1",
   "scripts": {
     "dev": "vite",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc -p tools/modelLab --noEmit && tsc -p tools/aiLab --noEmit && tsc -p tools/mapAuthor --noEmit && tsc -p tools/perf --noEmit && tsc -p server --noEmit",
     "test": "vitest run",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "server": "pnpm --dir server dev",
     "smoke": "pnpm --dir server smoke",
     "bakeoff": "node --experimental-strip-types tools/aiLab/bakeoff.ts",
     "balance": "node --experimental-strip-types tools/aiLab/balance.ts",
     "bakeoff:compare": "node --experimental-strip-types tools/aiLab/compare.ts"
   },
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "11.5.1",
-      "onFail": "download"
-    }
-  },
-  "license": "ISC",
   "dependencies": {
     "@wllama/wllama": "^3.5.1",
     "solid-js": "^1.9.14",
@@ -33,12 +27,21 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/three": "^0.185.1",
+    "oxfmt": "^0.65.0",
     "typescript": "^7.0.2",
     "vite": "^8.1.5",
     "vite-plugin-solid": "^2.11.13",
     "vitest": "^4.1.10"
   },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.5.1",
+      "onFail": "download"
+    }
+  },
   "engines": {
     "node": ">=23"
-  }
+  },
+  "packageManager": "pnpm@11.5.1"
 }

@@ -1,13 +1,13 @@
-import { tileIdx, tileX, tileY } from '../../shared/grid.ts';
-import { TICKS_PER_SECOND } from '../defs/balance.ts';
-import { UNIT_DEFS } from '../defs/units.ts';
-import { findPath, nearestWalkable, tileSpeedMult } from '../path.ts';
-import { getModifier } from '../techHelpers.ts';
-import type { Unit } from '../units.ts';
-import type { World } from '../world.ts';
-import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
-import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import {tileIdx, tileX, tileY} from '../../shared/grid.ts';
+import {TICKS_PER_SECOND} from '../defs/balance.ts';
 import * as ModifierKey from '../defs/modifierKeyEnum.ts';
+import {UNIT_DEFS} from '../defs/units.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import {findPath, nearestWalkable, tileSpeedMult} from '../path.ts';
+import {getModifier} from '../techHelpers.ts';
+import type {Unit} from '../units.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import type {World} from '../world.ts';
 
 /**
  * Advance every unit along its path. Waypoints are tile centers; speed is the
@@ -36,7 +36,8 @@ export function movementSystem(world: World): void {
       }
       unit.lastTile = here;
     }
-    const civilian = unit.kind === UnitTypeId.serf || unit.kind === UnitTypeId.worker;
+    const civilian =
+      unit.kind === UnitTypeId.serf || unit.kind === UnitTypeId.worker;
     let budget =
       (UNIT_DEFS[unit.kind].speed *
         tileSpeedMult(world.map, here) *
@@ -69,7 +70,7 @@ export function movementSystem(world: World): void {
     if (unit.path && unit.pathIdx >= path.length) {
       unit.path = null;
       if (unit.task.t === UnitTaskKind.move)
-        unit.task = { t: UnitTaskKind.idle, until: world.tick };
+        unit.task = {t: UnitTaskKind.idle, until: world.tick};
     }
   }
 }
@@ -106,13 +107,19 @@ function routeAround(world: World, unit: Unit, goal: number): void {
   const uy = Math.floor(unit.y);
   let p = findPath(world.map, ux, uy, tileX(goal, size), tileY(goal, size));
   if (!p) {
-    const beside = nearestWalkable(world.map, tileX(goal, size), tileY(goal, size), GOAL_SLIP);
-    if (beside >= 0) p = findPath(world.map, ux, uy, tileX(beside, size), tileY(beside, size));
+    const beside = nearestWalkable(
+      world.map,
+      tileX(goal, size),
+      tileY(goal, size),
+      GOAL_SLIP,
+    );
+    if (beside >= 0)
+      p = findPath(world.map, ux, uy, tileX(beside, size), tileY(beside, size));
   }
   unit.path = p && p.length > 0 ? p : null;
   unit.pathIdx = 0;
   if (unit.path === null && unit.task.t === UnitTaskKind.move) {
-    unit.task = { t: UnitTaskKind.idle, until: world.tick };
+    unit.task = {t: UnitTaskKind.idle, until: world.tick};
   }
 }
 

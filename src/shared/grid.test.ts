@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import {describe, expect, it} from 'vitest';
 import {
   MAX_MAP_SIZE,
   MIN_MAP_SIZE,

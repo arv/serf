@@ -1,8 +1,8 @@
-import type { Enum } from '../shared/enum.ts';
-import { BUILDING_DEFS, BUILDING_TYPES } from '../sim/defs/buildings';
-import { type GoodAmounts, type GoodId, goodEntries } from '../sim/defs/goods';
-import type { TechId } from '../sim/defs/techs';
+import type {Enum} from '../shared/enum.ts';
+import {BUILDING_DEFS, BUILDING_TYPES} from '../sim/defs/buildings';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import {type GoodAmounts, type GoodId, goodEntries} from '../sim/defs/goods';
+import type {TechId} from '../sim/defs/techs';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
@@ -74,51 +74,52 @@ type BuildingTypeId = Enum<typeof BuildingTypeId>;
  */
 export type BuildGroupLabel = 'Village' | 'Food' | 'Arms';
 
-export const BUILD_GROUPS: { label: BuildGroupLabel; types: BuildingTypeId[] }[] = [
-  // Top row the three you raise without thinking; under them the Abbey and
-  // the coin that pays for what it researches.
-  {
-    label: 'Village',
-    types: [
-      BuildingTypeId.house,
-      BuildingTypeId.woodcutter,
-      BuildingTypeId.quarry,
-      BuildingTypeId.abbey,
-      BuildingTypeId.silverMine,
-    ],
-  },
-  // The well leads: water is an input to the farm, the bakery and the
-  // brewery and to nothing else, so the player building the chain finds it
-  // at the head of the chain. Bread's four along the top and round the
-  // corner, then the two that stand apart from it: the shore, which needs
-  // no chain at all, and the brewery, which bids against the mill for the
-  // same wheat. Fish or bake, bread or beer — both decisions sit inside
-  // this one tab, which is the whole of why it is grouped this way.
-  {
-    label: 'Food',
-    types: [
-      BuildingTypeId.well,
-      BuildingTypeId.wheatFarm,
-      BuildingTypeId.mill,
-      BuildingTypeId.bakery,
-      BuildingTypeId.fishery,
-      BuildingTypeId.brewery,
-    ],
-  },
-  // Ore, forge, army along the top, in that order and in that direction.
-  // Under them the two that come later: the wall raised when the raids
-  // start, and the gilding affordable once the army already stands.
-  {
-    label: 'Arms',
-    types: [
-      BuildingTypeId.ironMine,
-      BuildingTypeId.weaponsmith,
-      BuildingTypeId.barracks,
-      BuildingTypeId.guardTower,
-      BuildingTypeId.goldMine,
-    ],
-  },
-];
+export const BUILD_GROUPS: {label: BuildGroupLabel; types: BuildingTypeId[]}[] =
+  [
+    // Top row the three you raise without thinking; under them the Abbey and
+    // the coin that pays for what it researches.
+    {
+      label: 'Village',
+      types: [
+        BuildingTypeId.house,
+        BuildingTypeId.woodcutter,
+        BuildingTypeId.quarry,
+        BuildingTypeId.abbey,
+        BuildingTypeId.silverMine,
+      ],
+    },
+    // The well leads: water is an input to the farm, the bakery and the
+    // brewery and to nothing else, so the player building the chain finds it
+    // at the head of the chain. Bread's four along the top and round the
+    // corner, then the two that stand apart from it: the shore, which needs
+    // no chain at all, and the brewery, which bids against the mill for the
+    // same wheat. Fish or bake, bread or beer — both decisions sit inside
+    // this one tab, which is the whole of why it is grouped this way.
+    {
+      label: 'Food',
+      types: [
+        BuildingTypeId.well,
+        BuildingTypeId.wheatFarm,
+        BuildingTypeId.mill,
+        BuildingTypeId.bakery,
+        BuildingTypeId.fishery,
+        BuildingTypeId.brewery,
+      ],
+    },
+    // Ore, forge, army along the top, in that order and in that direction.
+    // Under them the two that come later: the wall raised when the raids
+    // start, and the gilding affordable once the army already stands.
+    {
+      label: 'Arms',
+      types: [
+        BuildingTypeId.ironMine,
+        BuildingTypeId.weaponsmith,
+        BuildingTypeId.barracks,
+        BuildingTypeId.guardTower,
+        BuildingTypeId.goldMine,
+      ],
+    },
+  ];
 
 /**
  * Which tab holds this building — the index into BUILD_GROUPS, or -1 for a
@@ -130,7 +131,7 @@ export const BUILD_GROUPS: { label: BuildGroupLabel; types: BuildingTypeId[] }[]
  * which is the same reason the groups themselves live in this file.
  */
 export function buildTab(type: BuildingTypeId): number {
-  return BUILD_GROUPS.findIndex((g) => g.types.includes(type));
+  return BUILD_GROUPS.findIndex(g => g.types.includes(type));
 }
 
 /**
@@ -204,13 +205,21 @@ export function buildingForKey(letter: string): BuildingTypeId | null {
  * and greyed is not a shortcut, it is a second, more permissive build menu —
  * and the sim would refuse the placement anyway, several clicks later.
  */
-export function buildUnlocked(type: BuildingTypeId, researched: readonly TechId[]): boolean {
+export function buildUnlocked(
+  type: BuildingTypeId,
+  researched: readonly TechId[],
+): boolean {
   const req = BUILDING_DEFS[type].requiresTech;
   if (req === undefined) return true;
-  return Array.isArray(req) ? req.some((t) => researched.includes(t)) : researched.includes(req);
+  return Array.isArray(req)
+    ? req.some(t => researched.includes(t))
+    : researched.includes(req);
 }
 
-export function buildAffordable(type: BuildingTypeId, stock: GoodAmounts): boolean {
+export function buildAffordable(
+  type: BuildingTypeId,
+  stock: GoodAmounts,
+): boolean {
   const cost = goodEntries(BUILDING_DEFS[type].cost);
   return cost.every(([good, n]) => (stock[good] ?? 0) >= n);
 }

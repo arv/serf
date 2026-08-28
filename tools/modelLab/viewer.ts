@@ -1,7 +1,14 @@
 import * as THREE from 'three';
-import { Kit, type BakedSet } from './kit';
-import { VARIANTS, requiredFiles, type Variant } from './variants';
-import { makeDiorama, makeLights, makeRenderer, frame, YAW, type Diorama } from './scene';
+import {Kit, type BakedSet} from './kit';
+import {
+  makeDiorama,
+  makeLights,
+  makeRenderer,
+  frame,
+  YAW,
+  type Diorama,
+} from './scene';
+import {VARIANTS, requiredFiles, type Variant} from './variants';
 
 /**
  * One WebGL context, many cards — but the context lives on a small detached
@@ -110,7 +117,10 @@ export async function mountGallery(opts: MountOpts = {}): Promise<void> {
     const rect = c.stage.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const scale = Math.min(1, MAX_SHOT / Math.max(rect.width * dpr, rect.height * dpr));
+    const scale = Math.min(
+      1,
+      MAX_SHOT / Math.max(rect.width * dpr, rect.height * dpr),
+    );
     const w = Math.max(1, Math.round(rect.width * dpr * scale));
     const h = Math.max(1, Math.round(rect.height * dpr * scale));
     if (c.w !== w || c.h !== h) {
@@ -135,12 +145,12 @@ export async function mountGallery(opts: MountOpts = {}): Promise<void> {
     (entries, obs) => {
       for (const e of entries) {
         if (!e.isIntersecting) continue;
-        const c = cards.find((x) => x.el === e.target);
+        const c = cards.find(x => x.el === e.target);
         if (c) paint(c);
         obs.unobserve(e.target);
       }
     },
-    { rootMargin: '400px 0px' },
+    {rootMargin: '400px 0px'},
   );
   for (const c of cards) io.observe(c.el);
   // Belt and braces: anything the observer has not reached within a beat
@@ -168,9 +178,9 @@ export async function mountGallery(opts: MountOpts = {}): Promise<void> {
     });
   };
 
-  document.body.addEventListener('pointerdown', (e) => {
+  document.body.addEventListener('pointerdown', e => {
     const el = (e.target as HTMLElement | null)?.closest?.('[data-variant]');
-    const c = cards.find((x) => x.el === el);
+    const c = cards.find(x => x.el === el);
     if (!c) return;
     active = c;
     startX = e.clientX;
@@ -181,7 +191,7 @@ export async function mountGallery(opts: MountOpts = {}): Promise<void> {
 
   window.addEventListener(
     'pointermove',
-    (e) => {
+    e => {
       const c = active;
       if (!c) return;
       const dx = e.clientX - startX;
@@ -198,7 +208,7 @@ export async function mountGallery(opts: MountOpts = {}): Promise<void> {
       c.yaw = startYaw - dx * 0.012;
       repaint(c);
     },
-    { passive: false },
+    {passive: false},
   );
 
   const release = (): void => {

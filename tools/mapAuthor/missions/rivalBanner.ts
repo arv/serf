@@ -19,21 +19,21 @@
  * footprint sits off-centre by a tile and a half, on the line between the
  * meres, which is exactly the line the two seats are equidistant from.
  */
-import { HILL, MEADOW, RISE, Valley, type Authored, type Pt } from '../kit.ts';
-import { keepAnchor, keepCenter, seats } from '../layout.ts';
+import {HILL, MEADOW, RISE, Valley, type Authored, type Pt} from '../kit.ts';
+import {keepAnchor, keepCenter, seats} from '../layout.ts';
 
 export function build(): Authored {
-  const v = new Valley(96, 7079, { mirror: true });
+  const v = new Valley(96, 7079, {mirror: true});
   const starts = seats(2);
   const keep = keepCenter(starts[0]!);
   /** Said against the north-western banner... */
-  const a = (dx: number, dy: number): Pt => ({ x: keep.x + dx, y: keep.y + dy });
+  const a = (dx: number, dy: number): Pt => ({x: keep.x + dx, y: keep.y + dy});
   /** ...and mirrored: a place and its half-turn twin. */
   const twin = (dx: number, dy: number): [Pt, Pt] => v.pair(a(dx, dy));
   /** Both halves of a polyline. */
-  const both = (pts: Pt[]): Pt[][] => [pts, pts.map((p) => v.rotated(p))];
+  const both = (pts: Pt[]): Pt[][] => [pts, pts.map(p => v.rotated(p))];
   /** The grid's own centre — the one place that is its own twin. */
-  const middle: Pt = { x: v.size / 2, y: v.size / 2 };
+  const middle: Pt = {x: v.size / 2, y: v.size / 2};
 
   v.meadow(MEADOW, 0.05);
   // Each banner's own country: a shoulder of hill behind it, the bay in
@@ -48,15 +48,17 @@ export function build(): Authored {
   // other diagonal holding it to a road's width.
   v.level(middle, 12, 0.4, 8);
   for (const p of twin(-9, -9)) v.level(p, 9, 0.45, 5);
-  for (const p of v.pair({ x: middle.x - 15.5, y: middle.y + 14.5 })) v.pond(p, 7);
+  for (const p of v.pair({x: middle.x - 15.5, y: middle.y + 14.5}))
+    v.pond(p, 7);
   // Each banner's water, at its back.
   for (const p of twin(-12, -9)) v.pond(p, 4);
-  for (const course of both([a(-12, -9), a(-20, -14), a(-30, -20)])) v.river(course, 1.6, 0.08);
+  for (const course of both([a(-12, -9), a(-20, -14), a(-30, -20)]))
+    v.river(course, 1.6, 0.08);
   // The camp stands in the middle, far from any border — but the two
   // banners open twenty-seven tiles off their corners, which a deep bay
   // can reach. Reserved in pairs, like everything else here.
-  for (const s of starts) v.keepClear({ x: s.x + 1.5, y: s.y + 1.5 }, 6);
-  v.borders({ n: 'ridge', e: 'sea', s: 'ridge', w: 'sea' });
+  for (const s of starts) v.keepClear({x: s.x + 1.5, y: s.y + 1.5}, 6);
+  v.borders({n: 'ridge', e: 'sea', s: 'ridge', w: 'sea'});
 
   const drowned = v.settle(keepAnchor(starts[0]!));
 
@@ -65,7 +67,8 @@ export function build(): Authored {
   // ranges and both sea borders are sea), so every stick of timber on it
   // is a stand somebody put there — and a war of elimination that runs
   // out of wood does not end. Each banner gets the same seven.
-  for (const course of both([a(-15, 1), a(-8, 10), a(3, 13)])) v.treeline(course, 6.5, 0.88);
+  for (const course of both([a(-15, 1), a(-8, 10), a(3, 13)]))
+    v.treeline(course, 6.5, 0.88);
   for (const p of twin(-18, -5)) v.grove(p, 7, 0.85);
   for (const p of twin(-5, -19)) v.grove(p, 7, 0.85);
   for (const p of twin(12, 15)) v.grove(p, 6.5, 0.8);
@@ -89,11 +92,12 @@ export function build(): Authored {
   // Two lodes rather than one, at each other's half-turn: a single blob
   // in the middle cannot be symmetric about a point it does not sit on,
   // and "contested" has to mean the same walk for both banners.
-  for (const p of v.pair({ x: middle.x - 6.5, y: middle.y + 5.5 })) v.goldSeam(60, p);
+  for (const p of v.pair({x: middle.x - 6.5, y: middle.y + 5.5}))
+    v.goldSeam(60, p);
 
   // Each banner's own meadow swept: the woods have an edge, and a lone
   // tree by the keep is a woodcutter site that fells it and starves.
-  for (const s of starts) v.clearing({ x: s.x + 1.5, y: s.y + 1.5 }, 10);
+  for (const s of starts) v.clearing({x: s.x + 1.5, y: s.y + 1.5}, 10);
   v.noDeadWoodSites(starts);
   v.plantBelt();
   for (const s of starts) v.clear(s.x - 2, s.y - 2, 7, 9);

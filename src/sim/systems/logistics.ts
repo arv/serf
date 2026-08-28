@@ -1,4 +1,6 @@
-import type { Enum } from '../../shared/enum.ts';
+import type {Enum} from '../../shared/enum.ts';
+import {atBuilding, walkToBuilding} from '../arrival.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
 import {
   JOB_BLOCKED_BACKOFF,
   MATCHER_INTERVAL,
@@ -13,21 +15,25 @@ import {
   convertRecipeOf,
   outputGoodsOf,
 } from '../defs/buildings.ts';
-import { forgeDemandRecipe } from './production.ts';
-import { GOODS, goodEntries, goodKeys } from '../defs/goods.ts';
-import { centerOf, isPlayerOwner, type Building, type EntityId, type Owner } from '../entities.ts';
-import { findPathToAdjacent } from '../path.ts';
-import { atBuilding, walkToBuilding } from '../arrival.ts';
-import { trainingDemand } from './training.ts';
-import { applyRepairMaterial, type HaulJob, type World } from '../world.ts';
-import type { Unit } from '../units.ts';
-import * as GoodId from '../defs/goodIdEnum.ts';
-import * as BuildingState from '../buildingStateEnum.ts';
-import * as HaulPhase from '../haulPhaseEnum.ts';
-import * as UnitTaskKind from '../unitTaskKindEnum.ts';
-import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../defs/goodIdEnum.ts';
+import {GOODS, goodEntries, goodKeys} from '../defs/goods.ts';
 import * as TechId from '../defs/techIdEnum.ts';
+import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import {
+  centerOf,
+  isPlayerOwner,
+  type Building,
+  type EntityId,
+  type Owner,
+} from '../entities.ts';
+import * as HaulPhase from '../haulPhaseEnum.ts';
+import {findPathToAdjacent} from '../path.ts';
+import type {Unit} from '../units.ts';
+import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import {applyRepairMaterial, type HaulJob, type World} from '../world.ts';
+import {forgeDemandRecipe} from './production.ts';
+import {trainingDemand} from './training.ts';
 
 type GoodId = Enum<typeof GoodId>;
 
@@ -57,7 +63,11 @@ export function logisticsSystem(world: World): void {
 
 function releaseSource(world: World, job: HaulJob): void {
   const from = world.buildings.get(job.from);
-  if (from) from.reservedOut[job.good] = Math.max(0, (from.reservedOut[job.good] ?? 0) - 1);
+  if (from)
+    from.reservedOut[job.good] = Math.max(
+      0,
+      (from.reservedOut[job.good] ?? 0) - 1,
+    );
 }
 
 function releaseDest(world: World, job: HaulJob): void {
@@ -74,26 +84,33 @@ function releaseDest(world: World, job: HaulJob): void {
  * and merely reassigned — destroying a barrel because the player told
  * someone to walk elsewhere is not a rule, it is a bug.
  */
-export function abortJob(world: World, job: HaulJob, reason: string, keepCargo = false): void {
+export function abortJob(
+  world: World,
+  job: HaulJob,
+  reason: string,
+  keepCargo = false,
+): void {
   if (job.phase !== HaulPhase.toDropoff) releaseSource(world, job);
   releaseDest(world, job);
-  const serf = job.serfId !== undefined ? world.units.get(job.serfId) : undefined;
+  const serf =
+    job.serfId !== undefined ? world.units.get(job.serfId) : undefined;
   if (serf && !serf.dead) {
     if (serf.carrying !== undefined && !keepCargo) {
       // Nobody is left to carry it: the good is destroyed, ledgered so the
       // conservation check stays honest.
-      world.ledger.consumed[serf.carrying] = (world.ledger.consumed[serf.carrying] ?? 0) + 1;
+      world.ledger.consumed[serf.carrying] =
+        (world.ledger.consumed[serf.carrying] ?? 0) + 1;
       serf.carrying = undefined;
     }
     serf.jobId = undefined;
     serf.path = null;
-    serf.task = { t: UnitTaskKind.idle, until: world.tick };
+    serf.task = {t: UnitTaskKind.idle, until: world.tick};
   }
   world.jobs.delete(job.id);
   // The sim compiles for two hosts: Vite (where import.meta.env exists) and
   // plain Node on the server (where it does not). Reading it through a cast
   // keeps this dev-only warning honest in both without a shim.
-  if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) {
+  if ((import.meta as {env?: {DEV?: boolean}}).env?.DEV) {
     console.warn(
       `[logistics] job ${job.id} (${job.good} ${job.from}->${job.to}) aborted: ${reason}`,
     );
@@ -156,7 +173,8 @@ function match(world: World): void {
   // used to be a full building scan inside the loop.
   const storehouses = new Map<Owner, Building | undefined>();
   const storehouseOf = (owner: Owner): Building | undefined => {
-    if (!storehouses.has(owner)) storehouses.set(owner, findStorehouse(world, owner));
+    if (!storehouses.has(owner))
+      storehouses.set(owner, findStorehouse(world, owner));
     return storehouses.get(owner);
   };
 
@@ -200,7 +218,7 @@ function match(world: World): void {
       for (const good of GOODS) {
         const want = (b.repairNeeds[good] ?? 0) - (b.inbound[good] ?? 0);
         if (want > 0 && !suspended(world, b, good)) {
-          demands.push({ ...demandOf(world, b, good, want, 1), repair: true });
+          demands.push({...demandOf(world, b, good, want, 1), repair: true});
         }
       }
     }
@@ -234,9 +252,12 @@ function match(world: World): void {
     // worker holds the post (his tool was consumed when he took it up).
     const postTool = TOOL_OF[b.type];
     if (postTool !== undefined && !b.paused) {
-      const w = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+      const w =
+        b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
       const manned = w !== undefined && !w.dead;
-      const want = manned ? 0 : 1 - (b.inputs[postTool] ?? 0) - (b.inbound[postTool] ?? 0);
+      const want = manned
+        ? 0
+        : 1 - (b.inputs[postTool] ?? 0) - (b.inbound[postTool] ?? 0);
       if (want > 0 && !suspended(world, b, postTool)) {
         demands.push(demandOf(world, b, postTool, want, 2));
       } else if (want <= 0) {
@@ -250,7 +271,10 @@ function match(world: World): void {
       !b.paused &&
       world.players[b.owner]?.techs.researched.includes(TechId.festivals)
     ) {
-      const want = ABBEY_ALE_CAP - (b.inputs[GoodId.ale] ?? 0) - (b.inbound[GoodId.ale] ?? 0);
+      const want =
+        ABBEY_ALE_CAP -
+        (b.inputs[GoodId.ale] ?? 0) -
+        (b.inbound[GoodId.ale] ?? 0);
       if (want > 0) demands.push(demandOf(world, b, GoodId.ale, want, 2));
       else clearDemandAge(b, GoodId.ale);
     }
@@ -264,7 +288,10 @@ function match(world: World): void {
       !b.paused &&
       world.players[b.owner]?.techs.researched.includes(TechId.aleRations)
     ) {
-      const want = BARRACKS_ALE_CAP - (b.inputs[GoodId.ale] ?? 0) - (b.inbound[GoodId.ale] ?? 0);
+      const want =
+        BARRACKS_ALE_CAP -
+        (b.inputs[GoodId.ale] ?? 0) -
+        (b.inbound[GoodId.ale] ?? 0);
       if (want > 0) demands.push(demandOf(world, b, GoodId.ale, want, 2));
       else clearDemandAge(b, GoodId.ale);
     }
@@ -288,7 +315,9 @@ function match(world: World): void {
       // site returned, the axe a dismissed woodcutter left behind. Those
       // ride home from ANY building, recipe or not — a finished house is
       // no producer, but the hammer that raised it still wants hauling.
-      const evac = new Set<GoodId>(def.recipe || def.recipeOptions ? outputGoodsOf(def) : []);
+      const evac = new Set<GoodId>(
+        def.recipe || def.recipeOptions ? outputGoodsOf(def) : [],
+      );
       for (const tool of TOOL_GOODS) {
         if ((b.stock[tool] ?? 0) > 0) evac.add(tool);
       }
@@ -333,7 +362,10 @@ function match(world: World): void {
 }
 
 /** good -> position in GOODS, so the sort comparator avoids indexOf scans. */
-const GOOD_INDEX = Object.fromEntries(GOODS.map((g, i) => [g, i])) as Record<GoodId, number>;
+const GOOD_INDEX = Object.fromEntries(GOODS.map((g, i) => [g, i])) as Record<
+  GoodId,
+  number
+>;
 
 interface DemandFull extends Demand {
   pinnedSource?: Building;
@@ -352,8 +384,16 @@ function demandOf(
   // FIFO age: the *demanding pair* tracks when it first went unmet. For
   // evacuation demands the age lives on the source building.
   const ageHolder = pinnedSource ?? building;
-  if (ageHolder.demandSince[good] === undefined) ageHolder.demandSince[good] = world.tick;
-  return { building, good, want, priority, since: ageHolder.demandSince[good], pinnedSource };
+  if (ageHolder.demandSince[good] === undefined)
+    ageHolder.demandSince[good] = world.tick;
+  return {
+    building,
+    good,
+    want,
+    priority,
+    since: ageHolder.demandSince[good],
+    pinnedSource,
+  };
 }
 
 function findStorehouse(world: World, owner: Owner): Building | undefined {
@@ -370,12 +410,21 @@ function findStorehouse(world: World, owner: Owner): Building | undefined {
   return undefined;
 }
 
-function nearestSupply(world: World, sink: Building, good: GoodId): Building | undefined {
+function nearestSupply(
+  world: World,
+  sink: Building,
+  good: GoodId,
+): Building | undefined {
   const c = centerOf(sink);
   let best: Building | undefined;
   let bestDist = Infinity;
   for (const b of world.buildings.values()) {
-    if (b.dead || b.id === sink.id || b.state !== BuildingState.built || b.owner !== sink.owner)
+    if (
+      b.dead ||
+      b.id === sink.id ||
+      b.state !== BuildingState.built ||
+      b.owner !== sink.owner
+    )
       continue;
     if (availableOut(b, good) <= 0) continue;
     const bc = centerOf(b);
@@ -411,7 +460,7 @@ function createJob(
     priority,
     createdTick: world.tick,
     phase: HaulPhase.open,
-    ...(repair ? { repair } : {}),
+    ...(repair ? {repair} : {}),
   });
   world.nextJobId++;
 }
@@ -428,7 +477,8 @@ function createJob(
  */
 function rehomeCarriedGoods(world: World): void {
   for (const serf of world.units.values()) {
-    if (serf.dead || serf.jobId !== undefined || serf.carrying === undefined) continue;
+    if (serf.dead || serf.jobId !== undefined || serf.carrying === undefined)
+      continue;
     if (serf.kind !== UnitTypeId.serf || !isPlayerOwner(serf.owner)) continue;
     if (serf.task.t !== UnitTaskKind.idle) continue; // let him finish the walk he was sent on
 
@@ -465,12 +515,16 @@ function rehomeCarriedGoods(world: World): void {
     serf.jobId = job.id;
     serf.path = path;
     serf.pathIdx = 0;
-    serf.task = { t: UnitTaskKind.haul };
+    serf.task = {t: UnitTaskKind.haul};
   }
 }
 
 /** Somebody who wants this good — a builder or consumer first, else home. */
-function deliveryTargetFor(world: World, owner: Owner, good: GoodId): Building | undefined {
+function deliveryTargetFor(
+  world: World,
+  owner: Owner,
+  good: GoodId,
+): Building | undefined {
   const home = findStorehouse(world, owner);
   for (const b of world.buildings.values()) {
     if (b.dead || b.owner !== owner || b === home) continue;
@@ -485,7 +539,11 @@ function deliveryTargetFor(world: World, owner: Owner, good: GoodId): Building |
       !b.paused &&
       ((convert?.inputs[good] ?? 0) > 0 ||
         (b.type === BuildingTypeId.abbey && good === GoodId.ale));
-    if (wantsInput && (b.inputs[good] ?? 0) + (b.inbound[good] ?? 0) < INPUT_CAP) return b;
+    if (
+      wantsInput &&
+      (b.inputs[good] ?? 0) + (b.inbound[good] ?? 0) < INPUT_CAP
+    )
+      return b;
   }
   return home;
 }
@@ -509,7 +567,12 @@ function dispatch(world: World): void {
   // its own owner.
   const idleByOwner = new Map<Owner, Unit[]>();
   for (const u of world.units.values()) {
-    if (u.dead || u.kind !== UnitTypeId.serf || !isPlayerOwner(u.owner) || u.jobId !== undefined)
+    if (
+      u.dead ||
+      u.kind !== UnitTypeId.serf ||
+      !isPlayerOwner(u.owner) ||
+      u.jobId !== undefined
+    )
       continue;
     // Walking under a player's move order is not idleness — leave them be
     // until they arrive (movement flips the task back to idle there). Nor
@@ -527,7 +590,10 @@ function dispatch(world: World): void {
 
   // Sort only once we know somebody can actually claim a job — this runs
   // every tick, and most ticks have no idle serfs.
-  open.sort((a, z) => a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id);
+  open.sort(
+    (a, z) =>
+      a.priority - z.priority || a.createdTick - z.createdTick || a.id - z.id,
+  );
 
   for (const job of open) {
     const idle = idleByOwner.get(job.owner);
@@ -582,7 +648,7 @@ function dispatch(world: World): void {
     serf.jobId = job.id;
     serf.path = path;
     serf.pathIdx = 0;
-    serf.task = { t: UnitTaskKind.haul };
+    serf.task = {t: UnitTaskKind.haul};
   }
 }
 
@@ -590,13 +656,18 @@ function dispatch(world: World): void {
 
 function progress(world: World): void {
   for (const unit of world.units.values()) {
-    if (unit.dead || unit.jobId === undefined || unit.task.t !== UnitTaskKind.haul) continue;
+    if (
+      unit.dead ||
+      unit.jobId === undefined ||
+      unit.task.t !== UnitTaskKind.haul
+    )
+      continue;
     if (unit.path !== null) continue; // still walking
 
     const job = world.jobs.get(unit.jobId);
     if (!job) {
       unit.jobId = undefined;
-      unit.task = { t: UnitTaskKind.idle, until: world.tick };
+      unit.task = {t: UnitTaskKind.idle, until: world.tick};
       continue;
     }
 
@@ -678,7 +749,7 @@ function progress(world: World): void {
       releaseDest(world, job);
       unit.carrying = undefined;
       unit.jobId = undefined;
-      unit.task = { t: UnitTaskKind.idle, until: world.tick };
+      unit.task = {t: UnitTaskKind.idle, until: world.tick};
       world.jobs.delete(job.id);
     }
   }
@@ -716,7 +787,7 @@ function deliver(world: World, to: Building, good: GoodId): void {
     to.inputs[good] = (to.inputs[good] ?? 0) + 1;
   } else if (
     def.recipeOptions
-      ? def.recipeOptions.some((o) => (o.recipe.inputs[good] ?? 0) > 0)
+      ? def.recipeOptions.some(o => (o.recipe.inputs[good] ?? 0) > 0)
       : (convertRecipeOf(def, to)?.inputs[good] ?? 0) > 0
   ) {
     // Any recipe on the Smith's menu keeps its ingredients: iron that
@@ -750,7 +821,8 @@ function reconcile(world: World): void {
       continue;
     }
     if (job.phase !== HaulPhase.open) {
-      const serf = job.serfId !== undefined ? world.units.get(job.serfId) : undefined;
+      const serf =
+        job.serfId !== undefined ? world.units.get(job.serfId) : undefined;
       if (!serf || serf.dead) {
         unassignJob(world, job);
         continue;
@@ -795,4 +867,4 @@ function reconcile(world: World): void {
   }
 }
 
-export { availableOut, findStorehouse };
+export {availableOut, findStorehouse};

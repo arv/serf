@@ -43,14 +43,17 @@ export interface SaveFileInfo extends StoredFileInfo {
   world?: number;
 }
 
-export type { ImportResult };
+export type {ImportResult};
 
 /**
  * Write one save under `name`, or under "name (2)" and so on when that
  * name is taken. Returns the name actually used, or null when OPFS is
  * unavailable.
  */
-export function saveGameFile(name: string, data: string): Promise<string | null> {
+export function saveGameFile(
+  name: string,
+  data: string,
+): Promise<string | null> {
   return store.write(name, data);
 }
 
@@ -63,14 +66,14 @@ export function saveGameNow(data: string): Promise<string | null> {
 export async function listSaveFiles(): Promise<SaveFileInfo[]> {
   const files = await store.list();
   return Promise.all(
-    files.map(async (info) => {
+    files.map(async info => {
       const head = await info.file.slice(0, HEAD_BYTES).text();
       const meta = readSaveMeta(head);
       const world = readSaveWorldVersion(head);
       return {
         ...info,
-        ...(meta !== undefined ? { meta } : {}),
-        ...(world !== undefined ? { world } : {}),
+        ...(meta !== undefined ? {meta} : {}),
+        ...(world !== undefined ? {world} : {}),
       };
     }),
   );
@@ -102,15 +105,17 @@ export async function importSaveFile(file: File): Promise<ImportResult> {
   try {
     raw = await file.text();
   } catch {
-    return { ok: false, reason: 'storage' };
+    return {ok: false, reason: 'storage'};
   }
-  if (!looksLikeSave(raw)) return { ok: false, reason: 'unrecognized' };
+  if (!looksLikeSave(raw)) return {ok: false, reason: 'unrecognized'};
   // .json comes off a dragged-out row, .txt off one that rode the share
   // sheet — the same two wrappers the replay import strips.
   const base = file.name.replace(/\.(json|txt)$/i, '').trim();
   const name = store.validName(base) ? base : stampName(new Date());
   const saved = await saveGameFile(name, raw);
-  return saved !== null ? { ok: true, name: saved } : { ok: false, reason: 'storage' };
+  return saved !== null
+    ? {ok: true, name: saved}
+    : {ok: false, reason: 'storage'};
 }
 
 /**

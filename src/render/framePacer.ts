@@ -89,5 +89,7 @@ export class FramePacer {
  */
 export function batteryFramePacer(): FramePacer {
   const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
-  return coarse ? new FramePacer(MOBILE_FPS_CAP, MOBILE_INTERACT_FPS_CAP) : new FramePacer(null);
+  return coarse
+    ? new FramePacer(MOBILE_FPS_CAP, MOBILE_INTERACT_FPS_CAP)
+    : new FramePacer(null);
 }

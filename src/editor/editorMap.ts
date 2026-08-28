@@ -1,4 +1,4 @@
-import { gridFor, tileCount, tileIdx } from '../shared/grid.ts';
+import {gridFor, tileCount, tileIdx} from '../shared/grid.ts';
 import {
   inPlayArea,
   recomputeBlocked,
@@ -6,9 +6,9 @@ import {
   type PlayArea,
   type StartSpot,
 } from '../sim/map.ts';
-import { resolveMapSize } from '../sim/world.ts';
-import { rotateStart } from './symmetry.ts';
 import * as Terrain from '../sim/terrainEnum.ts';
+import {resolveMapSize} from '../sim/world.ts';
+import {rotateStart} from './symmetry.ts';
 
 /**
  * The editor's working state: a real GameMap (so every render class and the
@@ -32,7 +32,10 @@ export const BLANK_LAND_HEIGHT = 0.35;
  * margin around it (Warcraft-style, gridFor), all of it paintable — the
  * margin is real tiles the camera sees, just ground nothing may use.
  */
-export function createBlankMap(opts: { size: number; players: number }): EditorMapState {
+export function createBlankMap(opts: {
+  size: number;
+  players: number;
+}): EditorMapState {
   const play = resolveMapSize(opts.size);
   const size = gridFor(play);
   const players = Math.max(1, Math.min(4, opts.players | 0));
@@ -50,7 +53,7 @@ export function createBlankMap(opts: { size: number; players: number }): EditorM
     height: new Float32Array(tiles).fill(BLANK_LAND_HEIGHT),
   };
   recomputeBlocked(map);
-  return { map, players, starts: defaultStarts(map, players), name: 'Untitled' };
+  return {map, players, starts: defaultStarts(map, players), name: 'Untitled'};
 }
 
 /**
@@ -64,11 +67,12 @@ export function createBlankMap(opts: { size: number; players: number }): EditorM
  */
 export function defaultStarts(area: PlayArea, players: number): StartSpot[] {
   const size = area.size;
-  if (players <= 1) return [{ x: size / 2 - 2, y: size / 2 - 2 }];
+  if (players <= 1) return [{x: size / 2 - 2, y: size / 2 - 2}];
   const ring = Math.round(area.play * 0.28);
-  const first: StartSpot = { x: size / 2 - 2, y: size / 2 - 2 - ring };
+  const first: StartSpot = {x: size / 2 - 2, y: size / 2 - 2 - ring};
   const out: StartSpot[] = [first];
-  for (let k = 1; k < players; k++) out.push(rotateStart(first, size, k, players));
+  for (let k = 1; k < players; k++)
+    out.push(rotateStart(first, size, k, players));
   return out;
 }
 
@@ -83,12 +87,16 @@ const START_W = 3;
  * agree by construction — this is the one rule.
  */
 export function startSpotLegal(map: GameMap, s: StartSpot): boolean {
-  if (!inPlayArea(map, s.x - 1, s.y - 1) || !inPlayArea(map, s.x + START_W, s.y + START_W)) {
+  if (
+    !inPlayArea(map, s.x - 1, s.y - 1) ||
+    !inPlayArea(map, s.x + START_W, s.y + START_W)
+  ) {
     return false;
   }
   for (let dy = 0; dy < START_W; dy++) {
     for (let dx = 0; dx < START_W; dx++) {
-      if (map.terrain[tileIdx(s.x + dx, s.y + dy, map.size)] !== Terrain.Grass) return false;
+      if (map.terrain[tileIdx(s.x + dx, s.y + dy, map.size)] !== Terrain.Grass)
+        return false;
     }
   }
   return true;
@@ -96,14 +104,18 @@ export function startSpotLegal(map: GameMap, s: StartSpot): boolean {
 
 /** Blocking problems that must be fixed before Play. */
 export function validateForPlay(state: EditorMapState): string[] {
-  const { map, players, starts } = state;
+  const {map, players, starts} = state;
   const problems: string[] = [];
   if (starts.length !== players) {
-    problems.push(`map is set for ${players} player(s) but has ${starts.length} start(s)`);
+    problems.push(
+      `map is set for ${players} player(s) but has ${starts.length} start(s)`,
+    );
   }
   starts.forEach((s, p) => {
     if (!startSpotLegal(map, s)) {
-      problems.push(`player ${p + 1}'s start needs a full 3×3 of grass inside the playable area`);
+      problems.push(
+        `player ${p + 1}'s start needs a full 3×3 of grass inside the playable area`,
+      );
     }
   });
   for (let a = 0; a < starts.length; a++) {
@@ -111,7 +123,9 @@ export function validateForPlay(state: EditorMapState): string[] {
       const dx = Math.abs(starts[a]!.x - starts[b]!.x);
       const dy = Math.abs(starts[a]!.y - starts[b]!.y);
       if (Math.max(dx, dy) < START_W + 2) {
-        problems.push(`player ${a + 1} and player ${b + 1} start on top of each other`);
+        problems.push(
+          `player ${a + 1} and player ${b + 1} start on top of each other`,
+        );
       }
     }
   }
@@ -146,7 +160,9 @@ export function validateForPlay(state: EditorMapState): string[] {
     }
     starts.forEach((s, p) => {
       if (p > 0 && !seen[tileIdx(s.x + 1, s.y + 1, size)]) {
-        problems.push(`player ${p + 1}'s start is cut off from player 1 — bridge the land`);
+        problems.push(
+          `player ${p + 1}'s start is cut off from player 1 — bridge the land`,
+        );
       }
     });
   }

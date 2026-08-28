@@ -31,7 +31,7 @@ function takeOver(worker: ServiceWorker): void {
     reloading = true;
     location.reload();
   });
-  worker.postMessage({ type: 'skip-waiting' });
+  worker.postMessage({type: 'skip-waiting'});
 }
 
 function track(worker: ServiceWorker | null): void {
@@ -93,14 +93,14 @@ export function releaseServiceWorkerUpdates(): void {
  * the worker found by a boot that went straight into a match is still
  * being watched when the flag comes down.
  */
-export function registerServiceWorker(opts: { applyUpdates: boolean }): void {
+export function registerServiceWorker(opts: {applyUpdates: boolean}): void {
   held = !opts.applyUpdates;
   if (!('serviceWorker' in navigator)) return;
   if (import.meta.env.DEV) {
     // Dev serves from Vite with no hashed names; a worker left over from a
     // production build (or a preview on the same localhost port) would
     // happily answer with last week's bundle.
-    void navigator.serviceWorker.getRegistrations().then((regs) => {
+    void navigator.serviceWorker.getRegistrations().then(regs => {
       for (const reg of regs) void reg.unregister();
     });
     return;
@@ -147,7 +147,9 @@ async function install(): Promise<void> {
   // events, which is what lets the check be asked for and then forgotten.
   track(registration.waiting);
   track(registration.installing);
-  registration.addEventListener('updatefound', () => track(registration.installing));
+  registration.addEventListener('updatefound', () =>
+    track(registration.installing),
+  );
 
   // Ask outright rather than trusting the browser's own check: every launch
   // here is a navigation the worker answers from its cache, and Chrome is

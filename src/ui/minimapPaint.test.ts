@@ -1,14 +1,18 @@
-import { describe, expect, it } from 'vitest';
-import { ownerTint, paintBase, tileRgb, type MinimapTiles } from './minimapPaint';
-import { playMin } from '../sim/map';
-import { background, grass, leafDark, rock, water } from '../render/palette';
-import { factionTint } from '../render/factionPalette';
-import { BANDIT } from '../sim/entities';
+import {describe, expect, it} from 'vitest';
+import {factionTint} from '../render/factionPalette';
+import {background, grass, leafDark, rock, water} from '../render/palette';
+import {BANDIT} from '../sim/entities';
+import {playMin} from '../sim/map';
 import * as PathLevel from '../sim/pathLevelEnum.ts';
 import * as Terrain from '../sim/terrainEnum.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
+import {ownerTint, paintBase, tileRgb, type MinimapTiles} from './minimapPaint';
 
-const rgb = (c: number): [number, number, number] => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+const rgb = (c: number): [number, number, number] => [
+  (c >> 16) & 255,
+  (c >> 8) & 255,
+  c & 255,
+];
 
 /** An 8-grid with a 4-play square centered in it, all lush meadow. */
 function tinyMap(): MinimapTiles {
@@ -24,17 +28,29 @@ function tinyMap(): MinimapTiles {
 
 describe('tileRgb', () => {
   it('reads terrain before what stands on it', () => {
-    expect(tileRgb(Terrain.Water, TileResource.None, PathLevel.None)).toEqual(rgb(water));
+    expect(tileRgb(Terrain.Water, TileResource.None, PathLevel.None)).toEqual(
+      rgb(water),
+    );
     // A mountain is the story even where a deposit shares the tile.
-    expect(tileRgb(Terrain.Rock, TileResource.IronDep, PathLevel.None)).toEqual(rgb(rock));
-    expect(tileRgb(Terrain.Grass, TileResource.Wood, PathLevel.None)).toEqual(rgb(leafDark));
-    expect(tileRgb(Terrain.Grass, TileResource.None, PathLevel.None)).toEqual(rgb(grass));
+    expect(tileRgb(Terrain.Rock, TileResource.IronDep, PathLevel.None)).toEqual(
+      rgb(rock),
+    );
+    expect(tileRgb(Terrain.Grass, TileResource.Wood, PathLevel.None)).toEqual(
+      rgb(leafDark),
+    );
+    expect(tileRgb(Terrain.Grass, TileResource.None, PathLevel.None)).toEqual(
+      rgb(grass),
+    );
   });
 
   it('keeps trails off the chart', () => {
     // A trail is noise at one pixel per tile; a road is worth the pixel.
-    expect(tileRgb(Terrain.Grass, TileResource.None, PathLevel.Trail)).toEqual(rgb(grass));
-    expect(tileRgb(Terrain.Grass, TileResource.None, PathLevel.Road)).not.toEqual(rgb(grass));
+    expect(tileRgb(Terrain.Grass, TileResource.None, PathLevel.Trail)).toEqual(
+      rgb(grass),
+    );
+    expect(
+      tileRgb(Terrain.Grass, TileResource.None, PathLevel.Road),
+    ).not.toEqual(rgb(grass));
   });
 });
 

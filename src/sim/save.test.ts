@@ -1,25 +1,51 @@
-import { describe, expect, it } from 'vitest';
-import { cmds } from './testUtils.ts';
-import { createWorld, placeBuiltBuilding, spawnUnit, type World } from './world.ts';
-import { deserializeWorld, serializeWorld } from './save.ts';
-import { tickWorld } from './tick.ts';
-import { checkInvariants } from './debug/invariants.ts';
-import { BANDIT } from './entities.ts';
-import { UNIT_DEFS } from './defs/units.ts';
-import { BUILDING_DEFS } from './defs/buildings.ts';
-import type { SimCommand } from './commands.ts';
-import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import {describe, expect, it} from 'vitest';
 import * as CommandKind from './commandKindEnum.ts';
+import type {SimCommand} from './commands.ts';
+import {checkInvariants} from './debug/invariants.ts';
+import {BUILDING_DEFS} from './defs/buildings.ts';
+import * as BuildingTypeId from './defs/buildingTypeIdEnum.ts';
+import {UNIT_DEFS} from './defs/units.ts';
+import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import {BANDIT} from './entities.ts';
 import * as PlayerKind from './playerKindEnum.ts';
+import {deserializeWorld, serializeWorld} from './save.ts';
+import {cmds} from './testUtils.ts';
+import {tickWorld} from './tick.ts';
+import {
+  createWorld,
+  placeBuiltBuilding,
+  spawnUnit,
+  type World,
+} from './world.ts';
 
 function commandScript(tick: number): SimCommand[] {
   if (tick === 50)
-    return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.woodcutter, x: 26, y: 36 }];
+    return [
+      {
+        kind: CommandKind.placeBuilding,
+        building: BuildingTypeId.woodcutter,
+        x: 26,
+        y: 36,
+      },
+    ];
   if (tick === 60)
-    return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.well, x: 38, y: 36 }];
+    return [
+      {
+        kind: CommandKind.placeBuilding,
+        building: BuildingTypeId.well,
+        x: 38,
+        y: 36,
+      },
+    ];
   if (tick === 800)
-    return [{ kind: CommandKind.placeBuilding, building: BuildingTypeId.wheatFarm, x: 40, y: 30 }];
+    return [
+      {
+        kind: CommandKind.placeBuilding,
+        building: BuildingTypeId.wheatFarm,
+        x: 40,
+        y: 30,
+      },
+    ];
   return [];
 }
 
@@ -62,8 +88,12 @@ describe('save/load', () => {
   });
 
   it('refuses saves from before the medieval id rename', () => {
-    expect(() => deserializeWorld('{"version":1,"world":{}}')).toThrow(/older version/);
-    expect(() => deserializeWorld('{"version":2,"world":{}}')).toThrow(/older version/);
+    expect(() => deserializeWorld('{"version":1,"world":{}}')).toThrow(
+      /older version/,
+    );
+    expect(() => deserializeWorld('{"version":2,"world":{}}')).toThrow(
+      /older version/,
+    );
   });
 
   it('keeps bandits off through a round-trip', () => {
@@ -71,7 +101,7 @@ describe('save/load', () => {
     // it silently resurrects the raiders in a no-bandits match on load.
     const world = createWorld({
       seed: 5,
-      players: [{ kind: PlayerKind.human }],
+      players: [{kind: PlayerKind.human}],
       adminEnabled: false,
       banditsEnabled: false,
     });
@@ -97,8 +127,14 @@ describe('save/load', () => {
     // for it, and it called for no bump of its own. What has to hold is
     // the reading: an old garrison is archers, because archers were the
     // only thing that could ever be up there.
-    const world = createWorld({ seed: 5, players: [{ kind: PlayerKind.human }] });
-    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 30, 30);
+    const world = createWorld({seed: 5, players: [{kind: PlayerKind.human}]});
+    const tower = placeBuiltBuilding(
+      world,
+      BuildingTypeId.guardTower,
+      0,
+      30,
+      30,
+    );
     tower.garrison = 2;
     tower.garrisonKind = undefined; // as an older build wrote it
     const saved = serializeWorld(world);
@@ -115,11 +151,19 @@ describe('save/load', () => {
     tickWorld(back, []);
     const combat = UNIT_DEFS[UnitTypeId.archer].combat!;
     const rule = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!;
-    expect(before - raider.hp).toBeCloseTo(combat.damage * rule.damageMult * 2, 5);
+    expect(before - raider.hp).toBeCloseTo(
+      combat.damage * rule.damageMult * 2,
+      5,
+    );
 
     // And hands archers back, not serfs, when it is emptied.
-    tickWorld(back, cmds({ kind: CommandKind.sellBuilding, buildingId: loaded.id }));
-    const out = [...back.units.values()].filter((u) => !u.dead && u.kind === UnitTypeId.archer);
+    tickWorld(
+      back,
+      cmds({kind: CommandKind.sellBuilding, buildingId: loaded.id}),
+    );
+    const out = [...back.units.values()].filter(
+      u => !u.dead && u.kind === UnitTypeId.archer,
+    );
     expect(out).toHaveLength(2);
   });
 });
@@ -157,7 +201,7 @@ describe('the map grids', () => {
     const world = savedWorld();
     const doc = JSON.parse(serializeWorld(world)) as {
       version: number;
-      world: { map: Record<string, unknown> };
+      world: {map: Record<string, unknown>};
     };
     for (const key of GRIDS) doc.world.map[key] = [...world.map[key]];
     const back = deserializeWorld(JSON.stringify(doc));
@@ -165,20 +209,29 @@ describe('the map grids', () => {
   });
 
   it('are refused when they are older than the tool economy', () => {
-    const doc = JSON.parse(serializeWorld(savedWorld())) as { version: number };
+    const doc = JSON.parse(serializeWorld(savedWorld())) as {version: number};
     doc.version = 5;
-    expect(() => deserializeWorld(JSON.stringify(doc))).toThrow(/older version/);
+    expect(() => deserializeWorld(JSON.stringify(doc))).toThrow(
+      /older version/,
+    );
   });
 
   it('are refused when they are garbage or the wrong length', () => {
     const doc = JSON.parse(serializeWorld(savedWorld())) as {
-      world: { map: Record<string, unknown> };
+      world: {map: Record<string, unknown>};
     };
     const withGrid = (key: string, value: unknown) =>
-      JSON.stringify({ ...doc, world: { ...doc.world, map: { ...doc.world.map, [key]: value } } });
-    expect(() => deserializeWorld(withGrid('terrain', '~~ not base64 ~~'))).toThrow(/unreadable/);
+      JSON.stringify({
+        ...doc,
+        world: {...doc.world, map: {...doc.world.map, [key]: value}},
+      });
+    expect(() =>
+      deserializeWorld(withGrid('terrain', '~~ not base64 ~~')),
+    ).toThrow(/unreadable/);
     // Base64, decodes fine, and describes a world of a different size.
     const short = (doc.world.map.height as string).slice(0, 64);
-    expect(() => deserializeWorld(withGrid('height', short))).toThrow(/bad map size/);
+    expect(() => deserializeWorld(withGrid('height', short))).toThrow(
+      /bad map size/,
+    );
   });
 });

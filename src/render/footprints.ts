@@ -1,13 +1,13 @@
 import * as THREE from 'three';
-import { hash2 } from '../shared/math';
-import { tileIdx, tileX, tileY } from '../shared/grid';
-import { ACTION, AUX_STRIDE, type SabReader } from '../protocol/sabLayout';
-import type { MapView } from '../sim/map';
-import type { Sole } from './characters';
-import { ribbonCover, type RibbonCover } from './pathRibbon';
-import { FOOTPRINT_TEX_FILL, makeFootprintSprite } from './spriteTextures';
-import type { FogQuery } from './fogOfWar';
-import type { HeightField } from './heightField';
+import {ACTION, AUX_STRIDE, type SabReader} from '../protocol/sabLayout';
+import {tileIdx, tileX, tileY} from '../shared/grid';
+import {hash2} from '../shared/math';
+import type {MapView} from '../sim/map';
+import type {Sole} from './characters';
+import type {FogQuery} from './fogOfWar';
+import type {HeightField} from './heightField';
+import {ribbonCover, type RibbonCover} from './pathRibbon';
+import {FOOTPRINT_TEX_FILL, makeFootprintSprite} from './spriteTextures';
 
 /** How long a print stays on the ground, in (unpaused) real seconds. */
 export const PRINT_LIFE_S = 30;
@@ -97,7 +97,12 @@ export class FootprintPlanner {
     const t = this.#trackers.get(id);
     if (!t) {
       // First sighting is a position, not a footfall — no print at spawn.
-      this.#trackers.set(id, { x, y, side: (id & 1) === 0 ? 1 : -1, epoch: this.#epoch });
+      this.#trackers.set(id, {
+        x,
+        y,
+        side: (id & 1) === 0 ? 1 : -1,
+        epoch: this.#epoch,
+      });
       return;
     }
     t.epoch = this.#epoch;
@@ -131,7 +136,12 @@ export class FootprintPlanner {
       t.y = y;
       t.epoch = this.#epoch;
     } else {
-      this.#trackers.set(id, { x, y, side: (id & 1) === 0 ? 1 : -1, epoch: this.#epoch });
+      this.#trackers.set(id, {
+        x,
+        y,
+        side: (id & 1) === 0 ? 1 : -1,
+        epoch: this.#epoch,
+      });
     }
   }
 
@@ -144,7 +154,7 @@ export class FootprintPlanner {
 }
 
 const dummy = new THREE.Object3D();
-const cover: RibbonCover = { trail: 0, road: 0 };
+const cover: RibbonCover = {trail: 0, road: 0};
 
 /**
  * Bootprints where people walk, fading out over half a minute — the ground
@@ -175,7 +185,7 @@ export class Footprints {
   /** Where each slot's print lies, for the cull under freshly worn paths. */
   #printX = new Float32Array(CAPACITY);
   #printZ = new Float32Array(CAPACITY);
-  #uNow = { value: 0 };
+  #uNow = {value: 0};
   /** Next slot in the ring. */
   #cursor = 0;
   /** High-water mark of touched slots — what the mesh draws. */
@@ -219,7 +229,10 @@ export class Footprints {
     const printL = sole ? sole.length / FOOTPRINT_TEX_FILL : PRINT_L;
     const geometry = new THREE.PlaneGeometry(printW, printL);
     geometry.rotateX(-Math.PI / 2); // flat on the ground, length along the march
-    this.#birth = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITY), 1);
+    this.#birth = new THREE.InstancedBufferAttribute(
+      new Float32Array(CAPACITY),
+      1,
+    );
     this.#birth.setUsage(THREE.DynamicDrawUsage);
     geometry.setAttribute('aBirth', this.#birth);
 
@@ -245,7 +258,7 @@ export class Footprints {
     // compiled without the fade splice below. The prints then simply
     // never faded.
     material.customProgramCacheKey = () => 'footprints-fade';
-    material.onBeforeCompile = (shader) => {
+    material.onBeforeCompile = shader => {
       shader.uniforms.uNow = this.#uNow;
       shader.vertexShader = shader.vertexShader
         .replace(
@@ -265,7 +278,10 @@ export class Footprints {
         );
       shader.fragmentShader = shader.fragmentShader
         .replace('#include <common>', '#include <common>\nvarying float vFade;')
-        .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a *= vFade;');
+        .replace(
+          '#include <map_fragment>',
+          '#include <map_fragment>\ndiffuseColor.a *= vFade;',
+        );
     };
 
     this.mesh = new THREE.InstancedMesh(geometry, material, CAPACITY);
@@ -379,7 +395,8 @@ export class Footprints {
       if (this.#uNow.value - born >= PRINT_LIFE_S) continue; // already invisible
       const x = this.#printX[slot]!;
       const z = this.#printZ[slot]!;
-      if (swept && !swept.has(tileIdx(Math.floor(x), Math.floor(z), size))) continue;
+      if (swept && !swept.has(tileIdx(Math.floor(x), Math.floor(z), size)))
+        continue;
       if (!onRibbon(this.#map, x, z)) continue;
       this.#birth.setX(slot, FAR_PAST);
       this.#birth.addUpdateRange(slot, 1);

@@ -1,8 +1,8 @@
-import type { AiStrategyId } from './defs/aiStrategies.ts';
-import type { Owner } from './entities.ts';
-import type { TechState } from './world.ts';
-import type { Enum } from '../shared/enum.ts';
+import type {Enum} from '../shared/enum.ts';
+import type {AiStrategyId} from './defs/aiStrategies.ts';
+import type {Owner} from './entities.ts';
 import * as PlayerKindNs from './playerKindEnum.ts';
+import type {TechState} from './world.ts';
 
 export type PlayerKind = Enum<typeof PlayerKindNs>;
 
@@ -31,12 +31,16 @@ export interface PlayerState {
   alive: boolean;
 }
 
-export function makePlayer(id: Owner, kind: PlayerKind, strategy?: AiStrategyId): PlayerState {
+export function makePlayer(
+  id: Owner,
+  kind: PlayerKind,
+  strategy?: AiStrategyId,
+): PlayerState {
   return {
     id,
     kind,
     strategy,
-    techs: { researched: [], festivalTicksLeft: 0 },
+    techs: {researched: [], festivalTicksLeft: 0},
     pavingUnlocked: false,
     alive: true,
   };

@@ -8,28 +8,33 @@
  * Per-player filtering happens above, on the server, so the two concerns
  * stay separable.
  */
-import type { Enum } from '../shared/enum.ts';
-import { TOOL_OF, buildingDef, gatherOrigin, gatherRecipeOf } from '../sim/defs/buildings.ts';
-import { HIRE_SERF_TICKS } from '../sim/defs/balance.ts';
-import { TECH_DEFS } from '../sim/defs/techs.ts';
-import { GOODS, type GoodAmounts } from '../sim/defs/goods.ts';
-import { UNIT_DEFS, carryingCode } from '../sim/defs/units.ts';
-import { ACTION, PROFESSION, WORK, type UnitSnapshot } from './sabLayout.ts';
-import { centerOf, type Building, type Owner } from '../sim/entities.ts';
-import { countResourceNear } from '../sim/map.ts';
-import { exactDist } from '../shared/math.ts';
-import { distToFootprint } from '../sim/arrival.ts';
-import type { World } from '../sim/world.ts';
-import type { Unit } from '../sim/units.ts';
-import type { BuildingSnap, JobSnap, PlayerSnap } from './messages.ts';
-import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import * as RecipeKind from '../sim/defs/recipeKindEnum.ts';
-import * as GoodId from '../sim/defs/goodIdEnum.ts';
-import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import type {Enum} from '../shared/enum.ts';
+import {exactDist} from '../shared/math.ts';
+import {distToFootprint} from '../sim/arrival.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
-import * as TileResource from '../sim/tileResourceEnum.ts';
+import {HIRE_SERF_TICKS} from '../sim/defs/balance.ts';
+import {
+  TOOL_OF,
+  buildingDef,
+  gatherOrigin,
+  gatherRecipeOf,
+} from '../sim/defs/buildings.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import {GOODS, type GoodAmounts} from '../sim/defs/goods.ts';
+import * as RecipeKind from '../sim/defs/recipeKindEnum.ts';
+import {TECH_DEFS} from '../sim/defs/techs.ts';
+import {UNIT_DEFS, carryingCode} from '../sim/defs/units.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {centerOf, type Building, type Owner} from '../sim/entities.ts';
 import * as HaulPhase from '../sim/haulPhaseEnum.ts';
+import {countResourceNear} from '../sim/map.ts';
+import * as TileResource from '../sim/tileResourceEnum.ts';
+import type {Unit} from '../sim/units.ts';
 import * as UnitTaskKind from '../sim/unitTaskKindEnum.ts';
+import type {World} from '../sim/world.ts';
+import type {BuildingSnap, JobSnap, PlayerSnap} from './messages.ts';
+import {ACTION, PROFESSION, WORK, type UnitSnapshot} from './sabLayout.ts';
 import * as StaffingState from './staffingStateEnum.ts';
 
 type GoodId = Enum<typeof GoodId>;
@@ -45,7 +50,8 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
       ? def.workerKind !== undefined
       : b.state === BuildingState.site && !def.isRoad);
   if (wantsStaff) {
-    const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+    const worker =
+      b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
     staffing =
       worker && !worker.dead
         ? StaffingState.staffed
@@ -66,35 +72,43 @@ export function snapBuilding(world: World, b: Building): BuildingSnap {
     hp: b.hp,
     maxHp: def.hp,
     state: b.state,
-    siteNeeds: b.siteNeeds ? { ...b.siteNeeds } : undefined,
-    repairNeeds: b.repairNeeds ? { ...b.repairNeeds } : undefined,
+    siteNeeds: b.siteNeeds ? {...b.siteNeeds} : undefined,
+    repairNeeds: b.repairNeeds ? {...b.repairNeeds} : undefined,
     repairPending: b.repairPending,
     progress01:
       b.state === BuildingState.site && def.buildTicks > 0
         ? (b.buildProgress ?? 0) / def.buildTicks
         : undefined,
-    stock: { ...b.stock },
-    inputs: { ...b.inputs },
-    inbound: { ...b.inbound },
-    reservedOut: { ...b.reservedOut },
-    trainQueue: b.trainQueue?.map((q) => ({
+    stock: {...b.stock},
+    inputs: {...b.inputs},
+    inbound: {...b.inbound},
+    reservedOut: {...b.reservedOut},
+    trainQueue: b.trainQueue?.map(q => ({
       unit: q.unit,
       started: q.started,
       progress01: q.started
-        ? 1 - q.ticksLeft / (def.trains?.find((o) => o.unit === q.unit)?.durationTicks ?? 1)
+        ? 1 -
+          q.ticksLeft /
+            (def.trains?.find(o => o.unit === q.unit)?.durationTicks ?? 1)
         : undefined,
     })),
-    rally: b.rally ? { ...b.rally } : undefined,
+    rally: b.rally ? {...b.rally} : undefined,
     // A paused building keeps its half-done batch (prodTicksLeft freezes),
     // so the flag needs both: batch underway AND actually ticking.
     working: b.prodTicksLeft !== undefined && !b.paused ? true : undefined,
     paused: b.paused,
     recipeIndex: b.recipeIndex,
     prodRecipeIndex: b.prodRecipeIndex,
-    forgeQueue: b.forgeQueue?.map((q) => ({ recipeIndex: q.recipeIndex, started: q.started })),
+    forgeQueue: b.forgeQueue?.map(q => ({
+      recipeIndex: q.recipeIndex,
+      started: q.started,
+    })),
     garrison: def.garrison ? (b.garrison ?? 0) : undefined,
     garrisonCap: def.garrison?.capacity,
-    levied: def.garrison && b.garrisonKind === def.garrison.levy.unit ? true : undefined,
+    levied:
+      def.garrison && b.garrisonKind === def.garrison.levy.unit
+        ? true
+        : undefined,
     // On cooldown means it loosed within the last volley's worth of ticks,
     // which is exactly the window the roof should be drawing a bow in.
     firing: (b.attackCooldown ?? 0) > 0 ? true : undefined,
@@ -120,7 +134,13 @@ function reachableResource(world: World, b: Building): number | undefined {
   const gather = gatherRecipeOf(def);
   if (!gather) return undefined;
   const origin = gatherOrigin(def, b.x, b.y);
-  return countResourceNear(world.map, origin.x, origin.y, gather.resource, gather.radius);
+  return countResourceNear(
+    world.map,
+    origin.x,
+    origin.y,
+    gather.resource,
+    gather.radius,
+  );
 }
 
 export function snapBuildings(world: World): BuildingSnap[] {
@@ -160,13 +180,19 @@ export function snapPlayers(world: World): PlayerSnap[] {
     }
     if (b.state !== BuildingState.built) continue;
     if (b.type === BuildingTypeId.abbey) abbeyOwners.add(b.owner);
-    if (!storehouses.has(b.owner) && buildingDef(b.type).storage) storehouses.set(b.owner, b);
+    if (!storehouses.has(b.owner) && buildingDef(b.type).storage)
+      storehouses.set(b.owner, b);
     const housing = buildingDef(b.type).housing;
     if (housing) beds.set(b.owner, (beds.get(b.owner) ?? 0) + housing);
     // An open post whose tool is neither on its rack nor on the road.
     const tool = TOOL_OF[b.type];
-    if (tool && !b.paused && (b.inputs[tool] ?? 0) + (b.inbound[tool] ?? 0) === 0) {
-      const worker = b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
+    if (
+      tool &&
+      !b.paused &&
+      (b.inputs[tool] ?? 0) + (b.inbound[tool] ?? 0) === 0
+    ) {
+      const worker =
+        b.workerId !== undefined ? world.units.get(b.workerId) : undefined;
       if (!worker || worker.dead) wantTool(b.owner, tool);
     }
   }
@@ -176,14 +202,14 @@ export function snapPlayers(world: World): PlayerSnap[] {
   for (const u of world.units.values()) {
     if (!u.dead) heads.set(u.owner, (heads.get(u.owner) ?? 0) + 1);
   }
-  return world.players.map((p) => {
+  return world.players.map(p => {
     const storehouse = storehouses.get(p.id);
     const hasAbbey = abbeyOwners.has(p.id);
     return {
       id: p.id,
       kind: p.kind,
       alive: p.alive,
-      stock: storehouse ? { ...storehouse.stock } : {},
+      stock: storehouse ? {...storehouse.stock} : {},
       toolWants: toolWants.get(p.id) ?? {},
       pop: heads.get(p.id) ?? 0,
       popCap: beds.get(p.id) ?? 0,
@@ -231,7 +257,8 @@ export function snapJobs(world: World, owner?: number): JobSnap[] {
 function drawingAt(w: World, u: Unit): Building | undefined {
   if (u.task.t !== UnitTaskKind.haul || u.jobId === undefined) return undefined;
   const job = w.jobs.get(u.jobId);
-  if (!job || job.phase !== HaulPhase.toPickup || job.drawUntil === undefined) return undefined;
+  if (!job || job.phase !== HaulPhase.toPickup || job.drawUntil === undefined)
+    return undefined;
   if (w.tick >= job.drawUntil) return undefined;
   return w.buildings.get(job.from);
 }
@@ -249,20 +276,21 @@ function drawingAt(w: World, u: Unit): Building | undefined {
  * moment they stopped walking — the renderer only masks it while the unit is
  * visibly moving.
  */
-function engagedTarget(w: World, u: Unit): { x: number; y: number } | undefined {
+function engagedTarget(w: World, u: Unit): {x: number; y: number} | undefined {
   const combat = UNIT_DEFS[u.kind].combat;
   if (!combat || u.targetId === undefined) return undefined;
   if (u.targetIsBuilding) {
     const b = w.buildings.get(u.targetId);
     if (!b || b.dead) return undefined;
     // Reach to the footprint, not the center — a besieger stands at the wall.
-    if (distToFootprint(u, b.x, b.y, b.w, b.h) > Math.max(combat.range, 1.4)) return undefined;
+    if (distToFootprint(u, b.x, b.y, b.w, b.h) > Math.max(combat.range, 1.4))
+      return undefined;
     return centerOf(b);
   }
   const t = w.units.get(u.targetId);
   if (!t || t.dead) return undefined;
   if (exactDist(t.x - u.x, t.y - u.y) > combat.range) return undefined;
-  return { x: t.x, y: t.y };
+  return {x: t.x, y: t.y};
 }
 
 /**
@@ -271,7 +299,7 @@ function engagedTarget(w: World, u: Unit): { x: number; y: number } | undefined 
  * last walked in, so fighters swung and loosed arrows facing away from the
  * enemy they were killing.
  */
-function facingByte(u: Unit, at: { x: number; y: number }): number {
+function facingByte(u: Unit, at: {x: number; y: number}): number {
   // atan2(dx, dy) is the renderer's yaw convention (x east, y south).
   const turns = Math.atan2(at.x - u.x, at.y - u.y) / (Math.PI * 2);
   return Math.round((turns - Math.floor(turns)) * 256) & 255;
@@ -293,7 +321,7 @@ function actionOf(w: World, u: Unit, engaged: boolean): number {
     const home = w.buildings.get(u.homeId);
     if (home && !home.dead) {
       if (home.state === BuildingState.site) {
-        const waiting = GOODS.some((g) => ((home.siteNeeds ?? {})[g] ?? 0) > 0);
+        const waiting = GOODS.some(g => ((home.siteNeeds ?? {})[g] ?? 0) > 0);
         return waiting ? ACTION.idle : ACTION.work;
       }
       if (home.prodTicksLeft !== undefined) return ACTION.work;
@@ -304,7 +332,8 @@ function actionOf(w: World, u: Unit, engaged: boolean): number {
 
 /** Workplace flavor for profession-dressed worker bodies (the farmer's straw hat). */
 function professionOf(w: World, u: Unit): number {
-  if (u.kind !== UnitTypeId.worker || u.homeId === undefined) return PROFESSION.none;
+  if (u.kind !== UnitTypeId.worker || u.homeId === undefined)
+    return PROFESSION.none;
   const home = w.buildings.get(u.homeId);
   if (!home || home.dead) return PROFESSION.none;
   // The look comes with the job, not the job offer: a builder raising his
@@ -358,13 +387,19 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
       hpPct:
         action === ACTION.dead
           ? 0
-          : Math.max(0, Math.min(255, Math.round((u.hp / UNIT_DEFS[u.kind].hp) * 255))),
+          : Math.max(
+              0,
+              Math.min(255, Math.round((u.hp / UNIT_DEFS[u.kind].hp) * 255)),
+            ),
       carrying: action === ACTION.dead ? 0 : carryingCode(u.carrying),
       action,
       // Published whenever the unit has a post, not just mid-swing: the
       // renderer keeps the axe in the woodcutter's fist on the walk out
       // to the trees (goods occupy the hands on the walk back).
-      workKind: action === ACTION.work || u.homeId !== undefined ? workKindOf(w, u) : WORK.none,
+      workKind:
+        action === ACTION.work || u.homeId !== undefined
+          ? workKindOf(w, u)
+          : WORK.none,
       profession: professionOf(w, u),
       facing: engaged ? facingByte(u, engaged) : 0,
     };

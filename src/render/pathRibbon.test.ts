@@ -1,16 +1,27 @@
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_MAP_SIZE, tileCount, tileIdx } from '../shared/grid';
-import { ROAD_HALF, TRAIL_HALF, newRibbonDist, ribbonCover, ribbonDistances } from './pathRibbon';
+import {describe, expect, it} from 'vitest';
+import {DEFAULT_MAP_SIZE, tileCount, tileIdx} from '../shared/grid';
 import * as PathLevel from '../sim/pathLevelEnum.ts';
+import {
+  ROAD_HALF,
+  TRAIL_HALF,
+  newRibbonDist,
+  ribbonCover,
+  ribbonDistances,
+} from './pathRibbon';
 
-function mapWith(tiles: readonly (readonly [number, number, number])[]): Uint8Array {
+function mapWith(
+  tiles: readonly (readonly [number, number, number])[],
+): Uint8Array {
   const path = new Uint8Array(tileCount(DEFAULT_MAP_SIZE));
-  for (const [x, y, level] of tiles) path[tileIdx(x, y, DEFAULT_MAP_SIZE)] = level;
+  for (const [x, y, level] of tiles)
+    path[tileIdx(x, y, DEFAULT_MAP_SIZE)] = level;
   return path;
 }
 
 /** A straight east-west run of trail tiles through y = 10. */
-const lane = mapWith([8, 9, 10, 11, 12].map((x) => [x, 10, PathLevel.Trail] as const));
+const lane = mapWith(
+  [8, 9, 10, 11, 12].map(x => [x, 10, PathLevel.Trail] as const),
+);
 
 describe('path ribbons', () => {
   const dist = newRibbonDist();
@@ -64,7 +75,7 @@ describe('path ribbons', () => {
   });
 
   it('reports full coverage down the middle and none off the shoulder', () => {
-    const cover = { trail: 0, road: 0 };
+    const cover = {trail: 0, road: 0};
     // The wobble moves the edge around, so judge the middle and the far side.
     ribbonCover(lane, 10, 10.5, cover);
     expect(cover.trail).toBeGreaterThan(0.5);

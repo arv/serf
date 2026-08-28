@@ -1,14 +1,14 @@
-import { UNIT_DEFS } from '../defs/units.ts';
-import { MISSION_DEFS, type ObjectiveSpec } from '../defs/missions.ts';
-import { buildingDef } from '../defs/buildings.ts';
-import { populationOf } from '../population.ts';
-import type { Owner } from '../entities.ts';
-import type { World } from '../world.ts';
-import * as ObjectiveKind from '../defs/objectiveKindEnum.ts';
-import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
-import * as GameEventKind from '../gameEventKindEnum.ts';
 import * as CommandKind from '../commandKindEnum.ts';
+import {buildingDef} from '../defs/buildings.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import {MISSION_DEFS, type ObjectiveSpec} from '../defs/missions.ts';
+import * as ObjectiveKind from '../defs/objectiveKindEnum.ts';
+import {UNIT_DEFS} from '../defs/units.ts';
+import type {Owner} from '../entities.ts';
+import * as GameEventKind from '../gameEventKindEnum.ts';
+import {populationOf} from '../population.ts';
+import type {World} from '../world.ts';
 
 /**
  * Mission objectives: stateless predicates over the world, latched into
@@ -16,7 +16,11 @@ import * as CommandKind from '../commandKindEnum.ts';
  * only for readability — this is the whole objective system.
  */
 
-export function objectiveMet(world: World, spec: ObjectiveSpec, player: Owner): boolean {
+export function objectiveMet(
+  world: World,
+  spec: ObjectiveSpec,
+  player: Owner,
+): boolean {
   switch (spec.kind) {
     case ObjectiveKind.building: {
       let n = 0;
@@ -48,7 +52,9 @@ export function objectiveMet(world: World, spec: ObjectiveSpec, player: Owner): 
       return n >= spec.amount;
     }
     case ObjectiveKind.research:
-      return world.players[player]?.techs.researched.includes(spec.tech) ?? false;
+      return (
+        world.players[player]?.techs.researched.includes(spec.tech) ?? false
+      );
     case ObjectiveKind.population:
       return populationOf(world, player) >= spec.count;
     case ObjectiveKind.soldiers: {
@@ -83,7 +89,11 @@ export function latchObjectives(world: World): boolean {
     if (done[i]) continue;
     if (objectiveMet(world, mission.objectives[i]!.spec, 0)) {
       done[i] = true;
-      world.pendingEvents.push({ kind: GameEventKind.objectiveComplete, index: i, player: 0 });
+      world.pendingEvents.push({
+        kind: GameEventKind.objectiveComplete,
+        index: i,
+        player: 0,
+      });
     } else {
       all = false;
     }

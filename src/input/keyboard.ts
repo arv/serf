@@ -1,4 +1,4 @@
-import { createSignal } from 'solid-js';
+import {createSignal} from 'solid-js';
 
 // Same escalation as ui/store.ts: a module-level signal cannot survive a
 // hot swap — importers keep reading the old module's signal while the
@@ -39,7 +39,7 @@ if (import.meta.hot) {
 const [hasKeyboard, setHasKeyboard] = createSignal(
   window.matchMedia('(any-pointer: fine)').matches,
 );
-export { hasKeyboard };
+export {hasKeyboard};
 
 /** On-screen keyboards type here; keys landing anywhere else are hardware. */
 function editable(t: EventTarget | null): boolean {
@@ -53,7 +53,13 @@ function editable(t: EventTarget | null): boolean {
 if (!hasKeyboard()) {
   const confirm = (e: KeyboardEvent): void => {
     // isComposing rules out IME steps, 'Unidentified' the Android OSK.
-    if (!e.isTrusted || e.isComposing || e.key === 'Unidentified' || editable(e.target)) return;
+    if (
+      !e.isTrusted ||
+      e.isComposing ||
+      e.key === 'Unidentified' ||
+      editable(e.target)
+    )
+      return;
     setHasKeyboard(true);
     window.removeEventListener('keydown', confirm);
   };

@@ -1,11 +1,11 @@
-import { For, type JSX } from 'solid-js';
-import { GOODS } from '../../../sim/defs/goods';
-import { GoodIcon } from '../../../ui/icons';
-import { goodName } from '../../../ui/names';
-import { GOOD_DESC } from '../descriptions';
-import { DocLink } from '../components';
-import { Prose } from '../prose';
-import { goodHref } from '../routes';
+import {For, type JSX} from 'solid-js';
+import {GOODS} from '../../../sim/defs/goods';
+import {GoodIcon} from '../../../ui/icons';
+import {goodName} from '../../../ui/names';
+import {DocLink} from '../components';
+import {GOOD_DESC} from '../descriptions';
+import {Prose} from '../prose';
+import {goodHref} from '../routes';
 
 export function GoodsPage(): JSX.Element {
   return (
@@ -16,7 +16,7 @@ export function GoodsPage(): JSX.Element {
       </p>
       <div class="tiles">
         <For each={[...GOODS]}>
-          {(good) => (
+          {good => (
             <DocLink href={goodHref(good)} class="tile">
               <GoodIcon good={good} size={28} decorative />
               <span class="t-name">{goodName(good)}</span>

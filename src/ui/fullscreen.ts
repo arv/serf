@@ -1,4 +1,4 @@
-import { createSignal, type Accessor } from 'solid-js';
+import {createSignal, type Accessor} from 'solid-js';
 
 // Same escalation as ui/store.ts: the signals below are module-level state,
 // and a hot swap would leave components reading the old module's while the
@@ -105,12 +105,17 @@ export interface Fullscreen {
   arm(gestures: GestureSource): void;
 }
 
-export function createFullscreen(port: FullscreenPort, store: PrefStore): Fullscreen {
+export function createFullscreen(
+  port: FullscreenPort,
+  store: PrefStore,
+): Fullscreen {
   const [active, setActive] = createSignal(port.supported && port.active());
   const [wanted, setWanted] = createSignal(port.supported && store.read());
   // "The screen is full and we did not do it." An installed app answers
   // true forever; a tab answers false until someone presses F11.
-  const [foreign, setForeign] = createSignal(port.displayFullscreen() && !port.active());
+  const [foreign, setForeign] = createSignal(
+    port.displayFullscreen() && !port.active(),
+  );
 
   // Read live and unfiltered, this query would be a trap: the manifest
   // spec has the display mode read `fullscreen` whenever the document is
@@ -154,7 +159,7 @@ export function createFullscreen(port: FullscreenPort, store: PrefStore): Fullsc
     wanted,
     set,
     toggle: () => set(!port.active()),
-    arm: (gestures) => {
+    arm: gestures => {
       // `foreign` covers the installed app: the preference may well be set
       // (the same player, the same origin, in a tab yesterday) and there is
       // nothing left for it to buy.
@@ -190,13 +195,19 @@ interface PrefixedElement extends HTMLElement {
 }
 
 /** The real thing: `target` full screen, changes read off `doc`. */
-export function domFullscreenPort(target: HTMLElement, doc: Document): FullscreenPort {
+export function domFullscreenPort(
+  target: HTMLElement,
+  doc: Document,
+): FullscreenPort {
   const el = target as PrefixedElement;
   const d = doc as PrefixedDocument;
   const canRequest =
-    typeof el.requestFullscreen === 'function' || typeof el.webkitRequestFullscreen === 'function';
+    typeof el.requestFullscreen === 'function' ||
+    typeof el.webkitRequestFullscreen === 'function';
   const allowed = doc.fullscreenEnabled || d.webkitFullscreenEnabled || false;
-  const display = (doc.defaultView ?? window).matchMedia('(display-mode: fullscreen)');
+  const display = (doc.defaultView ?? window).matchMedia(
+    '(display-mode: fullscreen)',
+  );
 
   // A page on its way out loses fullscreen as part of being unloaded, and
   // that exit says nothing about what the player wants — the launch they
@@ -212,7 +223,8 @@ export function domFullscreenPort(target: HTMLElement, doc: Document): Fullscree
 
   return {
     supported: canRequest && allowed,
-    active: () => (doc.fullscreenElement ?? d.webkitFullscreenElement ?? null) !== null,
+    active: () =>
+      (doc.fullscreenElement ?? d.webkitFullscreenElement ?? null) !== null,
     request: async () => {
       if (el.requestFullscreen) await el.requestFullscreen();
       else await el.webkitRequestFullscreen?.();
@@ -221,7 +233,7 @@ export function domFullscreenPort(target: HTMLElement, doc: Document): Fullscree
       if (doc.exitFullscreen) await doc.exitFullscreen();
       else await d.webkitExitFullscreen?.();
     },
-    onChange: (fn) => {
+    onChange: fn => {
       const relay = (): void => {
         if (!leaving && !doc.hidden) fn();
       };
@@ -234,7 +246,7 @@ export function domFullscreenPort(target: HTMLElement, doc: Document): Fullscree
     // 'standalone' instead, and a standalone window is an ordinary window —
     // it has a screen left to fill, so the offer stands there.
     displayFullscreen: () => display.matches,
-    onDisplayChange: (fn) => display.addEventListener('change', fn),
+    onDisplayChange: fn => display.addEventListener('change', fn),
   };
 }
 
@@ -249,7 +261,7 @@ export function storedPref(key: string): PrefStore {
         return false;
       }
     },
-    write: (on) => {
+    write: on => {
       try {
         if (on) localStorage.setItem(key, '1');
         else localStorage.removeItem(key);
@@ -267,7 +279,7 @@ export function storedPref(key: string): PrefStore {
  * the one key they reached for to escape.
  */
 export function domGestures(target: EventTarget): GestureSource {
-  return (fire) => {
+  return fire => {
     const onPointer = (e: Event): void => {
       if (e.isTrusted) fire();
     };

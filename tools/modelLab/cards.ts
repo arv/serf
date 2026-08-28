@@ -1,4 +1,4 @@
-import { VARIANTS, type Variant } from './variants';
+import {VARIANTS, type Variant} from './variants';
 
 /**
  * Card markup for the gallery, generated from the variant list so the
@@ -37,7 +37,8 @@ const SLOTS: Slot[] = [
     recipe: 'flour + water → food',
     sub: 'Nothing in any pack is a bakery, so in the end the whole building is ours.',
     pick: 'Every shell the pack could have lent this slot is either a house or already someone else’s, and the one we were using was a house — with a clay dome bolted to its flank, which is the blacksmith’s silhouette exactly: the pack ships the forge as a domed stone oven under a round flue. Modelling it settles that, and drawing it with the pack’s own texture settles the rest: the atlas is not a grid of flat swatches but a set of nine-stop gradients, and Kay rides them, so a building painted in flat colours picked out of it can never sit beside one that is not. The oven takes a lighter slice of the same grey ramp as the walls rather than a colour of its own.',
-    extra: 'Nothing in EXTRA changes this one. The awning stall is the nearest thing to a food shop in any KayKit pack, but a stall is not a bakehouse and it has nowhere to put a fire.',
+    extra:
+      'Nothing in EXTRA changes this one. The awning stall is the nearest thing to a food shop in any KayKit pack, but a stall is not a bakehouse and it has nowhere to put a fire.',
   },
   {
     slot: 'fishery',
@@ -45,7 +46,8 @@ const SLOTS: Slot[] = [
     recipe: 'shore → food',
     sub: 'No inputs at all — a coastline is the only thing it consumes. The early food against the bakery’s late one: a third of the rate, none of the chain.',
     pick: 'The one building here with nothing hand-built on it but a sign post. It also brought the game its first placement rule that is not about ore — touching water, and turned to face it — and the only decor that moves besides the well’s windlass.',
-    extra: 'In and working, and the only slot that needed EXTRA at all: the shipyard is the hut, the docks are the pier, and the anchor and boat rack are the quay. Those four are vendored. The fish are the last thing still ours, and no KayKit pack has one.',
+    extra:
+      'In and working, and the only slot that needed EXTRA at all: the shipyard is the hut, the docks are the pier, and the anchor and boat rack are the quay. Those four are vendored. The fish are the last thing still ours, and no KayKit pack has one.',
   },
   {
     slot: 'goods',
@@ -57,13 +59,16 @@ const SLOTS: Slot[] = [
 ];
 
 function esc(s: string): string {
-  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+  return s.replace(
+    /[&<>"]/g,
+    c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]!,
+  );
 }
 
 function card(v: Variant): string {
-  const pack = v.pack.map((p) => `<code>${esc(p)}</code>`).join(' ');
+  const pack = v.pack.map(p => `<code>${esc(p)}</code>`).join(' ');
   const made = v.handmade.length
-    ? v.handmade.map((p) => `<span>${esc(p)}</span>`).join(' ')
+    ? v.handmade.map(p => `<span>${esc(p)}</span>`).join(' ')
     : '<span class="none">nothing — pack only</span>';
   return `
     <article class="card" data-variant="${v.id}">
@@ -82,8 +87,10 @@ function card(v: Variant): string {
 }
 
 export function galleryMarkup(): string {
-  return SLOTS.map((s) => {
-    const items = VARIANTS.filter((v) => v.slot === s.slot).map(card).join('');
+  return SLOTS.map(s => {
+    const items = VARIANTS.filter(v => v.slot === s.slot)
+      .map(card)
+      .join('');
     return `
       <section class="slot" id="${s.slot}">
         <header class="slot-head">

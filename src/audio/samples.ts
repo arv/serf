@@ -13,7 +13,7 @@
  * cues upgrade from synth to sample as buffers land.
  */
 
-import { type CueDef, type CueId, CUES } from './cues';
+import {type CueDef, type CueId, CUES} from './cues';
 
 export async function loadSamples(
   ctx: AudioContext,
@@ -28,12 +28,12 @@ export async function loadSamples(
     if (path === undefined) continue;
     jobs.push(
       fetch(path)
-        .then((res) => {
+        .then(res => {
           if (!res.ok) throw new Error(String(res.status));
           return res.arrayBuffer();
         })
-        .then((bytes) => ctx.decodeAudioData(bytes))
-        .then((buffer) => {
+        .then(bytes => ctx.decodeAudioData(bytes))
+        .then(buffer => {
           out.set(id, buffer);
         })
         .catch(() => undefined), // missing or undecodable: the synth stays

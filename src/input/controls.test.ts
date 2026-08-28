@@ -1,28 +1,30 @@
-import type { Enum } from '../shared/enum.ts';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {createComputed, createRoot} from 'solid-js';
 import * as THREE from 'three';
-import { createComputed, createRoot } from 'solid-js';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import type {Enum} from '../shared/enum.ts';
 
 // Controls pulls in the UI store, and the store reads the URL and the
 // saved audio prefs the moment it is imported. Hoisted above the imports
 // because that is when it happens: a beforeEach would be far too late.
 vi.hoisted(() => {
   const g = globalThis as Record<string, unknown>;
-  g.location = { search: '' };
+  g.location = {search: ''};
   g.localStorage = {
     getItem: () => null,
     setItem: () => {},
     removeItem: () => {},
   };
 });
-import { Controls } from './controls';
-import { screenToGround, worldToScreen } from './picking';
-import type { BuildingSnap } from '../protocol/messages';
-import type { SceneSync } from '../render/sceneSync';
-import type { GhostPlacement } from '../render/ghost';
-import type { HeightField } from '../render/heightField';
-import type { WorldMirror } from '../app/mirror';
-import type { SimHost } from '../app/simHost';
+import type {WorldMirror} from '../app/mirror';
+import type {SimHost} from '../app/simHost';
+import type {BuildingSnap} from '../protocol/messages';
+import type {GhostPlacement} from '../render/ghost';
+import type {HeightField} from '../render/heightField';
+import type {SceneSync} from '../render/sceneSync';
+import * as BuildingState from '../sim/buildingStateEnum.ts';
+import * as CommandKind from '../sim/commandKindEnum.ts';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
 import {
   buildAim,
   placing,
@@ -36,10 +38,8 @@ import {
   setStock,
   setTechs,
 } from '../ui/store';
-import * as GoodId from '../sim/defs/goodIdEnum.ts';
-import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import * as BuildingState from '../sim/buildingStateEnum.ts';
-import * as CommandKind from '../sim/commandKindEnum.ts';
+import {Controls} from './controls';
+import {screenToGround, worldToScreen} from './picking';
 
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
 
@@ -75,10 +75,11 @@ function fakeEl(): {
 } {
   const listeners = new Map<string, Listener[]>();
   return {
-    style: { cssText: '', display: '', left: '', top: '', width: '', height: '' },
+    style: {cssText: '', display: '', left: '', top: '', width: '', height: ''},
     clientWidth: CANVAS_W,
     clientHeight: CANVAS_H,
-    addEventListener: (type, fn) => void listeners.set(type, [...(listeners.get(type) ?? []), fn]),
+    addEventListener: (type, fn) =>
+      void listeners.set(type, [...(listeners.get(type) ?? []), fn]),
     removeEventListener: () => {},
     setPointerCapture: () => {},
     releasePointerCapture: () => {},
@@ -101,7 +102,8 @@ function fakeWindow(): {
 } {
   const listeners = new Map<string, Listener[]>();
   return {
-    addEventListener: (t, fn) => void listeners.set(t, [...(listeners.get(t) ?? []), fn]),
+    addEventListener: (t, fn) =>
+      void listeners.set(t, [...(listeners.get(t) ?? []), fn]),
     removeEventListener: () => {},
     fire: (t, e) => {
       for (const fn of listeners.get(t) ?? []) fn(e);
@@ -116,7 +118,7 @@ function fakeWindow(): {
 function keyDown(
   code: string,
   key: string,
-  mods: { ctrlKey?: boolean; shiftKey?: boolean } = {},
+  mods: {ctrlKey?: boolean; shiftKey?: boolean} = {},
 ): Record<string, unknown> {
   return {
     code,
@@ -148,12 +150,12 @@ function ptr(x: number, y: number, shiftKey = false): Record<string, unknown> {
 
 /** The same press made with a finger. */
 function touchPtr(x: number, y: number): Record<string, unknown> {
-  return { ...ptr(x, y), pointerType: 'touch' };
+  return {...ptr(x, y), pointerType: 'touch'};
 }
 
 /** The right button, which is the order button on the desktop. */
 function rightPtr(x: number, y: number): Record<string, unknown> {
-  return { ...ptr(x, y), button: 2, buttons: 2 };
+  return {...ptr(x, y), button: 2, buttons: 2};
 }
 
 /** A storehouse of yours, as the HUD's card would have it. */
@@ -181,7 +183,7 @@ function building(id: number): BuildingSnap {
  * down on flat ground, and units whose screen positions the test reads
  * back through the same projection picking uses.
  */
-function harness(opts: { pitched?: { x: number; z: number } } = {}) {
+function harness(opts: {pitched?: {x: number; z: number}} = {}) {
   const canvas = fakeEl();
   const camera = new THREE.OrthographicCamera(-20, 20, 15, -15, 0.1, 200);
   if (opts.pitched) {
@@ -194,7 +196,9 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
       Math.sin(pitch),
       Math.cos(pitch) * Math.cos(yaw),
     );
-    camera.position.set(opts.pitched.x, 0, opts.pitched.z).addScaledVector(dir, 90);
+    camera.position
+      .set(opts.pitched.x, 0, opts.pitched.z)
+      .addScaledVector(dir, 90);
     camera.lookAt(opts.pitched.x, 0, opts.pitched.z);
   } else {
     camera.position.set(0, 50, 0);
@@ -204,10 +208,14 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
   camera.updateMatrixWorld(true);
 
   /** id → world (x, z) and owner; the ones picking asks about. */
-  const units = new Map<number, { x: number; y: number; owner: number }>();
+  const units = new Map<number, {x: number; y: number; owner: number}>();
   const sync = {
     latestIds: new Map<number, number>(),
-    positionOfInto: (id: number, _now: number, out: { x: number; y: number }): boolean => {
+    positionOfInto: (
+      id: number,
+      _now: number,
+      out: {x: number; y: number},
+    ): boolean => {
       const u = units.get(id);
       if (!u) return false;
       out.x = u.x;
@@ -219,31 +227,37 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
     isDead: (): boolean => false,
   };
   const addUnit = (id: number, x: number, z: number, owner = ME): void => {
-    units.set(id, { x, y: z, owner });
+    units.set(id, {x, y: z, owner});
     sync.latestIds.set(id, sync.latestIds.size);
   };
   /** Where a unit's picking anchor lands on screen — the head, not the feet. */
-  const screenOf = (id: number): { x: number; y: number } => {
+  const screenOf = (id: number): {x: number; y: number} => {
     const u = units.get(id)!;
-    return worldToScreen(camera, canvas as unknown as HTMLCanvasElement, u.x, 0.4, u.y);
+    return worldToScreen(
+      camera,
+      canvas as unknown as HTMLCanvasElement,
+      u.x,
+      0.4,
+      u.y,
+    );
   };
 
-  const heights = { at: () => 0 };
-  const ghost = { show: () => {}, hide: () => {}, moveTo: () => {} };
+  const heights = {at: () => 0};
+  const ghost = {show: () => {}, hide: () => {}, moveTo: () => {}};
   /** Every command the pointer sent, in order — what an order test reads. */
   const commands: Record<string, unknown>[] = [];
   const host = {
     sendCommands: (cs: Record<string, unknown>[]) => void commands.push(...cs),
   };
   const mirror = {
-    map: { size: 64, buildingAt: new Int32Array(64 * 64).fill(-1) },
+    map: {size: 64, buildingAt: new Int32Array(64 * 64).fill(-1)},
     buildings: new Map<number, BuildingSnap>(),
   };
   /** Where the camera was last sent — the second press of a number. */
-  const rides: { x: number; z: number }[] = [];
+  const rides: {x: number; z: number}[] = [];
   const rig = {
     touchPanEnabled: true,
-    glideTo: (x: number, z: number) => void rides.push({ x, z }),
+    glideTo: (x: number, z: number) => void rides.push({x, z}),
   };
 
   // The keyboard lives on the window, so this has to be in place before
@@ -258,7 +272,8 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
   const addBuilding = (b: BuildingSnap, top = 0): void => {
     mirror.buildings.set(b.id, b);
     for (let z = b.y; z < b.y + b.h; z++) {
-      for (let x = b.x; x < b.x + b.w; x++) mirror.map.buildingAt[z * 64 + x] = b.id;
+      for (let x = b.x; x < b.x + b.w; x++)
+        mirror.map.buildingAt[z * 64 + x] = b.id;
     }
     tops.set(b.id, top);
   };
@@ -280,15 +295,15 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
   // The renderer's measurements, as BuildingSync would answer them: flat
   // ground, so a building's base is 0 and its ceiling is its own height.
   controls.setBuildingHeights({
-    heightOf: (id) => tops.get(id) ?? 0,
+    heightOf: id => tops.get(id) ?? 0,
     baseOf: () => 0,
     ceiling: () => Math.max(Number.NEGATIVE_INFINITY, ...[...tops.values()]),
   });
 
   /** Drag a band from one screen point to another, the way a mouse does. */
   const band = (
-    from: { x: number; y: number },
-    to: { x: number; y: number },
+    from: {x: number; y: number},
+    to: {x: number; y: number},
     shiftKey = false,
   ): void => {
     canvas.fire('pointerdown', ptr(from.x, from.y, shiftKey));
@@ -297,21 +312,29 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
   };
 
   /** Press a number, with Ctrl or Shift for the two spellings of a stamp. */
-  const press = (digit: number, mods: { ctrlKey?: boolean; shiftKey?: boolean } = {}): void =>
-    win.fire('keydown', keyDown(`Digit${digit}`, String(digit), mods));
+  const press = (
+    digit: number,
+    mods: {ctrlKey?: boolean; shiftKey?: boolean} = {},
+  ): void => win.fire('keydown', keyDown(`Digit${digit}`, String(digit), mods));
 
   /** Type a letter — B and the chord letter after it, as the build card
    * is driven. Both spellings, the way keyLetter reads them. */
   const type = (letter: string): void =>
-    win.fire('keydown', keyDown(`Key${letter.toUpperCase()}`, letter.toLowerCase()));
+    win.fire(
+      'keydown',
+      keyDown(`Key${letter.toUpperCase()}`, letter.toLowerCase()),
+    );
 
   /** Where a world point lands on screen — the pixel a test clicks. */
-  const at = (x: number, y: number, z: number): { x: number; y: number } =>
+  const at = (x: number, y: number, z: number): {x: number; y: number} =>
     worldToScreen(camera, canvas as unknown as HTMLCanvasElement, x, y, z);
 
   /** The tile the plain ground hit under a screen point falls on — what an
    * order used to aim at, and what the test contrasts the new aim with. */
-  const groundTileAt = (p: { x: number; y: number }): { x: number; y: number } | null => {
+  const groundTileAt = (p: {
+    x: number;
+    y: number;
+  }): {x: number; y: number} | null => {
     const g = screenToGround(
       camera,
       canvas as unknown as HTMLCanvasElement,
@@ -319,23 +342,23 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
       p.y,
       heights as unknown as HeightField,
     );
-    return g && { x: Math.floor(g.x), y: Math.floor(g.z) };
+    return g && {x: Math.floor(g.x), y: Math.floor(g.z)};
   };
 
   /** Right-click a screen point, which is how the desktop gives an order. */
-  const order = (p: { x: number; y: number }): void => {
+  const order = (p: {x: number; y: number}): void => {
     canvas.fire('pointerdown', rightPtr(p.x, p.y));
   };
 
   /** What the pointer is over, as the hover highlight reads it. */
-  const hoverAt = (p: { x: number; y: number }): number => {
+  const hoverAt = (p: {x: number; y: number}): number => {
     canvas.fire('pointermove', ptr(p.x, p.y));
     controls.updateHoverIfDirty();
     return controls.hoverBuilding;
   };
 
   /** Select one unit the plain way: press and release on it. */
-  const click = (p: { x: number; y: number }): void => {
+  const click = (p: {x: number; y: number}): void => {
     canvas.fire('pointerdown', ptr(p.x, p.y));
     canvas.fire('pointerup', ptr(p.x, p.y));
   };
@@ -362,14 +385,14 @@ function harness(opts: { pitched?: { x: number; z: number } } = {}) {
 
 /** The rectangle that covers these screen points, with room to spare. */
 function around(
-  points: { x: number; y: number }[],
-): [{ x: number; y: number }, { x: number; y: number }] {
+  points: {x: number; y: number}[],
+): [{x: number; y: number}, {x: number; y: number}] {
   const pad = 20;
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
   return [
-    { x: Math.min(...xs) - pad, y: Math.min(...ys) - pad },
-    { x: Math.max(...xs) + pad, y: Math.max(...ys) + pad },
+    {x: Math.min(...xs) - pad, y: Math.min(...ys) - pad},
+    {x: Math.max(...xs) + pad, y: Math.max(...ys) + pad},
   ];
 }
 
@@ -380,10 +403,13 @@ describe('band select', () => {
     vi.stubGlobal('document', {
       createElement: () => fakeEl(),
       getElementById: () => null,
-      body: { appendChild: () => {} },
-      head: { appendChild: () => {} },
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
     });
-    vi.stubGlobal('window', { addEventListener: () => {}, removeEventListener: () => {} });
+    vi.stubGlobal('window', {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
     setMyPlayerId(ME);
     setSelection(new Set<number>());
     setSelectedBuilding(null);
@@ -433,7 +459,7 @@ describe('band select', () => {
     setSelectedBuilding(building(7));
 
     // A rectangle in the far corner, nowhere near the one unit on the map.
-    h.band({ x: 10, y: 10 }, { x: 60, y: 60 });
+    h.band({x: 10, y: 10}, {x: 60, y: 60});
 
     expect(selection().size).toBe(0);
     expect(selectedBuilding()).toBeNull();
@@ -454,8 +480,8 @@ describe('band select', () => {
         return el;
       },
       getElementById: () => null,
-      body: { appendChild: () => {} },
-      head: { appendChild: () => {} },
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
     });
     const h = harness();
     controls = h.controls;
@@ -468,7 +494,9 @@ describe('band select', () => {
     h.canvas.fire('pointerdown', ptr(from.x, from.y));
     h.canvas.fire('pointermove', ptr(to.x, to.y));
 
-    const rect = made.find((el) => el.style.cssText.includes('border:1px solid'))!;
+    const rect = made.find(el =>
+      el.style.cssText.includes('border:1px solid'),
+    )!;
     expect(rect.style.display).toBe('block');
     expect(rect.style.left).toBe(`${Math.min(from.x, to.x)}px`);
     expect(rect.style.top).toBe(`${Math.min(from.y, to.y)}px`);
@@ -500,8 +528,8 @@ describe('control groups', () => {
     vi.stubGlobal('document', {
       createElement: () => fakeEl(),
       getElementById: () => null,
-      body: { appendChild: () => {} },
-      head: { appendChild: () => {} },
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
     });
     setMyPlayerId(ME);
     setSelection(new Set<number>());
@@ -525,7 +553,7 @@ describe('control groups', () => {
     h.mirror.buildings.set(b.id, b);
     setSelectedBuilding(b);
 
-    h.press(1, { ctrlKey: true });
+    h.press(1, {ctrlKey: true});
     setSelectedBuilding(null); // walk away — click grass, lasso a squad, anything
     h.press(1);
 
@@ -541,10 +569,10 @@ describe('control groups', () => {
     const stamped = building(7);
     h.mirror.buildings.set(7, stamped);
     setSelectedBuilding(stamped);
-    h.press(1, { ctrlKey: true });
+    h.press(1, {ctrlKey: true});
 
     setSelectedBuilding(null);
-    h.mirror.buildings.set(7, { ...stamped, hp: 40 });
+    h.mirror.buildings.set(7, {...stamped, hp: 40});
     h.press(1);
 
     expect(selectedBuilding()?.hp).toBe(40);
@@ -556,12 +584,12 @@ describe('control groups', () => {
     const b = building(7); // 3x3 at (10, 10)
     h.mirror.buildings.set(b.id, b);
     setSelectedBuilding(b);
-    h.press(1, { ctrlKey: true });
+    h.press(1, {ctrlKey: true});
 
     h.press(1);
     expect(h.rides).toEqual([]); // the first press is the selection's
     h.press(1);
-    expect(h.rides).toEqual([{ x: 11.5, z: 11.5 }]); // the second is the camera's
+    expect(h.rides).toEqual([{x: 11.5, z: 11.5}]); // the second is the camera's
   });
 
   it('keeps a squad and a building apart on the same id', () => {
@@ -575,9 +603,9 @@ describe('control groups', () => {
     h.mirror.buildings.set(12, b);
 
     h.band(...around([h.screenOf(12)]));
-    h.press(1, { ctrlKey: true }); // 1 is the soldier
+    h.press(1, {ctrlKey: true}); // 1 is the soldier
     setSelectedBuilding(b);
-    h.press(2, { ctrlKey: true }); // 2 is the building of the same id
+    h.press(2, {ctrlKey: true}); // 2 is the building of the same id
 
     h.press(1);
     expect([...selection()]).toEqual([12]);
@@ -595,12 +623,12 @@ describe('control groups', () => {
     controls = h.controls;
     h.addUnit(1, -5, -3);
     h.band(...around([h.screenOf(1)]));
-    h.press(3, { ctrlKey: true });
+    h.press(3, {ctrlKey: true});
 
     const b = building(7);
     h.mirror.buildings.set(b.id, b);
     setSelectedBuilding(b);
-    h.press(3, { shiftKey: true }); // refused: 3 is the squad's
+    h.press(3, {shiftKey: true}); // refused: 3 is the squad's
 
     setSelectedBuilding(null);
     h.press(3);
@@ -615,7 +643,7 @@ describe('control groups', () => {
     h.mirror.buildings.set(b.id, b);
     setSelectedBuilding(b);
 
-    h.press(4, { shiftKey: true });
+    h.press(4, {shiftKey: true});
     setSelectedBuilding(null);
     h.press(4);
 
@@ -628,12 +656,12 @@ describe('control groups', () => {
     controls = h.controls;
     h.addUnit(1, -5, -3);
     h.band(...around([h.screenOf(1)]));
-    h.press(5, { ctrlKey: true });
+    h.press(5, {ctrlKey: true});
 
     const b = building(7);
     h.mirror.buildings.set(b.id, b);
     setSelectedBuilding(b);
-    h.press(5, { ctrlKey: true });
+    h.press(5, {ctrlKey: true});
 
     setSelectedBuilding(null);
     h.press(5);
@@ -650,7 +678,7 @@ describe('control groups', () => {
     const b = building(7);
     h.mirror.buildings.set(b.id, b);
     setSelectedBuilding(b);
-    h.press(6, { ctrlKey: true });
+    h.press(6, {ctrlKey: true});
 
     h.mirror.buildings.delete(7); // razed, or sold
     setSelectedBuilding(null);
@@ -662,7 +690,7 @@ describe('control groups', () => {
     const other = building(8);
     h.mirror.buildings.set(8, other);
     setSelectedBuilding(other);
-    h.press(6, { shiftKey: true }); // free, so even Shift will take it
+    h.press(6, {shiftKey: true}); // free, so even Shift will take it
     setSelectedBuilding(null);
     h.press(6);
     expect(selectedBuilding()?.id).toBe(8);
@@ -678,14 +706,14 @@ describe('control groups', () => {
     const b = building(7);
     h.mirror.buildings.set(b.id, b);
     setSelectedBuilding(b);
-    h.press(1, { ctrlKey: true });
+    h.press(1, {ctrlKey: true});
 
     h.press(1);
     h.controls.deselectAll(); // Esc, inside the beat
     h.press(1);
 
     expect(selectedBuilding()?.id).toBe(7);
-    expect(h.rides).toEqual([{ x: 11.5, z: 11.5 }]);
+    expect(h.rides).toEqual([{x: 11.5, z: 11.5}]);
   });
 
   it('re-selects a squad on the second press too', () => {
@@ -694,7 +722,7 @@ describe('control groups', () => {
     controls = h.controls;
     h.addUnit(1, -5, -3);
     h.band(...around([h.screenOf(1)]));
-    h.press(2, { ctrlKey: true });
+    h.press(2, {ctrlKey: true});
 
     h.press(2);
     h.controls.deselectAll();
@@ -714,7 +742,7 @@ describe('control groups', () => {
     const gone = building(7);
     h.mirror.buildings.set(7, gone);
     setSelectedBuilding(gone);
-    h.press(4, { ctrlKey: true });
+    h.press(4, {ctrlKey: true});
 
     h.mirror.buildings.delete(7);
     setSelectedBuilding(null);
@@ -723,7 +751,7 @@ describe('control groups', () => {
     const fresh = building(8);
     h.mirror.buildings.set(8, fresh);
     setSelectedBuilding(fresh);
-    h.press(4, { ctrlKey: true });
+    h.press(4, {ctrlKey: true});
     setSelectedBuilding(null);
     h.press(4);
 
@@ -751,10 +779,13 @@ describe('right-click orders', () => {
     vi.stubGlobal('document', {
       createElement: () => fakeEl(),
       getElementById: () => null,
-      body: { appendChild: () => {} },
-      head: { appendChild: () => {} },
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
     });
-    vi.stubGlobal('window', { addEventListener: () => {}, removeEventListener: () => {} });
+    vi.stubGlobal('window', {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
     setMyPlayerId(ME);
     setSelection(new Set<number>());
     setSelectedBuilding(null);
@@ -770,9 +801,9 @@ describe('right-click orders', () => {
 
   /** The keep, its center, and a squad standing clear of it. */
   function keepAndSquad(): ReturnType<typeof harness> {
-    const keep = { ...building(7), owner: THEM };
+    const keep = {...building(7), owner: THEM};
     const cx = keep.x + keep.w / 2;
-    const h = harness({ pitched: { x: cx, z: cx } });
+    const h = harness({pitched: {x: cx, z: cx}});
     h.addBuilding(keep, TOP);
     h.addUnit(1, keep.x - 4, keep.y - 4);
     h.click(h.screenOf(1));
@@ -783,7 +814,7 @@ describe('right-click orders', () => {
   /** How tall the keep is drawn — a castle's 3x3 model, near enough. */
   const TOP = 3.2;
   /** The keep's middle tile, which is what an order aimed at it means. */
-  const KEEP_TILE = { x: 11, y: 11 };
+  const KEEP_TILE = {x: 11, y: 11};
 
   it('aims at the keep the pointer is lit on, not the ground behind it', () => {
     const h = keepAndSquad();
@@ -797,7 +828,10 @@ describe('right-click orders', () => {
     // marched around the keep onto the open ground on its far side.
     h.order(roof);
 
-    expect(h.commands.at(-1)).toMatchObject({ kind: CommandKind.moveUnits, ...KEEP_TILE });
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      ...KEEP_TILE,
+    });
   });
 
   it('reads the roof pixel as the keep even though the ground there is not', () => {
@@ -808,7 +842,8 @@ describe('right-click orders', () => {
     const roof = h.at(11.5, TOP, 11.5);
 
     const ground = h.groundTileAt(roof)!;
-    const onFootprint = ground.x >= 10 && ground.x < 13 && ground.y >= 10 && ground.y < 13;
+    const onFootprint =
+      ground.x >= 10 && ground.x < 13 && ground.y >= 10 && ground.y < 13;
     expect(onFootprint).toBe(false);
   });
 
@@ -856,7 +891,11 @@ describe('right-click orders', () => {
     expect(h.hoverAt(grass)).toBe(-1);
     h.order(grass);
 
-    expect(h.commands.at(-1)).toMatchObject({ kind: CommandKind.moveUnits, x: 11, y: 17 });
+    expect(h.commands.at(-1)).toMatchObject({
+      kind: CommandKind.moveUnits,
+      x: 11,
+      y: 17,
+    });
   });
 });
 
@@ -867,12 +906,17 @@ describe('build chord', () => {
     vi.stubGlobal('document', {
       createElement: () => fakeEl(),
       getElementById: () => null,
-      body: { appendChild: () => {} },
-      head: { appendChild: () => {} },
+      body: {appendChild: () => {}},
+      head: {appendChild: () => {}},
     });
     setMyPlayerId(ME);
     setStock({});
-    setTechs({ researched: [], festivalTicksLeft: 0, pavingUnlocked: false, hasAbbey: false });
+    setTechs({
+      researched: [],
+      festivalTicksLeft: 0,
+      pavingUnlocked: false,
+      hasAbbey: false,
+    });
     setPlacing(null);
     setBuildAim(null);
   });
@@ -881,7 +925,12 @@ describe('build chord', () => {
     controls?.dispose();
     controls = null;
     setStock({});
-    setTechs({ researched: [], festivalTicksLeft: 0, pavingUnlocked: false, hasAbbey: false });
+    setTechs({
+      researched: [],
+      festivalTicksLeft: 0,
+      pavingUnlocked: false,
+      hasAbbey: false,
+    });
     setPlacing(null);
     setBuildAim(null);
     vi.unstubAllGlobals();
@@ -890,7 +939,7 @@ describe('build chord', () => {
   it('arms the building the letter names, and aims the ribbon at it', () => {
     const h = harness();
     controls = h.controls;
-    setStock({ [GoodId.wood]: 20, [GoodId.stone]: 20 });
+    setStock({[GoodId.wood]: 20, [GoodId.stone]: 20});
 
     h.type('B');
     h.type('M');
@@ -906,7 +955,7 @@ describe('build chord', () => {
     // holds — but the ribbon has been pointed at the answer.
     const h = harness();
     controls = h.controls;
-    setStock({ [GoodId.wood]: 1 });
+    setStock({[GoodId.wood]: 1});
 
     h.type('B');
     h.type('M');
@@ -918,7 +967,7 @@ describe('build chord', () => {
   it('aims the ribbon at a building that is not researched yet', () => {
     const h = harness();
     controls = h.controls;
-    setStock({ [GoodId.wood]: 99, [GoodId.stone]: 99 });
+    setStock({[GoodId.wood]: 99, [GoodId.stone]: 99});
 
     h.type('B');
     h.type('I'); // the Iron Mine, behind ironworking
@@ -936,7 +985,7 @@ describe('build chord', () => {
     setStock({});
     const aims: (BuildingTypeId | null)[] = [];
 
-    const stop = createRoot((dispose) => {
+    const stop = createRoot(dispose => {
       createComputed(() => void aims.push(buildAim()));
       return dispose;
     });
@@ -952,7 +1001,7 @@ describe('build chord', () => {
   it('leaves a stray letter alone', () => {
     const h = harness();
     controls = h.controls;
-    setStock({ [GoodId.wood]: 99, [GoodId.stone]: 99 });
+    setStock({[GoodId.wood]: 99, [GoodId.stone]: 99});
 
     h.type('B');
     h.type('Z');

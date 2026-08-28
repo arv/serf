@@ -1,4 +1,4 @@
-import { tileIdx } from '../shared/grid';
+import {tileIdx} from '../shared/grid';
 
 /**
  * Bilinear sampler over the per-tile elevation map. Tile heights are treated

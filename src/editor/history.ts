@@ -1,6 +1,6 @@
-import { type StartSpot, tileBlocks, inPlayArea } from '../sim/map.ts';
-import { tileX, tileY } from '../shared/grid.ts';
-import type { EditorMapState } from './editorMap.ts';
+import {tileX, tileY} from '../shared/grid.ts';
+import {type StartSpot, tileBlocks, inPlayArea} from '../sim/map.ts';
+import type {EditorMapState} from './editorMap.ts';
 
 /** What one editing action can change: the authored ground and the seats. */
 interface Snapshot {
@@ -21,7 +21,7 @@ function capture(state: EditorMapState): Snapshot {
     resource: Uint8Array.from(state.map.resource),
     resourceAmt: Uint8Array.from(state.map.resourceAmt),
     height: Float32Array.from(state.map.height),
-    starts: state.starts.map((s) => ({ ...s })),
+    starts: state.starts.map(s => ({...s})),
   };
 }
 
@@ -32,8 +32,11 @@ function capture(state: EditorMapState): Snapshot {
  * Returns the tile indices whose ground changed (for the render resync)
  * and whether the starts moved.
  */
-function apply(state: EditorMapState, snap: Snapshot): { tiles: number[]; starts: boolean } {
-  const { map } = state;
+function apply(
+  state: EditorMapState,
+  snap: Snapshot,
+): {tiles: number[]; starts: boolean} {
+  const {map} = state;
   const tiles: number[] = [];
   for (let i = 0; i < map.terrain.length; i++) {
     if (
@@ -56,9 +59,11 @@ function apply(state: EditorMapState, snap: Snapshot): { tiles: number[]; starts
   }
   const startsChanged =
     snap.starts.length !== state.starts.length ||
-    snap.starts.some((s, p) => s.x !== state.starts[p]!.x || s.y !== state.starts[p]!.y);
-  state.starts = snap.starts.map((s) => ({ ...s }));
-  return { tiles, starts: startsChanged };
+    snap.starts.some(
+      (s, p) => s.x !== state.starts[p]!.x || s.y !== state.starts[p]!.y,
+    );
+  state.starts = snap.starts.map(s => ({...s}));
+  return {tiles, starts: startsChanged};
 }
 
 /**
@@ -88,7 +93,7 @@ export class EditorHistory {
   }
 
   /** Step back; returns what changed, or null with nothing to undo. */
-  undo(state: EditorMapState): { tiles: number[]; starts: boolean } | null {
+  undo(state: EditorMapState): {tiles: number[]; starts: boolean} | null {
     const snap = this.#undo.pop();
     if (!snap) return null;
     this.#redo.push(capture(state));
@@ -96,7 +101,7 @@ export class EditorHistory {
   }
 
   /** Step forward again; returns what changed, or null with nothing to redo. */
-  redo(state: EditorMapState): { tiles: number[]; starts: boolean } | null {
+  redo(state: EditorMapState): {tiles: number[]; starts: boolean} | null {
     const snap = this.#redo.pop();
     if (!snap) return null;
     this.#undo.push(capture(state));

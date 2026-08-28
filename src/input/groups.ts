@@ -1,4 +1,4 @@
-import type { Enum } from '../shared/enum.ts';
+import type {Enum} from '../shared/enum.ts';
 import * as ControlGroupKindNs from './controlGroupKindEnum.ts';
 
 export type ControlGroupKind = Enum<typeof ControlGroupKindNs>;
@@ -26,7 +26,9 @@ export type ControlGroupKind = Enum<typeof ControlGroupKindNs>;
  * input paths that report no `code` at all, and the numpad is taken too —
  * someone reaching for 1 with their right hand means the same 1.
  */
-export function keyDigit(e: Pick<KeyboardEvent, 'code' | 'key'>): number | null {
+export function keyDigit(
+  e: Pick<KeyboardEvent, 'code' | 'key'>,
+): number | null {
   const c = e.code;
   const tail =
     c.length === 6 && c.startsWith('Digit')
@@ -54,8 +56,8 @@ export function keyDigit(e: Pick<KeyboardEvent, 'code' | 'key'>): number | null 
  * opens its card wherever the fighting has taken the view.
  */
 export type ControlGroup =
-  | { readonly kind: ControlGroupKindNs.units; readonly ids: Set<number> }
-  | { readonly kind: ControlGroupKindNs.building; readonly id: number };
+  | {readonly kind: ControlGroupKindNs.units; readonly ids: Set<number>}
+  | {readonly kind: ControlGroupKindNs.building; readonly id: number};
 
 /**
  * A group nobody would miss — never stamped, or emptied by casualties.
@@ -66,7 +68,10 @@ export type ControlGroup =
  * it has been dropped whole.
  */
 export function groupEmpty(group: ControlGroup | undefined): boolean {
-  return group === undefined || (group.kind === ControlGroupKindNs.units && group.ids.size === 0);
+  return (
+    group === undefined ||
+    (group.kind === ControlGroupKindNs.units && group.ids.size === 0)
+  );
 }
 
 /** Group numbers in the order a player reads them: 1 first, 0 last. */
@@ -95,17 +100,26 @@ export function matchingGroup(
   let match: number | null = null;
   // Groups are stamped in press order, so the map's iteration order is not
   // the player's: 1 wins over 5 however they came to be made.
-  const better = (digit: number) => match === null || digitRank(digit) < digitRank(match);
+  const better = (digit: number) =>
+    match === null || digitRank(digit) < digitRank(match);
   if (building !== null) {
     for (const [digit, group] of groups) {
-      if (group.kind === ControlGroupKindNs.building && group.id === building && better(digit))
+      if (
+        group.kind === ControlGroupKindNs.building &&
+        group.id === building &&
+        better(digit)
+      )
         match = digit;
     }
     return match;
   }
   if (selection.size === 0) return null;
   for (const [digit, group] of groups) {
-    if (group.kind !== ControlGroupKindNs.units || group.ids.size !== selection.size) continue;
+    if (
+      group.kind !== ControlGroupKindNs.units ||
+      group.ids.size !== selection.size
+    )
+      continue;
     let same = true;
     for (const id of group.ids) {
       if (!selection.has(id)) {

@@ -1,12 +1,12 @@
-import { render } from 'solid-js/web';
-import { Hud } from './Hud';
-import { pushToast, setSpeed, type OrderMode } from './store';
-import { play } from '../audio/audio';
-import type { BuildingTypeId } from '../sim/defs/buildings';
-import type { SimHost } from '../app/simHost';
-import { saveGameNow } from '../app/saveStore';
-import type { MinimapSource } from './Minimap';
+import {render} from 'solid-js/web';
+import {saveGameNow} from '../app/saveStore';
+import type {SimHost} from '../app/simHost';
+import {play} from '../audio/audio';
 import * as CommandKind from '../sim/commandKindEnum.ts';
+import type {BuildingTypeId} from '../sim/defs/buildings';
+import {Hud} from './Hud';
+import type {MinimapSource} from './Minimap';
+import {pushToast, setSpeed, type OrderMode} from './store';
 
 /** What the HUD needs from the app: selection actions from Controls (touch
  * has no shift/drag), and the save assembled where world and fog meet. */
@@ -59,64 +59,76 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiClick');
           actions.deselect();
         }}
-        onSpeed={(speed) => {
+        onSpeed={speed => {
           play('uiClick');
           host.setSpeed(speed);
           setSpeed(speed);
         }}
-        onPlace={(type) => {
+        onPlace={type => {
           play('uiClick');
           actions.place(type);
         }}
-        onArmOrder={(mode) => {
+        onArmOrder={mode => {
           play('uiClick');
           actions.armOrder(mode);
         }}
-        onClearRally={(buildingId) => {
+        onClearRally={buildingId => {
           play('uiClick');
           // No coordinates is the take-the-flag-down spelling; planting one
           // needs a map click and goes through Controls instead.
-          host.sendCommands([{ kind: CommandKind.setRallyPoint, buildingId }]);
+          host.sendCommands([{kind: CommandKind.setRallyPoint, buildingId}]);
         }}
         onHire={() => {
           play('uiCoin');
-          host.sendCommands([{ kind: CommandKind.hireSerf }]);
+          host.sendCommands([{kind: CommandKind.hireSerf}]);
         }}
-        onSell={(buildingId) => {
+        onSell={buildingId => {
           play('uiCoin');
-          host.sendCommands([{ kind: CommandKind.sellBuilding, buildingId }]);
+          host.sendCommands([{kind: CommandKind.sellBuilding, buildingId}]);
         }}
         onRepair={(buildingId, repair) => {
           play('uiClick');
-          host.sendCommands([{ kind: CommandKind.setBuildingRepair, buildingId, repair }]);
+          host.sendCommands([
+            {kind: CommandKind.setBuildingRepair, buildingId, repair},
+          ]);
         }}
         onTogglePause={(buildingId, paused) => {
           play('uiClick');
-          host.sendCommands([{ kind: CommandKind.setBuildingPaused, buildingId, paused }]);
+          host.sendCommands([
+            {kind: CommandKind.setBuildingPaused, buildingId, paused},
+          ]);
         }}
         onSetRecipe={(buildingId, index) => {
           play('uiClick');
-          host.sendCommands([{ kind: CommandKind.setBuildingRecipe, buildingId, index }]);
+          host.sendCommands([
+            {kind: CommandKind.setBuildingRecipe, buildingId, index},
+          ]);
         }}
         onEnqueueForge={(buildingId, recipeIndex) => {
           play('uiClick');
-          host.sendCommands([{ kind: CommandKind.enqueueForge, buildingId, recipeIndex }]);
+          host.sendCommands([
+            {kind: CommandKind.enqueueForge, buildingId, recipeIndex},
+          ]);
         }}
         onCancelForge={(buildingId, index, recipeIndex) => {
           play('uiClick');
-          host.sendCommands([{ kind: CommandKind.cancelForge, buildingId, index, recipeIndex }]);
+          host.sendCommands([
+            {kind: CommandKind.cancelForge, buildingId, index, recipeIndex},
+          ]);
         }}
-        onResearch={(tech) => {
+        onResearch={tech => {
           play('uiClick');
-          host.sendCommands([{ kind: CommandKind.research, tech }]);
+          host.sendCommands([{kind: CommandKind.research, tech}]);
         }}
         onTrain={(buildingId, unit) => {
           play('uiClick');
-          host.sendCommands([{ kind: CommandKind.trainUnit, buildingId, unit }]);
+          host.sendCommands([{kind: CommandKind.trainUnit, buildingId, unit}]);
         }}
         onCancelTrain={(buildingId, index, unit) => {
           play('uiClick');
-          host.sendCommands([{ kind: CommandKind.cancelTraining, buildingId, index, unit }]);
+          host.sendCommands([
+            {kind: CommandKind.cancelTraining, buildingId, index, unit},
+          ]);
         }}
         onSave={() => {
           play('uiClick');
@@ -129,10 +141,12 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           // filed when it is not.
           void actions
             .save()
-            .then((data) => saveGameNow(data))
-            .then((name) => {
+            .then(data => saveGameNow(data))
+            .then(name => {
               pushToast(
-                name !== null ? `Village saved — ${name}` : 'The village could not be saved',
+                name !== null
+                  ? `Village saved — ${name}`
+                  : 'The village could not be saved',
               );
             })
             .catch(() => pushToast('The village could not be saved'));
@@ -141,14 +155,18 @@ export function mountHud(host: SimHost, actions: HudActions): () => void {
           play('uiClick');
           void actions
             .saveReplay()
-            .then((name) => {
-              pushToast(name !== null ? `Replay saved — ${name}` : 'Replay could not be saved');
+            .then(name => {
+              pushToast(
+                name !== null
+                  ? `Replay saved — ${name}`
+                  : 'Replay could not be saved',
+              );
             })
             .catch(() => pushToast('Replay could not be saved'));
         }}
-        onAdmin={(action) => {
+        onAdmin={action => {
           play('uiClick');
-          host.sendCommands([{ kind: CommandKind.admin, action }]);
+          host.sendCommands([{kind: CommandKind.admin, action}]);
         }}
         onFocus={(x, y) => {
           play('uiClick');

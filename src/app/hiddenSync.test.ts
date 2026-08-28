@@ -1,15 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { HiddenSync, WAKE_GAP_MS } from './hiddenSync';
+import {describe, expect, it} from 'vitest';
+import {HiddenSync, WAKE_GAP_MS} from './hiddenSync';
 
 /** A sink that records every state it is told. */
-function recordingSink(): { calls: boolean[]; sink: (hidden: boolean) => void } {
+function recordingSink(): {calls: boolean[]; sink: (hidden: boolean) => void} {
   const calls: boolean[] = [];
-  return { calls, sink: (hidden) => calls.push(hidden) };
+  return {calls, sink: hidden => calls.push(hidden)};
 }
 
 describe('HiddenSync', () => {
   it('tells a new sink the current state at once', () => {
-    const { calls, sink } = recordingSink();
+    const {calls, sink} = recordingSink();
     new HiddenSync(true).add(sink);
     expect(calls).toEqual([true]);
   });
@@ -30,7 +30,7 @@ describe('HiddenSync', () => {
 
   it('wakes on a rAF gap when the visible event went missing', () => {
     const sync = new HiddenSync(false);
-    const { calls, sink } = recordingSink();
+    const {calls, sink} = recordingSink();
     sync.add(sink);
     sync.frame(0);
     sync.frame(16);
@@ -48,7 +48,7 @@ describe('HiddenSync', () => {
     // on the first frame back is under the threshold, so the callbacks
     // continuing at all must do the waking — by the second one.
     const sync = new HiddenSync(false);
-    const { calls, sink } = recordingSink();
+    const {calls, sink} = recordingSink();
     sync.add(sink);
     sync.frame(0);
     sync.frame(16);
@@ -61,7 +61,7 @@ describe('HiddenSync', () => {
 
   it('does not mistake visible jank for a return', () => {
     const sync = new HiddenSync(false);
-    const { calls, sink } = recordingSink();
+    const {calls, sink} = recordingSink();
     sync.add(sink);
     sync.frame(0);
     sync.frame(WAKE_GAP_MS); // a stall exactly at the threshold: not a gap
@@ -73,7 +73,7 @@ describe('HiddenSync', () => {
     // the event. Alone it must not restart the sim on a page going dark —
     // rAF stops after it, so no second callback ever arrives.
     const sync = new HiddenSync(false);
-    const { calls, sink } = recordingSink();
+    const {calls, sink} = recordingSink();
     sync.add(sink);
     sync.frame(0);
     sync.frame(16);
@@ -88,7 +88,7 @@ describe('HiddenSync', () => {
     // first alone stays inconclusive: no predecessor for a gap, and one
     // callback could be the stray above.
     const sync = new HiddenSync(true);
-    const { calls, sink } = recordingSink();
+    const {calls, sink} = recordingSink();
     sync.add(sink);
     sync.frame(60_000);
     expect(calls).toEqual([true]);

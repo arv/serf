@@ -1,17 +1,22 @@
-import { COUNTER_TABLE, UNIT_DEFS, type UnitClass, type UnitTypeId } from '../defs/units.ts';
-import { BUILDING_DAMAGE_MULT } from '../defs/balance.ts';
-import { buildingDef, type BuildingDef } from '../defs/buildings.ts';
-import { BANDIT, centerOf, isPlayerOwner, type Building } from '../entities.ts';
-import { tileX, tileY } from '../../shared/grid.ts';
-import { exactDist } from '../../shared/math.ts';
-import { distToFootprint } from '../arrival.ts';
-import { findPath, findPathToAdjacent, nearestWalkable } from '../path.ts';
-import { destroyBuilding, killUnit, type World } from '../world.ts';
-import type { Unit } from '../units.ts';
-import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import {tileX, tileY} from '../../shared/grid.ts';
+import {exactDist} from '../../shared/math.ts';
+import {distToFootprint} from '../arrival.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
+import {BUILDING_DAMAGE_MULT} from '../defs/balance.ts';
+import {buildingDef, type BuildingDef} from '../defs/buildings.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import {
+  COUNTER_TABLE,
+  UNIT_DEFS,
+  type UnitClass,
+  type UnitTypeId,
+} from '../defs/units.ts';
+import {BANDIT, centerOf, isPlayerOwner, type Building} from '../entities.ts';
 import * as GameEventKind from '../gameEventKindEnum.ts';
+import {findPath, findPathToAdjacent, nearestWalkable} from '../path.ts';
+import type {Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
+import {destroyBuilding, killUnit, type World} from '../world.ts';
 
 /**
  * Thin, quarantined combat: reads positions, writes hp and movement intents.
@@ -79,12 +84,19 @@ export function combatSystem(world: World): void {
     // A path lost to new construction goes live early rather than quiet:
     // resumeAttackMove re-plans, but the original midpoint is meaningless
     // on a route that no longer exists.
-    if (unit.task.t === UnitTaskKind.attackMove && unit.task.engageIdx !== undefined) {
+    if (
+      unit.task.t === UnitTaskKind.attackMove &&
+      unit.task.engageIdx !== undefined
+    ) {
       if (isDisengaging(unit)) {
         disengage(unit);
         continue;
       }
-      unit.task = { t: UnitTaskKind.attackMove, destX: unit.task.destX, destY: unit.task.destY };
+      unit.task = {
+        t: UnitTaskKind.attackMove,
+        destX: unit.task.destX,
+        destY: unit.task.destY,
+      };
       disengage(unit);
     }
 
@@ -92,7 +104,8 @@ export function combatSystem(world: World): void {
     let targetUnit: Unit | undefined;
     let targetBuilding: Building | undefined;
     if (unit.targetId !== undefined) {
-      if (unit.targetIsBuilding) targetBuilding = world.buildings.get(unit.targetId);
+      if (unit.targetIsBuilding)
+        targetBuilding = world.buildings.get(unit.targetId);
       else targetUnit = world.units.get(unit.targetId);
       const gone = unit.targetIsBuilding
         ? !targetBuilding || targetBuilding.dead
@@ -106,10 +119,16 @@ export function combatSystem(world: World): void {
 
     // Camp guards hold their post. Without a leash a wandering serf tows
     // one into the village, and the pack follows it home.
-    const guard = unit.owner === BANDIT && unit.task.t !== UnitTaskKind.raid ? campOf() : undefined;
+    const guard =
+      unit.owner === BANDIT && unit.task.t !== UnitTaskKind.raid
+        ? campOf()
+        : undefined;
     if (guard && distToBuilding(unit, guard) > GUARD_LEASH) {
       disengage(unit);
-      if (unit.path === null && !(unit.repathAt !== undefined && world.tick < unit.repathAt)) {
+      if (
+        unit.path === null &&
+        !(unit.repathAt !== undefined && world.tick < unit.repathAt)
+      ) {
         unit.path = findPathToAdjacent(
           world.map,
           Math.floor(unit.x),
@@ -139,18 +158,22 @@ export function combatSystem(world: World): void {
         // for bandits — any surviving enemy building. Player attackers go
         // home (idle) once their target is gone.
         targetBuilding = world.buildings.get(unit.task.buildingId);
-        if (targetBuilding && (targetBuilding.dead || targetBuilding.owner === unit.owner)) {
+        if (
+          targetBuilding &&
+          (targetBuilding.dead || targetBuilding.owner === unit.owner)
+        ) {
           targetBuilding = undefined;
         }
         if (!targetBuilding && unit.owner === BANDIT) {
           targetBuilding = nearestEnemyBuilding(liveBuildings, unit);
-          if (targetBuilding) unit.task = { t: UnitTaskKind.raid, buildingId: targetBuilding.id };
+          if (targetBuilding)
+            unit.task = {t: UnitTaskKind.raid, buildingId: targetBuilding.id};
         }
         if (targetBuilding) {
           unit.targetId = targetBuilding.id;
           unit.targetIsBuilding = true;
         } else {
-          unit.task = { t: UnitTaskKind.idle, until: world.tick };
+          unit.task = {t: UnitTaskKind.idle, until: world.tick};
         }
       } else if (isPlayerOwner(unit.owner)) {
         // No enemy units around: idle soldiers besiege enemy buildings in
@@ -173,7 +196,8 @@ export function combatSystem(world: World): void {
     }
 
     if (unit.targetId === undefined) {
-      if (unit.task.t === UnitTaskKind.attackMove) resumeAttackMove(world, unit);
+      if (unit.task.t === UnitTaskKind.attackMove)
+        resumeAttackMove(world, unit);
       continue;
     }
 
@@ -204,7 +228,8 @@ export function combatSystem(world: World): void {
       if (near <= Math.max(combat.range, 1.4)) {
         unit.path = null;
         if (unit.cooldownLeft <= 0) {
-          targetBuilding.hp -= combat.damage * BUILDING_DAMAGE_MULT[combat.class];
+          targetBuilding.hp -=
+            combat.damage * BUILDING_DAMAGE_MULT[combat.class];
           if (isPlayerOwner(targetBuilding.owner)) {
             const c = centerOf(targetBuilding);
             world.pendingEvents.push({
@@ -262,7 +287,11 @@ export function combatSystem(world: World): void {
  * tower cannot. Searching wider would only let it fix on a man it has no
  * shot at and hold its fire while someone else stood inside the wall.
  */
-function towerFire(world: World, buildings: readonly Building[], units: readonly Unit[]): void {
+function towerFire(
+  world: World,
+  buildings: readonly Building[],
+  units: readonly Unit[],
+): void {
   for (const b of buildings) {
     if (b.dead || b.state !== BuildingState.built) continue;
     const rule = buildingDef(b.type).garrison;
@@ -287,7 +316,9 @@ function towerFire(world: World, buildings: readonly Building[], units: readonly
     // early wave is made of: it left the tower weakest against exactly the
     // attack it is built to stop. The bonuses stay — height does not help
     // a knight climb.
-    const mult = defClass ? Math.max(1, COUNTER_TABLE[volley.class][defClass]) : 1;
+    const mult = defClass
+      ? Math.max(1, COUNTER_TABLE[volley.class][defClass])
+      : 1;
     target.hp -= volley.damage * mult;
     b.attackCooldown = volley.cooldownTicks;
     if (isPlayerOwner(target.owner)) {
@@ -325,8 +356,8 @@ function volleyOf(
 ): Volley | undefined {
   if (men <= 0) return undefined;
   if (kind === rule.levy.unit) {
-    const { class: cls, damage, cooldownTicks, range } = rule.levy;
-    return { class: cls, damage: damage * men, cooldownTicks, range };
+    const {class: cls, damage, cooldownTicks, range} = rule.levy;
+    return {class: cls, damage: damage * men, cooldownTicks, range};
   }
   const combat = UNIT_DEFS[rule.unit].combat;
   if (!combat) return undefined;
@@ -420,11 +451,11 @@ function isDisengaging(unit: Unit): boolean {
  */
 function resumeAttackMove(world: World, unit: Unit): void {
   if (unit.task.t !== UnitTaskKind.attackMove || unit.path !== null) return;
-  const { destX, destY } = unit.task;
+  const {destX, destY} = unit.task;
   const ux = Math.floor(unit.x);
   const uy = Math.floor(unit.y);
   if (ux === destX && uy === destY) {
-    unit.task = { t: UnitTaskKind.idle, until: world.tick };
+    unit.task = {t: UnitTaskKind.idle, until: world.tick};
     return;
   }
   const path = findPath(world.map, ux, uy, destX, destY);
@@ -432,7 +463,7 @@ function resumeAttackMove(world: World, unit: Unit): void {
     unit.path = path;
     unit.pathIdx = 0;
   } else {
-    unit.task = { t: UnitTaskKind.idle, until: world.tick };
+    unit.task = {t: UnitTaskKind.idle, until: world.tick};
   }
 }
 
@@ -474,7 +505,8 @@ function buildUnitGrid(units: readonly Unit[], size: number): void {
     cellHead = new Int32Array(per * per);
   }
   cellHead.fill(-1);
-  if (cellNext.length < units.length) cellNext = new Int32Array(units.length * 2);
+  if (cellNext.length < units.length)
+    cellNext = new Int32Array(units.length * 2);
   for (let i = 0; i < units.length; i++) {
     const u = units[i]!;
     const c = cellCoord(u.y) * cellsPerSide + cellCoord(u.x);
@@ -495,7 +527,11 @@ function buildUnitGrid(units: readonly Unit[], size: number): void {
  * strict `<` used to produce, and unlike that scan it does not depend on
  * the order the candidates arrive in.
  */
-function acquireUnit(units: readonly Unit[], unit: Unit, radius: number): Unit | undefined {
+function acquireUnit(
+  units: readonly Unit[],
+  unit: Unit,
+  radius: number,
+): Unit | undefined {
   const myClass = UNIT_DEFS[unit.kind].combat!.class;
   // Conservative squared-distance reject: anything strictly beyond
   // radius + 1 cannot pass `dist <= radius` below even after sqrt rounding,
@@ -633,7 +669,10 @@ function distToBuilding(unit: Unit, b: Building): number {
   return distToFootprint(unit, b.x, b.y, b.w, b.h);
 }
 
-function nearestEnemyBuilding(buildings: readonly Building[], unit: Unit): Building | undefined {
+function nearestEnemyBuilding(
+  buildings: readonly Building[],
+  unit: Unit,
+): Building | undefined {
   let best: Building | undefined;
   let bestDist = Infinity;
   // Conservative squared-distance reject: anything strictly beyond

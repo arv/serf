@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import {describe, expect, it} from 'vitest';
 import {
   EdgeScroll,
   edgePush,
@@ -17,10 +17,10 @@ describe('edgePush', () => {
   });
 
   it('pushes toward the edge the pointer is nearing', () => {
-    expect(edgePush(2, H / 2, W, H)).toEqual({ x: -1, z: 0 });
-    expect(edgePush(W - 3, H / 2, W, H)).toEqual({ x: 1, z: 0 });
-    expect(edgePush(W / 2, 2, W, H)).toEqual({ x: 0, z: -1 });
-    expect(edgePush(W / 2, H - 3, W, H)).toEqual({ x: 0, z: 1 });
+    expect(edgePush(2, H / 2, W, H)).toEqual({x: -1, z: 0});
+    expect(edgePush(W - 3, H / 2, W, H)).toEqual({x: 1, z: 0});
+    expect(edgePush(W / 2, 2, W, H)).toEqual({x: 0, z: -1});
+    expect(edgePush(W / 2, H - 3, W, H)).toEqual({x: 0, z: 1});
   });
 
   it('runs at full speed well before the screen edge', () => {
@@ -38,7 +38,7 @@ describe('edgePush', () => {
   });
 
   it('pushes both ways at once in a corner', () => {
-    expect(edgePush(1, 1, W, H)).toEqual({ x: -1, z: -1 });
+    expect(edgePush(1, 1, W, H)).toEqual({x: -1, z: -1});
   });
 
   it('goes quiet on an axis with no room for two bands and a middle', () => {
@@ -48,7 +48,7 @@ describe('edgePush', () => {
     expect(edgePush(narrow / 2, H / 2, narrow, H)).toBeNull();
     expect(edgePush(1, H / 2, narrow, H)).toBeNull();
     // The other axis still works: only the cramped one goes quiet.
-    expect(edgePush(narrow / 2, 1, narrow, H)).toEqual({ x: 0, z: -1 });
+    expect(edgePush(narrow / 2, 1, narrow, H)).toEqual({x: 0, z: -1});
   });
 });
 
@@ -59,7 +59,8 @@ describe('EdgeScroll', () => {
     // A parked cursor sends no further moves. Several seconds of frames —
     // far past the latch — must not quietly stop scrolling under a player
     // who is still asking for it.
-    for (let t = 0; t < 5; t += 0.1) expect(edge.tick(0.1)).toEqual({ x: -1, z: 0 });
+    for (let t = 0; t < 5; t += 0.1)
+      expect(edge.tick(0.1)).toEqual({x: -1, z: 0});
   });
 
   it('drops the push as soon as the pointer moves off the band', () => {
@@ -73,7 +74,7 @@ describe('EdgeScroll', () => {
     const edge = new EdgeScroll();
     edge.moved(1, H / 2, W, H);
     edge.left(); // the menu bar slid down and took the cursor with it
-    expect(edge.tick(EDGE_LATCH_S / 2)).toEqual({ x: -1, z: 0 });
+    expect(edge.tick(EDGE_LATCH_S / 2)).toEqual({x: -1, z: 0});
     expect(edge.tick(EDGE_LATCH_S / 2)).toBeNull();
   });
 
@@ -84,7 +85,8 @@ describe('EdgeScroll', () => {
     edge.tick(EDGE_LATCH_S * 0.9);
     edge.moved(1, H / 2, W, H); // back on the page, still in the band
     // The clock is off again, not merely reset: the pointer is present.
-    for (let t = 0; t < 3; t += 0.5) expect(edge.tick(0.5)).toEqual({ x: -1, z: 0 });
+    for (let t = 0; t < 3; t += 0.5)
+      expect(edge.tick(0.5)).toEqual({x: -1, z: 0});
   });
 
   it('does not invent a direction for a pointer that was not pushing', () => {

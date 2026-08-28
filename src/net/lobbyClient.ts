@@ -1,9 +1,13 @@
-import { createSignal } from 'solid-js';
-import type { CouncilHooks, CouncilView } from '../ui/WarCouncil';
-import { sanitizeLobbyConfig, defaultLobbyConfig, type LobbyConfig } from '../protocol/lobby';
-import type { NetInfo } from '../protocol/messages';
+import {createSignal} from 'solid-js';
+import {
+  sanitizeLobbyConfig,
+  defaultLobbyConfig,
+  type LobbyConfig,
+} from '../protocol/lobby';
+import type {NetInfo} from '../protocol/messages';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
 import * as CouncilPhase from '../ui/councilPhaseEnum.ts';
+import type {CouncilHooks, CouncilView} from '../ui/WarCouncil';
 
 /**
  * Main-thread lobby flow: a short-lived JSON WebSocket for room setup. On
@@ -23,7 +27,7 @@ import * as CouncilPhase from '../ui/councilPhaseEnum.ts';
 
 export interface LobbyResult {
   net: NetInfo;
-  seats: { kind: PlayerKind.human | 'ai' }[];
+  seats: {kind: PlayerKind.human | 'ai'}[];
   myPlayerId: number;
 }
 
@@ -79,7 +83,11 @@ export function relayUrl(search: string): string {
   const params = new URLSearchParams(search);
   const fromParam = params.get('relay');
   if (fromParam && allowedRelay(fromParam)) return fromParam;
-  if (fromParam) console.warn('[lobby] ignoring ?relay= pointing off this origin:', fromParam);
+  if (fromParam)
+    console.warn(
+      '[lobby] ignoring ?relay= pointing off this origin:',
+      fromParam,
+    );
   const fromEnv = import.meta.env.VITE_RELAY_URL as string | undefined;
   if (fromEnv) return fromEnv;
   // Production is served by the relay process itself — same origin, same
@@ -103,7 +111,7 @@ export function relayUrl(search: string): string {
 async function shareInvite(url: string): Promise<'shared' | 'copied'> {
   if (typeof navigator.share === 'function') {
     try {
-      await navigator.share({ url });
+      await navigator.share({url});
       return 'shared';
     } catch {
       // Dismissed, or this payload is unshareable — fall through to copying.
@@ -120,7 +128,7 @@ interface RoomMsg {
   t: 'room';
   code: string;
   yourSeat: number;
-  seats: { kind: PlayerKind.human | 'ai'; connected: boolean }[];
+  seats: {kind: PlayerKind.human | 'ai'; connected: boolean}[];
   config?: unknown;
 }
 
@@ -141,7 +149,7 @@ interface SeatStash {
   code: string;
   token: string;
   playerId: number;
-  seats: { kind: PlayerKind.human | 'ai' }[];
+  seats: {kind: PlayerKind.human | 'ai'}[];
 }
 
 /**
@@ -153,7 +161,9 @@ interface SeatStash {
  */
 function stashRead(kind: 'session' | 'local'): string | null {
   try {
-    return (kind === 'session' ? sessionStorage : localStorage).getItem(SEAT_STASH);
+    return (kind === 'session' ? sessionStorage : localStorage).getItem(
+      SEAT_STASH,
+    );
   } catch {
     return null;
   }
@@ -197,7 +207,11 @@ export function clearSeatStash(): void {
  * host tunes them in the council. Resolves when the server says 'begin' —
  * or never, if the player leaves.
  */
-export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise<LobbyResult> {
+export function runLobby(
+  url: string,
+  req: CouncilRequest,
+  ui: LobbyUi,
+): Promise<LobbyResult> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
     const isHost = req.mp === 'new';
@@ -233,11 +247,14 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
           onConfig(patch) {
             // Optimistic: the relay echoes the room right back, and its
             // copy — run through the same sanitizer — wins.
-            setView((s) => ({ ...s, config: sanitizeLobbyConfig(s.config, patch) }));
-            ws.send(JSON.stringify({ t: 'config', config: patch }));
+            setView(s => ({
+              ...s,
+              config: sanitizeLobbyConfig(s.config, patch),
+            }));
+            ws.send(JSON.stringify({t: 'config', config: patch}));
           },
           onStart() {
-            ws.send(JSON.stringify({ t: 'start' }));
+            ws.send(JSON.stringify({t: 'start'}));
           },
           onShare() {
             const code = view().code;
@@ -268,10 +285,10 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
     ws.onopen = () => {
       ws.send(
         stash
-          ? JSON.stringify({ t: 'rejoin', token: stash.token })
+          ? JSON.stringify({t: 'rejoin', token: stash.token})
           : isHost
-            ? JSON.stringify({ t: 'create', open: req.open, config: req.init })
-            : JSON.stringify({ t: 'join', code: req.mp }),
+            ? JSON.stringify({t: 'create', open: req.open, config: req.init})
+            : JSON.stringify({t: 'join', code: req.mp}),
       );
     };
     ws.onmessage = (e: MessageEvent<string>) => {
@@ -288,16 +305,20 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
             t: 'begin';
             playerId: number;
             token: string;
-            seats: { kind: PlayerKind.human | 'ai' }[];
+            seats: {kind: PlayerKind.human | 'ai'}[];
           }
-        | { t: 'rejoined'; playerId: number; seats: { kind: PlayerKind.human | 'ai' }[] }
-        | { t: 'error'; message: string }
-        | { t: 'peer' };
+        | {
+            t: 'rejoined';
+            playerId: number;
+            seats: {kind: PlayerKind.human | 'ai'}[];
+          }
+        | {t: 'error'; message: string}
+        | {t: 'peer'};
       if (msg.t === 'rejoined' && stash) {
         unmount();
         ws.close();
         resolve({
-          net: { relayUrl: url, token: stash.token, playerId: msg.playerId },
+          net: {relayUrl: url, token: stash.token, playerId: msg.playerId},
           seats: Array.isArray(msg.seats) ? msg.seats : stash.seats,
           myPlayerId: msg.playerId,
         });
@@ -324,7 +345,7 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
         unmount();
         ws.close();
         resolve({
-          net: { relayUrl: url, token: msg.token, playerId: msg.playerId },
+          net: {relayUrl: url, token: msg.token, playerId: msg.playerId},
           seats: msg.seats,
           myPlayerId: msg.playerId,
         });
@@ -338,7 +359,13 @@ export function runLobby(url: string, req: CouncilRequest, ui: LobbyUi): Promise
           clearSeatStash();
           unmount();
           ws.close();
-          resolve(runLobby(url, { ...req, notice: 'Your previous match has ended.' }, ui));
+          resolve(
+            runLobby(
+              url,
+              {...req, notice: 'Your previous match has ended.'},
+              ui,
+            ),
+          );
         } else {
           fail(msg.message);
         }

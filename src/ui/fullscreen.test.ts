@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { createFullscreen, guardEsc, type FullscreenPort, type PrefStore } from './fullscreen';
+import {describe, expect, it} from 'vitest';
+import {
+  createFullscreen,
+  guardEsc,
+  type FullscreenPort,
+  type PrefStore,
+} from './fullscreen';
 
 /**
  * A browser that grants fullscreen, refuses it, or cannot do it at all —
@@ -8,7 +13,11 @@ import { createFullscreen, guardEsc, type FullscreenPort, type PrefStore } from 
  * and is not what these check; what they check is the part that survives a
  * navigation, which is the part that was hard.
  */
-function fakePort(opts?: { supported?: boolean; refuse?: boolean; display?: boolean }): FullscreenPort & {
+function fakePort(opts?: {
+  supported?: boolean;
+  refuse?: boolean;
+  display?: boolean;
+}): FullscreenPort & {
   /** Leave fullscreen the way Esc does: no button of ours involved. */
   leave(): void;
   /** The window starts or stops filling the screen for reasons of its own —
@@ -20,8 +29,8 @@ function fakePort(opts?: { supported?: boolean; refuse?: boolean; display?: bool
   let display = opts?.display ?? false;
   const listeners: (() => void)[] = [];
   const displayListeners: (() => void)[] = [];
-  const announce = (): void => listeners.forEach((fn) => fn());
-  const announceDisplay = (): void => displayListeners.forEach((fn) => fn());
+  const announce = (): void => listeners.forEach(fn => fn());
+  const announceDisplay = (): void => displayListeners.forEach(fn => fn());
   // The platform reports Fullscreen API state through display-mode too, so
   // a fake that did not do the same would test a browser nobody ships.
   const enter = (next: boolean): void => {
@@ -38,18 +47,18 @@ function fakePort(opts?: { supported?: boolean; refuse?: boolean; display?: bool
       enter(true);
     },
     exit: async () => enter(false),
-    onChange: (fn) => void listeners.push(fn),
+    onChange: fn => void listeners.push(fn),
     displayFullscreen: () => display,
-    onDisplayChange: (fn) => void displayListeners.push(fn),
+    onDisplayChange: fn => void displayListeners.push(fn),
     leave: () => enter(false),
-    setDisplay: (next) => {
+    setDisplay: next => {
       display = next;
       announceDisplay();
     },
   };
 }
 
-function fakeStore(initial = false): PrefStore & { value: boolean } {
+function fakeStore(initial = false): PrefStore & {value: boolean} {
   const store = {
     value: initial,
     read: () => store.value,
@@ -61,12 +70,16 @@ function fakeStore(initial = false): PrefStore & { value: boolean } {
 }
 
 /** A gesture source the test fires by hand, counting its subscriptions. */
-function fakeGestures(): { fire(): void; live(): boolean; source: (fire: () => void) => () => void } {
+function fakeGestures(): {
+  fire(): void;
+  live(): boolean;
+  source: (fire: () => void) => () => void;
+} {
   let armed: (() => void) | null = null;
   return {
     fire: () => armed?.(),
     live: () => armed !== null,
-    source: (fn) => {
+    source: fn => {
       armed = fn;
       return () => {
         armed = null;
@@ -107,7 +120,7 @@ describe('fullscreen', () => {
   });
 
   it('remembers nothing when the browser refuses the request', async () => {
-    const port = fakePort({ refuse: true });
+    const port = fakePort({refuse: true});
     const store = fakeStore();
     const fs = createFullscreen(port, store);
 
@@ -142,7 +155,7 @@ describe('fullscreen', () => {
     // iOS Safari on the phone: the preference may even be set (from a
     // desktop session, same account, synced storage) and must still not
     // leave a toggle claiming a state the page can never reach.
-    const port = fakePort({ supported: false });
+    const port = fakePort({supported: false});
     const fs = createFullscreen(port, fakeStore(true));
     const gestures = fakeGestures();
 
@@ -161,7 +174,7 @@ describe('fullscreen', () => {
       // display: fullscreen, honored — there is no browser chrome left to
       // trade away, and a switch reading "off" against a full screen is a
       // control that lies.
-      const fs = createFullscreen(fakePort({ display: true }), fakeStore());
+      const fs = createFullscreen(fakePort({display: true}), fakeStore());
 
       expect(fs.supported).toBe(true); // the browser can; there is just no point
       expect(fs.offerable()).toBe(false);
@@ -170,7 +183,7 @@ describe('fullscreen', () => {
     it('spends no gesture restoring what the window already gives', () => {
       // The preference can easily be set — same player, same origin, in a
       // tab yesterday — and must not cash itself in here.
-      const fs = createFullscreen(fakePort({ display: true }), fakeStore(true));
+      const fs = createFullscreen(fakePort({display: true}), fakeStore(true));
       const gestures = fakeGestures();
 
       fs.arm(gestures.source);
@@ -181,7 +194,7 @@ describe('fullscreen', () => {
     it('comes back when the window gives the screen up again', () => {
       // Not the installed app — the tab someone had already pressed F11 in
       // when the page loaded, and then pressed F11 out of.
-      const port = fakePort({ display: true });
+      const port = fakePort({display: true});
       const fs = createFullscreen(port, fakeStore());
       expect(fs.offerable()).toBe(false);
 
@@ -251,7 +264,7 @@ describe('fullscreen', () => {
 
   describe('guardEsc', () => {
     /** A Chromium: a keyboard that lends its keys and takes them back. */
-    function fakeKeyboardNav(opts?: { refuse?: boolean }): {
+    function fakeKeyboardNav(opts?: {refuse?: boolean}): {
       nav: Navigator;
       locked: () => string[] | null;
     } {
@@ -268,11 +281,11 @@ describe('fullscreen', () => {
           },
         },
       };
-      return { nav: nav as unknown as Navigator, locked: () => locked };
+      return {nav: nav as unknown as Navigator, locked: () => locked};
     }
 
     it('borrows exactly Esc, and gives it back on release', () => {
-      const { nav, locked } = fakeKeyboardNav();
+      const {nav, locked} = fakeKeyboardNav();
 
       const release = guardEsc(nav);
       expect(locked()).toEqual(['Escape']);
@@ -292,7 +305,7 @@ describe('fullscreen', () => {
       // An embedding policy can reject the promise after the call returns;
       // the refusal leaves Esc meaning what it always did, which is not an
       // error anyone can act on — it must not surface as one.
-      const { nav, locked } = fakeKeyboardNav({ refuse: true });
+      const {nav, locked} = fakeKeyboardNav({refuse: true});
 
       const release = guardEsc(nav);
       await settle();

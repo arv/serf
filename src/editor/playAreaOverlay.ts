@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { ReachOutline } from '../render/reachOutline';
-import type { HeightField } from '../render/heightField';
-import { inPlayArea, playMax, playMin, type MapView } from '../sim/map.ts';
+import type {HeightField} from '../render/heightField';
+import {ReachOutline} from '../render/reachOutline';
+import {inPlayArea, playMax, playMin, type MapView} from '../sim/map.ts';
 
 /** The boundary band wears the editor's own accent. */
 const BOUNDS_GOLD = new THREE.Color(0xe5c469);

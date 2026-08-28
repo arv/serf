@@ -1,6 +1,6 @@
-import type { ConsultRecord, MatchRecord } from './match.ts';
-import type { AiStrategyId } from '../../src/sim/defs/aiStrategies.ts';
-import type { Owner } from '../../src/sim/entities.ts';
+import type {AiStrategyId} from '../../src/sim/defs/aiStrategies.ts';
+import type {Owner} from '../../src/sim/entities.ts';
+import type {ConsultRecord, MatchRecord} from './match.ts';
 
 /**
  * Turning a pile of matches into a number you are allowed to believe.
@@ -45,7 +45,7 @@ export interface LayoutRun {
   /** Both seats unadvised — what the valley does on its own. */
   control: MatchRecord | null;
   /** One entry per mirrored advice trial. */
-  arms: { advisedSeat: Owner; record: MatchRecord }[];
+  arms: {advisedSeat: Owner; record: MatchRecord}[];
 }
 
 /** One seed, played every way the bake-off asked for. */
@@ -76,8 +76,8 @@ export interface EngineHealth {
   /** Advice messages that reached a brain. */
   adviceMessages: number;
   /** Strategists that hit three strikes and went inert. */
-  gaveUp: { playerId: Owner; reason: string }[];
-  latencyMs: { p50: number; p95: number; max: number; n: number };
+  gaveUp: {playerId: Owner; reason: string}[];
+  latencyMs: {p50: number; p95: number; max: number; n: number};
 }
 
 /**
@@ -102,7 +102,7 @@ export interface PlaybookMatchup {
   rate: Rate;
   /** A's record split by the seat it sat in — the map bias, made visible
    * rather than assumed away. A wide gap means the mirror earned its keep. */
-  bySeat: { seat: Owner; wins: number; trials: number }[];
+  bySeat: {seat: Owner; wins: number; trials: number}[];
   /** The seed-level paired test. A seed where each playbook took its own
    * seating is a split and carries no evidence, exactly as a concordant
    * pair carries none in McNemar's test. */
@@ -122,7 +122,7 @@ export interface BakeoffReport {
   /** The same rate split by which seat was wearing the advice. Wide gaps
    * here mean the two starts differ enough that the mirror is doing real
    * work — interesting, but not a problem. */
-  bySeat: { seat: Owner; rate: Rate }[];
+  bySeat: {seat: Owner; rate: Rate}[];
   /** Trials whose match never reached a verdict. Excluded from the rate:
    * an undecided match is not a win for anybody. */
   undecided: number;
@@ -134,13 +134,13 @@ export interface BakeoffReport {
    * stayed flat says the rules worked rather than that the stalls went
    * away on their own.
    */
-  stalls: { matches: number; recoveries: number };
+  stalls: {matches: number; recoveries: number};
   /** How often advice changed who won, against the same seed's control. */
-  flips: { toward: number; away: number; unchanged: number; noControl: number };
+  flips: {toward: number; away: number; unchanged: number; noControl: number};
   /** Only when the two seats ran different playbooks. */
   playbooks: PlaybookMatchup | null;
   health: EngineHealth;
-  matchTicks: { median: number; max: number };
+  matchTicks: {median: number; max: number};
   /** Wall-clock seconds the whole sweep took. */
   wallSeconds: number;
 }
@@ -150,19 +150,25 @@ export interface BakeoffReport {
  * samples. The textbook normal interval puts 8/8 at [100%, 100%], which
  * would let an eight-seed run declare victory.
  */
-export function wilson(wins: number, trials: number, z = 1.96): [number, number] {
+export function wilson(
+  wins: number,
+  trials: number,
+  z = 1.96,
+): [number, number] {
   if (trials === 0) return [0, 1];
   const p = wins / trials;
   const z2 = z * z;
   const denom = 1 + z2 / trials;
   const center = (p + z2 / (2 * trials)) / denom;
-  const spread = (z * Math.sqrt((p * (1 - p)) / trials + z2 / (4 * trials * trials))) / denom;
+  const spread =
+    (z * Math.sqrt((p * (1 - p)) / trials + z2 / (4 * trials * trials))) /
+    denom;
   return [Math.max(0, center - spread), Math.min(1, center + spread)];
 }
 
 export function rateOf(wins: number, trials: number): Rate {
   const [lo, hi] = wilson(wins, trials);
-  return { wins, trials, rate: trials === 0 ? 0 : wins / trials, lo, hi };
+  return {wins, trials, rate: trials === 0 ? 0 : wins / trials, lo, hi};
 }
 
 /**
@@ -212,7 +218,7 @@ export function twoSidedExact(hits: number, misses: number): number {
  */
 function unadvisedMatch(layout: LayoutRun): MatchRecord | null {
   if (layout.control) return layout.control;
-  return layout.arms.find((a) => a.record.advised.length === 0)?.record ?? null;
+  return layout.arms.find(a => a.record.advised.length === 0)?.record ?? null;
 }
 
 /** Playbook A vs playbook B over the unadvised matches, or null when both
@@ -220,7 +226,7 @@ function unadvisedMatch(layout: LayoutRun): MatchRecord | null {
 export function matchupOf(runs: SeedRun[]): PlaybookMatchup | null {
   let ids: readonly [AiStrategyId, AiStrategyId] | null = null;
   for (const run of runs) {
-    const first = run.layouts.find((l) => l.layout === 0);
+    const first = run.layouts.find(l => l.layout === 0);
     const record = first ? unadvisedMatch(first) : null;
     if (record) {
       ids = record.strategies;
@@ -233,10 +239,10 @@ export function matchupOf(runs: SeedRun[]): PlaybookMatchup | null {
   let wins = 0;
   let trials = 0;
   const bySeat = [
-    { seat: 0 as Owner, wins: 0, trials: 0 },
-    { seat: 1 as Owner, wins: 0, trials: 0 },
+    {seat: 0 as Owner, wins: 0, trials: 0},
+    {seat: 1 as Owner, wins: 0, trials: 0},
   ];
-  const paired = { bothA: 0, bothB: 0, split: 0, unresolved: 0, p: 1 };
+  const paired = {bothA: 0, bothB: 0, split: 0, unresolved: 0, p: 1};
 
   for (const run of runs) {
     let aWon = 0;
@@ -266,12 +272,15 @@ export function matchupOf(runs: SeedRun[]): PlaybookMatchup | null {
     else paired.split++;
   }
   paired.p = twoSidedExact(paired.bothA, paired.bothB);
-  return { a, b, rate: rateOf(wins, trials), bySeat, paired };
+  return {a, b, rate: rateOf(wins, trials), bySeat, paired};
 }
 
 function percentile(sorted: number[], q: number): number {
   if (sorted.length === 0) return 0;
-  const i = Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))));
+  const i = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.round(q * (sorted.length - 1))),
+  );
   return sorted[i]!;
 }
 
@@ -279,24 +288,25 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
   let wins = 0;
   let trials = 0;
   let undecided = 0;
-  const perSeat = new Map<Owner, { wins: number; trials: number }>();
-  const flips = { toward: 0, away: 0, unchanged: 0, noControl: 0 };
-  const stalls = { matches: 0, recoveries: 0 };
+  const perSeat = new Map<Owner, {wins: number; trials: number}>();
+  const flips = {toward: 0, away: 0, unchanged: 0, noControl: 0};
+  const stalls = {matches: 0, recoveries: 0};
   const ticks: number[] = [];
 
   const consults: ConsultRecord[] = [];
-  const gaveUp: { playerId: Owner; reason: string }[] = [];
+  const gaveUp: {playerId: Owner; reason: string}[] = [];
   let adviceMessages = 0;
 
   for (const run of runs) {
     for (const layout of run.layouts) {
-      for (const { advisedSeat, record } of layout.arms) {
+      for (const {advisedSeat, record} of layout.arms) {
         ticks.push(record.ticks);
-        if ((record.stalls ?? []).some((x) => x.beats > 0)) stalls.matches++;
+        if ((record.stalls ?? []).some(x => x.beats > 0)) stalls.matches++;
         for (const x of record.stalls ?? []) stalls.recoveries += x.recoveries;
         consults.push(...record.consults);
         gaveUp.push(...record.failures);
-        for (const n of Object.values(record.adviceApplied)) adviceMessages += n;
+        for (const n of Object.values(record.adviceApplied))
+          adviceMessages += n;
 
         if (!record.decided) {
           // Counted, reported, and kept out of the rate: awarding an
@@ -306,7 +316,7 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
           continue;
         }
         trials++;
-        const seat = perSeat.get(advisedSeat) ?? { wins: 0, trials: 0 };
+        const seat = perSeat.get(advisedSeat) ?? {wins: 0, trials: 0};
         seat.trials++;
         const won = record.winner === advisedSeat;
         if (won) {
@@ -330,7 +340,7 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
     }
   }
 
-  const latencies = consults.filter((c) => !c.skipped).map((c) => c.ms);
+  const latencies = consults.filter(c => !c.skipped).map(c => c.ms);
   latencies.sort((a, b) => a - b);
   const sortedTicks = [...ticks].sort((a, b) => a - b);
 
@@ -338,17 +348,19 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
     advised: rateOf(wins, trials),
     bySeat: [...perSeat]
       .sort((a, b) => a[0] - b[0])
-      .map(([seat, s]) => ({ seat, rate: rateOf(s.wins, s.trials) })),
+      .map(([seat, s]) => ({seat, rate: rateOf(s.wins, s.trials)})),
     undecided,
     stalls,
     flips,
     playbooks: matchupOf(runs),
     health: {
       consultations: consults.length,
-      skipped: consults.filter((c) => c.skipped).length,
-      errors: consults.filter((c) => c.error !== undefined).length,
-      parseFailures: consults.filter((c) => !c.skipped && !c.error && c.parsed === false).length,
-      emptyAdvice: consults.filter((c) => c.knobs === 0).length,
+      skipped: consults.filter(c => c.skipped).length,
+      errors: consults.filter(c => c.error !== undefined).length,
+      parseFailures: consults.filter(
+        c => !c.skipped && !c.error && c.parsed === false,
+      ).length,
+      emptyAdvice: consults.filter(c => c.knobs === 0).length,
       adviceMessages,
       gaveUp,
       latencyMs: {

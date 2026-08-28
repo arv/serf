@@ -1,18 +1,23 @@
-import { inBounds, tileIdx, tileX, tileY } from '../shared/grid.ts';
-import { clamp, hash2 } from '../shared/math.ts';
-import { WOOD_MAX_AMT } from '../sim/defs/balance.ts';
-import { inPlayArea, tileBlocks, type TerrainKind, type TileResourceKind } from '../sim/map.ts';
-import type { EditorMapState } from './editorMap.ts';
-import { foldBasis, rotatePoint } from './symmetry.ts';
+import {inBounds, tileIdx, tileX, tileY} from '../shared/grid.ts';
+import {clamp, hash2} from '../shared/math.ts';
+import {WOOD_MAX_AMT} from '../sim/defs/balance.ts';
+import {
+  inPlayArea,
+  tileBlocks,
+  type TerrainKind,
+  type TileResourceKind,
+} from '../sim/map.ts';
 import * as Terrain from '../sim/terrainEnum.ts';
 import * as TileResource from '../sim/tileResourceEnum.ts';
+import type {EditorMapState} from './editorMap.ts';
+import {foldBasis, rotatePoint} from './symmetry.ts';
 
 /** What a click paints. The start-move tool lives in the controls, not here. */
 export type Tool =
-  | { kind: 'terrain'; terrain: TerrainKind }
-  | { kind: 'resource'; res: TileResourceKind } // TileResource.None = eraser
-  | { kind: 'height'; dir: 1 | -1 }
-  | { kind: 'noise' };
+  | {kind: 'terrain'; terrain: TerrainKind}
+  | {kind: 'resource'; res: TileResourceKind} // TileResource.None = eraser
+  | {kind: 'height'; dir: 1 | -1}
+  | {kind: 'noise'};
 
 export interface BrushOptions {
   /** Disc radius in tiles (Euclidean, measured to tile centers). */
@@ -27,7 +32,7 @@ export interface BrushOptions {
    * a pass already left — a moving per-stamp field would fill them in.
    * Defaults to the stamp center (single clicks).
    */
-  anchor?: { x: number; y: number };
+  anchor?: {x: number; y: number};
 }
 
 /**
@@ -89,7 +94,12 @@ function localHash(qx: number, qy: number, salt: number): number {
 
 /** Smooth value noise over stamp-local coords — bilinear over a hashed
  * lattice, the same construction worldgen's heightfield uses. */
-function localNoise(qx: number, qy: number, scale: number, salt: number): number {
+function localNoise(
+  qx: number,
+  qy: number,
+  scale: number,
+  salt: number,
+): number {
   const fx = qx / scale;
   const fy = qy / scale;
   const x0 = Math.floor(fx);
@@ -98,7 +108,8 @@ function localNoise(qx: number, qy: number, scale: number, salt: number): number
   const ty = fy - y0;
   const sx = tx * tx * (3 - 2 * tx);
   const sy = ty * ty * (3 - 2 * ty);
-  const h = (cx: number, cy: number): number => hash2(cx * 373 + salt * 17, cy * 179 - salt * 41);
+  const h = (cx: number, cy: number): number =>
+    hash2(cx * 373 + salt * 17, cy * 179 - salt * 41);
   const a = h(x0, y0);
   const b = h(x0 + 1, y0);
   const c = h(x0, y0 + 1);
@@ -114,7 +125,9 @@ function localNoise(qx: number, qy: number, scale: number, salt: number): number
  */
 const NOISE_STEP = 0.14;
 function reliefAt(qx: number, qy: number): number {
-  return localNoise(qx, qy, 6, 1) * 0.65 + localNoise(qx, qy, 2.5, 2) * 0.35 - 0.5;
+  return (
+    localNoise(qx, qy, 6, 1) * 0.65 + localNoise(qx, qy, 2.5, 2) * 0.35 - 0.5
+  );
 }
 
 /**
@@ -131,14 +144,15 @@ export function applyBrush(
   cy: number,
   o: BrushOptions,
 ): number[] {
-  const { map } = state;
+  const {map} = state;
   const size = map.size;
   const r = Math.max(0.5, o.radius);
 
   // The eraser stays a clean, predictable disc; sculpting has its own
   // smooth falloff. Everything painted frays.
   const frayed =
-    tool.kind === 'terrain' || (tool.kind === 'resource' && tool.res !== TileResource.None);
+    tool.kind === 'terrain' ||
+    (tool.kind === 'resource' && tool.res !== TileResource.None);
   const density = tool.kind === 'resource' ? (PAINT_DENSITY[tool.res] ?? 1) : 1;
   const needsLocal = frayed || density < 1 || tool.kind === 'noise';
   const reach = frayed ? r * (FRAY_MIN + FRAY_SPAN) : r;
@@ -149,10 +163,10 @@ export function applyBrush(
   // which disc scans first is not a rotation-invariant question. A tile
   // is in the stamp if ANY copy's (frayed) edge reaches it; the union of
   // congruent lobes is itself symmetric.
-  const anchor = o.anchor ?? { x: cx, y: cy };
+  const anchor = o.anchor ?? {x: cx, y: cy};
   // tile index -> nearest fold's dist² plus that fold's stroke-local
   // coords (the roughen tool reads its relief field there).
-  const touched = new Map<number, { d2: number; qx: number; qy: number }>();
+  const touched = new Map<number, {d2: number; qx: number; qy: number}>();
   for (const step of foldBasis(o.folds)) {
     const c = rotatePoint(cx, cy, size, step);
     const a = rotatePoint(anchor.x, anchor.y, size, step);
@@ -186,14 +200,15 @@ export function applyBrush(
         }
         const i = tileIdx(x, y, size);
         const prev = touched.get(i);
-        if (prev === undefined || d2 < prev.d2) touched.set(i, { d2, qx, qy });
+        if (prev === undefined || d2 < prev.d2) touched.set(i, {d2, qx, qy});
       }
     }
   }
 
   const dirty: number[] = [];
   for (const [i, t] of touched) {
-    if (applyToTile(state, tool, i, Math.sqrt(t.d2) / r, o, t.qx, t.qy)) dirty.push(i);
+    if (applyToTile(state, tool, i, Math.sqrt(t.d2) / r, o, t.qx, t.qy))
+      dirty.push(i);
   }
 
   // Walkability follows immediately: no buildings exist while editing, so
@@ -227,7 +242,7 @@ function applyToTile(
   qx: number,
   qy: number,
 ): boolean {
-  const { map } = state;
+  const {map} = state;
   switch (tool.kind) {
     case 'terrain': {
       const before = map.terrain[i]!;
@@ -316,7 +331,12 @@ export function applyStroke(
 }
 
 /** Is there anything for this tool to do at this map point? (cursor tint) */
-export function toolApplies(state: EditorMapState, tool: Tool, x: number, y: number): boolean {
+export function toolApplies(
+  state: EditorMapState,
+  tool: Tool,
+  x: number,
+  y: number,
+): boolean {
   if (!inBounds(x, y, state.map.size)) return false;
   const i = tileIdx(Math.floor(x), Math.floor(y), state.map.size);
   if (tool.kind === 'resource' && tool.res !== TileResource.None) {

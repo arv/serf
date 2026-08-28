@@ -1,8 +1,13 @@
 import * as THREE from 'three';
-import { makeGroundTexture } from '../../../render/groundTexture';
-import { vnoise } from '../../../render/noise';
-import { grassGold, grassLush, grassOlive, trampledEarth } from '../../../render/palette';
-import { hash2 } from '../../../shared/math';
+import {makeGroundTexture} from '../../../render/groundTexture';
+import {vnoise} from '../../../render/noise';
+import {
+  grassGold,
+  grassLush,
+  grassOlive,
+  trampledEarth,
+} from '../../../render/palette';
+import {hash2} from '../../../shared/math';
 
 /**
  * The wiki's little diorama stage: the game's light and grade over a disc
@@ -128,13 +133,16 @@ export function makePlate(radius: number, seed = 0): THREE.Group {
   const disc = new THREE.Mesh(
     geo,
     // Lambert, like the terrain: the whole scene is keyed to it.
-    new THREE.MeshLambertMaterial({ vertexColors: true, map: groundTexture() }),
+    new THREE.MeshLambertMaterial({vertexColors: true, map: groundTexture()}),
   );
   disc.receiveShadow = true;
   g.add(disc);
   const skirt = new THREE.Mesh(
     new THREE.CylinderGeometry(radius, radius * 0.985, 0.14, 64, 1, true),
-    new THREE.MeshLambertMaterial({ color: trampledEarth, side: THREE.DoubleSide }),
+    new THREE.MeshLambertMaterial({
+      color: trampledEarth,
+      side: THREE.DoubleSide,
+    }),
   );
   skirt.position.y = -0.07;
   g.add(skirt);
@@ -160,9 +168,10 @@ export function frameFor(model: THREE.Object3D, plateR: number): Framing {
   const size = new THREE.Vector3();
   bb.getSize(size);
   const span = Math.max(size.x, size.z);
-  const view = Math.max(span * 1.45, span * 0.95 + size.y * 1.05, plateR * 1.92) + 0.35;
+  const view =
+    Math.max(span * 1.45, span * 0.95 + size.y * 1.05, plateR * 1.92) + 0.35;
   center.y = size.y * 0.42;
-  return { radius: view / 2, center };
+  return {radius: view / 2, center};
 }
 
 /** Place an orthographic camera on the game's rig angles, framing `f`. */

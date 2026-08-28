@@ -1,20 +1,34 @@
-import { Rng } from '../shared/rng.ts';
-import { BANDIT } from '../sim/entities.ts';
-import { START_SERFS, START_STOCK, firstRaidTickFor } from '../sim/defs/balance.ts';
-import { dealStrategies, type AiStrategyId } from '../sim/defs/aiStrategies.ts';
-import { makePlayer, type PlayerKind } from '../sim/player.ts';
-import { campCorners, placeBuiltBuilding, spawnUnitNearby, type World } from '../sim/world.ts';
-import { clearResources, rectClear, recomputeBlocked, type GameMap } from '../sim/map.ts';
-import type { EditorMapState } from './editorMap.ts';
-import * as MatchState from '../sim/matchStateEnum.ts';
-import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {Rng} from '../shared/rng.ts';
+import {dealStrategies, type AiStrategyId} from '../sim/defs/aiStrategies.ts';
+import {
+  START_SERFS,
+  START_STOCK,
+  firstRaidTickFor,
+} from '../sim/defs/balance.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import {BANDIT} from '../sim/entities.ts';
+import {
+  clearResources,
+  rectClear,
+  recomputeBlocked,
+  type GameMap,
+} from '../sim/map.ts';
+import * as MatchState from '../sim/matchStateEnum.ts';
+import {makePlayer, type PlayerKind} from '../sim/player.ts';
+import {
+  campCorners,
+  placeBuiltBuilding,
+  spawnUnitNearby,
+  type World,
+} from '../sim/world.ts';
+import type {EditorMapState} from './editorMap.ts';
 
 export interface EditorPlayConfig {
   /** Deals the AI seats their playbooks (and the solo camp its corner). */
   seed: number;
   /** One entry per seat; length must equal the map's player count. */
-  players: { kind: PlayerKind; strategy?: AiStrategyId }[];
+  players: {kind: PlayerKind; strategy?: AiStrategyId}[];
   banditsEnabled: boolean;
 }
 
@@ -29,7 +43,10 @@ export interface EditorPlayConfig {
  * The map is deep-copied first, so playtesting never mutates the editing
  * session it came from.
  */
-export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): World {
+export function worldFromEditor(
+  state: EditorMapState,
+  cfg: EditorPlayConfig,
+): World {
   if (cfg.players.length !== state.starts.length) {
     throw new Error(
       `map has ${state.starts.length} start(s) but ${cfg.players.length} seat(s) were dealt`,
@@ -49,7 +66,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
     height: Float32Array.from(src.height),
   };
   const size = map.size;
-  const starts = state.starts.map((s) => ({ ...s }));
+  const starts = state.starts.map(s => ({...s}));
   const seed = cfg.seed | 0;
   const deal = dealStrategies(seed, cfg.players);
   const rng = new Rng(seed);
@@ -63,24 +80,34 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
     buildings: new Map(),
     jobs: new Map(),
     nextJobId: 1,
-    ledger: { produced: {}, consumed: {} },
+    ledger: {produced: {}, consumed: {}},
     pendingDeltas: [],
     players: cfg.players.map((p, i) => makePlayer(i, p.kind, deal[i])),
     // The raid clock scales with the PLAYABLE span, exactly as createWorld's
     // does (the margin adds no marching distance for anyone).
-    raidState: { nextRaidTick: firstRaidTickFor(map.play), wave: 0 },
-    admin: { enabled: true, raidsEnabled: cfg.banditsEnabled, instantBuild: false },
+    raidState: {nextRaidTick: firstRaidTickFor(map.play), wave: 0},
+    admin: {
+      enabled: true,
+      raidsEnabled: cfg.banditsEnabled,
+      instantBuild: false,
+    },
     pendingEvents: [],
-    outcome: { state: MatchState.playing },
+    outcome: {state: MatchState.playing},
     banditsEnabled: cfg.banditsEnabled,
   };
 
   // Each faction's storehouse on its authored start; clear anything under it.
   for (let p = 0; p < starts.length; p++) {
-    const { x: shX, y: shY } = starts[p]!;
+    const {x: shX, y: shY} = starts[p]!;
     clearResources(map, shX - 1, shY - 1, 5, 5);
-    const storehouse = placeBuiltBuilding(world, BuildingTypeId.storehouse, p, shX, shY);
-    storehouse.stock = { ...START_STOCK };
+    const storehouse = placeBuiltBuilding(
+      world,
+      BuildingTypeId.storehouse,
+      p,
+      shX,
+      shY,
+    );
+    storehouse.stock = {...START_STOCK};
   }
 
   // Bandit camp, the same seed order the generated worlds use: middle
@@ -102,7 +129,10 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
       return best;
     };
     const middle: [number, number] = [size / 2 - 1, size / 2 - 1];
-    campSeeds = [middle, ...corners.sort((a, z) => nearestStart(z) - nearestStart(a))];
+    campSeeds = [
+      middle,
+      ...corners.sort((a, z) => nearestStart(z) - nearestStart(a)),
+    ];
   }
   if (!cfg.banditsEnabled) campSeeds = [];
   let campPlaced = false;
@@ -150,7 +180,7 @@ export function worldFromEditor(state: EditorMapState, cfg: EditorPlayConfig): W
   // but an authored start may hug the play boundary or a painted lake, and
   // a serf must never open the game standing in scenery.
   for (let p = 0; p < starts.length; p++) {
-    const { x: shX, y: shY } = starts[p]!;
+    const {x: shX, y: shY} = starts[p]!;
     for (let i = 0; i < START_SERFS; i++) {
       const x = shX - 1 + (i % 5) + 0.5;
       const y = shY + 4 + Math.floor(i / 5) + 0.5;

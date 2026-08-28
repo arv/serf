@@ -1,20 +1,34 @@
 /// <reference lib="webworker" />
-import { createWorldAsync, type World } from '../sim/world';
-import { deserializeWorld, serializeWorld } from '../sim/save';
-import { tickWorld, type PlayerCommand } from '../sim/tick';
-import { MATCHER_INTERVAL, TICK_MS } from '../sim/defs/balance';
-import { checkInvariants, checkLedger, countGoods } from '../sim/debug/invariants';
-import { AiSeats } from '../sim/aiSeats';
-import { summarizeForSeat } from '../ai/summary';
-import { SAB_BYTES, SabWriter } from '../protocol/sabLayout';
-import { snapBuildings, snapJobs, snapPlayers, unitSnapshots } from '../protocol/snapshot';
-import { REPLAY_VERSION } from '../shared/replayVersion';
-import { REPLAY_FORMAT, serializeReplay, type ReplayData } from './replay';
-import type { GoodAmounts } from '../sim/defs/goods';
-import type { MainToWorker, StructuralUpdate, WorkerToMain } from '../protocol/messages';
-import * as MatchState from '../sim/matchStateEnum.ts';
+
+import {summarizeForSeat} from '../ai/summary';
 import * as MainToWorkerKind from '../protocol/mainToWorkerKindEnum.ts';
+import type {
+  MainToWorker,
+  StructuralUpdate,
+  WorkerToMain,
+} from '../protocol/messages';
+import {SAB_BYTES, SabWriter} from '../protocol/sabLayout';
+import {
+  snapBuildings,
+  snapJobs,
+  snapPlayers,
+  unitSnapshots,
+} from '../protocol/snapshot';
 import * as WorkerToMainKind from '../protocol/workerToMainKindEnum.ts';
+import {REPLAY_VERSION} from '../shared/replayVersion';
+import {AiSeats} from '../sim/aiSeats';
+import {
+  checkInvariants,
+  checkLedger,
+  countGoods,
+} from '../sim/debug/invariants';
+import {MATCHER_INTERVAL, TICK_MS} from '../sim/defs/balance';
+import type {GoodAmounts} from '../sim/defs/goods';
+import * as MatchState from '../sim/matchStateEnum.ts';
+import {deserializeWorld, serializeWorld} from '../sim/save';
+import {tickWorld, type PlayerCommand} from '../sim/tick';
+import {createWorldAsync, type World} from '../sim/world';
+import {REPLAY_FORMAT, serializeReplay, type ReplayData} from './replay';
 
 /**
  * Single player: owns the World and the fixed-timestep loop, publishes unit
@@ -83,11 +97,13 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       // "sim worker failed: undefined". Messages landing in the window
       // before the world exists are safe: commands queue, and every pump
       // path guards on a null world.
-      init(msg.config, msg.loadData, msg.llm, msg.replay).catch((err: unknown) => {
-        setTimeout(() => {
-          throw err instanceof Error ? err : new Error(String(err));
-        });
-      });
+      init(msg.config, msg.loadData, msg.llm, msg.replay).catch(
+        (err: unknown) => {
+          setTimeout(() => {
+            throw err instanceof Error ? err : new Error(String(err));
+          });
+        },
+      );
       break;
     case MainToWorkerKind.commands:
       // A replay's diet is the log, nothing else: a stray order clicked
@@ -123,7 +139,8 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       else startPump();
       break;
     case MainToWorkerKind.requestSave:
-      if (world) post({ type: WorkerToMainKind.saved, data: serializeWorld(world) });
+      if (world)
+        post({type: WorkerToMainKind.saved, data: serializeWorld(world)});
       break;
     case MainToWorkerKind.requestReplay:
       // Unlike the server's replayFor, solo answers at any point in the
@@ -143,17 +160,21 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
             replayVersion: REPLAY_VERSION,
             savedAt: new Date().toISOString(),
             config: recording.config,
-            ...(recording.loadData !== undefined ? { loadData: recording.loadData } : {}),
+            ...(recording.loadData !== undefined
+              ? {loadData: recording.loadData}
+              : {}),
             // The fog the match booted with, from the main thread (this
             // worker has no notion of what a seat has seen). Only rides a
             // replay that resumes from a save — the world it belongs to.
-            ...(recording.loadData !== undefined && msg.explored ? { explored: msg.explored } : {}),
+            ...(recording.loadData !== undefined && msg.explored
+              ? {explored: msg.explored}
+              : {}),
             commands: recording.commands,
             endTick: world.tick,
           }),
         });
       } else {
-        post({ type: WorkerToMainKind.replayData, data: '' });
+        post({type: WorkerToMainKind.replayData, data: ''});
       }
       break;
   }
@@ -173,8 +194,11 @@ async function init(
     loadData = replayData.loadData;
     llm = false;
   }
-  world = loadData !== undefined ? deserializeWorld(loadData) : await createWorldAsync(config);
-  if (!replay) recording = { config, loadData, commands: [] };
+  world =
+    loadData !== undefined
+      ? deserializeWorld(loadData)
+      : await createWorldAsync(config);
+  if (!replay) recording = {config, loadData, commands: []};
   // AI seats think next to the world, the same way the server runs them —
   // live only. Playback never boots the brains: the log already holds
   // every move they made, which is exactly what lets their algorithm
@@ -184,7 +208,9 @@ async function init(
   // empty valley would just be the model guessing at the map.
   summaryDue =
     llm && ai
-      ? new Map(ai.seatIds().map((id, i) => [id, ADVICE_PERIOD + i * ADVICE_STAGGER]))
+      ? new Map(
+          ai.seatIds().map((id, i) => [id, ADVICE_PERIOD + i * ADVICE_STAGGER]),
+        )
       : null;
   initialGoods = countGoods(world);
   const sab = new SharedArrayBuffer(SAB_BYTES);
@@ -272,14 +298,18 @@ function pump(): void {
         speed = 0;
         if (!replayEndedPosted) {
           replayEndedPosted = true;
-          post({ type: WorkerToMainKind.replayEnded });
+          post({type: WorkerToMainKind.replayEnded});
           // The pause skips future matcher intervals, so whatever the HUD
           // is still owed (outcome, rosters) ships now or never.
           postStructural();
         }
         break outer;
       }
-      const executed = replay ? replayCommandsFor(world.tick) : i === 0 ? commands : [];
+      const executed = replay
+        ? replayCommandsFor(world.tick)
+        : i === 0
+          ? commands
+          : [];
       // Brains decide from the state this tick starts in, and go in with
       // the player's orders — no frame of hindsight. (Playback has no
       // brains; their moves are already in `executed`, off the log.)
@@ -288,7 +318,7 @@ function pump(): void {
       // AI's — under the tick it actually applies on, which is this one,
       // not the tick it was sent on.
       if (recording && executed.length > 0) {
-        recording.commands.push({ tick: world.tick, commands: executed.slice() });
+        recording.commands.push({tick: world.tick, commands: executed.slice()});
       }
       tickWorld(world, executed);
       // Per tick, not per quantum: the replay's end can break out of the
@@ -299,7 +329,8 @@ function pump(): void {
         const report = checkInvariants(world);
         const ledger = checkLedger(world, initialGoods);
         lastInvariantViolations = [...report.violations, ...ledger];
-        for (const v of lastInvariantViolations) console.warn(`[invariant] t${world.tick} ${v}`);
+        for (const v of lastInvariantViolations)
+          console.warn(`[invariant] t${world.tick} ${v}`);
       }
     }
   }
@@ -321,7 +352,8 @@ function replayCommandsFor(tick: number): PlayerCommand[] {
   while (replayCmdIdx < entries.length && entries[replayCmdIdx]!.tick <= tick) {
     // `<` can only mean a log from a save the world has already moved past;
     // dropping is safer than applying an order to the wrong tick.
-    if (entries[replayCmdIdx]!.tick === tick) out.push(...entries[replayCmdIdx]!.commands);
+    if (entries[replayCmdIdx]!.tick === tick)
+      out.push(...entries[replayCmdIdx]!.commands);
     replayCmdIdx++;
   }
   return out;
@@ -331,7 +363,13 @@ function replayCommandsFor(tick: number): PlayerCommand[] {
  * the tick loop on purpose: summaries are advisory, so "at least every
  * period" is the contract, not "on an exact tick". */
 function postSummaries(): void {
-  if (!world || !ai || !summaryDue || world.outcome.state !== MatchState.playing) return;
+  if (
+    !world ||
+    !ai ||
+    !summaryDue ||
+    world.outcome.state !== MatchState.playing
+  )
+    return;
   for (const [playerId, due] of summaryDue) {
     if (world.tick < due) continue;
     summaryDue.set(playerId, world.tick + ADVICE_PERIOD);
@@ -339,7 +377,11 @@ function postSummaries(): void {
     // what the seat has scouted.
     const brain = ai.brainFor(playerId);
     if (brain)
-      post({ type: WorkerToMainKind.aiSummary, playerId, summary: summarizeForSeat(world, brain) });
+      post({
+        type: WorkerToMainKind.aiSummary,
+        playerId,
+        summary: summarizeForSeat(world, brain),
+      });
   }
 }
 
@@ -371,9 +413,14 @@ function postStructural(): void {
   const playersBody = JSON.stringify(players);
   const mission =
     world.missionId !== undefined
-      ? { id: world.missionId, done: [...(world.objectivesDone ?? [])] }
+      ? {id: world.missionId, done: [...(world.objectivesDone ?? [])]}
       : undefined;
-  const miscBody = JSON.stringify([world.admin, world.outcome, lastInvariantViolations, mission]);
+  const miscBody = JSON.stringify([
+    world.admin,
+    world.outcome,
+    lastInvariantViolations,
+    mission,
+  ]);
   const buildingsChanged = buildingsBody !== lastBuildingsBody;
   const playersChanged = playersBody !== lastPlayersBody;
   const miscChanged = miscBody !== lastMiscBody;
@@ -394,14 +441,14 @@ function postStructural(): void {
     type: WorkerToMainKind.structural,
     tick: world.tick,
     mapDeltas,
-    admin: { ...world.admin },
+    admin: {...world.admin},
     events,
     outcome: world.outcome,
     invariantViolations: lastInvariantViolations,
-    ...(buildingsChanged ? { buildings } : {}),
-    ...(playersChanged ? { players } : {}),
-    ...(jobs ? { jobs } : {}),
-    ...(mission ? { mission } : {}),
+    ...(buildingsChanged ? {buildings} : {}),
+    ...(playersChanged ? {players} : {}),
+    ...(jobs ? {jobs} : {}),
+    ...(mission ? {mission} : {}),
   };
   post(msg);
 }

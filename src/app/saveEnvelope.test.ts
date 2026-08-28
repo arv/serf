@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_MAP_SIZE, tileCount } from '../shared/grid';
-import { WORLD_SAVE_VERSION } from '../shared/saveVersion';
+import {describe, expect, it} from 'vitest';
+import {DEFAULT_MAP_SIZE, tileCount} from '../shared/grid';
+import {WORLD_SAVE_VERSION} from '../shared/saveVersion';
+import * as MissionId from '../sim/defs/missionIdEnum.ts';
+import {MISSION_KEYS} from '../sim/defs/missions';
 import {
   envelopeSave,
   looksLikeSave,
@@ -9,16 +11,16 @@ import {
   splitSave,
   unpackExplored,
 } from './saveEnvelope';
-import { MISSION_KEYS } from '../sim/defs/missions';
-import * as MissionId from '../sim/defs/missionIdEnum.ts';
 
 const TILES = tileCount(DEFAULT_MAP_SIZE);
 
 describe('the solo save envelope', () => {
   it('round-trips the world string and the explored grid', () => {
     const explored = new Uint8Array(TILES).map((_, i) => (i % 3 === 0 ? 1 : 0));
-    const world = JSON.stringify({ tick: 123, units: [] });
-    const { world: back, explored: packed } = splitSave(envelopeSave(world, explored));
+    const world = JSON.stringify({tick: 123, units: []});
+    const {world: back, explored: packed} = splitSave(
+      envelopeSave(world, explored),
+    );
     expect(back).toBe(world);
     // The split hands back the still-packed grid — the tile count is only
     // known later, so unpacking is the caller's move.
@@ -27,13 +29,13 @@ describe('the solo save envelope', () => {
   });
 
   it('passes a legacy raw save through untouched, fog unseeded', () => {
-    const legacy = JSON.stringify({ tick: 5, units: [], buildings: [] });
-    expect(splitSave(legacy)).toEqual({ world: legacy });
+    const legacy = JSON.stringify({tick: 5, units: [], buildings: []});
+    expect(splitSave(legacy)).toEqual({world: legacy});
   });
 
   it('is not fooled by world JSON that happens to have a world field', () => {
-    const impostor = JSON.stringify({ world: 'nope', tick: 9 });
-    expect(splitSave(impostor)).toEqual({ world: impostor });
+    const impostor = JSON.stringify({world: 'nope', tick: 9});
+    expect(splitSave(impostor)).toEqual({world: impostor});
   });
 
   it('keeps the world when the fog bits are corrupt', () => {
@@ -42,7 +44,7 @@ describe('the solo save envelope', () => {
       explored: string;
     };
     saved.explored = '!!!not-base64!!!';
-    const { world: back, explored } = splitSave(JSON.stringify({ ...saved }));
+    const {world: back, explored} = splitSave(JSON.stringify({...saved}));
     expect(back).toBe(world);
     // The corrupt string rides through the split untouched; the unpack is
     // where it fails — softly, so the world is never lost to bad fog.
@@ -50,12 +52,12 @@ describe('the solo save envelope', () => {
   });
 
   it('survives non-JSON input entirely', () => {
-    expect(splitSave('garbage')).toEqual({ world: 'garbage' });
+    expect(splitSave('garbage')).toEqual({world: 'garbage'});
   });
 
   it('still splits an envelope from before the metadata head', () => {
     const world = '{"tick":3}';
-    const v2 = JSON.stringify({ fmt: 'serf-save-v2', world, explored: '' });
+    const v2 = JSON.stringify({fmt: 'serf-save-v2', world, explored: ''});
     expect(splitSave(v2).world).toBe(world);
   });
 });
@@ -66,10 +68,14 @@ describe('the metadata head', () => {
   it('is readable from the first bytes of the file, ahead of the world', () => {
     // The world is the megabyte; the head is what a listing reads, so it
     // has to be complete well inside the slice the shelf takes.
-    const raw = envelopeSave(JSON.stringify({ big: 'x'.repeat(4000) }), explored, {
-      mission: MISSION_KEYS[MissionId.clearing],
-      opponents: 2,
-    });
+    const raw = envelopeSave(
+      JSON.stringify({big: 'x'.repeat(4000)}),
+      explored,
+      {
+        mission: MISSION_KEYS[MissionId.clearing],
+        opponents: 2,
+      },
+    );
     expect(readSaveMeta(raw.slice(0, 512))).toEqual({
       world: WORLD_SAVE_VERSION,
       mission: MISSION_KEYS[MissionId.clearing],
@@ -78,7 +84,9 @@ describe('the metadata head', () => {
   });
 
   it('says only what it was told', () => {
-    expect(readSaveMeta(envelopeSave('{}', explored))).toEqual({ world: WORLD_SAVE_VERSION });
+    expect(readSaveMeta(envelopeSave('{}', explored))).toEqual({
+      world: WORLD_SAVE_VERSION,
+    });
   });
 
   it('is absent from a save that never had one', () => {
@@ -89,7 +97,9 @@ describe('the metadata head', () => {
   it('screens what it hands back — the file is hand-editable', () => {
     // A mission that is not a string, a version that is not a number: the
     // shelf must not be handed either.
-    expect(readSaveMeta('{"meta":{"world":4,"mission":7,"opponents":"lots"}}')).toEqual({
+    expect(
+      readSaveMeta('{"meta":{"world":4,"mission":7,"opponents":"lots"}}'),
+    ).toEqual({
       world: 4,
     });
     expect(readSaveMeta('{"meta":{"mission":"clearing"}}')).toBeUndefined();
@@ -99,7 +109,9 @@ describe('the metadata head', () => {
 
 describe('screening a file offered as a save', () => {
   it('takes an envelope, old or new', () => {
-    expect(looksLikeSave(envelopeSave('{"tick":1}', new Uint8Array(TILES)))).toBe(true);
+    expect(
+      looksLikeSave(envelopeSave('{"tick":1}', new Uint8Array(TILES))),
+    ).toBe(true);
     expect(looksLikeSave('{"fmt":"serf-save-v2","world":"{}"}')).toBe(true);
   });
 
@@ -116,19 +128,22 @@ describe('screening a file offered as a save', () => {
 });
 
 describe('which format a save was written in', () => {
-  const world = JSON.stringify({ version: WORLD_SAVE_VERSION, world: { tick: 1 } });
+  const world = JSON.stringify({version: WORLD_SAVE_VERSION, world: {tick: 1}});
 
   it('reads it off the metadata head', () => {
-    expect(readSaveWorldVersion(envelopeSave(world, new Uint8Array(TILES)))).toBe(
-      WORLD_SAVE_VERSION,
-    );
+    expect(
+      readSaveWorldVersion(envelopeSave(world, new Uint8Array(TILES))),
+    ).toBe(WORLD_SAVE_VERSION);
   });
 
   it('reads it out of the world itself when there is no head', () => {
     // The file a build before the head wrote — and exactly the one that
     // used to be offered on the shelf and then blank the page. The world
     // rides an envelope as an escaped string, version first.
-    const old = JSON.stringify({ fmt: 'serf-save-v2', world: '{"version":3,"world":{}}' });
+    const old = JSON.stringify({
+      fmt: 'serf-save-v2',
+      world: '{"version":3,"world":{}}',
+    });
     expect(readSaveWorldVersion(old)).toBe(3);
   });
 
@@ -141,13 +156,15 @@ describe('which format a save was written in', () => {
     expect(readSaveWorldVersion(head)).toBe(WORLD_SAVE_VERSION);
     const oldHead = JSON.stringify({
       fmt: 'serf-save-v2',
-      world: JSON.stringify({ version: 3, world: { tick: 1, units: [1, 2, 3] } }),
+      world: JSON.stringify({version: 3, world: {tick: 1, units: [1, 2, 3]}}),
     }).slice(0, 60);
     expect(readSaveWorldVersion(oldHead)).toBe(3);
   });
 
   it('says nothing about a file that says nothing', () => {
-    expect(readSaveWorldVersion('{"fmt":"serf-save-v2","world":"{}"}')).toBeUndefined();
+    expect(
+      readSaveWorldVersion('{"fmt":"serf-save-v2","world":"{}"}'),
+    ).toBeUndefined();
     expect(readSaveWorldVersion('')).toBeUndefined();
   });
 });

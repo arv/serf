@@ -28,7 +28,7 @@ export const AUX_STRIDE = 8;
 const AUX_BYTES = AUX_STRIDE * MAX_UNITS;
 
 /** What a unit is visibly doing — drives limb animation in the renderer. */
-export const ACTION = { idle: 0, work: 1, fight: 2, dead: 3 } as const;
+export const ACTION = {idle: 0, work: 1, fight: 2, dead: 3} as const;
 
 /** Which kind of work — picks the tool animation (chop vs pickaxe vs...). */
 export const WORK = {
@@ -43,8 +43,9 @@ export const WORK = {
 } as const;
 
 /** A worker's workplace flavor — picks a profession body (farmer's straw hat...). */
-export const PROFESSION = { none: 0, farmer: 1, miner: 2 } as const;
-export const SLOT_BYTES = COUNT_BYTES + IDS_BYTES + XS_BYTES + YS_BYTES + AUX_BYTES;
+export const PROFESSION = {none: 0, farmer: 1, miner: 2} as const;
+export const SLOT_BYTES =
+  COUNT_BYTES + IDS_BYTES + XS_BYTES + YS_BYTES + AUX_BYTES;
 export const SAB_BYTES = HEADER_INTS * 4 + SLOT_COUNT * SLOT_BYTES;
 
 interface SlotViews {
@@ -55,7 +56,10 @@ interface SlotViews {
   aux: Uint8Array;
 }
 
-function slotViews(buffer: SharedArrayBuffer | ArrayBuffer, slot: number): SlotViews {
+function slotViews(
+  buffer: SharedArrayBuffer | ArrayBuffer,
+  slot: number,
+): SlotViews {
   let off = HEADER_INTS * 4 + slot * SLOT_BYTES;
   const count = new Int32Array(buffer, off, 1);
   off += COUNT_BYTES;
@@ -66,7 +70,7 @@ function slotViews(buffer: SharedArrayBuffer | ArrayBuffer, slot: number): SlotV
   const ys = new Float32Array(buffer, off, MAX_UNITS);
   off += YS_BYTES;
   const aux = new Uint8Array(buffer, off, AUX_BYTES);
-  return { count, ids, xs, ys, aux };
+  return {count, ids, xs, ys, aux};
 }
 
 /** What the writer needs per unit. */
@@ -198,7 +202,7 @@ export class SabReader {
     const l = this.latest;
     (this.prev as SlotCopy).publishSeq = l.publishSeq;
     // Swap the typed arrays + maps wholesale.
-    const tmp = { ids: p.ids, xs: p.xs, ys: p.ys, aux: p.aux, index: p.index };
+    const tmp = {ids: p.ids, xs: p.xs, ys: p.ys, aux: p.aux, index: p.index};
     Object.assign(p, {
       publishSeq: l.publishSeq,
       count: l.count,

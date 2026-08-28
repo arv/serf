@@ -1,5 +1,5 @@
-import { inBounds, tileIdx } from '../shared/grid.ts';
-import type { StartSpot } from '../sim/map.ts';
+import {inBounds, tileIdx} from '../shared/grid.ts';
+import type {StartSpot} from '../sim/map.ts';
 
 /**
  * Kaleidoscope math: N-fold rotation about the map's center. The center in
@@ -22,21 +22,21 @@ export interface FoldStep {
 /** cos/sin of 1/n turns — constant tables, exact ±1/0 entries for 1/2/4. */
 const HALF_ROOT3 = Math.sqrt(3) / 2;
 const BASES: Record<number, FoldStep[]> = {
-  1: [{ cos: 1, sin: 0 }],
+  1: [{cos: 1, sin: 0}],
   2: [
-    { cos: 1, sin: 0 },
-    { cos: -1, sin: 0 },
+    {cos: 1, sin: 0},
+    {cos: -1, sin: 0},
   ],
   3: [
-    { cos: 1, sin: 0 },
-    { cos: -0.5, sin: HALF_ROOT3 },
-    { cos: -0.5, sin: -HALF_ROOT3 },
+    {cos: 1, sin: 0},
+    {cos: -0.5, sin: HALF_ROOT3},
+    {cos: -0.5, sin: -HALF_ROOT3},
   ],
   4: [
-    { cos: 1, sin: 0 },
-    { cos: 0, sin: 1 },
-    { cos: -1, sin: 0 },
-    { cos: 0, sin: -1 },
+    {cos: 1, sin: 0},
+    {cos: 0, sin: 1},
+    {cos: -1, sin: 0},
+    {cos: 0, sin: -1},
   ],
 };
 
@@ -51,11 +51,14 @@ export function rotatePoint(
   y: number,
   size: number,
   step: FoldStep,
-): { x: number; y: number } {
+): {x: number; y: number} {
   const c = size / 2;
   const u = x - c;
   const v = y - c;
-  return { x: c + u * step.cos - v * step.sin, y: c + u * step.sin + v * step.cos };
+  return {
+    x: c + u * step.cos - v * step.sin,
+    y: c + u * step.sin + v * step.cos,
+  };
 }
 
 /**
@@ -64,7 +67,12 @@ export function rotatePoint(
  * folds 2/4 this reduces to the exact closed forms (size-1-x, size-1-y)
  * and (size-1-y, x).
  */
-export function tileImages(x: number, y: number, size: number, folds: number): number[] {
+export function tileImages(
+  x: number,
+  y: number,
+  size: number,
+  folds: number,
+): number[] {
   const out: number[] = [];
   const seen = new Set<number>();
   for (const step of foldBasis(folds)) {
@@ -89,9 +97,14 @@ const START_W = 3;
  * (the half-tile center offset cancels against the even-sized map's
  * integer center); fold 3 rounds to the nearest whole origin.
  */
-export function rotateStart(s: StartSpot, size: number, k: number, folds: number): StartSpot {
+export function rotateStart(
+  s: StartSpot,
+  size: number,
+  k: number,
+  folds: number,
+): StartSpot {
   const step = foldBasis(folds)[((k % folds) + folds) % folds]!;
   const half = START_W / 2;
   const p = rotatePoint(s.x + half, s.y + half, size, step);
-  return { x: Math.round(p.x - half), y: Math.round(p.y - half) };
+  return {x: Math.round(p.x - half), y: Math.round(p.y - half)};
 }

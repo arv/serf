@@ -1,13 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { levyOrder } from './levy';
-import { snapBuilding } from '../protocol/snapshot.ts';
-import { tickWorld } from '../sim/tick.ts';
-import { placeBuiltBuilding, placeSite, spawnUnit } from '../sim/world.ts';
-import { BUILDING_DEFS } from '../sim/defs/buildings.ts';
-import { addSerf, addStorehouse, bareWorld, cmds } from '../sim/testUtils.ts';
+import {describe, expect, it} from 'vitest';
+import {snapBuilding} from '../protocol/snapshot.ts';
+import * as CommandKind from '../sim/commandKindEnum.ts';
+import {BUILDING_DEFS} from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
-import * as CommandKind from '../sim/commandKindEnum.ts';
+import {addSerf, addStorehouse, bareWorld, cmds} from '../sim/testUtils.ts';
+import {tickWorld} from '../sim/tick.ts';
+import {placeBuiltBuilding, placeSite, spawnUnit} from '../sim/world.ts';
+import {levyOrder} from './levy';
 
 const CAP = BUILDING_DEFS[BuildingTypeId.guardTower].garrison!.capacity;
 
@@ -22,7 +22,13 @@ describe('the tower manning order', () => {
   it('is not the halt lever for anything else, nor for a tower on the scaffold', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const smith = placeBuiltBuilding(world, BuildingTypeId.weaponsmith, 0, 36, 30);
+    const smith = placeBuiltBuilding(
+      world,
+      BuildingTypeId.weaponsmith,
+      0,
+      36,
+      30,
+    );
     const site = placeSite(world, BuildingTypeId.guardTower, 0, 40, 30);
     expect(levyOrder(snapBuilding(world, smith))).toBeUndefined();
     expect(levyOrder(snapBuilding(world, site))).toBeUndefined();
@@ -31,24 +37,42 @@ describe('the tower manning order', () => {
   it('calls villagers up and stands them down again', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 30);
+    const tower = placeBuiltBuilding(
+      world,
+      BuildingTypeId.guardTower,
+      0,
+      36,
+      30,
+    );
     tower.paused = true; // as one comes off the scaffold
     for (let i = 0; i < CAP; i++) addSerf(world, 33, 33 + i);
-    expect(levyOrder(snapBuilding(world, tower))).toEqual({ label: 'Man the tower' });
+    expect(levyOrder(snapBuilding(world, tower))).toEqual({
+      label: 'Man the tower',
+    });
 
     tickWorld(
       world,
-      cmds({ kind: CommandKind.setBuildingPaused, buildingId: tower.id, paused: false }),
+      cmds({
+        kind: CommandKind.setBuildingPaused,
+        buildingId: tower.id,
+        paused: false,
+      }),
     );
     let guard = 0;
     while ((tower.garrison ?? 0) < CAP && guard++ < 4000) tickWorld(world, []);
     expect(tower.garrison).toBe(CAP);
     expect(tower.garrisonKind).toBe(UnitTypeId.serf);
-    expect(levyOrder(snapBuilding(world, tower))).toEqual({ label: 'Stand down' });
+    expect(levyOrder(snapBuilding(world, tower))).toEqual({
+      label: 'Stand down',
+    });
 
     tickWorld(
       world,
-      cmds({ kind: CommandKind.setBuildingPaused, buildingId: tower.id, paused: true }),
+      cmds({
+        kind: CommandKind.setBuildingPaused,
+        buildingId: tower.id,
+        paused: true,
+      }),
     );
     expect(tower.garrison).toBeUndefined();
   });
@@ -56,24 +80,39 @@ describe('the tower manning order', () => {
   it('gives the archers back too — the state that started this is now unreachable', () => {
     const world = bareWorld();
     addStorehouse(world, 30, 30, {});
-    const tower = placeBuiltBuilding(world, BuildingTypeId.guardTower, 0, 36, 30);
-    for (let i = 0; i < CAP; i++) spawnUnit(world, UnitTypeId.archer, 0, 33.5, 33.5 + i);
+    const tower = placeBuiltBuilding(
+      world,
+      BuildingTypeId.guardTower,
+      0,
+      36,
+      30,
+    );
+    for (let i = 0; i < CAP; i++)
+      spawnUnit(world, UnitTypeId.archer, 0, 33.5, 33.5 + i);
     let guard = 0;
     while ((tower.garrison ?? 0) < CAP && guard++ < 4000) tickWorld(world, []);
     expect(tower.garrisonKind).toBe(UnitTypeId.archer);
-    expect(levyOrder(snapBuilding(world, tower))).toEqual({ label: 'Stand down' });
+    expect(levyOrder(snapBuilding(world, tower))).toEqual({
+      label: 'Stand down',
+    });
 
     // Stand it down: the roof empties and the archers are two soldiers
     // standing at the door again, free to march.
     tickWorld(
       world,
-      cmds({ kind: CommandKind.setBuildingPaused, buildingId: tower.id, paused: true }),
+      cmds({
+        kind: CommandKind.setBuildingPaused,
+        buildingId: tower.id,
+        paused: true,
+      }),
     );
     const snap = snapBuilding(world, tower);
     expect(snap.garrison).toBe(0);
-    expect(levyOrder(snap)).toEqual({ label: 'Man the tower' });
+    expect(levyOrder(snap)).toEqual({label: 'Man the tower'});
     expect(
-      [...world.units.values()].filter((u) => !u.dead && u.kind === UnitTypeId.archer),
+      [...world.units.values()].filter(
+        u => !u.dead && u.kind === UnitTypeId.archer,
+      ),
     ).toHaveLength(CAP);
 
     // ...and a halted tower does not quietly take them back.
@@ -85,7 +124,11 @@ describe('the tower manning order', () => {
     // true, so the card can never again say "2/2 archers on the roof · paused".
     tickWorld(
       world,
-      cmds({ kind: CommandKind.setBuildingPaused, buildingId: tower.id, paused: false }),
+      cmds({
+        kind: CommandKind.setBuildingPaused,
+        buildingId: tower.id,
+        paused: false,
+      }),
     );
     guard = 0;
     while ((tower.garrison ?? 0) < CAP && guard++ < 4000) tickWorld(world, []);

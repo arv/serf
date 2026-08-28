@@ -1,5 +1,5 @@
-import type { Enum } from '../../shared/enum.ts';
-import type { MapFile } from '../mapFile.ts';
+import type {Enum} from '../../shared/enum.ts';
+import type {MapFile} from '../mapFile.ts';
 import * as MissionId from './missionIdEnum.ts';
 
 type MissionId = Enum<typeof MissionId>;
@@ -22,7 +22,7 @@ type MissionId = Enum<typeof MissionId>;
  * (static) where Vite's dev server strips it before the browser's strict
  * JSON-module MIME check can object.
  */
-const MISSION_MAPS: Record<MissionId, () => Promise<{ default: MapFile }>> = {
+const MISSION_MAPS: Record<MissionId, () => Promise<{default: MapFile}>> = {
   [MissionId.clearing]: () => import('./maps/clearing.ts'),
   [MissionId.breadAndWater]: () => import('./maps/breadAndWater.ts'),
   [MissionId.ledger]: () => import('./maps/ledger.ts'),

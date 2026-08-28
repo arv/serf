@@ -1,11 +1,11 @@
-import { buildingDef } from '../defs/buildings.ts';
-import { latchObjectives } from './objectives.ts';
-import type { Owner } from '../entities.ts';
-import type { World } from '../world.ts';
-import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import * as BuildingState from '../buildingStateEnum.ts';
+import {buildingDef} from '../defs/buildings.ts';
+import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import type {Owner} from '../entities.ts';
 import * as GameEventKind from '../gameEventKindEnum.ts';
 import * as MatchState from '../matchStateEnum.ts';
+import type {World} from '../world.ts';
+import {latchObjectives} from './objectives.ts';
 
 /**
  * Elimination and match end. A player whose storehouse falls is out; the
@@ -26,7 +26,11 @@ export function victorySystem(world: World): void {
   // One pass over the buildings replaces a full scan per player per tick.
   const hasStorehouse = new Set<Owner>();
   for (const b of world.buildings.values()) {
-    if (!b.dead && b.state === BuildingState.built && buildingDef(b.type).storage) {
+    if (
+      !b.dead &&
+      b.state === BuildingState.built &&
+      buildingDef(b.type).storage
+    ) {
       hasStorehouse.add(b.owner);
     }
   }
@@ -34,7 +38,10 @@ export function victorySystem(world: World): void {
     if (!p.alive) continue;
     if (!hasStorehouse.has(p.id)) {
       p.alive = false;
-      world.pendingEvents.push({ kind: GameEventKind.playerEliminated, player: p.id });
+      world.pendingEvents.push({
+        kind: GameEventKind.playerEliminated,
+        player: p.id,
+      });
     }
   }
 
@@ -47,7 +54,7 @@ export function victorySystem(world: World): void {
   }
   const missionChecklist = (world.objectivesDone?.length ?? 0) > 0;
 
-  const alive = world.players.filter((p) => p.alive);
+  const alive = world.players.filter(p => p.alive);
   if (world.players.length === 1) {
     // Solo campaign: destroy the bandit camp to win. A world generated
     // without bandits has no camp and no objective — a sandbox that only
@@ -61,13 +68,14 @@ export function victorySystem(world: World): void {
       }
     }
     if (alive.length === 0) endMatch(world, null);
-    else if (!missionChecklist && !campStands && world.banditsEnabled) endMatch(world, 0);
+    else if (!missionChecklist && !campStands && world.banditsEnabled)
+      endMatch(world, 0);
   } else if (alive.length <= 1) {
     endMatch(world, alive[0]?.id ?? null);
   }
 }
 
 function endMatch(world: World, winner: Owner | null): void {
-  world.outcome = { state: MatchState.over, winner };
-  world.pendingEvents.push({ kind: GameEventKind.gameOver, winner });
+  world.outcome = {state: MatchState.over, winner};
+  world.pendingEvents.push({kind: GameEventKind.gameOver, winner});
 }

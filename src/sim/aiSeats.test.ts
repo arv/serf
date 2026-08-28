@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { AiSeats } from './aiSeats';
-import { createWorld } from './world';
-import { tickWorld } from './tick';
+import {describe, expect, it} from 'vitest';
+import {AiSeats} from './aiSeats';
 import * as PlayerKind from './playerKindEnum.ts';
+import {tickWorld} from './tick';
+import {createWorld} from './world';
 
 /**
  * The brains themselves are covered by ai.test.ts and winnable.test.ts.
@@ -15,7 +15,11 @@ describe('AI seats', () => {
   it('drives every ai seat and leaves human seats alone', () => {
     const world = createWorld({
       seed: 3,
-      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }, { kind: PlayerKind.ai }],
+      players: [
+        {kind: PlayerKind.human},
+        {kind: PlayerKind.ai},
+        {kind: PlayerKind.ai},
+      ],
       adminEnabled: false,
     });
     const seats = new AiSeats(world);
@@ -33,13 +37,14 @@ describe('AI seats', () => {
   it('actually gets the AI building — the wiring is live, not just called', () => {
     const world = createWorld({
       seed: 3,
-      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai }],
+      players: [{kind: PlayerKind.human}, {kind: PlayerKind.ai}],
       adminEnabled: false,
       banditsEnabled: false,
     });
     const seats = new AiSeats(world);
     const countFor = (owner: number): number =>
-      [...world.buildings.values()].filter((b) => !b.dead && b.owner === owner).length;
+      [...world.buildings.values()].filter(b => !b.dead && b.owner === owner)
+        .length;
     const before = countFor(1);
 
     for (let t = 0; t < 3000; t++) tickWorld(world, seats.decide(world));
@@ -52,7 +57,7 @@ describe('AI seats', () => {
   it('has no brains at all in a world of humans', () => {
     const world = createWorld({
       seed: 3,
-      players: [{ kind: PlayerKind.human }, { kind: PlayerKind.human }],
+      players: [{kind: PlayerKind.human}, {kind: PlayerKind.human}],
       adminEnabled: false,
     });
     const seats = new AiSeats(world);

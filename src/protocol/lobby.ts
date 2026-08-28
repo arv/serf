@@ -10,7 +10,7 @@
  * message and to every later adjustment.
  */
 
-import { DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE } from '../shared/grid.ts';
+import {DEFAULT_MAP_SIZE, MAX_MAP_SIZE, MIN_MAP_SIZE} from '../shared/grid.ts';
 
 export interface LobbyConfig {
   /** Computer seats to fill at match start. Fillers, not reservations: a
@@ -45,7 +45,13 @@ export const MAX_SEATS = 4;
 export const DEFAULT_SEED = 17;
 
 export function defaultLobbyConfig(): LobbyConfig {
-  return { ai: 0, bandits: true, seed: DEFAULT_SEED, size: DEFAULT_MAP_SIZE, bots: [] };
+  return {
+    ai: 0,
+    bandits: true,
+    seed: DEFAULT_SEED,
+    size: DEFAULT_MAP_SIZE,
+    bots: [],
+  };
 }
 
 /**
@@ -53,8 +59,11 @@ export function defaultLobbyConfig(): LobbyConfig {
  * dropped, wrong-typed fields are ignored, numbers are clamped — a hostile
  * client can pick any legal settings, never an illegal world.
  */
-export function sanitizeLobbyConfig(base: LobbyConfig, patch: unknown): LobbyConfig {
-  const out = { ...base };
+export function sanitizeLobbyConfig(
+  base: LobbyConfig,
+  patch: unknown,
+): LobbyConfig {
+  const out = {...base};
   if (typeof patch !== 'object' || patch === null) return out;
   const p = patch as Record<string, unknown>;
   if (typeof p.ai === 'number' && Number.isFinite(p.ai)) {
@@ -69,7 +78,8 @@ export function sanitizeLobbyConfig(base: LobbyConfig, patch: unknown): LobbyCon
   if (typeof p.size === 'number' && Number.isFinite(p.size)) {
     // Even, like resolveMapSize: the world builder rounds odd sizes down,
     // and the lobby must display the size the match will actually use.
-    out.size = Math.max(MIN_MAP_SIZE, Math.min(MAX_MAP_SIZE, Math.floor(p.size))) & ~1;
+    out.size =
+      Math.max(MIN_MAP_SIZE, Math.min(MAX_MAP_SIZE, Math.floor(p.size))) & ~1;
   }
   if (Array.isArray(p.bots)) {
     // Shape only: a name this file has never heard of is not an error, it
@@ -78,7 +88,7 @@ export function sanitizeLobbyConfig(base: LobbyConfig, patch: unknown): LobbyCon
     // table of playbooks is not something the wire contract should import.
     out.bots = p.bots
       .slice(0, MAX_SEATS)
-      .map((b) => (typeof b === 'string' && b.length <= 24 ? b : null));
+      .map(b => (typeof b === 'string' && b.length <= 24 ? b : null));
   }
   return out;
 }

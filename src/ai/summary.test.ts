@@ -1,16 +1,16 @@
-import { describe, expect, it } from 'vitest';
-import { playMax, playMin } from '../sim/map.ts';
-import { tileIdx } from '../shared/grid.ts';
-import { createWorld, type World } from '../sim/world.ts';
-import { tickWorld, type PlayerCommand } from '../sim/tick.ts';
-import { AiBrain } from '../sim/systems/ai.ts';
-import { strategyOf } from '../sim/defs/aiStrategies.ts';
-import { summarizeForSeat } from './summary.ts';
-import { BUILDING_KEYS } from '../sim/defs/buildings.ts';
-import * as MatchState from '../sim/matchStateEnum.ts';
+import {describe, expect, it} from 'vitest';
+import {tileIdx} from '../shared/grid.ts';
+import {strategyOf} from '../sim/defs/aiStrategies.ts';
 import * as AiStrategyId from '../sim/defs/aiStrategyIdEnum.ts';
+import {BUILDING_KEYS} from '../sim/defs/buildings.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import {playMax, playMin} from '../sim/map.ts';
+import * as MatchState from '../sim/matchStateEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
+import {AiBrain} from '../sim/systems/ai.ts';
+import {tickWorld, type PlayerCommand} from '../sim/tick.ts';
+import {createWorld, type World} from '../sim/world.ts';
+import {summarizeForSeat} from './summary.ts';
 
 /**
  * The summary is the strategist's only eyes, and the brain it serves plays
@@ -22,12 +22,12 @@ import * as PlayerKind from '../sim/playerKindEnum.ts';
  */
 
 /** A skirmish driven by the real brains, far enough in to have villages. */
-function playedWorld(ticks: number): { world: World; brains: AiBrain[] } {
+function playedWorld(ticks: number): {world: World; brains: AiBrain[]} {
   const world = createWorld({
     seed: 11,
     players: [
-      { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
-      { kind: PlayerKind.ai, strategy: AiStrategyId.warlord },
+      {kind: PlayerKind.ai, strategy: AiStrategyId.steward},
+      {kind: PlayerKind.ai, strategy: AiStrategyId.warlord},
     ],
     // What is under test is the summary's shape and budget, at the tempo
     // its tick horizons were written for — the classic 64 map keeps these
@@ -35,40 +35,54 @@ function playedWorld(ticks: number): { world: World; brains: AiBrain[] } {
     mapSize: 64,
   });
   const brains = world.players.map(
-    (p) => new AiBrain(p.id, strategyOf(p.strategy), world.map.size),
+    p => new AiBrain(p.id, strategyOf(p.strategy), world.map.size),
   );
-  for (let t = 0; t < ticks && world.outcome.state === MatchState.playing; t++) {
+  for (
+    let t = 0;
+    t < ticks && world.outcome.state === MatchState.playing;
+    t++
+  ) {
     const commands: PlayerCommand[] = [];
     for (const brain of brains) {
       if (!brain.shouldDecide(world.tick)) continue;
-      for (const cmd of brain.decide(world)) commands.push({ playerId: brain.playerId, cmd });
+      for (const cmd of brain.decide(world))
+        commands.push({playerId: brain.playerId, cmd});
     }
     tickWorld(world, commands);
   }
-  return { world, brains };
+  return {world, brains};
 }
 
 describe('summarizeForSeat', () => {
   it("reports the seat's own village the way the world holds it", () => {
-    const { world, brains } = playedWorld(4_000);
+    const {world, brains} = playedWorld(4_000);
     const summary = summarizeForSeat(world, brains[0]!);
 
     expect(summary.tick).toBe(world.tick);
     expect(summary.minutes).toBe(Math.round(world.tick / 1200)); // 20 Hz
-    expect(summary.seat).toMatchObject({ id: 0, strategyId: 'steward' });
-    expect(summary.seat.knobs.armyAttackSize).toBe(strategyOf(AiStrategyId.steward).armyAttackSize);
+    expect(summary.seat).toMatchObject({id: 0, strategyId: 'steward'});
+    expect(summary.seat.knobs.armyAttackSize).toBe(
+      strategyOf(AiStrategyId.steward).armyAttackSize,
+    );
 
     // Own counts agree with a straight scan — a seat always knows itself.
-    const myBuildings = [...world.buildings.values()].filter((b) => !b.dead && b.owner === 0);
-    const counted = Object.values(summary.me.buildings).reduce((a, n) => a + n, 0);
+    const myBuildings = [...world.buildings.values()].filter(
+      b => !b.dead && b.owner === 0,
+    );
+    const counted = Object.values(summary.me.buildings).reduce(
+      (a, n) => a + n,
+      0,
+    );
     expect(counted).toBe(myBuildings.length);
-    expect(summary.me.buildings[BUILDING_KEYS[BuildingTypeId.storehouse]]).toBe(1);
+    expect(summary.me.buildings[BUILDING_KEYS[BuildingTypeId.storehouse]]).toBe(
+      1,
+    );
     expect(summary.me.pop).toBeGreaterThan(0);
     expect(summary.me.pop).toBeLessThanOrEqual(summary.me.popCap);
     expect(summary.me.serfs).toBeGreaterThan(0);
 
     // Stock carries no zero lines — dead weight in every prompt otherwise.
-    expect(Object.values(summary.me.stock).every((n) => n > 0)).toBe(true);
+    expect(Object.values(summary.me.stock).every(n => n > 0)).toBe(true);
 
     // The village lights its own surroundings, nothing more this early.
     expect(summary.explored).toBeGreaterThan(0);
@@ -113,7 +127,7 @@ describe('summarizeForSeat', () => {
     // the full grid this read well under half, telling the model the map
     // was mostly unscouted forever.
     const early = playedWorld(200);
-    const { world } = early;
+    const {world} = early;
     const explored = early.brains[0]!.vision.explored;
     explored.fill(0);
     for (let y = playMin(world.map); y < playMax(world.map); y++) {
@@ -125,28 +139,32 @@ describe('summarizeForSeat', () => {
   });
 
   it('carries intel as the brain holds it, age attached', () => {
-    const { world, brains } = playedWorld(12_000);
+    const {world, brains} = playedWorld(12_000);
     for (const brain of brains) {
       const summary = summarizeForSeat(world, brain);
       for (const rival of summary.rivals) {
         if (rival.intel === null) continue;
         expect(rival.intel.ageTicks).toBeGreaterThanOrEqual(0);
         expect(rival.intel.ageTicks).toBeLessThanOrEqual(8_000); // trustFor
-        expect(rival.intel.heavy + rival.intel.light + rival.intel.ranged).toBe(rival.intel.total);
+        expect(rival.intel.heavy + rival.intel.light + rival.intel.ranged).toBe(
+          rival.intel.total,
+        );
         expect(rival.intel.total).toBeGreaterThan(0);
       }
     }
   }, 60_000);
 
   it('stays under the prompt budget however the match sprawls', () => {
-    const { world, brains } = playedWorld(12_000);
+    const {world, brains} = playedWorld(12_000);
     for (const brain of brains) {
-      expect(JSON.stringify(summarizeForSeat(world, brain)).length).toBeLessThan(2000);
+      expect(
+        JSON.stringify(summarizeForSeat(world, brain)).length,
+      ).toBeLessThan(2000);
     }
   }, 60_000);
 
   it('does not crash on a seat whose castle has fallen', () => {
-    const { world, brains } = playedWorld(500);
+    const {world, brains} = playedWorld(500);
     for (const b of world.buildings.values()) {
       if (b.owner === 0 && b.type === BuildingTypeId.storehouse) b.dead = true;
     }

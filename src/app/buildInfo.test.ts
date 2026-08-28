@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { APP_VERSION, BUILD_LABEL, GIT_COMMIT } from './buildInfo';
+import {describe, expect, it} from 'vitest';
+import {APP_VERSION, BUILD_LABEL, GIT_COMMIT} from './buildInfo';
 
 // Reading these at all is the point of the test: if the `define` block ever
 // goes missing from vite.config.ts the identifiers stay free, and importing

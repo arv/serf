@@ -1,15 +1,15 @@
 import * as THREE from 'three';
-import { makeGhostModel } from './models';
-import { verdictBad, verdictGood } from './palette';
-import { eachMaterial } from './materials';
 import {
   buildingDef,
   gatherOrigin,
   gatherRecipeOf,
   type BuildingTypeId,
 } from '../sim/defs/buildings';
-import { ReachOutline } from './reachOutline';
-import type { HeightField } from './heightField';
+import type {HeightField} from './heightField';
+import {eachMaterial} from './materials';
+import {makeGhostModel} from './models';
+import {verdictBad, verdictGood} from './palette';
+import {ReachOutline} from './reachOutline';
 
 const VALID = new THREE.Color(verdictGood);
 const INVALID = new THREE.Color(verdictBad);
@@ -48,9 +48,9 @@ export class GhostPlacement {
     this.#type = type;
     this.#group = makeGhostModel(type, 0.55, this.#owner);
     this.#group.visible = false;
-    this.#group.traverse((obj) => {
+    this.#group.traverse(obj => {
       if (obj instanceof THREE.Mesh) {
-        eachMaterial(obj, (m) => {
+        eachMaterial(obj, m => {
           const lit = m as THREE.MeshLambertMaterial;
           if (lit.color) this.#base.set(m, lit.color.clone());
         });
@@ -65,7 +65,13 @@ export class GhostPlacement {
   moveTo(x: number, y: number, valid: boolean): void {
     if (!this.#group || !this.#type) return;
     // Same tile, same verdict: the ghost is already exactly this.
-    if (x === this.#x && y === this.#y && valid === this.#valid && this.#group.visible) return;
+    if (
+      x === this.#x &&
+      y === this.#y &&
+      valid === this.#valid &&
+      this.#group.visible
+    )
+      return;
     this.#x = x;
     this.#y = y;
     const def = buildingDef(this.#type);
@@ -81,9 +87,9 @@ export class GhostPlacement {
     if (valid === this.#valid) return;
     this.#valid = valid;
     const tint = valid ? VALID : INVALID;
-    this.#group.traverse((obj) => {
+    this.#group.traverse(obj => {
       if (!(obj instanceof THREE.Mesh)) return;
-      eachMaterial(obj, (m) => {
+      eachMaterial(obj, m => {
         const lit = m as THREE.MeshLambertMaterial;
         const base = this.#base.get(m);
         // Multiply rather than add: the buildings are brightly textured, and

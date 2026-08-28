@@ -1,10 +1,14 @@
-import { FORGE_QUEUE_CAP, TRAIN_QUEUE_CAP } from './defs/balance.ts';
-import { AUTO_RECIPE, BUILDING_DEFS, type BuildingTypeId } from './defs/buildings.ts';
-import { TECH_DEFS, type TechId } from './defs/techs.ts';
-import { UNIT_DEFS, type UnitTypeId } from './defs/units.ts';
-import type { EntityId } from './entities.ts';
-import type { Enum } from '../shared/enum.ts';
+import type {Enum} from '../shared/enum.ts';
 import * as CommandKindNs from './commandKindEnum.ts';
+import {FORGE_QUEUE_CAP, TRAIN_QUEUE_CAP} from './defs/balance.ts';
+import {
+  AUTO_RECIPE,
+  BUILDING_DEFS,
+  type BuildingTypeId,
+} from './defs/buildings.ts';
+import {TECH_DEFS, type TechId} from './defs/techs.ts';
+import {UNIT_DEFS, type UnitTypeId} from './defs/units.ts';
+import type {EntityId} from './entities.ts';
 
 export type CommandKind = Enum<typeof CommandKindNs>;
 import * as AdminActionNs from './adminActionEnum.ts';
@@ -29,21 +33,53 @@ export type SimCommand =
       y: number;
       attack?: true | 'half';
     }
-  | { kind: CommandKindNs.placeBuilding; building: BuildingTypeId; x: number; y: number }
-  | { kind: CommandKindNs.hireSerf }
-  | { kind: CommandKindNs.sellBuilding; buildingId: EntityId }
-  | { kind: CommandKindNs.setBuildingPaused; buildingId: EntityId; paused: boolean }
-  | { kind: CommandKindNs.setBuildingRepair; buildingId: EntityId; repair: boolean }
-  | { kind: CommandKindNs.setBuildingRecipe; buildingId: EntityId; index: number }
-  | { kind: CommandKindNs.enqueueForge; buildingId: EntityId; recipeIndex: number }
-  | { kind: CommandKindNs.cancelForge; buildingId: EntityId; index: number; recipeIndex: number }
-  | { kind: CommandKindNs.research; tech: TechId }
-  | { kind: CommandKindNs.trainUnit; buildingId: EntityId; unit: UnitTypeId }
-  | { kind: CommandKindNs.cancelTraining; buildingId: EntityId; index: number; unit: UnitTypeId }
+  | {
+      kind: CommandKindNs.placeBuilding;
+      building: BuildingTypeId;
+      x: number;
+      y: number;
+    }
+  | {kind: CommandKindNs.hireSerf}
+  | {kind: CommandKindNs.sellBuilding; buildingId: EntityId}
+  | {
+      kind: CommandKindNs.setBuildingPaused;
+      buildingId: EntityId;
+      paused: boolean;
+    }
+  | {
+      kind: CommandKindNs.setBuildingRepair;
+      buildingId: EntityId;
+      repair: boolean;
+    }
+  | {kind: CommandKindNs.setBuildingRecipe; buildingId: EntityId; index: number}
+  | {
+      kind: CommandKindNs.enqueueForge;
+      buildingId: EntityId;
+      recipeIndex: number;
+    }
+  | {
+      kind: CommandKindNs.cancelForge;
+      buildingId: EntityId;
+      index: number;
+      recipeIndex: number;
+    }
+  | {kind: CommandKindNs.research; tech: TechId}
+  | {kind: CommandKindNs.trainUnit; buildingId: EntityId; unit: UnitTypeId}
+  | {
+      kind: CommandKindNs.cancelTraining;
+      buildingId: EntityId;
+      index: number;
+      unit: UnitTypeId;
+    }
   // Plant (x and y present) or take down (both absent) a barracks' rally
   // flag: the tile fresh soldiers march to as they step out of the door.
-  | { kind: CommandKindNs.setRallyPoint; buildingId: EntityId; x?: number; y?: number }
-  | { kind: CommandKindNs.admin; action: AdminAction };
+  | {
+      kind: CommandKindNs.setRallyPoint;
+      buildingId: EntityId;
+      x?: number;
+      y?: number;
+    }
+  | {kind: CommandKindNs.admin; action: AdminAction};
 
 /** Sandbox tweaks (the ?admin panel). Single-player: no cheat gating needed. */
 
@@ -84,12 +120,17 @@ function isSlot(v: unknown, cap: number): v is number {
 function isRecipeIndex(v: unknown): v is number {
   // Strict: valid indices are 0..length-1, so the length itself — the
   // first impossible value — is turned away with the rest.
-  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < MAX_RECIPE_OPTIONS;
+  return (
+    typeof v === 'number' &&
+    Number.isInteger(v) &&
+    v >= 0 &&
+    v < MAX_RECIPE_OPTIONS
+  );
 }
 
 /** The longest recipeOptions any def carries — the Smith's nine. */
 const MAX_RECIPE_OPTIONS = Math.max(
-  ...Object.values(BUILDING_DEFS).map((d) => d.recipeOptions?.length ?? 0),
+  ...Object.values(BUILDING_DEFS).map(d => d.recipeOptions?.length ?? 0),
 );
 
 /** Tile coordinates are always whole numbers on the wire; the sim's own
@@ -108,7 +149,11 @@ const isTile = isId;
  */
 function isDefined(table: object, key: unknown): boolean {
   if (typeof key === 'string') return Object.hasOwn(table, key);
-  return typeof key === 'number' && Number.isInteger(key) && Object.hasOwn(table, key);
+  return (
+    typeof key === 'number' &&
+    Number.isInteger(key) &&
+    Object.hasOwn(table, key)
+  );
 }
 
 /**
@@ -141,7 +186,7 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
         // Anything but the two literal fight values means a plain move —
         // the safe reading of a garbled flag is the order that starts no
         // fights.
-        ...(c.attack === true || c.attack === 'half' ? { attack: c.attack } : {}),
+        ...(c.attack === true || c.attack === 'half' ? {attack: c.attack} : {}),
       };
     }
     case CommandKindNs.placeBuilding:
@@ -154,10 +199,10 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
         y: c.y,
       };
     case CommandKindNs.hireSerf:
-      return { kind: CommandKindNs.hireSerf };
+      return {kind: CommandKindNs.hireSerf};
     case CommandKindNs.sellBuilding:
       if (!isId(c.buildingId)) return null;
-      return { kind: CommandKindNs.sellBuilding, buildingId: c.buildingId };
+      return {kind: CommandKindNs.sellBuilding, buildingId: c.buildingId};
     case CommandKindNs.setBuildingPaused:
       if (!isId(c.buildingId)) return null;
       return {
@@ -176,7 +221,11 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       if (!isId(c.buildingId)) return null;
       // -1 is AUTO_RECIPE: clear the standing order and let the Smith pick.
       if (c.index !== AUTO_RECIPE && !isRecipeIndex(c.index)) return null;
-      return { kind: CommandKindNs.setBuildingRecipe, buildingId: c.buildingId, index: c.index };
+      return {
+        kind: CommandKindNs.setBuildingRecipe,
+        buildingId: c.buildingId,
+        index: c.index,
+      };
     }
     case CommandKindNs.enqueueForge: {
       if (!isId(c.buildingId)) return null;
@@ -203,7 +252,7 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
     }
     case CommandKindNs.research:
       if (!isDefined(TECH_DEFS, c.tech)) return null;
-      return { kind: CommandKindNs.research, tech: c.tech as TechId };
+      return {kind: CommandKindNs.research, tech: c.tech as TechId};
     case CommandKindNs.trainUnit:
       if (!isId(c.buildingId) || !isDefined(UNIT_DEFS, c.unit)) return null;
       return {
@@ -226,14 +275,19 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
       // No coordinates at all is the take-the-flag-down order; a half-given
       // pair is garbage rather than a guess at what was meant.
       if (c.x === undefined && c.y === undefined) {
-        return { kind: CommandKindNs.setRallyPoint, buildingId: c.buildingId };
+        return {kind: CommandKindNs.setRallyPoint, buildingId: c.buildingId};
       }
       if (!isTile(c.x) || !isTile(c.y)) return null;
-      return { kind: CommandKindNs.setRallyPoint, buildingId: c.buildingId, x: c.x, y: c.y };
+      return {
+        kind: CommandKindNs.setRallyPoint,
+        buildingId: c.buildingId,
+        x: c.x,
+        y: c.y,
+      };
     }
     case CommandKindNs.admin:
       if (!ADMIN_ACTIONS.includes(c.action as AdminAction)) return null;
-      return { kind: CommandKindNs.admin, action: c.action as AdminAction };
+      return {kind: CommandKindNs.admin, action: c.action as AdminAction};
     default:
       return null;
   }

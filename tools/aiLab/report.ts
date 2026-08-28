@@ -1,12 +1,12 @@
+import {AI_STRATEGY_KEYS} from '../../src/sim/defs/aiStrategies.ts';
+import {TICK_MS} from '../../src/sim/defs/balance.ts';
+import type {SeatStrategies} from './match.ts';
 import {
   trialsForPrecision,
   type BakeoffReport,
   type PlaybookMatchup,
   type Rate,
 } from './stats.ts';
-import { TICK_MS } from '../../src/sim/defs/balance.ts';
-import type { SeatStrategies } from './match.ts';
-import { AI_STRATEGY_KEYS } from '../../src/sim/defs/aiStrategies.ts';
 
 /**
  * The printed run. Written to be read by someone deciding whether to swap
@@ -36,7 +36,8 @@ export function describeSeating([a, b]: SeatStrategies): string {
   return a === b ? an : `${an} vs ${bn} (both seatings)`;
 }
 
-const minutes = (ticks: number): string => `${((ticks * TICK_MS) / 60_000).toFixed(1)} min`;
+const minutes = (ticks: number): string =>
+  `${((ticks * TICK_MS) / 60_000).toFixed(1)} min`;
 
 function rateLine(label: string, rate: Rate): string {
   const count = `${rate.wins} / ${rate.trials}`.padEnd(9);
@@ -48,7 +49,7 @@ function rateLine(label: string, rate: Rate): string {
  * them are "we cannot tell yet".
  */
 export function verdict(report: BakeoffReport): string[] {
-  const { advised } = report;
+  const {advised} = report;
   if (advised.trials === 0) {
     return ['VERDICT   no match reached a verdict — raise --max-ticks.'];
   }
@@ -87,7 +88,7 @@ export function verdict(report: BakeoffReport): string[] {
 export function renderMatchup(m: PlaybookMatchup): string[] {
   const out: string[] = [];
   const p = (s = ''): void => void out.push(s);
-  const { paired } = m;
+  const {paired} = m;
   const decisive = paired.bothA + paired.bothB;
 
   p(
@@ -112,14 +113,18 @@ export function renderMatchup(m: PlaybookMatchup): string[] {
   seedLine(`${AI_STRATEGY_KEYS[m.b]} took both`, paired.bothB);
   seedLine('one each (no evidence)', paired.split);
   if (paired.unresolved > 0) seedLine('unresolved', paired.unresolved);
-  p(`    exact binomial over the ${decisive} decisive seeds: p = ${paired.p.toPrecision(3)}`);
+  p(
+    `    exact binomial over the ${decisive} decisive seeds: p = ${paired.p.toPrecision(3)}`,
+  );
   p();
   if (decisive === 0) {
     p(`  VERDICT   every seed split one seating each — nothing separates`);
     p(`            these playbooks here.`);
   } else if (paired.p < 0.05) {
     const better = AI_STRATEGY_KEYS[paired.bothA > paired.bothB ? m.a : m.b];
-    p(`  VERDICT   ${better} is the better playbook on these seeds (p < 0.05).`);
+    p(
+      `  VERDICT   ${better} is the better playbook on these seeds (p < 0.05).`,
+    );
   } else {
     p(`  VERDICT   not significant — a seed that swings with the seating is`);
     p(`            the map talking, and the ones that did not are consistent`);
@@ -132,8 +137,11 @@ export function renderMatchup(m: PlaybookMatchup): string[] {
   return out;
 }
 
-export function renderReport(header: ReportHeader, report: BakeoffReport): string {
-  const { health, flips, advised } = report;
+export function renderReport(
+  header: ReportHeader,
+  report: BakeoffReport,
+): string {
+  const {health, flips, advised} = report;
   const out: string[] = [];
   const p = (s = ''): void => void out.push(s);
 
@@ -148,13 +156,15 @@ export function renderReport(header: ReportHeader, report: BakeoffReport): strin
       `(${((header.advicePeriod * TICK_MS) / 1000).toFixed(0)}s) · ` +
       `latency ${header.latency === 'measured' ? 'measured' : `${header.latency} ticks`}`,
   );
-  p(`  horizon   ${header.maxTicks} ticks · control ${header.control ? 'on' : 'off'}`);
+  p(
+    `  horizon   ${header.maxTicks} ticks · control ${header.control ? 'on' : 'off'}`,
+  );
   p();
 
   p('ADVISED WIN RATE');
   p(rateLine('overall', advised));
   p(`              95% CI [${pct(advised.lo)}, ${pct(advised.hi)}]`);
-  for (const { seat, rate } of report.bySeat) p(rateLine(`seat ${seat}`, rate));
+  for (const {seat, rate} of report.bySeat) p(rateLine(`seat ${seat}`, rate));
   p();
   p('  Each seed is played twice — once advising each seat — so whatever');
   p('  head start the valley gives a seat is worn by the advised side in');
@@ -165,7 +175,9 @@ export function renderReport(header: ReportHeader, report: BakeoffReport): strin
     // the per-seat split is two questions rather than two halves of one.
     p();
     p(`  The seats run different playbooks, so this rate pools advice given`);
-    p(`  to the ${report.playbooks.a} with advice given to the ${report.playbooks.b}.`);
+    p(
+      `  to the ${report.playbooks.a} with advice given to the ${report.playbooks.b}.`,
+    );
     p('  The null is still exactly 50% — the mirror is over which seat wears');
     p('  the advice, not over what it is playing — but which playbook is');
     p('  better is a separate question, measured below.');
@@ -184,7 +196,8 @@ export function renderReport(header: ReportHeader, report: BakeoffReport): strin
     p(`  toward the advised seat  ${String(flips.toward).padStart(4)}`);
     p(`  away from it             ${String(flips.away).padStart(4)}`);
     p(`  winner unchanged         ${String(flips.unchanged).padStart(4)}`);
-    if (flips.noControl > 0) p(`  no usable control        ${String(flips.noControl).padStart(4)}`);
+    if (flips.noControl > 0)
+      p(`  no usable control        ${String(flips.noControl).padStart(4)}`);
     p();
   }
 

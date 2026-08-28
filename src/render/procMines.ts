@@ -39,7 +39,7 @@ const SHAFT_DARK = 0x241c16;
 const ROPE = 0xdaae7d;
 
 function part(geo: THREE.BufferGeometry, color: number): THREE.Mesh {
-  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
+  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({color}));
   m.castShadow = true;
   m.receiveShadow = true;
   return m;
@@ -62,7 +62,10 @@ function strut(
   const d = bv.clone().sub(av);
   const m = beam(d.length(), thick, color);
   m.position.copy(av).addScaledVector(d, 0.5);
-  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+  m.quaternion.setFromUnitVectors(
+    new THREE.Vector3(0, 1, 0),
+    d.clone().normalize(),
+  );
   g.add(m);
 }
 
@@ -85,15 +88,24 @@ export function makeSheerlegs(s = 1): THREE.Group {
   // A-frame: the pair leans out over the work and this holds it up.
   strut(g, [0, 0, -0.24 * s], [0, 0.47 * s, -0.045 * s], 0.03 * s, TIMBER_DARK);
   // A brace across the legs, low, so the triangle reads as built.
-  const brace = part(new THREE.BoxGeometry(0.24 * s, 0.026 * s, 0.026 * s), TIMBER_DARK);
+  const brace = part(
+    new THREE.BoxGeometry(0.24 * s, 0.026 * s, 0.026 * s),
+    TIMBER_DARK,
+  );
   brace.position.set(0, 0.16 * s, 0.052 * s);
   g.add(brace);
 
   // Rope down from the apex to a block half lifted off the ground.
-  const rope = part(new THREE.CylinderGeometry(0.007 * s, 0.007 * s, 0.32 * s, 5), ROPE);
+  const rope = part(
+    new THREE.CylinderGeometry(0.007 * s, 0.007 * s, 0.32 * s, 5),
+    ROPE,
+  );
   rope.position.set(0, 0.35 * s, 0.01 * s);
   g.add(rope);
-  const block = part(new THREE.BoxGeometry(0.13 * s, 0.09 * s, 0.11 * s), STONE_PALE);
+  const block = part(
+    new THREE.BoxGeometry(0.13 * s, 0.09 * s, 0.11 * s),
+    STONE_PALE,
+  );
   block.position.set(0, 0.145 * s, 0.01 * s);
   block.rotation.y = 0.25;
   g.add(block);
@@ -113,7 +125,10 @@ export function makeAshlar(s = 1): THREE.Group {
     [0.075, 0.225, 0.03, -0.2],
   ];
   for (const [x, y, z, rot] of blocks) {
-    const b = part(new THREE.BoxGeometry(0.15 * s, 0.09 * s, 0.13 * s), y > 0.1 ? STONE_PALE : STONE);
+    const b = part(
+      new THREE.BoxGeometry(0.15 * s, 0.09 * s, 0.13 * s),
+      y > 0.1 ? STONE_PALE : STONE,
+    );
     b.position.set(x * s, y * s, z * s);
     b.rotation.y = rot;
     g.add(b);
@@ -137,7 +152,10 @@ export function makeOreChute(s = 1): THREE.Group {
   const floor = part(new THREE.BoxGeometry(0.17 * s, 0.018 * s, LEN), TIMBER);
   deck.add(floor);
   for (const sx of [-1, 1]) {
-    const side = part(new THREE.BoxGeometry(0.016 * s, 0.05 * s, LEN), TIMBER_DARK);
+    const side = part(
+      new THREE.BoxGeometry(0.016 * s, 0.05 * s, LEN),
+      TIMBER_DARK,
+    );
     side.position.set(sx * 0.085 * s, 0.032 * s, 0);
     deck.add(side);
   }
@@ -166,11 +184,14 @@ export function makeOreChute(s = 1): THREE.Group {
     [-0.087, 0, 0.016, 0.15],
     [0.087, 0, 0.016, 0.15],
   ] as [number, number, number, number][]) {
-    const wall = part(new THREE.BoxGeometry(w * s, 0.10 * s, d * s), TIMBER);
+    const wall = part(new THREE.BoxGeometry(w * s, 0.1 * s, d * s), TIMBER);
     wall.position.set(dx * s, 0.05 * s, dz * s);
     bin.add(wall);
   }
-  const load = part(new THREE.BoxGeometry(0.16 * s, 0.035 * s, 0.13 * s), 0x8a5238);
+  const load = part(
+    new THREE.BoxGeometry(0.16 * s, 0.035 * s, 0.13 * s),
+    0x8a5238,
+  );
   load.position.set(0, 0.075 * s, 0);
   bin.add(load);
   g.add(bin);
@@ -191,7 +212,10 @@ export function makeWindlassHouse(s = 1): THREE.Group {
   const R = 0.115 * s;
 
   // Collar: four planks round a dark hole.
-  const hole = part(new THREE.BoxGeometry(R * 1.7, 0.01 * s, R * 1.7), SHAFT_DARK);
+  const hole = part(
+    new THREE.BoxGeometry(R * 1.7, 0.01 * s, R * 1.7),
+    SHAFT_DARK,
+  );
   hole.position.y = 0.004 * s;
   g.add(hole);
   for (const [dx, dz, w, d] of [
@@ -227,21 +251,36 @@ export function makeWindlassHouse(s = 1): THREE.Group {
   g.add(cap);
 
   // The drum, its crank, and a bucket down the rope.
-  const drum = part(new THREE.CylinderGeometry(0.026 * s, 0.026 * s, R * 1.9, 8), TIMBER);
+  const drum = part(
+    new THREE.CylinderGeometry(0.026 * s, 0.026 * s, R * 1.9, 8),
+    TIMBER,
+  );
   drum.rotation.z = Math.PI / 2;
   drum.position.y = POST_H * 0.72;
   g.add(drum);
-  const crankArm = part(new THREE.BoxGeometry(0.016 * s, 0.075 * s, 0.016 * s), IRON_DARK);
+  const crankArm = part(
+    new THREE.BoxGeometry(0.016 * s, 0.075 * s, 0.016 * s),
+    IRON_DARK,
+  );
   crankArm.position.set(R * 1.02, POST_H * 0.72 + 0.035 * s, 0);
   g.add(crankArm);
-  const grip = part(new THREE.CylinderGeometry(0.011 * s, 0.011 * s, 0.05 * s, 6), TIMBER_DARK);
+  const grip = part(
+    new THREE.CylinderGeometry(0.011 * s, 0.011 * s, 0.05 * s, 6),
+    TIMBER_DARK,
+  );
   grip.rotation.z = Math.PI / 2;
   grip.position.set(R * 1.14, POST_H * 0.72 + 0.07 * s, 0);
   g.add(grip);
-  const line = part(new THREE.CylinderGeometry(0.005 * s, 0.005 * s, POST_H * 0.42, 5), ROPE);
+  const line = part(
+    new THREE.CylinderGeometry(0.005 * s, 0.005 * s, POST_H * 0.42, 5),
+    ROPE,
+  );
   line.position.set(0, POST_H * 0.72 - POST_H * 0.21, 0);
   g.add(line);
-  const bucket = part(new THREE.CylinderGeometry(0.036 * s, 0.03 * s, 0.055 * s, 8), IRON_DARK);
+  const bucket = part(
+    new THREE.CylinderGeometry(0.036 * s, 0.03 * s, 0.055 * s, 8),
+    IRON_DARK,
+  );
   bucket.position.set(0, POST_H * 0.44, 0);
   g.add(bucket);
   return g;
@@ -258,15 +297,24 @@ export function makeWindlassHouse(s = 1): THREE.Group {
  */
 export function makeHeadframe(s = 1): THREE.Group {
   const g = new THREE.Group();
-  const APEX = 0.60 * s;
+  const APEX = 0.6 * s;
   const apex: [number, number, number] = [0, APEX, 0];
   strut(g, [-0.135 * s, 0, 0.07 * s], apex, 0.03 * s);
   strut(g, [0.135 * s, 0, 0.07 * s], apex, 0.03 * s);
-  strut(g, [0, 0, -0.20 * s], [0, APEX * 0.94, -0.01 * s], 0.026 * s, TIMBER_DARK);
-  for (const y of [0.20, 0.38] as number[]) {
+  strut(
+    g,
+    [0, 0, -0.2 * s],
+    [0, APEX * 0.94, -0.01 * s],
+    0.026 * s,
+    TIMBER_DARK,
+  );
+  for (const y of [0.2, 0.38] as number[]) {
     const t = y / (APEX / s);
     const halfw = 0.135 * s * (1 - t);
-    const rail = part(new THREE.BoxGeometry(halfw * 2, 0.018 * s, 0.018 * s), TIMBER_DARK);
+    const rail = part(
+      new THREE.BoxGeometry(halfw * 2, 0.018 * s, 0.018 * s),
+      TIMBER_DARK,
+    );
     rail.position.set(0, y * s, 0.07 * s * (1 - t));
     g.add(rail);
   }
@@ -280,33 +328,48 @@ export function makeHeadframe(s = 1): THREE.Group {
   const R = 0.085 * s;
   const rim = part(new THREE.TorusGeometry(R, 0.014 * s, 6, 14), IRON_DARK);
   wheel.add(rim);
-  const hub = part(new THREE.CylinderGeometry(0.022 * s, 0.022 * s, 0.03 * s, 8), IRON_DARK);
+  const hub = part(
+    new THREE.CylinderGeometry(0.022 * s, 0.022 * s, 0.03 * s, 8),
+    IRON_DARK,
+  );
   hub.rotation.x = Math.PI / 2;
   wheel.add(hub);
   for (let i = 0; i < 4; i++) {
-    const spoke = part(new THREE.BoxGeometry(0.012 * s, R * 1.9, 0.012 * s), IRON_DARK);
+    const spoke = part(
+      new THREE.BoxGeometry(0.012 * s, R * 1.9, 0.012 * s),
+      IRON_DARK,
+    );
     spoke.rotation.z = (i * Math.PI) / 4;
     wheel.add(spoke);
   }
   g.add(wheel);
 
   // The rope: over the sheave, down the frame, into the collar.
-  const line = part(new THREE.CylinderGeometry(0.006 * s, 0.006 * s, APEX - 0.06 * s, 5), ROPE);
+  const line = part(
+    new THREE.CylinderGeometry(0.006 * s, 0.006 * s, APEX - 0.06 * s, 5),
+    ROPE,
+  );
   line.position.set(0, (APEX - 0.06 * s) / 2, 0.105 * s);
   g.add(line);
-  const skip = part(new THREE.BoxGeometry(0.07 * s, 0.075 * s, 0.06 * s), IRON_DARK);
+  const skip = part(
+    new THREE.BoxGeometry(0.07 * s, 0.075 * s, 0.06 * s),
+    IRON_DARK,
+  );
   skip.position.set(0, 0.075 * s, 0.105 * s);
   g.add(skip);
 
   // The collar the skip comes up through.
-  const hole = part(new THREE.BoxGeometry(0.15 * s, 0.01 * s, 0.13 * s), SHAFT_DARK);
+  const hole = part(
+    new THREE.BoxGeometry(0.15 * s, 0.01 * s, 0.13 * s),
+    SHAFT_DARK,
+  );
   hole.position.set(0, 0.005 * s, 0.03 * s);
   g.add(hole);
   for (const [dx, dz, w, d] of [
     [0, -0.085, 0.21, 0.03],
     [0, 0.145, 0.21, 0.03],
-    [-0.105, 0.03, 0.03, 0.20],
-    [0.105, 0.03, 0.03, 0.20],
+    [-0.105, 0.03, 0.03, 0.2],
+    [0.105, 0.03, 0.03, 0.2],
   ] as [number, number, number, number][]) {
     const plank = part(new THREE.BoxGeometry(w * s, 0.03 * s, d * s), TIMBER);
     plank.position.set(dx * s, 0.016 * s, dz * s);
@@ -327,7 +390,10 @@ export function makeSluice(s = 1): THREE.Group {
   const floor = part(new THREE.BoxGeometry(0.16 * s, 0.018 * s, LEN), TIMBER);
   trough.add(floor);
   for (const sx of [-1, 1]) {
-    const side = part(new THREE.BoxGeometry(0.018 * s, 0.06 * s, LEN), TIMBER_DARK);
+    const side = part(
+      new THREE.BoxGeometry(0.018 * s, 0.06 * s, LEN),
+      TIMBER_DARK,
+    );
     side.position.set(sx * 0.08 * s, 0.038 * s, 0);
     trough.add(side);
   }
@@ -336,7 +402,10 @@ export function makeSluice(s = 1): THREE.Group {
   // this pitch read as the rungs of a ladder — the one thing an inclined
   // plank on legs must not be mistaken for. One unbroken bright band low in
   // the trough says washing on its own.
-  const wash = part(new THREE.BoxGeometry(0.12 * s, 0.018 * s, LEN * 0.44), 0xd4a93c);
+  const wash = part(
+    new THREE.BoxGeometry(0.12 * s, 0.018 * s, LEN * 0.44),
+    0xd4a93c,
+  );
   wash.position.set(0, 0.019 * s, LEN * 0.24);
   trough.add(wash);
   trough.rotation.x = 0.26;
@@ -366,7 +435,10 @@ export function makeSluice(s = 1): THREE.Group {
     wall.position.set(dx * s, 0.038 * s, dz * s);
     box.add(wall);
   }
-  const caught = part(new THREE.BoxGeometry(0.15 * s, 0.03 * s, 0.12 * s), 0xe0b342);
+  const caught = part(
+    new THREE.BoxGeometry(0.15 * s, 0.03 * s, 0.12 * s),
+    0xe0b342,
+  );
   caught.position.set(0, 0.055 * s, 0);
   box.add(caught);
   g.add(box);

@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { gridFor, tileCount, tileIdx } from '../shared/grid.ts';
-import { createWorld, campCorners, type World } from './world.ts';
-import { inPlayArea, playEdgeDist, playMin, type GameMap } from './map.ts';
-import { WOOD_MAX_AMT } from './defs/balance.ts';
+import {describe, expect, it} from 'vitest';
+import {gridFor, tileCount, tileIdx} from '../shared/grid.ts';
+import {WOOD_MAX_AMT} from './defs/balance.ts';
+import {inPlayArea, playEdgeDist, playMin, type GameMap} from './map.ts';
+import * as PlayerKind from './playerKindEnum.ts';
 import * as Terrain from './terrainEnum.ts';
 import * as TileResource from './tileResourceEnum.ts';
-import * as PlayerKind from './playerKindEnum.ts';
+import {createWorld, campCorners, type World} from './world.ts';
 
 /**
  * The mixed-border contract on the Warcraft-style grid: the world is
@@ -19,13 +19,13 @@ import * as PlayerKind from './playerKindEnum.ts';
 
 const PLAY = 96;
 const GRID = gridFor(PLAY);
-const M = playMin({ size: GRID, play: PLAY });
+const M = playMin({size: GRID, play: PLAY});
 const FRINGE = 4; // floor(96 / 24)
 // Deepest band any edge can draw: base + capped jitter/meander + teeth.
 const MAX_DEPTH = 3 * FRINGE + 2;
 
 function solo(seed: number): World {
-  return createWorld({ seed, players: [{ kind: PlayerKind.human }] });
+  return createWorld({seed, players: [{kind: PlayerKind.human}]});
 }
 
 /** Grid coordinates of a probe on `side`, `along` tiles down the play
@@ -74,9 +74,12 @@ describe('map borders', () => {
     const seen = new Set<string>();
     for (let seed = 1; seed <= 32; seed++) {
       const map = solo(seed).map;
-      const styles = [0, 1, 2, 3].map((s) => edgeStyle(map, s));
+      const styles = [0, 1, 2, 3].map(s => edgeStyle(map, s));
       for (const s of styles) seen.add(s);
-      expect(styles, `seed ${seed} has no sea edge: ${styles.join(',')}`).toContain('sea');
+      expect(
+        styles,
+        `seed ${seed} has no sea edge: ${styles.join(',')}`,
+      ).toContain('sea');
     }
     expect([...seen].sort()).toEqual(['forest', 'ridge', 'sea']);
   });
@@ -94,7 +97,10 @@ describe('map borders', () => {
         const y = (i / GRID) | 0;
         const pd = playEdgeDist(map, x, y);
         if (pd >= 0 && pd < FRINGE - 1) {
-          expect(map.blocked[i], `seed ${seed}: rim tile ${x},${y} walkable`).toBe(1);
+          expect(
+            map.blocked[i],
+            `seed ${seed}: rim tile ${x},${y} walkable`,
+          ).toBe(1);
         }
       }
       // The last playable row IS the border's own material, and the first
@@ -151,12 +157,13 @@ describe('map borders', () => {
     let checked = 0;
     for (let seed = 1; seed <= 32 && checked < 3; seed++) {
       const map = solo(seed).map;
-      const sides = [0, 1, 2, 3].filter((s) => edgeStyle(map, s) === 'ridge');
+      const sides = [0, 1, 2, 3].filter(s => edgeStyle(map, s) === 'ridge');
       if (sides.length === 0) continue;
       checked++;
       let peak = 0;
       for (let i = 0; i < tileCount(GRID); i++) {
-        if (map.terrain[i] === Terrain.Rock) peak = Math.max(peak, map.height[i]!);
+        if (map.terrain[i] === Terrain.Rock)
+          peak = Math.max(peak, map.height[i]!);
       }
       expect(peak, `seed ${seed}: ridge crest too low`).toBeGreaterThan(1.8);
     }
@@ -171,7 +178,7 @@ describe('map borders', () => {
     let checked = 0;
     for (let seed = 1; seed <= 32 && checked < 3; seed++) {
       const map = solo(seed).map;
-      const sides = [0, 1, 2, 3].filter((s) => edgeStyle(map, s) === 'forest');
+      const sides = [0, 1, 2, 3].filter(s => edgeStyle(map, s) === 'forest');
       if (sides.length === 0) continue;
       const wall: number[] = [];
       for (const side of sides) {
@@ -196,8 +203,16 @@ describe('map borders', () => {
 
   it('is deterministic and keeps the camp corners on land at every size', () => {
     for (const mapSize of [64, 96, 128]) {
-      const a = createWorld({ seed: 5, players: [{ kind: PlayerKind.human }], mapSize });
-      const b = createWorld({ seed: 5, players: [{ kind: PlayerKind.human }], mapSize });
+      const a = createWorld({
+        seed: 5,
+        players: [{kind: PlayerKind.human}],
+        mapSize,
+      });
+      const b = createWorld({
+        seed: 5,
+        players: [{kind: PlayerKind.human}],
+        mapSize,
+      });
       expect(a.map.terrain).toEqual(b.map.terrain);
       expect(a.map.resource).toEqual(b.map.resource);
       for (const [cx, cy] of campCorners(mapSize)) {

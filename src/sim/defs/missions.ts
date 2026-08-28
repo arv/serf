@@ -1,14 +1,14 @@
-import type { GoodAmounts } from './goods.ts';
-import type { Enum } from '../../shared/enum.ts';
+import type {Enum} from '../../shared/enum.ts';
+import type {GoodAmounts} from './goods.ts';
 import * as MissionIdNs from './missionIdEnum.ts';
 
 export type MissionId = Enum<typeof MissionIdNs>;
-import * as ObjectiveKindNs from './objectiveKindEnum.ts';
-import * as GoodId from './goodIdEnum.ts';
-import * as BuildingTypeId from './buildingTypeIdEnum.ts';
-import * as TechId from './techIdEnum.ts';
-import * as AiStrategyId from './aiStrategyIdEnum.ts';
 import * as PlayerKind from '../playerKindEnum.ts';
+import * as AiStrategyId from './aiStrategyIdEnum.ts';
+import * as BuildingTypeId from './buildingTypeIdEnum.ts';
+import * as GoodId from './goodIdEnum.ts';
+import * as ObjectiveKindNs from './objectiveKindEnum.ts';
+import * as TechId from './techIdEnum.ts';
 
 type AiStrategyId = Enum<typeof AiStrategyId>;
 type BuildingTypeId = Enum<typeof BuildingTypeId>;
@@ -51,12 +51,12 @@ export type ObjectiveKind = Enum<typeof ObjectiveKindNs>;
  * bits (World.objectivesDone).
  */
 export type ObjectiveSpec =
-  | { kind: ObjectiveKindNs.building; type: BuildingTypeId; count: number }
-  | { kind: ObjectiveKindNs.stock; good: GoodId; amount: number }
-  | { kind: ObjectiveKindNs.research; tech: TechId }
-  | { kind: ObjectiveKindNs.population; count: number }
-  | { kind: ObjectiveKindNs.soldiers; count: number }
-  | { kind: ObjectiveKindNs.razeCamp };
+  | {kind: ObjectiveKindNs.building; type: BuildingTypeId; count: number}
+  | {kind: ObjectiveKindNs.stock; good: GoodId; amount: number}
+  | {kind: ObjectiveKindNs.research; tech: TechId}
+  | {kind: ObjectiveKindNs.population; count: number}
+  | {kind: ObjectiveKindNs.soldiers; count: number}
+  | {kind: ObjectiveKindNs.razeCamp};
 
 /** A building already standing when the mission opens, looked for at
  * castle-origin + offset and spiralled outward from there until the ordinary
@@ -82,13 +82,13 @@ export interface MissionDef {
    * missionMaps.ts — the file owns the terrain, resources, heights, grid
    * size, and start positions. */
   seed: number;
-  players: { kind: PlayerKind; strategy?: AiStrategyId }[];
+  players: {kind: PlayerKind; strategy?: AiStrategyId}[];
   bandits: boolean;
   /** Bandit camp footprint origin (3×3), tried first — pinned so a map
    * tweak can't silently move the enemy the balance was proven against.
    * The classic seed-driven corner search stays behind it as the repair
    * for a tweak that blocked the spot. Bandit missions only. */
-  campSpot?: { x: number; y: number };
+  campSpot?: {x: number; y: number};
   /** Overrides FIRST_RAID_TICK (bandit missions only). */
   firstRaidTick?: number;
   /** Overrides START_SERFS for the human seat. */
@@ -100,7 +100,7 @@ export interface MissionDef {
   prebuilt?: PrebuiltSpec[];
   /** All must hold at once been-met (they latch) for the win. Empty list =
    * no checklist; the ordinary elimination rules decide the match. */
-  objectives: { spec: ObjectiveSpec; label: string }[];
+  objectives: {spec: ObjectiveSpec; label: string}[];
 }
 
 export const MISSION_DEFS: Record<MissionId, MissionDef> = {
@@ -118,7 +118,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // keep left empty for the houses. The taught line wins it inside a
     // fifth of the 36k budget.
     seed: 106,
-    players: [{ kind: PlayerKind.human }],
+    players: [{kind: PlayerKind.human}],
     bandits: false,
     startSerfs: 6,
     // Below the default 36 wood / 8 serfs on purpose: the wood loop and the
@@ -136,23 +136,38 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     },
     objectives: [
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.woodcutter, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.woodcutter,
+          count: 1,
+        },
         label: 'Raise a Woodcutter',
       },
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.quarry, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.quarry,
+          count: 1,
+        },
         label: 'Raise a Quarry',
       },
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.house, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.house,
+          count: 1,
+        },
         label: 'Raise a House',
       },
       // Eleven, one past the castle's ten beds: the house objective is
       // load-bearing (population is beds), not a checkbox. Five hires at
       // 4 silver each out of the 24 the mission opens with.
-      { spec: { kind: ObjectiveKindNs.population, count: 11 }, label: 'Grow the village to 11' },
       {
-        spec: { kind: ObjectiveKindNs.stock, good: GoodId.wood, amount: 30 },
+        spec: {kind: ObjectiveKindNs.population, count: 11},
+        label: 'Grow the village to 11',
+      },
+      {
+        spec: {kind: ObjectiveKindNs.stock, good: GoodId.wood, amount: 30},
         label: 'Lay in 30 wood at the Castle',
       },
     ],
@@ -167,7 +182,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'water and wheat, mill and oven. Learn to bake, reeve.',
     tagline: 'Stand up the food chain and fill the larder.',
     seed: 202,
-    players: [{ kind: PlayerKind.human }],
+    players: [{kind: PlayerKind.human}],
     bandits: false,
     startStock: {
       [GoodId.wood]: 40,
@@ -181,23 +196,39 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     },
     objectives: [
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.well, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.well,
+          count: 1,
+        },
         label: 'Raise a Well',
       },
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.wheatFarm, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.wheatFarm,
+          count: 1,
+        },
         label: 'Raise a Wheat Farm',
       },
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.mill, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.mill,
+          count: 1,
+        },
         label: 'Raise a Mill',
       },
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.bakery, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.bakery,
+          count: 1,
+        },
         label: 'Raise a Bakery',
       },
       {
-        spec: { kind: ObjectiveKindNs.stock, good: GoodId.food, amount: 12 },
+        spec: {kind: ObjectiveKindNs.stock, good: GoodId.food, amount: 12},
         label: 'Lay in 12 food at the Castle',
       },
     ],
@@ -212,7 +243,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       'digging. The crown expects spears it did not pay the smiths for.',
     tagline: 'Silver, scholarship, iron, and a working forge.',
     seed: 303,
-    players: [{ kind: PlayerKind.human }],
+    players: [{kind: PlayerKind.human}],
     bandits: false,
     startSerfs: 10,
     // Picks for both taught mines on top of the prebuilt camp's own kit.
@@ -229,36 +260,52 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // The player should not re-play missions 1-2: the camp they taught is
     // already standing.
     prebuilt: [
-      { type: BuildingTypeId.woodcutter, dx: -6, dy: -2 },
-      { type: BuildingTypeId.quarry, dx: 6, dy: -3 },
-      { type: BuildingTypeId.house, dx: -5, dy: 4 },
-      { type: BuildingTypeId.well, dx: 5, dy: 4 },
-      { type: BuildingTypeId.wheatFarm, dx: 8, dy: 2 },
+      {type: BuildingTypeId.woodcutter, dx: -6, dy: -2},
+      {type: BuildingTypeId.quarry, dx: 6, dy: -3},
+      {type: BuildingTypeId.house, dx: -5, dy: 4},
+      {type: BuildingTypeId.well, dx: 5, dy: 4},
+      {type: BuildingTypeId.wheatFarm, dx: 8, dy: 2},
     ],
     objectives: [
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.abbey, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.abbey,
+          count: 1,
+        },
         label: 'Raise an Abbey',
       },
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.silverMine, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.silverMine,
+          count: 1,
+        },
         label: 'Dig a Silver Mine',
       },
       // Forces Cobbled Boots first — the tree's prereq line teaches itself.
       {
-        spec: { kind: ObjectiveKindNs.research, tech: TechId.ironworking },
+        spec: {kind: ObjectiveKindNs.research, tech: TechId.ironworking},
         label: 'Research Ironworking',
       },
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.ironMine, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.ironMine,
+          count: 1,
+        },
         label: 'Dig an Iron Mine',
       },
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.weaponsmith, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.weaponsmith,
+          count: 1,
+        },
         label: 'Raise a Smith',
       },
       {
-        spec: { kind: ObjectiveKindNs.stock, good: GoodId.spear, amount: 4 },
+        spec: {kind: ObjectiveKindNs.stock, good: GoodId.spear, amount: 4},
         label: 'Forge 4 spears',
       },
     ],
@@ -281,7 +328,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // the hill the briefing names — the shape this mission needs, since
     // every post the player is tooling up already stands on it.
     seed: 350,
-    players: [{ kind: PlayerKind.human }],
+    players: [{kind: PlayerKind.human}],
     bandits: false,
     // A village this size is six posts and the haulage between them.
     startSerfs: 12,
@@ -305,14 +352,14 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // The predecessor's village, standing and idle. No Smith among them:
     // that is the one roof this mission is about.
     prebuilt: [
-      { type: BuildingTypeId.woodcutter, dx: -6, dy: -2 },
-      { type: BuildingTypeId.quarry, dx: 5, dy: -6 },
-      { type: BuildingTypeId.house, dx: -5, dy: 4 },
-      { type: BuildingTypeId.well, dx: 4, dy: 4 },
-      { type: BuildingTypeId.wheatFarm, dx: 8, dy: 3 },
-      { type: BuildingTypeId.mill, dx: -3, dy: 7 },
-      { type: BuildingTypeId.bakery, dx: 2, dy: 7 },
-      { type: BuildingTypeId.ironMine, dx: 12, dy: -3 },
+      {type: BuildingTypeId.woodcutter, dx: -6, dy: -2},
+      {type: BuildingTypeId.quarry, dx: 5, dy: -6},
+      {type: BuildingTypeId.house, dx: -5, dy: 4},
+      {type: BuildingTypeId.well, dx: 4, dy: 4},
+      {type: BuildingTypeId.wheatFarm, dx: 8, dy: 3},
+      {type: BuildingTypeId.mill, dx: -3, dy: 7},
+      {type: BuildingTypeId.bakery, dx: 2, dy: 7},
+      {type: BuildingTypeId.ironMine, dx: 12, dy: -3},
     ],
     // Every line past the first is a post that cannot produce until its
     // tool hangs on the peg: the mine wants a pickaxe, the woodcutter an
@@ -322,19 +369,23 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // — it reaches the castle shelf only once nothing is waiting on it.
     objectives: [
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.weaponsmith, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.weaponsmith,
+          count: 1,
+        },
         label: 'Raise a Smith',
       },
       {
-        spec: { kind: ObjectiveKindNs.stock, good: GoodId.iron, amount: 12 },
+        spec: {kind: ObjectiveKindNs.stock, good: GoodId.iron, amount: 12},
         label: 'Lay in 12 iron at the Castle',
       },
       {
-        spec: { kind: ObjectiveKindNs.stock, good: GoodId.wood, amount: 45 },
+        spec: {kind: ObjectiveKindNs.stock, good: GoodId.wood, amount: 45},
         label: 'Lay in 45 wood at the Castle',
       },
       {
-        spec: { kind: ObjectiveKindNs.stock, good: GoodId.food, amount: 12 },
+        spec: {kind: ObjectiveKindNs.stock, good: GoodId.food, amount: 12},
         label: 'Lay in 12 food at the Castle',
       },
       // The one the auto-forge will never do for you: a hammer is wanted
@@ -344,7 +395,7 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
       // off the Smith's own site when the roof goes on. Three on the shelf
       // is three sites that can rise at once.
       {
-        spec: { kind: ObjectiveKindNs.stock, good: GoodId.hammer, amount: 3 },
+        spec: {kind: ObjectiveKindNs.stock, good: GoodId.hammer, amount: 3},
         label: 'Lay in 3 hammers at the Castle',
       },
     ],
@@ -364,9 +415,9 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // another off the northern hills, and one gap between them on the
     // diagonal to the camp. Everything that comes for the town walks it.
     seed: 406,
-    players: [{ kind: PlayerKind.human }],
+    players: [{kind: PlayerKind.human}],
     bandits: true,
-    campSpot: { x: 43, y: 43 },
+    campSpot: {x: 43, y: 43},
     // Five minutes — the point of this mission IS the raid, arriving before
     // the player feels ready. (Default is nine.)
     firstRaidTick: 6000,
@@ -390,24 +441,31 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // Research was mission 3's lesson; here it is already done.
     startTechs: [TechId.soldiery, TechId.cobbledBoots, TechId.ironworking],
     prebuilt: [
-      { type: BuildingTypeId.woodcutter, dx: -6, dy: -2 },
-      { type: BuildingTypeId.quarry, dx: 6, dy: -3 },
-      { type: BuildingTypeId.house, dx: -5, dy: 4 },
-      { type: BuildingTypeId.house, dx: -8, dy: 0 },
-      { type: BuildingTypeId.well, dx: 5, dy: 4 },
-      { type: BuildingTypeId.wheatFarm, dx: 8, dy: 2 },
-      { type: BuildingTypeId.mill, dx: -3, dy: 7 },
-      { type: BuildingTypeId.bakery, dx: 2, dy: 7 },
-      { type: BuildingTypeId.silverMine, dx: 0, dy: -8 },
-      { type: BuildingTypeId.abbey, dx: 8, dy: -1 },
+      {type: BuildingTypeId.woodcutter, dx: -6, dy: -2},
+      {type: BuildingTypeId.quarry, dx: 6, dy: -3},
+      {type: BuildingTypeId.house, dx: -5, dy: 4},
+      {type: BuildingTypeId.house, dx: -8, dy: 0},
+      {type: BuildingTypeId.well, dx: 5, dy: 4},
+      {type: BuildingTypeId.wheatFarm, dx: 8, dy: 2},
+      {type: BuildingTypeId.mill, dx: -3, dy: 7},
+      {type: BuildingTypeId.bakery, dx: 2, dy: 7},
+      {type: BuildingTypeId.silverMine, dx: 0, dy: -8},
+      {type: BuildingTypeId.abbey, dx: 8, dy: -1},
     ],
     objectives: [
       {
-        spec: { kind: ObjectiveKindNs.building, type: BuildingTypeId.barracks, count: 1 },
+        spec: {
+          kind: ObjectiveKindNs.building,
+          type: BuildingTypeId.barracks,
+          count: 1,
+        },
         label: 'Raise a Barracks',
       },
-      { spec: { kind: ObjectiveKindNs.soldiers, count: 6 }, label: 'Field 6 soldiers at once' },
-      { spec: { kind: ObjectiveKindNs.razeCamp }, label: 'Raze the bandit camp' },
+      {
+        spec: {kind: ObjectiveKindNs.soldiers, count: 6},
+        label: 'Field 6 soldiers at once',
+      },
+      {spec: {kind: ObjectiveKindNs.razeCamp}, label: 'Raze the bandit camp'},
     ],
   },
 
@@ -424,10 +482,12 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // hill country east, and the beck with its two fords between the
     // valley and the bandits' heath (mapAuthor/missions/holdTheValley.ts).
     seed: 17,
-    players: [{ kind: PlayerKind.human }],
+    players: [{kind: PlayerKind.human}],
     bandits: true,
-    campSpot: { x: 106, y: 106 },
-    objectives: [{ spec: { kind: ObjectiveKindNs.razeCamp }, label: 'Raze the bandit camp' }],
+    campSpot: {x: 106, y: 106},
+    objectives: [
+      {spec: {kind: ObjectiveKindNs.razeCamp}, label: 'Raze the bandit camp'},
+    ],
   },
 
   [MissionIdNs.rivalBanner]: {
@@ -446,9 +506,12 @@ export const MISSION_DEFS: Record<MissionId, MissionDef> = {
     // exact symmetry). The camp sits on the line the two are equidistant
     // from, which is why its footprint is off-centre.
     seed: 12,
-    players: [{ kind: PlayerKind.human }, { kind: PlayerKind.ai, strategy: AiStrategyId.steward }],
+    players: [
+      {kind: PlayerKind.human},
+      {kind: PlayerKind.ai, strategy: AiStrategyId.steward},
+    ],
     bandits: true,
-    campSpot: { x: 76, y: 73 },
+    campSpot: {x: 76, y: 73},
     // No checklist: the ordinary last-faction-standing rules decide it.
     objectives: [],
   },
@@ -502,5 +565,5 @@ export const MISSION_KEYS: Readonly<Record<MissionId, string>> = {
 };
 
 const MISSION_BY_KEY = new Map<string, MissionId>(
-  MISSION_ORDER.map((id) => [MISSION_KEYS[id], id]),
+  MISSION_ORDER.map(id => [MISSION_KEYS[id], id]),
 );

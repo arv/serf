@@ -1,14 +1,14 @@
-import { describe, expect, it } from 'vitest';
-import { createWorld, type World } from '../sim/world.ts';
-import { tickWorld } from '../sim/tick.ts';
-import { AiSeats } from '../sim/aiSeats.ts';
-import { checkInvariants } from '../sim/debug/invariants.ts';
-import { LlmStrategist, type ChatEngine } from './strategist.ts';
-import { summarizeForSeat } from './summary.ts';
-import type { ChatMessage } from './prompt.ts';
-import * as MatchState from '../sim/matchStateEnum.ts';
+import {describe, expect, it} from 'vitest';
+import {AiSeats} from '../sim/aiSeats.ts';
+import {checkInvariants} from '../sim/debug/invariants.ts';
 import * as AiStrategyId from '../sim/defs/aiStrategyIdEnum.ts';
+import * as MatchState from '../sim/matchStateEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
+import {tickWorld} from '../sim/tick.ts';
+import {createWorld, type World} from '../sim/world.ts';
+import type {ChatMessage} from './prompt.ts';
+import {LlmStrategist, type ChatEngine} from './strategist.ts';
+import {summarizeForSeat} from './summary.ts';
 
 /**
  * Two LLM-advised seats against each other: the whole strategist pipeline —
@@ -28,7 +28,7 @@ const ADVICE_STAGGER = 300;
 
 /** A scripted "model": answers every prompt with its one fixed personality. */
 function scriptedEngine(reply: object): ChatEngine {
-  return { complete: () => Promise.resolve(JSON.stringify(reply)) };
+  return {complete: () => Promise.resolve(JSON.stringify(reply))};
 }
 
 interface MatchResult {
@@ -46,8 +46,8 @@ async function playAdvisedMatch(
   const world = createWorld({
     seed,
     players: [
-      { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
-      { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
+      {kind: PlayerKind.ai, strategy: AiStrategyId.steward},
+      {kind: PlayerKind.ai, strategy: AiStrategyId.steward},
     ],
     banditsEnabled: false,
     // What is under test is the advice plumbing and its fingerprints on
@@ -86,22 +86,32 @@ async function playAdvisedMatch(
   const summaryDue = new Map(
     seats.seatIds().map((id, i) => [id, ADVICE_PERIOD + i * ADVICE_STAGGER]),
   );
-  for (let t = 0; t < maxTicks && world.outcome.state === MatchState.playing; t++) {
+  for (
+    let t = 0;
+    t < maxTicks && world.outcome.state === MatchState.playing;
+    t++
+  ) {
     tickWorld(world, seats.decide(world));
     for (const [playerId, due] of summaryDue) {
       if (world.tick < due) continue;
       summaryDue.set(playerId, world.tick + ADVICE_PERIOD);
       const brain = seats.brainFor(playerId);
-      if (brain) strategists.get(playerId)?.onSummary(playerId, summarizeForSeat(world, brain));
+      if (brain)
+        strategists
+          .get(playerId)
+          ?.onSummary(playerId, summarizeForSeat(world, brain));
       // The consultation is fire-and-forget; a scripted engine resolves in
       // a microtask, so one yield is the whole "inference latency".
-      await new Promise((r) => setTimeout(r, 0));
+      await new Promise(r => setTimeout(r, 0));
     }
     if (world.tick % 500 === 0) {
-      expect(checkInvariants(world).violations, `at tick ${world.tick}`).toEqual([]);
+      expect(
+        checkInvariants(world).violations,
+        `at tick ${world.tick}`,
+      ).toEqual([]);
     }
   }
-  return { world, adviceApplied, prompts };
+  return {world, adviceApplied, prompts};
 }
 
 describe('an LLM-advised match, seat against seat', () => {
@@ -132,13 +142,23 @@ describe('an LLM-advised match, seat against seat', () => {
       ],
     ]);
 
-    const { world, adviceApplied, prompts } = await playAdvisedMatch(42, engines, 90_000);
+    const {world, adviceApplied, prompts} = await playAdvisedMatch(
+      42,
+      engines,
+      90_000,
+    );
 
     // Both advisors were consulted with the real prompt, repeatedly, and
     // their advice reached their seats.
     for (const id of [0, 1]) {
-      expect(prompts.get(id)!.length, `seat ${id} consultations`).toBeGreaterThan(3);
-      expect(adviceApplied.get(id), `seat ${id} advice applied`).toBeGreaterThanOrEqual(1);
+      expect(
+        prompts.get(id)!.length,
+        `seat ${id} consultations`,
+      ).toBeGreaterThan(3);
+      expect(
+        adviceApplied.get(id),
+        `seat ${id} advice applied`,
+      ).toBeGreaterThanOrEqual(1);
       const [system, user] = prompts.get(id)![0]!;
       expect(system!.content).toContain('Choose exactly one posture');
       expect(user!.content).toContain(`"id":${id},"strategyId":"steward"`);
@@ -153,8 +173,10 @@ describe('an LLM-advised match, seat against seat', () => {
     // that never leaves home. Either the rush wins or the turtle grinds it
     // down — but somebody wins; two stock stewards on this map would both
     // march at seven into mutual attrition.
-    expect(world.outcome.state, `still playing at tick ${world.tick}`).toBe(MatchState.over);
-    expect((world.outcome as { winner: number | null }).winner).not.toBeNull();
+    expect(world.outcome.state, `still playing at tick ${world.tick}`).toBe(
+      MatchState.over,
+    );
+    expect((world.outcome as {winner: number | null}).winner).not.toBeNull();
   }, 240_000);
 
   it('plays a different war than the same seats unadvised', async () => {
@@ -162,8 +184,8 @@ describe('an LLM-advised match, seat against seat', () => {
     const control = createWorld({
       seed: 42,
       players: [
-        { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
-        { kind: PlayerKind.ai, strategy: AiStrategyId.steward },
+        {kind: PlayerKind.ai, strategy: AiStrategyId.steward},
+        {kind: PlayerKind.ai, strategy: AiStrategyId.steward},
       ],
       banditsEnabled: false,
       mapSize: 64, // must mirror playAdvisedMatch's world exactly
@@ -173,15 +195,26 @@ describe('an LLM-advised match, seat against seat', () => {
     // first marks on the field — this seed's roll develops both economies
     // identically for the first ~12k, and the horizon must sit past where
     // the armies start moving differently.
-    for (let t = 0; t < 16_000 && control.outcome.state === MatchState.playing; t++) {
+    for (
+      let t = 0;
+      t < 16_000 && control.outcome.state === MatchState.playing;
+      t++
+    ) {
       tickWorld(control, controlSeats.decide(control));
     }
 
     const engines = new Map<number, ChatEngine>([
-      [0, scriptedEngine({ armyAttackSize: 4, attackCooldown: 300, prefersRivals: true })],
-      [1, scriptedEngine({ armyAttackSize: 14, homeGuard: 14, serfTarget: 14 })],
+      [
+        0,
+        scriptedEngine({
+          armyAttackSize: 4,
+          attackCooldown: 300,
+          prefersRivals: true,
+        }),
+      ],
+      [1, scriptedEngine({armyAttackSize: 14, homeGuard: 14, serfTarget: 14})],
     ]);
-    const { world: advised } = await playAdvisedMatch(42, engines, 16_000);
+    const {world: advised} = await playAdvisedMatch(42, engines, 16_000);
 
     // Same valley, same tick horizon — different game on the field. (Tick
     // counts can differ only if one match already ended; the state digest
@@ -189,7 +222,12 @@ describe('an LLM-advised match, seat against seat', () => {
     const digest = (w: World): string =>
       JSON.stringify([
         w.tick,
-        [...w.units.values()].map((u) => [u.kind, u.owner, Math.round(u.x), Math.round(u.y)]),
+        [...w.units.values()].map(u => [
+          u.kind,
+          u.owner,
+          Math.round(u.x),
+          Math.round(u.y),
+        ]),
       ]);
     expect(digest(advised)).not.toBe(digest(control));
   }, 120_000);

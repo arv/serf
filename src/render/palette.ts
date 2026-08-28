@@ -1,4 +1,4 @@
-import type { Enum } from '../shared/enum.ts';
+import type {Enum} from '../shared/enum.ts';
 import * as GoodId from '../sim/defs/goodIdEnum.ts';
 
 type GoodId = Enum<typeof GoodId>;

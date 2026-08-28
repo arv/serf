@@ -8,11 +8,11 @@
  */
 export type ShortcutLabel =
   /** No shortcut to show — render the label and nothing else. */
-  | { kind: 'none' }
+  | {kind: 'none'}
   /** The letter lives in the label: bold it where it stands. */
-  | { kind: 'split'; before: string; letter: string; after: string }
+  | {kind: 'split'; before: string; letter: string; after: string}
   /** A key the label does not contain — append it in parentheses: "Foo (Q)". */
-  | { kind: 'appended'; key: string };
+  | {kind: 'appended'; key: string};
 
 export function shortcutLabel(label: string, k: string): ShortcutLabel {
   // The empty key is how buildKey/trainKey say "this thing has no
@@ -21,9 +21,9 @@ export function shortcutLabel(label: string, k: string): ShortcutLabel {
   // key as a letter found at position zero and boldly highlights the H of a
   // shortcut that does not exist. Worse than showing nothing, because it
   // teaches a keypress that does nothing.
-  if (k === '') return { kind: 'none' };
+  if (k === '') return {kind: 'none'};
   const at = label.toLowerCase().indexOf(k.toLowerCase());
-  if (at < 0) return { kind: 'appended', key: k.toUpperCase() };
+  if (at < 0) return {kind: 'appended', key: k.toUpperCase()};
   return {
     kind: 'split',
     before: label.slice(0, at),

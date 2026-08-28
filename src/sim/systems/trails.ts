@@ -1,3 +1,5 @@
+import {tileX, tileY} from '../../shared/grid.ts';
+import * as BuildingState from '../buildingStateEnum.ts';
 import {
   MAX_CONCURRENT_PAVING,
   PAVE_INTERVAL,
@@ -7,14 +9,12 @@ import {
   TRAIL_WEAR_THRESHOLD,
   WEAR_DECAY,
 } from '../defs/balance.ts';
-import { tileX, tileY } from '../../shared/grid.ts';
-import { buildingDef } from '../defs/buildings.ts';
-import { isPlayerOwner, type Owner } from '../entities.ts';
-import { placeSite, pushDelta, type World } from '../world.ts';
+import {buildingDef} from '../defs/buildings.ts';
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
+import {isPlayerOwner, type Owner} from '../entities.ts';
 import * as PathLevel from '../pathLevelEnum.ts';
 import * as Terrain from '../terrainEnum.ts';
-import * as BuildingState from '../buildingStateEnum.ts';
+import {placeSite, pushDelta, type World} from '../world.ts';
 
 /**
  * Emergent trails, the Settlers homage: foot traffic wears tiles (movement
@@ -61,7 +61,7 @@ function paveStep(world: World): void {
   // every tick to serve a pass that can only do work on one tick in
   // PAVE_INTERVAL, and now runs only on the ticks that can use it.
   if (world.tick === 0 || world.tick % PAVE_INTERVAL !== 0) return;
-  if (!world.players.some((p) => p.pavingUnlocked)) return;
+  if (!world.players.some(p => p.pavingUnlocked)) return;
 
   let active = 0;
   for (const b of world.buildings.values()) {
@@ -84,21 +84,43 @@ function paveStep(world: World): void {
     // The stone bill goes to whoever wore the trail: attribute the tile to
     // the nearest live storage building's owner — and only pave when that
     // owner has actually researched Masonry.
-    const owner = nearestStorageOwner(world, tileX(idx, size), tileY(idx, size));
+    const owner = nearestStorageOwner(
+      world,
+      tileX(idx, size),
+      tileY(idx, size),
+    );
     if (owner === undefined || !world.players[owner]?.pavingUnlocked) continue;
-    placeSite(world, BuildingTypeId.roadSite, owner, tileX(idx, size), tileY(idx, size));
+    placeSite(
+      world,
+      BuildingTypeId.roadSite,
+      owner,
+      tileX(idx, size),
+      tileY(idx, size),
+    );
   }
 }
 
 /** Owner of the nearest live storage building (ties: lowest owner id wins
  * via the buildings map's insertion order). */
-function nearestStorageOwner(world: World, x: number, y: number): Owner | undefined {
+function nearestStorageOwner(
+  world: World,
+  x: number,
+  y: number,
+): Owner | undefined {
   let best: Owner | undefined;
   let bestDist = Infinity;
   for (const b of world.buildings.values()) {
-    if (b.dead || b.state !== BuildingState.built || !buildingDef(b.type).storage) continue;
+    if (
+      b.dead ||
+      b.state !== BuildingState.built ||
+      !buildingDef(b.type).storage
+    )
+      continue;
     if (!isPlayerOwner(b.owner)) continue;
-    const dist = Math.max(Math.abs(b.x + b.w / 2 - x), Math.abs(b.y + b.h / 2 - y));
+    const dist = Math.max(
+      Math.abs(b.x + b.w / 2 - x),
+      Math.abs(b.y + b.h / 2 - y),
+    );
     if (dist < bestDist) {
       bestDist = dist;
       best = b.owner;

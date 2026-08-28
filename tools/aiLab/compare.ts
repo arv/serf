@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
-import { binomCdfHalf, twoSidedExact, wilson } from './stats.ts';
-import type { MatchRecord } from './match.ts';
-import type { Owner } from '../../src/sim/entities.ts';
+import {readFileSync} from 'node:fs';
+import {pathToFileURL} from 'node:url';
+import type {Owner} from '../../src/sim/entities.ts';
+import type {MatchRecord} from './match.ts';
+import {binomCdfHalf, twoSidedExact, wilson} from './stats.ts';
 
 /**
  * Two bake-off runs, head to head: is model A actually better than model B?
@@ -56,25 +56,28 @@ export function readRun(path: string): ArmOutcomes {
   let label = path;
   for (const line of readFileSync(path, 'utf8').split('\n')) {
     if (line.trim() === '') continue;
-    const parsed = JSON.parse(line) as RunLine | { kind: 'report'; header?: { engine?: string } };
+    const parsed = JSON.parse(line) as
+      | RunLine
+      | {kind: 'report'; header?: {engine?: string}};
     if (parsed.kind === 'report') {
-      const engine = (parsed as { header?: { engine?: string } }).header?.engine;
+      const engine = (parsed as {header?: {engine?: string}}).header?.engine;
       if (engine) label = engine;
       continue;
     }
     const record = parsed as RunLine;
-    if (record.kind !== 'arm' || record.advisedSeat === null || !record.decided) continue;
+    if (record.kind !== 'arm' || record.advisedSeat === null || !record.decided)
+      continue;
     outcomes.set(
       trialKey(record.seed, record.advisedSeat, record.layout ?? 0),
       record.winner === record.advisedSeat,
     );
   }
-  return { label, outcomes };
+  return {label, outcomes};
 }
 
 export interface Comparison {
-  a: { label: string; wins: number; trials: number };
-  b: { label: string; wins: number; trials: number };
+  a: {label: string; wins: number; trials: number};
+  b: {label: string; wins: number; trials: number};
   /** Trials both runs decided — the paired set. */
   paired: number;
   /** Only in one run (crashed, undecided, or different seeds). */
@@ -90,7 +93,7 @@ export interface Comparison {
 
 /** Moved to stats.ts once the seating mirror needed the same exact test;
  * re-exported so this file still reads as the home of McNemar. */
-export { binomCdfHalf };
+export {binomCdfHalf};
 
 export function compare(a: ArmOutcomes, b: ArmOutcomes): Comparison {
   let paired = 0;
@@ -110,10 +113,11 @@ export function compare(a: ArmOutcomes, b: ArmOutcomes): Comparison {
     else if (bWon && !aWon) bOnly++;
   }
   const p = twoSidedExact(aOnly, bOnly);
-  const wins = (r: ArmOutcomes): number => [...r.outcomes.values()].filter(Boolean).length;
+  const wins = (r: ArmOutcomes): number =>
+    [...r.outcomes.values()].filter(Boolean).length;
   return {
-    a: { label: a.label, wins: wins(a), trials: a.outcomes.size },
-    b: { label: b.label, wins: wins(b), trials: b.outcomes.size },
+    a: {label: a.label, wins: wins(a), trials: a.outcomes.size},
+    b: {label: b.label, wins: wins(b), trials: b.outcomes.size},
     paired,
     unpaired,
     aOnly,
@@ -128,7 +132,10 @@ const pct = (wins: number, trials: number): string =>
 export function renderComparison(c: Comparison): string {
   const out: string[] = [];
   const p = (s = ''): void => void out.push(s);
-  const side = (tag: string, s: { label: string; wins: number; trials: number }): void => {
+  const side = (
+    tag: string,
+    s: {label: string; wins: number; trials: number},
+  ): void => {
     const [lo, hi] = wilson(s.wins, s.trials);
     p(
       `  ${tag}  ${s.label}\n` +
@@ -140,19 +147,28 @@ export function renderComparison(c: Comparison): string {
   side('A', c.a);
   side('B', c.b);
   p();
-  p(`PAIRED on (seed, advised seat): ${c.paired} trials` + (c.unpaired > 0 ? ` (${c.unpaired} unpaired, dropped)` : ''));
+  p(
+    `PAIRED on (seed, advised seat): ${c.paired} trials` +
+      (c.unpaired > 0 ? ` (${c.unpaired} unpaired, dropped)` : ''),
+  );
   p(`  A won, B lost   ${String(c.aOnly).padStart(4)}`);
   p(`  B won, A lost   ${String(c.bOnly).padStart(4)}`);
-  p(`  same outcome    ${String(c.paired - c.aOnly - c.bOnly).padStart(4)}   (carry no evidence either way)`);
+  p(
+    `  same outcome    ${String(c.paired - c.aOnly - c.bOnly).padStart(4)}   (carry no evidence either way)`,
+  );
   p();
   p(`  exact McNemar p = ${c.p.toPrecision(3)}`);
   if (c.aOnly + c.bOnly === 0) {
-    p('  VERDICT   the runs never disagreed — nothing separates these models here.');
+    p(
+      '  VERDICT   the runs never disagreed — nothing separates these models here.',
+    );
   } else if (c.p < 0.05) {
     const better = c.aOnly > c.bOnly ? 'A' : 'B';
     p(`  VERDICT   ${better} is better on these seeds (p < 0.05).`);
   } else {
-    p('  VERDICT   not significant — the discordant pairs are consistent with a');
+    p(
+      '  VERDICT   not significant — the discordant pairs are consistent with a',
+    );
     p('            coin flip. More seeds, or a real difference is not there.');
   }
   return out.join('\n');
@@ -160,10 +176,14 @@ export function renderComparison(c: Comparison): string {
 
 const entry = process.argv[1];
 if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
-  const files = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  const files = process.argv.slice(2).filter(a => !a.startsWith('--'));
   if (files.length !== 2) {
-    console.error('usage: node --experimental-strip-types tools/aiLab/compare.ts <a.jsonl> <b.jsonl>');
+    console.error(
+      'usage: node --experimental-strip-types tools/aiLab/compare.ts <a.jsonl> <b.jsonl>',
+    );
     process.exit(2);
   }
-  console.log(renderComparison(compare(readRun(files[0]!), readRun(files[1]!))));
+  console.log(
+    renderComparison(compare(readRun(files[0]!), readRun(files[1]!))),
+  );
 }

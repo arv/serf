@@ -1,14 +1,18 @@
-import type { Enum } from '../shared/enum.ts';
-import { BUILDING_DEFS } from '../sim/defs/buildings';
-import { TECH_DEFS, type TechId } from '../sim/defs/techs';
-import type { GoodAmounts } from '../sim/defs/goods';
-import type { BuildingSnap } from '../protocol/messages';
-import { HIRE_QUEUE_CAP, HIRE_SERF_COST, TRAIN_QUEUE_CAP } from '../sim/defs/balance';
-import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
-import * as TechEffectKind from '../sim/defs/techEffectKindEnum.ts';
-import * as GoodId from '../sim/defs/goodIdEnum.ts';
-import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
+import type {BuildingSnap} from '../protocol/messages';
+import type {Enum} from '../shared/enum.ts';
 import * as BuildingState from '../sim/buildingStateEnum.ts';
+import {
+  HIRE_QUEUE_CAP,
+  HIRE_SERF_COST,
+  TRAIN_QUEUE_CAP,
+} from '../sim/defs/balance';
+import {BUILDING_DEFS} from '../sim/defs/buildings';
+import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
+import * as GoodId from '../sim/defs/goodIdEnum.ts';
+import type {GoodAmounts} from '../sim/defs/goods';
+import * as TechEffectKind from '../sim/defs/techEffectKindEnum.ts';
+import {TECH_DEFS, type TechId} from '../sim/defs/techs';
+import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
@@ -34,7 +38,8 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
 export function unitTechGate(unit: UnitTypeId): TechId | undefined {
   for (const def of Object.values(TECH_DEFS)) {
     for (const e of def.effects) {
-      if (e.kind === TechEffectKind.unlockUnit && e.unit === unit) return def.id;
+      if (e.kind === TechEffectKind.unlockUnit && e.unit === unit)
+        return def.id;
     }
   }
   return undefined;
@@ -48,9 +53,10 @@ export function unitTechGate(unit: UnitTypeId): TechId | undefined {
 export function canHire(
   b: BuildingSnap,
   stock: GoodAmounts,
-  pop: { pop: number; cap: number },
+  pop: {pop: number; cap: number},
 ): boolean {
-  if (b.type !== BuildingTypeId.storehouse || b.state !== BuildingState.built) return false;
+  if (b.type !== BuildingTypeId.storehouse || b.state !== BuildingState.built)
+    return false;
   const queued = b.hireQueue ?? 0;
   return (
     (stock[GoodId.silver] ?? 0) >= HIRE_SERF_COST &&
@@ -92,7 +98,10 @@ export function trainKey(unit: UnitTypeId): string {
 }
 
 /** The unit a letter drills at this building, or null for a stray key. */
-export function trainingForKey(b: BuildingSnap, letter: string): UnitTypeId | null {
+export function trainingForKey(
+  b: BuildingSnap,
+  letter: string,
+): UnitTypeId | null {
   const want = letter.toUpperCase();
   for (const option of BUILDING_DEFS[b.type].trains ?? []) {
     if (trainKey(option.unit) === want) return option.unit;
@@ -114,7 +123,10 @@ export const RALLY_KEY = 'Y';
 /** May this building fly a rally flag at all? A type-level question — the
  * same one the sim asks (only buildings that train take one). */
 export function canRally(b: BuildingSnap): boolean {
-  return b.state === BuildingState.built && BUILDING_DEFS[b.type].trains !== undefined;
+  return (
+    b.state === BuildingState.built &&
+    BUILDING_DEFS[b.type].trains !== undefined
+  );
 }
 
 /**

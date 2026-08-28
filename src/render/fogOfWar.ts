@@ -1,19 +1,19 @@
 import * as THREE from 'three';
-import { tileCount, tileIdx } from '../shared/grid';
-import { clamp } from '../shared/math';
-import { playMax, playMin, type PlayArea } from '../sim/map';
-import { AUX_STRIDE, ACTION, type SabReader } from '../protocol/sabLayout';
-import { background } from './palette';
-import { UNIT_DEFS } from '../sim/defs/units';
-import { buildingSight } from '../sim/visibility';
-import type { BuildingSnap } from '../protocol/messages';
+import type {BuildingSnap} from '../protocol/messages';
+import {AUX_STRIDE, ACTION, type SabReader} from '../protocol/sabLayout';
+import {tileCount, tileIdx} from '../shared/grid';
+import {clamp} from '../shared/math';
+import {UNIT_DEFS} from '../sim/defs/units';
+import {playMax, playMin, type PlayArea} from '../sim/map';
+import {buildingSight} from '../sim/visibility';
+import {background} from './palette';
 
 /** Sight radii come from the unit and building defs, so this and the
  * server's visibility filter cannot drift apart — if they did, the server
  * would send things this never lights, or light ground it was sent nothing
  * for. See src/sim/visibility.ts. */
 const SIGHT_BY_KIND_CODE = new Map<number, number>(
-  Object.values(UNIT_DEFS).map((d) => [d.id, d.sight]),
+  Object.values(UNIT_DEFS).map(d => [d.id, d.sight]),
 );
 /** Tiles over which a sight circle fades out at its rim. Generous on
  * purpose: a long feather is what makes the frontier read as fog rolling
@@ -74,9 +74,9 @@ export class FogOfWar implements FogQuery {
   #bytes: Uint8Array;
   #texture: THREE.DataTexture;
   #uniforms: {
-    uFogTex: { value: THREE.Texture };
-    uFogSize: { value: number };
-    uUnknown: { value: THREE.Color };
+    uFogTex: {value: THREE.Texture};
+    uFogSize: {value: number};
+    uUnknown: {value: THREE.Color};
   };
   /**
    * Every material this fog has spliced itself into, and what its
@@ -91,7 +91,10 @@ export class FogOfWar implements FogQuery {
    * Holding them strongly costs nothing that matters: this map dies with
    * the match, and the assets it points at are the ones deliberately kept.
    */
-  #patched = new Map<THREE.Material, THREE.Material['onBeforeCompile'] | undefined>();
+  #patched = new Map<
+    THREE.Material,
+    THREE.Material['onBeforeCompile'] | undefined
+  >();
   /** Objects already listening for children, so the sweep can be skipped
    * while the graph is unchanged. */
   #watched = new WeakSet<THREE.Object3D>();
@@ -164,9 +167,9 @@ export class FogOfWar implements FogQuery {
     // this lands after the color-space conversion, on the final pixel.
     const unknown = new THREE.Color(background).convertLinearToSRGB();
     this.#uniforms = {
-      uFogTex: { value: this.#texture },
-      uFogSize: { value: size },
-      uUnknown: { value: unknown },
+      uFogTex: {value: this.#texture},
+      uFogSize: {value: size},
+      uUnknown: {value: unknown},
     };
   }
 
@@ -190,7 +193,8 @@ export class FogOfWar implements FogQuery {
     const tiles = tileCount(this.#size);
     for (let i = 0; i < tiles; i++) {
       const m = this.#mirror[i]!;
-      if (this.#explored[m]! > this.#explored[i]!) this.#explored[i] = this.#explored[m]!;
+      if (this.#explored[m]! > this.#explored[i]!)
+        this.#explored[i] = this.#explored[m]!;
     }
     this.#accum = Infinity; // re-blur and upload on the next update
   }
@@ -227,7 +231,10 @@ export class FogOfWar implements FogQuery {
    * remembered ground. */
   litAt(x: number, z: number): number {
     if (!this.#enabled) return 1;
-    return Math.max(this.#at(this.#visSoft, x, z), this.#at(this.#expSoft, x, z) * 0.25);
+    return Math.max(
+      this.#at(this.#visSoft, x, z),
+      this.#at(this.#expSoft, x, z) * 0.25,
+    );
   }
 
   /** Stamp one sight circle into the target mask. */
@@ -266,7 +273,12 @@ export class FogOfWar implements FogQuery {
    * to ~12 Hz: the sim only moves things 20 times a second, and the temporal
    * smoothing hides the difference.
    */
-  update(dt: number, reader: SabReader, buildings: BuildingSnap[], scene: THREE.Scene): void {
+  update(
+    dt: number,
+    reader: SabReader,
+    buildings: BuildingSnap[],
+    scene: THREE.Scene,
+  ): void {
     // Only when the graph has actually grown. This used to walk every
     // Object3D in the scene on every frame — a dozen-plus nodes per unit
     // rig, plus buildings, piles and site frames — ahead of both the
@@ -283,16 +295,24 @@ export class FogOfWar implements FogQuery {
     this.#accum = 0;
 
     this.#target.fill(0);
-    const { latest } = reader;
+    const {latest} = reader;
     for (let i = 0; i < latest.count; i++) {
       const a = i * AUX_STRIDE;
       if (latest.aux[a + 1] !== this.#owner) continue;
       if (latest.aux[a + 4] === ACTION.dead) continue;
-      this.#stamp(latest.xs[i]!, latest.ys[i]!, SIGHT_BY_KIND_CODE.get(latest.aux[a]!) ?? 0);
+      this.#stamp(
+        latest.xs[i]!,
+        latest.ys[i]!,
+        SIGHT_BY_KIND_CODE.get(latest.aux[a]!) ?? 0,
+      );
     }
     for (const b of buildings) {
       if (b.owner !== this.#owner) continue;
-      this.#stamp(b.x + b.w / 2, b.y + b.h / 2, buildingSight(b.type, b.w, b.h));
+      this.#stamp(
+        b.x + b.w / 2,
+        b.y + b.h / 2,
+        buildingSight(b.type, b.w, b.h),
+      );
     }
 
     const tiles = tileCount(this.#size);
@@ -387,7 +407,7 @@ export class FogOfWar implements FogQuery {
   /** Subtrees added to the scene since the last sweep. */
   #pending: THREE.Object3D[] = [];
 
-  #onChildAdded = (event: { child: THREE.Object3D }): void => {
+  #onChildAdded = (event: {child: THREE.Object3D}): void => {
     this.#pending.push(event.child);
   };
 
@@ -414,7 +434,9 @@ export class FogOfWar implements FogQuery {
     if (this.#patched.has(material)) return;
     this.#patched.set(
       material,
-      Object.hasOwn(material, 'onBeforeCompile') ? material.onBeforeCompile : undefined,
+      Object.hasOwn(material, 'onBeforeCompile')
+        ? material.onBeforeCompile
+        : undefined,
     );
     // Screen-space overlays (hp bars, selection rings) opt out: they only
     // ever show for things the player can already see.
