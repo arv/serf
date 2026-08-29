@@ -117,7 +117,10 @@ export interface PlaybookFingerprint {
   strategy: AiStrategyId;
   /** Seats this playbook occupied among the scored matches. */
   seats: number;
-  /** Median tick of the first all-in march, -1 when it never marched. */
+  /** Median first all-in march tick, among the seats that marched at
+   * all: a seat that never marched is left out of the median rather than
+   * dragging it, so -1 appears only when no seat of this playbook
+   * marched in the whole sample. */
   medianFirstMarch: number;
   /** The rest are means per seat. */
   sorties: number;

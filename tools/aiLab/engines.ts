@@ -156,7 +156,10 @@ export function describeSpec(spec: EngineSpec): string {
     case 'postureReads':
       return 'posture-reads (rule-based, conditioned on an opponent archetype)';
     case 'postureFixed':
-      return `posture ${spec.posture} (fixed)`;
+      // The key, not the id: the CLI takes --engine posture:siege, and a
+      // header reading "posture 5 (fixed)" files the run under a name
+      // nobody typed or can grep for.
+      return `posture ${POSTURE_KEYS[spec.posture]} (fixed)`;
   }
 }
 
