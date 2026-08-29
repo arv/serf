@@ -49,8 +49,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // every tick runs as it did. Side-effect imports are left unsorted by
 // config, so nothing's evaluation order moved either. The hash is over
 // raw bytes, which is why it moved anyway.
-const EXPECTED_VERSION = 33;
-const EXPECTED_HASH = '470252161bbb1ab0f8dad72d36078a4f';
+// 34 for mixed squads forming up: a group move deals its spread tiles by
+// arm now (knights front, archers rear), so the same logged order stands
+// the same soldiers on different tiles (see replayVersion.ts).
+const EXPECTED_VERSION = 34;
+const EXPECTED_HASH = '3e7afa1dac7a2c4cedf480f3f20150ac';
 
 /**
  * Everything a replay's playback depends on, as raw source:

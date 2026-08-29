@@ -20,6 +20,16 @@
  * directly.
  */
 /**
+ * 34: a mixed squad's move order is dealt out in battle order. The spread
+ * tiles a group move fans out over used to go to whichever ids happened to
+ * come first in the command; they now go by arm — knights on the edge
+ * facing the march, spearmen behind them, archers behind both, civilians
+ * at the very rear (tick.ts orderFormation). Uniform squads are dealt
+ * their tiles exactly as before. Any log that ever moved a mixed group —
+ * every AI seat's army does — puts its soldiers on different tiles from
+ * that order on, and every fight they walk into re-runs differently.
+ */
+/**
  * 33: every id in the sim is a number. Goods, buildings, units, techs,
  * task tags, job phases, building states, tile resources, command kinds,
  * admin actions, mission and playbook ids — all of them were unions of
@@ -268,4 +278,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 33;
+export const REPLAY_VERSION = 34;

@@ -141,6 +141,21 @@ export const COUNTER_TABLE: Record<UnitClass, Record<UnitClass, number>> = {
 };
 
 /**
+ * Battle order for a mixed move order: lower ranks take the tiles nearest
+ * the front. Heavy walks point so a charge out of the destination breaks on
+ * it, light backs the line, and ranged shelters behind, shooting over both.
+ */
+export const FORMATION_RANK: Record<UnitClass, number> = {
+  [UnitClassNs.heavy]: 0,
+  [UnitClassNs.light]: 1,
+  [UnitClassNs.ranged]: 2,
+};
+
+/** The rank of a unit with no combat def: civilians caught in the same
+ * order file in behind every soldier. */
+export const CIVILIAN_FORMATION_RANK = 3;
+
+/**
  * SAB byte for a carried good: the good's own id, and 0 for empty hands.
  *
  * The two were a table lookup apart while a good was a word; now that a
