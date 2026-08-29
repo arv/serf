@@ -293,8 +293,10 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     const advice = parseAdvice(raw);
     record.parsed = advice !== null;
     if (!advice) return;
-    const {reason: _reason, ...knobs} = advice;
-    record.knobs = Object.keys(knobs).length;
+    // Counted through toOverride, which is what defines a knob: reason
+    // and posture are metadata that stay behind, so a posture reply
+    // scores its expanded knob set, not the label plus the set.
+    record.knobs = Object.keys(toOverride(advice)).length;
     // Only a reply that actually moved a dial goes downstairs: "keep
     // everything as it is" is a valid answer, and so is repeating the
     // standing advice word for word — neither costs a message.
