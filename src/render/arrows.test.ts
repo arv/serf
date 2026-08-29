@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {describe, expect, it} from 'vitest';
-import {Arrows} from './arrows';
+import {Arrows, crossedRelease} from './arrows';
 import type {HeightField} from './heightField';
 
 /** Flat world at height 0 — the flights only sample `at`. */
@@ -64,5 +64,43 @@ describe('arrow flights', () => {
     arrows.spawn(10, 10, 10.3, 10);
     expect(arrows.liveCount).toBe(0);
     expect(scene.children).toHaveLength(0);
+  });
+
+  it("releases from a roof when given the shooter's foot level", () => {
+    const {scene, arrows} = rig();
+    arrows.spawn(10, 10, 15, 10, 2.4);
+    const node = scene.children[0]!;
+    expect(node.position.y).toBeGreaterThan(2.4); // bow height above the post
+  });
+
+  it('keeps the arrow and stone pools apart', () => {
+    const {scene, arrows} = rig();
+    arrows.spawn(10, 10, 15, 10);
+    arrows.spawnStone(10, 10, 14, 10);
+    expect(scene.children).toHaveLength(2);
+    arrows.update(2); // both land
+    expect(arrows.liveCount).toBe(0);
+    arrows.spawnStone(0, 0, 4, 0);
+    expect(arrows.liveCount).toBe(1);
+    expect(scene.children).toHaveLength(2); // the stone flew again, no new node
+  });
+});
+
+describe('crossedRelease', () => {
+  it('reports the frame the playhead steps over the release point', () => {
+    expect(crossedRelease(0.4, 0.6, 0.5)).toBe(true);
+    expect(crossedRelease(0.2, 0.4, 0.5)).toBe(false); // not there yet
+    expect(crossedRelease(0.6, 0.8, 0.5)).toBe(false); // already past
+  });
+
+  it('catches a release inside a loop wrap', () => {
+    expect(crossedRelease(0.9, 0.1, 0.95)).toBe(true); // in the tail we left
+    expect(crossedRelease(0.9, 0.1, 0.05)).toBe(true); // in the head we entered
+    expect(crossedRelease(0.9, 0.1, 0.5)).toBe(false); // crossed last cycle, not now
+  });
+
+  it('never fires without a previous sample or on a frozen clip', () => {
+    expect(crossedRelease(undefined, 0.6, 0.5)).toBe(false); // picked up mid-cycle
+    expect(crossedRelease(0.6, 0.6, 0.5)).toBe(false); // paused
   });
 });

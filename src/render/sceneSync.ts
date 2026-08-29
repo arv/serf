@@ -14,6 +14,7 @@ import {clamp, hash2, lerp} from '../shared/math';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import * as AnimKey from './animKeyEnum.ts';
+import {crossedRelease} from './arrows';
 import type {PierInfo} from './buildingSync';
 import type {ViewBounds} from './cameraRig';
 import {
@@ -511,6 +512,45 @@ export class SceneSync {
     return this.#reader.latest.aux[li * AUX_STRIDE + 4] === ACTION.dead;
   }
 
+  /**
+   * Nearest living enemy of `owner` within `radius` of (x, z), from the
+   * latest publish — the render-side stand-in for the sim's tower
+   * acquisition, for volleys whose shooter is not a unit: a garrisoned
+   * soldier was consumed into his building, and which enemy the tower
+   * picked never reaches the client. Nearest is not always the sim's
+   * exact pick (its scoring also favors countered classes), but both
+   * stand inside the same volley radius, which is all a half-second
+   * flight can be wrong by. Fog-hidden units are skipped so a volley
+   * never points into ground the viewer cannot see into. False when
+   * nobody qualifies; `out` is untouched then.
+   */
+  nearestEnemyInto(
+    x: number,
+    z: number,
+    owner: number,
+    radius: number,
+    out: {x: number; y: number},
+  ): boolean {
+    const {latest} = this.#reader;
+    let bestSq = radius * radius;
+    let found = false;
+    for (let i = 0; i < latest.count; i++) {
+      const a = i * AUX_STRIDE;
+      if (latest.aux[a + 1] === owner) continue;
+      if (latest.aux[a + 4] === ACTION.dead) continue;
+      if (this.#hidden.has(latest.ids[i]!)) continue;
+      const dx = latest.xs[i]! - x;
+      const dz = latest.ys[i]! - z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > bestSq) continue;
+      bestSq = d2;
+      out.x = latest.xs[i]!;
+      out.y = latest.ys[i]!;
+      found = true;
+    }
+    return found;
+  }
+
   #alpha(now: number): number {
     return clamp(
       (now - this.#reader.latestObservedAt) / PUBLISH_INTERVAL_MS,
@@ -896,10 +936,7 @@ export class SceneSync {
             const t = act.time;
             const prevT = visual.shootT;
             visual.shootT = t;
-            const crossed =
-              prevT !== undefined &&
-              (t >= prevT ? prevT < rel && t >= rel : prevT < rel || t >= rel); // wrapped this frame
-            if (crossed) {
+            if (crossedRelease(prevT, t, rel)) {
               const yaw = (latest.aux[a + 7]! / 256) * Math.PI * 2;
               fnArrow(
                 x + visual.sepX,

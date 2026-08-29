@@ -479,6 +479,17 @@ export async function runMatch(
   // cues above.
   const arrows = new Arrows(renderer.scene, heights);
   sync.onArrow = (fx, fz, tx, tz) => arrows.spawn(fx, fz, tx, tz);
+  // The tower roof's volleys land through the same layer. The tower's
+  // actual target never reaches the client, so composition here closes
+  // the loop: buildingSync says who loosed (and from what roof height),
+  // the unit sync's latest publish says who is in reach to shoot at, and
+  // a roof with nobody in range looses nothing this cycle.
+  const volleyAt = {x: 0, y: 0};
+  buildingSync.onVolley = (x, y, z, owner, range, levied) => {
+    if (!sync.nearestEnemyInto(x, z, owner, range, volleyAt)) return;
+    if (levied) arrows.spawnStone(x, z, volleyAt.x, volleyAt.y, y);
+    else arrows.spawn(x, z, volleyAt.x, volleyAt.y, y);
+  };
   // Where the well cranks are (drawing serfs stand beside them, hand
   // IK-glued to the grip) and where the fishery piers run (fishermen walk
   // out and cast off the end).
