@@ -820,10 +820,15 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       underAttackBreak: true,
       found: {posture: PostureId.siege},
     },
-    // Hit-and-run is the whole identity: three archers on a short clock,
-    // gone before the counterblow lands — and no march retreats, because
-    // a skirmisher's army IS the retreat, rejoining the next volley.
-    harass: {size: 3, cooldown: 500, maxAge: 800},
+    // Hit-and-run is the whole identity: three archers, gone before the
+    // counterblow lands — and no march retreats, because a skirmisher's
+    // army IS the retreat, rejoining the next volley. The clock started at
+    // 500 and measured as too much of a good thing: the first matchup
+    // sweep read 9.4 sorties a match and the fletcher beating the steward
+    // and the warlord about 3-to-1 — cheap bows made attrition the deck's
+    // best strategy. 900 keeps the identity and returns the deck to a
+    // contest.
+    harass: {size: 3, cooldown: 900, maxAge: 800},
     retreats: false,
     weaponMix: [2], // every forge on bowstaves
     // The spear in the armory arms the first defender; after that the queue

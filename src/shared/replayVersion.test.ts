@@ -64,8 +64,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // 34 for the herald: a new command kind and a new game event — pure
 // format, and format is half of what this version promises (see
 // replayVersion.ts).
+// Still 34 after the first matchup sweep's two corrections (brain and
+// playbook data only): sorties stand down once the impatience ramp is
+// walking the bar — the fletcher-abbot standoff was bleeding archers
+// into towers past the 120k horizon — and the fletcher's harass clock
+// eased from 500 to 900, which returned the deck to a contest.
 const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = 'd94c0877345f3fc088250eef543081e1';
+const EXPECTED_HASH = 'aaf292c108fa639ba8d70064884992a5';
 
 /**
  * Everything a replay's playback depends on, as raw source:

@@ -1518,7 +1518,16 @@ export class AiBrain {
         }
       }
       // --- Harassment: a small party at their economy while the muster builds
-      this.#launchSortie(world, army, commands, baseX, baseY, spokenFor);
+      // Only while the muster is genuinely building: once the impatience
+      // ramp has started walking the bar down (a game that ought to be
+      // ending), every hand belongs to the muster. Without this gate the
+      // fletcher-abbot pairing bled three archers at a time into the
+      // towers forever — 14 of 96 matches undecided at the 120k horizon,
+      // a standoff the ramp exists to break and harassment was quietly
+      // re-feeding.
+      if (bar >= s.armyAttackSize) {
+        this.#launchSortie(world, army, commands, baseX, baseY, spokenFor);
+      }
       if (!this.#attacking && army.length > 0 && rallyReady) {
         // Garrison duty: stand by the storehouse so auto-acquire covers it.
         this.#lastRallyTick = world.tick;

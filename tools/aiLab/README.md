@@ -184,6 +184,48 @@ brain switches moods as the match turns (`#updateStance` in
   against printed playbooks, i.e. today's `--stances off`. They stay as
   history; re-measure before comparing anything new against them.
 
+### What the engine and the war verbs measured (2026-08-29, map 96, seeds 1-80)
+
+Every layer of the fun-and-realism arc was gated the same way: calibration
+must stay exactly 50.0%, undecided must not rise, the campaign sweep must
+not regress on any of three ranges (101 / 1000 / 5000, the last never tuned
+against), and the layer's own off-switch must reproduce the layer-less game
+so the comparison is paired, not remembered.
+
+| layer | flips winner (of 160 paired) | undecided | campaign (384 games) |
+| --- | --- | --- | --- |
+| stance engine (`--stances off` as null) | 44 (22 each way, p = 1.00) | 0 → 0 | +2 / −2 / ±0 |
+| war behaviors (`--war none` as null) | 22 (11 each way, p = 1.00) | 0 → 0 | ±0 / ±0 / −1 |
+| the herald's march-hold (all-but-`heraldMarch` as null) | 20 (10 each way, p = 1.00) | 0 → 0 | ±0 (range 101) |
+
+Read the flips column the way the archetype experiment's "the branch is
+live" check was read: both seats carry every layer, so the mirror pins the
+advised rate at 50% by construction and strength is not what these sweeps
+can see — what they establish is that the layers genuinely change games
+(a quarter of them, for the stances) at zero cost to the guardrails. The
+`--stances off` arm also reproduced the pre-stance tree digest-for-digest
+(240/240), which is what makes it a null rather than a hope.
+
+**The fingerprints are the point** (`war` per seat in every JSONL line;
+first matchup sweep, seeds 1-24 both seatings, six pairings): the abbot
+sortied 0.00 times a match and retreated its losing pushes; the fletcher
+sortied 9.37 times and never retreated; the steward probed at 3.57 with
+the deck's best strike rate; the warlord marched three minutes before
+anyone (median 13345 against the abbot's 16825), wore 0.9 moods a match
+against everyone else's 5-7, and mostly struck unannounced — pounce
+musters at five, under the herald's minimum of six, so the rusher gives
+less warning and the abbot's twelve-strong push always announces. Four
+playbooks, four different games, visible through a rival's own fog — the
+`archetypePersonality` test pins the direction of that read in CI.
+
+That first sweep also caught the two corrections it existed to catch: the
+fletcher's 500-tick harass clock made cheap-bow attrition the deck's best
+strategy (about 3-to-1 over the steward and the warlord), and the
+abbot-fletcher pairing bled three archers at a time into towers past the
+120k horizon in 14 of 96 matches. Sorties now stand down once the
+impatience ramp is walking the muster bar, and the fletcher's clock eased
+to 900 — the re-run numbers live beside this file in the runs' reports.
+
 ## Measurements (2026-08-18, map 96, bandits on, `steward` both seats)
 
 ### The baselines
