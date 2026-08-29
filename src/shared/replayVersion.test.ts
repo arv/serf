@@ -49,8 +49,16 @@ import {REPLAY_VERSION} from './replayVersion';
 // every tick runs as it did. Side-effect imports are left unsorted by
 // config, so nothing's evaluation order moved either. The hash is over
 // raw bytes, which is why it moved anyway.
-const EXPECTED_VERSION = 33;
-const EXPECTED_HASH = '470252161bbb1ab0f8dad72d36078a4f';
+// 34 for mixed squads forming up: a group move deals its spread tiles by
+// arm now (knights front, archers rear) and marches at its slowest
+// member's pace, so the same logged order stands the same soldiers on
+// different tiles on a different clock (see replayVersion.ts). One bump
+// for both halves — they shipped together.
+// Still 34 after the pace moved to effective speeds (a booted serf counts
+// as the 1.73 he walks, not his raw 1.5): the same behavior the version
+// already describes, computed right — and 34 has never shipped a replay.
+const EXPECTED_VERSION = 34;
+const EXPECTED_HASH = 'af1a6800dd6f7c605e7fc402f03b8bf7';
 
 /**
  * Everything a replay's playback depends on, as raw source:
