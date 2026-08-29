@@ -190,8 +190,12 @@ export function applyCommand(
       break;
     }
     case CommandKind.herald: {
-      // A taunt with an address: validated here rather than trusted — the
-      // target must be a living rival, and a herald to nobody says nothing.
+      // A taunt with an address. What is validated here is world state:
+      // the target must be a living rival, and a herald to nobody says
+      // nothing. The payload's shape — note in the enum, count clamped —
+      // is sanitizeCommand's screen, and every outside path passes it:
+      // socket frames on the server, and a replay's log at load
+      // (app/replay.ts). In-process senders speak the enums by type.
       const target = world.players[cmd.target];
       if (!target || !target.alive || cmd.target === playerId) break;
       world.pendingEvents.push({

@@ -193,6 +193,9 @@ function redactPlayers(players: PlayerSnap[], seatId: number): PlayerSnap[] {
           id: p.id,
           kind: p.kind,
           alive: p.alive,
+          // The playbook is public knowledge — the lobby shows the deal —
+          // and the herald toast names its lord by it (messages.ts).
+          ...(p.strategy !== undefined ? {strategy: p.strategy} : {}),
           stock: {},
           // Open posts are a build plan read the same way the head count is.
           toolWants: {},

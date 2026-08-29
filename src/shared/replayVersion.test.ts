@@ -85,8 +85,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // formation change: two "34 for" stories above, one version — neither
 // half ever recorded a replay without the other, so there is nothing a
 // 35 would tell apart (replayVersion.ts tells both stories in full).
+// Still 34 after the herald case's comment learned to say where the
+// wire screen actually lives (tick.ts, words only): same statements,
+// same tick. The hash is over raw bytes, which is why it moved anyway.
 const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = '796f0334a6cbf492b85240422526461a';
+const EXPECTED_HASH = '588a196a525aa12f0d43d23113ba9dc5';
 
 /**
  * Everything a replay's playback depends on, as raw source:
