@@ -223,5 +223,30 @@ export function renderReport(
       `${report.stalls.recoveries} recovery order(s)`,
   );
   p(`  sweep took ${report.wallSeconds.toFixed(0)}s`);
+
+  if (report.fingerprints.length > 0) {
+    // How each playbook actually conducted its wars — the legibility
+    // numbers. Counts per seat played, over the same unadvised sample the
+    // matchup scores; a personality is real exactly to the extent these
+    // columns differ.
+    p();
+    p('FINGERPRINTS (per seat, unadvised matches)');
+    p(
+      '  playbook   seats  1st march  sorties  strikes  wdraws  outpost' +
+        '  retreat  fled  herald  moods',
+    );
+    for (const f of report.fingerprints) {
+      const n = (x: number): string => x.toFixed(2);
+      p(
+        `  ${AI_STRATEGY_KEYS[f.strategy].padEnd(10)}` +
+          `${String(f.seats).padStart(5)}  ` +
+          `${String(f.medianFirstMarch < 0 ? '—' : f.medianFirstMarch).padStart(9)}  ` +
+          `${n(f.sorties).padStart(7)}  ${n(f.sortieStrikes).padStart(7)}  ` +
+          `${n(f.sortieWithdrawals).padStart(6)}  ${n(f.outpostDefenses).padStart(7)}  ` +
+          `${n(f.marchRetreats).padStart(7)}  ${n(f.scoutFled).padStart(4)}  ` +
+          `${n(f.heralds).padStart(6)}  ${n(f.stanceSwitches).padStart(5)}`,
+      );
+    }
+  }
   return out.join('\n');
 }

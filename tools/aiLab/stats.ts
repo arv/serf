@@ -112,6 +112,24 @@ export interface PlaybookMatchup {
   };
 }
 
+/** One playbook's war conduct across a sweep, per seat played. */
+export interface PlaybookFingerprint {
+  strategy: AiStrategyId;
+  /** Seats this playbook occupied among the scored matches. */
+  seats: number;
+  /** Median tick of the first all-in march, -1 when it never marched. */
+  medianFirstMarch: number;
+  /** The rest are means per seat. */
+  sorties: number;
+  sortieStrikes: number;
+  sortieWithdrawals: number;
+  outpostDefenses: number;
+  marchRetreats: number;
+  scoutFled: number;
+  heralds: number;
+  stanceSwitches: number;
+}
+
 export interface BakeoffReport {
   advised: Rate;
   /** The same rate split by which seat was wearing the advice. Wide gaps
@@ -132,6 +150,15 @@ export interface BakeoffReport {
   stalls: {matches: number; recoveries: number};
   /** How often advice changed who won, against the same seed's control. */
   flips: {toward: number; away: number; unchanged: number; noControl: number};
+  /**
+   * Each playbook's war fingerprints (AiBrain.warReport), pooled over the
+   * unadvised matches — one per (seed, seating), the same sample the
+   * playbook matchup scores. The legibility numbers: two playbooks that
+   * print the same win rate should still read differently here, and a
+   * personality whose column is all zeros is a personality only its blurb
+   * has.
+   */
+  fingerprints: PlaybookFingerprint[];
   /** Only when the two seats ran different playbooks. */
   playbooks: PlaybookMatchup | null;
   health: EngineHealth;
@@ -214,6 +241,88 @@ export function twoSidedExact(hits: number, misses: number): number {
 function unadvisedMatch(layout: LayoutRun): MatchRecord | null {
   if (layout.control) return layout.control;
   return layout.arms.find(a => a.record.advised.length === 0)?.record ?? null;
+}
+
+/** Each playbook's war conduct pooled over the unadvised matches — the
+ * same one-per-(seed, seating) sample the matchup scores, so neither
+ * treble-counts an `--engine none` seating's identical arms. */
+export function fingerprintsOf(runs: SeedRun[]): PlaybookFingerprint[] {
+  interface Agg {
+    seats: number;
+    firstMarch: number[];
+    sums: {
+      sorties: number;
+      sortieStrikes: number;
+      sortieWithdrawals: number;
+      outpostDefenses: number;
+      marchRetreats: number;
+      scoutFled: number;
+      heralds: number;
+      stanceSwitches: number;
+    };
+  }
+  const byBook = new Map<AiStrategyId, Agg>();
+  for (const run of runs) {
+    for (const layout of run.layouts) {
+      const record = unadvisedMatch(layout);
+      if (!record) continue;
+      for (const w of record.war ?? []) {
+        const book = record.strategies[w.playerId];
+        if (book === undefined) continue;
+        let agg = byBook.get(book);
+        if (!agg) {
+          byBook.set(
+            book,
+            (agg = {
+              seats: 0,
+              firstMarch: [],
+              sums: {
+                sorties: 0,
+                sortieStrikes: 0,
+                sortieWithdrawals: 0,
+                outpostDefenses: 0,
+                marchRetreats: 0,
+                scoutFled: 0,
+                heralds: 0,
+                stanceSwitches: 0,
+              },
+            }),
+          );
+        }
+        agg.seats++;
+        if (w.firstMarchTick >= 0) agg.firstMarch.push(w.firstMarchTick);
+        agg.sums.sorties += w.sorties;
+        agg.sums.sortieStrikes += w.sortieStrikes;
+        agg.sums.sortieWithdrawals += w.sortieWithdrawals;
+        agg.sums.outpostDefenses += w.outpostDefenses;
+        agg.sums.marchRetreats += w.marchRetreats;
+        agg.sums.scoutFled += w.scoutFled;
+        agg.sums.heralds += w.heralds;
+        agg.sums.stanceSwitches += w.stanceSwitches;
+      }
+    }
+  }
+  return [...byBook]
+    .sort(([a], [z]) => a - z)
+    .map(([strategy, agg]) => {
+      const sorted = [...agg.firstMarch].sort((a, z) => a - z);
+      const per = (n: number): number =>
+        agg.seats === 0 ? 0 : n / agg.seats;
+      return {
+        strategy,
+        seats: agg.seats,
+        medianFirstMarch:
+          sorted.length === 0 ? -1 : sorted[Math.floor(sorted.length / 2)]!,
+        sorties: per(agg.sums.sorties),
+        sortieStrikes: per(agg.sums.sortieStrikes),
+        sortieWithdrawals: per(agg.sums.sortieWithdrawals),
+        outpostDefenses: per(agg.sums.outpostDefenses),
+        marchRetreats: per(agg.sums.marchRetreats),
+        scoutFled: per(agg.sums.scoutFled),
+        heralds: per(agg.sums.heralds),
+        stanceSwitches: per(agg.sums.stanceSwitches),
+      };
+    });
 }
 
 /** Playbook A vs playbook B over the unadvised matches, or null when both
@@ -343,6 +452,7 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
     undecided,
     stalls,
     flips,
+    fingerprints: fingerprintsOf(runs),
     playbooks: matchupOf(runs),
     health: {
       consultations: consults.length,

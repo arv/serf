@@ -50,6 +50,7 @@ import {
   type ReportHeader,
 } from './report.ts';
 import {
+  fingerprintsOf,
   matchupOf,
   summarize,
   trialsForPrecision,
@@ -577,6 +578,67 @@ describe('aggregation', () => {
     expect(health.parseFailures).toBe(1);
     expect(health.emptyAdvice).toBe(1);
     expect(health.errors).toBe(1);
+  });
+});
+
+describe('the fingerprints', () => {
+  const war = (
+    playerId: Owner,
+    over: Partial<MatchRecord['war'][number]> = {},
+  ): MatchRecord['war'][number] => ({
+    playerId,
+    firstMarchTick: -1,
+    sorties: 0,
+    sortieStrikes: 0,
+    sortieWithdrawals: 0,
+    outpostDefenses: 0,
+    marchRetreats: 0,
+    scoutFled: 0,
+    heralds: 0,
+    stanceSwitches: 0,
+    ...over,
+  });
+
+  it('pools each playbook’s conduct over the unadvised sample', () => {
+    const runs = seated([
+      [0, 1],
+      [0, 1],
+    ]);
+    // Seating 0: steward at seat 0, warlord at seat 1 — and mirrored.
+    for (const run of runs) {
+      for (const layout of run.layouts) {
+        const stewardSeat = layout.control!.strategies[0] ===
+          AiStrategyId.steward
+          ? 0
+          : 1;
+        layout.control!.war = [
+          war(stewardSeat as Owner, {sorties: 4, firstMarchTick: 16_000}),
+          war((1 - stewardSeat) as Owner, {
+            sorties: 1,
+            firstMarchTick: 13_000,
+            heralds: 1,
+          }),
+        ];
+      }
+    }
+    const prints = fingerprintsOf(runs);
+    const steward = prints.find(f => f.strategy === AiStrategyId.steward)!;
+    const warlord = prints.find(f => f.strategy === AiStrategyId.warlord)!;
+    // Four seats each: two seeds, two seatings, one unadvised match apiece.
+    expect(steward.seats).toBe(4);
+    expect(warlord.seats).toBe(4);
+    expect(steward.sorties).toBe(4);
+    expect(warlord.sorties).toBe(1);
+    expect(steward.medianFirstMarch).toBe(16_000);
+    expect(warlord.medianFirstMarch).toBe(13_000);
+    expect(warlord.heralds).toBe(1);
+  });
+
+  it('a seat that never marched reads as —, not as tick zero', () => {
+    const runs = mirrored([[0, 1]], [0]);
+    runs[0]!.layouts[0]!.control!.war = [war(0), war(1)];
+    const prints = fingerprintsOf(runs);
+    expect(prints[0]!.medianFirstMarch).toBe(-1);
   });
 });
 
