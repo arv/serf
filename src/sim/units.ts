@@ -55,6 +55,15 @@ export interface Unit {
   homeId?: EntityId;
   /** Tile the unit occupied last tick — trail wear bookkeeping. */
   lastTile: number;
+  /**
+   * The squad's pace, tiles/sec — a group move order marches at its slowest
+   * member's speed so the fast arms hold formation instead of outrunning
+   * the shield line (only set where it binds: units at or below the pace
+   * march unmarked). Cleared when the walk arrives, and the moment a fight
+   * starts — the counter table prices every chase at true speeds, and a
+   * spearman who runs down archers at knight pace isn't a spearman.
+   */
+  marchSpeed?: number;
   // Combat runtime (units with a combat def):
   cooldownLeft: number;
   targetId?: EntityId;
@@ -71,6 +80,17 @@ export interface Unit {
   /** Set by combat deaths only — the corpse lingers a moment for the death
    * animation. Absent for despawns (barracks consumption), which vanish at once. */
   deathTick?: number;
+}
+
+/**
+ * Drop a standing pace cap without touching units that never carried one.
+ * The field is added lazily — only members of a mixed squad that a march
+ * held back ever get it — and a bare `= undefined` write would add the
+ * property (a hidden-class transition) to every unit that walks a route
+ * to its end. Every clear site goes through here so none regresses.
+ */
+export function clearMarchSpeed(unit: Unit): void {
+  if (unit.marchSpeed !== undefined) unit.marchSpeed = undefined;
 }
 
 export function makeUnit(

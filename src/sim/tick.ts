@@ -14,8 +14,15 @@ import {
 import {AUTO_RECIPE, TOOL_OF, buildingDef} from './defs/buildings.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import {GOODS, goodEntries} from './defs/goods.ts';
+import * as ModifierKey from './defs/modifierKeyEnum.ts';
 import {TECH_DEFS} from './defs/techs.ts';
-import {UNIT_DEFS, UNIT_TYPES} from './defs/units.ts';
+import {
+  CIVILIAN_FORMATION_RANK,
+  FORMATION_RANK,
+  UNIT_DEFS,
+  UNIT_TYPES,
+  effectiveSpeed,
+} from './defs/units.ts';
 import {BANDIT, type Owner} from './entities.ts';
 import * as GameEventKind from './gameEventKindEnum.ts';
 import {findPath, nearestWalkable} from './path.ts';
@@ -46,7 +53,8 @@ import {
 } from './systems/training.ts';
 import {victorySystem} from './systems/victory.ts';
 import {wanderSystem} from './systems/wander.ts';
-import {canResearch, isBuildingUnlocked} from './techHelpers.ts';
+import {canResearch, getModifier, isBuildingUnlocked} from './techHelpers.ts';
+import {clearMarchSpeed, type Unit} from './units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
   canPlace,
@@ -459,8 +467,10 @@ function applyAdmin(world: World, playerId: Owner, action: AdminAction): void {
 
 /**
  * Group moves fan out over the walkable tiles nearest the target (spiral
- * order) so squads don't stack on one tile. A right-click on an enemy
- * building is an attack order: military units take the same 'raid' task
+ * order) so squads don't stack on one tile; a mixed squad claims those
+ * tiles in battle order — knights up front, archers at the back
+ * (orderFormation). A right-click on an enemy building is an attack order:
+ * military units take the same 'raid' task
  * bandits use, and the combat system does the rest. Ground orders come in
  * three kinds — an attack-move fights whatever it meets on the way, a plain
  * move ignores enemies until it arrives, and the 'half' order walks the
@@ -484,16 +494,34 @@ function applyMoveUnits(
         unit.targetId = target.id;
         unit.targetIsBuilding = true;
         unit.path = null;
+        clearMarchSpeed(unit); // an assault runs at true speeds
       }
       return;
     }
   }
-  const targets = collectSpreadTargets(world, cmd.x, cmd.y, cmd.unitIds.length);
-  if (targets.length === 0) return;
-  let t = 0;
+  const movers: Unit[] = [];
   for (const id of cmd.unitIds) {
     const unit = world.units.get(id);
     if (!unit || unit.dead || unit.owner !== playerId) continue;
+    movers.push(unit);
+  }
+  const targets = collectSpreadTargets(world, cmd.x, cmd.y, movers.length);
+  if (targets.length === 0) return;
+  orderFormation(movers, targets, size);
+  // A squad marches at its slowest member's speed, so the column holds the
+  // battle order it was dealt instead of the fast arms outrunning the
+  // shield line. Solo orders walk at their own speed. Effective speeds, the
+  // same ones movement's budget walks by: measured off the raw defs, a
+  // booted serf (Cobbled Boots outpaces a knight) marched unmarked and
+  // dragged the squad down to a stride he doesn't walk at.
+  let pace = Infinity;
+  const serfMod = getModifier(world, playerId, ModifierKey.serfSpeed);
+  if (movers.length > 1) {
+    for (const u of movers)
+      pace = Math.min(pace, effectiveSpeed(u.kind, serfMod));
+  }
+  let t = 0;
+  for (const unit of movers) {
     const goal = targets[Math.min(t++, targets.length - 1)]!;
     const goalX = tileX(goal, size);
     const goalY = tileY(goal, size);
@@ -524,6 +552,10 @@ function applyMoveUnits(
     if (unit.homeId !== undefined) unbindWorker(world, unit);
     unit.path = path;
     unit.pathIdx = 0;
+    // Only where it binds: the slowest members ARE the pace and march
+    // unmarked, so a fresh order always resets a stale cap either way.
+    if (pace < effectiveSpeed(unit.kind, serfMod)) unit.marchSpeed = pace;
+    else clearMarchSpeed(unit);
     // An attack-move keeps the combat system live on the way; civilians have
     // no combat to keep live, so for them every order is the same walk. The
     // 'half' order quiets the front leg of the route — far enough to carry a
@@ -539,6 +571,57 @@ function applyMoveUnits(
     unit.targetId = undefined;
     unit.targetIsBuilding = undefined;
   }
+}
+
+/**
+ * Pair a mixed squad off with its spread tiles in battle order: heavies
+ * take the tiles nearest the front, light infantry the line behind them,
+ * and ranged the tiles behind both (FORMATION_RANK) — so the squad arrives
+ * with its knights between the enemy and its archers instead of in
+ * whatever order the ids happened to be selected.
+ *
+ * "Front" is read off the order itself: the direction from the squad's
+ * centroid to the ordered tile. A squad sent east puts its knights on the
+ * eastern tiles, where whatever it was sent toward meets them first and
+ * the archers shoot over their shoulders. An order into the squad's own
+ * midst has no front, so the shield faces everywhere — heavies take the
+ * rim of the spread and ranged tuck into the middle.
+ *
+ * Deterministic on both sides: tile scores tie-break on tile index, and
+ * ranks lean on Array#sort's guaranteed stability, so equals keep the
+ * command's id order. A uniform squad is left exactly as it came —
+ * order, tiles and all.
+ */
+function orderFormation(movers: Unit[], targets: number[], size: number): void {
+  const rank = (u: Unit) => {
+    const combat = UNIT_DEFS[u.kind].combat;
+    return combat ? FORMATION_RANK[combat.class] : CIVILIAN_FORMATION_RANK;
+  };
+  if (movers.length < 2 || movers.every(u => rank(u) === rank(movers[0]!)))
+    return;
+  let cx = 0;
+  let cy = 0;
+  for (const u of movers) {
+    cx += u.x;
+    cy += u.y;
+  }
+  cx /= movers.length;
+  cy /= movers.length;
+  // targets[0] is the walkable tile nearest the click — the spread's center.
+  const fx = tileX(targets[0]!, size) + 0.5;
+  const fy = tileY(targets[0]!, size) + 0.5;
+  const dx = fx - cx;
+  const dy = fy - cy;
+  const marching = dx * dx + dy * dy >= 1; // at least a tile of travel
+  // Higher score = nearer the front. Unnormalized on purpose: only the
+  // order matters, and skipping the sqrt keeps the math bit-exact.
+  const score = (idx: number) => {
+    const tx = tileX(idx, size) + 0.5 - fx;
+    const ty = tileY(idx, size) + 0.5 - fy;
+    return marching ? tx * dx + ty * dy : tx * tx + ty * ty;
+  };
+  targets.sort((a, z) => score(z) - score(a) || a - z);
+  movers.sort((a, z) => rank(a) - rank(z));
 }
 
 function collectSpreadTargets(

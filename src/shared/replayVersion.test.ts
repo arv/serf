@@ -73,8 +73,20 @@ import {REPLAY_VERSION} from './replayVersion';
 // format:check): whitespace and wrapping only, same statements, same
 // tick. The hash is over raw bytes, which is why it moved anyway —
 // the same story the "Still 33 after oxfmt" entry above tells.
+// 34 also for mixed squads forming up (merged from main): a group move
+// deals its spread tiles by arm now (knights front, archers rear) and
+// marches at its slowest member's pace, so the same logged order stands
+// the same soldiers on different tiles on a different clock (see
+// replayVersion.ts). One bump for both halves — they shipped together.
+// Still 34 after the pace moved to effective speeds (a booted serf counts
+// as the 1.73 he walks, not his raw 1.5): the same behavior the version
+// already describes, computed right — and 34 has never shipped a replay.
+// Still 34 across the merge that joined the herald arc with the
+// formation change: two "34 for" stories above, one version — neither
+// half ever recorded a replay without the other, so there is nothing a
+// 35 would tell apart (replayVersion.ts tells both stories in full).
 const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = '869384ecf398fd369c9335cc2fe9340a';
+const EXPECTED_HASH = '796f0334a6cbf492b85240422526461a';
 
 /**
  * Everything a replay's playback depends on, as raw source:
