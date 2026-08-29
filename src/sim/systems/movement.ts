@@ -1,8 +1,7 @@
 import {tileIdx, tileX, tileY} from '../../shared/grid.ts';
 import {TICKS_PER_SECOND} from '../defs/balance.ts';
 import * as ModifierKey from '../defs/modifierKeyEnum.ts';
-import {UNIT_DEFS} from '../defs/units.ts';
-import * as UnitTypeId from '../defs/unitTypeIdEnum.ts';
+import {effectiveSpeed} from '../defs/units.ts';
 import {findPath, nearestWalkable, tileSpeedMult} from '../path.ts';
 import {getModifier} from '../techHelpers.ts';
 import type {Unit} from '../units.ts';
@@ -36,14 +35,10 @@ export function movementSystem(world: World): void {
       }
       unit.lastTile = here;
     }
-    const civilian =
-      unit.kind === UnitTypeId.serf || unit.kind === UnitTypeId.worker;
     // Own speed (tech-boosted for civilians), held to the squad's pace when
     // marching in formation. The tile multiplier applies after the cap:
     // terrain speeds the whole column together, so a road cannot break it.
-    let base =
-      UNIT_DEFS[unit.kind].speed *
-      (civilian ? (serfSpeedMod[unit.owner] ?? 1) : 1);
+    let base = effectiveSpeed(unit.kind, serfSpeedMod[unit.owner] ?? 1);
     if (unit.marchSpeed !== undefined && unit.marchSpeed < base)
       base = unit.marchSpeed;
     let budget = (base * tileSpeedMult(world.map, here)) / TICKS_PER_SECOND;

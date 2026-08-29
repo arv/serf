@@ -14,12 +14,14 @@ import {
 import {AUTO_RECIPE, TOOL_OF, buildingDef} from './defs/buildings.ts';
 import * as GoodId from './defs/goodIdEnum.ts';
 import {GOODS, goodEntries} from './defs/goods.ts';
+import * as ModifierKey from './defs/modifierKeyEnum.ts';
 import {TECH_DEFS} from './defs/techs.ts';
 import {
   CIVILIAN_FORMATION_RANK,
   FORMATION_RANK,
   UNIT_DEFS,
   UNIT_TYPES,
+  effectiveSpeed,
 } from './defs/units.ts';
 import {BANDIT, type Owner} from './entities.ts';
 import {findPath, nearestWalkable} from './path.ts';
@@ -50,7 +52,7 @@ import {
 } from './systems/training.ts';
 import {victorySystem} from './systems/victory.ts';
 import {wanderSystem} from './systems/wander.ts';
-import {canResearch, isBuildingUnlocked} from './techHelpers.ts';
+import {canResearch, getModifier, isBuildingUnlocked} from './techHelpers.ts';
 import type {Unit} from './units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
@@ -493,10 +495,15 @@ function applyMoveUnits(
   orderFormation(movers, targets, size);
   // A squad marches at its slowest member's speed, so the column holds the
   // battle order it was dealt instead of the fast arms outrunning the
-  // shield line. Solo orders walk at their own speed.
+  // shield line. Solo orders walk at their own speed. Effective speeds, the
+  // same ones movement's budget walks by: measured off the raw defs, a
+  // booted serf (Cobbled Boots outpaces a knight) marched unmarked and
+  // dragged the squad down to a stride he doesn't walk at.
   let pace = Infinity;
+  const serfMod = getModifier(world, playerId, ModifierKey.serfSpeed);
   if (movers.length > 1) {
-    for (const u of movers) pace = Math.min(pace, UNIT_DEFS[u.kind].speed);
+    for (const u of movers)
+      pace = Math.min(pace, effectiveSpeed(u.kind, serfMod));
   }
   let t = 0;
   for (const unit of movers) {
@@ -532,7 +539,8 @@ function applyMoveUnits(
     unit.pathIdx = 0;
     // Only where it binds: the slowest members ARE the pace and march
     // unmarked, so a fresh order always resets a stale cap either way.
-    unit.marchSpeed = pace < UNIT_DEFS[unit.kind].speed ? pace : undefined;
+    unit.marchSpeed =
+      pace < effectiveSpeed(unit.kind, serfMod) ? pace : undefined;
     // An attack-move keeps the combat system live on the way; civilians have
     // no combat to keep live, so for them every order is the same walk. The
     // 'half' order quiets the front leg of the route — far enough to carry a

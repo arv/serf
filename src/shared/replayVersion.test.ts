@@ -54,8 +54,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // member's pace, so the same logged order stands the same soldiers on
 // different tiles on a different clock (see replayVersion.ts). One bump
 // for both halves — they shipped together.
+// Still 34 after the pace moved to effective speeds (a booted serf counts
+// as the 1.73 he walks, not his raw 1.5): the same behavior the version
+// already describes, computed right — and 34 has never shipped a replay.
 const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = '6df8f4d0d40b4dfc55b757b57dcd92f0';
+const EXPECTED_HASH = '2ed5914f209ce55d2071bf0f06803bef';
 
 /**
  * Everything a replay's playback depends on, as raw source:

@@ -156,6 +156,18 @@ export const FORMATION_RANK: Record<UnitClass, number> = {
 export const CIVILIAN_FORMATION_RANK = 3;
 
 /**
+ * A unit's own ground speed, tiles/sec: the def's speed, with the civilian
+ * walk-speed tech (ModifierKey.serfSpeed) applied for serfs and workers.
+ * The one spelling of that rule — movement's budget and a squad's marching
+ * pace must agree on it, or a booted serf outruns the column that paced
+ * itself by his raw stride.
+ */
+export function effectiveSpeed(kind: UnitTypeId, serfSpeedMod: number): number {
+  const civilian = kind === U.serf || kind === U.worker;
+  return UNIT_DEFS[kind].speed * (civilian ? serfSpeedMod : 1);
+}
+
+/**
  * SAB byte for a carried good: the good's own id, and 0 for empty hands.
  *
  * The two were a table lookup apart while a good was a word; now that a

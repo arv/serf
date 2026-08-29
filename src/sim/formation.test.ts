@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {tileX, tileY} from '../shared/grid.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import {checkInvariants} from './debug/invariants.ts';
+import * as TechId from './defs/techIdEnum.ts';
 import {UNIT_DEFS} from './defs/units.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import {BANDIT} from './entities.ts';
@@ -181,6 +182,31 @@ describe('mixed squads form up by arm', () => {
       tickWorld(world, []);
     expect(spear.targetId).toBeDefined();
     expect(spear.marchSpeed).toBeUndefined();
+  });
+
+  it('paces the squad by effective speeds: a booted serf is the fast one', () => {
+    const world = bareWorld();
+    addStorehouse(world, 50, 50, {});
+    // Cobbled Boots puts a serf at 1.5 × 1.15 ≈ 1.73 tiles/sec — past the
+    // knight's 1.6, so the knight is the squad's true slowest.
+    world.players[0]!.techs.researched.push(TechId.cobbledBoots);
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
+    const serf = spawnUnit(world, UnitTypeId.serf, 0, 30.5, 31.5);
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [knight.id, serf.id],
+        x: 40,
+        y: 30,
+      }),
+    );
+
+    // Measured off the raw defs this read backwards: the serf's unbooted
+    // 1.5 was taken for the pace, so he marched unmarked at 1.73 while the
+    // knight was held to a stride nobody in the squad actually walks.
+    expect(serf.marchSpeed).toBe(UNIT_DEFS[UnitTypeId.knight].speed);
+    expect(knight.marchSpeed).toBeUndefined();
   });
 
   it('a solo order marches unmarked, at the unit’s own speed', () => {
