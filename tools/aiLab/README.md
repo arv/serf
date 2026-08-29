@@ -218,13 +218,20 @@ less warning and the abbot's twelve-strong push always announces. Four
 playbooks, four different games, visible through a rival's own fog — the
 `archetypePersonality` test pins the direction of that read in CI.
 
-That first sweep also caught the two corrections it existed to catch: the
-fletcher's 500-tick harass clock made cheap-bow attrition the deck's best
-strategy (about 3-to-1 over the steward and the warlord), and the
-abbot-fletcher pairing bled three archers at a time into towers past the
-120k horizon in 14 of 96 matches. Sorties now stand down once the
-impatience ramp is walking the muster bar, and the fletcher's clock eased
-to 900 — the re-run numbers live beside this file in the runs' reports.
+That first sweep also raised two alarms, and running the SAME pairings on
+the pre-arc tree (a worktree at the arc's base commit, same seeds) is what
+told the inherited from the introduced. The fletcher beating the steward
+about 3-to-1 turned out to be the deck as the arc found it — 25% pooled
+for the steward at the base commit, 26% after the arc — a balance drift
+that predates this work and is not of it. The abbot-fletcher standoff is
+also ancient (the fletcher-cannot-crack-walls class this file has recorded
+since the playbook shipped), and there the arc is a repair: 20 of 96
+matches undecided at the base commit, 10 after — aggression ends games,
+again. The two corrections the sweep prompted stay on their own numbers
+(sorties stand down once the impatience ramp is walking the muster bar;
+the fletcher's harass clock eased 500 → 900, cutting the arc's own first
+cut from 14 undecided to 10): harassment is an opening behavior now in
+fact as well as spirit.
 
 ## Measurements (2026-08-18, map 96, bandits on, `steward` both seats)
 
