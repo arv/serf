@@ -1,5 +1,13 @@
 import {Show, createEffect, createSignal, onCleanup, onMount} from 'solid-js';
 import {render} from 'solid-js/web';
+import {volumeToGain} from '../audio/settings';
+import {
+  releaseTheme,
+  setThemeGain,
+  setThemeHidden,
+  startTheme,
+  stopTheme,
+} from '../audio/theme';
 import {
   relayUrl,
   runLobby,
@@ -7,8 +15,9 @@ import {
   type LobbyResult,
 } from '../net/lobbyClient';
 import {releaseMenuBackdrop, startMenuBackdrop} from './menuBackdrop';
-import {MENU_STYLE} from './menuChrome';
+import {Fireflies, MENU_STYLE} from './menuChrome';
 import {StartMenu, rememberedMode, type StartState} from './StartMenu';
+import {muted, volume} from './store';
 import {WarCouncil, type CouncilHooks} from './WarCouncil';
 
 /**
@@ -161,17 +170,36 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
   createEffect(() => {
     const on = showing();
     root.style.display = on ? 'block' : 'none';
-    if (on) raise();
+    if (on) {
+      raise();
+      startTheme();
+    } else {
+      // A silent rejoin shows no menu, so it should play none of its music.
+      stopTheme();
+    }
   });
+  // The same volume and mute the cues use; the trim lives in theme.ts.
+  createEffect(() => {
+    setThemeGain(muted() ? 0 : volumeToGain(volume()));
+  });
+  const onVisibility = (): void => setThemeHidden(document.hidden);
+  document.addEventListener('visibilitychange', onVisibility);
 
   // A page that leaves while holding a context can be parked in the
   // back/forward cache still holding it, and the single-player launch is a
   // navigation — so the match on the far side would be asking a phone for a
   // second context. Hand this one back on the way out, and build a fresh one
   // if the player comes back to a restored page.
-  const onHide = (): void => drop();
+  const onHide = (): void => {
+    drop();
+    // The stream goes back too, like the WebGL context above it.
+    releaseTheme();
+  };
   const onShow = (e: PageTransitionEvent): void => {
-    if (e.persisted && showing()) raise();
+    if (e.persisted && showing()) {
+      raise();
+      startTheme();
+    }
   };
   window.addEventListener('pagehide', onHide);
   window.addEventListener('pageshow', onShow);
@@ -179,7 +207,9 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
   onCleanup(() => {
     window.removeEventListener('pagehide', onHide);
     window.removeEventListener('pageshow', onShow);
+    document.removeEventListener('visibilitychange', onVisibility);
     drop();
+    releaseTheme();
     root.style.display = 'none';
   });
 
@@ -190,6 +220,8 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
           and swapping the card in front of them must not blink. */}
       <div class="veil-a" />
       <div class="veil-b" />
+      {/* Behind the card, so its backdrop-filter catches them. */}
+      <Fireflies />
       <Show
         when={council()}
         keyed
@@ -205,6 +237,8 @@ function MenuApp(props: {entry: MenuEntry; host: MenuHost}) {
           />
         )}
       </Show>
+      {/* In front: last in the DOM, so neither layer needs a z-index. */}
+      <Fireflies near />
     </>
   );
 }

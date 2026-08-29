@@ -9,7 +9,7 @@ import {
 } from '../sim/defs/aiStrategies';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
 import * as CouncilPhaseNs from './councilPhaseEnum.ts';
-import {DiceIcon} from './menuChrome';
+import {DiceIcon, Glide, spotlight} from './menuChrome';
 export type CouncilPhase = Enum<typeof CouncilPhaseNs>;
 
 /**
@@ -262,7 +262,8 @@ export function WarCouncil(props: CouncilHooks) {
                         : 'Set by the host'}
                     </div>
                   </div>
-                  <div class="pills">
+                  <div class="pills" style={{'--n': AI_CHOICES.length}}>
+                    <Glide index={v().config.ai} />
                     <For each={AI_CHOICES}>
                       {n => (
                         <button
@@ -372,7 +373,11 @@ export function WarCouncil(props: CouncilHooks) {
                     </div>
                   }
                 >
-                  <button class="cta" onClick={() => props.onStart()}>
+                  <button
+                    class="cta"
+                    ref={spotlight}
+                    onClick={() => props.onStart()}
+                  >
                     <svg
                       width="14"
                       height="14"

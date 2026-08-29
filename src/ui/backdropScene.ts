@@ -226,6 +226,8 @@ export async function startMenuBackdrop(
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   aim(START_ANGLE, 0);
   let raf = 0;
+  /** Canvas starts transparent (index.html); shown once it has a frame. */
+  let lit = false;
   // Same 30 fps phone cap as the match loop — a menu left open on a phone
   // otherwise drains the battery on a blurred backdrop, and the drift is
   // far too slow for the skipped frames to read as judder through the glass.
@@ -255,6 +257,12 @@ export async function startMenuBackdrop(
     water.update(now);
     mist.update(now);
     renderer.frame(camera);
+    // Frame one is already the whole picture: models are awaited above and
+    // everything since is synchronous, so nothing pops in behind the fade.
+    if (!lit) {
+      lit = true;
+      canvas.classList.add('lit');
+    }
     raf = requestAnimationFrame(loop);
   };
   raf = requestAnimationFrame(loop);

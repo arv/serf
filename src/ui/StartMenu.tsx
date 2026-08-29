@@ -36,10 +36,12 @@ import {
   type MissionId,
   parseMissionId,
 } from '../sim/defs/missions';
+import {SHORT} from './breakpoints';
 import {isMissionComplete, isMissionUnlocked} from './campaign';
 import {fullscreen} from './fullscreen';
 import {LockIcon} from './icons';
 import {releaseMenuBackdrop} from './menuBackdrop';
+import {Glide, spotlight} from './menuChrome';
 import {muted, toggleMuted} from './store';
 
 /**
@@ -123,6 +125,9 @@ const SHARE_OFFERED =
   });
 
 export type Mode = 'single' | 'campaign' | 'multi';
+/** Tab order. The plaque is positioned by index, so this and the markup
+ * must agree; --n is read from here rather than written down again. */
+export const MODE_ORDER: readonly Mode[] = ['single', 'campaign', 'multi'];
 export type MpMode = 'host' | 'join';
 type Visibility = 'open' | 'private';
 
@@ -395,6 +400,114 @@ interface ShelfRow {
   meta: string;
 }
 
+/** Marcellus draws '1' with serifs that read as an I, so the choice was
+ * Roman numerals or a second face in the seal. Arabic past the table. */
+const NUMERALS = [
+  'I',
+  'II',
+  'III',
+  'IV',
+  'V',
+  'VI',
+  'VII',
+  'VIII',
+  'IX',
+  'X',
+  'XI',
+  'XII',
+];
+const numeral = (n: number): string => NUMERALS[n - 1] ?? String(n);
+
+/** Rules only this screen needs; the shared vocabulary is menuChrome. */
+const START_STYLE = `
+/* ——— The reeve's ledger ———
+   Was .room rows, the multiplayer lobby's component — a lobby list is a
+   set of interchangeable choices, a campaign is a sequence with a
+   history. The seal carries the number, the thread the order, and the
+   thread's colour how far along you are. */
+#menu .ledger-head { display: flex; align-items: baseline; gap: 11px; padding: 4px 2px 8px; }
+#menu .ledger-head .t { font-family: 'Marcellus', Georgia, serif; font-size: 15px; color: #ded7c3; }
+#menu .ledger-head .rule { flex: 1; height: 1px; min-width: 12px;
+  background: linear-gradient(90deg, rgba(229,196,105,0.34) 0%, rgba(229,196,105,0) 100%); }
+#menu .ledger-head .n { flex: none; font-size: 11px; color: #85857c; letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums; }
+
+#menu .ledger { display: flex; flex-direction: column; max-height: 246px; overflow-y: auto;
+  overscroll-behavior: contain; scrollbar-width: thin;
+  scrollbar-color: rgba(229,196,105,0.3) transparent; }
+
+#menu .commission { position: relative; cursor: pointer; display: flex; align-items: center; gap: 13px;
+  padding: 9px 12px; text-align: left; font: inherit; color: #cfccc2;
+  background: transparent; border: 1px solid transparent; border-radius: 11px;
+  transition: background var(--press-out), border-color var(--press-out), transform var(--press-out); }
+/* Each entry carries the thread reaching the one above, so the chain
+   scrolls with the list. The -1px is not a nudge: a row has a 1px
+   transparent border and a positioned pseudo lays out against the
+   padding box, so 0 leaves a two-pixel break at every boundary. */
+#menu .commission::before { content: ''; position: absolute; left: 25px; top: -1px; bottom: -1px; width: 2px;
+  background: rgba(229,196,105,0.14); }
+/* 50%, not a measured offset: the seals are centred, so half a row is
+   the seal's centre however tall the row grows. */
+#menu .commission:first-child::before { top: 50%; }
+#menu .commission:last-child::before { bottom: 50%; }
+/* Gold as far as the player has come. */
+#menu .commission.done::before { background: rgba(229,196,105,0.42); }
+
+#menu .commission .seal { position: relative; z-index: 1; flex: none; width: 28px; height: 28px;
+  display: grid; place-items: center; border-radius: 50%;
+  font-family: 'Marcellus', Georgia, serif; font-size: 11.5px; line-height: 1; letter-spacing: 0.02em;
+  color: #d8cba6;
+  background: linear-gradient(180deg, #322d21 0%, #221f17 100%);
+  border: 1px solid rgba(229,196,105,0.26);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 1px 0 rgba(0,0,0,0.45);
+  transition: border-color var(--press-out), box-shadow var(--press-out); }
+
+#menu .commission .what { min-width: 0; }
+#menu .commission .name { display: block; font-family: 'Marcellus', Georgia, serif;
+  font-size: 15.5px; letter-spacing: 0.012em; color: #e9e3d1; }
+#menu .commission .charge { display: block; margin-top: 2px; font-size: 11.5px; color: #85857c;
+  text-wrap: pretty; }
+
+#menu .commission:hover { background: rgba(255,255,255,0.04); }
+#menu .commission:hover .seal { border-color: rgba(229,196,105,0.5); }
+#menu .commission:active { transform: translateY(1px); transition-duration: var(--press-in); }
+
+/* Filled rather than ticked, so the list stays numbered as it fills;
+   the aria-label carries the state for anyone the colour misses. */
+#menu .commission.done .seal { color: #241a10; border-color: rgba(229,196,105,0.68);
+  background: radial-gradient(circle at 36% 28%, var(--brass-lit) 0%, var(--gold) 55%, var(--brass) 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 1px 2px rgba(0,0,0,0.45); }
+
+/* A warm wash fading right, the way ink sits on a page. */
+#menu .commission.on { border-color: rgba(229,196,105,0.4);
+  background: linear-gradient(90deg, rgba(229,196,105,0.15) 0%, rgba(229,196,105,0.035) 76%, rgba(229,196,105,0) 100%); }
+#menu .commission.on .name { color: #f8f0d9; }
+#menu .commission.on .seal { border-color: rgba(229,196,105,0.85);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 0 0 2px rgba(229,196,105,0.15),
+    0 0 10px rgba(229,196,105,0.22); }
+
+/* Sunk rather than faded: what is waiting should look shut, and
+   colouring the parts keeps the type legible while it waits. */
+#menu .commission.sealed { cursor: default; }
+#menu .commission.sealed .name { color: #8b8880; }
+/* NOT dimmed further: it is 4.9:1 open, so anything dimmer fails 4.5.
+   The shut seal, grey thread and quieter name carry the state. */
+#menu .commission.sealed .seal { color: #8a8880; border-color: rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.36); box-shadow: inset 0 1px 3px rgba(0,0,0,0.55); }
+#menu .commission.sealed:hover { background: transparent; }
+#menu .commission.sealed:hover .seal { border-color: rgba(255,255,255,0.08); }
+#menu .commission.sealed:active { transform: none; }
+
+@media (max-width: 560px) {
+  /* As the room list: a flick settles, a deliberate nudge still lands. */
+  #menu .ledger { scroll-snap-type: y proximity; }
+  #menu .commission { scroll-snap-align: start; }
+}
+@media (max-width: 560px) and (min-height: 720px) {
+  #menu .ledger { max-height: 40vh; max-height: 40svh; }
+}
+`;
+
 export function StartMenu(props: StartMenuProps) {
   // Multiplayer with no connection is a dead pane — the tab is disabled and
   // the relay out of reach — so a screen asked to open there while offline
@@ -406,10 +519,41 @@ export function StartMenu(props: StartMenuProps) {
       ? OFFLINE_PANE
       : props.start.mode,
   );
+  /** The card, for the height it travels when a pane swaps. */
+  let cardEl: HTMLDivElement | undefined;
+  /** The pane area, so a swap fades rather than cuts. */
+  let rowsEl: HTMLDivElement | undefined;
+  /**
+   * Carry the card between pane heights. `from` is read before the signal
+   * and `to` after — Solid sets synchronously, so the new pane is already
+   * laid out. WAAPI because both ends are measurements, not stylesheet
+   * values. Sits out reduced motion, and SHORT where the cap rules.
+   */
+  const carryCardHeight = (from: number | undefined): void => {
+    const el = cardEl;
+    if (el === undefined || from === undefined) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (matchMedia(SHORT).matches) return;
+    const to = el.offsetHeight;
+    if (to === from) return;
+    el.animate([{height: `${from}px`}, {height: `${to}px`}], {
+      duration: 280,
+      easing: 'cubic-bezier(0.32, 0.9, 0.36, 1)',
+    });
+    // The pane arrives rather than appears, over the same beat.
+    rowsEl?.animate([{opacity: '0.3'}, {opacity: '1'}], {
+      duration: 240,
+      easing: 'ease-out',
+    });
+  };
+
   /** Switch panes the way the tab bar does: the choice is remembered. */
   const pickMode = (next: Mode): void => {
+    if (next === mode()) return;
+    const from = cardEl?.offsetHeight;
     setMode(next);
     rememberMode(next);
+    carryCardHeight(from);
   };
   const [mp, setMp] = createSignal<MpMode>(props.start.mp);
   const [ai, setAi] = createSignal(2);
@@ -890,6 +1034,9 @@ export function StartMenu(props: StartMenuProps) {
 
   return (
     <>
+      {/* The shared sheet and veils belong to the shell. */}
+      <style>{START_STYLE}</style>
+
       <div class="shell">
         <div class="stack">
           <div class="title">
@@ -904,7 +1051,7 @@ export function StartMenu(props: StartMenuProps) {
             </p>
           </div>
 
-          <div class="card">
+          <div class="card" ref={cardEl}>
             {/* The shelf takes the tab bar's slot rather than sitting under
                 it: a highlighted "Single player" above a list of replays
                 would be a lie, and swapping in place keeps the card from
@@ -925,7 +1072,8 @@ export function StartMenu(props: StartMenuProps) {
                 </div>
               }
             >
-              <div class="seg">
+              <div class="seg" style={{'--n': MODE_ORDER.length}}>
+                <Glide index={MODE_ORDER.indexOf(mode())} />
                 <button
                   class={mode() === 'single' ? 'on' : ''}
                   onClick={() => pickMode('single')}
@@ -957,7 +1105,7 @@ export function StartMenu(props: StartMenuProps) {
               </div>
             </Show>
 
-            <div class="rows">
+            <div class="rows" ref={rowsEl}>
               <Show when={!online() && shelfSpec() === null}>
                 <div class="row">
                   <div>
@@ -1123,6 +1271,7 @@ export function StartMenu(props: StartMenuProps) {
                     </div>
                   </div>
                   <div class="vis">
+                    <Glide index={vis() === 'open' ? 0 : 1} />
                     <button
                       class={vis() === 'open' ? 'on' : ''}
                       title="Listed for anyone to join"
@@ -1152,27 +1301,38 @@ export function StartMenu(props: StartMenuProps) {
 
               <Show when={isCampaign()}>
                 <div class="browser">
-                  <div class="browser-head">
-                    <div style="display:flex;align-items:baseline;gap:8px">
-                      <span class="row-label">The reeve’s commissions</span>
-                      <span class="count">
-                        {
-                          MISSION_ORDER.filter(id => isMissionComplete(id))
-                            .length
-                        }
-                        /{MISSION_ORDER.length} fulfilled
-                      </span>
-                    </div>
+                  <div class="ledger-head">
+                    <span class="t">The reeve’s commissions</span>
+                    <i class="rule" />
+                    <span class="n">
+                      {MISSION_ORDER.filter(id => isMissionComplete(id)).length}{' '}
+                      of {MISSION_ORDER.length} fulfilled
+                    </span>
                   </div>
-                  <div class="room-list" style="max-height:236px">
+                  <div class="ledger">
                     <For each={MISSION_ORDER}>
                       {(id, i) => {
                         const def = MISSION_DEFS[id];
                         const locked = (): boolean => !isMissionUnlocked(id);
+                        const done = (): boolean => isMissionComplete(id);
                         return (
                           <button
-                            class={`room ${pickedMission() === id ? 'on' : ''}`}
+                            class="commission"
+                            classList={{
+                              on: pickedMission() === id,
+                              done: done(),
+                              sealed: locked(),
+                            }}
                             disabled={locked()}
+                            /* Colour and the thread carry the state; a
+                               screen reader sees neither. */
+                            aria-label={`Commission ${i() + 1}, ${def.title}. ${
+                              done()
+                                ? 'Fulfilled.'
+                                : locked()
+                                  ? 'Sealed until the one before it is fulfilled.'
+                                  : 'Open.'
+                            }`}
                             title={
                               locked()
                                 ? 'Fulfill the commission before it'
@@ -1181,20 +1341,16 @@ export function StartMenu(props: StartMenuProps) {
                             onClick={() => setPickedMission(id)}
                             onDblClick={launch}
                           >
-                            <span style="min-width:0">
-                              <span class="code" style="letter-spacing:0.02em">
-                                {i() + 1}. {def.title}
-                              </span>
-                              <span class="meta">{def.tagline}</span>
-                            </span>
-                            <span style="flex:none;color:#e5c469">
-                              {isMissionComplete(id) ? (
-                                '✓'
-                              ) : locked() ? (
-                                <LockIcon size={13} />
+                            <span class="seal" aria-hidden="true">
+                              {locked() ? (
+                                <LockIcon size={12} />
                               ) : (
-                                ''
+                                numeral(i() + 1)
                               )}
+                            </span>
+                            <span class="what">
+                              <span class="name">{def.title}</span>
+                              <span class="charge">{def.tagline}</span>
                             </span>
                           </button>
                         );
@@ -1202,7 +1358,7 @@ export function StartMenu(props: StartMenuProps) {
                     </For>
                   </div>
                   <div class="row-hint">
-                    A tutorial in seven commissions — hints can be hidden in the
+                    A tutorial in seven commissions. Hints can be hidden in the
                     first minute. Finishing one unseals the next.
                   </div>
                 </div>
@@ -1369,7 +1525,8 @@ export function StartMenu(props: StartMenuProps) {
                     <div class="row-label">Computer opponents</div>
                     <div class="row-hint">They build and raid like you do</div>
                   </div>
-                  <div class="pills">
+                  <div class="pills" style={{'--n': AI_SEATS.length}}>
+                    <Glide index={ai()} />
                     <For each={AI_SEATS}>
                       {n => (
                         <button
@@ -1512,6 +1669,7 @@ export function StartMenu(props: StartMenuProps) {
               <button
                 class={`cta ${(isJoin() && !target()) || (shelfSpec() !== null && pickedFile() === null) ? 'dim' : ''}`}
                 onClick={launch}
+                ref={spotlight}
               >
                 <svg
                   width="14"
