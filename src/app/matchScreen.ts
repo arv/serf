@@ -888,10 +888,6 @@ export async function runMatch(
     rallyFlag.update(placing() ? null : selectedBuilding());
     controls.prune();
     selectionFx.update(controls.selected, sync, now);
-    // After sync.update: the flights it just spawned advance on the same
-    // frame's clock. 0 while paused — arrows hang in the air with the
-    // battle they belong to.
-    arrows.update(speed() === 0 ? 0 : dt);
     damageAlerts.update(now);
     water.update(now);
     mist.update(now);
@@ -901,6 +897,11 @@ export async function runMatch(
     // Same view rect the unit sync culls against — sails and roof watches
     // off camera are not worth animating either.
     buildingSync.frame(speed() === 0 ? 0 : dt, bounds);
+    // After both spawners — sync.update looses the field's arrows,
+    // buildingSync.frame the towers' — so every flight loosed this frame
+    // advances on this frame's clock. 0 while paused: arrows hang in the
+    // air with the battle they belong to.
+    arrows.update(speed() === 0 ? 0 : dt);
     // Everything above has had its say about this camera; draw it.
     renderer.render();
     // Last: the frame's queued cues become at most a couple dozen voices.
