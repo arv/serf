@@ -14,6 +14,7 @@ import {clamp, hash2, lerp} from '../shared/math';
 import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import * as AnimKey from './animKeyEnum.ts';
+import {crossedRelease} from './arrows';
 import type {PierInfo} from './buildingSync';
 import type {ViewBounds} from './cameraRig';
 import {
@@ -67,6 +68,11 @@ interface UnitVisual {
   az: number;
   /** The mixer 'loop' listener, kept for symmetric removal. */
   loopCb?: (e: {action: THREE.AnimationAction}) => void;
+  /** The shoot clip's time last frame, while this unit is loosing —
+   * how the arrow spawn sees the release phase go by (undefined
+   * whenever the unit is not shooting, so a stale time can never read
+   * as a crossing). */
+  shootT?: number;
   /** Right-arm bone chain for the well-crank IK. undefined = not looked
    * up yet, null = this rig has no such bones. */
   arm?: ArmChain | null;
@@ -227,6 +233,17 @@ export class SceneSync {
    */
   onCue: ((cue: CueId, x: number, z: number, delaySec: number) => void) | null =
     null;
+
+  /**
+   * Arrow channel, injected like onCue: the sync knows the instant a
+   * ranged unit's string hand lets go (the same clip phase the bow twang
+   * fires on) and where archer and mark stand; the arrows layer owns the
+   * flight from there. Ground coordinates, from the archer to the target
+   * point rebuilt from the publish's facing + targetDist bytes.
+   */
+  onArrow:
+    | ((fromX: number, fromZ: number, toX: number, toZ: number) => void)
+    | null = null;
 
   /** Built wells' world centers, windlasses + grip handles (from main's
    * structural feed). A drawing serf belongs at the windlass, but the sim
@@ -493,6 +510,45 @@ export class SceneSync {
     const li = this.#reader.latest.index.get(id);
     if (li === undefined) return false;
     return this.#reader.latest.aux[li * AUX_STRIDE + 4] === ACTION.dead;
+  }
+
+  /**
+   * Nearest living enemy of `owner` within `radius` of (x, z), from the
+   * latest publish — the render-side stand-in for the sim's tower
+   * acquisition, for volleys whose shooter is not a unit: a garrisoned
+   * soldier was consumed into his building, and which enemy the tower
+   * picked never reaches the client. Nearest is not always the sim's
+   * exact pick (its scoring also favors countered classes), but both
+   * stand inside the same volley radius, which is all a half-second
+   * flight can be wrong by. Fog-hidden units are skipped so a volley
+   * never points into ground the viewer cannot see into. False when
+   * nobody qualifies; `out` is untouched then.
+   */
+  nearestEnemyInto(
+    x: number,
+    z: number,
+    owner: number,
+    radius: number,
+    out: {x: number; y: number},
+  ): boolean {
+    const {latest} = this.#reader;
+    let bestSq = radius * radius;
+    let found = false;
+    for (let i = 0; i < latest.count; i++) {
+      const a = i * AUX_STRIDE;
+      if (latest.aux[a + 1] === owner) continue;
+      if (latest.aux[a + 4] === ACTION.dead) continue;
+      if (this.#hidden.has(latest.ids[i]!)) continue;
+      const dx = latest.xs[i]! - x;
+      const dz = latest.ys[i]! - z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > bestSq) continue;
+      bestSq = d2;
+      out.x = latest.xs[i]!;
+      out.y = latest.ys[i]!;
+      found = true;
+    }
+    return found;
   }
 
   #alpha(now: number): number {
@@ -765,6 +821,10 @@ export class SceneSync {
         // Culled: drop the current clip so re-entry restarts it cleanly
         // (playAnimation is a no-op while `current` matches).
         visual.char.current = null;
+        // ...and the shoot clock with it: re-entry restarts the clip at a
+        // fresh offset, and a time held from before the cull could read
+        // as a release crossing that never happened.
+        visual.shootT = undefined;
       } else if (visual.char) {
         const heldCarry = carrying > 0;
         let key: AnimKey;
@@ -851,6 +911,43 @@ export class SceneSync {
         } else if (restarted) {
           visual.entryPending = true;
         }
+        // The arrow leaves when the string hand does — the same release
+        // phase the bow twang fires on (LOOP_CUES). Watched by clip time
+        // rather than the mixer's 'loop' event because the release lands
+        // mid-cycle and the flight must start this frame, not be booked
+        // for later the way a sound can be. shootT is last frame's clip
+        // time; the wrap-aware compare says whether this frame's advance
+        // stepped over the release point. The target point is the sim's
+        // own: the facing byte's bearing at the targetDist byte's range —
+        // so the arrow flies at the enemy actually being shot, not at a
+        // guess. targetDist 0 means no engaged target (a byte the sim
+        // holds off zero while engaged), and a missing clip means
+        // playAnimation fell back to idle: no arrow either way.
+        const fnArrow = this.onArrow;
+        let loosing = false;
+        if (fnArrow && key === AnimKey.shoot) {
+          const act = visual.char.actions.get(AnimKey.shoot);
+          const range = latest.aux[a + 8]! / 8;
+          if (act && range > 0) {
+            loosing = true;
+            const clip = act.getClip();
+            const rel =
+              (LOOP_CUES[AnimKey.shoot]?.impactPhase01 ?? 0.5) * clip.duration;
+            const t = act.time;
+            const prevT = visual.shootT;
+            visual.shootT = t;
+            if (crossedRelease(prevT, t, rel)) {
+              const yaw = (latest.aux[a + 7]! / 256) * Math.PI * 2;
+              fnArrow(
+                x + visual.sepX,
+                y + visual.sepY,
+                x + Math.sin(yaw) * range,
+                y + Math.cos(yaw) * range,
+              );
+            }
+          }
+        }
+        if (!loosing) visual.shootT = undefined;
       }
 
       // Body bob synced to the gait: high at mid-stance, low at heel-strike.
