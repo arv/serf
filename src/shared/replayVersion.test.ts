@@ -50,10 +50,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // config, so nothing's evaluation order moved either. The hash is over
 // raw bytes, which is why it moved anyway.
 // 34 for mixed squads forming up: a group move deals its spread tiles by
-// arm now (knights front, archers rear), so the same logged order stands
-// the same soldiers on different tiles (see replayVersion.ts).
+// arm now (knights front, archers rear) and marches at its slowest
+// member's pace, so the same logged order stands the same soldiers on
+// different tiles on a different clock (see replayVersion.ts). One bump
+// for both halves — they shipped together.
 const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = '3e7afa1dac7a2c4cedf480f3f20150ac';
+const EXPECTED_HASH = '6df8f4d0d40b4dfc55b757b57dcd92f0';
 
 /**
  * Everything a replay's playback depends on, as raw source:

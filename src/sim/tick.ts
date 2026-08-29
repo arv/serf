@@ -477,6 +477,7 @@ function applyMoveUnits(
         unit.targetId = target.id;
         unit.targetIsBuilding = true;
         unit.path = null;
+        unit.marchSpeed = undefined; // an assault runs at true speeds
       }
       return;
     }
@@ -490,6 +491,13 @@ function applyMoveUnits(
   const targets = collectSpreadTargets(world, cmd.x, cmd.y, movers.length);
   if (targets.length === 0) return;
   orderFormation(movers, targets, size);
+  // A squad marches at its slowest member's speed, so the column holds the
+  // battle order it was dealt instead of the fast arms outrunning the
+  // shield line. Solo orders walk at their own speed.
+  let pace = Infinity;
+  if (movers.length > 1) {
+    for (const u of movers) pace = Math.min(pace, UNIT_DEFS[u.kind].speed);
+  }
   let t = 0;
   for (const unit of movers) {
     const goal = targets[Math.min(t++, targets.length - 1)]!;
@@ -522,6 +530,9 @@ function applyMoveUnits(
     if (unit.homeId !== undefined) unbindWorker(world, unit);
     unit.path = path;
     unit.pathIdx = 0;
+    // Only where it binds: the slowest members ARE the pace and march
+    // unmarked, so a fresh order always resets a stale cap either way.
+    unit.marchSpeed = pace < UNIT_DEFS[unit.kind].speed ? pace : undefined;
     // An attack-move keeps the combat system live on the way; civilians have
     // no combat to keep live, so for them every order is the same walk. The
     // 'half' order quiets the front leg of the route — far enough to carry a

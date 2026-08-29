@@ -201,6 +201,11 @@ export function combatSystem(world: World): void {
       continue;
     }
 
+    // A live fight breaks formation: chases, kiting and retreats all run at
+    // true speeds, because the counter table prices them there — a spearman
+    // held to knight pace never catches the archers he exists to catch.
+    unit.marchSpeed = undefined;
+
     // Engage: in range -> strike on cooldown; out of range -> close in.
     // Ranged units kite: they back off from anything closing to melee.
     if (targetUnit) {
@@ -456,6 +461,7 @@ function resumeAttackMove(world: World, unit: Unit): void {
   const uy = Math.floor(unit.y);
   if (ux === destX && uy === destY) {
     unit.task = {t: UnitTaskKind.idle, until: world.tick};
+    unit.marchSpeed = undefined; // the march this pace was set for is over
     return;
   }
   const path = findPath(world.map, ux, uy, destX, destY);
@@ -464,6 +470,7 @@ function resumeAttackMove(world: World, unit: Unit): void {
     unit.pathIdx = 0;
   } else {
     unit.task = {t: UnitTaskKind.idle, until: world.tick};
+    unit.marchSpeed = undefined;
   }
 }
 

@@ -2,7 +2,9 @@ import {describe, expect, it} from 'vitest';
 import {tileX, tileY} from '../shared/grid.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import {checkInvariants} from './debug/invariants.ts';
+import {UNIT_DEFS} from './defs/units.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
+import {BANDIT} from './entities.ts';
 import {addStorehouse, bareWorld, cmds} from './testUtils.ts';
 import {tickWorld} from './tick.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
@@ -112,6 +114,84 @@ describe('mixed squads form up by arm', () => {
     const knightInner = Math.min(d2(k1.id), d2(k2.id));
     const archerOuter = Math.max(d2(a1.id), d2(a2.id));
     expect(knightInner).toBeGreaterThanOrEqual(archerOuter);
+  });
+
+  it('marches at the slowest member’s pace, so the column holds together', () => {
+    const world = bareWorld();
+    addStorehouse(world, 50, 50, {});
+    // Knight 1.6 tiles/sec against spearman 2.4 and archer 2.0: uncapped,
+    // the fast arms are tiles ahead within seconds of setting out.
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 5.5, 30.5);
+    const spear = spawnUnit(world, UnitTypeId.spearman, 0, 5.5, 31.5);
+    const archer = spawnUnit(world, UnitTypeId.archer, 0, 5.5, 29.5);
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [spear.id, archer.id, knight.id],
+        x: 35,
+        y: 30,
+      }),
+    );
+
+    // The cap is written only where it binds: the knight IS the pace.
+    expect(knight.marchSpeed).toBeUndefined();
+    expect(spear.marchSpeed).toBe(UNIT_DEFS[UnitTypeId.knight].speed);
+    expect(archer.marchSpeed).toBe(UNIT_DEFS[UnitTypeId.knight].speed);
+
+    // Mid-march the column is a column. Uncapped, the spearman would be
+    // four tiles ahead of the knight by now and the archer two.
+    run(world, 150);
+    expect(knight.task.t).toBe(UnitTaskKind.move); // still under way
+    expect(Math.abs(spear.x - knight.x)).toBeLessThan(1.5);
+    expect(Math.abs(archer.x - knight.x)).toBeLessThan(1.5);
+
+    // Arrival hands every unit its own legs back.
+    run(world, 20 * 30);
+    for (const u of [knight, spear, archer]) {
+      expect(u.task.t).toBe(UnitTaskKind.idle);
+      expect(u.marchSpeed).toBeUndefined();
+    }
+    expect(checkInvariants(world).violations).toEqual([]);
+  });
+
+  it('a fight breaks the formation: engaged units run at true speeds', () => {
+    const world = bareWorld();
+    addStorehouse(world, 50, 50, {});
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 20.5, 30.5);
+    const spear = spawnUnit(world, UnitTypeId.spearman, 0, 20.5, 31.5);
+    spawnUnit(world, UnitTypeId.bandit, BANDIT, 30.5, 31.5);
+    tickWorld(
+      world,
+      cmds({
+        kind: CommandKind.moveUnits,
+        unitIds: [knight.id, spear.id],
+        x: 40,
+        y: 31,
+        attack: true,
+      }),
+    );
+    expect(spear.marchSpeed).toBe(UNIT_DEFS[UnitTypeId.knight].speed);
+
+    // Walk until the attack-move meets the bandit. The moment the spearman
+    // holds a target, the squad pace is off him — the counter table prices
+    // his chase at 2.4 tiles/sec, and a spearman held to knight pace never
+    // catches what he exists to catch.
+    for (let i = 0; i < 600 && spear.targetId === undefined; i++)
+      tickWorld(world, []);
+    expect(spear.targetId).toBeDefined();
+    expect(spear.marchSpeed).toBeUndefined();
+  });
+
+  it('a solo order marches unmarked, at the unit’s own speed', () => {
+    const world = bareWorld();
+    addStorehouse(world, 50, 50, {});
+    const archer = spawnUnit(world, UnitTypeId.archer, 0, 30.5, 30.5);
+    tickWorld(
+      world,
+      cmds({kind: CommandKind.moveUnits, unitIds: [archer.id], x: 40, y: 30}),
+    );
+    expect(archer.marchSpeed).toBeUndefined();
   });
 
   it('a uniform squad is dealt its tiles exactly as before, selection order', () => {

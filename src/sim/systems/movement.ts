@@ -38,11 +38,15 @@ export function movementSystem(world: World): void {
     }
     const civilian =
       unit.kind === UnitTypeId.serf || unit.kind === UnitTypeId.worker;
-    let budget =
-      (UNIT_DEFS[unit.kind].speed *
-        tileSpeedMult(world.map, here) *
-        (civilian ? (serfSpeedMod[unit.owner] ?? 1) : 1)) /
-      TICKS_PER_SECOND;
+    // Own speed (tech-boosted for civilians), held to the squad's pace when
+    // marching in formation. The tile multiplier applies after the cap:
+    // terrain speeds the whole column together, so a road cannot break it.
+    let base =
+      UNIT_DEFS[unit.kind].speed *
+      (civilian ? (serfSpeedMod[unit.owner] ?? 1) : 1);
+    if (unit.marchSpeed !== undefined && unit.marchSpeed < base)
+      base = unit.marchSpeed;
+    let budget = (base * tileSpeedMult(world.map, here)) / TICKS_PER_SECOND;
 
     while (budget > 0 && unit.pathIdx < path.length) {
       const next = path[unit.pathIdx]!;
@@ -69,6 +73,10 @@ export function movementSystem(world: World): void {
 
     if (unit.path && unit.pathIdx >= path.length) {
       unit.path = null;
+      // The walk this pace was set for is over. An attack-move's own walk
+      // may resume (combat re-plans it), but every resumed leg is planned
+      // after a fight scattered the squad — the formation it paced is gone.
+      unit.marchSpeed = undefined;
       if (unit.task.t === UnitTaskKind.move)
         unit.task = {t: UnitTaskKind.idle, until: world.tick};
     }
@@ -118,8 +126,11 @@ function routeAround(world: World, unit: Unit, goal: number): void {
   }
   unit.path = p && p.length > 0 ? p : null;
   unit.pathIdx = 0;
-  if (unit.path === null && unit.task.t === UnitTaskKind.move) {
-    unit.task = {t: UnitTaskKind.idle, until: world.tick};
+  if (unit.path === null) {
+    // Nowhere left to walk: the march this pace was set for is over.
+    unit.marchSpeed = undefined;
+    if (unit.task.t === UnitTaskKind.move)
+      unit.task = {t: UnitTaskKind.idle, until: world.tick};
   }
 }
 

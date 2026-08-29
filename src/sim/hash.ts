@@ -64,6 +64,10 @@ export function hashWorld(world: World): number {
     mixU32(u.repathAt ?? 0);
     mixU32(u.targetId ?? 0); // 0 is a safe sentinel: entity ids start at 1
     mix(u.targetIsBuilding ? 1 : 0);
+    // The formation pace steers every step of a march — two worlds can
+    // stand identical mid-column and still arrive ticks apart. 0 is a safe
+    // "own speed" sentinel: a real pace is always positive.
+    mixF64(u.marchSpeed ?? 0);
     mix(u.task.t); // task tag
     if (u.task.t === UnitTaskKind.attackMove) {
       // The stored destination steers behavior for many ticks — a clone or

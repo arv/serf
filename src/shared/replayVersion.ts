@@ -20,14 +20,20 @@
  * directly.
  */
 /**
- * 34: a mixed squad's move order is dealt out in battle order. The spread
- * tiles a group move fans out over used to go to whichever ids happened to
- * come first in the command; they now go by arm — knights on the edge
- * facing the march, spearmen behind them, archers behind both, civilians
- * at the very rear (tick.ts orderFormation). Uniform squads are dealt
- * their tiles exactly as before. Any log that ever moved a mixed group —
- * every AI seat's army does — puts its soldiers on different tiles from
- * that order on, and every fight they walk into re-runs differently.
+ * 34: a mixed squad's move order is dealt out in battle order, and the
+ * squad marches as one. The spread tiles a group move fans out over used
+ * to go to whichever ids happened to come first in the command; they now
+ * go by arm — knights on the edge facing the march, spearmen behind them,
+ * archers behind both, civilians at the very rear (tick.ts
+ * orderFormation). And the column holds on the way: a group order writes
+ * the squad's slowest speed onto its faster members (Unit.marchSpeed), so
+ * the arms arrive together instead of trickling in by tuning — the cap
+ * lifts on arrival and the moment a fight starts, because the counter
+ * table prices every chase at true speeds. Uniform squads are dealt their
+ * tiles exactly as before and set their own pace. Any log that ever moved
+ * a mixed group — every AI seat's army does — puts its soldiers on
+ * different tiles on a different clock from that order on, and every
+ * fight they walk into re-runs differently.
  */
 /**
  * 33: every id in the sim is a number. Goods, buildings, units, techs,
