@@ -20,6 +20,16 @@
  * directly.
  */
 /**
+ * 34: the herald — a fifteenth command kind (a taunt with an address:
+ * sender, structured note, optional strength boast) and a sixth game
+ * event (heraldIncoming) it lands as. Pure format: nothing about how a
+ * tick executes moved, and every command an old log holds still applies
+ * exactly as it did. The bump is for the file — a log recorded on this
+ * build can hold herald frames an older sanitizeCommand screens out, and
+ * a replay that silently drops the taunts is not the match that was
+ * played. (The AI seats send heralds before full assaults on rival
+ * castles, so skirmish logs carry them routinely.)
+ *
  * 33: every id in the sim is a number. Goods, buildings, units, techs,
  * task tags, job phases, building states, tile resources, command kinds,
  * admin actions, mission and playbook ids — all of them were unions of
@@ -268,4 +278,4 @@
  * runaway-search cap (sim/path.ts, #93) and `unbindWorker` resetting the
  * freed hand to idle (#94).
  */
-export const REPLAY_VERSION = 33;
+export const REPLAY_VERSION = 34;

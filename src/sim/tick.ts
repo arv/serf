@@ -5,6 +5,7 @@ import * as AdminAction from './adminActionEnum.ts';
 import * as BuildingState from './buildingStateEnum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
+import * as GameEventKind from './gameEventKindEnum.ts';
 import {
   CORPSE_TICKS,
   FORGE_QUEUE_CAP,
@@ -178,6 +179,20 @@ export function applyCommand(
       if (cmd.x === undefined || cmd.y === undefined) break;
       if (!inBounds(cmd.x, cmd.y, world.map.size)) break;
       b.rally = {x: cmd.x, y: cmd.y};
+      break;
+    }
+    case CommandKind.herald: {
+      // A taunt with an address: validated here rather than trusted — the
+      // target must be a living rival, and a herald to nobody says nothing.
+      const target = world.players[cmd.target];
+      if (!target || !target.alive || cmd.target === playerId) break;
+      world.pendingEvents.push({
+        kind: GameEventKind.heraldIncoming,
+        player: cmd.target,
+        attacker: playerId,
+        note: cmd.note,
+        ...(cmd.count !== undefined ? {count: cmd.count} : {}),
+      });
       break;
     }
     case CommandKind.admin:

@@ -16,6 +16,7 @@ import {stanceWarKnobs, type StanceKnobs} from '../defs/aiPostures.ts';
 import type {AiStrategy, BuildStep} from '../defs/aiStrategies.ts';
 import {HIRE_QUEUE_CAP, HIRE_SERF_COST} from '../defs/balance.ts';
 import * as PostureId from '../defs/postureIdEnum.ts';
+import * as HeraldNote from '../heraldNoteEnum.ts';
 import * as BuildAnchor from '../defs/buildAnchorEnum.ts';
 import {
   BUILDING_DEFS,
@@ -445,6 +446,7 @@ export const WAR_BEHAVIOR_KEYS: Readonly<Record<WarBehaviorId, string>> = {
   [WarBehaviorIdNs.defendOutpost]: 'defendOutpost',
   [WarBehaviorIdNs.retreatMarch]: 'retreatMarch',
   [WarBehaviorIdNs.scoutFlees]: 'scoutFlees',
+  [WarBehaviorIdNs.heraldMarch]: 'heraldMarch',
 };
 
 export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
@@ -453,6 +455,7 @@ export const ALL_WAR_BEHAVIORS: readonly WarBehaviorId[] = [
   WarBehaviorIdNs.defendOutpost,
   WarBehaviorIdNs.retreatMarch,
   WarBehaviorIdNs.scoutFlees,
+  WarBehaviorIdNs.heraldMarch,
 ];
 
 const WAR_BEHAVIOR_BY_KEY = new Map<string, WarBehaviorId>(
@@ -490,6 +493,17 @@ export const AI_WAR = {
   /** How long a raid stays worth avenging: the grudge names the rival
    * whose force reached our yard most recently inside this window. */
   grudgeFor: 6_000,
+  /**
+   * The herald's telegraph: a full assault on a rival CASTLE is announced
+   * this many ticks before the army moves — fifteen seconds a defender can
+   * actually act on, which is the whole point of a warning. A deliberate
+   * small tax on tempo, paid for drama; measured as a guardrail, and the
+   * lead shrinks before the telegraph ever goes.
+   */
+  heraldLead: 300,
+  /** Marches smaller than this go unannounced: a forlorn pair of archers
+   * limping at a castle is not an assault worth a herald's breath. */
+  heraldMin: 6,
 } as const;
 
 const ANCHOR_RESOURCE: Partial<Record<BuildAnchor, number>> = {
@@ -566,6 +580,9 @@ export class AiBrain {
   #lastSortieTick = 0;
   /** Tick of the last outpost dispatch (AI_WAR.outpostCooldown). */
   #lastOutpostTick = 0;
+  /** Tick the standing herald went out, -1 when none is pending — the
+   * march it announced holds until AI_WAR.heraldLead has passed. */
+  #heraldTick = -1;
   /** Soldiers the last all-in march left with, and what it marched at —
    * what the retreat compares the survivors and the garrison against. */
   #marchedCount = 0;
@@ -581,6 +598,7 @@ export class AiBrain {
   #outpostDefenses = 0;
   #marchRetreats = 0;
   #scoutFled = 0;
+  #heralds = 0;
   /** What this seat has actually observed — the same filter humans play
    * under. Recomputed at every decision beat, remembered between them. */
   #vision: SeatVision;
@@ -742,6 +760,7 @@ export class AiBrain {
     outpostDefenses: number;
     marchRetreats: number;
     scoutFled: number;
+    heralds: number;
     stanceSwitches: number;
   } {
     return {
@@ -752,6 +771,7 @@ export class AiBrain {
       outpostDefenses: this.#outpostDefenses,
       marchRetreats: this.#marchRetreats,
       scoutFled: this.#scoutFled,
+      heralds: this.#heralds,
       stanceSwitches: this.#stanceSwitches,
     };
   }
@@ -1228,6 +1248,38 @@ export class AiBrain {
     }
 
     if (target && mustered && !vetoed) {
+      // The herald's hold: a full assault on a rival CASTLE is announced
+      // AI_WAR.heraldLead ticks before the army moves. The warning is the
+      // drama the fog otherwise swallows — the player hears the horn, looks
+      // up, and has fifteen seconds to be somewhere. Camps are stormed
+      // unannounced (bandits get no courtesies), and so are forlorn scraps
+      // under heraldMin. The hold expires rather than re-arming: once the
+      // lead has passed, the march fires on the next beat the bar holds.
+      const announced =
+        this.#warOn(WarBehaviorIdNs.heraldMarch) &&
+        isPlayerOwner(target.owner) &&
+        army.length >= AI_WAR.heraldMin;
+      if (announced && this.#heraldTick < 0) {
+        this.#heraldTick = world.tick;
+        this.#heralds++;
+        const grudge = this.#grudge(world);
+        commands.push({
+          kind: CommandKind.herald,
+          target: target.owner,
+          note:
+            grudge === target.owner
+              ? HeraldNote.retribution
+              : army.length >= 12
+                ? HeraldNote.finalAssault
+                : HeraldNote.marchComing,
+          count: army.length,
+        });
+        return commands; // the army stands while the words land
+      }
+      if (announced && world.tick - this.#heraldTick < AI_WAR.heraldLead) {
+        return commands; // the telegraph is still in the air
+      }
+      this.#heraldTick = -1;
       this.#attacking = true;
       this.#sweepGoal = -1;
       this.#lastAttackTick = world.tick;
@@ -1257,6 +1309,7 @@ export class AiBrain {
       // And ahead of the searches: defense outranks exploration.
       this.#attacking = false;
       this.#sortie = null; // the recall takes the harassers home too
+      this.#heraldTick = -1; // an announced march the defense preempted
       this.#clearScout();
       this.#sweepGoal = -1;
       this.#lastRallyTick = world.tick;

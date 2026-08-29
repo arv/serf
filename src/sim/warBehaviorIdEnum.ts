@@ -18,3 +18,5 @@ export const retreatMarch = 4 as const;
 export type retreatMarch = typeof retreatMarch;
 export const scoutFlees = 5 as const;
 export type scoutFlees = typeof scoutFlees;
+export const heraldMarch = 6 as const;
+export type heraldMarch = typeof heraldMarch;

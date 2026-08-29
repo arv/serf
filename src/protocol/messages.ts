@@ -1,4 +1,5 @@
 import type {Enum} from '../shared/enum.ts';
+import type {AiStrategyId} from '../sim/defs/aiStrategies.ts';
 import type {BuildingTypeId} from '../sim/defs/buildings.ts';
 import type {GoodAmounts, GoodId} from '../sim/defs/goods.ts';
 import type {MissionId} from '../sim/defs/missions.ts';
@@ -38,6 +39,10 @@ export interface PlayerSnap {
   id: Owner;
   kind: PlayerKind;
   alive: boolean;
+  /** An AI seat's playbook, for naming it on screen (“A herald of the
+   * Warlord…”). Public knowledge — the lobby shows the deal — and absent
+   * for humans. */
+  strategy?: AiStrategyId;
   /** This player's storehouse stock ({} once eliminated). */
   stock: GoodAmounts;
   /** Open tool-gated posts per tool, plus sites still owed their hammer —

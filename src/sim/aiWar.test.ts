@@ -4,7 +4,8 @@ import type {SimCommand} from './commands.ts';
 import {AI_STRATEGIES} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import {AiBrain} from './systems/ai.ts';
+import {AI_WAR, AiBrain} from './systems/ai.ts';
+import * as WarBehaviorId from './warBehaviorIdEnum.ts';
 import {addBuiltHut, addStorehouse, bareWorld} from './testUtils.ts';
 import type {Unit} from './units.ts';
 import type {World} from './world.ts';
@@ -165,6 +166,8 @@ describe('the losing march', () => {
     addStorehouse(world, BASE + 8, BASE, {}, 1);
     const army = knights(world, 12);
     const brain = new AiBrain(0, AI_STRATEGIES[id], world.map.size);
+    // The retreat is the subject; the herald would hold the march it needs.
+    brain.setWarBehaviors([WarBehaviorId.retreatMarch]);
     world.tick = 1500; // past dwell and every cooldown: the march fires
     const marched = moves(brain.decide(world)).some(
       m => m.unitIds.length === 12,
@@ -190,6 +193,59 @@ describe('the losing march', () => {
     const {world, brain} = routedMarch(AiStrategyId.warlord);
     brain.decide(world);
     expect(brain.warReport().marchRetreats).toBe(0);
+  });
+});
+
+describe('the herald', () => {
+  /** Twelve knights and a found rival castle: an assault worth announcing. */
+  function assaultReady(): {world: World; brain: AiBrain} {
+    const world = village();
+    addStorehouse(world, BASE + 8, BASE, {}, 1);
+    knights(world, 12);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    world.tick = 1500;
+    return {world, brain};
+  }
+
+  it('announces the assault, holds the lead, then marches', () => {
+    const {world, brain} = assaultReady();
+    const first = brain.decide(world);
+    const heraldCmd = first.find(c => c.kind === CommandKind.herald);
+    expect(heraldCmd).toBeDefined();
+    expect(heraldCmd).toMatchObject({target: 1, count: 12});
+    expect(moves(first)).toEqual([]); // the army stands while the words land
+    expect(brain.warReport().heralds).toBe(1);
+    // Inside the lead: still standing.
+    world.tick += AI_WAR.heraldLead - 100;
+    expect(moves(brain.decide(world)).some(m => m.unitIds.length === 12)).toBe(
+      false,
+    );
+    // Past it: the march fires, once.
+    world.tick += 200;
+    expect(moves(brain.decide(world)).some(m => m.unitIds.length === 12)).toBe(
+      true,
+    );
+    expect(brain.warReport().heralds).toBe(1);
+  });
+
+  it('only a rival castle is owed the courtesy — the dark is swept unannounced', () => {
+    const world = village();
+    // No rival buildings found: a full muster goes searching instead of
+    // marching, and no herald sounds for it. (Camps take the same branch —
+    // isPlayerOwner(target.owner) gates the announcement.)
+    knights(world, 12);
+    const brain = new AiBrain(
+      0,
+      AI_STRATEGIES[AiStrategyId.steward],
+      world.map.size,
+    );
+    world.tick = 1500;
+    brain.decide(world);
+    expect(brain.warReport().heralds).toBe(0);
   });
 });
 

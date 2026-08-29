@@ -61,8 +61,11 @@ import {REPLAY_VERSION} from './replayVersion';
 // scout, the grudge): the same reasoning one layer wider. Every verb
 // speaks in commands the sim already took; the tick that executes them
 // did not move.
-const EXPECTED_VERSION = 33;
-const EXPECTED_HASH = '5b394d81937984e67c9ce969f8962d4d';
+// 34 for the herald: a new command kind and a new game event — pure
+// format, and format is half of what this version promises (see
+// replayVersion.ts).
+const EXPECTED_VERSION = 34;
+const EXPECTED_HASH = 'd94c0877345f3fc088250eef543081e1';
 
 /**
  * Everything a replay's playback depends on, as raw source:

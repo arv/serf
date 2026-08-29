@@ -1,5 +1,6 @@
 import type {Enum} from '../shared/enum.ts';
 import * as CommandKindNs from './commandKindEnum.ts';
+import * as HeraldNoteNs from './heraldNoteEnum.ts';
 import {FORGE_QUEUE_CAP, TRAIN_QUEUE_CAP} from './defs/balance.ts';
 import {
   AUTO_RECIPE,
@@ -14,6 +15,7 @@ export type CommandKind = Enum<typeof CommandKindNs>;
 import * as AdminActionNs from './adminActionEnum.ts';
 
 export type AdminAction = Enum<typeof AdminActionNs>;
+export type HeraldNote = Enum<typeof HeraldNoteNs>;
 
 /**
  * The only way anything outside the sim mutates the world. Commands are
@@ -79,9 +81,25 @@ export type SimCommand =
       x?: number;
       y?: number;
     }
-  | {kind: CommandKindNs.admin; action: AdminAction};
+  | {kind: CommandKindNs.admin; action: AdminAction}
+  /** A taunt with an address: the sender announces itself to one player
+   * (heraldIncoming lands on their screen). Structured — a note id and an
+   * optional count, never free text — and logged like every command, so a
+   * replay's heralds arrive exactly as they were sent. */
+  | {
+      kind: CommandKindNs.herald;
+      target: number;
+      note: HeraldNote;
+      count?: number;
+    };
 
 /** Sandbox tweaks (the ?admin panel). Single-player: no cheat gating needed. */
+
+const HERALD_NOTES: readonly HeraldNote[] = [
+  HeraldNoteNs.marchComing,
+  HeraldNoteNs.retribution,
+  HeraldNoteNs.finalAssault,
+];
 
 const ADMIN_ACTIONS: readonly AdminAction[] = [
   AdminActionNs.toggleRaids,
@@ -288,6 +306,22 @@ export function sanitizeCommand(raw: unknown): SimCommand | null {
     case CommandKindNs.admin:
       if (!ADMIN_ACTIONS.includes(c.action as AdminAction)) return null;
       return {kind: CommandKindNs.admin, action: c.action as AdminAction};
+    case CommandKindNs.herald: {
+      if (!Number.isInteger(c.target) || (c.target as number) < 0) return null;
+      if (!HERALD_NOTES.includes(c.note as HeraldNote)) return null;
+      // The count is flavor ("twelve strong"); clamp it so a hostile frame
+      // cannot make the client print nonsense.
+      const count =
+        Number.isInteger(c.count) && (c.count as number) > 0
+          ? Math.min(c.count as number, 64)
+          : undefined;
+      return {
+        kind: CommandKindNs.herald,
+        target: c.target as number,
+        note: c.note as HeraldNote,
+        ...(count !== undefined ? {count} : {}),
+      };
+    }
     default:
       return null;
   }

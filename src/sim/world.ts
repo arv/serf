@@ -148,6 +148,16 @@ export interface AdminState {
 
 export type GameEvent =
   | {kind: GameEventKindNs.raidIncoming; text: string; player: Owner}
+  /** A rival's herald reached this player: `attacker` announces `note`
+   * (heraldNoteEnum) with an optional strength boast. Addressed like a
+   * raid warning; the client composes the words. */
+  | {
+      kind: GameEventKindNs.heraldIncoming;
+      player: Owner;
+      attacker: Owner;
+      note: import('./commands.ts').HeraldNote;
+      count?: number;
+    }
   | {kind: GameEventKindNs.playerEliminated; player: Owner}
   | {kind: GameEventKindNs.gameOver; winner: Owner | null}
   | {kind: GameEventKindNs.objectiveComplete; index: number; player: Owner}

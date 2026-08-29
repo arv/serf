@@ -32,3 +32,5 @@ export const setRallyPoint = 13 as const;
 export type setRallyPoint = typeof setRallyPoint;
 export const admin = 14 as const;
 export type admin = typeof admin;
+export const herald = 15 as const;
+export type herald = typeof herald;

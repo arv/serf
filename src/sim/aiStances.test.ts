@@ -170,10 +170,12 @@ describe('the stance colors the beat', () => {
     const off = sevenKnightsAndACastle();
     const offBrain = brainFor(AiStrategyId.steward, off.world);
     offBrain.setStancePolicy(false);
+    offBrain.setWarBehaviors([]); // the herald's hold is aiWar's subject
     expect(marchesOn(offBrain.decide(off.world), off.castle)).toBe(true);
 
     const on = sevenKnightsAndACastle();
     const onBrain = brainFor(AiStrategyId.steward, on.world);
+    onBrain.setWarBehaviors([]);
     expect(marchesOn(onBrain.decide(on.world), on.castle)).toBe(false);
     expect(onBrain.stanceReport().state).toBe('found');
   });
@@ -181,6 +183,7 @@ describe('the stance colors the beat', () => {
   it('advice still outranks the stance — the lab’s steering survives', () => {
     const {world, castle} = sevenKnightsAndACastle();
     const brain = brainFor(AiStrategyId.steward, world);
+    brain.setWarBehaviors([]);
     // Siege stance would hold at twelve; advice drops the bar to four.
     brain.setOverride({armyAttackSize: 4, attackCooldown: 300});
     expect(marchesOn(brain.decide(world), castle)).toBe(true);

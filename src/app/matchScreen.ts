@@ -36,6 +36,8 @@ import {MISSION_DEFS, MISSION_KEYS} from '../sim/defs/missions';
 import * as GameEventKind from '../sim/gameEventKindEnum.ts';
 import * as MatchState from '../sim/matchStateEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
+import {AI_STRATEGIES} from '../sim/defs/aiStrategies.ts';
+import * as HeraldNote from '../sim/heraldNoteEnum.ts';
 import * as Terrain from '../sim/terrainEnum.ts';
 import {markMissionComplete} from '../ui/campaign';
 import {mountHud} from '../ui/mount';
@@ -582,6 +584,26 @@ export async function runMatch(
         // camera happens to be looking.
         play('raidHorn');
         pushToast(event.text);
+      } else if (
+        event.kind === GameEventKind.heraldIncoming &&
+        event.player === myPlayerId()
+      ) {
+        // A rival lord announces the assault before it moves — the words
+        // are composed here from the structured note, so the log stays
+        // numbers and the screen owns the phrasing. The horn is the raid
+        // horn on purpose: one sound means "look up, something is coming".
+        play('raidHorn');
+        const lord =
+          playersMeta().find(p => p.id === event.attacker)?.strategy;
+        const name =
+          lord !== undefined ? AI_STRATEGIES[lord].name : 'a rival lord';
+        const words =
+          event.note === HeraldNote.retribution
+            ? 'For the raid on our lands — we are coming!'
+            : event.note === HeraldNote.finalAssault
+              ? `${event.count ?? 'Many'} strong, and your walls will not hold!`
+              : 'Our banners march on your gates!';
+        pushToast(`A herald of ${name}: “${words}”`);
       } else if (
         event.kind === GameEventKind.playerEliminated &&
         event.player !== myPlayerId()

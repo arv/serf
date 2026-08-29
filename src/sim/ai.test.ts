@@ -187,9 +187,11 @@ function siegeStandoff(): {world: World; brain: AiBrain} {
   );
   // These fixtures measure the ODDS gate against the printed muster of
   // seven. The stance engine would switch this found-castle world into
-  // siege (bar twelve) and hide the gate behind a headcount hold, so it is
-  // pinned off — the aiStances tests own the stance behavior.
+  // siege (bar twelve) and hide the gate behind a headcount hold, and the
+  // herald would hold the march it allows — so both are pinned off; the
+  // aiStances and aiWar tests own those behaviors.
   brain.setStancePolicy(false);
+  brain.setWarBehaviors([]);
   return {world, brain};
 }
 
@@ -345,6 +347,7 @@ describe('strategist overrides', () => {
       world.map.size,
     );
     brain.setStancePolicy(false); // the printed bar of seven is the subject
+    brain.setWarBehaviors([]); // and the herald would hold the march
     expect(marchOrders(brain.decide(world), 30, 30)).toEqual([]); // headcount says wait
     brain.setOverride({marchConfidence: 60});
     expect(marchOrders(brain.decide(world), 30, 30).length).toBeGreaterThan(0);
