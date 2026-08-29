@@ -88,7 +88,7 @@ export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   [CommandKind.herald]: {
     summary:
       'A taunt with an address: announce a coming march (or vengeance) to one rival. The AI seats send these before a full assault; the note is a number the screen turns into words, never free text.',
-    payload: 'target, note (1 march · 2 retribution · 3 final assault), count?',
+    payload: 'target, note (marchComing · retribution · finalAssault), count?',
   },
 };
 
