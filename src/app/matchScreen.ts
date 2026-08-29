@@ -10,6 +10,7 @@ import {
 import {Controls} from '../input/controls';
 import {installMouseCapture} from '../input/mouseCapture';
 import type {NetInfo} from '../protocol/messages';
+import {Arrows} from '../render/arrows';
 import {loadGlbAssets} from '../render/assets';
 import {BuildingSync} from '../render/buildingSync';
 import {Butterflies} from '../render/butterflies';
@@ -473,6 +474,22 @@ export async function runMatch(
     config.myPlayerId,
   );
   sync.onCue = (cue, x, z, delaySec) => playAt(cue, x, z, 1, delaySec);
+  // Arrows fly render -> render: the sync says when a bow looses and at
+  // what, the arrows layer owns the flight. Same injection shape as the
+  // cues above.
+  const arrows = new Arrows(renderer.scene, heights);
+  sync.onArrow = (fx, fz, tx, tz) => arrows.spawn(fx, fz, tx, tz);
+  // The tower roof's volleys land through the same layer. The tower's
+  // actual target never reaches the client, so composition here closes
+  // the loop: buildingSync says who loosed (and from what roof height),
+  // the unit sync's latest publish says who is in reach to shoot at, and
+  // a roof with nobody in range looses nothing this cycle.
+  const volleyAt = {x: 0, y: 0};
+  buildingSync.onVolley = (x, y, z, owner, range, levied) => {
+    if (!sync.nearestEnemyInto(x, z, owner, range, volleyAt)) return;
+    if (levied) arrows.spawnStone(x, z, volleyAt.x, volleyAt.y, y);
+    else arrows.spawn(x, z, volleyAt.x, volleyAt.y, y);
+  };
   // Where the well cranks are (drawing serfs stand beside them, hand
   // IK-glued to the grip) and where the fishery piers run (fishermen walk
   // out and cast off the end).
@@ -880,6 +897,11 @@ export async function runMatch(
     // Same view rect the unit sync culls against — sails and roof watches
     // off camera are not worth animating either.
     buildingSync.frame(speed() === 0 ? 0 : dt, bounds);
+    // After both spawners — sync.update looses the field's arrows,
+    // buildingSync.frame the towers' — so every flight loosed this frame
+    // advances on this frame's clock. 0 while paused: arrows hang in the
+    // air with the battle they belong to.
+    arrows.update(speed() === 0 ? 0 : dt);
     // Everything above has had its say about this camera; draw it.
     renderer.render();
     // Last: the frame's queued cues become at most a couple dozen voices.

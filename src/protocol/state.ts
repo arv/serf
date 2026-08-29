@@ -200,6 +200,12 @@ export function encodeHot(
     out[off + 16] = u.action;
     out[off + 17] = u.workKind ?? 0;
     out[off + 18] = u.profession ?? 0;
+    // The combat-pose pair. facing sat unwritten in the row for a while
+    // (UNIT_BYTES always reserved it), so multiplayer fighters stood
+    // swinging whichever way they had last walked; it rides now, with the
+    // range byte that turns its bearing into a target point for arrows.
+    out[off + 19] = u.facing ?? 0;
+    out[off + 20] = u.targetDist ?? 0;
     off += UNIT_BYTES;
   }
   return out;
@@ -229,6 +235,8 @@ function decodeHot(data: Uint8Array): HotFrame {
       action: data[off + 16]!,
       workKind: data[off + 17]!,
       profession: data[off + 18]!,
+      facing: data[off + 19]!,
+      targetDist: data[off + 20]!,
     };
     off += UNIT_BYTES;
   }

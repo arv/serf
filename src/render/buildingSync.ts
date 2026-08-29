@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {LOOP_CUES} from '../audio/animCues';
 import type {CueId} from '../audio/cues';
 import type {BuildingSnap} from '../protocol/messages';
 import * as StaffingState from '../protocol/staffingStateEnum.ts';
@@ -13,6 +14,7 @@ import {UNIT_DEFS} from '../sim/defs/units';
 import * as UnitTypeId from '../sim/defs/unitTypeIdEnum.ts';
 import {WATER_LEVEL} from '../sim/map';
 import * as AnimKey from './animKeyEnum.ts';
+import {crossedRelease} from './arrows';
 import {glbYardProp, glbYardRock, makeGlbBuilding} from './assets';
 import {CAMERA_YAW, type ViewBounds} from './cameraRig';
 import {makeCharacter, playAnimation, type CharacterVisual} from './characters';
@@ -63,6 +65,36 @@ const GHOST_SEED_SCALE = 0.22;
 const ARCHER_KIND = UnitTypeId.archer;
 /** The levy on the roof wears the serf it is. */
 const LEVY_KIND = UnitTypeId.serf;
+
+/**
+ * Where in the Throw clip the stone leaves the hand, as a phase 0..1 —
+ * the levy's release, next to the bow's in LOOP_CUES. Measured the way
+ * the animCues phases are (tools/modelLab/animImpacts.mjs curve
+ * Rig_Medium_General.glb Throw handslot.r): the wind-up ends at 0.41,
+ * then the hand whips forward, crossing overhead at 0.475 with its
+ * swing speed peaking right beside it (13.9 rig units/s at 0.487) —
+ * the stone is gone as the hand comes over the top.
+ */
+const THROW_RELEASE = 0.48;
+
+/**
+ * How far this building's volley visibly reaches — the garrison rule's
+ * own numbers (the levy's stones, or the archer's bow plus the height
+ * bonus: volleyOf's arithmetic in sim/systems/combat.ts), plus half the
+ * footprint, because the sim measures reach from the footprint's edge
+ * and the render measures from the roof post near its middle. 0 for
+ * anything without a garrison, which is what gates the volley watch off.
+ */
+function volleyRangeOf(b: BuildingSnap): number {
+  const rule = buildingDef(b.type).garrison;
+  if (!rule) return 0;
+  const reach =
+    b.levied === true
+      ? rule.levy.range
+      : (UNIT_DEFS[rule.unit].combat?.range ?? 0) + rule.rangeBonus;
+  if (reach <= 0) return 0;
+  return reach + Math.max(b.w, b.h) / 2;
+}
 
 /** Reused for the post->root coordinate hop; buildings do not move. */
 const SCRATCH_POS = new THREE.Vector3();
@@ -150,10 +182,17 @@ interface BuildingVisual {
   /** The archers currently standing on those posts, one per man the sim
    * says is inside. Built here rather than fed from the unit stream:
    * a garrisoned soldier is not a unit any more (he was consumed into the
-   * building), so there is nothing in the SAB to place. */
-  manned: {group: THREE.Group; char: CharacterVisual | null}[];
+   * building), so there is nothing in the SAB to place. `shootT` is each
+   * man's own release watch — his clip's time last frame, held only while
+   * he is loosing (the same contract as UnitVisual.shootT in sceneSync). */
+  manned: {group: THREE.Group; char: CharacterVisual | null; shootT?: number}[];
   /** Latest BuildingSnap.firing — the roof draws instead of idling. */
   firing: boolean;
+  /** Who this building shoots for — the volley target pick needs a side. */
+  owner: number;
+  /** How far the roof's volley visibly reaches (volleyRangeOf); tracks the
+   * garrison kind, so it moves when a levy is relieved by archers. */
+  volleyRange: number;
   /** Latest BuildingSnap.levied: villagers on the roof, not archers. Kept
    * so a relief — the levy going down as soldiers come up — rebuilds the
    * figures instead of leaving serfs standing in an archer's post. */
@@ -294,6 +333,29 @@ export class BuildingSync {
    */
   onCue: ((cue: CueId, x: number, z: number) => void) | null = null;
 
+  /**
+   * Volley channel, injected from main: fired the frame a roof figure's
+   * clip crosses its release — bow or measured throw — with where the
+   * man stands (feet, world space, roof height included), whose side he
+   * shoots for, how far his volley reaches, and whether he is levy (a
+   * lobbed stone) rather than an archer (an arrow). The receiver picks
+   * the target and flies the projectile: which enemy the tower actually
+   * shot never reaches the client, so the pick is render-side (see
+   * SceneSync.nearestEnemyInto). Same visibility guarantee as onCue —
+   * the roof loop below only runs for buildings on a lit, on-camera
+   * patch of ground.
+   */
+  onVolley:
+    | ((
+        x: number,
+        y: number,
+        z: number,
+        owner: number,
+        range: number,
+        levied: boolean,
+      ) => void)
+    | null = null;
+
   setFog(fog: FogQuery): void {
     this.#fog = fog;
   }
@@ -389,6 +451,7 @@ export class BuildingSync {
       v.staffed = b.staffing === StaffingState.staffed;
       v.working = b.working === true;
       v.firing = b.firing === true;
+      v.volleyRange = volleyRangeOf(b);
       this.#syncPiles(v, b);
       this.#syncGarrison(v, b);
 
@@ -566,6 +629,8 @@ export class BuildingSync {
         .filter((o): o is THREE.Object3D => o !== undefined),
       manned: [],
       firing: false,
+      owner: b.owner,
+      volleyRange: 0,
       levied: false,
     };
   }
@@ -800,13 +865,53 @@ export class BuildingSync {
       // idle the rest of the time. Desynced by post index so two men on one
       // roof never breathe in lockstep.
       for (let i = 0; i < v.manned.length; i++) {
-        const char = v.manned[i]!.char;
+        const man = v.manned[i]!;
+        const char = man.char;
         if (!char) continue;
         // The levy has no bow to draw, so it lobs: the villager throws and
         // the archer keeps his own loose.
         const shooting = v.levied ? AnimKey.throwing : AnimKey.shoot;
         playAnimation(char, v.firing ? shooting : AnimKey.idle, i * 0.37);
         char.mixer.update(dt);
+        // Each man's projectile leaves at his own clip's release — the
+        // same phase-crossing watch the field archers keep (sceneSync),
+        // against the throw's measured release for the levy. Volleys ride
+        // the drawing state rather than the sim's exact fire ticks (those
+        // never reach the client); two desynced clips loosing on their
+        // own rhythm while the tower is hot is the intended read.
+        const act =
+          v.firing && this.onVolley && v.volleyRange > 0
+            ? char.actions.get(shooting)
+            : undefined;
+        if (act) {
+          const rel =
+            (v.levied
+              ? THROW_RELEASE
+              : (LOOP_CUES[AnimKey.shoot]?.impactPhase01 ?? 0.5)) *
+            act.getClip().duration;
+          const t = act.time;
+          const prevT = man.shootT;
+          man.shootT = t;
+          if (crossedRelease(prevT, t, rel)) {
+            man.group.getWorldPosition(SCRATCH_POS);
+            // The roof gets the field archer's twang too — buildingSync
+            // drives these mixers itself, so sceneSync's loop-cue hook
+            // never hears them. The levy stays quiet: there is no stone
+            // cue, and a silent lob beats a borrowed bow twang.
+            if (!v.levied)
+              this.onCue?.('bowRelease', SCRATCH_POS.x, SCRATCH_POS.z);
+            this.onVolley!(
+              SCRATCH_POS.x,
+              SCRATCH_POS.y,
+              SCRATCH_POS.z,
+              v.owner,
+              v.volleyRange,
+              v.levied,
+            );
+          }
+        } else {
+          man.shootT = undefined;
+        }
       }
     }
     if (this.#dying.length === 0) return;

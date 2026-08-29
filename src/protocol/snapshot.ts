@@ -305,6 +305,19 @@ function facingByte(u: Unit, at: {x: number; y: number}): number {
   return Math.round((turns - Math.floor(turns)) * 256) & 255;
 }
 
+/**
+ * Range to what it is hitting, quantized to eighth-tiles and held off zero
+ * — 0 is the wire's "no target", and a melee fighter standing on its victim
+ * is still engaged. An eighth of a tile is finer than the error the facing
+ * byte's 1.4° steps put on the same point at any weapon range, so bearing
+ * plus this reconstructs where the target stands as well as either byte
+ * allows. What the renderer flies an archer's arrow to.
+ */
+function targetDistByte(u: Unit, at: {x: number; y: number}): number {
+  const d = Math.round(exactDist(at.x - u.x, at.y - u.y) * 8);
+  return Math.max(1, Math.min(255, d));
+}
+
 /** What is this unit visibly doing? Drives limb animation in the renderer. */
 function actionOf(w: World, u: Unit, engaged: boolean): number {
   if (u.dead) return ACTION.dead;
@@ -402,6 +415,7 @@ export function* unitSnapshots(w: World): Generator<UnitSnapshot> {
           : WORK.none,
       profession: professionOf(w, u),
       facing: engaged ? facingByte(u, engaged) : 0,
+      targetDist: engaged ? targetDistByte(u, engaged) : 0,
     };
   }
 }
