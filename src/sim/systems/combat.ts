@@ -204,7 +204,10 @@ export function combatSystem(world: World): void {
     // A live fight breaks formation: chases, kiting and retreats all run at
     // true speeds, because the counter table prices them there — a spearman
     // held to knight pace never catches the archers he exists to catch.
-    unit.marchSpeed = undefined;
+    // Guarded: this runs per fighting unit per tick, and the bare write
+    // would lazily add the field (a hidden-class transition) to every
+    // soldier that never marched.
+    if (unit.marchSpeed !== undefined) unit.marchSpeed = undefined;
 
     // Engage: in range -> strike on cooldown; out of range -> close in.
     // Ranged units kite: they back off from anything closing to melee.

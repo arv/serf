@@ -21,7 +21,7 @@ export interface CommandDoc {
 export const COMMAND_DOCS: Record<SimCommand['kind'], CommandDoc> = {
   [CommandKind.moveUnits]: {
     summary:
-      'Send selected units to a tile. A mixed squad forms up — knights front, archers rear — and marches at its slowest member’s pace; a fight breaks both. Plain by default; attack-move engages what it meets, and the mobile half-and-half walks the first half of the route peacefully before going live.',
+      'Send selected units to a tile. A mixed squad forms up — knights front, archers rear — and marches at its slowest member’s pace; the first fight dissolves both the formation and the shared pace, and every unit runs at its own speed again. Plain by default; attack-move engages what it meets, and the mobile half-and-half walks the first half of the route peacefully before going live.',
     payload: `unitIds (up to ${MAX_UNITS_PER_ORDER}), x, y, attack?: true | ‘half’`,
   },
   [CommandKind.placeBuilding]: {
