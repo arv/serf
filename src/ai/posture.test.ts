@@ -11,7 +11,7 @@ import {
   POSTURE_KEYS,
   postureFromKey,
 } from './posture.ts';
-import * as PostureId from './postureIdEnum.ts';
+import * as PostureId from '../sim/defs/postureIdEnum.ts';
 import type {AiWorldSummary} from './summary.ts';
 
 type PostureId = Enum<typeof PostureId>;

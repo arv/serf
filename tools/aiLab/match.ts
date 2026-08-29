@@ -61,6 +61,13 @@ export interface MatchConfig {
    * worth. An empty array turns the layer off entirely.
    */
   economyRules?: readonly EconomyRuleId[];
+  /**
+   * The stance engine (sim/systems/ai.ts #updateStance). Undefined/true is
+   * what ships; false pins every seat to its printed playbook — the
+   * pre-stance null, kept reachable so the engine's worth stays a paired
+   * measurement rather than a memory.
+   */
+  stances?: boolean;
   /** Give up and call it undecided past here. */
   maxTicks: number;
   /** Ticks between one seat's consultations (simWorker shipped 1800 = 90 s). */
@@ -209,6 +216,10 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
   if (cfg.economyRules !== undefined) {
     for (const id of seats.seatIds())
       seats.brainFor(id)?.setEconomyRules(cfg.economyRules);
+  }
+  if (cfg.stances === false) {
+    for (const id of seats.seatIds())
+      seats.brainFor(id)?.setStancePolicy(false);
   }
 
   const consults: ConsultRecord[] = [];

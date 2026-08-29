@@ -12,8 +12,10 @@ import {
 } from '../combatOdds.ts';
 import * as CommandKind from '../commandKindEnum.ts';
 import type {SimCommand} from '../commands.ts';
+import {stanceWarKnobs, type StanceKnobs} from '../defs/aiPostures.ts';
 import type {AiStrategy, BuildStep} from '../defs/aiStrategies.ts';
 import {HIRE_QUEUE_CAP, HIRE_SERF_COST} from '../defs/balance.ts';
+import * as PostureId from '../defs/postureIdEnum.ts';
 import * as BuildAnchor from '../defs/buildAnchorEnum.ts';
 import {
   BUILDING_DEFS,
@@ -222,6 +224,37 @@ export const AI_STALL = {
 } as const;
 
 /**
+ * The stance engine's clocks (see AiStrategy.stances and #updateStance).
+ *
+ * A stance is a mood, and a mood that flaps is no personality at all:
+ * `hostileNear` flickers per beat as a raider walks in and out of a radius,
+ * and every stance switch moves the pacing knobs the march and rally
+ * cooldowns read. So wanted-stance is re-read on a slow clock, and a held
+ * stance keeps its seat for at least `dwell` ticks — with one exception,
+ * the fortify break-in, which fires the same beat hostiles reach the yard,
+ * because danger is the one thing a mood must not be slow about. Reverting
+ * OUT of fortify still waits out the clocks, so the army does not bounce
+ * between the yard and the road while a raid dissolves.
+ */
+export const AI_STANCE = {
+  /** Ticks between wanted-stance evaluations. */
+  evalPeriod: 500,
+  /** A switch holds at least this long (the break-in excepted). */
+  dwell: 1000,
+} as const;
+
+/** The stance engine's three states. What each maps to lives in the
+ * playbook (AiStrategy.stances); an unset opening means the printed
+ * playbook itself. */
+export const STANCE_OPENING = 0;
+export const STANCE_FORTIFY = 1;
+export const STANCE_FOUND = 2;
+type StanceState =
+  | typeof STANCE_OPENING
+  | typeof STANCE_FORTIFY
+  | typeof STANCE_FOUND;
+
+/**
  * How battered a building has to be before a seat pays to mend it. Not every
  * scratch is worth a mason: the bill is charged per point of damage, so
  * repairing at the first arrow costs the same materials in the end and spends
@@ -428,13 +461,31 @@ export class AiBrain {
   #oddsBlind = 0;
   #oddsCamps = 0;
   /**
-   * Knobs laid over the playbook — the LLM strategist's dial (src/ai/).
-   * Worker memory only, never serialized: the world's determinism story is
-   * untouched because overrides reach the sim solely through the commands
-   * this brain already emits, and a reloaded save simply runs the printed
-   * playbook until the next advice lands.
+   * Knobs laid over the playbook — the advice seam's dial (src/ai/,
+   * tools/aiLab). Worker memory only, never serialized: the world's
+   * determinism story is untouched because overrides reach the sim solely
+   * through the commands this brain already emits, and a reloaded save
+   * simply runs the printed playbook until the next advice lands. Advice
+   * merges over the stance too — the lab's whole-match steering outranks
+   * the seat's own moods.
    */
   #override: Partial<AiStrategy> | null = null;
+  /**
+   * The stance engine's whole memory (AiStrategy.stances, AI_STANCE):
+   * which of the three states the seat is in, since when, and when the
+   * wanted stance is next re-read. Brain-local like everything else here —
+   * a reloaded save re-enters the opening and re-finds the rival within an
+   * eval period, which is the same story vision and intel already tell.
+   */
+  #stanceState: StanceState = STANCE_OPENING;
+  #stanceSince = 0;
+  #stanceEvalDue = 0;
+  /** Diagnostics: switches made, so the lab's fingerprints can tell a seat
+   * that lived one mood from a seat that swung with the match. */
+  #stanceSwitches = 0;
+  /** The lab's ablation handle (`--stances off`): false pins the seat to
+   * its printed playbook, which is the pre-stance-engine null. */
+  #stancePolicy = true;
   /** What this seat has actually observed — the same filter humans play
    * under. Recomputed at every decision beat, remembered between them. */
   #vision: SeatVision;
@@ -506,6 +557,12 @@ export class AiBrain {
     this.#rules = new Set(ids);
   }
 
+  /** Turn the stance engine off (the lab's `--stances off`); the game never
+   * calls it, so a shipped seat always plays its moods. */
+  setStancePolicy(on: boolean): void {
+    this.#stancePolicy = on;
+  }
+
   constructor(playerId: Owner, strategy: AiStrategy, mapSize: number) {
     this.playerId = playerId;
     this.strategy = strategy;
@@ -519,10 +576,10 @@ export class AiBrain {
   }
 
   /**
-   * What this seat has observed, for the LLM strategist's summary
-   * (src/ai/summary.ts) — the strategist must know exactly what the brain
-   * knows, no more. As of the last decision beat, so at most one beat
-   * stale; read-only by convention.
+   * What this seat has observed, for the seat summary (src/ai/summary.ts)
+   * — an advisor must know exactly what the brain knows, no more. As of
+   * the last decision beat, so at most one beat stale; read-only by
+   * convention.
    */
   get vision(): SeatVision {
     return this.#vision;
@@ -549,6 +606,21 @@ export class AiBrain {
       beats: this.#stalledBeats,
       recoveries: this.#recoveries,
       stalled: this.#windowIsFlat(),
+    };
+  }
+
+  /** Where the stance engine stands, for the lab's fingerprints and the
+   * tests: the state, spelled; the tick it was entered; switches so far. */
+  stanceReport(): {
+    state: 'opening' | 'fortify' | 'found';
+    since: number;
+    switches: number;
+  } {
+    const names = ['opening', 'fortify', 'found'] as const;
+    return {
+      state: names[this.#stanceState],
+      since: this.#stanceSince,
+      switches: this.#stanceSwitches,
     };
   }
 
@@ -595,9 +667,6 @@ export class AiBrain {
   /** Read the world, emit this beat's commands. Pure apart from the brain's
    * own pacing memory. */
   decide(world: World): SimCommand[] {
-    const s = this.#override
-      ? {...this.strategy, ...this.#override}
-      : this.strategy;
     const p = world.players[this.playerId];
     if (!p || !p.alive || world.outcome.state !== MatchState.playing) return [];
     this.#vision.recompute(world, this.playerId);
@@ -614,6 +683,18 @@ export class AiBrain {
     if (!sh) return commands; // one tick from elimination; nothing to do
     const baseX = sh.x + 1;
     const baseY = sh.y + 1;
+
+    // --- The stance, then the strategy it colors -----------------------------
+    // Three layers, later over earlier: the printed playbook is the seat's
+    // identity, the stance is its mood (war knobs only — see aiPostures.ts),
+    // and advice through the seam outranks both, so the lab's steering
+    // still measures what it always measured.
+    this.#updateStance(world, baseX, baseY);
+    const s: AiStrategy = {
+      ...this.strategy,
+      ...(this.#stanceKnobs() ?? {}),
+      ...(this.#override ?? {}),
+    };
     const stock = sh.stock;
     const techs = p.techs;
     const researched = (id: TechId): boolean => techs.researched.includes(id);
@@ -1227,6 +1308,78 @@ export class AiBrain {
     }
 
     return commands;
+  }
+
+  /**
+   * Advance the stance engine (AiStrategy.stances, AI_STANCE): the fortify
+   * break-in on any beat, the wanted-stance read on the slow clock, and the
+   * dwell that keeps a mood from flapping. State only — what the stance
+   * means in knobs is #stanceKnobs' business.
+   */
+  #updateStance(world: World, baseX: number, baseY: number): void {
+    const st = this.strategy.stances;
+    const tick = world.tick;
+    const underAttack = (): boolean =>
+      hostileNear(
+        world,
+        this.#vision,
+        this.playerId,
+        baseX,
+        baseY,
+        AI_INTEL.raidRadius,
+      );
+    // The break-in: danger is the one thing a mood must not be slow about.
+    // Same-beat, every beat — but only INTO fortify; the way back out goes
+    // through the clocks below.
+    if (
+      st.underAttackBreak &&
+      this.#stanceState !== STANCE_FORTIFY &&
+      underAttack()
+    ) {
+      this.#stanceState = STANCE_FORTIFY;
+      this.#stanceSince = tick;
+      this.#stanceSwitches++;
+      return;
+    }
+    if (tick < this.#stanceEvalDue) return;
+    this.#stanceEvalDue = tick + AI_STANCE.evalPeriod;
+    if (tick - this.#stanceSince < AI_STANCE.dwell) return;
+    const want: StanceState =
+      st.underAttackBreak && underAttack()
+        ? STANCE_FORTIFY
+        : rivalCastleFound(world, this.#vision, this.playerId) &&
+            this.#armyCount(world) >= (st.foundAfterArmy ?? 0)
+          ? STANCE_FOUND
+          : STANCE_OPENING;
+    if (want === this.#stanceState) return;
+    this.#stanceState = want;
+    this.#stanceSince = tick;
+    this.#stanceSwitches++;
+  }
+
+  /** The war knobs the current stance lays over the playbook, or null for
+   * "the printed line as written" — an unset opening, or the lab running
+   * `--stances off`. */
+  #stanceKnobs(): StanceKnobs | null {
+    if (!this.#stancePolicy) return null;
+    const st = this.strategy.stances;
+    const pick =
+      this.#stanceState === STANCE_FORTIFY
+        ? {posture: PostureId.fortify}
+        : this.#stanceState === STANCE_FOUND
+          ? st.found
+          : st.opening;
+    return pick ? stanceWarKnobs(pick) : null;
+  }
+
+  /** Soldiers standing, tower garrisons included — the stance gate's count,
+   * not a muster (the march does its own arithmetic). */
+  #armyCount(world: World): number {
+    let n = 0;
+    for (const u of world.units.values()) {
+      if (!u.dead && u.owner === this.playerId && MILITARY.has(u.kind)) n++;
+    }
+    return n;
   }
 
   /**
@@ -1962,6 +2115,26 @@ export function hostileNear(
     if (!UNIT_DEFS[u.kind].combat) continue;
     if (!vision.canSee(u.x, u.y)) continue;
     if (Math.abs(u.x - bx) + Math.abs(u.y - by) <= radius) return true;
+  }
+  return false;
+}
+
+/**
+ * Has a living rival's castle been found — standing on explored ground?
+ * The stance engine's discovery gate, and the same predicate the lab's
+ * summary uses for a rival's `found` flag: a castle is a fact only once
+ * the seat has walked somewhere it can be seen from.
+ */
+export function rivalCastleFound(
+  world: World,
+  vision: SeatVision,
+  owner: Owner,
+): boolean {
+  for (const b of world.buildings.values()) {
+    if (b.dead || b.owner === owner) continue;
+    if (!isPlayerOwner(b.owner) || !buildingDef(b.type).storage) continue;
+    if (!vision.hasExplored(b.x + b.w / 2, b.y + b.h / 2)) continue;
+    return true;
   }
   return false;
 }

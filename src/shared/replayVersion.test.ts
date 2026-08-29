@@ -49,8 +49,15 @@ import {REPLAY_VERSION} from './replayVersion';
 // every tick runs as it did. Side-effect imports are left unsorted by
 // config, so nothing's evaluation order moved either. The hash is over
 // raw bytes, which is why it moved anyway.
+// Still 33 after the stance engine (systems/ai.ts #updateStance, the
+// posture table's move into defs/aiPostures.ts, and the playbooks'
+// stances field): all of it is brain and playbook data, and playback
+// never runs a brain — the log already holds every move the seats made.
+// The seats DECIDE differently now; yesterday's logs still play back
+// exactly, because the sim that executes their logged commands is
+// untouched.
 const EXPECTED_VERSION = 33;
-const EXPECTED_HASH = '470252161bbb1ab0f8dad72d36078a4f';
+const EXPECTED_HASH = 'd6fe0b225dfc85fd691bda0bb3d9977c';
 
 /**
  * Everything a replay's playback depends on, as raw source:

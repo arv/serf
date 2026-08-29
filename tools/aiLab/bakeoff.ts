@@ -94,6 +94,8 @@ interface Options {
   checkInvariantsEvery: number;
   /** Undefined runs the whole table; a subset ablates. */
   economyRules?: readonly EconomyRuleId[];
+  /** False pins seats to their printed playbooks (--stances off). */
+  stances: boolean;
   out: string | undefined;
   jobs: number;
   /** Wall-clock ceiling per --jobs child before the parent kills it and
@@ -128,6 +130,9 @@ serf-valley AI bake-off
                        (default: all of them). --rules none turns the layer
                        off; a subset ablates — sweep without one rule and the
                        difference is what that rule was worth.
+  --stances <on|off>   the seats' stance engine (default: on, what ships).
+                       off pins every seat to its printed playbook — the
+                       pre-stance null for paired comparisons.
   --no-control         skip the unadvised control match per seed
   --trace              keep every prompt and reply in the JSONL
   --check <n>          run sim invariants every n ticks, 0 to disable (default: 0)
@@ -252,6 +257,11 @@ export function parseArgs(argv: string[]): Options {
             return rule;
           });
 
+  const stancesRaw = get('--stances') ?? 'on';
+  if (stancesRaw !== 'on' && stancesRaw !== 'off') {
+    throw new Error(`--stances wants on or off, got "${stancesRaw}"`);
+  }
+
   const matchTimeoutMs = num('--match-timeout-ms', 600_000);
   if (matchTimeoutMs <= 0) {
     throw new Error(
@@ -274,6 +284,7 @@ export function parseArgs(argv: string[]): Options {
     trace: argv.includes('--trace'),
     checkInvariantsEvery: num('--check', 0),
     ...(economyRules !== undefined ? {economyRules} : {}),
+    stances: stancesRaw === 'on',
     out: get('--out'),
     jobs,
     matchTimeoutMs,
@@ -482,6 +493,7 @@ export async function runBakeoff(
     ...(opts.economyRules !== undefined
       ? {economyRules: opts.economyRules}
       : {}),
+    stances: opts.stances,
     trace: opts.trace,
   };
 
