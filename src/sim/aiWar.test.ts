@@ -5,9 +5,9 @@ import {AI_STRATEGIES} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
 import {AI_WAR, AiBrain} from './systems/ai.ts';
-import * as WarBehaviorId from './warBehaviorIdEnum.ts';
 import {addBuiltHut, addStorehouse, bareWorld} from './testUtils.ts';
 import type {Unit} from './units.ts';
+import * as WarBehaviorId from './warBehaviorIdEnum.ts';
 import type {World} from './world.ts';
 import {spawnUnit} from './world.ts';
 

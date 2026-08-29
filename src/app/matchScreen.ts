@@ -31,13 +31,13 @@ import {SelectionFx} from '../render/selectionFx';
 import {TerrainMesh, spoilOf} from '../render/terrainMesh';
 import {WaterMesh} from '../render/waterMesh';
 import {inBounds, tileCount, tileIdx} from '../shared/grid';
+import {AI_STRATEGIES} from '../sim/defs/aiStrategies.ts';
 import * as BuildingTypeId from '../sim/defs/buildingTypeIdEnum.ts';
 import {MISSION_DEFS, MISSION_KEYS} from '../sim/defs/missions';
 import * as GameEventKind from '../sim/gameEventKindEnum.ts';
+import * as HeraldNote from '../sim/heraldNoteEnum.ts';
 import * as MatchState from '../sim/matchStateEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
-import {AI_STRATEGIES} from '../sim/defs/aiStrategies.ts';
-import * as HeraldNote from '../sim/heraldNoteEnum.ts';
 import * as Terrain from '../sim/terrainEnum.ts';
 import {markMissionComplete} from '../ui/campaign';
 import {mountHud} from '../ui/mount';
@@ -593,8 +593,7 @@ export async function runMatch(
         // numbers and the screen owns the phrasing. The horn is the raid
         // horn on purpose: one sound means "look up, something is coming".
         play('raidHorn');
-        const lord =
-          playersMeta().find(p => p.id === event.attacker)?.strategy;
+        const lord = playersMeta().find(p => p.id === event.attacker)?.strategy;
         const name =
           lord !== undefined ? AI_STRATEGIES[lord].name : 'a rival lord';
         const words =

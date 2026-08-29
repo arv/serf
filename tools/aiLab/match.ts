@@ -1,4 +1,8 @@
-import {parseAdvice, toOverride, type StrategyAdvice} from '../../src/ai/advice.ts';
+import {
+  parseAdvice,
+  toOverride,
+  type StrategyAdvice,
+} from '../../src/ai/advice.ts';
 import {summarizeForSeat} from '../../src/ai/summary.ts';
 import {AiSeats} from '../../src/sim/aiSeats.ts';
 import * as BuildingState from '../../src/sim/buildingStateEnum.ts';
@@ -11,9 +15,9 @@ import {buildingDef} from '../../src/sim/defs/buildings.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import type {EconomyRuleId} from '../../src/sim/economyRules.ts';
 import type {Owner} from '../../src/sim/entities.ts';
-import type {WarBehaviorId} from '../../src/sim/systems/ai.ts';
 import * as MatchState from '../../src/sim/matchStateEnum.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
+import type {WarBehaviorId} from '../../src/sim/systems/ai.ts';
 import {tickWorld} from '../../src/sim/tick.ts';
 import {createWorld, type World} from '../../src/sim/world.ts';
 import type {LabEngine} from './engines.ts';

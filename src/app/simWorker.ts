@@ -85,13 +85,11 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       // "sim worker failed: undefined". Messages landing in the window
       // before the world exists are safe: commands queue, and every pump
       // path guards on a null world.
-      init(msg.config, msg.loadData, msg.replay).catch(
-        (err: unknown) => {
-          setTimeout(() => {
-            throw err instanceof Error ? err : new Error(String(err));
-          });
-        },
-      );
+      init(msg.config, msg.loadData, msg.replay).catch((err: unknown) => {
+        setTimeout(() => {
+          throw err instanceof Error ? err : new Error(String(err));
+        });
+      });
       break;
     case MainToWorkerKind.commands:
       // A replay's diet is the log, nothing else: a stray order clicked

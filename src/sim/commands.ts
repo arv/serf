@@ -1,6 +1,5 @@
 import type {Enum} from '../shared/enum.ts';
 import * as CommandKindNs from './commandKindEnum.ts';
-import * as HeraldNoteNs from './heraldNoteEnum.ts';
 import {FORGE_QUEUE_CAP, TRAIN_QUEUE_CAP} from './defs/balance.ts';
 import {
   AUTO_RECIPE,
@@ -10,6 +9,7 @@ import {
 import {TECH_DEFS, type TechId} from './defs/techs.ts';
 import {UNIT_DEFS, type UnitTypeId} from './defs/units.ts';
 import type {EntityId} from './entities.ts';
+import * as HeraldNoteNs from './heraldNoteEnum.ts';
 
 export type CommandKind = Enum<typeof CommandKindNs>;
 import * as AdminActionNs from './adminActionEnum.ts';

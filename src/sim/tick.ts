@@ -5,7 +5,6 @@ import * as AdminAction from './adminActionEnum.ts';
 import * as BuildingState from './buildingStateEnum.ts';
 import * as CommandKind from './commandKindEnum.ts';
 import type {SimCommand} from './commands.ts';
-import * as GameEventKind from './gameEventKindEnum.ts';
 import {
   CORPSE_TICKS,
   FORGE_QUEUE_CAP,
@@ -18,6 +17,7 @@ import {GOODS, goodEntries} from './defs/goods.ts';
 import {TECH_DEFS} from './defs/techs.ts';
 import {UNIT_DEFS, UNIT_TYPES} from './defs/units.ts';
 import {BANDIT, type Owner} from './entities.ts';
+import * as GameEventKind from './gameEventKindEnum.ts';
 import {findPath, nearestWalkable} from './path.ts';
 import {hasRoomToHire} from './population.ts';
 import {banditsSystem} from './systems/bandits.ts';

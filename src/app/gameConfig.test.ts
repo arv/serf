@@ -100,5 +100,4 @@ describe('configFromUrl', () => {
     expect(configFromUrl('?mission=constructor').mission).toBeUndefined();
     expect(configFromUrl('?mission=').mission).toBeUndefined();
   });
-
 });

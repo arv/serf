@@ -69,8 +69,12 @@ import {REPLAY_VERSION} from './replayVersion';
 // walking the bar — the fletcher-abbot standoff was bleeding archers
 // into towers past the 120k horizon — and the fletcher's harass clock
 // eased from 500 to 900, which returned the deck to a contest.
+// Still 34 after oxfmt caught up with the arc's files (CI's
+// format:check): whitespace and wrapping only, same statements, same
+// tick. The hash is over raw bytes, which is why it moved anyway —
+// the same story the "Still 33 after oxfmt" entry above tells.
 const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = 'aaf292c108fa639ba8d70064884992a5';
+const EXPECTED_HASH = '869384ecf398fd369c9335cc2fe9340a';
 
 /**
  * Everything a replay's playback depends on, as raw source:

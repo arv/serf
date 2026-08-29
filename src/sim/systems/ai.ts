@@ -15,8 +15,6 @@ import type {SimCommand} from '../commands.ts';
 import {stanceWarKnobs, type StanceKnobs} from '../defs/aiPostures.ts';
 import type {AiStrategy, BuildStep} from '../defs/aiStrategies.ts';
 import {HIRE_QUEUE_CAP, HIRE_SERF_COST} from '../defs/balance.ts';
-import * as PostureId from '../defs/postureIdEnum.ts';
-import * as HeraldNote from '../heraldNoteEnum.ts';
 import * as BuildAnchor from '../defs/buildAnchorEnum.ts';
 import {
   BUILDING_DEFS,
@@ -30,6 +28,7 @@ import {
 import * as BuildingTypeId from '../defs/buildingTypeIdEnum.ts';
 import * as GoodId from '../defs/goodIdEnum.ts';
 import {goodEntries, type GoodAmounts} from '../defs/goods.ts';
+import * as PostureId from '../defs/postureIdEnum.ts';
 import {TECH_DEFS, type TechId} from '../defs/techs.ts';
 import * as UnitClass from '../defs/unitClassEnum.ts';
 import {UNIT_DEFS, WEAPON_OF} from '../defs/units.ts';
@@ -46,6 +45,7 @@ import {
   type EntityId,
   type Owner,
 } from '../entities.ts';
+import * as HeraldNote from '../heraldNoteEnum.ts';
 import {
   findResourcesNear,
   nearestResource,

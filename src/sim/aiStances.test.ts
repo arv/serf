@@ -1,14 +1,10 @@
 import {describe, expect, it} from 'vitest';
-import {
-  POSTURES,
-  stanceWarKnobs,
-  type StancePick,
-} from './defs/aiPostures.ts';
+import * as CommandKind from './commandKindEnum.ts';
+import {POSTURES, stanceWarKnobs, type StancePick} from './defs/aiPostures.ts';
 import {AI_STRATEGIES, AI_STRATEGY_ORDER} from './defs/aiStrategies.ts';
 import * as AiStrategyId from './defs/aiStrategyIdEnum.ts';
 import * as PostureId from './defs/postureIdEnum.ts';
 import * as UnitTypeId from './defs/unitTypeIdEnum.ts';
-import * as CommandKind from './commandKindEnum.ts';
 import {AI_STANCE, AiBrain} from './systems/ai.ts';
 import {addStorehouse, bareWorld} from './testUtils.ts';
 import type {World} from './world.ts';
@@ -93,7 +89,13 @@ describe('the fortify break-in', () => {
 
   it('reverts through the clocks, not the same beat the raider dies', () => {
     const world = village();
-    const raider = spawnUnit(world, UnitTypeId.knight, 1, BASE + 3.5, BASE + 3.5);
+    const raider = spawnUnit(
+      world,
+      UnitTypeId.knight,
+      1,
+      BASE + 3.5,
+      BASE + 3.5,
+    );
     const brain = brainFor(AiStrategyId.steward, world);
     brain.decide(world);
     expect(brain.stanceReport().state).toBe('fortify');

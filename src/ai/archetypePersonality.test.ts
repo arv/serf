@@ -5,8 +5,8 @@ import * as MatchState from '../sim/matchStateEnum.ts';
 import * as PlayerKind from '../sim/playerKindEnum.ts';
 import {tickWorld} from '../sim/tick.ts';
 import {createWorld} from '../sim/world.ts';
-import * as Archetype from './archetypeEnum.ts';
 import {classifyRival} from './archetype.ts';
+import * as Archetype from './archetypeEnum.ts';
 import {summarizeForSeat} from './summary.ts';
 
 /**

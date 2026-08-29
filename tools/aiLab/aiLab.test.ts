@@ -236,7 +236,8 @@ describe('the advice queue', () => {
 
 /** random and script never read the summary, and these tests exercise the
  * dice and the validator alone — no world, no summary to take. */
-const NO_SUMMARY = null as unknown as import('../../src/ai/summary.ts').AiWorldSummary;
+const NO_SUMMARY =
+  null as unknown as import('../../src/ai/summary.ts').AiWorldSummary;
 
 describe('the random baseline', () => {
   it('replays exactly, so a noise floor is reproducible', () => {
@@ -607,10 +608,8 @@ describe('the fingerprints', () => {
     // Seating 0: steward at seat 0, warlord at seat 1 — and mirrored.
     for (const run of runs) {
       for (const layout of run.layouts) {
-        const stewardSeat = layout.control!.strategies[0] ===
-          AiStrategyId.steward
-          ? 0
-          : 1;
+        const stewardSeat =
+          layout.control!.strategies[0] === AiStrategyId.steward ? 0 : 1;
         layout.control!.war = [
           war(stewardSeat as Owner, {sorties: 4, firstMarchTick: 16_000}),
           war((1 - stewardSeat) as Owner, {

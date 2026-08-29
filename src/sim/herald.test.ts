@@ -46,7 +46,11 @@ describe('the herald on the wire', () => {
         note: HeraldNote.retribution,
         count: 'many',
       }),
-    ).toEqual({kind: CommandKind.herald, target: 1, note: HeraldNote.retribution});
+    ).toEqual({
+      kind: CommandKind.herald,
+      target: 1,
+      note: HeraldNote.retribution,
+    });
   });
 
   it('refuses free text where a note id belongs', () => {

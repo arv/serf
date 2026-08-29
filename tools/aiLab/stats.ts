@@ -306,8 +306,7 @@ export function fingerprintsOf(runs: SeedRun[]): PlaybookFingerprint[] {
     .sort(([a], [z]) => a - z)
     .map(([strategy, agg]) => {
       const sorted = [...agg.firstMarch].sort((a, z) => a - z);
-      const per = (n: number): number =>
-        agg.seats === 0 ? 0 : n / agg.seats;
+      const per = (n: number): number => (agg.seats === 0 ? 0 : n / agg.seats);
       return {
         strategy,
         seats: agg.seats,
@@ -457,9 +456,8 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
     health: {
       consultations: consults.length,
       errors: consults.filter(c => c.error !== undefined).length,
-      parseFailures: consults.filter(
-        c => !c.error && c.parsed === false,
-      ).length,
+      parseFailures: consults.filter(c => !c.error && c.parsed === false)
+        .length,
       emptyAdvice: consults.filter(c => c.knobs === 0).length,
       adviceMessages,
     },

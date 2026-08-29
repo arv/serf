@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {Enum} from '../shared/enum.ts';
+import * as PostureId from '../sim/defs/postureIdEnum.ts';
 import {parseAdvice, toOverride, ADVICE_RANGES} from './advice.ts';
 import {
   choosePosture,
@@ -11,7 +12,6 @@ import {
   POSTURE_KEYS,
   postureFromKey,
 } from './posture.ts';
-import * as PostureId from '../sim/defs/postureIdEnum.ts';
 import type {AiWorldSummary} from './summary.ts';
 
 type PostureId = Enum<typeof PostureId>;

@@ -1331,7 +1331,6 @@ export function StartMenu(props: StartMenuProps) {
                     </div>
                   </div>
                 </Show>
-
               </Show>
 
               <Show when={isSingle() && OPTIONS.showBanditsRow}>

@@ -240,7 +240,6 @@ export function postureEngine(
 ): LabEngine {
   return {
     label,
-    advise: summary =>
-      JSON.stringify({posture: pick(summary), reason: 'rule'}),
+    advise: summary => JSON.stringify({posture: pick(summary), reason: 'rule'}),
   };
 }
