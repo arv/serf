@@ -130,6 +130,29 @@ export interface AiStrategy {
     found: StancePick;
     foundAfterArmy?: number;
   };
+  /**
+   * Harassment sorties (systems/ai.ts #manageSortie): while the muster
+   * builds, a small party is sent at a rival's economy — the nearest
+   * non-castle building on explored ground, the grudge's owner first — and
+   * pulled home when the target falls, the party bleeds, the odds read as
+   * a rout, or `maxAge` ticks pass. Unset is a personality that does not
+   * harass, and that refusal reads as clearly through the fog as the
+   * raids do.
+   */
+  harass?: {size: number; cooldown: number; maxAge: number};
+  /**
+   * Does a losing march turn home? A marched army at under half the
+   * strength it left with, against defenders the odds read as a rout,
+   * either withdraws (true) or fights to the end (false). Character, not
+   * smarts: the sweeps' standing lesson is that hesitation loses, so the
+   * seats that keep the aggressive constant keep it — whether a lord
+   * retreats IS his personality, and both answers are meant to be seen.
+   */
+  retreats: boolean;
+  /** Doorstep re-scout cadence, overriding AI_INTEL.refreshAfter: how
+   * often this lord walks a rival's yard to re-read it. Short is nosy,
+   * long is insular, and the difference is when you first meet them. */
+  scoutRefreshAfter?: number;
   /** Forge assignment by smith age: recipeOptions index [spear, sword, bow].
    * Smiths past the end of the list all take the last entry. */
   weaponMix: number[];
@@ -277,6 +300,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       underAttackBreak: true,
       found: {posture: PostureId.siege},
     },
+    // Measured, unhurried pressure: a party of four on a long cooldown —
+    // the textbook probes, it does not swarm. And a losing march turns
+    // home: the steward husbands what it has.
+    harass: {size: 4, cooldown: 1200, maxAge: 800},
+    retreats: true,
     weaponMix: [1, 0], // first smith on swords, the rest on spears
     trainPreference: [UnitTypeId.knight],
     trainFallback: UnitTypeId.spearman,
@@ -426,6 +454,13 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       underAttackBreak: false,
       found: {posture: PostureId.pounce},
     },
+    // Relentless: three swords at your woodcutters every thirty seconds,
+    // an obsessive scout that finds you early (2500 against the stock
+    // 4000), and no march ever turns around — the warlord's whole game is
+    // pressure the player can feel, and punish.
+    harass: {size: 3, cooldown: 600, maxAge: 800},
+    retreats: false,
+    scoutRefreshAfter: 2500,
     weaponMix: [1], // every forge on swords: knights or nothing
     trainPreference: [UnitTypeId.knight],
     trainFallback: UnitTypeId.spearman,
@@ -617,6 +652,12 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       found: {posture: PostureId.siege, hold: {homeGuard: 6}},
       foundAfterArmy: 10,
     },
+    // No harassment — a turtle that never pokes you is a turtle you can
+    // read — and an insular scout (6000 against the stock 4000): the abbot
+    // is the neighbour you forget about until the bells. A losing push
+    // turns home to the walls it never should have left.
+    retreats: true,
+    scoutRefreshAfter: 6000,
     // Swords at the first forge, bowstaves at the second: this is the one
     // plan running two weapon lines, because it wants knights in the field
     // and archers on the walls.
@@ -779,6 +820,11 @@ export const AI_STRATEGIES: Record<AiStrategyId, AiStrategy> = {
       underAttackBreak: true,
       found: {posture: PostureId.siege},
     },
+    // Hit-and-run is the whole identity: three archers on a short clock,
+    // gone before the counterblow lands — and no march retreats, because
+    // a skirmisher's army IS the retreat, rejoining the next volley.
+    harass: {size: 3, cooldown: 500, maxAge: 800},
+    retreats: false,
     weaponMix: [2], // every forge on bowstaves
     // The spear in the armory arms the first defender; after that the queue
     // waits on bows, since no iron chain is coming.

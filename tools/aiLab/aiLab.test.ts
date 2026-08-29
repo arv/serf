@@ -433,6 +433,7 @@ function fake(
     winner,
     standings: [],
     stalls: [],
+    war: [],
     consults: [],
     adviceApplied: {},
     failures: [],

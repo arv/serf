@@ -15,6 +15,12 @@ import {
 } from '../../src/sim/economyRules.ts';
 import type {Owner} from '../../src/sim/entities.ts';
 import {
+  ALL_WAR_BEHAVIORS,
+  WAR_BEHAVIOR_KEYS,
+  warBehaviorFromKey,
+  type WarBehaviorId,
+} from '../../src/sim/systems/ai.ts';
+import {
   buildEngine,
   describeSpec,
   parseEngineSpec,
@@ -96,6 +102,8 @@ interface Options {
   economyRules?: readonly EconomyRuleId[];
   /** False pins seats to their printed playbooks (--stances off). */
   stances: boolean;
+  /** Undefined runs the whole set; a subset ablates (--war). */
+  warBehaviors?: readonly WarBehaviorId[];
   out: string | undefined;
   jobs: number;
   /** Wall-clock ceiling per --jobs child before the parent kills it and
@@ -133,6 +141,9 @@ serf-valley AI bake-off
   --stances <on|off>   the seats' stance engine (default: on, what ships).
                        off pins every seat to its printed playbook — the
                        pre-stance null for paired comparisons.
+  --war <ids|none>     war behaviors the seats run, comma-separated
+                       (default: all of them). --war none turns the layer
+                       off; a subset ablates one verb at a time.
   --no-control         skip the unadvised control match per seed
   --trace              keep every prompt and reply in the JSONL
   --check <n>          run sim invariants every n ticks, 0 to disable (default: 0)
@@ -262,6 +273,25 @@ export function parseArgs(argv: string[]): Options {
     throw new Error(`--stances wants on or off, got "${stancesRaw}"`);
   }
 
+  const warRaw = get('--war');
+  const warBehaviors =
+    warRaw === undefined
+      ? undefined
+      : warRaw === 'none'
+        ? []
+        : warRaw.split(',').map(id => {
+            const trimmed = id.trim();
+            const behavior = warBehaviorFromKey(trimmed);
+            if (behavior === undefined) {
+              throw new Error(
+                `--war does not know "${trimmed}" (have: ${ALL_WAR_BEHAVIORS.map(
+                  b => WAR_BEHAVIOR_KEYS[b],
+                ).join(', ')})`,
+              );
+            }
+            return behavior;
+          });
+
   const matchTimeoutMs = num('--match-timeout-ms', 600_000);
   if (matchTimeoutMs <= 0) {
     throw new Error(
@@ -285,6 +315,7 @@ export function parseArgs(argv: string[]): Options {
     checkInvariantsEvery: num('--check', 0),
     ...(economyRules !== undefined ? {economyRules} : {}),
     stances: stancesRaw === 'on',
+    ...(warBehaviors !== undefined ? {warBehaviors} : {}),
     out: get('--out'),
     jobs,
     matchTimeoutMs,
@@ -494,6 +525,9 @@ export async function runBakeoff(
       ? {economyRules: opts.economyRules}
       : {}),
     stances: opts.stances,
+    ...(opts.warBehaviors !== undefined
+      ? {warBehaviors: opts.warBehaviors}
+      : {}),
     trace: opts.trace,
   };
 

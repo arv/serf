@@ -56,8 +56,13 @@ import {REPLAY_VERSION} from './replayVersion';
 // The seats DECIDE differently now; yesterday's logs still play back
 // exactly, because the sim that executes their logged commands is
 // untouched.
+// Still 33 after the war behaviors (warBehaviorIdEnum.ts, AI_WAR,
+// harassment sorties, outpost defense, the retreating march, the fleeing
+// scout, the grudge): the same reasoning one layer wider. Every verb
+// speaks in commands the sim already took; the tick that executes them
+// did not move.
 const EXPECTED_VERSION = 33;
-const EXPECTED_HASH = 'd6fe0b225dfc85fd691bda0bb3d9977c';
+const EXPECTED_HASH = '5b394d81937984e67c9ce969f8962d4d';
 
 /**
  * Everything a replay's playback depends on, as raw source:

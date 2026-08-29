@@ -11,6 +11,7 @@ import {buildingDef} from '../../src/sim/defs/buildings.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import type {EconomyRuleId} from '../../src/sim/economyRules.ts';
 import type {Owner} from '../../src/sim/entities.ts';
+import type {WarBehaviorId} from '../../src/sim/systems/ai.ts';
 import * as MatchState from '../../src/sim/matchStateEnum.ts';
 import * as PlayerKind from '../../src/sim/playerKindEnum.ts';
 import {tickWorld} from '../../src/sim/tick.ts';
@@ -68,6 +69,12 @@ export interface MatchConfig {
    * measurement rather than a memory.
    */
   stances?: boolean;
+  /**
+   * War behaviors the seats run (sim/warBehaviorIdEnum.ts). Undefined runs
+   * the whole set, which is what ships; a subset ablates one verb at a
+   * time, and an empty array is the pre-reactive brain.
+   */
+  warBehaviors?: readonly WarBehaviorId[];
   /** Give up and call it undecided past here. */
   maxTicks: number;
   /** Ticks between one seat's consultations (simWorker shipped 1800 = 90 s). */
@@ -151,6 +158,15 @@ export interface MatchRecord {
    * undecided count.
    */
   stalls: {playerId: Owner; beats: number; recoveries: number}[];
+  /**
+   * Each seat's war fingerprints (AiBrain.warReport): when it first
+   * marched in force, its sorties and their endings, defenses, retreats,
+   * fled scouts, mood switches. The legibility numbers — two playbooks
+   * that print the same win rate should still read differently here.
+   */
+  war: ({playerId: Owner} & ReturnType<
+    import('../../src/sim/systems/ai.ts').AiBrain['warReport']
+  >)[];
   /** Wall-clock milliseconds the whole match took. */
   wallMs: number;
   /** Every unit and building at the final tick, folded to a string. Two
@@ -220,6 +236,10 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
   if (cfg.stances === false) {
     for (const id of seats.seatIds())
       seats.brainFor(id)?.setStancePolicy(false);
+  }
+  if (cfg.warBehaviors !== undefined) {
+    for (const id of seats.seatIds())
+      seats.brainFor(id)?.setWarBehaviors(cfg.warBehaviors);
   }
 
   const consults: ConsultRecord[] = [];
@@ -343,6 +363,9 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
       const {beats, recoveries} = seats.brainFor(id)!.stallReport();
       return {playerId: id, beats, recoveries};
     }),
+    war: seats
+      .seatIds()
+      .map(id => ({playerId: id, ...seats.brainFor(id)!.warReport()})),
     wallMs: Date.now() - startedAt,
     digest: worldDigest(world),
   };
