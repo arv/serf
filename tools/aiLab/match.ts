@@ -214,8 +214,10 @@ export function queueAdvice(
  * because the archived runs were measured under exactly these semantics.
  */
 interface SeatAdviceMemory {
-  /** Every knob changed so far, newest over oldest. */
-  advice: StrategyAdvice | null;
+  /** Every knob changed so far, newest over oldest; {} until the first
+   * reply lands (merging over it is what the old null did, minus the
+   * special case). */
+  advice: StrategyAdvice;
   /** The override as last posted, stringified — an engine that repeats its
    * standing advice every consultation should not repeat the message. */
   sentKey: string | null;
@@ -255,7 +257,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
   for (const [playerId, engine] of cfg.engines) {
     if (!seats.seatIds().includes(playerId)) continue;
     advised.push({playerId, engine: engine.label});
-    memory.set(playerId, {advice: null, sentKey: null});
+    memory.set(playerId, {advice: {}, sentKey: null});
   }
 
   const summaryDue = new Map(

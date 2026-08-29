@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {parseAdvice} from '../../src/ai/advice.ts';
-import {POSTURE_ORDER} from '../../src/ai/posture.ts';
+import {POSTURE_KEYS, POSTURE_ORDER} from '../../src/ai/posture.ts';
 import {Rng} from '../../src/shared/rng.ts';
 import {
   AI_STRATEGIES,
@@ -181,7 +181,9 @@ describe('engine specs', () => {
     ]) {
       expect(message, `refusal should mention ${name}`).toContain(name);
     }
-    for (const id of POSTURE_ORDER) expect(message).toContain(id);
+    // The stances by their KEYS — a refusal that prints the numeric ids
+    // documents nothing (the very bug this line once let through).
+    for (const id of POSTURE_ORDER) expect(message).toContain(POSTURE_KEYS[id]);
   });
 
   it('builds nothing for the unadvised control', () => {
@@ -1090,12 +1092,16 @@ describe('the command line', () => {
     expect(() => parseArgs(['--seeds', '6-3'])).toThrow(/backwards/);
   });
 
-  it('takes latency as a number of ticks, nothing else', () => {
+  it('takes latency as a non-negative number of ticks, nothing else', () => {
     expect(parseArgs(['--latency', '120']).latency).toBe(120);
+    expect(parseArgs(['--latency', '0']).latency).toBe(0);
     // 'measured' died with the model: a synchronous engine has no wall
     // clock worth pricing in, so the flag takes ticks alone now.
     expect(() => parseArgs(['--latency', 'measured'])).toThrow(/number/);
     expect(() => parseArgs(['--latency', 'soon'])).toThrow(/number/);
+    // Negative delay would only be clamped to zero downstream — refused
+    // here instead, so the flag never silently means something else.
+    expect(() => parseArgs(['--latency', '-5'])).toThrow(/non-negative/);
   });
 
   it('arms the match watchdog with a sane ceiling', () => {

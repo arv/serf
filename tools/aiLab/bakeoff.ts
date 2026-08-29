@@ -246,8 +246,13 @@ export function parseArgs(argv: string[]): Options {
     );
   }
   const latencyRaw = get('--latency') ?? '0';
-  if (!Number.isFinite(Number(latencyRaw))) {
-    throw new Error(`--latency wants a number of ticks, got "${latencyRaw}"`);
+  // Non-negative, validated here: a negative delay would only be clamped
+  // to zero downstream, and a flag that silently means something else is
+  // worse than a refusal.
+  if (!Number.isFinite(Number(latencyRaw)) || Number(latencyRaw) < 0) {
+    throw new Error(
+      `--latency wants a non-negative number of ticks, got "${latencyRaw}"`,
+    );
   }
   const rulesRaw = get('--rules');
   const economyRules =

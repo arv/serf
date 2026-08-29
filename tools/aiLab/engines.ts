@@ -104,7 +104,9 @@ export function parseEngineSpec(raw: string): EngineSpec {
   }
   throw new Error(
     `unrecognized --engine "${raw}" (want none | random[:n] | posture | posture-reads | ` +
-      `posture:<${POSTURE_ORDER.join('|')}> | script:{...})`,
+      // The keys, not the ids: postures are numbers inside the seat, and a
+      // refusal that reads "posture:<1|2|3>" documents nothing.
+      `posture:<${POSTURE_ORDER.map(id => POSTURE_KEYS[id]).join('|')}> | script:{...})`,
   );
 }
 
