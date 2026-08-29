@@ -6,6 +6,15 @@ tooling. Phase 2 is an honest null — the intelligence got measurably
 better and the win rate did not follow. See each phase's checkboxes, and
 the sections added to `tools/aiLab/README.md`.
 
+> **Sequel (2026-08-29): the fun-and-realism work** picked this file's
+> findings up and shipped them: the LLM is removed (see phase 3b's update),
+> and the posture lesson lives in the brain now as per-playbook stance
+> cascades (`AiStrategy.stances`, `src/sim/defs/aiPostures.ts`,
+> `#updateStance` in `src/sim/systems/ai.ts`) — the fortify break-in on
+> raids, the found-rival aggression, the warlord's refusal to recall.
+> `--stances off` keeps the pre-stance null reachable, and the README's
+> "The stance engine" section says what the recorded rows mean now.
+
 Three phases, deliberately ordered — a seat that freezes cannot adapt, and a
 seat that cannot adapt has nothing worth searching for. That ordering held
 up, but the dependency ran the other way too: phase 2's classifier reads

@@ -157,9 +157,32 @@ There is no `bakeoff:compare` step for a playbook matchup: the pairing is
 | `posture-reads` | the same rule conditioned on an opponent archetype. Measured against `posture` and it does not pay (p = 0.50), so it is the experiment, not the reference |
 | `posture:<id>` | one stance held all match (`posture:siege`) — ablation, and it says what each stance is worth alone |
 | `script:{...}` | one fixed reply forever — plumbing checks, personality experiments |
+| `stances` (flag, not an engine) | `--stances off` pins every seat to its printed playbook — the pre-stance-engine null (see below) |
 
 (`http://…/v1` — any OpenAI-compatible server — was an engine until
 2026-08-29 and produced every model row below; it left with the model.)
+
+## The stance engine, and what the nulls mean now (2026-08-29)
+
+The measured lesson of every sweep below — aggression ends games, and a
+found rival should be marched on — now ships inside the brain instead of
+riding as advice: each playbook carries a stance cascade
+(`AiStrategy.stances`, knob tables in `src/sim/defs/aiPostures.ts`) and the
+brain switches moods as the match turns (`#updateStance` in
+`src/sim/systems/ai.ts`). Three things change about reading this file:
+
+- **`--engine none` is still THE calibration null** — the mirror pins it at
+  exactly 50.0% whatever the brains do, because both seats run identical
+  brains. Its *meaning* moved: "unadvised" now includes the seat's own
+  stance engine. The pre-stance game is `--stances off`, and the engine's
+  worth is the paired comparison between the two.
+- **`--engine posture` is the test bench, not the shipped brain.** It
+  overrides a seat's knobs wholesale on the advice cadence, stance engine
+  underneath. Write a candidate cascade as a `choosePosture` variant, run
+  it here, and only a paired win earns it a place in the playbook data.
+- **Every recorded row below predates the stance engine** — measured
+  against printed playbooks, i.e. today's `--stances off`. They stay as
+  history; re-measure before comparing anything new against them.
 
 ## Measurements (2026-08-18, map 96, bandits on, `steward` both seats)
 
