@@ -798,6 +798,16 @@ describe('the fight the renderer is shown', () => {
     expect(snap.action).toBe(ACTION.fight);
     // atan2(+1, 0) is a quarter turn clockwise from north: 256 / 4.
     expect(snap.facing).toBe(64);
+    // ...and says how far off it stands: one tile, in eighth-tiles.
+    // Bearing plus range is the target point an archer's arrow flies to.
+    expect(snap.targetDist).toBe(8);
+  });
+
+  it('a unit with no fight on publishes no target range', () => {
+    const world = bareWorld();
+    const knight = spawnUnit(world, UnitTypeId.knight, 0, 30.5, 30.5);
+    run(world, 3);
+    expect(snapOf(world, knight.id).targetDist).toBe(0);
   });
 
   it('a target that dies stops the swing the same tick the corpse appears', () => {

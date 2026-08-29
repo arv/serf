@@ -86,6 +86,8 @@ describe('state frames', () => {
         action: 1,
         workKind: 4,
         profession: 2,
+        facing: 64,
+        targetDist: 40,
       },
       {
         id: 9999,
@@ -98,6 +100,8 @@ describe('state frames', () => {
         action: 3,
         workKind: 0,
         profession: 0,
+        facing: 0,
+        targetDist: 0,
       },
     ];
     const frame = decodeState(encodeHot(7, units));

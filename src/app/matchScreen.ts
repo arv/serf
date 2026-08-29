@@ -10,6 +10,7 @@ import {
 import {Controls} from '../input/controls';
 import {installMouseCapture} from '../input/mouseCapture';
 import type {NetInfo} from '../protocol/messages';
+import {Arrows} from '../render/arrows';
 import {loadGlbAssets} from '../render/assets';
 import {BuildingSync} from '../render/buildingSync';
 import {Butterflies} from '../render/butterflies';
@@ -473,6 +474,11 @@ export async function runMatch(
     config.myPlayerId,
   );
   sync.onCue = (cue, x, z, delaySec) => playAt(cue, x, z, 1, delaySec);
+  // Arrows fly render -> render: the sync says when a bow looses and at
+  // what, the arrows layer owns the flight. Same injection shape as the
+  // cues above.
+  const arrows = new Arrows(renderer.scene, heights);
+  sync.onArrow = (fx, fz, tx, tz) => arrows.spawn(fx, fz, tx, tz);
   // Where the well cranks are (drawing serfs stand beside them, hand
   // IK-glued to the grip) and where the fishery piers run (fishermen walk
   // out and cast off the end).
@@ -871,6 +877,10 @@ export async function runMatch(
     rallyFlag.update(placing() ? null : selectedBuilding());
     controls.prune();
     selectionFx.update(controls.selected, sync, now);
+    // After sync.update: the flights it just spawned advance on the same
+    // frame's clock. 0 while paused — arrows hang in the air with the
+    // battle they belong to.
+    arrows.update(speed() === 0 ? 0 : dt);
     damageAlerts.update(now);
     water.update(now);
     mist.update(now);

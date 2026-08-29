@@ -23,8 +23,8 @@ const COUNT_BYTES = 4;
 const IDS_BYTES = 4 * MAX_UNITS;
 const XS_BYTES = 4 * MAX_UNITS;
 const YS_BYTES = 4 * MAX_UNITS;
-/** Bytes of per-unit auxiliary state: kind, owner, hpPct, carrying, action, workKind, profession, facing. */
-export const AUX_STRIDE = 8;
+/** Bytes of per-unit auxiliary state: kind, owner, hpPct, carrying, action, workKind, profession, facing, targetDist. */
+export const AUX_STRIDE = 9;
 const AUX_BYTES = AUX_STRIDE * MAX_UNITS;
 
 /** What a unit is visibly doing — drives limb animation in the renderer. */
@@ -95,6 +95,15 @@ export interface UnitSnapshot {
    * Only meaningful while action is fight.
    */
   facing?: number;
+  /**
+   * Distance to the engaged target in eighth-tiles (0..255 = 0..31.875),
+   * held off zero while engaged so 0 always reads as "no target". With
+   * `facing` this reconstructs the target *point*, which is what lets the
+   * renderer fly an archer's arrow at the enemy the sim actually shot —
+   * the bearing alone says which way, never how far. Only meaningful
+   * while action is fight.
+   */
+  targetDist?: number;
 }
 
 export class SabWriter {
@@ -130,6 +139,7 @@ export class SabWriter {
       slot.aux[a + 5] = u.workKind ?? 0;
       slot.aux[a + 6] = u.profession ?? 0;
       slot.aux[a + 7] = u.facing ?? 0;
+      slot.aux[a + 8] = u.targetDist ?? 0;
       n++;
     }
     slot.count[0] = n;
