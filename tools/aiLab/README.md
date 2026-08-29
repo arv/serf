@@ -665,6 +665,7 @@ The report prints to stdout; per-match progress goes to stderr. With
 `--out runs/x.jsonl` every match becomes one JSON line (`kind`:
 `control` / `arm` / `report`) carrying consultations, latencies, parse
 failures, final standings and a determinism digest. Add `--trace` to keep
-every prompt and reply — that is the raw material for a fine-tuning set.
+every advisor reply verbatim — the raw material for auditing exactly what
+an engine told a seat.
 
 Files under `runs/` are gitignored.

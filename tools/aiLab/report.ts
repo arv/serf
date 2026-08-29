@@ -201,14 +201,24 @@ export function renderReport(
     p();
   }
 
-  const replies = health.consultations;
-  const share = (n: number): string => (replies === 0 ? '—' : pct(n / replies));
+  // Two denominators, on purpose: an error is a consultation that never
+  // answered, so it is a share of consultations — and the reply verdicts
+  // (unparseable, no-change) are shares of the replies that came back,
+  // not of calls that produced nothing to judge.
+  const replies = health.consultations - health.errors;
+  const ofAll = (n: number): string =>
+    health.consultations === 0 ? '—' : pct(n / health.consultations);
+  const ofReplies = (n: number): string =>
+    replies === 0 ? '—' : pct(n / replies);
   p('ENGINE HEALTH');
-  p(`  consultations  ${health.consultations}`);
   p(
-    `  replies        errors ${health.errors} (${share(health.errors)}) · ` +
-      `unparseable ${health.parseFailures} (${share(health.parseFailures)}) · ` +
-      `no-change ${health.emptyAdvice} (${share(health.emptyAdvice)})`,
+    `  consultations  ${health.consultations} · ` +
+      `errors ${health.errors} (${ofAll(health.errors)})`,
+  );
+  p(
+    `  replies        ${replies} — ` +
+      `unparseable ${health.parseFailures} (${ofReplies(health.parseFailures)}) · ` +
+      `no-change ${health.emptyAdvice} (${ofReplies(health.emptyAdvice)})`,
   );
   p(`  advice landed  ${health.adviceMessages} messages`);
   p();

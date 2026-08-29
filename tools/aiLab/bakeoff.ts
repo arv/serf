@@ -145,7 +145,7 @@ serf-valley AI bake-off
                        (default: all of them). --war none turns the layer
                        off; a subset ablates one verb at a time.
   --no-control         skip the unadvised control match per seed
-  --trace              keep every prompt and reply in the JSONL
+  --trace              keep every advisor reply in the JSONL
   --check <n>          run sim invariants every n ticks, 0 to disable (default: 0)
   --jobs <n|max>       matches to play in parallel, each in its own process
                        (default: 1). Identical results to --jobs 1 for
