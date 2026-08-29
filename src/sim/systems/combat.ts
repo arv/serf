@@ -14,7 +14,7 @@ import {
 import {BANDIT, centerOf, isPlayerOwner, type Building} from '../entities.ts';
 import * as GameEventKind from '../gameEventKindEnum.ts';
 import {findPath, findPathToAdjacent, nearestWalkable} from '../path.ts';
-import type {Unit} from '../units.ts';
+import {clearMarchSpeed, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import {destroyBuilding, killUnit, type World} from '../world.ts';
 
@@ -204,10 +204,7 @@ export function combatSystem(world: World): void {
     // A live fight breaks formation: chases, kiting and retreats all run at
     // true speeds, because the counter table prices them there — a spearman
     // held to knight pace never catches the archers he exists to catch.
-    // Guarded: this runs per fighting unit per tick, and the bare write
-    // would lazily add the field (a hidden-class transition) to every
-    // soldier that never marched.
-    if (unit.marchSpeed !== undefined) unit.marchSpeed = undefined;
+    clearMarchSpeed(unit);
 
     // Engage: in range -> strike on cooldown; out of range -> close in.
     // Ranged units kite: they back off from anything closing to melee.
@@ -464,7 +461,7 @@ function resumeAttackMove(world: World, unit: Unit): void {
   const uy = Math.floor(unit.y);
   if (ux === destX && uy === destY) {
     unit.task = {t: UnitTaskKind.idle, until: world.tick};
-    unit.marchSpeed = undefined; // the march this pace was set for is over
+    clearMarchSpeed(unit); // the march this pace was set for is over
     return;
   }
   const path = findPath(world.map, ux, uy, destX, destY);
@@ -473,7 +470,7 @@ function resumeAttackMove(world: World, unit: Unit): void {
     unit.pathIdx = 0;
   } else {
     unit.task = {t: UnitTaskKind.idle, until: world.tick};
-    unit.marchSpeed = undefined;
+    clearMarchSpeed(unit);
   }
 }
 

@@ -53,7 +53,7 @@ import {
 import {victorySystem} from './systems/victory.ts';
 import {wanderSystem} from './systems/wander.ts';
 import {canResearch, getModifier, isBuildingUnlocked} from './techHelpers.ts';
-import type {Unit} from './units.ts';
+import {clearMarchSpeed, type Unit} from './units.ts';
 import * as UnitTaskKind from './unitTaskKindEnum.ts';
 import {
   canPlace,
@@ -479,7 +479,7 @@ function applyMoveUnits(
         unit.targetId = target.id;
         unit.targetIsBuilding = true;
         unit.path = null;
-        unit.marchSpeed = undefined; // an assault runs at true speeds
+        clearMarchSpeed(unit); // an assault runs at true speeds
       }
       return;
     }
@@ -539,8 +539,8 @@ function applyMoveUnits(
     unit.pathIdx = 0;
     // Only where it binds: the slowest members ARE the pace and march
     // unmarked, so a fresh order always resets a stale cap either way.
-    unit.marchSpeed =
-      pace < effectiveSpeed(unit.kind, serfMod) ? pace : undefined;
+    if (pace < effectiveSpeed(unit.kind, serfMod)) unit.marchSpeed = pace;
+    else clearMarchSpeed(unit);
     // An attack-move keeps the combat system live on the way; civilians have
     // no combat to keep live, so for them every order is the same walk. The
     // 'half' order quiets the front leg of the route — far enough to carry a

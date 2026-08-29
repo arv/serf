@@ -58,7 +58,7 @@ import {REPLAY_VERSION} from './replayVersion';
 // as the 1.73 he walks, not his raw 1.5): the same behavior the version
 // already describes, computed right — and 34 has never shipped a replay.
 const EXPECTED_VERSION = 34;
-const EXPECTED_HASH = 'bff461b0eb0f71316bb1870e80a2e714';
+const EXPECTED_HASH = 'af1a6800dd6f7c605e7fc402f03b8bf7';
 
 /**
  * Everything a replay's playback depends on, as raw source:

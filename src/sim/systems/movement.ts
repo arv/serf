@@ -4,7 +4,7 @@ import * as ModifierKey from '../defs/modifierKeyEnum.ts';
 import {effectiveSpeed} from '../defs/units.ts';
 import {findPath, nearestWalkable, tileSpeedMult} from '../path.ts';
 import {getModifier} from '../techHelpers.ts';
-import type {Unit} from '../units.ts';
+import {clearMarchSpeed, type Unit} from '../units.ts';
 import * as UnitTaskKind from '../unitTaskKindEnum.ts';
 import type {World} from '../world.ts';
 
@@ -71,7 +71,7 @@ export function movementSystem(world: World): void {
       // The walk this pace was set for is over. An attack-move's own walk
       // may resume (combat re-plans it), but every resumed leg is planned
       // after a fight scattered the squad — the formation it paced is gone.
-      unit.marchSpeed = undefined;
+      clearMarchSpeed(unit);
       if (unit.task.t === UnitTaskKind.move)
         unit.task = {t: UnitTaskKind.idle, until: world.tick};
     }
@@ -123,7 +123,7 @@ function routeAround(world: World, unit: Unit, goal: number): void {
   unit.pathIdx = 0;
   if (unit.path === null) {
     // Nowhere left to walk: the march this pace was set for is over.
-    unit.marchSpeed = undefined;
+    clearMarchSpeed(unit);
     if (unit.task.t === UnitTaskKind.move)
       unit.task = {t: UnitTaskKind.idle, until: world.tick};
   }

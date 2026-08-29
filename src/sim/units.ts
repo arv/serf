@@ -82,6 +82,17 @@ export interface Unit {
   deathTick?: number;
 }
 
+/**
+ * Drop a standing pace cap without touching units that never carried one.
+ * The field is added lazily — only members of a mixed squad that a march
+ * held back ever get it — and a bare `= undefined` write would add the
+ * property (a hidden-class transition) to every unit that walks a route
+ * to its end. Every clear site goes through here so none regresses.
+ */
+export function clearMarchSpeed(unit: Unit): void {
+  if (unit.marchSpeed !== undefined) unit.marchSpeed = undefined;
+}
+
 export function makeUnit(
   id: EntityId,
   kind: UnitTypeId,
