@@ -1,4 +1,3 @@
-import * as LlmState from '../ai/llmStateEnum.ts';
 import {
   audioFrame,
   play,
@@ -43,8 +42,6 @@ import {mountHud} from '../ui/mount';
 import {
   myPlayerId,
   playersMeta,
-  pushLlmTrace,
-  setLlmStatus,
   setMyPlayerId,
   setNetMode,
   setFogEnabled,
@@ -98,64 +95,6 @@ import {stashGet, stashSet} from './stash';
  * just been pressed; the editor, the field guide and the wardrobe already
  * arrive the same way.
  */
-
-/**
- * Boot the LLM strategist beside a solo match: model in a worker via
- * WebLLM, summaries up from the sim worker, validated advice back down.
- * Every failure mode ends the same way — the AI seats keep playing their
- * playbooks and the player hears about it once.
- */
-async function bootLlmStrategist(
-  host: WorkerSimHost,
-  hidden: HiddenSync,
-  // Filled in as soon as the chunk resolves, so a match that ends while the
-  // import is still in flight still gets to stop the download.
-  handle: {dispose?: () => void},
-): Promise<void> {
-  const {LlmStrategist} = await import('../ai/strategist');
-  const strategist = new LlmStrategist({
-    sendAdvice: (playerId, override) => host.sendAiAdvice(playerId, override),
-    onStatus: status => {
-      if (status.state === LlmState.failed) {
-        // The badge would just be a standing shrug; say it once and move on.
-        console.warn(`[strategist] ${status.reason}`);
-        pushToast(
-          'The LLM strategist is unavailable — opponents use standard tactics',
-        );
-        setLlmStatus(null);
-        return;
-      }
-      setLlmStatus(status);
-      // "On" has nothing more to report; linger long enough to be seen.
-      if (status.state === LlmState.ready)
-        setTimeout(() => setLlmStatus(null), 10_000);
-    },
-    // Dev builds watch the model work: every consultation lands in the
-    // backquote overlay's ledger and prints one console line (the trace
-    // object attached, prompt and reply included). Production wires
-    // nothing, so no ledger accumulates.
-    onTrace: import.meta.env.DEV
-      ? trace => {
-          console.log(
-            `[strategist] seat ${trace.playerId} ${trace.outcome} ` +
-              `after ${(trace.ms / 1000).toFixed(1)}s` +
-              (trace.advice?.reason ? ` — ${trace.advice.reason}` : ''),
-            trace,
-          );
-          pushLlmTrace(trace);
-        }
-      : undefined,
-  });
-  handle.dispose = () => strategist.dispose();
-  host.onAiSummary((playerId, summary) =>
-    strategist.onSummary(playerId, summary),
-  );
-  // The frozen sim stops new summaries when the page hides; this stops the
-  // consultation already chewing — a minute of wasm inference is exactly
-  // the CPU a backgrounded phone cannot afford.
-  hidden.add(h => strategist.setHidden(h));
-  await strategist.start();
-}
 
 /**
  * The match itself: worker, renderer, HUD and the frame loop. Reached
@@ -218,16 +157,6 @@ export async function runMatch(
   // every networked match comes through.
   if (net !== undefined) setFogEnabled(true);
   setReplayMode(replay !== undefined);
-
-  // The LLM strategist runs on the CPU (llama.cpp wasm), so it exists
-  // wherever the browser owns the world — solo only. Its wasm threads
-  // want the same cross-origin isolation the SAB hot path already made a
-  // boot requirement, so there is no capability to probe. The worker is
-  // told only when a strategist will actually listen, so it never builds
-  // summaries for nobody.
-  const llm =
-    config.llmOpponent === true && net === undefined && replay === undefined;
-  config = {...config, llmOpponent: llm};
 
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   /**
@@ -366,14 +295,6 @@ export async function runMatch(
       signal: off.signal,
     },
   );
-  // Fire-and-forget beside the match: the model downloads while the game
-  // already runs on plain playbooks, and the first advice lands whenever it
-  // lands. Dynamic import, so no strategist means none of its code either.
-  if (llm) {
-    const strategist: {dispose?: () => void} = {};
-    teardown.push(() => strategist.dispose?.());
-    void bootLlmStrategist(host, hidden, strategist);
-  }
   // Character/building GLBs load while the world is prepared; if they fail,
   // the renderer falls back to the procedural models.
   const [init] = await Promise.all([

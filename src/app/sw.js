@@ -139,13 +139,10 @@ async function serveAsset(request) {
   // First sight of a model or sample the warm pass missed (or a file added
   // since). Serve it and keep it, so the next launch has it offline — but
   // ONLY the asset families. Everything else that lands here is either
-  // already in the shell cache above, deliberately uncached (the LLM
-  // chunks: megabytes only the opt-in strategist fetches, which used to
-  // pile up in this cache because its name only rotates when models or
-  // audio change), or a stale page asking for a chunk the new deploy
-  // deleted — where the server's SPA fallback answers 200 with the
-  // document, and remembering THAT under the chunk's name poisons the
-  // cache.
+  // already in the shell cache above, or a stale page asking for a chunk
+  // the new deploy deleted — where the server's SPA fallback answers 200
+  // with the document, and remembering THAT under the chunk's name poisons
+  // the cache.
   const response = await fetch(request);
   const path = new URL(request.url).pathname;
   // The content-type guard closes the same trap from the other side: an

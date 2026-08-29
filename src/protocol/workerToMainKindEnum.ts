@@ -11,8 +11,8 @@ export const saved = 3 as const;
 export type saved = typeof saved;
 export const replayData = 4 as const;
 export type replayData = typeof replayData;
-export const aiSummary = 5 as const;
-export type aiSummary = typeof aiSummary;
+// 5 was aiSummary, retired with the LLM strategist; the number stays unused
+// so the survivors keep theirs.
 export const netStatus = 6 as const;
 export type netStatus = typeof netStatus;
 export const fatal = 7 as const;

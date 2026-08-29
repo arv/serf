@@ -279,16 +279,6 @@ export const [fogEnabled, setFogEnabled] = createSignal(
 );
 
 /**
- * The LLM strategist's health, when one was asked for (?llm=1): download
- * progress while the model fetches, a short-lived "on", null when there is
- * nothing to show. Failures surface as a toast instead — the seats keep
- * playing their playbooks either way.
- */
-export const [llmStatus, setLlmStatus] = createSignal<
-  import('../ai/strategist').LlmStatus | null
->(null);
-
-/**
  * Sound preferences — player-scoped like the campaign profile, so
  * deliberately absent from resetMatchState(). The signals are the single
  * source of truth for the UI; every write also lands on the audio engine
@@ -374,24 +364,6 @@ export const [invariantViolations, setInvariantViolations] = createSignal<
 >([]);
 
 /**
- * The strategist's consultation ledger, newest first — what the model was
- * shown, what it said, what the sim was told. Fed only in dev builds
- * (main.ts wires onTrace behind import.meta.env.DEV), read by the debug
- * overlay; production matches leave it empty and the overlay shows nothing.
- */
-export const [llmTraces, setLlmTraces] = createSignal<
-  import('../ai/strategist').ConsultTrace[]
->([]);
-/** Enough history to see the model change its mind; the prompts inside are
- * ~1 KB each, so the cap keeps a long match from hoarding them. */
-const LLM_TRACE_CAP = 20;
-export function pushLlmTrace(
-  trace: import('../ai/strategist').ConsultTrace,
-): void {
-  setLlmTraces([trace, ...llmTraces()].slice(0, LLM_TRACE_CAP));
-}
-
-/**
  * Put every match-scoped signal back where it starts.
  *
  * A page used to hold exactly one match, so these were as good as constants
@@ -436,11 +408,9 @@ export function resetMatchState(): void {
   setLastAlert(null);
   setOutcome({state: MatchState.playing});
   setAdminState({enabled: true, raidsEnabled: true, instantBuild: false});
-  setLlmStatus(null);
   setDebugOpen(false);
   setDebugJobs([]);
   setInvariantViolations([]);
-  setLlmTraces([]);
   // Read afresh rather than restored: ?nofog belongs to the match being
   // started, and the URL has already become the next one by here.
   setFogEnabled(

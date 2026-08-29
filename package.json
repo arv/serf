@@ -20,7 +20,6 @@
     "bakeoff:compare": "node --experimental-strip-types tools/aiLab/compare.ts"
   },
   "dependencies": {
-    "@wllama/wllama": "^3.5.1",
     "solid-js": "^1.9.14",
     "three": "^0.185.1"
   },

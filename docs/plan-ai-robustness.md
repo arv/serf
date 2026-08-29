@@ -333,6 +333,17 @@ author.
       sometimes wrong; strategy does not — which is the whole lesson of the
       posture work.
 
+> **Update (2026-08-29): the in-game LLM is gone.** The strategist, its
+> prompt, the wllama pipeline and the start-menu toggle were removed on
+> this file's own evidence — the model never beat the free rule reading
+> the same summary, and stance-picking's wins belonged to the stances,
+> not the picker. The advice seam (`src/ai/advice.ts`,
+> `AiSeats.applyAdvice`) and the whole aiLab harness stay, digest-verified
+> against the old pipeline. If a proposal operator is ever wanted, it runs
+> *outside* the game against that seam — an HTTP engine can be
+> resurrected in the lab from this repo's history; nothing about 3b needs
+> code in the shipped client.
+
 ### 3c. Do not fool yourself
 
 - [ ] **Hold seeds back.** Evolve on 1-40, confirm on 41-80, discard

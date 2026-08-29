@@ -12,14 +12,17 @@ import {
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
- * The contract between the LLM strategist and the AI brain: which playbook
- * knobs the model may turn, and how far. Everything else in this directory
- * exists to produce or consume this shape.
+ * The contract between an advisor and the AI brain: which playbook knobs
+ * advice may turn, and how far. Everything else in this directory exists to
+ * produce or consume this shape. The advisor was an on-device LLM until the
+ * bake-off retired it (tools/aiLab/README.md); the lab's engines and the
+ * playbook mutation space still speak exactly this contract, which is why
+ * it outlives the model.
  *
  * The whitelist is deliberately narrow. The build order and research line
  * are NOT here: they encode hard-won opening knowledge (see the notes in
- * defs/aiStrategies.ts), and a 1B model rewriting them is how a seat bricks
- * itself. The model steers posture — how big an army, how soon it marches,
+ * defs/aiStrategies.ts), and advice rewriting them is how a seat bricks
+ * itself. Advice steers posture — how big an army, how soon it marches,
  * what it trains, how deep the economy grows — and the playbook keeps its
  * opening.
  *
@@ -30,7 +33,7 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
  * AiStrategy sight unseen.
  */
 
-/** What the model may say. Every field optional: omitted means unchanged. */
+/** What advice may say. Every field optional: omitted means unchanged. */
 export interface StrategyAdvice {
   /** Serfs hired up to. */
   serfTarget?: number;
@@ -104,37 +107,6 @@ export const ADVISABLE_UNITS: readonly UnitTypeId[] = [
 /** Recipe indices a forge understands: 0 spear, 1 sword, 2 bow. */
 const WEAPON_MIX_MAX = 2;
 const REASON_MAX = 200;
-
-/** Handed to WebLLM as response_format, so a conforming engine cannot even
- * emit a key outside the whitelist. parseAdvice still assumes it did. */
-export const ADVICE_JSON_SCHEMA = {
-  type: 'object',
-  properties: {
-    serfTarget: {type: 'integer', minimum: 6, maximum: 20},
-    armyAttackSize: {type: 'integer', minimum: 3, maximum: 16},
-    attackCooldown: {type: 'integer', minimum: 200, maximum: 2000},
-    homeGuard: {type: 'integer', minimum: 0, maximum: 20},
-    prefersRivals: {type: 'boolean'},
-    trainPreference: {
-      type: 'array',
-      items: {type: 'string', enum: [...ADVISABLE_UNITS]},
-      maxItems: 3,
-    },
-    weaponMix: {
-      type: 'array',
-      items: {type: 'integer', minimum: 0, maximum: 2},
-      minItems: 1,
-      maxItems: 3,
-    },
-    barracksQueueDepth: {type: 'integer', minimum: 1, maximum: 4},
-    houseLimit: {type: 'integer', minimum: 2, maximum: 8},
-    housingHeadroom: {type: 'integer', minimum: 1, maximum: 6},
-    researchReserve: {type: 'integer', minimum: 0, maximum: 20},
-    marchConfidence: {type: 'integer', minimum: 0, maximum: 90},
-    reason: {type: 'string'},
-  },
-  additionalProperties: false,
-} as const;
 
 function clampedInt(
   raw: unknown,

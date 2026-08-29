@@ -6,7 +6,6 @@ import {
   choosePostureReadingOpponent,
   isPostureId,
   POSTURES,
-  POSTURE_JSON_SCHEMA,
   POSTURE_ORDER,
   postureAdvice,
   POSTURE_KEYS,
@@ -93,11 +92,7 @@ describe('the posture table', () => {
     expect(new Set(shapes).size).toBe(POSTURE_ORDER.length);
   });
 
-  it('quotes every stance to the model, and only real ones', () => {
-    // The schema quotes words, because the model answers in words.
-    expect([...POSTURE_JSON_SCHEMA.properties.posture.enum]).toEqual(
-      POSTURE_ORDER.map(id => POSTURE_KEYS[id]),
-    );
+  it('spells every stance as a word, and only real ones', () => {
     expect(POSTURE_ORDER.every(isPostureId)).toBe(true);
     expect(POSTURE_ORDER.map(id => postureFromKey(POSTURE_KEYS[id]))).toEqual([
       ...POSTURE_ORDER,

@@ -22,7 +22,7 @@ export interface ReportHeader {
   bandits: boolean;
   strategies: SeatStrategies;
   advicePeriod: number;
-  latency: number | 'measured';
+  latency: number;
   maxTicks: number;
   control: boolean;
 }
@@ -145,7 +145,7 @@ export function renderReport(
   const out: string[] = [];
   const p = (s = ''): void => void out.push(s);
 
-  p('Serf Valley — LLM strategist bake-off');
+  p('Serf Valley — AI bake-off');
   p(`  engine    ${header.engine}`);
   p(
     `  seeds     ${header.seeds} (${header.seedCount}) · map ${header.mapSize} · ` +
@@ -154,7 +154,7 @@ export function renderReport(
   p(
     `  cadence   advice every ${header.advicePeriod} ticks ` +
       `(${((header.advicePeriod * TICK_MS) / 1000).toFixed(0)}s) · ` +
-      `latency ${header.latency === 'measured' ? 'measured' : `${header.latency} ticks`}`,
+      `latency ${header.latency} ticks`,
   );
   p(
     `  horizon   ${header.maxTicks} ticks · control ${header.control ? 'on' : 'off'}`,
@@ -201,33 +201,16 @@ export function renderReport(
     p();
   }
 
-  const replies = health.consultations - health.skipped;
+  const replies = health.consultations;
   const share = (n: number): string => (replies === 0 ? '—' : pct(n / replies));
   p('ENGINE HEALTH');
-  p(`  consultations  ${health.consultations} (declined ${health.skipped})`);
+  p(`  consultations  ${health.consultations}`);
   p(
     `  replies        errors ${health.errors} (${share(health.errors)}) · ` +
       `unparseable ${health.parseFailures} (${share(health.parseFailures)}) · ` +
       `no-change ${health.emptyAdvice} (${share(health.emptyAdvice)})`,
   );
   p(`  advice landed  ${health.adviceMessages} messages`);
-  p(
-    `  latency ms     p50 ${health.latencyMs.p50} · p95 ${health.latencyMs.p95} · ` +
-      `max ${health.latencyMs.max}`,
-  );
-  if (health.latencyMs.p50 > 0) {
-    // The number the game actually has to live with: how far the valley
-    // moves while the model is thinking.
-    p(
-      `                 ≈ ${Math.round(health.latencyMs.p50 / TICK_MS)} ticks of sim at p50 ` +
-        `(re-run with --latency measured to make the advice pay it)`,
-    );
-  }
-  p(
-    health.gaveUp.length === 0
-      ? '  gave up        none'
-      : `  gave up        ${health.gaveUp.length}: ${health.gaveUp[0]!.reason}`,
-  );
   p();
 
   p('MATCHES');

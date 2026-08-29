@@ -18,15 +18,13 @@ import type {World} from '../sim/world.ts';
 type UnitTypeId = Enum<typeof UnitTypeId>;
 
 /**
- * One AI seat's view of the match, folded down for a language model. The
- * sim worker builds this on the advice cadence (~45 s) and posts it to the
- * main thread, where the strategist turns it into a prompt — so the shape
- * here is a wire format, and small on purpose: a 1B model's latency is
- * paid per input token, and everything below fits in well under 2 KB of
- * JSON however the match has sprawled.
+ * One AI seat's view of the match, folded down for an advisor. Born as the
+ * LLM strategist's prompt material; the model is gone and the lab's
+ * engines (tools/aiLab) consult on exactly this shape now, so it stays a
+ * wire format, small and JSON-safe.
  *
  * Built through the seat's BRAIN, not the raw world: the brain plays under
- * fog and scouts to lift it (src/sim/systems/ai.ts), and its strategist
+ * fog and scouts to lift it (src/sim/systems/ai.ts), and its advisor
  * must know exactly what it knows. A rival is on the map only once its
  * castle stands on explored ground; its army is whatever the scout's last
  * trustworthy look said, age attached; a camp in dark ground does not
@@ -37,9 +35,8 @@ type UnitTypeId = Enum<typeof UnitTypeId>;
  * stays pure over (world, brain) so it can be tested against real games.
  */
 
-/** The knobs the strategist may steer, at their playbook values. The
- * model sees where the dial starts; its own last advice rides along in the
- * prompt, so the effective values need not cross the wire. */
+/** The knobs an advisor may steer, at their playbook values — where each
+ * dial starts, not where advice has since moved it. */
 export interface SeatKnobs {
   serfTarget: number;
   armyAttackSize: number;

@@ -27,11 +27,12 @@ export type PostureId = Enum<typeof PostureIdNs>;
  * playbook: what reads as adaptive is a lord who *switches stance* when
  * the valley turns, not one whose serfTarget drifts by two.
  *
- * Every posture sets the same key set on purpose. Advice merges over the
- * standing pile in LlmStrategist, so a posture that left a knob unset
- * would leave the *previous* posture's value in place and the seat would
- * play a blend of two stances that nobody authored. Identical keys mean
- * switching posture actually switches.
+ * Every posture sets the same key set on purpose. Advice merges over a
+ * standing pile (tools/aiLab/match.ts keeps the strategist's old
+ * bookkeeping), so a posture that left a knob unset would leave the
+ * *previous* posture's value in place and the seat would play a blend of
+ * two stances that nobody authored. Identical keys mean switching posture
+ * actually switches.
  *
  * Not in the table: marchConfidence, which is the brain's own march gate and is
  * measured on its own rather than folded into a stance — the recorded posture
@@ -218,22 +219,6 @@ export const POSTURES: Record<PostureId, Posture> = {
     },
   },
 };
-
-/**
- * What the strategist asks a real engine to constrain generation to. One
- * enum and one string: a grammar this narrow cannot emit an out-of-range
- * knob, so the clamping in parseAdvice becomes a second line of defence
- * rather than the only one.
- */
-export const POSTURE_JSON_SCHEMA = {
-  type: 'object',
-  properties: {
-    posture: {type: 'string', enum: POSTURE_ORDER.map(id => POSTURE_KEYS[id])},
-    reason: {type: 'string'},
-  },
-  required: ['posture'],
-  additionalProperties: false,
-} as const;
 
 export function isPostureId(raw: unknown): raw is PostureId {
   return typeof raw === 'number' && Object.hasOwn(POSTURES, raw);

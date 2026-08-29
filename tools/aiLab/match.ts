@@ -1,7 +1,4 @@
-import {parseAdvice} from '../../src/ai/advice.ts';
-import * as LlmState from '../../src/ai/llmStateEnum.ts';
-import type {ChatMessage} from '../../src/ai/prompt.ts';
-import {LlmStrategist, type LlmStatus} from '../../src/ai/strategist.ts';
+import {parseAdvice, toOverride, type StrategyAdvice} from '../../src/ai/advice.ts';
 import {summarizeForSeat} from '../../src/ai/summary.ts';
 import {AiSeats} from '../../src/sim/aiSeats.ts';
 import * as BuildingState from '../../src/sim/buildingStateEnum.ts';
@@ -10,7 +7,6 @@ import type {
   AiStrategyId,
   AiStrategy,
 } from '../../src/sim/defs/aiStrategies.ts';
-import {TICK_MS} from '../../src/sim/defs/balance.ts';
 import {buildingDef} from '../../src/sim/defs/buildings.ts';
 import * as UnitTypeId from '../../src/sim/defs/unitTypeIdEnum.ts';
 import type {EconomyRuleId} from '../../src/sim/economyRules.ts';
@@ -25,27 +21,25 @@ import type {LabEngine} from './engines.ts';
  * One headless match, played the way the game plays it.
  *
  * This is simWorker's loop with the rendering and the messaging taken out:
- * decide → tick, a seat summary every ADVICE_PERIOD ticks, the summary
- * through the *real* LlmStrategist, and whatever survives parseAdvice laid
- * over the seat's playbook through AiSeats. Nothing about the advice path
- * is re-implemented here, because a harness that re-implements the thing
- * it measures measures the re-implementation.
+ * decide → tick, a seat summary every ADVICE_PERIOD ticks, the summary to
+ * the seat's engine, and whatever survives parseAdvice laid over the seat's
+ * playbook through AiSeats. The consult bookkeeping here is the
+ * LlmStrategist's, kept verbatim after the model it babysat was removed —
+ * replies merge over a standing pile, and only a pile that actually changed
+ * costs a message — because every recorded number was measured under those
+ * semantics and the archived digests have to keep reproducing.
  *
- * Two places where a lab must be more careful than the game:
+ * Latency is still modelled. The shipped strategist thought for tens of
+ * seconds while the valley kept moving, so its advice always arrived late;
+ * an engine here answers instantly, which would quietly hand it a hindsight
+ * advantage nothing shipped ever had. So advice is queued and applied
+ * `latencyTicks` later, on purpose. 0 is an oracle and the recorded
+ * baselines' setting; a positive value prices the thinking time back in.
  *
- * Latency. In the game the valley keeps moving while the model thinks, so
- * advice lands tens of seconds after the state that prompted it. Here the
- * sim is frozen during inference — wall clock and sim clock are unrelated
- * — which would quietly hand every model a hindsight advantage the shipped
- * one does not get. So advice is queued and applied `latencyTicks` later,
- * on purpose. Leave it at 0 and you are measuring an oracle; set it from
- * the latency the report prints and you are measuring the game.
- *
- * Determinism. Same seed and same engine replies must give the same match,
- * or a bake-off is measuring its own jitter. Everything here is driven off
- * the sim's tick counter rather than wall time, which holds for every
- * engine except a real model sampling at temperature — that one is
- * genuinely stochastic, and the seed sweep is what averages it out.
+ * Determinism: same seed and same engine must give the same match, or a
+ * bake-off is measuring its own jitter. Everything is driven off the sim's
+ * tick counter, and every engine is a pure function of its inputs and its
+ * own seeded dice.
  */
 
 /** The two seats' playbooks, seat-indexed. Equal ids is the symmetric
@@ -69,49 +63,40 @@ export interface MatchConfig {
   economyRules?: readonly EconomyRuleId[];
   /** Give up and call it undecided past here. */
   maxTicks: number;
-  /** Ticks between one seat's consultations (simWorker ships 1800 = 90 s). */
+  /** Ticks between one seat's consultations (simWorker shipped 1800 = 90 s). */
   advicePeriod: number;
   /** Offset between seats' cadences, so they never consult on one tick. */
   adviceStagger: number;
   /** Engines by seat; a seat with none plays its printed playbook. */
   engines: Map<Owner, LabEngine>;
-  /** Ticks between a consultation starting and its advice reaching the
-   * brain. 'measured' converts the engine's own wall clock, which is
-   * realistic but no longer reproducible. */
-  latencyTicks: number | 'measured';
-  /** Per-consultation deadline; defaults to the strategist's own 60 s. */
-  timeoutMs?: number;
-  /** Keep every prompt and reply in the record. Big — for building
-   * training data or reading what the model actually said. */
+  /** Ticks between a consultation and its advice reaching the brain. */
+  latencyTicks: number;
+  /** Keep every reply in the record. */
   trace?: boolean;
   /** Run the sim's invariant check this often; 0 disables. */
   checkInvariantsEvery?: number;
 }
 
-/** What one consultation cost and what came back. */
+/** What one consultation said and what came of it. */
 export interface ConsultRecord {
   playerId: Owner;
   /** Tick the summary was taken at. */
   tick: number;
-  /** Wall-clock milliseconds the engine took. */
+  /** Wall-clock milliseconds the engine took (engines are synchronous now,
+   * so ~0 — kept because the latency model and old JSONLs read it). */
   ms: number;
   /** Tick the resulting advice reached the brain, if it did. */
   appliedTick?: number;
-  promptChars: number;
   replyChars: number;
-  /** Did the reply survive parseAdvice? False is the model failing to hold
-   * the format — the failure a grammar-constrained backend should make
-   * impossible, and worth counting when it does not. */
+  /** Did the reply survive parseAdvice? False is an engine failing to hold
+   * the format — worth counting, since the validator is the real gate. */
   parsed?: boolean;
   /** Validated knobs the reply actually set. Zero is a well-formed "keep
    * everything as it is", which is advice too — just not a change. */
   knobs?: number;
-  /** Set when the strategist declined the summary (busy, dead, disposed). */
-  skipped?: boolean;
-  /** Set when the engine threw or the reply did not survive parseAdvice. */
+  /** Set when the engine threw. */
   error?: string;
   /** Only with `trace`. */
-  prompt?: ChatMessage[];
   reply?: string;
 }
 
@@ -135,7 +120,7 @@ export interface MatchRecord {
   /** What each seat played, seat-indexed — the record has to say which
    * playbook sat where, or a swapped-seating sweep cannot be scored. */
   strategies: SeatStrategies;
-  /** Seats that had a strategist, and what was in it. */
+  /** Seats that had an advisor, and what was in it. */
   advised: {playerId: Owner; engine: string}[];
   ticks: number;
   /** The sim reached a verdict rather than hitting maxTicks. */
@@ -147,7 +132,8 @@ export interface MatchRecord {
   /** Advice messages that actually reached each brain. Far fewer than
    * consultations: standing advice repeated verbatim costs no message. */
   adviceApplied: Record<string, number>;
-  /** A strategist that gave up, and why. */
+  /** Kept for JSONL compatibility with the model-era records; nothing
+   * fills it now that no engine can give up mid-match. */
   failures: {playerId: Owner; reason: string}[];
   /**
    * What the stall watchdog saw per seat (AI_STALL in sim/systems/ai.ts):
@@ -158,7 +144,7 @@ export interface MatchRecord {
    * undecided count.
    */
   stalls: {playerId: Owner; beats: number; recoveries: number}[];
-  /** Wall-clock milliseconds the whole match took, sim and inference. */
+  /** Wall-clock milliseconds the whole match took. */
   wallMs: number;
   /** Every unit and building at the final tick, folded to a string. Two
    * runs of one config must agree on it — standings alone are far too
@@ -167,7 +153,7 @@ export interface MatchRecord {
   digest: string;
 }
 
-/** Advice waiting out its inference latency before it reaches the brain. */
+/** Advice waiting out its modelled latency before it reaches the brain. */
 export interface PendingAdvice {
   dueTick: number;
   playerId: Owner;
@@ -180,15 +166,10 @@ export interface PendingAdvice {
  * Queue advice by when it lands, not by when it was asked for.
  *
  * The tick loop drains from the front while `pending[0]` is due, so the
- * array has to stay ordered by `dueTick`. Appending is enough under a fixed
- * `--latency`, where every delay is identical and the two orders agree — but
- * `--latency measured` gives each consultation its own delay, so a slow one
- * can still be waiting when a fast one asked later comes due first. Appended,
- * that fast advice would sit behind the slow one and land late, which is the
- * opposite of what measuring latency is for.
- *
- * Inserted after the last entry due no later than this one, so ties keep the
- * order they were asked in and a sweep stays reproducible.
+ * array has to stay ordered by `dueTick`. Under one fixed `--latency` every
+ * delay is identical and appending would do; the insert keeps the queue
+ * honest for any caller that hands consultations different delays, with
+ * ties keeping the order they were asked in so a sweep stays reproducible.
  */
 export function queueAdvice(
   pending: PendingAdvice[],
@@ -197,6 +178,20 @@ export function queueAdvice(
   let i = pending.length;
   while (i > 0 && pending[i - 1]!.dueTick > entry.dueTick) i--;
   pending.splice(i, 0, entry);
+}
+
+/**
+ * The consult bookkeeping the LlmStrategist used to do, per seat: replies
+ * merge over a standing pile, and the pile goes downstairs only when it
+ * both says something and differs from what was last sent. Kept verbatim
+ * because the archived runs were measured under exactly these semantics.
+ */
+interface SeatAdviceMemory {
+  /** Every knob changed so far, newest over oldest. */
+  advice: StrategyAdvice | null;
+  /** The override as last posted, stringified — an engine that repeats its
+   * standing advice every consultation should not repeat the message. */
+  sentKey: string | null;
 }
 
 export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
@@ -218,96 +213,14 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
 
   const consults: ConsultRecord[] = [];
   const adviceApplied = new Map<Owner, number>();
-  const failures: {playerId: Owner; reason: string}[] = [];
   const pending: PendingAdvice[] = [];
-  const strategists = new Map<Owner, LlmStrategist>();
   const advised: {playerId: Owner; engine: string}[] = [];
-
-  // The consultation the tick loop is currently waiting on. The strategist
-  // is fire-and-forget by design, so the harness reaches into the engine
-  // seam to know when one has finished: complete() is called synchronously
-  // inside onSummary, which makes "did a consultation start?" answerable
-  // the moment onSummary returns. A one-slot array rather than a variable
-  // because the compiler cannot see that onSummary reassigns it.
-  const inflight: Promise<unknown>[] = [];
-  let inflightRecord: ConsultRecord | null = null;
+  const memory = new Map<Owner, SeatAdviceMemory>();
 
   for (const [playerId, engine] of cfg.engines) {
     if (!seats.seatIds().includes(playerId)) continue;
     advised.push({playerId, engine: engine.label});
-    const strategist = new LlmStrategist({
-      sendAdvice: (id, override) => {
-        adviceApplied.set(id, (adviceApplied.get(id) ?? 0) + 1);
-        const consult = inflightRecord;
-        const delay =
-          cfg.latencyTicks === 'measured'
-            ? Math.round((consult?.ms ?? 0) / TICK_MS)
-            : cfg.latencyTicks;
-        queueAdvice(pending, {
-          dueTick: world.tick + Math.max(0, delay),
-          playerId: id,
-          override,
-          // A consultation always exists here: sendAdvice is only ever
-          // reached from inside #consult, which the harness started.
-          consult: consult ?? {
-            playerId: id,
-            tick: world.tick,
-            ms: 0,
-            promptChars: 0,
-            replyChars: 0,
-          },
-        });
-      },
-      onStatus: (status: LlmStatus) => {
-        if (status.state === LlmState.failed)
-          failures.push({playerId, reason: status.reason});
-      },
-      ...(cfg.timeoutMs !== undefined ? {timeoutMs: cfg.timeoutMs} : {}),
-      engineFactory: () =>
-        Promise.resolve({
-          complete: (messages, schema, signal) => {
-            const record: ConsultRecord = {
-              playerId,
-              tick: world.tick,
-              ms: 0,
-              promptChars: messages.reduce((n, m) => n + m.content.length, 0),
-              replyChars: 0,
-              ...(cfg.trace ? {prompt: messages} : {}),
-            };
-            consults.push(record);
-            inflightRecord = record;
-            const t0 = Date.now();
-            const call = engine.complete(messages, schema, signal).then(
-              reply => {
-                record.ms = Date.now() - t0;
-                record.replyChars = reply.length;
-                // Judge the reply the way the strategist is about to. The
-                // strategist swallows a parse failure into its own strike
-                // count and tells the harness nothing, so this is the only
-                // place the distinction between "model broke" and "model
-                // had nothing to say" is still visible.
-                const advice = parseAdvice(reply);
-                record.parsed = advice !== null;
-                if (advice) {
-                  const {reason: _reason, ...knobs} = advice;
-                  record.knobs = Object.keys(knobs).length;
-                }
-                if (cfg.trace) record.reply = reply;
-                return reply;
-              },
-              (err: unknown) => {
-                record.ms = Date.now() - t0;
-                record.error = err instanceof Error ? err.message : String(err);
-                throw err;
-              },
-            );
-            inflight.push(call);
-            return call;
-          },
-        }),
-    });
-    await strategist.start();
-    strategists.set(playerId, strategist);
+    memory.set(playerId, {advice: null, sentKey: null});
   }
 
   const summaryDue = new Map(
@@ -315,6 +228,52 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
       .seatIds()
       .map((id, i) => [id, cfg.advicePeriod + i * cfg.adviceStagger]),
   );
+
+  /** One consultation, at the loop position the strategist ran it: the
+   * summary is this tick's, and advice lands `latencyTicks` later. */
+  const consult = (playerId: Owner, engine: LabEngine): void => {
+    const mem = memory.get(playerId)!;
+    const brain = seats.brainFor(playerId)!;
+    const record: ConsultRecord = {
+      playerId,
+      tick: world.tick,
+      ms: 0,
+      replyChars: 0,
+    };
+    consults.push(record);
+    const t0 = Date.now();
+    let raw: string;
+    try {
+      raw = engine.advise(summarizeForSeat(world, brain));
+    } catch (err) {
+      record.ms = Date.now() - t0;
+      record.error = err instanceof Error ? err.message : String(err);
+      return;
+    }
+    record.ms = Date.now() - t0;
+    record.replyChars = raw.length;
+    if (cfg.trace) record.reply = raw;
+    const advice = parseAdvice(raw);
+    record.parsed = advice !== null;
+    if (!advice) return;
+    const {reason: _reason, ...knobs} = advice;
+    record.knobs = Object.keys(knobs).length;
+    // Only a reply that actually moved a dial goes downstairs: "keep
+    // everything as it is" is a valid answer, and so is repeating the
+    // standing advice word for word — neither costs a message.
+    mem.advice = {...mem.advice, ...advice};
+    const override = toOverride(mem.advice);
+    const key = JSON.stringify(override);
+    if (Object.keys(override).length === 0 || key === mem.sentKey) return;
+    mem.sentKey = key;
+    adviceApplied.set(playerId, (adviceApplied.get(playerId) ?? 0) + 1);
+    queueAdvice(pending, {
+      dueTick: world.tick + Math.max(0, cfg.latencyTicks),
+      playerId,
+      override,
+      consult: record,
+    });
+  };
 
   for (
     let t = 0;
@@ -334,32 +293,9 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     for (const [playerId, due] of summaryDue) {
       if (world.tick < due) continue;
       summaryDue.set(playerId, world.tick + cfg.advicePeriod);
-      const strategist = strategists.get(playerId);
-      const brain = seats.brainFor(playerId);
-      if (!strategist || !brain) continue;
-
-      inflight.length = 0;
-      inflightRecord = null;
-      strategist.onSummary(playerId, summarizeForSeat(world, brain));
-      const started = inflight[0];
-      if (!started) {
-        // The strategist declined: already thinking, already given up, or
-        // disposed. The game drops these summaries too.
-        consults.push({
-          playerId,
-          tick: world.tick,
-          ms: 0,
-          promptChars: 0,
-          replyChars: 0,
-          skipped: true,
-        });
-        continue;
-      }
-      // Wait for the model, then let the strategist's own continuations —
-      // parse, clamp, sendAdvice — run before the sim moves again. Those
-      // are all microtasks, so one macrotask turn drains them.
-      await started.catch(() => {});
-      await new Promise(resolve => setTimeout(resolve, 0));
+      const engine = cfg.engines.get(playerId);
+      if (!engine || !seats.brainFor(playerId)) continue;
+      consult(playerId, engine);
     }
 
     const every = cfg.checkInvariantsEvery ?? 0;
@@ -373,9 +309,8 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     }
   }
 
-  // Advice still in flight when the match ended never landed; leave those
-  // records without an appliedTick, which is exactly what happened.
-  for (const strategist of strategists.values()) strategist.dispose();
+  // Advice still in the queue when the match ended never landed; those
+  // records keep no appliedTick, which is exactly what happened.
 
   const decided = world.outcome.state === MatchState.over;
   return {
@@ -392,7 +327,7 @@ export async function playMatch(cfg: MatchConfig): Promise<MatchRecord> {
     adviceApplied: Object.fromEntries(
       [...adviceApplied].map(([id, n]) => [String(id), n]),
     ),
-    failures,
+    failures: [],
     stalls: seats.seatIds().map(id => {
       const {beats, recoveries} = seats.brainFor(id)!.stallReport();
       return {playerId: id, beats, recoveries};

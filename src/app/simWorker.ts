@@ -1,6 +1,5 @@
 /// <reference lib="webworker" />
 
-import {summarizeForSeat} from '../ai/summary';
 import * as MainToWorkerKind from '../protocol/mainToWorkerKindEnum.ts';
 import type {
   MainToWorker,
@@ -48,17 +47,6 @@ let lastInvariantViolations: string[] = [];
 let ai: AiSeats | null = null;
 /** Debug overlay open on the main thread — only then serialize jobs. */
 let debugEnabled = false;
-/**
- * The LLM strategist's cadence (init asked with `llm`): when each AI seat
- * next reports upstairs. ~90 s apart per seat, staggered so two seats
- * never summarize on the same pump. Deliberately slow: inference runs on
- * the CPU and the strategist consults one seat at a time, so a faster
- * drumbeat would only queue summaries to be dropped — and posture advice
- * that arrives a minute later is still posture advice.
- */
-const ADVICE_PERIOD = 1800;
-const ADVICE_STAGGER = 600;
-let summaryDue: Map<number, number> | null = null;
 
 /**
  * The match's replay log, written as it happens: the config and save the
@@ -97,7 +85,7 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       // "sim worker failed: undefined". Messages landing in the window
       // before the world exists are safe: commands queue, and every pump
       // path guards on a null world.
-      init(msg.config, msg.loadData, msg.llm, msg.replay).catch(
+      init(msg.config, msg.loadData, msg.replay).catch(
         (err: unknown) => {
           setTimeout(() => {
             throw err instanceof Error ? err : new Error(String(err));
@@ -110,13 +98,6 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
       // during playback must not fork the recorded history.
       if (replay) break;
       pendingCommands.push(...msg.commands);
-      break;
-    case MainToWorkerKind.aiAdvice:
-      // Pre-validated on the main thread; the brain merges it over its
-      // playbook and plays on. Nothing to log: whatever the advice changes
-      // shows up in the AI commands the recording already captures. (In
-      // playback there are no brains at all — the log speaks for them.)
-      ai?.applyAdvice(msg.playerId, msg.override);
       break;
     case MainToWorkerKind.setSpeed:
       speed = msg.speed;
@@ -183,7 +164,6 @@ self.onmessage = (e: MessageEvent<MainToWorker>) => {
 async function init(
   config: import('../sim/world').WorldConfig,
   loadData?: string,
-  llm?: boolean,
   replayData?: ReplayData,
 ): Promise<void> {
   if (replayData) {
@@ -192,7 +172,6 @@ async function init(
     replay = replayData;
     config = replayData.config;
     loadData = replayData.loadData;
-    llm = false;
   }
   world =
     loadData !== undefined
@@ -204,14 +183,6 @@ async function init(
   // every move they made, which is exactly what lets their algorithm
   // change under an old replay's feet.
   ai = replay ? null : new AiSeats(world);
-  // First summaries only after the opening has taken shape — advice on an
-  // empty valley would just be the model guessing at the map.
-  summaryDue =
-    llm && ai
-      ? new Map(
-          ai.seatIds().map((id, i) => [id, ADVICE_PERIOD + i * ADVICE_STAGGER]),
-        )
-      : null;
   initialGoods = countGoods(world);
   const sab = new SharedArrayBuffer(SAB_BYTES);
   writer = new SabWriter(sab);
@@ -339,7 +310,6 @@ function pump(): void {
     if (world.tick % MATCHER_INTERVAL === 0 || world.pendingDeltas.length > 0) {
       postStructural();
     }
-    postSummaries();
   }
 }
 
@@ -357,32 +327,6 @@ function replayCommandsFor(tick: number): PlayerCommand[] {
     replayCmdIdx++;
   }
   return out;
-}
-
-/** Report each AI seat upstairs when its consultation comes due. Outside
- * the tick loop on purpose: summaries are advisory, so "at least every
- * period" is the contract, not "on an exact tick". */
-function postSummaries(): void {
-  if (
-    !world ||
-    !ai ||
-    !summaryDue ||
-    world.outcome.state !== MatchState.playing
-  )
-    return;
-  for (const [playerId, due] of summaryDue) {
-    if (world.tick < due) continue;
-    summaryDue.set(playerId, world.tick + ADVICE_PERIOD);
-    // Through the brain, not the raw world: the strategist may know only
-    // what the seat has scouted.
-    const brain = ai.brainFor(playerId);
-    if (brain)
-      post({
-        type: WorkerToMainKind.aiSummary,
-        playerId,
-        summary: summarizeForSeat(world, brain),
-      });
-  }
 }
 
 /** Each roster as last posted, stringified — how an unchanged section is

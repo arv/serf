@@ -332,7 +332,6 @@ async function route(opts: {force?: boolean} = {}): Promise<void> {
         {
           ...replay.config,
           myPlayerId: replay.config.myPlayerId ?? 0,
-          llmOpponent: false,
         },
         {
           replay,

@@ -34,17 +34,6 @@ const isAsset = (f: string): boolean =>
  * developer-facing, and nothing offline reads them. */
 const SKIP = /\.(map|txt)$/;
 
-/**
- * The LLM inference files — the 'llm' manual chunk (vite.config.ts names
- * wllama's code so) and wllama's wasm asset, which keeps its own name.
- * Megabytes that only the opt-in LLM opponent ever fetches: in the shell
- * list, `addAll` would force them onto every visitor's disk at install.
- * Not cached at all — the model itself lives in wllama's own cache, and a
- * strategist that cannot be fetched offline degrades to the playbook AI
- * by design.
- */
-const LLM_CHUNK = /^\/assets\/(llm|wllama)[^/]*\.(js|wasm)$/;
-
 function walk(dir: string, root: string, out: string[]): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
@@ -81,7 +70,7 @@ export function serviceWorkerPlugin(): Plugin {
     closeBundle() {
       const dist = join(config.root, config.build.outDir);
       const files = walk(dist, dist, [])
-        .filter(f => f !== '/sw.js' && !SKIP.test(f) && !LLM_CHUNK.test(f))
+        .filter(f => f !== '/sw.js' && !SKIP.test(f))
         .sort();
       const assets = files.filter(isAsset);
       const shell = files.filter(f => !isAsset(f));

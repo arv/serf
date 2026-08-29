@@ -65,9 +65,7 @@ export interface Rate {
 
 export interface EngineHealth {
   consultations: number;
-  /** Summaries the strategist declined (busy, or it had given up). */
-  skipped: number;
-  /** The engine itself threw — HTTP error, timeout, abort. */
+  /** The engine itself threw. */
   errors: number;
   /** Came back, but was not JSON the validator could read. */
   parseFailures: number;
@@ -75,9 +73,6 @@ export interface EngineHealth {
   emptyAdvice: number;
   /** Advice messages that reached a brain. */
   adviceMessages: number;
-  /** Strategists that hit three strikes and went inert. */
-  gaveUp: {playerId: Owner; reason: string}[];
-  latencyMs: {p50: number; p95: number; max: number; n: number};
 }
 
 /**
@@ -294,7 +289,6 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
   const ticks: number[] = [];
 
   const consults: ConsultRecord[] = [];
-  const gaveUp: {playerId: Owner; reason: string}[] = [];
   let adviceMessages = 0;
 
   for (const run of runs) {
@@ -304,7 +298,6 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
         if ((record.stalls ?? []).some(x => x.beats > 0)) stalls.matches++;
         for (const x of record.stalls ?? []) stalls.recoveries += x.recoveries;
         consults.push(...record.consults);
-        gaveUp.push(...record.failures);
         for (const n of Object.values(record.adviceApplied))
           adviceMessages += n;
 
@@ -340,8 +333,6 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
     }
   }
 
-  const latencies = consults.filter(c => !c.skipped).map(c => c.ms);
-  latencies.sort((a, b) => a - b);
   const sortedTicks = [...ticks].sort((a, b) => a - b);
 
   return {
@@ -355,20 +346,12 @@ export function summarize(runs: SeedRun[], wallSeconds: number): BakeoffReport {
     playbooks: matchupOf(runs),
     health: {
       consultations: consults.length,
-      skipped: consults.filter(c => c.skipped).length,
       errors: consults.filter(c => c.error !== undefined).length,
       parseFailures: consults.filter(
-        c => !c.skipped && !c.error && c.parsed === false,
+        c => !c.error && c.parsed === false,
       ).length,
       emptyAdvice: consults.filter(c => c.knobs === 0).length,
       adviceMessages,
-      gaveUp,
-      latencyMs: {
-        p50: percentile(latencies, 0.5),
-        p95: percentile(latencies, 0.95),
-        max: latencies.length > 0 ? latencies[latencies.length - 1]! : 0,
-        n: latencies.length,
-      },
     },
     matchTicks: {
       median: percentile(sortedTicks, 0.5),
